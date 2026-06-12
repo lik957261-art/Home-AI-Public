@@ -204,6 +204,12 @@ or raw plugin credentials.
   `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. Those generic
   paths can legally reload a shared topic thread and can produce the empty
   `Select or create a thread` chat page after a plugin right-swipe.
+- Plugin topic details are represented as task details internally, but
+  right-swipe and shell back must still resolve to the plugin-context home path
+  before the ordinary task-detail `openTaskList()` path. Loading a plugin topic
+  detail must not overwrite the remembered task-list root thread; a cached
+  task-list root is eligible only when the page is the tasks root and
+  `messagesPage.taskGroupId` is empty.
 - Plugin iframe inner back, plugin iframe outer return, plugin topic chat back,
   and plugin directory back must not compete. While `pluginContextNavPluginId`
   is set, right-swipe/browser-back resolves first to plugin-context home. After

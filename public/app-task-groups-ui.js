@@ -81,7 +81,7 @@ function currentTaskThreadIsSharedTopicThread() {
 }
 
 function rememberTaskListThread(thread = state.currentThread) {
-  if (state.viewMode !== "tasks" || !thread?.singleWindow || !thread.id) return;
+  if (state.viewMode !== "tasks" || state.currentTaskGroupId || !taskListThreadCacheEligible(thread)) return;
   const isSharedTopicThread = (Array.isArray(state.caseTopicThreads) ? state.caseTopicThreads : [])
     .some((item) => item?.id === thread.id);
   if (isSharedTopicThread) return;
@@ -100,9 +100,16 @@ function taskListReturnScrollTop() {
   return Math.max(0, Number(state.taskListScrollTop) || 0);
 }
 
+function taskListThreadCacheEligible(thread = state.taskListThread) {
+  if (!thread?.id || !thread.singleWindow) return false;
+  const page = thread.messagesPage || {};
+  if (String(page.mode || "").trim().toLowerCase() === "tasks" && String(page.taskGroupId || "").trim()) return false;
+  return true;
+}
+
 function restoreTaskListThreadFromCache(options = {}) {
   const cached = state.taskListThread;
-  if (!cached?.id) return false;
+  if (!taskListThreadCacheEligible(cached)) return false;
   const workspaceId = String(state.selectedWorkspaceId || "").trim();
   if (workspaceId && cached.workspaceId !== workspaceId && !threadGroupMemberIds(cached).includes(workspaceId)) return false;
   state.currentThread = cached;

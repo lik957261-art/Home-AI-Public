@@ -112,8 +112,17 @@ function closeDirectoryTopicDraft() {
 
 function backSwipeTarget() {
   const pluginContextBack = pluginContextBackNavigationActive();
+  const pluginContextTarget = pluginContextBackTarget();
   if (isSkillDetailView()) return "skill";
-  if (isTaskDetailView()) return "task";
+  if (isTaskDetailView()) {
+    const pluginTopicDetail = Boolean(
+      pluginContextTarget
+      && typeof pluginTopicDefForCurrentTaskGroupId === "function"
+      && pluginTopicDefForCurrentTaskGroupId(state.currentTaskGroupId)
+    );
+    if (pluginTopicDetail) return pluginContextTarget;
+    return "task";
+  }
   if (isTodoDetailView() || kanbanComposerOpen()) return isTodoDetailView() ? "todo" : "todo-create";
   if (typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive()) return "wardrobe-plugin";
   if (!pluginContextBack && typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive()) return "wardrobe-plugin-outer";
@@ -132,7 +141,6 @@ function backSwipeTarget() {
   if (typeof moiraPluginBackActive === "function" && moiraPluginBackActive()) return "moira-plugin";
   if (!pluginContextBack && typeof moiraPluginOuterBackActive === "function" && moiraPluginOuterBackActive()) return "moira-plugin-outer";
   if (isDirectoryTopicDraftActive()) return "directory-topic-draft";
-  const pluginContextTarget = pluginContextBackTarget();
   if (pluginContextTarget) return pluginContextTarget;
   if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) return "automation-secondary";
   if (isAutomationDetailView()) return "automation";

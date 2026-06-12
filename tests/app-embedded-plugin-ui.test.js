@@ -356,6 +356,7 @@ assert.match(sidebarTaskUi, /const pluginContextBack = pluginContextBackNavigati
 assert.match(sidebarTaskUi, /function pluginContextBackTarget\(\)/);
 assert.match(sidebarTaskUi, /return def && !def\.builtinKind \? "plugin-context-home" : ""/);
 assert.match(sidebarTaskUi, /const pluginContextTarget = pluginContextBackTarget\(\)/);
+assert.match(sidebarTaskUi, /if \(isTaskDetailView\(\)\) \{[\s\S]*?pluginTopicDefForCurrentTaskGroupId\(state\.currentTaskGroupId\)[\s\S]*?if \(pluginTopicDetail\) return pluginContextTarget;[\s\S]*?return "task";/);
 assert.match(sidebarTaskUi, /if \(pluginContextTarget\) return pluginContextTarget;/);
 assert.match(sidebarTaskUi, /if \(!pluginContextBack && typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive\(\)\) return "wardrobe-plugin-outer"/);
 assert.match(sidebarTaskUi, /if \(!pluginContextBack && typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive\(\)\) return "finance-plugin-outer"/);

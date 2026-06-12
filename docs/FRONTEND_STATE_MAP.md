@@ -353,6 +353,10 @@ the change is part of a dedicated infrastructure rename.
   messages or the current thread fetch is in flight. Unrelated active runs in
   the same single-window thread must not keep the Topic page stuck in restore.
 - Secondary screens should be represented by explicit detail/create state and wired into `updateNavigationControls()`, `activateTopNavButton()`, `backSwipeTarget()`, and `performBackSwipeAction()`. The content area should not duplicate the top bar title or page-level overflow actions.
+- Plugin topic details are secondary task-detail surfaces only visually; when
+  plugin context is active, right-swipe/back must resolve to plugin-context
+  home before ordinary task-detail back, and detail-page single-window loads
+  must not overwrite the task-list root cache.
 - A primary module can also be opened as a secondary surface when launched from another page-level overflow menu. Example: opening the Automation list from the Inbox overflow records `automationReturnRoute="inbox"`; the Automation list then uses the top-left shell back button and right-swipe back to return to Inbox. Bottom navigation into the same module remains a primary page and clears the return route.
 - Mobile OS status bar visibility, safe-area, bottom nav, keyboard viewport, and back/right-swipe behavior must be tested when changing shell/navigation code.
 - After the composer sends a message in Chat or a task detail, the conversation must stay pinned to the newest run/status area through the immediate server response, inline run-progress growth, and follow-up viewport refreshes. Refresh/render helpers should extend the bottom-follow window and avoid restoring stale bottom offsets during this send/run-start interval.

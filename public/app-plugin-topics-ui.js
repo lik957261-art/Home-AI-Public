@@ -368,7 +368,14 @@ function exitPluginContextToTopicHome() {
 
 function renderPluginContextTopicHomeAfterExit() {
   const restoreScrollTop = typeof taskListReturnScrollTop === "function" ? taskListReturnScrollTop() : 0;
-  const cached = state.taskListThread;
+  const rawCached = state.taskListThread;
+  const cacheEligible = typeof taskListThreadCacheEligible === "function"
+    ? taskListThreadCacheEligible(rawCached)
+    : Boolean(rawCached?.id && rawCached.singleWindow && !String(rawCached?.messagesPage?.taskGroupId || "").trim());
+  const cached = cacheEligible ? rawCached : null;
+  const currentThreadRootEligible = typeof taskListThreadCacheEligible === "function"
+    ? taskListThreadCacheEligible(state.currentThread)
+    : Boolean(state.currentThread?.id && state.currentThread.singleWindow && !String(state.currentThread?.messagesPage?.taskGroupId || "").trim());
   const selectedWorkspaceId = String(state.selectedWorkspaceId || "").trim();
   const cachedMatchesWorkspace = cached?.id && (
     !selectedWorkspaceId
@@ -379,8 +386,12 @@ function renderPluginContextTopicHomeAfterExit() {
     state.currentThread = cached;
     state.currentThreadId = cached.id;
     if (typeof summarizeThread === "function") state.threads = [summarizeThread(cached)];
-  } else if (state.currentThread?.singleWindow && typeof summarizeThread === "function") {
+  } else if (currentThreadRootEligible && typeof summarizeThread === "function") {
     state.threads = [summarizeThread(state.currentThread)];
+  } else if (!currentThreadRootEligible) {
+    state.currentThread = null;
+    state.currentThreadId = "";
+    state.threads = [];
   }
   if (!state.currentThread?.id) {
     state.currentThread = null;

@@ -628,7 +628,7 @@ function directoryCardCollapsed(html, key) {
   assert.equal(harness.visible(collections).length, 1);
 }
 
-function createPluginContextColdRestoreHarness() {
+function createPluginContextColdRestoreHarness(options = {}) {
   const calls = { api: [], renderCurrentThread: [], renderThreads: 0, setComposerEnabled: [] };
   const nodes = {
     app: { classList: { remove() {} } },
@@ -647,9 +647,11 @@ function createPluginContextColdRestoreHarness() {
       pluginContextNavPluginId: "wardrobe",
       viewMode: "wardrobe",
       currentTaskGroupId: "",
-      currentThread: null,
-      currentThreadId: "",
+      currentThread: options.currentThread || null,
+      currentThreadId: options.currentThread?.id || "",
       threads: [],
+      taskListThread: options.taskListThread || null,
+      taskListThreadId: options.taskListThread?.id || "",
     },
     localStorage: { setItem() {}, getItem() { return null; } },
     $: (id) => nodes[id] || null,
@@ -670,6 +672,11 @@ function createPluginContextColdRestoreHarness() {
     },
     mergeCurrentThread: (thread) => thread,
     summarizeThread: (thread) => ({ id: thread.id, workspaceId: thread.workspaceId }),
+    taskListThreadCacheEligible(thread) {
+      if (!thread?.id || !thread.singleWindow) return false;
+      const page = thread.messagesPage || {};
+      return !(String(page.mode || "").trim().toLowerCase() === "tasks" && String(page.taskGroupId || "").trim());
+    },
     rememberTaskListThread(thread) {
       sandbox.state.taskListThread = thread;
       sandbox.state.taskListThreadId = thread.id;
@@ -710,6 +717,25 @@ globalThis.__pluginContextColdRestoreHarness = {
   assert.equal(harness.calls.renderCurrentThread.at(-1).restoreScrollTop, 0);
   assert.deepEqual(harness.calls.setComposerEnabled, [true]);
   assert.notEqual(harness.nodes.conversation.innerHTML, `<div class="empty-state">Create a thread to start a zero-context Home AI task.</div>`);
+
+  const pollutedDetailThread = {
+    id: "plugin-detail-thread",
+    workspaceId: "owner",
+    singleWindow: true,
+    messages: [],
+    messagesPage: { mode: "tasks", taskGroupId: "plugin:finance" },
+  };
+  const pollutedHarness = createPluginContextColdRestoreHarness({
+    currentThread: pollutedDetailThread,
+    taskListThread: pollutedDetailThread,
+  });
+  pollutedHarness.exitPluginContextToTopicHome();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(pollutedHarness.calls.api.length, 1, "polluted plugin detail cache must be ignored and refetched");
+  assert.equal(pollutedHarness.sandbox.state.currentThreadId, "task-root");
+  assert.equal(pollutedHarness.sandbox.state.taskListThreadId, "task-root");
+  assert.deepEqual(pollutedHarness.calls.setComposerEnabled, [true]);
 
   console.log("app plugin topics UI tests passed");
 })().catch((err) => {
