@@ -31,16 +31,172 @@ function voiceInputStatusLabel(status = ensureVoiceInputState().status) {
   return labels[status] || labels.idle;
 }
 
-function voiceInputNativeComposerAvailable() {
+function voiceInputInputValue(input) {
+  return String(input?.value || "");
+}
+
+function voiceInputSetInputValue(input, value) {
+  if (!input) return;
+  input.value = String(value || "");
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function voiceInputInputCaretOffset(input) {
+  if (!input || typeof input.selectionStart !== "number") return voiceInputInputValue(input).length;
+  return input.selectionStart;
+}
+
+function voiceInputSetInputCaretOffset(input, offset) {
+  if (!input || typeof input.setSelectionRange !== "function") return;
+  const value = voiceInputInputValue(input);
+  const next = Math.max(0, Math.min(value.length, Number(offset) || 0));
+  input.setSelectionRange(next, next);
+}
+
+function voiceInputElementVisible(element) {
+  if (!element) return false;
+  const style = window.getComputedStyle?.(element);
+  if (style?.display === "none" || style?.visibility === "hidden") return false;
+  return true;
+}
+
+function voiceInputMainSurfaceType() {
+  return state.viewMode === "tasks" ? "topic_chat" : "chat";
+}
+
+function voiceInputMainComposerDefinition() {
   const composer = $("composer");
   const input = $("messageInput");
   const button = $("sendMessage");
-  if (!composer || !input || !button) return false;
-  const composerDisplay = window.getComputedStyle?.(composer)?.display || "";
-  if (composerDisplay === "none") return false;
-  if (button.disabled && !isComposerStopMode()) return false;
-  if (input.disabled || input.readOnly) return false;
-  if (isChatSearchMode() || isComposerStopMode()) return false;
+  return {
+    kind: "main",
+    id: "home-ai-native",
+    surfaceType: voiceInputMainSurfaceType(),
+    threadId: state.currentThreadId || "",
+    input,
+    button,
+    container: composer,
+    getText: () => getComposerText(),
+    setText: (value) => setComposerText(value),
+    caret: () => composerCaretOffset(),
+    setCaret: (offset) => setComposerCaretOffset(offset),
+    focus: () => $("messageInput")?.focus(),
+  };
+}
+
+function voiceInputTextAreaComposerDefinition({ id, surfaceType, form, input, button, threadId = "" }) {
+  return {
+    kind: "host-form",
+    id,
+    surfaceType,
+    threadId,
+    input,
+    button,
+    container: form,
+    getText: () => voiceInputInputValue(input),
+    setText: (value) => voiceInputSetInputValue(input, value),
+    caret: () => voiceInputInputCaretOffset(input),
+    setCaret: (offset) => voiceInputSetInputCaretOffset(input, offset),
+    focus: () => input?.focus?.(),
+  };
+}
+
+function voiceInputComposerForButton(button) {
+  if (!button || button.closest?.("[data-voice-action]")) return null;
+  if (button.id === "sendMessage") return voiceInputMainComposerDefinition();
+
+  const kanbanForm = button.closest?.("#kanbanComposerForm");
+  if (kanbanForm && button.matches?.("button[type='submit'], button:not([type])")) {
+    return voiceInputTextAreaComposerDefinition({
+      id: "kanban-create",
+      surfaceType: "kanban_composer",
+      form: kanbanForm,
+      input: kanbanForm.querySelector("#kanbanComposerText"),
+      button,
+    });
+  }
+
+  const automationCreateForm = button.closest?.("#automationCreateForm");
+  if (automationCreateForm && button.matches?.("button[type='submit'], button:not([type])")) {
+    return voiceInputTextAreaComposerDefinition({
+      id: "automation-create",
+      surfaceType: "automation_composer",
+      form: automationCreateForm,
+      input: automationCreateForm.querySelector("#automationNaturalText"),
+      button,
+    });
+  }
+
+  const automationEditForm = button.closest?.("#automationEditForm");
+  if (automationEditForm && button.matches?.("button[type='submit'], button:not([type])")) {
+    return voiceInputTextAreaComposerDefinition({
+      id: `automation-edit:${String(automationEditForm.dataset?.automationEditId || "").slice(0, 80)}`,
+      surfaceType: "automation_composer",
+      form: automationEditForm,
+      input: automationEditForm.querySelector("#automationEditPrompt"),
+      button,
+    });
+  }
+
+  const todoCommentForm = button.closest?.("[data-todo-comment-form]");
+  if (todoCommentForm && button.closest?.(".todo-comment-actions")) {
+    return voiceInputTextAreaComposerDefinition({
+      id: `todo-comment:${String(todoCommentForm.dataset?.todoCommentForm || "").slice(0, 80)}`,
+      surfaceType: "todo_comment",
+      form: todoCommentForm,
+      input: todoCommentForm.querySelector("#todoCommentText"),
+      button,
+      threadId: String(todoCommentForm.dataset?.todoCommentForm || "").slice(0, 160),
+    });
+  }
+
+  const todoRevisionForm = button.closest?.("[data-todo-revision-form]");
+  if (todoRevisionForm && button.matches?.("button[type='submit'], button:not([type])")) {
+    return voiceInputTextAreaComposerDefinition({
+      id: `todo-revision:${String(todoRevisionForm.dataset?.todoRevisionForm || "").slice(0, 80)}`,
+      surfaceType: "todo_revision",
+      form: todoRevisionForm,
+      input: todoRevisionForm.querySelector("#todoRevisionText"),
+      button,
+      threadId: String(todoRevisionForm.dataset?.todoRevisionForm || "").slice(0, 160),
+    });
+  }
+
+  const growthCheckForm = button.closest?.("[data-learning-growth-teaching-check-form]");
+  if (growthCheckForm && button.matches?.("button[type='submit'], button:not([type])")) {
+    return voiceInputTextAreaComposerDefinition({
+      id: `growth-teaching-check:${String(growthCheckForm.dataset?.learningGrowthTeachingCheckForm || "").slice(0, 80)}`,
+      surfaceType: "growth_teaching_check",
+      form: growthCheckForm,
+      input: growthCheckForm.querySelector("[data-field='quickCheckText']"),
+      button,
+      threadId: String(growthCheckForm.dataset?.learningGrowthTeachingCheckForm || "").slice(0, 160),
+    });
+  }
+
+  return null;
+}
+
+function voiceInputHostComposerButtons() {
+  return Array.from(document.querySelectorAll([
+    "#sendMessage",
+    "#kanbanComposerForm button[type='submit']",
+    "#automationCreateForm button[type='submit']",
+    "#automationEditForm button[type='submit']",
+    "[data-todo-comment-form] .todo-comment-actions button",
+    "[data-todo-revision-form] button[type='submit']",
+    "[data-learning-growth-teaching-check-form] button[type='submit']",
+  ].join(", "))).filter((button) => voiceInputComposerForButton(button));
+}
+
+function voiceInputNativeComposerAvailable(composer = voiceInputMainComposerDefinition()) {
+  if (!composer?.container || !composer?.input || !composer?.button) return false;
+  if (!voiceInputElementVisible(composer.container)) return false;
+  if (composer.button.disabled && composer.kind !== "main") return false;
+  if (composer.kind === "main" && composer.button.disabled && !isComposerStopMode()) return false;
+  if (composer.input.disabled || composer.input.readOnly) return false;
+  if (composer.kind === "main" && (isChatSearchMode() || isComposerStopMode())) return false;
   if (document.body?.classList?.contains("embedded-plugin-preview-fullscreen-active")) return false;
   return true;
 }
@@ -58,10 +214,10 @@ function voiceInputRequestScope() {
   }
   return {
     workspaceId: state.selectedWorkspaceId || "owner",
-    surfaceType: state.viewMode === "tasks" ? "topic_chat" : "chat",
+    surfaceType: voice.target?.composer?.surfaceType || voiceInputMainSurfaceType(),
     pluginId: "",
-    threadId: state.currentThreadId || "",
-    composerId: "home-ai-native",
+    threadId: voice.target?.composer?.threadId || state.currentThreadId || "",
+    composerId: voice.target?.composer?.id || "home-ai-native",
   };
 }
 
@@ -93,25 +249,35 @@ function voiceInputFormatDuration(ms) {
   return `${minutes}:${rest}`;
 }
 
-function refreshVoiceInputSendButton() {
-  const voice = ensureVoiceInputState();
-  const button = $("sendMessage");
+function voiceInputRememberButtonLabel(button) {
+  if (!button || button.id === "sendMessage") return;
+  if (!button.dataset.voiceInputDefaultLabel) button.dataset.voiceInputDefaultLabel = button.textContent || "";
+  if (!button.dataset.voiceInputDefaultTitle) button.dataset.voiceInputDefaultTitle = button.getAttribute("title") || "";
+  if (!button.dataset.voiceInputDefaultAriaLabel) button.dataset.voiceInputDefaultAriaLabel = button.getAttribute("aria-label") || "";
+}
+
+function voiceInputRestoreButtonLabel(button) {
+  if (!button || button.id === "sendMessage") return;
+  if (button.dataset.voiceInputDefaultLabel) button.textContent = button.dataset.voiceInputDefaultLabel;
+}
+
+function applyVoiceInputButtonState(button, composer, active) {
   if (!button) return;
-  const active = ["pending", "checking", "requesting", "recording", "finalizing", "transcribing"].includes(voice.status);
-  document.body?.classList?.toggle("voice-input-press-active", active || Boolean(voice.pressTimer));
   button.classList.toggle("voice-input-gesture", true);
-  button.classList.toggle("voice-input-pending", voice.status === "pending" || voice.status === "checking" || voice.status === "requesting");
-  button.classList.toggle("voice-input-recording", voice.status === "recording");
-  button.classList.toggle("voice-input-busy", voice.status === "finalizing" || voice.status === "transcribing");
+  button.classList.toggle("voice-input-pending", active && ["pending", "checking", "requesting"].includes(ensureVoiceInputState().status));
+  button.classList.toggle("voice-input-recording", active && ensureVoiceInputState().status === "recording");
+  button.classList.toggle("voice-input-busy", active && ["finalizing", "transcribing"].includes(ensureVoiceInputState().status));
   if (!active) {
-    button.textContent = isChatSearchMode() ? "搜索" : (isComposerStopMode() ? "Stop" : "Send");
-    button.setAttribute("title", voiceInputNativeComposerAvailable() ? "按住录音，松开转写" : "Send");
-    button.setAttribute("aria-label", voiceInputNativeComposerAvailable() ? "发送。按住可语音输入" : "Send");
+    voiceInputRestoreButtonLabel(button);
+    const available = voiceInputNativeComposerAvailable(composer);
+    button.setAttribute("title", available ? "按住录音，松开转写" : (button.dataset.voiceInputDefaultTitle || button.getAttribute("title") || ""));
+    button.setAttribute("aria-label", available ? `${button.textContent || "发送"}。按住可语音输入` : (button.dataset.voiceInputDefaultAriaLabel || button.textContent || "发送"));
     return;
   }
+  voiceInputRememberButtonLabel(button);
+  const voice = ensureVoiceInputState();
   if (voice.status === "recording") {
-    const elapsed = Date.now() - Number(voice.recordingStartedAt || Date.now());
-    button.textContent = voiceInputFormatDuration(elapsed);
+    button.textContent = voiceInputFormatDuration(Date.now() - Number(voice.recordingStartedAt || Date.now()));
     button.setAttribute("aria-label", "正在录音，松开后转写");
     button.setAttribute("title", "松开后转写");
     return;
@@ -119,6 +285,41 @@ function refreshVoiceInputSendButton() {
   button.textContent = voice.status === "transcribing" ? "转写" : "语音";
   button.setAttribute("aria-label", voiceInputStatusLabel(voice.status));
   button.setAttribute("title", voiceInputStatusLabel(voice.status));
+}
+
+function refreshVoiceInputSendButton() {
+  const voice = ensureVoiceInputState();
+  const button = $("sendMessage");
+  const active = ["pending", "checking", "requesting", "recording", "finalizing", "transcribing"].includes(voice.status);
+  const activeButton = voice.target?.kind === "native" ? voice.target.button : null;
+  document.body?.classList?.toggle("voice-input-press-active", active || Boolean(voice.pressTimer));
+  if (button) {
+    const mainComposer = voiceInputMainComposerDefinition();
+    const mainActive = active && activeButton === button;
+    button.classList.toggle("voice-input-gesture", true);
+    button.classList.toggle("voice-input-pending", mainActive && (voice.status === "pending" || voice.status === "checking" || voice.status === "requesting"));
+    button.classList.toggle("voice-input-recording", mainActive && voice.status === "recording");
+    button.classList.toggle("voice-input-busy", mainActive && (voice.status === "finalizing" || voice.status === "transcribing"));
+    if (!mainActive) {
+      button.textContent = isChatSearchMode() ? "搜索" : (isComposerStopMode() ? "Stop" : "Send");
+      button.setAttribute("title", voiceInputNativeComposerAvailable(mainComposer) ? "按住录音，松开转写" : "Send");
+      button.setAttribute("aria-label", voiceInputNativeComposerAvailable(mainComposer) ? "发送。按住可语音输入" : "Send");
+    } else if (voice.status === "recording") {
+      const elapsed = Date.now() - Number(voice.recordingStartedAt || Date.now());
+      button.textContent = voiceInputFormatDuration(elapsed);
+      button.setAttribute("aria-label", "正在录音，松开后转写");
+      button.setAttribute("title", "松开后转写");
+    } else {
+      button.textContent = voice.status === "transcribing" ? "转写" : "语音";
+      button.setAttribute("aria-label", voiceInputStatusLabel(voice.status));
+      button.setAttribute("title", voiceInputStatusLabel(voice.status));
+    }
+  }
+  voiceInputHostComposerButtons().forEach((hostButton) => {
+    if (hostButton.id === "sendMessage") return;
+    const composer = voiceInputComposerForButton(hostButton);
+    applyVoiceInputButtonState(hostButton, composer, active && activeButton === hostButton);
+  });
 }
 
 function ensureVoiceInputOverlay() {
@@ -252,6 +453,10 @@ function bindVoiceInputPressSelectionGuards() {
   document.addEventListener("contextmenu", suppressVoiceInputSelectionEvent, true);
   document.addEventListener("dragstart", suppressVoiceInputSelectionEvent, true);
   document.addEventListener("touchmove", suppressVoiceInputSelectionEvent, { capture: true, passive: false });
+  document.addEventListener("pointerdown", handleVoiceInputPointerDown, true);
+  document.addEventListener("pointerup", handleVoiceInputPointerUp, true);
+  document.addEventListener("pointercancel", handleVoiceInputPointerCancel, true);
+  document.addEventListener("click", suppressVoiceInputClickEvent, true);
 }
 
 function scheduleVoiceInputClickSuppressionClear() {
@@ -260,6 +465,7 @@ function scheduleVoiceInputClickSuppressionClear() {
   voice.suppressClickTimer = setTimeout(() => {
     voice.suppressClickTimer = 0;
     voice.suppressNextClick = false;
+    voice.suppressClickButton = null;
   }, 1200);
 }
 
@@ -305,13 +511,15 @@ async function startVoiceInputRecording(event, options = {}) {
   const target = options.target || { kind: "native" };
   const targetAvailable = target.kind === "embedded-plugin"
     ? voiceInputEmbeddedComposerAvailable(target.def)
-    : voiceInputNativeComposerAvailable();
+    : voiceInputNativeComposerAvailable(target.composer || voiceInputMainComposerDefinition());
   if (!targetAvailable) {
     setVoiceInputStatus("failed", { error: "当前输入框不可写" });
     return;
   }
   voice.target = target;
+  if (target.kind === "native" && !target.button) target.button = target.composer?.button || $("sendMessage");
   voice.suppressNextClick = target.kind === "native";
+  voice.suppressClickButton = target.kind === "native" ? target.button : null;
   if (voice.suppressNextClick) scheduleVoiceInputClickSuppressionClear();
   voice.cancelRequested = false;
   voice.pendingStopAfterStart = false;
@@ -439,10 +647,10 @@ async function finalizeVoiceInputRecording() {
   }
 }
 
-function voiceInputInsertedText(mode, text) {
-  const current = getComposerText();
+function voiceInputInsertedTextForComposer(composer, mode, text) {
+  const current = composer?.getText?.() || "";
   if (mode === "replace" || !current) return text;
-  const caret = composerCaretOffset();
+  const caret = composer?.caret?.() ?? current.length;
   const before = current.slice(0, caret);
   const after = current.slice(caret);
   const separatorBefore = before && !/[\s\n]$/.test(before) ? "\n" : "";
@@ -492,11 +700,16 @@ async function insertVoiceInputTranscript(mode = "append") {
     setTimeout(closeVoiceInputOverlay, 650);
     return;
   }
-  const next = voiceInputInsertedText(mode, text);
-  setComposerText(next);
+  const composer = voice.target?.composer || voiceInputMainComposerDefinition();
+  if (!voiceInputNativeComposerAvailable(composer)) {
+    setVoiceInputStatus("failed", { error: "当前输入框不可写" });
+    return;
+  }
+  const next = voiceInputInsertedTextForComposer(composer, mode, text);
+  composer.setText?.(next);
   const caret = mode === "replace" ? next.length : next.indexOf(text) + text.length;
-  setComposerCaretOffset(caret);
-  $("messageInput")?.focus();
+  composer.setCaret?.(caret);
+  composer.focus?.();
   await commitVoiceInputSession(text);
   setVoiceInputStatus("inserted", { transcript: text });
   setTimeout(closeVoiceInputOverlay, 650);
@@ -547,24 +760,26 @@ function commitVoiceInputPluginResult(def, payload = {}) {
 function handleVoiceInputPointerDown(event) {
   const voice = ensureVoiceInputState();
   if (event.pointerType === "mouse" && event.button !== 0) return;
-  if (!voiceInputNativeComposerAvailable()) return;
-  event.preventDefault?.();
-  event.stopPropagation?.();
-  event.stopImmediatePropagation?.();
+  const button = event.target?.closest?.("button");
+  const composer = voiceInputComposerForButton(button);
+  if (!voiceInputNativeComposerAvailable(composer)) return;
   voiceInputClearPressTimer();
   voice.pointerId = event.pointerId;
+  voice.pointerButton = button;
+  voice.pointerComposer = composer;
   voice.suppressNextClick = false;
+  voice.suppressClickButton = null;
   voiceInputClearSelection();
   document.body?.classList?.add("voice-input-press-active");
   try {
-    event.currentTarget?.setPointerCapture?.(event.pointerId);
+    button?.setPointerCapture?.(event.pointerId);
   } catch (_) {}
   voice.pressTimer = setTimeout(() => {
     event.preventDefault?.();
     event.stopPropagation?.();
     voiceInputClearSelection();
     voice.pressTimer = 0;
-    void startVoiceInputRecording(event);
+    void startVoiceInputRecording(event, { target: { kind: "native", composer, button } });
   }, VOICE_INPUT_LONG_PRESS_MS);
 }
 
@@ -572,9 +787,11 @@ function handleVoiceInputPointerUp(event) {
   const voice = ensureVoiceInputState();
   if (voice.pointerId && event.pointerId !== voice.pointerId) return;
   try {
-    event.currentTarget?.releasePointerCapture?.(event.pointerId);
+    voice.pointerButton?.releasePointerCapture?.(event.pointerId);
   } catch (_) {}
   voice.pointerId = 0;
+  voice.pointerButton = null;
+  voice.pointerComposer = null;
   if (voice.pressTimer) {
     voiceInputClearPressTimer();
     return;
@@ -586,8 +803,12 @@ function handleVoiceInputPointerUp(event) {
   }
 }
 
-function handleVoiceInputPointerCancel() {
+function handleVoiceInputPointerCancel(event) {
   const voice = ensureVoiceInputState();
+  if (voice.pointerId && event?.pointerId && event.pointerId !== voice.pointerId) return;
+  voice.pointerId = 0;
+  voice.pointerButton = null;
+  voice.pointerComposer = null;
   if (voice.pressTimer) {
     voiceInputClearPressTimer();
     closeVoiceInputOverlay();
@@ -599,17 +820,21 @@ function handleVoiceInputPointerCancel() {
 function suppressVoiceInputTextSelection(event) {
   const voice = ensureVoiceInputState();
   if (event.target?.closest?.("[data-voice-transcript]")) return;
-  if (event.currentTarget?.id === "sendMessage" || voice.status !== "idle" || voice.pressTimer) {
+  if (voiceInputComposerForButton(event.target?.closest?.("button")) || voice.status !== "idle" || voice.pressTimer) {
     event.preventDefault?.();
     event.stopPropagation?.();
     voiceInputClearSelection();
   }
 }
 
-function handleVoiceInputSendClick(event) {
+function suppressVoiceInputClickEvent(event) {
   const voice = ensureVoiceInputState();
   if (!voice.suppressNextClick) return false;
+  const button = event?.target?.closest?.("button");
+  if (!voiceInputComposerForButton(button)) return false;
+  if (voice.suppressClickButton && button !== voice.suppressClickButton) return false;
   voice.suppressNextClick = false;
+  voice.suppressClickButton = null;
   if (voice.suppressClickTimer) clearTimeout(voice.suppressClickTimer);
   voice.suppressClickTimer = 0;
   event?.preventDefault?.();
@@ -618,20 +843,11 @@ function handleVoiceInputSendClick(event) {
   return true;
 }
 
+function handleVoiceInputSendClick(event) {
+  return suppressVoiceInputClickEvent(event);
+}
+
 function initializeVoiceInputUi() {
-  const button = $("sendMessage");
-  if (!button || button.dataset.voiceInputBound === "1") return;
-  button.dataset.voiceInputBound = "1";
   bindVoiceInputPressSelectionGuards();
-  button.addEventListener("pointerdown", handleVoiceInputPointerDown);
-  button.addEventListener("pointerup", handleVoiceInputPointerUp);
-  button.addEventListener("pointercancel", handleVoiceInputPointerCancel);
-  button.addEventListener("selectstart", suppressVoiceInputTextSelection);
-  button.addEventListener("dragstart", suppressVoiceInputTextSelection);
-  button.addEventListener("touchstart", () => voiceInputClearSelection(), { passive: true });
-  button.addEventListener("contextmenu", (event) => {
-    const voice = ensureVoiceInputState();
-    if (voiceInputNativeComposerAvailable() || voice.status !== "idle" || voice.pressTimer) suppressVoiceInputTextSelection(event);
-  });
   refreshVoiceInputSendButton();
 }

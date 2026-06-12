@@ -9,23 +9,25 @@ must not alter standalone plugin behavior.
 ## Summary
 
 Home AI voice input is a host-level global composer capability. It covers
-ordinary Home AI chat, plugin-bound topic chat, and embedded plugin composers
-that opt in through the plugin bridge. It is not a normal plugin iframe and not
-a system input method. The Home AI host owns microphone permission, the
-recording gesture, transcription/editing UI, ASR dispatch, correction learning,
-privacy policy, and text insertion orchestration.
+ordinary Home AI chat, plugin-bound topic chat, Home AI native form composers,
+and embedded plugin composers that opt in through the plugin bridge. It is not
+a normal plugin iframe and not a system input method. The Home AI host owns
+microphone permission, the recording gesture, transcription/editing UI, ASR
+dispatch, correction learning, privacy policy, and text insertion orchestration.
 
-Native Home AI composers receive confirmed text through host draft APIs.
-Embedded plugin iframes receive confirmed text through a bounded bridge. In
-both cases the destination surface only declares whether the active composer is
-writable and which draft actions are supported.
+Native Home AI composers receive confirmed text through host draft APIs or a
+host composer registry that maps a submit/action button to its writable draft
+textarea. Embedded plugin iframes receive confirmed text through a bounded
+bridge. In both cases the destination surface only declares whether the active
+composer is writable and which draft actions are supported.
 
-The first implementation target should cover the ordinary Home AI chat
-composer and Codex Mobile inside Home AI. Codex Mobile is the first external
-plugin bridge target because it already has durable draft state and an explicit
-send flow. ChatGPT Pro, Note, Email, Growth, and other plugins can adopt the
-same injection protocol after their composer surfaces expose capability state
-and submit/result events.
+The host-native implementation covers the ordinary Home AI chat composer,
+Kanban/todo creation, Automation create/edit prompts, todo comment/revision
+panels, and Growth teaching quick-check submission. Codex Mobile remains the
+first external plugin bridge target because it already has durable draft state
+and an explicit send flow. ChatGPT Pro, Note, Email, Growth, and other embedded
+plugins can adopt the same injection protocol after their composer surfaces
+expose capability state and submit/result events.
 
 Codex Mobile standalone must remain out of scope. The Home AI host may expose
 `voice_input.*` bridge messages to an embedded Codex Mobile iframe, but it must
@@ -57,11 +59,11 @@ Voice input belongs to the Home AI host layer for these reasons:
   functions.
 
 The feature is eligible whenever the active Home AI surface has a writable
-composer: ordinary chat, plugin-bound topic chat, or an embedded plugin composer
-that reports bridge capability. It remains disabled on non-composer surfaces,
-fullscreen previews, unwritable composers, missing microphone permission, or
-missing ASR backend. It must not appear outside Home AI or behave as a global OS
-input method.
+composer: ordinary chat, plugin-bound topic chat, a registered native Home AI
+form composer, or an embedded plugin composer that reports bridge capability.
+It remains disabled on non-composer surfaces, fullscreen previews, unwritable
+composers, missing microphone permission, or missing ASR backend. It must not
+appear outside Home AI or behave as a global OS input method.
 
 ## MVP
 

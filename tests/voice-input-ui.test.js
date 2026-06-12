@@ -19,16 +19,16 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-input-gesture-v724[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-input-gesture-v724[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-input-gesture-v724/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-input-gesture-v724/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-input-all-composers-v725[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-input-all-composers-v725[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-input-all-composers-v725/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-input-all-composers-v725/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
 }
 
 function testSendButtonGestureContract() {
   assert.match(voiceUi, /const VOICE_INPUT_LONG_PRESS_MS = 560/);
-  assert.match(voiceUi, /button\.addEventListener\("pointerdown", handleVoiceInputPointerDown\)/);
-  assert.match(voiceUi, /button\.addEventListener\("pointerup", handleVoiceInputPointerUp\)/);
-  assert.match(voiceUi, /button\.addEventListener\("contextmenu"/);
+  assert.match(voiceUi, /document\.addEventListener\("pointerdown", handleVoiceInputPointerDown, true\)/);
+  assert.match(voiceUi, /document\.addEventListener\("pointerup", handleVoiceInputPointerUp, true\)/);
+  assert.match(voiceUi, /document\.addEventListener\("click", suppressVoiceInputClickEvent, true\)/);
   assert.match(voiceUi, /navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)/);
   assert.match(voiceUi, /new MediaRecorder\(stream/);
   assert.match(voiceUi, /\/api\/voice-input\/status/);
@@ -41,10 +41,26 @@ function testSendButtonGestureContract() {
 
 function testNativeDraftInsertionAndPrivacyBoundary() {
   assert.match(voiceUi, /function insertVoiceInputTranscript\(mode = "append"\)/);
-  assert.match(voiceUi, /setComposerText\(next\)/);
-  assert.match(voiceUi, /setComposerCaretOffset\(caret\)/);
+  assert.match(voiceUi, /function voiceInputComposerForButton\(button\)/);
+  assert.match(voiceUi, /composer\.setText\?\.\(next\)/);
+  assert.match(voiceUi, /composer\.setCaret\?\.\(caret\)/);
   assert.match(voiceUi, /await commitVoiceInputSession\(text\)/);
   assert.doesNotMatch(voiceUi, /document\.querySelector\(["']iframe/);
+}
+
+function testHostComposerRegistry() {
+  assert.match(voiceUi, /#kanbanComposerForm/);
+  assert.match(voiceUi, /#kanbanComposerText/);
+  assert.match(voiceUi, /#automationCreateForm/);
+  assert.match(voiceUi, /#automationNaturalText/);
+  assert.match(voiceUi, /#automationEditForm/);
+  assert.match(voiceUi, /#automationEditPrompt/);
+  assert.match(voiceUi, /\[data-todo-comment-form\]/);
+  assert.match(voiceUi, /#todoCommentText/);
+  assert.match(voiceUi, /\[data-todo-revision-form\]/);
+  assert.match(voiceUi, /#todoRevisionText/);
+  assert.match(voiceUi, /\[data-learning-growth-teaching-check-form\]/);
+  assert.match(voiceUi, /quickCheckText/);
 }
 
 function testEmbeddedPluginBridgeContract() {
@@ -63,17 +79,18 @@ function testEmbeddedPluginBridgeContract() {
 }
 
 function testNoTextSelectionOnSendButtonLongPress() {
-  assert.match(styles, /#sendMessage\.voice-input-gesture[\s\S]*user-select: none/);
-  assert.match(styles, /#sendMessage\.voice-input-gesture[\s\S]*-webkit-user-select: none/);
-  assert.match(styles, /#sendMessage\.voice-input-gesture[\s\S]*-webkit-touch-callout: none/);
-  assert.match(styles, /#sendMessage\.voice-input-gesture[\s\S]*-webkit-user-drag: none/);
+  assert.match(styles, /\.voice-input-gesture[\s\S]*user-select: none/);
+  assert.match(styles, /\.voice-input-gesture[\s\S]*-webkit-user-select: none/);
+  assert.match(styles, /\.voice-input-gesture[\s\S]*-webkit-touch-callout: none/);
+  assert.match(styles, /\.voice-input-gesture[\s\S]*-webkit-user-drag: none/);
   assert.match(styles, /body\.voice-input-press-active[\s\S]*-webkit-user-drag: none !important/);
-  assert.match(styles, /body\.voice-input-press-active #sendMessage[\s\S]*touch-action: none/);
+  assert.match(styles, /body\.voice-input-press-active \.voice-input-gesture[\s\S]*touch-action: none/);
   assert.match(voiceUi, /document\.addEventListener\("selectionchange", suppressVoiceInputSelectionChange, true\)/);
   assert.match(voiceUi, /document\.addEventListener\("contextmenu", suppressVoiceInputSelectionEvent, true\)/);
   assert.match(voiceUi, /document\.addEventListener\("touchmove", suppressVoiceInputSelectionEvent, \{ capture: true, passive: false \}\)/);
   assert.match(voiceUi, /event\.preventDefault\?\.\(\)/);
-  assert.match(voiceUi, /event\.stopImmediatePropagation\?\.\(\)/);
+  assert.match(voiceUi, /function suppressVoiceInputClickEvent\(event\)/);
+  assert.match(voiceUi, /stopImmediatePropagation\?\.\(\)/);
   assert.match(styles, /\.voice-input-overlay/);
   assert.match(styles, /\.voice-input-transcript/);
 }
@@ -81,6 +98,7 @@ function testNoTextSelectionOnSendButtonLongPress() {
 testStaticLoadingAndCache();
 testSendButtonGestureContract();
 testNativeDraftInsertionAndPrivacyBoundary();
+testHostComposerRegistry();
 testEmbeddedPluginBridgeContract();
 testNoTextSelectionOnSendButtonLongPress();
 console.log("voice input ui tests passed");

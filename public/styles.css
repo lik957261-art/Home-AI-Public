@@ -16635,7 +16635,7 @@ body.task-markdown-preview-open {
   box-shadow: none;
 }
 
-#sendMessage.voice-input-gesture {
+.voice-input-gesture {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -16653,19 +16653,19 @@ body.voice-input-press-active *:not(.voice-input-transcript) {
   -webkit-tap-highlight-color: transparent !important;
 }
 
-body.voice-input-press-active #sendMessage,
+body.voice-input-press-active .voice-input-gesture,
 body.voice-input-press-active .voice-input-overlay button {
   touch-action: none;
 }
 
-#sendMessage.voice-input-pending,
-#sendMessage.voice-input-busy {
+.voice-input-gesture.voice-input-pending,
+.voice-input-gesture.voice-input-busy {
   color: var(--ui-accent-ink);
   background: var(--ui-warning-surface);
   border-color: rgba(169, 122, 49, 0.22);
 }
 
-#sendMessage.voice-input-recording {
+.voice-input-gesture.voice-input-recording {
   color: #fff;
   background: var(--danger);
   border-color: rgba(164, 61, 53, 0.32);
