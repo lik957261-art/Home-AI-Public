@@ -2342,30 +2342,7 @@ function pluginTopicCurrentSwitcherLabel(def, group = null) {
 }
 
 function renderPluginTopicSwitcher(group = null) {
-  const def = pluginTopicDefForTaskGroup(group) || pluginTopicDefForViewMode(state.viewMode);
-  if (!def || def.builtinKind) return "";
-  const entries = pluginTopicSwitcherEntries(def);
-  const currentGroupId = String(group?.id || state.currentTaskGroupId || "");
-  return `<section class="plugin-topic-switcher" data-plugin-topic-switcher="${escapeHtml(def.id)}">
-    <button class="plugin-topic-switch-button" type="button" data-plugin-topic-switch-toggle aria-expanded="false">
-      <span>${escapeHtml(pluginTopicCurrentSwitcherLabel(def, group))}</span>
-      <span class="plugin-topic-switch-chevron" aria-hidden="true"></span>
-    </button>
-    <div class="plugin-topic-switch-panel" data-plugin-topic-switch-panel hidden>
-      ${entries.map((entry) => {
-        const active = entry.taskGroupId && entry.taskGroupId === currentGroupId;
-        const attrs = entry.kind === "new"
-          ? `data-plugin-topic-new-topic="${escapeHtml(entry.pluginId)}"`
-          : entry.kind === "default"
-            ? `data-plugin-topic-open-topic="${escapeHtml(entry.pluginId)}"`
-            : `data-plugin-claimed-topic-open="${escapeHtml(entry.taskGroupId)}" data-plugin-claimed-topic-plugin="${escapeHtml(entry.pluginId)}"`;
-        return `<button class="plugin-topic-switch-item${active ? " active" : ""}" type="button" ${attrs}>
-          <span class="plugin-topic-switch-item-title">${escapeHtml(entry.title)}</span>
-          <span class="plugin-topic-switch-item-subtitle">${escapeHtml(entry.subtitle)}</span>
-        </button>`;
-      }).join("")}
-    </div>
-  </section>`;
+  return "";
 }
 
 function openPluginClaimedDirectoryTopic(pluginId, taskGroupId) {
@@ -2382,41 +2359,7 @@ function openPluginClaimedDirectoryTopic(pluginId, taskGroupId) {
 }
 
 function wirePluginTopicSwitcher(root) {
-  const switcher = root?.querySelector?.("[data-plugin-topic-switcher]");
-  if (!switcher || switcher.dataset.pluginTopicSwitcherBound === "1") return;
-  switcher.dataset.pluginTopicSwitcherBound = "1";
-  const toggle = switcher.querySelector("[data-plugin-topic-switch-toggle]");
-  const panel = switcher.querySelector("[data-plugin-topic-switch-panel]");
-  toggle?.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    const open = Boolean(panel?.hidden);
-    if (panel) panel.hidden = !open;
-    toggle.setAttribute("aria-expanded", open ? "true" : "false");
-  });
-  panel?.addEventListener("click", (event) => event.stopPropagation());
-  panel?.querySelectorAll?.("[data-plugin-claimed-topic-open]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (panel) panel.hidden = true;
-      toggle?.setAttribute("aria-expanded", "false");
-      openPluginClaimedDirectoryTopic(button.dataset.pluginClaimedTopicPlugin, button.dataset.pluginClaimedTopicOpen);
-    });
-  });
-  panel?.querySelectorAll?.("[data-plugin-topic-open-topic]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (panel) panel.hidden = true;
-      toggle?.setAttribute("aria-expanded", "false");
-      openPluginTopicChat(button.dataset.pluginTopicOpenTopic).catch(showError);
-    });
-  });
-  panel?.querySelectorAll?.("[data-plugin-topic-new-topic]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (panel) panel.hidden = true;
-      toggle?.setAttribute("aria-expanded", "false");
-      openPluginTopicChat(button.dataset.pluginTopicNewTopic).catch(showError);
-      if (typeof showPushToast === "function") showPushToast("\u5df2\u8fdb\u5165\u63d2\u4ef6\u9ed8\u8ba4\u8bdd\u9898\uff0c\u53ef\u76f4\u63a5\u53d1\u8d77\u65b0\u4e13\u9898\u3002", "info");
-    });
-  });
+  return;
 }
 
 function renderPluginAppDesktop(defs = []) {

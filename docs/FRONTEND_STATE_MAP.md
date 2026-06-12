@@ -186,6 +186,9 @@ the change is part of a dedicated infrastructure rename.
     Directory-bound topic rows show the directory display name plus topic count
     and updated time; they hide raw directory paths and default-topic prompt
     badges.
+    Plugin-topic detail toolbars show only the active directory chip. Claimed
+    directory topics open their paired bound directory; fixed plugin topics open
+    the plugin delivery directory. They do not render a plugin-topic dropdown.
   - On desktop, the same plugin app definitions are rendered in the sidebar
     launcher instead of the mobile bottom Dock. This keeps plugin discovery
     available in PC browsers while preserving the mobile collapsed Dock

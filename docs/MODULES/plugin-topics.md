@@ -424,7 +424,8 @@ navigation with Topics centered unless workspace-scoped plugin tabs are pinned,
 server-backed pinned plugin bottom-tab preferences with local-cache migration,
 default launch to Topics when no saved view exists, fixed `plugin:<pluginId>`
 topic entry, compact plugin-topic recent-message previews instead of default
-topic-only rows,
+topic-only rows, plugin topic detail toolbar rendering only the active
+directory chip and no plugin-topic dropdown,
 non-blocking topic entry before directory refresh, creation of `插件/<plugin title>`, file-directory attachment on
 plugin-topic sends, return from plugin file directory to the topic list, plugin
 topic detail hiding bottom navigation while keeping the composer available,
@@ -491,14 +492,16 @@ Claim records live in
 `/api/plugin-topic-bindings`:
 
 - `claimed_by_plugin` hides the directory from the ordinary directory topic
-  root and projects its historical topics into the plugin topic switcher.
+  root and projects its historical topics into the plugin topic root rows.
 - `auxiliary_context` allows the plugin to reference the directory but keeps the
   ordinary directory topic collection visible.
 
-Plugin topic detail pages use an explicit title switcher for default plugin
-topic, claimed historical directory topics, and the V1 new-topic path. The
-switcher is part of the visible toolbar; it is not hidden under the topic
-three-dot menu.
+Plugin topic detail pages must not render a plugin-topic title switcher or
+dropdown in the visible toolbar. The toolbar shows only the directory chip for
+the active topic: claimed historical directory topics open their paired bound
+directory, while fixed `plugin:<pluginId>` topics open that plugin's standard
+delivery directory. Switching between plugin topic conversations belongs on
+the Topics root compact rows, not inside the detail-page toolbar.
 
 Plugin delivery directories remain output/file areas. They do not define
 conversation context ownership. Context injection for plugin topics reads only

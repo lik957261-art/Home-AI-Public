@@ -23,6 +23,8 @@ const entryHubBody = functionBody(pluginTopicsUi, "renderCapabilityEntryHub");
 const topicCardsBody = functionBody(pluginTopicsUi, "renderPluginTopicCards");
 const rowMetaBody = functionBody(pluginTopicsUi, "pluginTopicRowMeta");
 const childEntriesBody = functionBody(pluginTopicsUi, "pluginTopicChildEntries");
+const switcherBody = functionBody(pluginTopicsUi, "renderPluginTopicSwitcher");
+const wireSwitcherBody = functionBody(pluginTopicsUi, "wirePluginTopicSwitcher");
 const openAppBody = functionBody(pluginTopicsUi, "openPluginTopicApp");
 const runActionBody = functionBody(pluginTopicsUi, "runPluginTopicAction");
 const movePluginAppOrderBody = functionBody(pluginTopicsUi, "movePluginAppOrder");
@@ -57,6 +59,9 @@ assert.match(pluginTopicsUi, /function pluginTopicDirectoryClaimForRoute/);
 assert.match(pluginTopicsUi, /function pluginTopicFilterDirectoryTopicCollectionsForRoot/);
 assert.match(pluginTopicsUi, /function renderPluginTopicSwitcher/);
 assert.match(pluginTopicsUi, /function openPluginClaimedDirectoryTopic/);
+assert.match(switcherBody, /return "";/);
+assert.doesNotMatch(switcherBody, /data-plugin-topic-switcher|plugin-topic-switch-button|plugin-topic-switch-panel/);
+assert.match(wireSwitcherBody, /return;/);
 assert.match(pluginTopicsUi, /function wirePluginAppStripScrollGuard\(root\)/);
 assert.match(pluginTopicsUi, /strip\.addEventListener\("touchmove", move, \{ passive: true \}\)/);
 assert.match(pluginTopicsUi, /Math\.abs\(dx\) >= PLUGIN_APP_REORDER_CANCEL_PX && Math\.abs\(dx\) > Math\.abs\(dy\) \* 1\.15/);
@@ -213,6 +218,15 @@ function createPluginTopicHarness(options = {}) {
     wardrobePluginNavigationAvailable: () => true,
     EMBEDDED_PLUGIN_DEFS: { finance: {}, email: {}, health: {}, note: {} },
     embeddedPluginNavigationAvailable: () => true,
+    currentWorkspace: () => ({ defaultWorkspace: "/workspace/owner" }),
+    matchingDirectoryProject: () => ({ id: "owner-root", root: "/workspace/owner", label: "Owner" }),
+    directoryAttachmentFromRoute: (projectId, subprojectId, pathText, label) => ({
+      projectId,
+      subprojectId,
+      path: pathText,
+      root: "/workspace/owner",
+      label,
+    }),
     escapeHtml: (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
       "&": "&amp;",
       "<": "&lt;",
@@ -232,6 +246,8 @@ globalThis.__pluginTopicHarness = {
   actionIds: (pluginId) => pluginTopicQuickActions(pluginTopicDefById(pluginId)).map((action) => action.id + ":" + action.entry.pluginRoute),
   menuHtml: (pluginId) => renderCapabilityActionMenu(pluginTopicDefById(pluginId)),
   launcherHtml: () => renderPluginAppLauncher(),
+  switcherHtml: (group) => renderPluginTopicSwitcher(group),
+  topicGroups: (thread) => pluginTopicGroupsForTaskList(thread),
   pinBottomTabs: (ids) => writePinnedPluginBottomTabs(ids, state.selectedWorkspaceId || "owner", { sync: false }),
   setManifestActions: (pluginId, actions, workspaceId = state.selectedWorkspaceId || "owner") => {
     state.embeddedPlugins[pluginId] = state.embeddedPlugins[pluginId] || {};
@@ -347,6 +363,15 @@ assert.match(menuHtml, /data-plugin-topic-move-dir="up"/, "plugin popup menu mus
   const codexLauncherHtml = harness.launcherHtml();
   assert.doesNotMatch(codexLauncherHtml, /data-plugin-topic-open-app="codex-mobile"/, "pinned Codex must be hidden from the drawer like other pinned plugins");
   assert.doesNotMatch(codexLauncherHtml, /data-plugin-topic-open-app="finance"/, "eligible pinned plugin app icons must still be hidden from the drawer");
+}
+
+{
+  const harness = createPluginTopicHarness();
+  assert.equal(harness.switcherHtml({ id: "plugin:wardrobe" }), "", "plugin topic detail must not render a topic dropdown");
+  const wardrobeGroup = harness.topicGroups({ messages: [] }).find((group) => group.id === "plugin:wardrobe");
+  assert.equal(wardrobeGroup.directoryRoute.projectId, "owner-root", "default plugin topic must expose the plugin delivery directory chip route");
+  assert.equal(wardrobeGroup.directoryRoute.label, "衣橱 资料");
+  assert.match(wardrobeGroup.directoryRoute.path, /\/插件\/衣橱$/);
 }
 
 function createDirectoryTopicHarness() {
