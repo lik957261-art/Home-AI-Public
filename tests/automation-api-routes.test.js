@@ -53,6 +53,7 @@ function makeRoutes(overrides = {}) {
     mutate: [],
     owner: [],
     outputResolve: [],
+    profileResolve: [],
     pushTick: [],
     workspaceAccess: [],
   };
@@ -116,6 +117,10 @@ function makeRoutes(overrides = {}) {
     resolveAuthorizedCronOutputFile(query, auth) {
       calls.outputResolve.push({ file: query.get("file"), auth });
       return Promise.resolve({ bridgeFile: { path: `bridge:${query.get("file")}` } });
+    },
+    resolveAutomationCronProfile(payload) {
+      calls.profileResolve.push(payload);
+      return "";
     },
     runAutomationWebPushTick(payload) {
       calls.pushTick.push(payload);
@@ -271,6 +276,7 @@ async function testCreateDryRunAndCreateFailure() {
   assert.deepEqual(calls.interpret, [{ text: "weekly report", workspaceId: "child", ownerPrincipalId: "principal-child" }]);
   assert.equal(calls.create[0].accessPolicyContext.secret, undefined);
   assert.deepEqual(calls.create[0].accessPolicyContext, { allowed_toolsets: ["cronjob"] });
+  assert.equal(calls.create[0].job.profile, undefined);
   assert.equal(calls.cacheClear, 0);
 
   const empty = await request(routes, "POST", "/api/automations", { body: { workspaceId: "child", text: "" } });
@@ -308,10 +314,38 @@ async function testCreatePassesProviderErrorStatus() {
   assert.equal(calls.create.length, 1);
 }
 
+async function testCreateAddsResolvedCronProfile() {
+  const { routes, calls } = makeRoutes({
+    interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId) {
+      calls.interpret.push({ text, workspaceId: workspace.id, ownerPrincipalId });
+      return Promise.resolve({
+        name: "Email analysis",
+        prompt: "Analyze new email",
+        schedule: "0 11 * * *",
+        enabled_toolsets: ["email", "file", "skills"],
+      });
+    },
+    resolveAutomationCronProfile(payload) {
+      calls.profileResolve.push(payload);
+      return "hm-owner-openai-1";
+    },
+  });
+  const got = await request(routes, "POST", "/api/automations", {
+    body: { workspaceId: "owner", text: "daily email analysis", dryRun: true },
+  });
+  assert.equal(got.res.statusCode, 200);
+  assert.equal(calls.profileResolve.length, 1);
+  assert.equal(calls.profileResolve[0].workspaceId, "owner");
+  assert.equal(calls.profileResolve[0].ownerPrincipalId, "principal-owner");
+  assert.deepEqual(calls.profileResolve[0].job.enabled_toolsets, ["email", "file", "skills"]);
+  assert.equal(calls.create[0].job.profile, "hm-owner-openai-1");
+  assert.equal(got.body.draft.profile, "hm-owner-openai-1");
+}
+
 async function testActionDecodesJobAndClearsCache() {
   const { routes, calls } = makeRoutes();
   const got = await request(routes, "POST", "/api/automations/job%2F42/update?workspaceId=child", {
-    body: { name: "Updated", enabledToolsets: ["web"], dry_run: false, reason: "manual" },
+    body: { name: "Updated", enabledToolsets: ["web"], profile: "hm-child-openai-1", dry_run: false, reason: "manual" },
   });
   assert.equal(got.res.statusCode, 200);
   assert.equal(got.body.ok, true);
@@ -331,6 +365,7 @@ async function testActionDecodesJobAndClearsCache() {
       enabled_toolsets: ["web"],
       model: undefined,
       provider: undefined,
+      profile: "hm-child-openai-1",
       workdir: undefined,
     },
     reason: "manual",
@@ -430,6 +465,7 @@ function testDependencyValidation() {
   await testListIncludesRouteAutomationTargetOutsideSearch();
   await testCreateDryRunAndCreateFailure();
   await testCreatePassesProviderErrorStatus();
+  await testCreateAddsResolvedCronProfile();
   await testActionDecodesJobAndClearsCache();
   await testPushTickOwnerOnly();
   await testAuthorizedFileRoutesUseResolvers();

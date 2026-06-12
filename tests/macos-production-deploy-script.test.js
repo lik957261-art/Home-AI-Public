@@ -55,9 +55,11 @@ assert.match(script, /buildHomeAiBridgeHostLaunchdPlist/);
 assert.match(script, /buildHomeAiCronLaunchdPlist/);
 assert.match(script, /home-ai-bridge-host-launchd-install/);
 assert.match(script, /home-ai-cron-launchd-install/);
+assert.match(script, /home-ai-cron-profile-aliases/);
 assert.match(script, /home-ai-gateway-start-script-bridge-env-repair/);
 assert.match(script, /macos-gateway-start-script-bridge-env-repair\.js/);
 assert.match(script, /installRootOwnedTextFile/);
+assert.match(script, /HOME_AI_CRON_PROFILE_READ_ACL/);
 assert.match(script, /\/usr\/bin\/install/);
 assert.match(script, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(script, /HERMES_CRON_SCRIPT_TIMEOUT/);
@@ -78,6 +80,7 @@ assert.match(script, /backups", "deploy/);
 assert.match(script, /rsyncExcludes/);
 assert.match(script, /BACKUP_RSYNC_EXCLUDES/);
 assert.match(script, /buildRsyncArgs/);
+assert.match(script, /gateway-pool-manifest-mac\.json/);
 assert.match(script, /\.agent-context\//);
 assert.match(script, /AGENTS\.md/);
 assert.match(script, /\.codex\//);
@@ -159,7 +162,14 @@ assert.equal(payload.plan.productionOwner, "hermes-host:staff");
 assert.deepEqual(payload.plan.restartLabels, ["com.hermesmobile.bridge-host", "com.hermesmobile.cron", "com.hermesmobile.listener"]);
 assert.ok(payload.plan.expectedClientVersion);
 assert.ok(payload.plan.proofFiles.includes("scripts/deploy-macos-production.js"));
+assert.ok(payload.plan.proofFiles.includes("adapters/automation-cron-profile-service.js"));
+assert.ok(payload.plan.proofFiles.includes("cron_bridge.py"));
+assert.ok(payload.plan.proofFiles.includes("server-routes/automation-api-routes.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-gateway-start-script-bridge-env-repair.js"));
+assert.equal(payload.plan.cronProfileAliases.type, "home-ai-cron-profile-aliases");
+assert.equal(payload.plan.cronProfileAliases.manifestPath, "/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json");
+assert.equal(payload.plan.cronProfileAliases.profilesRoot, "/Users/hermes-host/HermesMobile/data/hermes-home/profiles");
+assert.deepEqual(payload.plan.cronProfileAliases.aliases, []);
 assert.ok(payload.plan.validation.some((item) => item.type === "production-file-hashes"));
 const statusSmoke = payload.plan.validation.find((item) => item.type === "home-ai-status-smoke");
 assert.ok(statusSmoke.command.includes("--expected-version"));
@@ -189,6 +199,51 @@ assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/app\/scripts\/herme
 assert.match(cronPlist, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/data\/hermes-home\/cron\/jobs\.json/);
 assert.match(cronPlist, /<key>HERMES_CRON_SCRIPT_TIMEOUT<\/key>\s*<string>1800<\/string>/);
+
+const cronAliasPlan = deployScript.buildHomeAiCronProfileAliasPlan("/Users/hermes-host/HermesMobile", {
+  workers: [
+    {
+      profile: "hm-owner-openai-1",
+      enabled: true,
+      provider: "openai-codex",
+      securityLevel: "user",
+      toolsets: ["email", "file", "skills", "cronjob_mobile"],
+      configPath: "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/config.yaml",
+    },
+    {
+      profile: "hm-owner-openai-2",
+      enabled: false,
+      securityLevel: "user",
+      toolsets: ["cronjob_mobile"],
+      configPath: "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-2/config.yaml",
+    },
+    {
+      profile: "officialclean1",
+      enabled: true,
+      securityLevel: "owner-maintenance",
+      toolsets: ["cronjob_mobile"],
+      configPath: "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/officialclean1/config.yaml",
+    },
+    {
+      profile: "hm-owner-openai-no-cron",
+      enabled: true,
+      securityLevel: "user",
+      toolsets: ["email", "file", "skills"],
+      configPath: "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-no-cron/config.yaml",
+    },
+  ],
+});
+assert.equal(cronAliasPlan.type, "home-ai-cron-profile-aliases");
+assert.deepEqual(cronAliasPlan.aliases.map((item) => item.profile), ["hm-owner-openai-1"]);
+assert.equal(
+  cronAliasPlan.aliases[0].sourceDir,
+  "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1",
+);
+assert.equal(
+  cronAliasPlan.aliases[0].aliasPath,
+  "/Users/hermes-host/HermesMobile/data/hermes-home/profiles/hm-owner-openai-1",
+);
+assert.ok(cronAliasPlan.aliases[0].ancestorDirs.includes("/Users/hm-owner/HermesWorkspace"));
 
 const staticRun = spawnSync(process.execPath, [
   scriptPath,

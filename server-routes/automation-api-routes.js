@@ -189,6 +189,9 @@ function createAutomationApiRoutes(deps = {}) {
   if (!deps.automationProvider || typeof deps.automationProvider.createJob !== "function" || typeof deps.automationProvider.mutateJob !== "function") {
     throw new Error("automation api routes require automationProvider.createJob/mutateJob");
   }
+  const resolveAutomationCronProfile = typeof deps.resolveAutomationCronProfile === "function"
+    ? deps.resolveAutomationCronProfile
+    : () => "";
 
   const registry = createApiRouteRegistry(AUTOMATION_API_ROUTE_SPECS);
 
@@ -270,6 +273,12 @@ function createAutomationApiRoutes(deps = {}) {
       deps.sendJson(res, err.status || 502, { error: compactError(deps, err) });
       return;
     }
+    const profile = await Promise.resolve(resolveAutomationCronProfile({
+      workspaceId,
+      ownerPrincipalId,
+      job: draft,
+    }));
+    if (profile && !draft.profile) draft = Object.assign({}, draft, { profile });
     const dryRun = deps.boolParam(body.dryRun || body.dry_run);
     let result;
     try {
@@ -320,6 +329,7 @@ function createAutomationApiRoutes(deps = {}) {
       enabled_toolsets: body.enabled_toolsets || body.enabledToolsets,
       model: body.model,
       provider: body.provider,
+      profile: body.profile,
       workdir: body.workdir,
     } : {};
     let result;

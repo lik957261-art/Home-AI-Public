@@ -346,7 +346,13 @@ function createGatewayRunRequestBuilderService(options = {}) {
     runPolicy = sanitizePolicy(mergeRequiredToolsetsIntoPolicy(runPolicy, requiredPluginToolsets), policyHardeningOptions);
     runPolicy = sanitizePolicy(mergeRequiredSkillsIntoPolicy(runPolicy, requiredPluginSkills), policyHardeningOptions);
     const modelFirstSelection = objectValue(runOptions.modelFirstToolsetSelection, null);
-    const rawModelFirstToolsets = dedupe(modelFirstSelection?.selectedToolsets || modelFirstSelection?.selected_toolsets || []);
+    const rawModelFirstToolsets = dedupe(
+      modelFirstSelection?.executionToolsets
+      || modelFirstSelection?.execution_toolsets
+      || modelFirstSelection?.selectedToolsets
+      || modelFirstSelection?.selected_toolsets
+      || [],
+    );
     const modelFirstSelectionDisabled = Boolean(
       modelFirstSelection?.toolsetSelectionDisabled
       || modelFirstSelection?.toolset_selection_disabled

@@ -1577,7 +1577,7 @@ button {
 }
 
 .embedded-plugin-host-active:not(.codex-mode).global-plugin-dock-collapsed-mode .embedded-plugin-host {
-  padding-bottom: calc(var(--topic-plugin-dock-collapsed-height) + var(--topic-plugin-dock-collapsed-safe-lift) + 6px);
+  padding-bottom: 0;
 }
 
 .embedded-plugin-host-active:not(.codex-mode).global-plugin-dock-expanded-mode .embedded-plugin-host {

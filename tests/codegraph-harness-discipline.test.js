@@ -49,7 +49,7 @@ assert.match(testMatrix, /80-120 lines/);
 assert.match(testMatrix, /targeted `rg`/);
 assert.match(testMatrix, /model-first\s+contract/);
 assert.match(testMatrix, /Do not hard-prune callable toolsets/);
-assert.match(testMatrix, /selected narrow execution/);
+assert.match(testMatrix, /full-authorized execution/);
 assert.match(testMatrix, /best-effort cancellation/);
 assert.match(testMatrix, /(?:local natural-language permission routing|natural-language permission routing before the model)/);
 assert.match(testMatrix, /(?:internal JSON-only preflight|selector\/preflight is an internal JSON-only step)/);

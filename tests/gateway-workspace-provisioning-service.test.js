@@ -97,6 +97,9 @@ function testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort() {
     assert.deepEqual(worker.allowedWorkspaceIds, ["xuyan"]);
     assert.deepEqual(worker.skillWorkspaceIds, ["xuyan"]);
     assert.equal(worker.skillProfile, "workspace:xuyan");
+    assert.equal(worker.toolsets.includes("weather"), true);
+    assert.equal(worker.toolsets.includes("http"), true);
+    assert.equal(worker.toolsets.includes("clarify"), true);
     assert.equal(path.basename(worker.apiKeyFile), "hm-xuyan-openai-1.key");
     assert.equal(path.basename(secondWorker.apiKeyFile), "hm-xuyan-openai-2.key");
     assert.equal(path.basename(deepseek.apiKeyFile), "hm-xuyan-deepseek-1.key");
@@ -165,6 +168,7 @@ function testExistingWorkspaceRepairsStaleReplicaMetadata() {
         id: "hm-wuping-openai-1",
         replica_id: "hm-wuping-openai-1",
         profile_alias: "hm-wuping-openai-1",
+        enabledToolsets: ["web"],
       }),
       Object.assign(deepseekWorker("deepseekgw21", "xjz", 18853), {
         id: "deepseekgw5",
@@ -189,7 +193,39 @@ function testExistingWorkspaceRepairsStaleReplicaMetadata() {
       assert.equal(worker.poolKey, `xjz|user|${provider}`);
       assert.equal(worker.replica_id, undefined);
       assert.equal(worker.profile_alias, undefined);
+      assert.equal(worker.toolsets.includes("weather"), true);
+      assert.equal(worker.toolsets.includes("http"), true);
+      assert.equal(worker.toolsets.includes("file"), true);
+      assert.equal(worker.enabledToolsets, undefined);
     }
+  });
+}
+
+function testExistingWorkspaceMergesReadableConfigToolsets() {
+  withManifest({
+    enabled: true,
+    workers: [
+      Object.assign(baseWorker("lowgw31", "xjz", 18871), {
+        toolsets: ["web"],
+      }),
+      deepseekWorker("deepseekgw31", "xjz", 18872),
+    ],
+  }, (manifestPath) => {
+    const configPath = path.join(path.dirname(manifestPath), "profiles", "lowgw31", "config.yaml");
+    fs.mkdirSync(path.dirname(configPath), { recursive: true });
+    fs.writeFileSync(configPath, "toolsets: [web, finance, health]\n", "utf8");
+    const manifest = readManifest(manifestPath);
+    manifest.workers[0].configPath = configPath;
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+
+    const result = createService(manifestPath).ensureWorkspaceGateway({ workspaceId: "xjz" });
+
+    assert.equal(result.ok, true);
+    const repaired = readManifest(manifestPath).workers.find((item) => item.profile === "lowgw31");
+    assert.equal(repaired.toolsets.includes("weather"), true);
+    assert.equal(repaired.toolsets.includes("x_search"), true);
+    assert.equal(repaired.toolsets.includes("finance"), true);
+    assert.equal(repaired.toolsets.includes("health"), true);
   });
 }
 
@@ -237,6 +273,7 @@ function testOwnerWorkspaceSkipped() {
 testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort();
 testExistingWorkspaceIsIdempotent();
 testExistingWorkspaceRepairsStaleReplicaMetadata();
+testExistingWorkspaceMergesReadableConfigToolsets();
 testRefreshProfileBindingMarksExistingWorkspaceProfiles();
 testOwnerWorkspaceSkipped();
 

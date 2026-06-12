@@ -13,6 +13,27 @@ const DEFAULT_REQUIRED_CANDIDATE = Object.freeze({
   minCandidates: 1,
   requireAll: true,
 });
+const DEFAULT_ORDINARY_USER_TOOLSETS = Object.freeze([
+  "web",
+  "search",
+  "x_search",
+  "http",
+  "weather",
+  "browser",
+  "file",
+  "vision",
+  "video",
+  "image_gen",
+  "messaging",
+  "tts",
+  "skills",
+  "todo",
+  "kanban",
+  "cronjob",
+  "memory",
+  "session_search",
+  "clarify",
+]);
 
 function parseArgs(argv) {
   const out = {
@@ -118,8 +139,12 @@ function parseTopLevelYamlList(source, key) {
 
 function readConfigToolsets(configPath) {
   if (!configPath || !fs.existsSync(configPath)) return { exists: false, toolsets: [] };
-  const content = fs.readFileSync(configPath, "utf8");
-  return { exists: true, toolsets: parseTopLevelYamlList(content, "toolsets") };
+  try {
+    const content = fs.readFileSync(configPath, "utf8");
+    return { exists: true, toolsets: parseTopLevelYamlList(content, "toolsets"), error: "" };
+  } catch (err) {
+    return { exists: true, toolsets: [], error: err && err.code ? err.code : "read_failed" };
+  }
 }
 
 function normalizeWorker(worker = {}, index = 0) {
@@ -181,6 +206,17 @@ function missingFrom(required, available) {
   return cleanList(required).filter((item) => !set.has(item));
 }
 
+function concreteWorkspaceIds(worker) {
+  return dedupe([
+    ...cleanList(worker.allowedWorkspaceIds),
+    ...cleanList(worker.skillWorkspaceIds),
+  ]).filter((item) => item !== "*" && cleanLower(item) !== "all");
+}
+
+function isOrdinaryWorkspaceUserWorker(worker) {
+  return worker.enabled && worker.securityLevel === "user" && concreteWorkspaceIds(worker).length > 0;
+}
+
 function checkManifestToolsets(options = {}) {
   const explicitManifest = Object.prototype.hasOwnProperty.call(options, "manifest") && clean(options.manifest);
   const normalized = Object.assign(parseArgs([]), options || {});
@@ -202,14 +238,23 @@ function checkManifestToolsets(options = {}) {
     if (!config.exists && worker.configPath) {
       issues.push(`config_path_missing:${worker.profile || worker.name}`);
     }
+    if (config.error) {
+      issues.push(`config_path_unreadable:${worker.profile || worker.name}:${config.error}`);
+    }
     const missingConfigToolsets = missingFrom(config.toolsets, worker.toolsets);
     for (const toolset of missingConfigToolsets) {
       issues.push(`manifest_missing_config_toolset:${worker.profile || worker.name}:${toolset}`);
+    }
+    if (isOrdinaryWorkspaceUserWorker(worker)) {
+      for (const toolset of missingFrom(DEFAULT_ORDINARY_USER_TOOLSETS, worker.toolsets)) {
+        issues.push(`ordinary_user_missing_default_toolset:${worker.profile || worker.name}:${toolset}`);
+      }
     }
     configChecks.push({
       profile: worker.profile || worker.name,
       configPath: compactPath(normalized.root, worker.configPath),
       configExists: config.exists,
+      configReadError: config.error || "",
       configToolsets: config.toolsets,
       manifestToolsets: worker.toolsets,
       missingConfigToolsets,

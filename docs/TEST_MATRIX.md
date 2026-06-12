@@ -255,6 +255,9 @@ run:
 `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-required-skill-preload-smoke.js --root /Users/hermes-host/HermesMobile --json`
 and
 `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-gateway-manifest-toolset-smoke.js --root /Users/hermes-host/HermesMobile --json`.
+The manifest smoke needs root read access on production because it compares
+manifest rows with profile configs owned by multiple `hm-*` users; lower
+privilege runs may report `config_path_unreadable` and are diagnostic only.
 The first smoke catches listener-side required Skill ACL/preload failures such
 as `required_skill_missing`; the second catches stale manifest `toolsets` that
 would become `gateway_toolset_missing` even when the underlying
@@ -910,17 +913,15 @@ IGCSE/A Level nodes as direct current targets for a Primary learner.
 For Gateway toolset selection, the harness must preserve the model-first
 contract when that selector is enabled. Do not hard-prune callable toolsets
 before a first-round model selection. A first round may use a compact
-capability catalog, and the execution round may expand only the selected
-authorized toolsets, but the model must have an explicit escalation path for
-additional authorized toolsets. If request-level schema proof is missing,
-model-first toolset selection stays disabled and execution uses the full active
-schema set chosen by plugin capability activation, not every authorized
-optional plugin MCP schema in the workspace. Narrow `suggested_toolsets` remain
-telemetry only unless the selector succeeds. The model-side permission
-preflight is a separate switch and remains enabled by default.
-The harness must cover selected narrow execution, allowed escalation, denied
-blocked-toolset escalation, invalid selection fallback, and telemetry for
-model-selection start/end, tool-call start/end, and final-message start/end.
+capability catalog, but the execution round must preserve the full active
+authorized toolset surface chosen by deterministic policy and plugin capability
+activation. Selector output is recorded as `suggested_toolsets`; it must not
+remove ordinary authorized user tools such as `weather`. The model-side
+permission preflight is a separate switch and remains disabled by default.
+The harness must cover advisory selection metadata, full-authorized execution,
+allowed permission elevation, denied blocked-toolset escalation, invalid
+selection fallback, and telemetry for model-selection start/end, tool-call
+start/end, and final-message start/end.
 Selector failure is explicitly recoverable: timeout, invalid JSON, missing
 runner, or unauthorized selections must fall back to the originally authorized
 toolset list. Permission and optional toolset choice must share the same
@@ -1025,7 +1026,8 @@ that Mobile's top-level `enabled_toolsets` becomes the effective
 `AIAgent.enabled_toolsets`. If that proof is unavailable during a hotfix window,
 keep `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=0` while leaving
 `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT=0` unless there is an
-explicit diagnostic rollback.
+explicit diagnostic rollback; do not compensate by pruning the ordinary
+authorized execution set.
 Runtime configuration harnesses must also check the effective production
 launcher before concluding the selector is on or off:
 `C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1` is the real

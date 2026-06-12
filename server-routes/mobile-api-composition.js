@@ -259,6 +259,7 @@ function createMobileApiComposition(deps = {}) {
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     resolveAuthorizedCronDeliverableFile: deps.resolveAuthorizedCronDeliverableFile,
     resolveAuthorizedCronOutputFile: deps.resolveAuthorizedCronOutputFile,
+    resolveAutomationCronProfile: deps.resolveAutomationCronProfile,
     runAutomationWebPushTick: deps.webPushDeliveryService.runAutomationWebPushTick,
     runCronListBridgeCached: deps.runCronListBridgeCached,
     sanitizePolicy: deps.sanitizePolicy,

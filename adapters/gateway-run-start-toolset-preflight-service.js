@@ -94,9 +94,10 @@ function createGatewayRunStartToolsetPreflightService(options = {}) {
       taskId: args.taskId,
     });
     const rawSelected = dedupe(selection?.selectedToolsets || selection?.selected_toolsets || []);
-    const selectedToolsets = selection?.toolsetSelectionDisabled
+    const suggestedToolsets = selection?.toolsetSelectionDisabled
       ? rawSelected
       : expandSelectedToolsetsWithCompanions(rawSelected, request?.runPolicy || {});
+    const executionToolsets = enabledToolsetsForRequest(request);
     if (selection?.enabled && selection.elevationRequired) {
       return {
         request,
@@ -110,21 +111,28 @@ function createGatewayRunStartToolsetPreflightService(options = {}) {
         }),
       };
     }
-    if (selection?.enabled && selection.ok && selectedToolsets.length) {
-      const routing = toolsetSelectionRouting(selection, selectedToolsets);
-      const selectedRunOptions = Object.assign({}, effectiveRunOptions, {
-        modelFirstToolsetSelection: { selectedToolsets, toolsetSelectionDisabled: Boolean(selection.toolsetSelectionDisabled), routing },
-      });
-      request = appendToolsetEscalationInstructions(
-        buildRunRequest(args.thread, args.userMessage, args.assistantMessage, selectedRunOptions),
-        selection,
-        selectedToolsets,
+    if (selection?.enabled && selection.ok && suggestedToolsets.length) {
+      const initialRouting = Object.assign(
+        {},
+        toolsetSelectionRouting(selection, executionToolsets),
+        { suggested_toolsets: suggestedToolsets },
       );
+      const selectedRunOptions = Object.assign({}, effectiveRunOptions, {
+        modelFirstToolsetSelection: { selectedToolsets: suggestedToolsets, executionToolsets, suggestedToolsets, toolsetSelectionDisabled: Boolean(selection.toolsetSelectionDisabled), routing: initialRouting },
+      });
+      request = buildRunRequest(args.thread, args.userMessage, args.assistantMessage, selectedRunOptions);
+      const finalExecutionToolsets = enabledToolsetsForRequest(request);
+      const routing = Object.assign(
+        {},
+        toolsetSelectionRouting(selection, finalExecutionToolsets),
+        { suggested_toolsets: suggestedToolsets },
+      );
+      selectedRunOptions.modelFirstToolsetSelection.routing = routing;
       applyRoutingToRequest(request, routing);
       const gate = evaluateWardrobeGate(request, args.userMessage, "after_toolset_selection", args.gatewayTarget);
       applyAssistantRunOptions(args.assistantMessage, request, selectedRunOptions);
       applyWardrobeWorkflowGateMetadata(args.assistantMessage, gate);
-      appendRunStartEvent(args.thread, args.assistantMessage, preflightResultEventName(selection, true), toolsetSelectionPreview(selection, selectedToolsets));
+      appendRunStartEvent(args.thread, args.assistantMessage, preflightResultEventName(selection, true), toolsetSelectionPreview(selection, finalExecutionToolsets));
       return { request };
     }
     if (selection?.enabled) {

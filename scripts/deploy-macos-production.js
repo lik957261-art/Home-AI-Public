@@ -19,6 +19,9 @@ const PRODUCTION_SERVICE_GROUP = "staff";
 const HOME_AI_CRON_START_INTERVAL_SECONDS = 60;
 const HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS = 1800;
 const HOME_AI_BRIDGE_HOST_PORT = 8798;
+const HOME_AI_CRON_PROFILE_READ_ACL = `user:${PRODUCTION_SERVICE_USER} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
+const HOME_AI_CRON_PROFILE_TRAVERSE_ACL = `user:${PRODUCTION_SERVICE_USER} allow search,readattr,readextattr,readsecurity`;
+const SAFE_PROFILE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const PLUGIN_DEPLOY_ORDER = Object.freeze([
   "codex-mobile-web",
@@ -109,10 +112,15 @@ const HOME_AI_STATIC_SYNC_ROOTS = [
 ];
 
 const HOME_AI_PROOF_FILES = [
+  "adapters/automation-cron-profile-service.js",
+  "cron_bridge.py",
+  "mobile-server-runtime.js",
   "package.json",
   "public/index.html",
   "public/service-worker.js",
   "public/directory-viewer.html",
+  "server-routes/automation-api-routes.js",
+  "server-routes/mobile-api-composition.js",
   "scripts/deploy-macos-production.js",
   "scripts/production-status-smoke.js",
   "scripts/macos-gateway-start-script-bridge-env-repair.js",
@@ -442,6 +450,9 @@ function buildPlan(options) {
       ? HOME_AI_STATIC_SYNC_ROOTS.map((root) => ({ source: `${root}`, target: `${root}` }))
       : [{ source: "./", target: "./" }],
     proofFiles,
+    cronProfileAliases: options.target === "home-ai"
+      ? buildHomeAiCronProfileAliasPlan(options.macRoot)
+      : null,
     validation,
     runtimeValidationSkipped: Boolean(options.syncOnly),
     rollback: {
@@ -528,6 +539,95 @@ function homeAiCronPaths(macRoot) {
     stdoutLog: posixJoin(logsRoot, "cron.out.log"),
     stderrLog: posixJoin(logsRoot, "cron.err.log"),
     plistPath: `/Library/LaunchDaemons/${HOME_AI_CRON_LABEL}.plist`,
+  };
+}
+
+function gatewayPoolManifestPath(macRoot) {
+  return posixJoin(normalizePath(macRoot || DEFAULT_MAC_ROOT), "data", "gateway-pool-manifest-mac.json");
+}
+
+function safeProfileId(value) {
+  const text = String(value || "").trim();
+  return SAFE_PROFILE_ID_PATTERN.test(text) ? text : "";
+}
+
+function normalizeArray(value) {
+  const raw = Array.isArray(value) ? value : (value ? [value] : []);
+  const out = [];
+  for (const item of raw) {
+    const text = String(item || "").trim();
+    if (text && !out.includes(text)) out.push(text);
+  }
+  return out;
+}
+
+function workerToolsets(worker = {}) {
+  return normalizeArray(
+    worker.toolsets
+    || worker.enabledToolsets
+    || worker.enabled_toolsets
+    || worker.allowedToolsets
+    || worker.allowed_toolsets
+    || worker.toolsetIds
+    || worker.toolset_ids,
+  );
+}
+
+function workerCronProfileAliasEligible(worker = {}) {
+  if (!worker || typeof worker !== "object") return false;
+  if (worker.enabled === false) return false;
+  if (String(worker.securityLevel || worker.security_level || "user").trim().toLowerCase() !== "user") return false;
+  if (!safeProfileId(worker.profile || worker.name || worker.id)) return false;
+  const toolsets = workerToolsets(worker).map((item) => item.toLowerCase());
+  return !toolsets.length || toolsets.includes("cronjob_mobile");
+}
+
+function gatewayWorkerProfileSourceDir(worker = {}) {
+  const rawConfig = String(worker.configPath || worker.config_path || "").trim().replace(/\\/g, "/");
+  if (!rawConfig || !rawConfig.startsWith("/") || path.posix.basename(rawConfig) !== "config.yaml") return "";
+  return normalizePath(path.posix.dirname(rawConfig));
+}
+
+function profileSourceAncestorDirs(sourceDir) {
+  const normalized = normalizePath(sourceDir || "");
+  const parts = normalized.split("/").filter(Boolean);
+  const dirs = [];
+  for (let index = 2; index < parts.length; index += 1) {
+    dirs.push(`/${parts.slice(0, index).join("/")}`);
+  }
+  return dirs;
+}
+
+function cronProfileAliasRowsFromManifest(manifest = {}, macRoot = DEFAULT_MAC_ROOT) {
+  const paths = homeAiCronPaths(macRoot);
+  const workers = Array.isArray(manifest)
+    ? manifest
+    : (Array.isArray(manifest.workers) ? manifest.workers : []);
+  const rows = [];
+  const seen = new Set();
+  for (const worker of workers) {
+    if (!workerCronProfileAliasEligible(worker)) continue;
+    const profile = safeProfileId(worker.profile || worker.name || worker.id);
+    const sourceDir = gatewayWorkerProfileSourceDir(worker);
+    if (!profile || !sourceDir || seen.has(profile)) continue;
+    seen.add(profile);
+    rows.push({
+      profile,
+      sourceDir,
+      aliasPath: posixJoin(paths.hermesHome, "profiles", profile),
+      ancestorDirs: profileSourceAncestorDirs(sourceDir),
+    });
+  }
+  return rows;
+}
+
+function buildHomeAiCronProfileAliasPlan(macRoot, manifest = null) {
+  const paths = homeAiCronPaths(macRoot);
+  return {
+    type: "home-ai-cron-profile-aliases",
+    manifestPath: gatewayPoolManifestPath(macRoot),
+    profilesRoot: posixJoin(paths.hermesHome, "profiles"),
+    aliases: manifest ? cronProfileAliasRowsFromManifest(manifest, macRoot) : [],
   };
 }
 
@@ -693,6 +793,63 @@ function installRootOwnedTextFile(targetPath, text, password, mode = "644", owne
   }
 }
 
+function readGatewayManifestForCronProfiles(manifestPath, password) {
+  const command = `if test -r ${shQuote(manifestPath)}; then /bin/cat ${shQuote(manifestPath)}; else printf '%s\\n' '{"workers":[]}'; fi`;
+  const result = runSudo("/bin/sh", ["-c", command], password);
+  try {
+    return JSON.parse(result.stdout || "{\"workers\":[]}");
+  } catch (_err) {
+    throw new Error("cron_profile_manifest_invalid");
+  }
+}
+
+function applyAclOnce(targetPath, acl, password, recursive = false) {
+  const flags = recursive ? "-R " : "";
+  const command = [
+    `/bin/chmod ${flags}-a ${shQuote(acl)} ${shQuote(targetPath)} >/dev/null 2>&1 || true`,
+    `/bin/chmod ${flags}+a ${shQuote(acl)} ${shQuote(targetPath)}`,
+  ].join("\n");
+  runSudo("/bin/sh", ["-c", command], password);
+}
+
+function installHomeAiCronProfileAliases(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const aliasPlan = buildHomeAiCronProfileAliasPlan(
+    plan.macRoot,
+    readGatewayManifestForCronProfiles(gatewayPoolManifestPath(plan.macRoot), password),
+  );
+  const owner = `${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`;
+
+  runSudo("/bin/mkdir", ["-p", aliasPlan.profilesRoot], password);
+  runSudo("/usr/sbin/chown", [owner, aliasPlan.profilesRoot], password);
+  runSudo("/bin/chmod", ["700", aliasPlan.profilesRoot], password);
+
+  const installed = [];
+  for (const alias of aliasPlan.aliases) {
+    runSudo("/bin/test", ["-d", alias.sourceDir], password);
+    for (const ancestor of alias.ancestorDirs || []) {
+      applyAclOnce(ancestor, HOME_AI_CRON_PROFILE_TRAVERSE_ACL, password, false);
+    }
+    applyAclOnce(alias.sourceDir, HOME_AI_CRON_PROFILE_READ_ACL, password, true);
+    const command = [
+      `if test -e ${shQuote(alias.aliasPath)} || test -L ${shQuote(alias.aliasPath)}; then`,
+      `  if test -L ${shQuote(alias.aliasPath)}; then /bin/rm -f ${shQuote(alias.aliasPath)}; else echo ${shQuote(`cron_profile_alias_conflict:${alias.profile}`)} >&2; exit 47; fi`,
+      "fi",
+      `/bin/ln -s ${shQuote(alias.sourceDir)} ${shQuote(alias.aliasPath)}`,
+      `/usr/sbin/chown -h ${shQuote(owner)} ${shQuote(alias.aliasPath)}`,
+    ].join("\n");
+    runSudo("/bin/sh", ["-c", command], password);
+    installed.push(alias.profile);
+  }
+  return {
+    type: "home-ai-cron-profile-aliases",
+    manifestPath: aliasPlan.manifestPath,
+    profilesRoot: aliasPlan.profilesRoot,
+    profileCount: installed.length,
+    profiles: installed,
+  };
+}
+
 function installHomeAiCronLaunchd(plan, password) {
   if (plan.target !== "home-ai") return null;
   const paths = homeAiCronPaths(plan.macRoot);
@@ -701,7 +858,7 @@ function installHomeAiCronLaunchd(plan, password) {
 
   runSudo("/bin/mkdir", ["-p", paths.cronRoot, paths.outputRoot, paths.runLogRoot, path.posix.dirname(paths.stdoutLog)], password);
   runSudo("/bin/sh", ["-c", `test -f ${shQuote(paths.jobsPath)} || printf '%s\\n' '{"jobs":[]}' > ${shQuote(paths.jobsPath)}`], password);
-  runSudo("/usr/sbin/chown", ["-R", owner, paths.hermesHome], password);
+  runSudo("/usr/sbin/chown", ["-R", "-h", owner, paths.hermesHome], password);
   runSudo("/bin/chmod", ["700", paths.hermesHome, paths.cronRoot, paths.outputRoot, paths.runLogRoot], password);
   runSudo("/bin/chmod", ["600", paths.jobsPath], password);
   runSudo("/usr/bin/touch", [paths.stdoutLog, paths.stderrLog], password);
@@ -728,7 +885,7 @@ function installHomeAiBridgeHostLaunchd(plan, password) {
 
   runSudo("/bin/mkdir", ["-p", paths.cronRoot, paths.outputRoot, paths.runLogRoot, path.posix.dirname(paths.stdoutLog)], password);
   runSudo("/bin/sh", ["-c", `test -f ${shQuote(paths.jobsPath)} || printf '%s\\n' '{"jobs":[]}' > ${shQuote(paths.jobsPath)}`], password);
-  runSudo("/usr/sbin/chown", ["-R", owner, paths.hermesHome], password);
+  runSudo("/usr/sbin/chown", ["-R", "-h", owner, paths.hermesHome], password);
   runSudo("/bin/chmod", ["700", paths.hermesHome, paths.cronRoot, paths.outputRoot, paths.runLogRoot], password);
   runSudo("/bin/chmod", ["600", paths.jobsPath], password);
   runSudo("/usr/bin/touch", [paths.stdoutLog, paths.stderrLog], password);
@@ -850,6 +1007,7 @@ function executePlan(plan, options) {
 
   const bridgeHostInstall = installHomeAiBridgeHostLaunchd(plan, password);
   const cronInstall = installHomeAiCronLaunchd(plan, password);
+  const cronProfileAliases = installHomeAiCronProfileAliases(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
 
   for (const label of plan.restartLabels) {
@@ -859,6 +1017,7 @@ function executePlan(plan, options) {
   const validations = [];
   if (bridgeHostInstall) validations.push(Object.assign({ status: 0 }, bridgeHostInstall));
   if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));
+  if (cronProfileAliases) validations.push(Object.assign({ status: 0 }, cronProfileAliases));
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
   for (const check of plan.validation) {
     if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));
@@ -926,8 +1085,10 @@ module.exports = {
   buildAllPluginPlan,
   assertExecutablePlan,
   runValidation,
+  buildHomeAiCronProfileAliasPlan,
   buildHomeAiBridgeHostLaunchdPlist,
   buildHomeAiCronLaunchdPlist,
+  cronProfileAliasRowsFromManifest,
   buildRsyncArgs,
   deployDirtyFiles,
   isDeploySurfaceIncluded,

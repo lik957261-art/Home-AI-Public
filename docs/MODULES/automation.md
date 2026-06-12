@@ -146,6 +146,20 @@ MCP/tool surface exposed to the CRON agent. The network-mode preflight controls
 only model-provider egress; it must not become a replacement path that reads
 mailbox storage directly from Home AI.
 
+Model-backed CRON jobs that require plugin/MCP tools should run under a
+workspace-compatible official Hermes profile. Home AI resolves that profile
+from the configured Gateway Pool manifest when an Automation job is created:
+the selected worker must match the workspace, provider, user security level,
+and requested toolsets such as `email`, `file`, and `skills`. If no manifest is
+present in a fresh public deployment, Home AI leaves the CRON `profile` empty
+and the official scheduler uses its default Hermes home behavior; it must not
+copy private `auth.json` or `config.yaml` files into the scheduler home as a
+fallback.
+
+Existing jobs can be repaired by updating the CRON job `profile` through the
+Home AI Automation update path. This remains a canonical CRON job mutation, not
+a separate local Automation store.
+
 Detached cron runners may execute from the interactive Ubuntu distro while the dedicated Grok Gateway listens behind the Windows host / worker-distro loopback boundary. For `x_search`, the dispatcher should pass `HERMES_MOBILE_X_SEARCH_PROXY_URL` pointing at the bridge-host proxy prefix `/bridge/grok-gateway-proxy`; runners should not assume `127.0.0.1:<grok-port>` reaches the Grok worker.
 
 The `hermes-mobile-web` plugin appends `/v1/responses` to that prefix. Bridge

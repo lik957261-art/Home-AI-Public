@@ -144,6 +144,16 @@ service root.
 - Official Hermes release: `v2026.5.29.2` / `hermes-agent 0.15.2`
 - Mac Gateway Pool manifest:
   `/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`
+- Mac Automation CRON runs official Hermes with
+  `/Users/hermes-host/HermesMobile/data/hermes-home` as `HERMES_HOME`. The
+  central Home AI deploy script maintains
+  `/Users/hermes-host/HermesMobile/data/hermes-home/profiles/<profile>` as
+  symlinks to enabled user Gateway profile directories discovered from the Mac
+  Gateway Pool manifest. It grants `hermes-host` read/traverse ACLs on the
+  referenced profile directories so official CRON can load the existing
+  workspace provider, Skill, and MCP configuration. It must not copy
+  `auth.json`, `config.yaml`, OAuth state, or other private profile files into
+  the scheduler home.
 - Mac Gateway workers: only the required warm baseline should remain
   always-on. Current hybrid policy keeps the Owner OpenAI/Codex baseline warm;
   other `hm-*`, DeepSeek, and maintenance candidates are launchd-loaded cold
@@ -1169,8 +1179,10 @@ launcher first before searching code:
   state this value is inactive and no permission-only selector request is sent.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION`: optional model-first
-  toolset selector. Set to `1`, `true`, `yes`, or `on` to enable narrowing;
-  set to `0`, `false`, `no`, or `off` to disable only toolset narrowing.
+  toolset selector. Set to `1`, `true`, `yes`, or `on` to enable advisory
+  `suggested_toolsets`; set to `0`, `false`, `no`, or `off` to disable the
+  selector call. The execution request must still expose the full authorized
+  ordinary user toolset surface.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS` /
   `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_TIMEOUT_MS`: optional
   selector timeout. Default is `30000`; selector failure or timeout must fall

@@ -35,6 +35,7 @@ EXPORT_DOCUMENT_EXTENSIONS = {".pdf", ".docx", ".doc"}
 MEDIA_DOCUMENT_EXTENSIONS = {".md"} | EXPORT_DOCUMENT_EXTENSIONS
 OUTPUT_SCAN_LIMIT = int(os.environ.get("HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT") or os.environ.get("HERMES_WEB_AUTOMATION_OUTPUT_SCAN_LIMIT") or "80")
 MAX_READ_FILE_BYTES = int(os.environ.get("HERMES_MOBILE_CRON_FILE_MAX_BYTES") or os.environ.get("HERMES_WEB_CRON_FILE_MAX_BYTES") or "26214400")
+PROFILE_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 MEDIA_LINE_PATTERN = re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:.*?[:：]\s*)?MEDIA:\s*(.+?)\s*$")
 MEDIA_PATH_PATTERN = re.compile(
     r"(?i)(\\\\wsl(?:\.localhost|\$)\\[^\r\n]+?\.(?:pdf|docx|doc|md)|"
@@ -706,6 +707,7 @@ def public_job(job: dict[str, Any], detail: str = "full") -> dict[str, Any]:
         "enabledToolsets": normalize_string_list(job.get("enabled_toolsets") or job.get("enabledToolsets")),
         "model": compact_text(job.get("model"), 80),
         "provider": compact_text(job.get("provider"), 80),
+        "profile": compact_text(job.get("profile"), 120),
         "workdir": compact_text(job.get("workdir"), 600),
         "hasScript": bool(job.get("script")),
         "hasWorkdir": bool(job.get("workdir")),
@@ -879,6 +881,15 @@ def normalize_string_list(value: Any, limit: int = 12) -> list[str]:
     return out
 
 
+def normalize_profile(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if not PROFILE_PATTERN.match(text):
+        raise ValueError("profile is invalid")
+    return text
+
+
 def normalize_create_payload(request: dict[str, Any]) -> dict[str, Any]:
     raw = request.get("job") if isinstance(request.get("job"), dict) else request
     name = compact_text(raw.get("name") or request.get("text") or "Hermes automation", 120)
@@ -905,6 +916,7 @@ def normalize_create_payload(request: dict[str, Any]) -> dict[str, Any]:
         "enabled_toolsets": normalize_string_list(raw.get("enabled_toolsets") or raw.get("enabledToolsets")),
         "model": str(raw.get("model") or "").strip() or None,
         "provider": str(raw.get("provider") or "").strip() or None,
+        "profile": normalize_profile(raw.get("profile") or request.get("profile")),
         "owner_principal_id": str(request.get("owner_principal_id") or request.get("ownerPrincipalId") or "").strip() or None,
         "access_policy_context": request.get("access_policy_context") if isinstance(request.get("access_policy_context"), dict) else None,
     }
@@ -932,6 +944,7 @@ def try_native_create_job(payload: dict[str, Any]) -> dict[str, Any] | None:
         "skills": payload["skills"],
         "model": payload.get("model"),
         "provider": payload.get("provider"),
+        "profile": payload.get("profile"),
         "enabled_toolsets": payload.get("enabled_toolsets") or None,
         "owner_principal_id": payload.get("owner_principal_id"),
         "access_policy_context": payload.get("access_policy_context"),
@@ -987,6 +1000,7 @@ def manual_create_job(payload: dict[str, Any], *, dry_run: bool = False) -> dict
         "skill": skills[0] if skills else None,
         "model": payload.get("model"),
         "provider": payload.get("provider"),
+        "profile": payload.get("profile"),
         "base_url": None,
         "script": None,
         "owner_principal_id": payload.get("owner_principal_id"),
@@ -1090,6 +1104,12 @@ def update_job_from_patch(job: dict[str, Any], patch: dict[str, Any]) -> None:
         job["model"] = str(patch.get("model") or "").strip() or None
     if "provider" in patch and patch.get("provider") is not None:
         job["provider"] = str(patch.get("provider") or "").strip() or None
+    if "profile" in patch:
+        profile = normalize_profile(patch.get("profile"))
+        if profile:
+            job["profile"] = profile
+        else:
+            job.pop("profile", None)
     if "workdir" in patch and patch.get("workdir") is not None:
         job["workdir"] = str(patch.get("workdir") or "").strip() or None
     job["updated_at"] = datetime.now().astimezone().isoformat()

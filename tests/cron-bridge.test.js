@@ -96,6 +96,57 @@ function main() {
   const deniedRun = runBridge(baseEnv, { action: "run", job_id: "job_1", owner_principal_id: "other" }, 2);
   assert.equal(deniedRun.ok, false);
 
+  const createWithProfile = runBridge(baseEnv, {
+    action: "create",
+    dry_run: true,
+    job: {
+      name: "Profile-backed email job",
+      prompt: "Analyze email through MCP",
+      schedule: "0 11 * * *",
+      profile: "hm-owner-openai-1",
+      enabled_toolsets: ["email", "file", "skills"],
+    },
+    owner_principal_id: "owner",
+  });
+  assert.equal(createWithProfile.ok, true);
+  assert.equal(createWithProfile.job.profile, "hm-owner-openai-1");
+  assert.deepEqual(createWithProfile.job.enabledToolsets, ["email", "file", "skills"]);
+
+  const invalidProfile = runBridge(baseEnv, {
+    action: "create",
+    dry_run: true,
+    job: {
+      name: "Invalid profile job",
+      prompt: "Invalid profile should fail",
+      schedule: "0 11 * * *",
+      profile: "../bad-profile",
+    },
+  }, 1);
+  assert.equal(invalidProfile.ok, false);
+  assert.match(invalidProfile.error, /profile is invalid/);
+
+  const profileUpdate = runBridge(baseEnv, {
+    action: "update",
+    job_id: "job_1",
+    owner_principal_id: "owner",
+    patch: { profile: "hm-owner-openai-1" },
+  });
+  assert.equal(profileUpdate.ok, true);
+  assert.equal(profileUpdate.job.profile, "hm-owner-openai-1");
+  const profileDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  assert.equal(profileDoc.jobs.find((job) => job.id === "job_1").profile, "hm-owner-openai-1");
+
+  const profileClear = runBridge(baseEnv, {
+    action: "update",
+    job_id: "job_1",
+    owner_principal_id: "owner",
+    patch: { profile: "" },
+  });
+  assert.equal(profileClear.ok, true);
+  assert.equal(profileClear.job.profile, "");
+  const profileClearDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  assert.equal(Object.hasOwn(profileClearDoc.jobs.find((job) => job.id === "job_1"), "profile"), false);
+
   const mdJobRoot = path.join(outputRoot, "job_md");
   const mdDelivery = path.join(tempRoot, "delivery.md");
   const pdfDelivery = path.join(tempRoot, "delivery.pdf");

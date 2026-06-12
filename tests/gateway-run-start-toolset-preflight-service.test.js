@@ -40,7 +40,7 @@ function makeHarness(overrides = {}) {
       selected: runOptions.modelFirstToolsetSelection?.selectedToolsets || [],
     }),
     applyWardrobeWorkflowGateMetadata: (_assistant, gate) => calls.gates.push(gate),
-    buildRunRequest: (_thread, _user, _assistant, runOptions) => makeRequest(runOptions.modelFirstToolsetSelection?.selectedToolsets || []),
+    buildRunRequest: (_thread, _user, _assistant, runOptions) => makeRequest(runOptions.modelFirstToolsetSelection?.executionToolsets || runOptions.modelFirstToolsetSelection?.selectedToolsets || []),
     completeModelPermissionRequest: (args) => {
       calls.permission.push(args.selection);
       return { status: "needs_elevation", scope: args.selection.elevationScope };
@@ -111,8 +111,8 @@ async function testModelSelectionSuccessRebuildsRequestWithRouting() {
     taskId: "task_1",
   });
 
-  assert.deepEqual(result.request.body.enabled_toolsets, ["weather"]);
-  assert.deepEqual(result.request.toolsetRouting, { mode: "selected", selected_toolsets: ["weather"] });
+  assert.deepEqual(result.request.body.enabled_toolsets, ["file", "weather"]);
+  assert.deepEqual(result.request.toolsetRouting, { mode: "selected", selected_toolsets: ["file", "weather"], suggested_toolsets: ["weather"] });
   assert.equal(calls.events[0].event, "run.toolset_selection_started");
   assert.equal(calls.events[1].event, "run.toolset_selection_done");
   assert.deepEqual(calls.gates, [{ ok: true, stage: "after_toolset_selection" }]);

@@ -13,6 +13,7 @@ const gatewayPoolDoc = fs.readFileSync(path.join(repoRoot, "docs", "MODULES", "g
 assert.match(scriptText, /gateway-pool-manifest-mac\.json/);
 assert.match(scriptText, /manifest_missing_config_toolset/);
 assert.match(scriptText, /required_candidate_missing_toolset/);
+assert.match(scriptText, /ordinary_user_missing_default_toolset/);
 assert.doesNotMatch(scriptText, /apiKey|api_key|Authorization|Bearer/);
 
 const {
@@ -29,6 +30,28 @@ function write(file, body) {
 function writeJson(file, value) {
   write(file, `${JSON.stringify(value, null, 2)}\n`);
 }
+
+const ordinaryUserToolsets = [
+  "web",
+  "search",
+  "x_search",
+  "http",
+  "weather",
+  "browser",
+  "file",
+  "vision",
+  "video",
+  "image_gen",
+  "messaging",
+  "tts",
+  "skills",
+  "todo",
+  "kanban",
+  "cronjob",
+  "memory",
+  "session_search",
+  "clarify",
+];
 
 assert.deepEqual(parseTopLevelYamlList("toolsets:\n  - web\n  - wardrobe\nplatform_toolsets:\n  api_server: []", "toolsets"), ["web", "wardrobe"]);
 assert.deepEqual(parseTopLevelYamlList("toolsets: [web, wardrobe, file]\n", "toolsets"), ["web", "wardrobe", "file"]);
@@ -75,7 +98,7 @@ try {
         skillWorkspaceIds: ["owner"],
         port: 18751,
         configPath: owner1Config,
-        toolsets: ["web", "search", "vision", "file", "skills", "weather"],
+        toolsets: ordinaryUserToolsets,
       },
       {
         profile: "hm-owner-openai-2",
@@ -85,16 +108,16 @@ try {
         skillWorkspaceIds: ["owner"],
         port: 18752,
         configPath: owner2Config,
-        toolsets: ["web", "search", "wardrobe", "vision", "file", "skills", "weather"],
+        toolsets: [...ordinaryUserToolsets, "wardrobe"],
       },
       {
-        profile: "hm-wuping-openai-1",
+        profile: "hm-xjz-openai-1",
         provider: "openai-codex",
         securityLevel: "user",
-        allowedWorkspaceIds: ["weixin_wuping"],
-        skillWorkspaceIds: ["weixin_wuping"],
+        allowedWorkspaceIds: ["xjz"],
+        skillWorkspaceIds: ["xjz"],
         port: 18753,
-        toolsets: ["web", "search", "wardrobe"],
+        toolsets: ordinaryUserToolsets.filter((toolset) => toolset !== "weather"),
       },
     ],
   });
@@ -113,11 +136,13 @@ try {
   assert.equal(stale.ok, false);
   assert.ok(stale.issues.includes("manifest_missing_config_toolset:hm-owner-openai-1:wardrobe"));
   assert.ok(stale.issues.includes("required_candidate_missing_toolset:hm-owner-openai-1:wardrobe"));
+  assert.ok(stale.issues.includes("ordinary_user_missing_default_toolset:hm-xjz-openai-1:weather"));
   assert.equal(stale.candidateChecks[0].candidateCount, 2);
 
   const manifestPath = path.join(dataDir, "gateway-pool-manifest-mac.json");
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   manifest.workers[0].toolsets.push("wardrobe");
+  manifest.workers[2].toolsets.push("weather");
   writeJson(manifestPath, manifest);
   const fixed = checkManifestToolsets({
     root: tempRoot,

@@ -536,6 +536,15 @@ strictest default check: every Owner OpenAI/Codex user candidate must declare
 the selected profile config. Use
 `scripts/macos-gateway-manifest-toolset-smoke.js` after Mac profile
 materialization, manifest edits, plugin provisioning, or data migration.
+Ordinary user workers bound to a concrete workspace must also keep the standard
+low-permission toolset surface in manifest `toolsets`, including `weather`,
+because Mobile filters and ranks Gateway candidates before a worker process can
+prove the profile-local plugin schema. Workspace Gateway provisioning repairs
+new and existing non-Owner worker rows to this standard manifest surface while
+preserving any workspace-specific plugin toolsets. During repair, provisioning
+also merges the top-level `toolsets` from a readable worker `config.yaml` into
+the manifest row; a manifest repair must never drop plugin toolsets that the
+profile config already exposes.
 
 Usage telemetry is separate from scheduling identity. Each worker should expose
 explicit `telemetryStateDbPath` and `telemetryResponseStoreDbPath` values for
@@ -845,12 +854,12 @@ Required flow:
    decision. When toolset selection is explicitly enabled, it may also choose
    the toolsets needed for the task; otherwise it must not choose or omit
    toolsets.
-2. Execution round: expose the full active schema set when toolset selection is
-   disabled, or only the selected authorized schemas within that active set when
-   selection is explicitly enabled and proven safe. Wardrobe routing may suggest
-   the Wardrobe/weather companion set, but must not narrow required execution
-   while the selector is disabled or eagerly load unrelated optional plugin
-   schemas.
+2. Execution round: expose the full active schema set selected by deterministic
+   policy and capability activation. The model-first selector may record
+   `suggested_toolsets`, but it must not remove ordinary authorized user tools
+   such as `weather` from the execution request. Wardrobe routing may suggest the
+   Wardrobe/weather companion set, but suggestions must not narrow required
+   execution or eagerly load unrelated optional plugin schemas.
 3. Escalation: if the model determines an additional authorized toolset is
    needed, it must request expansion explicitly and continue with the expanded
    schema. Escalation to blocked or cross-boundary toolsets is denied unless the
@@ -904,7 +913,8 @@ Current runtime behavior:
 - Permission preflight and toolset selection are separate switches. Permission
   preflight defaults off; deterministic server policy and explicit Owner
   maintenance approval routes remain the authority. Toolset selection defaults
-  off and may only narrow execution toolsets when explicitly enabled.
+  off; when enabled, it is advisory for `suggested_toolsets` and must not prune
+  the authorized execution toolset surface for ordinary user runs.
 - After a successful `model_first` or `permission_preflight` decision, the
   execution prompt must not call `skill_view` or load
   `productivity/hermes-mobile-permission-boundary-check` again. That Skill is
@@ -925,8 +935,10 @@ Current runtime behavior:
   With the default disabled state, no permission-only selector request is sent
   and no `run.permission_preflight_*` event is emitted.
 - `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` /
-  `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` enable toolset narrowing
-  only when set to `1`, `true`, `yes`, or `on`; default is disabled.
+  `HERMES_WEB_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION` enable the legacy model-side
+  selector only when set to `1`, `true`, `yes`, or `on`; default is disabled.
+  A successful selector result is stored as `suggested_toolsets`, not as a
+  permission to remove already authorized ordinary user tools from execution.
 - Production deployments may intentionally override that default in the
   production launcher. On the local maintained deployment, check
   `C:\ProgramData\HermesMobile\start-hermes-mobile-production.ps1` first; as
@@ -959,15 +971,11 @@ Current runtime behavior:
 - If model-side preflight returns a permission-elevation decision, Hermes Mobile
   marks the assistant message as requiring Owner approval and does not start the
   execution round.
-- If permission preflight succeeds while toolset selection is disabled,
-  execution receives the full active schema set selected by capability
-  activation. Routing services may record narrower `suggested_toolsets` such as
-  the Wardrobe stack or Wardrobe plus `weather`, but those suggestions must not
-  remove required plugin bundles or force unrelated optional plugin schemas
-  while the selector is off. If explicit selection succeeds, execution receives
-  only the selected authorized schemas within the active set, and the prompt
-  includes `HERMES_TOOLSET_ESCALATION_REQUIRED` as the explicit path for
-  requesting omitted authorized schemas.
+- If permission preflight or model-first selection succeeds, execution receives
+  the full active schema set selected by capability activation. Routing services
+  may record narrower `suggested_toolsets` such as the Wardrobe stack or Wardrobe
+  plus `weather`, but those suggestions must not remove required plugin bundles,
+  omit ordinary authorized user tools, or force unrelated optional plugin schemas.
 - `HERMES_TOOLSET_ESCALATION_REQUIRED` is an internal control marker, not a
   user-facing answer. Streaming delta and completion handling must strip the raw
   marker, persist `toolsetEscalationRequired` metadata and

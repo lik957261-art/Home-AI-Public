@@ -712,10 +712,11 @@ Required harness dimensions:
   `enabled_toolsets` becomes the effective `AIAgent.enabled_toolsets`. If that
   request-level proof is missing in a hotfix window, model-first toolset
   selection must remain disabled and execution must use the deterministic
-  authorized toolset set. This does not disable model-side permission preflight:
-  `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` remains enabled by default,
-  while `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=0` disables only
-  toolset narrowing.
+  authorized toolset set. This does not require model-side permission preflight:
+  `HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT` remains a separate
+  explicit diagnostic switch, while
+  `HERMES_MOBILE_GATEWAY_MODEL_FIRST_TOOLSET_SELECTION=0` disables only the
+  advisory selector call.
 - Runtime overlay path checks are part of the harness. The source/staging copy
   is `C:\ProgramData\HermesMobile\gateway-worker\runtime-overrides`, but the
   worker process imports from `/opt/hermes-gateway-runtime/runtime-overrides`.
@@ -1047,7 +1048,7 @@ Required harness dimensions:
   callable toolsets before the model has had a first-round chance to choose the
   task's needed capability set. The default production posture is selector-off
   unless the request-level schema harness above passes.
-- Permission preflight and toolset narrowing must remain separate controls.
+- Permission preflight and advisory toolset selection must remain separate controls.
   Turning off model-first toolset selection must leave the model-side permission
   decision active. A permission-only preflight may return allowed or
   `HERMES_PERMISSION_APPROVAL_REQUIRED`, but must not choose, omit, or optimize
@@ -1055,16 +1056,20 @@ Required harness dimensions:
 - A first-round model toolset-selection step may receive a compact capability
   catalog and the authorized policy summary, but not the full expanded schema
   for every ordinary tool.
-- The execution round may expand only the model-selected toolsets, but it must
-  support an explicit escalation path when the model determines that an
-  additional authorized toolset is needed.
+- The execution round must keep the full active authorized toolset set selected
+  by deterministic policy and capability activation. Model-selected toolsets are
+  advisory `suggested_toolsets`; they must not remove ordinary authorized user
+  tools from execution.
 - Security boundaries still apply before and after model selection: developer,
   shell, source, process, broad MCP, and cross-workspace toolsets remain blocked
   by policy/profile unless the request enters an explicit Owner maintenance
   path.
-- Harness scenarios must cover model-selected narrow execution, model-requested
-  toolset escalation, denied escalation for blocked toolsets, and fallback when
-  the model cannot produce a valid toolset selection.
+- Harness scenarios must cover advisory model selection metadata,
+  full-authorized execution, denied escalation for blocked toolsets, and fallback
+  when the model cannot produce a valid toolset selection.
+- The explicit escalation path remains part of the contract for blocked
+  toolsets, out-of-scope operations, and Owner-elevation decisions; it is not a
+  mechanism for hiding ordinary authorized user tools from execution.
 - Model-requested toolset escalation must not leak
   `HERMES_TOOLSET_ESCALATION_REQUIRED` as visible chat content. Harness coverage
   must assert the raw marker is stripped during both streamed deltas and
@@ -1125,14 +1130,13 @@ Required harness dimensions:
 - Wardrobe outfit-recommendation turns must also preserve authorized `weather`.
   Harness coverage should include a wardrobe-bound topic whose latest message is
   an outfit request and assert the suggested set contains `wardrobe`, `vision`,
-  `file`, `skills`, and `weather`. When model-first toolset narrowing is
-  disabled or falls back, the same harness must assert execution keeps the full
-  authorized route/access toolset set rather than the suggested subset.
-- Harness scenarios must also assert that model-first narrowing cannot split
-  this wardrobe companion set. If the selector chooses any member of a suggested
-  authorized `wardrobe`/`vision`/`file` set, execution must keep all authorized
-  companions with it so image-backed wardrobe checks and Markdown/file receipts
-  do not degrade into a preventable toolset-escalation result.
+  `file`, `skills`, and `weather`. The same harness must assert execution keeps
+  the full authorized route/access toolset set rather than the suggested subset.
+- Harness scenarios must also assert that advisory model-first selection cannot
+  split this wardrobe companion set. If the selector chooses any member of a
+  suggested authorized `wardrobe`/`vision`/`file` set, execution must keep all
+  authorized companions with it so image-backed wardrobe checks and Markdown/file
+  receipts do not degrade into a preventable toolset-escalation result.
 - The negative case is also required: a single-window chat or topic with no
   resolved directory binding must not crash while reading the directory route.
   It should continue through the normal lightweight chat suggestion path.
@@ -1161,13 +1165,11 @@ Required harness dimensions:
 - Permission and optional toolset choice must enter the same model-side
   preflight when both are enabled. Do not add a local natural-language
   permission classifier before the model run. The model may return either
-  selected authorized toolsets or a `HERMES_PERMISSION_APPROVAL_REQUIRED`-style
-  Owner-elevation decision. When model-first toolset narrowing is disabled, the
-  model may return only the permission decision and execution keeps the
-  full authorized route/access toolset set. For Wardrobe-intent or
+  advisory selected toolsets or a `HERMES_PERMISSION_APPROVAL_REQUIRED`-style
+  Owner-elevation decision. Execution keeps the full authorized route/access
+  toolset set after an allowed decision. For Wardrobe-intent or
   wardrobe-bound-topic runs, the bounded Wardrobe/weather companion set is only
-  a `suggested_toolsets` hint unless the selector is explicitly enabled and the
-  request-level schema harness passes. Selector timeout, invalid JSON, empty
+  a `suggested_toolsets` hint. Selector timeout, invalid JSON, empty
   selection, or unauthorized-only selection must also fall back to the full
   originally authorized toolset set, not to the suggested subset.
 - The selector is an internal JSON-only preflight, not a user-facing task run.

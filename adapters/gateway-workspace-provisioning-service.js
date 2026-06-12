@@ -16,6 +16,68 @@ function cleanList(value) {
   return [];
 }
 
+const DEFAULT_WORKSPACE_USER_TOOLSETS = Object.freeze([
+  "web",
+  "search",
+  "x_search",
+  "http",
+  "weather",
+  "browser",
+  "file",
+  "vision",
+  "video",
+  "image_gen",
+  "messaging",
+  "tts",
+  "skills",
+  "todo",
+  "kanban",
+  "cronjob",
+  "memory",
+  "session_search",
+  "clarify",
+]);
+
+function mergeToolsets(...values) {
+  const out = [];
+  for (const item of values.flatMap((value) => cleanList(value))) {
+    if (!out.includes(item)) out.push(item);
+  }
+  return out;
+}
+
+function scalarFromYaml(value) {
+  const trimmed = String(value || "").trim().replace(/^["']|["']$/g, "");
+  return trimmed.replace(/\s+#.*$/, "").trim();
+}
+
+function parseInlineYamlList(value) {
+  const text = String(value || "").trim();
+  if (!text.startsWith("[") || !text.endsWith("]")) return null;
+  return text.slice(1, -1).split(",").map(scalarFromYaml).filter(Boolean);
+}
+
+function parseTopLevelYamlList(source, key) {
+  const lines = String(source || "").split(/\r?\n/);
+  const out = [];
+  let inBlock = false;
+  for (const line of lines) {
+    if (!inBlock) {
+      const match = line.match(new RegExp(`^${key}:\\s*(.*)$`));
+      if (!match) continue;
+      const inline = parseInlineYamlList(match[1]);
+      if (inline) return mergeToolsets(inline);
+      if (scalarFromYaml(match[1])) return [scalarFromYaml(match[1])];
+      inBlock = true;
+      continue;
+    }
+    if (/^[^\s#][^:]*:/.test(line)) break;
+    const item = line.match(/^\s*-\s*(.+)$/);
+    if (item) out.push(scalarFromYaml(item[1]));
+  }
+  return mergeToolsets(out);
+}
+
 function skillStorePathForWorkspace(path, manifestPath, workspaceId, configuredRoot = "") {
   const profilesRoot = String(configuredRoot || "").trim() || path.join(path.dirname(manifestPath), "skill-profiles");
   return path.join(profilesRoot, workspaceId, "skills");
@@ -214,6 +276,33 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
     return changed;
   }
 
+  function repairWorkspaceWorkerToolsets(worker) {
+    const configToolsets = readWorkerConfigToolsets(worker.configPath || worker.config_path);
+    const merged = mergeToolsets(worker.toolsets || worker.enabledToolsets || worker.enabled_toolsets, DEFAULT_WORKSPACE_USER_TOOLSETS, configToolsets);
+    const changed = JSON.stringify(cleanList(worker.toolsets)) !== JSON.stringify(merged)
+      || worker.enabledToolsets !== undefined
+      || worker.enabled_toolsets !== undefined
+      || worker.allowedToolsets !== undefined
+      || worker.allowed_toolsets !== undefined;
+    worker.toolsets = merged;
+    delete worker.enabledToolsets;
+    delete worker.enabled_toolsets;
+    delete worker.allowedToolsets;
+    delete worker.allowed_toolsets;
+    return changed;
+  }
+
+  function readWorkerConfigToolsets(configPath) {
+    const file = String(configPath || "").trim();
+    if (!file) return [];
+    try {
+      if (!fs.existsSync(file)) return [];
+      return parseTopLevelYamlList(fs.readFileSync(file, "utf8"), "toolsets");
+    } catch (_) {
+      return [];
+    }
+  }
+
   function ensureWorkspaceSkillStore(manifestPath, workspaceId) {
     const skillStorePath = skillStorePathForWorkspace(path, manifestPath, workspaceId, skillProfilesRoot());
     const existed = fs.existsSync(skillStorePath);
@@ -281,6 +370,7 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
           telemetryStateDbPath: replaceProfileInPath(providerTemplate.telemetryStateDbPath, profile),
           telemetryResponseStoreDbPath: replaceProfileInPath(providerTemplate.telemetryResponseStoreDbPath, profile),
         }));
+        repairWorkspaceWorkerToolsets(newWorker);
         workers.push(newWorker);
         existing.push(newWorker);
         provisionedWorkers.push(newWorker);
@@ -290,6 +380,9 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
           provisionedWorkers.push(worker);
         }
         if (repairWorkspaceWorkerApiKey(manifestPath, workspaceId, worker, provider, index + 1)) {
+          provisionedWorkers.push(worker);
+        }
+        if (repairWorkspaceWorkerToolsets(worker)) {
           provisionedWorkers.push(worker);
         }
       });

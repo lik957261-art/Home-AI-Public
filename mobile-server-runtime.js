@@ -17,7 +17,7 @@ const {
   pathDirectChildOfRoot: boundaryPathDirectChildOfRoot,
   pathInsideAnyRoot: boundaryPathInsideAnyRoot,
 } = require("./adapters/path-boundary-service");
-const { createAutomationJobFilterService } = require("./adapters/automation-job-filter-service");
+const { createAutomationJobFilterService } = require("./adapters/automation-job-filter-service"); const { createAutomationCronProfileService } = require("./adapters/automation-cron-profile-service");
 const { createAutomationProvider } = require("./adapters/automation-provider");
 const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions } = require("./adapters/delivery-boundary-provider");
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
@@ -976,9 +976,9 @@ const todoProvider = createTodoProvider({
     ? (useSqliteServiceStore() ? "sqlite_todos" : "local_todos")
     : (useKanbanTodoBackend() ? "hermes_kanban" : (process.env.HERMES_WEB_TODO_PLUGIN_NAME || "hermes_todos")),
 });
-const automationJobFilterService = createAutomationJobFilterService();
-const cronJobMatchesOwner = (...args) => automationJobFilterService.jobMatchesOwner(...args);
+const automationJobFilterService = createAutomationJobFilterService(); const cronJobMatchesOwner = (...args) => automationJobFilterService.jobMatchesOwner(...args);
 const cronJobMatchesSearch = (...args) => automationJobFilterService.jobMatchesSearch(...args);
+const automationCronProfileService = createAutomationCronProfileService({ fs, manifestPaths: () => [process.env.HERMES_MOBILE_GATEWAY_POOL_MANIFEST, process.env.HERMES_WEB_GATEWAY_POOL_MANIFEST, process.env.HERMES_GATEWAY_POOL_MANIFEST_PATH, ...GATEWAY_POOL_MANIFEST_PATHS, path.join(DATA_DIR, "gateway-pool-manifest-mac.json"), path.join(DATA_DIR, "gateway-pool-manifest.json")] }); const resolveAutomationCronProfile = (...args) => automationCronProfileService.resolveProfile(...args);
 const automationProvider = createAutomationProvider({
   runBridge: runCronBridge,
   automationBackend: AUTOMATION_BACKEND,
@@ -1287,7 +1287,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
   readBody, requestClientVersion, readClientVersion, readKanbanCardListCache, readingCoverMaxBytes: KANBAN_READING_COVER_MAX_BYTES, reloadWebPush,
   refreshGatewayRuntimeConfig: (...args) => mobileRuntimeGatewayFacadeService.resetGatewayRuntimeConfig(...args),
   registerUploadArtifact, removeThreadActiveRun, requireOwner, requireWeixinIngress, requireWorkspaceAccess, resolveArtifactForRequest,
-  resolveAuthorizedCronDeliverableFile, resolveAuthorizedCronOutputFile, resolveFileForBrowserRequest, resolveKanbanCardAccess, resolveKanbanOutputFile,
+  resolveAuthorizedCronDeliverableFile, resolveAuthorizedCronOutputFile, resolveAutomationCronProfile, resolveFileForBrowserRequest, resolveKanbanCardAccess, resolveKanbanOutputFile,
   revokeGroupMessagePayload, revokeOwnerElevation, revokeWorkspaceAccessKey, rmdir: (value) => fs.rmdirSync(value), rmDirRecursive: (value) => fs.rmSync(value, { recursive: true, force: false }), rotateGlobalAccessKey,
   rotateWorkspaceAccessKey, runAutomationWebPushTick: webPushDeliveryService.runAutomationWebPushTick, runConcurrencySnapshot, runCronListBridgeCached, runDirectoryBridge,
   safeDirectoryName, safeFileName, sanitizePolicy, saveRuntimeConfig, saveState,
