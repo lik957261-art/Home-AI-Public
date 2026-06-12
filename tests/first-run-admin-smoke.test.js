@@ -158,8 +158,8 @@ async function main() {
     const initialAutomations = await request(baseUrl, "/api/automations?workspaceId=owner&includeDisabled=1", {
       headers: { "X-Hermes-Web-Key": ownerKey },
     });
-    assert.equal(initialAutomations.source.name, "local_automations");
-    assert.equal(initialAutomations.source.pathKind, "local");
+    assert.equal(initialAutomations.source.name, "hermes_cron");
+    assert.notEqual(initialAutomations.source.pathKind, "local");
 
     const ownerWorkspaces = await request(baseUrl, "/api/workspaces", {
       headers: { "X-Hermes-Web-Key": ownerKey },
@@ -172,7 +172,7 @@ async function main() {
     });
     assert.equal(defaults.defaults.workspaceId, "demo-prefill-user");
     assert.equal(defaults.defaults.label, "Demo Prefill User");
-    assert.equal(defaults.defaults.defaultWorkspace, path.join(tempDir, "data", "drive", "Demo Prefill User"));
+    assert.equal(defaults.defaults.defaultWorkspace, path.join(tempDir, "data", "drive", "users", "demo-prefill-user"));
     assert.deepEqual(defaults.defaults.allowedRoots, [defaults.defaults.defaultWorkspace]);
 
     const autoWorkspace = await request(baseUrl, "/api/workspaces", jsonOptions("POST", ownerKey, {

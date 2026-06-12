@@ -43,6 +43,38 @@ High-value entry points:
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
+## 1.0.3 Public Release
+
+This release refreshes the public tree from the current Home AI source and
+keeps the package metadata aligned with the public `v1.0.3` release tag.
+
+Highlights:
+
+- Stabilizes the global plugin Dock and pinned bottom tabs across cold PWA
+  restarts that reopen directly into an embedded plugin.
+- Keeps pinned plugin icons out of the plugin drawer while preserving
+  server-backed manual Dock order and pinned bottom-tab order per workspace.
+- Simplifies plugin-topic detail navigation by removing the plugin-topic
+  dropdown and keeping the active delivery directory as the visible topic chip.
+- Improves plugin-context back/right-swipe behavior so returning from plugin
+  topics restores the topic root without polluting ordinary topic-list caches.
+- Adds Email content MCP support for bounded message-body and attachment-content
+  reads through the Email plugin instead of synthetic fallback text.
+- Hardens macOS Gateway cold-start checks, worker secret-file access audits,
+  Grok OAuth metadata diagnostics, and Codex shared-auth deployment gates.
+- Productizes recent public-safe deployment constraints so fixes remain
+  runnable from a fresh public deployment rather than depending on private
+  machine state.
+
+Validation for this public release:
+
+- `npm test`
+- `npm run productization:check`
+- `npm run privacy:scan`
+- `git diff --check`
+- public export privacy scan
+- focused production smoke evidence from the source deployment before export
+
 ## 1.0.2 Public Release
 
 This release refreshes the public tree from the current Home AI source and
