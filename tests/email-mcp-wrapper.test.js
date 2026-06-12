@@ -97,6 +97,40 @@ function startFakeEmailService() {
         }));
         return;
       }
+      if (req.method === "GET" && req.url.startsWith("/api/mcp/messages/msg-1/body")) {
+        res.end(JSON.stringify({
+          ok: true,
+          messageId: "msg-1",
+          bodyText: "full private body returned only by explicit body tool",
+          offset: 0,
+          limit: 20,
+          returnedChars: 20,
+          totalChars: 52,
+          truncated: true,
+          attachmentContentIncluded: false,
+          auditId: "act-body-1",
+        }));
+        return;
+      }
+      if (req.method === "GET" && req.url.startsWith("/api/mcp/attachments/att-1/content")) {
+        res.end(JSON.stringify({
+          ok: true,
+          attachmentId: "att-1",
+          messageId: "msg-1",
+          filename: "report.pdf",
+          contentType: "application/pdf",
+          encoding: "base64",
+          data: Buffer.from("pdf").toString("base64"),
+          offset: 0,
+          limit: 3,
+          returnedBytes: 3,
+          totalBytes: 3,
+          truncated: false,
+          localOnly: true,
+          auditId: "act-att-1",
+        }));
+        return;
+      }
       if (req.method === "DELETE" && req.url === "/api/messages/msg-1") {
         res.end(JSON.stringify({
           changed: true,
@@ -161,17 +195,20 @@ async function main() {
       { jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "apply_mail_action", arguments: { action: "delete_local", messageId: "msg-1" } } },
       { jsonrpc: "2.0", id: 6, method: "tools/call", params: { name: "delete_local_by_search", arguments: { query: "Cathay OR invoice", exclude_keywords: ["invoice"] } } },
       { jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "apply_mail_action_bulk", arguments: { action: "delete_local", messageIds: ["msg-1"], dry_run: false } } },
+      { jsonrpc: "2.0", id: 8, method: "tools/call", params: { name: "get_message_body", arguments: { messageId: "msg-1", purpose: "inspect selected message", limit: 20 } } },
+      { jsonrpc: "2.0", id: 9, method: "tools/call", params: { name: "get_attachment_content", arguments: { attachmentId: "att-1", purpose: "inspect selected attachment", limit: 3 } } },
     ].map((item) => JSON.stringify(item)).join("\n") + "\n";
     const result = await runWrapper({ workspace, apiBaseUrl: fakeEmail.baseUrl, input });
     assert.equal(result.code, 0, result.stderr);
     assert.equal(result.stderr, "");
     assert.equal(result.stdout.includes("workspace-secret-key"), false);
     assert.equal(result.stdout.includes("launch-test-token"), false);
-    assert.equal(result.stdout.includes("full private body should not be returned"), false);
     assert.equal(result.stdout.includes("raw mime should not be returned"), false);
     const lines = result.stdout.trim().split(/\r?\n/).map((line) => JSON.parse(line));
     assert.equal(lines[0].result.serverInfo.name, "email");
     assert.equal(lines[1].result.tools.some((tool) => tool.name === "search_messages"), true);
+    assert.equal(lines[1].result.tools.some((tool) => tool.name === "get_message_body"), true);
+    assert.equal(lines[1].result.tools.some((tool) => tool.name === "get_attachment_content"), true);
     assert.equal(lines[1].result.tools.some((tool) => tool.name === "delete_local_by_search"), true);
     assert.equal(lines[1].result.tools.some((tool) => tool.name === "apply_mail_action_bulk"), true);
     const accounts = JSON.parse(lines[2].result.content[0].text);
@@ -180,6 +217,7 @@ async function main() {
     assert.equal(message.message.fullBodyAvailable, true);
     assert.equal(message.message.bodyExcerpt, "short excerpt");
     assert.equal(message.message.bodyText, undefined);
+    assert.equal(lines[3].result.content[0].text.includes("full private body should not be returned"), false);
     const action = JSON.parse(lines[4].result.content[0].text);
     assert.equal(action.ok, true);
     assert.equal(action.action, "delete_local");
@@ -194,6 +232,14 @@ async function main() {
     assert.equal(bulkDelete.ok, true);
     assert.equal(bulkDelete.deleted_count, 1);
     assert.equal(bulkDelete.remoteApplied, false);
+    const body = JSON.parse(lines[7].result.content[0].text);
+    assert.equal(body.ok, true);
+    assert.equal(body.bodyText, "full private body returned only by explicit body tool");
+    assert.equal(body.attachmentContentIncluded, false);
+    const attachment = JSON.parse(lines[8].result.content[0].text);
+    assert.equal(attachment.ok, true);
+    assert.equal(attachment.encoding, "base64");
+    assert.equal(attachment.localOnly, true);
     const deleteRequest = fakeEmail.requests.find((request) => request.method === "DELETE" && request.url === "/api/messages/msg-1");
     assert.deepEqual(deleteRequest.body, { accountId: "acct-1" });
     assert.equal(fakeEmail.requests[0].authorization, "Bearer workspace-secret-key");

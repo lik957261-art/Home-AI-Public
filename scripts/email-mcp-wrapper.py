@@ -69,12 +69,40 @@ TOOLS = [
         },
     },
     {
+        "name": "get_message_body",
+        "description": "High-privilege read of cached sanitized message body text with purpose and pagination.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "messageId": {"type": "string"},
+                "purpose": {"type": "string", "minLength": 6},
+                "offset": {"type": "number", "minimum": 0},
+                "limit": {"type": "number", "minimum": 1, "maximum": 20000, "default": 8000},
+            },
+            "required": ["messageId", "purpose"],
+        },
+    },
+    {
         "name": "list_attachments",
-        "description": "List attachment metadata for a message without returning attachment content.",
+        "description": "List attachment metadata and local cache availability for a message.",
         "inputSchema": {
             "type": "object",
             "properties": {"messageId": {"type": "string"}},
             "required": ["messageId"],
+        },
+    },
+    {
+        "name": "get_attachment_content",
+        "description": "High-privilege read of locally cached attachment content as a bounded base64 chunk.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "attachmentId": {"type": "string"},
+                "purpose": {"type": "string", "minLength": 6},
+                "offset": {"type": "number", "minimum": 0},
+                "limit": {"type": "number", "minimum": 1, "maximum": 262144, "default": 65536},
+            },
+            "required": ["attachmentId", "purpose"],
         },
     },
     {
@@ -151,9 +179,17 @@ TOOL_ALIASES = {
     "email.get_message": "get_message",
     "email_get_message": "get_message",
     "email_get_message_summary": "get_message",
+    "get_message_body": "get_message_body",
+    "email.get_message_body": "get_message_body",
+    "email_get_message_body": "get_message_body",
+    "mcp_email_get_message_body": "get_message_body",
     "list_attachments": "list_attachments",
     "email.list_attachments": "list_attachments",
     "email_list_attachments": "list_attachments",
+    "get_attachment_content": "get_attachment_content",
+    "email.get_attachment_content": "get_attachment_content",
+    "email_get_attachment_content": "get_attachment_content",
+    "mcp_email_get_attachment_content": "get_attachment_content",
     "sync_account": "sync_account",
     "email.sync_account": "sync_account",
     "email_sync_account": "sync_account",
@@ -198,6 +234,22 @@ def bounded_bulk_limit(value: Any) -> int:
     except Exception:
         parsed = 500
     return min(max(parsed, 1), 1000)
+
+
+def bounded_body_limit(value: Any) -> int:
+    try:
+        parsed = int(value)
+    except Exception:
+        parsed = 8000
+    return min(max(parsed, 1), 20000)
+
+
+def bounded_attachment_limit(value: Any) -> int:
+    try:
+        parsed = int(value)
+    except Exception:
+        parsed = 65536
+    return min(max(parsed, 1), 262144)
 
 
 def bounded_offset(value: Any) -> int:
@@ -347,8 +399,12 @@ class EmailClient:
             return self.get_digest(args)
         if tool == "get_message":
             return self.get_message(args)
+        if tool == "get_message_body":
+            return self.get_message_body(args)
         if tool == "list_attachments":
             return self.list_attachments(args)
+        if tool == "get_attachment_content":
+            return self.get_attachment_content(args)
         if tool == "sync_account":
             account_id = str(args.get("accountId") or "").strip()
             return {
@@ -437,6 +493,43 @@ class EmailClient:
         projected = message.get("message") if isinstance(message.get("message"), dict) else {}
         attachments = projected.get("attachments") if isinstance(projected.get("attachments"), list) else []
         return {"ok": True, "messageId": str(args.get("messageId") or ""), "attachments": attachments}
+
+    def get_message_body(self, args: dict[str, Any]) -> dict[str, Any]:
+        message_id = str(args.get("messageId") or "").strip()
+        purpose = str(args.get("purpose") or "").strip()
+        if not message_id:
+            return {"ok": False, "error": "email_message_id_required"}
+        if len(purpose) < 6:
+            return {"ok": False, "error": "email_mcp_purpose_required"}
+        payload = self.http_json("GET", f"/api/mcp/messages/{urllib.parse.quote(message_id, safe='')}/body", query={
+            "purpose": purpose,
+            "offset": bounded_offset(args.get("offset")),
+            "limit": bounded_body_limit(args.get("limit")),
+        })
+        if payload.get("error"):
+            return {"ok": False, "error": payload.get("error")}
+        return payload
+
+    def get_attachment_content(self, args: dict[str, Any]) -> dict[str, Any]:
+        attachment_id = str(args.get("attachmentId") or "").strip()
+        purpose = str(args.get("purpose") or "").strip()
+        if not attachment_id:
+            return {"ok": False, "error": "email_attachment_id_required"}
+        if len(purpose) < 6:
+            return {"ok": False, "error": "email_mcp_purpose_required"}
+        payload = self.http_json("GET", f"/api/mcp/attachments/{urllib.parse.quote(attachment_id, safe='')}/content", query={
+            "purpose": purpose,
+            "offset": bounded_offset(args.get("offset")),
+            "limit": bounded_attachment_limit(args.get("limit")),
+        })
+        if payload.get("error"):
+            return {
+                "ok": False,
+                "error": payload.get("error"),
+                **({"attachmentId": payload.get("attachmentId")} if payload.get("attachmentId") else {}),
+                **({"availabilityState": payload.get("availabilityState")} if payload.get("availabilityState") else {}),
+            }
+        return payload
 
     def apply_mail_action(self, args: dict[str, Any]) -> dict[str, Any]:
         if str(args.get("action") or "") != "delete_local":
