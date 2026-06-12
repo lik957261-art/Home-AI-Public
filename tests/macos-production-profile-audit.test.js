@@ -18,6 +18,9 @@ assert.match(script, /skill-profiles/);
 assert.match(script, /\.hermes-gateway/);
 assert.match(script, /profile_skills_not_linked/);
 assert.match(script, /profile_memories_not_linked/);
+assert.match(script, /codex_auth_json_not_linked/);
+assert.match(script, /codex_auth_lock_unwritable/);
+assert.match(script, /codex_auth_json_target_unexpected/);
 assert.match(script, /launchctl/);
 assert.match(script, /launchd_service_not_loaded/);
 assert.match(script, /launchd_plist_missing/);
@@ -248,6 +251,39 @@ try {
   assert.ok(launchdAudit.issues.includes("launchd_run_at_load_unexpected:hm-wuping-openai-1"));
   assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.1" }, { launchdProbe: () => true }).loaded, true);
   assert.equal(launchdServiceStatus({ launchdLabel: "com.hermesmobile.fixture.2" }, { checkLaunchd: false }).checked, false);
+  const codexAuthDriftAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: [],
+    expectedPlugins: [],
+    requiredWorkspacePlugins: {},
+    requiredSharedSkills: [],
+    checkTelemetry: false,
+    codexAuthProbe: ({ profile }) => {
+      if (profile === "hm-owner-openai-1") {
+        return {
+          authJson: { exists: true, isSymbolicLink: false, targetMatchesExpected: false },
+          authLock: { exists: true, isSymbolicLink: true, targetMatchesExpected: false },
+          workerCanReadAuthJson: false,
+          workerCanWriteAuthJson: false,
+          workerCanReadAuthLock: true,
+          workerCanWriteAuthLock: false,
+        };
+      }
+      return {
+        authJson: { exists: true, isSymbolicLink: true, targetMatchesExpected: true },
+        authLock: { exists: true, isSymbolicLink: true, targetMatchesExpected: true },
+        workerCanReadAuthJson: true,
+        workerCanWriteAuthJson: true,
+        workerCanReadAuthLock: true,
+        workerCanWriteAuthLock: true,
+      };
+    },
+  });
+  assert.ok(codexAuthDriftAudit.issues.includes("codex_auth_json_not_linked:hm-owner-openai-1"));
+  assert.ok(codexAuthDriftAudit.issues.includes("codex_auth_json_unreadable:hm-owner-openai-1"));
+  assert.ok(codexAuthDriftAudit.issues.includes("codex_auth_json_unwritable:hm-owner-openai-1"));
+  assert.ok(codexAuthDriftAudit.issues.includes("codex_auth_lock_target_unexpected:hm-owner-openai-1"));
+  assert.ok(codexAuthDriftAudit.issues.includes("codex_auth_lock_unwritable:hm-owner-openai-1"));
   const installedLaunchdAudit = buildAudit({
     root: tempRoot,
     expectedWorkspaces: [],

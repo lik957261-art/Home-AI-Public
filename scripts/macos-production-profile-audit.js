@@ -476,6 +476,30 @@ function listenerCanReadFile(file, options = {}) {
   }
 }
 
+function userCanAccessFile(file, user, mode = "read", options = {}) {
+  const value = String(file || "").trim();
+  const safeUser = String(user || "").trim();
+  const normalizedMode = mode === "write" ? "write" : "read";
+  if (!value || !safeUser || !exists(value)) return false;
+  if (typeof options.workerFileAccessProbe === "function") {
+    return Boolean(options.workerFileAccessProbe(value, safeUser, normalizedMode));
+  }
+  if (process.platform === "darwin") {
+    const flag = normalizedMode === "write" ? "-w" : "-r";
+    const result = spawnSync("sudo", ["-u", safeUser, "test", flag, value], {
+      encoding: "utf8",
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    return result.status === 0;
+  }
+  try {
+    fs.accessSync(value, normalizedMode === "write" ? fs.constants.W_OK : fs.constants.R_OK);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function telemetryStatus(worker = {}, root = "", options = {}) {
   const paths = telemetryPathsForWorker(worker);
   const stateExists = exists(paths.stateDbPath);
@@ -538,6 +562,30 @@ function osUserForWorker(worker = {}) {
   if (workspace === "user-981731fe") return "hm-xuyan";
   if (workspace === "user-a87aaa61") return "hm-xulu";
   return "";
+}
+
+function isOpenAiCodexWorker(worker = {}) {
+  return String(worker.provider || "openai-codex").trim() === "openai-codex";
+}
+
+function codexAuthStatus(worker = {}, profileDir = "", root = "", osUser = "", options = {}) {
+  const profile = String(worker.profile || worker.name || "").trim();
+  const authRoot = path.join(root, "gateway-worker", "telemetry", "profiles", "shared-auth");
+  const authJsonPath = path.join(profileDir, "auth.json");
+  const authLockPath = path.join(profileDir, "auth.lock");
+  if (typeof options.codexAuthProbe === "function") {
+    const probe = options.codexAuthProbe({ worker, profile, profileDir, authRoot, authJsonPath, authLockPath, root, osUser }) || {};
+    return probe;
+  }
+  return {
+    authRoot: compactPath(authRoot, root),
+    authJson: linkInfo(authJsonPath, root, path.join(authRoot, "auth.json")),
+    authLock: linkInfo(authLockPath, root, path.join(authRoot, "auth.lock")),
+    workerCanReadAuthJson: userCanAccessFile(authJsonPath, osUser, "read", options),
+    workerCanWriteAuthJson: userCanAccessFile(authJsonPath, osUser, "write", options),
+    workerCanReadAuthLock: userCanAccessFile(authLockPath, osUser, "read", options),
+    workerCanWriteAuthLock: userCanAccessFile(authLockPath, osUser, "write", options),
+  };
 }
 
 function activeWorkspaceKeyIds(accessKeys = {}) {
@@ -758,6 +806,7 @@ function buildAudit(options) {
     const telemetry = options.checkTelemetry === false ? null : telemetryStatus(worker, root, options);
     const filePluginRoots = filePluginRootStatus(worker, profile, osUser, root, options);
     const mobileBridge = mobileBridgeStatus(worker, profile, osUser, root, options);
+    const codexAuth = isOpenAiCodexWorker(worker) ? codexAuthStatus(worker, profileDir, root, osUser, options) : null;
     const requiredWarm = requiredWarmProfiles.has(profile);
     const check = {
       profile,
@@ -774,6 +823,7 @@ function buildAudit(options) {
       telemetry,
       filePluginRoots,
       mobileBridge,
+      codexAuth,
     };
     profileChecks.push(check);
     if (!configExists) issue(`profile_config_missing:${profile}`);
@@ -816,6 +866,22 @@ function buildAudit(options) {
     }
     if (!mobileBridge.defaultHostUrlPresent) issue(`mobile_bridge_host_url_default_missing:${profile}`);
     if (!mobileBridge.keyPathPresent) issue(`mobile_bridge_key_path_missing:${profile}:${MOBILE_BRIDGE_HOST_KEY_ROOT}`);
+    if (codexAuth) {
+      if (!codexAuth.authJson?.exists) issue(`codex_auth_json_missing:${profile}`);
+      if (!codexAuth.authLock?.exists) issue(`codex_auth_lock_missing:${profile}`);
+      if (codexAuth.authJson?.exists && !codexAuth.authJson?.isSymbolicLink) issue(`codex_auth_json_not_linked:${profile}`);
+      if (codexAuth.authLock?.exists && !codexAuth.authLock?.isSymbolicLink) issue(`codex_auth_lock_not_linked:${profile}`);
+      if (codexAuth.authJson?.isSymbolicLink && !codexAuth.authJson?.targetMatchesExpected) {
+        issue(`codex_auth_json_target_unexpected:${profile}`);
+      }
+      if (codexAuth.authLock?.isSymbolicLink && !codexAuth.authLock?.targetMatchesExpected) {
+        issue(`codex_auth_lock_target_unexpected:${profile}`);
+      }
+      if (codexAuth.authJson?.exists && !codexAuth.workerCanReadAuthJson) issue(`codex_auth_json_unreadable:${profile}`);
+      if (codexAuth.authJson?.exists && !codexAuth.workerCanWriteAuthJson) issue(`codex_auth_json_unwritable:${profile}`);
+      if (codexAuth.authLock?.exists && !codexAuth.workerCanReadAuthLock) issue(`codex_auth_lock_unreadable:${profile}`);
+      if (codexAuth.authLock?.exists && !codexAuth.workerCanWriteAuthLock) issue(`codex_auth_lock_unwritable:${profile}`);
+    }
     if (skills.exists && !skills.isSymbolicLink) issue(`profile_skills_not_linked:${profile}`);
     if (memories.exists && !memories.isSymbolicLink) issue(`profile_memories_not_linked:${profile}`);
     if (skills.isSymbolicLink && !skills.targetMatchesExpected) {

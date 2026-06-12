@@ -77,6 +77,12 @@ decision, and production validation, and the development user must not be given
 ordinary write access to production app or plugin source roots.
 The shared script is `scripts/deploy-macos-production.js`. It is plan-only by
 default and requires `--execute` before it writes production.
+For every non-`--sync-only` Home AI or plugin deployment, the shared script also
+runs a focused `codex-auth-profile-audit` gate after restart/health checks. The
+gate reads `scripts/macos-production-profile-audit.js --expected-workspaces
+owner --json --no-strict` and fails the deploy only on `codex_auth_*` issues,
+so unrelated plugin-binding diagnostics do not mask or silently skip Codex auth
+drift.
 Normal source deploys must preserve production-owned runtime dependency
 directories. The shared script excludes `.venv/`, `node_modules/`, plugin
 `data/`, and other runtime/local state from source-to-production rsync so a
@@ -211,7 +217,10 @@ service root.
   Wardrobe, Owner Wardrobe Skill-only required-gate coverage even when the
   plugin authorization table omits `wardrobe`, and profile `skills`/`memories`
   links whose realpath resolves to the matching
-  `data/skill-profiles/<profileId>` store. On macOS it also verifies every
+  `data/skill-profiles/<profileId>` store. For `openai-codex` workers it also
+  verifies profile-local `auth.json` and `auth.lock` are shared-auth symlinks
+  and that the worker user can read/write both targets; drift is reported as
+  `codex_auth_*` issues. On macOS it also verifies every
   enabled manifest worker's system LaunchDaemon is loaded.
   `launchd_service_not_loaded:<profile>` means the worker can exist in the
   manifest and have a plist file while still failing cold-start with
@@ -905,6 +914,10 @@ only after all of these preflight checks pass:
   rendered profile capabilities so `toolsets`, `mcpServers`, and `configPath`
   match the actual `config.yaml`; otherwise a selected worker may omit the
   plugin toolset even though the profile file contains `mcp_servers.<plugin>`.
+  The central macOS deploy script runs the `codex-auth-profile-audit` gate after
+  plugin deploys because MCP/profile refresh work can otherwise leave an
+  `openai-codex` profile with root-owned regular auth files instead of the
+  shared-auth symlinks required by Gateway runs.
 - NAS Gateway workers must start with the Hermes Mobile runtime overlay on
   `PYTHONPATH`, ahead of the NAS Hermes Agent runtime, and set
   `HERMES_MOBILE_OFFICIAL_CLEAN_PATH` to that runtime. Otherwise profile YAML

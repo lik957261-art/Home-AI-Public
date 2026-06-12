@@ -141,6 +141,8 @@ const HOME_AI_STATIC_PROOF_FILES = [
   "public/directory-viewer.html",
 ];
 
+const CODEX_AUTH_AUDIT_ISSUE_PREFIX = "codex_auth_";
+
 function parseArgs(argv) {
   const out = {
     target: "",
@@ -435,6 +437,22 @@ function buildPlan(options) {
   }
   if (healthUrl) {
     validation.push({ type: "health-url", command: ["/usr/bin/curl", "-fsS", "--max-time", "10", healthUrl] });
+  }
+  if (!options.syncOnly) {
+    validation.push({
+      type: "codex-auth-profile-audit",
+      command: [
+        posixJoin(options.macRoot, PINNED_NODE),
+        posixJoin(options.macRoot, "app", "scripts", "macos-production-profile-audit.js"),
+        "--root",
+        normalizePath(options.macRoot),
+        "--expected-workspaces",
+        "owner",
+        "--json",
+        "--no-strict",
+      ],
+      failOnIssuePrefix: CODEX_AUTH_AUDIT_ISSUE_PREFIX,
+    });
   }
   return {
     schemaVersion: 1,
@@ -984,6 +1002,32 @@ function runValidation(check, password, options) {
   throw lastError;
 }
 
+function runCodexAuthProfileAuditValidation(check, password) {
+  const [command, ...args] = check.command;
+  const result = runSudo(command, args, password);
+  let audit = null;
+  try {
+    audit = JSON.parse(result.stdout || "{}");
+  } catch (_err) {
+    throw new Error("codex_auth_profile_audit_json_invalid");
+  }
+  const issues = Array.isArray(audit.issues) ? audit.issues.map((item) => String(item || "")).filter(Boolean) : [];
+  const prefix = String(check.failOnIssuePrefix || CODEX_AUTH_AUDIT_ISSUE_PREFIX);
+  const codexIssues = issues.filter((item) => item.startsWith(prefix));
+  if (codexIssues.length) {
+    const err = new Error(`codex_auth_profile_audit_failed:${codexIssues.slice(0, 20).join(",")}`);
+    err.stderr = `codexAuthIssues=${codexIssues.length}`;
+    throw err;
+  }
+  return {
+    type: check.type,
+    status: result.status,
+    auditOk: Boolean(audit.ok),
+    issueCount: issues.length,
+    codexIssueCount: 0,
+  };
+}
+
 function sha256File(filePath) {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
@@ -1060,6 +1104,7 @@ function executePlan(plan, options) {
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
   for (const check of plan.validation) {
     if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));
+    else if (check.type === "codex-auth-profile-audit") validations.push(runCodexAuthProfileAuditValidation(check, password));
     else validations.push(runValidation(check, password, options));
   }
   return validations;

@@ -385,6 +385,14 @@ ACLs can fail real runs with `Permission denied: .../auth.lock`. A workspace
 worker with a valid API-server key but no Codex auth link can pass
 launch/listener key checks and then fail the actual run with
 `No Codex credentials stored`.
+The Mac production profile audit reports these drift states with
+`codex_auth_json_missing`, `codex_auth_lock_missing`,
+`codex_auth_json_not_linked`, `codex_auth_lock_not_linked`,
+`codex_auth_json_target_unexpected`, `codex_auth_lock_target_unexpected`,
+`codex_auth_json_unreadable`, `codex_auth_json_unwritable`,
+`codex_auth_lock_unreadable`, or `codex_auth_lock_unwritable`. The central
+macOS deploy script runs that focused audit after non-`--sync-only` plugin
+deployments and fails on `codex_auth_*` issues.
 Provisioning must also rewrite stale replica metadata copied from a template:
 `id`, `replicaId`, and `profileAlias` must equal the worker `profile`, and
 `profileTemplateKey` / `poolKey` must equal the target workspace/provider

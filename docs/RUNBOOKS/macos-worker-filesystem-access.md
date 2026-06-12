@@ -140,6 +140,10 @@ This is separate from the manifest API-server key. If the run instead reports
 directory or lock/auth files are missing write ACLs for the worker. Re-run
 workspace Gateway provisioning after fixing the shared-auth source so the
 profile links and ACLs are refreshed.
+The production profile audit now checks this directly. `codex_auth_*` issues
+are deployment blockers, and `scripts/deploy-macos-production.js` runs that
+focused gate after non-`--sync-only` plugin deployments because plugin MCP or
+profile refresh work can otherwise touch the same worker profile tree.
 
 For required plugin Skills and profile-local file plugins, also run the profile
 audit after any Skill Store copy, worker-side Skill edit, plugin provisioning,

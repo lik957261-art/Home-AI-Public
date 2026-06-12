@@ -236,6 +236,13 @@ Any `mobile_bridge_env_missing:<profile>:<env>`,
 issue is also blocking. Those values are required for Gateway-exposed
 automation tools such as `cronjob_mobile` to reach the Home AI bridge-host CRON
 route instead of failing with a missing host key or writing profile-local cron.
+For `openai-codex` workers, the same audit must also prove profile-local
+`auth.json` and `auth.lock` are symlinks to the shared Codex auth store and
+that the worker user can read/write both targets. Any `codex_auth_*` issue is a
+blocking provider-auth drift. The central Mac deploy script includes this as
+the focused `codex-auth-profile-audit` gate for every non-`--sync-only` plugin
+deploy so MCP/profile refreshes cannot silently break Finance, Wardrobe,
+Email, Health, Note, Growth, Moira, or Codex Mobile runs.
 Local coverage must include
 `node tests\macos-file-plugin-docx-root-smoke.test.js`. After any Mac
 file-plugin root repair or user/profile migration, production must also run
