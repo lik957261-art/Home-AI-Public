@@ -156,9 +156,27 @@ and the official scheduler uses its default Hermes home behavior; it must not
 copy private `auth.json` or `config.yaml` files into the scheduler home as a
 fallback.
 
+On macOS production, the `com.hermesmobile.cron` LaunchDaemon runs as the
+service user `hermes-host`. The central deploy script must therefore install
+both the CRON profile alias and read/search ACLs for workspace-local plugin
+binding directories such as `.hermes-email`, `.hermes-finance`,
+`.hermes-health`, and `.hermes-note` under the effective Gateway workspace
+root. These ACLs let the official CRON runtime read the plugin `config.json`
+and `access-key.txt` needed by MCP wrappers, while the raw workspace keys stay
+server-side and are not copied into the scheduler home.
+
 Existing jobs can be repaired by updating the CRON job `profile` through the
 Home AI Automation update path. This remains a canonical CRON job mutation, not
 a separate local Automation store.
+
+Model-backed CRON jobs that write files must use an explicit persistent
+`workdir` under the runtime data tree, not the Home AI app/code directory. The
+macOS deployment path syncs the app directory with `rsync --delete`; any
+job-created directories under `/Users/hermes-host/HermesMobile/app` are
+deployment scratch and can be removed. User-visible reports, cursors,
+intermediate indexes, and `MEDIA:` deliverables should live under a data root
+such as `$HERMES_HOME/automation-workspaces/<job>/...` or another authorized
+delivery directory.
 
 Detached cron runners may execute from the interactive Ubuntu distro while the dedicated Grok Gateway listens behind the Windows host / worker-distro loopback boundary. For `x_search`, the dispatcher should pass `HERMES_MOBILE_X_SEARCH_PROXY_URL` pointing at the bridge-host proxy prefix `/bridge/grok-gateway-proxy`; runners should not assume `127.0.0.1:<grok-port>` reaches the Grok worker.
 

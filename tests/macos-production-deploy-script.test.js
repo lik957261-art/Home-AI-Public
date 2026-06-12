@@ -60,6 +60,8 @@ assert.match(script, /home-ai-gateway-start-script-bridge-env-repair/);
 assert.match(script, /macos-gateway-start-script-bridge-env-repair\.js/);
 assert.match(script, /installRootOwnedTextFile/);
 assert.match(script, /HOME_AI_CRON_PROFILE_READ_ACL/);
+assert.match(script, /HOME_AI_CRON_PLUGIN_BINDING_DIR_NAMES/);
+assert.match(script, /applyAclIfExists\(bindingDir, HOME_AI_CRON_PROFILE_READ_ACL/);
 assert.match(script, /\/usr\/bin\/install/);
 assert.match(script, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(script, /HERMES_CRON_SCRIPT_TIMEOUT/);
@@ -244,6 +246,9 @@ assert.equal(
   "/Users/hermes-host/HermesMobile/data/hermes-home/profiles/hm-owner-openai-1",
 );
 assert.ok(cronAliasPlan.aliases[0].ancestorDirs.includes("/Users/hm-owner/HermesWorkspace"));
+assert.equal(cronAliasPlan.aliases[0].workspaceRoot, "/Users/hm-owner/HermesWorkspace");
+assert.ok(cronAliasPlan.aliases[0].pluginBindingDirs.includes("/Users/hm-owner/HermesWorkspace/.hermes-email"));
+assert.ok(cronAliasPlan.aliases[0].pluginBindingDirs.includes("/Users/hm-owner/HermesWorkspace/.hermes-finance"));
 
 const staticRun = spawnSync(process.execPath, [
   scriptPath,

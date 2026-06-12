@@ -21,6 +21,15 @@ const HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS = 1800;
 const HOME_AI_BRIDGE_HOST_PORT = 8798;
 const HOME_AI_CRON_PROFILE_READ_ACL = `user:${PRODUCTION_SERVICE_USER} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
 const HOME_AI_CRON_PROFILE_TRAVERSE_ACL = `user:${PRODUCTION_SERVICE_USER} allow search,readattr,readextattr,readsecurity`;
+const HOME_AI_CRON_PLUGIN_BINDING_DIR_NAMES = Object.freeze([
+  ".hermes-email",
+  ".hermes-finance",
+  ".hermes-health",
+  ".hermes-note",
+  ".hermes-wardrobe",
+  ".hermes-growth",
+  ".hermes-moira",
+]);
 const SAFE_PROFILE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const PLUGIN_DEPLOY_ORDER = Object.freeze([
@@ -598,6 +607,20 @@ function profileSourceAncestorDirs(sourceDir) {
   return dirs;
 }
 
+function workspaceRootFromGatewayProfileSourceDir(sourceDir) {
+  const normalized = normalizePath(sourceDir || "");
+  const marker = "/.hermes-gateway/profiles/";
+  const index = normalized.indexOf(marker);
+  if (index < 0) return "";
+  return normalized.slice(0, index) || "";
+}
+
+function cronProfilePluginBindingDirs(sourceDir) {
+  const workspaceRoot = workspaceRootFromGatewayProfileSourceDir(sourceDir);
+  if (!workspaceRoot) return [];
+  return HOME_AI_CRON_PLUGIN_BINDING_DIR_NAMES.map((name) => posixJoin(workspaceRoot, name));
+}
+
 function cronProfileAliasRowsFromManifest(manifest = {}, macRoot = DEFAULT_MAC_ROOT) {
   const paths = homeAiCronPaths(macRoot);
   const workers = Array.isArray(manifest)
@@ -616,6 +639,8 @@ function cronProfileAliasRowsFromManifest(manifest = {}, macRoot = DEFAULT_MAC_R
       sourceDir,
       aliasPath: posixJoin(paths.hermesHome, "profiles", profile),
       ancestorDirs: profileSourceAncestorDirs(sourceDir),
+      workspaceRoot: workspaceRootFromGatewayProfileSourceDir(sourceDir),
+      pluginBindingDirs: cronProfilePluginBindingDirs(sourceDir),
     });
   }
   return rows;
@@ -812,6 +837,17 @@ function applyAclOnce(targetPath, acl, password, recursive = false) {
   runSudo("/bin/sh", ["-c", command], password);
 }
 
+function applyAclIfExists(targetPath, acl, password, recursive = false) {
+  const flags = recursive ? "-R " : "";
+  const command = [
+    `if test -e ${shQuote(targetPath)}; then`,
+    `  /bin/chmod ${flags}-a ${shQuote(acl)} ${shQuote(targetPath)} >/dev/null 2>&1 || true`,
+    `  /bin/chmod ${flags}+a ${shQuote(acl)} ${shQuote(targetPath)}`,
+    "fi",
+  ].join("\n");
+  runSudo("/bin/sh", ["-c", command], password);
+}
+
 function installHomeAiCronProfileAliases(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const aliasPlan = buildHomeAiCronProfileAliasPlan(
@@ -831,6 +867,9 @@ function installHomeAiCronProfileAliases(plan, password) {
       applyAclOnce(ancestor, HOME_AI_CRON_PROFILE_TRAVERSE_ACL, password, false);
     }
     applyAclOnce(alias.sourceDir, HOME_AI_CRON_PROFILE_READ_ACL, password, true);
+    for (const bindingDir of alias.pluginBindingDirs || []) {
+      applyAclIfExists(bindingDir, HOME_AI_CRON_PROFILE_READ_ACL, password, true);
+    }
     const command = [
       `if test -e ${shQuote(alias.aliasPath)} || test -L ${shQuote(alias.aliasPath)}; then`,
       `  if test -L ${shQuote(alias.aliasPath)}; then /bin/rm -f ${shQuote(alias.aliasPath)}; else echo ${shQuote(`cron_profile_alias_conflict:${alias.profile}`)} >&2; exit 47; fi`,
