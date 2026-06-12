@@ -147,6 +147,13 @@ service root.
 - Host voice input ASR launchd label:
   `com.hermesmobile.whisper-large-v3-turbo`. Install or repair it with
   `node scripts/install-macos-whisper-large-v3-turbo-service.js --execute`.
+  The service prefers the offline CTranslate2 model directory
+  `/Users/hermes-host/HermesMobile/services/whisper-large-v3-turbo/models/mobiuslabsgmbh-faster-whisper-large-v3-turbo`
+  when it contains `model.bin`. If HuggingFace runtime download is blocked,
+  prefetch the required faster-whisper files (`config.json`,
+  `preprocessor_config.json`, `tokenizer.json`, `vocabulary.json`, and
+  `model.bin`) into that directory from a trusted mirror such as ModelScope
+  before starting the service.
   The Home AI listener gets `HERMES_MOBILE_VOICE_INPUT_*` / `HERMES_WEB_VOICE_INPUT_*`
   ASR environment variables from the central Mac deploy script, pointing to
   `http://127.0.0.1:8001/v1/audio/transcriptions` by default.

@@ -10,6 +10,7 @@ from faster_whisper import BatchedInferencePipeline, WhisperModel
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIGURED_MODEL_NAME = os.getenv("WHISPER_MODEL", "mobiuslabsgmbh/faster-whisper-large-v3-turbo")
+DEFAULT_LOCAL_MODEL_DIR = os.path.join(BASE_DIR, "models", "mobiuslabsgmbh-faster-whisper-large-v3-turbo")
 DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
 BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "5"))
@@ -26,6 +27,14 @@ _batched_model = None
 _model_error = None
 
 
+def resolve_model_name(model_name):
+    if os.path.isdir(model_name):
+        return model_name
+    if os.path.isfile(os.path.join(DEFAULT_LOCAL_MODEL_DIR, "model.bin")):
+        return DEFAULT_LOCAL_MODEL_DIR
+    return model_name
+
+
 def get_model():
     global _model, _batched_model, _model_error
     if _batched_model is not None:
@@ -34,7 +43,7 @@ def get_model():
         if _batched_model is not None:
             return _batched_model
         try:
-            _model = WhisperModel(CONFIGURED_MODEL_NAME, device=DEVICE, compute_type=COMPUTE_TYPE)
+            _model = WhisperModel(resolve_model_name(CONFIGURED_MODEL_NAME), device=DEVICE, compute_type=COMPUTE_TYPE)
             _batched_model = BatchedInferencePipeline(model=_model)
             _model_error = None
             return _batched_model
@@ -51,6 +60,8 @@ def health():
         "model_loaded": _batched_model is not None,
         "last_model_error": _model_error,
         "model": CONFIGURED_MODEL_NAME,
+        "resolved_model": resolve_model_name(CONFIGURED_MODEL_NAME),
+        "local_model_available": os.path.isfile(os.path.join(DEFAULT_LOCAL_MODEL_DIR, "model.bin")),
         "device": DEVICE,
         "compute_type": COMPUTE_TYPE,
         "beam_size": BEAM_SIZE,
