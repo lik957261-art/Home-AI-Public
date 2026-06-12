@@ -191,6 +191,23 @@ instruction hints, and selected worker schema all include the Owner asset
 callables. These tools are Owner-only; non-Owner runs should report a bounded
 permission or schema diagnostic instead of inventing a generic asset interface.
 
+## Finance Owner Stock MCP Pattern
+
+The 2026-06-12 Finance stock holdings upgrade adds these callable names when
+the `finance` toolset is enabled:
+
+- `mcp_finance_get_owner_stock_summary`
+- `mcp_finance_list_owner_stock_snapshots`
+- `mcp_finance_apply_owner_stock_position_delta`
+
+The Mobile schema epoch for this callable set is
+`20260612-finance-owner-stocks-mcp-v1`. Before production exposure, prove the
+Finance service schema, Gateway selected-profile callable schema, Mobile
+instruction hints, and selected worker schema all include the stock callables.
+Stock valuation queries must refresh live prices and FX; natural-language
+position deltas must not ask the user to provide live market prices or exchange
+rates.
+
 ## Failure Classification
 
 - Service schema missing local tool:

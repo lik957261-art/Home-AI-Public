@@ -41,7 +41,7 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /x_search -> x_search/);
   assert.match(summary, /cronjob -> cronjob_mobile, http_request, cronjob/);
   assert.match(summary, /wardrobe -> mcp_wardrobe_wardrobe_write_item, mcp_wardrobe_wardrobe_write_history, mcp_wardrobe_wardrobe_upload_photo, mcp_wardrobe_wardrobe_set_primary_photo, mcp_wardrobe_wardrobe_get_item, mcp_wardrobe_wardrobe_search_items/);
-  assert.match(summary, /finance -> mcp_finance_list_ledgers, mcp_finance_list_transactions, mcp_finance_get_summary, mcp_finance_get_report, mcp_finance_create_transaction, mcp_finance_add_transaction_attachment, mcp_finance_reference_object_types, mcp_finance_reference_get, mcp_finance_reference_summarize, mcp_finance_get_owner_asset_summary, mcp_finance_list_owner_asset_snapshots, mcp_finance_upsert_owner_asset_snapshot/);
+  assert.match(summary, /finance -> mcp_finance_list_ledgers, mcp_finance_list_transactions, mcp_finance_get_summary, mcp_finance_get_report, mcp_finance_create_transaction, mcp_finance_add_transaction_attachment, mcp_finance_reference_object_types, mcp_finance_reference_get, mcp_finance_reference_summarize, mcp_finance_get_owner_asset_summary, mcp_finance_list_owner_asset_snapshots, mcp_finance_upsert_owner_asset_snapshot, mcp_finance_get_owner_stock_summary, mcp_finance_list_owner_stock_snapshots, mcp_finance_apply_owner_stock_position_delta/);
   assert.match(summary, /health -> mcp_health_records_get_summary/);
   assert.match(summary, /email -> mcp_email_list_accounts, mcp_email_list_mailboxes, mcp_email_search_messages, mcp_email_get_message, mcp_email_get_digest, mcp_email_list_attachments, mcp_email_sync_account, mcp_email_apply_mail_action, mcp_email_delete_local_by_search, mcp_email_apply_mail_action_bulk/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
@@ -88,7 +88,10 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /`mcp_finance_add_transaction_attachment`/);
   assert.match(text, /`mcp_finance_reference_get`/);
   assert.match(text, /`mcp_finance_get_owner_asset_summary`/);
+  assert.match(text, /`mcp_finance_get_owner_stock_summary`/);
+  assert.match(text, /`mcp_finance_apply_owner_stock_position_delta`/);
   assert.match(text, /Owner-only asset lookups/);
+  assert.match(text, /stock holding valuation/);
   assert.match(text, /stable Finance object references/);
   assert.match(text, /adding image\/file attachments to an existing transaction/);
   assert.match(text, /with `transaction_id` and `file_path` set to that server-local upload path/);
@@ -150,19 +153,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260610-finance-owner-assets-mcp-v1_file",
+    "session_a_group_1_20260612-finance-owner-stocks-mcp-v1_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260610-finance-owner-assets-mcp-v1_memory",
+    "session_a_group_1_20260612-finance-owner-stocks-mcp-v1_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260610-finance-owner-assets-mcp-v1_x_search",
+    "session_a_group_1_20260612-finance-owner-stocks-mcp-v1_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260610-finance-owner-assets-mcp-v1_file-vision-wardrobe",
+    "session_a_group_1_20260612-finance-owner-stocks-mcp-v1_file-vision-wardrobe",
   );
 }
 

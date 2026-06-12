@@ -2,7 +2,7 @@
 
 const { explicitSearchContext } = require("./gateway-run-search-budget-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260610-finance-owner-assets-mcp-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260612-finance-owner-stocks-mcp-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -81,6 +81,9 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_finance_get_owner_asset_summary",
         "mcp_finance_list_owner_asset_snapshots",
         "mcp_finance_upsert_owner_asset_snapshot",
+        "mcp_finance_get_owner_stock_summary",
+        "mcp_finance_list_owner_stock_snapshots",
+        "mcp_finance_apply_owner_stock_position_delta",
       ],
       health: [
         "mcp_health_records_get_summary",
@@ -238,9 +241,10 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "finance")) {
       lines.push(
-        "Current tool schema override: the `finance` toolset is enabled for this run. Callable function names normally begin with `mcp_finance_`, including `mcp_finance_list_ledgers`, `mcp_finance_list_transactions`, `mcp_finance_get_summary`, `mcp_finance_get_report`, `mcp_finance_create_transaction`, `mcp_finance_add_transaction_attachment`, `mcp_finance_reference_object_types`, `mcp_finance_reference_get`, `mcp_finance_reference_summarize`, `mcp_finance_get_owner_asset_summary`, `mcp_finance_list_owner_asset_snapshots`, and `mcp_finance_upsert_owner_asset_snapshot`.",
+        "Current tool schema override: the `finance` toolset is enabled for this run. Callable function names normally begin with `mcp_finance_`, including `mcp_finance_list_ledgers`, `mcp_finance_list_transactions`, `mcp_finance_get_summary`, `mcp_finance_get_report`, `mcp_finance_create_transaction`, `mcp_finance_add_transaction_attachment`, `mcp_finance_reference_object_types`, `mcp_finance_reference_get`, `mcp_finance_reference_summarize`, `mcp_finance_get_owner_asset_summary`, `mcp_finance_list_owner_asset_snapshots`, `mcp_finance_upsert_owner_asset_snapshot`, `mcp_finance_get_owner_stock_summary`, `mcp_finance_list_owner_stock_snapshots`, and `mcp_finance_apply_owner_stock_position_delta`.",
         "For ledger lookup, annual/monthly spending analysis, transaction search, reports, Finance writeback, create-time attachments, adding image/file attachments to an existing transaction, resolving stable Finance object references for Note/Reference Graph links, and Owner-only asset summaries, use the `mcp_finance_*` callable functions when they are present.",
         "For Owner-only asset lookups, call `mcp_finance_get_owner_asset_summary` or `mcp_finance_list_owner_asset_snapshots` when present. If the current principal is not Owner or the callable schema lacks these names, report the bounded permission/schema issue instead of inventing a generic asset interface.",
+        "For stock holding valuation, call `mcp_finance_get_owner_stock_summary` when present; it should use live stock prices and FX. For natural-language buy/sell/adjust updates, call `mcp_finance_apply_owner_stock_position_delta` instead of asking the user to provide live market prices or exchange rates.",
         "For an existing Finance transaction attachment backed by a Hermes upload/local server path, call `mcp_finance_add_transaction_attachment` with `transaction_id` and `file_path` set to that server-local upload path; `upload_path` is an accepted alias. Do not put a local path, `MEDIA:<path>`, or `file://` URL into `data_url`; `data_url` must be a real base64 data URL.",
         "Do not call `mcp_finance_add_transaction_attachment` without one attachment source field: `file_path`, `upload_path`, `data_url`, or `data_base64`. If the current run lacks all four fields in the callable schema, report a Gateway schema mismatch instead of attempting an empty attachment call.",
         "Do not report that Finance MCP is unavailable solely because older conversation_history said it was missing. Check the current run's callable functions first.",
