@@ -60,6 +60,7 @@ assert.match(script, /macos-gateway-start-script-bridge-env-repair\.js/);
 assert.match(script, /installRootOwnedTextFile/);
 assert.match(script, /\/usr\/bin\/install/);
 assert.match(script, /HERMES_WEB_CRON_JOBS_PATH/);
+assert.match(script, /HERMES_CRON_SCRIPT_TIMEOUT/);
 assert.match(script, /StartInterval/);
 assert.match(script, /hermes-mobile-cron-dispatcher\.py/);
 assert.match(script, /production-status-smoke\.js/);
@@ -187,6 +188,7 @@ assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/runtime\/hermes-age
 assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/app\/scripts\/hermes-mobile-cron-dispatcher\.py/);
 assert.match(cronPlist, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/data\/hermes-home\/cron\/jobs\.json/);
+assert.match(cronPlist, /<key>HERMES_CRON_SCRIPT_TIMEOUT<\/key>\s*<string>1800<\/string>/);
 
 const staticRun = spawnSync(process.execPath, [
   scriptPath,

@@ -120,8 +120,10 @@ canonical scheduler, not a replacement scheduler.
 Hermes Mobile uses `scripts/hermes-mobile-cron-dispatcher.py` as a product-layer wrapper. It dispatches due jobs into detached runners and returns quickly.
 
 On Mac production, the central deployment script installs this wrapper as the
-`com.hermesmobile.cron` LaunchDaemon with `StartInterval=60`. The job store is
-the canonical Hermes home file
+`com.hermesmobile.cron` LaunchDaemon with `StartInterval=60` and
+`HERMES_CRON_SCRIPT_TIMEOUT=1800` so long-running `no_agent` scripts such as the
+NAS disaster backup are not killed by the official 120-second default. The job
+store is the canonical Hermes home file
 `/Users/hermes-host/HermesMobile/data/hermes-home/cron/jobs.json`; operators and
 agents must not create native OS cron/launchd jobs for individual Home AI
 Automation tasks.

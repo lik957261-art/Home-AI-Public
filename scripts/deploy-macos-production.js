@@ -17,6 +17,7 @@ const HOME_AI_CRON_LABEL = "com.hermesmobile.cron";
 const PRODUCTION_SERVICE_USER = "hermes-host";
 const PRODUCTION_SERVICE_GROUP = "staff";
 const HOME_AI_CRON_START_INTERVAL_SECONDS = 60;
+const HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS = 1800;
 const HOME_AI_BRIDGE_HOST_PORT = 8798;
 
 const PLUGIN_DEPLOY_ORDER = Object.freeze([
@@ -567,6 +568,7 @@ function buildHomeAiCronLaunchdPlist(macRoot) {
     HERMES_MOBILE_ROOT: paths.root,
     HERMES_MOBILE_NETWORK_MODE: "direct",
     HERMES_MOBILE_CRON_TICK_SIDE: "macos",
+    HERMES_CRON_SCRIPT_TIMEOUT: String(HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS),
     HERMES_ACCEPT_HOOKS: "1",
     PYTHONPATH: `${paths.runtimeOverrides}:${paths.runtimeSource}`,
   };
