@@ -10,6 +10,7 @@ const LABEL = "com.hermesmobile.whisper-large-v3-turbo";
 const SERVICE_REL = "services/whisper-large-v3-turbo";
 const PYTHON = "/usr/bin/python3";
 const LOCAL_MODEL_DIRNAME = "mobiuslabsgmbh-faster-whisper-large-v3-turbo";
+const MLX_MODEL_DIRNAME = "mlx-community-whisper-large-v3-turbo";
 
 function argValue(name, fallback = "") {
   const names = Array.isArray(name) ? name : [name];
@@ -95,6 +96,7 @@ function paths(root) {
     venvPython: path.posix.join(serviceRoot, ".venv", "bin", "python"),
     pip: path.posix.join(serviceRoot, ".venv", "bin", "pip"),
     localModelDir: path.posix.join(serviceRoot, "models", LOCAL_MODEL_DIRNAME),
+    mlxModelDir: path.posix.join(serviceRoot, "models", MLX_MODEL_DIRNAME),
     logsRoot: path.posix.join(root, "logs"),
     stdoutLog: path.posix.join(root, "logs", "whisper-large-v3-turbo.out.log"),
     stderrLog: path.posix.join(root, "logs", "whisper-large-v3-turbo.err.log"),
@@ -107,11 +109,14 @@ function plistFor(root) {
   const env = {
     PORT: "8001",
     HOST: "127.0.0.1",
+    WHISPER_ENGINE: "auto",
     WHISPER_MODEL: "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
+    WHISPER_MLX_MODEL: path.posix.join(p.serviceRoot, "models", MLX_MODEL_DIRNAME),
     WHISPER_DEVICE: "cpu",
     WHISPER_COMPUTE_TYPE: "int8",
     WHISPER_BATCH_SIZE: "4",
     WHISPER_BEAM_SIZE: "5",
+    WHISPER_MLX_FP16: "1",
     HF_HOME: path.posix.join(p.serviceRoot, "models", "huggingface"),
     HF_ENDPOINT: "https://hf-mirror.com",
     WHISPER_TMP_DIR: path.posix.join(p.serviceRoot, "tmp"),
@@ -190,9 +195,9 @@ function main() {
   sudo("/bin/mkdir", ["-p", p.serviceRoot, p.logsRoot], password);
   sudo("/usr/bin/rsync", ["-a", "--delete", "--exclude", ".venv/", "--exclude", "models/", "--exclude", "tmp/", `${p.sourceRoot}/`, `${p.serviceRoot}/`], password);
   sudo("/bin/chmod", ["755", p.start], password);
-  sudo("/bin/mkdir", ["-p", p.localModelDir, path.posix.join(p.serviceRoot, "models", "huggingface"), path.posix.join(p.serviceRoot, "tmp")], password);
+  sudo("/bin/mkdir", ["-p", p.localModelDir, p.mlxModelDir, path.posix.join(p.serviceRoot, "models", "huggingface"), path.posix.join(p.serviceRoot, "tmp")], password);
   sudo("/usr/sbin/chown", ["-R", "hermes-host:staff", p.serviceRoot, p.logsRoot], password);
-  sudo("/bin/chmod", ["755", p.serviceRoot, path.posix.join(p.serviceRoot, "models"), p.localModelDir, path.posix.join(p.serviceRoot, "models", "huggingface"), path.posix.join(p.serviceRoot, "tmp")], password);
+  sudo("/bin/chmod", ["755", p.serviceRoot, path.posix.join(p.serviceRoot, "models"), p.localModelDir, p.mlxModelDir, path.posix.join(p.serviceRoot, "models", "huggingface"), path.posix.join(p.serviceRoot, "tmp")], password);
   if (!fs.existsSync(p.venvPython)) {
     sudo(PYTHON, ["-m", "venv", p.venvPython.replace(/\/bin\/python$/, "")], password);
   }

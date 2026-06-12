@@ -6,15 +6,28 @@ from typing import Optional
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse
 from faster_whisper import BatchedInferencePipeline, WhisperModel
+from faster_whisper.audio import decode_audio
+
+try:
+    import mlx.core as mx
+    import mlx_whisper
+    from mlx_whisper.transcribe import ModelHolder as MlxModelHolder
+except Exception:
+    mx = None
+    mlx_whisper = None
+    MlxModelHolder = None
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIGURED_MODEL_NAME = os.getenv("WHISPER_MODEL", "mobiuslabsgmbh/faster-whisper-large-v3-turbo")
 DEFAULT_LOCAL_MODEL_DIR = os.path.join(BASE_DIR, "models", "mobiuslabsgmbh-faster-whisper-large-v3-turbo")
+DEFAULT_MLX_MODEL_DIR = os.path.join(BASE_DIR, "models", "mlx-community-whisper-large-v3-turbo")
+CONFIGURED_ENGINE = os.getenv("WHISPER_ENGINE", "auto").strip().lower() or "auto"
 DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
 BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "5"))
 BATCH_SIZE = int(os.getenv("WHISPER_BATCH_SIZE", "4"))
+MLX_FP16 = os.getenv("WHISPER_MLX_FP16", "1").strip().lower() not in {"0", "false", "no", "off"}
 DEFAULT_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "auto")
 TMP_DIR = os.getenv("WHISPER_TMP_DIR", os.path.join(BASE_DIR, "tmp"))
 
@@ -24,6 +37,7 @@ app = FastAPI(title="Home AI Whisper Large V3 Turbo", version="1.0.0")
 _model_lock = threading.Lock()
 _model = None
 _batched_model = None
+_mlx_model_loaded = False
 _model_error = None
 
 
@@ -35,7 +49,30 @@ def resolve_model_name(model_name):
     return model_name
 
 
-def get_model():
+def local_mlx_model_available():
+    return os.path.isfile(os.path.join(DEFAULT_MLX_MODEL_DIR, "weights.safetensors"))
+
+
+def resolve_mlx_model_name():
+    model_name = os.getenv("WHISPER_MLX_MODEL", "").strip()
+    if model_name:
+        return model_name
+    if local_mlx_model_available():
+        return DEFAULT_MLX_MODEL_DIR
+    return "mlx-community/whisper-large-v3-turbo"
+
+
+def resolve_engine():
+    if CONFIGURED_ENGINE in {"mlx", "mlx-whisper"}:
+        return "mlx"
+    if CONFIGURED_ENGINE in {"faster", "faster-whisper", "ctranslate2", "ct2"}:
+        return "faster-whisper"
+    if local_mlx_model_available() and mlx_whisper is not None:
+        return "mlx"
+    return "faster-whisper"
+
+
+def get_faster_model():
     global _model, _batched_model, _model_error
     if _batched_model is not None:
         return _batched_model
@@ -52,20 +89,116 @@ def get_model():
             raise
 
 
+def get_mlx_model():
+    global _mlx_model_loaded, _model_error
+    if mlx_whisper is None or MlxModelHolder is None or mx is None:
+        raise RuntimeError("mlx-whisper dependencies are not installed")
+    model_name = resolve_mlx_model_name()
+    dtype = mx.float16 if MLX_FP16 else mx.float32
+    try:
+        MlxModelHolder.get_model(model_name, dtype)
+        _mlx_model_loaded = True
+        _model_error = None
+    except Exception as exc:
+        _model_error = f"{type(exc).__name__}: {exc}"
+        raise
+
+
+def normalize_language(language):
+    lang = language or DEFAULT_LANGUAGE
+    if str(lang).strip().lower() in {"auto", "detect", "none", "null", ""}:
+        return None
+    return lang
+
+
+def mlx_transcribe(tmp_path, language, word_timestamps):
+    get_mlx_model()
+    audio = decode_audio(tmp_path, sampling_rate=16000)
+    result = mlx_whisper.transcribe(
+        audio,
+        path_or_hf_repo=resolve_mlx_model_name(),
+        language=language,
+        verbose=None,
+        word_timestamps=word_timestamps,
+        fp16=MLX_FP16,
+    )
+    segments = result.get("segments") or []
+    return {
+        "text": str(result.get("text") or "").strip(),
+        "language": result.get("language") or language or "",
+        "language_probability": result.get("language_probability") or 0,
+        "duration": float(len(audio) / 16000.0) if len(audio) else 0,
+        "segments": [
+            {
+                "id": index,
+                "start": segment.get("start"),
+                "end": segment.get("end"),
+                "text": segment.get("text"),
+                "words": segment.get("words") if word_timestamps else None,
+            }
+            for index, segment in enumerate(segments)
+        ],
+    }
+
+
+def faster_transcribe(tmp_path, language, vad_filter, word_timestamps):
+    batched_model = get_faster_model()
+    segments, info = batched_model.transcribe(
+        tmp_path,
+        language=language,
+        beam_size=BEAM_SIZE,
+        batch_size=BATCH_SIZE,
+        vad_filter=vad_filter,
+        word_timestamps=word_timestamps,
+    )
+    segment_list = list(segments)
+    return {
+        "text": "".join(segment.text for segment in segment_list).strip(),
+        "language": info.language,
+        "language_probability": info.language_probability,
+        "duration": info.duration,
+        "segments": [
+            {
+                "id": index,
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text,
+                "words": [
+                    {
+                        "word": word.word,
+                        "start": word.start,
+                        "end": word.end,
+                        "probability": word.probability,
+                    }
+                    for word in (segment.words or [])
+                ] if word_timestamps else None,
+            }
+            for index, segment in enumerate(segment_list)
+        ],
+    }
+
+
 @app.get("/health")
 def health():
+    engine = resolve_engine()
     return {
         "status": "ok",
         "service": "running",
-        "model_loaded": _batched_model is not None,
+        "engine": engine,
+        "configured_engine": CONFIGURED_ENGINE,
+        "model_loaded": _mlx_model_loaded if engine == "mlx" else _batched_model is not None,
         "last_model_error": _model_error,
         "model": CONFIGURED_MODEL_NAME,
         "resolved_model": resolve_model_name(CONFIGURED_MODEL_NAME),
+        "mlx_model": resolve_mlx_model_name(),
+        "mlx_model_available": local_mlx_model_available(),
+        "mlx_dependencies_available": mlx_whisper is not None,
         "local_model_available": os.path.isfile(os.path.join(DEFAULT_LOCAL_MODEL_DIR, "model.bin")),
         "device": DEVICE,
         "compute_type": COMPUTE_TYPE,
         "beam_size": BEAM_SIZE,
         "batch_size": BATCH_SIZE,
+        "mlx_fp16": MLX_FP16,
         "hf_home": os.getenv("HF_HOME"),
         "hf_endpoint": os.getenv("HF_ENDPOINT"),
     }
@@ -79,63 +212,30 @@ async def transcribe_openai_style(
     vad_filter: bool = Form(True),
     word_timestamps: bool = Form(False),
 ):
-    try:
-        batched_model = get_model()
-    except Exception as exc:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "error": "model_not_available",
-                "detail": f"{type(exc).__name__}: {exc}",
-                "hint": "Install the Python dependencies and pre-cache the configured faster-whisper model.",
-            },
-        )
-
     suffix = os.path.splitext(file.filename or "audio.webm")[1] or ".webm"
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir=TMP_DIR) as tmp:
         tmp.write(await file.read())
         tmp_path = tmp.name
 
     try:
-        lang = language or DEFAULT_LANGUAGE
-        if str(lang).strip().lower() in {"auto", "detect", "none", "null", ""}:
-            lang = None
-        segments, info = batched_model.transcribe(
-            tmp_path,
-            language=lang,
-            beam_size=BEAM_SIZE,
-            batch_size=BATCH_SIZE,
-            vad_filter=vad_filter,
-            word_timestamps=word_timestamps,
-        )
-        segment_list = list(segments)
-        text = "".join(segment.text for segment in segment_list).strip()
+        lang = normalize_language(language)
+        if resolve_engine() == "mlx":
+            transcription = mlx_transcribe(tmp_path, lang, word_timestamps)
+        else:
+            transcription = faster_transcribe(tmp_path, lang, vad_filter, word_timestamps)
+        text = transcription["text"]
         if response_format == "text":
             return PlainTextResponse(text)
-        return JSONResponse({
-            "text": text,
-            "language": info.language,
-            "language_probability": info.language_probability,
-            "duration": info.duration,
-            "segments": [
-                {
-                    "id": index,
-                    "start": segment.start,
-                    "end": segment.end,
-                    "text": segment.text,
-                    "words": [
-                        {
-                            "word": word.word,
-                            "start": word.start,
-                            "end": word.end,
-                            "probability": word.probability,
-                        }
-                        for word in (segment.words or [])
-                    ] if word_timestamps else None,
-                }
-                for index, segment in enumerate(segment_list)
-            ],
-        })
+        return JSONResponse(transcription)
+    except Exception as exc:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "model_not_available",
+                "detail": f"{type(exc).__name__}: {exc}",
+                "hint": "Install the Python dependencies and pre-cache the configured MLX or faster-whisper model.",
+            },
+        )
     finally:
         try:
             os.remove(tmp_path)

@@ -216,11 +216,18 @@ Mac production closure:
 - `scripts/install-macos-whisper-large-v3-turbo-service.js --execute` installs
   the service as launchd label `com.hermesmobile.whisper-large-v3-turbo` under
   `/Users/hermes-host/HermesMobile/services/whisper-large-v3-turbo`.
+- On Apple Silicon Mac production, `WHISPER_ENGINE=auto` prefers
+  `mlx-whisper` with the offline local MLX model directory
+  `models/mlx-community-whisper-large-v3-turbo` when it contains
+  `weights.safetensors`. This is the primary local large-v3-turbo path for
+  short Home AI voice input latency. The MLX files are `config.json`,
+  `configuration.json`, and `weights.safetensors`.
 - The service first checks the offline local model directory
   `models/mobiuslabsgmbh-faster-whisper-large-v3-turbo` under the service root.
-  When that directory contains `model.bin`, the service loads it directly and
-  does not need HuggingFace cache resolution at request time. The required
-  faster-whisper CTranslate2 files are `config.json`,
+  When that directory contains `model.bin`, the service can load it directly as
+  a CTranslate2/faster-whisper fallback and does not need HuggingFace cache
+  resolution at request time. The required faster-whisper CTranslate2 files are
+  `config.json`,
   `preprocessor_config.json`, `tokenizer.json`, `vocabulary.json`, and
   `model.bin`; on the maintained Mac production host they can be prefetched
   from ModelScope when HuggingFace TLS/API access is unreliable.
