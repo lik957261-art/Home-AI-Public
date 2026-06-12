@@ -27,6 +27,10 @@ assert.match(script, /launchd_plist_missing/);
 assert.match(script, /launchd_keepalive_unexpected/);
 assert.match(script, /launchd_run_at_load_unexpected/);
 assert.match(script, /launchd_required_warm_keepalive_missing/);
+assert.match(script, /worker_manifest_unreadable/);
+assert.match(script, /worker_api_key_file_missing/);
+assert.match(script, /worker_api_key_unreadable/);
+assert.match(script, /worker_provider_key_unreadable/);
 assert.match(script, /file_plugin_root_env_missing/);
 assert.match(script, /file_plugin_root_missing/);
 assert.match(script, /file_plugin_root_list_delimiter_unsupported/);
@@ -73,13 +77,25 @@ function writeJson(file, value) {
 const tempRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "homeai-profile-audit-"));
 try {
   const data = path.join(tempRoot, "data");
+  const manifestPath = path.join(data, "gateway-pool-manifest-mac.json");
+  const gatewayWorkerSecrets = path.join(data, "secrets", "gateway-workers");
+  const ownerApiKeyFile = path.join(gatewayWorkerSecrets, "hm-owner-openai-1.key");
+  const ownerDeepSeekApiKeyFile = path.join(gatewayWorkerSecrets, "deepseekgw1.key");
+  const wupingApiKeyFile = path.join(gatewayWorkerSecrets, "hm-wuping-openai-1.key");
+  const providerKeyFile = path.join(data, "secrets", "deepseek-api-key.secret");
+  const fixtureWupingUser = "hm-fixture-wuping";
   const telemetryRoot = path.join(tempRoot, "telemetry");
   const ownerStateDb = path.join(telemetryRoot, "hm-owner-openai-1", "state.db");
   const ownerResponseDb = path.join(telemetryRoot, "hm-owner-openai-1", "response_store.db");
   fs.mkdirSync(path.dirname(ownerStateDb), { recursive: true });
+  fs.mkdirSync(gatewayWorkerSecrets, { recursive: true });
   fs.writeFileSync(ownerStateDb, "");
   fs.writeFileSync(ownerResponseDb, "");
-  writeJson(path.join(data, "gateway-pool-manifest-mac.json"), {
+  fs.writeFileSync(ownerApiKeyFile, "fixture-owner-key\n", "utf8");
+  fs.writeFileSync(ownerDeepSeekApiKeyFile, "fixture-deepseek-worker-key\n", "utf8");
+  fs.writeFileSync(wupingApiKeyFile, "fixture-wuping-key\n", "utf8");
+  fs.writeFileSync(providerKeyFile, "fixture-provider-key\n", "utf8");
+  writeJson(manifestPath, {
     workers: [
       {
         profile: "hm-owner-openai-1",
@@ -89,7 +105,7 @@ try {
         launchdLabel: "com.hermesmobile.gateway.hm-fixture-owner.openai.1",
         allowedWorkspaceIds: ["owner"],
         skillWorkspaceIds: ["owner"],
-        apiKeyFile: "/secret/not-read",
+        apiKeyFile: ownerApiKeyFile,
         telemetryStateDbPath: ownerStateDb,
         telemetryResponseStoreDbPath: ownerResponseDb,
       },
@@ -101,7 +117,7 @@ try {
         launchdLabel: "com.hermesmobile.gateway.hm-fixture-owner.deepseek.1",
         allowedWorkspaceIds: ["owner"],
         skillWorkspaceIds: ["owner"],
-        apiKeyFile: "/secret/not-read",
+        apiKeyFile: ownerDeepSeekApiKeyFile,
       },
       {
         profile: "hm-wuping-openai-1",
@@ -111,7 +127,7 @@ try {
         launchdLabel: "com.hermesmobile.gateway.hm-fixture-wuping.openai.1",
         allowedWorkspaceIds: ["weixin_wuping"],
         skillWorkspaceIds: ["weixin_wuping"],
-        apiKeyFile: "/secret/not-read",
+        apiKeyFile: wupingApiKeyFile,
       },
     ],
   });
@@ -150,6 +166,22 @@ try {
   assert.ok(audit.issues.some((item) => item.startsWith("profile_config_missing:")));
   assert.ok(audit.issues.includes("mobile_bridge_env_missing:hm-wuping-openai-1:HERMES_MOBILE_BRIDGE_HOST_URL"));
   assert.ok(audit.issues.includes("mobile_bridge_key_path_missing:hm-wuping-openai-1:data/secrets/bridge-host.secret"));
+  const workerSecretDriftAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: [],
+    expectedPlugins: [],
+    requiredWorkspacePlugins: {},
+    requiredSharedSkills: [],
+    checkTelemetry: false,
+    workerFileAccessProbe: (file, user, mode) => {
+      if (mode !== "read") return true;
+      if (user !== fixtureWupingUser) return true;
+      return ![manifestPath, wupingApiKeyFile, providerKeyFile].includes(file);
+    },
+  });
+  assert.ok(workerSecretDriftAudit.issues.includes(`worker_manifest_unreadable:hm-wuping-openai-1:${fixtureWupingUser}`));
+  assert.ok(workerSecretDriftAudit.issues.includes(`worker_api_key_unreadable:hm-wuping-openai-1:${fixtureWupingUser}`));
+  assert.ok(workerSecretDriftAudit.issues.includes(`worker_provider_key_unreadable:hm-wuping-openai-1:${fixtureWupingUser}:deepseek-api-key.secret`));
   const fileRootReadyAudit = buildAudit({
     root: tempRoot,
     expectedWorkspaces: [],

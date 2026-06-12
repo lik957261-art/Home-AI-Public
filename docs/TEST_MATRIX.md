@@ -204,6 +204,11 @@ baseline presence, and profile `skills`/`memories` links whose realpath points
 at the matching `data/skill-profiles/<profileId>` store. On macOS it must also
 prove every enabled manifest worker's system LaunchDaemon is loaded; any
 `launchd_service_not_loaded:<profile>` issue is a cold-start blocker. It must
+also prove each enabled worker's runtime users can read the live Gateway
+manifest, per-worker API-server key file, and provider key files; any
+`worker_manifest_unreadable`, `worker_api_key_file_missing`,
+`worker_api_key_unreadable`, or `worker_provider_key_unreadable` issue is a
+cold-start blocker. It must
 also reject `RunAtLoad=true` or `KeepAlive=true` on any worker that is not part
 of the required warm baseline, because that launchd policy defeats Gateway idle
 cooldown. It must also prove Mac Gateway usage telemetry is wired: every

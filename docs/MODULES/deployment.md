@@ -472,6 +472,13 @@ manifest, their own worker API key file, and any provider key file read by the
 start script, plus traverse-only ACL access to the containing secret
 directories. Missing access surfaces as `missing Gateway API key for <profile>`
 in the worker stderr and as a user-facing `AI 执行通道启动后没有通过健康检查`.
+`scripts/macos-production-profile-audit.js` must flag this before a user run
+hits the cold-start path: `worker_manifest_unreadable:<profile>:<user>`,
+`worker_api_key_file_missing:<profile>`,
+`worker_api_key_unreadable:<profile>:<user>`, and
+`worker_provider_key_unreadable:<profile>:<user>:<basename>` are production
+blockers. The issue code uses only the provider-key basename, not the full
+secret path or secret contents.
 
 Mac Gateway worker LaunchDaemons must stay loaded for every enabled manifest
 worker, but loaded does not mean always running. Only profiles in the required

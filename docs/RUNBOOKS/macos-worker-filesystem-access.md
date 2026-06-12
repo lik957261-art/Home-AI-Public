@@ -157,6 +157,14 @@ sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
 ```
 
 Pass criteria include no
+`worker_manifest_unreadable:<profile>:<user>`,
+`worker_api_key_file_missing:<profile>`,
+`worker_api_key_unreadable:<profile>:<user>`, or
+`worker_provider_key_unreadable:<profile>:<user>:<basename>` issue. These
+issues mean the worker can be configured and launchd-loaded but still fail a
+normal cold start before `/health` binds. They are separate from Codex
+`auth.json` / `auth.lock` drift and from file-plugin live-root drift.
+Pass criteria also include no
 `plugin_required_skill_unreadable:<workspace>:<plugin>:<skill>` issue. The
 check must use the listener user, not root-only file access.
 It must also include no `file_plugin_root_env_missing:<profile>:<env>` and no

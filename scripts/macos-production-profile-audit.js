@@ -500,6 +500,59 @@ function userCanAccessFile(file, user, mode = "read", options = {}) {
   }
 }
 
+function workerApiKeyFile(worker = {}) {
+  return String(worker.apiKeyFile || worker.api_key_file || worker.apiKeyPath || worker.api_key_path || "").trim();
+}
+
+function workerProviderKeyFiles(worker = {}, dataDir = "") {
+  const out = [];
+  const configured = String(
+    worker.deepseekApiKeyFile
+      || worker.deepseek_api_key_file
+      || worker.providerKeyFile
+      || worker.provider_key_file
+      || "",
+  ).trim();
+  if (configured) out.push(configured);
+  const fallbackProviderKey = dataDir ? path.join(dataDir, "secrets", "deepseek-api-key.secret") : "";
+  if (fallbackProviderKey && exists(fallbackProviderKey)) out.push(fallbackProviderKey);
+  return [...new Set(out)];
+}
+
+function workerSecretUserAccess(file, users = [], options = {}) {
+  const value = String(file || "").trim();
+  const existsOnDisk = Boolean(value && exists(value));
+  return [...new Set(users.filter(Boolean))].map((user) => ({
+    user,
+    canRead: existsOnDisk ? userCanAccessFile(value, user, "read", options) : false,
+  }));
+}
+
+function workerSecretAccessStatus(worker = {}, osUser = "", manifestPath = "", dataDir = "", root = "", options = {}) {
+  const users = [...new Set([osUser, options.listenerUser || "hermes-host"].filter(Boolean))];
+  const apiKeyFile = workerApiKeyFile(worker);
+  const providerKeyFiles = workerProviderKeyFiles(worker, dataDir);
+  return {
+    manifest: {
+      path: compactPath(manifestPath, root),
+      exists: exists(manifestPath),
+      users: workerSecretUserAccess(manifestPath, users, options),
+    },
+    apiKeyFile: {
+      configured: Boolean(apiKeyFile),
+      path: apiKeyFile ? compactPath(apiKeyFile, root) : "",
+      exists: apiKeyFile ? exists(apiKeyFile) : false,
+      users: workerSecretUserAccess(apiKeyFile, users, options),
+    },
+    providerKeyFiles: providerKeyFiles.map((file) => ({
+      path: compactPath(file, root),
+      basename: path.basename(file),
+      exists: exists(file),
+      users: workerSecretUserAccess(file, users, options),
+    })),
+  };
+}
+
 function telemetryStatus(worker = {}, root = "", options = {}) {
   const paths = telemetryPathsForWorker(worker);
   const stateExists = exists(paths.stateDbPath);
@@ -679,7 +732,8 @@ function buildAudit(options) {
   }
   const root = path.resolve(options.root);
   const dataDir = path.join(root, "data");
-  const manifest = readJson(path.join(dataDir, "gateway-pool-manifest-mac.json"));
+  const manifestPath = path.join(dataDir, "gateway-pool-manifest-mac.json");
+  const manifest = readJson(manifestPath);
   const workspaces = readJson(path.join(dataDir, "workspaces.json"));
   const accessKeys = readJson(path.join(dataDir, "access-keys.json"));
   const pluginAuth = readJson(path.join(dataDir, "plugin-workspace-authorizations.json"));
@@ -807,6 +861,7 @@ function buildAudit(options) {
     const filePluginRoots = filePluginRootStatus(worker, profile, osUser, root, options);
     const mobileBridge = mobileBridgeStatus(worker, profile, osUser, root, options);
     const codexAuth = isOpenAiCodexWorker(worker) ? codexAuthStatus(worker, profileDir, root, osUser, options) : null;
+    const workerSecrets = workerSecretAccessStatus(worker, osUser, manifestPath, dataDir, root, options);
     const requiredWarm = requiredWarmProfiles.has(profile);
     const check = {
       profile,
@@ -824,6 +879,7 @@ function buildAudit(options) {
       filePluginRoots,
       mobileBridge,
       codexAuth,
+      workerSecrets,
     };
     profileChecks.push(check);
     if (!configExists) issue(`profile_config_missing:${profile}`);
@@ -881,6 +937,25 @@ function buildAudit(options) {
       if (codexAuth.authJson?.exists && !codexAuth.workerCanWriteAuthJson) issue(`codex_auth_json_unwritable:${profile}`);
       if (codexAuth.authLock?.exists && !codexAuth.workerCanReadAuthLock) issue(`codex_auth_lock_unreadable:${profile}`);
       if (codexAuth.authLock?.exists && !codexAuth.workerCanWriteAuthLock) issue(`codex_auth_lock_unwritable:${profile}`);
+    }
+    if (workerSecrets.manifest.exists) {
+      for (const item of workerSecrets.manifest.users) {
+        if (!item.canRead) issue(`worker_manifest_unreadable:${profile}:${item.user}`);
+      }
+    }
+    if (workerSecrets.apiKeyFile.configured && !workerSecrets.apiKeyFile.exists) {
+      issue(`worker_api_key_file_missing:${profile}`);
+    }
+    if (workerSecrets.apiKeyFile.exists) {
+      for (const item of workerSecrets.apiKeyFile.users) {
+        if (!item.canRead) issue(`worker_api_key_unreadable:${profile}:${item.user}`);
+      }
+    }
+    for (const providerKey of workerSecrets.providerKeyFiles) {
+      if (!providerKey.exists) continue;
+      for (const item of providerKey.users) {
+        if (!item.canRead) issue(`worker_provider_key_unreadable:${profile}:${item.user}:${providerKey.basename}`);
+      }
     }
     if (skills.exists && !skills.isSymbolicLink) issue(`profile_skills_not_linked:${profile}`);
     if (memories.exists && !memories.isSymbolicLink) issue(`profile_memories_not_linked:${profile}`);
@@ -946,7 +1021,7 @@ function buildAudit(options) {
     ok: issueSet.size === 0,
     root: compactPath(root, root),
     manifest: {
-      exists: exists(path.join(dataDir, "gateway-pool-manifest-mac.json")),
+      exists: exists(manifestPath),
       workerCount: workers.length,
       providerSummary: workers.reduce((acc, worker) => {
         const key = `${worker.provider || "openai-codex"}|${worker.securityLevel || ""}`;

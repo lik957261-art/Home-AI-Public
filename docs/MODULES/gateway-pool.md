@@ -375,6 +375,12 @@ per-worker `apiKeyFile` under `data/secrets/gateway-workers`, for example
 template key path or inline `api_key`. A copied path from another workspace can
 make the launch script report `missing Gateway API key for <profile>` or cause
 the worker process and Mobile request signer to disagree about the API key.
+The same profile audit also verifies the cold-start read boundary for the
+target worker user and listener user. `worker_manifest_unreadable`,
+`worker_api_key_file_missing`, `worker_api_key_unreadable`, and
+`worker_provider_key_unreadable` issues must be repaired before production
+closure; a loaded but cold LaunchDaemon can still fail before `/health` binds
+when these files are not readable.
 That API-server key is not the model/provider credential. For `openai-codex`
 workspace workers, provisioning must also materialize profile-local
 `auth.json` and `auth.lock` symlinks to the production shared Codex auth store
