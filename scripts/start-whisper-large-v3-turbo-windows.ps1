@@ -95,6 +95,11 @@ function Set-WhisperEnvironment {
     $env:WHISPER_COMPUTE_TYPE = if ($env:WHISPER_COMPUTE_TYPE) { $env:WHISPER_COMPUTE_TYPE } else { "int8" }
     $env:WHISPER_BATCH_SIZE = if ($env:WHISPER_BATCH_SIZE) { $env:WHISPER_BATCH_SIZE } else { "4" }
     $env:WHISPER_BEAM_SIZE = if ($env:WHISPER_BEAM_SIZE) { $env:WHISPER_BEAM_SIZE } else { "5" }
+    $env:WHISPER_LANGUAGE = if ($env:WHISPER_LANGUAGE) { $env:WHISPER_LANGUAGE } else { "zh" }
+    $env:WHISPER_TASK = if ($env:WHISPER_TASK) { $env:WHISPER_TASK } else { "transcribe" }
+    $env:WHISPER_INITIAL_PROMPT = if ($env:WHISPER_INITIAL_PROMPT) { $env:WHISPER_INITIAL_PROMPT } else { "以下是普通话语音转写，请使用简体中文，并加入合适的中文标点符号。" }
+    $env:WHISPER_CONDITION_ON_PREVIOUS_TEXT = if ($env:WHISPER_CONDITION_ON_PREVIOUS_TEXT) { $env:WHISPER_CONDITION_ON_PREVIOUS_TEXT } else { "1" }
+    $env:WHISPER_VAD_FILTER = if ($env:WHISPER_VAD_FILTER) { $env:WHISPER_VAD_FILTER } else { "0" }
     $env:HF_HOME = if ($env:HF_HOME) { $env:HF_HOME } else { Join-Path (Join-Path $ServiceRoot "models") "huggingface" }
     $env:HF_ENDPOINT = if ($env:HF_ENDPOINT) { $env:HF_ENDPOINT } else { "https://hf-mirror.com" }
     $env:WHISPER_TMP_DIR = if ($env:WHISPER_TMP_DIR) { $env:WHISPER_TMP_DIR } else { Join-Path $ServiceRoot "tmp" }

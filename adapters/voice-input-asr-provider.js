@@ -67,11 +67,24 @@ function providerProtocolFromConfig(config = {}) {
 }
 
 function normalizeLanguage(value) {
-  let text = cleanString(value || "auto", 40);
+  let text = cleanString(value || "", 40);
   if (!text || /^(auto|detect|none|null)$/i.test(text)) return "";
   if (/^(zh-CN|zh_CN|cn|chinese)$/i.test(text)) text = "zh";
   if (/^(en-US|en_GB|en-GB|english)$/i.test(text)) text = "en";
   return text;
+}
+
+function normalizeTask(value) {
+  const text = cleanString(value || "transcribe", 40).toLowerCase();
+  return text === "translate" ? "translate" : "transcribe";
+}
+
+function boolConfig(value, fallback) {
+  const text = cleanString(value, 40).toLowerCase();
+  if (!text) return fallback;
+  if (/^(1|true|yes|on)$/.test(text)) return true;
+  if (/^(0|false|no|off)$/.test(text)) return false;
+  return fallback;
 }
 
 function contentTypeForMimeType(value) {
@@ -86,8 +99,12 @@ async function buildMultipartBody(input = {}, config = {}) {
       : Buffer.from(input.audioBase64 || "", "base64");
     const form = new FormData();
     form.append("response_format", "json");
-    const language = normalizeLanguage(input.localeHint || input.language || "");
+    const language = normalizeLanguage(input.localeHint || input.language || config.language || "");
     if (language) form.append("language", language);
+    form.append("task", normalizeTask(input.task || config.task));
+    if (config.initialPrompt) form.append("initial_prompt", config.initialPrompt);
+    if (typeof config.conditionOnPreviousText === "boolean") form.append("condition_on_previous_text", String(config.conditionOnPreviousText));
+    if (typeof config.vadFilter === "boolean") form.append("vad_filter", String(config.vadFilter));
     form.append("file", new Blob([bytes], { type: contentTypeForMimeType(input.mimeType) }), input.fileName || "voice-input.webm");
     return { body: form, headers: undefined };
   }
@@ -98,9 +115,19 @@ async function buildMultipartBody(input = {}, config = {}) {
   const chunks = [
     Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="response_format"\r\n\r\njson\r\n`),
   ];
-  const language = normalizeLanguage(input.localeHint || input.language || "");
+  const language = normalizeLanguage(input.localeHint || input.language || config.language || "");
   if (language) {
     chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\n${language}\r\n`));
+  }
+  chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="task"\r\n\r\n${normalizeTask(input.task || config.task)}\r\n`));
+  if (config.initialPrompt) {
+    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="initial_prompt"\r\n\r\n${config.initialPrompt}\r\n`));
+  }
+  if (typeof config.conditionOnPreviousText === "boolean") {
+    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="condition_on_previous_text"\r\n\r\n${config.conditionOnPreviousText}\r\n`));
+  }
+  if (typeof config.vadFilter === "boolean") {
+    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="vad_filter"\r\n\r\n${config.vadFilter}\r\n`));
   }
   const fileName = cleanString(input.fileName || "voice-input.webm", 120).replace(/"/g, "_");
   chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${contentTypeForMimeType(input.mimeType)}\r\n\r\n`));
@@ -145,6 +172,32 @@ function createVoiceInputAsrProvider(options = {}) {
       2000,
     ),
     timeoutMs: Math.max(1000, Number(options.timeoutMs || env.HERMES_MOBILE_VOICE_INPUT_ASR_TIMEOUT_MS || 60000) || 60000),
+    language: normalizeLanguage(
+      options.language
+      || env.HERMES_MOBILE_VOICE_INPUT_LANGUAGE
+      || env.HERMES_WEB_VOICE_INPUT_LANGUAGE
+      || "zh",
+    ),
+    task: normalizeTask(options.task || env.HERMES_MOBILE_VOICE_INPUT_TASK || env.HERMES_WEB_VOICE_INPUT_TASK || "transcribe"),
+    initialPrompt: cleanString(
+      options.initialPrompt
+      || env.HERMES_MOBILE_VOICE_INPUT_INITIAL_PROMPT
+      || env.HERMES_WEB_VOICE_INPUT_INITIAL_PROMPT
+      || "",
+      800,
+    ),
+    conditionOnPreviousText: boolConfig(
+      options.conditionOnPreviousText
+      ?? env.HERMES_MOBILE_VOICE_INPUT_CONDITION_ON_PREVIOUS_TEXT
+      ?? env.HERMES_WEB_VOICE_INPUT_CONDITION_ON_PREVIOUS_TEXT,
+      true,
+    ),
+    vadFilter: boolConfig(
+      options.vadFilter
+      ?? env.HERMES_MOBILE_VOICE_INPUT_VAD_FILTER
+      ?? env.HERMES_WEB_VOICE_INPUT_VAD_FILTER,
+      false,
+    ),
   };
 
   function status() {
@@ -169,7 +222,11 @@ function createVoiceInputAsrProvider(options = {}) {
               audioBase64,
               mimeType: input.mimeType || "",
               durationMs: input.durationMs || 0,
-              localeHint: input.localeHint || "",
+              localeHint: input.localeHint || input.language || config.language || "",
+              task: normalizeTask(input.task || config.task),
+              initialPrompt: config.initialPrompt,
+              conditionOnPreviousText: config.conditionOnPreviousText,
+              vadFilter: config.vadFilter,
               requestId: input.requestId || "",
               backend: config.backend,
             }),

@@ -1131,6 +1131,10 @@ assert.match(startWhisperLargeV3TurboWindows, /\.venv-windows/);
 assert.match(startWhisperLargeV3TurboWindows, /uvicorn/);
 assert.match(startWhisperLargeV3TurboWindows, /WHISPER_MODEL/);
 assert.match(startWhisperLargeV3TurboWindows, /WHISPER_DEVICE/);
+assert.match(startWhisperLargeV3TurboWindows, /WHISPER_LANGUAGE/);
+assert.match(startWhisperLargeV3TurboWindows, /WHISPER_INITIAL_PROMPT/);
+assert.match(startWhisperLargeV3TurboWindows, /WHISPER_CONDITION_ON_PREVIOUS_TEXT/);
+assert.match(startWhisperLargeV3TurboWindows, /WHISPER_VAD_FILTER/);
 assert.doesNotMatch(startWhisperLargeV3TurboWindows, /wsl\.exe|bash/i);
 
 assert.match(weatherPluginManifest, /name: hermes-mobile-weather/);

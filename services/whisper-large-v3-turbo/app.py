@@ -28,7 +28,11 @@ COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")
 BEAM_SIZE = int(os.getenv("WHISPER_BEAM_SIZE", "5"))
 BATCH_SIZE = int(os.getenv("WHISPER_BATCH_SIZE", "4"))
 MLX_FP16 = os.getenv("WHISPER_MLX_FP16", "1").strip().lower() not in {"0", "false", "no", "off"}
-DEFAULT_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "auto")
+DEFAULT_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "zh")
+DEFAULT_TASK = os.getenv("WHISPER_TASK", "transcribe")
+DEFAULT_INITIAL_PROMPT = os.getenv("WHISPER_INITIAL_PROMPT", "以下是普通话语音转写，请使用简体中文，并加入合适的中文标点符号。")
+DEFAULT_CONDITION_ON_PREVIOUS_TEXT = os.getenv("WHISPER_CONDITION_ON_PREVIOUS_TEXT", "1").strip().lower() not in {"0", "false", "no", "off"}
+DEFAULT_VAD_FILTER = os.getenv("WHISPER_VAD_FILTER", "0").strip().lower() in {"1", "true", "yes", "on"}
 TMP_DIR = os.getenv("WHISPER_TMP_DIR", os.path.join(BASE_DIR, "tmp"))
 
 os.makedirs(TMP_DIR, exist_ok=True)
@@ -111,14 +115,22 @@ def normalize_language(language):
     return lang
 
 
-def mlx_transcribe(tmp_path, language, word_timestamps):
+def clean_optional_text(value):
+    text = str(value or "").strip()
+    return text or None
+
+
+def mlx_transcribe(tmp_path, language, word_timestamps, initial_prompt, condition_on_previous_text):
     get_mlx_model()
     audio = decode_audio(tmp_path, sampling_rate=16000)
     result = mlx_whisper.transcribe(
         audio,
         path_or_hf_repo=resolve_mlx_model_name(),
         language=language,
+        task=DEFAULT_TASK,
         verbose=None,
+        initial_prompt=initial_prompt,
+        condition_on_previous_text=condition_on_previous_text,
         word_timestamps=word_timestamps,
         fp16=MLX_FP16,
     )
@@ -141,14 +153,17 @@ def mlx_transcribe(tmp_path, language, word_timestamps):
     }
 
 
-def faster_transcribe(tmp_path, language, vad_filter, word_timestamps):
+def faster_transcribe(tmp_path, language, vad_filter, word_timestamps, initial_prompt, condition_on_previous_text):
     batched_model = get_faster_model()
     segments, info = batched_model.transcribe(
         tmp_path,
         language=language,
+        task=DEFAULT_TASK,
         beam_size=BEAM_SIZE,
         batch_size=BATCH_SIZE,
         vad_filter=vad_filter,
+        initial_prompt=initial_prompt,
+        condition_on_previous_text=condition_on_previous_text,
         word_timestamps=word_timestamps,
     )
     segment_list = list(segments)
@@ -199,6 +214,11 @@ def health():
         "beam_size": BEAM_SIZE,
         "batch_size": BATCH_SIZE,
         "mlx_fp16": MLX_FP16,
+        "language": DEFAULT_LANGUAGE,
+        "task": DEFAULT_TASK,
+        "initial_prompt_configured": bool(DEFAULT_INITIAL_PROMPT),
+        "condition_on_previous_text": DEFAULT_CONDITION_ON_PREVIOUS_TEXT,
+        "vad_filter_default": DEFAULT_VAD_FILTER,
         "hf_home": os.getenv("HF_HOME"),
         "hf_endpoint": os.getenv("HF_ENDPOINT"),
     }
@@ -208,8 +228,11 @@ def health():
 async def transcribe_openai_style(
     file: UploadFile = File(...),
     language: Optional[str] = Form(None),
+    task: Optional[str] = Form(None),
+    initial_prompt: Optional[str] = Form(None),
+    condition_on_previous_text: Optional[bool] = Form(None),
     response_format: str = Form("json"),
-    vad_filter: bool = Form(True),
+    vad_filter: Optional[bool] = Form(None),
     word_timestamps: bool = Form(False),
 ):
     suffix = os.path.splitext(file.filename or "audio.webm")[1] or ".webm"
@@ -219,10 +242,19 @@ async def transcribe_openai_style(
 
     try:
         lang = normalize_language(language)
+        prompt = clean_optional_text(initial_prompt) or clean_optional_text(DEFAULT_INITIAL_PROMPT)
+        condition_previous = DEFAULT_CONDITION_ON_PREVIOUS_TEXT if condition_on_previous_text is None else bool(condition_on_previous_text)
+        vad_enabled = DEFAULT_VAD_FILTER if vad_filter is None else bool(vad_filter)
+        effective_task = (task or DEFAULT_TASK or "transcribe").strip().lower()
+        if effective_task != "transcribe":
+            return JSONResponse(
+                status_code=400,
+                content={"error": "unsupported_task", "detail": "Only transcribe is supported."},
+            )
         if resolve_engine() == "mlx":
-            transcription = mlx_transcribe(tmp_path, lang, word_timestamps)
+            transcription = mlx_transcribe(tmp_path, lang, word_timestamps, prompt, condition_previous)
         else:
-            transcription = faster_transcribe(tmp_path, lang, vad_filter, word_timestamps)
+            transcription = faster_transcribe(tmp_path, lang, vad_enabled, word_timestamps, prompt, condition_previous)
         text = transcription["text"]
         if response_format == "text":
             return PlainTextResponse(text)

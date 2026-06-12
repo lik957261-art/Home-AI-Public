@@ -205,6 +205,11 @@ Configuration must be public-deployable:
 - `HERMES_MOBILE_VOICE_INPUT_ASR_BACKEND`;
 - `HERMES_MOBILE_VOICE_INPUT_ASR_PROTOCOL`;
 - `HERMES_MOBILE_VOICE_INPUT_ASR_URL` or command/path equivalents;
+- `HERMES_MOBILE_VOICE_INPUT_LANGUAGE`;
+- `HERMES_MOBILE_VOICE_INPUT_TASK`;
+- `HERMES_MOBILE_VOICE_INPUT_INITIAL_PROMPT`;
+- `HERMES_MOBILE_VOICE_INPUT_CONDITION_ON_PREVIOUS_TEXT`;
+- `HERMES_MOBILE_VOICE_INPUT_VAD_FILTER`;
 - `HERMES_MOBILE_VOICE_INPUT_MAX_SECONDS`;
 - `HERMES_MOBILE_VOICE_INPUT_AUDIO_RETENTION_SECONDS`;
 - `HERMES_MOBILE_VOICE_INPUT_DEBUG_AUDIO_RETENTION_SECONDS`.
@@ -238,6 +243,19 @@ Mac production closure:
 - `scripts/deploy-macos-production.js --target home-ai --execute` preserves the
   existing listener plist and patches only the voice-input ASR environment
   variables so the Home AI listener points at the local 8001 endpoint.
+- The Home AI voice-input provider and the local Whisper service default to
+  `language=zh`, `task=transcribe`, `condition_on_previous_text=true`,
+  `vad_filter=false`, `beam_size=5`, and a Chinese initial prompt asking for
+  simplified Chinese with appropriate Chinese punctuation. These defaults are
+  intended for the Home AI composer voice-entry path, whose primary real-world
+  usage is short Mandarin dictation. Deployments can override them with the
+  environment variables above when a different locale or VAD policy is needed.
+- The voice-input service does not strip punctuation from ASR output. It only
+  trims and bounds transcript length before applying the conservative personal
+  correction layer, so missing Chinese punctuation should be diagnosed first at
+  the ASR decode parameter/service layer. If direct service transcription has
+  punctuation but Home AI output does not, then inspect the correction layer and
+  UI insertion path.
 - If 8001 is not healthy, Home AI may report voice input configured but
   transcription can still fail with a bounded backend error; production smoke
   should therefore check both `/api/voice-input/status` and

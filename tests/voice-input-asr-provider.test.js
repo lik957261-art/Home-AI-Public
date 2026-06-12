@@ -99,7 +99,39 @@ async function testOpenAiMultipartProviderPostsFileUpload() {
   assert.equal(calls[0].url, "http://127.0.0.1:8001/v1/audio/transcriptions");
   assert.ok(calls[0].request.body);
   assert.notEqual(String(calls[0].request.headers?.["Content-Type"] || ""), "application/json");
+  if (typeof calls[0].request.body?.entries === "function") {
+    const fields = Object.fromEntries(Array.from(calls[0].request.body.entries()).filter(([key]) => key !== "file"));
+    assert.equal(fields.language, "zh");
+    assert.equal(fields.task, "transcribe");
+    assert.equal(fields.condition_on_previous_text, "true");
+    assert.equal(fields.vad_filter, "false");
+  }
   fs.rmSync(tempDir, { recursive: true, force: true });
+}
+
+async function testOpenAiMultipartProviderDefaultsToChineseTranscribeHints() {
+  const payload = await buildMultipartBody({
+    audioBase64: Buffer.from("abc").toString("base64"),
+    mimeType: "audio/webm",
+  }, {
+    language: "zh",
+    task: "transcribe",
+    initialPrompt: "以下是普通话语音转写，请使用简体中文，并加入合适的中文标点符号。",
+    conditionOnPreviousText: true,
+    vadFilter: false,
+  });
+  const bodyText = typeof payload.body === "string" || Buffer.isBuffer(payload.body)
+    ? String(payload.body)
+    : "";
+  if (bodyText) {
+    assert.match(bodyText, /name="language"\r\n\r\nzh/);
+    assert.match(bodyText, /name="task"\r\n\r\ntranscribe/);
+    assert.match(bodyText, /name="initial_prompt"/);
+    assert.match(bodyText, /name="condition_on_previous_text"\r\n\r\ntrue/);
+    assert.match(bodyText, /name="vad_filter"\r\n\r\nfalse/);
+  } else {
+    assert.ok(payload.body);
+  }
 }
 
 async function testMultipartFallbackBodyBuilder() {
@@ -134,6 +166,7 @@ async function run() {
   await testDisabledByDefaultWithoutUrl();
   await testHttpProviderPostsBoundedPayload();
   await testOpenAiMultipartProviderPostsFileUpload();
+  await testOpenAiMultipartProviderDefaultsToChineseTranscribeHints();
   await testMultipartFallbackBodyBuilder();
   testProviderStatusAndNormalization();
   console.log("voice input asr provider tests passed");
