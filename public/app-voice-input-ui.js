@@ -97,6 +97,7 @@ function refreshVoiceInputSendButton() {
   const button = $("sendMessage");
   if (!button) return;
   const active = ["pending", "checking", "requesting", "recording", "finalizing", "transcribing"].includes(voice.status);
+  document.body?.classList?.toggle("voice-input-press-active", active || Boolean(voice.pressTimer));
   button.classList.toggle("voice-input-gesture", true);
   button.classList.toggle("voice-input-pending", voice.status === "pending" || voice.status === "checking" || voice.status === "requesting");
   button.classList.toggle("voice-input-recording", voice.status === "recording");
@@ -212,6 +213,15 @@ function voiceInputClearPressTimer() {
   const voice = ensureVoiceInputState();
   if (voice.pressTimer) clearTimeout(voice.pressTimer);
   voice.pressTimer = 0;
+  if (!["pending", "checking", "requesting", "recording", "finalizing", "transcribing"].includes(voice.status)) {
+    document.body?.classList?.remove("voice-input-press-active");
+  }
+}
+
+function voiceInputClearSelection() {
+  try {
+    document.getSelection?.()?.removeAllRanges?.();
+  } catch (_) {}
 }
 
 function scheduleVoiceInputClickSuppressionClear() {
@@ -245,6 +255,7 @@ function cancelVoiceInput() {
   }
   voice.recorder = null;
   voiceInputStopTracks();
+  document.body?.classList?.remove("voice-input-press-active");
   closeVoiceInputOverlay();
 }
 
@@ -510,10 +521,15 @@ function handleVoiceInputPointerDown(event) {
   voiceInputClearPressTimer();
   voice.pointerId = event.pointerId;
   voice.suppressNextClick = false;
+  voiceInputClearSelection();
+  document.body?.classList?.add("voice-input-press-active");
   try {
     event.currentTarget?.setPointerCapture?.(event.pointerId);
   } catch (_) {}
   voice.pressTimer = setTimeout(() => {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    voiceInputClearSelection();
     voice.pressTimer = 0;
     void startVoiceInputRecording(event);
   }, VOICE_INPUT_LONG_PRESS_MS);
@@ -547,6 +563,16 @@ function handleVoiceInputPointerCancel() {
   if (["checking", "requesting", "recording", "finalizing"].includes(voice.status)) cancelVoiceInput();
 }
 
+function suppressVoiceInputTextSelection(event) {
+  const voice = ensureVoiceInputState();
+  if (event.target?.closest?.("[data-voice-transcript]")) return;
+  if (event.currentTarget?.id === "sendMessage" || voice.status !== "idle" || voice.pressTimer) {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    voiceInputClearSelection();
+  }
+}
+
 function handleVoiceInputSendClick(event) {
   const voice = ensureVoiceInputState();
   if (!voice.suppressNextClick) return false;
@@ -566,12 +592,12 @@ function initializeVoiceInputUi() {
   button.addEventListener("pointerdown", handleVoiceInputPointerDown);
   button.addEventListener("pointerup", handleVoiceInputPointerUp);
   button.addEventListener("pointercancel", handleVoiceInputPointerCancel);
+  button.addEventListener("selectstart", suppressVoiceInputTextSelection);
+  button.addEventListener("dragstart", suppressVoiceInputTextSelection);
+  button.addEventListener("touchstart", () => voiceInputClearSelection(), { passive: true });
   button.addEventListener("contextmenu", (event) => {
     const voice = ensureVoiceInputState();
-    if (voice.status !== "idle") {
-      event.preventDefault();
-      event.stopPropagation();
-    }
+    if (voiceInputNativeComposerAvailable() || voice.status !== "idle" || voice.pressTimer) suppressVoiceInputTextSelection(event);
   });
   refreshVoiceInputSendButton();
 }

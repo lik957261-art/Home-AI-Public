@@ -5,9 +5,11 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const {
+  buildMultipartBody,
   createVoiceInputAsrProvider,
   normalizeProviderResult,
   providerStatusFromConfig,
+  providerProtocolFromConfig,
 } = require("../adapters/voice-input-asr-provider");
 
 async function testDisabledByDefaultWithoutUrl() {
@@ -62,6 +64,53 @@ async function testHttpProviderPostsBoundedPayload() {
   fs.rmSync(tempDir, { recursive: true, force: true });
 }
 
+async function testOpenAiMultipartProviderPostsFileUpload() {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "voice-asr-openai-provider-"));
+  const audioPath = path.join(tempDir, "sample.webm");
+  fs.writeFileSync(audioPath, Buffer.from("audio"));
+  const calls = [];
+  const provider = createVoiceInputAsrProvider({
+    backend: "whisper-large-v3-turbo",
+    enabled: true,
+    env: {},
+    url: "http://127.0.0.1:8001/v1/audio/transcriptions",
+    fetchImpl(url, request) {
+      calls.push({ url, request });
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve({ text: "你好", language: "zh", language_probability: 0.91, duration: 1.5 });
+        },
+      });
+    },
+  });
+  const result = await provider.transcribeAudio({
+    audioPath,
+    durationMs: 1000,
+    mimeType: "audio/webm",
+    localeHint: "zh-CN",
+    requestId: "req_1",
+  });
+  assert.equal(result.text, "你好");
+  assert.equal(result.language, "zh");
+  assert.equal(result.confidence, 0.91);
+  assert.equal(result.durationMs, 1500);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "http://127.0.0.1:8001/v1/audio/transcriptions");
+  assert.ok(calls[0].request.body);
+  assert.notEqual(String(calls[0].request.headers?.["Content-Type"] || ""), "application/json");
+  fs.rmSync(tempDir, { recursive: true, force: true });
+}
+
+async function testMultipartFallbackBodyBuilder() {
+  const payload = await buildMultipartBody({
+    audioBase64: Buffer.from("abc").toString("base64"),
+    mimeType: "audio/webm",
+    language: "zh-CN",
+  });
+  assert.ok(payload.body);
+}
+
 function testProviderStatusAndNormalization() {
   assert.deepEqual(providerStatusFromConfig({ enabled: true, backend: "funasr-local", url: "http://127.0.0.1" }), {
     enabled: true,
@@ -77,11 +126,15 @@ function testProviderStatusAndNormalization() {
     backend: "fallback",
     durationMs: 0,
   });
+  assert.equal(providerProtocolFromConfig({ backend: "whisper-local", url: "http://127.0.0.1:9010/asr" }), "json-base64");
+  assert.equal(providerProtocolFromConfig({ backend: "whisper-large-v3-turbo", url: "http://127.0.0.1:8001/v1/audio/transcriptions" }), "openai-multipart");
 }
 
 async function run() {
   await testDisabledByDefaultWithoutUrl();
   await testHttpProviderPostsBoundedPayload();
+  await testOpenAiMultipartProviderPostsFileUpload();
+  await testMultipartFallbackBodyBuilder();
   testProviderStatusAndNormalization();
   console.log("voice input asr provider tests passed");
 }

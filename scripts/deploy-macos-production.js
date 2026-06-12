@@ -19,6 +19,9 @@ const PRODUCTION_SERVICE_GROUP = "staff";
 const HOME_AI_CRON_START_INTERVAL_SECONDS = 60;
 const HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS = 1800;
 const HOME_AI_BRIDGE_HOST_PORT = 8798;
+const HOME_AI_VOICE_INPUT_ASR_URL = "http://127.0.0.1:8001/v1/audio/transcriptions";
+const HOME_AI_VOICE_INPUT_ASR_BACKEND = "whisper-large-v3-turbo";
+const HOME_AI_VOICE_INPUT_ASR_PROTOCOL = "openai-multipart";
 const HOME_AI_CRON_PROFILE_READ_ACL = `user:${PRODUCTION_SERVICE_USER} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
 const HOME_AI_CRON_PROFILE_TRAVERSE_ACL = `user:${PRODUCTION_SERVICE_USER} allow search,readattr,readextattr,readsecurity`;
 const HOME_AI_CRON_PLUGIN_BINDING_DIR_NAMES = Object.freeze([
@@ -836,6 +839,52 @@ function installRootOwnedTextFile(targetPath, text, password, mode = "644", owne
   }
 }
 
+function plistBuddySetEnv(plistPath, key, value, password) {
+  const buddy = "/usr/libexec/PlistBuddy";
+  const envPath = `:EnvironmentVariables:${key}`;
+  const setResult = spawnSync("/usr/bin/sudo", [
+    ...(password ? ["-S", "-p", ""] : ["-n"]),
+    buddy,
+    "-c",
+    `Set ${envPath} ${value}`,
+    plistPath,
+  ], {
+    input: password ? `${password}\n` : "",
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  if (setResult.status === 0) return;
+  runSudo(buddy, ["-c", `Add ${envPath} string ${value}`, plistPath], password);
+}
+
+function installHomeAiListenerVoiceInputEnv(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const plistPath = `/Library/LaunchDaemons/${HOME_AI_LISTENER_LABEL}.plist`;
+  runSudo("/bin/test", ["-f", plistPath], password);
+  const rows = {
+    HERMES_MOBILE_VOICE_INPUT_ENABLED: "1",
+    HERMES_MOBILE_VOICE_INPUT_ASR_BACKEND: HOME_AI_VOICE_INPUT_ASR_BACKEND,
+    HERMES_MOBILE_VOICE_INPUT_ASR_PROTOCOL: HOME_AI_VOICE_INPUT_ASR_PROTOCOL,
+    HERMES_MOBILE_VOICE_INPUT_ASR_URL: HOME_AI_VOICE_INPUT_ASR_URL,
+    HERMES_MOBILE_VOICE_INPUT_ASR_TIMEOUT_MS: "240000",
+    HERMES_WEB_VOICE_INPUT_ENABLED: "1",
+    HERMES_WEB_VOICE_INPUT_ASR_BACKEND: HOME_AI_VOICE_INPUT_ASR_BACKEND,
+    HERMES_WEB_VOICE_INPUT_ASR_PROTOCOL: HOME_AI_VOICE_INPUT_ASR_PROTOCOL,
+    HERMES_WEB_VOICE_INPUT_ASR_URL: HOME_AI_VOICE_INPUT_ASR_URL,
+    HERMES_WEB_VOICE_INPUT_ASR_TIMEOUT_MS: "240000",
+  };
+  for (const [key, value] of Object.entries(rows)) plistBuddySetEnv(plistPath, key, value, password);
+  runSudo("/usr/bin/plutil", ["-lint", plistPath], password);
+  return {
+    type: "home-ai-listener-voice-input-env",
+    label: HOME_AI_LISTENER_LABEL,
+    plistPath,
+    backend: HOME_AI_VOICE_INPUT_ASR_BACKEND,
+    protocol: HOME_AI_VOICE_INPUT_ASR_PROTOCOL,
+    url: HOME_AI_VOICE_INPUT_ASR_URL,
+  };
+}
+
 function readGatewayManifestForCronProfiles(manifestPath, password) {
   const command = `if test -r ${shQuote(manifestPath)}; then /bin/cat ${shQuote(manifestPath)}; else printf '%s\\n' '{"workers":[]}'; fi`;
   const result = runSudo("/bin/sh", ["-c", command], password);
@@ -1090,6 +1139,7 @@ function executePlan(plan, options) {
 
   const bridgeHostInstall = installHomeAiBridgeHostLaunchd(plan, password);
   const cronInstall = installHomeAiCronLaunchd(plan, password);
+  const listenerVoiceInputEnv = installHomeAiListenerVoiceInputEnv(plan, password);
   const cronProfileAliases = installHomeAiCronProfileAliases(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
 
@@ -1100,6 +1150,7 @@ function executePlan(plan, options) {
   const validations = [];
   if (bridgeHostInstall) validations.push(Object.assign({ status: 0 }, bridgeHostInstall));
   if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));
+  if (listenerVoiceInputEnv) validations.push(Object.assign({ status: 0 }, listenerVoiceInputEnv));
   if (cronProfileAliases) validations.push(Object.assign({ status: 0 }, cronProfileAliases));
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
   for (const check of plan.validation) {

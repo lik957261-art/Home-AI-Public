@@ -188,6 +188,9 @@ async function transcribeAudio({
 Initial providers:
 
 - `whisper-local`: calls a local Whisper Large V3 Turbo service or command.
+  The Mac production default is an OpenAI-style faster-whisper endpoint at
+  `http://127.0.0.1:8001/v1/audio/transcriptions`; the provider auto-selects
+  multipart upload protocol for `/v1/audio/transcriptions` URLs.
 - `funasr-local`: calls a local FunASR service or command.
 - `disabled`: returns a bounded unavailable diagnostic for public installs
   without an ASR backend.
@@ -196,6 +199,7 @@ Configuration must be public-deployable:
 
 - `HERMES_MOBILE_VOICE_INPUT_ENABLED`;
 - `HERMES_MOBILE_VOICE_INPUT_ASR_BACKEND`;
+- `HERMES_MOBILE_VOICE_INPUT_ASR_PROTOCOL`;
 - `HERMES_MOBILE_VOICE_INPUT_ASR_URL` or command/path equivalents;
 - `HERMES_MOBILE_VOICE_INPUT_MAX_SECONDS`;
 - `HERMES_MOBILE_VOICE_INPUT_AUDIO_RETENTION_SECONDS`;
@@ -204,6 +208,21 @@ Configuration must be public-deployable:
 A fresh public deployment with no ASR backend must show the voice input as
 disabled/unavailable with an installer hint. It must not depend on the
 maintainer's private Mac Studio paths.
+
+Mac production closure:
+
+- `services/whisper-large-v3-turbo/` contains the public-safe FastAPI service
+  skeleton and requirements for a local faster-whisper large-v3-turbo endpoint.
+- `scripts/install-macos-whisper-large-v3-turbo-service.js --execute` installs
+  the service as launchd label `com.hermesmobile.whisper-large-v3-turbo` under
+  `/Users/hermes-host/HermesMobile/services/whisper-large-v3-turbo`.
+- `scripts/deploy-macos-production.js --target home-ai --execute` preserves the
+  existing listener plist and patches only the voice-input ASR environment
+  variables so the Home AI listener points at the local 8001 endpoint.
+- If 8001 is not healthy, Home AI may report voice input configured but
+  transcription can still fail with a bounded backend error; production smoke
+  should therefore check both `/api/voice-input/status` and
+  `http://127.0.0.1:8001/health`.
 
 ## Privacy And Retention
 

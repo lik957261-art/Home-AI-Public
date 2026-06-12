@@ -144,6 +144,12 @@ service root.
 - launchd scope: system LaunchDaemons
 - Listener launchd label: `com.hermesmobile.listener`
 - Automation cron tick launchd label: `com.hermesmobile.cron`
+- Host voice input ASR launchd label:
+  `com.hermesmobile.whisper-large-v3-turbo`. Install or repair it with
+  `node scripts/install-macos-whisper-large-v3-turbo-service.js --execute`.
+  The Home AI listener gets `HERMES_MOBILE_VOICE_INPUT_*` / `HERMES_WEB_VOICE_INPUT_*`
+  ASR environment variables from the central Mac deploy script, pointing to
+  `http://127.0.0.1:8001/v1/audio/transcriptions` by default.
 - Node runtime: `/Users/hermes-host/HermesMobile/runtime/node-current`
 - Official Hermes release runtime:
   `/Users/hermes-host/HermesMobile/runtime/hermes-agent-official`

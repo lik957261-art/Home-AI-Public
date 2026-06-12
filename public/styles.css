@@ -16640,6 +16640,14 @@ body.task-markdown-preview-open {
   -webkit-user-select: none;
   -webkit-touch-callout: none;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body.voice-input-press-active,
+body.voice-input-press-active *:not(.voice-input-transcript) {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
 }
 
 #sendMessage.voice-input-pending,
@@ -16673,6 +16681,9 @@ body.task-markdown-preview-open {
   border-radius: 12px;
   box-shadow: 0 16px 34px rgba(34, 28, 20, 0.12);
   backdrop-filter: blur(14px);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .voice-input-overlay[hidden] {
@@ -16725,6 +16736,9 @@ body.task-markdown-preview-open {
   font: inherit;
   font-size: 15px;
   line-height: 1.45;
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-touch-callout: default;
 }
 
 .voice-input-transcript[hidden] {

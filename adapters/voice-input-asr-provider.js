@@ -21,13 +21,18 @@ function normalizeBackend(value) {
 function normalizeProviderResult(value = {}, fallbackBackend = "disabled") {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   const text = cleanString(source.text || source.transcript || source.output_text || "", 240000);
+  const durationMs = Number.isFinite(Number(source.durationMs || source.duration_ms))
+    ? Math.max(0, Number(source.durationMs || source.duration_ms) || 0)
+    : Math.max(0, Number(source.duration || 0) * 1000 || 0);
   return {
     text,
     language: cleanString(source.language || source.locale || "", 40),
-    confidence: Number.isFinite(Number(source.confidence)) ? Number(source.confidence) : 0,
+    confidence: Number.isFinite(Number(source.confidence ?? source.language_probability))
+      ? Number(source.confidence ?? source.language_probability)
+      : 0,
     segments: Array.isArray(source.segments) ? source.segments.slice(0, 200) : [],
     backend: cleanString(source.backend || fallbackBackend, 80) || fallbackBackend,
-    durationMs: Math.max(0, Number(source.durationMs || source.duration_ms || 0) || 0),
+    durationMs,
   };
 }
 
@@ -51,6 +56,66 @@ function providerStatusFromConfig(config = {}) {
   };
 }
 
+function providerProtocolFromConfig(config = {}) {
+  const explicit = cleanString(config.protocol || "", 80).toLowerCase();
+  if (explicit) return explicit;
+  const backend = normalizeBackend(config.backend);
+  const url = cleanString(config.url || "", 2000);
+  if (backend.includes("openai") || backend.includes("multipart")) return "openai-multipart";
+  if (/\/v1\/audio\/transcriptions(?:$|[?#])/i.test(url)) return "openai-multipart";
+  return "json-base64";
+}
+
+function normalizeLanguage(value) {
+  let text = cleanString(value || "auto", 40);
+  if (!text || /^(auto|detect|none|null)$/i.test(text)) return "";
+  if (/^(zh-CN|zh_CN|cn|chinese)$/i.test(text)) text = "zh";
+  if (/^(en-US|en_GB|en-GB|english)$/i.test(text)) text = "en";
+  return text;
+}
+
+function contentTypeForMimeType(value) {
+  const text = cleanString(value || "", 120);
+  return text || "application/octet-stream";
+}
+
+async function buildMultipartBody(input = {}, config = {}) {
+  if (typeof FormData === "function" && typeof Blob === "function") {
+    const bytes = input.audioPath
+      ? fs.readFileSync(input.audioPath)
+      : Buffer.from(input.audioBase64 || "", "base64");
+    const form = new FormData();
+    form.append("response_format", "json");
+    const language = normalizeLanguage(input.localeHint || input.language || "");
+    if (language) form.append("language", language);
+    form.append("file", new Blob([bytes], { type: contentTypeForMimeType(input.mimeType) }), input.fileName || "voice-input.webm");
+    return { body: form, headers: undefined };
+  }
+  const boundary = `----HomeAiVoiceInput${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+  const bytes = input.audioPath
+    ? fs.readFileSync(input.audioPath)
+    : Buffer.from(input.audioBase64 || "", "base64");
+  const chunks = [
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="response_format"\r\n\r\njson\r\n`),
+  ];
+  const language = normalizeLanguage(input.localeHint || input.language || "");
+  if (language) {
+    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\n${language}\r\n`));
+  }
+  const fileName = cleanString(input.fileName || "voice-input.webm", 120).replace(/"/g, "_");
+  chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${contentTypeForMimeType(input.mimeType)}\r\n\r\n`));
+  chunks.push(bytes);
+  chunks.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+  const body = Buffer.concat(chunks);
+  return {
+    body,
+    headers: {
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      "Content-Length": String(body.length),
+    },
+  };
+}
+
 function createVoiceInputAsrProvider(options = {}) {
   const env = options.env || process.env;
   const fetchImpl = options.fetchImpl || globalThis.fetch;
@@ -64,6 +129,13 @@ function createVoiceInputAsrProvider(options = {}) {
       || env.HERMES_MOBILE_VOICE_INPUT_ASR_BACKEND
       || env.HERMES_WEB_VOICE_INPUT_ASR_BACKEND
       || (options.url || env.HERMES_MOBILE_VOICE_INPUT_ASR_URL || env.HERMES_WEB_VOICE_INPUT_ASR_URL ? "whisper-local" : "disabled"),
+    ),
+    protocol: cleanString(
+      options.protocol
+      || env.HERMES_MOBILE_VOICE_INPUT_ASR_PROTOCOL
+      || env.HERMES_WEB_VOICE_INPUT_ASR_PROTOCOL
+      || "",
+      80,
     ),
     url: cleanString(
       options.url
@@ -88,17 +160,24 @@ function createVoiceInputAsrProvider(options = {}) {
     const controller = typeof AbortController === "function" ? new AbortController() : null;
     const timer = controller ? setTimeout(() => controller.abort(), config.timeoutMs) : null;
     try {
+      const protocol = providerProtocolFromConfig(config);
+      const request = protocol === "openai-multipart"
+        ? await buildMultipartBody(input, config)
+        : {
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              audioBase64,
+              mimeType: input.mimeType || "",
+              durationMs: input.durationMs || 0,
+              localeHint: input.localeHint || "",
+              requestId: input.requestId || "",
+              backend: config.backend,
+            }),
+          };
       const response = await fetchImpl(config.url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          audioBase64,
-          mimeType: input.mimeType || "",
-          durationMs: input.durationMs || 0,
-          localeHint: input.localeHint || "",
-          requestId: input.requestId || "",
-          backend: config.backend,
-        }),
+        headers: request.headers,
+        body: request.body,
         signal: controller?.signal,
       });
       if (!response?.ok) {
@@ -122,7 +201,9 @@ function createVoiceInputAsrProvider(options = {}) {
 
 module.exports = {
   boolEnv,
+  buildMultipartBody,
   createVoiceInputAsrProvider,
   normalizeProviderResult,
   providerStatusFromConfig,
+  providerProtocolFromConfig,
 };
