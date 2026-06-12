@@ -262,6 +262,35 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["plugin-topic", "preference"],
     summary: "Merge workspace-scoped plugin topic quick-action usage preferences.",
   })),
+  exact("voice-input-status", "GET", "/api/voice-input/status", "voice-input", routeOptions("voice-input", {
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "config"],
+    summary: "Read Home AI host voice input availability, backend, limits, and correction count.",
+  })),
+  exact("voice-input-transcribe", "POST", "/api/voice-input/transcribe", "voice-input", routeOptions("voice-input", {
+    riskLevel: "high",
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "audio", "composer"],
+    summary: "Transcribe a short Home AI host voice recording through the configured ASR backend.",
+  })),
+  exact("voice-input-commit", "POST", "/api/voice-input/commit", "voice-input", routeOptions("voice-input", {
+    riskLevel: "medium",
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "correction", "composer"],
+    summary: "Commit final submitted text for a voice input session and record bounded correction evidence.",
+  })),
+  exact("voice-input-corrections-list", "GET", "/api/voice-input/corrections", "voice-input", routeOptions("voice-input", {
+    riskLevel: "medium",
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "correction"],
+    summary: "List workspace-scoped personal voice correction entries.",
+  })),
+  exact("voice-input-corrections-update", "PATCH", "/api/voice-input/corrections", "voice-input", routeOptions("voice-input", {
+    riskLevel: "medium",
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "correction"],
+    summary: "Enable, suggest-only, or disable a personal voice correction entry.",
+  })),
 
   exact("action-inbox-list", "GET", "/api/action-inbox", "action-inbox", routeOptions("action-inbox", {
     workspaceScoped: true,

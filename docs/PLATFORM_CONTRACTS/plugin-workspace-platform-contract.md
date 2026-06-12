@@ -195,6 +195,75 @@ uses the vendored Swiss Ephemeris `sweph-wasm` runtime. New WASM plugins must
 add the same declaration, route tests, plugin-local pointer note, and production
 smoke/readback evidence before deployment.
 
+## Host Voice Input Contract
+
+Home AI owns global voice input for Home AI composer surfaces. Native Home AI
+composers receive text through host draft APIs; this contract covers the
+embedded plugin part of the same capability. The voice input surface is host
+chrome, not a plugin iframe feature and not a system keyboard or input method.
+
+Host responsibilities:
+
+- request and hold browser microphone permission from the top-level Home AI
+  origin;
+- render the recording/transcription/editing overlay outside the plugin iframe;
+- dispatch audio to a configured local ASR backend through Home AI services;
+- apply and learn conservative personal correction rules under actor,
+  effective-workspace, composer surface, optional plugin, and optional thread
+  scope;
+- insert the user-confirmed text through host draft APIs for native composers
+  or through the plugin bridge protocol for embedded plugin composers;
+- keep raw audio temporary by default and avoid storing full transcripts or
+  private audio in docs, handoffs, logs, model prompts, or screenshots.
+
+Plugin responsibilities:
+
+- do not request microphone permission or run a plugin-local ASR stack for the
+  shared Home AI voice input path;
+- do not add separate plugin microphone controls for the shared path. The host
+  may activate recording from a long press on the active composer send button;
+- expose `voice_input.capability_state` for the currently active composer,
+  including whether it is writable and which actions are supported;
+- implement supported actions by updating plugin draft state, not by simulating
+  keyboard events;
+- acknowledge insertion with a bounded result event and report bounded errors;
+- optionally emit `voice_input.commit_result` after a send succeeds so Home AI
+  can compare the original ASR transcript with the final user-submitted text;
+- never include raw access keys, launch tokens, cookies, plugin private data,
+  local file paths, ASR backend paths, or raw audio in voice-input
+  postMessage payloads.
+
+Initial event names:
+
+```text
+voice_input.capability_query
+voice_input.capability_state
+voice_input.insert_text
+voice_input.append_text
+voice_input.replace_draft
+voice_input.submit
+voice_input.start_request
+voice_input.stop_request
+voice_input.cancel_request
+voice_input.insert_result
+voice_input.commit_result
+voice_input.error
+```
+
+Every event must include a protocol version, plugin id, request id or voice
+session id as applicable, and must pass the standard active-iframe origin
+validation. The host must query capability shortly before injection; stale
+capability state must not authorize replace or submit actions.
+
+The ordinary Home AI chat composer is the first native host target. Codex
+Mobile is the first embedded-plugin target for this bridge in Home AI
+embedded-plugin mode only. Standalone Codex Mobile deployments are outside this
+Home AI host-voice-input contract unless they explicitly opt in.
+`voice_input.start_request`, `voice_input.stop_request`, and
+`voice_input.cancel_request` are embedded-plugin-only requests for a plugin
+composer send-button gesture to delegate recording to the Home AI host; they
+must not be wired into standalone plugin launch paths by default.
+
 ## AI Operations Control Plane Contract
 
 Every plugin Codex thread must use the Home AI AI Operations Control Plane as

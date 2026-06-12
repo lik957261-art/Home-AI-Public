@@ -155,6 +155,8 @@ remaining gap as an explicit follow-up.
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md`
 - Embedded plugin UI contract: `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`
 - Embedded surface bottom layout standard: `docs/IMPLEMENTATION_NOTES/embedded-surface-bottom-layout-standard.md`
+- Host voice input capability:
+  `docs/IMPLEMENTATION_NOTES/voice-input-plugin.md`
 - Directory topic collections: `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`

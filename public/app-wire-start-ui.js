@@ -582,7 +582,11 @@ function wireUi() {
   $("openMenu").addEventListener("click", (event) => handleTopNavActivation(event));
   $("closeMenu").addEventListener("click", closeSidebar);
   $("sidebarBack")?.addEventListener("click", sidebarBackToMenu);
-  $("sendMessage").addEventListener("click", () => void sendMessage());
+  if (typeof initializeVoiceInputUi === "function") initializeVoiceInputUi();
+  $("sendMessage").addEventListener("click", (event) => {
+    if (typeof handleVoiceInputSendClick === "function" && handleVoiceInputSendClick(event)) return;
+    void sendMessage(event);
+  });
   $("composerSearchSource")?.addEventListener("click", (event) => {
     const option = event.target.closest?.("[data-composer-source-toggle]");
     if (!option) return;

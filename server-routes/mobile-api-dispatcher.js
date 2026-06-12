@@ -39,6 +39,7 @@ const MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE = Object.freeze([
   Object.freeze({ key: "directoryBrowserApiRoutes", passAuth: true }),
   Object.freeze({ key: "directoryShareApiRoutes", passAuth: true }),
   Object.freeze({ key: "directoryMutationApiRoutes", passAuth: true }),
+  Object.freeze({ key: "voiceInputApiRoutes", passAuth: true }),
   Object.freeze({ key: "threadReadUploadApiRoutes", passAuth: true }),
   Object.freeze({ key: "threadTaskApiRoutes", passAuth: true }),
   Object.freeze({ key: "singleWindowGroupChatApiRoutes", passAuth: true }),

@@ -102,6 +102,12 @@ assert.match(embeddedPluginUi, /function requestEmbeddedPluginHealthRefresh\(def
 assert.match(embeddedPluginUi, /requestEmbeddedPluginHealthRefresh\(def\)/);
 assert.match(embeddedPluginUi, /function ensureEmbeddedPluginNavigationBridge\(def\)/);
 assert.match(embeddedPluginUi, /def\.navigationEventType/);
+assert.match(embeddedPluginUi, /function normalizeEmbeddedPluginVoiceInputCapability\(def, payload = \{\}\)/);
+assert.match(embeddedPluginUi, /function sendEmbeddedPluginVoiceInputAction\(action, payload = \{\}, def = embeddedPluginDefByView\(\)\)/);
+assert.match(embeddedPluginUi, /voice_input\.capability_query/);
+assert.match(embeddedPluginUi, /voice_input\.start_request/);
+assert.match(embeddedPluginUi, /voice_input\.stop_request/);
+assert.match(embeddedPluginUi, /voice_input\.commit_result/);
 assert.match(embeddedPluginUi, /function embeddedPluginPreviewFullscreenRequested\(payload = \{\}\)/);
 assert.match(embeddedPluginUi, /payload\.previewFullscreen[\s\S]*?payload\.fullscreenPreview[\s\S]*?payload\.imagePreviewFullscreen/);
 assert.match(embeddedPluginUi, /data\.type === "hermes\.plugin\.preview" \|\| data\.type === "hermes\.plugin\.fullscreen" \|\| data\.type === `\$\{def\.id\}\.plugin\.preview`/);

@@ -7,6 +7,7 @@ const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
 const { createMobileApiLearningComposition } = require("./mobile-api-learning-composition");
 const { createMobileApiPluginComposition } = require("./mobile-api-plugin-composition");
 const { createMobileApiPlatformComposition } = require("./mobile-api-platform-composition");
+const { createMobileApiVoiceComposition } = require("./mobile-api-voice-composition");
 const { createSingleWindowGroupChatApiRoutes } = require("./single-window-group-chat-api-routes");
 const { createThreadMessageRunApiRoutes } = require("./thread-message-run-api-routes");
 const { createThreadReadUploadApiRoutes } = require("./thread-read-upload-api-routes");
@@ -106,6 +107,14 @@ function createMobileApiComposition(deps = {}) {
     threadAccessibleToAuth: (...args) => deps.getRuntimeStateThreadService().threadAccessibleToAuth(...args),
     threadSummary: deps.threadSummary,
   });
+
+  const voiceComposition = createMobileApiVoiceComposition(deps);
+  const { voiceInputApiRoutes } = voiceComposition.routes;
+  const {
+    voiceInputAsrProvider,
+    voiceInputCorrectionService,
+    voiceInputService,
+  } = voiceComposition.services;
 
   const threadReadUploadApiRoutes = createThreadReadUploadApiRoutes({
     authenticateRequest: deps.authenticateRequest,
@@ -313,6 +322,7 @@ function createMobileApiComposition(deps = {}) {
     threadReadUploadApiRoutes,
     threadTaskApiRoutes,
     todoApiRoutes,
+    voiceInputApiRoutes,
     weixinApiRoutes,
     workspaceOnboardingApiRoutes,
     workspaceApiRoutes,
@@ -342,6 +352,9 @@ function createMobileApiComposition(deps = {}) {
       pluginTopicBindingService,
       pluginTopicContextSourceService,
       pluginTopicUsageService,
+      voiceInputAsrProvider,
+      voiceInputCorrectionService,
+      voiceInputService,
       workspaceOnboardingService,
     },
     routes: {
@@ -378,6 +391,7 @@ function createMobileApiComposition(deps = {}) {
       threadReadUploadApiRoutes,
       threadTaskApiRoutes,
       todoApiRoutes,
+      voiceInputApiRoutes,
       weixinApiRoutes,
       workspaceOnboardingApiRoutes,
       workspaceApiRoutes,

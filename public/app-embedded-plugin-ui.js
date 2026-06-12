@@ -125,6 +125,8 @@ function embeddedPluginRecord(pluginId) {
       bridgeBound: false,
       frameHealthSeq: 0,
       viewportMessageTimer: 0,
+      voiceInputCapability: null,
+      voiceInputLastMessageAt: 0,
       loading: false,
       checked: false,
     };
@@ -651,6 +653,120 @@ function restoreEmbeddedPluginReturnRoute(def = embeddedPluginDefByView()) {
   return true;
 }
 
+function normalizeEmbeddedPluginVoiceInputCapability(def, payload = {}) {
+  const actions = Array.isArray(payload.actions)
+    ? payload.actions.map((action) => String(action || "").trim()).filter(Boolean)
+    : [];
+  return {
+    pluginId: def.id,
+    writable: Boolean(payload.writable || payload.composerWritable),
+    composerId: String(payload.composerId || payload.composer_id || "default").slice(0, 120),
+    actions: actions.length ? [...new Set(actions)] : ["append_text", "replace_draft"],
+    maxChars: Math.max(0, Number(payload.maxChars || payload.max_chars || 0) || 0),
+    updatedAt: Date.now(),
+  };
+}
+
+function updateEmbeddedPluginVoiceInputCapabilityState(def, payload = {}) {
+  const record = embeddedPluginRecord(def.id);
+  record.voiceInputCapability = normalizeEmbeddedPluginVoiceInputCapability(def, payload);
+  record.voiceInputLastMessageAt = Date.now();
+  if (typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
+  return record.voiceInputCapability;
+}
+
+function embeddedPluginVoiceInputCapability(def = embeddedPluginDefByView()) {
+  if (!def || state.viewMode !== def.viewMode) return null;
+  return embeddedPluginRecord(def.id).voiceInputCapability || null;
+}
+
+function embeddedPluginVoiceInputAvailable(def = embeddedPluginDefByView()) {
+  const capability = embeddedPluginVoiceInputCapability(def);
+  return Boolean(capability?.writable && capability.actions?.length);
+}
+
+function embeddedPluginVoiceInputMessageType(action) {
+  const normalized = String(action || "").trim();
+  if (normalized === "append" || normalized === "append_text") return "voice_input.append_text";
+  if (normalized === "replace" || normalized === "replace_draft") return "voice_input.replace_draft";
+  if (normalized === "insert" || normalized === "insert_text") return "voice_input.insert_text";
+  if (normalized === "submit") return "voice_input.submit";
+  return "";
+}
+
+function sendEmbeddedPluginVoiceInputAction(action, payload = {}, def = embeddedPluginDefByView()) {
+  if (!def || state.viewMode !== def.viewMode) return false;
+  const frame = embeddedPluginActiveFrame(def);
+  const record = embeddedPluginRecord(def.id);
+  const origin = record.frameOrigin || embeddedPluginEntryOrigin(def, record.manifest) || embeddedPluginEntryOrigin(def);
+  const capability = embeddedPluginVoiceInputCapability(def);
+  const type = embeddedPluginVoiceInputMessageType(action);
+  if (!frame?.contentWindow || !origin || !type || !capability?.writable) return false;
+  const actionName = type.replace("voice_input.", "");
+  if (capability.actions?.length && !capability.actions.includes(actionName)) return false;
+  const text = String(payload.text || "").slice(0, capability.maxChars || 240000);
+  frame.contentWindow.postMessage(Object.assign({}, payload, {
+    type,
+    version: 1,
+    pluginId: def.id,
+    composerId: payload.composerId || capability.composerId || "default",
+    text,
+  }), origin);
+  record.voiceInputLastMessageAt = Date.now();
+  return true;
+}
+
+function requestEmbeddedPluginVoiceInputCapability(def = embeddedPluginDefByView()) {
+  if (!def || state.viewMode !== def.viewMode) return false;
+  const frame = embeddedPluginActiveFrame(def);
+  const record = embeddedPluginRecord(def.id);
+  const origin = record.frameOrigin || embeddedPluginEntryOrigin(def, record.manifest) || embeddedPluginEntryOrigin(def);
+  if (!frame?.contentWindow || !origin) return false;
+  frame.contentWindow.postMessage({
+    type: "voice_input.capability_query",
+    version: 1,
+    pluginId: def.id,
+  }, origin);
+  record.voiceInputLastMessageAt = Date.now();
+  return true;
+}
+
+function handleEmbeddedPluginVoiceInputMessage(def, payload = {}) {
+  if (payload.type === "voice_input.capability_state") {
+    updateEmbeddedPluginVoiceInputCapabilityState(def, payload);
+    return true;
+  }
+  if (payload.type === "voice_input.insert_result") {
+    embeddedPluginRecord(def.id).voiceInputLastMessageAt = Date.now();
+    if (payload.ok === false && typeof showError === "function") showError(new Error(payload.error || "插件语音文本插入失败"));
+    return true;
+  }
+  if (payload.type === "voice_input.commit_result") {
+    embeddedPluginRecord(def.id).voiceInputLastMessageAt = Date.now();
+    if (typeof commitVoiceInputPluginResult === "function") commitVoiceInputPluginResult(def, payload);
+    return true;
+  }
+  if (payload.type === "voice_input.start_request") {
+    updateEmbeddedPluginVoiceInputCapabilityState(def, Object.assign({ writable: true }, payload.capability || {}, payload));
+    if (typeof startVoiceInputFromEmbeddedPlugin === "function") startVoiceInputFromEmbeddedPlugin(def, payload);
+    return true;
+  }
+  if (payload.type === "voice_input.stop_request") {
+    if (typeof stopVoiceInputFromEmbeddedPlugin === "function") stopVoiceInputFromEmbeddedPlugin(def, payload);
+    return true;
+  }
+  if (payload.type === "voice_input.cancel_request") {
+    if (typeof cancelVoiceInput === "function") cancelVoiceInput();
+    return true;
+  }
+  if (payload.type === "voice_input.error") {
+    embeddedPluginRecord(def.id).voiceInputLastMessageAt = Date.now();
+    if (typeof showError === "function") showError(new Error(payload.error || "插件语音输入错误"));
+    return true;
+  }
+  return false;
+}
+
 function ensureEmbeddedPluginNavigationBridge(def) {
   const record = embeddedPluginRecord(def.id);
   if (record.bridgeBound) return;
@@ -659,6 +775,9 @@ function ensureEmbeddedPluginNavigationBridge(def) {
     const data = event?.data || {};
     if (!data) return;
     if (!embeddedPluginMessageOriginAllowed(def, event)) return;
+    if (String(data.type || "").startsWith("voice_input.") && handleEmbeddedPluginVoiceInputMessage(def, data)) {
+      return;
+    }
     if (data.type === def.navigationEventType) {
       updateEmbeddedPluginNavigationState(def, data);
       return;
@@ -966,6 +1085,7 @@ function bindEmbeddedPluginFrameHealth(def, frame) {
     frame.closest(".embedded-plugin-shell")?.classList.remove("is-loading");
     scheduleEmbeddedPluginLaunchHealthCheck(def, frame, Date.now());
     [0, 80, 240].forEach((delay) => window.setTimeout(() => sendEmbeddedPluginViewportMetrics(def, "frame_load"), delay));
+    [160, 700].forEach((delay) => window.setTimeout(() => requestEmbeddedPluginVoiceInputCapability(def), delay));
   });
 }
 

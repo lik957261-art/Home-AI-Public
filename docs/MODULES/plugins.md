@@ -1214,6 +1214,33 @@ the iframe and route that gesture through the same plugin back/outer-back
 contract. The edge zone must start an actual back-swipe state; it must not only
 call `preventDefault()` and swallow the gesture before the host can act.
 
+## Host Voice Input Bridge
+
+Home AI global voice input is a host-owned composer input capability. Native
+Home AI composers use host draft APIs, while embedded plugin composers use this
+bridge. It is intentionally not implemented as plugin-local microphone UI,
+plugin-local ASR, a third-party input method, or simulated keyboard typing.
+
+The host owns microphone permission, recording/transcription/editing UI, ASR
+backend selection, correction learning, privacy retention, and bridge
+orchestration. The primary host UI entry is long press on the active composer
+send button; normal tap keeps sending. The active plugin owns only its composer
+state and supported draft actions. A plugin declares
+`voice_input.capability_state` and receives bounded `voice_input.append_text`,
+`voice_input.replace_draft`, `voice_input.insert_text`, or optional
+`voice_input.submit` messages after Home AI validates active iframe origin,
+plugin id, request id, voice session id, and the latest capability state.
+
+Plugins must update their own draft state when accepting inserted text and
+acknowledge with `voice_input.insert_result` or `voice_input.error`. If a plugin
+can safely report the final submitted text for the same session, it may emit
+`voice_input.commit_result` after send success so Home AI can extract
+conservative correction candidates. Plugins must not include raw audio, access
+keys, launch tokens, cookies, local file paths, or plugin private data in any
+voice-input postMessage.
+
+The detailed design is `docs/IMPLEMENTATION_NOTES/voice-input-plugin.md`.
+
 ## Host Refresh Contract
 
 Embedded plugins that use short-lived launch tokens can ask Hermes Mobile to

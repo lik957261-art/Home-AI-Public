@@ -13,6 +13,7 @@ const DEFAULT_RUNTIME_STATE = Object.freeze({
   todos: [],
   automations: [],
   kanbanCaseShares: {},
+  voiceInput: {},
   auditLog: [],
 });
 
@@ -32,6 +33,7 @@ const OBJECT_FIELDS = new Set([
   "accessKeys",
   "sharedDirectories",
   "kanbanCaseShares",
+  "voiceInput",
 ]);
 
 function safeCloneJson(value, fallback = null) {

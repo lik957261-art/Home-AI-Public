@@ -82,6 +82,44 @@ This file records durable product rules that implementation must preserve.
 - Every plugin topic should have a standard workspace-local delivery directory for cleaned reports and user-facing outputs. That directory must not store raw plugin keys, launch tokens, browser cookies, provider credentials, full mailbox bodies, raw ledger rows, private inventories, health record dumps, or plugin database files.
 - Owner switching into a non-Owner workspace must use the target workspace's plugin topic, plugin app, delivery directory, and MCP binding. Owner fallback is a permission failure.
 
+## Host Voice Input
+
+- Voice input for Home AI composer surfaces is a Home AI host capability, not
+  an ordinary plugin iframe and not a system input method. It covers ordinary
+  Home AI chat, plugin-bound topic chat, and embedded plugin composers that
+  opt in through the plugin bridge. The host owns microphone permission,
+  recording UI, ASR dispatch, privacy policy, correction learning, and
+  insertion orchestration.
+- The primary entry is the active composer send button. A normal tap keeps the
+  existing send behavior. A long press starts recording after a bounded
+  threshold, and release finalizes the clip and starts transcription. MVP must
+  insert confirmed text into the draft; direct auto-send is not the default
+  behavior.
+- Plugins must not implement their own Home AI microphone capture or ASR stack
+  for the shared voice-input path. A plugin only declares whether the current
+  composer is writable and which bounded actions it supports: append, replace,
+  insert, and optionally submit.
+- Home AI must insert confirmed voice text through host draft APIs for native
+  Home AI composers and through an explicit plugin bridge protocol for
+  embedded plugin composers. It must not simulate keyboard typing, inspect
+  plugin DOM, or call plugin-private JavaScript functions.
+- Raw audio is temporary processing input by default. Successful transcription
+  must delete raw audio unless an Owner-configured debug retention policy is
+  explicitly enabled. Debug retention must be bounded and must live under
+  production data/temp storage, not the source checkout.
+- Correction learning must be conservative: store only short replacement pairs
+  and bounded metadata, require repeated evidence before automatic application,
+  and avoid learning or auto-applying dates, amounts, file paths, URLs, code,
+  command flags, account identifiers, or other structured/sensitive spans.
+- Correction scope must resolve authenticated actor, effective workspace,
+  composer surface, optional plugin id, and optional thread id. Global
+  correction promotion requires an explicit user action; one plugin's edits or
+  one native chat's edits must not silently rewrite all other surfaces.
+- A public deployment without a configured local ASR backend must show the
+  voice input capability as disabled or unavailable with a bounded diagnostic.
+  It must not depend on private Mac paths, hand-copied models, or maintainer
+  runtime state.
+
 ## Growth Learning
 
 - Evergreen cards are driven by observed ability and weakness evidence, not by a fixed grade-only track.

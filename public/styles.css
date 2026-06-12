@@ -16635,6 +16635,134 @@ body.task-markdown-preview-open {
   box-shadow: none;
 }
 
+#sendMessage.voice-input-gesture {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+#sendMessage.voice-input-pending,
+#sendMessage.voice-input-busy {
+  color: var(--ui-accent-ink);
+  background: var(--ui-warning-surface);
+  border-color: rgba(169, 122, 49, 0.22);
+}
+
+#sendMessage.voice-input-recording {
+  color: #fff;
+  background: var(--danger);
+  border-color: rgba(164, 61, 53, 0.32);
+}
+
+.voice-input-overlay {
+  position: fixed;
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
+  bottom: calc(var(--mobile-bottom-stack-height, 72px) + 62px);
+  z-index: 130;
+  display: grid;
+  gap: 8px;
+  width: min(520px, calc(100vw - 20px));
+  max-height: min(360px, calc(var(--app-viewport-height, 100dvh) - 120px));
+  margin: 0 auto;
+  padding: 10px;
+  color: var(--ink);
+  background: var(--ui-menu-bg);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 12px;
+  box-shadow: 0 16px 34px rgba(34, 28, 20, 0.12);
+  backdrop-filter: blur(14px);
+}
+
+.voice-input-overlay[hidden] {
+  display: none;
+}
+
+.voice-input-head,
+.voice-input-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-input-head {
+  justify-content: space-between;
+}
+
+.voice-input-head .secondary-small,
+.voice-input-actions .secondary-small,
+.voice-input-actions .primary-small {
+  width: auto;
+}
+
+.voice-input-title {
+  min-width: 0;
+  color: var(--ui-accent-ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-input-cancel {
+  flex: 0 0 auto;
+}
+
+.voice-input-transcript {
+  width: 100%;
+  min-height: 106px;
+  max-height: 180px;
+  padding: 9px 10px;
+  color: var(--ink);
+  background: var(--ui-field-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  outline: none;
+  resize: vertical;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.voice-input-transcript[hidden] {
+  display: none;
+}
+
+.voice-input-corrections {
+  min-height: 24px;
+  padding: 5px 8px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.voice-input-corrections[hidden] {
+  display: none;
+}
+
+.voice-input-actions {
+  justify-content: flex-end;
+}
+
+.voice-input-overlay-busy .voice-input-actions {
+  display: none;
+}
+
+.voice-input-overlay-error {
+  border-color: rgba(164, 61, 53, 0.22);
+}
+
+.voice-input-overlay-error .voice-input-title {
+  color: var(--danger);
+  white-space: normal;
+}
+
 .pending-artifacts {
   grid-column: 1 / -1;
   order: -1;

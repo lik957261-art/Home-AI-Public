@@ -191,6 +191,59 @@ Required practice:
 
 ## H1 Required Harness
 
+### Host Voice Input
+
+Applies to the Home AI host voice input capability for active composer
+surfaces: ordinary Home AI chat, plugin-bound topic chat, and embedded plugin
+composers. It covers recording, local ASR dispatch, correction learning,
+privacy retention, host draft insertion, and plugin bridge insertion.
+
+Required harness dimensions:
+
+- The host owns microphone permission and recording UI. Plugins do not request
+  microphone permission or run plugin-local ASR for the shared voice-input path.
+- The primary entry is the active composer send button. Normal tap preserves
+  send behavior; long press starts recording after a bounded threshold; release
+  starts transcription unless the user cancels.
+- Send-button long press must not produce native text selection boxes, native
+  callouts, context menus, or accidental drag-reorder behavior.
+- A missing ASR backend produces a disabled/unavailable state with a bounded
+  diagnostic and does not depend on private maintainer paths.
+- Audio upload enforces duration, MIME, actor, workspace, surface, optional
+  plugin, and thread scope before ASR is invoked.
+- Raw audio is deleted according to the configured retention policy, and
+  successful default transcription does not persist raw audio.
+- Correction extraction stores only short replacement pairs and bounded
+  metadata; it rejects structured spans such as dates, amounts, file paths,
+  URLs, commands, and code.
+- Auto-apply requires repeated evidence and no recent rejection. Undo or
+  disable lowers or blocks future application.
+- Native composer insertion uses host draft state. Plugin injection uses
+  postMessage capability state and rejects wrong origin, wrong plugin id, stale
+  session id, unsupported actions, and over-limit text.
+- Default insertion appends text. Replace and submit require explicit user
+  action and fresh capability state.
+- Home AI chat composer first adoption updates draft state through host draft
+  APIs. Codex Mobile first plugin adoption updates draft state through its
+  embedded plugin bridge, not through simulated keyboard events.
+- Installed-PWA visual evidence proves the host overlay is outside the iframe,
+  does not overlap bottom navigation, plugin Dock, keyboard, or plugin
+  composer, and returns to a stable composer surface after insert/discard.
+
+Focused checks:
+
+```powershell
+node tests\voice-input-service.test.js
+node tests\voice-input-asr-provider.test.js
+node tests\voice-input-correction-service.test.js
+node tests\voice-input-api-routes.test.js
+node tests\voice-input-ui.test.js
+npm run ios:pwa:visual -- --scenario voice-input-overlay-composer --debug-url http://127.0.0.1:19073/
+npm run ios:pwa:visual -- --scenario voice-input-overlay-plugin-composer --plugin-id codex-mobile --plugin-thread-id <thread-id> --debug-url http://127.0.0.1:19073/
+node scripts\privacy-scan.js
+node tests\architecture-refactor-boundary.test.js
+```
+
 ### Windows Native Gateway Launch
 
 Applies to replacing the Windows WSL low Gateway start path with the native

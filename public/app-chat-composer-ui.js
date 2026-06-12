@@ -605,6 +605,7 @@ function updateComposerAction() {
     button.disabled = !draft;
     updateChatSearchStatus();
     renderComposerContext();
+    if (typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
     return;
   }
   if (prevSearch) {
@@ -626,4 +627,5 @@ function updateComposerAction() {
   button.classList.toggle("stop-mode", stopMode);
   if (stopMode) button.disabled = false;
   renderComposerContext();
+  if (typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
 }

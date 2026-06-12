@@ -222,6 +222,43 @@ Failing visual states:
   expects chat-like behavior;
 - iframe content reserving both plugin footer and Home AI footer space.
 
+## Host Voice Input Overlay
+
+The global voice input surface is Home AI-owned chrome for active composer
+surfaces. On native Home AI composers it binds to host draft state directly; on
+embedded plugin composers it is rendered outside the active plugin iframe and
+uses the plugin bridge. It must follow the same measured bottom-stack,
+safe-area, keyboard, and fullscreen-preview rules as other Home AI overlays.
+
+Required visual behavior:
+
+- the primary microphone entry is long press on the active composer send
+  button. Normal tap keeps its existing send behavior;
+- long press starts recording after a bounded threshold, the pressed state shows
+  recording/timer feedback, and release finalizes the clip and starts
+  transcription unless the user chooses the explicit cancel path;
+- the send-button gesture target must suppress native text selection, callouts,
+  and context menus while recording is armed or active;
+- the entry is enabled only when the active native composer is writable or the
+  active embedded plugin reports a writable composer;
+- the overlay must not rely on iframe DOM positioning and must not be rendered
+  inside the plugin iframe;
+- while the voice overlay is active, global plugin Dock gestures are suspended
+  and the overlay reserves or avoids the measured Home AI bottom stack;
+- if an iframe input already owns the keyboard, opening the voice overlay must
+  either dismiss the keyboard or lay out above it without covering the transcript
+  editor or primary actions;
+- fullscreen plugin previews suppress the voice overlay and microphone entry;
+- permission-denied, ASR-unavailable, transcribing, failed, and inserted states
+  must be visible text states, not color-only states;
+- the host must not simulate keyboard typing into the iframe. Insertion is a
+  protocol action and visual evidence should show the draft/composer state after
+  the plugin acknowledges insertion.
+
+Voice overlay visual validation should use an installed-PWA or real-device
+harness path when microphone permission, keyboard behavior, or iframe focus is
+part of the change. Browser-mode screenshots are diagnostic only.
+
 ## Safe-Area, Keyboard, And Viewport Rules
 
 Mobile shell changes must account for:

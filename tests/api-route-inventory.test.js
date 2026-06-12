@@ -188,6 +188,19 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "voice-input-api-routes",
+    exportName: "createVoiceInputApiRoutes",
+    required: false,
+    minRoutes: 5,
+    probes: [
+      { method: "GET", path: "/api/voice-input/status", id: "voice-input-status" },
+      { method: "POST", path: "/api/voice-input/transcribe", id: "voice-input-transcribe" },
+      { method: "POST", path: "/api/voice-input/commit", id: "voice-input-commit" },
+      { method: "GET", path: "/api/voice-input/corrections", id: "voice-input-corrections-list" },
+      { method: "PATCH", path: "/api/voice-input/corrections", id: "voice-input-corrections-update" },
+    ],
+  },
+  {
     key: "thread-read-upload-api-routes",
     exportName: "createThreadReadUploadApiRoutes",
     required: false,
@@ -425,6 +438,9 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/note/receipts" }).id, "note-receipt-save");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/plugin-topic-usage" }).id, "plugin-topic-usage-read");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/plugin-topic-usage" }).id, "plugin-topic-usage-merge");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/voice-input/status" }).id, "voice-input-status");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/voice-input/transcribe" }).id, "voice-input-transcribe");
+  assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/voice-input/corrections" }).id, "voice-input-corrections-update");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/workspaces/child-a" }).id, "workspaces-admin");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");
@@ -514,6 +530,7 @@ function testGroupingProducesModuleWorkPackages() {
   assert.ok(modules.has("thread-task"));
   assert.ok(modules.has("thread-run"));
   assert.ok(modules.has("plugin-topic-usage"));
+  assert.ok(modules.has("voice-input"));
   assert.ok(modules.has("directory-share"));
   assert.ok(modules.has("directory-mutation"));
   assert.deepEqual(modules.get("weixin-ingress").authModes, ["ingress"]);

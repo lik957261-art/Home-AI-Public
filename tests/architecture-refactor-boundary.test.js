@@ -222,6 +222,9 @@ const weixinMarkdownForwardService = require("../adapters/weixin-markdown-forwar
 const weixinOutboundDeliveryService = require("../adapters/weixin-outbound-delivery-service");
 const weixinRuntimeCompositionService = require("../adapters/weixin-runtime-composition-service");
 const weixinWindowMigrationService = require("../adapters/weixin-window-migration-service");
+const voiceInputAsrProvider = require("../adapters/voice-input-asr-provider");
+const voiceInputCorrectionService = require("../adapters/voice-input-correction-service");
+const voiceInputService = require("../adapters/voice-input-service");
 const webPushAutomationProjectionService = require("../adapters/web-push-automation-projection-service");
 const webPushDeliveryService = require("../adapters/web-push-delivery-service");
 const webPushDeliveryNormalizationService = require("../adapters/web-push-delivery-normalization-service");
@@ -254,6 +257,7 @@ const mobileApiComposition = require("../server-routes/mobile-api-composition");
 const mobileApiDirectoryComposition = require("../server-routes/mobile-api-directory-composition");
 const mobileApiLearningComposition = require("../server-routes/mobile-api-learning-composition");
 const mobileApiPlatformComposition = require("../server-routes/mobile-api-platform-composition");
+const mobileApiVoiceComposition = require("../server-routes/mobile-api-voice-composition");
 const noteReceiptApiRoutes = require("../server-routes/note-receipt-api-routes");
 const ownerElevationApiRoutes = require("../server-routes/owner-elevation-api-routes");
 const publicApiRoutes = require("../server-routes/public-api-routes");
@@ -266,6 +270,7 @@ const threadMessageRunApiRoutes = require("../server-routes/thread-message-run-a
 const threadReadUploadApiRoutes = require("../server-routes/thread-read-upload-api-routes");
 const threadTaskApiRoutes = require("../server-routes/thread-task-api-routes");
 const todoApiRoutes = require("../server-routes/todo-api-routes");
+const voiceInputApiRoutes = require("../server-routes/voice-input-api-routes");
 const todoPublicProjectionService = require("../adapters/todo-public-projection-service");
 const weixinApiRoutes = require("../server-routes/weixin-api-routes");
 const workspaceApiRoutes = require("../server-routes/workspace-api-routes");
@@ -559,6 +564,9 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof runtimeStateStoreService.createRuntimeStateStoreService, "function");
   assert.equal(typeof runtimeStateStoreService.mergeRuntimeStateWithDefaults, "function");
   assert.equal(typeof runtimeStateStoreService.shouldRefuseMessageCountOverwrite, "function");
+  assert.equal(typeof voiceInputAsrProvider.createVoiceInputAsrProvider, "function");
+  assert.equal(typeof voiceInputCorrectionService.createVoiceInputCorrectionService, "function");
+  assert.equal(typeof voiceInputService.createVoiceInputService, "function");
   assert.equal(typeof runtimeStateThreadService.createRuntimeStateThreadService, "function");
   assert.equal(typeof runtimeOperationErrorResponseService.createRuntimeOperationErrorResponseService, "function");
   assert.equal(typeof runtimeWorkspaceCatalogService.createRuntimeWorkspaceCatalogService, "function");
@@ -622,6 +630,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof threadReadUploadApiRoutes.createThreadReadUploadApiRoutes, "function");
   assert.equal(typeof threadTaskApiRoutes.createThreadTaskApiRoutes, "function");
   assert.equal(typeof todoApiRoutes.createTodoApiRoutes, "function");
+  assert.equal(typeof voiceInputApiRoutes.createVoiceInputApiRoutes, "function");
   assert.equal(typeof todoPublicProjectionService.createTodoPublicProjectionService, "function");
   assert.equal(typeof kanbanCardApiRoutes.createKanbanCardApiRoutes, "function");
   assert.equal(typeof kanbanLearningGuidanceApiRoutes.createKanbanLearningGuidanceApiRoutes, "function");
@@ -636,6 +645,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileApiDirectoryComposition.createMobileApiDirectoryComposition, "function");
   assert.equal(typeof mobileApiLearningComposition.createMobileApiLearningComposition, "function");
   assert.equal(typeof mobileApiPlatformComposition.createMobileApiPlatformComposition, "function");
+  assert.equal(typeof mobileApiVoiceComposition.createMobileApiVoiceComposition, "function");
   assert.equal(typeof mobileApiDispatcher.createMobileApiDispatcher, "function");
   assert.equal(typeof fileArtifactApiRoutes.createFileArtifactApiRoutes, "function");
   assert.equal(typeof noteReceiptApiRoutes.createNoteReceiptApiRoutes, "function");

@@ -109,6 +109,7 @@ function createRuntimeStateNormalizationService(options = {}) {
       pushReceipts: [],
       pushDeliveries: [],
       automationPushMarks: {},
+      voiceInput: {},
     };
   }
 
@@ -166,6 +167,9 @@ function createRuntimeStateNormalizationService(options = {}) {
       pushDeliveries,
       automationPushMarks: next.automationPushMarks && typeof next.automationPushMarks === "object" && !Array.isArray(next.automationPushMarks)
         ? next.automationPushMarks
+        : {},
+      voiceInput: next.voiceInput && typeof next.voiceInput === "object" && !Array.isArray(next.voiceInput)
+        ? next.voiceInput
         : {},
     };
   }

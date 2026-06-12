@@ -66,6 +66,7 @@ const appSplitModuleFiles = Object.freeze([
   "app-event-stream-ui.js",
   "app-upload-sidebar-ui.js",
   "app-composer-send-ui.js",
+  "app-voice-input-ui.js",
   "app-wire-start-ui.js",
   "app-start.js",
 ]);

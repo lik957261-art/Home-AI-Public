@@ -641,6 +641,11 @@ const state = {
   composerComposing: false,
   composerSendAfterComposition: false,
   composerSendAfterCompositionTimer: null,
+  voiceInput: {
+    status: "idle",
+    chunks: [],
+    suppressNextClick: false,
+  },
   directoryTopicDraftSendInFlight: false,
   keyboardContextMode: false,
   keyboardContextTopPx: 0,
