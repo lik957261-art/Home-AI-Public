@@ -96,6 +96,26 @@ try {
   assert.doesNotMatch(serialized, new RegExp(profileFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(serialized, new RegExp(sharedFile.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
+  fs.writeFileSync(sharedFile, JSON.stringify({
+    providers: {
+      "xai-oauth": { label: "xai" },
+    },
+    credential_pool: {
+      "xai-oauth": [
+        {
+          label: "shared-xai-oauth",
+          access_token: "secret-array-access-token",
+          refresh_token: "secret-array-refresh-token",
+        },
+      ],
+    },
+  }), "utf8");
+  const poolArrayReport = buildReport({ profileAuthFile: profileFile, sharedAuthFile: sharedFile, requireAccessToken: true });
+  assert.equal(poolArrayReport.ok, true);
+  assert.equal(poolArrayReport.xai.hasAccessToken, true);
+  const serializedPoolArray = JSON.stringify(poolArrayReport);
+  assert.doesNotMatch(serializedPoolArray, /secret-array-access-token|secret-array-refresh-token/);
+
   fs.writeFileSync(sharedFile, JSON.stringify({ providers: { "xai-oauth": { label: "xai" } } }), "utf8");
   const missing = buildReport({ profileAuthFile: profileFile, sharedAuthFile: sharedFile, requireAccessToken: true });
   assert.equal(missing.ok, false);

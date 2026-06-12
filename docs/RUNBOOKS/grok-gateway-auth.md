@@ -62,7 +62,9 @@ Do not print OAuth tokens, auth files, cookies, or raw headers.
   `grok_xai_oauth_access_token_missing` for both the profile-local and shared
   auth stores, routing changes will not fix Grok. Re-authenticate xAI OAuth in
   the effective Grok profile environment, then rerun the metadata smoke and the
-  provider smoke.
+  provider smoke. Current `hermes auth add xai-oauth` may write usable tokens
+  under `credential_pool.xai-oauth` as an array; the metadata smoke treats that
+  as a valid access-token source and reports only booleans, never token values.
 - For a Mac operator session, run the checked re-auth helper from the live app:
   `bash scripts/macos-grok-xai-reauth.sh`.
   If the desktop wrapper is installed, double-click

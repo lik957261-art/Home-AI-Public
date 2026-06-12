@@ -100,7 +100,10 @@ If `scripts/hermes-mobile-cron-dispatcher.py` changes, restart the cron sidecar.
   OAuth metadata for the profile-local and shared auth stores. With
   `--require-access-token`, it fails as
   `grok_xai_oauth_access_token_missing` when no configured store has an
-  `access_token`. The script must not print auth paths or token values.
+  `access_token`. The script recognizes both singleton provider state and
+  `credential_pool.xai-oauth` entries, including the array shape written by
+  current `hermes auth add xai-oauth` flows. The script must not print auth
+  paths or token values.
 - On macOS production, `scripts/macos-grok-xai-reauth.sh` is the bounded
   operator entrypoint for re-authenticating the `grokgw1` xAI OAuth profile.
   It uses Hermes' `auth add xai-oauth --type oauth --manual-paste` flow under

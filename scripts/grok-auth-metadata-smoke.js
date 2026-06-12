@@ -59,11 +59,17 @@ function summarizeAuthJson(value) {
     : {};
   out.providerKeys = Object.keys(providers).sort();
   out.credentialPoolKeys = Object.keys(pool).sort();
-  const xai = providers["xai-oauth"] || providers.xai_oauth || pool["xai-oauth"] || pool.xai_oauth || {};
-  out.xai.present = Boolean(xai && typeof xai === "object" && !Array.isArray(xai) && Object.keys(xai).length);
-  out.xai.hasAccessToken = Boolean(xai.access_token || xai.accessToken);
-  out.xai.hasRefreshToken = Boolean(xai.refresh_token || xai.refreshToken);
-  out.xai.hasExpires = Boolean(xai.expires_at || xai.expiresAt || xai.expires_in || xai.expiresIn);
+  const xaiEntries = [
+    providers["xai-oauth"],
+    providers.xai_oauth,
+    pool["xai-oauth"],
+    pool.xai_oauth,
+  ].flatMap((entry) => (Array.isArray(entry) ? entry : [entry]))
+    .filter((entry) => entry && typeof entry === "object");
+  out.xai.present = xaiEntries.some((entry) => Object.keys(entry).length);
+  out.xai.hasAccessToken = xaiEntries.some((entry) => Boolean(entry.access_token || entry.accessToken));
+  out.xai.hasRefreshToken = xaiEntries.some((entry) => Boolean(entry.refresh_token || entry.refreshToken));
+  out.xai.hasExpires = xaiEntries.some((entry) => Boolean(entry.expires_at || entry.expiresAt || entry.expires_in || entry.expiresIn));
   return out;
 }
 
