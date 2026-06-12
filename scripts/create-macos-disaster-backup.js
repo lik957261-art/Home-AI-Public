@@ -14,6 +14,7 @@ const SQLITE_EXT_RE = /\.(sqlite|sqlite3|db)$/i;
 const COMMON_RSYNC_EXCLUDES = [
   ".DS_Store",
   ".git/",
+  ".codegraph/",
   ".codex/",
   ".agent-context/archive/",
   "node_modules/",
@@ -342,6 +343,7 @@ function walkFiles(root, visitor, options = {}) {
 function shouldSkipWalkDir(name) {
   return new Set([
     ".git",
+    ".codegraph",
     ".cache",
     "cache",
     "logs",
@@ -511,6 +513,11 @@ function buildSteps(options, backupId) {
       "shell_snapshots/",
       "node_repl/",
       ".sandbox/",
+      "*.sqlite-shm",
+      "*.sqlite-wal",
+      "*.db-shm",
+      "*.db-wal",
+      "logs_*.sqlite*",
     ])));
     steps.push(namedStep("operator-codex-mobile-state", () => rsyncDirectory("operator-codex-mobile-state", path.join(operatorHome, ".codex-mobile-web"), path.join(currentRoot, "operator-home", path.basename(operatorHome), ".codex-mobile-web"), options, [
       "uploads/",

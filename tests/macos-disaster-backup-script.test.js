@@ -110,6 +110,9 @@ function makeFixture() {
   assert.match(source, /workspace Memory stores/);
   assert.match(source, /Memory Soul files/);
   assert.match(source, /operator-hermes-agent-custom-store/);
+  assert.match(source, /"\.codegraph\/"/);
+  assert.match(source, /"logs_\*\.sqlite\*"/);
+  assert.match(source, /"\*\.sqlite-wal"/);
   assert.match(source, /HOMEAI_DISASTER_BACKUP_DESTINATION/);
   assert.match(source, /runtime.*not copied by this daily backup/s);
   assert.doesNotMatch(source, /create-hermes-mobile-disaster-backup\.ps1/);

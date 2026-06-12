@@ -87,13 +87,18 @@ Backups must allow a replacement machine to restore source, production app files
   staging under
   `/Users/hermes-host/HermesMobile/data/backups/disaster-recovery-staging/mac-production`.
   The cron runner must have `HERMES_CRON_SCRIPT_TIMEOUT=1800` and read-only
-  ACLs for backup-critical production/user state; do not give the cron job
-  access to the sudo password file.
+  ACLs for backup-critical production/user state, including inherited
+  read/traverse ACLs on `data/skill-profiles` for `hermes-host`; do not give
+  the cron job access to the sudo password file.
 - The disaster backup must copy Home AI production app files, production data,
   all installed plugin directories, plugin-owned `data` directories,
   Gateway worker/profile state, launchd plists, workspace Skill stores,
   workspace Memory stores, per-user/profile Soul files, and selected operator
   Codex/Hermes Agent state when readable.
+- Daily backup excludes local tooling indexes and volatile runtime logs such as
+  `.codegraph/`, Codex `logs_*.sqlite*`, and SQLite `*-wal` / `*-shm` sidecar
+  files that are not the durable restore target and can change while rsync is
+  reading them.
 - Hermes Agent custom user Skills stores are mandatory backup coverage. The
   authoritative production store is `data/skill-profiles/*/skills`; the
   operator-side Hermes Agent store, such as `/Users/xuxin/.hermes/skills` and

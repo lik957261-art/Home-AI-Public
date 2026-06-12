@@ -46,6 +46,17 @@ It requires read ACLs for backup-critical production/user state and the cron
 LaunchDaemon environment variable `HERMES_CRON_SCRIPT_TIMEOUT=1800`, because
 official no-agent scripts default to 120 seconds.
 
+If a manual run reaches the manifest stage but reports rsync status 23 against
+`data/skill-profiles`, repair only the inherited read/traverse ACLs needed by
+the listener/cron user. Do not run the scheduled job with sudo. The intended
+ACL shape is `hermes-host` read/traverse on the store and inherited read access
+for files under `data/skill-profiles`.
+
+If the failure references `.codegraph/`, Codex `logs_*.sqlite*`, or SQLite
+`*-wal` / `*-shm` files, those are local tooling indexes or live sidecars and
+should be excluded from the daily backup instead of copied as restore-critical
+payload.
+
 ## Coverage Checklist
 
 Verify the manifest includes these categories without printing secret contents:
