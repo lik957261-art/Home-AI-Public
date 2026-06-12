@@ -1,4 +1,5 @@
 import os
+import re
 import tempfile
 import threading
 from typing import Optional
@@ -33,6 +34,7 @@ DEFAULT_TASK = os.getenv("WHISPER_TASK", "transcribe")
 DEFAULT_INITIAL_PROMPT = os.getenv("WHISPER_INITIAL_PROMPT", "以下是普通话语音转写，请使用简体中文，并加入合适的中文标点符号。")
 DEFAULT_CONDITION_ON_PREVIOUS_TEXT = os.getenv("WHISPER_CONDITION_ON_PREVIOUS_TEXT", "1").strip().lower() not in {"0", "false", "no", "off"}
 DEFAULT_VAD_FILTER = os.getenv("WHISPER_VAD_FILTER", "0").strip().lower() in {"1", "true", "yes", "on"}
+NORMALIZE_CJK_PUNCTUATION = os.getenv("WHISPER_NORMALIZE_CJK_PUNCTUATION", "1").strip().lower() not in {"0", "false", "no", "off"}
 TMP_DIR = os.getenv("WHISPER_TMP_DIR", os.path.join(BASE_DIR, "tmp"))
 
 os.makedirs(TMP_DIR, exist_ok=True)
@@ -120,6 +122,26 @@ def clean_optional_text(value):
     return text or None
 
 
+def normalize_cjk_punctuation(text):
+    if not NORMALIZE_CJK_PUNCTUATION:
+        return text
+    value = str(text or "")
+    cjk = r"[\u3400-\u9fff]"
+    replacements = {
+        ",": "，",
+        "?": "？",
+        "!": "！",
+        ":": "：",
+        ";": "；",
+    }
+    for source, target in replacements.items():
+        value = re.sub(f"(?<={cjk})\\{source}(?=\\s*{cjk})", target, value)
+        value = re.sub(f"(?<={cjk})\\{source}(?=\\s*$)", target, value)
+    value = re.sub(f"(?<={cjk})\\.(?=\\s*{cjk})", "。", value)
+    value = re.sub(f"(?<={cjk})\\.(?=\\s*$)", "。", value)
+    return value
+
+
 def mlx_transcribe(tmp_path, language, word_timestamps, initial_prompt, condition_on_previous_text):
     get_mlx_model()
     audio = decode_audio(tmp_path, sampling_rate=16000)
@@ -135,8 +157,9 @@ def mlx_transcribe(tmp_path, language, word_timestamps, initial_prompt, conditio
         fp16=MLX_FP16,
     )
     segments = result.get("segments") or []
+    text = normalize_cjk_punctuation(str(result.get("text") or "").strip())
     return {
-        "text": str(result.get("text") or "").strip(),
+        "text": text,
         "language": result.get("language") or language or "",
         "language_probability": result.get("language_probability") or 0,
         "duration": float(len(audio) / 16000.0) if len(audio) else 0,
@@ -145,7 +168,7 @@ def mlx_transcribe(tmp_path, language, word_timestamps, initial_prompt, conditio
                 "id": index,
                 "start": segment.get("start"),
                 "end": segment.get("end"),
-                "text": segment.get("text"),
+                "text": normalize_cjk_punctuation(segment.get("text")),
                 "words": segment.get("words") if word_timestamps else None,
             }
             for index, segment in enumerate(segments)
@@ -167,8 +190,9 @@ def faster_transcribe(tmp_path, language, vad_filter, word_timestamps, initial_p
         word_timestamps=word_timestamps,
     )
     segment_list = list(segments)
+    text = normalize_cjk_punctuation("".join(segment.text for segment in segment_list).strip())
     return {
-        "text": "".join(segment.text for segment in segment_list).strip(),
+        "text": text,
         "language": info.language,
         "language_probability": info.language_probability,
         "duration": info.duration,
@@ -177,7 +201,7 @@ def faster_transcribe(tmp_path, language, vad_filter, word_timestamps, initial_p
                 "id": index,
                 "start": segment.start,
                 "end": segment.end,
-                "text": segment.text,
+                "text": normalize_cjk_punctuation(segment.text),
                 "words": [
                     {
                         "word": word.word,
@@ -219,6 +243,7 @@ def health():
         "initial_prompt_configured": bool(DEFAULT_INITIAL_PROMPT),
         "condition_on_previous_text": DEFAULT_CONDITION_ON_PREVIOUS_TEXT,
         "vad_filter_default": DEFAULT_VAD_FILTER,
+        "normalize_cjk_punctuation": NORMALIZE_CJK_PUNCTUATION,
         "hf_home": os.getenv("HF_HOME"),
         "hf_endpoint": os.getenv("HF_ENDPOINT"),
     }

@@ -137,6 +137,26 @@ The overlay should never depend on plugin iframe layout for placement. It must
 respect safe areas, the measured Home AI bottom stack, active keyboard metrics,
 and plugin fullscreen preview state.
 
+Microphone permission timing:
+
+- Home AI must not request microphone permission on app boot, app open,
+  deployment, service worker refresh, or composer discovery.
+- The browser/system permission prompt is only allowed after a user performs
+  the voice-entry gesture and the host is about to call
+  `navigator.mediaDevices.getUserMedia({ audio: true })`.
+- After permission is granted, the same browser/PWA origin should reuse that
+  grant. Repeated system prompts usually mean the origin changed, the PWA was
+  reinstalled, site permissions were cleared, the browser is configured to ask
+  every time, or the host is accidentally creating a new recording request.
+- The visible `requesting` status is a local Home AI state and must not be
+  interpreted as a fresh system permission prompt unless the browser displays
+  its native permission UI.
+- The keyboard-safe composer layout must not reuse normal bottom navigation or
+  plugin navigation offsets while `keyboard-viewport-active` is set. In plugin
+  topic detail mode, the fixed composer should anchor to the active visual
+  viewport bottom so the native keyboard does not lift it by the hidden bottom
+  stack height.
+
 ## Service Architecture
 
 Implementation should follow the service-first rule:

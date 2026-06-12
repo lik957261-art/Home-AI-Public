@@ -17113,6 +17113,10 @@ body.voice-input-press-active .voice-input-overlay button {
     display: none;
   }
 
+  :root.keyboard-viewport-active .app.main-back-visible.plugin-context-nav-mode.plugin-topic-detail-mode .composer {
+    bottom: max(0px, env(safe-area-inset-bottom));
+  }
+
   .bottom-nav {
     position: fixed;
     left: 0;
