@@ -2,6 +2,7 @@
 
 const assert = require("node:assert/strict");
 const {
+  cjkPinyinKey,
   containsStructuredSpan,
   createVoiceInputCorrectionService,
   diffSingleReplacement,
@@ -151,6 +152,43 @@ function testShortCjkHomophonePhrasebookRescueIsExactOnly() {
   assert.equal(sentence.phrasebookApplied.length, 0);
 }
 
+function testPinyinKeyMatchesCommonHomophones() {
+  assert.equal(cjkPinyinKey("吴萍"), "wu'ping");
+  assert.equal(cjkPinyinKey("无凭"), "wu'ping");
+  assert.equal(cjkPinyinKey("徐建中"), "xu'jian'zhong");
+  assert.equal(cjkPinyinKey("许健忠"), "xu'jian'zhong");
+  assert.equal(cjkPinyinKey("罕见字𠀀"), "");
+}
+
+function testPinyinPhrasebookAppliesAfterRepeatedSupport() {
+  const { service } = createHarness();
+  const scope = { actorId: "owner", workspaceId: "owner", surfaceType: "chat" };
+  for (let index = 0; index < 3; index += 1) {
+    service.recordSentTextEvidence(Object.assign({}, scope, { text: "徐建中" }));
+  }
+
+  const corrected = service.applyCorrections(Object.assign({}, scope, {
+    text: "我刚才问了许健忠这个问题。",
+  }));
+  assert.equal(corrected.text, "我刚才问了徐建中这个问题。");
+  assert.equal(corrected.phrasebookApplied.length, 1);
+}
+
+function testPinyinPhrasebookAvoidsUnsafeSpans() {
+  const { service } = createHarness();
+  const scope = { actorId: "owner", workspaceId: "owner", surfaceType: "chat" };
+  for (let index = 0; index < 3; index += 1) {
+    service.recordSentTextEvidence(Object.assign({}, scope, { text: "吴萍" }));
+  }
+
+  assert.equal(service.applyCorrections(Object.assign({}, scope, {
+    text: "这件事无凭无据，不要乱改。",
+  })).text, "这件事无凭无据，不要乱改。");
+  assert.equal(service.applyCorrections(Object.assign({}, scope, {
+    text: "这个链接是 https://example.test/无凭",
+  })).text, "这个链接是 https://example.test/无凭");
+}
+
 function testSentTextLearnsPhrasesWithoutFullTextPersistence() {
   const { runtimeState, service } = createHarness();
   const scope = { actorId: "owner", workspaceId: "owner", surfaceType: "chat", pluginId: "codex-mobile" };
@@ -176,6 +214,9 @@ function run() {
   testCorrectionUpdateRequiresMatchingScopeWhenProvided();
   testSystemSeedPhrasebookAppliesSafeAliases();
   testShortCjkHomophonePhrasebookRescueIsExactOnly();
+  testPinyinKeyMatchesCommonHomophones();
+  testPinyinPhrasebookAppliesAfterRepeatedSupport();
+  testPinyinPhrasebookAvoidsUnsafeSpans();
   testSentTextLearnsPhrasesWithoutFullTextPersistence();
   console.log("voice input correction service tests passed");
 }

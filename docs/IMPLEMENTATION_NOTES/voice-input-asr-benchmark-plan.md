@@ -259,9 +259,24 @@ Implementation contract:
 
 1. Add a pinyin candidate generator behind the correction service.
 2. Backfill active phrasebook pinyin keys lazily or compute them at runtime.
-3. Add tests for personal names, product terms, Chinese-English mixed terms,
+3. The first implemented version computes pinyin keys at runtime from a
+   public-safe built-in CJK pinyin table in
+   `adapters/voice-input-correction-service.js`; it does not require an npm
+   dependency or private model file during public deployment.
+4. Auto-application remains conservative:
+   - exact pinyin key match only;
+   - active phrasebook term only;
+   - short CJK terms only;
+   - whole-utterance replacement, safe boundary replacement, or sentence-level
+     replacement after repeated support;
+   - structured spans and known high-risk phrases such as `无凭无据` are not
+     rewritten.
+5. The existing explicit alias path still runs first. Pinyin rescue is the
+   second layer, so user-disabled corrections and phrasebook state remain the
+   controlling product boundary.
+6. Add tests for personal names, product terms, Chinese-English mixed terms,
    common idiom false positives, and structured-span rejection.
-4. Apply the same correction layer to every ASR engine result.
+7. Apply the same correction layer to every ASR engine result.
 
 ### Phase 4: Default Backend Selection
 

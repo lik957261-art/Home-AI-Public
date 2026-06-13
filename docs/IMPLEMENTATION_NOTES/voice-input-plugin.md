@@ -353,6 +353,17 @@ results from multiple local engines for diagnostics and correction learning.
 Pinyin/homophone correction is a required post-ASR layer and must apply
 consistently to every engine result.
 
+The implemented pinyin/homophone layer is owned by
+`adapters/voice-input-correction-service.js`. It computes pinyin keys from the
+active phrasebook and compares them with same-length CJK spans in the ASR
+transcript. It only auto-applies exact pinyin matches for short active
+phrasebook terms, skips structured spans such as URLs, dates, amounts, file
+paths, commands, and code, and blocks known high-risk phrases where a common
+word or idiom would be corrupted. Repeated sent-text learning is required
+before sentence-level replacements such as personal names are applied inside a
+larger sentence. This keeps the feature as correction learning, not broad text
+rewriting.
+
 Default ASR engine selection is an Owner-global server setting, not a
 workspace-local or device-local preference. The Settings sheet writes
 `voiceInput.settings.defaultAsrBackend` through `/api/voice-input/settings`;
