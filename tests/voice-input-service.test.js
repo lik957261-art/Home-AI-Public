@@ -219,6 +219,86 @@ async function testDisabledProviderFailsBeforeAudioPersistence() {
   }
 }
 
+async function testStreamingTranscribeCreatesCommitSession() {
+  const streamingCalls = [];
+  const harness = createHarness({
+    asrProvider: {
+      status() {
+        return {
+          enabled: true,
+          configured: true,
+          backend: "funasr-local",
+          hasUrl: true,
+          streaming: {
+            enabled: true,
+            configured: true,
+            backend: "funasr-local",
+            sampleRate: 16000,
+          },
+        };
+      },
+      transcribeAudio() {
+        throw new Error("full transcribe should not run");
+      },
+      startStreamingTranscription(input) {
+        streamingCalls.push({ type: "start", input });
+        return Promise.resolve({ ok: true, streamId: "provider_stream_1", backend: "funasr-local", sampleRate: 16000 });
+      },
+      sendStreamingAudioChunk(input) {
+        streamingCalls.push({ type: "chunk", input });
+        return Promise.resolve({ ok: true, streamId: "provider_stream_1", text: "吴萍", backend: "funasr-local" });
+      },
+      finishStreamingTranscription(input) {
+        streamingCalls.push({ type: "final", input });
+        return Promise.resolve({ text: "吴萍。", language: "zh", backend: "funasr-local" });
+      },
+    },
+  });
+  try {
+    const started = await harness.service.startStreaming({
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      threadId: "thread_1",
+      sampleRate: 16000,
+    });
+    assert.equal(started.ok, true);
+    assert.equal(started.voiceSessionId.startsWith("voice_stream_"), true);
+    const partial = await harness.service.streamChunk({
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      threadId: "thread_1",
+      voiceSessionId: started.voiceSessionId,
+      audioBase64: audioBase64(),
+      sequence: 1,
+    });
+    assert.equal(partial.text, "吴萍");
+    const final = await harness.service.finishStreaming({
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      threadId: "thread_1",
+      voiceSessionId: started.voiceSessionId,
+      durationMs: 1000,
+    });
+    assert.equal(final.text, "吴萍。");
+    assert.equal(harness.runtimeState.voiceInput.audit[0].event, "stream_transcribe");
+    const committed = harness.service.commitSession({
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      threadId: "thread_1",
+      voiceSessionId: started.voiceSessionId,
+      finalText: "吴萍。",
+    });
+    assert.equal(committed.ok, true);
+    assert.deepEqual(streamingCalls.map((call) => call.type), ["start", "chunk", "final"]);
+  } finally {
+    harness.cleanup();
+  }
+}
+
 async function testValidationRejectsUnsafeAudio() {
   const harness = createHarness();
   try {
@@ -440,6 +520,7 @@ async function run() {
   await testCommitLearnsOnlyShortCorrectionPair();
   await testCommitRequiresSameActorAndWorkspace();
   await testDisabledProviderFailsBeforeAudioPersistence();
+  await testStreamingTranscribeCreatesCommitSession();
   await testValidationRejectsUnsafeAudio();
   testLearnSentTextStoresOnlyPhrasebookAndAuditMetadata();
   await testPhrasebookAppliesSystemSeedAliasesDuringTranscribe();

@@ -207,6 +207,12 @@ Required harness dimensions:
   starts transcription unless the user cancels.
 - Send-button long press must not produce native text selection boxes, native
   callouts, context menus, or accidental drag-reorder behavior.
+- When realtime streaming is enabled, the harness must prove
+  `/api/voice-input/stream/start|chunk|final|cancel` enforce the same
+  actor/workspace/surface/plugin/thread scope as whole-clip transcription,
+  partial text is provisional only, final text replaces provisional text
+  without duplicate insertion, and whole-clip transcription remains the
+  fallback if streaming setup, chunk upload, or finalization fails.
 - A missing ASR backend produces a disabled/unavailable state with a bounded
   diagnostic and does not depend on private maintainer paths.
 - Audio upload enforces duration, MIME, actor, workspace, surface, optional

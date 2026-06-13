@@ -104,6 +104,12 @@ Environment variables should remain simple:
 
 - `HERMES_MOBILE_VOICE_INPUT_ASR_BACKEND` for the default insertion backend;
 - `HERMES_MOBILE_VOICE_INPUT_ASR_URL` for the default insertion URL;
+- `HERMES_MOBILE_VOICE_INPUT_STREAMING_ENABLED` to expose realtime partial
+  text when the default backend supports it;
+- `HERMES_MOBILE_VOICE_INPUT_STREAMING_URL` for the provider's HTTP chunk
+  streaming base path, such as
+  `http://127.0.0.1:8002/v1/audio/transcriptions/stream`;
+- `HERMES_MOBILE_VOICE_INPUT_STREAMING_SAMPLE_RATE`, default `16000`;
 - `HERMES_MOBILE_VOICE_INPUT_COMPARE_BACKENDS` as a JSON array or compact
   comma list for training-mode comparison only;
 - `HERMES_MOBILE_VOICE_INPUT_COMPARE_TIMEOUT_MS` with a bounded per-engine
@@ -124,6 +130,14 @@ The service API should expose a new internal method such as
 The ordinary `/api/voice-input/transcribe` route should keep returning one
 final transcript unless the request explicitly asks for comparison and the
 caller is the voice-learning surface.
+
+The streaming path is separate from benchmark comparison. The browser captures
+host-owned mono PCM16 chunks and sends them to `/api/voice-input/stream/*`.
+Home AI then proxies to the local provider's `start|chunk|final|cancel`
+endpoints. Partial text is for live composer feedback only. Final text must
+still pass through the same post-ASR correction layer and voice-session commit
+flow as whole-clip transcription, and whole-clip `/api/voice-input/transcribe`
+remains the fallback if streaming fails.
 
 ## Benchmark Metrics
 
@@ -177,7 +191,9 @@ and should avoid common idioms such as `无凭无据`.
 ### FunASR
 
 Use FunASR first because it has a local OpenAI-compatible API path and Chinese
-ASR/hotword positioning. The first deployment target should be a local service
+ASR/hotword positioning. It is also the default realtime Chinese path because
+`paraformer-zh-streaming` supports low-latency partial recognition. The first
+deployment target should be a local service
 on port `8002` that accepts the same multipart request shape as Whisper where
 possible.
 

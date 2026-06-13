@@ -194,8 +194,10 @@ function createVoiceInputService(options = {}) {
   const minDurationMs = Math.max(0, Number(options.minDurationMs ?? numberFromEnv(env.HERMES_MOBILE_VOICE_INPUT_MIN_SECONDS, 0.5) * 1000) || 500);
   const maxDurationMs = Math.max(1000, Number(options.maxDurationMs ?? numberFromEnv(env.HERMES_MOBILE_VOICE_INPUT_MAX_SECONDS, 30) * 1000) || 30000);
   const maxAudioBytes = Math.max(1024, Number(options.maxAudioBytes || env.HERMES_MOBILE_VOICE_INPUT_MAX_BYTES || 16 * 1024 * 1024) || 16 * 1024 * 1024);
+  const maxStreamingChunkBytes = Math.max(1024, Number(options.maxStreamingChunkBytes || env.HERMES_MOBILE_VOICE_INPUT_STREAMING_CHUNK_MAX_BYTES || 512 * 1024) || 512 * 1024);
   const maxAuditEntries = Math.max(20, Number(options.maxAuditEntries || 200) || 200);
   const activeSessions = new Map();
+  const activeStreamSessions = new Map();
 
   function voiceStore() {
     return ensureVoiceInputState(state());
@@ -404,6 +406,180 @@ function createVoiceInputService(options = {}) {
     };
   }
 
+  function ensureStreamingAvailable() {
+    const provider = providerStatus();
+    const streaming = provider?.streaming || {};
+    if (!provider.configured || !streaming.configured) {
+      throw errorWithStatus("voice input streaming ASR backend is unavailable", 503, "voice_input_streaming_unavailable");
+    }
+    if (
+      typeof options.asrProvider.startStreamingTranscription !== "function"
+      || typeof options.asrProvider.sendStreamingAudioChunk !== "function"
+      || typeof options.asrProvider.finishStreamingTranscription !== "function"
+    ) {
+      throw errorWithStatus("voice input streaming ASR backend is unavailable", 503, "voice_input_streaming_unavailable");
+    }
+    return { provider, streaming };
+  }
+
+  async function startStreaming(input = {}) {
+    const scope = normalizeScope(input);
+    const { provider, streaming } = ensureStreamingAvailable();
+    const sessionId = cleanString(input.voiceSessionId || input.sessionId, 160) || makeId("voice_stream");
+    const requestId = cleanString(input.requestId, 160) || sessionId;
+    const phraseHints = typeof options.correctionService.listPhrases === "function"
+      ? voiceInputPhraseHintPrompt(options.correctionService.listPhrases(scope))
+      : "";
+    const started = await options.asrProvider.startStreamingTranscription(Object.assign({}, scope, {
+      requestId,
+      streamId: sessionId,
+      initialPrompt: phraseHints,
+      localeHint: cleanString(input.localeHint || input.locale || "", 40),
+      sampleRate: Math.max(8000, Number(input.sampleRate || streaming.sampleRate || 16000) || 16000),
+    }));
+    const createdAt = nowIso();
+    activeStreamSessions.set(sessionId, {
+      id: sessionId,
+      createdAt,
+      providerStreamId: cleanString(started.streamId || sessionId, 160),
+      rawText: "",
+      correctedText: "",
+      scope,
+      backend: cleanString(started.backend || provider.backend || "", 120),
+      sampleRate: Math.max(8000, Number(started.sampleRate || input.sampleRate || streaming.sampleRate || 16000) || 16000),
+    });
+    return {
+      ok: true,
+      voiceSessionId: sessionId,
+      streamId: sessionId,
+      providerStreamId: cleanString(started.streamId || sessionId, 160),
+      backend: cleanString(started.backend || provider.backend || "", 120),
+      sampleRate: Math.max(8000, Number(started.sampleRate || input.sampleRate || streaming.sampleRate || 16000) || 16000),
+    };
+  }
+
+  function streamingSessionForInput(input = {}) {
+    const sessionId = cleanString(input.voiceSessionId || input.sessionId || input.streamId, 160);
+    if (!sessionId) throw errorWithStatus("voice stream id is required", 400, "voice_stream_id_required");
+    const session = activeStreamSessions.get(sessionId);
+    if (!session) throw errorWithStatus("voice stream not found", 404, "voice_stream_not_found");
+    const callerScope = normalizeScope(input);
+    if (!sessionScopeAllowsCommit(session.scope, callerScope)) {
+      throw errorWithStatus("voice stream not found", 404, "voice_stream_not_found");
+    }
+    return session;
+  }
+
+  async function streamChunk(input = {}) {
+    const session = streamingSessionForInput(input);
+    parseAudioBuffer(input.audioBase64 || input.audio_base64 || input.pcm16Base64, maxStreamingChunkBytes);
+    const result = await options.asrProvider.sendStreamingAudioChunk({
+      streamId: session.providerStreamId,
+      audioBase64: cleanString(input.audioBase64 || input.audio_base64 || input.pcm16Base64, Math.ceil(maxStreamingChunkBytes * 1.5) + 1024),
+      sampleRate: session.sampleRate,
+      sequence: input.sequence,
+    });
+    const rawText = cleanString(result?.text || "", 240000);
+    if (rawText) session.rawText = rawText;
+    const corrected = rawText
+      ? options.correctionService.applyCorrections(Object.assign({}, session.scope, { text: rawText }))
+      : { text: "", applied: [], suggestions: [], phrasebookApplied: [] };
+    if (corrected.text) session.correctedText = corrected.text;
+    return {
+      ok: true,
+      voiceSessionId: session.id,
+      text: corrected.text,
+      rawText,
+      backend: cleanString(result?.backend || session.backend, 120),
+      corrections: {
+        applied: corrected.applied,
+        suggestions: corrected.suggestions,
+        phrasebookApplied: corrected.phrasebookApplied || [],
+      },
+    };
+  }
+
+  async function finishStreaming(input = {}) {
+    const session = streamingSessionForInput(input);
+    const durationMs = Math.max(0, Number(input.durationMs || input.duration_ms || 0) || 0);
+    let asrResult = null;
+    try {
+      asrResult = await options.asrProvider.finishStreamingTranscription({
+        streamId: session.providerStreamId,
+        durationMs,
+        sampleRate: session.sampleRate,
+      });
+    } finally {
+      activeStreamSessions.delete(session.id);
+    }
+    const rawText = cleanString(asrResult?.text || session.rawText || "", 240000);
+    if (!rawText) throw errorWithStatus("voice ASR returned an empty transcript", 422, "voice_asr_empty_transcript");
+    if (likelyNoSpeechTranscript(rawText, durationMs)) {
+      appendAudit({
+        event: "stream_transcribe_rejected",
+        actorId: session.scope.actorId,
+        workspaceId: session.scope.workspaceId,
+        surfaceType: session.scope.surfaceType,
+        pluginId: session.scope.pluginId,
+        threadId: session.scope.threadId,
+        backend: cleanString(asrResult?.backend || session.backend || "", 120),
+        durationMs,
+        rawChars: rawText.length,
+        reason: "likely_no_speech",
+      });
+      throw errorWithStatus("没有检测到有效语音", 422, "voice_asr_likely_no_speech");
+    }
+    const corrected = options.correctionService.applyCorrections(Object.assign({}, session.scope, { text: rawText }));
+    activeSessions.set(session.id, {
+      id: session.id,
+      createdAt: session.createdAt,
+      rawText,
+      correctedText: corrected.text,
+      scope: session.scope,
+      backend: cleanString(asrResult?.backend || session.backend || "", 120),
+    });
+    appendAudit({
+      event: "stream_transcribe",
+      actorId: session.scope.actorId,
+      workspaceId: session.scope.workspaceId,
+      surfaceType: session.scope.surfaceType,
+      pluginId: session.scope.pluginId,
+      threadId: session.scope.threadId,
+      backend: cleanString(asrResult?.backend || session.backend || "", 120),
+      durationMs,
+      rawChars: rawText.length,
+      textChars: corrected.text.length,
+      appliedCount: corrected.applied.length,
+      suggestionCount: corrected.suggestions.length,
+    });
+    return {
+      ok: true,
+      voiceSessionId: session.id,
+      text: corrected.text,
+      rawText,
+      language: cleanString(asrResult?.language || "", 40),
+      confidence: Number.isFinite(Number(asrResult?.confidence)) ? Number(asrResult.confidence) : 0,
+      backend: cleanString(asrResult?.backend || session.backend || "", 120),
+      corrections: {
+        applied: corrected.applied,
+        suggestions: corrected.suggestions,
+        phrasebookApplied: corrected.phrasebookApplied || [],
+      },
+    };
+  }
+
+  async function cancelStreaming(input = {}) {
+    const sessionId = cleanString(input.voiceSessionId || input.sessionId || input.streamId, 160);
+    const session = sessionId ? activeStreamSessions.get(sessionId) : null;
+    if (session) {
+      activeStreamSessions.delete(sessionId);
+      if (typeof options.asrProvider.cancelStreamingTranscription === "function") {
+        await options.asrProvider.cancelStreamingTranscription({ streamId: session.providerStreamId });
+      }
+    }
+    return { ok: true, voiceSessionId: sessionId };
+  }
+
   function commitSession(input = {}) {
     const sessionId = cleanString(input.voiceSessionId || input.sessionId || input.voice_session_id, 160);
     if (!sessionId) throw errorWithStatus("voice session id is required", 400, "voice_session_id_required");
@@ -505,10 +681,14 @@ function createVoiceInputService(options = {}) {
   }
 
   return Object.freeze({
+    cancelStreaming,
     commitSession,
+    finishStreaming,
     learnSentText,
     listCorrections,
     status,
+    startStreaming,
+    streamChunk,
     transcribe,
     updateSettings,
     updateCorrection,

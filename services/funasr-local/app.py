@@ -1,8 +1,10 @@
 import os
+import base64
 import subprocess
 import tempfile
 import threading
 import time
+import wave
 from typing import Optional
 
 from fastapi import FastAPI, File, Form, UploadFile
@@ -18,11 +20,27 @@ try:
 except Exception:
     imageio_ffmpeg = None
 
+try:
+    import numpy as np
+except Exception:
+    np = None
+
 
 SERVICE_ID = os.getenv("LOCAL_ASR_SERVICE_ID", "funasr-local")
 DEFAULT_MODEL = os.getenv("FUNASR_MODEL", "paraformer-zh")
 DEFAULT_VAD_MODEL = os.getenv("FUNASR_VAD_MODEL", "fsmn-vad")
 DEFAULT_PUNC_MODEL = os.getenv("FUNASR_PUNC_MODEL", "ct-punc")
+STREAMING_MODEL = os.getenv("FUNASR_STREAMING_MODEL", "paraformer-zh-streaming")
+STREAMING_SAMPLE_RATE = int(os.getenv("FUNASR_STREAMING_SAMPLE_RATE", "16000"))
+STREAMING_CHUNK_SIZE = [
+    int(part.strip() or "0")
+    for part in os.getenv("FUNASR_STREAMING_CHUNK_SIZE", "0,10,5").split(",")[:3]
+]
+while len(STREAMING_CHUNK_SIZE) < 3:
+    STREAMING_CHUNK_SIZE.append(0)
+STREAMING_ENCODER_LOOK_BACK = int(os.getenv("FUNASR_STREAMING_ENCODER_LOOK_BACK", "4"))
+STREAMING_DECODER_LOOK_BACK = int(os.getenv("FUNASR_STREAMING_DECODER_LOOK_BACK", "1"))
+STREAMING_MAX_SECONDS = int(os.getenv("FUNASR_STREAMING_MAX_SECONDS", "45"))
 DEVICE = os.getenv("FUNASR_DEVICE", "cpu")
 BATCH_SIZE_S = int(os.getenv("FUNASR_BATCH_SIZE_S", "60"))
 MERGE_VAD = os.getenv("FUNASR_MERGE_VAD", "1").strip().lower() not in {"0", "false", "no", "off"}
@@ -35,10 +53,20 @@ app = FastAPI(title="Home AI FunASR Local", version="1.0.0")
 _model_lock = threading.Lock()
 _model = None
 _model_error = None
+_stream_model_lock = threading.Lock()
+_stream_model = None
+_stream_model_error = None
+_stream_sessions = {}
+_stream_sessions_lock = threading.Lock()
 
 
 def clean_text(value):
     return str(value or "").strip()
+
+
+def clean_id(value, max_length=160):
+    text = clean_text(value)[:max_length]
+    return "".join(char if char.isalnum() or char in {"_", "-", "."} else "_" for char in text)
 
 
 def ffmpeg_executable():
@@ -106,6 +134,26 @@ def load_model():
             raise
 
 
+def load_stream_model():
+    global _stream_model, _stream_model_error
+    if _stream_model is not None:
+        return _stream_model
+    if AutoModel is None:
+        raise RuntimeError("funasr package is not installed")
+    if np is None:
+        raise RuntimeError("numpy package is not installed")
+    with _stream_model_lock:
+        if _stream_model is not None:
+            return _stream_model
+        try:
+            _stream_model = AutoModel(model=STREAMING_MODEL, device=DEVICE)
+            _stream_model_error = None
+            return _stream_model
+        except Exception as exc:
+            _stream_model_error = f"{type(exc).__name__}: {exc}"
+            raise
+
+
 def normalize_result(result, elapsed_ms):
     items = result if isinstance(result, list) else [result]
     texts = []
@@ -131,6 +179,47 @@ def normalize_result(result, elapsed_ms):
     }
 
 
+def pcm16_base64_to_float32(value):
+    if np is None:
+        raise RuntimeError("numpy package is not installed")
+    raw = base64.b64decode(clean_text(value), validate=False)
+    if not raw:
+        return np.zeros(0, dtype=np.float32), b""
+    if len(raw) % 2:
+        raw = raw[:-1]
+    audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
+    return audio, raw
+
+
+def write_pcm16_wav(raw_parts, sample_rate):
+    fd, wav_path = tempfile.mkstemp(prefix="home-ai-funasr-stream-final-", suffix=".wav", dir=TMP_DIR)
+    os.close(fd)
+    with wave.open(wav_path, "wb") as handle:
+        handle.setnchannels(1)
+        handle.setsampwidth(2)
+        handle.setframerate(int(sample_rate or STREAMING_SAMPLE_RATE))
+        handle.writeframes(b"".join(raw_parts))
+    return wav_path
+
+
+def streaming_chunk_stride():
+    stride_units = max(1, int(STREAMING_CHUNK_SIZE[1] or 10))
+    return max(1600, stride_units * 960)
+
+
+def normalize_stream_text(result):
+    payload = normalize_result(result, 0)
+    return clean_text(payload.get("text"))
+
+
+def prune_old_stream_sessions():
+    cutoff = time.monotonic() - max(5, STREAMING_MAX_SECONDS + 30)
+    with _stream_sessions_lock:
+        stale = [key for key, session in _stream_sessions.items() if session.get("created_monotonic", 0) < cutoff]
+        for key in stale:
+            _stream_sessions.pop(key, None)
+
+
 @app.get("/health")
 def health():
     package_available = AutoModel is not None
@@ -149,6 +238,13 @@ def health():
         "merge_length_s": MERGE_LENGTH_S,
         "tmp_dir": TMP_DIR,
         "ffmpeg_available": bool(ffmpeg_executable()),
+        "streaming_available": package_available and np is not None,
+        "streaming_model_loaded": _stream_model is not None,
+        "last_streaming_model_error": _stream_model_error,
+        "streaming_model": STREAMING_MODEL,
+        "streaming_sample_rate": STREAMING_SAMPLE_RATE,
+        "streaming_chunk_size": STREAMING_CHUNK_SIZE,
+        "streaming_endpoint": "/v1/audio/transcriptions/stream",
     }
 
 
@@ -201,3 +297,173 @@ async def transcribe_openai_style(
             os.unlink(tmp_path)
         except Exception:
             pass
+
+
+@app.post("/v1/audio/transcriptions/stream/start")
+async def stream_start(payload: dict):
+    prune_old_stream_sessions()
+    try:
+        model = load_stream_model()
+        stream_id = clean_id(payload.get("streamId") or payload.get("requestId")) or f"stream_{int(time.time() * 1000)}"
+        sample_rate = int(payload.get("sampleRate") or STREAMING_SAMPLE_RATE)
+        with _stream_sessions_lock:
+            _stream_sessions[stream_id] = {
+                "id": stream_id,
+                "created_monotonic": time.monotonic(),
+                "model": model,
+                "cache": {},
+                "pending": np.zeros(0, dtype=np.float32),
+                "raw_parts": [],
+                "sample_rate": sample_rate,
+                "partial_text": "",
+                "chunks": 0,
+                "started": time.monotonic(),
+            }
+        return {
+            "ok": True,
+            "streamId": stream_id,
+            "backend": SERVICE_ID,
+            "sampleRate": sample_rate,
+            "streamingModel": STREAMING_MODEL,
+        }
+    except Exception as exc:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "asr_stream_start_failed",
+                "backend": SERVICE_ID,
+                "message": f"{type(exc).__name__}: {exc}"[:500],
+            },
+        )
+
+
+@app.post("/v1/audio/transcriptions/stream/chunk")
+async def stream_chunk(payload: dict):
+    stream_id = clean_id(payload.get("streamId"))
+    with _stream_sessions_lock:
+        session = _stream_sessions.get(stream_id)
+    if not session:
+        return JSONResponse(status_code=404, content={"error": "asr_stream_not_found", "backend": SERVICE_ID})
+    if time.monotonic() - session["created_monotonic"] > STREAMING_MAX_SECONDS + 5:
+        with _stream_sessions_lock:
+            _stream_sessions.pop(stream_id, None)
+        return JSONResponse(status_code=413, content={"error": "asr_stream_too_long", "backend": SERVICE_ID})
+    try:
+        audio, raw = pcm16_base64_to_float32(payload.get("audioBase64") or payload.get("pcm16Base64"))
+        if raw:
+            session["raw_parts"].append(raw)
+        if audio.size:
+            session["pending"] = np.concatenate([session["pending"], audio])
+        stride = streaming_chunk_stride()
+        partial_text = session.get("partial_text", "")
+        while session["pending"].size >= stride:
+            current = session["pending"][:stride]
+            session["pending"] = session["pending"][stride:]
+            result = session["model"].generate(
+                input=current,
+                cache=session["cache"],
+                is_final=False,
+                chunk_size=STREAMING_CHUNK_SIZE,
+                encoder_chunk_look_back=STREAMING_ENCODER_LOOK_BACK,
+                decoder_chunk_look_back=STREAMING_DECODER_LOOK_BACK,
+            )
+            text = normalize_stream_text(result)
+            if text:
+                partial_text += text
+                session["partial_text"] = partial_text
+        session["chunks"] += 1
+        return {
+            "ok": True,
+            "streamId": stream_id,
+            "type": "partial",
+            "text": clean_text(partial_text),
+            "backend": SERVICE_ID,
+            "chunks": session["chunks"],
+        }
+    except Exception as exc:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "asr_stream_chunk_failed",
+                "backend": SERVICE_ID,
+                "message": f"{type(exc).__name__}: {exc}"[:500],
+            },
+        )
+
+
+@app.post("/v1/audio/transcriptions/stream/final")
+async def stream_final(payload: dict):
+    stream_id = clean_id(payload.get("streamId"))
+    with _stream_sessions_lock:
+        session = _stream_sessions.pop(stream_id, None)
+    if not session:
+        return JSONResponse(status_code=404, content={"error": "asr_stream_not_found", "backend": SERVICE_ID})
+    wav_path = None
+    started = time.monotonic()
+    try:
+        if session["pending"].size:
+            result = session["model"].generate(
+                input=session["pending"],
+                cache=session["cache"],
+                is_final=True,
+                chunk_size=STREAMING_CHUNK_SIZE,
+                encoder_chunk_look_back=STREAMING_ENCODER_LOOK_BACK,
+                decoder_chunk_look_back=STREAMING_DECODER_LOOK_BACK,
+            )
+            text = normalize_stream_text(result)
+            if text:
+                session["partial_text"] = clean_text(session.get("partial_text", "") + text)
+        if not session["raw_parts"]:
+            return JSONResponse(status_code=422, content={"error": "asr_stream_empty_audio", "backend": SERVICE_ID})
+        wav_path = write_pcm16_wav(session["raw_parts"], session["sample_rate"])
+        offline_result = load_model().generate(input=wav_path, batch_size_s=BATCH_SIZE_S)
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        normalized = normalize_result(offline_result, elapsed_ms)
+        text = clean_text(normalized.get("text") or session.get("partial_text"))
+        normalized.update({
+            "ok": True,
+            "streamId": stream_id,
+            "type": "final",
+            "text": text,
+            "partialText": clean_text(session.get("partial_text")),
+            "streamingModel": STREAMING_MODEL,
+        })
+        return normalized
+    except Exception as exc:
+        partial = clean_text(session.get("partial_text"))
+        if partial:
+            return {
+                "ok": True,
+                "streamId": stream_id,
+                "type": "final",
+                "text": partial,
+                "partialText": partial,
+                "backend": SERVICE_ID,
+                "language": "zh",
+                "confidence": 0,
+                "segments": [],
+                "durationMs": int((time.monotonic() - started) * 1000),
+                "warning": f"{type(exc).__name__}: {exc}"[:500],
+            }
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": "asr_stream_final_failed",
+                "backend": SERVICE_ID,
+                "message": f"{type(exc).__name__}: {exc}"[:500],
+            },
+        )
+    finally:
+        if wav_path:
+            try:
+                os.unlink(wav_path)
+            except Exception:
+                pass
+
+
+@app.post("/v1/audio/transcriptions/stream/cancel")
+async def stream_cancel(payload: dict):
+    stream_id = clean_id(payload.get("streamId"))
+    with _stream_sessions_lock:
+        removed = _stream_sessions.pop(stream_id, None)
+    return {"ok": True, "streamId": stream_id, "cancelled": removed is not None, "backend": SERVICE_ID}

@@ -67,6 +67,50 @@ function publicProviderStatus(config = {}) {
   };
 }
 
+function inferStreamingUrl(url) {
+  const text = cleanString(url || "", 2000);
+  if (!text) return "";
+  return text.replace(/\/v1\/audio\/transcriptions(?:$|[?#].*$)/i, "/v1/audio/transcriptions/stream");
+}
+
+function streamingConfigFromOptions(options = {}, env = {}, backendConfig = {}) {
+  const baseUrl = cleanString(
+    options.streamingUrl
+    || env.HERMES_MOBILE_VOICE_INPUT_STREAMING_URL
+    || env.HERMES_WEB_VOICE_INPUT_STREAMING_URL
+    || inferStreamingUrl(backendConfig.url),
+    2000,
+  );
+  const backend = normalizeBackend(backendConfig.backend);
+  const defaultEnabled = backend === "funasr-local" && Boolean(baseUrl);
+  const enabled = boolConfig(
+    options.streamingEnabled
+    ?? env.HERMES_MOBILE_VOICE_INPUT_STREAMING_ENABLED
+    ?? env.HERMES_WEB_VOICE_INPUT_STREAMING_ENABLED,
+    defaultEnabled,
+  );
+  return {
+    enabled,
+    configured: enabled && Boolean(baseUrl),
+    backend,
+    protocol: "funasr-http-chunk",
+    baseUrl,
+    sampleRate: Math.max(8000, Number(options.streamingSampleRate || env.HERMES_MOBILE_VOICE_INPUT_STREAMING_SAMPLE_RATE || env.HERMES_WEB_VOICE_INPUT_STREAMING_SAMPLE_RATE || 16000) || 16000),
+    timeoutMs: Math.max(1000, Number(options.streamingTimeoutMs || env.HERMES_MOBILE_VOICE_INPUT_STREAMING_TIMEOUT_MS || env.HERMES_WEB_VOICE_INPUT_STREAMING_TIMEOUT_MS || 15000) || 15000),
+  };
+}
+
+function publicStreamingStatus(config = {}) {
+  return {
+    enabled: Boolean(config.enabled),
+    configured: Boolean(config.configured),
+    backend: cleanString(config.backend || "", 80),
+    protocol: cleanString(config.protocol || "", 80),
+    hasUrl: Boolean(config.baseUrl),
+    sampleRate: Math.max(0, Number(config.sampleRate || 0) || 0),
+  };
+}
+
 function providerProtocolFromConfig(config = {}) {
   const explicit = cleanString(config.protocol || "", 80).toLowerCase();
   if (explicit) return explicit;
@@ -305,6 +349,7 @@ function createVoiceInputAsrProvider(options = {}) {
     config,
     ...comparisonBackends,
   ], Math.max(comparisonMaxEngines + 1, 6));
+  const streamingConfig = streamingConfigFromOptions(options, env, config);
 
   function backendConfigForInput(input = {}) {
     const requestedBackend = normalizeBackend(input.asrBackend || input.asr_backend || "");
@@ -320,7 +365,32 @@ function createVoiceInputAsrProvider(options = {}) {
     return Object.assign({}, base, {
       protocol: providerProtocolFromConfig(config),
       comparison: comparisonBackends.map(publicProviderStatus),
+      streaming: publicStreamingStatus(streamingConfig),
     });
+  }
+
+  async function postStreamingJson(pathSuffix, payload = {}, timeoutMs = streamingConfig.timeoutMs) {
+    if (!streamingConfig.configured) unavailableResult(streamingConfig.backend || config.backend, "asr_stream_unavailable");
+    if (typeof fetchImpl !== "function") unavailableResult(streamingConfig.backend || config.backend, "asr_fetch_unavailable");
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      const response = await fetchImpl(`${streamingConfig.baseUrl}${pathSuffix}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller?.signal,
+      });
+      if (!response?.ok) {
+        const err = new Error(`ASR streaming backend failed: ${response?.status || 0}`);
+        err.status = response?.status === 404 ? 404 : 502;
+        err.code = "asr_stream_backend_failed";
+        throw err;
+      }
+      return response.json();
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   async function transcribeWithConfig(input = {}, backendConfig = config) {
@@ -408,8 +478,66 @@ function createVoiceInputAsrProvider(options = {}) {
     };
   }
 
+  async function startStreamingTranscription(input = {}) {
+    const requestId = cleanString(input.requestId || input.voiceSessionId || "", 160);
+    const payload = await postStreamingJson("/start", {
+      requestId,
+      streamId: cleanString(input.streamId || "", 160),
+      sampleRate: Math.max(8000, Number(input.sampleRate || streamingConfig.sampleRate) || streamingConfig.sampleRate),
+      language: normalizeLanguage(input.localeHint || input.language || config.language || ""),
+      task: normalizeTask(input.task || config.task),
+      initialPrompt: mergedInitialPrompt(input, config),
+      backend: streamingConfig.backend,
+    });
+    return {
+      ok: Boolean(payload?.ok),
+      streamId: cleanString(payload?.streamId || requestId, 160),
+      backend: cleanString(payload?.backend || streamingConfig.backend || config.backend, 80),
+      sampleRate: Math.max(0, Number(payload?.sampleRate || input.sampleRate || streamingConfig.sampleRate) || 0),
+    };
+  }
+
+  async function sendStreamingAudioChunk(input = {}) {
+    const payload = await postStreamingJson("/chunk", {
+      streamId: cleanString(input.streamId || "", 160),
+      audioBase64: cleanString(input.audioBase64 || input.pcm16Base64 || "", 500000),
+      sampleRate: Math.max(8000, Number(input.sampleRate || streamingConfig.sampleRate) || streamingConfig.sampleRate),
+      sequence: Math.max(0, Number(input.sequence || 0) || 0),
+      isFinal: false,
+    }, Math.max(1000, Math.min(streamingConfig.timeoutMs, 10000)));
+    return {
+      ok: Boolean(payload?.ok),
+      streamId: cleanString(payload?.streamId || input.streamId || "", 160),
+      text: cleanString(payload?.text || payload?.partialText || "", 240000),
+      backend: cleanString(payload?.backend || streamingConfig.backend || config.backend, 80),
+      chunks: Math.max(0, Number(payload?.chunks || 0) || 0),
+    };
+  }
+
+  async function finishStreamingTranscription(input = {}) {
+    const payload = await postStreamingJson("/final", {
+      streamId: cleanString(input.streamId || "", 160),
+      durationMs: Math.max(0, Number(input.durationMs || 0) || 0),
+      sampleRate: Math.max(8000, Number(input.sampleRate || streamingConfig.sampleRate) || streamingConfig.sampleRate),
+    }, Math.max(streamingConfig.timeoutMs, config.timeoutMs));
+    return normalizeProviderResult(payload, streamingConfig.backend || config.backend);
+  }
+
+  async function cancelStreamingTranscription(input = {}) {
+    try {
+      await postStreamingJson("/cancel", {
+        streamId: cleanString(input.streamId || "", 160),
+      }, 5000);
+    } catch (_) {}
+    return { ok: true };
+  }
+
   return Object.freeze({
+    cancelStreamingTranscription,
+    finishStreamingTranscription,
+    sendStreamingAudioChunk,
     status,
+    startStreamingTranscription,
     transcribeAudio,
     transcribeAudioWithComparison,
   });
@@ -425,4 +553,6 @@ module.exports = {
   normalizeBackendConfig,
   providerStatusFromConfig,
   providerProtocolFromConfig,
+  inferStreamingUrl,
+  streamingConfigFromOptions,
 };

@@ -34,6 +34,66 @@ const VOICE_INPUT_API_ROUTE_SPECS = Object.freeze([
     tags: ["voice-input", "asr", "composer"],
   },
   {
+    id: "voice-input-stream-start",
+    method: "POST",
+    path: "/api/voice-input/stream/start",
+    group: "voice-input",
+    moduleKey: "voice-input",
+    handlerKey: "streamStart",
+    summary: "Start a short Home AI host voice streaming ASR session.",
+    riskLevel: "high",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "audio", "composer"],
+    tags: ["voice-input", "asr", "streaming", "composer"],
+  },
+  {
+    id: "voice-input-stream-chunk",
+    method: "POST",
+    path: "/api/voice-input/stream/chunk",
+    group: "voice-input",
+    moduleKey: "voice-input",
+    handlerKey: "streamChunk",
+    summary: "Append a PCM audio chunk to a Home AI host voice streaming ASR session.",
+    riskLevel: "high",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "audio", "composer"],
+    tags: ["voice-input", "asr", "streaming", "composer"],
+  },
+  {
+    id: "voice-input-stream-final",
+    method: "POST",
+    path: "/api/voice-input/stream/final",
+    group: "voice-input",
+    moduleKey: "voice-input",
+    handlerKey: "streamFinal",
+    summary: "Finish a Home AI host voice streaming ASR session and return corrected final text.",
+    riskLevel: "high",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "audio", "composer"],
+    tags: ["voice-input", "asr", "streaming", "composer"],
+  },
+  {
+    id: "voice-input-stream-cancel",
+    method: "POST",
+    path: "/api/voice-input/stream/cancel",
+    group: "voice-input",
+    moduleKey: "voice-input",
+    handlerKey: "streamCancel",
+    summary: "Cancel a Home AI host voice streaming ASR session without retaining audio.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "audio", "composer"],
+    tags: ["voice-input", "asr", "streaming", "composer"],
+  },
+  {
     id: "voice-input-commit",
     method: "POST",
     path: "/api/voice-input/commit",
@@ -161,6 +221,7 @@ function createVoiceInputApiRoutes(deps = {}) {
   }
   const registry = createApiRouteRegistry(VOICE_INPUT_API_ROUTE_SPECS);
   const maxBodyBytes = Math.max(256 * 1024, Number(deps.maxBodyBytes || 24 * 1024 * 1024) || 24 * 1024 * 1024);
+  const maxStreamingChunkBodyBytes = Math.max(64 * 1024, Number(deps.maxStreamingChunkBodyBytes || 1024 * 1024) || 1024 * 1024);
 
   async function readJsonBody(req, limit = 128 * 1024) {
     try {
@@ -194,6 +255,80 @@ function createVoiceInputApiRoutes(deps = {}) {
       const workspaceId = requireWorkspace(req, res, url, body, context);
       if (!workspaceId) return;
       const result = await deps.voiceInputService.transcribe(Object.assign({}, body, scopeFromRequest(url, body, context.auth, workspaceId)));
+      deps.sendJson(res, 200, result);
+    } catch (err) {
+      sendServiceError(res, err);
+    }
+  }
+
+  async function handleStreamStart(req, res, url, context = {}) {
+    let body;
+    try {
+      body = await readJsonBody(req);
+      const workspaceId = requireWorkspace(req, res, url, body, context);
+      if (!workspaceId) return;
+      if (typeof deps.voiceInputService.startStreaming !== "function") {
+        throw Object.assign(new Error("voice input streaming is unavailable"), {
+          status: 503,
+          code: "voice_input_streaming_unavailable",
+        });
+      }
+      const result = await deps.voiceInputService.startStreaming(Object.assign({}, body, scopeFromRequest(url, body, context.auth, workspaceId)));
+      deps.sendJson(res, 200, result);
+    } catch (err) {
+      sendServiceError(res, err);
+    }
+  }
+
+  async function handleStreamChunk(req, res, url, context = {}) {
+    let body;
+    try {
+      body = await readJsonBody(req, maxStreamingChunkBodyBytes);
+      const workspaceId = requireWorkspace(req, res, url, body, context);
+      if (!workspaceId) return;
+      if (typeof deps.voiceInputService.streamChunk !== "function") {
+        throw Object.assign(new Error("voice input streaming is unavailable"), {
+          status: 503,
+          code: "voice_input_streaming_unavailable",
+        });
+      }
+      const result = await deps.voiceInputService.streamChunk(Object.assign({}, body, scopeFromRequest(url, body, context.auth, workspaceId)));
+      deps.sendJson(res, 200, result);
+    } catch (err) {
+      sendServiceError(res, err);
+    }
+  }
+
+  async function handleStreamFinal(req, res, url, context = {}) {
+    let body;
+    try {
+      body = await readJsonBody(req);
+      const workspaceId = requireWorkspace(req, res, url, body, context);
+      if (!workspaceId) return;
+      if (typeof deps.voiceInputService.finishStreaming !== "function") {
+        throw Object.assign(new Error("voice input streaming is unavailable"), {
+          status: 503,
+          code: "voice_input_streaming_unavailable",
+        });
+      }
+      const result = await deps.voiceInputService.finishStreaming(Object.assign({}, body, scopeFromRequest(url, body, context.auth, workspaceId)));
+      deps.sendJson(res, 200, result);
+    } catch (err) {
+      sendServiceError(res, err);
+    }
+  }
+
+  async function handleStreamCancel(req, res, url, context = {}) {
+    let body;
+    try {
+      body = await readJsonBody(req);
+      const workspaceId = requireWorkspace(req, res, url, body, context);
+      if (!workspaceId) return;
+      if (typeof deps.voiceInputService.cancelStreaming !== "function") {
+        deps.sendJson(res, 200, { ok: true });
+        return;
+      }
+      const result = await deps.voiceInputService.cancelStreaming(Object.assign({}, body, scopeFromRequest(url, body, context.auth, workspaceId)));
       deps.sendJson(res, 200, result);
     } catch (err) {
       sendServiceError(res, err);
@@ -283,6 +418,22 @@ function createVoiceInputApiRoutes(deps = {}) {
     }
     if (route.id === "voice-input-transcribe") {
       await handleTranscribe(req, res, url, context);
+      return { handled: true, route, auth: context.auth || null };
+    }
+    if (route.id === "voice-input-stream-start") {
+      await handleStreamStart(req, res, url, context);
+      return { handled: true, route, auth: context.auth || null };
+    }
+    if (route.id === "voice-input-stream-chunk") {
+      await handleStreamChunk(req, res, url, context);
+      return { handled: true, route, auth: context.auth || null };
+    }
+    if (route.id === "voice-input-stream-final") {
+      await handleStreamFinal(req, res, url, context);
+      return { handled: true, route, auth: context.auth || null };
+    }
+    if (route.id === "voice-input-stream-cancel") {
+      await handleStreamCancel(req, res, url, context);
       return { handled: true, route, auth: context.auth || null };
     }
     if (route.id === "voice-input-commit") {

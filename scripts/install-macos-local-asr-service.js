@@ -26,6 +26,12 @@ const ENGINES = Object.freeze({
       FUNASR_BATCH_SIZE_S: "60",
       FUNASR_MERGE_VAD: "1",
       FUNASR_MERGE_LENGTH_S: "15",
+      FUNASR_STREAMING_MODEL: "paraformer-zh-streaming",
+      FUNASR_STREAMING_SAMPLE_RATE: "16000",
+      FUNASR_STREAMING_CHUNK_SIZE: "0,10,5",
+      FUNASR_STREAMING_ENCODER_LOOK_BACK: "4",
+      FUNASR_STREAMING_DECODER_LOOK_BACK: "1",
+      FUNASR_STREAMING_MAX_SECONDS: "45",
     },
   },
   sensevoice: {

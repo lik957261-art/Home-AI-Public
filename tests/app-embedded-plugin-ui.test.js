@@ -161,7 +161,7 @@ assert.match(embeddedPluginUi, /const hasShell = Boolean\(currentEmbeddedPluginS
 assert.match(embeddedPluginUi, /if \(!pluginManifest && embeddedPluginResidentShellMatchesLaunchContext\(def, workspaceId, appearanceKey\)\) \{[\s\S]*?attachEmbeddedPluginShell\(def, record\.renderedEntryUrl\)/);
 assert.doesNotMatch(embeddedPluginUi, /if \(!pluginManifest && embeddedPluginResidentShellMatchesLaunchContext\(def, workspaceId, appearanceKey\)\) \{[\s\S]*?embeddedPluginUsesLaunchToken\(record\.manifest\)[\s\S]*?refreshEmbeddedPluginFrameFromFreshManifest\(def\)/);
 assert.match(embeddedPluginUi, /shell\?\.querySelector\("\.embedded-plugin-frame"\) !== frame/);
-assert.match(embeddedPluginUi, /if \(!shell\?\.classList\.contains\("is-loading"\)\) return;/);
+assert.match(embeddedPluginUi, /if \(shell\?\.classList && !shell\.classList\.contains\("is-loading"\)\) return;/);
 assert.match(embeddedPluginUi, /record\.frameLoadedAt = Date\.now\(\)/);
 assert.match(embeddedPluginUi, /function setEmbeddedPluginOpenRoute\(def, route = {}\)/);
 assert.match(embeddedPluginUi, /if \(record\.openRoute\) record\.canGoBack = true;/);

@@ -52,6 +52,22 @@ function makeRoutes(overrides = {}) {
         calls.push({ type: "transcribe", input });
         return Promise.resolve({ ok: true, voiceSessionId: "voice_1", text: "hello" });
       },
+      startStreaming(input) {
+        calls.push({ type: "startStreaming", input });
+        return Promise.resolve({ ok: true, voiceSessionId: "stream_1", sampleRate: 16000 });
+      },
+      streamChunk(input) {
+        calls.push({ type: "streamChunk", input });
+        return Promise.resolve({ ok: true, voiceSessionId: input.voiceSessionId, text: "hello" });
+      },
+      finishStreaming(input) {
+        calls.push({ type: "finishStreaming", input });
+        return Promise.resolve({ ok: true, voiceSessionId: input.voiceSessionId, text: "hello." });
+      },
+      cancelStreaming(input) {
+        calls.push({ type: "cancelStreaming", input });
+        return Promise.resolve({ ok: true, voiceSessionId: input.voiceSessionId });
+      },
       commitSession(input) {
         calls.push({ type: "commitSession", input });
         return { ok: true, voiceSessionId: input.voiceSessionId, recorded: [] };
@@ -92,8 +108,9 @@ async function testStatusAndRouteInventory() {
   assert.deepEqual(got.body, { ok: true, enabled: true, correctionCount: 0 });
   assert.equal(calls.find((call) => call.type === "requireWorkspaceAccess").workspaceId, "child-a");
   assert.equal(calls.find((call) => call.type === "status").scope.pluginId, "codex-mobile");
-  assert.equal(routes.summary().total, 7);
+  assert.equal(routes.summary().total, 11);
   assert.equal(routes.match({ method: "POST", path: "/api/voice-input/transcribe" }).id, "voice-input-transcribe");
+  assert.equal(routes.match({ method: "POST", path: "/api/voice-input/stream/chunk" }).id, "voice-input-stream-chunk");
   assert.equal(routes.match({ method: "PATCH", path: "/api/voice-input/settings" }).id, "voice-input-settings-update");
 }
 
@@ -120,6 +137,31 @@ async function testTranscribeCommitAndCorrectionUpdate() {
     surfaceType: "chat",
     language: "",
   });
+
+  const streamStart = await request(routes, "POST", "/api/voice-input/stream/start", {
+    workspaceId: "child-a",
+    pluginId: "codex-mobile",
+    sampleRate: 16000,
+  }, { principalId: "user-a", workspaceId: "child-a" });
+  assert.equal(streamStart.res.statusCode, 200);
+  assert.equal(streamStart.body.voiceSessionId, "stream_1");
+  assert.equal(calls.find((call) => call.type === "startStreaming").input.actorId, "user-a");
+
+  const streamChunk = await request(routes, "POST", "/api/voice-input/stream/chunk", {
+    workspaceId: "child-a",
+    voiceSessionId: "stream_1",
+    audioBase64: "AA==",
+  }, { principalId: "user-a", workspaceId: "child-a" });
+  assert.equal(streamChunk.res.statusCode, 200);
+  assert.equal(streamChunk.body.text, "hello");
+
+  const streamFinal = await request(routes, "POST", "/api/voice-input/stream/final", {
+    workspaceId: "child-a",
+    voiceSessionId: "stream_1",
+    durationMs: 1000,
+  }, { principalId: "user-a", workspaceId: "child-a" });
+  assert.equal(streamFinal.res.statusCode, 200);
+  assert.equal(streamFinal.body.text, "hello.");
 
   const committed = await request(routes, "POST", "/api/voice-input/commit", {
     workspaceId: "child-a",

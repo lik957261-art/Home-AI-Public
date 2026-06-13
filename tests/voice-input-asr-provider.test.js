@@ -23,11 +23,67 @@ async function testDisabledByDefaultWithoutUrl() {
     hasUrl: false,
     protocol: "json-base64",
     comparison: [],
+    streaming: {
+      enabled: false,
+      configured: false,
+      backend: "disabled",
+      protocol: "funasr-http-chunk",
+      hasUrl: false,
+      sampleRate: 16000,
+    },
   });
   await assert.rejects(() => provider.transcribeAudio({ audioBase64: "AA==" }), {
     status: 503,
     code: "asr_backend_unavailable",
   });
+}
+
+async function testFunasrStreamingProviderPostsChunkProtocol() {
+  const calls = [];
+  const provider = createVoiceInputAsrProvider({
+    backend: "funasr-local",
+    enabled: true,
+    env: {},
+    url: "http://127.0.0.1:8002/v1/audio/transcriptions",
+    fetchImpl(url, request) {
+      const body = JSON.parse(request.body);
+      calls.push({ url, body });
+      const payload = url.endsWith("/start")
+        ? { ok: true, streamId: "stream_1", backend: "funasr-local", sampleRate: 16000 }
+        : url.endsWith("/chunk")
+          ? { ok: true, streamId: "stream_1", text: "吴萍", backend: "funasr-local", chunks: 1 }
+          : url.endsWith("/final")
+            ? { ok: true, streamId: "stream_1", text: "吴萍。", language: "zh", backend: "funasr-local" }
+            : { ok: true };
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve(payload);
+        },
+      });
+    },
+  });
+  assert.deepEqual(provider.status().streaming, {
+    enabled: true,
+    configured: true,
+    backend: "funasr-local",
+    protocol: "funasr-http-chunk",
+    hasUrl: true,
+    sampleRate: 16000,
+  });
+  const started = await provider.startStreamingTranscription({ requestId: "stream_1", initialPrompt: "吴萍" });
+  assert.equal(started.streamId, "stream_1");
+  const partial = await provider.sendStreamingAudioChunk({ streamId: "stream_1", audioBase64: "AA==", sequence: 1 });
+  assert.equal(partial.text, "吴萍");
+  const final = await provider.finishStreamingTranscription({ streamId: "stream_1", durationMs: 1000 });
+  assert.equal(final.text, "吴萍。");
+  await provider.cancelStreamingTranscription({ streamId: "stream_1" });
+  assert.deepEqual(calls.map((call) => call.url), [
+    "http://127.0.0.1:8002/v1/audio/transcriptions/stream/start",
+    "http://127.0.0.1:8002/v1/audio/transcriptions/stream/chunk",
+    "http://127.0.0.1:8002/v1/audio/transcriptions/stream/final",
+    "http://127.0.0.1:8002/v1/audio/transcriptions/stream/cancel",
+  ]);
 }
 
 async function testHttpProviderPostsBoundedPayload() {
@@ -273,6 +329,7 @@ async function run() {
   testMergedInitialPromptKeepsDefaultAndDynamicHints();
   await testMultipartFallbackBodyBuilder();
   testProviderStatusAndNormalization();
+  await testFunasrStreamingProviderPostsChunkProtocol();
   testComparisonBackendCompactNames();
   await testComparisonBackendsReturnBoundedRows();
   await testSingleTranscribeCanSelectComparisonBackend();

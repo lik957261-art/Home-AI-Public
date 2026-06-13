@@ -1075,7 +1075,7 @@ function scheduleEmbeddedPluginLaunchHealthCheck(def, frame, loadedAt = Date.now
     if (shell?.querySelector(".embedded-plugin-frame") !== frame) return;
     if (!embeddedPluginFrameSrcUsesLaunchToken(frame)) return;
     if (Number(record.navigationLastAt || 0) >= loadedAt) return;
-    if (!shell?.classList.contains("is-loading")) return;
+    if (shell?.classList && !shell.classList.contains("is-loading")) return;
     requestEmbeddedPluginHealthRefresh(def);
   }, timeoutMs);
 }

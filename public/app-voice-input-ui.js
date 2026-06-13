@@ -277,6 +277,90 @@ function voiceInputPreferredMimeType() {
   }) || "";
 }
 
+function voiceInputStreamingConfigured(serviceStatus) {
+  return Boolean(serviceStatus?.provider?.streaming?.configured);
+}
+
+function voiceInputStreamingSampleRate(serviceStatus) {
+  return Math.max(8000, Number(serviceStatus?.provider?.streaming?.sampleRate || 16000) || 16000);
+}
+
+function voiceInputBytesToBase64(bytes) {
+  const input = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < input.length; offset += chunkSize) {
+    binary += String.fromCharCode.apply(null, input.subarray(offset, offset + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function voiceInputDownsampleToPcm16(input, sourceRate, targetRate) {
+  const source = input instanceof Float32Array ? input : new Float32Array(input || []);
+  const fromRate = Math.max(1, Number(sourceRate || targetRate || 16000) || 16000);
+  const toRate = Math.max(8000, Number(targetRate || 16000) || 16000);
+  const ratio = fromRate / toRate;
+  const outputLength = Math.max(0, Math.floor(source.length / ratio));
+  const bytes = new Uint8Array(outputLength * 2);
+  const view = new DataView(bytes.buffer);
+  for (let index = 0; index < outputLength; index += 1) {
+    const start = Math.floor(index * ratio);
+    const end = Math.max(start + 1, Math.floor((index + 1) * ratio));
+    let sum = 0;
+    let count = 0;
+    for (let cursor = start; cursor < end && cursor < source.length; cursor += 1) {
+      sum += source[cursor];
+      count += 1;
+    }
+    const sample = Math.max(-1, Math.min(1, count ? sum / count : 0));
+    view.setInt16(index * 2, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+  }
+  return bytes;
+}
+
+function voiceInputResetProvisionalComposer() {
+  const voice = ensureVoiceInputState();
+  voice.provisionalComposer = null;
+  voice.provisionalBaseText = "";
+  voice.provisionalText = "";
+  voice.provisionalCaret = 0;
+  voice.provisionalLocked = false;
+}
+
+function voiceInputApplyProvisionalTranscript(text) {
+  const voice = ensureVoiceInputState();
+  const value = String(text || "").trim();
+  if (!value || voice.target?.kind !== "native") return;
+  const composer = voiceInputFreshNativeComposer(voice.target?.composer) || voiceInputMainComposerDefinition();
+  if (!composer?.setText || voice.provisionalLocked) return;
+  if (!voice.provisionalComposer) {
+    const current = composer.getText?.() || "";
+    voice.provisionalComposer = composer;
+    voice.provisionalBaseText = current;
+    voice.provisionalCaret = composer.caret?.() ?? current.length;
+    voice.provisionalText = "";
+  }
+  const currentText = composer.getText?.() || "";
+  const expected = voice.provisionalText
+    ? voiceInputInsertedTextForComposer({
+        getText: () => voice.provisionalBaseText,
+        caret: () => voice.provisionalCaret,
+      }, "append", voice.provisionalText)
+    : voice.provisionalBaseText;
+  if (currentText !== expected) {
+    voice.provisionalLocked = true;
+    return;
+  }
+  voice.provisionalText = value;
+  const next = voiceInputInsertedTextForComposer({
+    getText: () => voice.provisionalBaseText,
+    caret: () => voice.provisionalCaret,
+  }, "append", value);
+  composer.setText(next);
+  const caret = next.indexOf(value) + value.length;
+  composer.setCaret?.(caret);
+}
+
 function voiceInputFormatDuration(ms) {
   const seconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
   const minutes = Math.floor(seconds / 60);
@@ -560,6 +644,8 @@ function closeVoiceInputOverlay() {
   voice.voiceSessionId = "";
   voice.corrections = null;
   voice.target = null;
+  voice.streaming = null;
+  voiceInputResetProvisionalComposer();
   document.body?.classList?.remove("voice-input-press-active");
   renderVoiceInputOverlay();
 }
@@ -651,6 +737,7 @@ function cancelVoiceInput() {
     } catch (_) {}
   }
   voice.recorder = null;
+  void voiceInputCancelStreamingSession();
   voiceInputClearRecordingStream();
   document.body?.classList?.remove("voice-input-press-active");
   closeVoiceInputOverlay();
@@ -675,6 +762,183 @@ async function voiceInputLoadStatus(options = {}) {
 
 function voiceInputPrewarmStatus() {
   voiceInputLoadStatus().catch(() => {});
+}
+
+async function voiceInputStartStreamingSession(stream, serviceStatus) {
+  const voice = ensureVoiceInputState();
+  if (!stream || !voiceInputStreamingConfigured(serviceStatus)) return false;
+  const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextCtor) return false;
+  const sampleRate = voiceInputStreamingSampleRate(serviceStatus);
+  const started = await api("/api/voice-input/stream/start", {
+    method: "POST",
+    body: JSON.stringify(Object.assign({}, voiceInputRequestScope(), {
+      sampleRate,
+    })),
+    timeoutMs: 15000,
+  });
+  if (!started?.voiceSessionId) return false;
+  if (voice.cancelRequested || !["recording", "finalizing"].includes(voice.status)) {
+    try {
+      await api("/api/voice-input/stream/cancel", {
+        method: "POST",
+        body: JSON.stringify(Object.assign({}, voiceInputRequestScope(), {
+          voiceSessionId: started.voiceSessionId,
+        })),
+        timeoutMs: 8000,
+      });
+    } catch (_) {}
+    return false;
+  }
+  const audioContext = new AudioContextCtor();
+  const source = audioContext.createMediaStreamSource(stream);
+  const processor = audioContext.createScriptProcessor(4096, 1, 1);
+  voice.streaming = {
+    active: true,
+    audioContext,
+    buffer: [],
+    chunkInFlight: false,
+    failed: false,
+    processor,
+    sampleRate,
+    sequence: 0,
+    source,
+    voiceSessionId: started.voiceSessionId,
+  };
+  processor.onaudioprocess = (audioEvent) => {
+    const current = ensureVoiceInputState();
+    const streaming = current.streaming;
+    if (!streaming?.active || streaming.failed) return;
+    try {
+      const output = audioEvent.outputBuffer?.getChannelData?.(0);
+      if (output) output.fill(0);
+      const input = audioEvent.inputBuffer?.getChannelData?.(0);
+      if (!input?.length) return;
+      const pcm = voiceInputDownsampleToPcm16(input, audioContext.sampleRate, streaming.sampleRate);
+      if (!pcm.length) return;
+      streaming.buffer.push(pcm);
+      voiceInputFlushStreamingChunks();
+    } catch (err) {
+      streaming.failed = true;
+      console.warn("[voice-input] streaming capture failed", err?.message || err);
+    }
+  };
+  source.connect(processor);
+  processor.connect(audioContext.destination);
+  return true;
+}
+
+function voiceInputTakeStreamingChunk(streaming) {
+  if (!streaming?.buffer?.length) return null;
+  const total = streaming.buffer.reduce((sum, chunk) => sum + chunk.length, 0);
+  if (!total) return null;
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  streaming.buffer.forEach((chunk) => {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  });
+  streaming.buffer = [];
+  return merged;
+}
+
+function voiceInputFlushStreamingChunks() {
+  const voice = ensureVoiceInputState();
+  const streaming = voice.streaming;
+  if (!streaming?.active || streaming.failed || streaming.chunkInFlight) return;
+  const chunk = voiceInputTakeStreamingChunk(streaming);
+  if (!chunk?.length) return;
+  streaming.chunkInFlight = true;
+  const sequence = streaming.sequence + 1;
+  streaming.sequence = sequence;
+  api("/api/voice-input/stream/chunk", {
+    method: "POST",
+    body: JSON.stringify(Object.assign({}, voiceInputRequestScope(), {
+      voiceSessionId: streaming.voiceSessionId,
+      audioBase64: voiceInputBytesToBase64(chunk),
+      sampleRate: streaming.sampleRate,
+      sequence,
+    })),
+    timeoutMs: 15000,
+  }).then((result) => {
+    if (result?.text) {
+      voice.transcript = result.text;
+      voice.corrections = result.corrections || null;
+      voiceInputApplyProvisionalTranscript(result.text);
+      renderVoiceInputOverlay();
+    }
+  }).catch((err) => {
+    streaming.failed = true;
+    console.warn("[voice-input] streaming chunk failed", err?.message || err);
+  }).finally(() => {
+    streaming.chunkInFlight = false;
+    if (streaming.active && streaming.buffer?.length) voiceInputFlushStreamingChunks();
+  });
+}
+
+async function voiceInputStopStreamingCapture() {
+  const voice = ensureVoiceInputState();
+  const streaming = voice.streaming;
+  if (!streaming) return null;
+  voice.streaming = null;
+  streaming.active = false;
+  try {
+    streaming.processor?.disconnect?.();
+  } catch (_) {}
+  try {
+    streaming.source?.disconnect?.();
+  } catch (_) {}
+  try {
+    await streaming.audioContext?.close?.();
+  } catch (_) {}
+  return streaming;
+}
+
+async function voiceInputCancelStreamingSession() {
+  const streaming = await voiceInputStopStreamingCapture();
+  if (!streaming?.voiceSessionId) return;
+  try {
+    await api("/api/voice-input/stream/cancel", {
+      method: "POST",
+      body: JSON.stringify(Object.assign({}, voiceInputRequestScope(), {
+        voiceSessionId: streaming.voiceSessionId,
+      })),
+      timeoutMs: 8000,
+    });
+  } catch (_) {}
+}
+
+async function voiceInputFinishStreamingSession(durationMs) {
+  const voice = ensureVoiceInputState();
+  const streaming = await voiceInputStopStreamingCapture();
+  if (!streaming?.voiceSessionId || streaming.failed) return null;
+  let guard = 0;
+  while (streaming.chunkInFlight && guard < 40) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    guard += 1;
+  }
+  const pending = voiceInputTakeStreamingChunk(streaming);
+  if (pending?.length) {
+    await api("/api/voice-input/stream/chunk", {
+      method: "POST",
+      body: JSON.stringify(Object.assign({}, voiceInputRequestScope(), {
+        voiceSessionId: streaming.voiceSessionId,
+        audioBase64: voiceInputBytesToBase64(pending),
+        sampleRate: streaming.sampleRate,
+        sequence: streaming.sequence + 1,
+      })),
+      timeoutMs: 15000,
+    });
+  }
+  return api("/api/voice-input/stream/final", {
+    method: "POST",
+    body: JSON.stringify(Object.assign({}, voiceInputRequestScope(), {
+      voiceSessionId: streaming.voiceSessionId,
+      durationMs,
+      sampleRate: streaming.sampleRate,
+    })),
+    timeoutMs: 90000,
+  });
 }
 
 function handleVoiceInputStopButtonPointerDown(event, button) {
@@ -773,8 +1037,9 @@ async function startVoiceInputRecording(event, options = {}) {
   if (voice.suppressNextClick) scheduleVoiceInputClickSuppressionClear();
   voice.cancelRequested = false;
   voice.pendingStopAfterStart = false;
-  voice.chunks = [];
-  event?.preventDefault?.();
+    voice.chunks = [];
+    voiceInputResetProvisionalComposer();
+    event?.preventDefault?.();
   setVoiceInputStatus("checking");
   try {
     const permissionStatePromise = voiceInputMicrophonePermissionState();
@@ -817,6 +1082,13 @@ async function startVoiceInputRecording(event, options = {}) {
     }, { once: true });
     recorder.start();
     setVoiceInputStatus("recording", { recordingStartedAt: voice.recordingStartedAt });
+    if (voiceInputStreamingConfigured(serviceStatus)) {
+      voiceInputStartStreamingSession(stream, serviceStatus).catch((streamErr) => {
+        const current = ensureVoiceInputState();
+        current.streaming = Object.assign({}, current.streaming || {}, { failed: true });
+        console.warn("[voice-input] streaming start failed", streamErr?.message || streamErr);
+      });
+    }
     voice.recordingTicker = setInterval(renderVoiceInputOverlay, 500);
     const maxDurationMs = Math.max(1000, Number(serviceStatus?.limits?.maxDurationMs || 30000) || 30000);
     voice.maxTimer = setTimeout(() => stopVoiceInputRecording(), maxDurationMs);
@@ -876,6 +1148,12 @@ async function finalizeVoiceInputRecording() {
   voice.maxTimer = 0;
   if (voice.recordingTicker) clearInterval(voice.recordingTicker);
   voice.recordingTicker = 0;
+  let streamingResult = null;
+  try {
+    streamingResult = await voiceInputFinishStreamingSession(durationMs);
+  } catch (streamErr) {
+    console.warn("[voice-input] streaming final failed; falling back to full clip", streamErr?.message || streamErr);
+  }
   voiceInputClearRecordingStream();
   const chunks = voice.chunks || [];
   voice.chunks = [];
@@ -885,6 +1163,19 @@ async function finalizeVoiceInputRecording() {
   }
   try {
     setVoiceInputStatus("transcribing");
+    if (streamingResult?.text) {
+      if (typeof voiceLearningHandleTranscribeResult === "function") {
+        voiceLearningHandleTranscribeResult(streamingResult);
+      }
+      setVoiceInputStatus("inserting", {
+        transcript: streamingResult.text || "",
+        voiceSessionId: streamingResult.voiceSessionId || "",
+        corrections: streamingResult.corrections || null,
+        error: "",
+      });
+      await insertVoiceInputTranscript("append");
+      return;
+    }
     const blob = new Blob(chunks, { type: voice.mimeType || chunks[0]?.type || "audio/webm" });
     const audioBase64 = await blobToBase64(blob);
     const result = await api("/api/voice-input/transcribe", {
@@ -1002,12 +1293,17 @@ async function insertVoiceInputTranscript(mode = "append") {
     setVoiceInputStatus("failed", { error: voiceInputComposerUnavailableMessage(unavailableReason) });
     return;
   }
+  if (voice.provisionalText && !voice.provisionalLocked && voice.provisionalBaseText != null) {
+    composer.setText?.(voice.provisionalBaseText);
+    composer.setCaret?.(voice.provisionalCaret ?? voice.provisionalBaseText.length);
+  }
   const next = voiceInputInsertedTextForComposer(composer, mode, text);
   composer.setText?.(next);
   const caret = mode === "replace" ? next.length : next.indexOf(text) + text.length;
   composer.setCaret?.(caret);
   composer.focus?.();
   trackPendingVoiceInputCommit(text);
+  voiceInputResetProvisionalComposer();
   setVoiceInputStatus("inserted", { transcript: text });
   setTimeout(closeVoiceInputOverlay, 650);
 }

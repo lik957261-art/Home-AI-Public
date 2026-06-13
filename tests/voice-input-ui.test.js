@@ -92,6 +92,15 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /\/api\/voice-input\/status/);
   assert.match(voiceUi, /voiceInputPrewarmStatus\(\)/);
   assert.match(voiceUi, /\/api\/voice-input\/transcribe/);
+  assert.match(voiceUi, /\/api\/voice-input\/stream\/start/);
+  assert.match(voiceUi, /\/api\/voice-input\/stream\/chunk/);
+  assert.match(voiceUi, /\/api\/voice-input\/stream\/final/);
+  assert.match(voiceUi, /\/api\/voice-input\/stream\/cancel/);
+  assert.match(voiceUi, /function voiceInputDownsampleToPcm16\(input, sourceRate, targetRate\)/);
+  assert.match(voiceUi, /voiceInputStartStreamingSession\(stream, serviceStatus\)/);
+  assert.match(voiceUi, /voiceInputApplyProvisionalTranscript\(result\.text\)/);
+  assert.match(voiceUi, /streaming final failed; falling back to full clip/);
+  assert.match(voiceUi, /composer\.setText\?\.\(voice\.provisionalBaseText\)/);
   assert.match(voiceUi, /\/api\/voice-input\/commit/);
   assert.doesNotMatch(read("public/app-event-stream-ui.js"), /\/api\/voice-input\/learn-sent-text/);
   assert.doesNotMatch(read("public/app-event-stream-ui.js"), /learnVoiceInputSentText/);

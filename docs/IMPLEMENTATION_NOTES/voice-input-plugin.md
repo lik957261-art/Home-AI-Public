@@ -99,10 +99,11 @@ The first phase should implement the smallest complete loop:
     bounded reject audit metadata and must not enter drafts, correction
     learning, or user-visible sent content.
 
-MVP should not require realtime streaming, dictation while typing, arbitrary
-long recordings, background recording, global OS microphone shortcuts, system
-input-method integration, a separate microphone launcher, auto-send, or
-per-plugin ASR code.
+MVP must not require arbitrary long recordings, background recording, global OS
+microphone shortcuts, system input-method integration, a separate microphone
+launcher, auto-send, or per-plugin ASR code. Realtime partial text is allowed
+only through the Home AI host-owned streaming path, with whole-clip ASR as a
+fallback when streaming is unavailable or fails.
 
 ## User Experience
 
@@ -129,6 +130,13 @@ The host overlay is a Home AI shell surface:
   ASR backend is active;
 - recording states: idle, requesting permission, recording, paused,
   finalizing, transcribing, editable transcript, inserting, inserted, failed;
+- realtime text: when the configured provider exposes streaming, the host may
+  write provisional partial text into the active native composer while the
+  user is still holding the send button. The host must stop overwriting if the
+  user edits the composer during recording, and final insertion must replace
+  the provisional text with the final corrected transcript instead of
+  appending a duplicate. Embedded plugin composers may receive final text first
+  until their bridge explicitly supports safe provisional draft replacement;
 - visible controls after release: no insert/replace/discard decision is shown
   for the native host composer path. The transcript is automatically inserted
   into the composer, where normal editing and final send determine whether the
@@ -395,6 +403,10 @@ Configuration must be public-deployable:
 - `HERMES_MOBILE_VOICE_INPUT_ASR_BACKEND`;
 - `HERMES_MOBILE_VOICE_INPUT_ASR_PROTOCOL`;
 - `HERMES_MOBILE_VOICE_INPUT_ASR_URL` or command/path equivalents;
+- `HERMES_MOBILE_VOICE_INPUT_STREAMING_ENABLED`;
+- `HERMES_MOBILE_VOICE_INPUT_STREAMING_URL`;
+- `HERMES_MOBILE_VOICE_INPUT_STREAMING_SAMPLE_RATE`;
+- `HERMES_MOBILE_VOICE_INPUT_STREAMING_TIMEOUT_MS`;
 - `HERMES_MOBILE_VOICE_INPUT_LANGUAGE`;
 - `HERMES_MOBILE_VOICE_INPUT_TASK`;
 - `HERMES_MOBILE_VOICE_INPUT_INITIAL_PROMPT`;
@@ -403,6 +415,15 @@ Configuration must be public-deployable:
 - `HERMES_MOBILE_VOICE_INPUT_MAX_SECONDS`;
 - `HERMES_MOBILE_VOICE_INPUT_AUDIO_RETENTION_SECONDS`;
 - `HERMES_MOBILE_VOICE_INPUT_DEBUG_AUDIO_RETENTION_SECONDS`.
+
+For FunASR local streaming, the browser sends mono PCM16 chunks through Home AI
+HTTP routes under `/api/voice-input/stream/*`; the browser must not connect
+directly to `127.0.0.1:8002` because iOS/PWA clients run on a different
+device. Home AI proxies the chunks to the local FunASR service's
+`/v1/audio/transcriptions/stream/start|chunk|final|cancel` endpoints. Partial
+results use `paraformer-zh-streaming` for low-latency feedback, while final
+results are re-run through the offline FunASR model with punctuation so the
+existing correction and learning pipeline receives the highest-quality text.
 
 A fresh public deployment with no ASR backend must show the voice input as
 disabled/unavailable with an installer hint. It must not depend on the
@@ -806,7 +827,8 @@ MVP:
   plugin composers;
 - send-button long press starts recording and release starts transcription;
 - 3-30 second short clips;
-- local non-streaming ASR;
+- local FunASR ASR with HTTP chunk streaming when available and whole-clip
+  transcription fallback when streaming is unavailable;
 - automatic append insertion into Home AI chat composer and eligible native
   host composers;
 - plugin bridge append/replace insertion for embedded plugins that declare
@@ -821,11 +843,11 @@ Phase 2:
 - half-automatic correction suggestions with undo/disable;
 - workspace/plugin/thread-scoped correction management UI;
 - Email/Note/Growth composer capability adoption;
-- optional streaming progress if local ASR backend supports it.
+- embedded plugin provisional draft replacement for realtime partial text when
+  the plugin bridge can safely prove that the draft was not user-edited.
 
 Longer term:
 
-- realtime partial transcription;
 - broader composer adoption across all Home AI plugin and topic surfaces;
 - speaker/language hints by workspace;
 - user-managed global correction promotion;
