@@ -1,11 +1,19 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const {
   ENGINES,
   paths,
   plistFor,
 } = require("../scripts/install-macos-local-asr-service");
+
+const repoRoot = path.resolve(__dirname, "..");
+
+function readServiceFile(serviceRel, fileName) {
+  return fs.readFileSync(path.join(repoRoot, serviceRel, fileName), "utf8");
+}
 
 function testFunasrPlan() {
   const engine = ENGINES.funasr;
@@ -21,6 +29,9 @@ function testFunasrPlan() {
   assert.match(plist, /<key>FUNASR_PUNC_MODEL<\/key>\n    <string>ct-punc<\/string>/);
   assert.match(plist, /<key>MODELSCOPE_CACHE<\/key>\n    <string>\/tmp\/HomeAI\/services\/funasr-local\/models\/modelscope<\/string>/);
   assert.match(plist, /<key>FUNASR_TMP_DIR<\/key>\n    <string>\/tmp\/HomeAI\/services\/funasr-local\/tmp<\/string>/);
+  assert.match(readServiceFile(engine.serviceRel, "requirements.txt"), /imageio-ffmpeg/);
+  assert.match(readServiceFile(engine.serviceRel, "app.py"), /def audio_path_for_model/);
+  assert.match(readServiceFile(engine.serviceRel, "app.py"), /ffmpeg_available/);
 }
 
 function testSenseVoicePlan() {
@@ -37,6 +48,9 @@ function testSenseVoicePlan() {
   assert.match(plist, /<key>SENSEVOICE_USE_ITN<\/key>\n    <string>1<\/string>/);
   assert.match(plist, /<key>MODELSCOPE_CACHE<\/key>\n    <string>\/tmp\/HomeAI\/services\/sensevoice-local\/models\/modelscope<\/string>/);
   assert.match(plist, /<key>SENSEVOICE_TMP_DIR<\/key>\n    <string>\/tmp\/HomeAI\/services\/sensevoice-local\/tmp<\/string>/);
+  assert.match(readServiceFile(engine.serviceRel, "requirements.txt"), /imageio-ffmpeg/);
+  assert.match(readServiceFile(engine.serviceRel, "app.py"), /def audio_path_for_model/);
+  assert.match(readServiceFile(engine.serviceRel, "app.py"), /ffmpeg_available/);
 }
 
 testFunasrPlan();

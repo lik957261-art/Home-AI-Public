@@ -1,4 +1,5 @@
 import os
+import subprocess
 import tempfile
 import threading
 import time
@@ -11,6 +12,11 @@ try:
     from funasr import AutoModel
 except Exception:
     AutoModel = None
+
+try:
+    import imageio_ffmpeg
+except Exception:
+    imageio_ffmpeg = None
 
 
 SERVICE_ID = os.getenv("LOCAL_ASR_SERVICE_ID", "funasr-local")
@@ -33,6 +39,44 @@ _model_error = None
 
 def clean_text(value):
     return str(value or "").strip()
+
+
+def ffmpeg_executable():
+    if imageio_ffmpeg is None:
+        return ""
+    try:
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return ""
+
+
+def audio_path_for_model(source_path):
+    suffix = os.path.splitext(source_path)[1].lower()
+    if suffix in {".wav", ".flac"}:
+        return source_path, None
+    ffmpeg = ffmpeg_executable()
+    if not ffmpeg:
+        return source_path, None
+    fd, wav_path = tempfile.mkstemp(prefix="home-ai-funasr-normalized-", suffix=".wav", dir=TMP_DIR)
+    os.close(fd)
+    command = [
+        ffmpeg,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        source_path,
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-f",
+        "wav",
+        wav_path,
+    ]
+    subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return wav_path, wav_path
 
 
 def load_model():
@@ -104,6 +148,7 @@ def health():
         "merge_vad": MERGE_VAD,
         "merge_length_s": MERGE_LENGTH_S,
         "tmp_dir": TMP_DIR,
+        "ffmpeg_available": bool(ffmpeg_executable()),
     }
 
 
@@ -118,14 +163,16 @@ async def transcribe_openai_style(
     suffix = os.path.splitext(file.filename or "audio.webm")[1] or ".webm"
     fd, tmp_path = tempfile.mkstemp(prefix="home-ai-funasr-", suffix=suffix, dir=TMP_DIR)
     os.close(fd)
+    normalized_path = None
     try:
         with open(tmp_path, "wb") as handle:
             handle.write(await file.read())
         model = load_model()
         started = time.monotonic()
         hotword = clean_text(initial_prompt)
+        model_input, normalized_path = audio_path_for_model(tmp_path)
         kwargs = {
-            "input": tmp_path,
+            "input": model_input,
             "batch_size_s": BATCH_SIZE_S,
         }
         if hotword:
@@ -149,6 +196,8 @@ async def transcribe_openai_style(
         )
     finally:
         try:
+            if normalized_path:
+                os.unlink(normalized_path)
             os.unlink(tmp_path)
         except Exception:
             pass
