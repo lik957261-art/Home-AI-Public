@@ -1239,6 +1239,7 @@ const markRunCancelled = (...args) => getGatewayRuntimeCompositionService().mark
 const reconcileDetachedActiveRuns = (...args) => getGatewayRuntimeCompositionService().reconcileDetachedActiveRuns(...args);
 const resolveAuthorizedCronOutputFile = (query, auth = null) => automationProvider.resolveAuthorizedOutputFile({ query, auth });
 const resolveAuthorizedCronDeliverableFile = (query, auth = null) => automationProvider.resolveAuthorizedDeliverableFile({ query, auth });
+let mobileApiServices = {};
 const mobileRuntimeThreadFacadeService = createMobileRuntimeThreadFacadeService({
   actionInboxService, attachUploadedArtifactsToMessage, authCanAccessWorkspace, authenticateRequest, broadcast,
   chatGroupMemberWorkspaceIds, compactMessage, compactThread, compactThreadWithMessagePage, deriveTitle,
@@ -1246,7 +1247,9 @@ const mobileRuntimeThreadFacadeService = createMobileRuntimeThreadFacadeService(
   findWorkspace, formatDirectTodoCreateSuccessMessage, gatewayRoutingForModelRun,
   getRuntimeStateNormalizationService, getRuntimeStateThreadService, getSemanticDirectoryAttachmentService, getSingleWindowThreadService,
   groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID, interpretKanbanNaturalLanguage, isOwnerAuth, kanbanCardProvider,
-  kanbanCaseTopicPermissionsForTaskGroup, kanbanSingleCardCasePayload, makeId, maxMessageChars: MAX_MESSAGE_CHARS, nowIso,
+  kanbanCaseTopicPermissionsForTaskGroup, kanbanSingleCardCasePayload,
+  learnSentText: (payload) => mobileApiServices?.voiceInputService?.learnSentText?.(payload),
+  makeId, maxMessageChars: MAX_MESSAGE_CHARS, nowIso,
   ownerElevationInstructions, precedingUserMessageForAssistant, publicArtifactFromClient, publicTodo, readBody, removeThreadActiveRun,
   requireOwner, runConcurrencyError, runConcurrencySnapshot, sanitizeElevationScope, saveState, sendJson, senderInfoForWorkspace,
   singleWindowChatTaskGroupId, startRunForThread, taskGroupHasRunningRun, threadMessageInitialLimit: THREAD_MESSAGE_INITIAL_LIMIT,
@@ -1254,11 +1257,10 @@ const mobileRuntimeThreadFacadeService = createMobileRuntimeThreadFacadeService(
   verifyDirectTodoCreateResult, webPushDeliveryService: () => webPushDeliveryService, workspaceIdForPrincipal, workspacePrincipal,
 });
 const getThreadRuntimeCompositionService = (...args) => mobileRuntimeThreadFacadeService.getThreadRuntimeCompositionService(...args);
-const getThreadOwnerElevationRetryService = (...args) => mobileRuntimeThreadFacadeService.getThreadOwnerElevationRetryService(...args);
 const getThreadMessageCreateService = (...args) => mobileRuntimeThreadFacadeService.getThreadMessageCreateService(...args);
 const getThreadDirectCreateExecutionService = (...args) => mobileRuntimeThreadFacadeService.getThreadDirectCreateExecutionService(...args);
 const getThreadMessageRunRouteService = (...args) => mobileRuntimeThreadFacadeService.getThreadMessageRunRouteService(...args);
-const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices = {} } = createMobileApiComposition({
+const { eventStreamApiRoutes, mobileApiDispatcher, services: composedMobileApiServices = {} } = createMobileApiComposition({
   accessToken: null, actionInboxService, activeStreams: () => activeStreams, ackWeixinOutboundDelivery, appRouteUrl, appUpdateStatus,
   applyAppUpdate, attachClientVersionHeaders, authCanAccessWorkspace, authenticateRequest, authProvider,
   automationCreateModel: AUTOMATION_CREATE_MODEL, learningGrowthJitModel: LEARNING_GROWTH_JIT_MODEL, learningGrowthJitReasoningEffort: LEARNING_GROWTH_JIT_REASONING_EFFORT, automationProvider, basename: (value) => path.basename(value), boolParam, bootTrace, broadcast,
@@ -1302,6 +1304,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: mobileApiServices =
   repoRoot: TOOL_ROOT, writeFile: (filePath, buffer, options = {}) => fs.writeFileSync(filePath, buffer, { flag: options.flag || "w" }),
   writeKanbanCardListCache,
 });
+Object.assign(mobileApiServices, composedMobileApiServices);
 createMobileRuntimeHttpServerService({
   activeStreams, authProvider, dataDir: DATA_DIR, disableAuth: DISABLE_AUTH, effectiveHermesApiBase, eventStreamApiRoutes,
   getUrl, host: HOST, http, httpRuntimeService, logger: console, mobileApiDispatcher, mobileApiServices, port: PORT,

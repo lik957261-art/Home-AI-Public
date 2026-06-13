@@ -124,6 +124,7 @@ function createThreadMessageCreateService(options = {}) {
   const isOwnerAuth = maybeCall(options.isOwnerAuth, () => false);
   const kanbanCaseTopicPermissionsForTaskGroup = maybeCall(options.kanbanCaseTopicPermissionsForTaskGroup, () => null);
   const kanbanSingleCardCasePayload = maybeCall(options.kanbanSingleCardCasePayload, () => ({}));
+  const learnSentText = maybeCall(options.learnSentText, () => {});
   const makeId = maybeCall(options.makeId, (prefix = "id") => `${prefix}-${Date.now()}`);
   const normalizeTaskGroupMeta = maybeCall(options.normalizeTaskGroupMeta, defaultNormalizeTaskGroupMeta);
   const nowIso = maybeCall(options.nowIso, () => new Date().toISOString());
@@ -685,6 +686,26 @@ function createThreadMessageCreateService(options = {}) {
     });
   }
 
+  function recordSentTextLearning(thread, plan) {
+    const text = cleanString(plan?.text || plan?.normalizedBody?.text || "");
+    if (!text) return;
+    try {
+      learnSentText({
+        text,
+        finalText: text,
+        actorId: plan?.senderInfo?.senderPrincipalId || plan?.actorWorkspaceId || thread?.workspaceId || "owner",
+        workspaceId: plan?.actorWorkspaceId || thread?.workspaceId || "owner",
+        surfaceType: plan?.taskGroupId ? "topic_chat" : "chat",
+        threadId: thread?.id || "",
+        pluginId: cleanString(plan?.body?.pluginId || plan?.body?.plugin_id || ""),
+        language: "",
+      });
+    } catch (err) {
+      // Learning must not block message creation or model dispatch.
+      console.warn("[voice-input] server sent text learning failed", err?.message || err);
+    }
+  }
+
   function commitPlainMessage(thread, plan) {
     applyTitleUpdate(thread, plan);
     ensureMessageArray(thread).push(plan.userMessage);
@@ -694,6 +715,7 @@ function createThreadMessageCreateService(options = {}) {
     broadcastThreadUpdated(thread);
     broadcastMessageUpdated(thread, plan.userMessage);
     notifyGroupChatMentions(thread, plan.userMessage);
+    recordSentTextLearning(thread, plan);
     return {
       ok: true,
       status: 201,
@@ -732,6 +754,7 @@ function createThreadMessageCreateService(options = {}) {
     broadcastMessageUpdated(thread, plan.userMessage);
     broadcastMessageUpdated(thread, plan.assistantMessage);
     if (plan.isGroupChatMessage) notifyGroupChatMentions(thread, plan.userMessage);
+    recordSentTextLearning(thread, plan);
 
     if (plan.queueBehindActiveChatRun) {
       return {

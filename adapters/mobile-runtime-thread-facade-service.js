@@ -49,6 +49,7 @@ function createMobileRuntimeThreadFacadeService(options = {}) {
         kanbanCardProvider: options.kanbanCardProvider,
         kanbanCaseTopicPermissionsForTaskGroup: options.kanbanCaseTopicPermissionsForTaskGroup,
         kanbanSingleCardCasePayload: options.kanbanSingleCardCasePayload,
+        learnSentText: options.learnSentText,
         makeId: options.makeId,
         maxMessageChars: options.maxMessageChars,
         normalizeTaskGroupMeta: (...args) => options.getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),

@@ -43,6 +43,7 @@ assert.match(stylesCss, /top: var\(--app-viewport-offset-top, 0\)/);
 assert.match(stylesCss, /height: var\(--app-viewport-height, 100dvh\)/);
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.bottom-nav/);
 assert.match(stylesCss, /display: none/);
+assert.match(stylesCss, /:root\.keyboard-viewport-active \.app\.main-back-visible \.composer \{[\s\S]*?bottom: max\(0px, env\(safe-area-inset-bottom\)\);[\s\S]*?padding-bottom: 5px;/);
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.app\.main-back-visible\.plugin-context-nav-mode\.plugin-topic-detail-mode \.composer \{[\s\S]*?bottom: max\(0px, env\(safe-area-inset-bottom\)\);/);
 
 assert.ok(clientVersion);

@@ -19,8 +19,8 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-auto-insert-v728[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-auto-insert-v728[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-auto-insert-v728/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-auto-insert-v728/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-keyboard-learning-v729[\s\S]*app-voice-input-ui\.js\?v=20260613-keyboard-learning-v729[\s\S]*app-wire-start-ui\.js\?v=20260613-keyboard-learning-v729/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-keyboard-learning-v729/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }

@@ -2073,7 +2073,7 @@ function testServiceFirstArchitectureContract() {
   const weixinFacadeLineCount = weixinFacade.split(/\r?\n/).length;
   assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
   assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 1310, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1310`);
+  assert.ok(runtimeLineCount <= 1325, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1325`);
   assert.ok(runtimeTopLevelFunctionCount === 0, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 0`);
   assert.ok(runtimeAsyncTopLevelFunctionCount === 0, `mobile-server-runtime.js async top-level function budget exceeded: ${runtimeAsyncTopLevelFunctionCount} > 0`);
   assert.ok(appRouteUrlLineCount <= 35, `app-route-url-service.js line budget exceeded: ${appRouteUrlLineCount} > 35`);

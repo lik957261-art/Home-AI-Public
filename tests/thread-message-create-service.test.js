@@ -14,6 +14,7 @@ function makeHarness(overrides = {}) {
     concurrency: [],
     directTodoNotifications: [],
     gatewayRouting: [],
+    learned: [],
     mentions: [],
     removedRuns: [],
     saved: 0,
@@ -80,6 +81,10 @@ function makeHarness(overrides = {}) {
     kanbanSingleCardCasePayload: (content, description, sourceText) => ({
       casePayload: `${content || ""}|${description || ""}|${sourceText || ""}`,
     }),
+    learnSentText: (payload) => {
+      calls.learned.push(payload);
+      if (overrides.learnSentTextThrows) throw new Error("learning failed");
+    },
     workspaceIdForPrincipal: (principalId) => principalId ? `workspace:${principalId}` : "",
     workspacePrincipal: (workspaceId) => `principal-for:${workspaceId}`,
     notifyTodoCreated: (result, principal) => calls.directTodoNotifications.push({ result, principal }),
@@ -566,6 +571,37 @@ async function testQueuedChatRunSkipsConcurrencyAndStart() {
   assert.equal(thread.status, "running");
 }
 
+async function testServerSideSentTextLearningAfterMessageCommit() {
+  const { calls, service } = makeHarness();
+  const thread = baseThread({ workspaceId: "owner", singleWindow: true });
+  const plan = service.prepareThreadMessageCreate({
+    thread,
+    body: { text: "Home AI Codex Mobile", singleWindowMode: "chat", taskGroupId: "chat-main" },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+  assert.equal(plan.ok, true);
+  const result = await service.commitRunMessageAndDispatch(thread, plan);
+  assert.equal(result.status, 202);
+  assert.equal(calls.learned.length, 1);
+  assert.equal(calls.learned[0].text, "Home AI Codex Mobile");
+  assert.equal(calls.learned[0].workspaceId, "owner");
+  assert.equal(calls.learned[0].surfaceType, "topic_chat");
+  assert.equal(calls.learned[0].threadId, thread.id);
+
+  const failing = makeHarness({ learnSentTextThrows: true });
+  const plainThread = baseThread({ workspaceId: "owner", singleWindow: true, memberWorkspaceIds: ["owner"] });
+  const plainPlan = failing.service.prepareThreadMessageCreate({
+    thread: plainThread,
+    body: { text: "plain text still sends", singleWindowMode: "chat", taskGroupId: "group-chat", messageKind: "plain" },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+  assert.equal(plainPlan.nextAction, "plain-message");
+  const committed = failing.service.commitPlainMessage(plainThread, plainPlan);
+  assert.equal(committed.status, 201);
+  assert.equal(failing.calls.learned.length, 1);
+  assert.equal(plainThread.messages.length, 1);
+}
+
 function testConcurrencyErrorBeforeStateMutation() {
   const { service } = makeHarness({
     concurrencyError: {
@@ -601,6 +637,7 @@ testNaturalLanguageGrokRouteOverridesDefaultChatGptModel();
 testDeepSeekOwnerMaintenanceRouteUsesHighPermissionProfile();
 testSearchSourceRunOptions();
   await testQueuedChatRunSkipsConcurrencyAndStart();
+  await testServerSideSentTextLearningAfterMessageCommit();
   testConcurrencyErrorBeforeStateMutation();
   console.log("thread-message-create-service tests passed");
 })().catch((err) => {
