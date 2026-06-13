@@ -2,6 +2,29 @@
 
 const COMPOSER_SEND_TIMEOUT_MS = 30000;
 
+function learnVoiceInputSentText(text, body = {}) {
+  const finalText = String(text || "").trim();
+  if (!finalText) return;
+  const payload = {
+    text: finalText,
+    workspaceId: state.selectedWorkspaceId,
+    surfaceType: state.viewMode === "tasks" ? "topic_chat" : "chat",
+    threadId: state.currentThreadId || state.currentThread?.id || "",
+    language: "",
+  };
+  if (body?.taskGroupId && typeof pluginTopicDefForGroupId === "function") {
+    const pluginTopicDef = pluginTopicDefForGroupId(body.taskGroupId);
+    if (pluginTopicDef?.id) payload.pluginId = pluginTopicDef.id;
+  }
+  api("/api/voice-input/learn-sent-text", {
+    method: "POST",
+    body: JSON.stringify(payload),
+    timeoutMs: 8000,
+  }).catch((err) => {
+    console.warn("[voice-input] sent text learning failed", err?.message || err);
+  });
+}
+
 function connectEvents() {
   if (state.events) state.events.close();
   const params = new URLSearchParams();
@@ -184,6 +207,8 @@ async function sendMessage(event) {
     });
     clearOptimisticSendMessages(optimisticSend, { render: false });
     handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
+    if (typeof commitPendingVoiceInputFinalText === "function") commitPendingVoiceInputFinalText(text, body);
+    learnVoiceInputSentText(text, body);
   } catch (err) {
     const clearedOptimisticSend = clearOptimisticSendMessages(optimisticSend, { render: true });
     if (clearedOptimisticSend && typeof requestCurrentThreadRefresh === "function") {
@@ -221,6 +246,8 @@ async function sendMessage(event) {
             body: serializedElevatedBody,
           });
           handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
+          if (typeof commitPendingVoiceInputFinalText === "function") commitPendingVoiceInputFinalText(elevatedBody.text || "", elevatedBody);
+          learnVoiceInputSentText(elevatedBody.text || "", elevatedBody);
           return;
         } catch (elevatedErr) {
           setComposerText(originalText);

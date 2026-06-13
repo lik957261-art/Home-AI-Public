@@ -58,6 +58,7 @@ function ensureVoiceInputState(runtimeState) {
   if (!root.voiceInput || typeof root.voiceInput !== "object" || Array.isArray(root.voiceInput)) root.voiceInput = {};
   if (!Array.isArray(root.voiceInput.audit)) root.voiceInput.audit = [];
   if (!Array.isArray(root.voiceInput.corrections)) root.voiceInput.corrections = [];
+  if (!Array.isArray(root.voiceInput.phrasebook)) root.voiceInput.phrasebook = [];
   return root.voiceInput;
 }
 
@@ -122,6 +123,9 @@ function createVoiceInputService(options = {}) {
         persistFullTranscripts: false,
       },
       correctionCount: corrections.length,
+      phrasebookCount: typeof options.correctionService.listPhrases === "function"
+        ? options.correctionService.listPhrases(scoped).length
+        : 0,
     };
   }
 
@@ -221,6 +225,7 @@ function createVoiceInputService(options = {}) {
       corrections: {
         applied: corrected.applied,
         suggestions: corrected.suggestions,
+        phrasebookApplied: corrected.phrasebookApplied || [],
       },
     };
   }
@@ -257,6 +262,30 @@ function createVoiceInputService(options = {}) {
     return Object.assign({ ok: true, voiceSessionId: sessionId }, result);
   }
 
+  function learnSentText(input = {}) {
+    if (typeof options.correctionService.recordSentTextEvidence !== "function") {
+      throw errorWithStatus("voice phrasebook learning is unavailable", 503, "voice_phrasebook_learning_unavailable");
+    }
+    const scope = normalizeScope(input);
+    const finalText = cleanString(input.finalText || input.final_text || input.text || "", 240000);
+    if (!finalText) throw errorWithStatus("voice sent text is required", 400, "voice_sent_text_required");
+    if (typeof options.correctionService.seedSystemPhrasebook === "function") {
+      options.correctionService.seedSystemPhrasebook(scope);
+    }
+    const result = options.correctionService.recordSentTextEvidence(Object.assign({}, scope, { text: finalText }));
+    appendAudit({
+      event: "sent_text",
+      actorId: scope.actorId,
+      workspaceId: scope.workspaceId,
+      surfaceType: scope.surfaceType,
+      pluginId: scope.pluginId,
+      threadId: scope.threadId,
+      textChars: finalText.length,
+      recordedCount: result.recorded.length,
+    });
+    return Object.assign({ ok: true }, result);
+  }
+
   function listCorrections(scopeInput = {}) {
     return {
       ok: true,
@@ -278,6 +307,7 @@ function createVoiceInputService(options = {}) {
 
   return Object.freeze({
     commitSession,
+    learnSentText,
     listCorrections,
     status,
     transcribe,

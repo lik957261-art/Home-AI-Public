@@ -191,11 +191,12 @@ const ROUTE_MODULES = Object.freeze([
     key: "voice-input-api-routes",
     exportName: "createVoiceInputApiRoutes",
     required: false,
-    minRoutes: 5,
+    minRoutes: 6,
     probes: [
       { method: "GET", path: "/api/voice-input/status", id: "voice-input-status" },
       { method: "POST", path: "/api/voice-input/transcribe", id: "voice-input-transcribe" },
       { method: "POST", path: "/api/voice-input/commit", id: "voice-input-commit" },
+      { method: "POST", path: "/api/voice-input/learn-sent-text", id: "voice-input-learn-sent-text" },
       { method: "GET", path: "/api/voice-input/corrections", id: "voice-input-corrections-list" },
       { method: "PATCH", path: "/api/voice-input/corrections", id: "voice-input-corrections-update" },
     ],
@@ -440,6 +441,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/plugin-topic-usage" }).id, "plugin-topic-usage-merge");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/voice-input/status" }).id, "voice-input-status");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/voice-input/transcribe" }).id, "voice-input-transcribe");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/voice-input/learn-sent-text" }).id, "voice-input-learn-sent-text");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/voice-input/corrections" }).id, "voice-input-corrections-update");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/workspaces/child-a" }).id, "workspaces-admin");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");

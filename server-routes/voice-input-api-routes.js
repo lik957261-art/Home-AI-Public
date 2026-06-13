@@ -49,6 +49,21 @@ const VOICE_INPUT_API_ROUTE_SPECS = Object.freeze([
     tags: ["voice-input", "correction", "composer"],
   },
   {
+    id: "voice-input-learn-sent-text",
+    method: "POST",
+    path: "/api/voice-input/learn-sent-text",
+    group: "voice-input",
+    moduleKey: "voice-input",
+    handlerKey: "learnSentText",
+    summary: "Extract bounded phrasebook candidates from successfully sent composer text.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "phrasebook", "composer"],
+    tags: ["voice-input", "phrasebook", "composer"],
+  },
+  {
     id: "voice-input-corrections-list",
     method: "GET",
     path: "/api/voice-input/corrections",
@@ -183,6 +198,19 @@ function createVoiceInputApiRoutes(deps = {}) {
     }
   }
 
+  async function handleLearnSentText(req, res, url, context = {}) {
+    let body;
+    try {
+      body = await readJsonBody(req);
+      const workspaceId = requireWorkspace(req, res, url, body, context);
+      if (!workspaceId) return;
+      const result = deps.voiceInputService.learnSentText(Object.assign({}, body, scopeFromRequest(url, body, context.auth, workspaceId)));
+      deps.sendJson(res, 200, result);
+    } catch (err) {
+      sendServiceError(res, err);
+    }
+  }
+
   function handleListCorrections(req, res, url, context = {}) {
     const body = {};
     const workspaceId = requireWorkspace(req, res, url, body, context);
@@ -218,6 +246,10 @@ function createVoiceInputApiRoutes(deps = {}) {
     }
     if (route.id === "voice-input-commit") {
       await handleCommit(req, res, url, context);
+      return { handled: true, route, auth: context.auth || null };
+    }
+    if (route.id === "voice-input-learn-sent-text") {
+      await handleLearnSentText(req, res, url, context);
       return { handled: true, route, auth: context.auth || null };
     }
     if (route.id === "voice-input-corrections-list") {

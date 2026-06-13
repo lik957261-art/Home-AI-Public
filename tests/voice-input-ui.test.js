@@ -19,9 +19,10 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-keyboard-composer-v726[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-keyboard-composer-v726[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-keyboard-composer-v726/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-keyboard-composer-v726/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-auto-insert-v728[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-auto-insert-v728[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-auto-insert-v728/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-auto-insert-v728/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
+  assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
 
 function testSendButtonGestureContract() {
@@ -34,6 +35,9 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /\/api\/voice-input\/status/);
   assert.match(voiceUi, /\/api\/voice-input\/transcribe/);
   assert.match(voiceUi, /\/api\/voice-input\/commit/);
+  assert.match(read("public/app-event-stream-ui.js"), /function learnVoiceInputSentText\(text, body = \{\}\)/);
+  assert.match(read("public/app-event-stream-ui.js"), /\/api\/voice-input\/learn-sent-text/);
+  assert.match(read("public/app-event-stream-ui.js"), /handleSendMessageResult\(result, createsNewTask, consumedPendingDirectory\);\s+if \(typeof commitPendingVoiceInputFinalText === "function"\) commitPendingVoiceInputFinalText\(text, body\);\s+learnVoiceInputSentText\(text, body\);/);
   assert.match(wireStart, /if \(typeof initializeVoiceInputUi === "function"\) initializeVoiceInputUi\(\)/);
   assert.match(wireStart, /handleVoiceInputSendClick\(event\)[\s\S]*void sendMessage\(event\)/);
   assert.match(composerUi, /refreshVoiceInputSendButton/);
@@ -41,10 +45,19 @@ function testSendButtonGestureContract() {
 
 function testNativeDraftInsertionAndPrivacyBoundary() {
   assert.match(voiceUi, /function insertVoiceInputTranscript\(mode = "append"\)/);
+  assert.match(voiceUi, /await insertVoiceInputTranscript\("append"\)/);
   assert.match(voiceUi, /function voiceInputComposerForButton\(button\)/);
   assert.match(voiceUi, /composer\.setText\?\.\(next\)/);
   assert.match(voiceUi, /composer\.setCaret\?\.\(caret\)/);
-  assert.match(voiceUi, /await commitVoiceInputSession\(text\)/);
+  assert.match(voiceUi, /function trackPendingVoiceInputCommit\(finalText\)/);
+  assert.match(voiceUi, /function commitPendingVoiceInputFinalText\(finalText, body = \{\}\)/);
+  assert.match(voiceUi, /trackPendingVoiceInputCommit\(text\)/);
+  assert.doesNotMatch(voiceUi, /await commitVoiceInputSession\(text\)/);
+  assert.doesNotMatch(voiceUi, /data-voice-action="append"/);
+  assert.doesNotMatch(voiceUi, /data-voice-action="replace"/);
+  assert.doesNotMatch(voiceUi, /data-voice-action="discard"/);
+  assert.match(voiceUi, /durationMs < VOICE_INPUT_MIN_CLIENT_DURATION_MS\) \{[\s\S]*?closeVoiceInputOverlay\(\);/);
+  assert.doesNotMatch(voiceUi, /录音时间太短/);
   assert.doesNotMatch(voiceUi, /document\.querySelector\(["']iframe/);
 }
 

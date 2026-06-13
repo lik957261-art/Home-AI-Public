@@ -216,19 +216,26 @@ Required harness dimensions:
 - Correction extraction stores only short replacement pairs and bounded
   metadata; it rejects structured spans such as dates, amounts, file paths,
   URLs, commands, and code.
+- Phrasebook learning covers `system_seed`, `sent_text`, and `voice_diff`.
+  `sent_text` records only bounded phrase entries after a successful composer
+  send, not keystrokes, third-party input-method internals, failed sends, or
+  full sent messages.
 - Auto-apply requires repeated evidence and no recent rejection. Undo or
   disable lowers or blocks future application.
 - Native composer insertion uses host draft state. Plugin injection uses
   postMessage capability state and rejects wrong origin, wrong plugin id, stale
   session id, unsupported actions, and over-limit text.
-- Default insertion appends text. Replace and submit require explicit user
-  action and fresh capability state.
+- Native host composer insertion automatically appends transcribed text.
+  Replace, discard, and direct submit are not exposed as separate host-native
+  post-transcription choices; ordinary composer edit/send/delete behavior
+  expresses accept, edit, or discard.
 - Home AI chat composer first adoption updates draft state through host draft
   APIs. Codex Mobile first plugin adoption updates draft state through its
   embedded plugin bridge, not through simulated keyboard events.
 - Installed-PWA visual evidence proves the host overlay is outside the iframe,
   does not overlap bottom navigation, plugin Dock, keyboard, or plugin
-  composer, and returns to a stable composer surface after insert/discard.
+  composer, auto-inserts into the active composer, and returns to a stable
+  composer surface after automatic insert or cancellation.
 
 Focused checks:
 

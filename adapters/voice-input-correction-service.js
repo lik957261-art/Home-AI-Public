@@ -24,6 +24,26 @@ function normalizeText(value, maxLength = 240000) {
   return String(value == null ? "" : value).replace(/\r\n?/g, "\n").trim().slice(0, maxLength);
 }
 
+const DEFAULT_SYSTEM_PHRASES = Object.freeze([
+  { term: "Home AI", aliases: ["home ai", "HomeAI"] },
+  { term: "Codex", aliases: ["codex"] },
+  { term: "Codex Mobile", aliases: ["codex mobile"] },
+  { term: "ChatGPT Pro", aliases: ["chatgpt pro", "Chat GPT Pro"] },
+  { term: "MCP", aliases: ["mcp"] },
+  { term: "Gateway", aliases: ["gateway"] },
+  { term: "handoff", aliases: ["hand off", "Hand off"] },
+  { term: "Growth", aliases: ["growth"] },
+  { term: "Email", aliases: ["email"] },
+  { term: "Note", aliases: ["note"] },
+  { term: "Wardrobe", aliases: ["wardrobe"] },
+  { term: "Finance", aliases: ["finance"] },
+  { term: "衣橱", aliases: ["衣柜"] },
+  { term: "记账", aliases: ["计账"] },
+  { term: "目录", aliases: [] },
+  { term: "话题", aliases: [] },
+  { term: "交付文件", aliases: ["交付的文件"] },
+]);
+
 function containsStructuredSpan(text) {
   const value = String(text || "");
   return (
@@ -69,6 +89,36 @@ function candidateIsSafe(candidate, options = {}) {
   return true;
 }
 
+function normalizePhraseTerm(value, maxLength = 80) {
+  return String(value == null ? "" : value)
+    .replace(/\s+/g, " ")
+    .replace(/^[\s"'`“”‘’【】()[\]{}<>]+|[\s"'`“”‘’【】()[\]{}<>，。；：、.!?:;]+$/g, "")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function phraseIsSafe(term) {
+  const value = normalizePhraseTerm(term);
+  if (value.length < 2 || value.length > 40) return false;
+  if (containsStructuredSpan(value)) return false;
+  if (/^\d+$/.test(value)) return false;
+  if (/^[\p{P}\p{S}\s]+$/u.test(value)) return false;
+  return /[\p{L}\p{N}\u4e00-\u9fff]/u.test(value);
+}
+
+function phraseKeyFor(entry) {
+  return [
+    entry.actorId,
+    entry.workspaceId,
+    entry.surfaceType || "",
+    entry.pluginId || "",
+    entry.threadId || "",
+    entry.language || "",
+    entry.source || "",
+    String(entry.term || "").toLocaleLowerCase(),
+  ].join("\u001f");
+}
+
 function scopeKeyFor(entry) {
   return [
     entry.actorId,
@@ -83,7 +133,7 @@ function scopeKeyFor(entry) {
 }
 
 function scopeMatches(entry, scope) {
-  if (entry.actorId !== scope.actorId) return false;
+  if (entry.actorId && entry.actorId !== scope.actorId) return false;
   if (entry.workspaceId !== scope.workspaceId) return false;
   if (entry.surfaceType && entry.surfaceType !== scope.surfaceType) return false;
   if (entry.pluginId && entry.pluginId !== scope.pluginId) return false;
@@ -106,6 +156,7 @@ function ensureVoiceInputState(runtimeState) {
   const root = isPlainObject(runtimeState) ? runtimeState : {};
   if (!isPlainObject(root.voiceInput)) root.voiceInput = {};
   if (!Array.isArray(root.voiceInput.corrections)) root.voiceInput.corrections = [];
+  if (!Array.isArray(root.voiceInput.phrasebook)) root.voiceInput.phrasebook = [];
   if (!Array.isArray(root.voiceInput.audit)) root.voiceInput.audit = [];
   return root.voiceInput;
 }
@@ -131,6 +182,59 @@ function publicCorrection(entry) {
   };
 }
 
+function publicPhrase(entry) {
+  return {
+    id: entry.id,
+    actorId: entry.actorId,
+    workspaceId: entry.workspaceId,
+    surfaceType: entry.surfaceType,
+    pluginId: entry.pluginId || "",
+    threadId: entry.threadId || "",
+    language: entry.language || "",
+    term: entry.term,
+    source: entry.source || "sent_text",
+    status: entry.status,
+    supportCount: entry.supportCount,
+    aliases: Array.isArray(entry.aliases) ? entry.aliases.slice(0, 12) : [],
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt,
+    lastSeenAt: entry.lastSeenAt || "",
+    lastAppliedAt: entry.lastAppliedAt || "",
+  };
+}
+
+function uniquePhrases(items) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items) {
+    const term = normalizePhraseTerm(item);
+    const key = term.toLocaleLowerCase();
+    if (!phraseIsSafe(term) || seen.has(key)) continue;
+    seen.add(key);
+    result.push(term);
+  }
+  return result;
+}
+
+function extractPhraseCandidatesFromText(text, options = {}) {
+  const value = normalizeText(text, 8000);
+  if (!value) return [];
+  const candidates = [];
+  const latinPattern = /\b(?:[A-Z][A-Za-z0-9]*(?:[ -][A-Z0-9][A-Za-z0-9]*){0,4}|[A-Z]{2,8}|[A-Za-z]+(?:[ -](?:AI|API|MCP|PWA|CLI|UI|ASR|LLM|OAuth|Codex|Gateway|Home)){1,4})\b/g;
+  for (const match of value.matchAll(latinPattern)) {
+    candidates.push(match[0]);
+  }
+  const cjkChunks = value
+    .split(/[，。！？、；：,.!?;:\n\r\t()[\]{}"'`“”‘’<>]+/)
+    .map((part) => normalizePhraseTerm(part, 40))
+    .filter((part) => part.length >= 2 && part.length <= 12);
+  for (const chunk of cjkChunks) {
+    if (/^[\u4e00-\u9fffA-Za-z0-9 ]+$/.test(chunk)) candidates.push(chunk);
+  }
+  const explicit = Array.isArray(options.candidates) ? options.candidates : [];
+  return uniquePhrases([...explicit, ...candidates]).slice(0, 16);
+}
+
 function createVoiceInputCorrectionService(options = {}) {
   const state = typeof options.state === "function" ? options.state : () => ({});
   const saveState = typeof options.saveState === "function" ? options.saveState : () => {};
@@ -138,6 +242,9 @@ function createVoiceInputCorrectionService(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
   const autoApplySupportCount = Math.max(2, Number(options.autoApplySupportCount || 3) || 3);
   const maxCorrections = Math.max(20, Number(options.maxCorrections || 1000) || 1000);
+  const phraseActiveSupportCount = Math.max(2, Number(options.phraseActiveSupportCount || 2) || 2);
+  const maxPhrases = Math.max(50, Number(options.maxPhrases || 2000) || 2000);
+  const systemPhrases = Array.isArray(options.systemPhrases) ? options.systemPhrases : DEFAULT_SYSTEM_PHRASES;
 
   function voiceStore() {
     return ensureVoiceInputState(state());
@@ -200,6 +307,113 @@ function createVoiceInputCorrectionService(options = {}) {
     return { ok: true, recorded };
   }
 
+  function upsertPhrase(input = {}) {
+    const scope = normalizeScope(input);
+    const source = cleanString(input.source || "sent_text", 40) || "sent_text";
+    const term = normalizePhraseTerm(input.term);
+    if (!phraseIsSafe(term)) return null;
+    const now = nowIso();
+    const aliases = uniquePhrases(Array.isArray(input.aliases) ? input.aliases : []);
+    const next = {
+      id: "",
+      actorId: source === "system_seed" ? "" : scope.actorId,
+      workspaceId: scope.workspaceId,
+      surfaceType: source === "system_seed" ? "" : scope.surfaceType,
+      pluginId: source === "system_seed" ? "" : scope.pluginId,
+      threadId: source === "system_seed" ? "" : scope.threadId,
+      language: scope.language,
+      term,
+      source,
+    };
+    const store = voiceStore();
+    const byKey = new Map(store.phrasebook.map((entry) => [phraseKeyFor(entry), entry]));
+    const existing = byKey.get(phraseKeyFor(next));
+    if (existing) {
+      existing.supportCount = Math.max(1, Number(existing.supportCount || 0) + Number(input.supportCount || 1));
+      existing.lastSeenAt = now;
+      existing.updatedAt = now;
+      const aliasSet = new Set([...(existing.aliases || []), ...aliases].map((alias) => normalizePhraseTerm(alias)).filter(phraseIsSafe));
+      existing.aliases = Array.from(aliasSet).slice(0, 12);
+      if (existing.status !== "disabled" && (source === "system_seed" || existing.supportCount >= phraseActiveSupportCount)) existing.status = "active";
+      return publicPhrase(existing);
+    }
+    const entry = Object.assign(next, {
+      id: makeId(source === "system_seed" ? "voice_phrase_system" : "voice_phrase"),
+      status: source === "system_seed" ? "active" : "suggest_only",
+      supportCount: Math.max(1, Number(input.supportCount || (source === "system_seed" ? phraseActiveSupportCount : 1)) || 1),
+      aliases,
+      createdAt: now,
+      updatedAt: now,
+      lastSeenAt: now,
+      lastAppliedAt: "",
+    });
+    if (entry.supportCount >= phraseActiveSupportCount && entry.status !== "disabled") entry.status = "active";
+    store.phrasebook.unshift(entry);
+    store.phrasebook = store.phrasebook.slice(0, maxPhrases);
+    return publicPhrase(entry);
+  }
+
+  function seedSystemPhrasebook(scopeInput = {}) {
+    const recorded = [];
+    for (const item of systemPhrases) {
+      const term = typeof item === "string" ? item : item?.term;
+      const aliases = typeof item === "string" ? [] : item?.aliases;
+      const phrase = upsertPhrase(Object.assign({}, scopeInput, {
+        term,
+        aliases,
+        source: "system_seed",
+        supportCount: phraseActiveSupportCount,
+      }));
+      if (phrase) recorded.push(phrase);
+    }
+    if (recorded.length) saveState();
+    return { ok: true, recorded };
+  }
+
+  function recordSentTextEvidence(input = {}) {
+    const text = normalizeText(input.text || input.finalText || input.final_text, 8000);
+    const phrases = extractPhraseCandidatesFromText(text, input);
+    if (!phrases.length) return { ok: true, recorded: [] };
+    const recorded = [];
+    for (const phrase of phrases) {
+      const entry = upsertPhrase(Object.assign({}, input, {
+        term: phrase,
+        source: "sent_text",
+      }));
+      if (entry) recorded.push(entry);
+    }
+    if (recorded.length) saveState();
+    return { ok: true, recorded };
+  }
+
+  function activePhraseEntries(scope) {
+    return voiceStore().phrasebook
+      .filter((entry) => entry && entry.status !== "disabled" && scopeMatches(entry, scope))
+      .filter((entry) => entry.term && (entry.status === "active" || entry.source === "system_seed"));
+  }
+
+  function applyPhrasebook(text, scope) {
+    let nextText = text;
+    const applied = [];
+    const now = nowIso();
+    const phrases = activePhraseEntries(scope);
+    phrases.sort((a, b) => String(b.term || "").length - String(a.term || "").length);
+    for (const entry of phrases.slice(0, 80)) {
+      const aliases = uniquePhrases([...(entry.aliases || []), entry.term]).filter((alias) => alias !== entry.term);
+      for (const alias of aliases.slice(0, 12)) {
+        if (!/^[A-Za-z][A-Za-z0-9 +_.-]*$/.test(alias) || !/^[A-Za-z][A-Za-z0-9 +_.-]*$/.test(entry.term)) continue;
+        const pattern = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi");
+        const replaced = nextText.replace(pattern, entry.term);
+        if (replaced !== nextText) {
+          nextText = replaced;
+          entry.lastAppliedAt = now;
+          applied.push(publicPhrase(entry));
+        }
+      }
+    }
+    return { text: nextText, applied };
+  }
+
   function applyCorrections(input = {}) {
     const scope = normalizeScope(input);
     let text = normalizeText(input.text);
@@ -208,6 +422,8 @@ function createVoiceInputCorrectionService(options = {}) {
     if (!text) return { text, applied, suggestions };
     const store = voiceStore();
     const now = nowIso();
+    const phraseResult = applyPhrasebook(text, scope);
+    text = phraseResult.text;
     const scoped = store.corrections
       .filter((entry) => entry && entry.status !== "disabled" && scopeMatches(entry, scope))
       .filter((entry) => entry.from && entry.to && text.includes(entry.from));
@@ -230,8 +446,8 @@ function createVoiceInputCorrectionService(options = {}) {
         suggestions.push(replacement);
       }
     }
-    if (applied.length) saveState();
-    return { text, applied, suggestions };
+    if (applied.length || phraseResult.applied.length) saveState();
+    return { text, applied, suggestions, phrasebookApplied: phraseResult.applied };
   }
 
   function listCorrections(scopeInput = {}) {
@@ -239,6 +455,13 @@ function createVoiceInputCorrectionService(options = {}) {
     return voiceStore().corrections
       .filter((entry) => scopeMatches(entry, scope))
       .map(publicCorrection);
+  }
+
+  function listPhrases(scopeInput = {}) {
+    const scope = normalizeScope(scopeInput);
+    return voiceStore().phrasebook
+      .filter((entry) => scopeMatches(entry, scope) || entry.source === "system_seed")
+      .map(publicPhrase);
   }
 
   function updateCorrectionStatus(input = {}) {
@@ -280,10 +503,14 @@ function createVoiceInputCorrectionService(options = {}) {
   return Object.freeze({
     applyCorrections,
     containsStructuredSpan,
+    extractPhraseCandidatesFromText,
     extractCorrectionCandidates,
+    listPhrases,
     listCorrections,
     normalizeScope,
     recordCorrectionEvidence,
+    recordSentTextEvidence,
+    seedSystemPhrasebook,
     updateCorrectionStatus,
   });
 }
@@ -293,5 +520,6 @@ module.exports = {
   containsStructuredSpan,
   createVoiceInputCorrectionService,
   diffSingleReplacement,
+  extractPhraseCandidatesFromText,
   normalizeScope,
 };

@@ -56,6 +56,10 @@ function makeRoutes(overrides = {}) {
         calls.push({ type: "commitSession", input });
         return { ok: true, voiceSessionId: input.voiceSessionId, recorded: [] };
       },
+      learnSentText(input) {
+        calls.push({ type: "learnSentText", input });
+        return { ok: true, recorded: [{ term: "Home AI" }] };
+      },
       listCorrections(scope) {
         calls.push({ type: "listCorrections", scope });
         return { ok: true, corrections: [] };
@@ -84,7 +88,7 @@ async function testStatusAndRouteInventory() {
   assert.deepEqual(got.body, { ok: true, enabled: true, correctionCount: 0 });
   assert.equal(calls.find((call) => call.type === "requireWorkspaceAccess").workspaceId, "child-a");
   assert.equal(calls.find((call) => call.type === "status").scope.pluginId, "codex-mobile");
-  assert.equal(routes.summary().total, 5);
+  assert.equal(routes.summary().total, 6);
   assert.equal(routes.match({ method: "POST", path: "/api/voice-input/transcribe" }).id, "voice-input-transcribe");
 }
 
@@ -118,6 +122,15 @@ async function testTranscribeCommitAndCorrectionUpdate() {
   assert.equal(committed.res.statusCode, 200);
   assert.equal(calls.find((call) => call.type === "commitSession").input.actorId, "user-a");
 
+  const learned = await request(routes, "POST", "/api/voice-input/learn-sent-text", {
+    workspaceId: "child-a",
+    pluginId: "codex-mobile",
+    text: "Home AI",
+  }, { principalId: "user-a", workspaceId: "child-a" });
+  assert.equal(learned.res.statusCode, 200);
+  assert.equal(learned.body.recorded[0].term, "Home AI");
+  assert.equal(calls.find((call) => call.type === "learnSentText").input.actorId, "user-a");
+
   const updated = await request(routes, "PATCH", "/api/voice-input/corrections", {
     workspaceId: "child-a",
     id: "corr_1",
@@ -140,6 +153,7 @@ async function testErrorsAreBoundedAndWorkspaceDenialStopsService() {
         throw longError;
       },
       commitSession() {},
+      learnSentText() {},
       listCorrections() {},
       updateCorrection() {},
     },

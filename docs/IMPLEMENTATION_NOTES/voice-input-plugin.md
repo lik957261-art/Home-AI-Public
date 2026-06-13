@@ -73,23 +73,26 @@ The first phase should implement the smallest complete loop:
 2. Preserve existing tap-to-send behavior. A long press on the send button
    starts recording after a bounded threshold; releasing the button finalizes
    the recording and starts transcription.
-3. If the user cancels before release through the explicit cancel affordance,
-   discard the recording without transcription.
+3. If the user releases while the browser microphone permission prompt is still
+   pending, treat the gesture as cancelled and do not start a short recording.
 4. Record a short clip through `navigator.mediaDevices.getUserMedia()` and
    `MediaRecorder` from the top-level Home AI page.
-5. Enforce an initial clip length of 3-30 seconds. Clips outside the bounds fail
-   with a visible, non-destructive diagnostic.
+5. Enforce an initial clip length of 3-30 seconds. Clips that are too short
+   close silently because the user did not produce usable input; long clips or
+   backend failures still fail with a visible, non-destructive diagnostic.
 6. Upload the audio blob to a Home AI API route that delegates to a service,
    not to `server.js` business logic.
 7. Run local ASR through a configured backend such as Whisper Large V3 Turbo,
    FunASR, or a future provider.
-8. Show the transcript in a host overlay text area where the user can edit.
-9. Insert the confirmed text into the active composer by host draft API for
-   native Home AI composers or by plugin injection protocol for embedded
-   plugin composers.
+8. Insert the transcript automatically into the active composer by host draft
+   API for native Home AI composers or by plugin injection protocol for
+   embedded plugin composers.
+9. Let ordinary composer editing express user intent: sending unchanged text
+   means accept; editing then sending means use the edited final text for
+   correction learning; deleting or never sending means discard.
 10. If the composer owner later reports the final submitted text for the same
     voice session, extract conservative correction candidates. If it does not,
-    learn only from edits made inside the host overlay before insertion.
+    keep only the generic sent-text phrasebook evidence from successful sends.
 
 MVP should not require realtime streaming, dictation while typing, arbitrary
 long recordings, background recording, global OS microphone shortcuts, system
@@ -108,19 +111,22 @@ The host overlay is a Home AI shell surface:
   context menus for the gesture target. On iOS/PWA this suppression must be
   enforced at document capture level while recording or while the long-press
   timer is active, not only through button-level CSS;
-- cancellation: an explicit cancel affordance or drag-away threshold may
-  discard the clip before release. A plain release without cancellation starts
-  transcription;
+- cancellation: an explicit cancel affordance or pointer cancellation may
+  discard the clip. If permission is still pending when the user releases the
+  send button, the host cancels silently and must not create a too-short
+  recording failure;
 - suppression: unavailable when fullscreen preview, unsupported composer state,
   in-flight send, unwritable draft, missing microphone permission, or disabled
   ASR backend is active;
 - recording states: idle, requesting permission, recording, paused,
   finalizing, transcribing, editable transcript, inserting, inserted, failed;
-- visible controls after release: discard, retry transcription, edit
-  transcript, append, replace, and optional insert-and-submit when the
-  composer owner declares it safe;
-- default insertion mode: append to current draft. Replace and submit require
-  an explicit user action;
+- visible controls after release: no insert/replace/discard decision is shown
+  for the native host composer path. The transcript is automatically inserted
+  into the composer, where normal editing and final send determine whether the
+  text is accepted, edited, or discarded;
+- default insertion mode: append to current draft. Replace and direct submit
+  are not exposed in the host native MVP. Embedded plugins may still implement
+  append/replace bridge actions when their own UI requires them;
 - correction feedback: when corrections are applied, show a light host notice
   such as `Applied 2 personal corrections`, with undo and manage actions.
 
@@ -169,7 +175,7 @@ Implementation should follow the service-first rule:
   - defines the backend interface and provider registry;
 - `adapters/voice-input-correction-service.js`
   - owns diff extraction, candidate scoring, scope resolution, application,
-    undo/disable, and cleanup;
+    phrasebook seed/learning, undo/disable, and cleanup;
 - `server-routes/voice-input-api-routes.js`
   - owns upload/transcribe/correction API glue and calls services;
 - `public/app-voice-input-ui.js`
@@ -179,6 +185,69 @@ Implementation should follow the service-first rule:
   - own focused service, route, and UI bridge coverage.
 
 `server.js` should only register the route module and wire dependencies.
+
+## Phrasebook Learning Sources
+
+Home AI voice input correction uses three bounded learning sources:
+
+1. `system_seed`
+   - Home AI preloads workspace-safe vocabulary from platform concepts,
+     plugin ids, plugin display names, common toolset names, and local product
+     terms such as `Home AI`, `Codex`, `Codex Mobile`, `MCP`, `Gateway`,
+     `handoff`, `Growth`, `Email`, `Note`, `Wardrobe`, `Finance`, `衣橱`,
+     `记账`, `目录`, `话题`, and `交付文件`.
+   - System seed entries may include explicit aliases such as lowercase English
+     variants. They are active immediately because they are product vocabulary,
+     not inferred private content.
+   - Seed entries are public-deployable defaults and must not include private
+     paths, access keys, personal secrets, or one-user-only phrases.
+
+2. `sent_text`
+   - After a composer send succeeds, Home AI may submit the final sent text to
+     the voice learning service, regardless of whether the source was Home AI
+     voice input, the system keyboard, a third-party input method, paste, or
+     manual typing.
+   - Home AI must not observe keystrokes, read the third-party input method, or
+     collect text from other apps. It only sees the final text that the user
+     has already placed into a Home AI composer and successfully sent.
+   - The service extracts short candidate terms and immediately discards the
+     full sent text. Long-term state stores only bounded phrase entries,
+     support counts, scope, source type, and timestamps.
+   - Sent-text entries are phrasebook candidates. They do not create automatic
+     `from -> to` replacement rules by themselves. They can bias later ASR
+     correction, capitalization normalization, and suggestion ranking after
+     repeated support.
+
+3. `voice_diff`
+   - Voice input keeps the stricter existing path:
+     `raw ASR transcript -> final submitted text`.
+   - Only short safe replacement pairs are extracted. Structured spans such as
+     URLs, file paths, command lines, dates, amounts, code, and secrets remain
+     excluded from automatic learning.
+   - Repeated support is required before a replacement can auto-apply.
+
+Scope and privacy rules:
+
+- Phrasebook entries are scoped by actor, workspace, surface type, optional
+  plugin id, optional thread id, and language.
+- Workspace-level seed terms should be available across the workspace; user
+  inferred terms stay actor/workspace scoped.
+- Raw audio is not persisted by default. Full sent text and full transcripts
+  are not persisted as long-term learning state.
+- The service stores audit metadata such as text length, extracted count,
+  source type, and scope. It must not store raw secrets, full private messages,
+  or long text logs.
+- Users must be able to disable a learned correction or phrasebook entry in
+  later management UI. Disabled entries must not apply.
+
+Application behavior:
+
+- Replacement-pair corrections from `voice_diff` remain the only source of
+  high-impact automatic text substitution.
+- Phrasebook entries can normalize exact English/case variants such as
+  `home ai` -> `Home AI` and can provide future ASR backend bias lists.
+- Low-confidence learned phrasebook entries should be suggestions or bias
+  signals until repeated support promotes them.
 
 ## ASR Backend Abstraction
 
@@ -545,7 +614,8 @@ Required Codex Mobile changes:
 
 If Codex Mobile cannot safely provide final submitted text in a path, it should
 acknowledge insertion but set a final-text-unavailable result. Home AI then
-learns only from host-overlay edits.
+keeps only the successful sent-text phrasebook evidence and does not infer a
+voice replacement pair for that session.
 
 ## Mobile/PWA Risks
 
@@ -614,8 +684,8 @@ Visual/device harness:
 - first target ordinary Home AI chat plus `codex-mobile` with a real thread id;
 - assert overlay visible states, microphone permission state, host bottom-stack
   reservation, no native text selection box on send-button long press, no
-  iframe/nav/composer overlap, no horizontal overflow, and stable return after
-  insert/discard;
+  iframe/nav/composer overlap, no horizontal overflow, automatic host draft
+  insertion, and stable return after automatic insert or cancellation;
 - when feasible, include a real microphone-permission artifact. If the
   automation environment cannot grant microphone input, use a test audio blob
   for ASR service checks and mark the visual run as layout-only.
@@ -636,10 +706,12 @@ MVP:
 - send-button long press starts recording and release starts transcription;
 - 3-30 second short clips;
 - local non-streaming ASR;
-- editable transcript preview;
-- append/replace insertion into Home AI chat composer and Codex Mobile
-  composer;
-- learning from raw ASR -> host-edited transcript;
+- automatic append insertion into Home AI chat composer and eligible native
+  host composers;
+- plugin bridge append/replace insertion for embedded plugins that declare
+  those actions;
+- learning from raw ASR -> final sent text when the voice session is submitted;
+- sent-text phrasebook learning after successful composer sends;
 - disabled state for missing ASR backend.
 
 Phase 2:

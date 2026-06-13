@@ -212,12 +212,57 @@ async function testValidationRejectsUnsafeAudio() {
   }
 }
 
+function testLearnSentTextStoresOnlyPhrasebookAndAuditMetadata() {
+  const harness = createHarness();
+  try {
+    const learned = harness.service.learnSentText({
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      pluginId: "codex-mobile",
+      threadId: "thread_1",
+      text: "今天用 Home AI 处理 Codex Mobile handoff。",
+    });
+    assert.equal(learned.ok, true);
+    assert.equal(learned.recorded.some((entry) => entry.term === "Home AI"), true);
+    assert.equal(harness.runtimeState.voiceInput.audit[0].event, "sent_text");
+    assert.equal(harness.runtimeState.voiceInput.audit[0].recordedCount, learned.recorded.length);
+    const stateJson = JSON.stringify(harness.runtimeState);
+    assert.equal(stateJson.includes("今天用 Home AI 处理 Codex Mobile handoff。"), false);
+    assert.equal(harness.service.status({ actorId: "owner", workspaceId: "owner" }).phrasebookCount > 0, true);
+  } finally {
+    harness.cleanup();
+  }
+}
+
+async function testPhrasebookAppliesSystemSeedAliasesDuringTranscribe() {
+  const harness = createHarness({ transcript: "打开 home ai 和 mcp" });
+  try {
+    harness.correctionService.seedSystemPhrasebook({ actorId: "owner", workspaceId: "owner", surfaceType: "chat" });
+    const result = await harness.service.transcribe({
+      actorId: "owner",
+      workspaceId: "owner",
+      audioBase64: audioBase64(),
+      durationMs: 1000,
+      mimeType: "audio/webm",
+      surfaceType: "chat",
+      threadId: "thread_1",
+    });
+    assert.equal(result.text, "打开 Home AI 和 MCP");
+    assert.equal(result.corrections.phrasebookApplied.length >= 2, true);
+  } finally {
+    harness.cleanup();
+  }
+}
+
 async function run() {
   await testTranscribeDeletesTemporaryAudioAndReturnsEditableText();
   await testCommitLearnsOnlyShortCorrectionPair();
   await testCommitRequiresSameActorAndWorkspace();
   await testDisabledProviderFailsBeforeAudioPersistence();
   await testValidationRejectsUnsafeAudio();
+  testLearnSentTextStoresOnlyPhrasebookAndAuditMetadata();
+  await testPhrasebookAppliesSystemSeedAliasesDuringTranscribe();
   console.log("voice input service tests passed");
 }
 

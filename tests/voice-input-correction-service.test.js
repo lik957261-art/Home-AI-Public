@@ -118,12 +118,42 @@ function testCorrectionUpdateRequiresMatchingScopeWhenProvided() {
   })).status, "disabled");
 }
 
+function testSystemSeedPhrasebookAppliesSafeAliases() {
+  const { runtimeState, service } = createHarness();
+  const scope = { actorId: "owner", workspaceId: "owner", surfaceType: "chat" };
+  const seeded = service.seedSystemPhrasebook(scope);
+  assert.equal(seeded.ok, true);
+  assert.equal(seeded.recorded.some((entry) => entry.term === "Home AI"), true);
+  const corrected = service.applyCorrections(Object.assign({}, scope, {
+    text: "打开 home ai 和 mcp",
+  }));
+  assert.equal(corrected.text, "打开 Home AI 和 MCP");
+  assert.equal(corrected.phrasebookApplied.length >= 2, true);
+  assert.equal(runtimeState.voiceInput.phrasebook.some((entry) => entry.source === "system_seed"), true);
+}
+
+function testSentTextLearnsPhrasesWithoutFullTextPersistence() {
+  const { runtimeState, service } = createHarness();
+  const scope = { actorId: "owner", workspaceId: "owner", surfaceType: "chat", pluginId: "codex-mobile" };
+  const learned = service.recordSentTextEvidence(Object.assign({}, scope, {
+    text: "今天用 Home AI 处理起凡邮箱和 Codex Mobile handoff。",
+  }));
+  assert.equal(learned.ok, true);
+  assert.equal(learned.recorded.some((entry) => entry.term === "Home AI"), true);
+  assert.equal(learned.recorded.some((entry) => entry.term === "Codex Mobile"), true);
+  const stateJson = JSON.stringify(runtimeState);
+  assert.equal(stateJson.includes("今天用 Home AI 处理起凡邮箱和 Codex Mobile handoff。"), false);
+  assert.equal(runtimeState.voiceInput.phrasebook.length > 0, true);
+}
+
 function run() {
   testSingleShortReplacementExtraction();
   testStructuredSpansAreRejected();
   testCorrectionRequiresRepeatedEvidenceBeforeAutoApply();
   testDisableCorrectionStopsApplication();
   testCorrectionUpdateRequiresMatchingScopeWhenProvided();
+  testSystemSeedPhrasebookAppliesSafeAliases();
+  testSentTextLearnsPhrasesWithoutFullTextPersistence();
   console.log("voice input correction service tests passed");
 }
 

@@ -646,6 +646,7 @@ const state = {
     chunks: [],
     suppressNextClick: false,
   },
+  pendingVoiceInputCommit: null,
   directoryTopicDraftSendInFlight: false,
   keyboardContextMode: false,
   keyboardContextTopPx: 0,

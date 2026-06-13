@@ -335,22 +335,13 @@ function ensureVoiceInputOverlay() {
       <div class="voice-input-title" data-voice-status></div>
       <button type="button" class="secondary-small voice-input-cancel" data-voice-action="cancel">取消</button>
     </div>
-    <textarea class="voice-input-transcript" data-voice-transcript rows="4" aria-label="语音转写文本"></textarea>
     <div class="voice-input-corrections" data-voice-corrections hidden></div>
-    <div class="voice-input-actions">
-      <button type="button" class="secondary-small" data-voice-action="discard">丢弃</button>
-      <button type="button" class="secondary-small" data-voice-action="replace">替换</button>
-      <button type="button" class="primary-small" data-voice-action="append">插入</button>
-    </div>
   `;
   overlay.addEventListener("click", (event) => {
     const action = event.target.closest?.("[data-voice-action]")?.dataset?.voiceAction || "";
     if (!action) return;
     event.preventDefault();
     if (action === "cancel") cancelVoiceInput();
-    if (action === "discard") closeVoiceInputOverlay();
-    if (action === "append") void insertVoiceInputTranscript("append");
-    if (action === "replace") void insertVoiceInputTranscript("replace");
   });
   document.body.appendChild(overlay);
   return overlay;
@@ -360,9 +351,7 @@ function renderVoiceInputOverlay() {
   const voice = ensureVoiceInputState();
   const overlay = ensureVoiceInputOverlay();
   const status = overlay.querySelector("[data-voice-status]");
-  const transcript = overlay.querySelector("[data-voice-transcript]");
   const corrections = overlay.querySelector("[data-voice-corrections]");
-  const actionButtons = overlay.querySelector(".voice-input-actions");
   overlay.hidden = voice.status === "idle";
   overlay.classList.toggle("voice-input-overlay-active", !overlay.hidden);
   overlay.classList.toggle("voice-input-overlay-busy", ["checking", "requesting", "recording", "finalizing", "transcribing", "inserting"].includes(voice.status));
@@ -373,14 +362,6 @@ function renderVoiceInputOverlay() {
       ? `${voiceInputStatusLabel(voice.status)} ${voiceInputFormatDuration(Date.now() - Number(voice.recordingStartedAt || Date.now()))}`
       : detail;
   }
-  if (transcript) {
-    transcript.hidden = !["ready", "inserted"].includes(voice.status) && !(voice.status === "failed" && Boolean(voice.transcript));
-    transcript.disabled = voice.status !== "ready";
-    if (voice.renderedTranscript !== voice.transcript) {
-      transcript.value = voice.transcript || "";
-      voice.renderedTranscript = voice.transcript || "";
-    }
-  }
   if (corrections) {
     const applied = voice.corrections?.applied || [];
     const suggestions = voice.corrections?.suggestions || [];
@@ -390,7 +371,6 @@ function renderVoiceInputOverlay() {
     corrections.textContent = parts.join("，");
     corrections.hidden = !parts.length;
   }
-  if (actionButtons) actionButtons.hidden = voice.status !== "ready";
   refreshVoiceInputSendButton();
 }
 
@@ -402,6 +382,7 @@ function closeVoiceInputOverlay() {
   voice.voiceSessionId = "";
   voice.corrections = null;
   voice.target = null;
+  document.body?.classList?.remove("voice-input-press-active");
   renderVoiceInputOverlay();
 }
 
@@ -528,6 +509,10 @@ async function startVoiceInputRecording(event, options = {}) {
   setVoiceInputStatus("checking");
   try {
     const serviceStatus = await voiceInputLoadStatus();
+    if (voice.cancelRequested) {
+      closeVoiceInputOverlay();
+      return;
+    }
     if (!serviceStatus?.enabled) {
       setVoiceInputStatus("failed", { error: "语音转写服务未配置" });
       return;
@@ -575,7 +560,9 @@ function stopVoiceInputRecording() {
   if (voice.recordingTicker) clearInterval(voice.recordingTicker);
   voice.recordingTicker = 0;
   if (voice.status === "checking" || voice.status === "requesting") {
-    voice.pendingStopAfterStart = true;
+    voice.cancelRequested = true;
+    voice.pendingStopAfterStart = false;
+    closeVoiceInputOverlay();
     return;
   }
   if (voice.recorder && voice.recorder.state !== "inactive") {
@@ -618,7 +605,7 @@ async function finalizeVoiceInputRecording() {
   const chunks = voice.chunks || [];
   voice.chunks = [];
   if (!chunks.length || durationMs < VOICE_INPUT_MIN_CLIENT_DURATION_MS) {
-    setVoiceInputStatus("failed", { error: "录音时间太短" });
+    closeVoiceInputOverlay();
     return;
   }
   try {
@@ -634,14 +621,13 @@ async function finalizeVoiceInputRecording() {
       })),
       timeoutMs: 90000,
     });
-    setVoiceInputStatus("ready", {
+    setVoiceInputStatus("inserting", {
       transcript: result?.text || "",
       voiceSessionId: result?.voiceSessionId || "",
       corrections: result?.corrections || null,
       error: "",
     });
-    const overlay = ensureVoiceInputOverlay();
-    overlay.querySelector("[data-voice-transcript]")?.focus();
+    await insertVoiceInputTranscript("append");
   } catch (err) {
     setVoiceInputStatus("failed", { error: err?.message || "转写失败" });
   }
@@ -675,13 +661,44 @@ async function commitVoiceInputSession(finalText) {
   }
 }
 
+function trackPendingVoiceInputCommit(finalText) {
+  const voice = ensureVoiceInputState();
+  if (!voice.voiceSessionId || !finalText || voice.target?.kind !== "native") return;
+  state.pendingVoiceInputCommit = {
+    voiceSessionId: voice.voiceSessionId,
+    insertedText: String(finalText || "").trim(),
+    scope: voiceInputRequestScope(),
+  };
+}
+
+function commitPendingVoiceInputFinalText(finalText, body = {}) {
+  const pending = state.pendingVoiceInputCommit;
+  const text = String(finalText || "").trim();
+  if (!pending?.voiceSessionId || !text) return;
+  state.pendingVoiceInputCommit = null;
+  const scope = Object.assign({}, pending.scope || {});
+  if (body?.taskGroupId && typeof pluginTopicDefForGroupId === "function") {
+    const pluginTopicDef = pluginTopicDefForGroupId(body.taskGroupId);
+    if (pluginTopicDef?.id) scope.pluginId = pluginTopicDef.id;
+  }
+  api("/api/voice-input/commit", {
+    method: "POST",
+    body: JSON.stringify(Object.assign({}, scope, {
+      workspaceId: scope.workspaceId || state.selectedWorkspaceId || "owner",
+      voiceSessionId: pending.voiceSessionId,
+      finalText: text,
+    })),
+    timeoutMs: 15000,
+  }).catch((err) => {
+    console.warn("[voice-input] final correction commit failed", err?.message || err);
+  });
+}
+
 async function insertVoiceInputTranscript(mode = "append") {
   const voice = ensureVoiceInputState();
-  const overlay = ensureVoiceInputOverlay();
-  const textarea = overlay.querySelector("[data-voice-transcript]");
-  const text = String(textarea?.value || voice.transcript || "").trim();
+  const text = String(voice.transcript || "").trim();
   if (!text) {
-    setVoiceInputStatus("failed", { error: "没有可插入的转写文本" });
+    closeVoiceInputOverlay();
     return;
   }
   setVoiceInputStatus("inserting");
@@ -710,7 +727,7 @@ async function insertVoiceInputTranscript(mode = "append") {
   const caret = mode === "replace" ? next.length : next.indexOf(text) + text.length;
   composer.setCaret?.(caret);
   composer.focus?.();
-  await commitVoiceInputSession(text);
+  trackPendingVoiceInputCommit(text);
   setVoiceInputStatus("inserted", { transcript: text });
   setTimeout(closeVoiceInputOverlay, 650);
 }

@@ -279,6 +279,12 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["voice-input", "correction", "composer"],
     summary: "Commit final submitted text for a voice input session and record bounded correction evidence.",
   })),
+  exact("voice-input-learn-sent-text", "POST", "/api/voice-input/learn-sent-text", "voice-input", routeOptions("voice-input", {
+    riskLevel: "medium",
+    workspaceScoped: true,
+    resourceTypes: ["voice-input", "phrasebook", "composer"],
+    summary: "Extract bounded phrasebook candidates from successfully sent composer text.",
+  })),
   exact("voice-input-corrections-list", "GET", "/api/voice-input/corrections", "voice-input", routeOptions("voice-input", {
     riskLevel: "medium",
     workspaceScoped: true,
