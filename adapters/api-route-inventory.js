@@ -297,6 +297,12 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["voice-input", "correction"],
     summary: "Enable, suggest-only, or disable a personal voice correction entry.",
   })),
+  exact("voice-input-settings-update", "PATCH", "/api/voice-input/settings", "voice-input", routeOptions("voice-input", {
+    riskLevel: "medium",
+    workspaceScoped: false,
+    resourceTypes: ["voice-input", "config"],
+    summary: "Update Owner-global Home AI voice input settings.",
+  })),
 
   exact("action-inbox-list", "GET", "/api/action-inbox", "action-inbox", routeOptions("action-inbox", {
     workspaceScoped: true,

@@ -229,6 +229,42 @@ async function testComparisonBackendsReturnBoundedRows() {
   fs.rmSync(tempDir, { recursive: true, force: true });
 }
 
+async function testSingleTranscribeCanSelectComparisonBackend() {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "voice-asr-selected-provider-"));
+  const audioPath = path.join(tempDir, "sample.webm");
+  fs.writeFileSync(audioPath, Buffer.from("audio"));
+  const calls = [];
+  const provider = createVoiceInputAsrProvider({
+    backend: "whisper-large-v3-turbo",
+    enabled: true,
+    env: {},
+    url: "http://127.0.0.1:8001/v1/audio/transcriptions",
+    comparisonBackends: [
+      { backend: "whisper-large-v3-turbo", protocol: "openai-multipart", url: "http://127.0.0.1:8001/v1/audio/transcriptions" },
+      { backend: "funasr-local", protocol: "openai-multipart", url: "http://127.0.0.1:8002/v1/audio/transcriptions" },
+      { backend: "sensevoice-local", protocol: "openai-multipart", url: "http://127.0.0.1:8003/v1/audio/transcriptions" },
+    ],
+    fetchImpl(url) {
+      calls.push(url);
+      return Promise.resolve({
+        ok: true,
+        json() {
+          return Promise.resolve({ text: "你好", language: "zh", backend: url.includes("8002") ? "funasr-local" : "other" });
+        },
+      });
+    },
+  });
+  const result = await provider.transcribeAudio({
+    audioPath,
+    asrBackend: "funasr-local",
+    durationMs: 1000,
+    mimeType: "audio/webm",
+  });
+  assert.equal(result.backend, "funasr-local");
+  assert.deepEqual(calls, ["http://127.0.0.1:8002/v1/audio/transcriptions"]);
+  fs.rmSync(tempDir, { recursive: true, force: true });
+}
+
 async function run() {
   await testDisabledByDefaultWithoutUrl();
   await testHttpProviderPostsBoundedPayload();
@@ -239,6 +275,7 @@ async function run() {
   testProviderStatusAndNormalization();
   testComparisonBackendCompactNames();
   await testComparisonBackendsReturnBoundedRows();
+  await testSingleTranscribeCanSelectComparisonBackend();
   console.log("voice input asr provider tests passed");
 }
 

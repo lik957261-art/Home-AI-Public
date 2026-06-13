@@ -199,6 +199,7 @@ const ROUTE_MODULES = Object.freeze([
       { method: "POST", path: "/api/voice-input/learn-sent-text", id: "voice-input-learn-sent-text" },
       { method: "GET", path: "/api/voice-input/corrections", id: "voice-input-corrections-list" },
       { method: "PATCH", path: "/api/voice-input/corrections", id: "voice-input-corrections-update" },
+      { method: "PATCH", path: "/api/voice-input/settings", id: "voice-input-settings-update" },
     ],
   },
   {
@@ -443,6 +444,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/voice-input/transcribe" }).id, "voice-input-transcribe");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/voice-input/learn-sent-text" }).id, "voice-input-learn-sent-text");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/voice-input/corrections" }).id, "voice-input-corrections-update");
+  assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/voice-input/settings" }).id, "voice-input-settings-update");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/workspaces/child-a" }).id, "workspaces-admin");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");

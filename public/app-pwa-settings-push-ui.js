@@ -458,6 +458,72 @@ function setDefaultComposerModelPreference(value) {
   if (typeof updateGroupMentionMenu === "function") updateGroupMentionMenu();
 }
 
+function voiceInputAsrBackendLabel(backend) {
+  const labels = {
+    "funasr-local": "FunASR",
+    "whisper-large-v3-turbo": "Whisper",
+    "whisper-local": "Whisper",
+    "sensevoice-local": "SenseVoice",
+  };
+  return labels[String(backend || "").trim()] || String(backend || "").trim() || "未配置";
+}
+
+function voiceInputSettingsStatus() {
+  if (typeof ensureVoiceInputState !== "function") return null;
+  return ensureVoiceInputState().statusCache || null;
+}
+
+function voiceInputAsrBackendChoices(status = voiceInputSettingsStatus()) {
+  const rows = [
+    ...(Array.isArray(status?.settings?.backendChoices) ? status.settings.backendChoices : []),
+    status?.provider || null,
+    ...(Array.isArray(status?.provider?.comparison) ? status.provider.comparison : []),
+  ];
+  const seen = new Set();
+  return rows
+    .map((row) => ({
+      backend: String(row?.backend || "").trim(),
+      configured: Boolean(row?.configured),
+      enabled: Boolean(row?.enabled),
+      protocol: String(row?.protocol || "").trim(),
+    }))
+    .filter((row) => {
+      if (!row.backend || row.backend === "disabled" || seen.has(row.backend)) return false;
+      seen.add(row.backend);
+      return true;
+    });
+}
+
+async function setVoiceInputDefaultAsrBackendPreference(value) {
+  const backend = String(value || "").trim();
+  if (!backend) return;
+  const voice = typeof ensureVoiceInputState === "function" ? ensureVoiceInputState() : null;
+  if (voice) voice.settingsSaving = backend;
+  renderSettingsOverlay();
+  try {
+    const payload = await api("/api/voice-input/settings", {
+      method: "PATCH",
+      body: JSON.stringify({ defaultAsrBackend: backend }),
+      timeoutMs: 15000,
+    });
+    if (voice) {
+      const existing = voice.statusCache || {};
+      voice.statusCache = Object.assign({}, existing, {
+        loadedAt: Date.now(),
+        settings: payload?.settings || Object.assign({}, existing.settings || {}, { defaultAsrBackend: backend }),
+      });
+      voice.settingsSaving = "";
+      voice.settingsError = "";
+    }
+  } catch (err) {
+    if (voice) {
+      voice.settingsSaving = "";
+      voice.settingsError = err?.message || "语音引擎设置保存失败";
+    }
+  }
+  renderSettingsOverlay();
+}
+
 function startThemePreferenceWatcher() {
   if (!window.matchMedia || state.themePreferenceWatcherStarted) return;
   state.themePreferenceWatcherStarted = true;
@@ -481,6 +547,10 @@ function renderSettingsOverlay() {
   const currentTheme = normalizeThemePreference(state.themeMode);
   const currentFamily = normalizeFontFamilyPreference(state.fontFamily);
   const currentModel = selectedDefaultComposerModelOption().id;
+  const voiceStatus = voiceInputSettingsStatus();
+  const voiceChoices = voiceInputAsrBackendChoices(voiceStatus);
+  const currentVoiceBackend = String(voiceStatus?.settings?.defaultAsrBackend || voiceStatus?.provider?.backend || "").trim();
+  const voiceState = typeof ensureVoiceInputState === "function" ? ensureVoiceInputState() : null;
   const themeOptions = THEME_MODE_OPTIONS.map((option) => {
     const active = option.id === currentTheme;
     return `<button class="theme-mode-option${active ? " active" : ""}" type="button" data-theme-mode-option="${escapeHtml(option.id)}">
@@ -510,6 +580,20 @@ function renderSettingsOverlay() {
       <span class="default-model-option-meta">${escapeHtml(modelMeta || option.description || "")}</span>
     </button>`;
   }).join("");
+  const voiceBackendOptions = voiceChoices.length
+    ? voiceChoices.map((option) => {
+        const active = option.backend === currentVoiceBackend;
+        const saving = voiceState?.settingsSaving === option.backend;
+        const meta = option.configured ? (option.protocol || "可用") : "未配置";
+        return `<button class="default-model-option${active ? " active" : ""}" type="button" data-voice-asr-backend-option="${escapeHtml(option.backend)}" ${option.configured ? "" : "disabled"}>
+          <span class="default-model-option-name">${escapeHtml(voiceInputAsrBackendLabel(option.backend))}${saving ? " · 保存中" : ""}</span>
+          <span class="default-model-option-meta">${escapeHtml(meta)}</span>
+        </button>`;
+      }).join("")
+    : `<div class="settings-preview-body">语音转写服务未配置。</div>`;
+  const voiceSettingsError = voiceState?.settingsError
+    ? `<div class="settings-preview-body">${escapeHtml(voiceState.settingsError)}</div>`
+    : "";
   overlay.innerHTML = `<section class="access-key-sheet settings-sheet">
     <header class="access-key-header">
       <div>
@@ -535,6 +619,11 @@ function renderSettingsOverlay() {
       <div class="default-model-options" role="group" aria-label="\u9ed8\u8ba4\u6a21\u578b">
         ${modelOptions}
       </div>
+      <div class="settings-row-title">语音引擎</div>
+      <div class="default-model-options" role="group" aria-label="语音引擎">
+        ${voiceBackendOptions}
+      </div>
+      ${voiceSettingsError}
       <div class="settings-row-title">\u8d26\u53f7</div>
       <div class="settings-account-actions">
         <button class="settings-logout-button" type="button" data-settings-logout>\u9000\u51fa\u8d26\u53f7</button>
@@ -565,6 +654,9 @@ function renderSettingsOverlay() {
   overlay.querySelectorAll("[data-default-model-option]").forEach((button) => {
     button.addEventListener("click", () => setDefaultComposerModelPreference(button.dataset.defaultModelOption || DEFAULT_COMPOSER_MODEL_ID));
   });
+  overlay.querySelectorAll("[data-voice-asr-backend-option]").forEach((button) => {
+    button.addEventListener("click", () => setVoiceInputDefaultAsrBackendPreference(button.dataset.voiceAsrBackendOption || ""));
+  });
   overlay.querySelector("[data-settings-logout]")?.addEventListener("click", logoutCurrentAccount);
 }
 
@@ -574,6 +666,13 @@ function openSettings(options = {}) {
   closeSidebar();
   state.settingsOpen = true;
   renderSettingsOverlay();
+  if (typeof voiceInputLoadStatus === "function") {
+    voiceInputLoadStatus({ force: true }).then(() => {
+      if (state.settingsOpen) renderSettingsOverlay();
+    }).catch(() => {
+      if (state.settingsOpen) renderSettingsOverlay();
+    });
+  }
 }
 
 function closeSettings() {

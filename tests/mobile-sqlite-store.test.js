@@ -422,6 +422,10 @@ function testRuntimeStateRoundTrip() {
     createdAt: "2026-05-07T00:00:06.000Z",
   });
   exported.voiceInput = {
+    settings: {
+      defaultAsrBackend: "funasr-local",
+      updatedAt: "2026-06-13T00:00:00.000Z",
+    },
     corrections: [{
       id: "voice_correction_1",
       actorId: "owner",
@@ -477,6 +481,7 @@ function testRuntimeStateRoundTrip() {
   assert.equal(after.threads[0].messages[2].content, "runtime message");
   assert.equal(after.voiceInput.corrections[0].from, "摩依拉");
   assert.equal(after.voiceInput.corrections[0].to, "星盘");
+  assert.equal(after.voiceInput.settings.defaultAsrBackend, "funasr-local");
   assert.equal(after.voiceInput.phrasebook[0].term, "Home AI");
   assert.deepEqual(after.voiceInput.phrasebook[0].aliases, ["home ai"]);
   assert.equal(after.voiceInput.audit[0].event, "sent_text");

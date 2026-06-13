@@ -68,6 +68,10 @@ function makeRoutes(overrides = {}) {
         calls.push({ type: "updateCorrection", input });
         return { ok: true, correction: { id: input.id, status: input.status } };
       },
+      updateSettings(input) {
+        calls.push({ type: "updateSettings", input });
+        return { ok: true, settings: { defaultAsrBackend: input.defaultAsrBackend } };
+      },
     },
   }, overrides);
   return { calls, routes: createVoiceInputApiRoutes(deps) };
@@ -88,8 +92,9 @@ async function testStatusAndRouteInventory() {
   assert.deepEqual(got.body, { ok: true, enabled: true, correctionCount: 0 });
   assert.equal(calls.find((call) => call.type === "requireWorkspaceAccess").workspaceId, "child-a");
   assert.equal(calls.find((call) => call.type === "status").scope.pluginId, "codex-mobile");
-  assert.equal(routes.summary().total, 6);
+  assert.equal(routes.summary().total, 7);
   assert.equal(routes.match({ method: "POST", path: "/api/voice-input/transcribe" }).id, "voice-input-transcribe");
+  assert.equal(routes.match({ method: "PATCH", path: "/api/voice-input/settings" }).id, "voice-input-settings-update");
 }
 
 async function testTranscribeCommitAndCorrectionUpdate() {
@@ -153,6 +158,15 @@ async function testTranscribeCommitAndCorrectionUpdate() {
   }, { principalId: "user-a", workspaceId: "child-a" });
   assert.equal(updated.res.statusCode, 200);
   assert.equal(updated.body.correction.status, "disabled");
+
+  const settings = await request(routes, "PATCH", "/api/voice-input/settings", {
+    workspaceId: "child-a",
+    defaultAsrBackend: "funasr-local",
+  }, { principalId: "owner", workspaceId: "owner" });
+  assert.equal(settings.res.statusCode, 200);
+  assert.equal(settings.body.settings.defaultAsrBackend, "funasr-local");
+  assert.equal(calls.filter((call) => call.type === "requireWorkspaceAccess").at(-1).workspaceId, "owner");
+  assert.equal(calls.find((call) => call.type === "updateSettings").input.workspaceId, "owner");
 }
 
 async function testErrorsAreBoundedAndWorkspaceDenialStopsService() {

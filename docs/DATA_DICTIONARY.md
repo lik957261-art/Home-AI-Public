@@ -31,6 +31,7 @@ Primary implementation: `adapters/mobile-sqlite-store.js`.
 | `voice_input_corrections` | voice input | Privacy-bounded ASR transcript correction pairs learned from raw transcript to final sent text. |
 | `voice_input_phrasebook` | voice input | Per-user/workspace/plugin phrasebook terms learned from system seeds and successful composer sends. |
 | `voice_input_audit` | voice input | Bounded metadata-only voice learning/transcription audit events. No raw audio, full transcripts, or full sent text. |
+| `meta.voiceInputSettings` | voice input | Owner-global voice input settings such as the default ASR backend. Applies to all workspaces, devices, plugins, and composers. |
 
 ## Topic Context SQLite
 
@@ -83,6 +84,7 @@ compatibility `state.json` snapshot on startup/save.
 | `voice_input_corrections` | `actor_id`, `workspace_id`, `surface_type`, `plugin_id`, `thread_id`, `language`, `from_text`, `to_text`, `status`, `support_count`, `rejection_count`, timestamps | Stores short safe replacement pairs from `voice_diff`. Excludes structured spans such as URLs, file paths, commands, dates, amounts, and code. |
 | `voice_input_phrasebook` | `actor_id`, `workspace_id`, `surface_type`, `plugin_id`, `thread_id`, `language`, `term`, `source`, `status`, `support_count`, `aliases_json`, timestamps | Stores system-seeded and user-learned phrasebook terms. It stores bounded terms and aliases only, not full composer messages. |
 | `voice_input_audit` | `event_type`, `actor_id`, `workspace_id`, `surface_type`, `plugin_id`, `thread_id`, `backend`, `payload_json`, `created_at` | Stores bounded metadata such as character counts and recorded counts. It must not store raw audio, full transcripts, full sent text, secrets, or long logs. |
+| `meta.voiceInputSettings` | `defaultAsrBackend`, `updatedAt` | Stores the Owner-global default ASR engine selected from Settings. It is configuration metadata and contains no transcripts or audio. |
 
 The Mac daily disaster backup captures `data/hermes-mobile.sqlite3` through an
 online SQLite snapshot, so these tables are included in the normal server backup

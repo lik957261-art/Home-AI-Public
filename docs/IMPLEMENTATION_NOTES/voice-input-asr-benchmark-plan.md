@@ -247,7 +247,7 @@ Implementation contract:
 - The frontend sends `comparison: true` only while `Voice Learning` mode is
   active.
 - The normal Home AI composer voice path keeps returning and inserting one
-  default transcript.
+  default transcript from the Owner-global `voiceInput.settings.defaultAsrBackend`.
 - In learning mode, the receipt displays all available engine rows, but the
   composer receives only the selected default backend text so the user can edit
   and Send one final training sample.

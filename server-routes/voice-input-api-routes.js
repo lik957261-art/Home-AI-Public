@@ -93,6 +93,21 @@ const VOICE_INPUT_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["voice-input", "correction"],
     tags: ["voice-input", "correction"],
   },
+  {
+    id: "voice-input-settings-update",
+    method: "PATCH",
+    path: "/api/voice-input/settings",
+    group: "voice-input",
+    moduleKey: "voice-input",
+    handlerKey: "settings",
+    summary: "Update Owner-global Home AI voice input settings.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: false,
+    resourceTypes: ["voice-input", "config"],
+    tags: ["voice-input", "settings"],
+  },
 ]);
 
 function requireFunctions(deps, names) {
@@ -238,6 +253,24 @@ function createVoiceInputApiRoutes(deps = {}) {
     }
   }
 
+  async function handleUpdateSettings(req, res, url, context = {}) {
+    let body;
+    try {
+      body = await readJsonBody(req);
+      const workspaceId = deps.requireWorkspaceAccess(req, res, "owner");
+      if (!workspaceId) return;
+      if (!deps.voiceInputService || typeof deps.voiceInputService.updateSettings !== "function") {
+        throw Object.assign(new Error("voice input settings are unavailable"), {
+          status: 503,
+          code: "voice_input_settings_unavailable",
+        });
+      }
+      deps.sendJson(res, 200, deps.voiceInputService.updateSettings(Object.assign({}, body, scopeFromRequest(url, body, context.auth, "owner"))));
+    } catch (err) {
+      sendServiceError(res, err);
+    }
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -266,6 +299,10 @@ function createVoiceInputApiRoutes(deps = {}) {
     }
     if (route.id === "voice-input-corrections-update") {
       await handleUpdateCorrection(req, res, url, context);
+      return { handled: true, route, auth: context.auth || null };
+    }
+    if (route.id === "voice-input-settings-update") {
+      await handleUpdateSettings(req, res, url, context);
       return { handled: true, route, auth: context.auth || null };
     }
     return { handled: false };

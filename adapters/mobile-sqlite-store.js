@@ -1305,6 +1305,7 @@ function createMobileSqliteStore(options = {}) {
   function importVoiceInputState(voiceInput = {}) {
     const source = voiceInput && typeof voiceInput === "object" && !Array.isArray(voiceInput) ? voiceInput : {};
     const stats = { corrections: 0, phrasebook: 0, audit: 0 };
+    setMeta("voiceInputSettings", source.settings && typeof source.settings === "object" && !Array.isArray(source.settings) ? source.settings : {});
     asArray(source.corrections).forEach((row, index) => {
       if (importVoiceInputCorrection(row, index)) stats.corrections += 1;
     });
@@ -2231,6 +2232,7 @@ function createMobileSqliteStore(options = {}) {
   function exportVoiceInputState() {
     const database = open();
     return {
+      settings: getMeta("voiceInputSettings", {}),
       corrections: database.prepare("SELECT * FROM voice_input_corrections ORDER BY updated_at DESC, id").all().map(voiceCorrectionFromRow),
       phrasebook: database.prepare("SELECT * FROM voice_input_phrasebook ORDER BY updated_at DESC, id").all().map(voicePhraseFromRow),
       audit: database.prepare("SELECT * FROM voice_input_audit ORDER BY created_at DESC, id LIMIT 200").all().map(voiceAuditFromRow),

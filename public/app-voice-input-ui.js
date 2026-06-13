@@ -527,9 +527,10 @@ function cancelVoiceInput() {
   closeVoiceInputOverlay();
 }
 
-async function voiceInputLoadStatus() {
+async function voiceInputLoadStatus(options = {}) {
   const voice = ensureVoiceInputState();
-  if (voice.statusCache && Date.now() - Number(voice.statusCache.loadedAt || 0) < 300000) return voice.statusCache;
+  const force = Boolean(options.force);
+  if (!force && voice.statusCache && Date.now() - Number(voice.statusCache.loadedAt || 0) < 300000) return voice.statusCache;
   if (voice.statusPromise) return voice.statusPromise;
   voice.statusPromise = api(`/api/voice-input/status?workspaceId=${encodeURIComponent(state.selectedWorkspaceId || "owner")}`, {
     method: "GET",

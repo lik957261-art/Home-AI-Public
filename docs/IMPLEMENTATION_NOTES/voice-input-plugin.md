@@ -353,6 +353,13 @@ results from multiple local engines for diagnostics and correction learning.
 Pinyin/homophone correction is a required post-ASR layer and must apply
 consistently to every engine result.
 
+Default ASR engine selection is an Owner-global server setting, not a
+workspace-local or device-local preference. The Settings sheet writes
+`voiceInput.settings.defaultAsrBackend` through `/api/voice-input/settings`;
+all workspaces, devices, plugins, and composers use that same default for
+ordinary voice insertion. The deploy environment remains the fallback/default
+provider configuration and exposes the available local providers.
+
 Configuration must be public-deployable:
 
 - `HERMES_MOBILE_VOICE_INPUT_ENABLED`;

@@ -301,6 +301,19 @@ function createVoiceInputAsrProvider(options = {}) {
       ? options.comparisonBackends
       : defaultComparisonBackends(env)),
   ].map((item) => normalizeBackendConfig(item, Object.assign({}, config, { timeoutMs: comparisonTimeoutMs }))), comparisonMaxEngines);
+  const backendConfigs = uniqueBackendConfigs([
+    config,
+    ...comparisonBackends,
+  ], Math.max(comparisonMaxEngines + 1, 6));
+
+  function backendConfigForInput(input = {}) {
+    const requestedBackend = normalizeBackend(input.asrBackend || input.asr_backend || "");
+    if (requestedBackend && requestedBackend !== "disabled") {
+      const matched = backendConfigs.find((item) => normalizeBackend(item.backend) === requestedBackend);
+      if (matched) return matched;
+    }
+    return config;
+  }
 
   function status() {
     const base = providerStatusFromConfig(config);
@@ -357,7 +370,7 @@ function createVoiceInputAsrProvider(options = {}) {
   }
 
   async function transcribeAudio(input = {}) {
-    return transcribeWithConfig(input, config);
+    return transcribeWithConfig(input, backendConfigForInput(input));
   }
 
   async function transcribeAudioWithComparison(input = {}) {

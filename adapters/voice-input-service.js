@@ -125,7 +125,44 @@ function ensureVoiceInputState(runtimeState) {
   if (!Array.isArray(root.voiceInput.audit)) root.voiceInput.audit = [];
   if (!Array.isArray(root.voiceInput.corrections)) root.voiceInput.corrections = [];
   if (!Array.isArray(root.voiceInput.phrasebook)) root.voiceInput.phrasebook = [];
+  if (!root.voiceInput.settings || typeof root.voiceInput.settings !== "object" || Array.isArray(root.voiceInput.settings)) root.voiceInput.settings = {};
   return root.voiceInput;
+}
+
+function voiceInputBackendChoices(provider = {}) {
+  const rows = [
+    provider,
+    ...(Array.isArray(provider.comparison) ? provider.comparison : []),
+  ];
+  const seen = new Set();
+  const result = [];
+  for (const row of rows) {
+    const backend = cleanString(row?.backend || "", 120);
+    if (!backend || backend === "disabled" || seen.has(backend)) continue;
+    seen.add(backend);
+    result.push({
+      backend,
+      configured: Boolean(row?.configured),
+      enabled: Boolean(row?.enabled),
+      protocol: cleanString(row?.protocol || "", 80),
+    });
+  }
+  return result;
+}
+
+function normalizeDefaultAsrBackend(value, provider = {}) {
+  const requested = cleanString(value, 120);
+  const choices = voiceInputBackendChoices(provider).filter((row) => row.configured);
+  if (requested && choices.some((row) => row.backend === requested)) return requested;
+  if (provider?.configured && provider?.backend && provider.backend !== "disabled") return cleanString(provider.backend, 120);
+  return choices[0]?.backend || "";
+}
+
+function voiceInputSettings(store = {}, provider = {}) {
+  return {
+    defaultAsrBackend: normalizeDefaultAsrBackend(store?.settings?.defaultAsrBackend, provider),
+    backendChoices: voiceInputBackendChoices(provider),
+  };
 }
 
 function sessionScopeAllowsCommit(sessionScope, callerScope) {
@@ -172,13 +209,16 @@ function createVoiceInputService(options = {}) {
 
   function status(scopeInput = {}) {
     const scoped = normalizeScope(scopeInput);
+    const provider = providerStatus();
+    const settings = voiceInputSettings(voiceStore(), provider);
     const corrections = typeof options.correctionService.listCorrections === "function"
       ? options.correctionService.listCorrections(scoped)
       : [];
     return {
       ok: true,
-      enabled: Boolean(providerStatus().enabled),
-      provider: providerStatus(),
+      enabled: Boolean(provider.enabled),
+      provider,
+      settings,
       limits: {
         minDurationMs,
         maxDurationMs,
@@ -247,8 +287,10 @@ function createVoiceInputService(options = {}) {
       const phraseHints = typeof options.correctionService.listPhrases === "function"
         ? voiceInputPhraseHintPrompt(options.correctionService.listPhrases(scope))
         : "";
+      const defaultAsrBackend = voiceInputSettings(voiceStore(), provider).defaultAsrBackend;
       const asrInput = Object.assign({}, scope, {
         audioPath: tempPath,
+        asrBackend: defaultAsrBackend,
         composerId: cleanString(input.composerId || input.composer_id, 160),
         durationMs,
         initialPrompt: phraseHints,
@@ -442,12 +484,33 @@ function createVoiceInputService(options = {}) {
     };
   }
 
+  function updateSettings(input = {}) {
+    const store = voiceStore();
+    const provider = providerStatus();
+    const defaultAsrBackend = normalizeDefaultAsrBackend(input.defaultAsrBackend || input.default_asr_backend, provider);
+    if (!defaultAsrBackend) throw errorWithStatus("voice ASR backend is unavailable", 400, "voice_asr_backend_invalid");
+    store.settings.defaultAsrBackend = defaultAsrBackend;
+    store.settings.updatedAt = nowIso();
+    saveState();
+    appendAudit({
+      event: "settings",
+      actorId: cleanString(input.actorId || "", 120),
+      workspaceId: "owner",
+      defaultAsrBackend,
+    });
+    return {
+      ok: true,
+      settings: voiceInputSettings(store, provider),
+    };
+  }
+
   return Object.freeze({
     commitSession,
     learnSentText,
     listCorrections,
     status,
     transcribe,
+    updateSettings,
     updateCorrection,
   });
 }
@@ -456,6 +519,8 @@ module.exports = {
   ALLOWED_MIME_TYPES,
   createVoiceInputService,
   likelyNoSpeechTranscript,
+  normalizeDefaultAsrBackend,
   parseAudioBuffer,
+  voiceInputBackendChoices,
   voiceInputPhraseHintPrompt,
 };

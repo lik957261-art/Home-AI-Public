@@ -383,6 +383,57 @@ async function testComparisonTranscribeReturnsCorrectedEngineRows() {
   }
 }
 
+async function testOwnerGlobalDefaultAsrBackendIsUsedForSingleTranscribe() {
+  const harness = createHarness({
+    asrProvider: {
+      status() {
+        return {
+          enabled: true,
+          configured: true,
+          backend: "whisper-large-v3-turbo",
+          hasUrl: true,
+          comparison: [
+            { backend: "whisper-large-v3-turbo", configured: true, enabled: true },
+            { backend: "funasr-local", configured: true, enabled: true },
+            { backend: "sensevoice-local", configured: true, enabled: true },
+          ],
+        };
+      },
+      transcribeAudio(input) {
+        harness.providerCalls.push(input);
+        return Promise.resolve({
+          text: "你好，世界。",
+          language: "zh",
+          confidence: 0.8,
+          backend: input.asrBackend,
+        });
+      },
+    },
+  });
+  try {
+    const updated = harness.service.updateSettings({
+      actorId: "owner",
+      workspaceId: "owner",
+      defaultAsrBackend: "funasr-local",
+    });
+    assert.equal(updated.settings.defaultAsrBackend, "funasr-local");
+    const status = harness.service.status({ workspaceId: "child-a" });
+    assert.equal(status.settings.defaultAsrBackend, "funasr-local");
+    const result = await harness.service.transcribe({
+      actorId: "child-a",
+      workspaceId: "child-a",
+      audioBase64: audioBase64(),
+      durationMs: 1000,
+      mimeType: "audio/webm",
+      surfaceType: "chat",
+    });
+    assert.equal(result.backend, "funasr-local");
+    assert.equal(harness.providerCalls[0].asrBackend, "funasr-local");
+  } finally {
+    harness.cleanup();
+  }
+}
+
 async function run() {
   await testTranscribeDeletesTemporaryAudioAndReturnsEditableText();
   await testLikelyNoSpeechTranscriptIsRejected();
@@ -394,6 +445,7 @@ async function run() {
   await testPhrasebookAppliesSystemSeedAliasesDuringTranscribe();
   await testActivePhrasebookIsSentAsAsrPromptHint();
   await testComparisonTranscribeReturnsCorrectedEngineRows();
+  await testOwnerGlobalDefaultAsrBackendIsUsedForSingleTranscribe();
   console.log("voice input service tests passed");
 }
 
