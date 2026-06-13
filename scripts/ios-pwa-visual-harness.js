@@ -1899,6 +1899,7 @@ function assertVoiceStopHoldGesture(metrics = {}) {
       button: metrics.button || null,
     }),
     assertion("voice_stop_hold_started_recording", Number(harness.recordingCalls || 0) >= 1, { harness }),
+    assertion("voice_stop_hold_start_allows_stop_mode", harness.lastStartTarget?.allowStopMode === true, { lastStartTarget: harness.lastStartTarget || null }),
     assertion("voice_stop_hold_stopped_recording", Number(harness.stopCalls || 0) >= 1, { harness }),
     assertion("voice_stop_hold_did_not_interrupt_turn", Number(harness.interrupted || 0) === 0 && Number(harness.sendCalls || 0) === 0, { harness }),
     assertion("voice_stop_hold_no_text_selection", !String(metrics.selection || "").trim(), { selection: metrics.selection || "" }),
@@ -2345,23 +2346,88 @@ const VOICE_STOP_HOLD_GESTURE_PREPARE_SCRIPT = `
     sendMessage = window.sendMessage;
   } catch (_) {}
   try {
+    const originalStartVoiceInputRecording = window.startVoiceInputRecording;
     window.startVoiceInputRecording = async function startVoiceInputRecordingHarness(event, options) {
-      event?.preventDefault?.();
       window.__voiceStopHarness.recordingCalls += 1;
-      const voice = appState.voiceInput || (appState.voiceInput = {});
-      voice.status = "recording";
-      voice.target = options?.target || null;
-      voice.recordingStartedAt = Date.now();
-      if (typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
+      window.__voiceStopHarness.lastStartTarget = {
+        kind: options?.target?.kind || "",
+        allowStopMode: Boolean(options?.target?.allowStopMode),
+        composerKind: options?.target?.composer?.kind || "",
+        buttonId: options?.target?.button?.id || "",
+      };
+      return originalStartVoiceInputRecording.call(this, event, options);
     };
     startVoiceInputRecording = window.startVoiceInputRecording;
   } catch (_) {}
   try {
-    window.stopVoiceInputRecording = function stopVoiceInputRecordingHarness() {
-      window.__voiceStopHarness.stopCalls += 1;
+    window.voiceInputLoadStatus = async function voiceInputLoadStatusHarness() {
+      return { enabled: true, provider: "visual-harness", limits: { minDurationMs: 1, maxDurationMs: 5000 } };
+    };
+    voiceInputLoadStatus = window.voiceInputLoadStatus;
+  } catch (_) {}
+  try {
+    window.voiceInputMicrophonePermissionState = async function voiceInputMicrophonePermissionStateHarness() {
+      return "granted";
+    };
+    voiceInputMicrophonePermissionState = window.voiceInputMicrophonePermissionState;
+  } catch (_) {}
+  try {
+    if (!navigator.mediaDevices) {
+      Object.defineProperty(navigator, "mediaDevices", {
+        value: {},
+        configurable: true,
+      });
+    }
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      value: async function getUserMediaHarness() {
+        return window.voiceInputAcquireMicrophoneStream();
+      },
+      configurable: true,
+    });
+    window.voiceInputAcquireMicrophoneStream = async function voiceInputAcquireMicrophoneStreamHarness() {
+      return {
+        getTracks() {
+          return [{ stop() { window.__voiceStopHarness.trackStopped = true; } }];
+        },
+      };
+    };
+    voiceInputAcquireMicrophoneStream = window.voiceInputAcquireMicrophoneStream;
+  } catch (_) {}
+  try {
+    window.finalizeVoiceInputRecording = async function finalizeVoiceInputRecordingHarness() {
+      window.__voiceStopHarness.finalizeCalls = Number(window.__voiceStopHarness.finalizeCalls || 0) + 1;
       const voice = appState.voiceInput || (appState.voiceInput = {});
       voice.status = "idle";
       if (typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
+    };
+    finalizeVoiceInputRecording = window.finalizeVoiceInputRecording;
+  } catch (_) {}
+  try {
+    Object.defineProperty(window, "MediaRecorder", {
+      configurable: true,
+      value: class VoiceStopHarnessMediaRecorder extends EventTarget {
+      static isTypeSupported() { return false; }
+      constructor(stream) {
+        super();
+        this.stream = stream;
+        this.state = "inactive";
+        this.mimeType = "audio/webm";
+      }
+      start() {
+        this.state = "recording";
+      }
+      stop() {
+        this.state = "inactive";
+        this.dispatchEvent(new Event("stop"));
+      }
+      },
+    });
+  } catch (_) {}
+  try {
+    const originalStopVoiceInputRecording = window.stopVoiceInputRecording;
+    window.stopVoiceInputRecording = function stopVoiceInputRecordingHarness() {
+      window.__voiceStopHarness.stopCalls += 1;
+      return originalStopVoiceInputRecording.call(this);
     };
     stopVoiceInputRecording = window.stopVoiceInputRecording;
   } catch (_) {}
@@ -2439,6 +2505,7 @@ const VOICE_STOP_HOLD_GESTURE_MEASURE_SCRIPT = `
     },
     voice: {
       status: voice.status || "",
+      error: voice.error || "",
       stopButtonPressActive: Boolean(voice.stopButtonPressActive),
       stopButtonLongPressTriggered: Boolean(voice.stopButtonLongPressTriggered),
       suppressNextClick: Boolean(voice.suppressNextClick),

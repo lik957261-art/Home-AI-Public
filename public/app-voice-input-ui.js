@@ -196,6 +196,15 @@ function voiceInputNativeComposerAvailable(composer = voiceInputMainComposerDefi
   return voiceInputNativeComposerUnavailableReason(composer, options) === "";
 }
 
+function voiceInputShouldAllowStopModeForPress(button, composer) {
+  return Boolean(
+    button?.id === "sendMessage"
+    && composer?.kind === "main"
+    && typeof activeComposerRunIds === "function"
+    && activeComposerRunIds().length,
+  );
+}
+
 function voiceInputNativeComposerUnavailableReason(composer = voiceInputMainComposerDefinition(), options = {}) {
   const allowStopMode = Boolean(options.allowStopMode);
   if (!composer?.container || !composer?.input || !composer?.button) return "composer_missing";
@@ -1047,6 +1056,7 @@ function commitVoiceInputPluginResult(def, payload = {}) {
 
 function beginVoiceInputPressGesture(event, button, composer, options = {}) {
   const voice = ensureVoiceInputState();
+  const allowStopMode = Boolean(options.allowStopMode || voiceInputShouldAllowStopModeForPress(button, composer));
   voiceInputClearPressTimer();
   voice.pointerButton = button;
   voice.pointerComposer = composer;
@@ -1068,7 +1078,7 @@ function beginVoiceInputPressGesture(event, button, composer, options = {}) {
     event?.stopPropagation?.();
     voiceInputClearSelection();
     voice.pressTimer = 0;
-    void startVoiceInputRecording(event, { target: { kind: "native", composer, button } });
+    void startVoiceInputRecording(event, { target: { kind: "native", composer, button, allowStopMode } });
   }, VOICE_INPUT_LONG_PRESS_MS);
 }
 
@@ -1102,8 +1112,9 @@ function handleVoiceInputPointerDown(event) {
     return;
   }
   const composer = voiceInputComposerForButton(button);
-  if (!voiceInputNativeComposerAvailable(composer)) return;
-  beginVoiceInputPressGesture(event, button, composer, { pointerId: event.pointerId });
+  const allowStopMode = voiceInputShouldAllowStopModeForPress(button, composer);
+  if (!voiceInputNativeComposerAvailable(composer, { allowStopMode })) return;
+  beginVoiceInputPressGesture(event, button, composer, { pointerId: event.pointerId, allowStopMode });
 }
 
 function handleVoiceInputPointerUp(event) {
@@ -1150,9 +1161,10 @@ function handleVoiceInputTouchStart(event) {
     return;
   }
   const composer = voiceInputComposerForButton(button);
-  if (!voiceInputNativeComposerAvailable(composer)) return;
+  const allowStopMode = voiceInputShouldAllowStopModeForPress(button, composer);
+  if (!voiceInputNativeComposerAvailable(composer, { allowStopMode })) return;
   voice.touchFallbackActive = true;
-  beginVoiceInputPressGesture(event, button, composer);
+  beginVoiceInputPressGesture(event, button, composer, { allowStopMode });
 }
 
 function handleVoiceInputTouchEnd(event) {

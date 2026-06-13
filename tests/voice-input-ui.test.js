@@ -66,6 +66,8 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /button\.classList\.add\("voice-input-label-proxy"\)/);
   assert.match(voiceUi, /button\.textContent = ""/);
   assert.match(voiceUi, /button\?\.id === "sendMessage" && isComposerStopMode\(\)/);
+  assert.match(voiceUi, /function voiceInputShouldAllowStopModeForPress\(button, composer\)/);
+  assert.match(voiceUi, /button\?\.id === "sendMessage"[\s\S]*activeComposerRunIds\(\)\.length/);
   assert.match(voiceUi, /voice\.stopButtonPressActive = true/);
   assert.match(voiceUi, /voice\.stopButtonLongPressTriggered = false/);
   assert.match(voiceUi, /voice\.suppressNextClick = true;[\s\S]*?voice\.suppressClickButton = button;[\s\S]*?scheduleVoiceInputClickSuppressionClear\(\);/);
@@ -77,6 +79,9 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /if \(button\?\.id === "sendMessage" && isComposerStopMode\(\)\) \{[\s\S]*?voice\.touchFallbackActive = true;[\s\S]*?handleVoiceInputStopButtonPointerDown\(event, button\);[\s\S]*?return;/);
   assert.match(voiceUi, /if \(voice\.stopButtonPressActive \|\| \(voice\.pointerButton\?\.id === "sendMessage" && isComposerStopMode\(\)\)\) \{[\s\S]*?endVoiceInputStopButtonPress\(event\);[\s\S]*?return;/);
   assert.match(voiceUi, /allowStopMode: true/);
+  assert.match(voiceUi, /const allowStopMode = Boolean\(options\.allowStopMode \|\| voiceInputShouldAllowStopModeForPress\(button, composer\)\)/);
+  assert.match(voiceUi, /target: \{ kind: "native", composer, button, allowStopMode \}/);
+  assert.match(voiceUi, /const allowStopMode = voiceInputShouldAllowStopModeForPress\(button, composer\);[\s\S]*?voiceInputNativeComposerAvailable\(composer, \{ allowStopMode \}\)/);
   assert.match(voiceUi, /if \(longPress && \["checking", "requesting", "preparing", "recording", "finalizing"\]\.includes\(voice\.status\)\) \{[\s\S]*?stopVoiceInputRecording\(\);/);
   assert.match(voiceUi, /voiceInputNativeComposerAvailable\(target\.composer \|\| voiceInputMainComposerDefinition\(\), \{[\s\S]*?allowStopMode: Boolean\(target\.allowStopMode\),/);
   assert.match(voiceUi, /if \(!longPress && typeof sendMessage === "function"\) \{[\s\S]*?void sendMessage\(event\);/);
