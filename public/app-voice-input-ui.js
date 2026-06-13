@@ -394,6 +394,13 @@ function voiceInputRememberButtonLabel(button) {
   if (!button.dataset.voiceInputDefaultAriaLabel) button.dataset.voiceInputDefaultAriaLabel = button.getAttribute("aria-label") || "";
 }
 
+function voiceInputSetButtonVisualLabel(button, label) {
+  if (!button) return;
+  button.dataset.voiceInputVisualLabel = String(label || "");
+  button.classList.add("voice-input-label-proxy");
+  button.textContent = "";
+}
+
 function voiceInputRestoreButtonLabel(button) {
   if (!button || button.id === "sendMessage") return;
   if (button.dataset.voiceInputDefaultLabel) button.textContent = button.dataset.voiceInputDefaultLabel;
@@ -439,16 +446,17 @@ function refreshVoiceInputSendButton() {
     button.classList.toggle("voice-input-recording", mainActive && voice.status === "recording");
     button.classList.toggle("voice-input-busy", mainActive && (voice.status === "finalizing" || voice.status === "transcribing"));
     if (!mainActive) {
-      button.textContent = isChatSearchMode() ? "搜索" : (isComposerStopMode() ? "Stop" : "Send");
+      const label = isChatSearchMode() ? "搜索" : (isComposerStopMode() ? "Stop" : "Send");
+      voiceInputSetButtonVisualLabel(button, label);
       button.setAttribute("title", voiceInputNativeComposerAvailable(mainComposer) ? "按住录音，松开转写" : "Send");
       button.setAttribute("aria-label", voiceInputNativeComposerAvailable(mainComposer) ? "发送。按住可语音输入" : "Send");
     } else if (voice.status === "recording") {
       const elapsed = Date.now() - Number(voice.recordingStartedAt || Date.now());
-      button.textContent = voiceInputFormatDuration(elapsed);
+      voiceInputSetButtonVisualLabel(button, voiceInputFormatDuration(elapsed));
       button.setAttribute("aria-label", "正在录音，松开后转写");
       button.setAttribute("title", "松开后转写");
     } else {
-      button.textContent = voice.status === "transcribing" ? "转写" : "语音";
+      voiceInputSetButtonVisualLabel(button, voice.status === "transcribing" ? "转写" : "语音");
       button.setAttribute("aria-label", voiceInputStatusLabel(voice.status));
       button.setAttribute("title", voiceInputStatusLabel(voice.status));
     }

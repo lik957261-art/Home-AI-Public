@@ -20,9 +20,9 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-stop-callout-v752[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-stop-callout-v752[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-stop-callout-v752[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-stop-callout-v752/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-stop-callout-v752/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-stop-callout-v752/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-button-proxy-v753[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-button-proxy-v753[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-button-proxy-v753[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-button-proxy-v753/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-button-proxy-v753/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-button-proxy-v753/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -52,6 +52,10 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /const permissionStatePromise = voiceInputMicrophonePermissionState\(\)/);
   assert.match(voiceUi, /function handleVoiceInputStopButtonPointerDown\(event, button\)/);
   assert.match(voiceUi, /function endVoiceInputStopButtonPress\(event, options = \{\}\)/);
+  assert.match(voiceUi, /function voiceInputSetButtonVisualLabel\(button, label\)/);
+  assert.match(voiceUi, /button\.dataset\.voiceInputVisualLabel = String\(label \|\| ""\)/);
+  assert.match(voiceUi, /button\.classList\.add\("voice-input-label-proxy"\)/);
+  assert.match(voiceUi, /button\.textContent = ""/);
   assert.match(voiceUi, /button\?\.id === "sendMessage" && isComposerStopMode\(\)/);
   assert.match(voiceUi, /voice\.stopButtonPressActive = true/);
   assert.match(voiceUi, /voice\.stopButtonLongPressTriggered = false/);
@@ -152,6 +156,7 @@ function testEmbeddedPluginBridgeContract() {
 
 function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(styles, /\.voice-input-gesture[\s\S]*user-select: none/);
+  assert.match(styles, /#sendMessage\.voice-input-label-proxy::before \{[\s\S]*?content: attr\(data-voice-input-visual-label\);[\s\S]*?user-select: none;[\s\S]*?-webkit-touch-callout: none;/);
   assert.match(styles, /\.voice-input-gesture[\s\S]*-webkit-user-select: none/);
   assert.match(styles, /\.voice-input-gesture[\s\S]*-webkit-touch-callout: none/);
   assert.match(styles, /\.voice-input-gesture[\s\S]*-webkit-user-drag: none/);
