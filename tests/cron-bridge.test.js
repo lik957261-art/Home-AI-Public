@@ -112,6 +112,40 @@ function main() {
   assert.equal(createWithProfile.job.profile, "hm-owner-openai-1");
   assert.deepEqual(createWithProfile.job.enabledToolsets, ["email", "file", "skills"]);
 
+  const workdir = path.join(hermesHome, "automation-workspaces", "email-job");
+  const createWithWorkdir = runBridge(baseEnv, {
+    action: "create",
+    dry_run: false,
+    job: {
+      name: "Profile-backed email job with workdir",
+      prompt: "Analyze email through MCP",
+      schedule: "0 11 * * *",
+      profile: "hm-owner-openai-1",
+      enabled_toolsets: ["email", "file", "skills"],
+      workdir,
+    },
+    owner_principal_id: "owner",
+  });
+  assert.equal(createWithWorkdir.ok, true);
+  assert.equal(createWithWorkdir.job.workdir, "[path]");
+  const persistedWorkdirDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  const persistedWorkdirJob = persistedWorkdirDoc.jobs.find((job) => job.name === "Profile-backed email job with workdir");
+  assert.equal(persistedWorkdirJob.workdir, workdir);
+  assert.equal(fs.statSync(workdir).isDirectory(), true);
+
+  const invalidWorkdir = runBridge(baseEnv, {
+    action: "create",
+    dry_run: true,
+    job: {
+      name: "Invalid workdir job",
+      prompt: "Invalid workdir should fail",
+      schedule: "0 11 * * *",
+      workdir: path.join(tempRoot, "outside-workdir"),
+    },
+  }, 1);
+  assert.equal(invalidWorkdir.ok, false);
+  assert.match(invalidWorkdir.error, /workdir is outside/);
+
   const invalidProfile = runBridge(baseEnv, {
     action: "create",
     dry_run: true,

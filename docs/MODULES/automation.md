@@ -186,6 +186,10 @@ deployment scratch and can be removed. User-visible reports, cursors,
 intermediate indexes, and `MEDIA:` deliverables should live under a data root
 such as `$HERMES_HOME/automation-workspaces/<job>/...` or another authorized
 delivery directory.
+`cron_bridge.py` preserves workdirs only when they are absolute paths inside
+`$HERMES_HOME/automation-workspaces` or the CRON output root, and creates the
+directory on create/update. Unsafe workdirs are rejected instead of silently
+falling back to the app directory.
 
 Detached cron runners may execute from the interactive Ubuntu distro while the dedicated Grok Gateway listens behind the Windows host / worker-distro loopback boundary. For `x_search`, the dispatcher should pass `HERMES_MOBILE_X_SEARCH_PROXY_URL` pointing at the bridge-host proxy prefix `/bridge/grok-gateway-proxy`; runners should not assume `127.0.0.1:<grok-port>` reaches the Grok worker.
 

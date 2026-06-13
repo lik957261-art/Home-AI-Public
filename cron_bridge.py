@@ -890,6 +890,41 @@ def normalize_profile(value: Any) -> str | None:
     return text
 
 
+def path_inside(parent: Path, child: Path) -> bool:
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def normalize_workdir(value: Any) -> str | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    path = Path(os.path.expanduser(text))
+    if not path.is_absolute():
+        raise ValueError("workdir must be absolute")
+    allowed_roots = [
+        HERMES_HOME / "automation-workspaces",
+        CRON_OUTPUT_ROOT,
+    ]
+    if not any(path_inside(root, path) for root in allowed_roots):
+        raise ValueError("workdir is outside the automation data roots")
+    return str(path)
+
+
+def ensure_workdir(value: Any, *, dry_run: bool = False) -> str | None:
+    workdir = normalize_workdir(value)
+    if workdir and not dry_run:
+        Path(workdir).mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(workdir, 0o700)
+        except OSError:
+            pass
+    return workdir
+
+
 def normalize_create_payload(request: dict[str, Any]) -> dict[str, Any]:
     raw = request.get("job") if isinstance(request.get("job"), dict) else request
     name = compact_text(raw.get("name") or request.get("text") or "Hermes automation", 120)
@@ -917,6 +952,7 @@ def normalize_create_payload(request: dict[str, Any]) -> dict[str, Any]:
         "model": str(raw.get("model") or "").strip() or None,
         "provider": str(raw.get("provider") or "").strip() or None,
         "profile": normalize_profile(raw.get("profile") or request.get("profile")),
+        "workdir": normalize_workdir(raw.get("workdir")),
         "owner_principal_id": str(request.get("owner_principal_id") or request.get("ownerPrincipalId") or "").strip() or None,
         "access_policy_context": request.get("access_policy_context") if isinstance(request.get("access_policy_context"), dict) else None,
     }
@@ -1022,7 +1058,7 @@ def manual_create_job(payload: dict[str, Any], *, dry_run: bool = False) -> dict
         "deliver": payload.get("deliver") or "local",
         "origin": None,
         "enabled_toolsets": payload.get("enabled_toolsets") or None,
-        "workdir": None,
+        "workdir": ensure_workdir(payload.get("workdir"), dry_run=dry_run),
     }
     if dry_run:
         return job
@@ -1111,7 +1147,7 @@ def update_job_from_patch(job: dict[str, Any], patch: dict[str, Any]) -> None:
         else:
             job.pop("profile", None)
     if "workdir" in patch and patch.get("workdir") is not None:
-        job["workdir"] = str(patch.get("workdir") or "").strip() or None
+        job["workdir"] = ensure_workdir(patch.get("workdir"))
     job["updated_at"] = datetime.now().astimezone().isoformat()
 
 
