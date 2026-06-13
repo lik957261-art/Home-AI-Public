@@ -207,12 +207,13 @@ Home AI voice input correction uses three bounded learning sources:
      the voice learning service, regardless of whether the source was Home AI
      voice input, the system keyboard, a third-party input method, paste, or
      manual typing.
-   - The server-side thread message commit path is the primary learning hook:
+   - The server-side thread message commit path is the browser learning hook:
      once the user message is accepted into the thread, it records bounded
-     sent-text evidence through `voiceInputService.learnSentText`. Frontend
-     learning calls are opportunistic compatibility helpers only and must not
-     be the sole path, because stale clients or alternate composer surfaces can
-     miss them.
+     sent-text evidence through `voiceInputService.learnSentText`. Browser
+     clients must not also call `/api/voice-input/learn-sent-text` after send,
+     because duplicate client/server evidence inflates phrase support counts.
+     The route remains available for compatibility tests and non-thread
+     integration surfaces that cannot pass through the thread commit service.
    - Home AI must not observe keystrokes, read the third-party input method, or
      collect text from other apps. It only sees the final text that the user
      has already placed into a Home AI composer and successfully sent.
