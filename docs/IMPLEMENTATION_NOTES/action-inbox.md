@@ -158,30 +158,26 @@ Thread Todo creation uses the same service path through
 Do not reintroduce a legacy sequence of `todoProvider.addTodo()` followed by
 `actionInboxService.upsertSourceItem()` for ordinary chat-created Todos.
 
-The chat route must not use a keyword-only Todo preselection gate. For normal
-model turns it calls `executeModelTodoIntake()`, which in turn calls
-`detectTodoNaturalLanguage()` with the `home-ai-todo-intake` Skill rules. A
-non-Todo detection is skipped and the main model turn proceeds unchanged. A
-confirmation-needed draft is not persisted; its bounded draft context is passed
-to the main model so it can ask the user for missing fields. A confirmed draft
-is passed to `actionInboxTodoService.createTodo()` for host validation and
-persistence, then the main model turn continues with bounded created-Todo
-context in `runOptions.instructions`. This keeps the natural-language decision
-inside the model while preserving host-owned validation and storage.
+The chat route must not use a keyword-only Todo preselection gate or a
+model-backed Todo preflight for every normal model turn. Natural-language Todo
+creation is explicit: the Inbox `新建待办事项` surface calls
+`POST /api/action-inbox/todo-drafts/interpret`, which invokes
+`interpretTodoNaturalLanguage()` with the `home-ai-todo-intake` Skill rules.
+The returned draft is validated by `actionInboxTodoService.validateDraft()`;
+only a validated, confirmation-free draft is then passed to
+`actionInboxTodoService.createTodo()` for host persistence.
 
-`executeModelTodoIntake()` enriches the current workspace with
+The explicit Todo interpretation route enriches the current workspace with
 `assignableWorkspaces` from the runtime workspace catalog before calling the
 natural-language draft service. The prompt exposes only bounded candidate
 metadata: workspace id, display name, and aliases. This is the productized path
 for names such as a family member or managed workspace; do not hard-code
 individual users in the Skill or server logic.
 
-The `/messages` request may spend several seconds in Todo intake before a
-Gateway run id exists. During that period the static client appends a local
-queued assistant placeholder whose `localRunProgressEvents` contains
-`run.todo_intake_started`. `renderPendingRunProgressPanel()` renders that event
-inside the same inline run-progress panel used for Gateway runs, then the
-placeholder is removed when the server response arrives.
+The `/messages` request must proceed directly to normal chat run creation. The
+static client may render a generic local pending row such as
+`run.request_preparing`, but it must not imply that every message is being
+checked for Todo intent.
 
 When `creatorWorkspaceId !== assigneeWorkspaceId`, the Todo service writes two
 bounded records: the assignee's actionable Todo and the creator's tracking

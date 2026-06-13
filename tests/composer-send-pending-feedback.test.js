@@ -72,7 +72,7 @@ assert.strictEqual(state.currentThread.messages[0].taskGroupId, "chat-default");
 assert.strictEqual(state.currentThread.messages[1].status, "queued");
 assert.strictEqual(state.currentThread.messages[1].taskGroupId, "chat-default");
 assert.strictEqual(state.currentThread.messages[1].localPendingSend, true);
-assert.strictEqual(state.currentThread.messages[1].localRunProgressEvents[0].event, "run.todo_intake_started");
+assert.strictEqual(state.currentThread.messages[1].localRunProgressEvents[0].event, "run.request_preparing");
 assert.ok(state.forceChatStickToBottomUntil > 0);
 
 assert.strictEqual(clearOptimisticSendMessages(token, { render: false }), true);

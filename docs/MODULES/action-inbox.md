@@ -126,34 +126,23 @@ list or composer. Any legacy direct-create keyword detector controlled by
 direct Todo/Kanban compatibility flags is not the product natural-language path
 and must remain off by default.
 
-Chat Todo creation is part of the same host-owned Todo path. Ordinary chat text
-must not depend on a keyword-only host preselection before it reaches a model.
-When Todo intake is enabled, Home AI runs a low-cost Skill-guided Todo-intake
-model pass for the message. If that pass decides the message is not a Todo
-request, the normal chat model turn proceeds unchanged. If it returns a
-confirmation-needed Todo draft, the host does not create the item and the normal
-chat model should ask for the missing or ambiguous fields. If it returns a
-validated draft that does not need confirmation, the host creates the Action
-Inbox Todo first, then continues the ordinary chat model turn with bounded
-created-Todo context. The model may draft or discuss Todos, but Home AI host
-services remain responsible for validation, Web Push, audit events, and
-persistence.
+Natural-language Todo creation is part of the same host-owned Todo path, but it
+belongs behind an explicit creation surface. The Inbox top-right `新建待办事项`
+entry may accept natural language, run the Todo-intake Skill, validate the
+structured draft, and then create the Action Inbox Todo. Ordinary chat text must
+not run a Todo-intake preflight before every model turn. If the user asks in
+ordinary chat for Home AI or Hermes to do current work, the request should go
+directly to the chat model unless the user explicitly opens a Todo/reminder
+creation entry point.
 
 Current-work execution requests are not Todo requests. Messages asking Home AI,
 Hermes, a plugin, or an agent to inspect code, operate a plugin, search,
 summarize, fix a bug, rename product copy, replace text, deploy, or continue
 current work must proceed as ordinary chat unless the user explicitly asks to
-add/save/create a Todo, reminder, alarm, or later follow-up. Even when the
-Todo-intake model returns a draft, host auto-creation requires high confidence
-from both the detection and draft; below the auto-create threshold, the host
-skips persistence and lets the normal chat turn proceed unchanged.
-
-Because the Todo-intake model pass runs before the normal chat run is created,
-the client must not look frozen during this phase. The chat composer should
-optimistically render a pending run-progress panel that says the host is
-checking Todo intent and preparing the model run. Once the server returns the
-normal run id, the standard Gateway run-progress events replace that local
-pending row.
+add/save/create a Todo, reminder, alarm, or later follow-up from the Todo
+creation surface. Even when a Todo-intake model returns a draft, host
+auto-creation requires high confidence from both the detection and draft; below
+the auto-create threshold, the host skips persistence.
 
 Cross-workspace natural-language Todo creation must provide the Todo-intake
 model with a bounded list of assignable workspace candidates from the workspace

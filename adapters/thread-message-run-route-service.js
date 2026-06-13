@@ -28,40 +28,6 @@ function normalizeInitialLimit(value) {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : DEFAULT_THREAD_MESSAGE_INITIAL_LIMIT;
 }
 
-function cleanInstructionPart(value, maxLength = 240) {
-  return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
-}
-
-function appendDirectTodoContextToRunOptions(plan, executed) {
-  const runOptions = plan?.runOptions;
-  if (!runOptions || typeof runOptions !== "object") return;
-  const todo = executed?.todo || {};
-  const item = executed?.inboxItem || {};
-  const draft = executed?.todoDraft || {};
-  const created = !executed?.skipped && Boolean(executed?.ok);
-  const lines = [
-    "[HOME AI TODO CONTEXT]",
-    created
-      ? "The host has already created the requested Action Inbox Todo before this model turn. Do not create a duplicate Todo. Continue answering the user's message naturally and mention the created Todo only when useful."
-      : "The host detected a possible Todo request but did not create it because the draft needs confirmation. Ask for the missing or ambiguous fields if the user intended to create a Todo. Do not claim that a Todo was created.",
-    `Todo id: ${cleanInstructionPart(todo.id || item.id || "")}`,
-    `Title: ${cleanInstructionPart(draft.title || todo.title || item.title || "")}`,
-    `Assignee workspace: ${cleanInstructionPart(draft.assigneeWorkspaceId || item.assigneeWorkspaceId || todo.workspaceId || "")}`,
-    `Due at: ${cleanInstructionPart(draft.dueAt || todo.dueAt || item.dueAt || "")}`,
-    `Missing fields: ${cleanInstructionPart(Array.isArray(draft.missingFields) ? draft.missingFields.join(", ") : "")}`,
-  ].filter((line) => !/:\s*$/.test(line));
-  runOptions.instructions = [runOptions.instructions || "", lines.join("\n")].filter(Boolean).join("\n\n");
-  plan.directCreateResult = {
-    type: "todo",
-    ok: Boolean(executed?.ok),
-    skipped: Boolean(executed?.skipped),
-    reason: executed?.reason || "",
-    todo,
-    inboxItem: item,
-    todoDraft: draft,
-  };
-}
-
 function requestBodyErrorResponse(err) {
   const message = err?.message || String(err || "Invalid request body");
   const code = err?.code || "";
@@ -176,21 +142,6 @@ function createThreadMessageRunRouteService(options = {}) {
       const status = executed.status || 400;
       const payload = executed.response || { error: executed.error || "Direct create failed" };
       return Object.assign(send(status, payload, res), { ok: Boolean(executed.ok), plan, result: executed });
-    }
-
-    if (plan.nextAction === "start-run" || plan.nextAction === "queue-run") {
-      const directCreateService = getThreadDirectCreateExecutionService();
-      const executed = typeof directCreateService.executeModelTodoIntake === "function"
-        ? await directCreateService.executeModelTodoIntake({ thread, plan, compactResponseThread })
-        : { ok: true, skipped: true, reason: "todo_intake_unavailable" };
-      if (!executed.ok) {
-        const status = executed.status || 400;
-        const payload = executed.response || { error: executed.error || "Direct create failed" };
-        return Object.assign(send(status, payload, res), { ok: false, plan, result: executed });
-      }
-      if (!executed.skipped || executed.reason === "todo_needs_confirmation") {
-        appendDirectTodoContextToRunOptions(plan, executed);
-      }
     }
 
     const dispatched = await service.commitRunMessageAndDispatch(thread, plan);

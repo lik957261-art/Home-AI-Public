@@ -207,18 +207,10 @@ This file records durable product rules that implementation must preserve.
 - Natural-language Todo creation must use model understanding guided by a
   dedicated Skill and produce a structured draft. Keyword-only parsing is not a
   valid product path for assigning people, dates, title, recurrence, or
-  priority, and it is also not reliable enough as the product intent gate for
-  ordinary chat input. Home AI should route normal chat text through a
-  Skill-guided Todo-intake model pass when this capability is enabled. The
-  model decides whether the utterance is a Todo/reminder/alarm request and, if
-  so, returns a draft. The host validates and persists the draft, then the
-  ordinary chat model turn continues with bounded context about the created or
-  confirmation-needed Todo.
-- While the Todo-intake model pass is running before a normal run id exists,
-  the chat UI must show a local run-progress row such as `正在识别意图`.
-  The visible label must stay generic because this preflight is the first
-  host-owned intent recognition step, even if the current implementation only
-  routes Todo/reminder drafts.
+  priority. Natural-language Todo interpretation belongs behind explicit Todo
+  creation entry points such as the Inbox top-right `新建待办事项` action, not in
+  every ordinary chat send. Normal chat must proceed directly to the chat model
+  without a Todo-intake preflight.
 - The model may only produce a Todo draft. Home AI must validate permissions,
   workspace identity, dates, recurrence, Web Push, audit events, and persistence
   before creating or mutating any Todo/reminder.

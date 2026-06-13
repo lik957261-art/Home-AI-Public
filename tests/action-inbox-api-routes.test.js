@@ -42,6 +42,7 @@ function makeRoutes(overrides = {}) {
     dismiss: [],
     financeReview: [],
     get: [],
+    interpretTodo: [],
     list: [],
     snooze: [],
     todoCreate: [],
@@ -106,6 +107,27 @@ function makeRoutes(overrides = {}) {
         return { ok: true, item: Object.assign({}, items.get(input.itemId), { status: input.decision === "approve" ? "done" : "dismissed" }) };
       },
     },
+    interpretTodoNaturalLanguage(text, workspace, principalId) {
+      calls.interpretTodo.push({ text, workspace, principalId });
+      return Promise.resolve({
+        title: "提交发票",
+        summary: "自然语言生成",
+        creatorWorkspaceId: workspace.id,
+        assigneeWorkspaceId: "child",
+        dueAt: "2026-06-14T18:00:00+08:00",
+        recurrence: { kind: "none" },
+        needsConfirmation: false,
+        missingFields: [],
+        confidence: 0.95,
+        sourceText: text,
+      });
+    },
+    findWorkspace(workspaceId) {
+      return { id: workspaceId, label: `Workspace ${workspaceId}` };
+    },
+    listAssignableWorkspaces() {
+      return [{ id: "child", displayName: "Child", aliases: ["孩子"] }];
+    },
     broadcast(payload) {
       calls.broadcast.push(payload);
     },
@@ -128,6 +150,7 @@ function makeRoutes(overrides = {}) {
       return String(workspaceId || "owner");
     },
     sendJson,
+    workspacePrincipal: (workspaceId) => `principal:${workspaceId}`,
   }, overrides);
   return { calls, routes: createActionInboxApiRoutes(deps) };
 }
@@ -148,6 +171,7 @@ async function testRouteMetadataAndFallthrough() {
     "action-inbox-list",
     "action-inbox-create",
     "action-inbox-todo-draft-validate",
+    "action-inbox-todo-draft-interpret",
     "action-inbox-todo-create",
     "action-inbox-todo-tick",
     "action-inbox-detail",
@@ -158,6 +182,7 @@ async function testRouteMetadataAndFallthrough() {
   assert.equal(routes.match({ method: "GET", path: "/api/action-inbox" }).id, "action-inbox-list");
   assert.equal(routes.match({ method: "POST", path: "/api/action-inbox" }).id, "action-inbox-create");
   assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/todo-drafts/validate" }).id, "action-inbox-todo-draft-validate");
+  assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/todo-drafts/interpret" }).id, "action-inbox-todo-draft-interpret");
   assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/todos" }).id, "action-inbox-todo-create");
   assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/todos/tick" }).id, "action-inbox-todo-tick");
   assert.equal(routes.match({ method: "GET", path: "/api/action-inbox/item%2F1" }).id, "action-inbox-detail");
@@ -177,6 +202,20 @@ async function testTodoDraftCreateAndTickRoutes() {
   });
   assert.equal(draft.res.statusCode, 200);
   assert.equal(calls.todoValidate[0].creatorWorkspaceId, "owner");
+
+  const interpreted = await request(routes, "POST", "/api/action-inbox/todo-drafts/interpret", {
+    auth: { principalId: "owner" },
+    body: { workspaceId: "owner", text: "明天下午六点提醒孩子提交发票" },
+  });
+  assert.equal(interpreted.res.statusCode, 200);
+  assert.equal(calls.interpretTodo.length, 1);
+  assert.equal(calls.interpretTodo[0].text, "明天下午六点提醒孩子提交发票");
+  assert.equal(calls.interpretTodo[0].workspace.id, "owner");
+  assert.deepEqual(calls.interpretTodo[0].workspace.assignableWorkspaces, [{ id: "child", displayName: "Child", aliases: ["孩子"] }]);
+  assert.equal(calls.interpretTodo[0].principalId, "owner");
+  assert.equal(calls.todoValidate.at(-1).sourceText, "明天下午六点提醒孩子提交发票");
+  assert.equal(interpreted.body.draft.title, "提交发票");
+  assert.equal(interpreted.body.draft.sourceText, "明天下午六点提醒孩子提交发票");
 
   const created = await request(routes, "POST", "/api/action-inbox/todos", {
     auth: { principalId: "owner" },

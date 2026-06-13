@@ -304,7 +304,7 @@ async function testDirectKanbanCreateReceivesCompactResponseCallback() {
   });
 }
 
-async function testModelTodoIntakeCreatesThenDispatchesRun() {
+async function testNormalRunDoesNotExecuteModelTodoIntake() {
   const thread = baseThread();
   const plan = {
     ok: true,
@@ -337,20 +337,14 @@ async function testModelTodoIntakeCreatesThenDispatchesRun() {
   );
 
   assert.equal(result.status, 202);
-  assert.equal(calls.direct.length, 1);
-  assert.equal(calls.direct[0].modelTodoIntake, true);
+  assert.equal(calls.direct.length, 0);
   assert.equal(calls.dispatch.length, 1);
-  assert.match(plan.runOptions.instructions, /HOME AI TODO CONTEXT/);
-  assert.match(plan.runOptions.instructions, /already created/);
-  assert.match(plan.runOptions.instructions, /pay tax/);
+  assert.equal(plan.runOptions.instructions, "base instructions");
   assert.deepEqual(res.sends[0], {
     status: 202,
     payload: {
       run: { run_id: "run-1", status: "started" },
       thread: { id: "thread-1", mode: "thread", messageCount: 0 },
-      todo: { id: "todo-1", title: "pay tax", dueAt: "2026-06-30T15:59:59.000Z", workspaceId: "owner" },
-      inboxItem: { id: "ainb-1", title: "pay tax", assigneeWorkspaceId: "owner", dueAt: "2026-06-30T15:59:59.000Z" },
-      todoDraft: { title: "pay tax", assigneeWorkspaceId: "owner", dueAt: "2026-06-30T23:59:59+08:00" },
     },
   });
 }
@@ -500,7 +494,7 @@ async function testOwnerElevationDelegatesToRetryService() {
   await testCreateBodyReadErrorsUseControlledResponses();
   await testPlainMessageUsesContextAuthAndCompactDescriptor();
   await testDirectKanbanCreateReceivesCompactResponseCallback();
-  await testModelTodoIntakeCreatesThenDispatchesRun();
+  await testNormalRunDoesNotExecuteModelTodoIntake();
   await testRunDispatchSuccessAndFailurePayloads();
   await testOwnerElevationPrechecksAndBodyParseFailure();
   await testOwnerElevationDelegatesToRetryService();

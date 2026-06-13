@@ -49,6 +49,21 @@ const ACTION_INBOX_API_ROUTE_SPECS = Object.freeze([
     tags: ["action-inbox", "todo", "draft"],
   },
   {
+    id: "action-inbox-todo-draft-interpret",
+    method: "POST",
+    path: "/api/action-inbox/todo-drafts/interpret",
+    group: "action-inbox",
+    moduleKey: "action-inbox",
+    handlerKey: "interpretTodoDraft",
+    summary: "Interpret explicit natural-language Todo input into a structured draft.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["action-inbox", "todo"],
+    tags: ["action-inbox", "todo", "draft", "natural-language"],
+  },
+  {
     id: "action-inbox-todo-create",
     method: "POST",
     path: "/api/action-inbox/todos",
@@ -228,6 +243,53 @@ function createActionInboxApiRoutes(deps = {}) {
     responseFromResult(deps, res, result);
   }
 
+  async function handleTodoDraftInterpret(req, res, context = {}) {
+    if (typeof deps.interpretTodoNaturalLanguage !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "todo_natural_language_interpreter_unavailable" });
+      return;
+    }
+    if (!deps.actionInboxTodoService || typeof deps.actionInboxTodoService.validateDraft !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "action_inbox_todo_service_unavailable" });
+      return;
+    }
+    const body = await deps.readBody(req).catch(() => ({}));
+    const sourceText = String(body.text || body.naturalText || body.sourceText || "").trim();
+    if (!sourceText) {
+      deps.sendJson(res, 400, { ok: false, error: "todo_natural_language_text_required" });
+      return;
+    }
+    const creatorWorkspaceId = deps.requireWorkspaceAccess(req, res, body.creatorWorkspaceId || body.workspaceId || "owner");
+    if (!creatorWorkspaceId) return;
+    const workspaceBase = typeof deps.findWorkspace === "function"
+      ? deps.findWorkspace(creatorWorkspaceId)
+      : { id: creatorWorkspaceId };
+    const workspace = Object.assign({}, workspaceBase && typeof workspaceBase === "object" ? workspaceBase : {}, {
+      id: creatorWorkspaceId,
+      assignableWorkspaces: typeof deps.listAssignableWorkspaces === "function"
+        ? deps.listAssignableWorkspaces(creatorWorkspaceId)
+        : [],
+    });
+    const principalId = context.auth?.principalId
+      || (typeof deps.workspacePrincipal === "function" ? deps.workspacePrincipal(creatorWorkspaceId) : "")
+      || creatorWorkspaceId;
+    let draft = null;
+    try {
+      draft = await deps.interpretTodoNaturalLanguage(sourceText, workspace, principalId);
+    } catch (err) {
+      deps.sendJson(res, 502, { ok: false, error: err?.message || String(err || "todo_natural_language_interpret_failed") });
+      return;
+    }
+    const result = await deps.actionInboxTodoService.validateDraft(Object.assign({}, draft, {
+      workspaceId: creatorWorkspaceId,
+      creatorWorkspaceId: draft?.creatorWorkspaceId || creatorWorkspaceId,
+      sourceText,
+      auth: context.auth,
+    }));
+    responseFromResult(deps, res, Object.assign({}, result, {
+      draft: Object.assign({}, draft || {}, result?.draft || {}, { sourceText }),
+    }));
+  }
+
   async function handleTodoCreate(req, res, context = {}) {
     if (!deps.actionInboxTodoService || typeof deps.actionInboxTodoService.createTodo !== "function") {
       deps.sendJson(res, 503, { ok: false, error: "action_inbox_todo_service_unavailable" });
@@ -362,6 +424,7 @@ function createActionInboxApiRoutes(deps = {}) {
     if (route.id === "action-inbox-list") await handleList(req, res, url);
     else if (route.id === "action-inbox-create") await handleCreate(req, res, context);
     else if (route.id === "action-inbox-todo-draft-validate") await handleTodoDraftValidate(req, res, context);
+    else if (route.id === "action-inbox-todo-draft-interpret") await handleTodoDraftInterpret(req, res, context);
     else if (route.id === "action-inbox-todo-create") await handleTodoCreate(req, res, context);
     else if (route.id === "action-inbox-todo-tick") await handleTodoTick(req, res, context);
     else if (route.id === "action-inbox-detail") await handleDetail(req, res, url);

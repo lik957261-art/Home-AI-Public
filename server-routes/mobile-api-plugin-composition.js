@@ -150,10 +150,14 @@ function createMobileApiPluginComposition(deps = {}) {
     actionInboxTodoService,
     broadcast: deps.broadcast,
     financeLedgerJoinApprovalService,
+    findWorkspace: deps.findWorkspace,
+    interpretTodoNaturalLanguage: deps.interpretTodoNaturalLanguage,
+    listAssignableWorkspaces: deps.listAssignableWorkspaces,
     readBody: deps.readBody,
     requireOwner: deps.requireOwner,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
+    workspacePrincipal: deps.workspacePrincipal,
   });
   callBootTrace(deps, "action inbox api routes ready");
 
