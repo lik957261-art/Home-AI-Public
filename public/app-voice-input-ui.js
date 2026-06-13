@@ -396,7 +396,9 @@ function voiceInputRememberButtonLabel(button) {
 
 function voiceInputSetButtonVisualLabel(button, label) {
   if (!button) return;
-  button.dataset.voiceInputVisualLabel = String(label || "");
+  const normalized = String(label || "");
+  button.classList.toggle("voice-input-stop-proxy", normalized === "Stop");
+  button.dataset.voiceInputVisualLabel = normalized === "Stop" ? "" : normalized;
   button.classList.add("voice-input-label-proxy");
   button.textContent = "";
 }

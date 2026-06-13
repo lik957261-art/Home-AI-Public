@@ -16692,6 +16692,15 @@ body.task-markdown-preview-open {
   -webkit-user-drag: none;
 }
 
+#sendMessage.voice-input-label-proxy.voice-input-stop-proxy::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  background: currentColor;
+  vertical-align: -1px;
+}
+
 .voice-input-gesture {
   user-select: none;
   -webkit-user-select: none;
