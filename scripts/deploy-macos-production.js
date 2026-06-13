@@ -95,12 +95,14 @@ const CODEX_MOBILE_LOG_REPAIR = Object.freeze({
   type: "codex-mobile-log-permissions",
   serviceUser: "xuxin",
   serviceGroup: "staff",
-  logsRelativePath: "logs",
+  launchdLabel: "com.hermesmobile.plugin.codex-mobile",
+  launchdPlistPath: "/Library/LaunchDaemons/com.hermesmobile.plugin.codex-mobile.plist",
+  runtimeLogRoot: "/Users/xuxin/.codex-mobile-web/logs",
   logFiles: Object.freeze([
-    "plugin-codex-mobile.out.log",
-    "plugin-codex-mobile.err.log",
+    "codex-mobile-web.out.log",
+    "codex-mobile-web.err.log",
   ]),
-  directoryMode: "711",
+  directoryMode: "700",
   fileMode: "600",
 });
 
@@ -1266,8 +1268,9 @@ function buildRsyncArgs(excludes, source, target) {
 function repairCodexMobileLogPermissions(plan, password) {
   const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === CODEX_MOBILE_LOG_REPAIR.type);
   if (!repair) return null;
-  const logsRoot = posixJoin(plan.macRoot, repair.logsRelativePath);
+  const logsRoot = repair.runtimeLogRoot;
   runSudo("/bin/mkdir", ["-p", logsRoot], password);
+  runSudo("/usr/sbin/chown", [`${repair.serviceUser}:${repair.serviceGroup}`, logsRoot], password);
   runSudo("/bin/chmod", [repair.directoryMode, logsRoot], password);
   const files = [];
   for (const name of repair.logFiles || []) {
@@ -1277,6 +1280,13 @@ function repairCodexMobileLogPermissions(plan, password) {
     runSudo("/bin/chmod", [repair.fileMode, logPath], password);
     files.push(logPath);
   }
+  if (repair.launchdPlistPath && files.length >= 2) {
+    runSudo("/usr/libexec/PlistBuddy", ["-c", `Set :StandardOutPath ${files[0]}`, repair.launchdPlistPath], password);
+    runSudo("/usr/libexec/PlistBuddy", ["-c", `Set :StandardErrorPath ${files[1]}`, repair.launchdPlistPath], password);
+    runSudo("/usr/sbin/chown", ["root:wheel", repair.launchdPlistPath], password);
+    runSudo("/bin/chmod", ["644", repair.launchdPlistPath], password);
+    runSudo("/usr/bin/plutil", ["-lint", repair.launchdPlistPath], password);
+  }
   return {
     type: repair.type,
     status: 0,
@@ -1285,6 +1295,10 @@ function repairCodexMobileLogPermissions(plan, password) {
     fileMode: repair.fileMode,
     owner: `${repair.serviceUser}:${repair.serviceGroup}`,
     fileCount: files.length,
+    launchdLabel: repair.launchdLabel,
+    launchdPlistPath: repair.launchdPlistPath,
+    stdoutPath: files[0] || "",
+    stderrPath: files[1] || "",
   };
 }
 
@@ -1320,6 +1334,11 @@ function executePlan(plan, options) {
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
 
   const reloadedLabels = new Set();
+  if (codexMobileLogRepair && codexMobileLogRepair.launchdLabel && codexMobileLogRepair.launchdPlistPath) {
+    runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(codexMobileLogRepair.launchdPlistPath)} >/dev/null 2>&1 || true`], password);
+    runSudo("/bin/launchctl", ["bootstrap", "system", codexMobileLogRepair.launchdPlistPath], password);
+    reloadedLabels.add(codexMobileLogRepair.launchdLabel);
+  }
   if (listenerVoiceInputEnv && plan.restartLabels.includes(HOME_AI_LISTENER_LABEL)) {
     const plistPath = `/Library/LaunchDaemons/${HOME_AI_LISTENER_LABEL}.plist`;
     runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(plistPath)} >/dev/null 2>&1 || true`], password);

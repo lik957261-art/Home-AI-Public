@@ -93,12 +93,13 @@ production-owned plugin `data/`, `runtime/`, or `.venv/` directories from the
 pre-deploy backup.
 Codex Mobile Web is a special plugin target because its LaunchDaemon runs as
 `xuxin` while most production roots are owned by `hermes-host`. The central
-deploy script now includes a Codex-only post-sync repair that keeps
-`/Users/hermes-host/HermesMobile/logs` traversable and ensures
-`plugin-codex-mobile.out.log` / `plugin-codex-mobile.err.log` are
-`xuxin:staff` with mode `600` before restarting
-`com.hermesmobile.plugin.codex-mobile`. This prevents launchd `EX_CONFIG`
-failures caused by unreadable stdout/stderr paths after deploy.
+deploy script now includes a Codex-only post-sync repair that keeps the service
+stdout/stderr under `/Users/xuxin/.codex-mobile-web/logs`, updates the
+`com.hermesmobile.plugin.codex-mobile` LaunchDaemon `StandardOutPath` and
+`StandardErrorPath`, and reloads that LaunchDaemon during deploy. This prevents
+launchd `EX_CONFIG` failures if the shared production log directory or files
+under `/Users/hermes-host/HermesMobile/logs` later return to `hermes-host`
+ownership while Codex Mobile is running.
 
 Key decisions:
 

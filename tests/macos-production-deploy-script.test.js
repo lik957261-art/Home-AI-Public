@@ -45,8 +45,8 @@ assert.match(script, /\/usr\/bin\/sudo/);
 assert.match(script, /\/usr\/sbin\/chown/);
 assert.match(script, /productionOwner/);
 assert.match(script, /codex-mobile-log-permissions/);
-assert.match(script, /plugin-codex-mobile\.out\.log/);
-assert.match(script, /plugin-codex-mobile\.err\.log/);
+assert.match(script, /codex-mobile-web\.out\.log/);
+assert.match(script, /codex-mobile-web\.err\.log/);
 assert.match(script, /PLUGIN_RSYNC_EXCLUDES/);
 assert.match(script, /"-S", "-p", "", command/);
 assert.match(script, /"-n", command/);
@@ -384,12 +384,14 @@ assert.deepEqual(codexPluginPayload.plan.postSyncRepairs, [
     type: "codex-mobile-log-permissions",
     serviceUser: "xuxin",
     serviceGroup: "staff",
-    logsRelativePath: "logs",
+    launchdLabel: "com.hermesmobile.plugin.codex-mobile",
+    launchdPlistPath: "/Library/LaunchDaemons/com.hermesmobile.plugin.codex-mobile.plist",
+    runtimeLogRoot: "/Users/xuxin/.codex-mobile-web/logs",
     logFiles: [
-      "plugin-codex-mobile.out.log",
-      "plugin-codex-mobile.err.log",
+      "codex-mobile-web.out.log",
+      "codex-mobile-web.err.log",
     ],
-    directoryMode: "711",
+    directoryMode: "700",
     fileMode: "600",
   },
 ]);
