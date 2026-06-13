@@ -5,7 +5,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { createVoiceInputCorrectionService } = require("../adapters/voice-input-correction-service");
-const { createVoiceInputService } = require("../adapters/voice-input-service");
+const { createVoiceInputService, likelyNoSpeechTranscript } = require("../adapters/voice-input-service");
 
 function createHarness(overrides = {}) {
   const runtimeState = {};
@@ -95,6 +95,28 @@ async function testTranscribeDeletesTemporaryAudioAndReturnsEditableText() {
     assert.deepEqual(fs.readdirSync(tempVoiceDir), []);
     assert.equal(harness.runtimeState.voiceInput.audit[0].event, "transcribe");
     assert.equal(JSON.stringify(harness.runtimeState).includes("打开摩依拉插件"), false);
+  } finally {
+    harness.cleanup();
+  }
+}
+
+async function testLikelyNoSpeechTranscriptIsRejected() {
+  const harness = createHarness({
+    transcript: "点点点点点点点点点点点点点点点点点点点点点点请按订阅，订阅，转发，打赏支持明镜与点点栏目",
+  });
+  try {
+    assert.equal(likelyNoSpeechTranscript("吴萍。", 900), false);
+    assert.equal(likelyNoSpeechTranscript("点点点点点点点点点点点点", 500), true);
+    await assert.rejects(() => harness.service.transcribe({
+      actorId: "owner",
+      workspaceId: "owner",
+      audioBase64: audioBase64(),
+      durationMs: 500,
+      mimeType: "audio/webm",
+      surfaceType: "chat",
+      threadId: "thread_1",
+    }), /没有检测到有效语音/);
+    assert.equal(harness.runtimeState.voiceInput.audit[0].event, "transcribe_rejected");
   } finally {
     harness.cleanup();
   }
@@ -290,6 +312,7 @@ async function testActivePhrasebookIsSentAsAsrPromptHint() {
 
 async function run() {
   await testTranscribeDeletesTemporaryAudioAndReturnsEditableText();
+  await testLikelyNoSpeechTranscriptIsRejected();
   await testCommitLearnsOnlyShortCorrectionPair();
   await testCommitRequiresSameActorAndWorkspace();
   await testDisabledProviderFailsBeforeAudioPersistence();

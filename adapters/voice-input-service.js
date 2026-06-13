@@ -53,6 +53,32 @@ function safeTempId(value) {
   return cleanString(value, 160).replace(/[^A-Za-z0-9_.-]+/g, "_") || `voice_${Date.now()}`;
 }
 
+function longestRepeatedCharRun(value) {
+  const chars = Array.from(String(value || ""));
+  let longest = 0;
+  let current = 0;
+  let previous = "";
+  for (const char of chars) {
+    if (char === previous) current += 1;
+    else current = 1;
+    previous = char;
+    if (current > longest) longest = current;
+  }
+  return longest;
+}
+
+function likelyNoSpeechTranscript(text, durationMs = 0) {
+  const value = cleanString(text, 4000).replace(/\s+/g, "");
+  const duration = Math.max(0, Number(durationMs || 0) || 0);
+  if (!value) return true;
+  if (duration > 0 && duration <= 800 && value.length >= 12) return true;
+  if (duration > 0 && duration <= 1500 && value.length >= 40) return true;
+  if (longestRepeatedCharRun(value) >= 8) return true;
+  if (/点{6,}|[啊嗯呃]{8,}/u.test(value)) return true;
+  if (duration > 0 && duration <= 3000 && /(请按|订阅|点赞|转发|打赏|支持|字幕|明镜|栏目|谢谢观看|下次再见)/u.test(value)) return true;
+  return false;
+}
+
 function voiceInputPhraseHintPrompt(phrases = []) {
   const terms = Array.isArray(phrases)
     ? phrases
@@ -207,6 +233,21 @@ function createVoiceInputService(options = {}) {
 
     const rawText = cleanString(asrResult?.text || "", 240000);
     if (!rawText) throw errorWithStatus("voice ASR returned an empty transcript", 422, "voice_asr_empty_transcript");
+    if (likelyNoSpeechTranscript(rawText, durationMs)) {
+      appendAudit({
+        event: "transcribe_rejected",
+        actorId: scope.actorId,
+        workspaceId: scope.workspaceId,
+        surfaceType: scope.surfaceType,
+        pluginId: scope.pluginId,
+        threadId: scope.threadId,
+        backend: cleanString(asrResult?.backend || provider.backend || "", 120),
+        durationMs,
+        rawChars: rawText.length,
+        reason: "likely_no_speech",
+      });
+      throw errorWithStatus("没有检测到有效语音", 422, "voice_asr_likely_no_speech");
+    }
     const corrected = options.correctionService.applyCorrections(Object.assign({}, scope, { text: rawText }));
     const createdAt = nowIso();
     activeSessions.set(sessionId, {
@@ -339,6 +380,7 @@ function createVoiceInputService(options = {}) {
 module.exports = {
   ALLOWED_MIME_TYPES,
   createVoiceInputService,
+  likelyNoSpeechTranscript,
   parseAudioBuffer,
   voiceInputPhraseHintPrompt,
 };

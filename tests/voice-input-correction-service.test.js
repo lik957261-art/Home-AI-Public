@@ -142,6 +142,10 @@ function testShortCjkHomophonePhrasebookRescueIsExactOnly() {
   assert.equal(short.text, "吴萍。");
   assert.equal(short.phrasebookApplied.length, 1);
 
+  const sentenceStart = service.applyCorrections(Object.assign({}, scope, { text: "武平是我老婆。" }));
+  assert.equal(sentenceStart.text, "吴萍是我老婆。");
+  assert.equal(sentenceStart.phrasebookApplied.length, 1);
+
   const sentence = service.applyCorrections(Object.assign({}, scope, { text: "无凭无据不要乱改" }));
   assert.equal(sentence.text, "无凭无据不要乱改");
   assert.equal(sentence.phrasebookApplied.length, 0);

@@ -93,6 +93,11 @@ The first phase should implement the smallest complete loop:
 10. If the composer owner later reports the final submitted text for the same
     voice session, extract conservative correction candidates. If it does not,
     keep only the generic sent-text phrasebook evidence from successful sends.
+11. The service rejects likely no-speech hallucinations before composer
+    insertion. Very short clips that produce long text, repeated filler
+    characters, or common media-subscription boilerplate are recorded only as
+    bounded reject audit metadata and must not enter drafts, correction
+    learning, or user-visible sent content.
 
 MVP should not require realtime streaming, dictation while typing, arbitrary
 long recordings, background recording, global OS microphone shortcuts, system

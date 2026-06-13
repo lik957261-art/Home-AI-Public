@@ -45,8 +45,8 @@ const DEFAULT_SYSTEM_PHRASES = Object.freeze([
 ]);
 
 const CJK_HOMOPHONE_ALIAS_CHARS = Object.freeze({
-  吴: ["无"],
-  萍: ["平", "凭"],
+  吴: ["无", "武", "五", "吾", "伍"],
+  萍: ["平", "凭", "苹", "屏", "评"],
 });
 
 function containsStructuredSpan(text) {
@@ -249,6 +249,16 @@ function cjkExactAliasReplacement(text, alias, term) {
   return `${match[1]}${term}${match[3]}`;
 }
 
+function cjkBoundedAliasReplacement(text, alias, term) {
+  const exact = cjkExactAliasReplacement(text, alias, term);
+  if (exact) return exact;
+  if (!cjkOnlyText(alias) || !cjkOnlyText(term) || alias.length !== term.length) return "";
+  const value = String(text || "");
+  const cjkBoundaryAfter = "[是的在和跟与要会不吗呢吧了有就都给把被里上下中，。！？、；：,.!?;:\\s]|$";
+  const pattern = new RegExp(`(^|[，。！？、；：,.!?;:\\s])(${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})(?=${cjkBoundaryAfter})`, "u");
+  return pattern.test(value) ? value.replace(pattern, `$1${term}`) : "";
+}
+
 function extractPhraseCandidatesFromText(text, options = {}) {
   const value = normalizeText(text, 8000);
   if (!value) return [];
@@ -443,7 +453,7 @@ function createVoiceInputCorrectionService(options = {}) {
           const pattern = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi");
           replaced = nextText.replace(pattern, entry.term);
         } else {
-          replaced = cjkExactAliasReplacement(nextText, alias, entry.term);
+          replaced = cjkBoundedAliasReplacement(nextText, alias, entry.term);
         }
         if (replaced && replaced !== nextText) {
           nextText = replaced;
