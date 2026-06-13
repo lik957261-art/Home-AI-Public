@@ -325,6 +325,13 @@ Application behavior:
   high-impact automatic text substitution.
 - Phrasebook entries can normalize exact English/case variants such as
   `home ai` -> `Home AI` and can provide future ASR backend bias lists.
+- Active system or repeatedly learned single-token Latin phrasebook entries may
+  use a bounded fuzzy spelling rescue for ASR near-misses. The rule is
+  intentionally narrow: same length, same first and last character, edit
+  distance one, clear word boundary, no structured spans, and either a
+  `system_seed` term or support count 3+. This covers product/tool names such
+  as `Cotex` -> `Codex` without turning the phrasebook into broad English
+  autocorrect.
 - CJK phrasebook aliases are limited to exact short whole-transcript rescue
   rules. They are not used as general find-and-replace rules in longer text.
 - Low-confidence learned phrasebook entries should be suggestions or bias
@@ -746,6 +753,13 @@ Required Codex Mobile changes:
   must replace only the previous provisional segment for the same
   `voiceSessionId`, and final text must restore the provisional base before
   insertion to avoid duplicate content;
+- include the voice action and request id in `voice_input.insert_result` so the
+  host can distinguish provisional failures from final insert acceptance;
+- in active-turn `Stop` state, treat the current thread composer as a writable
+  follow-up draft for voice input. The embedded bridge should temporarily
+  restore composer editability, write provisional/final text to draft state,
+  and persist the draft directly instead of depending on ordinary send-button
+  availability or busy-state draft debounce;
 - optionally implement `submit` only after draft validation and duplicate-send
   guards are proven;
 - attach `voiceSessionId` metadata to a draft segment inserted by Home AI;

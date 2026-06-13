@@ -651,6 +651,47 @@ function cjkPinyinPhrasebookReplacement(text, entry) {
   return { text, applied: false, source: "" };
 }
 
+function latinSingleToken(value) {
+  const text = normalizePhraseTerm(value, 80);
+  return /^[A-Za-z][A-Za-z0-9]*$/.test(text) ? text : "";
+}
+
+function latinEditDistanceAtMostOne(a, b) {
+  const left = String(a || "").toLocaleLowerCase();
+  const right = String(b || "").toLocaleLowerCase();
+  if (!left || !right || left === right) return false;
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) diff += 1;
+    if (diff > 1) return false;
+  }
+  return diff === 1;
+}
+
+function latinFuzzyPhrasebookReplacement(text, entry) {
+  const term = latinSingleToken(entry?.term);
+  if (!term || term.length < 4 || term.length > 24) return { text, applied: false, source: "" };
+  if (entry?.source !== "system_seed" && Number(entry?.supportCount || 0) < 3) return { text, applied: false, source: "" };
+  const value = String(text || "");
+  if (!value || value.length > 400 || containsStructuredSpan(value)) return { text, applied: false, source: "" };
+  const pattern = /\b[A-Za-z][A-Za-z0-9]*\b/g;
+  let match = null;
+  while ((match = pattern.exec(value))) {
+    const source = match[0];
+    if (source.length !== term.length) continue;
+    if (source[0].toLocaleLowerCase() !== term[0].toLocaleLowerCase()) continue;
+    if (source[source.length - 1].toLocaleLowerCase() !== term[term.length - 1].toLocaleLowerCase()) continue;
+    if (!latinEditDistanceAtMostOne(source, term)) continue;
+    return {
+      text: `${value.slice(0, match.index)}${term}${value.slice(match.index + source.length)}`,
+      applied: true,
+      source,
+    };
+  }
+  return { text, applied: false, source: "" };
+}
+
 function cjkExactAliasReplacement(text, alias, term) {
   if (!cjkOnlyText(alias) || !cjkOnlyText(term) || alias.length !== term.length) return "";
   const value = String(text || "");
@@ -874,6 +915,12 @@ function createVoiceInputCorrectionService(options = {}) {
       const pinyinResult = cjkPinyinPhrasebookReplacement(nextText, entry);
       if (pinyinResult.applied && pinyinResult.text !== nextText) {
         nextText = pinyinResult.text;
+        entry.lastAppliedAt = now;
+        applied.push(publicPhrase(entry));
+      }
+      const latinFuzzyResult = latinFuzzyPhrasebookReplacement(nextText, entry);
+      if (latinFuzzyResult.applied && latinFuzzyResult.text !== nextText) {
+        nextText = latinFuzzyResult.text;
         entry.lastAppliedAt = now;
         applied.push(publicPhrase(entry));
       }

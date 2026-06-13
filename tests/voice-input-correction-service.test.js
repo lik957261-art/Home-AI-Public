@@ -133,6 +133,20 @@ function testSystemSeedPhrasebookAppliesSafeAliases() {
   assert.equal(runtimeState.voiceInput.phrasebook.some((entry) => entry.source === "system_seed"), true);
 }
 
+function testSystemSeedPhrasebookAppliesBoundedLatinFuzzyMatch() {
+  const { service } = createHarness();
+  const scope = { actorId: "owner", workspaceId: "owner", surfaceType: "chat" };
+  service.seedSystemPhrasebook(scope);
+  const corrected = service.applyCorrections(Object.assign({}, scope, {
+    text: "Cotex 插件里测试语音。",
+  }));
+  assert.equal(corrected.text, "Codex 插件里测试语音。");
+  assert.equal(corrected.phrasebookApplied.length, 1);
+  assert.equal(service.applyCorrections(Object.assign({}, scope, {
+    text: "these codes should stay unchanged",
+  })).text, "these codes should stay unchanged");
+}
+
 function testShortCjkHomophonePhrasebookRescueIsExactOnly() {
   const { service } = createHarness();
   const scope = { actorId: "owner", workspaceId: "owner", surfaceType: "chat" };
@@ -213,6 +227,7 @@ function run() {
   testDisableCorrectionStopsApplication();
   testCorrectionUpdateRequiresMatchingScopeWhenProvided();
   testSystemSeedPhrasebookAppliesSafeAliases();
+  testSystemSeedPhrasebookAppliesBoundedLatinFuzzyMatch();
   testShortCjkHomophonePhrasebookRescueIsExactOnly();
   testPinyinKeyMatchesCommonHomophones();
   testPinyinPhrasebookAppliesAfterRepeatedSupport();

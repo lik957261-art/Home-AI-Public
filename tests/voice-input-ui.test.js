@@ -100,6 +100,12 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /voiceInputStartStreamingSession\(stream, serviceStatus\)/);
   assert.match(voiceUi, /voiceInputApplyProvisionalTranscript\(result\.text\)/);
   assert.match(voiceUi, /sendEmbeddedPluginVoiceInputAction\("provisional_text"/);
+  assert.match(voiceUi, /const VOICE_INPUT_EMBEDDED_INSERT_MAX_ATTEMPTS = 3/);
+  assert.match(voiceUi, /function handleVoiceInputEmbeddedInsertResult\(def, payload = \{\}\)/);
+  assert.match(voiceUi, /requestId && requestId !== pending\.requestId/);
+  assert.match(voiceUi, /retryEmbeddedVoiceInputFinalInsert\(\)/);
+  assert.match(voiceUi, /function sendEmbeddedVoiceInputFinalInsert\(pending\)/);
+  assert.match(voiceUi, /requestId: voiceInputRequestId\("voice_insert"\)/);
   assert.match(voiceUi, /streaming final failed; falling back to full clip/);
   assert.match(voiceUi, /composer\.setText\?\.\(voice\.provisionalBaseText\)/);
   assert.match(voiceUi, /\/api\/voice-input\/commit/);
@@ -180,7 +186,7 @@ function testEmbeddedPluginBridgeContract() {
   assert.match(embeddedPluginUi, /voice_input\.stop_request/);
   assert.match(embeddedPluginUi, /voice_input\.commit_result/);
   assert.match(voiceUi, /function startVoiceInputFromEmbeddedPlugin\(def, payload = \{\}\)/);
-  assert.match(voiceUi, /sendEmbeddedPluginVoiceInputAction\(action/);
+  assert.match(voiceUi, /sendEmbeddedPluginVoiceInputAction\(pending\.action/);
   assert.match(voiceUi, /function commitVoiceInputPluginResult\(def, payload = \{\}\)/);
 }
 

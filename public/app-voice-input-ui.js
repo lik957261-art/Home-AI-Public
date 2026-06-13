@@ -4,6 +4,7 @@ const VOICE_INPUT_LONG_PRESS_MS = 420;
 const VOICE_INPUT_MIN_CLIENT_DURATION_MS = 300;
 const VOICE_INPUT_PRESS_EVENTS_BOUND = "__homeAiVoiceInputPressEventsBound";
 const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted";
+const VOICE_INPUT_EMBEDDED_INSERT_MAX_ATTEMPTS = 3;
 
 function ensureVoiceInputState() {
   if (!state.voiceInput || typeof state.voiceInput !== "object") {
@@ -31,6 +32,11 @@ function voiceInputStatusLabel(status = ensureVoiceInputState().status) {
     failed: "语音输入失败",
   };
   return labels[status] || labels.idle;
+}
+
+function voiceInputRequestId(prefix = "voice") {
+  if (window.crypto?.randomUUID) return `${prefix}_${window.crypto.randomUUID()}`;
+  return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
 function voiceInputInputValue(input) {
@@ -649,6 +655,8 @@ function renderVoiceInputOverlay() {
 
 function closeVoiceInputOverlay() {
   const voice = ensureVoiceInputState();
+  if (voice.embeddedFinalInsert?.timer) clearTimeout(voice.embeddedFinalInsert.timer);
+  voice.embeddedFinalInsert = null;
   voice.status = "idle";
   voice.error = "";
   voice.transcript = "";
@@ -1270,6 +1278,77 @@ function commitPendingVoiceInputFinalText(finalText, body = {}) {
   });
 }
 
+function failEmbeddedVoiceInputFinalInsert(message = "语音已转写，但插件输入框暂时未接收，请重试") {
+  const voice = ensureVoiceInputState();
+  if (voice.embeddedFinalInsert?.timer) clearTimeout(voice.embeddedFinalInsert.timer);
+  voice.embeddedFinalInsert = null;
+  setVoiceInputStatus("failed", { error: message });
+}
+
+function retryEmbeddedVoiceInputFinalInsert() {
+  const voice = ensureVoiceInputState();
+  const pending = voice.embeddedFinalInsert;
+  if (!pending) return;
+  if (pending.timer) clearTimeout(pending.timer);
+  if (pending.attempts >= VOICE_INPUT_EMBEDDED_INSERT_MAX_ATTEMPTS) {
+    failEmbeddedVoiceInputFinalInsert();
+    return;
+  }
+  if (typeof requestEmbeddedPluginVoiceInputCapability === "function") {
+    requestEmbeddedPluginVoiceInputCapability(pending.def);
+  }
+  pending.timer = setTimeout(() => {
+    pending.timer = 0;
+    sendEmbeddedVoiceInputFinalInsert(pending);
+  }, pending.attempts ? 650 : 250);
+}
+
+function sendEmbeddedVoiceInputFinalInsert(pending) {
+  const voice = ensureVoiceInputState();
+  if (!pending) return false;
+  pending.attempts = Number(pending.attempts || 0) + 1;
+  voice.embeddedFinalInsert = pending;
+  const ok = typeof sendEmbeddedPluginVoiceInputAction === "function" && sendEmbeddedPluginVoiceInputAction(pending.action, {
+    action: pending.action,
+    requestId: pending.requestId,
+    text: pending.text,
+    voiceSessionId: pending.voiceSessionId || "",
+    composerId: pending.composerId || "default",
+  }, pending.def);
+  if (!ok) {
+    retryEmbeddedVoiceInputFinalInsert();
+    return false;
+  }
+  if (pending.timer) clearTimeout(pending.timer);
+  pending.timer = setTimeout(() => {
+    pending.timer = 0;
+    retryEmbeddedVoiceInputFinalInsert();
+  }, 1200);
+  setVoiceInputStatus("inserting", { transcript: pending.text, error: "" });
+  return true;
+}
+
+function handleVoiceInputEmbeddedInsertResult(def, payload = {}) {
+  const action = String(payload.action || payload.insertAction || payload.insert_action || "").trim();
+  if (action === "provisional_text") return true;
+  const voice = ensureVoiceInputState();
+  const pending = voice.embeddedFinalInsert;
+  if (!pending) return false;
+  const requestId = String(payload.requestId || payload.request_id || "").trim();
+  if (requestId && requestId !== pending.requestId) return false;
+  if (def?.id && pending.def?.id && def.id !== pending.def.id) return false;
+  if (pending.timer) clearTimeout(pending.timer);
+  pending.timer = 0;
+  if (payload.ok === false) {
+    retryEmbeddedVoiceInputFinalInsert();
+    return true;
+  }
+  voice.embeddedFinalInsert = null;
+  setVoiceInputStatus("inserted", { transcript: pending.text, error: "" });
+  setTimeout(closeVoiceInputOverlay, 650);
+  return true;
+}
+
 async function insertVoiceInputTranscript(mode = "append") {
   const voice = ensureVoiceInputState();
   const text = String(voice.transcript || "").trim();
@@ -1280,17 +1359,17 @@ async function insertVoiceInputTranscript(mode = "append") {
   setVoiceInputStatus("inserting");
   if (voice.target?.kind === "embedded-plugin") {
     const action = mode === "replace" ? "replace_draft" : "append_text";
-    const ok = typeof sendEmbeddedPluginVoiceInputAction === "function" && sendEmbeddedPluginVoiceInputAction(action, {
+    const pending = {
+      requestId: voiceInputRequestId("voice_insert"),
+      action,
       text,
       voiceSessionId: voice.voiceSessionId || "",
       composerId: voice.target.composerId || "default",
-    }, voice.target.def);
-    if (!ok) {
-      closeVoiceInputOverlay();
-      return;
-    }
-    setVoiceInputStatus("inserted", { transcript: text });
-    setTimeout(closeVoiceInputOverlay, 650);
+      def: voice.target.def,
+      attempts: 0,
+      timer: 0,
+    };
+    sendEmbeddedVoiceInputFinalInsert(pending);
     return;
   }
   const composer = voiceInputFreshNativeComposer(voice.target?.composer) || voiceInputMainComposerDefinition();

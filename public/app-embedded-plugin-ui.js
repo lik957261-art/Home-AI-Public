@@ -739,6 +739,9 @@ function handleEmbeddedPluginVoiceInputMessage(def, payload = {}) {
   }
   if (payload.type === "voice_input.insert_result") {
     embeddedPluginRecord(def.id).voiceInputLastMessageAt = Date.now();
+    if (typeof handleVoiceInputEmbeddedInsertResult === "function" && handleVoiceInputEmbeddedInsertResult(def, payload)) {
+      return true;
+    }
     if (payload.ok === false && typeof showError === "function") {
       const code = String(payload.code || payload.error || "").toLowerCase();
       if (!code.includes("composer_not_writable") && !code.includes("provisional_voice_input_rejected")) {
