@@ -433,10 +433,12 @@ existing correction and learning pipeline receives the highest-quality text.
 The browser should aggregate captured mono PCM16 audio to roughly 300 ms before
 each chunk request so the host avoids high-frequency tiny HTTP calls while still
 showing near-realtime provisional text. The default local FunASR streaming
-window is `FUNASR_STREAMING_CHUNK_SIZE=0,5,2`, which targets lower partial
-latency than the older `0,10,5` setting. This is an installer/runtime default,
-not a private production-only mutation; deployments may override the variable
-when a different ASR backend needs a different streaming cadence.
+window is `FUNASR_STREAMING_CHUNK_SIZE=0,10,5`. Smaller windows such as
+`0,5,2` can produce earlier partials, but short Mandarin fragments have less
+context and may materially reduce provisional-text accuracy. This is an
+installer/runtime default, not a private production-only mutation; deployments
+may override the variable when a different ASR backend needs a different
+streaming cadence.
 
 A fresh public deployment with no ASR backend must show the voice input as
 disabled/unavailable with an installer hint. It must not depend on the

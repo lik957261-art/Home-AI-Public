@@ -27,13 +27,13 @@ function testFunasrPlan() {
   assert.match(plist, /<string>com\.hermesmobile\.funasr-local<\/string>/);
   assert.match(plist, /<key>FUNASR_MODEL<\/key>\n    <string>paraformer-zh<\/string>/);
   assert.match(plist, /<key>FUNASR_PUNC_MODEL<\/key>\n    <string>ct-punc<\/string>/);
-  assert.match(plist, /<key>FUNASR_STREAMING_CHUNK_SIZE<\/key>\n    <string>0,5,2<\/string>/);
+  assert.match(plist, /<key>FUNASR_STREAMING_CHUNK_SIZE<\/key>\n    <string>0,10,5<\/string>/);
   assert.match(plist, /<key>MODELSCOPE_CACHE<\/key>\n    <string>\/tmp\/HomeAI\/services\/funasr-local\/models\/modelscope<\/string>/);
   assert.match(plist, /<key>FUNASR_TMP_DIR<\/key>\n    <string>\/tmp\/HomeAI\/services\/funasr-local\/tmp<\/string>/);
-  assert.match(readServiceFile(engine.serviceRel, "start.sh"), /FUNASR_STREAMING_CHUNK_SIZE="\$\{FUNASR_STREAMING_CHUNK_SIZE:-0,5,2\}"/);
+  assert.match(readServiceFile(engine.serviceRel, "start.sh"), /FUNASR_STREAMING_CHUNK_SIZE="\$\{FUNASR_STREAMING_CHUNK_SIZE:-0,10,5\}"/);
   assert.match(readServiceFile(engine.serviceRel, "requirements.txt"), /imageio-ffmpeg/);
   assert.match(readServiceFile(engine.serviceRel, "app.py"), /def audio_path_for_model/);
-  assert.match(readServiceFile(engine.serviceRel, "app.py"), /FUNASR_STREAMING_CHUNK_SIZE", "0,5,2"/);
+  assert.match(readServiceFile(engine.serviceRel, "app.py"), /FUNASR_STREAMING_CHUNK_SIZE", "0,10,5"/);
   assert.match(readServiceFile(engine.serviceRel, "app.py"), /ffmpeg_available/);
 }
 

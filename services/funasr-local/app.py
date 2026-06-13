@@ -34,7 +34,7 @@ STREAMING_MODEL = os.getenv("FUNASR_STREAMING_MODEL", "paraformer-zh-streaming")
 STREAMING_SAMPLE_RATE = int(os.getenv("FUNASR_STREAMING_SAMPLE_RATE", "16000"))
 STREAMING_CHUNK_SIZE = [
     int(part.strip() or "0")
-    for part in os.getenv("FUNASR_STREAMING_CHUNK_SIZE", "0,5,2").split(",")[:3]
+    for part in os.getenv("FUNASR_STREAMING_CHUNK_SIZE", "0,10,5").split(",")[:3]
 ]
 while len(STREAMING_CHUNK_SIZE) < 3:
     STREAMING_CHUNK_SIZE.append(0)
