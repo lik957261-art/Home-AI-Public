@@ -45,6 +45,7 @@ function createMobileRuntimeThreadFacadeService(options = {}) {
         gatewayRoutingForModelRun: options.gatewayRoutingForModelRun,
         groupChatTaskGroupId: options.groupChatTaskGroupId,
         interpretKanbanNaturalLanguage: options.interpretKanbanNaturalLanguage,
+        interpretTodoNaturalLanguage: options.interpretTodoNaturalLanguage,
         isKanbanCaseTopicThread: (...args) => options.getSingleWindowThreadService().isKanbanCaseTopicThread(...args),
         isOwnerAuth: options.isOwnerAuth,
         kanbanCardProvider: options.kanbanCardProvider,

@@ -96,6 +96,14 @@ function createNaturalLanguageDraftService(options = {}) {
   const createConversationId = typeof options.createConversationId === "function"
     ? options.createConversationId
     : (prefix) => `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+  const todoIntakeSkillText = compactText(options.todoIntakeSkillText || [
+    "# Home AI Todo Intake",
+    "Use this Skill when the user asks Home AI to create a Todo, reminder, alarm, or assigned action item.",
+    "The model must not directly create, complete, delete, or schedule Todo records.",
+    "The model only returns a structured draft. Home AI host services validate workspace permissions, identities, dates, recurrence, Web Push, audit events, and persistence before anything is created.",
+    "Do not use keyword-only guessing for people, dates, or recurrence. If a field is ambiguous, mark it missing or set needsConfirmation=true.",
+    "Return a single JSON object with title, summary, assigneeWorkspaceId, assigneeDisplayName, creatorWorkspaceId, dueAt, remindAt, priority, recurrence, needsConfirmation, missingFields, confidence, and sourceText.",
+  ].join("\n"), 4000);
 
   function normalizeAutomationDraft(raw, sourceText) {
     const draft = raw && typeof raw === "object" ? raw : {};
@@ -199,6 +207,69 @@ function createNaturalLanguageDraftService(options = {}) {
     return normalizeKanbanDraft(extractJsonObject(output, "Kanban draft"), text, ownerPrincipalId);
   }
 
+  function normalizeTodoDraft(raw, sourceText, workspaceId) {
+    const draft = raw && typeof raw === "object" ? raw : {};
+    if (draft.needs_clarification || draft.needsClarification) {
+      throw new Error(compactText(draft.clarification || draft.question || "Todo request needs clarification", 240));
+    }
+    const recurrence = draft.recurrence && typeof draft.recurrence === "object"
+      ? draft.recurrence
+      : { kind: String(draft.recurrence || "none").trim() || "none" };
+    const missingFields = arrayOfStrings(draft.missingFields || draft.missing_fields, 12);
+    const title = compactText(draft.title || draft.content || draft.task || "", 180).trim();
+    if (!title) missingFields.push("title");
+    const assigneeWorkspaceId = String(draft.assigneeWorkspaceId || draft.assignee_workspace_id || "").trim();
+    if (!assigneeWorkspaceId && !draft.assigneeDisplayName && !draft.assignee_display_name) missingFields.push("assigneeWorkspaceId");
+    const confidence = Number(draft.confidence ?? draft.modelConfidence ?? 0.8);
+    return {
+      title,
+      summary: compactText(draft.summary || draft.description || draft.details || "", 800).trim(),
+      assigneeWorkspaceId,
+      assigneeDisplayName: String(draft.assigneeDisplayName || draft.assignee_display_name || "").trim(),
+      creatorWorkspaceId: String(draft.creatorWorkspaceId || draft.creator_workspace_id || workspaceId || "owner").trim() || "owner",
+      dueAt: String(draft.dueAt || draft.due_at || draft.deadline || "").trim(),
+      remindAt: String(draft.remindAt || draft.remind_at || draft.availableAt || "").trim(),
+      priority: ["normal", "high", "urgent"].includes(String(draft.priority || "").trim()) ? String(draft.priority).trim() : "normal",
+      recurrence,
+      needsConfirmation: Boolean(draft.needsConfirmation || draft.needs_confirmation || missingFields.length || confidence < 0.75),
+      missingFields: dedupe(missingFields),
+      confidence: Number.isFinite(confidence) ? confidence : 0.8,
+      sourceText: compactText(draft.sourceText || draft.source_text || sourceText || "", 500),
+    };
+  }
+
+  async function interpretTodoNaturalLanguage(text, workspace, ownerPrincipalId) {
+    const prompt = [
+      "You interpret a natural-language request into one Home AI Todo draft.",
+      "Return strict JSON only. Do not include Markdown fences or prose.",
+      "Use Asia/Shanghai local time. Current server time is " + nowIso() + ".",
+      "Follow this Skill exactly:",
+      todoIntakeSkillText,
+      "Known current workspace:",
+      JSON.stringify({
+        workspaceId: workspace?.id || ownerPrincipalId || "owner",
+        workspaceLabel: workspace?.label || workspace?.name || workspace?.id || "",
+        workspacePrincipal: ownerPrincipalId,
+      }),
+      "If the request is for the current user/myself/me/my, use the current workspace id as assigneeWorkspaceId.",
+      "If the user gives only a date with no clock time, use the end of that local day as dueAt.",
+      "Return ISO-8601 timestamps with timezone offset when possible.",
+      "User request:",
+      text,
+    ].join("\n\n");
+    const output = await hermesModelText({
+      input: prompt,
+      stream: true,
+      store: false,
+      model: automationCreateModel,
+      reasoning_effort: "low",
+      conversation: createConversationId("home_ai_todo_intake"),
+      instructions: "Use the Home AI Todo Intake Skill. Extract exactly one Todo draft. Return JSON only.",
+      access_policy_context: sanitizePolicy(workspace?.policy || {}),
+    }, automationTimeoutMs);
+    return normalizeTodoDraft(extractJsonObject(output, "Todo draft"), text, workspace?.id || ownerPrincipalId || "owner");
+  }
+
   async function planKanbanMultiAgent(text, workspace, ownerPrincipalId, optionsForPlan = {}) {
     const sourceText = compactText(text, 8000);
     if (!sourceText) throw new Error("Kanban plan text is required");
@@ -247,6 +318,8 @@ function createNaturalLanguageDraftService(options = {}) {
     interpretAutomationNaturalLanguage,
     normalizeKanbanDraft,
     interpretKanbanNaturalLanguage,
+    normalizeTodoDraft,
+    interpretTodoNaturalLanguage,
     planKanbanMultiAgent,
   });
 }

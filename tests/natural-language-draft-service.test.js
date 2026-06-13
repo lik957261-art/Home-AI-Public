@@ -100,6 +100,51 @@ async function main() {
 }
 
 {
+  const { service } = makeService();
+  const draft = service.normalizeTodoDraft({
+    title: "\u56fd\u5185\u62a5\u7a0e",
+    assigneeWorkspaceId: "owner",
+    creatorWorkspaceId: "owner",
+    dueAt: "2026-06-30T23:59:00+08:00",
+    priority: "normal",
+    recurrence: { kind: "none" },
+    confidence: 0.93,
+  }, "fallback", "owner");
+  assert.equal(draft.title, "\u56fd\u5185\u62a5\u7a0e");
+  assert.equal(draft.assigneeWorkspaceId, "owner");
+  assert.equal(draft.needsConfirmation, false);
+  assert.deepEqual(draft.missingFields, []);
+}
+
+{
+  const { service, calls } = makeService([
+    JSON.stringify({
+      title: "\u56fd\u5185\u62a5\u7a0e",
+      assigneeWorkspaceId: "owner",
+      creatorWorkspaceId: "owner",
+      dueAt: "2026-06-30T23:59:00+08:00",
+      priority: "normal",
+      recurrence: { kind: "none" },
+      needsConfirmation: false,
+      missingFields: [],
+      confidence: 0.95,
+      sourceText: "\u589e\u52a0\u6211\u7684\u4e00\u4e2a\u622a\u81f3\u5230 6 \u6708 30 \u53f7\u7684\u5f85\u529e\u4e8b\u9879\uff0c\u56fd\u5185\u62a5\u7a0e",
+    }),
+  ]);
+  const draft = await service.interpretTodoNaturalLanguage(
+    "\u589e\u52a0\u6211\u7684\u4e00\u4e2a\u622a\u81f3\u5230 6 \u6708 30 \u53f7\u7684\u5f85\u529e\u4e8b\u9879\uff0c\u56fd\u5185\u62a5\u7a0e",
+    { id: "owner", label: "Owner", policy: { secret: "redacted by fake" } },
+    "owner",
+  );
+  assert.equal(draft.title, "\u56fd\u5185\u62a5\u7a0e");
+  assert.equal(draft.dueAt, "2026-06-30T23:59:00+08:00");
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].body.input, /Home AI Todo Intake/);
+  assert.match(calls[0].body.input, /Do not use keyword-only guessing/);
+  assert.equal(calls[0].body.conversation, "home_ai_todo_intake_fixed");
+}
+
+{
   const { service, calls } = makeService([
     JSON.stringify({
       summary: "Refactor",

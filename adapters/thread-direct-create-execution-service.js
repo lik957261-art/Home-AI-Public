@@ -34,18 +34,21 @@ function resolveService(value) {
   return typeof value === "function" ? value() : value;
 }
 
-function actionInboxTodoPayload(plan, helpers = {}) {
-  const intent = plan?.directAction?.intent || {};
+function actionInboxTodoPayloadFromDraft(draft = {}, plan, helpers = {}) {
   const thread = plan?.thread || {};
-  const workspaceId = String(thread.workspaceId || "owner").trim() || "owner";
-  const assigneeWorkspaceId = helpers.workspaceIdForPrincipal(intent.assignee || "") || workspaceId;
+  const workspaceId = String(thread.workspaceId || draft.creatorWorkspaceId || "owner").trim() || "owner";
   return {
-    creatorWorkspaceId: workspaceId,
-    assigneeWorkspaceId,
-    title: intent.content || "",
-    dueAt: intent.dueTime || "",
-    sourceText: plan?.text || "",
-    confirmed: true,
+    creatorWorkspaceId: draft.creatorWorkspaceId || workspaceId,
+    assigneeWorkspaceId: draft.assigneeWorkspaceId || workspaceId,
+    title: draft.title || "",
+    summary: draft.summary || "",
+    dueAt: draft.dueAt || "",
+    remindAt: draft.remindAt || "",
+    priority: draft.priority || "normal",
+    recurrence: draft.recurrence || { kind: "none" },
+    confidence: draft.confidence,
+    sourceText: draft.sourceText || plan?.text || "",
+    confirmed: !draft.needsConfirmation,
     actorPrincipalId: helpers.workspacePrincipal(workspaceId),
   };
 }
@@ -70,10 +73,14 @@ function createThreadDirectCreateExecutionService(options = {}) {
 
   const addKanbanCard = optionalFunction(options.addKanbanCard, optionalFunction(kanbanCardProvider.addCard, null));
   const interpretKanbanNaturalLanguage = optionalFunction(options.interpretKanbanNaturalLanguage, null);
+  const interpretTodoNaturalLanguage = optionalFunction(options.interpretTodoNaturalLanguage, null);
 
   if (!addKanbanCard) throw new TypeError("thread direct create execution service requires kanbanCardProvider.addCard");
   if (!interpretKanbanNaturalLanguage) {
     throw new TypeError("thread direct create execution service requires interpretKanbanNaturalLanguage");
+  }
+  if (!interpretTodoNaturalLanguage) {
+    throw new TypeError("thread direct create execution service requires interpretTodoNaturalLanguage");
   }
 
   function helper(name, fallback) {
@@ -248,11 +255,19 @@ function createThreadDirectCreateExecutionService(options = {}) {
     const thread = request.thread || request.plan?.thread;
     const plan = request.plan;
     const todoService = actionInboxTodoService();
+    let todoDraft = null;
     const providerResult = await safeResult(() => {
       if (!todoService || typeof todoService.createTodo !== "function") {
         return { ok: false, error: "action_inbox_todo_service_unavailable" };
       }
-      return todoService.createTodo(actionInboxTodoPayload(plan, { workspaceIdForPrincipal, workspacePrincipal }));
+      return Promise.resolve(interpretTodoNaturalLanguage(
+        plan.text,
+        findWorkspace(thread.workspaceId),
+        workspacePrincipal(thread.workspaceId),
+      )).then((draft) => {
+        todoDraft = draft;
+        return todoService.createTodo(actionInboxTodoPayloadFromDraft(draft, plan, { workspacePrincipal }));
+      });
     });
     let finalResult = providerResult;
     let createdTodo = finalResult?.ok ? publicActionInboxTodo(finalResult) : null;
@@ -290,6 +305,7 @@ function createThreadDirectCreateExecutionService(options = {}) {
       verification,
       todo: finalResult?.ok ? createdTodo : null,
       inboxItem,
+      todoDraft,
       thread,
       assistantMessage: finalized.assistantMessage,
       broadcastPayloads: finalized.broadcastPayloads,
@@ -297,6 +313,7 @@ function createThreadDirectCreateExecutionService(options = {}) {
         ok: Boolean(finalResult?.ok),
         todo: finalResult?.ok ? createdTodo : null,
         inboxItem,
+        todoDraft,
         result: finalResult,
         verification,
         thread: compactThreadForResponse(thread, plan, request),

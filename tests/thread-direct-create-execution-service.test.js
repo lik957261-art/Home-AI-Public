@@ -51,6 +51,7 @@ function makeHarness(overrides = {}) {
     format: [],
     inbox: [],
     interpret: [],
+    interpretTodo: [],
     kanbanAdd: [],
     kanbanNotifications: [],
     publicTodo: [],
@@ -116,6 +117,23 @@ function makeHarness(overrides = {}) {
         description: "card details",
         dueTime: "2026-05-17 10:00",
         reason: "natural language",
+      };
+    },
+    async interpretTodoNaturalLanguage(text, workspace, principal) {
+      calls.interpretTodo.push({ text, workspace, principal });
+      if (overrides.todoInterpretThrows) throw new Error(overrides.todoInterpretThrows);
+      return overrides.todoDraft || {
+        title: "read chapter",
+        summary: "drafted by skill",
+        assigneeWorkspaceId: "workspace:child-principal",
+        creatorWorkspaceId: "family",
+        dueAt: "2026-05-16T09:00:00.000+08:00",
+        remindAt: "",
+        priority: "normal",
+        recurrence: { kind: "none" },
+        needsConfirmation: false,
+        confidence: 0.91,
+        sourceText: text,
       };
     },
     findWorkspace(workspaceId) {
@@ -243,11 +261,21 @@ async function testDirectTodoSuccessFinalizesAndBroadcasts() {
     creatorWorkspaceId: "family",
     assigneeWorkspaceId: "workspace:child-principal",
     title: "read chapter",
-    dueAt: "2026-05-16 09:00",
+    summary: "drafted by skill",
+    dueAt: "2026-05-16T09:00:00.000+08:00",
+    remindAt: "",
+    priority: "normal",
+    recurrence: { kind: "none" },
+    confidence: 0.91,
     sourceText: "create direct todo",
     confirmed: true,
     actorPrincipalId: "principal:family",
   });
+  assert.deepEqual(calls.interpretTodo, [{
+    text: "create direct todo",
+    workspace: { id: "family", label: "Workspace family" },
+    principal: "principal:family",
+  }]);
   assert.equal(plan.assistantMessage.status, "done");
   assert.equal(plan.assistantMessage.content, "\u5df2\u65b0\u589e\u5f85\u529e\uff1aChild | 2026-05-16 09:00 | read chapter");
   assert.equal(plan.assistantMessage.error, null);

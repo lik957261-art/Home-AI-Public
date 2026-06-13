@@ -77,6 +77,11 @@ structured draft. The host must not infer assignee, time, recurrence, or
 priority through keyword-only parsing. The model output is only a draft; the
 host validates required fields, workspace access, date formats, recurrence
 support, and confirmation requirements before creation.
+The current Skill is `skills/productivity/home-ai-todo-intake/SKILL.md`.
+Host-side routing may only detect that the user is explicitly asking to create
+a Todo/reminder/alarm; it must not parse people, dates, titles, or recurrence
+from the utterance. Those fields come from the Skill-guided model draft and are
+then validated by `actionInboxTodoService`.
 
 One-shot reminders are represented as `itemType=todo`,
 `sourceType=manual` Inbox items with `status=waiting` and `availableAt` set to

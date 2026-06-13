@@ -348,6 +348,7 @@ function createMobileRuntimeKanbanFacadeService(options = {}) {
     ensureKanbanCaseSharedDirectory,
     ensureKanbanCaseTopicThread,
     interpretKanbanNaturalLanguage: (...args) => naturalLanguageDraftService.interpretKanbanNaturalLanguage(...args),
+    interpretTodoNaturalLanguage: (...args) => naturalLanguageDraftService.interpretTodoNaturalLanguage(...args),
     planKanbanMultiAgent: (...args) => naturalLanguageDraftService.planKanbanMultiAgent(...args),
     publicKanbanCardDetail,
     publicKanbanCoverFile,

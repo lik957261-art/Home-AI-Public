@@ -202,7 +202,10 @@ This file records durable product rules that implementation must preserve.
   compatibility only.
 - Natural-language Todo creation must use model understanding guided by a
   dedicated Skill and produce a structured draft. Keyword-only parsing is not a
-  valid product path for assigning people, dates, recurrence, or priority.
+  valid product path for assigning people, dates, title, recurrence, or
+  priority. Host-side intent detection may only decide that the user is asking
+  to create a Todo/reminder; field extraction belongs to the Skill-guided model
+  draft.
 - The model may only produce a Todo draft. Home AI must validate permissions,
   workspace identity, dates, recurrence, Web Push, audit events, and persistence
   before creating or mutating any Todo/reminder.

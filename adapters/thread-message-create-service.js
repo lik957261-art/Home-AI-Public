@@ -375,11 +375,16 @@ function createThreadMessageCreateService(options = {}) {
     if (useKanbanTodoBackend() && detectDirectKanbanCreateRequest(text)) {
       return { type: "kanban", action: "direct-kanban-create" };
     }
-    const todoIntent = directTodoCreateEnabled()
-      ? (detectDirectTodoCreateIntentForWeb(text, thread.workspaceId) || detectDirectTodoCreateIntent(text, thread.workspaceId))
-      : null;
-    if (todoIntent) {
-      return { type: "todo", action: "direct-todo-create", intent: todoIntent };
+    if (directTodoCreateEnabled()) {
+      const rawText = String(text || "").trim();
+      const explicitTodoIntake = /(\u5f85\u529e|\u63d0\u9192|\u95f9\u949f|\balarm\b|\breminder\b|\btodo\b|\bto-do\b)/i.test(rawText)
+        && /(\u65b0\u589e|\u65b0\u5efa|\u521b\u5efa|\u6dfb\u52a0|\u589e\u52a0|\u5efa\u7acb|\u8bbe\u7f6e|\u5b89\u6392|\u63d0\u9192|\u52a0|\badd\b|\bcreate\b|\bnew\b|\bset\b|\bschedule\b)/i.test(rawText);
+      const todoIntent = explicitTodoIntake
+        ? { modelDraftRequired: true, sourceText: rawText }
+        : (detectDirectTodoCreateIntentForWeb(text, thread.workspaceId) || detectDirectTodoCreateIntent(text, thread.workspaceId));
+      if (todoIntent) {
+        return { type: "todo", action: "direct-todo-create", intent: todoIntent };
+      }
     }
     return { type: "none", action: "" };
   }

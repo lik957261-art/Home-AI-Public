@@ -151,6 +151,11 @@ Thread direct Todo creation uses the same service path through
 `result.item.id` as the visible Todo id and return that item as the Inbox item.
 Do not reintroduce a legacy sequence of `todoProvider.addTodo()` followed by
 `actionInboxService.upsertSourceItem()` for ordinary direct-created Todos.
+The route into this path is intentionally only an explicit-intent gate. It must
+not pre-parse title, assignee, due date, or recurrence. The executor calls
+`interpretTodoNaturalLanguage()` with the `home-ai-todo-intake` Skill rules to
+produce a structured draft, then passes that draft to
+`actionInboxTodoService.createTodo()` for host validation and persistence.
 
 When `creatorWorkspaceId !== assigneeWorkspaceId`, the Todo service writes two
 bounded records: the assignee's actionable Todo and the creator's tracking

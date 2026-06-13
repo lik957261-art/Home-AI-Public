@@ -349,17 +349,23 @@ function testDirectCreateRoutingAndPayloads() {
     });
     assert.equal(plan.nextAction, "direct-todo-create");
     assert.equal(plan.directAction.type, "todo");
-    assert.deepEqual(service.buildDirectTodoAddPayload(plan), {
-      workspaceId: "team",
-      assignee: "team-assignee",
-      content: "direct todo",
-      dueTime: "2026-05-16 09:00",
-      suppressExternalNotice: true,
-      reminderLeadMinutes: null,
-      recurrence: "none",
-      recurrenceDays: "",
-      recurrenceUntil: "",
-      manualOnly: true,
+    assert.deepEqual(plan.directAction.intent, {
+      modelDraftRequired: true,
+      sourceText: "create todo tomorrow",
+    });
+  }
+
+  {
+    const { service } = makeHarness({ directTodoCreateEnabled: true });
+    const plan = service.prepareThreadMessageCreate({
+      thread: baseThread({ workspaceId: "owner" }),
+      body: { text: "\u589e\u52a0\u6211\u7684\u4e00\u4e2a\u622a\u81f3\u5230 6 \u6708 30 \u53f7\u7684\u5f85\u529e\u4e8b\u9879\uff0c\u56fd\u5185\u62a5\u7a0e" },
+      auth: {},
+    });
+    assert.equal(plan.nextAction, "direct-todo-create");
+    assert.deepEqual(plan.directAction.intent, {
+      modelDraftRequired: true,
+      sourceText: "\u589e\u52a0\u6211\u7684\u4e00\u4e2a\u622a\u81f3\u5230 6 \u6708 30 \u53f7\u7684\u5f85\u529e\u4e8b\u9879\uff0c\u56fd\u5185\u62a5\u7a0e",
     });
   }
 }
