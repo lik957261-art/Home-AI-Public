@@ -59,6 +59,9 @@ assert.match(script, /buildHomeAiCronLaunchdPlist/);
 assert.match(script, /home-ai-bridge-host-launchd-install/);
 assert.match(script, /home-ai-cron-launchd-install/);
 assert.match(script, /home-ai-cron-profile-aliases/);
+assert.match(script, /home-ai-cron-builtin-skills/);
+assert.match(script, /home-ai-automation-cron-audit/);
+assert.match(script, /macos-automation-cron-audit\.js/);
 assert.match(script, /home-ai-gateway-start-script-bridge-env-repair/);
 assert.match(script, /macos-gateway-start-script-bridge-env-repair\.js/);
 assert.match(script, /installRootOwnedTextFile/);
@@ -177,6 +180,7 @@ assert.ok(payload.plan.proofFiles.includes("scripts/deploy-macos-production.js")
 assert.ok(payload.plan.proofFiles.includes("adapters/automation-cron-profile-service.js"));
 assert.ok(payload.plan.proofFiles.includes("cron_bridge.py"));
 assert.ok(payload.plan.proofFiles.includes("server-routes/automation-api-routes.js"));
+assert.ok(payload.plan.proofFiles.includes("scripts/macos-automation-cron-audit.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-gateway-start-script-bridge-env-repair.js"));
 assert.equal(payload.plan.cronProfileAliases.type, "home-ai-cron-profile-aliases");
 assert.equal(payload.plan.cronProfileAliases.manifestPath, "/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json");
@@ -186,6 +190,7 @@ assert.ok(payload.plan.validation.some((item) => item.type === "production-file-
 const statusSmoke = payload.plan.validation.find((item) => item.type === "home-ai-status-smoke");
 assert.ok(statusSmoke.command.includes("--expected-version"));
 assert.ok(payload.plan.validation.some((item) => item.type === "home-ai-status-smoke"));
+assert.ok(payload.plan.validation.some((item) => item.type === "home-ai-automation-cron-audit"));
 assert.ok(payload.plan.validation.some((item) => item.type === "codex-auth-profile-audit"));
 assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.bridge-host")));
 assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.cron")));

@@ -161,6 +161,13 @@ function automationSummarySort(left, right) {
   return String(left?.name || left?.id || "").localeCompare(String(right?.name || right?.id || ""));
 }
 
+function normalizeAutomationDraftForCreate(draft = {}) {
+  const out = draft && typeof draft === "object" && !Array.isArray(draft) ? Object.assign({}, draft) : {};
+  const deliver = String(out.deliver || "").trim();
+  if (deliver === "origin" && !String(out.origin || "").trim()) out.deliver = "local";
+  return out;
+}
+
 function createAutomationApiRoutes(deps = {}) {
   requireFunctions(deps, [
     "automationListSortByLatestDeliverable",
@@ -273,6 +280,7 @@ function createAutomationApiRoutes(deps = {}) {
       deps.sendJson(res, err.status || 502, { error: compactError(deps, err) });
       return;
     }
+    draft = normalizeAutomationDraftForCreate(draft);
     const profile = await Promise.resolve(resolveAutomationCronProfile({
       workspaceId,
       ownerPrincipalId,

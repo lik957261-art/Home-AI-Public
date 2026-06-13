@@ -150,6 +150,7 @@ const HOME_AI_PROOF_FILES = [
   "server-routes/automation-api-routes.js",
   "server-routes/mobile-api-composition.js",
   "scripts/deploy-macos-production.js",
+  "scripts/macos-automation-cron-audit.js",
   "scripts/production-status-smoke.js",
   "scripts/macos-gateway-start-script-bridge-env-repair.js",
 ];
@@ -449,6 +450,17 @@ function buildPlan(options) {
     validation.push({
       type: "home-ai-status-smoke",
       command,
+    });
+    validation.push({
+      type: "home-ai-automation-cron-audit",
+      command: [
+        posixJoin(options.macRoot, PINNED_NODE),
+        posixJoin(target, "scripts", "macos-automation-cron-audit.js"),
+        "--root",
+        normalizePath(options.macRoot),
+        "--strict-config",
+        "--json",
+      ],
     });
   }
   if (proofFiles.length) {
@@ -989,6 +1001,35 @@ function installHomeAiCronProfileAliases(plan, password) {
   };
 }
 
+function installHomeAiCronBuiltinSkills(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const sourceRoot = posixJoin(plan.productionPath, "skills", "productivity");
+  const targetRoot = posixJoin(plan.macRoot, "data", "hermes-home", "skills", "productivity");
+  const listing = runSudo("/bin/bash", ["-lc", `if test -d ${shQuote(sourceRoot)}; then find ${shQuote(sourceRoot)} -mindepth 1 -maxdepth 1 -type d -print; fi`], password);
+  const skillDirs = String(listing.stdout || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  runSudo("/bin/mkdir", ["-p", targetRoot], password);
+  let installed = 0;
+  for (const sourceDir of skillDirs) {
+    const name = path.posix.basename(sourceDir);
+    if (!SAFE_PROFILE_ID_PATTERN.test(name)) continue;
+    const targetDir = posixJoin(targetRoot, name);
+    runSudo("/bin/mkdir", ["-p", targetDir], password);
+    runSudo("/usr/bin/rsync", ["-a", `${sourceDir}/`, `${targetDir}/`], password);
+    installed += 1;
+  }
+  if (installed) {
+    const skillRoot = posixJoin(plan.macRoot, "data", "hermes-home", "skills");
+    runSudo("/usr/sbin/chown", ["-R", `${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, skillRoot], password);
+    runSudo("/bin/chmod", ["-R", "u+rwX,g+rX,o-rwx", skillRoot], password);
+  }
+  return {
+    type: "home-ai-cron-builtin-skills",
+    sourceRoot,
+    targetRoot,
+    installed,
+  };
+}
+
 function installHomeAiCronLaunchd(plan, password) {
   if (plan.target !== "home-ai") return null;
   const paths = homeAiCronPaths(plan.macRoot);
@@ -1200,6 +1241,7 @@ function executePlan(plan, options) {
   const cronInstall = installHomeAiCronLaunchd(plan, password);
   const listenerVoiceInputEnv = installHomeAiListenerVoiceInputEnv(plan, password);
   const cronProfileAliases = installHomeAiCronProfileAliases(plan, password);
+  const cronBuiltinSkills = installHomeAiCronBuiltinSkills(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
 
   for (const label of plan.restartLabels) {
@@ -1212,6 +1254,7 @@ function executePlan(plan, options) {
   if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));
   if (listenerVoiceInputEnv) validations.push(Object.assign({ status: 0 }, listenerVoiceInputEnv));
   if (cronProfileAliases) validations.push(Object.assign({ status: 0 }, cronProfileAliases));
+  if (cronBuiltinSkills) validations.push(Object.assign({ status: 0 }, cronBuiltinSkills));
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
   for (const check of plan.validation) {
     if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));

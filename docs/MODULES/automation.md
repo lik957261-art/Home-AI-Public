@@ -156,6 +156,15 @@ and the official scheduler uses its default Hermes home behavior; it must not
 copy private `auth.json` or `config.yaml` files into the scheduler home as a
 fallback.
 
+Home AI's Mac deploy path installs source-controlled built-in CRON Skills from
+`app/skills/productivity/*` into `$HERMES_HOME/skills/productivity/*` without
+deleting data-side private Skills. Deployment then runs
+`scripts/macos-automation-cron-audit.js --strict-config`, which fails the deploy
+when an enabled agent-backed job has no profile, uses `deliver=origin` without
+an origin target, or declares a Skill that the CRON Skill store cannot resolve.
+Script/no-agent jobs such as disaster backup are exempt from the profile
+requirement, but their own run failures remain visible in Automation status.
+
 On macOS production, the `com.hermesmobile.cron` LaunchDaemon runs as the
 service user `hermes-host`. The central deploy script must therefore install
 both the CRON profile alias and read/search ACLs for workspace-local plugin

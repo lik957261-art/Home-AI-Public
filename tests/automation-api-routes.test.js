@@ -342,6 +342,30 @@ async function testCreateAddsResolvedCronProfile() {
   assert.equal(got.body.draft.profile, "hm-owner-openai-1");
 }
 
+async function testCreateNormalizesOriginDeliveryWithoutTarget() {
+  const { routes, calls } = makeRoutes({
+    interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId) {
+      calls.interpret.push({ text, workspaceId: workspace.id, ownerPrincipalId });
+      return Promise.resolve({
+        name: "Daily summary",
+        prompt: "Summarize discussions",
+        schedule: "0 10 * * *",
+        deliver: "origin",
+        enabled_toolsets: ["file", "skills"],
+      });
+    },
+    resolveAutomationCronProfile() {
+      return "hm-owner-openai-1";
+    },
+  });
+  const got = await request(routes, "POST", "/api/automations", {
+    body: { workspaceId: "owner", text: "daily summary", dryRun: true },
+  });
+  assert.equal(got.res.statusCode, 200);
+  assert.equal(calls.create[0].job.deliver, "local");
+  assert.equal(got.body.draft.deliver, "local");
+}
+
 async function testActionDecodesJobAndClearsCache() {
   const { routes, calls } = makeRoutes();
   const got = await request(routes, "POST", "/api/automations/job%2F42/update?workspaceId=child", {
@@ -466,6 +490,7 @@ function testDependencyValidation() {
   await testCreateDryRunAndCreateFailure();
   await testCreatePassesProviderErrorStatus();
   await testCreateAddsResolvedCronProfile();
+  await testCreateNormalizesOriginDeliveryWithoutTarget();
   await testActionDecodesJobAndClearsCache();
   await testPushTickOwnerOnly();
   await testAuthorizedFileRoutesUseResolvers();
