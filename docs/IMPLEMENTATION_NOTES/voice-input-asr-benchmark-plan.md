@@ -79,7 +79,7 @@ multi-engine phase needs a registry shape:
 
 ```js
 {
-  defaultBackend: "whisper-large-v3-turbo",
+  defaultBackend: "funasr-local",
   comparisonBackends: [
     {
       backend: "whisper-large-v3-turbo",

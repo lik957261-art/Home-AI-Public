@@ -328,7 +328,7 @@ async function transcribeAudio({
     language: "zh",
     confidence: 0.0,
     segments: [],
-    backend: "whisper-large-v3-turbo",
+    backend: "funasr-local",
     durationMs: 0,
   };
 }
@@ -336,11 +336,12 @@ async function transcribeAudio({
 
 Initial providers:
 
-- `whisper-local`: calls a local Whisper Large V3 Turbo service or command.
-  The Mac production default is an OpenAI-style faster-whisper endpoint at
-  `http://127.0.0.1:8001/v1/audio/transcriptions`; the provider auto-selects
+- `funasr-local`: calls a local FunASR service or command. The Mac production
+  default is an OpenAI-style FunASR endpoint at
+  `http://127.0.0.1:8002/v1/audio/transcriptions`; the provider auto-selects
   multipart upload protocol for `/v1/audio/transcriptions` URLs.
-- `funasr-local`: calls a local FunASR service or command.
+- `whisper-local` / `whisper-large-v3-turbo`: calls a local Whisper Large V3
+  Turbo service or command, kept as a comparison and fallback candidate.
 - `disabled`: returns a bounded unavailable diagnostic for public installs
   without an ASR backend.
 
