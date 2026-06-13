@@ -20,9 +20,9 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-stop-release-v751[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-stop-release-v751[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-stop-release-v751[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-stop-release-v751/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-stop-release-v751/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-stop-release-v751/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-stop-callout-v752[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-stop-callout-v752[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-stop-callout-v752[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-stop-callout-v752/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-stop-callout-v752/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-stop-callout-v752/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -54,11 +54,15 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /function endVoiceInputStopButtonPress\(event, options = \{\}\)/);
   assert.match(voiceUi, /button\?\.id === "sendMessage" && isComposerStopMode\(\)/);
   assert.match(voiceUi, /voice\.stopButtonPressActive = true/);
+  assert.match(voiceUi, /voice\.stopButtonLongPressTriggered = false/);
+  assert.match(voiceUi, /voice\.suppressNextClick = true;[\s\S]*?voice\.suppressClickButton = button;[\s\S]*?scheduleVoiceInputClickSuppressionClear\(\);/);
+  assert.match(voiceUi, /voice\.stopButtonLongPressTriggered = true/);
   assert.match(voiceUi, /voice\.stopButtonPressActive = false/);
+  assert.match(voiceUi, /const longPress = Boolean\(voice\.stopButtonLongPressTriggered\)/);
+  assert.match(voiceUi, /voice\.suppressNextClick = true;[\s\S]*?voice\.suppressClickButton = button;[\s\S]*?scheduleVoiceInputClickSuppressionClear\(\);[\s\S]*?event\?\.preventDefault\?\.\(\);/);
   assert.match(voiceUi, /if \(voice\.stopButtonPressActive \|\| \(voice\.pointerButton\?\.id === "sendMessage" && isComposerStopMode\(\)\)\) \{[\s\S]*?endVoiceInputStopButtonPress\(event, \{ pointerId: event\.pointerId \}\);[\s\S]*?return;/);
   assert.match(voiceUi, /if \(button\?\.id === "sendMessage" && isComposerStopMode\(\)\) \{[\s\S]*?voice\.touchFallbackActive = true;[\s\S]*?handleVoiceInputStopButtonPointerDown\(event, button\);[\s\S]*?return;/);
   assert.match(voiceUi, /if \(voice\.stopButtonPressActive \|\| \(voice\.pointerButton\?\.id === "sendMessage" && isComposerStopMode\(\)\)\) \{[\s\S]*?endVoiceInputStopButtonPress\(event\);[\s\S]*?return;/);
-  assert.match(voiceUi, /const longPress = !voice\.pressTimer && voice\.suppressNextClick && voice\.suppressClickButton/);
   assert.match(voiceUi, /allowStopMode: true/);
   assert.match(voiceUi, /if \(longPress && \["checking", "requesting", "preparing", "recording", "finalizing"\]\.includes\(voice\.status\)\) \{[\s\S]*?stopVoiceInputRecording\(\);/);
   assert.match(voiceUi, /voiceInputNativeComposerAvailable\(target\.composer \|\| voiceInputMainComposerDefinition\(\), \{[\s\S]*?allowStopMode: Boolean\(target\.allowStopMode\),/);
@@ -151,6 +155,7 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(styles, /\.voice-input-gesture[\s\S]*-webkit-user-select: none/);
   assert.match(styles, /\.voice-input-gesture[\s\S]*-webkit-touch-callout: none/);
   assert.match(styles, /\.voice-input-gesture[\s\S]*-webkit-user-drag: none/);
+  assert.match(styles, /#sendMessage\.voice-input-gesture,[\s\S]*?\.composer button\.stop-mode\.voice-input-gesture,[\s\S]*?body\.voice-input-press-active #sendMessage \{[\s\S]*?user-select: none !important;[\s\S]*?-webkit-touch-callout: none !important;[\s\S]*?touch-action: none;/);
   assert.match(styles, /body\.voice-input-press-active[\s\S]*-webkit-user-drag: none !important/);
   assert.match(styles, /body\.voice-input-press-active \.voice-input-gesture[\s\S]*touch-action: none/);
   assert.match(voiceUi, /document\.addEventListener\("selectionchange", suppressVoiceInputSelectionChange, true\)/);

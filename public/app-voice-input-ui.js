@@ -645,13 +645,16 @@ function handleVoiceInputStopButtonPointerDown(event, button) {
   const voice = ensureVoiceInputState();
   event?.preventDefault?.();
   event?.stopPropagation?.();
+  event?.stopImmediatePropagation?.();
   voiceInputClearPressTimer();
   voice.pointerId = event.pointerId;
   voice.pointerButton = button;
   voice.pointerComposer = null;
   voice.stopButtonPressActive = true;
-  voice.suppressNextClick = false;
-  voice.suppressClickButton = null;
+  voice.stopButtonLongPressTriggered = false;
+  voice.suppressNextClick = true;
+  voice.suppressClickButton = button;
+  scheduleVoiceInputClickSuppressionClear();
   voiceInputClearSelection();
   document.body?.classList?.add("voice-input-press-active");
   try {
@@ -659,6 +662,7 @@ function handleVoiceInputStopButtonPointerDown(event, button) {
   } catch (_) {}
   voice.pressTimer = setTimeout(() => {
     voice.pressTimer = 0;
+    voice.stopButtonLongPressTriggered = true;
     voice.suppressNextClick = true;
     voice.suppressClickButton = button;
     scheduleVoiceInputClickSuppressionClear();
@@ -676,7 +680,8 @@ function handleVoiceInputStopButtonPointerDown(event, button) {
 
 function endVoiceInputStopButtonPress(event, options = {}) {
   const voice = ensureVoiceInputState();
-  const longPress = !voice.pressTimer && voice.suppressNextClick && voice.suppressClickButton;
+  const longPress = Boolean(voice.stopButtonLongPressTriggered);
+  const button = voice.pointerButton || event?.target?.closest?.("button") || voice.suppressClickButton || null;
   if (voice.pressTimer) voiceInputClearPressTimer();
   if (options.pointerId) {
     try {
@@ -687,7 +692,11 @@ function endVoiceInputStopButtonPress(event, options = {}) {
   voice.pointerButton = null;
   voice.pointerComposer = null;
   voice.stopButtonPressActive = false;
+  voice.stopButtonLongPressTriggered = false;
   document.body?.classList?.remove("voice-input-press-active");
+  voice.suppressNextClick = true;
+  voice.suppressClickButton = button;
+  scheduleVoiceInputClickSuppressionClear();
   event?.preventDefault?.();
   event?.stopPropagation?.();
   event?.stopImmediatePropagation?.();
@@ -1086,6 +1095,7 @@ function handleVoiceInputPointerCancel(event) {
   voice.pointerButton = null;
   voice.pointerComposer = null;
   voice.stopButtonPressActive = false;
+  voice.stopButtonLongPressTriggered = false;
   if (voice.pressTimer) {
     voiceInputClearPressTimer();
     closeVoiceInputOverlay();

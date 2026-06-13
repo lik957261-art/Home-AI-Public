@@ -17250,6 +17250,17 @@ body.voice-input-press-active .voice-input-overlay button {
   box-shadow: 0 12px 28px rgba(164, 61, 53, 0.18);
 }
 
+#sendMessage.voice-input-gesture,
+.composer button.stop-mode.voice-input-gesture,
+body.voice-input-press-active #sendMessage {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-user-drag: none !important;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent !important;
+}
+
 .composer-editor {
   min-width: 0;
   flex: 1 1 auto;
