@@ -277,7 +277,7 @@ async function testDirectTodoSuccessFinalizesAndBroadcasts() {
     principal: "principal:family",
   }]);
   assert.equal(plan.assistantMessage.status, "done");
-  assert.equal(plan.assistantMessage.content, "\u5df2\u65b0\u589e\u5f85\u529e\uff1aChild | 2026-05-16 09:00 | read chapter");
+  assert.equal(plan.assistantMessage.content, "\u5df2\u65b0\u589e\u5f85\u529e\uff1aworkspace:child-principal | 2026-05-16T09:00:00.000+08:00 | read chapter");
   assert.equal(plan.assistantMessage.error, null);
   assert.equal(plan.assistantMessage.completedAt, "2026-05-15T01:02:03.000Z");
   assert.equal(plan.assistantMessage.failedAt, "");

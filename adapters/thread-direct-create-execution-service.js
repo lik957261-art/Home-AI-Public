@@ -66,6 +66,13 @@ function publicActionInboxTodo(result) {
   };
 }
 
+function directTodoSuccessContent(draft = {}, todo = {}) {
+  const assignee = String(draft.assigneeDisplayName || draft.assigneeWorkspaceId || todo.workspaceId || "owner").trim() || "owner";
+  const dueAt = String(draft.dueAt || todo.dueAt || "").trim();
+  const title = String(draft.title || todo.title || todo.content || "todo").trim() || "todo";
+  return `\u5df2\u65b0\u589e\u5f85\u529e\uff1a${assignee} | ${dueAt || "\u65e0\u622a\u6b62\u65f6\u95f4"} | ${title}`;
+}
+
 function createThreadDirectCreateExecutionService(options = {}) {
   const threadMessageCreateService = asObject(options.threadMessageCreateService || options.messageCreateService);
   const kanbanCardProvider = asObject(options.kanbanCardProvider);
@@ -288,12 +295,10 @@ function createThreadDirectCreateExecutionService(options = {}) {
         error: String(finalResult?.error || verification.error || ""),
       };
     }
-    const directTodoIntent = plan.directAction?.intent || {};
-
     const finalized = finalizeDirectCreate(thread, plan, finalResult, {
       fallbackError: "Todo operation failed",
       failureContent: () => `\u65b0\u589e\u5f85\u529e\u5931\u8d25\uff1a${finalResult?.error || "Todo operation failed"}`,
-      successContent: () => `\u5df2\u65b0\u589e\u5f85\u529e\uff1a${directTodoIntent.assigneeLabel} | ${directTodoIntent.dueTime} | ${directTodoIntent.content}`,
+      successContent: () => directTodoSuccessContent(todoDraft, createdTodo || finalResult?.item || {}),
       successNotifications: () => directTodoSuccessNotification(finalResult, plan),
     });
     const inboxItem = finalResult?.ok ? finalResult.item || null : null;
