@@ -162,6 +162,11 @@ context.state.currentThread = {
       taskGroupId: "task_a",
       content: "",
       localPendingSend: true,
+      localRunProgressEvents: [{
+        event: "run.todo_intake_started",
+        timestamp: "2026-06-01T07:40:01.000Z",
+        preview: "checking intent",
+      }],
       createdAt: "2026-06-01T07:40:01.000Z",
       updatedAt: "2026-06-01T07:40:01.000Z",
     },
@@ -197,6 +202,11 @@ const realIncoming = {
 
 const replaced = context.mergeCurrentThread(realIncoming);
 assert.deepEqual(replaced.messages.map((message) => message.id), ["real_user", "real_assistant"]);
+assert.deepEqual(replaced.messages[1].localRunProgressEvents, [{
+  event: "run.todo_intake_started",
+  timestamp: "2026-06-01T07:40:01.000Z",
+  preview: "checking intent",
+}]);
 
 context.state.currentThread = {
   id: "thread_1",
@@ -246,6 +256,11 @@ context.state.currentThread.messages.push({
   taskGroupId: "local_task",
   content: "",
   localPendingSend: true,
+  localRunProgressEvents: [{
+    event: "run.todo_intake_started",
+    timestamp: "2026-06-01T07:41:03.000Z",
+    preview: "checking stream intent",
+  }],
   createdAt: "2026-06-01T07:41:03.000Z",
   updatedAt: "2026-06-01T07:41:03.000Z",
 });
@@ -262,6 +277,11 @@ context.mergeCurrentThreadMessages([
   },
 ]);
 assert.deepEqual(Array.from(context.state.currentThread.messages.map((message) => message.id)), ["real_user_stream", "real_assistant_stream"]);
+assert.deepEqual(context.state.currentThread.messages[1].localRunProgressEvents, [{
+  event: "run.todo_intake_started",
+  timestamp: "2026-06-01T07:41:03.000Z",
+  preview: "checking stream intent",
+}]);
 
 context.state.currentThread = {
   id: "thread_1",

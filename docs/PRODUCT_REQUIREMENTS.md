@@ -215,8 +215,10 @@ This file records durable product rules that implementation must preserve.
   ordinary chat model turn continues with bounded context about the created or
   confirmation-needed Todo.
 - While the Todo-intake model pass is running before a normal run id exists,
-  the chat UI must show a local run-progress row such as `正在识别待办意图`
-  instead of leaving the composer/chat surface visually stalled.
+  the chat UI must show a local run-progress row such as `正在识别意图`.
+  The visible label must stay generic because this preflight is the first
+  host-owned intent recognition step, even if the current implementation only
+  routes Todo/reminder drafts.
 - The model may only produce a Todo draft. Home AI must validate permissions,
   workspace identity, dates, recurrence, Web Push, audit events, and persistence
   before creating or mutating any Todo/reminder.

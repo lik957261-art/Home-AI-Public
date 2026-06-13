@@ -343,7 +343,7 @@ function runEventTitle(event) {
   if (name === "run.final_message_started") return "\u5f00\u59cb\u751f\u6210\u56de\u590d";
   if (name === "run.final_message_done") return "\u56de\u590d\u5df2\u751f\u6210";
   if (name === "run.request_preparing") return "\u6b63\u5728\u51c6\u5907\u8fd0\u884c";
-  if (name === "run.todo_intake_started") return "\u6b63\u5728\u8bc6\u522b\u5f85\u529e\u610f\u56fe";
+  if (name === "run.todo_intake_started") return "\u6b63\u5728\u8bc6\u522b\u610f\u56fe";
   if (name === "run.context_ready") return "\u4e0a\u4e0b\u6587\u5df2\u6574\u7406";
   if (name === "run.gateway_worker_queued") return "Gateway \u6392\u961f\u7b49\u5f85";
   if (name === "run.gateway_worker_starting") return "Gateway \u542f\u52a8\u4e2d";
@@ -656,6 +656,22 @@ function renderPendingRunProgressPanel(message = {}) {
   </aside>`;
 }
 
+function renderLocalRunProgressRows(message = {}, startMs = Date.now()) {
+  const localEvents = Array.isArray(message.localRunProgressEvents)
+    ? message.localRunProgressEvents.map((event) => normalizeRunEvent(event))
+    : [];
+  if (!localEvents.length) return "";
+  return localEvents.map((event) => {
+    const preview = runEventPreviewLabel(event);
+    return `<div class="${escapeHtml(runEventRowClass(event))}">
+      <span class="run-progress-dot" aria-hidden="true"></span>
+      <span class="run-progress-main">${escapeHtml(runEventTitle(event))}</span>
+      <span class="run-progress-time">${escapeHtml(runEventStatusLabel(event, startMs))}</span>
+      ${preview ? `<span class="run-progress-preview">${escapeHtml(preview)}</span>` : ""}
+    </div>`;
+  }).join("");
+}
+
 function renderRunProgressPanel(thread, runIds, options = {}) {
   const ids = (runIds || []).filter(Boolean);
   if (!ids.length) return "";
@@ -671,6 +687,7 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
   const eventTimes = allEvents.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
   const lastEventMs = eventTimes.length ? Math.max(...eventTimes) : 0;
   const quietRow = options.terminal ? "" : renderRunProgressQuietRow(lastEventMs, startMs);
+  const localRows = !events.length && options.message ? renderLocalRunProgressRows(options.message, startMs) : "";
   const rows = events.length
     ? `${quietRow}${events.map((event) => {
       const preview = runEventPreviewLabel(event);
@@ -682,6 +699,8 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
         ${preview ? `<span class="run-progress-preview">${escapeHtml(preview)}</span>` : ""}
       </div>`;
     }).join("")}`
+    : localRows
+      ? `${quietRow}${localRows}`
     : renderRunProgressWaitingRow(startMs);
   const elapsedLabel = options.terminal
     ? runProgressDurationLabel(startMs, options.terminalMs || Date.now())
@@ -706,6 +725,7 @@ function renderMessageRunProgress(thread, message = {}, options = {}) {
   return renderRunProgressPanel(thread, runIds, {
     inline: true,
     terminal: false,
+    message,
   });
 }
 

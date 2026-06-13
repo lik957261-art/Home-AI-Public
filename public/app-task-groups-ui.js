@@ -243,6 +243,21 @@ function localPendingSendReplacedByIncoming(message = {}, incomingMessages = [],
   });
 }
 
+function localPendingRunProgressEventsForIncoming(incoming = {}, incomingMessages = [], existingMessages = []) {
+  if (!incoming || incoming.localPendingSend || String(incoming.role || "") !== "assistant") return [];
+  const existing = Array.isArray(existingMessages) ? existingMessages : [];
+  const localAssistant = existing.find((message) => (
+    message?.localPendingSend
+    && String(message.role || "") === "assistant"
+    && Array.isArray(message.localRunProgressEvents)
+    && message.localRunProgressEvents.length
+    && localPendingSendReplacedByIncoming(message, [incoming], existing)
+  ));
+  return Array.isArray(localAssistant?.localRunProgressEvents)
+    ? localAssistant.localRunProgressEvents
+    : [];
+}
+
 function mergeCurrentThreadMessages(messages = [], page = null) {
   if (!state.currentThread || !Array.isArray(messages) || !messages.length) return;
   const existing = state.currentThread.messages || [];
@@ -250,7 +265,12 @@ function mergeCurrentThreadMessages(messages = [], page = null) {
     .filter((message) => !localPendingSendReplacedByIncoming(message, messages, existing))
     .map((message) => [message.id, message]));
   for (const message of messages) {
-    current.set(message.id, mergeServerMessage(current.get(message.id), message));
+    const merged = mergeServerMessage(current.get(message.id), message);
+    if (!Array.isArray(merged.localRunProgressEvents) || !merged.localRunProgressEvents.length) {
+      const localEvents = localPendingRunProgressEventsForIncoming(message, messages, existing);
+      if (localEvents.length) merged.localRunProgressEvents = localEvents;
+    }
+    current.set(message.id, merged);
   }
   const mergedMessages = sortedThreadMessages([...current.values()]);
   state.currentThread.messages = mergedMessages;

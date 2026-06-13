@@ -66,9 +66,17 @@ function mergeCurrentThread(incomingThread) {
   }
   const existingMessages = new Map((state.currentThread.messages || []).map((message) => [message.id, message]));
   const incomingIds = new Set();
+  const existingThreadMessagesAll = state.currentThread.messages || [];
   const messages = incomingMessages.map((message) => {
     incomingIds.add(message.id);
-    return mergeServerMessage(existingMessages.get(message.id), message);
+    const merged = mergeServerMessage(existingMessages.get(message.id), message);
+    if (!Array.isArray(merged.localRunProgressEvents) || !merged.localRunProgressEvents.length) {
+      const localEvents = typeof localPendingRunProgressEventsForIncoming === "function"
+        ? localPendingRunProgressEventsForIncoming(message, incomingMessages, existingThreadMessagesAll)
+        : [];
+      if (localEvents.length) merged.localRunProgressEvents = localEvents;
+    }
+    return merged;
   });
   for (const message of state.currentThread.messages || []) {
     if (localPendingSendReplacedByIncoming(message, incomingMessages, state.currentThread.messages || [])) continue;
