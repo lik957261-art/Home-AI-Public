@@ -1310,7 +1310,16 @@ function executePlan(plan, options) {
   const codexSharedAuthRepair = repairCodexSharedAuthPermissions(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
 
+  const reloadedLabels = new Set();
+  if (listenerVoiceInputEnv && plan.restartLabels.includes(HOME_AI_LISTENER_LABEL)) {
+    const plistPath = `/Library/LaunchDaemons/${HOME_AI_LISTENER_LABEL}.plist`;
+    runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(plistPath)} >/dev/null 2>&1 || true`], password);
+    runSudo("/bin/launchctl", ["bootstrap", "system", plistPath], password);
+    reloadedLabels.add(HOME_AI_LISTENER_LABEL);
+  }
+
   for (const label of plan.restartLabels) {
+    if (reloadedLabels.has(label)) continue;
     runSudo("/bin/launchctl", ["kickstart", "-k", `system/${label}`], password);
   }
 
