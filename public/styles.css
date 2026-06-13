@@ -2315,6 +2315,7 @@ button {
 .health-mode .composer,
 .note-mode .composer,
 .growth-plugin-mode .composer,
+.moira-mode .composer,
 .codex-mode .composer {
   display: none;
 }

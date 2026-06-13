@@ -1221,7 +1221,7 @@ function renderEmbeddedPluginView(def) {
   $("threadTitle").textContent = def.label || def.title;
   $("threadMeta").textContent = "";
   $("interruptRun").disabled = true;
-  configureComposer({ enabled: false, placeholder: `${def.title} 插件` });
+  configureComposer({ enabled: false, hidden: true, placeholder: `${def.title} 插件` });
   const conversation = $("conversation");
   if (!conversation) return;
   const record = embeddedPluginRecord(def.id);

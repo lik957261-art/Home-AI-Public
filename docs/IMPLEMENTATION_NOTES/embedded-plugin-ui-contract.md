@@ -23,6 +23,9 @@ Hermes Mobile owns these behaviors:
 - create the iframe through the normalized plugin manifest;
 - keep the iframe in the same window;
 - hide the normal Hermes topbar/header while an embedded plugin iframe is open;
+- hide the normal Home AI chat composer while an embedded plugin iframe app is
+  open; plugin-bound topic chats are a separate Hermes-owned chat surface that
+  may show a composer;
 - keep the ordinary system bottom navigation outside the iframe viewport;
 - let the iframe start at the top of the available host viewport;
 - ensure the iframe bottom edge stops above the measured Home AI bottom stack;

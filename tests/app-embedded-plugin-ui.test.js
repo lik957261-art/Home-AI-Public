@@ -62,6 +62,7 @@ assert.match(embeddedPluginUi, /backResultEventType: "moira\.plugin\.back_result
 assert.match(embeddedPluginUi, /refreshRequiredEventType: "moira\.plugin\.refresh_required"/);
 assert.match(embeddedPluginUi, /id: "moira"[\s\S]*?residentFrame: true/);
 assert.match(embeddedPluginUi, /function renderEmbeddedPluginView\(def\)/);
+assert.match(embeddedPluginUi, /configureComposer\(\{ enabled: false, hidden: true, placeholder: `\$\{def\.title\} 插件` \}\)/);
 assert.match(embeddedPluginUi, /function loadEmbeddedPluginManifest\(def, options = {}\)/);
 assert.match(embeddedPluginUi, /appOrigin: window\.location\.origin/);
 assert.match(embeddedPluginUi, /function embeddedPluginAppearanceForLaunch\(\)/);

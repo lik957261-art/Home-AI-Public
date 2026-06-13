@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260613-server-file-attach-v735";
+const CLIENT_VERSION = "20260613-moira-composer-hidden-v736";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -208,8 +208,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260613-server-file-attach-v735" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260613-server-file-attach-v735"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260613-moira-composer-hidden-v736" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260613-moira-composer-hidden-v736"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -552,7 +552,7 @@ assert.match(stylesCss, /\.app \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.main \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.sidebar \{[\s\S]*?background: var\(--ui-chrome\);/);
 assert.match(stylesCss, /\.composer \{[\s\S]*?background: var\(--ui-chrome\);/);
-assert.match(stylesCss, /\.wardrobe-mode \.composer,[\s\S]*?\.finance-mode \.composer,[\s\S]*?\.email-mode \.composer,[\s\S]*?\.health-mode \.composer,[\s\S]*?\.note-mode \.composer,[\s\S]*?\.codex-mode \.composer \{[\s\S]*?display: none;/);
+assert.match(stylesCss, /\.wardrobe-mode \.composer,[\s\S]*?\.finance-mode \.composer,[\s\S]*?\.email-mode \.composer,[\s\S]*?\.health-mode \.composer,[\s\S]*?\.note-mode \.composer,[\s\S]*?\.growth-plugin-mode \.composer,[\s\S]*?\.moira-mode \.composer,[\s\S]*?\.codex-mode \.composer \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /\.message\.assistant \{[\s\S]*?color: var\(--ink\);[\s\S]*?background: var\(--ui-surface\);/);
 assert.match(stylesCss, /\.task-card\.task-swipe-row \.task-swipe-content \{[\s\S]*?background: var\(--ui-card-surface\);/);
 assert.match(stylesCss, /\.learning-growth-board-card\.is-reward-warning \{[\s\S]*?background: var\(--ui-warning-surface\);/);
@@ -2577,10 +2577,10 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260613-server-file-attach-v735/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260613-server-file-attach-v735/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260613-server-file-attach-v735/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260613-server-file-attach-v735/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260613-moira-composer-hidden-v736/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260613-moira-composer-hidden-v736/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260613-moira-composer-hidden-v736/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260613-moira-composer-hidden-v736/);
 assert.match(appJs, /const PLUGIN_TOPIC_DEFS = Object\.freeze/);
 assert.match(appJs, /health: Object\.freeze\(\{[\s\S]*?viewMode: "health"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/health\/manifest"/);
 assert.match(appJs, /note: Object\.freeze\(\{[\s\S]*?viewMode: "note"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/note\/manifest"/);
