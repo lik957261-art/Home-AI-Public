@@ -592,6 +592,9 @@ function bindVoiceInputPressSelectionGuards() {
   document.addEventListener("pointerdown", handleVoiceInputPointerDown, true);
   document.addEventListener("pointerup", handleVoiceInputPointerUp, true);
   document.addEventListener("pointercancel", handleVoiceInputPointerCancel, true);
+  document.addEventListener("touchstart", handleVoiceInputTouchStart, { capture: true, passive: false });
+  document.addEventListener("touchend", handleVoiceInputTouchEnd, { capture: true, passive: false });
+  document.addEventListener("touchcancel", handleVoiceInputTouchCancel, { capture: true, passive: false });
   document.addEventListener("click", suppressVoiceInputClickEvent, true);
   document.addEventListener("visibilitychange", voiceInputRefreshMicHoldFromForeground);
   window.addEventListener("focus", voiceInputRefreshMicHoldFromForeground);
@@ -973,18 +976,9 @@ function commitVoiceInputPluginResult(def, payload = {}) {
   return true;
 }
 
-function handleVoiceInputPointerDown(event) {
+function beginVoiceInputPressGesture(event, button, composer, options = {}) {
   const voice = ensureVoiceInputState();
-  if (event.pointerType === "mouse" && event.button !== 0) return;
-  const button = event.target?.closest?.("button");
-  if (button?.id === "sendMessage" && isComposerStopMode()) {
-    handleVoiceInputStopButtonPointerDown(event, button);
-    return;
-  }
-  const composer = voiceInputComposerForButton(button);
-  if (!voiceInputNativeComposerAvailable(composer)) return;
   voiceInputClearPressTimer();
-  voice.pointerId = event.pointerId;
   voice.pointerButton = button;
   voice.pointerComposer = composer;
   voice.suppressNextClick = false;
@@ -992,25 +986,25 @@ function handleVoiceInputPointerDown(event) {
   voiceInputClearSelection();
   document.body?.classList?.add("voice-input-press-active");
   voiceInputPrewarmStatus();
-  try {
-    button?.setPointerCapture?.(event.pointerId);
-  } catch (_) {}
+  if (options.pointerId) {
+    voice.pointerId = options.pointerId;
+    try {
+      button?.setPointerCapture?.(options.pointerId);
+    } catch (_) {}
+  } else {
+    voice.pointerId = 0;
+  }
   voice.pressTimer = setTimeout(() => {
-    event.preventDefault?.();
-    event.stopPropagation?.();
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
     voiceInputClearSelection();
     voice.pressTimer = 0;
     void startVoiceInputRecording(event, { target: { kind: "native", composer, button } });
   }, VOICE_INPUT_LONG_PRESS_MS);
 }
 
-function handleVoiceInputPointerUp(event) {
+function endVoiceInputPressGesture(event, options = {}) {
   const voice = ensureVoiceInputState();
-  if (voice.pointerId && event.pointerId !== voice.pointerId) return;
-  try {
-    voice.pointerButton?.releasePointerCapture?.(event.pointerId);
-  } catch (_) {}
-  voice.pointerId = 0;
   const button = voice.pointerButton;
   voice.pointerButton = null;
   voice.pointerComposer = null;
@@ -1022,10 +1016,36 @@ function handleVoiceInputPointerUp(event) {
     document.body?.classList?.remove("voice-input-press-active");
   }
   if (["checking", "requesting", "preparing", "recording", "finalizing"].includes(voice.status)) {
-    event.preventDefault();
-    event.stopPropagation();
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (options.stopImmediate !== false) event?.stopImmediatePropagation?.();
     stopVoiceInputRecording();
   }
+}
+
+function handleVoiceInputPointerDown(event) {
+  const voice = ensureVoiceInputState();
+  if (voice.touchFallbackActive) return;
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  const button = event.target?.closest?.("button");
+  if (button?.id === "sendMessage" && isComposerStopMode()) {
+    handleVoiceInputStopButtonPointerDown(event, button);
+    return;
+  }
+  const composer = voiceInputComposerForButton(button);
+  if (!voiceInputNativeComposerAvailable(composer)) return;
+  beginVoiceInputPressGesture(event, button, composer, { pointerId: event.pointerId });
+}
+
+function handleVoiceInputPointerUp(event) {
+  const voice = ensureVoiceInputState();
+  if (voice.touchFallbackActive) return;
+  if (voice.pointerId && event.pointerId !== voice.pointerId) return;
+  try {
+    voice.pointerButton?.releasePointerCapture?.(event.pointerId);
+  } catch (_) {}
+  voice.pointerId = 0;
+  endVoiceInputPressGesture(event, { stopImmediate: false });
 }
 
 function handleVoiceInputPointerCancel(event) {
@@ -1043,6 +1063,31 @@ function handleVoiceInputPointerCancel(event) {
     document.body?.classList?.remove("voice-input-press-active");
   }
   if (["checking", "requesting", "preparing", "recording", "finalizing"].includes(voice.status)) cancelVoiceInput();
+}
+
+function handleVoiceInputTouchStart(event) {
+  const voice = ensureVoiceInputState();
+  if (event.touches && event.touches.length !== 1) return;
+  const button = event.target?.closest?.("button");
+  if (button?.id === "sendMessage" && isComposerStopMode()) return;
+  const composer = voiceInputComposerForButton(button);
+  if (!voiceInputNativeComposerAvailable(composer)) return;
+  voice.touchFallbackActive = true;
+  beginVoiceInputPressGesture(event, button, composer);
+}
+
+function handleVoiceInputTouchEnd(event) {
+  const voice = ensureVoiceInputState();
+  if (!voice.touchFallbackActive) return;
+  voice.touchFallbackActive = false;
+  endVoiceInputPressGesture(event);
+}
+
+function handleVoiceInputTouchCancel(event) {
+  const voice = ensureVoiceInputState();
+  if (!voice.touchFallbackActive) return;
+  voice.touchFallbackActive = false;
+  handleVoiceInputPointerCancel(event);
 }
 
 function suppressVoiceInputTextSelection(event) {

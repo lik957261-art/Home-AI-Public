@@ -20,9 +20,9 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-composer-refresh-v746[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-composer-refresh-v746[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-composer-refresh-v746[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-composer-refresh-v746/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-composer-refresh-v746/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-composer-refresh-v746/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-touchstart-v747[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-touchstart-v747[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-touchstart-v747[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-touchstart-v747/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-touchstart-v747/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-touchstart-v747/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -31,6 +31,10 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /const VOICE_INPUT_LONG_PRESS_MS = 420/);
   assert.match(voiceUi, /document\.addEventListener\("pointerdown", handleVoiceInputPointerDown, true\)/);
   assert.match(voiceUi, /document\.addEventListener\("pointerup", handleVoiceInputPointerUp, true\)/);
+  assert.match(voiceUi, /document\.addEventListener\("touchstart", handleVoiceInputTouchStart, \{ capture: true, passive: false \}\)/);
+  assert.match(voiceUi, /document\.addEventListener\("touchend", handleVoiceInputTouchEnd, \{ capture: true, passive: false \}\)/);
+  assert.match(voiceUi, /function beginVoiceInputPressGesture\(event, button, composer, options = \{\}\)/);
+  assert.match(voiceUi, /function handleVoiceInputTouchStart\(event\)/);
   assert.match(voiceUi, /document\.addEventListener\("click", suppressVoiceInputClickEvent, true\)/);
   assert.match(voiceUi, /navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)/);
   assert.match(voiceUi, /const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted"/);
