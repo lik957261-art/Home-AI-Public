@@ -92,20 +92,30 @@ different workspace. The assignee owns the actionable Inbox item. The source
 reference records `creatorWorkspaceId` and `assigneeWorkspaceId` only as
 bounded metadata. Creation sends Web Push to the assignee even when the Todo is
 a future reminder; the due reminder tick may send a second Web Push when the
-item becomes actionable. When the assignee completes the item, the host creates
-a summary-only completion receipt for the creator and may send Web Push to the
-creator. The receipt must not copy private task discussion or long content.
+item becomes actionable. When creator and assignee differ, the host also creates
+a creator-side tracking item with `sourceRef.sentTracking=true` and
+`sourceRef.assignedTodoItemId=<assignee item id>`. The tracking item is visible
+to the creator but must not participate in reminder activation or duplicate
+assignee push delivery. When the assignee completes the item, the host marks the
+creator-side tracking item done, creates a summary-only completion receipt for
+the creator, and may send Web Push to the creator. The receipt must not copy
+private task discussion or long content.
 
 Periodic or complex recurring Todos are not stored as independent Inbox
 schedules. They are Automation-backed rules that create one Inbox Todo
 occurrence per trigger. Completing an occurrence does not delete or pause the
 Automation rule.
 
-The legacy `POST /api/todos` compatibility route may still create a Todo/Kanban record while the old surface is being retired, but it must also upsert a summary-only `sourceType=manual`, `itemType=todo` Action Inbox item for the selected workspace. This keeps existing callers from silently bypassing the Inbox.
-Any legacy direct-create keyword detector controlled by direct Todo/Kanban
-compatibility flags is not the product natural-language path. It must remain
-off by default and should be treated as a migration bridge until model-guided
-Todo draft creation covers the caller.
+Legacy Todo/Kanban is not a product-compatible Todo surface for ordinary user
+Todos. New user-created Todos must enter Action Inbox Todo. The legacy
+`/api/todos` route is only a bounded compatibility URL: list/create project
+Action Inbox Todo records, complete maps to Action Inbox Todo completion,
+cancel/delete map to Inbox dismissal, and legacy Kanban-only actions such as
+block/revise/postpone must return a disabled/retired error. The mobile UI must
+route ordinary Todo entry points to Action Inbox, not the retired Todo/Kanban
+list or composer. Any legacy direct-create keyword detector controlled by
+direct Todo/Kanban compatibility flags is not the product natural-language path
+and must remain off by default.
 
 Manual Inbox Todo is its own mobile source surface. If an older item still
 carries a legacy `/?view=todos...` or `todoId` deep link, the Inbox UI must not

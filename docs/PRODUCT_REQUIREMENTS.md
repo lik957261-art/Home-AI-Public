@@ -216,7 +216,12 @@ This file records durable product rules that implementation must preserve.
 - Ordinary active chat/topic task receipts should use Web Push to return directly to the relevant route and should not create default Inbox items.
 - Inbox items are summary/action projections. Source modules remain canonical and full private content must stay in the source detail views.
 - Repeated source refreshes, Web Push events, and background polling must dedupe by stable source references instead of creating duplicate items.
-- Official Kanban Todo compatibility is legacy after the Action Inbox migration; preserve or migrate the current `Everything's amazing` reading task before destructive cleanup.
+- Official Kanban Todo compatibility is retired for ordinary user-created
+  Todos after the Action Inbox migration. New manual Todos, reminders, and
+  assigned Todos must use the Action Inbox Todo engine. Legacy Kanban/Growth
+  learning cards may keep their own card APIs, but the ordinary Todo entry
+  points and `/api/todos` compatibility URL must not create new legacy
+  Todo/Kanban records.
 
 ## Static Client
 

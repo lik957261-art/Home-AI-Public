@@ -189,6 +189,44 @@ function createActionInboxTodoService(options = {}) {
       updatedAt: now,
     });
     if (!item?.ok) return item;
+    let creatorTrackingItem = null;
+    if (draft.creatorWorkspaceId && draft.creatorWorkspaceId !== draft.assigneeWorkspaceId) {
+      const tracking = service.upsertSourceItem({
+        workspaceId: draft.creatorWorkspaceId,
+        assigneeWorkspaceId: draft.creatorWorkspaceId,
+        sourceType: "manual",
+        sourceId: `sent:${item.item.id}`,
+        itemType: "todo",
+        status: "open",
+        priority: draft.priority,
+        title: `已指派：${draft.title}`,
+        summary: draft.summary || (draft.dueAt ? `截止：${draft.dueAt}` : ""),
+        actionLabel: "查看",
+        deepLink: appRoute(appRouteUrl, { view: "inbox", workspaceId: draft.creatorWorkspaceId }),
+        sourceRef: {
+          creatorWorkspaceId: draft.creatorWorkspaceId,
+          assigneeWorkspaceId: draft.assigneeWorkspaceId,
+          assignedTodoItemId: item.item.id,
+          dueAt: draft.dueAt,
+          remindAt: draft.remindAt,
+          recurrence: draft.recurrence,
+          sentTracking: true,
+        },
+        rawJson: {
+          sourceText: draft.sourceText,
+          modelConfidence: draft.confidence,
+        },
+        dueAt: draft.dueAt,
+        availableAt: "",
+        dedupeKey: `todo-sent:${item.item.id}`,
+        actorWorkspaceId: draft.creatorWorkspaceId,
+        actorPrincipalId: input.actorPrincipalId || input.actor_principal_id || principalForWorkspace(workspacePrincipal, draft.creatorWorkspaceId),
+        reopen: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      if (tracking?.ok) creatorTrackingItem = tracking.item;
+    }
     await sendTodoPush({
       workspaceId: draft.assigneeWorkspaceId,
       itemId: item.item.id,
@@ -197,7 +235,7 @@ function createActionInboxTodoService(options = {}) {
       tag: `home-ai-todo-${item.item.id}-created`,
       messageType: waiting ? "todo_reminder_scheduled" : "todo_created",
     });
-    return { ok: true, item: item.item, draft, push: { attempted: true } };
+    return { ok: true, item: item.item, creatorTrackingItem, draft, push: { attempted: true } };
   }
 
   async function activateDueReminders(input = {}) {
@@ -236,6 +274,30 @@ function createActionInboxTodoService(options = {}) {
     const creatorWorkspaceId = clean(sourceRef.creatorWorkspaceId, 120);
     const assigneeWorkspaceId = clean(item.assigneeWorkspaceId || item.workspaceId, 120);
     if (creatorWorkspaceId && creatorWorkspaceId !== assigneeWorkspaceId) {
+      service.upsertSourceItem({
+        workspaceId: creatorWorkspaceId,
+        assigneeWorkspaceId: creatorWorkspaceId,
+        sourceType: "manual",
+        sourceId: `sent:${item.id}`,
+        itemType: "todo",
+        status: "done",
+        priority: item.priority || "normal",
+        title: `已完成：${item.title}`,
+        summary: item.summary || "",
+        actionLabel: "查看",
+        sourceRef: {
+          creatorWorkspaceId,
+          assigneeWorkspaceId,
+          assignedTodoItemId: item.id,
+          completedAt: result.item.completedAt,
+          sentTracking: true,
+        },
+        dueAt: item.dueAt || sourceRef.dueAt || "",
+        dedupeKey: `todo-sent:${item.id}`,
+        actorWorkspaceId: assigneeWorkspaceId,
+        actorPrincipalId: input.actorPrincipalId || input.actor_principal_id || principalForWorkspace(workspacePrincipal, assigneeWorkspaceId),
+        reopen: true,
+      });
       const receipt = service.upsertSourceItem({
         workspaceId: creatorWorkspaceId,
         assigneeWorkspaceId: creatorWorkspaceId,

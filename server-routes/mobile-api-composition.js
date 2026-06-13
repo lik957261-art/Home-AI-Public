@@ -214,20 +214,14 @@ function createMobileApiComposition(deps = {}) {
 
   const todoApiRoutes = createTodoApiRoutes({
     actionInboxService,
+    actionInboxTodoService,
     boolParam: deps.boolParam,
     broadcast: deps.broadcast,
-    clearKanbanCardListCache: deps.clearKanbanCardListCache,
-    maybeReconcileKanbanDependencyBlocks: deps.maybeReconcileKanbanDependencyBlocks,
-    notifyTodoCreated: deps.webPushDeliveryService.notifyTodoCreated,
-    publicTodo: deps.publicTodo,
     readBody: deps.readBody,
     requireOwner: deps.requireOwner,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     runTodoWebPushTick: deps.webPushDeliveryService.runTodoWebPushTick,
     sendJson: deps.sendJson,
-    todoErrorResponse: deps.todoErrorResponse,
-    todoProvider: deps.todoProvider,
-    useKanbanTodoBackend: deps.useKanbanTodoBackend,
     workspacePrincipal: deps.workspacePrincipal,
   });
   callBootTrace(deps, "todo api routes ready");

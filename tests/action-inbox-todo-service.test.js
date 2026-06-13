@@ -16,9 +16,10 @@ function makeHarness(now = "2026-06-13T10:00:00.000Z") {
   const dir = tempDir();
   const store = createMobileSqliteStore({ dbPath: path.join(dir, "todo.sqlite3") });
   const pushes = [];
+  let idSeq = 0;
   const actionInboxService = createActionInboxService({
     compactText: (value, max = 1000) => String(value || "").slice(0, max),
-    makeId: (prefix) => `${prefix}_test`,
+    makeId: (prefix) => `${prefix}_test_${++idSeq}`,
     nowIso: () => now,
     store,
   });
@@ -26,7 +27,7 @@ function makeHarness(now = "2026-06-13T10:00:00.000Z") {
     actionInboxService,
     appRouteUrl: (params) => `/?${new URLSearchParams(params).toString()}`,
     compactText: (value, max = 1000) => String(value || "").slice(0, max),
-    makeId: (prefix) => `${prefix}_test`,
+    makeId: (prefix) => `${prefix}_test_${++idSeq}`,
     nowIso: () => now,
     sendPushNotification: async (payload, options) => {
       pushes.push({ payload, options });
@@ -68,6 +69,9 @@ async function testCreateAssignedTodoSendsPushToAssignee() {
     assert.equal(result.item.workspaceId, "child");
     assert.equal(result.item.assigneeWorkspaceId, "child");
     assert.equal(result.item.sourceRef.creatorWorkspaceId, "owner");
+    assert.equal(result.creatorTrackingItem.workspaceId, "owner");
+    assert.equal(result.creatorTrackingItem.sourceRef.assignedTodoItemId, result.item.id);
+    assert.equal(result.creatorTrackingItem.title, "已指派：提交发票");
     assert.equal(result.item.status, "open");
     assert.equal(h.pushes.length, 1);
     assert.deepEqual(h.pushes[0].options.principalIds, ["principal:child"]);
@@ -156,6 +160,8 @@ async function testCompletionCreatesCreatorReceipt() {
     assert.equal(ownerItems.length, 1);
     assert.equal(ownerItems[0].title, "待办已完成");
     assert.equal(ownerItems[0].sourceRef.completedTodoItemId, created.item.id);
+    const allOwnerItems = h.actionInboxService.listItems({ workspaceId: "owner", includeDone: true }).items;
+    assert.equal(allOwnerItems.some((item) => item.title === "已完成：提交发票" && item.status === "done"), true);
     assert.equal(h.pushes.length, 1);
     assert.deepEqual(h.pushes[0].options.principalIds, ["principal:owner"]);
   } finally {

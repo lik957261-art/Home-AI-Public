@@ -139,7 +139,18 @@ Keep list rendering stable on mobile: no heavy cards inside cards, no large hero
 
 ### Manual Todo
 
-Replace user-created Todo writes with `createManualItem`. Existing `/api/todos` compatibility may temporarily map to Action Inbox until frontend callers are fully migrated.
+User-created Todo writes must use Action Inbox Todo (`POST
+/api/action-inbox/todos`) rather than `createManualItem` or the retired
+Todo/Kanban provider. Existing `/api/todos` is a compatibility projection over
+Action Inbox Todo only: list/create/complete/cancel/delete are mapped into the
+new engine, while legacy Kanban-only Todo actions are disabled.
+
+When `creatorWorkspaceId !== assigneeWorkspaceId`, the Todo service writes two
+bounded records: the assignee's actionable Todo and the creator's tracking
+Todo. The creator tracking Todo must use `sourceRef.sentTracking=true`, must
+not set `availableAt`, and must not be selected by reminder activation. On
+completion, the tracking Todo is marked done and the existing summary-only
+completion receipt remains the creator notification.
 
 ### Automation
 

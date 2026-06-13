@@ -261,6 +261,33 @@ function actionInboxSourceActionLabel(item = {}) {
   return "\u6253\u5f00\u6765\u6e90";
 }
 
+function actionInboxAssigneeOptions() {
+  const current = String(state.selectedWorkspaceId || "owner").trim() || "owner";
+  const workspaces = Array.isArray(state.workspaces) ? state.workspaces : [];
+  const rows = workspaces.length ? workspaces : [{ id: current, label: current }];
+  const seen = new Set();
+  return rows
+    .filter((item) => {
+      const id = String(item?.id || "").trim();
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    })
+    .map((item) => {
+      const id = String(item.id || "").trim();
+      const label = String(item.label || item.id || "").trim() || id;
+      return `<option value="${escapeHtml(id)}"${id === current ? " selected" : ""}>${escapeHtml(label)}</option>`;
+    })
+    .join("");
+}
+
+function actionInboxDatetimeLocalToIso(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const date = new Date(text);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
 function actionInboxDeliverableKind(deliverable = {}) {
   if (typeof artifactKind === "function") return artifactKind(deliverable);
   const name = String(deliverable.name || "").trim().toLowerCase();
@@ -511,6 +538,10 @@ function renderActionInboxCreatePanel() {
   return `<form class="action-inbox-create" id="actionInboxCreateForm">
     <label class="action-inbox-create-label" for="actionInboxTitle">${"\u6807\u9898"}</label>
     <input id="actionInboxTitle" name="title" autocomplete="off" placeholder="${"\u6807\u9898"}" maxlength="180" required>
+    <label class="action-inbox-create-label" for="actionInboxAssignee">${"\u6307\u6d3e\u7ed9"}</label>
+    <select id="actionInboxAssignee" name="assigneeWorkspaceId">${actionInboxAssigneeOptions()}</select>
+    <label class="action-inbox-create-label" for="actionInboxDueAt">${"\u622a\u6b62\u65f6\u95f4"}</label>
+    <input id="actionInboxDueAt" name="dueAt" type="datetime-local">
     <textarea id="actionInboxSummary" name="summary" rows="3" placeholder="${"\u5907\u6ce8"}"></textarea>
     <div class="action-inbox-create-actions">
       <button class="primary-button compact" type="submit" ${state.actionInboxCreateBusy ? "disabled" : ""}>${state.actionInboxCreateBusy ? "\u6b63\u5728\u4fdd\u5b58" : "\u4fdd\u5b58"}</button>
@@ -717,16 +748,21 @@ function openCurrentActionInboxItemLink() {
 async function createActionInboxManualItem(root) {
   const title = root.querySelector("#actionInboxTitle")?.value?.trim() || "";
   const summary = root.querySelector("#actionInboxSummary")?.value?.trim() || "";
+  const assigneeWorkspaceId = root.querySelector("#actionInboxAssignee")?.value || state.selectedWorkspaceId || "owner";
+  const dueAt = actionInboxDatetimeLocalToIso(root.querySelector("#actionInboxDueAt")?.value || "");
   if (!title && !summary) return;
   state.actionInboxCreateBusy = true;
   renderActionInboxView({ preserveScroll: true });
   try {
-    const result = await api("/api/action-inbox", {
+    const result = await api("/api/action-inbox/todos", {
       method: "POST",
       body: JSON.stringify({
-        workspaceId: state.selectedWorkspaceId || "owner",
+        creatorWorkspaceId: state.selectedWorkspaceId || "owner",
+        assigneeWorkspaceId,
         title,
         summary,
+        dueAt,
+        confirmed: true,
       }),
     });
     state.actionInboxCreateOpen = false;

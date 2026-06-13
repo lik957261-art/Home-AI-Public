@@ -22,7 +22,12 @@ function openTodoList() {
   state.skillDetail = null;
   state.selectedTodoId = "";
   state.todoCreateOpen = false;
-  renderTodos();
+  if (typeof openActionInboxList === "function") {
+    openActionInboxList();
+  } else {
+    state.viewMode = "inbox";
+    renderActionInboxView();
+  }
 }
 
 function openAutomationList() {

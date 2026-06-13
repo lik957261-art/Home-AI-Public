@@ -67,9 +67,36 @@ function makeRoutes(overrides = {}) {
       calls.notify.push({ id: result.id, principalId });
     },
     actionInboxService: {
+      listItems(input) {
+        calls.list.push(input);
+        return {
+          ok: true,
+          items: [{ id: "ainb-todo-1", title: "Task", status: "open", workspaceId: input.workspaceId, assigneeWorkspaceId: input.workspaceId, sourceRef: { creatorWorkspaceId: input.workspaceId } }],
+          counts: { byStatus: { open: 1 } },
+          source: { name: "action_inbox" },
+        };
+      },
       upsertSourceItem(input) {
         calls.inbox.push(input);
         return { ok: true, item: { id: "ainb-todo-new", workspaceId: input.workspaceId } };
+      },
+      dismissItem(input) {
+        calls.mutate.push(Object.assign({ action: "dismiss" }, input));
+        return { ok: true, item: { id: input.itemId, status: "dismissed", workspaceId: input.workspaceId } };
+      },
+    },
+    actionInboxTodoService: {
+      createTodo(input) {
+        calls.add.push(input);
+        return Promise.resolve({
+          ok: true,
+          item: { id: "ainb-todo-new", title: input.title, status: "open", workspaceId: input.assigneeWorkspaceId, assigneeWorkspaceId: input.assigneeWorkspaceId, sourceRef: { creatorWorkspaceId: input.creatorWorkspaceId } },
+          creatorTrackingItem: input.creatorWorkspaceId !== input.assigneeWorkspaceId ? { id: "ainb-sent-new", workspaceId: input.creatorWorkspaceId } : null,
+        });
+      },
+      completeTodoItem(input) {
+        calls.mutate.push(Object.assign({ action: "complete" }, input));
+        return Promise.resolve({ ok: true, item: { id: input.itemId, status: "done", workspaceId: input.workspaceId } });
       },
     },
     publicTodo(result) {
@@ -171,20 +198,18 @@ async function testListRunsMaintenanceAndProvider() {
   assert.equal(got.result.handled, true);
   assert.equal(got.res.statusCode, 200);
   assert.deepEqual(calls.workspaceAccess, ["child"]);
-  assert.deepEqual(calls.reconcile, ["child"]);
   assert.deepEqual(calls.list, [{
     workspaceId: "child",
-    scope: "all",
-    includeCompleted: true,
-    assignee: "stephen",
+    itemType: "todo",
+    includeDone: true,
     limit: 7,
     search: "math",
   }]);
   assert.deepEqual(got.body, {
-    data: [{ id: "todo-1", title: "Task" }],
-    assignees: [{ id: "owner", label: "Owner" }],
-    source: { name: "hermes_kanban" },
-    maintenance: { ok: true, workspaceId: "child" },
+    data: [{ id: "ainb-todo-1", content: "Task", title: "Task", summary: "", status: "open", assignee: "child", assigneeLabel: "child", createdBy: "child", dueAt: "", dueLocal: "", source: "action_inbox", workspaceId: "child" }],
+    assignees: [],
+    source: { name: "action_inbox_todos", compatibilityRoute: "/api/todos" },
+    maintenance: null,
   });
 }
 
@@ -216,37 +241,28 @@ async function testCreateBroadcastsAndNotifies() {
   });
   assert.equal(got.res.statusCode, 201);
   assert.deepEqual(calls.add, [{
-    workspaceId: "child",
-    assignee: "stephen",
-    content: "Read chapter 1",
-    dueTime: "21:00",
-    suppressExternalNotice: true,
-    reminderLeadMinutes: 10,
-    recurrence: "daily",
-    recurrenceDays: "1,2,3",
-    recurrenceUntil: "2026-06-01",
+    creatorWorkspaceId: "child",
+    assigneeWorkspaceId: "stephen",
+    title: "Read chapter 1",
+    summary: "",
+    dueAt: "21:00",
+    remindAt: "",
+    priority: "normal",
+    confirmed: true,
+    actorPrincipalId: "principal-child",
   }]);
-  assert.deepEqual(calls.cacheClear, ["child"]);
   assert.deepEqual(calls.broadcast, [
-    { type: "todos.updated", workspaceId: "child" },
-    { type: "actionInbox.updated", workspaceId: "child", itemId: "ainb-todo-new" },
+    { type: "actionInbox.updated", workspaceId: "stephen", itemId: "ainb-todo-new", action: "todo-create" },
+    { type: "actionInbox.updated", workspaceId: "child", itemId: "ainb-sent-new", action: "todo-assigned" },
   ]);
-  assert.equal(calls.inbox.length, 1);
-  assert.equal(calls.inbox[0].workspaceId, "child");
-  assert.equal(calls.inbox[0].sourceType, "manual");
-  assert.equal(calls.inbox[0].sourceId, "todo-new");
-  assert.equal(calls.inbox[0].itemType, "todo");
-  assert.equal(calls.inbox[0].title, "Read chapter 1");
-  assert.equal(calls.inbox[0].dueAt, "21:00");
-  assert.equal(calls.inbox[0].dedupeKey, "todo:todo-new");
-  assert.equal(calls.inbox[0].sourceRef.dueAt, "21:00");
-  assert.deepEqual(calls.notify, [{ id: "todo-new", principalId: "principal-child" }]);
-  assert.deepEqual(got.body.todo, { id: "todo-new", title: "Read chapter 1" });
+  assert.deepEqual(calls.cacheClear, []);
+  assert.deepEqual(calls.notify, []);
+  assert.deepEqual(got.body.todo, { id: "ainb-todo-new", content: "Read chapter 1", title: "Read chapter 1", summary: "", status: "open", assignee: "stephen", assigneeLabel: "stephen", createdBy: "child", dueAt: "", dueLocal: "", source: "action_inbox", workspaceId: "stephen" });
 }
 
 async function testActionDecodesTodoIdAndBroadcasts() {
   const { routes, calls } = makeRoutes();
-  const got = await request(routes, "POST", "/api/todos/todo%2F42/revise?workspaceId=child", {
+  const got = await request(routes, "POST", "/api/todos/todo%2F42/complete?workspaceId=child", {
     body: {
       comment: "needs revision",
       title: "New title",
@@ -257,21 +273,15 @@ async function testActionDecodesTodoIdAndBroadcasts() {
   });
   assert.equal(got.res.statusCode, 200);
   assert.deepEqual(calls.mutate, [{
-    action: "revise",
+    action: "complete",
     workspaceId: "child",
-    todoId: "todo/42",
-    assignee: "",
-    recurrenceScope: "future",
-    dueTime: "",
-    reason: "",
+    itemId: "todo/42",
+    actorPrincipalId: "principal-child",
     comment: "needs revision",
-    content: "New title",
-    description: "Details",
-    author: "manager",
   }]);
-  assert.deepEqual(calls.cacheClear, ["child"]);
-  assert.deepEqual(calls.broadcast, [{ type: "todos.updated", workspaceId: "child", todoId: "todo/42", action: "revise" }]);
-  assert.deepEqual(got.body, { ok: true, result: { ok: true, id: "todo/42", action: "revise" } });
+  assert.deepEqual(calls.cacheClear, []);
+  assert.deepEqual(calls.broadcast, [{ type: "actionInbox.updated", workspaceId: "child", itemId: "todo/42", action: "complete" }]);
+  assert.deepEqual(got.body, { ok: true, result: { ok: true, item: { id: "todo/42", status: "done", workspaceId: "child" } } });
 }
 
 async function testPushTickOwnerOnlyAndErrorShape() {
@@ -296,14 +306,19 @@ async function testPushTickOwnerOnlyAndErrorShape() {
 
 async function testProviderFailuresUseTodoErrorResponse() {
   const { routes, calls } = makeRoutes({
-    todoProvider: {
-      listTodos() {
-        return Promise.resolve({ ok: false, status: 503, error: "list down" });
+    actionInboxService: {
+      listItems() {
+        return { ok: false, status: 503, error: "list down" };
       },
-      addTodo() {
+      dismissItem() {
+        return { ok: false, status: 404, error: "missing" };
+      },
+    },
+    actionInboxTodoService: {
+      createTodo() {
         return Promise.resolve({ ok: false, status: 409, error: "duplicate" });
       },
-      mutateTodo() {
+      completeTodoItem() {
         return Promise.resolve({ ok: false, status: 404, error: "missing" });
       },
     },
@@ -312,9 +327,9 @@ async function testProviderFailuresUseTodoErrorResponse() {
   assert.equal(list.res.statusCode, 503);
   const add = await request(routes, "POST", "/api/todos", { body: { content: "x" } });
   assert.equal(add.res.statusCode, 409);
-  const mutate = await request(routes, "POST", "/api/todos/todo-1/block");
+  const mutate = await request(routes, "POST", "/api/todos/todo-1/complete");
   assert.equal(mutate.res.statusCode, 404);
-  assert.deepEqual(calls.error.map((item) => item.error), ["list down", "duplicate", "missing"]);
+  assert.deepEqual([list.body.error, add.body.error, mutate.body.error], ["list down", "duplicate", "missing"]);
 }
 
 function testDependencyValidation() {
@@ -335,12 +350,10 @@ function testDependencyValidation() {
       requireWorkspaceAccess() {},
       runTodoWebPushTick() {},
       sendJson() {},
-      todoErrorResponse() {},
-      useKanbanTodoBackend() {},
       workspacePrincipal() {},
-      todoProvider: {},
+      actionInboxService: {},
     }),
-    /todo api routes require todoProvider\.listTodos\/addTodo\/mutateTodo/,
+    /todo api routes require actionInboxService\.listItems\/dismissItem/,
   );
 }
 

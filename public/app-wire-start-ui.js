@@ -490,7 +490,7 @@ function wireUi() {
   });
   $("topNewTodo")?.addEventListener("click", () => {
     closeTopMoreMenu();
-    openTodoCreate();
+    openActionInboxCreate();
   });
   $("topNewActionInbox")?.addEventListener("click", () => {
     closeTopMoreMenu();
