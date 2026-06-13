@@ -27,6 +27,7 @@ function createMobileRuntimeThreadFacadeService(options = {}) {
         authCanAccessWorkspace: options.authCanAccessWorkspace,
         authenticateRequest: options.authenticateRequest,
         actionInboxService: options.actionInboxService,
+        actionInboxTodoService: options.actionInboxTodoService,
         broadcast: options.broadcast,
         buildUserMessageContent: (...args) => options.getRuntimeStateThreadService().buildUserMessageContent(...args),
         chatGroupMemberWorkspaceIds: options.chatGroupMemberWorkspaceIds,

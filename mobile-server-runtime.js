@@ -1242,7 +1242,7 @@ const resolveAuthorizedCronOutputFile = (query, auth = null) => automationProvid
 const resolveAuthorizedCronDeliverableFile = (query, auth = null) => automationProvider.resolveAuthorizedDeliverableFile({ query, auth });
 let mobileApiServices = {};
 const mobileRuntimeThreadFacadeService = createMobileRuntimeThreadFacadeService({
-  actionInboxService, attachUploadedArtifactsToMessage, authCanAccessWorkspace, authenticateRequest, broadcast,
+  actionInboxService, actionInboxTodoService: () => mobileApiServices?.actionInboxTodoService, attachUploadedArtifactsToMessage, authCanAccessWorkspace, authenticateRequest, broadcast,
   chatGroupMemberWorkspaceIds, compactMessage, compactThread, compactThreadWithMessagePage, deriveTitle,
   detectDirectKanbanCreateRequest, detectDirectTodoCreateIntent, detectDirectTodoCreateIntentForWeb, directTodoCreateEnabled,
   findWorkspace, formatDirectTodoCreateSuccessMessage, gatewayRoutingForModelRun, dataContextService,

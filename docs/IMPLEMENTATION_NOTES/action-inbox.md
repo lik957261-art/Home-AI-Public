@@ -145,6 +145,13 @@ Todo/Kanban provider. Existing `/api/todos` is a compatibility projection over
 Action Inbox Todo only: list/create/complete/cancel/delete are mapped into the
 new engine, while legacy Kanban-only Todo actions are disabled.
 
+Thread direct Todo creation uses the same service path through
+`adapters/thread-direct-create-execution-service.js` and must receive
+`actionInboxTodoService` from runtime composition. It should normalize
+`result.item.id` as the visible Todo id and return that item as the Inbox item.
+Do not reintroduce a legacy sequence of `todoProvider.addTodo()` followed by
+`actionInboxService.upsertSourceItem()` for ordinary direct-created Todos.
+
 When `creatorWorkspaceId !== assigneeWorkspaceId`, the Todo service writes two
 bounded records: the assignee's actionable Todo and the creator's tracking
 Todo. The creator tracking Todo must use `sourceRef.sentTracking=true`, must

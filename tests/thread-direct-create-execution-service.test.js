@@ -56,6 +56,7 @@ function makeHarness(overrides = {}) {
     publicTodo: [],
     saveState: 0,
     title: [],
+    todoCreate: [],
     todoAdd: [],
     todoNotifications: [],
     verify: [],
@@ -75,6 +76,23 @@ function makeHarness(overrides = {}) {
         };
       },
     },
+    actionInboxTodoService: () => ({
+      async createTodo(payload) {
+        calls.todoCreate.push(payload);
+        if (overrides.todoThrows) throw new Error(overrides.todoThrows);
+        return overrides.todoResult || {
+          ok: true,
+          item: {
+            id: "ainb-direct-todo",
+            workspaceId: payload.assigneeWorkspaceId,
+            title: payload.title,
+            dueAt: payload.dueAt,
+            status: "open",
+          },
+          draft: payload,
+        };
+      },
+    }),
     kanbanCardProvider: {
       async addCard(payload) {
         calls.kanbanAdd.push(payload);
@@ -145,7 +163,7 @@ function makeHarness(overrides = {}) {
     actionInboxService: {
       upsertSourceItem(input) {
         calls.inbox.push(input);
-        return { ok: true, item: { id: "ainb-direct-todo", workspaceId: input.workspaceId } };
+        return { ok: true, item: { id: "legacy-inbox-projection", workspaceId: input.workspaceId } };
       },
     },
     verifyDirectTodoCreateResult(todo) {
@@ -218,16 +236,18 @@ async function testDirectTodoSuccessFinalizesAndBroadcasts() {
 
   assert.equal(result.status, 201);
   assert.equal(result.response.ok, true);
-  assert.equal(result.response.todo.id, "todo-1");
+  assert.equal(result.response.todo.id, "ainb-direct-todo");
   assert.equal(result.response.inboxItem.id, "ainb-direct-todo");
-  assert.equal(calls.inbox.length, 1);
-  assert.equal(calls.inbox[0].sourceType, "manual");
-  assert.equal(calls.inbox[0].itemType, "todo");
-  assert.equal(calls.inbox[0].title, "read chapter");
-  assert.equal(calls.inbox[0].workspaceId, "workspace:child-principal");
-  assert.equal(calls.inbox[0].deepLink, "/?view=todos&workspaceId=workspace%3Achild-principal&todoId=todo-1");
-  assert.equal(calls.inbox[0].dueAt, "2026-05-16 09:00");
-  assert.equal(calls.inbox[0].sourceRef.dueAt, "2026-05-16 09:00");
+  assert.equal(calls.inbox.length, 0);
+  assert.deepEqual(calls.todoCreate[0], {
+    creatorWorkspaceId: "family",
+    assigneeWorkspaceId: "workspace:child-principal",
+    title: "read chapter",
+    dueAt: "2026-05-16 09:00",
+    sourceText: "create direct todo",
+    confirmed: true,
+    actorPrincipalId: "principal:family",
+  });
   assert.equal(plan.assistantMessage.status, "done");
   assert.equal(plan.assistantMessage.content, "\u5df2\u65b0\u589e\u5f85\u529e\uff1aChild | 2026-05-16 09:00 | read chapter");
   assert.equal(plan.assistantMessage.error, null);
@@ -238,25 +258,13 @@ async function testDirectTodoSuccessFinalizesAndBroadcasts() {
   assert.equal(thread.updatedAt, "2026-05-15T01:02:03.000Z");
   assert.equal(thread.title, "title:create direct todo");
   assert.equal(calls.saveState, 1);
-  assert.deepEqual(calls.todoAdd[0], {
-    workspaceId: "family",
-    assignee: "child-principal",
-    content: "read chapter",
-    dueTime: "2026-05-16 09:00",
-    suppressExternalNotice: true,
-    reminderLeadMinutes: null,
-    recurrence: "none",
-    recurrenceDays: "",
-    recurrenceUntil: "",
-    manualOnly: true,
-  });
+  assert.equal(calls.todoAdd.length, 0);
   assert.deepEqual(calls.broadcasts.map((payload) => payload.type), [
     "thread.updated",
     "message.updated",
     "message.updated",
     "todos.updated",
     "todos.updated",
-    "actionInbox.updated",
   ]);
   assert.equal(calls.todoNotifications.length, 1);
   assert.equal(result.response.thread.messageCount, 2);
@@ -264,7 +272,7 @@ async function testDirectTodoSuccessFinalizesAndBroadcasts() {
 
 async function testDirectTodoVerificationFailureFinalizesWithoutSuccessNotifications() {
   const { calls, service } = makeHarness({
-    verifyResult: { ok: false, error: "missing visible card id" },
+    todoResult: { ok: false, error: "action_inbox_write_failed" },
   });
   const thread = baseThread();
   const plan = directTodoPlan(thread);
@@ -275,15 +283,16 @@ async function testDirectTodoVerificationFailureFinalizesWithoutSuccessNotificat
   assert.equal(result.response.ok, false);
   assert.equal(result.response.todo, null);
   assert.equal(result.result.ok, false);
-  assert.equal(result.result.error, "missing visible card id");
-  assert.deepEqual(result.verification, { ok: false, error: "missing visible card id" });
+  assert.equal(result.result.error, "action_inbox_write_failed");
+  assert.deepEqual(result.verification, { ok: false, error: "action_inbox_write_failed" });
   assert.equal(plan.assistantMessage.status, "failed");
-  assert.equal(plan.assistantMessage.content, "\u65b0\u589e\u5f85\u529e\u5931\u8d25\uff1amissing visible card id");
-  assert.equal(plan.assistantMessage.error, "missing visible card id");
+  assert.equal(plan.assistantMessage.content, "\u65b0\u589e\u5f85\u529e\u5931\u8d25\uff1aaction_inbox_write_failed");
+  assert.equal(plan.assistantMessage.error, "action_inbox_write_failed");
   assert.equal(plan.assistantMessage.completedAt, "");
   assert.equal(plan.assistantMessage.failedAt, "2026-05-15T01:02:03.000Z");
-  assert.equal(calls.publicTodo.length, 1);
-  assert.equal(calls.verify.length, 1);
+  assert.equal(calls.publicTodo.length, 0);
+  assert.equal(calls.verify.length, 0);
+  assert.equal(calls.todoAdd.length, 0);
   assert.equal(calls.todoNotifications.length, 0);
   assert.deepEqual(calls.broadcasts.map((payload) => payload.type), [
     "thread.updated",

@@ -220,8 +220,9 @@ This file records durable product rules that implementation must preserve.
   Todos after the Action Inbox migration. New manual Todos, reminders, and
   assigned Todos must use the Action Inbox Todo engine. Legacy Kanban/Growth
   learning cards may keep their own card APIs, but the ordinary Todo entry
-  points and `/api/todos` compatibility URL must not create new legacy
-  Todo/Kanban records.
+  points, `/api/todos` compatibility URL, and chat/direct natural-language Todo
+  creation path must not create new legacy Todo/Kanban records or create a
+  legacy record first and then mirror it into Inbox.
 
 ## Static Client
 

@@ -1532,6 +1532,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(threadRouteService, /executeDirectCreate/);
   assert.match(fileText("adapters/thread-direct-create-execution-service.js"), /executeDirectKanbanCreate/);
   assert.match(fileText("adapters/thread-direct-create-execution-service.js"), /executeDirectTodoCreate/);
+  assert.match(fileText("adapters/thread-direct-create-execution-service.js"), /actionInboxTodoService/);
+  assert.doesNotMatch(fileText("adapters/thread-direct-create-execution-service.js"), /todoProvider\.addTodo/);
+  assert.doesNotMatch(fileText("adapters/thread-direct-create-execution-service.js"), /upsertSourceItem\(\{[\s\S]*directCreate/);
   assert.match(threadRuntime, /createThreadOwnerElevationRetryService/);
   assert.match(threadRouteService, /retryOwnerElevation/);
   assert.match(mobileComposition, /createAutomationApiRoutes/);

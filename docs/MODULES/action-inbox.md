@@ -117,6 +117,13 @@ list or composer. Any legacy direct-create keyword detector controlled by
 direct Todo/Kanban compatibility flags is not the product natural-language path
 and must remain off by default.
 
+Chat/direct Todo creation is part of the same host-owned Todo path. If a model
+or direct-create plan has already produced a Todo draft, the execution service
+must call Action Inbox Todo creation directly. It must not call the retired
+`todoProvider.addTodo()` first and then mirror the result into Inbox, because
+that leaves chat success messages backed by data that the current Inbox list no
+longer reads.
+
 Manual Inbox Todo is its own mobile source surface. If an older item still
 carries a legacy `/?view=todos...` or `todoId` deep link, the Inbox UI must not
 render `Open source` for that link and must not navigate into the retired
