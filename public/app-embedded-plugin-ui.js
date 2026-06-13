@@ -1229,6 +1229,10 @@ function renderEmbeddedPluginView(def) {
   const appearanceKey = embeddedPluginAppearanceKey();
   const pluginManifest = embeddedPluginCurrentManifest(def);
   if (!pluginManifest && embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appearanceKey)) {
+    if (embeddedPluginUsesLaunchToken(record.manifest)) {
+      refreshEmbeddedPluginFrameFromFreshManifest(def);
+      return;
+    }
     record.frameOrigin = record.frameOrigin || embeddedPluginEntryOrigin(def, record.manifest);
     if (attachEmbeddedPluginShell(def, record.renderedEntryUrl)) {
       updateNavigationControls();
