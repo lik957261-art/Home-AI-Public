@@ -168,17 +168,18 @@ Microphone permission timing:
   its native permission UI.
 - After Home AI has successfully opened the microphone once for the current
   origin, later recording attempts should treat phone calls, video calls, and
-  other voice input methods as audio-session interruptions rather than as a new
-  permission request. The client should keep a host-owned microphone hold
-  stream alive after the first successful grant when the browser allows it,
-  reuse that stream for later `MediaRecorder` sessions, and rebuild the stream
-  only after the next explicit voice-entry gesture when permission is already
-  granted or remembered. Home AI must not rebuild or re-acquire the microphone
-  on foreground restore, window focus, page show, route changes, or timer
-  checks, because that can steal audio focus back from third-party input
-  methods such as system keyboards or dictation tools. This hold stream is not
-  background transcription and must not upload or persist audio unless an
-  explicit recording gesture starts a `MediaRecorder`.
+  other voice input methods as audio-session interruptions rather than as a
+  reason to reacquire audio focus immediately. The client may remember that
+  permission was previously granted, but it must release the real microphone
+  stream after each recording attempt so third-party input methods can use the
+  microphone. The stream may be rebuilt only after the next explicit
+  voice-entry gesture when permission is already granted or remembered. Home AI
+  must not rebuild or re-acquire the microphone on foreground restore, window
+  focus, page show, route changes, or timer checks, because that can steal audio
+  focus back from third-party input methods such as system keyboards or
+  dictation tools. Remembered permission is not background transcription and
+  must not upload or persist audio unless an explicit recording gesture starts a
+  `MediaRecorder`.
 - When the composer send button is in Stop mode during an active turn, short
   tap remains the interrupt action. Long-press is reserved for voice input:
   the host must suppress text selection and the follow-up click, start voice

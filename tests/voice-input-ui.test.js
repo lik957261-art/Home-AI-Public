@@ -20,9 +20,9 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-stop-hold-record-v749[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-stop-hold-record-v749[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-stop-hold-record-v749[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-stop-hold-record-v749/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-stop-hold-record-v749/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-stop-hold-record-v749/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-release-mic-v750[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-release-mic-v750[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-release-mic-v750[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-release-mic-v750/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-release-mic-v750/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-release-mic-v750/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -44,6 +44,8 @@ function testSendButtonGestureContract() {
   assert.doesNotMatch(voiceUi, /voiceInputRefreshMicHoldFromForeground/);
   assert.match(voiceUi, /voiceInputStreamIsLive\(voice\.micHoldStream\)/);
   assert.match(voiceUi, /voiceInputAttachMicHoldStream\(stream\)/);
+  assert.match(voiceUi, /function voiceInputClearRecordingStream\(options = \{\}\)/);
+  assert.match(voiceUi, /if \(!options\.keepHold\) \{[\s\S]*?voiceInputReleaseMicHold\(\);[\s\S]*?return;[\s\S]*?\}/);
   assert.match(voiceUi, /Date\.now\(\) - Number\(voice\.statusCache\.loadedAt \|\| 0\) < 300000/);
   assert.match(voiceUi, /if \(voice\.statusPromise\) return voice\.statusPromise/);
   assert.match(voiceUi, /function voiceInputPrewarmStatus\(\)/);
@@ -97,6 +99,7 @@ function testNativeDraftInsertionAndPrivacyBoundary() {
   assert.match(voiceUi, /function voiceInputComposerForButton\(button\)/);
   assert.match(voiceUi, /function voiceInputFreshNativeComposer\(composer\)/);
   assert.match(voiceUi, /const composer = voiceInputFreshNativeComposer\(voice\.target\?\.composer\) \|\| voiceInputMainComposerDefinition\(\)/);
+  assert.match(voiceUi, /voiceInputNativeComposerAvailable\(composer, \{ allowStopMode: Boolean\(voice\.target\?\.allowStopMode\) \}\)/);
   assert.match(voiceUi, /composer\.setText\?\.\(next\)/);
   assert.match(voiceUi, /composer\.setCaret\?\.\(caret\)/);
   assert.match(voiceUi, /function trackPendingVoiceInputCommit\(finalText\)/);

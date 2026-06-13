@@ -347,6 +347,10 @@ function voiceInputClearRecordingStream(options = {}) {
     voiceInputReleaseMicHold();
     return;
   }
+  if (!options.keepHold) {
+    voiceInputReleaseMicHold();
+    return;
+  }
   if (voice.stream && voice.stream !== voice.micHoldStream) {
     try {
       voice.stream.getTracks?.().forEach((track) => track.stop());
@@ -941,7 +945,7 @@ async function insertVoiceInputTranscript(mode = "append") {
     return;
   }
   const composer = voiceInputFreshNativeComposer(voice.target?.composer) || voiceInputMainComposerDefinition();
-  if (!voiceInputNativeComposerAvailable(composer)) {
+  if (!voiceInputNativeComposerAvailable(composer, { allowStopMode: Boolean(voice.target?.allowStopMode) })) {
     setVoiceInputStatus("failed", { error: "当前输入框不可写" });
     return;
   }
