@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   buildMultipartBody,
   createVoiceInputAsrProvider,
+  mergedInitialPrompt,
   normalizeProviderResult,
   providerStatusFromConfig,
   providerProtocolFromConfig,
@@ -134,6 +135,16 @@ async function testOpenAiMultipartProviderDefaultsToChineseTranscribeHints() {
   }
 }
 
+function testMergedInitialPromptKeepsDefaultAndDynamicHints() {
+  const prompt = mergedInitialPrompt({
+    initialPrompt: "可能出现的人名：吴萍。",
+  }, {
+    initialPrompt: "请使用简体中文和中文标点。",
+  });
+  assert.match(prompt, /请使用简体中文/);
+  assert.match(prompt, /吴萍/);
+}
+
 async function testMultipartFallbackBodyBuilder() {
   const payload = await buildMultipartBody({
     audioBase64: Buffer.from("abc").toString("base64"),
@@ -167,6 +178,7 @@ async function run() {
   await testHttpProviderPostsBoundedPayload();
   await testOpenAiMultipartProviderPostsFileUpload();
   await testOpenAiMultipartProviderDefaultsToChineseTranscribeHints();
+  testMergedInitialPromptKeepsDefaultAndDynamicHints();
   await testMultipartFallbackBodyBuilder();
   testProviderStatusAndNormalization();
   console.log("voice input asr provider tests passed");

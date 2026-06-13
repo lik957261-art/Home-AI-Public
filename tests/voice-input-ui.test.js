@@ -20,9 +20,9 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-learning-v731[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-learning-v731[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-learning-v731[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-learning-v731/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-learning-v731/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-learning-v731/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-mic-indicator-v732[\s\S]*app-voice-input-ui\.js\?v=20260613-mic-indicator-v732[\s\S]*app-voice-learning-ui\.js\?v=20260613-mic-indicator-v732[\s\S]*app-wire-start-ui\.js\?v=20260613-mic-indicator-v732/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-mic-indicator-v732/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-mic-indicator-v732/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -33,6 +33,10 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /document\.addEventListener\("pointerup", handleVoiceInputPointerUp, true\)/);
   assert.match(voiceUi, /document\.addEventListener\("click", suppressVoiceInputClickEvent, true\)/);
   assert.match(voiceUi, /navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)/);
+  assert.match(voiceUi, /const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted"/);
+  assert.match(voiceUi, /function voiceInputMicrophonePermissionState\(\)/);
+  assert.match(voiceUi, /setVoiceInputStatus\(permissionState === "granted" \? "preparing" : "requesting"\)/);
+  assert.match(voiceUi, /voiceInputRememberMicGranted\(\)/);
   assert.match(voiceUi, /new MediaRecorder\(stream/);
   assert.match(voiceUi, /\/api\/voice-input\/status/);
   assert.match(voiceUi, /\/api\/voice-input\/transcribe/);
@@ -123,6 +127,11 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(voiceUi, /stopImmediatePropagation\?\.\(\)/);
   assert.match(styles, /\.voice-input-overlay/);
   assert.match(styles, /\.voice-input-transcript/);
+  assert.match(styles, /\.voice-input-mic-indicator/);
+  assert.match(styles, /\.voice-input-overlay-recording \.voice-input-mic-indicator/);
+  assert.match(styles, /@keyframes voice-input-mic-pulse/);
+  assert.match(voiceUi, /class="voice-input-mic-indicator"/);
+  assert.match(voiceUi, /voice-input-overlay-recording/);
 }
 
 testStaticLoadingAndCache();

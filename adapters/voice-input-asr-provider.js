@@ -92,7 +92,15 @@ function contentTypeForMimeType(value) {
   return text || "application/octet-stream";
 }
 
+function mergedInitialPrompt(input = {}, config = {}) {
+  return [config.initialPrompt, input.initialPrompt]
+    .map((part) => cleanString(part, 800))
+    .filter(Boolean)
+    .join("\n");
+}
+
 async function buildMultipartBody(input = {}, config = {}) {
+  const initialPrompt = mergedInitialPrompt(input, config);
   if (typeof FormData === "function" && typeof Blob === "function") {
     const bytes = input.audioPath
       ? fs.readFileSync(input.audioPath)
@@ -102,7 +110,7 @@ async function buildMultipartBody(input = {}, config = {}) {
     const language = normalizeLanguage(input.localeHint || input.language || config.language || "");
     if (language) form.append("language", language);
     form.append("task", normalizeTask(input.task || config.task));
-    if (config.initialPrompt) form.append("initial_prompt", config.initialPrompt);
+    if (initialPrompt) form.append("initial_prompt", initialPrompt);
     if (typeof config.conditionOnPreviousText === "boolean") form.append("condition_on_previous_text", String(config.conditionOnPreviousText));
     if (typeof config.vadFilter === "boolean") form.append("vad_filter", String(config.vadFilter));
     form.append("file", new Blob([bytes], { type: contentTypeForMimeType(input.mimeType) }), input.fileName || "voice-input.webm");
@@ -120,8 +128,8 @@ async function buildMultipartBody(input = {}, config = {}) {
     chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\n${language}\r\n`));
   }
   chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="task"\r\n\r\n${normalizeTask(input.task || config.task)}\r\n`));
-  if (config.initialPrompt) {
-    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="initial_prompt"\r\n\r\n${config.initialPrompt}\r\n`));
+  if (initialPrompt) {
+    chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="initial_prompt"\r\n\r\n${initialPrompt}\r\n`));
   }
   if (typeof config.conditionOnPreviousText === "boolean") {
     chunks.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="condition_on_previous_text"\r\n\r\n${config.conditionOnPreviousText}\r\n`));
@@ -224,7 +232,7 @@ function createVoiceInputAsrProvider(options = {}) {
               durationMs: input.durationMs || 0,
               localeHint: input.localeHint || input.language || config.language || "",
               task: normalizeTask(input.task || config.task),
-              initialPrompt: config.initialPrompt,
+              initialPrompt: mergedInitialPrompt(input, config),
               conditionOnPreviousText: config.conditionOnPreviousText,
               vadFilter: config.vadFilter,
               requestId: input.requestId || "",
@@ -259,6 +267,7 @@ function createVoiceInputAsrProvider(options = {}) {
 module.exports = {
   boolEnv,
   buildMultipartBody,
+  mergedInitialPrompt,
   createVoiceInputAsrProvider,
   normalizeProviderResult,
   providerStatusFromConfig,

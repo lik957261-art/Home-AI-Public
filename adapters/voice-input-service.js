@@ -53,6 +53,18 @@ function safeTempId(value) {
   return cleanString(value, 160).replace(/[^A-Za-z0-9_.-]+/g, "_") || `voice_${Date.now()}`;
 }
 
+function voiceInputPhraseHintPrompt(phrases = []) {
+  const terms = Array.isArray(phrases)
+    ? phrases
+        .filter((entry) => entry && entry.status !== "disabled" && (entry.status === "active" || entry.source === "system_seed"))
+        .map((entry) => cleanString(entry.term, 40))
+        .filter(Boolean)
+    : [];
+  const unique = Array.from(new Set(terms)).slice(0, 60);
+  if (!unique.length) return "";
+  return `可能出现的专有名词、人名或产品词：${unique.join("、")}。请优先按这些词转写同音或近音短语。`;
+}
+
 function ensureVoiceInputState(runtimeState) {
   const root = runtimeState && typeof runtimeState === "object" && !Array.isArray(runtimeState) ? runtimeState : {};
   if (!root.voiceInput || typeof root.voiceInput !== "object" || Array.isArray(root.voiceInput)) root.voiceInput = {};
@@ -177,10 +189,14 @@ function createVoiceInputService(options = {}) {
     await fsPromises.mkdir(tempDir, { recursive: true });
     await fsPromises.writeFile(tempPath, buffer);
     try {
+      const phraseHints = typeof options.correctionService.listPhrases === "function"
+        ? voiceInputPhraseHintPrompt(options.correctionService.listPhrases(scope))
+        : "";
       asrResult = await options.asrProvider.transcribeAudio(Object.assign({}, scope, {
         audioPath: tempPath,
         composerId: cleanString(input.composerId || input.composer_id, 160),
         durationMs,
+        initialPrompt: phraseHints,
         localeHint: cleanString(input.localeHint || input.locale || "", 40),
         mimeType,
         requestId,
@@ -324,4 +340,5 @@ module.exports = {
   ALLOWED_MIME_TYPES,
   createVoiceInputService,
   parseAudioBuffer,
+  voiceInputPhraseHintPrompt,
 };

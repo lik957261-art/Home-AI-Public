@@ -3,6 +3,7 @@
 const VOICE_INPUT_LONG_PRESS_MS = 560;
 const VOICE_INPUT_MIN_CLIENT_DURATION_MS = 300;
 const VOICE_INPUT_PRESS_EVENTS_BOUND = "__homeAiVoiceInputPressEventsBound";
+const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted";
 
 function ensureVoiceInputState() {
   if (!state.voiceInput || typeof state.voiceInput !== "object") {
@@ -20,6 +21,7 @@ function voiceInputStatusLabel(status = ensureVoiceInputState().status) {
     pending: "继续按住开始录音",
     checking: "检查语音服务",
     requesting: "请求麦克风权限",
+    preparing: "准备麦克风",
     recording: "正在录音",
     finalizing: "整理录音",
     transcribing: "正在转写",
@@ -249,6 +251,51 @@ function voiceInputFormatDuration(ms) {
   return `${minutes}:${rest}`;
 }
 
+function voiceInputRememberMicGranted() {
+  try {
+    localStorage.setItem(VOICE_INPUT_MIC_GRANTED_KEY, "1");
+  } catch (_) {}
+}
+
+function voiceInputForgetMicGranted() {
+  try {
+    localStorage.removeItem(VOICE_INPUT_MIC_GRANTED_KEY);
+  } catch (_) {}
+}
+
+function voiceInputMicWasGranted() {
+  try {
+    return localStorage.getItem(VOICE_INPUT_MIC_GRANTED_KEY) === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+async function voiceInputMicrophonePermissionState() {
+  try {
+    if (!navigator.permissions?.query) return voiceInputMicWasGranted() ? "granted" : "unknown";
+    const status = await navigator.permissions.query({ name: "microphone" });
+    const value = String(status?.state || "");
+    if (value === "granted") voiceInputRememberMicGranted();
+    if (value === "denied") voiceInputForgetMicGranted();
+    return value || (voiceInputMicWasGranted() ? "granted" : "unknown");
+  } catch (_) {
+    return voiceInputMicWasGranted() ? "granted" : "unknown";
+  }
+}
+
+function voiceInputStartErrorMessage(err) {
+  const name = String(err?.name || "");
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    voiceInputForgetMicGranted();
+    return "麦克风权限未开启";
+  }
+  if (name === "NotReadableError" || name === "AbortError") {
+    return "麦克风暂时被系统或其他语音输入占用，请稍后再试";
+  }
+  return err?.message || "无法启动录音";
+}
+
 function voiceInputRememberButtonLabel(button) {
   if (!button || button.id === "sendMessage") return;
   if (!button.dataset.voiceInputDefaultLabel) button.dataset.voiceInputDefaultLabel = button.textContent || "";
@@ -264,7 +311,7 @@ function voiceInputRestoreButtonLabel(button) {
 function applyVoiceInputButtonState(button, composer, active) {
   if (!button) return;
   button.classList.toggle("voice-input-gesture", true);
-  button.classList.toggle("voice-input-pending", active && ["pending", "checking", "requesting"].includes(ensureVoiceInputState().status));
+  button.classList.toggle("voice-input-pending", active && ["pending", "checking", "requesting", "preparing"].includes(ensureVoiceInputState().status));
   button.classList.toggle("voice-input-recording", active && ensureVoiceInputState().status === "recording");
   button.classList.toggle("voice-input-busy", active && ["finalizing", "transcribing"].includes(ensureVoiceInputState().status));
   if (!active) {
@@ -290,14 +337,14 @@ function applyVoiceInputButtonState(button, composer, active) {
 function refreshVoiceInputSendButton() {
   const voice = ensureVoiceInputState();
   const button = $("sendMessage");
-  const active = ["pending", "checking", "requesting", "recording", "finalizing", "transcribing"].includes(voice.status);
+  const active = ["pending", "checking", "requesting", "preparing", "recording", "finalizing", "transcribing"].includes(voice.status);
   const activeButton = voice.target?.kind === "native" ? voice.target.button : null;
   document.body?.classList?.toggle("voice-input-press-active", active || Boolean(voice.pressTimer));
   if (button) {
     const mainComposer = voiceInputMainComposerDefinition();
     const mainActive = active && activeButton === button;
     button.classList.toggle("voice-input-gesture", true);
-    button.classList.toggle("voice-input-pending", mainActive && (voice.status === "pending" || voice.status === "checking" || voice.status === "requesting"));
+    button.classList.toggle("voice-input-pending", mainActive && (voice.status === "pending" || voice.status === "checking" || voice.status === "requesting" || voice.status === "preparing"));
     button.classList.toggle("voice-input-recording", mainActive && voice.status === "recording");
     button.classList.toggle("voice-input-busy", mainActive && (voice.status === "finalizing" || voice.status === "transcribing"));
     if (!mainActive) {
@@ -332,7 +379,10 @@ function ensureVoiceInputOverlay() {
   overlay.setAttribute("aria-live", "polite");
   overlay.innerHTML = `
     <div class="voice-input-head">
-      <div class="voice-input-title" data-voice-status></div>
+      <div class="voice-input-status-line">
+        <span class="voice-input-mic-indicator" aria-hidden="true"></span>
+        <div class="voice-input-title" data-voice-status></div>
+      </div>
       <button type="button" class="secondary-small voice-input-cancel" data-voice-action="cancel">取消</button>
     </div>
     <div class="voice-input-corrections" data-voice-corrections hidden></div>
@@ -354,7 +404,8 @@ function renderVoiceInputOverlay() {
   const corrections = overlay.querySelector("[data-voice-corrections]");
   overlay.hidden = voice.status === "idle";
   overlay.classList.toggle("voice-input-overlay-active", !overlay.hidden);
-  overlay.classList.toggle("voice-input-overlay-busy", ["checking", "requesting", "recording", "finalizing", "transcribing", "inserting"].includes(voice.status));
+  overlay.classList.toggle("voice-input-overlay-busy", ["checking", "requesting", "preparing", "recording", "finalizing", "transcribing", "inserting"].includes(voice.status));
+  overlay.classList.toggle("voice-input-overlay-recording", voice.status === "recording");
   overlay.classList.toggle("voice-input-overlay-error", voice.status === "failed");
   if (status) {
     const detail = voice.error || voiceInputStatusLabel(voice.status);
@@ -396,7 +447,7 @@ function voiceInputClearPressTimer() {
   const voice = ensureVoiceInputState();
   if (voice.pressTimer) clearTimeout(voice.pressTimer);
   voice.pressTimer = 0;
-  if (!["pending", "checking", "requesting", "recording", "finalizing", "transcribing"].includes(voice.status)) {
+  if (!["pending", "checking", "requesting", "preparing", "recording", "finalizing", "transcribing"].includes(voice.status)) {
     document.body?.classList?.remove("voice-input-press-active");
   }
 }
@@ -409,7 +460,7 @@ function voiceInputClearSelection() {
 
 function voiceInputPressSelectionSuppressed() {
   const voice = ensureVoiceInputState();
-  return Boolean(voice.pressTimer || ["pending", "checking", "requesting", "recording", "finalizing", "transcribing"].includes(voice.status));
+  return Boolean(voice.pressTimer || ["pending", "checking", "requesting", "preparing", "recording", "finalizing", "transcribing"].includes(voice.status));
 }
 
 function suppressVoiceInputSelectionEvent(event) {
@@ -521,8 +572,14 @@ async function startVoiceInputRecording(event, options = {}) {
       setVoiceInputStatus("failed", { error: "当前浏览器不支持录音" });
       return;
     }
-    setVoiceInputStatus("requesting");
+    const permissionState = await voiceInputMicrophonePermissionState();
+    if (permissionState === "denied") {
+      setVoiceInputStatus("failed", { error: "麦克风权限未开启" });
+      return;
+    }
+    setVoiceInputStatus(permissionState === "granted" ? "preparing" : "requesting");
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    voiceInputRememberMicGranted();
     if (voice.cancelRequested) {
       stream.getTracks?.().forEach((track) => track.stop());
       closeVoiceInputOverlay();
@@ -548,7 +605,7 @@ async function startVoiceInputRecording(event, options = {}) {
     if (voice.pendingStopAfterStart) setTimeout(() => stopVoiceInputRecording(), 120);
   } catch (err) {
     voiceInputStopTracks();
-    setVoiceInputStatus("failed", { error: err?.message || "无法启动录音" });
+    setVoiceInputStatus("failed", { error: voiceInputStartErrorMessage(err) });
   }
 }
 
@@ -559,7 +616,7 @@ function stopVoiceInputRecording() {
   voice.maxTimer = 0;
   if (voice.recordingTicker) clearInterval(voice.recordingTicker);
   voice.recordingTicker = 0;
-  if (voice.status === "checking" || voice.status === "requesting") {
+  if (voice.status === "checking" || voice.status === "requesting" || voice.status === "preparing") {
     voice.cancelRequested = true;
     voice.pendingStopAfterStart = false;
     closeVoiceInputOverlay();
@@ -813,7 +870,7 @@ function handleVoiceInputPointerUp(event) {
     voiceInputClearPressTimer();
     return;
   }
-  if (["checking", "requesting", "recording", "finalizing"].includes(voice.status)) {
+  if (["checking", "requesting", "preparing", "recording", "finalizing"].includes(voice.status)) {
     event.preventDefault();
     event.stopPropagation();
     stopVoiceInputRecording();
@@ -831,7 +888,7 @@ function handleVoiceInputPointerCancel(event) {
     closeVoiceInputOverlay();
     return;
   }
-  if (["checking", "requesting", "recording", "finalizing"].includes(voice.status)) cancelVoiceInput();
+  if (["checking", "requesting", "preparing", "recording", "finalizing"].includes(voice.status)) cancelVoiceInput();
 }
 
 function suppressVoiceInputTextSelection(event) {

@@ -157,6 +157,18 @@ Microphone permission timing:
 - The visible `requesting` status is a local Home AI state and must not be
   interpreted as a fresh system permission prompt unless the browser displays
   its native permission UI.
+- After Home AI has successfully opened the microphone once for the current
+  origin, later recording attempts should treat phone calls, video calls, and
+  other voice input methods as audio-session interruptions rather than as a new
+  permission request. The client should silently rebuild the `getUserMedia`
+  stream on the next user gesture, show `preparing microphone` instead of
+  `requesting permission` when permission is already granted or remembered,
+  and only show a permission diagnostic when the browser reports `denied` or
+  `NotAllowedError`.
+- Recording must have a visible microphone affordance. While active recording
+  is in progress the host overlay shows a pulsing microphone indicator plus
+  elapsed time, so users can distinguish a live recording from permission
+  preparation or transcription.
 - The keyboard-safe composer layout must not reuse normal bottom navigation or
   plugin navigation offsets while `keyboard-viewport-active` is set. In plugin
   topic detail mode, the fixed composer should anchor to the active visual
@@ -227,6 +239,11 @@ Home AI voice input correction uses three bounded learning sources:
    - The service extracts short candidate terms and immediately discards the
      full sent text. Long-term state stores only bounded phrase entries,
      support counts, scope, source type, and timestamps.
+   - Active phrasebook entries are passed to the ASR provider as bounded
+     hotword-style `initial_prompt` hints for the current actor/workspace
+     scope. This helps short personal names during decoding. It does not
+     blindly rewrite arbitrary post-ASR text; wrong-to-right substitutions
+     still require alias or correction evidence.
    - Sent-text entries are phrasebook candidates. They do not create automatic
      `from -> to` replacement rules by themselves. They can bias later ASR
      correction, capitalization normalization, and suggestion ranking after

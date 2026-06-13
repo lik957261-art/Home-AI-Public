@@ -257,6 +257,37 @@ async function testPhrasebookAppliesSystemSeedAliasesDuringTranscribe() {
   }
 }
 
+async function testActivePhrasebookIsSentAsAsrPromptHint() {
+  const harness = createHarness({ transcript: "吴萍" });
+  try {
+    harness.service.learnSentText({
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      text: "吴萍",
+    });
+    harness.service.learnSentText({
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      text: "吴萍",
+    });
+    await harness.service.transcribe({
+      actorId: "owner",
+      workspaceId: "owner",
+      audioBase64: audioBase64(),
+      durationMs: 1000,
+      mimeType: "audio/webm",
+      surfaceType: "chat",
+      threadId: "thread_1",
+    });
+    assert.match(harness.providerCalls[0].initialPrompt, /吴萍/);
+    assert.match(harness.providerCalls[0].initialPrompt, /优先按这些词转写/);
+  } finally {
+    harness.cleanup();
+  }
+}
+
 async function run() {
   await testTranscribeDeletesTemporaryAudioAndReturnsEditableText();
   await testCommitLearnsOnlyShortCorrectionPair();
@@ -265,6 +296,7 @@ async function run() {
   await testValidationRejectsUnsafeAudio();
   testLearnSentTextStoresOnlyPhrasebookAndAuditMetadata();
   await testPhrasebookAppliesSystemSeedAliasesDuringTranscribe();
+  await testActivePhrasebookIsSentAsAsrPromptHint();
   console.log("voice input service tests passed");
 }
 
