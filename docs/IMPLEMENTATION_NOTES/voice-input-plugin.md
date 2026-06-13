@@ -232,6 +232,13 @@ Scope and privacy rules:
   plugin id, optional thread id, and language.
 - Workspace-level seed terms should be available across the workspace; user
   inferred terms stay actor/workspace scoped.
+- Learned phrasebook terms, correction pairs, and bounded audit metadata are
+  durable server data. In SQLite runtime mode they must be stored in
+  `data/hermes-mobile.sqlite3` tables `voice_input_phrasebook`,
+  `voice_input_corrections`, and `voice_input_audit`, not only in the
+  compatibility `state.json` snapshot.
+- The Mac daily disaster backup must include those tables through the existing
+  online SQLite snapshot of `data/hermes-mobile.sqlite3`.
 - Raw audio is not persisted by default. Full sent text and full transcripts
   are not persisted as long-term learning state.
 - The service stores audit metadata such as text length, extracted count,

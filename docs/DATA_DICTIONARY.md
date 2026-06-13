@@ -28,6 +28,9 @@ Primary implementation: `adapters/mobile-sqlite-store.js`.
 | `topic_working_states` | topics | Active topic working state metadata. |
 | `topic_context_refs` | topics | References between topic summaries and target resources. |
 | `audit_log` | audit | Security/operation audit entries. Do not store secrets or raw learner content. |
+| `voice_input_corrections` | voice input | Privacy-bounded ASR transcript correction pairs learned from raw transcript to final sent text. |
+| `voice_input_phrasebook` | voice input | Per-user/workspace/plugin phrasebook terms learned from system seeds and successful composer sends. |
+| `voice_input_audit` | voice input | Bounded metadata-only voice learning/transcription audit events. No raw audio, full transcripts, or full sent text. |
 
 ## Topic Context SQLite
 
@@ -61,6 +64,29 @@ These tables were added in runtime SQLite schema version 4 for the `20260526-act
 | --- | --- | --- |
 | `action_inbox_items` | inbox | Local summary/action items for manual todos, automation deliveries, Growth next actions, review requests, and follow-ups. |
 | `action_inbox_events` | inbox/audit | Auditable event timeline for Inbox item state changes and source updates. |
+
+## Voice Input SQLite
+
+Primary implementation:
+
+- `adapters/voice-input-service.js`
+- `adapters/voice-input-correction-service.js`
+- `adapters/mobile-sqlite-store.js`
+
+Voice input learning state is durable server data. When
+`HERMES_WEB_SERVICE_STORE=sqlite` is enabled, `runtimeState.voiceInput` is
+stored in structured runtime SQLite tables and exported back into the
+compatibility `state.json` snapshot on startup/save.
+
+| Table | Important Fields | Notes |
+| --- | --- | --- |
+| `voice_input_corrections` | `actor_id`, `workspace_id`, `surface_type`, `plugin_id`, `thread_id`, `language`, `from_text`, `to_text`, `status`, `support_count`, `rejection_count`, timestamps | Stores short safe replacement pairs from `voice_diff`. Excludes structured spans such as URLs, file paths, commands, dates, amounts, and code. |
+| `voice_input_phrasebook` | `actor_id`, `workspace_id`, `surface_type`, `plugin_id`, `thread_id`, `language`, `term`, `source`, `status`, `support_count`, `aliases_json`, timestamps | Stores system-seeded and user-learned phrasebook terms. It stores bounded terms and aliases only, not full composer messages. |
+| `voice_input_audit` | `event_type`, `actor_id`, `workspace_id`, `surface_type`, `plugin_id`, `thread_id`, `backend`, `payload_json`, `created_at` | Stores bounded metadata such as character counts and recorded counts. It must not store raw audio, full transcripts, full sent text, secrets, or long logs. |
+
+The Mac daily disaster backup captures `data/hermes-mobile.sqlite3` through an
+online SQLite snapshot, so these tables are included in the normal server backup
+target.
 
 ## Learning-Growth SQLite
 

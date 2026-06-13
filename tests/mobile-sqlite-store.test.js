@@ -421,15 +421,72 @@ function testRuntimeStateRoundTrip() {
     taskGroupId: "chat",
     createdAt: "2026-05-07T00:00:06.000Z",
   });
+  exported.voiceInput = {
+    corrections: [{
+      id: "voice_correction_1",
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      pluginId: "codex-mobile",
+      threadId: "thread_1",
+      language: "zh",
+      from: "摩依拉",
+      to: "星盘",
+      status: "active",
+      supportCount: 3,
+      rejectionCount: 0,
+      createdAt: "2026-06-13T00:00:00.000Z",
+      updatedAt: "2026-06-13T00:00:01.000Z",
+      lastSeenAt: "2026-06-13T00:00:01.000Z",
+      lastAppliedAt: "",
+    }],
+    phrasebook: [{
+      id: "voice_phrase_1",
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      pluginId: "codex-mobile",
+      threadId: "",
+      language: "zh",
+      term: "Home AI",
+      source: "sent_text",
+      status: "active",
+      supportCount: 2,
+      aliases: ["home ai"],
+      createdAt: "2026-06-13T00:00:00.000Z",
+      updatedAt: "2026-06-13T00:00:02.000Z",
+      lastSeenAt: "2026-06-13T00:00:02.000Z",
+      lastAppliedAt: "",
+    }],
+    audit: [{
+      id: "voice_audit_1",
+      event: "sent_text",
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      pluginId: "codex-mobile",
+      textChars: 12,
+      recordedCount: 1,
+      createdAt: "2026-06-13T00:00:03.000Z",
+    }],
+  };
   exported.automationPushMarks = { "automation:auto_1:deliverable": { status: "sent" } };
   store.replaceRuntimeState(exported);
   const after = store.exportRuntimeState();
   assert.equal(after.threads[0].messages.length, 3);
   assert.equal(after.threads[0].messages[2].content, "runtime message");
+  assert.equal(after.voiceInput.corrections[0].from, "摩依拉");
+  assert.equal(after.voiceInput.corrections[0].to, "星盘");
+  assert.equal(after.voiceInput.phrasebook[0].term, "Home AI");
+  assert.deepEqual(after.voiceInput.phrasebook[0].aliases, ["home ai"]);
+  assert.equal(after.voiceInput.audit[0].event, "sent_text");
   assert.deepEqual(after.automationPushMarks, { "automation:auto_1:deliverable": { status: "sent" } });
   const report = store.integrityReport();
   assert.equal(report.ok, true);
   assert.equal(report.counts.messages, 3);
+  assert.equal(report.counts.voice_input_corrections, 1);
+  assert.equal(report.counts.voice_input_phrasebook, 1);
+  assert.equal(report.counts.voice_input_audit, 1);
   store.close();
 }
 

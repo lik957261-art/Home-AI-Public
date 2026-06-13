@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_SCHEMA_VERSION = 5;
+const CURRENT_SCHEMA_VERSION = 6;
 
 function nowIso() {
   return new Date().toISOString();
@@ -232,6 +232,9 @@ function sqlQuoteIdent(name) {
 const TABLES = [
   "platform_currency_ledger_entries",
   "platform_currency_wallets",
+  "voice_input_audit",
+  "voice_input_phrasebook",
+  "voice_input_corrections",
   "audit_log",
   "action_inbox_events",
   "action_inbox_items",
@@ -275,6 +278,9 @@ const TABLE_COUNT_COLUMNS = {
   topic_working_states: "topic_id",
   topic_context_refs: "ref_id",
   audit_log: "id",
+  voice_input_corrections: "id",
+  voice_input_phrasebook: "id",
+  voice_input_audit: "id",
   platform_currency_wallets: "wallet_id",
   platform_currency_ledger_entries: "entry_id",
 };
@@ -668,6 +674,68 @@ function createMobileSqliteStore(options = {}) {
         created_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS voice_input_corrections (
+        id TEXT PRIMARY KEY,
+        actor_id TEXT NOT NULL DEFAULT '',
+        workspace_id TEXT NOT NULL DEFAULT '',
+        surface_type TEXT NOT NULL DEFAULT '',
+        plugin_id TEXT NOT NULL DEFAULT '',
+        thread_id TEXT NOT NULL DEFAULT '',
+        language TEXT NOT NULL DEFAULT '',
+        from_text TEXT NOT NULL DEFAULT '',
+        to_text TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT '',
+        support_count INTEGER NOT NULL DEFAULT 0,
+        rejection_count INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT '',
+        last_seen_at TEXT NOT NULL DEFAULT '',
+        last_applied_at TEXT NOT NULL DEFAULT '',
+        raw_json TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_voice_input_corrections_scope
+        ON voice_input_corrections(workspace_id, actor_id, surface_type, plugin_id, thread_id, language);
+
+      CREATE TABLE IF NOT EXISTS voice_input_phrasebook (
+        id TEXT PRIMARY KEY,
+        actor_id TEXT NOT NULL DEFAULT '',
+        workspace_id TEXT NOT NULL DEFAULT '',
+        surface_type TEXT NOT NULL DEFAULT '',
+        plugin_id TEXT NOT NULL DEFAULT '',
+        thread_id TEXT NOT NULL DEFAULT '',
+        language TEXT NOT NULL DEFAULT '',
+        term TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT '',
+        support_count INTEGER NOT NULL DEFAULT 0,
+        aliases_json TEXT,
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT '',
+        last_seen_at TEXT NOT NULL DEFAULT '',
+        last_applied_at TEXT NOT NULL DEFAULT '',
+        raw_json TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_voice_input_phrasebook_scope
+        ON voice_input_phrasebook(workspace_id, actor_id, surface_type, plugin_id, thread_id, language, source);
+      CREATE INDEX IF NOT EXISTS idx_voice_input_phrasebook_term
+        ON voice_input_phrasebook(workspace_id, term);
+
+      CREATE TABLE IF NOT EXISTS voice_input_audit (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL DEFAULT '',
+        actor_id TEXT NOT NULL DEFAULT '',
+        workspace_id TEXT NOT NULL DEFAULT '',
+        surface_type TEXT NOT NULL DEFAULT '',
+        plugin_id TEXT NOT NULL DEFAULT '',
+        thread_id TEXT NOT NULL DEFAULT '',
+        backend TEXT NOT NULL DEFAULT '',
+        payload_json TEXT,
+        raw_json TEXT,
+        created_at TEXT NOT NULL DEFAULT ''
+      );
+      CREATE INDEX IF NOT EXISTS idx_voice_input_audit_scope
+        ON voice_input_audit(workspace_id, actor_id, event_type, created_at);
+
       CREATE TABLE IF NOT EXISTS platform_currency_wallets (
         wallet_id TEXT PRIMARY KEY,
         workspace_id TEXT UNIQUE NOT NULL,
@@ -724,6 +792,7 @@ function createMobileSqliteStore(options = {}) {
     markMigration(3, "topic_context");
     markMigration(4, "action_inbox");
     markMigration(5, "platform_currency");
+    markMigration(6, "voice_input_learning_state");
     setMeta("schemaVersion", CURRENT_SCHEMA_VERSION);
   }
 
@@ -1100,6 +1169,152 @@ function createMobileSqliteStore(options = {}) {
       normalizeIso(row.createdAt || row.sentAt || row.time),
     );
     return true;
+  }
+
+  function importVoiceInputCorrection(row = {}, index = 0) {
+    const id = normalizeId(row.id, `voice_correction_${index}`);
+    if (!id) return false;
+    open().prepare(`
+      INSERT INTO voice_input_corrections(id, actor_id, workspace_id, surface_type, plugin_id, thread_id,
+        language, from_text, to_text, status, support_count, rejection_count, created_at, updated_at,
+        last_seen_at, last_applied_at, raw_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        actor_id = excluded.actor_id,
+        workspace_id = excluded.workspace_id,
+        surface_type = excluded.surface_type,
+        plugin_id = excluded.plugin_id,
+        thread_id = excluded.thread_id,
+        language = excluded.language,
+        from_text = excluded.from_text,
+        to_text = excluded.to_text,
+        status = excluded.status,
+        support_count = excluded.support_count,
+        rejection_count = excluded.rejection_count,
+        updated_at = excluded.updated_at,
+        last_seen_at = excluded.last_seen_at,
+        last_applied_at = excluded.last_applied_at,
+        raw_json = excluded.raw_json
+    `).run(
+      id,
+      String(row.actorId || row.actor_id || ""),
+      String(row.workspaceId || row.workspace_id || ""),
+      String(row.surfaceType || row.surface_type || ""),
+      String(row.pluginId || row.plugin_id || ""),
+      String(row.threadId || row.thread_id || ""),
+      String(row.language || ""),
+      String(row.from || row.fromText || row.from_text || ""),
+      String(row.to || row.toText || row.to_text || ""),
+      String(row.status || ""),
+      Number(row.supportCount || row.support_count || 0) || 0,
+      Number(row.rejectionCount || row.rejection_count || 0) || 0,
+      normalizeIso(row.createdAt || row.created_at),
+      normalizeIso(row.updatedAt || row.updated_at || row.createdAt || row.created_at),
+      normalizeIso(row.lastSeenAt || row.last_seen_at),
+      normalizeIso(row.lastAppliedAt || row.last_applied_at),
+      stableJson(row),
+    );
+    return true;
+  }
+
+  function importVoiceInputPhrase(row = {}, index = 0) {
+    const id = normalizeId(row.id, `voice_phrase_${index}`);
+    const term = String(row.term || "").trim();
+    if (!id || !term) return false;
+    open().prepare(`
+      INSERT INTO voice_input_phrasebook(id, actor_id, workspace_id, surface_type, plugin_id, thread_id,
+        language, term, source, status, support_count, aliases_json, created_at, updated_at,
+        last_seen_at, last_applied_at, raw_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        actor_id = excluded.actor_id,
+        workspace_id = excluded.workspace_id,
+        surface_type = excluded.surface_type,
+        plugin_id = excluded.plugin_id,
+        thread_id = excluded.thread_id,
+        language = excluded.language,
+        term = excluded.term,
+        source = excluded.source,
+        status = excluded.status,
+        support_count = excluded.support_count,
+        aliases_json = excluded.aliases_json,
+        updated_at = excluded.updated_at,
+        last_seen_at = excluded.last_seen_at,
+        last_applied_at = excluded.last_applied_at,
+        raw_json = excluded.raw_json
+    `).run(
+      id,
+      String(row.actorId || row.actor_id || ""),
+      String(row.workspaceId || row.workspace_id || ""),
+      String(row.surfaceType || row.surface_type || ""),
+      String(row.pluginId || row.plugin_id || ""),
+      String(row.threadId || row.thread_id || ""),
+      String(row.language || ""),
+      term,
+      String(row.source || ""),
+      String(row.status || ""),
+      Number(row.supportCount || row.support_count || 0) || 0,
+      stableJson(asArray(row.aliases || parseJson(row.aliases_json, []))),
+      normalizeIso(row.createdAt || row.created_at),
+      normalizeIso(row.updatedAt || row.updated_at || row.createdAt || row.created_at),
+      normalizeIso(row.lastSeenAt || row.last_seen_at),
+      normalizeIso(row.lastAppliedAt || row.last_applied_at),
+      stableJson(row),
+    );
+    return true;
+  }
+
+  function importVoiceInputAudit(row = {}, index = 0) {
+    const id = normalizeId(row.id, `voice_audit_${index}`);
+    if (!id) return false;
+    const payload = Object.assign({}, row);
+    delete payload.id;
+    delete payload.createdAt;
+    delete payload.created_at;
+    open().prepare(`
+      INSERT INTO voice_input_audit(id, event_type, actor_id, workspace_id, surface_type, plugin_id,
+        thread_id, backend, payload_json, raw_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        event_type = excluded.event_type,
+        actor_id = excluded.actor_id,
+        workspace_id = excluded.workspace_id,
+        surface_type = excluded.surface_type,
+        plugin_id = excluded.plugin_id,
+        thread_id = excluded.thread_id,
+        backend = excluded.backend,
+        payload_json = excluded.payload_json,
+        raw_json = excluded.raw_json,
+        created_at = excluded.created_at
+    `).run(
+      id,
+      String(row.event || row.eventType || row.event_type || ""),
+      String(row.actorId || row.actor_id || ""),
+      String(row.workspaceId || row.workspace_id || ""),
+      String(row.surfaceType || row.surface_type || ""),
+      String(row.pluginId || row.plugin_id || ""),
+      String(row.threadId || row.thread_id || ""),
+      String(row.backend || ""),
+      stableJson(payload),
+      stableJson(row),
+      normalizeIso(row.createdAt || row.created_at),
+    );
+    return true;
+  }
+
+  function importVoiceInputState(voiceInput = {}) {
+    const source = voiceInput && typeof voiceInput === "object" && !Array.isArray(voiceInput) ? voiceInput : {};
+    const stats = { corrections: 0, phrasebook: 0, audit: 0 };
+    asArray(source.corrections).forEach((row, index) => {
+      if (importVoiceInputCorrection(row, index)) stats.corrections += 1;
+    });
+    asArray(source.phrasebook).forEach((row, index) => {
+      if (importVoiceInputPhrase(row, index)) stats.phrasebook += 1;
+    });
+    asArray(source.audit).forEach((row, index) => {
+      if (importVoiceInputAudit(row, index)) stats.audit += 1;
+    });
+    return stats;
   }
 
   function importSharedDirectory(row = {}, index = 0) {
@@ -1860,6 +2075,10 @@ function createMobileSqliteStore(options = {}) {
     asArray(state.pushDeliveries).forEach((row, index) => {
       if (importPushDelivery(row, index)) stats.pushDeliveries += 1;
     });
+    const voiceInput = importVoiceInputState(state.voiceInput);
+    stats.voiceInputCorrections = voiceInput.corrections;
+    stats.voiceInputPhrases = voiceInput.phrasebook;
+    stats.voiceInputAudit = voiceInput.audit;
     return stats;
   }
 
@@ -1872,6 +2091,9 @@ function createMobileSqliteStore(options = {}) {
       pushSubscriptions: Number(database.prepare("SELECT COUNT(*) AS count FROM push_subscriptions").get()?.count || 0),
       pushReceipts: Number(database.prepare("SELECT COUNT(*) AS count FROM push_receipts").get()?.count || 0),
       pushDeliveries: Number(database.prepare("SELECT COUNT(*) AS count FROM push_deliveries").get()?.count || 0),
+      voiceInputCorrections: Number(database.prepare("SELECT COUNT(*) AS count FROM voice_input_corrections").get()?.count || 0),
+      voiceInputPhrases: Number(database.prepare("SELECT COUNT(*) AS count FROM voice_input_phrasebook").get()?.count || 0),
+      voiceInputAudit: Number(database.prepare("SELECT COUNT(*) AS count FROM voice_input_audit").get()?.count || 0),
     };
   }
 
@@ -1886,6 +2108,9 @@ function createMobileSqliteStore(options = {}) {
       database.prepare("DELETE FROM push_subscriptions").run();
       database.prepare("DELETE FROM push_receipts").run();
       database.prepare("DELETE FROM push_deliveries").run();
+      database.prepare("DELETE FROM voice_input_corrections").run();
+      database.prepare("DELETE FROM voice_input_phrasebook").run();
+      database.prepare("DELETE FROM voice_input_audit").run();
       importState(nextState);
       setMeta("automationPushMarks", nextState.automationPushMarks || {});
       setMeta("lastRuntimeStateSave", { savedAt: nowIso(), counts: runtimeStateCounts() });
@@ -1901,6 +2126,72 @@ function createMobileSqliteStore(options = {}) {
   function rowJson(row, fallback = {}) {
     const parsed = parseJson(row?.raw_json, null);
     return parsed && typeof parsed === "object" ? parsed : Object.assign({}, fallback);
+  }
+
+  function voiceCorrectionFromRow(row) {
+    return rowJson(row, {
+      id: String(row.id || ""),
+      actorId: String(row.actor_id || ""),
+      workspaceId: String(row.workspace_id || ""),
+      surfaceType: String(row.surface_type || ""),
+      pluginId: String(row.plugin_id || ""),
+      threadId: String(row.thread_id || ""),
+      language: String(row.language || ""),
+      from: String(row.from_text || ""),
+      to: String(row.to_text || ""),
+      status: String(row.status || ""),
+      supportCount: Number(row.support_count || 0),
+      rejectionCount: Number(row.rejection_count || 0),
+      createdAt: String(row.created_at || ""),
+      updatedAt: String(row.updated_at || ""),
+      lastSeenAt: String(row.last_seen_at || ""),
+      lastAppliedAt: String(row.last_applied_at || ""),
+    });
+  }
+
+  function voicePhraseFromRow(row) {
+    const raw = rowJson(row, {});
+    return Object.assign({}, raw, {
+      id: String(row.id || raw.id || ""),
+      actorId: String(row.actor_id || raw.actorId || ""),
+      workspaceId: String(row.workspace_id || raw.workspaceId || ""),
+      surfaceType: String(row.surface_type || raw.surfaceType || ""),
+      pluginId: String(row.plugin_id || raw.pluginId || ""),
+      threadId: String(row.thread_id || raw.threadId || ""),
+      language: String(row.language || raw.language || ""),
+      term: String(row.term || raw.term || ""),
+      source: String(row.source || raw.source || ""),
+      status: String(row.status || raw.status || ""),
+      supportCount: Number(row.support_count || raw.supportCount || 0),
+      aliases: parseJson(row.aliases_json, Array.isArray(raw.aliases) ? raw.aliases : []),
+      createdAt: String(row.created_at || raw.createdAt || ""),
+      updatedAt: String(row.updated_at || raw.updatedAt || ""),
+      lastSeenAt: String(row.last_seen_at || raw.lastSeenAt || ""),
+      lastAppliedAt: String(row.last_applied_at || raw.lastAppliedAt || ""),
+    });
+  }
+
+  function voiceAuditFromRow(row) {
+    return rowJson(row, Object.assign({
+      id: String(row.id || ""),
+      event: String(row.event_type || ""),
+      actorId: String(row.actor_id || ""),
+      workspaceId: String(row.workspace_id || ""),
+      surfaceType: String(row.surface_type || ""),
+      pluginId: String(row.plugin_id || ""),
+      threadId: String(row.thread_id || ""),
+      backend: String(row.backend || ""),
+      createdAt: String(row.created_at || ""),
+    }, parseJson(row.payload_json, {})));
+  }
+
+  function exportVoiceInputState() {
+    const database = open();
+    return {
+      corrections: database.prepare("SELECT * FROM voice_input_corrections ORDER BY updated_at DESC, id").all().map(voiceCorrectionFromRow),
+      phrasebook: database.prepare("SELECT * FROM voice_input_phrasebook ORDER BY updated_at DESC, id").all().map(voicePhraseFromRow),
+      audit: database.prepare("SELECT * FROM voice_input_audit ORDER BY created_at DESC, id LIMIT 200").all().map(voiceAuditFromRow),
+    };
   }
 
   function exportRuntimeState() {
@@ -2022,6 +2313,7 @@ function createMobileSqliteStore(options = {}) {
       pushSubscriptions,
       pushReceipts: pushReceipts.slice(-200),
       pushDeliveries: pushDeliveries.slice(-200),
+      voiceInput: exportVoiceInputState(),
       automationPushMarks: getMeta("automationPushMarks", {}),
     };
   }

@@ -30,6 +30,11 @@ Backups must allow a replacement machine to restore source, production app files
   `/Users/hermes-host/HermesMobile/data`.
 - Current SQLite state is `hermes-mobile.sqlite3` under that data directory.
 - `state.json` is a snapshot/rollback artifact, not the preferred write target for new product behavior.
+- Home AI voice-input learning data is server-side runtime data. Learned
+  phrasebook terms, correction pairs, and bounded audit metadata live in
+  `hermes-mobile.sqlite3` tables `voice_input_phrasebook`,
+  `voice_input_corrections`, and `voice_input_audit`; `state.json` is only the
+  compatibility snapshot for that state.
 - Plugin data is plugin-owned and must be backed up together with Home AI:
   `/Users/hermes-host/HermesMobile/plugins/<plugin>/data`.
 - Workspace-local Skill and Memory stores are under
@@ -110,6 +115,9 @@ Backups must allow a replacement machine to restore source, production app files
   operator Hermes Agent profile `SOUL.md` files.
 - SQLite databases must be captured through online-consistent snapshots, not
   copied only as live `.sqlite*`, `.sqlite3*`, or `.db*` files.
+- The voice-input learning tables in `data/hermes-mobile.sqlite3` are mandatory
+  daily-backup coverage. Backup validation should treat the SQLite snapshot as
+  the restore target for the user's learned phrasebook and correction history.
 - It should exclude volatile or heavy folders such as `node_modules`, virtual
   environments, logs, temp/cache, old backups, raw session logs, and sandboxes
   unless explicitly required for recovery.

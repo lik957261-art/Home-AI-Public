@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const childProcess = require("node:child_process");
+const { DatabaseSync } = require("node:sqlite");
 
 const repoRoot = path.resolve(__dirname, "..");
 const scriptPath = path.join(repoRoot, "scripts", "create-macos-disaster-backup.js");
@@ -12,6 +13,7 @@ const mountScriptPath = path.join(repoRoot, "scripts", "mount-macos-nas-backup-d
 const runScriptPath = path.join(repoRoot, "scripts", "run-macos-disaster-backup-to-nas.sh");
 const cronScriptPath = path.join(repoRoot, "scripts", "homeai-disaster-backup-cron.sh");
 const backup = require(scriptPath);
+const { createMobileSqliteStore } = require(path.join(repoRoot, "adapters", "mobile-sqlite-store"));
 
 function writeFile(file, content = "") {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -32,6 +34,35 @@ function makeSqlite(file) {
   assert.equal(result.status, 0, result.stderr || result.stdout);
 }
 
+function makeHomeAiRuntimeSqlite(file) {
+  const store = createMobileSqliteStore({ dbPath: file });
+  store.replaceRuntimeState({
+    schemaVersion: 1,
+    threads: [],
+    artifacts: [],
+    pushSubscriptions: [],
+    pushReceipts: [],
+    pushDeliveries: [],
+    voiceInput: {
+      phrasebook: [{
+        id: "voice_phrase_backup_1",
+        actorId: "owner",
+        workspaceId: "owner",
+        surfaceType: "chat",
+        pluginId: "codex-mobile",
+        term: "Home AI",
+        source: "sent_text",
+        status: "active",
+        supportCount: 2,
+        aliases: ["home ai"],
+        createdAt: "2026-06-13T00:00:00.000Z",
+        updatedAt: "2026-06-13T00:00:01.000Z",
+      }],
+    },
+  });
+  store.close();
+}
+
 function makeFixture() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-macos-backup-test-"));
   const root = path.join(dir, "prod");
@@ -48,7 +79,7 @@ function makeFixture() {
   writeFile(path.join(root, "plugins", "finance", "server.js"), "finance\n");
   writeFile(path.join(root, "plugins", "finance", "data", "receipt.txt"), "receipt\n");
   writeFile(path.join(root, "plugins", "note", "data", "attachment.bin"), "attachment\n");
-  makeSqlite(path.join(root, "data", "hermes-mobile.sqlite3"));
+  makeHomeAiRuntimeSqlite(path.join(root, "data", "hermes-mobile.sqlite3"));
   makeSqlite(path.join(root, "plugins", "finance", "data", "finance.sqlite3"));
   writeFile(path.join(operatorHome, ".hermes", "SOUL.md"), "operator soul\n");
   writeFile(path.join(operatorHome, ".hermes", "skills", "custom-agent", "SKILL.md"), "agent skill\n");
@@ -136,4 +167,30 @@ function makeFixture() {
   assert.match(cronSource, /NFS mount is not available/);
   assert.match(cronSource, /run-macos-disaster-backup-to-nas\.sh/);
   assert.doesNotMatch(cronSource, /(^|\s)sudo(\s|-)|SUDO_PASSWORD|HOMEAI_MAC_SUDO_PASSWORD_FILE|expect|ssh -p/i);
+}
+
+{
+  const fixture = makeFixture();
+  const result = backup.runBackup({
+    root: fixture.root,
+    destination: fixture.dest,
+    operatorHome: fixture.operatorHome,
+    receiptDir: path.join(fixture.root, "data", "backups", "disaster-recovery-receipts"),
+    label: "unit",
+    checkOnly: false,
+    json: true,
+    includeOperatorState: true,
+  });
+
+  assert.equal(result.ok, true);
+  const backedUpDb = path.join(fixture.dest, "current", "production", "sqlite-snapshots", "data", "hermes-mobile.sqlite3");
+  assert.equal(fs.existsSync(backedUpDb), true);
+  const db = new DatabaseSync(backedUpDb, { open: true, readOnly: true });
+  try {
+    const row = db.prepare("SELECT term, source FROM voice_input_phrasebook WHERE id = ?").get("voice_phrase_backup_1");
+    assert.equal(row.term, "Home AI");
+    assert.equal(row.source, "sent_text");
+  } finally {
+    db.close();
+  }
 }
