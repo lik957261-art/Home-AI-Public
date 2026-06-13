@@ -649,6 +649,7 @@ function handleVoiceInputStopButtonPointerDown(event, button) {
   voice.pointerId = event.pointerId;
   voice.pointerButton = button;
   voice.pointerComposer = null;
+  voice.stopButtonPressActive = true;
   voice.suppressNextClick = false;
   voice.suppressClickButton = null;
   voiceInputClearSelection();
@@ -685,6 +686,7 @@ function endVoiceInputStopButtonPress(event, options = {}) {
   voice.pointerId = 0;
   voice.pointerButton = null;
   voice.pointerComposer = null;
+  voice.stopButtonPressActive = false;
   document.body?.classList?.remove("voice-input-press-active");
   event?.preventDefault?.();
   event?.stopPropagation?.();
@@ -1066,7 +1068,7 @@ function handleVoiceInputPointerUp(event) {
   const voice = ensureVoiceInputState();
   if (voice.touchFallbackActive) return;
   if (voice.pointerId && event.pointerId !== voice.pointerId) return;
-  if (voice.pointerButton?.id === "sendMessage" && isComposerStopMode()) {
+  if (voice.stopButtonPressActive || (voice.pointerButton?.id === "sendMessage" && isComposerStopMode())) {
     endVoiceInputStopButtonPress(event, { pointerId: event.pointerId });
     return;
   }
@@ -1083,6 +1085,7 @@ function handleVoiceInputPointerCancel(event) {
   voice.pointerId = 0;
   voice.pointerButton = null;
   voice.pointerComposer = null;
+  voice.stopButtonPressActive = false;
   if (voice.pressTimer) {
     voiceInputClearPressTimer();
     closeVoiceInputOverlay();
@@ -1113,7 +1116,7 @@ function handleVoiceInputTouchEnd(event) {
   const voice = ensureVoiceInputState();
   if (!voice.touchFallbackActive) return;
   voice.touchFallbackActive = false;
-  if (voice.pointerButton?.id === "sendMessage" && isComposerStopMode()) {
+  if (voice.stopButtonPressActive || (voice.pointerButton?.id === "sendMessage" && isComposerStopMode())) {
     endVoiceInputStopButtonPress(event);
     return;
   }

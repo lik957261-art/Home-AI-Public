@@ -20,9 +20,9 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-release-mic-v750[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-release-mic-v750[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-release-mic-v750[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-release-mic-v750/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-release-mic-v750/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-release-mic-v750/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-stop-release-v751[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-stop-release-v751[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-stop-release-v751[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-stop-release-v751/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-stop-release-v751/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-stop-release-v751/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -53,9 +53,11 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /function handleVoiceInputStopButtonPointerDown\(event, button\)/);
   assert.match(voiceUi, /function endVoiceInputStopButtonPress\(event, options = \{\}\)/);
   assert.match(voiceUi, /button\?\.id === "sendMessage" && isComposerStopMode\(\)/);
-  assert.match(voiceUi, /if \(voice\.pointerButton\?\.id === "sendMessage" && isComposerStopMode\(\)\) \{[\s\S]*?endVoiceInputStopButtonPress\(event, \{ pointerId: event\.pointerId \}\);[\s\S]*?return;/);
+  assert.match(voiceUi, /voice\.stopButtonPressActive = true/);
+  assert.match(voiceUi, /voice\.stopButtonPressActive = false/);
+  assert.match(voiceUi, /if \(voice\.stopButtonPressActive \|\| \(voice\.pointerButton\?\.id === "sendMessage" && isComposerStopMode\(\)\)\) \{[\s\S]*?endVoiceInputStopButtonPress\(event, \{ pointerId: event\.pointerId \}\);[\s\S]*?return;/);
   assert.match(voiceUi, /if \(button\?\.id === "sendMessage" && isComposerStopMode\(\)\) \{[\s\S]*?voice\.touchFallbackActive = true;[\s\S]*?handleVoiceInputStopButtonPointerDown\(event, button\);[\s\S]*?return;/);
-  assert.match(voiceUi, /if \(voice\.pointerButton\?\.id === "sendMessage" && isComposerStopMode\(\)\) \{[\s\S]*?endVoiceInputStopButtonPress\(event\);[\s\S]*?return;/);
+  assert.match(voiceUi, /if \(voice\.stopButtonPressActive \|\| \(voice\.pointerButton\?\.id === "sendMessage" && isComposerStopMode\(\)\)\) \{[\s\S]*?endVoiceInputStopButtonPress\(event\);[\s\S]*?return;/);
   assert.match(voiceUi, /const longPress = !voice\.pressTimer && voice\.suppressNextClick && voice\.suppressClickButton/);
   assert.match(voiceUi, /allowStopMode: true/);
   assert.match(voiceUi, /if \(longPress && \["checking", "requesting", "preparing", "recording", "finalizing"\]\.includes\(voice\.status\)\) \{[\s\S]*?stopVoiceInputRecording\(\);/);
