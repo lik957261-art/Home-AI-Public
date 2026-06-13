@@ -548,6 +548,13 @@ function openAttachFilePicker() {
 function handleAttachFileActivation(event, options = {}) {
   const fromHitZone = Boolean(options.fromHitZone);
   if (fromHitZone && !eventInAttachFileHitZone(event)) return false;
+  if ($("attachFile")?.classList?.contains("voice-input-attach-indicator")
+    || (typeof voiceInputRecordingVisible === "function" && voiceInputRecordingVisible())) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+    return true;
+  }
   const recentActivation = Date.now() - (state.attachFilePickerActivationAt || 0) < 650;
   if (recentActivation && !state.chatSearchOpen) {
     event.preventDefault();

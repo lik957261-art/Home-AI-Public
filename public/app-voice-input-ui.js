@@ -607,50 +607,68 @@ function ensureVoiceInputOverlay() {
   overlay.hidden = true;
   overlay.setAttribute("aria-live", "polite");
   overlay.innerHTML = `
-    <div class="voice-input-head">
-      <div class="voice-input-status-line">
-        <span class="voice-input-mic-indicator" aria-hidden="true"></span>
-        <div class="voice-input-title" data-voice-status></div>
-      </div>
-      <button type="button" class="secondary-small voice-input-cancel" data-voice-action="cancel">取消</button>
-    </div>
-    <div class="voice-input-corrections" data-voice-corrections hidden></div>
+    <span class="voice-input-mic-indicator" aria-hidden="true"></span>
   `;
-  overlay.addEventListener("click", (event) => {
-    const action = event.target.closest?.("[data-voice-action]")?.dataset?.voiceAction || "";
-    if (!action) return;
-    event.preventDefault();
-    if (action === "cancel") cancelVoiceInput();
-  });
   document.body.appendChild(overlay);
   return overlay;
+}
+
+function voiceInputRecordingVisible(voice = ensureVoiceInputState()) {
+  return voice.status !== "idle";
+}
+
+function voiceInputRestoreAttachMicIndicator() {
+  const attach = $("attachFile");
+  if (!attach?.classList?.contains("voice-input-attach-indicator")) return;
+  const previousHtml = attach.dataset.voiceInputPreviousHtml || "";
+  const previousAria = attach.dataset.voiceInputPreviousAria || "添加文件";
+  const previousTitle = attach.dataset.voiceInputPreviousTitle || previousAria;
+  const previousDisabled = attach.dataset.voiceInputPreviousDisabled === "true";
+  attach.innerHTML = previousHtml || "+";
+  attach.disabled = previousDisabled;
+  attach.setAttribute("aria-label", previousAria);
+  attach.setAttribute("title", previousTitle);
+  attach.classList.remove("voice-input-attach-indicator", "voice-input-attach-recording", "voice-input-attach-error");
+  delete attach.dataset.voiceInputPreviousHtml;
+  delete attach.dataset.voiceInputPreviousAria;
+  delete attach.dataset.voiceInputPreviousTitle;
+  delete attach.dataset.voiceInputPreviousDisabled;
+}
+
+function voiceInputRenderAttachMicIndicator(voice = ensureVoiceInputState()) {
+  const attach = $("attachFile");
+  if (!attach || attach.hidden) return false;
+  if (!voiceInputRecordingVisible(voice)) {
+    voiceInputRestoreAttachMicIndicator();
+    return true;
+  }
+  if (!attach.classList.contains("voice-input-attach-indicator")) {
+    attach.dataset.voiceInputPreviousHtml = attach.innerHTML || "+";
+    attach.dataset.voiceInputPreviousAria = attach.getAttribute("aria-label") || "添加文件";
+    attach.dataset.voiceInputPreviousTitle = attach.getAttribute("title") || attach.dataset.voiceInputPreviousAria;
+    attach.dataset.voiceInputPreviousDisabled = attach.disabled ? "true" : "false";
+  }
+  attach.disabled = false;
+  attach.classList.add("voice-input-attach-indicator");
+  attach.classList.toggle("voice-input-attach-recording", voice.status === "recording");
+  attach.classList.toggle("voice-input-attach-error", voice.status === "failed");
+  attach.setAttribute("aria-label", voiceInputStatusLabel(voice.status));
+  attach.setAttribute("title", voiceInputStatusLabel(voice.status));
+  attach.innerHTML = `<span class="voice-input-mic-indicator" aria-hidden="true"></span>`;
+  return true;
 }
 
 function renderVoiceInputOverlay() {
   const voice = ensureVoiceInputState();
   const overlay = ensureVoiceInputOverlay();
-  const status = overlay.querySelector("[data-voice-status]");
-  const corrections = overlay.querySelector("[data-voice-corrections]");
-  overlay.hidden = voice.status === "idle";
+  const attachHasIndicator = voiceInputRenderAttachMicIndicator(voice);
+  overlay.hidden = !voiceInputRecordingVisible(voice) || attachHasIndicator;
   overlay.classList.toggle("voice-input-overlay-active", !overlay.hidden);
   overlay.classList.toggle("voice-input-overlay-busy", ["checking", "requesting", "preparing", "recording", "finalizing", "transcribing", "inserting"].includes(voice.status));
   overlay.classList.toggle("voice-input-overlay-recording", voice.status === "recording");
   overlay.classList.toggle("voice-input-overlay-error", voice.status === "failed");
-  if (status) {
-    const detail = voice.error || voiceInputStatusLabel(voice.status);
-    status.textContent = voice.status === "recording"
-      ? `${voiceInputStatusLabel(voice.status)} ${voiceInputFormatDuration(Date.now() - Number(voice.recordingStartedAt || Date.now()))}`
-      : detail;
-  }
-  if (corrections) {
-    const applied = voice.corrections?.applied || [];
-    const suggestions = voice.corrections?.suggestions || [];
-    const parts = [];
-    if (applied.length) parts.push(`已按个人习惯修正 ${applied.length} 处`);
-    if (suggestions.length) parts.push(`有 ${suggestions.length} 处候选修正`);
-    corrections.textContent = parts.join("，");
-    corrections.hidden = !parts.length;
-  }
+  overlay.setAttribute("aria-label", voiceInputStatusLabel(voice.status));
+  overlay.setAttribute("title", voiceInputStatusLabel(voice.status));
   refreshVoiceInputSendButton();
 }
 

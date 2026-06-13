@@ -16739,22 +16739,21 @@ body.voice-input-press-active .voice-input-overlay button {
 
 .voice-input-overlay {
   position: fixed;
-  left: max(10px, env(safe-area-inset-left));
-  right: max(10px, env(safe-area-inset-right));
-  bottom: calc(var(--mobile-bottom-stack-height, 72px) + 62px);
+  left: max(16px, env(safe-area-inset-left));
+  bottom: calc(var(--mobile-bottom-stack-height, 72px) + 12px);
   z-index: 130;
   display: grid;
-  gap: 8px;
-  width: min(520px, calc(100vw - 20px));
-  max-height: min(360px, calc(var(--app-viewport-height, 100dvh) - 120px));
-  margin: 0 auto;
-  padding: 10px;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
   color: var(--ink);
   background: var(--ui-menu-bg);
   border: 1px solid var(--ui-hairline-strong);
-  border-radius: 12px;
-  box-shadow: 0 16px 34px rgba(34, 28, 20, 0.12);
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.12);
   backdrop-filter: blur(14px);
+  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -16815,14 +16814,46 @@ body.voice-input-press-active .voice-input-overlay button {
   transform: translateX(-50%);
 }
 
+.voice-input-attach-indicator {
+  color: var(--ui-accent-ink);
+  background: var(--ui-warning-surface);
+  border-color: rgba(169, 122, 49, 0.22);
+}
+
+.voice-input-attach-indicator .voice-input-mic-indicator {
+  margin-top: -2px;
+}
+
 .voice-input-overlay-recording .voice-input-mic-indicator {
   border-color: var(--danger);
+  animation: voice-input-mic-pulse 1s ease-in-out infinite;
+}
+
+.voice-input-attach-recording {
+  color: #fff;
+  background: var(--danger);
+  border-color: rgba(164, 61, 53, 0.32);
+}
+
+.voice-input-attach-recording .voice-input-mic-indicator {
+  border-color: #fff;
   animation: voice-input-mic-pulse 1s ease-in-out infinite;
 }
 
 .voice-input-overlay-recording .voice-input-mic-indicator::before,
 .voice-input-overlay-recording .voice-input-mic-indicator::after {
   background: var(--danger);
+}
+
+.voice-input-attach-recording .voice-input-mic-indicator::before,
+.voice-input-attach-recording .voice-input-mic-indicator::after {
+  background: #fff;
+}
+
+.voice-input-attach-error {
+  color: #fff;
+  background: var(--danger);
+  border-color: rgba(164, 61, 53, 0.32);
 }
 
 @keyframes voice-input-mic-pulse {

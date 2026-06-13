@@ -217,9 +217,21 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(styles, /\.voice-input-overlay/);
   assert.match(styles, /\.voice-input-transcript/);
   assert.match(styles, /\.voice-input-mic-indicator/);
+  assert.match(styles, /\.voice-input-attach-indicator/);
+  assert.match(styles, /\.voice-input-attach-recording/);
   assert.match(styles, /\.voice-input-overlay-recording \.voice-input-mic-indicator/);
   assert.match(styles, /@keyframes voice-input-mic-pulse/);
+  assert.match(voiceUi, /function voiceInputRenderAttachMicIndicator\(voice = ensureVoiceInputState\(\)\)/);
+  assert.match(voiceUi, /const attach = \$\("attachFile"\)/);
+  assert.match(voiceUi, /attach\.classList\.add\("voice-input-attach-indicator"\)/);
+  assert.match(voiceUi, /attach\.classList\.toggle\("voice-input-attach-recording", voice\.status === "recording"\)/);
+  assert.match(voiceUi, /attach\.innerHTML = `<span class="voice-input-mic-indicator" aria-hidden="true"><\/span>`/);
+  assert.match(voiceUi, /overlay\.hidden = !voiceInputRecordingVisible\(voice\) \|\| attachHasIndicator/);
+  assert.match(read("public/app-message-actions-ui.js"), /\$\("attachFile"\)\?\.classList\?\.contains\("voice-input-attach-indicator"\)/);
+  assert.match(read("public/app-message-actions-ui.js"), /typeof voiceInputRecordingVisible === "function" && voiceInputRecordingVisible\(\)/);
   assert.match(voiceUi, /class="voice-input-mic-indicator"/);
+  assert.doesNotMatch(voiceUi, /data-voice-status/);
+  assert.doesNotMatch(voiceUi, /data-voice-action="cancel"/);
   assert.match(voiceUi, /voice-input-overlay-recording/);
 }
 

@@ -155,9 +155,15 @@ Design posture:
 - visual style: calm Home AI control-panel language, no decorative assistant
   animation or marketing-style voice panel.
 
-The overlay should never depend on plugin iframe layout for placement. It must
-respect safe areas, the measured Home AI bottom stack, active keyboard metrics,
-and plugin fullscreen preview state.
+The active voice state should not render a bottom text panel over the composer.
+On the main Home AI composer, the host should replace the file-attachment plus
+button with a microphone indicator for the duration of the voice capture,
+transcription, and insertion flow; while that indicator is active, the
+attachment menu must not open from that button. Surfaces without the attachment
+button may use a small fallback microphone-only indicator. Any fallback overlay
+must never depend on plugin iframe layout for placement. It must respect safe
+areas, the measured Home AI bottom stack, active keyboard metrics, and plugin
+fullscreen preview state.
 
 Microphone permission timing:
 
