@@ -44,6 +44,9 @@ assert.match(script, /\/usr\/bin\/rsync/);
 assert.match(script, /\/usr\/bin\/sudo/);
 assert.match(script, /\/usr\/sbin\/chown/);
 assert.match(script, /productionOwner/);
+assert.match(script, /codex-mobile-log-permissions/);
+assert.match(script, /plugin-codex-mobile\.out\.log/);
+assert.match(script, /plugin-codex-mobile\.err\.log/);
 assert.match(script, /PLUGIN_RSYNC_EXCLUDES/);
 assert.match(script, /"-S", "-p", "", command/);
 assert.match(script, /"-n", command/);
@@ -365,6 +368,25 @@ const codexPluginRun = spawnSync(process.execPath, [
 assert.equal(codexPluginRun.status, 0, codexPluginRun.stderr);
 const codexPluginPayload = JSON.parse(codexPluginRun.stdout);
 assert.equal(codexPluginPayload.plan.productionOwner, "xuxin:staff");
+assert.deepEqual(codexPluginPayload.plan.postSyncRepairs, [
+  {
+    type: "codex-mobile-log-permissions",
+    serviceUser: "xuxin",
+    serviceGroup: "staff",
+    logsRelativePath: "logs",
+    logFiles: [
+      "plugin-codex-mobile.out.log",
+      "plugin-codex-mobile.err.log",
+    ],
+    directoryMode: "711",
+    fileMode: "600",
+  },
+]);
+
+const financeRepairPlan = deployScript.postSyncRepairsForTarget({ target: "plugin:finance" });
+assert.deepEqual(financeRepairPlan, []);
+const codexRepairPlan = deployScript.postSyncRepairsForTarget({ target: "plugin:codex-mobile-web" });
+assert.equal(codexRepairPlan[0].type, "codex-mobile-log-permissions");
 
 const growthPluginRun = spawnSync(process.execPath, [
   scriptPath,
@@ -425,6 +447,10 @@ assert.deepEqual(allPluginPayload.plan.plans.map((item) => item.target), [
 ]);
 assert.ok(allPluginPayload.plan.plans.every((item) => item.restartLabels.length === 1));
 assert.ok(allPluginPayload.plan.plans.every((item) => item.healthUrl.includes("/api/v1/hermes/plugin/manifest")));
+assert.equal(
+  allPluginPayload.plan.plans.filter((item) => item.postSyncRepairs.some((repair) => repair.type === "codex-mobile-log-permissions")).length,
+  1,
+);
 
 const allPluginSourceOverrideRun = spawnSync(process.execPath, [
   scriptPath,

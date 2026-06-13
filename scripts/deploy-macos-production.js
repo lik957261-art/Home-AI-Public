@@ -88,6 +88,19 @@ const PRODUCTION_OWNER_BY_TARGET = {
   "plugin:codex-mobile-web": "xuxin:staff",
 };
 
+const CODEX_MOBILE_LOG_REPAIR = Object.freeze({
+  type: "codex-mobile-log-permissions",
+  serviceUser: "xuxin",
+  serviceGroup: "staff",
+  logsRelativePath: "logs",
+  logFiles: Object.freeze([
+    "plugin-codex-mobile.out.log",
+    "plugin-codex-mobile.err.log",
+  ]),
+  directoryMode: "711",
+  fileMode: "600",
+});
+
 const RSYNC_EXCLUDES = [
   ".git",
   ".git/",
@@ -363,6 +376,11 @@ function rsyncExcludesForTarget(options) {
   return [...new Set(excludes)];
 }
 
+function postSyncRepairsForTarget(options) {
+  if (options.target === "plugin:codex-mobile-web") return [CODEX_MOBILE_LOG_REPAIR];
+  return [];
+}
+
 function readTextIfExists(filePath) {
   try {
     return fs.readFileSync(filePath, "utf8");
@@ -415,6 +433,7 @@ function buildPlan(options) {
   const proofFiles = proofFilesForPlan(source, options);
   const rsyncExcludes = rsyncExcludesForTarget(options);
   const productionOwner = productionOwnerForTarget(options.target);
+  const postSyncRepairs = postSyncRepairsForTarget(options);
   const validation = [];
   if (options.target === "home-ai") {
     const command = [
@@ -479,6 +498,7 @@ function buildPlan(options) {
     restartLabels: labels,
     healthUrl,
     rsyncExcludes,
+    postSyncRepairs,
     sync: options.surface === "static"
       ? HOME_AI_STATIC_SYNC_ROOTS.map((root) => ({ source: `${root}`, target: `${root}` }))
       : [{ source: "./", target: "./" }],
@@ -1128,6 +1148,31 @@ function buildRsyncArgs(excludes, source, target) {
   return args;
 }
 
+function repairCodexMobileLogPermissions(plan, password) {
+  const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === CODEX_MOBILE_LOG_REPAIR.type);
+  if (!repair) return null;
+  const logsRoot = posixJoin(plan.macRoot, repair.logsRelativePath);
+  runSudo("/bin/mkdir", ["-p", logsRoot], password);
+  runSudo("/bin/chmod", [repair.directoryMode, logsRoot], password);
+  const files = [];
+  for (const name of repair.logFiles || []) {
+    const logPath = posixJoin(logsRoot, name);
+    runSudo("/usr/bin/touch", [logPath], password);
+    runSudo("/usr/sbin/chown", [`${repair.serviceUser}:${repair.serviceGroup}`, logPath], password);
+    runSudo("/bin/chmod", [repair.fileMode, logPath], password);
+    files.push(logPath);
+  }
+  return {
+    type: repair.type,
+    status: 0,
+    logsRoot,
+    directoryMode: repair.directoryMode,
+    fileMode: repair.fileMode,
+    owner: `${repair.serviceUser}:${repair.serviceGroup}`,
+    fileCount: files.length,
+  };
+}
+
 function executePlan(plan, options) {
   const password = readPassword(options.passwordFile);
   if (options.passwordFile && !password) throw new Error("sudo_password_file_empty");
@@ -1150,6 +1195,7 @@ function executePlan(plan, options) {
     runSudo("/usr/sbin/chown", ["-R", plan.productionOwner, plan.productionPath], password);
   }
 
+  const codexMobileLogRepair = repairCodexMobileLogPermissions(plan, password);
   const bridgeHostInstall = installHomeAiBridgeHostLaunchd(plan, password);
   const cronInstall = installHomeAiCronLaunchd(plan, password);
   const listenerVoiceInputEnv = installHomeAiListenerVoiceInputEnv(plan, password);
@@ -1161,6 +1207,7 @@ function executePlan(plan, options) {
   }
 
   const validations = [];
+  if (codexMobileLogRepair) validations.push(codexMobileLogRepair);
   if (bridgeHostInstall) validations.push(Object.assign({ status: 0 }, bridgeHostInstall));
   if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));
   if (listenerVoiceInputEnv) validations.push(Object.assign({ status: 0 }, listenerVoiceInputEnv));
@@ -1238,6 +1285,8 @@ module.exports = {
   buildHomeAiCronLaunchdPlist,
   cronProfileAliasRowsFromManifest,
   buildRsyncArgs,
+  postSyncRepairsForTarget,
+  repairCodexMobileLogPermissions,
   deployDirtyFiles,
   isDeploySurfaceIncluded,
 };

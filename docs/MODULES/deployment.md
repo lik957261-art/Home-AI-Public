@@ -91,6 +91,14 @@ Backup rsync uses a narrower exclude list for local tooling metadata such as
 `.git`, `.codex`, `.codegraph`, and `.agent-context`; it must not omit
 production-owned plugin `data/`, `runtime/`, or `.venv/` directories from the
 pre-deploy backup.
+Codex Mobile Web is a special plugin target because its LaunchDaemon runs as
+`xuxin` while most production roots are owned by `hermes-host`. The central
+deploy script now includes a Codex-only post-sync repair that keeps
+`/Users/hermes-host/HermesMobile/logs` traversable and ensures
+`plugin-codex-mobile.out.log` / `plugin-codex-mobile.err.log` are
+`xuxin:staff` with mode `600` before restarting
+`com.hermesmobile.plugin.codex-mobile`. This prevents launchd `EX_CONFIG`
+failures caused by unreadable stdout/stderr paths after deploy.
 
 Key decisions:
 

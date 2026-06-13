@@ -129,6 +129,12 @@ paths from replacement.
 After sync, the central deploy script must restore the production target owner.
 The default owner is `hermes-host:staff`; the Codex Mobile plugin uses
 `xuxin:staff` because its production launchd service runs as `xuxin`.
+Codex Mobile deployments must also repair the shared production log path before
+restart: `/Users/hermes-host/HermesMobile/logs` must be traversable by the
+service user, and `plugin-codex-mobile.out.log` /
+`plugin-codex-mobile.err.log` must be owned by `xuxin:staff` and writable by
+that user. Otherwise launchd can fail before Node starts with `EX_CONFIG` while
+opening stdout/stderr.
 
 ## Restart Rules
 
