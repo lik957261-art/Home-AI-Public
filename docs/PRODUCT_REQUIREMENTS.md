@@ -197,6 +197,22 @@ This file records durable product rules that implementation must preserve.
 - Action Inbox is the primary passive/durable attention surface for manual Todo/reminder items, automation conclusions, Growth/executor card completion, permission requests, approvals, and review items.
 - Action Inbox must be backed by Hermes Mobile local persistence and audit events, not official Hermes Kanban.
 - The primary bottom navigation direction is `聊天 / 收件箱 / 话题 / 目录 / 成长`; Automation should move to a background/admin surface.
+- Todo/reminder is a host-owned Action Inbox item type, not a standalone plugin
+  and not a revived official Kanban product surface. The old Todo/Kanban API is
+  compatibility only.
+- Natural-language Todo creation must use model understanding guided by a
+  dedicated Skill and produce a structured draft. Keyword-only parsing is not a
+  valid product path for assigning people, dates, recurrence, or priority.
+- The model may only produce a Todo draft. Home AI must validate permissions,
+  workspace identity, dates, recurrence, Web Push, audit events, and persistence
+  before creating or mutating any Todo/reminder.
+- Owner may assign a Todo/reminder to another workspace when access policy
+  allows it. The assignee receives the actionable Inbox item and Web Push; when
+  the assignee completes it, the creator receives a bounded Inbox completion
+  receipt.
+- One-shot reminders are Action Inbox Todos with a future `availableAt` /
+  `remindAt`; periodic or complex recurring tasks are Automation-backed and
+  create one Inbox Todo occurrence per trigger.
 - Ordinary active chat/topic task receipts should use Web Push to return directly to the relevant route and should not create default Inbox items.
 - Inbox items are summary/action projections. Source modules remain canonical and full private content must stay in the source detail views.
 - Repeated source refreshes, Web Push events, and background polling must dedupe by stable source references instead of creating duplicate items.

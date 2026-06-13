@@ -67,7 +67,44 @@ Every state-changing operation should append an audit event so the UI state can 
 
 Manual todos create first-class Action Inbox items. They do not need official Kanban boards, worker assignment, or multi-agent state.
 
+Manual Todo/reminder is a Home AI host capability, not a normal embedded
+plugin. The UI may expose Todo-like entry points from Inbox or plugin-like
+launchers, but the canonical persistence, permissions, Web Push, audit events,
+and cross-workspace assignment rules belong to the host.
+
+Natural-language Todo creation must use a model-guided Skill to produce a
+structured draft. The host must not infer assignee, time, recurrence, or
+priority through keyword-only parsing. The model output is only a draft; the
+host validates required fields, workspace access, date formats, recurrence
+support, and confirmation requirements before creation.
+
+One-shot reminders are represented as `itemType=todo`,
+`sourceType=manual` Inbox items with `status=waiting` and `availableAt` set to
+the reminder time. A host reminder tick activates due items to `open`, appends
+an audit event, broadcasts Inbox refresh, and sends Web Push to the assignee.
+The status vocabulary remains compact: `waiting` is the pre-reminder state,
+`open` is actionable, and terminal states remain `done`, `dismissed`, or
+`archived`.
+
+Owner or another authorized workspace may assign a manual Todo/reminder to a
+different workspace. The assignee owns the actionable Inbox item. The source
+reference records `creatorWorkspaceId` and `assigneeWorkspaceId` only as
+bounded metadata. Creation sends Web Push to the assignee even when the Todo is
+a future reminder; the due reminder tick may send a second Web Push when the
+item becomes actionable. When the assignee completes the item, the host creates
+a summary-only completion receipt for the creator and may send Web Push to the
+creator. The receipt must not copy private task discussion or long content.
+
+Periodic or complex recurring Todos are not stored as independent Inbox
+schedules. They are Automation-backed rules that create one Inbox Todo
+occurrence per trigger. Completing an occurrence does not delete or pause the
+Automation rule.
+
 The legacy `POST /api/todos` compatibility route may still create a Todo/Kanban record while the old surface is being retired, but it must also upsert a summary-only `sourceType=manual`, `itemType=todo` Action Inbox item for the selected workspace. This keeps existing callers from silently bypassing the Inbox.
+Any legacy direct-create keyword detector controlled by direct Todo/Kanban
+compatibility flags is not the product natural-language path. It must remain
+off by default and should be treated as a migration bridge until model-guided
+Todo draft creation covers the caller.
 
 Manual Inbox Todo is its own mobile source surface. If an older item still
 carries a legacy `/?view=todos...` or `todoId` deep link, the Inbox UI must not
@@ -174,6 +211,9 @@ Phase 1 routes:
 - `GET /api/action-inbox`
 - `GET /api/action-inbox/:itemId`
 - `POST /api/action-inbox`
+- `POST /api/action-inbox/todo-drafts/validate`
+- `POST /api/action-inbox/todos`
+- `POST /api/action-inbox/todos/tick`
 - `POST /api/action-inbox/:itemId/complete`
 - `POST /api/action-inbox/:itemId/dismiss`
 - `POST /api/action-inbox/:itemId/snooze`
@@ -185,6 +225,7 @@ Auth mode is workspace-scoped. Owner may inspect or manage configured family/wor
 ## Validation
 
 - `node tests\action-inbox-service.test.js`
+- `node tests\action-inbox-todo-service.test.js`
 - `node tests\action-inbox-api-routes.test.js`
 - `node tests\finance-ledger-join-approval-service.test.js`
 - `node tests\mobile-sqlite-store.test.js`

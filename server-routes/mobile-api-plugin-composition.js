@@ -8,6 +8,7 @@ const { createPluginTopicApiRoutes } = require("./plugin-topic-api-routes");
 const { createPluginTopicContextApiRoutes } = require("./plugin-topic-context-api-routes");
 const { createPluginTopicUsageApiRoutes } = require("./plugin-topic-usage-api-routes");
 const { createActionInboxService } = require("../adapters/action-inbox-service");
+const { createActionInboxTodoService } = require("../adapters/action-inbox-todo-service");
 const { createFinanceLedgerJoinApprovalService } = require("../adapters/finance-ledger-join-approval-service");
 const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
 const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
@@ -57,6 +58,15 @@ function createMobileApiPluginComposition(deps = {}) {
     makeId: deps.makeId,
     nowIso: deps.nowIso,
     store: deps.mobileSqliteStore,
+  });
+  const actionInboxTodoService = deps.actionInboxTodoService || createActionInboxTodoService({
+    actionInboxService,
+    appRouteUrl: deps.appRouteUrl,
+    compactText: deps.compactText,
+    makeId: deps.makeId,
+    nowIso: deps.nowIso,
+    sendPushNotification: deps.webPushDeliveryService.sendPushNotification,
+    workspacePrincipal: deps.workspacePrincipal,
   });
   const hermesPluginNotificationService = deps.hermesPluginNotificationService || createHermesPluginNotificationService({
     actionInboxService,
@@ -137,9 +147,11 @@ function createMobileApiPluginComposition(deps = {}) {
 
   const actionInboxApiRoutes = createActionInboxApiRoutes({
     actionInboxService,
+    actionInboxTodoService,
     broadcast: deps.broadcast,
     financeLedgerJoinApprovalService,
     readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
   });
@@ -155,6 +167,7 @@ function createMobileApiPluginComposition(deps = {}) {
     },
     services: {
       actionInboxService,
+      actionInboxTodoService,
       financeLedgerJoinApprovalService,
       hermesPluginNotificationService,
       hermesPluginService,

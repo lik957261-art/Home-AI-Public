@@ -48,6 +48,11 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
   should be replaced by the latest response so a transient CRON-file warning
   does not keep rendering after the canonical backend is readable again.
 - Long cron jobs must not block the scheduling entrance.
+- Automation is the canonical scheduler for periodic or complex recurring
+  Todo/reminder rules. One-shot Todo reminders stay in Action Inbox as
+  `waiting` items with `availableAt`; recurring rules should create one Inbox
+  Todo occurrence per trigger and leave recurrence editing, pause/resume, and
+  failure diagnostics in Automation.
 
 ## Canonical Store Boundary
 

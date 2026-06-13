@@ -44,10 +44,14 @@ function makeRoutes(overrides = {}) {
     get: [],
     list: [],
     snooze: [],
+    todoCreate: [],
+    todoTick: [],
+    todoValidate: [],
+    todoComplete: [],
     workspaceAccess: [],
   };
   const items = new Map([
-    ["item-1", { id: "item-1", workspaceId: "child", status: "open", title: "Review" }],
+    ["item-1", { id: "item-1", workspaceId: "child", assigneeWorkspaceId: "child", itemType: "todo", status: "open", title: "Review" }],
   ]);
   const deps = Object.assign({
     actionInboxService: {
@@ -78,6 +82,24 @@ function makeRoutes(overrides = {}) {
         return { ok: true, item: Object.assign({}, items.get(input.itemId), { status: "waiting" }) };
       },
     },
+    actionInboxTodoService: {
+      validateDraft(input) {
+        calls.todoValidate.push(input);
+        return { ok: true, draft: { title: input.title || "", assigneeWorkspaceId: input.assigneeWorkspaceId || "" }, needsConfirmation: false, missingFields: [] };
+      },
+      createTodo(input) {
+        calls.todoCreate.push(input);
+        return Promise.resolve({ ok: true, item: { id: "todo-1", workspaceId: input.assigneeWorkspaceId, assigneeWorkspaceId: input.assigneeWorkspaceId, itemType: "todo", status: "open" } });
+      },
+      activateDueReminders(input) {
+        calls.todoTick.push(input);
+        return Promise.resolve({ ok: true, items: [{ id: "todo-1", workspaceId: "child", assigneeWorkspaceId: "child" }], activatedCount: 1 });
+      },
+      completeTodoItem(input) {
+        calls.todoComplete.push(input);
+        return Promise.resolve({ ok: true, item: Object.assign({}, items.get(input.itemId), { itemType: "todo", status: "done" }) });
+      },
+    },
     financeLedgerJoinApprovalService: {
       reviewRequest(input) {
         calls.financeReview.push(input);
@@ -89,6 +111,13 @@ function makeRoutes(overrides = {}) {
     },
     readBody(req) {
       return Promise.resolve(req.body || {});
+    },
+    requireOwner(req, res) {
+      if (req.headers?.["x-owner"] === "0") {
+        sendJson(res, 403, { error: "Owner access required" });
+        return false;
+      }
+      return true;
     },
     requireWorkspaceAccess(req, res, workspaceId) {
       calls.workspaceAccess.push(workspaceId);
@@ -118,6 +147,9 @@ async function testRouteMetadataAndFallthrough() {
   assert.deepEqual(ACTION_INBOX_API_ROUTE_SPECS.map((route) => route.id), [
     "action-inbox-list",
     "action-inbox-create",
+    "action-inbox-todo-draft-validate",
+    "action-inbox-todo-create",
+    "action-inbox-todo-tick",
     "action-inbox-detail",
     "action-inbox-action",
     "action-inbox-finance-ledger-join-review",
@@ -125,6 +157,9 @@ async function testRouteMetadataAndFallthrough() {
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/action-inbox" }).id, "action-inbox-list");
   assert.equal(routes.match({ method: "POST", path: "/api/action-inbox" }).id, "action-inbox-create");
+  assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/todo-drafts/validate" }).id, "action-inbox-todo-draft-validate");
+  assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/todos" }).id, "action-inbox-todo-create");
+  assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/todos/tick" }).id, "action-inbox-todo-tick");
   assert.equal(routes.match({ method: "GET", path: "/api/action-inbox/item%2F1" }).id, "action-inbox-detail");
   assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/item-1/complete" }).id, "action-inbox-action");
   assert.equal(routes.match({ method: "POST", path: "/api/action-inbox/item-1/finance-ledger-join/approve" }).id, "action-inbox-finance-ledger-join-review");
@@ -132,6 +167,34 @@ async function testRouteMetadataAndFallthrough() {
   const miss = await request(routes, "GET", "/api/status");
   assert.equal(miss.result.handled, false);
   assert.equal(miss.res.statusCode, 0);
+}
+
+async function testTodoDraftCreateAndTickRoutes() {
+  const { routes, calls } = makeRoutes();
+  const draft = await request(routes, "POST", "/api/action-inbox/todo-drafts/validate", {
+    auth: { principalId: "owner" },
+    body: { workspaceId: "owner", title: "提交发票", assigneeWorkspaceId: "child" },
+  });
+  assert.equal(draft.res.statusCode, 200);
+  assert.equal(calls.todoValidate[0].creatorWorkspaceId, "owner");
+
+  const created = await request(routes, "POST", "/api/action-inbox/todos", {
+    auth: { principalId: "owner" },
+    body: { creatorWorkspaceId: "owner", assigneeWorkspaceId: "child", title: "提交发票", confirmed: true },
+  });
+  assert.equal(created.res.statusCode, 201);
+  assert.equal(calls.todoCreate[0].creatorWorkspaceId, "owner");
+  assert.equal(calls.todoCreate[0].assigneeWorkspaceId, "child");
+  assert.deepEqual(calls.broadcast.at(-2), { type: "actionInbox.updated", workspaceId: "child", itemId: "todo-1", action: "todo-create" });
+  assert.deepEqual(calls.broadcast.at(-1), { type: "actionInbox.updated", workspaceId: "owner", itemId: "todo-1", action: "todo-assigned" });
+
+  const tick = await request(routes, "POST", "/api/action-inbox/todos/tick", {
+    auth: { principalId: "owner" },
+    body: { now: "2026-06-13T15:00:00.000Z" },
+  });
+  assert.equal(tick.res.statusCode, 200);
+  assert.equal(calls.todoTick[0].now, "2026-06-13T15:00:00.000Z");
+  assert.deepEqual(calls.broadcast.at(-1), { type: "actionInbox.updated", workspaceId: "child", itemId: "todo-1", action: "todo-reminder-due" });
 }
 
 async function testFinanceLedgerJoinReviewUsesItemWorkspaceAndBroadcastsRefresh() {
@@ -196,14 +259,16 @@ async function testDetailAndMutationsUseItemWorkspace() {
     body: { reason: "done" },
   });
   assert.equal(completed.res.statusCode, 200);
-  assert.equal(calls.complete[0].itemId, "item-1");
-  assert.equal(calls.complete[0].workspaceId, "child");
+  assert.equal(calls.complete[0]?.itemId, undefined);
+  assert.equal(calls.todoComplete[0].itemId, "item-1");
+  assert.equal(calls.todoComplete[0].workspaceId, "child");
   assert.deepEqual(calls.broadcast.at(-1), { type: "actionInbox.updated", workspaceId: "child", itemId: "item-1", action: "complete" });
 }
 
 async function main() {
   await testRouteMetadataAndFallthrough();
   await testListAndCreate();
+  await testTodoDraftCreateAndTickRoutes();
   await testDetailAndMutationsUseItemWorkspace();
   await testFinanceLedgerJoinReviewUsesItemWorkspaceAndBroadcastsRefresh();
   console.log("action-inbox-api-routes tests passed");

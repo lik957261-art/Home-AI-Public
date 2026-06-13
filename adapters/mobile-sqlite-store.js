@@ -1882,6 +1882,33 @@ function createMobileSqliteStore(options = {}) {
     return rows.slice(0, limit);
   }
 
+  function listDueActionInboxItems(args = {}) {
+    migrate();
+    const status = String(args.status || "waiting").trim() || "waiting";
+    const itemType = String(args.itemType || args.item_type || "").trim();
+    const sourceType = String(args.sourceType || args.source_type || "").trim();
+    const availableBefore = normalizeIso(args.availableBefore || args.available_before || nowIso());
+    const limit = Math.max(1, Math.min(500, Number(args.limit || 100)));
+    const clauses = ["status = ?", "available_at <> ''", "datetime(available_at) <= datetime(?)"];
+    const values = [status, availableBefore];
+    if (itemType) {
+      clauses.push("item_type = ?");
+      values.push(itemType);
+    }
+    if (sourceType) {
+      clauses.push("source_type = ?");
+      values.push(sourceType);
+    }
+    return open().prepare(`
+      SELECT * FROM action_inbox_items
+      WHERE ${clauses.join(" AND ")}
+      ORDER BY datetime(available_at) ASC, updated_at ASC
+      LIMIT ?
+    `).all(...values, limit)
+      .map(publicActionInboxItemFromRow)
+      .filter(Boolean);
+  }
+
   function actionInboxCounts(workspaceId, args = {}) {
     migrate();
     const workspace = String(workspaceId || "owner").trim() || "owner";
@@ -2627,6 +2654,7 @@ function createMobileSqliteStore(options = {}) {
     listAutomationJobs,
     listActionInboxEvents,
     listActionInboxItems,
+    listDueActionInboxItems,
     listKanbanCaseShares,
     listPlatformCurrencyLedger,
     listTopicContextRefs,

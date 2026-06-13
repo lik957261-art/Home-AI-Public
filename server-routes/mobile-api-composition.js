@@ -50,7 +50,7 @@ function createMobileApiComposition(deps = {}) {
     pluginTopicUsageApiRoutes,
   } = pluginComposition.routes;
   const {
-    actionInboxService,
+    actionInboxService, actionInboxTodoService,
     financeLedgerJoinApprovalService,
     hermesPluginNotificationService,
     hermesPluginService,
@@ -336,6 +336,7 @@ function createMobileApiComposition(deps = {}) {
     mobileApiDispatcher,
     services: {
       actionInboxService,
+      actionInboxTodoService,
       familyProfileInsightService,
       familyProfileProjectionService,
       familyProfileRepository,

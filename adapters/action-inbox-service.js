@@ -24,7 +24,7 @@ function objectValue(value) {
 
 function normalizeStatus(value, fallback = "open") {
   const text = clean(value).toLowerCase();
-  if (["open", "waiting", "done", "dismissed", "archived"].includes(text)) return text;
+  if (["open", "waiting", "done", "dismissed", "archived", "overdue"].includes(text)) return text;
   return fallback;
 }
 
@@ -269,7 +269,42 @@ function createActionInboxService(options = {}) {
     return transitionItem(input, "waiting", "snoozed");
   }
 
+  function activateDueItems(input = {}) {
+    const store = requireStore();
+    if (typeof store.listDueActionInboxItems !== "function") {
+      return errorResult(503, "action_inbox_due_query_unavailable");
+    }
+    const now = input.now || nowIso();
+    const rows = store.listDueActionInboxItems({
+      status: "waiting",
+      itemType: clean(input.itemType || input.item_type, 80),
+      sourceType: clean(input.sourceType || input.source_type, 80),
+      availableBefore: now,
+      limit: input.limit || 100,
+    });
+    const items = [];
+    const events = [];
+    for (const row of rows) {
+      const item = store.updateActionInboxItem(row.id, {
+        status: "open",
+        updatedAt: now,
+        lastEventAt: now,
+      });
+      if (item) {
+        items.push(item);
+        events.push(appendEvent(store, item, "reminder_due", {
+          actorWorkspaceId: input.actorWorkspaceId || "system",
+          actorPrincipalId: input.actorPrincipalId || "system",
+          payload: { availableAt: row.availableAt || row.available_at || "" },
+          createdAt: now,
+        }));
+      }
+    }
+    return { ok: true, items, events, activatedCount: items.length, source: { name: "action_inbox", storage: "sqlite" } };
+  }
+
   return {
+    activateDueItems,
     completeItem,
     createManualItem,
     dismissItem,

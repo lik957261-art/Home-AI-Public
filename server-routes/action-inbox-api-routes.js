@@ -34,6 +34,51 @@ const ACTION_INBOX_API_ROUTE_SPECS = Object.freeze([
     tags: ["action-inbox", "create"],
   },
   {
+    id: "action-inbox-todo-draft-validate",
+    method: "POST",
+    path: "/api/action-inbox/todo-drafts/validate",
+    group: "action-inbox",
+    moduleKey: "action-inbox",
+    handlerKey: "validateTodoDraft",
+    summary: "Validate a model-produced structured Todo draft without creating it.",
+    riskLevel: "low",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["action-inbox", "todo"],
+    tags: ["action-inbox", "todo", "draft"],
+  },
+  {
+    id: "action-inbox-todo-create",
+    method: "POST",
+    path: "/api/action-inbox/todos",
+    group: "action-inbox",
+    moduleKey: "action-inbox",
+    handlerKey: "createTodo",
+    summary: "Create a host-owned Action Inbox Todo or one-shot reminder.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["action-inbox", "todo", "web-push"],
+    tags: ["action-inbox", "todo", "create"],
+  },
+  {
+    id: "action-inbox-todo-tick",
+    method: "POST",
+    path: "/api/action-inbox/todos/tick",
+    group: "action-inbox",
+    moduleKey: "action-inbox",
+    handlerKey: "activateDueTodos",
+    summary: "Activate due one-shot Action Inbox Todo reminders.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: false,
+    resourceTypes: ["action-inbox", "todo", "web-push"],
+    tags: ["action-inbox", "todo", "tick", "owner"],
+  },
+  {
     id: "action-inbox-detail",
     method: "GET",
     pathRegex: /^\/api\/action-inbox\/[^/]+$/,
@@ -125,6 +170,9 @@ function createActionInboxApiRoutes(deps = {}) {
   if (!deps.actionInboxService || typeof deps.actionInboxService.listItems !== "function") {
     throw new Error("action inbox api routes require actionInboxService");
   }
+  if (deps.actionInboxTodoService && typeof deps.actionInboxTodoService.createTodo !== "function") {
+    throw new Error("action inbox api routes require actionInboxTodoService.createTodo");
+  }
   if (deps.financeLedgerJoinApprovalService && typeof deps.financeLedgerJoinApprovalService.reviewRequest !== "function") {
     throw new Error("action inbox api routes require financeLedgerJoinApprovalService.reviewRequest");
   }
@@ -163,6 +211,65 @@ function createActionInboxApiRoutes(deps = {}) {
     }
   }
 
+  async function handleTodoDraftValidate(req, res, context = {}) {
+    if (!deps.actionInboxTodoService || typeof deps.actionInboxTodoService.validateDraft !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "action_inbox_todo_service_unavailable" });
+      return;
+    }
+    const body = await deps.readBody(req).catch(() => ({}));
+    const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || body.creatorWorkspaceId || "owner");
+    if (!workspaceId) return;
+    const result = deps.actionInboxTodoService.validateDraft(Object.assign({}, body, {
+      workspaceId,
+      creatorWorkspaceId: body.creatorWorkspaceId || workspaceId,
+      auth: context.auth,
+    }));
+    responseFromResult(deps, res, result);
+  }
+
+  async function handleTodoCreate(req, res, context = {}) {
+    if (!deps.actionInboxTodoService || typeof deps.actionInboxTodoService.createTodo !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "action_inbox_todo_service_unavailable" });
+      return;
+    }
+    const body = await deps.readBody(req).catch(() => ({}));
+    const creatorWorkspaceId = deps.requireWorkspaceAccess(req, res, body.creatorWorkspaceId || body.workspaceId || "owner");
+    if (!creatorWorkspaceId) return;
+    const assigneeWorkspaceId = deps.requireWorkspaceAccess(req, res, body.assigneeWorkspaceId || body.assignee_workspace_id || creatorWorkspaceId);
+    if (!assigneeWorkspaceId) return;
+    const result = await deps.actionInboxTodoService.createTodo(Object.assign({}, body, {
+      creatorWorkspaceId,
+      assigneeWorkspaceId,
+      workspaceId: creatorWorkspaceId,
+      actorPrincipalId: context.auth?.principalId || "",
+      auth: context.auth,
+    }));
+    if (responseFromResult(deps, res, result, 201) && typeof deps.broadcast === "function") {
+      deps.broadcast({ type: "actionInbox.updated", workspaceId: assigneeWorkspaceId, itemId: result.item?.id || "", action: "todo-create" });
+      if (creatorWorkspaceId !== assigneeWorkspaceId) deps.broadcast({ type: "actionInbox.updated", workspaceId: creatorWorkspaceId, itemId: result.item?.id || "", action: "todo-assigned" });
+    }
+  }
+
+  async function handleTodoTick(req, res, context = {}) {
+    if (!deps.requireOwner || !deps.requireOwner(req, res)) return;
+    if (!deps.actionInboxTodoService || typeof deps.actionInboxTodoService.activateDueReminders !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "action_inbox_todo_service_unavailable" });
+      return;
+    }
+    const body = await deps.readBody(req).catch(() => ({}));
+    const result = await deps.actionInboxTodoService.activateDueReminders({
+      now: body.now || "",
+      limit: body.limit || 100,
+      actorWorkspaceId: context.auth?.workspaceId || context.auth?.principalId || "owner",
+      actorPrincipalId: context.auth?.principalId || "owner",
+    });
+    if (responseFromResult(deps, res, result) && typeof deps.broadcast === "function") {
+      for (const item of result.items || []) {
+        deps.broadcast({ type: "actionInbox.updated", workspaceId: item.workspaceId || item.assigneeWorkspaceId || "owner", itemId: item.id, action: "todo-reminder-due" });
+      }
+    }
+  }
+
   async function handleDetail(req, res, url) {
     const parsed = itemIdFromPath(url.pathname);
     if (!parsed?.itemId) return false;
@@ -194,7 +301,9 @@ function createActionInboxApiRoutes(deps = {}) {
       auth: context.auth,
     });
     let result = null;
-    if (parsed.action === "complete") result = deps.actionInboxService.completeItem(input);
+    if (parsed.action === "complete" && current.item.itemType === "todo" && deps.actionInboxTodoService?.completeTodoItem) {
+      result = await deps.actionInboxTodoService.completeTodoItem(input);
+    } else if (parsed.action === "complete") result = deps.actionInboxService.completeItem(input);
     else if (parsed.action === "dismiss") result = deps.actionInboxService.dismissItem(input);
     else if (parsed.action === "snooze") result = deps.actionInboxService.snoozeItem(input);
     else return false;
@@ -251,6 +360,9 @@ function createActionInboxApiRoutes(deps = {}) {
 
     if (route.id === "action-inbox-list") await handleList(req, res, url);
     else if (route.id === "action-inbox-create") await handleCreate(req, res, context);
+    else if (route.id === "action-inbox-todo-draft-validate") await handleTodoDraftValidate(req, res, context);
+    else if (route.id === "action-inbox-todo-create") await handleTodoCreate(req, res, context);
+    else if (route.id === "action-inbox-todo-tick") await handleTodoTick(req, res, context);
     else if (route.id === "action-inbox-detail") await handleDetail(req, res, url);
     else if (route.id === "action-inbox-action") await handleAction(req, res, url, context);
     else if (route.id === "action-inbox-finance-ledger-join-review") await handleFinanceLedgerJoinReview(req, res, url, context);
