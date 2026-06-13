@@ -948,10 +948,16 @@ only after all of these preflight checks pass:
   rendered profile capabilities so `toolsets`, `mcpServers`, and `configPath`
   match the actual `config.yaml`; otherwise a selected worker may omit the
   plugin toolset even though the profile file contains `mcp_servers.<plugin>`.
-  The central macOS deploy script runs the `codex-auth-profile-audit` gate after
-  plugin deploys because MCP/profile refresh work can otherwise leave an
-  `openai-codex` profile with root-owned regular auth files instead of the
-  shared-auth symlinks required by Gateway runs.
+The central macOS deploy script runs the `codex-auth-profile-audit` gate after
+plugin deploys because MCP/profile refresh work can otherwise leave an
+`openai-codex` profile with root-owned regular auth files instead of the
+shared-auth symlinks required by Gateway runs.
+Before that audit, the deploy script repairs bounded shared-auth permissions on
+`gateway-worker/telemetry/profiles/shared-auth`: it grants the active
+`openai-codex` worker users read/write ACLs on `auth.json` and `auth.lock`
+without reading or printing credential contents. A profile audit failure with
+`codex_auth_json_unreadable` or `codex_auth_lock_unreadable` after this repair
+is a real production blocker.
 - NAS Gateway workers must start with the Hermes Mobile runtime overlay on
   `PYTHONPATH`, ahead of the NAS Hermes Agent runtime, and set
   `HERMES_MOBILE_OFFICIAL_CLEAN_PATH` to that runtime. Otherwise profile YAML

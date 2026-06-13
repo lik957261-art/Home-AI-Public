@@ -1030,6 +1030,48 @@ function installHomeAiCronBuiltinSkills(plan, password) {
   };
 }
 
+function repairCodexSharedAuthPermissions(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const manifestPath = posixJoin(plan.macRoot, "data", "gateway-pool-manifest-mac.json");
+  const sharedAuthRoot = posixJoin(plan.macRoot, "gateway-worker", "telemetry", "profiles", "shared-auth");
+  const script = `
+set -e
+manifest=${shQuote(manifestPath)}
+shared=${shQuote(sharedAuthRoot)}
+if [ ! -f "$manifest" ] || [ ! -d "$shared" ]; then
+  printf '{"ok":true,"skipped":true,"reason":"manifest_or_shared_auth_missing","userCount":0}\\n'
+  exit 0
+fi
+users=$(${shQuote(posixJoin(plan.macRoot, PINNED_NODE))} -e 'const fs=require("fs"); const manifest=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); const users=[...new Set((manifest.workers||[]).filter((w)=>String(w.provider||"openai-codex").trim()==="openai-codex").map((w)=>String(w.osUser||"").trim()).filter(Boolean))]; process.stdout.write(users.join("\\n"));' "$manifest")
+for f in "$shared/auth.json" "$shared/auth.lock"; do
+  [ -e "$f" ] || continue
+  /usr/sbin/chgrp hermes-workers "$f" 2>/dev/null || true
+  /bin/chmod 660 "$f" 2>/dev/null || true
+done
+/usr/sbin/chgrp hermes-workers "$shared" 2>/dev/null || true
+/bin/chmod 770 "$shared" 2>/dev/null || true
+count=0
+while IFS= read -r user; do
+  [ -n "$user" ] || continue
+  count=$((count + 1))
+  /bin/chmod +a "user:$user allow list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" "$shared" 2>/dev/null || true
+  for f in "$shared/auth.json" "$shared/auth.lock"; do
+    [ -e "$f" ] || continue
+    /bin/chmod +a "user:$user allow read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity" "$f" 2>/dev/null || true
+  done
+done <<USERS
+$users
+USERS
+printf '{"ok":true,"skipped":false,"userCount":%s}\\n' "$count"
+`;
+  const result = runSudo("/bin/bash", ["-lc", script], password);
+  return {
+    type: "home-ai-codex-shared-auth-permissions-repair",
+    status: result.status,
+    stdout: String(result.stdout || "").slice(0, 400),
+  };
+}
+
 function installHomeAiCronLaunchd(plan, password) {
   if (plan.target !== "home-ai") return null;
   const paths = homeAiCronPaths(plan.macRoot);
@@ -1242,6 +1284,7 @@ function executePlan(plan, options) {
   const listenerVoiceInputEnv = installHomeAiListenerVoiceInputEnv(plan, password);
   const cronProfileAliases = installHomeAiCronProfileAliases(plan, password);
   const cronBuiltinSkills = installHomeAiCronBuiltinSkills(plan, password);
+  const codexSharedAuthRepair = repairCodexSharedAuthPermissions(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
 
   for (const label of plan.restartLabels) {
@@ -1255,6 +1298,7 @@ function executePlan(plan, options) {
   if (listenerVoiceInputEnv) validations.push(Object.assign({ status: 0 }, listenerVoiceInputEnv));
   if (cronProfileAliases) validations.push(Object.assign({ status: 0 }, cronProfileAliases));
   if (cronBuiltinSkills) validations.push(Object.assign({ status: 0 }, cronBuiltinSkills));
+  if (codexSharedAuthRepair) validations.push(codexSharedAuthRepair);
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
   for (const check of plan.validation) {
     if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));
