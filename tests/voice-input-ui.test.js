@@ -215,6 +215,7 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(voiceUi, /function suppressVoiceInputClickEvent\(event\)/);
   assert.match(voiceUi, /stopImmediatePropagation\?\.\(\)/);
   assert.match(styles, /\.voice-input-overlay/);
+  assert.match(styles, /\.voice-input-overlay \{[\s\S]*?bottom: calc\(var\(--mobile-bottom-stack-height, 72px\) \+ 58px\);[\s\S]*?width: 34px;[\s\S]*?height: 34px;/);
   assert.match(styles, /\.voice-input-transcript/);
   assert.match(styles, /\.voice-input-mic-indicator/);
   assert.match(styles, /-webkit-mask: url\("data:image\/svg\+xml/);

@@ -16740,12 +16740,12 @@ body.voice-input-press-active .voice-input-overlay button {
 .voice-input-overlay {
   position: fixed;
   left: max(16px, env(safe-area-inset-left));
-  bottom: calc(var(--mobile-bottom-stack-height, 72px) + 12px);
+  bottom: calc(var(--mobile-bottom-stack-height, 72px) + 58px);
   z-index: 130;
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   color: var(--ink);
   background: var(--ui-menu-bg);
