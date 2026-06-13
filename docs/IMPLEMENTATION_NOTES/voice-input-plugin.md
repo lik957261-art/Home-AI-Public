@@ -156,16 +156,15 @@ Design posture:
   animation or marketing-style voice panel.
 
 The active voice state should not render a bottom text panel over the composer.
-On the main Home AI composer, the host should replace the file-attachment plus
-button with a microphone indicator for the duration of the voice capture,
-transcription, and insertion flow; while that indicator is active, the
-attachment menu must not open from that button. The microphone should use a
-system-like SVG/mask icon rather than a hand-drawn CSS shape, and the recording
-state should make the microphone itself red. Surfaces without the attachment
-button may use a small fallback microphone-only indicator. Any fallback overlay
-must never depend on plugin iframe layout for placement. It must respect safe
-areas, the measured Home AI bottom stack, active keyboard metrics, and plugin
-fullscreen preview state.
+The file-attachment plus button must remain the attachment entry and must not be
+rewritten into a microphone indicator, because that can block normal text and
+attachment flows when a voice state is interrupted. Active recording,
+transcription, and insertion should instead use a small host-owned microphone
+indicator. The microphone should use a system-like SVG/mask icon rather than a
+hand-drawn CSS shape, and the recording state should make the microphone itself
+red. The fallback overlay must never depend on plugin iframe layout for
+placement. It must respect safe areas, the measured Home AI bottom stack,
+active keyboard metrics, and plugin fullscreen preview state.
 
 Microphone permission timing:
 

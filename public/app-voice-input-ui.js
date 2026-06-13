@@ -636,33 +636,15 @@ function voiceInputRestoreAttachMicIndicator() {
 }
 
 function voiceInputRenderAttachMicIndicator(voice = ensureVoiceInputState()) {
-  const attach = $("attachFile");
-  if (!attach || attach.hidden) return false;
-  if (!voiceInputRecordingVisible(voice)) {
-    voiceInputRestoreAttachMicIndicator();
-    return true;
-  }
-  if (!attach.classList.contains("voice-input-attach-indicator")) {
-    attach.dataset.voiceInputPreviousHtml = attach.innerHTML || "+";
-    attach.dataset.voiceInputPreviousAria = attach.getAttribute("aria-label") || "添加文件";
-    attach.dataset.voiceInputPreviousTitle = attach.getAttribute("title") || attach.dataset.voiceInputPreviousAria;
-    attach.dataset.voiceInputPreviousDisabled = attach.disabled ? "true" : "false";
-  }
-  attach.disabled = false;
-  attach.classList.add("voice-input-attach-indicator");
-  attach.classList.toggle("voice-input-attach-recording", voice.status === "recording");
-  attach.classList.toggle("voice-input-attach-error", voice.status === "failed");
-  attach.setAttribute("aria-label", voiceInputStatusLabel(voice.status));
-  attach.setAttribute("title", voiceInputStatusLabel(voice.status));
-  attach.innerHTML = `<span class="voice-input-mic-indicator" aria-hidden="true"></span>`;
-  return true;
+  voiceInputRestoreAttachMicIndicator();
+  return false;
 }
 
 function renderVoiceInputOverlay() {
   const voice = ensureVoiceInputState();
   const overlay = ensureVoiceInputOverlay();
-  const attachHasIndicator = voiceInputRenderAttachMicIndicator(voice);
-  overlay.hidden = !voiceInputRecordingVisible(voice) || attachHasIndicator;
+  voiceInputRenderAttachMicIndicator(voice);
+  overlay.hidden = !voiceInputRecordingVisible(voice);
   overlay.classList.toggle("voice-input-overlay-active", !overlay.hidden);
   overlay.classList.toggle("voice-input-overlay-busy", ["checking", "requesting", "preparing", "recording", "finalizing", "transcribing", "inserting"].includes(voice.status));
   overlay.classList.toggle("voice-input-overlay-recording", voice.status === "recording");
