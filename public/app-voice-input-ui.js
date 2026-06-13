@@ -204,6 +204,11 @@ function voiceInputNativeComposerAvailable(composer = voiceInputMainComposerDefi
   return true;
 }
 
+function voiceInputFreshNativeComposer(composer) {
+  if (!composer || composer.kind !== "main" || composer.id !== "home-ai-native") return composer;
+  return voiceInputMainComposerDefinition();
+}
+
 function voiceInputRequestScope() {
   const voice = ensureVoiceInputState();
   if (voice.target?.kind === "embedded-plugin") {
@@ -911,7 +916,7 @@ async function insertVoiceInputTranscript(mode = "append") {
     setTimeout(closeVoiceInputOverlay, 650);
     return;
   }
-  const composer = voice.target?.composer || voiceInputMainComposerDefinition();
+  const composer = voiceInputFreshNativeComposer(voice.target?.composer) || voiceInputMainComposerDefinition();
   if (!voiceInputNativeComposerAvailable(composer)) {
     setVoiceInputStatus("failed", { error: "当前输入框不可写" });
     return;

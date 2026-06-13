@@ -20,9 +20,9 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-mic-hold-v745[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-mic-hold-v745[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-mic-hold-v745[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-mic-hold-v745/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-mic-hold-v745/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-mic-hold-v745/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-composer-refresh-v746[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-composer-refresh-v746[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-composer-refresh-v746[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-composer-refresh-v746/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-composer-refresh-v746/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-composer-refresh-v746/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -85,6 +85,8 @@ function testNativeDraftInsertionAndPrivacyBoundary() {
   assert.match(voiceUi, /function insertVoiceInputTranscript\(mode = "append"\)/);
   assert.match(voiceUi, /await insertVoiceInputTranscript\("append"\)/);
   assert.match(voiceUi, /function voiceInputComposerForButton\(button\)/);
+  assert.match(voiceUi, /function voiceInputFreshNativeComposer\(composer\)/);
+  assert.match(voiceUi, /const composer = voiceInputFreshNativeComposer\(voice\.target\?\.composer\) \|\| voiceInputMainComposerDefinition\(\)/);
   assert.match(voiceUi, /composer\.setText\?\.\(next\)/);
   assert.match(voiceUi, /composer\.setCaret\?\.\(caret\)/);
   assert.match(voiceUi, /function trackPendingVoiceInputCommit\(finalText\)/);
