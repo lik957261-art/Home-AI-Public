@@ -89,10 +89,11 @@ def normalize_result(result, elapsed_ms):
 
 @app.get("/health")
 def health():
+    package_available = AutoModel is not None
     return {
-        "status": "ok",
+        "status": "ok" if package_available else "degraded",
         "service": SERVICE_ID,
-        "package_available": AutoModel is not None,
+        "package_available": package_available,
         "model_loaded": _model is not None,
         "last_model_error": _model_error,
         "model": DEFAULT_MODEL,
