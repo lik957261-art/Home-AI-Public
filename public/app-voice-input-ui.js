@@ -193,16 +193,33 @@ function voiceInputHostComposerButtons() {
 }
 
 function voiceInputNativeComposerAvailable(composer = voiceInputMainComposerDefinition(), options = {}) {
+  return voiceInputNativeComposerUnavailableReason(composer, options) === "";
+}
+
+function voiceInputNativeComposerUnavailableReason(composer = voiceInputMainComposerDefinition(), options = {}) {
   const allowStopMode = Boolean(options.allowStopMode);
-  if (!composer?.container || !composer?.input || !composer?.button) return false;
-  if (!voiceInputElementVisible(composer.container)) return false;
-  if (composer.button.disabled && composer.kind !== "main") return false;
-  if (composer.kind === "main" && composer.button.disabled && !isComposerStopMode()) return false;
-  if (composer.input.disabled || composer.input.readOnly) return false;
-  if (composer.kind === "main" && isChatSearchMode()) return false;
-  if (composer.kind === "main" && isComposerStopMode() && !allowStopMode) return false;
-  if (document.body?.classList?.contains("embedded-plugin-preview-fullscreen-active")) return false;
-  return true;
+  if (!composer?.container || !composer?.input || !composer?.button) return "composer_missing";
+  if (!voiceInputElementVisible(composer.container)) return "composer_hidden";
+  if (composer.button.disabled && composer.kind !== "main") return "button_disabled";
+  if (composer.kind === "main" && composer.button.disabled && !isComposerStopMode()) return "main_button_disabled";
+  if (composer.input.disabled) return "input_disabled";
+  if (composer.input.readOnly) return "input_readonly";
+  if (composer.kind === "main" && isChatSearchMode()) return "chat_search_mode";
+  if (composer.kind === "main" && isComposerStopMode() && !allowStopMode) return "stop_mode_requires_voice_hold";
+  if (document.body?.classList?.contains("embedded-plugin-preview-fullscreen-active")) return "fullscreen_preview";
+  return "";
+}
+
+function voiceInputComposerUnavailableMessage(reason) {
+  if (reason === "composer_hidden") return "当前输入框不可写：输入框未显示";
+  if (reason === "button_disabled" || reason === "main_button_disabled") return "当前输入框不可写：发送按钮暂不可用";
+  if (reason === "input_disabled") return "当前输入框不可写：输入框暂不可用";
+  if (reason === "input_readonly") return "当前输入框不可写：输入框只读";
+  if (reason === "chat_search_mode") return "当前输入框不可写：搜索模式不支持语音输入";
+  if (reason === "stop_mode_requires_voice_hold") return "当前输入框不可写：当前是 Stop 状态，请长按 Stop 按钮录音";
+  if (reason === "fullscreen_preview") return "当前输入框不可写：全屏预览中";
+  if (reason === "composer_missing") return "当前输入框不可写：没有找到当前输入框";
+  return "当前输入框不可写";
 }
 
 function voiceInputFreshNativeComposer(composer) {
@@ -732,7 +749,12 @@ async function startVoiceInputRecording(event, options = {}) {
       allowStopMode: Boolean(target.allowStopMode),
     });
   if (!targetAvailable) {
-    setVoiceInputStatus("failed", { error: "当前输入框不可写" });
+    const reason = target.kind === "native"
+      ? voiceInputNativeComposerUnavailableReason(target.composer || voiceInputMainComposerDefinition(), {
+        allowStopMode: Boolean(target.allowStopMode),
+      })
+      : "";
+    setVoiceInputStatus("failed", { error: voiceInputComposerUnavailableMessage(reason) });
     return;
   }
   voice.target = target;
@@ -966,8 +988,9 @@ async function insertVoiceInputTranscript(mode = "append") {
     return;
   }
   const composer = voiceInputFreshNativeComposer(voice.target?.composer) || voiceInputMainComposerDefinition();
-  if (!voiceInputNativeComposerAvailable(composer, { allowStopMode: Boolean(voice.target?.allowStopMode) })) {
-    setVoiceInputStatus("failed", { error: "当前输入框不可写" });
+  const unavailableReason = voiceInputNativeComposerUnavailableReason(composer, { allowStopMode: Boolean(voice.target?.allowStopMode) });
+  if (unavailableReason) {
+    setVoiceInputStatus("failed", { error: voiceInputComposerUnavailableMessage(unavailableReason) });
     return;
   }
   const next = voiceInputInsertedTextForComposer(composer, mode, text);

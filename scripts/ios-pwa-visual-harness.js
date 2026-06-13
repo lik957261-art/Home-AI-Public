@@ -107,7 +107,7 @@ function printHelp() {
     "Options:",
     "  --debug-url <url>      Live debug server URL. Default: http://127.0.0.1:19073/",
     "  --app-url <url>        Optional app URL to open through the live debug server before the scenario.",
-    "  --scenario <name>      directory-dark-status, dark-admin-surfaces, dark-growth-surfaces, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, global-plugin-dock-gesture-stability, or plugin-drawer-action-gestures.",
+    "  --scenario <name>      directory-dark-status, dark-admin-surfaces, dark-growth-surfaces, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, global-plugin-dock-gesture-stability, plugin-drawer-action-gestures, or voice-stop-hold-gesture.",
     "  --plugin-id <id>       Required by embedded plugin scenarios.",
     "  --plugin-action-id <id> Optional action id for plugin-drawer-action-gestures. Defaults to finance:record.",
     "  --plugin-thread-id <id> Optional thread id for embedded plugin keyboard scenarios.",
@@ -1890,6 +1890,23 @@ function assertion(name, pass, details = {}) {
   return { name, pass: Boolean(pass), details };
 }
 
+function assertVoiceStopHoldGesture(metrics = {}) {
+  const harness = metrics.harness || {};
+  const voice = metrics.voice || {};
+  const assertions = [
+    assertion("voice_stop_button_exists", Boolean(metrics.button?.exists), { button: metrics.button || null }),
+    assertion("voice_stop_button_uses_icon_proxy", metrics.button?.text === "" && metrics.button?.visual === "" && /voice-input-stop-proxy/.test(metrics.button?.className || ""), {
+      button: metrics.button || null,
+    }),
+    assertion("voice_stop_hold_started_recording", Number(harness.recordingCalls || 0) >= 1, { harness }),
+    assertion("voice_stop_hold_stopped_recording", Number(harness.stopCalls || 0) >= 1, { harness }),
+    assertion("voice_stop_hold_did_not_interrupt_turn", Number(harness.interrupted || 0) === 0 && Number(harness.sendCalls || 0) === 0, { harness }),
+    assertion("voice_stop_hold_no_text_selection", !String(metrics.selection || "").trim(), { selection: metrics.selection || "" }),
+    assertion("voice_stop_hold_cleared_press_state", voice.stopButtonPressActive !== true && voice.stopButtonLongPressTriggered !== true, { voice }),
+  ];
+  return { ok: assertions.every((item) => item.pass), assertions };
+}
+
 function assertDirectoryDarkStatus(metrics = {}) {
   const assertions = [
     assertion("theme_is_dark", metrics.theme === "dark" || /data-theme.?=.?dark|theme.?dark/i.test(metrics.appClass || ""), { theme: metrics.theme, appClass: metrics.appClass }),
@@ -2283,6 +2300,152 @@ function assertCommonHarness(report = {}, options = {}) {
   return assertions;
 }
 
+const VOICE_STOP_HOLD_GESTURE_PREPARE_SCRIPT = `
+  const rectOf = (node) => {
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return {
+      top: Math.round(r.top),
+      right: Math.round(r.right),
+      bottom: Math.round(r.bottom),
+      left: Math.round(r.left),
+      width: Math.round(r.width),
+      height: Math.round(r.height),
+      x: Math.round(r.left + r.width / 2),
+      y: Math.round(r.top + r.height / 2),
+    };
+  };
+  const appState = typeof state !== "undefined" && state && typeof state === "object"
+    ? state
+    : (window.state && typeof window.state === "object" ? window.state : null);
+  if (!appState) return { ok: false, scenario: "voice-stop-hold-gesture", error: "state_missing" };
+  window.__voiceStopHarness = {
+    recordingCalls: 0,
+    stopCalls: 0,
+    interrupted: 0,
+    sendCalls: 0,
+    setupAt: Date.now(),
+  };
+  try {
+    window.activeComposerRunIds = function activeComposerRunIdsHarness() { return ["voice-stop-harness-run"]; };
+    activeComposerRunIds = window.activeComposerRunIds;
+  } catch (_) {}
+  try {
+    window.interruptRun = async function interruptRunHarness() {
+      window.__voiceStopHarness.interrupted += 1;
+    };
+    interruptRun = window.interruptRun;
+  } catch (_) {}
+  try {
+    window.sendMessage = async function sendMessageHarness(event) {
+      event?.preventDefault?.();
+      window.__voiceStopHarness.sendCalls += 1;
+      if (typeof isComposerStopMode === "function" && isComposerStopMode()) await window.interruptRun();
+    };
+    sendMessage = window.sendMessage;
+  } catch (_) {}
+  try {
+    window.startVoiceInputRecording = async function startVoiceInputRecordingHarness(event, options) {
+      event?.preventDefault?.();
+      window.__voiceStopHarness.recordingCalls += 1;
+      const voice = appState.voiceInput || (appState.voiceInput = {});
+      voice.status = "recording";
+      voice.target = options?.target || null;
+      voice.recordingStartedAt = Date.now();
+      if (typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
+    };
+    startVoiceInputRecording = window.startVoiceInputRecording;
+  } catch (_) {}
+  try {
+    window.stopVoiceInputRecording = function stopVoiceInputRecordingHarness() {
+      window.__voiceStopHarness.stopCalls += 1;
+      const voice = appState.voiceInput || (appState.voiceInput = {});
+      voice.status = "idle";
+      if (typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
+    };
+    stopVoiceInputRecording = window.stopVoiceInputRecording;
+  } catch (_) {}
+  appState.viewMode = "single";
+  appState.currentThreadId = appState.currentThreadId || "voice-stop-harness-thread";
+  appState.currentThread = appState.currentThread || { id: appState.currentThreadId, activeRunIds: ["voice-stop-harness-run"], messages: [] };
+  appState.currentThread.activeRunIds = ["voice-stop-harness-run"];
+  const composer = document.getElementById("composer");
+  const input = document.getElementById("messageInput");
+  const button = document.getElementById("sendMessage");
+  if (!composer || !input || !button) return { ok: false, scenario: "voice-stop-hold-gesture", error: "composer_missing" };
+  composer.hidden = false;
+  composer.removeAttribute("hidden");
+  Object.assign(composer.style, {
+    position: "fixed",
+    left: "20px",
+    right: "20px",
+    top: "260px",
+    bottom: "auto",
+    zIndex: "2147483640",
+    display: "grid",
+    opacity: "1",
+    pointerEvents: "auto",
+    transform: "none",
+  });
+  input.disabled = false;
+  input.readOnly = false;
+  input.value = "";
+  button.disabled = false;
+  button.classList.add("stop-mode", "voice-input-gesture");
+  if (typeof updateComposerAction === "function") updateComposerAction();
+  if (typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
+  const rect = rectOf(button);
+  return {
+    ok: Boolean(rect && rect.width > 20 && rect.height > 20),
+    scenario: "voice-stop-hold-gesture",
+    button: {
+      exists: Boolean(button),
+      rect,
+      text: button.textContent || "",
+      visual: button.dataset.voiceInputVisualLabel || "",
+      className: button.className || "",
+      ariaLabel: button.getAttribute("aria-label") || "",
+    },
+    tap: rect ? { x: rect.x, y: rect.y, absoluteX: rect.x, absoluteY: rect.y } : null,
+  };
+`;
+
+const VOICE_STOP_HOLD_GESTURE_MEASURE_SCRIPT = `
+  const button = document.getElementById("sendMessage");
+  const voice = (typeof state !== "undefined" && state && state.voiceInput) ? state.voiceInput : {};
+  const rect = button?.getBoundingClientRect?.();
+  return {
+    ok: true,
+    scenario: "voice-stop-hold-gesture",
+    clientVersion: document.documentElement?.dataset?.clientVersion || "",
+    harness: window.__voiceStopHarness || {},
+    selection: String(window.getSelection ? window.getSelection() : ""),
+    button: {
+      exists: Boolean(button),
+      rect: rect ? {
+        top: Math.round(rect.top),
+        right: Math.round(rect.right),
+        bottom: Math.round(rect.bottom),
+        left: Math.round(rect.left),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        x: Math.round(rect.left + rect.width / 2),
+        y: Math.round(rect.top + rect.height / 2),
+      } : null,
+      text: button?.textContent || "",
+      visual: button?.dataset?.voiceInputVisualLabel || "",
+      className: button?.className || "",
+      ariaLabel: button?.getAttribute?.("aria-label") || "",
+    },
+    voice: {
+      status: voice.status || "",
+      stopButtonPressActive: Boolean(voice.stopButtonPressActive),
+      stopButtonLongPressTriggered: Boolean(voice.stopButtonLongPressTriggered),
+      suppressNextClick: Boolean(voice.suppressNextClick),
+    },
+  };
+`;
+
 const SCENARIOS = Object.freeze({
   "directory-dark-status": Object.freeze({
     description: "Render Directory loading/status in dark mode and assert it uses --ui-surface-muted.",
@@ -2340,6 +2503,15 @@ const SCENARIOS = Object.freeze({
     measureArgs: () => [],
     nativeRun: runPluginDrawerActionGestureSequence,
     assert: assertPluginDrawerActionGestures,
+  }),
+  "voice-stop-hold-gesture": Object.freeze({
+    description: "Use a native iOS long press on the Stop-mode send button and assert it records voice without interrupting the active turn or selecting text.",
+    prepareScript: VOICE_STOP_HOLD_GESTURE_PREPARE_SCRIPT,
+    prepareArgs: () => [],
+    measureScript: null,
+    measureArgs: () => [],
+    nativeRun: runVoiceStopHoldGestureSequence,
+    assert: assertVoiceStopHoldGesture,
   }),
   "embedded-plugin-keyboard-composer": Object.freeze({
     description: "Open an embedded plugin thread, tap its composer, and assert the input stays above the iOS keyboard.",
@@ -2549,6 +2721,49 @@ async function runPluginDrawerActionGestureSequence(options = {}, report = {}) {
       samples,
       nativeSteps,
     }),
+  };
+}
+
+async function runVoiceStopHoldGestureSequence(options = {}, report = {}) {
+  const prepared = report.prepare || {};
+  const nativeSteps = [];
+  const tap = prepared.tap || prepared.button?.rect;
+  const failMetrics = Object.assign({}, prepared, {
+    ok: false,
+    scenario: "voice-stop-hold-gesture",
+    nativeSteps,
+  });
+  if (!prepared.ok || !tap) return { ok: false, nativeSteps, metrics: failMetrics };
+  const rememberStep = async (label, body) => {
+    const value = await postAction(options, Object.assign({ label }, body));
+    nativeSteps.push({ label, type: body.type, value });
+    return value;
+  };
+  await rememberStep("calibrate-web-native-coordinates", {
+    type: "calibrateCoordinates",
+    force: true,
+  });
+  await rememberStep("native-long-press-stop-send-button", {
+    type: "longPress",
+    coordinateSpace: "web",
+    x: tap.x,
+    y: tap.y,
+    absoluteX: tap.absoluteX || tap.x,
+    absoluteY: tap.absoluteY || tap.y,
+    holdMs: 1300,
+    durationMs: 1300,
+  });
+  await sleep(Math.max(550, Number(options.waitMs || 0) || 900));
+  const metrics = await postAction(options, {
+    type: "js",
+    label: "measure-voice-stop-hold",
+    script: VOICE_STOP_HOLD_GESTURE_MEASURE_SCRIPT,
+    args: [],
+  });
+  return {
+    ok: true,
+    nativeSteps,
+    metrics: Object.assign({}, metrics, { nativeSteps }),
   };
 }
 
@@ -2783,6 +2998,7 @@ module.exports = {
   assertGlobalPluginDockGestureStability,
   assertPluginDrawerActionGestures,
   assertPluginTopicDockReturnStability,
+  assertVoiceStopHoldGesture,
   defaultLockPath,
   parseArgs,
   runHarness,

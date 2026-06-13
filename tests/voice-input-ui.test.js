@@ -18,11 +18,14 @@ const wireStart = read("public/app-wire-start-ui.js");
 const composerUi = read("public/app-chat-composer-ui.js");
 const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
+const clientVersion = indexHtml.match(/data-client-version="([^"]+)"/)?.[1] || "";
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-stop-icon-v754[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-stop-icon-v754[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-stop-icon-v754[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-stop-icon-v754/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-stop-icon-v754/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-stop-icon-v754/);
+  assert.ok(clientVersion, "index.html should expose data-client-version");
+  const escaped = clientVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  assert.match(indexHtml, new RegExp(`app-composer-send-ui\\.js\\?v=${escaped}[\\s\\S]*app-voice-input-ui\\.js\\?v=${escaped}[\\s\\S]*app-voice-learning-ui\\.js\\?v=${escaped}[\\s\\S]*app-wire-start-ui\\.js\\?v=${escaped}`));
+  assert.match(serviceWorker, new RegExp(`/app-voice-input-ui\\.js\\?v=${escaped}`));
+  assert.match(serviceWorker, new RegExp(`/app-voice-learning-ui\\.js\\?v=${escaped}`));
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -55,6 +58,11 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /function voiceInputSetButtonVisualLabel\(button, label\)/);
   assert.match(voiceUi, /button\.classList\.toggle\("voice-input-stop-proxy", normalized === "Stop"\)/);
   assert.match(voiceUi, /button\.dataset\.voiceInputVisualLabel = normalized === "Stop" \? "" : normalized/);
+  assert.match(composerUi, /function setComposerActionButtonVisualLabel\(button, label\)/);
+  assert.match(composerUi, /voiceInputSetButtonVisualLabel\(button, label\)/);
+  assert.match(composerUi, /button\.classList\.add\("voice-input-label-proxy", "voice-input-stop-proxy"\)/);
+  assert.match(composerUi, /button\.textContent = ""/);
+  assert.doesNotMatch(composerUi, /button\.textContent = stopMode \? "Stop" : "Send"/);
   assert.match(voiceUi, /button\.classList\.add\("voice-input-label-proxy"\)/);
   assert.match(voiceUi, /button\.textContent = ""/);
   assert.match(voiceUi, /button\?\.id === "sendMessage" && isComposerStopMode\(\)/);
@@ -109,8 +117,13 @@ function testNativeDraftInsertionAndPrivacyBoundary() {
   assert.match(voiceUi, /await insertVoiceInputTranscript\("append"\)/);
   assert.match(voiceUi, /function voiceInputComposerForButton\(button\)/);
   assert.match(voiceUi, /function voiceInputFreshNativeComposer\(composer\)/);
+  assert.match(voiceUi, /function voiceInputNativeComposerUnavailableReason\(composer = voiceInputMainComposerDefinition\(\), options = \{\}\)/);
+  assert.match(voiceUi, /return "stop_mode_requires_voice_hold"/);
+  assert.match(voiceUi, /function voiceInputComposerUnavailableMessage\(reason\)/);
+  assert.match(voiceUi, /当前输入框不可写：当前是 Stop 状态，请长按 Stop 按钮录音/);
   assert.match(voiceUi, /const composer = voiceInputFreshNativeComposer\(voice\.target\?\.composer\) \|\| voiceInputMainComposerDefinition\(\)/);
-  assert.match(voiceUi, /voiceInputNativeComposerAvailable\(composer, \{ allowStopMode: Boolean\(voice\.target\?\.allowStopMode\) \}\)/);
+  assert.match(voiceUi, /const unavailableReason = voiceInputNativeComposerUnavailableReason\(composer, \{ allowStopMode: Boolean\(voice\.target\?\.allowStopMode\) \}\)/);
+  assert.match(voiceUi, /voiceInputComposerUnavailableMessage\(unavailableReason\)/);
   assert.match(voiceUi, /composer\.setText\?\.\(next\)/);
   assert.match(voiceUi, /composer\.setCaret\?\.\(caret\)/);
   assert.match(voiceUi, /function trackPendingVoiceInputCommit\(finalText\)/);

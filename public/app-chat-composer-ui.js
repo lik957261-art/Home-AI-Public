@@ -575,6 +575,23 @@ function isComposerStopMode() {
   return true;
 }
 
+function setComposerActionButtonVisualLabel(button, label) {
+  if (!button) return;
+  if (typeof voiceInputSetButtonVisualLabel === "function") {
+    voiceInputSetButtonVisualLabel(button, label);
+    return;
+  }
+  if (String(label || "") === "Stop") {
+    button.classList.add("voice-input-label-proxy", "voice-input-stop-proxy");
+    button.dataset.voiceInputVisualLabel = "";
+    button.textContent = "";
+    return;
+  }
+  button.classList.remove("voice-input-label-proxy", "voice-input-stop-proxy");
+  delete button.dataset.voiceInputVisualLabel;
+  button.textContent = String(label || "");
+}
+
 function updateComposerAction() {
   const button = $("sendMessage");
   if (!button) return;
@@ -600,7 +617,7 @@ function updateComposerAction() {
       attach.setAttribute("title", "关闭搜索");
     }
     const draft = currentChatSearchDraft();
-    button.textContent = "搜索";
+    setComposerActionButtonVisualLabel(button, "搜索");
     button.classList.remove("stop-mode");
     button.disabled = !draft;
     updateChatSearchStatus();
@@ -623,7 +640,7 @@ function updateComposerAction() {
   }
   updateChatSearchStatus();
   const stopMode = isComposerStopMode();
-  button.textContent = stopMode ? "Stop" : "Send";
+  setComposerActionButtonVisualLabel(button, stopMode ? "Stop" : "Send");
   button.classList.toggle("stop-mode", stopMode);
   if (stopMode) button.disabled = false;
   renderComposerContext();

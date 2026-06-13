@@ -26,6 +26,7 @@ const {
   assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,
   assertGlobalPluginDockGestureStability,
+  assertVoiceStopHoldGesture,
   assertPluginDrawerActionGestures,
   assertPluginTopicDockReturnStability,
   defaultLockPath,
@@ -44,6 +45,7 @@ assert.ok(SCENARIOS["embedded-plugin-side-chat-keyboard"]);
 assert.ok(SCENARIOS["plugin-topic-dock-return-stability"]);
 assert.ok(SCENARIOS["global-plugin-dock-gesture-stability"]);
 assert.ok(SCENARIOS["plugin-drawer-action-gestures"]);
+assert.ok(SCENARIOS["voice-stop-hold-gesture"]);
 assert.deepEqual(parseArgs(["--scenario", "embedded-plugin-shell", "--plugin-id", "finance"]).pluginId, "finance");
 assert.deepEqual(parseArgs(["--plugin-action-id", "record"]).pluginActionId, "record");
 assert.deepEqual(
@@ -81,6 +83,7 @@ assert.match(script, /embedded-plugin-side-chat-keyboard/);
 assert.match(script, /plugin-topic-dock-return-stability/);
 assert.match(script, /global-plugin-dock-gesture-stability/);
 assert.match(script, /plugin-drawer-action-gestures/);
+assert.match(script, /voice-stop-hold-gesture/);
 assert.match(script, /PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT/);
 assert.match(script, /GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT/);
 assert.match(script, /PLUGIN_DRAWER_ACTION_GESTURES_PREPARE_SCRIPT/);
@@ -109,6 +112,10 @@ assert.match(script, /type: "calibrateCoordinates"/);
 assert.match(script, /coordinateSpace: "web"/);
 assert.match(script, /native-strip-horizontal-swipe/);
 assert.match(script, /type: "longPress"/);
+assert.match(script, /native-long-press-stop-send-button/);
+assert.match(script, /assertVoiceStopHoldGesture/);
+assert.match(script, /voice_stop_hold_did_not_interrupt_turn/);
+assert.match(script, /voice-input-stop-proxy/);
 assert.match(script, /type: "swipe"/);
 assert.match(script, /--plugin-thread-id/);
 assert.match(script, /--plugin-action-id/);
