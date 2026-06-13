@@ -217,9 +217,13 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(styles, /\.voice-input-overlay/);
   assert.match(styles, /\.voice-input-transcript/);
   assert.match(styles, /\.voice-input-mic-indicator/);
+  assert.match(styles, /-webkit-mask: url\("data:image\/svg\+xml/);
+  assert.match(styles, /mask: url\("data:image\/svg\+xml/);
   assert.match(styles, /\.voice-input-attach-indicator/);
   assert.match(styles, /\.voice-input-attach-recording/);
   assert.match(styles, /\.voice-input-overlay-recording \.voice-input-mic-indicator/);
+  assert.match(styles, /\.voice-input-attach-recording \{[\s\S]*?color: var\(--danger\);[\s\S]*?background: rgba\(164, 61, 53, 0\.1\);/);
+  assert.match(styles, /\.voice-input-attach-recording \.voice-input-mic-indicator \{[\s\S]*?color: var\(--danger\);/);
   assert.match(styles, /@keyframes voice-input-mic-pulse/);
   assert.match(voiceUi, /function voiceInputRenderAttachMicIndicator\(voice = ensureVoiceInputState\(\)\)/);
   assert.match(voiceUi, /const attach = \$\("attachFile"\)/);

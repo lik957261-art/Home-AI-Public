@@ -16782,36 +16782,13 @@ body.voice-input-press-active .voice-input-overlay button {
 }
 
 .voice-input-mic-indicator {
-  position: relative;
   display: inline-block;
-  width: 13px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
-  border: 2px solid var(--ui-accent-ink);
-  border-radius: 8px 8px 7px 7px;
-}
-
-.voice-input-mic-indicator::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -7px;
-  width: 2px;
-  height: 6px;
-  background: var(--ui-accent-ink);
-  transform: translateX(-50%);
-}
-
-.voice-input-mic-indicator::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -9px;
-  width: 11px;
-  height: 2px;
-  border-radius: 999px;
-  background: var(--ui-accent-ink);
-  transform: translateX(-50%);
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 14.25c1.93 0 3.5-1.57 3.5-3.5v-5a3.5 3.5 0 0 0-7 0v5c0 1.93 1.57 3.5 3.5 3.5Zm5.75-3.5a.75.75 0 0 0-1.5 0A4.25 4.25 0 0 1 12 15a4.25 4.25 0 0 1-4.25-4.25.75.75 0 0 0-1.5 0A5.75 5.75 0 0 0 11.25 16.45v2.05H8.75a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-2.5v-2.05a5.75 5.75 0 0 0 5-5.7Z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 14.25c1.93 0 3.5-1.57 3.5-3.5v-5a3.5 3.5 0 0 0-7 0v5c0 1.93 1.57 3.5 3.5 3.5Zm5.75-3.5a.75.75 0 0 0-1.5 0A4.25 4.25 0 0 1 12 15a4.25 4.25 0 0 1-4.25-4.25.75.75 0 0 0-1.5 0A5.75 5.75 0 0 0 11.25 16.45v2.05H8.75a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-2.5v-2.05a5.75 5.75 0 0 0 5-5.7Z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .voice-input-attach-indicator {
@@ -16821,33 +16798,23 @@ body.voice-input-press-active .voice-input-overlay button {
 }
 
 .voice-input-attach-indicator .voice-input-mic-indicator {
-  margin-top: -2px;
+  margin-top: 0;
 }
 
 .voice-input-overlay-recording .voice-input-mic-indicator {
-  border-color: var(--danger);
+  color: var(--danger);
   animation: voice-input-mic-pulse 1s ease-in-out infinite;
 }
 
 .voice-input-attach-recording {
-  color: #fff;
-  background: var(--danger);
+  color: var(--danger);
+  background: rgba(164, 61, 53, 0.1);
   border-color: rgba(164, 61, 53, 0.32);
 }
 
 .voice-input-attach-recording .voice-input-mic-indicator {
-  border-color: #fff;
+  color: var(--danger);
   animation: voice-input-mic-pulse 1s ease-in-out infinite;
-}
-
-.voice-input-overlay-recording .voice-input-mic-indicator::before,
-.voice-input-overlay-recording .voice-input-mic-indicator::after {
-  background: var(--danger);
-}
-
-.voice-input-attach-recording .voice-input-mic-indicator::before,
-.voice-input-attach-recording .voice-input-mic-indicator::after {
-  background: #fff;
 }
 
 .voice-input-attach-error {
