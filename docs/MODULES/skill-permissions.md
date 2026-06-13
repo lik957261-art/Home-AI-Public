@@ -29,6 +29,10 @@ deployment-wide shared Skills use `shared-global`.
 - New Skills should carry creator/owner metadata when created through product flows.
 - System/shared Skills are writable by Owner.
 - Shared Skills are read-only to non-Owner accounts.
+- Source-controlled host Skills that must be visible to every profile, such as
+  `productivity/home-ai-todo-intake`, are installed into
+  `data/skill-profiles/shared-global/skills` by the product deploy path instead
+  of being duplicated into every private workspace Skill Store.
 - Skill detail, analysis, and repair routes are workspace-scoped. The frontend
   must pass the selected workspace, and the route must call
   `requireWorkspaceAccess()` before resolving any local Skill root.

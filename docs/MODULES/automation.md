@@ -163,7 +163,11 @@ fallback.
 
 Home AI's Mac deploy path installs source-controlled built-in CRON Skills from
 `app/skills/productivity/*` into `$HERMES_HOME/skills/productivity/*` without
-deleting data-side private Skills. Deployment then runs
+deleting data-side private Skills. Host Skills that must be visible to every
+profile, such as `productivity/home-ai-todo-intake`, are installed separately
+into `data/skill-profiles/shared-global/skills` through an explicit allowlist
+rather than by copying every source-controlled Skill into every profile.
+Deployment then runs
 `scripts/macos-automation-cron-audit.js --strict-config`, which fails the deploy
 when an enabled agent-backed job has no profile, uses `deliver=origin` without
 an origin target, or declares a Skill that the CRON Skill store cannot resolve.

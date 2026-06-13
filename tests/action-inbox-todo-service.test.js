@@ -105,6 +105,36 @@ async function testFutureReminderWaitsUntilTick() {
   }
 }
 
+async function testRecurringTodoRequiresAutomation() {
+  const h = makeHarness();
+  try {
+    const validated = h.service.validateDraft({
+      title: "每周提交周报",
+      assigneeWorkspaceId: "child",
+      recurrence: { kind: "weekly", interval: 1 },
+    });
+    assert.equal(validated.ok, true);
+    assert.equal(validated.needsConfirmation, true);
+    assert.equal(validated.unsupported, "recurrence_requires_automation");
+
+    const created = await h.service.createTodo({
+      title: "每周提交周报",
+      creatorWorkspaceId: "owner",
+      assigneeWorkspaceId: "child",
+      recurrence: { kind: "weekly", interval: 1 },
+      confirmed: true,
+    });
+    assert.equal(created.ok, false);
+    assert.equal(created.status, 400);
+    assert.equal(created.error, "recurrence_requires_automation");
+    const childItems = h.actionInboxService.listItems({ workspaceId: "child" }).items;
+    assert.equal(childItems.length, 0);
+    assert.equal(h.pushes.length, 0);
+  } finally {
+    cleanup(h);
+  }
+}
+
 async function testCompletionCreatesCreatorReceipt() {
   const h = makeHarness();
   try {
@@ -137,6 +167,7 @@ async function testCompletionCreatesCreatorReceipt() {
   await testModelDraftValidationDoesNotParseRawText();
   await testCreateAssignedTodoSendsPushToAssignee();
   await testFutureReminderWaitsUntilTick();
+  await testRecurringTodoRequiresAutomation();
   await testCompletionCreatesCreatorReceipt();
   console.log("action inbox todo service tests passed");
 })().catch((err) => {

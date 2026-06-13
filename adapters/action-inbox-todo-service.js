@@ -19,7 +19,7 @@ function objectValue(value) {
 }
 
 function errorResult(status, error, details = {}) {
-  return Object.assign({ ok: false, status, error }, details);
+  return Object.assign({}, details, { ok: false, status, error });
 }
 
 function normalizePriority(value) {

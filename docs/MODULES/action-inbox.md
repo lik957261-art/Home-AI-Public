@@ -84,7 +84,8 @@ the reminder time. A host reminder tick activates due items to `open`, appends
 an audit event, broadcasts Inbox refresh, and sends Web Push to the assignee.
 The status vocabulary remains compact: `waiting` is the pre-reminder state,
 `open` is actionable, and terminal states remain `done`, `dismissed`, or
-`archived`.
+`archived`. `overdue` is reserved for future explicit overdue projections and
+must not be used as a hidden scheduler state.
 
 Owner or another authorized workspace may assign a manual Todo/reminder to a
 different workspace. The assignee owns the actionable Inbox item. The source

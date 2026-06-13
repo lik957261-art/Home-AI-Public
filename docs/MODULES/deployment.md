@@ -958,6 +958,13 @@ Before that audit, the deploy script repairs bounded shared-auth permissions on
 without reading or printing credential contents. A profile audit failure with
 `codex_auth_json_unreadable` or `codex_auth_lock_unreadable` after this repair
 is a real production blocker.
+Home AI deploy also installs source-controlled host Skills with explicit
+sharing semantics. CRON-facing built-in Skills are copied to
+`data/hermes-home/skills`, and the allowlisted profile-shared host Skill
+`productivity/home-ai-todo-intake` is copied to
+`data/skill-profiles/shared-global/skills`. Do not copy the full source
+`skills/productivity/*` tree into every workspace profile, because plugin-owned
+or operational Skills may have narrower workspace boundaries.
 - NAS Gateway workers must start with the Hermes Mobile runtime overlay on
   `PYTHONPATH`, ahead of the NAS Hermes Agent runtime, and set
   `HERMES_MOBILE_OFFICIAL_CLEAN_PATH` to that runtime. Otherwise profile YAML

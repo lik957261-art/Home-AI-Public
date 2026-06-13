@@ -36,6 +36,7 @@ const HOME_AI_CRON_PLUGIN_BINDING_DIR_NAMES = Object.freeze([
   ".hermes-growth",
   ".hermes-moira",
 ]);
+const HOME_AI_SHARED_BUILTIN_SKILLS = Object.freeze(["home-ai-todo-intake"]);
 const SAFE_PROFILE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const PLUGIN_DEPLOY_ORDER = Object.freeze([
@@ -1005,10 +1006,12 @@ function installHomeAiCronBuiltinSkills(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const sourceRoot = posixJoin(plan.productionPath, "skills", "productivity");
   const targetRoot = posixJoin(plan.macRoot, "data", "hermes-home", "skills", "productivity");
+  const sharedTargetRoot = posixJoin(plan.macRoot, "data", "skill-profiles", "shared-global", "skills", "productivity");
   const listing = runSudo("/bin/bash", ["-lc", `if test -d ${shQuote(sourceRoot)}; then find ${shQuote(sourceRoot)} -mindepth 1 -maxdepth 1 -type d -print; fi`], password);
   const skillDirs = String(listing.stdout || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   runSudo("/bin/mkdir", ["-p", targetRoot], password);
   let installed = 0;
+  let sharedInstalled = 0;
   for (const sourceDir of skillDirs) {
     const name = path.posix.basename(sourceDir);
     if (!SAFE_PROFILE_ID_PATTERN.test(name)) continue;
@@ -1016,17 +1019,30 @@ function installHomeAiCronBuiltinSkills(plan, password) {
     runSudo("/bin/mkdir", ["-p", targetDir], password);
     runSudo("/usr/bin/rsync", ["-a", `${sourceDir}/`, `${targetDir}/`], password);
     installed += 1;
+    if (HOME_AI_SHARED_BUILTIN_SKILLS.includes(name)) {
+      const sharedTargetDir = posixJoin(sharedTargetRoot, name);
+      runSudo("/bin/mkdir", ["-p", sharedTargetDir], password);
+      runSudo("/usr/bin/rsync", ["-a", `${sourceDir}/`, `${sharedTargetDir}/`], password);
+      sharedInstalled += 1;
+    }
   }
   if (installed) {
     const skillRoot = posixJoin(plan.macRoot, "data", "hermes-home", "skills");
     runSudo("/usr/sbin/chown", ["-R", `${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, skillRoot], password);
     runSudo("/bin/chmod", ["-R", "u+rwX,g+rX,o-rwx", skillRoot], password);
   }
+  if (sharedInstalled) {
+    const sharedSkillRoot = posixJoin(plan.macRoot, "data", "skill-profiles", "shared-global", "skills");
+    runSudo("/usr/sbin/chown", ["-R", `${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, sharedSkillRoot], password);
+    runSudo("/bin/chmod", ["-R", "u+rwX,g+rX,o-rwx", sharedSkillRoot], password);
+  }
   return {
     type: "home-ai-cron-builtin-skills",
     sourceRoot,
     targetRoot,
     installed,
+    sharedTargetRoot,
+    sharedInstalled,
   };
 }
 
