@@ -97,6 +97,14 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /\/api\/voice-input\/stream\/final/);
   assert.match(voiceUi, /\/api\/voice-input\/stream\/cancel/);
   assert.match(voiceUi, /function voiceInputDownsampleToPcm16\(input, sourceRate, targetRate\)/);
+  assert.match(voiceUi, /const VOICE_INPUT_STREAMING_CHUNK_TARGET_MS = 300/);
+  assert.match(voiceUi, /bufferedSamples: 0/);
+  assert.match(voiceUi, /streaming\.bufferedSamples = Math\.max\(0, Number\(streaming\.bufferedSamples \|\| 0\) \+ Math\.floor\(pcm\.length \/ 2\)\)/);
+  assert.match(voiceUi, /function voiceInputStreamingTargetSamples\(streaming\)/);
+  assert.match(voiceUi, /sampleRate \* VOICE_INPUT_STREAMING_CHUNK_TARGET_MS \/ 1000/);
+  assert.match(voiceUi, /function voiceInputMaybeFlushStreamingChunks\(options = \{\}\)/);
+  assert.match(voiceUi, /Number\(streaming\.bufferedSamples \|\| 0\) < voiceInputStreamingTargetSamples\(streaming\)/);
+  assert.doesNotMatch(voiceUi, /function voiceInputFlushStreamingChunks\(/);
   assert.match(voiceUi, /voiceInputStartStreamingSession\(stream, serviceStatus\)/);
   assert.match(voiceUi, /voiceInputApplyProvisionalTranscript\(result\.text\)/);
   assert.match(voiceUi, /sendEmbeddedPluginVoiceInputAction\("provisional_text"/);

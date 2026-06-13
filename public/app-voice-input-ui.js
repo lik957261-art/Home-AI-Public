@@ -5,6 +5,7 @@ const VOICE_INPUT_MIN_CLIENT_DURATION_MS = 300;
 const VOICE_INPUT_PRESS_EVENTS_BOUND = "__homeAiVoiceInputPressEventsBound";
 const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted";
 const VOICE_INPUT_EMBEDDED_INSERT_MAX_ATTEMPTS = 3;
+const VOICE_INPUT_STREAMING_CHUNK_TARGET_MS = 300;
 
 function ensureVoiceInputState() {
   if (!state.voiceInput || typeof state.voiceInput !== "object") {
@@ -816,6 +817,7 @@ async function voiceInputStartStreamingSession(stream, serviceStatus) {
     active: true,
     audioContext,
     buffer: [],
+    bufferedSamples: 0,
     chunkInFlight: false,
     failed: false,
     processor,
@@ -836,7 +838,8 @@ async function voiceInputStartStreamingSession(stream, serviceStatus) {
       const pcm = voiceInputDownsampleToPcm16(input, audioContext.sampleRate, streaming.sampleRate);
       if (!pcm.length) return;
       streaming.buffer.push(pcm);
-      voiceInputFlushStreamingChunks();
+      streaming.bufferedSamples = Math.max(0, Number(streaming.bufferedSamples || 0) + Math.floor(pcm.length / 2));
+      voiceInputMaybeFlushStreamingChunks();
     } catch (err) {
       streaming.failed = true;
       console.warn("[voice-input] streaming capture failed", err?.message || err);
@@ -858,13 +861,20 @@ function voiceInputTakeStreamingChunk(streaming) {
     offset += chunk.length;
   });
   streaming.buffer = [];
+  streaming.bufferedSamples = 0;
   return merged;
 }
 
-function voiceInputFlushStreamingChunks() {
+function voiceInputStreamingTargetSamples(streaming) {
+  const sampleRate = Math.max(8000, Number(streaming?.sampleRate || 16000) || 16000);
+  return Math.max(1600, Math.floor(sampleRate * VOICE_INPUT_STREAMING_CHUNK_TARGET_MS / 1000));
+}
+
+function voiceInputMaybeFlushStreamingChunks(options = {}) {
   const voice = ensureVoiceInputState();
   const streaming = voice.streaming;
   if (!streaming?.active || streaming.failed || streaming.chunkInFlight) return;
+  if (!options.force && Number(streaming.bufferedSamples || 0) < voiceInputStreamingTargetSamples(streaming)) return;
   const chunk = voiceInputTakeStreamingChunk(streaming);
   if (!chunk?.length) return;
   streaming.chunkInFlight = true;
@@ -891,7 +901,7 @@ function voiceInputFlushStreamingChunks() {
     console.warn("[voice-input] streaming chunk failed", err?.message || err);
   }).finally(() => {
     streaming.chunkInFlight = false;
-    if (streaming.active && streaming.buffer?.length) voiceInputFlushStreamingChunks();
+    if (streaming.active && streaming.buffer?.length) voiceInputMaybeFlushStreamingChunks();
   });
 }
 
