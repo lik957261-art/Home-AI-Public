@@ -30,6 +30,7 @@ function makeRouteHarness(overrides = {}) {
     attach: [],
     auth: [],
     direct: [],
+    dispatch: [],
     find: [],
     ownerRetry: [],
     read: [],
@@ -49,7 +50,8 @@ function makeRouteHarness(overrides = {}) {
       targetThread.messages.push(plan.userMessage);
       return overrides.plainResult || { ok: true, status: 201, thread: targetThread };
     },
-    async commitRunMessageAndDispatch() {
+    async commitRunMessageAndDispatch(targetThread, plan) {
+      calls.dispatch.push({ thread: targetThread, plan });
       return overrides.dispatchResult || { ok: true, status: 202, run: { status: "started" } };
     },
   };
@@ -62,6 +64,10 @@ function makeRouteHarness(overrides = {}) {
         status: 201,
         response: { ok: true, todo: { id: "todo-1" }, thread: compact },
       };
+    },
+    async executeModelTodoIntake(request) {
+      calls.direct.push(Object.assign({ modelTodoIntake: true }, request));
+      return overrides.modelTodoIntakeResult || { ok: true, skipped: true, reason: "not_todo_request" };
     },
   };
   const ownerRetryService = overrides.threadOwnerElevationRetryService || {
@@ -265,11 +271,11 @@ async function testPlainMessageUsesContextAuthAndCompactDescriptor() {
   });
 }
 
-async function testDirectCreateReceivesCompactResponseCallback() {
+async function testDirectKanbanCreateReceivesCompactResponseCallback() {
   const thread = baseThread();
   const plan = {
     ok: true,
-    nextAction: "direct-todo-create",
+    nextAction: "direct-kanban-create",
     userMessage: { id: "msg-user", role: "user" },
     assistantMessage: { id: "msg-assistant", role: "assistant" },
     responseDescriptor: { type: "thread", options: {} },
@@ -294,6 +300,57 @@ async function testDirectCreateReceivesCompactResponseCallback() {
       ok: true,
       todo: { id: "todo-1" },
       thread: { id: "thread-1", mode: "thread", messageCount: 0 },
+    },
+  });
+}
+
+async function testModelTodoIntakeCreatesThenDispatchesRun() {
+  const thread = baseThread();
+  const plan = {
+    ok: true,
+    nextAction: "start-run",
+    text: "\u589e\u52a0\u4e00\u4e2a\u5f85\u529e",
+    userMessage: { id: "msg-user", role: "user" },
+    assistantMessage: { id: "msg-assistant", role: "assistant" },
+    runOptions: { instructions: "base instructions" },
+    responseDescriptor: { type: "thread", options: {} },
+  };
+  const { calls, routeService } = makeRouteHarness({
+    thread,
+    plan,
+    modelTodoIntakeResult: {
+      ok: true,
+      status: 201,
+      todo: { id: "todo-1", title: "pay tax", dueAt: "2026-06-30T15:59:59.000Z", workspaceId: "owner" },
+      inboxItem: { id: "ainb-1", title: "pay tax", assigneeWorkspaceId: "owner", dueAt: "2026-06-30T15:59:59.000Z" },
+      todoDraft: { title: "pay tax", assigneeWorkspaceId: "owner", dueAt: "2026-06-30T23:59:59+08:00" },
+    },
+    dispatchResult: { ok: true, status: 202, run: { run_id: "run-1", status: "started" } },
+  });
+  const res = makeResponse();
+
+  const result = await routeService.handleThreadMessageCreate(
+    { id: "req-todo-run" },
+    res,
+    null,
+    { threadId: "thread-1", auth: { ok: true } },
+  );
+
+  assert.equal(result.status, 202);
+  assert.equal(calls.direct.length, 1);
+  assert.equal(calls.direct[0].modelTodoIntake, true);
+  assert.equal(calls.dispatch.length, 1);
+  assert.match(plan.runOptions.instructions, /HOME AI TODO CONTEXT/);
+  assert.match(plan.runOptions.instructions, /already created/);
+  assert.match(plan.runOptions.instructions, /pay tax/);
+  assert.deepEqual(res.sends[0], {
+    status: 202,
+    payload: {
+      run: { run_id: "run-1", status: "started" },
+      thread: { id: "thread-1", mode: "thread", messageCount: 0 },
+      todo: { id: "todo-1", title: "pay tax", dueAt: "2026-06-30T15:59:59.000Z", workspaceId: "owner" },
+      inboxItem: { id: "ainb-1", title: "pay tax", assigneeWorkspaceId: "owner", dueAt: "2026-06-30T15:59:59.000Z" },
+      todoDraft: { title: "pay tax", assigneeWorkspaceId: "owner", dueAt: "2026-06-30T23:59:59+08:00" },
     },
   });
 }
@@ -442,7 +499,8 @@ async function testOwnerElevationDelegatesToRetryService() {
   await testCreateValidationFailureUsesPlanResponse();
   await testCreateBodyReadErrorsUseControlledResponses();
   await testPlainMessageUsesContextAuthAndCompactDescriptor();
-  await testDirectCreateReceivesCompactResponseCallback();
+  await testDirectKanbanCreateReceivesCompactResponseCallback();
+  await testModelTodoIntakeCreatesThenDispatchesRun();
   await testRunDispatchSuccessAndFailurePayloads();
   await testOwnerElevationPrechecksAndBodyParseFailure();
   await testOwnerElevationDelegatesToRetryService();

@@ -52,6 +52,7 @@ function makeHarness(overrides = {}) {
     inbox: [],
     interpret: [],
     interpretTodo: [],
+    detectTodo: [],
     kanbanAdd: [],
     kanbanNotifications: [],
     publicTodo: [],
@@ -134,6 +135,27 @@ function makeHarness(overrides = {}) {
         needsConfirmation: false,
         confidence: 0.91,
         sourceText: text,
+      };
+    },
+    async detectTodoNaturalLanguage(text, workspace, principal) {
+      calls.detectTodo.push({ text, workspace, principal });
+      if (overrides.todoDetectThrows) throw new Error(overrides.todoDetectThrows);
+      return overrides.todoDetection || {
+        isTodoRequest: true,
+        confidence: 0.94,
+        todoDraft: overrides.todoDraft || {
+          title: "read chapter",
+          summary: "drafted by skill",
+          assigneeWorkspaceId: "workspace:child-principal",
+          creatorWorkspaceId: "family",
+          dueAt: "2026-05-16T09:00:00.000+08:00",
+          remindAt: "",
+          priority: "normal",
+          recurrence: { kind: "none" },
+          needsConfirmation: false,
+          confidence: 0.91,
+          sourceText: text,
+        },
       };
     },
     findWorkspace(workspaceId) {
@@ -329,6 +351,53 @@ async function testDirectTodoVerificationFailureFinalizesWithoutSuccessNotificat
   ]);
 }
 
+async function testModelTodoIntakeCreatesWithoutFinalizingThread() {
+  const { calls, service } = makeHarness();
+  const thread = baseThread({ workspaceId: "family" });
+  const plan = Object.assign(directTodoPlan(thread), {
+    nextAction: "start-run",
+    directAction: { type: "none", action: "" },
+  });
+
+  const result = await service.executeModelTodoIntake({ thread, plan });
+
+  assert.equal(result.status, 201);
+  assert.equal(result.ok, true);
+  assert.equal(result.todo.id, "ainb-direct-todo");
+  assert.equal(result.inboxItem.id, "ainb-direct-todo");
+  assert.deepEqual(calls.detectTodo, [{
+    text: "create direct todo",
+    workspace: { id: "family", label: "Workspace family" },
+    principal: "principal:family",
+  }]);
+  assert.equal(calls.todoCreate.length, 1);
+  assert.deepEqual(thread.messages, []);
+  assert.equal(calls.saveState, 0);
+  assert.deepEqual(calls.broadcasts.map((payload) => payload.type), [
+    "todos.updated",
+    "todos.updated",
+  ]);
+}
+
+async function testModelTodoIntakeSkipsNonTodoWithoutCreating() {
+  const { calls, service } = makeHarness({
+    todoDetection: { isTodoRequest: false, confidence: 0.1, todoDraft: null },
+  });
+  const thread = baseThread({ workspaceId: "family" });
+  const plan = Object.assign(directTodoPlan(thread), {
+    nextAction: "start-run",
+    directAction: { type: "none", action: "" },
+  });
+
+  const result = await service.executeModelTodoIntake({ thread, plan });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.skipped, true);
+  assert.equal(result.reason, "not_todo_request");
+  assert.equal(calls.todoCreate.length, 0);
+  assert.deepEqual(thread.messages, []);
+}
+
 async function testDirectKanbanSuccessUsesInterpreterAndFormatter() {
   const { calls, service } = makeHarness();
   const thread = baseThread({ workspaceId: "owner" });
@@ -400,6 +469,8 @@ async function testDirectKanbanProviderFailureFinalizesWithoutVerification() {
 (async () => {
   await testDirectTodoSuccessFinalizesAndBroadcasts();
   await testDirectTodoVerificationFailureFinalizesWithoutSuccessNotifications();
+  await testModelTodoIntakeCreatesWithoutFinalizingThread();
+  await testModelTodoIntakeSkipsNonTodoWithoutCreating();
   await testDirectKanbanSuccessUsesInterpreterAndFormatter();
   await testDirectKanbanProviderFailureFinalizesWithoutVerification();
   console.log("thread-direct-create-execution-service tests passed");

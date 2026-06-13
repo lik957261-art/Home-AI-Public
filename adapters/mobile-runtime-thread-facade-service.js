@@ -38,6 +38,7 @@ function createMobileRuntimeThreadFacadeService(options = {}) {
         detectDirectKanbanCreateRequest: options.detectDirectKanbanCreateRequest,
         detectDirectTodoCreateIntent: options.detectDirectTodoCreateIntent,
         detectDirectTodoCreateIntentForWeb: options.detectDirectTodoCreateIntentForWeb,
+        detectTodoNaturalLanguage: options.detectTodoNaturalLanguage,
         directTodoCreateEnabled: options.directTodoCreateEnabled,
         findThreadForRequest: (...args) => options.getRuntimeStateThreadService().findThreadForRequest(...args),
         findWorkspace: options.findWorkspace,

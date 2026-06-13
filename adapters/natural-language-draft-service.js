@@ -270,6 +270,56 @@ function createNaturalLanguageDraftService(options = {}) {
     return normalizeTodoDraft(extractJsonObject(output, "Todo draft"), text, workspace?.id || ownerPrincipalId || "owner");
   }
 
+  async function detectTodoNaturalLanguage(text, workspace, ownerPrincipalId) {
+    const prompt = [
+      "Decide whether the user is asking Home AI to create a Todo, reminder, alarm, or assigned action item.",
+      "Return strict JSON only. Do not include Markdown fences or prose.",
+      "Do not use keyword-only guessing. Use semantic intent, and be conservative when the wording is probably ordinary chat.",
+      "If this is not a Todo/reminder/alarm creation request, return {\"isTodoRequest\":false,\"confidence\":0,\"todoDraft\":null}.",
+      "If it is a Todo request, return {\"isTodoRequest\":true,\"confidence\":0.0,\"todoDraft\":{...}} using the Home AI Todo Intake Skill output shape.",
+      "Use Asia/Shanghai local time. Current server time is " + nowIso() + ".",
+      "Follow this Skill exactly when producing todoDraft:",
+      todoIntakeSkillText,
+      "Known current workspace:",
+      JSON.stringify({
+        workspaceId: workspace?.id || ownerPrincipalId || "owner",
+        workspaceLabel: workspace?.label || workspace?.name || workspace?.id || "",
+        workspacePrincipal: ownerPrincipalId,
+      }),
+      "If the request is for the current user/myself/me/my, use the current workspace id as assigneeWorkspaceId.",
+      "If the user gives only a date with no clock time, use the end of that local day as dueAt.",
+      "Return ISO-8601 timestamps with timezone offset when possible.",
+      "User request:",
+      text,
+    ].join("\n\n");
+    const output = await hermesModelText({
+      input: prompt,
+      stream: true,
+      store: false,
+      model: automationCreateModel,
+      reasoning_effort: "low",
+      conversation: createConversationId("home_ai_todo_detect"),
+      instructions: "Use the Home AI Todo Intake Skill only to decide and draft Todo creation. Return JSON only.",
+      access_policy_context: sanitizePolicy(workspace?.policy || {}),
+    }, automationTimeoutMs);
+    const raw = extractJsonObject(output, "Todo intent");
+    const isTodoRequest = Boolean(raw?.isTodoRequest || raw?.is_todo_request);
+    const confidence = Number(raw?.confidence ?? raw?.modelConfidence ?? (isTodoRequest ? 0.8 : 0));
+    if (!isTodoRequest) {
+      return {
+        isTodoRequest: false,
+        confidence: Number.isFinite(confidence) ? confidence : 0,
+        todoDraft: null,
+      };
+    }
+    const draftSource = raw.todoDraft || raw.todo_draft || raw.draft || raw;
+    return {
+      isTodoRequest: true,
+      confidence: Number.isFinite(confidence) ? confidence : 0.8,
+      todoDraft: normalizeTodoDraft(draftSource, text, workspace?.id || ownerPrincipalId || "owner"),
+    };
+  }
+
   async function planKanbanMultiAgent(text, workspace, ownerPrincipalId, optionsForPlan = {}) {
     const sourceText = compactText(text, 8000);
     if (!sourceText) throw new Error("Kanban plan text is required");
@@ -320,6 +370,7 @@ function createNaturalLanguageDraftService(options = {}) {
     interpretKanbanNaturalLanguage,
     normalizeTodoDraft,
     interpretTodoNaturalLanguage,
+    detectTodoNaturalLanguage,
     planKanbanMultiAgent,
   });
 }

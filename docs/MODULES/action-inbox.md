@@ -122,12 +122,23 @@ list or composer. Any legacy direct-create keyword detector controlled by
 direct Todo/Kanban compatibility flags is not the product natural-language path
 and must remain off by default.
 
-Chat/direct Todo creation is part of the same host-owned Todo path. If a model
-or direct-create plan has already produced a Todo draft, the execution service
-must call Action Inbox Todo creation directly. It must not call the retired
-`todoProvider.addTodo()` first and then mirror the result into Inbox, because
-that leaves chat success messages backed by data that the current Inbox list no
-longer reads.
+Chat Todo creation is part of the same host-owned Todo path. Ordinary chat text
+must not depend on a keyword-only host preselection before it reaches a model.
+When Todo intake is enabled, Home AI runs a low-cost Skill-guided Todo-intake
+model pass for the message. If that pass decides the message is not a Todo
+request, the normal chat model turn proceeds unchanged. If it returns a
+confirmation-needed Todo draft, the host does not create the item and the normal
+chat model should ask for the missing or ambiguous fields. If it returns a
+validated draft that does not need confirmation, the host creates the Action
+Inbox Todo first, then continues the ordinary chat model turn with bounded
+created-Todo context. The model may draft or discuss Todos, but Home AI host
+services remain responsible for validation, Web Push, audit events, and
+persistence.
+
+The execution service must call Action Inbox Todo creation directly for
+model-produced drafts. It must not call the retired `todoProvider.addTodo()`
+first and then mirror the result into Inbox, because that leaves chat success
+messages backed by data that the current Inbox list no longer reads.
 
 Manual Inbox Todo is its own mobile source surface. If an older item still
 carries a legacy `/?view=todos...` or `todoId` deep link, the Inbox UI must not

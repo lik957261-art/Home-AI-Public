@@ -145,17 +145,23 @@ Todo/Kanban provider. Existing `/api/todos` is a compatibility projection over
 Action Inbox Todo only: list/create/complete/cancel/delete are mapped into the
 new engine, while legacy Kanban-only Todo actions are disabled.
 
-Thread direct Todo creation uses the same service path through
+Thread Todo creation uses the same service path through
 `adapters/thread-direct-create-execution-service.js` and must receive
 `actionInboxTodoService` from runtime composition. It should normalize
 `result.item.id` as the visible Todo id and return that item as the Inbox item.
 Do not reintroduce a legacy sequence of `todoProvider.addTodo()` followed by
-`actionInboxService.upsertSourceItem()` for ordinary direct-created Todos.
-The route into this path is intentionally only an explicit-intent gate. It must
-not pre-parse title, assignee, due date, or recurrence. The executor calls
-`interpretTodoNaturalLanguage()` with the `home-ai-todo-intake` Skill rules to
-produce a structured draft, then passes that draft to
-`actionInboxTodoService.createTodo()` for host validation and persistence.
+`actionInboxService.upsertSourceItem()` for ordinary chat-created Todos.
+
+The chat route must not use a keyword-only Todo preselection gate. For normal
+model turns it calls `executeModelTodoIntake()`, which in turn calls
+`detectTodoNaturalLanguage()` with the `home-ai-todo-intake` Skill rules. A
+non-Todo detection is skipped and the main model turn proceeds unchanged. A
+confirmation-needed draft is not persisted; its bounded draft context is passed
+to the main model so it can ask the user for missing fields. A confirmed draft
+is passed to `actionInboxTodoService.createTodo()` for host validation and
+persistence, then the main model turn continues with bounded created-Todo
+context in `runOptions.instructions`. This keeps the natural-language decision
+inside the model while preserving host-owned validation and storage.
 
 When `creatorWorkspaceId !== assigneeWorkspaceId`, the Todo service writes two
 bounded records: the assignee's actionable Todo and the creator's tracking

@@ -146,6 +146,49 @@ async function main() {
 
 {
   const { service, calls } = makeService([
+    JSON.stringify({ isTodoRequest: false, confidence: 0.12, todoDraft: null }),
+  ]);
+  const result = await service.detectTodoNaturalLanguage(
+    "\u4eca\u5929\u5929\u6c14\u600e\u4e48\u6837",
+    { id: "owner", label: "Owner", policy: {} },
+    "owner",
+  );
+  assert.equal(result.isTodoRequest, false);
+  assert.equal(result.todoDraft, null);
+  assert.equal(calls[0].body.conversation, "home_ai_todo_detect_fixed");
+  assert.match(calls[0].body.input, /Do not use keyword-only guessing/);
+}
+
+{
+  const { service } = makeService([
+    JSON.stringify({
+      isTodoRequest: true,
+      confidence: 0.94,
+      todoDraft: {
+        title: "\u56fd\u5185\u62a5\u7a0e",
+        assigneeWorkspaceId: "owner",
+        creatorWorkspaceId: "owner",
+        dueAt: "2026-06-30T23:59:59+08:00",
+        priority: "normal",
+        recurrence: { kind: "none" },
+        needsConfirmation: false,
+        missingFields: [],
+        confidence: 0.95,
+      },
+    }),
+  ]);
+  const result = await service.detectTodoNaturalLanguage(
+    "\u589e\u52a0\u6211\u7684\u4e00\u4e2a\u622a\u81f3\u5230 6 \u6708 30 \u53f7\u7684\u5f85\u529e\u4e8b\u9879\uff0c\u56fd\u5185\u62a5\u7a0e",
+    { id: "owner", label: "Owner", policy: {} },
+    "owner",
+  );
+  assert.equal(result.isTodoRequest, true);
+  assert.equal(result.todoDraft.title, "\u56fd\u5185\u62a5\u7a0e");
+  assert.equal(result.todoDraft.needsConfirmation, false);
+}
+
+{
+  const { service, calls } = makeService([
     JSON.stringify({
       summary: "Refactor",
       cards: [

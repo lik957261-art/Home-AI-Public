@@ -347,6 +347,7 @@ function createMobileRuntimeKanbanFacadeService(options = {}) {
     normalizeKanbanPlanReasoningEffort,
     ensureKanbanCaseSharedDirectory,
     ensureKanbanCaseTopicThread,
+    detectTodoNaturalLanguage: (...args) => naturalLanguageDraftService.detectTodoNaturalLanguage(...args),
     interpretKanbanNaturalLanguage: (...args) => naturalLanguageDraftService.interpretKanbanNaturalLanguage(...args),
     interpretTodoNaturalLanguage: (...args) => naturalLanguageDraftService.interpretTodoNaturalLanguage(...args),
     planKanbanMultiAgent: (...args) => naturalLanguageDraftService.planKanbanMultiAgent(...args),

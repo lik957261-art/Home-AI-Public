@@ -81,6 +81,7 @@ function createThreadDirectCreateExecutionService(options = {}) {
   const addKanbanCard = optionalFunction(options.addKanbanCard, optionalFunction(kanbanCardProvider.addCard, null));
   const interpretKanbanNaturalLanguage = optionalFunction(options.interpretKanbanNaturalLanguage, null);
   const interpretTodoNaturalLanguage = optionalFunction(options.interpretTodoNaturalLanguage, null);
+  const detectTodoNaturalLanguage = optionalFunction(options.detectTodoNaturalLanguage, null);
 
   if (!addKanbanCard) throw new TypeError("thread direct create execution service requires kanbanCardProvider.addCard");
   if (!interpretKanbanNaturalLanguage) {
@@ -117,6 +118,29 @@ function createThreadDirectCreateExecutionService(options = {}) {
 
   function actionInboxTodoService() {
     return asObject(resolveService(actionInboxTodoServiceRef));
+  }
+
+  async function createTodoFromDraft(plan, draft, optionsForCreate = {}) {
+    const todoService = actionInboxTodoService();
+    if (!todoService || typeof todoService.createTodo !== "function") {
+      return { ok: false, error: "action_inbox_todo_service_unavailable" };
+    }
+    if (!draft || typeof draft !== "object") {
+      return { ok: false, error: "todo_draft_missing" };
+    }
+    if (draft.needsConfirmation || (Array.isArray(draft.missingFields) && draft.missingFields.length)) {
+      return {
+        ok: false,
+        skipped: true,
+        needsConfirmation: true,
+        error: "todo_draft_needs_confirmation",
+        todoDraft: draft,
+      };
+    }
+    return todoService.createTodo(actionInboxTodoPayloadFromDraft(draft, plan, {
+      workspacePrincipal,
+      ...asObject(optionsForCreate.helpers),
+    }));
   }
 
   async function safeResult(operation) {
@@ -261,19 +285,16 @@ function createThreadDirectCreateExecutionService(options = {}) {
   async function executeDirectTodoCreate(request = {}) {
     const thread = request.thread || request.plan?.thread;
     const plan = request.plan;
-    const todoService = actionInboxTodoService();
+    const persistOnly = Boolean(request.persistOnly);
     let todoDraft = null;
     const providerResult = await safeResult(() => {
-      if (!todoService || typeof todoService.createTodo !== "function") {
-        return { ok: false, error: "action_inbox_todo_service_unavailable" };
-      }
       return Promise.resolve(interpretTodoNaturalLanguage(
         plan.text,
         findWorkspace(thread.workspaceId),
         workspacePrincipal(thread.workspaceId),
       )).then((draft) => {
         todoDraft = draft;
-        return todoService.createTodo(actionInboxTodoPayloadFromDraft(draft, plan, { workspacePrincipal }));
+        return createTodoFromDraft(plan, draft);
       });
     });
     let finalResult = providerResult;
@@ -295,13 +316,22 @@ function createThreadDirectCreateExecutionService(options = {}) {
         error: String(finalResult?.error || verification.error || ""),
       };
     }
-    const finalized = finalizeDirectCreate(thread, plan, finalResult, {
-      fallbackError: "Todo operation failed",
-      failureContent: () => `\u65b0\u589e\u5f85\u529e\u5931\u8d25\uff1a${finalResult?.error || "Todo operation failed"}`,
-      successContent: () => directTodoSuccessContent(todoDraft, createdTodo || finalResult?.item || {}),
-      successNotifications: () => directTodoSuccessNotification(finalResult, plan),
-    });
     const inboxItem = finalResult?.ok ? finalResult.item || null : null;
+    let finalized = { assistantMessage: null, broadcastPayloads: [] };
+    if (persistOnly) {
+      if (finalResult?.ok) {
+        const successPayloads = toArray(directTodoSuccessNotification(finalResult, plan));
+        finalized.broadcastPayloads.push(...successPayloads);
+        for (const payload of successPayloads) broadcast(payload);
+      }
+    } else {
+      finalized = finalizeDirectCreate(thread, plan, finalResult, {
+        fallbackError: "Todo operation failed",
+        failureContent: () => `\u65b0\u589e\u5f85\u529e\u5931\u8d25\uff1a${finalResult?.error || "Todo operation failed"}`,
+        successContent: () => directTodoSuccessContent(todoDraft, createdTodo || finalResult?.item || {}),
+        successNotifications: () => directTodoSuccessNotification(finalResult, plan),
+      });
+    }
 
     return {
       ok: Boolean(finalResult?.ok),
@@ -338,10 +368,105 @@ function createThreadDirectCreateExecutionService(options = {}) {
     });
   }
 
+  async function executeModelTodoIntake(request = {}) {
+    const thread = request.thread || request.plan?.thread;
+    const plan = request.plan;
+    if (!thread || !plan || typeof detectTodoNaturalLanguage !== "function") {
+      return { ok: true, skipped: true, reason: "todo_intake_unavailable" };
+    }
+    let detected = null;
+    try {
+      detected = await detectTodoNaturalLanguage(
+        plan.text,
+        findWorkspace(thread.workspaceId),
+        workspacePrincipal(thread.workspaceId),
+      );
+    } catch (err) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "todo_intake_failed",
+        error: errorMessage(err),
+      };
+    }
+    if (!detected?.isTodoRequest) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "not_todo_request",
+        detection: detected,
+      };
+    }
+    const todoDraft = detected.todoDraft || null;
+    if (todoDraft?.needsConfirmation || (Array.isArray(todoDraft?.missingFields) && todoDraft.missingFields.length)) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "todo_needs_confirmation",
+        detection: detected,
+        todoDraft,
+      };
+    }
+    const providerResult = await safeResult(() => createTodoFromDraft(plan, todoDraft));
+    let finalResult = providerResult;
+    let createdTodo = finalResult?.ok ? publicActionInboxTodo(finalResult) : null;
+    let verification = finalResult?.ok
+      ? verifyDirectTodoCreateResult(createdTodo)
+      : { ok: false, error: String(finalResult?.error || "") };
+    if (finalResult?.ok && !verification.ok) {
+      finalResult = {
+        ...(finalResult && typeof finalResult === "object" ? finalResult : {}),
+        ok: false,
+        error: verification.error || "Todo creation verification failed.",
+      };
+      createdTodo = null;
+    }
+    if (!finalResult?.ok) {
+      return {
+        ok: false,
+        status: 400,
+        result: finalResult,
+        verification: {
+          ok: false,
+          error: String(finalResult?.error || verification.error || ""),
+        },
+        todoDraft,
+        response: {
+          ok: false,
+          error: finalResult?.error || "Todo operation failed",
+          todoDraft,
+        },
+      };
+    }
+    const inboxItem = finalResult.item || null;
+    const successPayloads = toArray(directTodoSuccessNotification(finalResult, plan));
+    for (const payload of successPayloads) broadcast(payload);
+    return {
+      ok: true,
+      status: 201,
+      result: finalResult,
+      verification,
+      todo: createdTodo,
+      inboxItem,
+      todoDraft,
+      detection: detected,
+      broadcastPayloads: successPayloads,
+      response: {
+        ok: true,
+        todo: createdTodo,
+        inboxItem,
+        todoDraft,
+        result: finalResult,
+        verification,
+      },
+    };
+  }
+
   return Object.freeze({
     executeDirectCreate,
     executeDirectKanbanCreate,
     executeDirectTodoCreate,
+    executeModelTodoIntake,
   });
 }
 
