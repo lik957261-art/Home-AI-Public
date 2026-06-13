@@ -42,6 +42,7 @@ function createMobileRuntimeThreadFacadeService(options = {}) {
         directTodoCreateEnabled: options.directTodoCreateEnabled,
         findThreadForRequest: (...args) => options.getRuntimeStateThreadService().findThreadForRequest(...args),
         findWorkspace: options.findWorkspace,
+        listAssignableWorkspaces: options.listAssignableWorkspaces,
         formatDirectTodoCreateSuccessMessage: options.formatDirectTodoCreateSuccessMessage,
         gatewayRoutingForModelRun: options.gatewayRoutingForModelRun,
         groupChatTaskGroupId: options.groupChatTaskGroupId,

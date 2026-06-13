@@ -107,6 +107,7 @@ function createThreadRuntimeCompositionService(deps = {}) {
         actionInboxService: deps.actionInboxService,
         actionInboxTodoService: deps.actionInboxTodoService,
         findWorkspace: deps.findWorkspace,
+        listAssignableWorkspaces: deps.listAssignableWorkspaces,
         formatDirectTodoCreateSuccessMessage: deps.formatDirectTodoCreateSuccessMessage,
         detectTodoNaturalLanguage: deps.detectTodoNaturalLanguage,
         interpretKanbanNaturalLanguage: deps.interpretKanbanNaturalLanguage,

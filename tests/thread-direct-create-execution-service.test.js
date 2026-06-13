@@ -161,6 +161,9 @@ function makeHarness(overrides = {}) {
     findWorkspace(workspaceId) {
       return { id: workspaceId, label: `Workspace ${workspaceId}` };
     },
+    listAssignableWorkspaces() {
+      return [{ id: "workspace:child-principal", displayName: "Child" }];
+    },
     workspacePrincipal(workspaceId) {
       return `principal:${workspaceId}`;
     },
@@ -367,7 +370,11 @@ async function testModelTodoIntakeCreatesWithoutFinalizingThread() {
   assert.equal(result.inboxItem.id, "ainb-direct-todo");
   assert.deepEqual(calls.detectTodo, [{
     text: "create direct todo",
-    workspace: { id: "family", label: "Workspace family" },
+    workspace: {
+      id: "family",
+      label: "Workspace family",
+      assignableWorkspaces: [{ id: "workspace:child-principal", displayName: "Child" }],
+    },
     principal: "principal:family",
   }]);
   assert.equal(calls.todoCreate.length, 1);

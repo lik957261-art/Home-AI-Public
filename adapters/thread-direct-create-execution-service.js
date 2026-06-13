@@ -104,6 +104,7 @@ function createThreadDirectCreateExecutionService(options = {}) {
   const compactMessage = helper("compactMessage", (message) => message);
   const directKanbanSuccessNotifications = helper("directKanbanSuccessNotifications", () => []);
   const directTodoSuccessNotification = helper("directTodoSuccessNotification", () => []);
+  const listAssignableWorkspaces = helper("listAssignableWorkspaces", () => []);
   const findWorkspace = helper("findWorkspace", (workspaceId) => ({ id: workspaceId }));
   const formatDirectTodoCreateSuccessMessage = helper("formatDirectTodoCreateSuccessMessage", () => "");
   const nowIso = helper("nowIso", () => new Date().toISOString());
@@ -118,6 +119,12 @@ function createThreadDirectCreateExecutionService(options = {}) {
 
   function actionInboxTodoService() {
     return asObject(resolveService(actionInboxTodoServiceRef));
+  }
+
+  function workspaceForTodoIntake(workspaceId) {
+    const workspace = asObject(findWorkspace(workspaceId), { id: workspaceId });
+    const assignableWorkspaces = toArray(listAssignableWorkspaces(workspaceId));
+    return Object.assign({}, workspace, { assignableWorkspaces });
   }
 
   async function createTodoFromDraft(plan, draft, optionsForCreate = {}) {
@@ -378,7 +385,7 @@ function createThreadDirectCreateExecutionService(options = {}) {
     try {
       detected = await detectTodoNaturalLanguage(
         plan.text,
-        findWorkspace(thread.workspaceId),
+        workspaceForTodoIntake(thread.workspaceId),
         workspacePrincipal(thread.workspaceId),
       );
     } catch (err) {

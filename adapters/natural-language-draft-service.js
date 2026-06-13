@@ -17,6 +17,44 @@ function arrayOfStrings(value, limit = 12) {
   return dedupe(raw.map((item) => String(item || "").trim()).filter(Boolean)).slice(0, limit);
 }
 
+function cleanWorkspaceCandidate(workspace = {}) {
+  if (!workspace || typeof workspace !== "object") return null;
+  const id = String(workspace.id || workspace.workspaceId || "").trim();
+  if (!id) return null;
+  const displayName = String(
+    workspace.displayName
+    || workspace.display_name
+    || workspace.label
+    || workspace.name
+    || id
+  ).trim();
+  const aliases = arrayOfStrings([
+    ...(Array.isArray(workspace.aliases) ? workspace.aliases : []),
+    workspace.label,
+    workspace.name,
+    workspace.displayName,
+    workspace.display_name,
+  ], 8).filter((item) => item !== id && item !== displayName);
+  return {
+    workspaceId: id,
+    displayName: displayName || id,
+    aliases,
+  };
+}
+
+function workspaceCandidateContext(workspace = {}) {
+  const current = cleanWorkspaceCandidate(workspace);
+  const candidates = [];
+  const seen = new Set();
+  for (const item of [current, ...(Array.isArray(workspace?.assignableWorkspaces) ? workspace.assignableWorkspaces : [])]) {
+    const candidate = cleanWorkspaceCandidate(item);
+    if (!candidate || seen.has(candidate.workspaceId)) continue;
+    seen.add(candidate.workspaceId);
+    candidates.push(candidate);
+  }
+  return candidates.slice(0, 60);
+}
+
 function parseFirstBalancedJsonObject(value) {
   const text = String(value || "");
   for (let start = text.indexOf("{"); start >= 0; start = text.indexOf("{", start + 1)) {
@@ -251,6 +289,10 @@ function createNaturalLanguageDraftService(options = {}) {
         workspaceLabel: workspace?.label || workspace?.name || workspace?.id || "",
         workspacePrincipal: ownerPrincipalId,
       }),
+      "Known assignable workspace candidates:",
+      JSON.stringify(workspaceCandidateContext(workspace)),
+      "If a person or workspace name exactly matches a candidate displayName or alias, use that candidate's workspaceId.",
+      "If the name is not in the candidate list or remains ambiguous, leave assigneeWorkspaceId empty and set assigneeDisplayName plus needsConfirmation=true.",
       "If the request is for the current user/myself/me/my, use the current workspace id as assigneeWorkspaceId.",
       "If the user gives only a date with no clock time, use the end of that local day as dueAt.",
       "Return ISO-8601 timestamps with timezone offset when possible.",
@@ -286,6 +328,10 @@ function createNaturalLanguageDraftService(options = {}) {
         workspaceLabel: workspace?.label || workspace?.name || workspace?.id || "",
         workspacePrincipal: ownerPrincipalId,
       }),
+      "Known assignable workspace candidates:",
+      JSON.stringify(workspaceCandidateContext(workspace)),
+      "If a person or workspace name exactly matches a candidate displayName or alias, use that candidate's workspaceId.",
+      "If the name is not in the candidate list or remains ambiguous, leave assigneeWorkspaceId empty and set assigneeDisplayName plus needsConfirmation=true.",
       "If the request is for the current user/myself/me/my, use the current workspace id as assigneeWorkspaceId.",
       "If the user gives only a date with no clock time, use the end of that local day as dueAt.",
       "Return ISO-8601 timestamps with timezone offset when possible.",
@@ -381,4 +427,5 @@ module.exports = {
   normalizeAutomationSchedule,
   normalizeAutomationRepeat,
   arrayOfStrings,
+  workspaceCandidateContext,
 };

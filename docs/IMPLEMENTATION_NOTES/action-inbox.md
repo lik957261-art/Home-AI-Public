@@ -169,6 +169,20 @@ persistence, then the main model turn continues with bounded created-Todo
 context in `runOptions.instructions`. This keeps the natural-language decision
 inside the model while preserving host-owned validation and storage.
 
+`executeModelTodoIntake()` enriches the current workspace with
+`assignableWorkspaces` from the runtime workspace catalog before calling the
+natural-language draft service. The prompt exposes only bounded candidate
+metadata: workspace id, display name, and aliases. This is the productized path
+for names such as a family member or managed workspace; do not hard-code
+individual users in the Skill or server logic.
+
+The `/messages` request may spend several seconds in Todo intake before a
+Gateway run id exists. During that period the static client appends a local
+queued assistant placeholder whose `localRunProgressEvents` contains
+`run.todo_intake_started`. `renderPendingRunProgressPanel()` renders that event
+inside the same inline run-progress panel used for Gateway runs, then the
+placeholder is removed when the server response arrives.
+
 When `creatorWorkspaceId !== assigneeWorkspaceId`, the Todo service writes two
 bounded records: the assignee's actionable Todo and the creator's tracking
 Todo. The creator tracking Todo must use `sourceRef.sentTracking=true`, must

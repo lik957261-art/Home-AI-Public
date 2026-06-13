@@ -139,6 +139,21 @@ created-Todo context. The model may draft or discuss Todos, but Home AI host
 services remain responsible for validation, Web Push, audit events, and
 persistence.
 
+Because the Todo-intake model pass runs before the normal chat run is created,
+the client must not look frozen during this phase. The chat composer should
+optimistically render a pending run-progress panel that says the host is
+checking Todo intent and preparing the model run. Once the server returns the
+normal run id, the standard Gateway run-progress events replace that local
+pending row.
+
+Cross-workspace natural-language Todo creation must provide the Todo-intake
+model with a bounded list of assignable workspace candidates from the workspace
+catalog. The model may use a candidate `workspaceId` only when the user's name
+or workspace wording matches a candidate display name or alias. If the person is
+not in that bounded candidate list or remains ambiguous, the model should return
+`assigneeDisplayName`, leave `assigneeWorkspaceId` empty, and ask for
+confirmation instead of inventing an id.
+
 The execution service must call Action Inbox Todo creation directly for
 model-produced drafts. It must not call the retired `todoProvider.addTodo()`
 first and then mirror the result into Inbox, because that leaves chat success

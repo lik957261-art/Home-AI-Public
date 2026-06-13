@@ -72,6 +72,7 @@ assert.strictEqual(state.currentThread.messages[0].taskGroupId, "chat-default");
 assert.strictEqual(state.currentThread.messages[1].status, "queued");
 assert.strictEqual(state.currentThread.messages[1].taskGroupId, "chat-default");
 assert.strictEqual(state.currentThread.messages[1].localPendingSend, true);
+assert.strictEqual(state.currentThread.messages[1].localRunProgressEvents[0].event, "run.todo_intake_started");
 assert.ok(state.forceChatStickToBottomUntil > 0);
 
 assert.strictEqual(clearOptimisticSendMessages(token, { render: false }), true);
@@ -105,6 +106,8 @@ async function runFailedSendRollbackTest() {
   let lastError = "";
   let refreshOptions = null;
   let apiRequest = null;
+  let blurCalls = 0;
+  let suppressMs = 0;
   const sendButton = { disabled: false };
 
   Object.assign(context, {
@@ -140,6 +143,12 @@ async function runFailedSendRollbackTest() {
     activeQuotedReplyForSend: () => null,
     composerRequestSizeError: () => "",
     lockComposerSendToBottom: () => {},
+    suppressComposerAutoFocus(ms) {
+      suppressMs = ms;
+    },
+    blurComposerInput() {
+      blurCalls += 1;
+    },
     shouldOfferOwnerElevation: () => false,
     updateComposerAction: () => {},
     requestCurrentThreadRefresh(options = {}) {
@@ -159,6 +168,8 @@ async function runFailedSendRollbackTest() {
 
   assert.strictEqual(apiRequest.pathValue, "/api/threads/thread_chat/messages");
   assert.strictEqual(apiRequest.options.timeoutMs, COMPOSER_SEND_TIMEOUT_MS);
+  assert.strictEqual(suppressMs, 1800);
+  assert.strictEqual(blurCalls, 1);
   assert.strictEqual(state.currentThread.messages.length, 0);
   assert.strictEqual(composerText, "send that fails");
   assert.strictEqual(lastError, "network down");

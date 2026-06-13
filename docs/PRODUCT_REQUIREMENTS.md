@@ -214,6 +214,9 @@ This file records durable product rules that implementation must preserve.
   so, returns a draft. The host validates and persists the draft, then the
   ordinary chat model turn continues with bounded context about the created or
   confirmation-needed Todo.
+- While the Todo-intake model pass is running before a normal run id exists,
+  the chat UI must show a local run-progress row such as `正在识别待办意图`
+  instead of leaving the composer/chat surface visually stalled.
 - The model may only produce a Todo draft. Home AI must validate permissions,
   workspace identity, dates, recurrence, Web Push, audit events, and persistence
   before creating or mutating any Todo/reminder.
@@ -221,6 +224,10 @@ This file records durable product rules that implementation must preserve.
   allows it. The assignee receives the actionable Inbox item and Web Push; when
   the assignee completes it, the creator receives a bounded Inbox completion
   receipt.
+- Cross-workspace natural-language assignment must use bounded workspace
+  candidates from the Home AI workspace catalog. The model may map a name to an
+  `assigneeWorkspaceId` only when it matches a candidate display name or alias;
+  otherwise it must ask for confirmation instead of inventing workspace ids.
 - One-shot reminders are Action Inbox Todos with a future `availableAt` /
   `remindAt`; periodic or complex recurring tasks are Automation-backed and
   create one Inbox Todo occurrence per trigger.

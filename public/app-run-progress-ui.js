@@ -8,6 +8,7 @@ const RUN_PROGRESS_MAX_VISIBLE_EVENTS = 12;
 const RUN_PROGRESS_TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"]);
 const RUN_PROGRESS_START_EVENTS = new Set([
   "run.request_preparing",
+  "run.todo_intake_started",
   "run.context_ready",
   "run.gateway_worker_queued",
   "run.gateway_worker_starting",
@@ -342,6 +343,7 @@ function runEventTitle(event) {
   if (name === "run.final_message_started") return "\u5f00\u59cb\u751f\u6210\u56de\u590d";
   if (name === "run.final_message_done") return "\u56de\u590d\u5df2\u751f\u6210";
   if (name === "run.request_preparing") return "\u6b63\u5728\u51c6\u5907\u8fd0\u884c";
+  if (name === "run.todo_intake_started") return "\u6b63\u5728\u8bc6\u522b\u5f85\u529e\u610f\u56fe";
   if (name === "run.context_ready") return "\u4e0a\u4e0b\u6587\u5df2\u6574\u7406";
   if (name === "run.gateway_worker_queued") return "Gateway \u6392\u961f\u7b49\u5f85";
   if (name === "run.gateway_worker_starting") return "Gateway \u542f\u52a8\u4e2d";
@@ -631,12 +633,26 @@ function renderPendingRunProgressPanel(message = {}) {
     message.createdAt,
     message.updatedAt,
   ].map(runProgressTimestampMs).find(Boolean) || Date.now();
+  const localEvents = Array.isArray(message.localRunProgressEvents)
+    ? message.localRunProgressEvents.map((event) => normalizeRunEvent(event))
+    : [];
+  const localRows = localEvents.length
+    ? localEvents.map((event) => {
+      const preview = runEventPreviewLabel(event);
+      return `<div class="${escapeHtml(runEventRowClass(event))}">
+        <span class="run-progress-dot" aria-hidden="true"></span>
+        <span class="run-progress-main">${escapeHtml(runEventTitle(event))}</span>
+        <span class="run-progress-time">${escapeHtml(runEventStatusLabel(event, startMs))}</span>
+        ${preview ? `<span class="run-progress-preview">${escapeHtml(preview)}</span>` : ""}
+      </div>`;
+    }).join("")
+    : renderRunProgressWaitingRow(startMs);
   return `<aside class="run-progress-panel inline pending-run-id" aria-live="polite">
     <div class="run-progress-head">
       <span>\u8fd0\u884c\u4e2d</span>
       <span data-run-progress-elapsed="${escapeHtml(String(startMs))}">${escapeHtml(runProgressDurationLabel(startMs))}</span>
     </div>
-    <div class="run-progress-rows">${renderRunProgressWaitingRow(startMs)}</div>
+    <div class="run-progress-rows">${localRows}</div>
   </aside>`;
 }
 

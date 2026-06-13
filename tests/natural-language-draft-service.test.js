@@ -7,6 +7,7 @@ const {
   extractJsonObject,
   normalizeAutomationSchedule,
   normalizeAutomationRepeat,
+  workspaceCandidateContext,
 } = require("../adapters/natural-language-draft-service");
 
 function makeService(outputs = []) {
@@ -51,6 +52,20 @@ async function main() {
   assert.equal(normalizeAutomationRepeat("once", "0 8 * * *"), 1);
   assert.equal(normalizeAutomationRepeat("", "0 8 * * *"), null);
   assert.equal(normalizeAutomationRepeat("3", "0 8 * * *"), 3);
+}
+
+{
+  assert.deepEqual(workspaceCandidateContext({
+    id: "owner",
+    label: "Owner",
+    assignableWorkspaces: [
+      { id: "weixin_wuping", displayName: "\u5434\u840d", aliases: ["wuping"] },
+      { id: "owner", label: "Owner" },
+    ],
+  }), [
+    { workspaceId: "owner", displayName: "Owner", aliases: [] },
+    { workspaceId: "weixin_wuping", displayName: "\u5434\u840d", aliases: ["wuping"] },
+  ]);
 }
 
 {
@@ -141,6 +156,7 @@ async function main() {
   assert.equal(calls.length, 1);
   assert.match(calls[0].body.input, /Home AI Todo Intake/);
   assert.match(calls[0].body.input, /Do not use keyword-only guessing/);
+  assert.match(calls[0].body.input, /Known assignable workspace candidates/);
   assert.equal(calls[0].body.conversation, "home_ai_todo_intake_fixed");
 }
 
@@ -157,6 +173,7 @@ async function main() {
   assert.equal(result.todoDraft, null);
   assert.equal(calls[0].body.conversation, "home_ai_todo_detect_fixed");
   assert.match(calls[0].body.input, /Do not use keyword-only guessing/);
+  assert.match(calls[0].body.input, /Known assignable workspace candidates/);
 }
 
 {

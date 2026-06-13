@@ -469,6 +469,27 @@ assert.match(queuedBeforeRunIdHtml, /run-progress-panel inline pending-run-id/);
 assert.match(queuedBeforeRunIdHtml, /\u8bf7\u6c42\u5df2\u53d1\u9001/);
 assert.match(queuedBeforeRunIdHtml, /\u7b49\u5f85\u6a21\u578b\u6216\u5de5\u5177\u8fd4\u56de/);
 
+const localTodoIntakePendingThread = {
+  id: "thread_local_todo_intake",
+  messages: [
+    {
+      id: "msg_local_todo_intake",
+      role: "assistant",
+      status: "queued",
+      queuedAt: "2026-05-27T13:04:00.000Z",
+      localRunProgressEvents: [{
+        event: "run.todo_intake_started",
+        timestamp: "2026-05-27T13:04:00.000Z",
+        preview: "\u6b63\u5728\u68c0\u67e5\u662f\u5426\u9700\u8981\u521b\u5efa\u5f85\u529e",
+      }],
+    },
+  ],
+  events: [],
+};
+const localTodoIntakePendingHtml = renderMessageRunProgress(localTodoIntakePendingThread, localTodoIntakePendingThread.messages[0]);
+assert.match(localTodoIntakePendingHtml, /\u6b63\u5728\u8bc6\u522b\u5f85\u529e\u610f\u56fe/);
+assert.match(localTodoIntakePendingHtml, /\u6b63\u5728\u68c0\u67e5\u662f\u5426\u9700\u8981\u521b\u5efa\u5f85\u529e/);
+
 const terminalHistoryThread = {
   id: "thread_terminal_history",
   activeRunId: "",

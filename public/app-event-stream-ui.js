@@ -180,6 +180,8 @@ async function sendMessage(event) {
       return;
     }
     setComposerText("");
+    suppressComposerAutoFocus(1800);
+    blurComposerInput();
     lockComposerSendToBottom();
     optimisticSend = appendOptimisticSendMessages(body, text);
     const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
@@ -291,6 +293,11 @@ function appendOptimisticSendMessages(body = {}, text = "") {
       updatedAt: new Date(nowMs + 1).toISOString(),
       queuedAt: new Date(nowMs + 1).toISOString(),
       taskGroupId,
+      localRunProgressEvents: [{
+        event: "run.todo_intake_started",
+        timestamp: (nowMs + 1) / 1000,
+        preview: "\u6b63\u5728\u68c0\u67e5\u662f\u5426\u9700\u8981\u521b\u5efa\u5f85\u529e\uff0c\u7136\u540e\u7ee7\u7eed\u6a21\u578b\u56de\u590d",
+      }],
       localPendingSend: true,
       localPendingSendId: baseId,
     });

@@ -1238,6 +1238,12 @@ const applyHermesRunEvent = (...args) => getGatewayRuntimeCompositionService().a
 const markRunFailed = (...args) => getGatewayRuntimeCompositionService().markRunFailed(...args);
 const markRunCancelled = (...args) => getGatewayRuntimeCompositionService().markRunCancelled(...args);
 const reconcileDetachedActiveRuns = (...args) => getGatewayRuntimeCompositionService().reconcileDetachedActiveRuns(...args);
+const listAssignableWorkspacesForTodo = () => (loadCatalog().workspaces || []).map((workspace) => ({
+  id: workspace.id,
+  label: workspace.label || workspace.displayName || workspace.display_name || workspace.name || workspace.id,
+  displayName: workspace.displayName || workspace.display_name || workspace.label || workspace.name || workspace.id,
+  aliases: workspace.aliases || [],
+})).filter((workspace) => workspace.id).slice(0, 60);
 const resolveAuthorizedCronOutputFile = (query, auth = null) => automationProvider.resolveAuthorizedOutputFile({ query, auth });
 const resolveAuthorizedCronDeliverableFile = (query, auth = null) => automationProvider.resolveAuthorizedDeliverableFile({ query, auth });
 let mobileApiServices = {};
@@ -1249,6 +1255,7 @@ const mobileRuntimeThreadFacadeService = createMobileRuntimeThreadFacadeService(
   getRuntimeStateNormalizationService, getRuntimeStateThreadService, getSemanticDirectoryAttachmentService, getSingleWindowThreadService,
   groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID, interpretKanbanNaturalLanguage, interpretTodoNaturalLanguage, isOwnerAuth, kanbanCardProvider,
   kanbanCaseTopicPermissionsForTaskGroup, kanbanSingleCardCasePayload,
+  listAssignableWorkspaces: listAssignableWorkspacesForTodo,
   learnSentText: (payload) => mobileApiServices?.voiceInputService?.learnSentText?.(payload),
   makeId, maxMessageChars: MAX_MESSAGE_CHARS, nowIso,
   ownerElevationInstructions, precedingUserMessageForAssistant, publicArtifactFromClient, publicTodo, readBody, removeThreadActiveRun,
