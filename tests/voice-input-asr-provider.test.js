@@ -9,6 +9,7 @@ const {
   createVoiceInputAsrProvider,
   mergedInitialPrompt,
   normalizeProviderResult,
+  parseComparisonBackends,
   providerStatusFromConfig,
   providerProtocolFromConfig,
 } = require("../adapters/voice-input-asr-provider");
@@ -175,6 +176,15 @@ function testProviderStatusAndNormalization() {
   assert.equal(providerProtocolFromConfig({ backend: "whisper-large-v3-turbo", url: "http://127.0.0.1:8001/v1/audio/transcriptions" }), "openai-multipart");
 }
 
+function testComparisonBackendCompactNames() {
+  const rows = parseComparisonBackends("whisper-large-v3-turbo,funasr-local,sensevoice-local");
+  assert.deepEqual(rows.map((row) => [row.backend, row.protocol, row.url]), [
+    ["whisper-large-v3-turbo", "openai-multipart", "http://127.0.0.1:8001/v1/audio/transcriptions"],
+    ["funasr-local", "openai-multipart", "http://127.0.0.1:8002/v1/audio/transcriptions"],
+    ["sensevoice-local", "openai-multipart", "http://127.0.0.1:8003/v1/audio/transcriptions"],
+  ]);
+}
+
 async function testComparisonBackendsReturnBoundedRows() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "voice-asr-compare-provider-"));
   const audioPath = path.join(tempDir, "sample.webm");
@@ -227,6 +237,7 @@ async function run() {
   testMergedInitialPromptKeepsDefaultAndDynamicHints();
   await testMultipartFallbackBodyBuilder();
   testProviderStatusAndNormalization();
+  testComparisonBackendCompactNames();
   await testComparisonBackendsReturnBoundedRows();
   console.log("voice input asr provider tests passed");
 }

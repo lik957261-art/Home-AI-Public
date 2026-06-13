@@ -22,23 +22,7 @@ const HOME_AI_BRIDGE_HOST_PORT = 8798;
 const HOME_AI_VOICE_INPUT_ASR_URL = "http://127.0.0.1:8001/v1/audio/transcriptions";
 const HOME_AI_VOICE_INPUT_ASR_BACKEND = "whisper-large-v3-turbo";
 const HOME_AI_VOICE_INPUT_ASR_PROTOCOL = "openai-multipart";
-const HOME_AI_VOICE_INPUT_COMPARE_BACKENDS = JSON.stringify([
-  {
-    backend: "whisper-large-v3-turbo",
-    protocol: "openai-multipart",
-    url: "http://127.0.0.1:8001/v1/audio/transcriptions",
-  },
-  {
-    backend: "funasr-local",
-    protocol: "openai-multipart",
-    url: "http://127.0.0.1:8002/v1/audio/transcriptions",
-  },
-  {
-    backend: "sensevoice-local",
-    protocol: "openai-multipart",
-    url: "http://127.0.0.1:8003/v1/audio/transcriptions",
-  },
-]);
+const HOME_AI_VOICE_INPUT_COMPARE_BACKENDS = "whisper-large-v3-turbo,funasr-local,sensevoice-local";
 const HOME_AI_VOICE_INPUT_LANGUAGE = "zh";
 const HOME_AI_VOICE_INPUT_TASK = "transcribe";
 const HOME_AI_VOICE_INPUT_INITIAL_PROMPT = "以下是普通话语音转写，请使用简体中文，并加入合适的中文标点符号。";
