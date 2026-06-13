@@ -11,6 +11,8 @@ LABEL="${HOMEAI_DISASTER_BACKUP_LABEL:-daily-nfs}"
 SUDO_PASSWORD_FILE="${HOMEAI_MAC_SUDO_PASSWORD_FILE:-/Users/xuxin/.homeai-qa/sudo-password}"
 OPERATOR_USER="${HOMEAI_DISASTER_BACKUP_OPERATOR_USER:-$(id -un)}"
 USE_SUDO="${HOMEAI_DISASTER_BACKUP_USE_SUDO:-1}"
+NFS_OP_TIMEOUT_SECONDS="${HOMEAI_NAS_BACKUP_OP_TIMEOUT_SECONDS:-30}"
+NFS_RSYNC_TIMEOUT_SECONDS="${HOMEAI_NAS_BACKUP_RSYNC_TIMEOUT_SECONDS:-1800}"
 
 usage() {
   cat <<'USAGE'
@@ -62,10 +64,38 @@ sudo_cmd() {
   fi
 }
 
-mkdir -p "$DESTINATION"
-test_file="${DESTINATION%/}/.homeai-nfs-write-test-$$"
-printf 'ok\n' > "$test_file"
-rm -f "$test_file"
+run_with_timeout() {
+  local timeout_seconds="$1"
+  shift
+  "$@" &
+  local child_pid=$!
+  local elapsed=0
+  while kill -0 "$child_pid" >/dev/null 2>&1; do
+    if [[ "$elapsed" -ge "$timeout_seconds" ]]; then
+      kill "$child_pid" >/dev/null 2>&1 || true
+      sleep 1
+      kill -9 "$child_pid" >/dev/null 2>&1 || true
+      wait "$child_pid" 2>/dev/null || true
+      return 124
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  wait "$child_pid"
+}
+
+nfs_write_probe() {
+  local destination="$1"
+  mkdir -p "$destination"
+  local test_file="${destination%/}/.homeai-nfs-write-test-$$"
+  printf 'ok\n' > "$test_file"
+  rm -f "$test_file"
+}
+
+if ! run_with_timeout "$NFS_OP_TIMEOUT_SECONDS" nfs_write_probe "$DESTINATION"; then
+  echo "nfs_destination_write_unavailable:${DESTINATION}" >&2
+  exit 78
+fi
 
 sudo_cmd mkdir -p "$STAGING"
 sudo_cmd "$NODE_BIN" "$APP_SCRIPT" \
@@ -78,10 +108,17 @@ if [[ "$USE_SUDO" != "0" ]]; then
 fi
 sudo_cmd chmod -R u+rwX,go-rwx "${STAGING%/}/current"
 
-mkdir -p "${DESTINATION%/}/current"
-/usr/bin/rsync -rlpt --delete --links --safe-links --inplace \
+if ! run_with_timeout "$NFS_OP_TIMEOUT_SECONDS" mkdir -p "${DESTINATION%/}/current"; then
+  echo "nfs_destination_current_unavailable:${DESTINATION%/}/current" >&2
+  exit 78
+fi
+
+if ! run_with_timeout "$NFS_RSYNC_TIMEOUT_SECONDS" /usr/bin/rsync -rlpt --delete --links --safe-links --inplace \
   "${STAGING%/}/current/" \
-  "${DESTINATION%/}/current/"
+  "${DESTINATION%/}/current/"; then
+  echo "nfs_destination_rsync_failed:${DESTINATION%/}/current" >&2
+  exit 78
+fi
 
 "$NODE_BIN" - "${DESTINATION%/}/current/DISASTER-RECOVERY-MANIFEST.json" "$DESTINATION" <<'NODE'
 const fs = require("node:fs");

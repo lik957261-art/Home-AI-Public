@@ -85,6 +85,10 @@ Backups must allow a replacement machine to restore source, production app files
   sudo into `/Users/xuxin/HomeAI-Disaster-Staging/mac-production` by default,
   then rsyncs `staging/current` to the mounted NFS destination as the operator
   user. This avoids Synology NFS root-squash failures from sudo writes.
+  NFS directory creation, write probing, and publish sync are bounded by
+  `HOMEAI_NAS_BACKUP_OP_TIMEOUT_SECONDS` and
+  `HOMEAI_NAS_BACKUP_RSYNC_TIMEOUT_SECONDS`; a hung or unwritable mount must
+  fail with an explicit NFS destination error instead of blocking CRON.
 - The production scheduled path is a Hermes CRON `no_agent` job running as
   `hermes-host`. Its script is installed at
   `/Users/hermes-host/HermesMobile/data/hermes-home/scripts/homeai-disaster-backup-cron.sh`
