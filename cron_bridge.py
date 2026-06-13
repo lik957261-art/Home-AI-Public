@@ -709,8 +709,10 @@ def public_job(job: dict[str, Any], detail: str = "full") -> dict[str, Any]:
         "provider": compact_text(job.get("provider"), 80),
         "profile": compact_text(job.get("profile"), 120),
         "workdir": compact_text(job.get("workdir"), 600),
+        "dataContext": {"type": compact_text((job.get("data_context") or {}).get("type"), 120)} if isinstance(job.get("data_context"), dict) else None,
         "hasScript": bool(job.get("script")),
         "hasWorkdir": bool(job.get("workdir")),
+        "hasDataContext": isinstance(job.get("data_context"), dict),
         "hasContextFrom": bool(job.get("context_from")),
         "outputDocuments": output_documents(job_id),
         "detailLevel": "full",
@@ -925,6 +927,29 @@ def ensure_workdir(value: Any, *, dry_run: bool = False) -> str | None:
     return workdir
 
 
+def normalize_data_context(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        value = {"type": text}
+    if not isinstance(value, dict):
+        raise ValueError("data_context must be an object")
+    context_type = str(value.get("type") or value.get("contextType") or "").strip()
+    if not context_type:
+        raise ValueError("data_context.type is required")
+    normalized: dict[str, Any] = {"type": context_type}
+    for key in ("date", "maxThreads", "maxMessagesPerThread", "maxExcerptChars"):
+        if value.get(key) is not None:
+            normalized[key] = value.get(key)
+    scope = value.get("scope")
+    if isinstance(scope, dict):
+        normalized["scope"] = scope
+    return normalized
+
+
 def normalize_create_payload(request: dict[str, Any]) -> dict[str, Any]:
     raw = request.get("job") if isinstance(request.get("job"), dict) else request
     name = compact_text(raw.get("name") or request.get("text") or "Hermes automation", 120)
@@ -953,6 +978,7 @@ def normalize_create_payload(request: dict[str, Any]) -> dict[str, Any]:
         "provider": str(raw.get("provider") or "").strip() or None,
         "profile": normalize_profile(raw.get("profile") or request.get("profile")),
         "workdir": normalize_workdir(raw.get("workdir")),
+        "data_context": normalize_data_context(raw.get("data_context") or raw.get("dataContext")),
         "owner_principal_id": str(request.get("owner_principal_id") or request.get("ownerPrincipalId") or "").strip() or None,
         "access_policy_context": request.get("access_policy_context") if isinstance(request.get("access_policy_context"), dict) else None,
     }
@@ -1059,6 +1085,7 @@ def manual_create_job(payload: dict[str, Any], *, dry_run: bool = False) -> dict
         "origin": None,
         "enabled_toolsets": payload.get("enabled_toolsets") or None,
         "workdir": ensure_workdir(payload.get("workdir"), dry_run=dry_run),
+        "data_context": payload.get("data_context") or None,
     }
     if dry_run:
         return job
@@ -1148,6 +1175,8 @@ def update_job_from_patch(job: dict[str, Any], patch: dict[str, Any]) -> None:
             job.pop("profile", None)
     if "workdir" in patch and patch.get("workdir") is not None:
         job["workdir"] = ensure_workdir(patch.get("workdir"))
+    if ("data_context" in patch or "dataContext" in patch) and (patch.get("data_context") is not None or patch.get("dataContext") is not None):
+        job["data_context"] = normalize_data_context(patch.get("data_context") or patch.get("dataContext"))
     job["updated_at"] = datetime.now().astimezone().isoformat()
 
 

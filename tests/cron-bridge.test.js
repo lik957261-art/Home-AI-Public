@@ -181,6 +181,18 @@ function main() {
   const profileClearDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
   assert.equal(Object.hasOwn(profileClearDoc.jobs.find((job) => job.id === "job_1"), "profile"), false);
 
+  const dataContextUpdate = runBridge(baseEnv, {
+    action: "update",
+    job_id: "job_1",
+    owner_principal_id: "owner",
+    patch: { data_context: { type: "discussion_activity_daily", date: "previous_day", maxThreads: 12 } },
+  });
+  assert.equal(dataContextUpdate.ok, true);
+  assert.deepEqual(dataContextUpdate.job.dataContext, { type: "discussion_activity_daily" });
+  assert.equal(dataContextUpdate.job.hasDataContext, true);
+  const dataContextDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  assert.equal(dataContextDoc.jobs.find((job) => job.id === "job_1").data_context.type, "discussion_activity_daily");
+
   const mdJobRoot = path.join(outputRoot, "job_md");
   const mdDelivery = path.join(tempRoot, "delivery.md");
   const pdfDelivery = path.join(tempRoot, "delivery.pdf");

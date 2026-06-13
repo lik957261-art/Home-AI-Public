@@ -191,6 +191,18 @@ delivery directory.
 directory on create/update. Unsafe workdirs are rejected instead of silently
 falling back to the app directory.
 
+Analysis automations that need Home AI runtime state must use host-provided
+data contexts instead of asking the model to discover or query SQLite directly.
+Jobs declare a `data_context` object, for example
+`{"type":"discussion_activity_daily","date":"previous_day"}`. Before the model
+run, `scripts/hermes-mobile-cron-dispatcher.py` calls the product
+`data-context` provider through `scripts/automation-data-context-cli.js`, writes
+a bounded Markdown data pack under the job workdir, and injects that path into
+the model prompt. The same provider is exposed to authenticated clients through
+`/api/data-context/prepare`, so scheduled automation, normal chat, and plugins
+share one permission-checked, redacted, capped data access surface. Do not add
+one-off SQL scripts to individual Skills or prompts for product features.
+
 Detached cron runners may execute from the interactive Ubuntu distro while the dedicated Grok Gateway listens behind the Windows host / worker-distro loopback boundary. For `x_search`, the dispatcher should pass `HERMES_MOBILE_X_SEARCH_PROXY_URL` pointing at the bridge-host proxy prefix `/bridge/grok-gateway-proxy`; runners should not assume `127.0.0.1:<grok-port>` reaches the Grok worker.
 
 The `hermes-mobile-web` plugin appends `/v1/responses` to that prefix. Bridge

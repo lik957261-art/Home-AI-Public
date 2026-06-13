@@ -369,7 +369,14 @@ async function testCreateNormalizesOriginDeliveryWithoutTarget() {
 async function testActionDecodesJobAndClearsCache() {
   const { routes, calls } = makeRoutes();
   const got = await request(routes, "POST", "/api/automations/job%2F42/update?workspaceId=child", {
-    body: { name: "Updated", enabledToolsets: ["web"], profile: "hm-child-openai-1", dry_run: false, reason: "manual" },
+    body: {
+      name: "Updated",
+      enabledToolsets: ["web"],
+      profile: "hm-child-openai-1",
+      dataContext: { type: "discussion_activity_daily", date: "previous_day" },
+      dry_run: false,
+      reason: "manual",
+    },
   });
   assert.equal(got.res.statusCode, 200);
   assert.equal(got.body.ok, true);
@@ -391,6 +398,7 @@ async function testActionDecodesJobAndClearsCache() {
       provider: undefined,
       profile: "hm-child-openai-1",
       workdir: undefined,
+      data_context: { type: "discussion_activity_daily", date: "previous_day" },
     },
     reason: "manual",
   });

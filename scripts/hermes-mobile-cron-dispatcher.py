@@ -334,6 +334,103 @@ def _runner_tool_failure_summary() -> str:
     return ""
 
 
+def _node_bin() -> str:
+    root = os.environ.get("HERMES_MOBILE_ROOT", "").strip()
+    explicit = os.environ.get("HERMES_MOBILE_NODE_EXE", "").strip()
+    if explicit:
+        return explicit
+    if root:
+        candidate = Path(root) / "runtime" / "node-current" / "bin" / "node"
+        if candidate.exists():
+            return str(candidate)
+    return "node"
+
+
+def _app_dir() -> Path:
+    return Path(os.environ.get("HERMES_MOBILE_APP_DIR") or Path(__file__).resolve().parents[1]).resolve()
+
+
+def _cron_output_root() -> Path:
+    return Path(os.environ.get("HERMES_WEB_CRON_OUTPUT_ROOT") or (_hermes_home() / "cron" / "output")).expanduser()
+
+
+def _safe_context_type(value: Any) -> str:
+    text = str(value or "").strip()
+    keep = []
+    for char in text[:80]:
+        keep.append(char if (char.isalnum() or char in {"_", "-"}) else "_")
+    return "".join(keep).strip("_") or "data_context"
+
+
+def _prepare_job_data_context(job: dict[str, Any]) -> dict[str, str] | None:
+    data_context = job.get("data_context") or job.get("dataContext")
+    if not isinstance(data_context, dict):
+        return None
+    context_type = str(data_context.get("type") or data_context.get("contextType") or "").strip()
+    if not context_type:
+        raise RuntimeError("data_context.type is required")
+
+    job_id = str(job.get("id") or "job").strip() or "job"
+    workdir_text = str(job.get("workdir") or "").strip()
+    output_dir = Path(workdir_text).expanduser() if workdir_text else (_cron_output_root() / job_id / "data-context")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    out_path = output_dir / f"{_safe_context_type(context_type)}.md"
+
+    command = [
+        _node_bin(),
+        str(_app_dir() / "scripts" / "automation-data-context-cli.js"),
+        "--type",
+        context_type,
+        "--out",
+        str(out_path),
+        "--json",
+    ]
+    if data_context.get("date") is not None:
+        command.extend(["--date", str(data_context.get("date"))])
+    for key, flag in (
+        ("maxThreads", "--max-threads"),
+        ("maxMessagesPerThread", "--max-messages-per-thread"),
+        ("maxExcerptChars", "--max-excerpt-chars"),
+    ):
+        if data_context.get(key) is not None:
+            command.extend([flag, str(data_context.get(key))])
+
+    env = os.environ.copy()
+    result = subprocess.run(command, text=True, capture_output=True, timeout=60, check=False, env=env)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip().replace("\n", " ")[:500]
+        raise RuntimeError(f"data_context_prepare_failed:{context_type}:{detail}")
+    try:
+        payload = json.loads(result.stdout or "{}")
+    except Exception as exc:
+        raise RuntimeError(f"data_context_prepare_invalid_json:{context_type}:{exc}") from exc
+    if not payload.get("ok"):
+        raise RuntimeError(f"data_context_prepare_failed:{context_type}:{payload.get('error') or 'unknown'}")
+    return {
+        "type": context_type,
+        "path": str(out_path),
+        "target_date": str(payload.get("targetDate") or ""),
+    }
+
+
+def _job_with_prepared_data_context(job: dict[str, Any]) -> dict[str, Any]:
+    prepared = _prepare_job_data_context(job)
+    if not prepared:
+        return job
+    prompt = str(job.get("prompt") or "")
+    context_instruction = (
+        "\n\n[HOME AI DATA CONTEXT]\n"
+        f"A bounded host-generated data context is available for this job.\n"
+        f"Type: {prepared['type']}\n"
+        f"Target date: {prepared['target_date']}\n"
+        f"Path: {prepared['path']}\n"
+        "Use this data context as the primary evidence source. Do not search unrelated filesystem paths or read raw SQLite directly unless another explicit authorized data context requires it.\n"
+    )
+    next_job = dict(job)
+    next_job["prompt"] = f"{prompt}{context_instruction}"
+    return next_job
+
+
 def dispatch_due_jobs() -> int:
     from cron.jobs import advance_next_run, get_due_jobs
 
@@ -427,7 +524,8 @@ def run_one_job(job_id: str) -> int:
 
         from cron.scheduler import SILENT_MARKER, _deliver_result, run_job
 
-        success, output, final_response, error = run_job(job)
+        prepared_job = _job_with_prepared_data_context(job)
+        success, output, final_response, error = run_job(prepared_job)
         output_file = save_job_output(job_id, output)
         print(f"mobile cron runner: output saved {output_file}")
 

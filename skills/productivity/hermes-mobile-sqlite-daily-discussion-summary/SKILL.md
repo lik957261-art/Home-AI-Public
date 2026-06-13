@@ -23,17 +23,21 @@ profile.
 ## Workflow
 
 1. Determine the previous natural day in `Asia/Shanghai`.
-2. Identify accessible Home AI discussion/thread/message metadata through
-   authorized runtime files or APIs exposed to this profile.
-3. Group activity by workspace and by topic/thread when that metadata is
+2. Use the Home AI host-generated `discussion_activity_daily` data context if
+   the prompt provides a `[HOME AI DATA CONTEXT]` path. Treat that data pack as
+   the primary source of truth for workspace/thread/message counts and bounded
+   excerpts.
+3. If the data context path is missing or unreadable, report a configuration
+   limitation instead of searching broad filesystem paths or raw SQLite.
+4. Group activity by workspace and by topic/thread when that metadata is
    available.
-4. Summarize:
+5. Summarize:
    - active workspaces;
    - important discussion themes;
    - user requests that appear unresolved;
    - generated deliverables or automation outputs;
    - errors that need follow-up.
-5. Write a mobile-readable Markdown report in the current automation workdir
+6. Write a mobile-readable Markdown report in the current automation workdir
    or the CRON output directory.
 
 ## Report Shape

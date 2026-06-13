@@ -2,6 +2,7 @@
 
 const { createAutomationApiRoutes } = require("./automation-api-routes");
 const { createEventStreamApiRoutes } = require("./event-stream-api-routes");
+const { createMobileApiDataContextComposition } = require("./mobile-api-data-context-composition");
 const { createMobileApiDirectoryComposition } = require("./mobile-api-directory-composition");
 const { createMobileApiDispatcher } = require("./mobile-api-dispatcher");
 const { createMobileApiLearningComposition } = require("./mobile-api-learning-composition");
@@ -15,9 +16,7 @@ const { createThreadTaskApiRoutes } = require("./thread-task-api-routes");
 const { createTodoApiRoutes } = require("./todo-api-routes");
 const { createWorkspaceOnboardingApiRoutes } = require("./workspace-onboarding-api-routes");
 const { createWorkspaceOnboardingService } = require("../adapters/workspace-onboarding-service");
-function callBootTrace(deps, label) {
-  if (typeof deps.bootTrace === "function") deps.bootTrace(label);
-}
+function callBootTrace(deps, label) { if (typeof deps.bootTrace === "function") deps.bootTrace(label); }
 
 function createMobileApiComposition(deps = {}) {
   const platformComposition = createMobileApiPlatformComposition(deps);
@@ -280,7 +279,9 @@ function createMobileApiComposition(deps = {}) {
     workspacePrincipal: deps.workspacePrincipal,
   });
   callBootTrace(deps, "automation api routes ready");
-
+  const dataContextComposition = createMobileApiDataContextComposition(deps);
+  const { routes: { dataContextApiRoutes }, services: { dataContextService } } = dataContextComposition;
+  callBootTrace(deps, "data context api routes ready");
   const mobileApiDispatcher = createMobileApiDispatcher({
     accessKeyApiRoutes,
     actionInboxApiRoutes,
@@ -291,6 +292,7 @@ function createMobileApiComposition(deps = {}) {
     directoryBrowserApiRoutes,
     directoryMutationApiRoutes,
     directoryShareApiRoutes,
+    dataContextApiRoutes,
     familyProfileApiRoutes,
     fileArtifactApiRoutes,
     hermesPluginApiRoutes,
@@ -345,6 +347,7 @@ function createMobileApiComposition(deps = {}) {
       learningGrowthTeachingCheckService,
       learningGrowthExperienceSignalService,
       learningGrowthStageAssessmentService,
+      dataContextService,
       hermesPluginService,
       hermesPluginNotificationService,
       noteReceiptSaveService,
@@ -361,6 +364,7 @@ function createMobileApiComposition(deps = {}) {
       accessKeyApiRoutes,
       actionInboxApiRoutes,
       automationApiRoutes,
+      dataContextApiRoutes,
       directoryBrowserApiRoutes,
       directoryMutationApiRoutes,
       directoryShareApiRoutes,

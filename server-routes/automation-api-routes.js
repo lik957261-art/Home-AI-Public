@@ -339,6 +339,7 @@ function createAutomationApiRoutes(deps = {}) {
       provider: body.provider,
       profile: body.profile,
       workdir: body.workdir,
+      data_context: body.data_context || body.dataContext,
     } : {};
     let result;
     try {
