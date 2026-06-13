@@ -125,6 +125,7 @@ function createThreadMessageCreateService(options = {}) {
   const kanbanCaseTopicPermissionsForTaskGroup = maybeCall(options.kanbanCaseTopicPermissionsForTaskGroup, () => null);
   const kanbanSingleCardCasePayload = maybeCall(options.kanbanSingleCardCasePayload, () => ({}));
   const learnSentText = maybeCall(options.learnSentText, () => {});
+  const prepareChatDataContext = maybeCall(options.prepareChatDataContext, () => ({ ok: true, selected: false, instructions: "" }));
   const makeId = maybeCall(options.makeId, (prefix = "id") => `${prefix}-${Date.now()}`);
   const normalizeTaskGroupMeta = maybeCall(options.normalizeTaskGroupMeta, defaultNormalizeTaskGroupMeta);
   const nowIso = maybeCall(options.nowIso, () => new Date().toISOString());
@@ -438,6 +439,15 @@ function createThreadMessageCreateService(options = {}) {
     if (maintenanceRoute && gatewayRouting.provider === DEEPSEEK_PROVIDER) {
       gatewayRouting.preferred_worker_profiles = DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES;
     }
+    const dataContext = prepareChatDataContext({
+      text: context.text || "",
+      workspaceId: thread.workspaceId,
+      actorWorkspaceId: context.actorWorkspaceId,
+      actorId: workspacePrincipal(context.actorWorkspaceId || thread.workspaceId),
+    });
+    const dataContextInstructions = dataContext?.ok
+      ? cleanString(dataContext.instructions)
+      : `Home AI data context was requested but could not be prepared: ${cleanString(dataContext?.error || dataContext?.code || "unavailable", 240)}`;
     const runOptions = {
       reasoning_effort: context.reasoningEffort,
       singleWindowMode: context.singleWindowMode,
@@ -446,6 +456,7 @@ function createThreadMessageCreateService(options = {}) {
       instructions: [
         body.instructions || "",
         searchSource.instructions || "",
+        dataContextInstructions,
         ownerElevationInstructions(body),
         followUpInstructions,
       ].filter(Boolean).join("\n\n"),
@@ -635,6 +646,7 @@ function createThreadMessageCreateService(options = {}) {
       requestedTaskGroupId: taskGroup.requestedTaskGroupId,
       searchSource,
       singleWindowMode: normalized.singleWindowMode,
+      text: normalized.text,
     });
     messages.assistantMessage.runOptions = run.runOptions;
 

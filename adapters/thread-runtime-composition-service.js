@@ -1,6 +1,7 @@
 "use strict";
 
 const { createThreadDirectCreateExecutionService } = require("./thread-direct-create-execution-service");
+const { createChatDataContextSelectorService } = require("./chat-data-context-selector-service");
 const { createThreadMessageCreateService } = require("./thread-message-create-service");
 const { createThreadMessageRunRouteService } = require("./thread-message-run-route-service");
 const { createThreadOwnerElevationRetryService } = require("./thread-owner-elevation-retry-service");
@@ -10,6 +11,16 @@ function createThreadRuntimeCompositionService(deps = {}) {
   let messageCreateService = null;
   let directCreateExecutionService = null;
   let messageRunRouteService = null;
+  let chatDataContextSelectorService = null;
+
+  function getChatDataContextSelectorService() {
+    if (!chatDataContextSelectorService) {
+      chatDataContextSelectorService = createChatDataContextSelectorService({
+        dataContextService: deps.dataContextService,
+      });
+    }
+    return chatDataContextSelectorService;
+  }
 
   function getOwnerElevationRetryService() {
     if (!ownerElevationRetryService) {
@@ -63,6 +74,7 @@ function createThreadRuntimeCompositionService(deps = {}) {
         notifyTodoCreated: deps.notifyTodoCreated,
         nowIso: deps.nowIso,
         ownerElevationInstructions: deps.ownerElevationInstructions,
+        prepareChatDataContext: (...args) => getChatDataContextSelectorService().prepareForMessage(...args),
         publicArtifactFromClient: deps.publicArtifactFromClient,
         removeThreadActiveRun: deps.removeThreadActiveRun,
         resolveTaskDirectoryAttachment: deps.resolveTaskDirectoryAttachment,

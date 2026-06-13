@@ -36,6 +36,12 @@ assembly only decides what is injected into the next model call.
 - Long artifacts, long tool logs, raw prompts, full learner content, secrets,
   and push endpoints must not be written into context summaries or debug
   metadata.
+- Ordinary Chat may request host-provided data contexts for explicit
+  cross-workspace analysis requests. The selector must be conservative: a
+  request needs an explicit date, a discussion/chat/workspace scope, and an
+  analysis intent before Home AI prepares data. Chat must use the shared
+  `data-context` provider instead of asking the model to discover SQLite files
+  or run one-off SQL.
 
 ## Context Layers
 
@@ -91,6 +97,12 @@ harmful. Do not delete generated summary/state rows during rollback.
   - fallback metadata
 - `adapters/topic-context-compaction-service.js`
   - terminal-task compaction into summary/state/refs
+- `adapters/chat-data-context-selector-service.js`
+  - conservative ordinary-chat data-context selection
+  - instruction construction from bounded host-generated data packs
+- `adapters/data-context-service.js`
+  - shared provider for Automation, chat, and future plugin callers that need
+    permission-checked, redacted, capped runtime data
 - `adapters/gateway-run-event-service.js`
   - invokes compaction on run completed, failed, or cancelled
 - `adapters/mobile-sqlite-store.js`
@@ -115,6 +127,10 @@ harmful. Do not delete generated summary/state rows during rollback.
   blindly import plugin delivery directories into every prompt; it needs a
   service-owned selector that prefers cleaned summaries, selected reports,
   source ids, and bounded previews.
+- Chat data-context selection currently supports
+  `discussion_activity_daily` only. If users ask for unsupported data, the
+  assistant should answer from ordinary context or explain the missing product
+  data surface rather than attempting raw SQLite access.
 
 ## Privacy
 
@@ -136,6 +152,7 @@ Focused checks for this module:
 
 - `node tests\conversation-history-service.test.js`
 - `node tests\context-assembly-service.test.js`
+- `node tests\chat-data-context-selector-service.test.js`
 - `node tests\topic-context-compaction-service.test.js`
 - `node tests\gateway-run-event-service.test.js`
 - `node tests\mobile-sqlite-store.test.js`

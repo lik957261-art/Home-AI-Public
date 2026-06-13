@@ -19,6 +19,7 @@ function makeHarness(overrides = {}) {
     removedRuns: [],
     saved: 0,
     starts: [],
+    dataContexts: [],
   };
   const service = createThreadMessageCreateService(Object.assign({
     groupChatTaskGroupId: "group-chat",
@@ -59,6 +60,13 @@ function makeHarness(overrides = {}) {
     taskDirectoryAttachmentForGroup: (_thread, taskGroupId) => taskGroupId === "task-1" ? { source: "group", path: "group-root" } : null,
     semanticTaskDirectoryAttachment: (_thread, text) => /semantic/i.test(text) ? { source: "semantic", path: "semantic-root" } : null,
     ownerElevationInstructions: (body) => body.elevationScope ? `elevation:${body.elevationScope}` : "",
+    prepareChatDataContext: (payload) => {
+      calls.dataContexts.push(payload);
+      if (/各工作区讨论/.test(payload.text || "")) {
+        return { ok: true, selected: true, instructions: "[HOME AI DATA CONTEXT]\nIncluded messages: 71" };
+      }
+      return { ok: true, selected: false, instructions: "" };
+    },
     taskGroupHasRunningRun: (thread, taskGroupId) => Boolean(thread.runningTaskGroups?.includes(taskGroupId)),
     runConcurrencyError: (workspaceId) => {
       calls.concurrency.push(workspaceId);
@@ -469,6 +477,26 @@ function testNaturalLanguageGrokRouteOverridesDefaultChatGptModel() {
   assert.equal(calls.gatewayRouting[0].body.provider, "xai-oauth");
 }
 
+function testChatDataContextIsInjectedOnlyForMatchingRequests() {
+  const { calls, service } = makeHarness();
+  const plan = service.prepareThreadMessageCreate({
+    thread: baseThread(),
+    body: { text: "帮我总结昨天各工作区讨论内容和待办" },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+  assert.equal(plan.nextAction, "start-run");
+  assert.match(plan.runOptions.instructions, /\[HOME AI DATA CONTEXT\]/);
+  assert.equal(calls.dataContexts[0].actorWorkspaceId, "owner");
+
+  const normal = service.prepareThreadMessageCreate({
+    thread: baseThread(),
+    body: { text: "帮我写一句普通回复" },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+  assert.equal(normal.nextAction, "start-run");
+  assert.doesNotMatch(normal.runOptions.instructions, /\[HOME AI DATA CONTEXT\]/);
+}
+
 function testDeepSeekOwnerMaintenanceRouteUsesHighPermissionProfile() {
   const { service } = makeHarness({
     serviceOptions: {
@@ -632,10 +660,11 @@ function testConcurrencyErrorBeforeStateMutation() {
   testDirectCreateRoutingAndPayloads();
   await testRunOptionsAndDispatchHooks();
   await testDispatchFormatsGatewayCapacityFailure();
-testGrokModelRouteRequiresXaiGatewayProvider();
-testNaturalLanguageGrokRouteOverridesDefaultChatGptModel();
-testDeepSeekOwnerMaintenanceRouteUsesHighPermissionProfile();
-testSearchSourceRunOptions();
+  testGrokModelRouteRequiresXaiGatewayProvider();
+  testNaturalLanguageGrokRouteOverridesDefaultChatGptModel();
+  testDeepSeekOwnerMaintenanceRouteUsesHighPermissionProfile();
+  testSearchSourceRunOptions();
+  testChatDataContextIsInjectedOnlyForMatchingRequests();
   await testQueuedChatRunSkipsConcurrencyAndStart();
   await testServerSideSentTextLearningAfterMessageCommit();
   testConcurrencyErrorBeforeStateMutation();

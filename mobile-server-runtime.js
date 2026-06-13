@@ -91,7 +91,7 @@ const { createWorkspaceDisplayPathService } = require("./adapters/workspace-disp
 const { createWorkspaceSystemProvisioningExecutorService } = require("./adapters/workspace-system-provisioning-executor-service"); const { createWorkspaceSystemProvisioningHelperClientService } = require("./adapters/workspace-system-provisioning-helper-client-service"); const { createTodoProvider } = require("./adapters/todo-provider");
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createWeixinRuntimeCompositionService } = require("./adapters/weixin-runtime-composition-service");
-const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service"); const { createActionInboxService } = require("./adapters/action-inbox-service");
+const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service"); const { createActionInboxService } = require("./adapters/action-inbox-service"); const { createDataContextService } = require("./adapters/data-context-service");
 const { createMobileApiComposition } = require("./server-routes/mobile-api-composition");
 const { createMobileRuntimeEnvironment } = require("./adapters/mobile-runtime-environment-service");
 const runtimeEnv = createMobileRuntimeEnvironment({ toolRoot: __dirname });
@@ -152,6 +152,7 @@ const mobileRuntimeSqliteStoreFacadeService = createMobileRuntimeSqliteStoreFaca
   createMobileSqliteStore: (options) => require("./adapters/mobile-sqlite-store").createMobileSqliteStore(options),
   dbPath: MOBILE_SQLITE_DB_PATH,
 });
+const dataContextService = createDataContextService({ dataDir: DATA_DIR, dbPath: MOBILE_SQLITE_DB_PATH });
 const mobileSqliteStore = (...args) => mobileRuntimeSqliteStoreFacadeService.mobileSqliteStore(...args);
 const bootTrace = createMobileRuntimeBootTraceService({ fs, path, process, tracePath: BOOT_TRACE_PATH }).bootTrace;
 bootTrace("constants ready");
@@ -1244,7 +1245,7 @@ const mobileRuntimeThreadFacadeService = createMobileRuntimeThreadFacadeService(
   actionInboxService, attachUploadedArtifactsToMessage, authCanAccessWorkspace, authenticateRequest, broadcast,
   chatGroupMemberWorkspaceIds, compactMessage, compactThread, compactThreadWithMessagePage, deriveTitle,
   detectDirectKanbanCreateRequest, detectDirectTodoCreateIntent, detectDirectTodoCreateIntentForWeb, directTodoCreateEnabled,
-  findWorkspace, formatDirectTodoCreateSuccessMessage, gatewayRoutingForModelRun,
+  findWorkspace, formatDirectTodoCreateSuccessMessage, gatewayRoutingForModelRun, dataContextService,
   getRuntimeStateNormalizationService, getRuntimeStateThreadService, getSemanticDirectoryAttachmentService, getSingleWindowThreadService,
   groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID, interpretKanbanNaturalLanguage, isOwnerAuth, kanbanCardProvider,
   kanbanCaseTopicPermissionsForTaskGroup, kanbanSingleCardCasePayload,
@@ -1267,7 +1268,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: composedMobileApiSe
   buildRequestContext, canRevokeGroupChatMessage, chatGroupMemberWorkspaceIds, clearCronListCache, clearDynamicProjectCache: () => clearDynamicProjectCache(),
   clearDynamicProjectCacheForWorkspace: (workspaceId) => clearDynamicProjectCache(workspaceId), clearKanbanCardListCache, clientLayoutDiagnosticService, clientVersionInfo, compactMessage, compactText,
   compactThread, compactThreadWithMessagePage, contentDisposition, createInitialOwnerKey, createKanbanPlanCards,
-  createWeixinFileForwardDelivery, cronJobMatchesOwner, cronJobMatchesSearch, dataDir: DATA_DIR, dedupe, deleteLocalWorkspace, detectDirectTodoCreateIntentForWeb,
+  createWeixinFileForwardDelivery, cronJobMatchesOwner, cronJobMatchesSearch, dataDir: DATA_DIR, dataContextService, dedupe, deleteLocalWorkspace, detectDirectTodoCreateIntentForWeb,
   display: {
     ownerLabel: OWNER_LABEL,
     ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
