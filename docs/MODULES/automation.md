@@ -30,6 +30,10 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
 - Foreground Automation list should preserve the full-detail display format.
 - Product direction: Automation should not remain a permanent primary bottom tab after Action Inbox is active.
 - The mobile entry for Automation management after Action Inbox activation is the Inbox top-right overflow menu, which can open the Automation list or create a new automation.
+- The explicit natural-language Automation creation panel must show in-panel
+  model/save progress while it is interpreting and creating the job. This
+  feedback belongs to the explicit create surface and must not reintroduce a
+  per-message model preflight in ordinary chat.
 - Completed user-visible deliveries and failed runs should upsert Action Inbox items so the user reads/acts from Inbox. A failed run must still create an Inbox error item and Web Push even when it produced no new deliverable file.
 - Summary/detail optimizations must not visually downgrade the user-facing list.
 - Full-cache reads are only a first paint: the background full refresh must update the visible list when newer status or ordering arrives.

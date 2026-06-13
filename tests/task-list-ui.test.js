@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260613-explicit-todo-intake-v765";
+const CLIENT_VERSION = "20260613-create-progress-v766";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -210,8 +210,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260613-explicit-todo-intake-v765" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260613-explicit-todo-intake-v765"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260613-create-progress-v766" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260613-create-progress-v766"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -646,6 +646,7 @@ assert.match(stylesCss, /\.learning-growth-board-status-chip\.active \{[\s\S]*?c
 assert.match(stylesCss, /\.learning-growth-board-card \{[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?background: var\(--ui-surface\);/);
 assert.match(stylesCss, /\.todo-learning-growth-panel \{[\s\S]*?border-color: var\(--ui-hairline\);[\s\S]*?background: var\(--ui-surface\);/);
 assert.match(stylesCss, /\.automation-warning,[\s\S]*?\.automation-create,[\s\S]*?\.automation-card,[\s\S]*?\.automation-detail-card \{[\s\S]*?border: 1px solid var\(--ui-hairline\);[\s\S]*?border-radius: 12px;[\s\S]*?background: var\(--ui-surface\);[\s\S]*?box-shadow: none;/);
+assert.match(stylesCss, /\.action-inbox-create-progress,[\s\S]*?\.automation-create-progress \{[\s\S]*?display: flex;[\s\S]*?background: var\(--ui-accent-soft\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
 assert.match(stylesCss, /\.automation-run-times div \{[\s\S]*?background: var\(--ui-accent-soft\);[\s\S]*?border: 1px solid var\(--ui-hairline\);/);
 assert.match(stylesCss, /:root\[data-theme="dark"\] \{[\s\S]*?--ui-success-ink: #f5f7f6;/);
 assert.match(stylesCss, /@media \(prefers-color-scheme: dark\) \{[\s\S]*?:root\[data-theme="system"\] \{[\s\S]*?--ui-success-ink: #f5f7f6;/);
@@ -2583,14 +2584,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260613-explicit-todo-intake-v765/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260613-explicit-todo-intake-v765/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260613-explicit-todo-intake-v765/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260613-explicit-todo-intake-v765/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260613-explicit-todo-intake-v765/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260613-explicit-todo-intake-v765/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260613-explicit-todo-intake-v765/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260613-explicit-todo-intake-v765/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260613-create-progress-v766/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260613-create-progress-v766/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260613-create-progress-v766/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260613-create-progress-v766/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260613-create-progress-v766/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260613-create-progress-v766/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260613-create-progress-v766/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260613-create-progress-v766/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);
@@ -3434,9 +3435,17 @@ assert.match(appJs, /\$\("topNewTodo"\)\?\.addEventListener\("click", \(\) => \{
 assert.match(appJs, /function openTodoList\(\) \{[\s\S]*?openActionInboxList\(\);/);
 assert.match(appJs, /id="actionInboxNaturalText"/);
 assert.match(appJs, /\/api\/action-inbox\/todo-drafts\/interpret/);
+assert.match(appJs, /function actionInboxCreateProgressText\(\)/);
+assert.match(appJs, /state\.actionInboxCreateProgressStep = "understanding"/);
+assert.match(appJs, /state\.actionInboxCreateProgressStep = "saving"/);
+assert.match(appJs, /class="action-inbox-create-progress"/);
 assert.doesNotMatch(appJs, /id="actionInboxTitle"/);
 assert.doesNotMatch(appJs, /id="actionInboxDueAt"/);
 assert.match(appJs, /\/api\/action-inbox\/todos/);
+assert.match(appJs, /function automationCreateProgressText\(\)/);
+assert.match(appJs, /state\.automationCreateProgressStep = "understanding"/);
+assert.match(appJs, /state\.automationCreateProgressStep = "saving"/);
+assert.match(appJs, /class="automation-create-progress"/);
 assert.match(appJs, /function renderKanbanPlanDraft\(plan\)/);
 assert.match(appJs, /data-create-kanban-plan/);
 assert.match(appJs, /\/api\/kanban\/cards\/plan/);

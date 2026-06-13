@@ -157,6 +157,12 @@ model-produced drafts. It must not call the retired `todoProvider.addTodo()`
 first and then mirror the result into Inbox, because that leaves chat success
 messages backed by data that the current Inbox list no longer reads.
 
+The explicit natural-language Todo creation surface must show in-panel
+model/save progress while it is running. At minimum, the user should see that
+Home AI is understanding the Todo request, preparing the structured draft, and
+saving the confirmed item. Ordinary chat still must not run or display Todo
+intake progress.
+
 Manual Inbox Todo is its own mobile source surface. If an older item still
 carries a legacy `/?view=todos...` or `todoId` deep link, the Inbox UI must not
 render `Open source` for that link and must not navigate into the retired

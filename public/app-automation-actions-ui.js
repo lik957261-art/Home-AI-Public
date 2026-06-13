@@ -4,7 +4,7 @@ function focusAutomationCreateSoon() { setTimeout(() => $("automationNaturalText
 
 function openAutomationCreate() {
   closeTopMoreMenu();
-  Object.assign(state, { selectedAutomationId: "", automationRouteTargetId: "", automationRouteTargetPending: false, automationEditOpen: false, automationEditJobId: "", automationOutputHistoryOpen: false, automationCreateOpen: true });
+  Object.assign(state, { selectedAutomationId: "", automationRouteTargetId: "", automationRouteTargetPending: false, automationEditOpen: false, automationEditJobId: "", automationOutputHistoryOpen: false, automationCreateOpen: true, automationCreateBusy: false, automationCreateDraftText: "", automationCreateProgressStep: "" });
   renderAutomationView();
   focusAutomationCreateSoon();
 }
@@ -13,8 +13,10 @@ async function createAutomationFromForm(root) {
   const input = root.querySelector("#automationNaturalText");
   const text = input?.value?.trim() || "";
   if (!text) throw new Error("请输入自动化任务描述");
-  const submit = root.querySelector("#automationCreateForm button[type='submit']");
-  if (submit) submit.disabled = true;
+  state.automationCreateBusy = true;
+  state.automationCreateDraftText = text;
+  state.automationCreateProgressStep = "understanding";
+  renderAutomationView({ preserveScroll: true });
   $("connectionState").textContent = "正在理解自动化";
   try {
     const result = await api("/api/automations", {
@@ -24,14 +26,20 @@ async function createAutomationFromForm(root) {
         text,
       }),
     });
+    state.automationCreateProgressStep = "saving";
+    renderAutomationView({ preserveScroll: true });
     state.automationCreateOpen = false;
+    state.automationCreateDraftText = "";
+    state.automationCreateProgressStep = "";
     state.selectedAutomationId = result?.job?.id || result?.data?.id || "";
     state.automationRouteTargetId = "";
     state.automationRouteTargetPending = false;
     await loadAutomations({ detail: "full", refresh: true });
     $("connectionState").textContent = "Home AI OK";
   } finally {
-    if (submit) submit.disabled = false;
+    state.automationCreateBusy = false;
+    state.automationCreateProgressStep = "";
+    if (state.automationCreateOpen && state.viewMode === "automation") renderAutomationView({ preserveScroll: true });
   }
 }
 

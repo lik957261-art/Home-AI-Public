@@ -405,6 +405,9 @@ function openActionInboxList() {
   state.actionInboxDetail = null;
   state.actionInboxActionMenuItemId = "";
   state.actionInboxCreateOpen = false;
+  state.actionInboxCreateBusy = false;
+  state.actionInboxCreateDraftText = "";
+  state.actionInboxCreateProgressStep = "";
   renderActionInboxView();
 }
 
@@ -414,6 +417,9 @@ function openActionInboxCreate() {
   state.actionInboxDetail = null;
   state.actionInboxActionMenuItemId = "";
   state.actionInboxCreateOpen = true;
+  state.actionInboxCreateBusy = false;
+  state.actionInboxCreateDraftText = "";
+  state.actionInboxCreateProgressStep = "";
   renderActionInboxView();
 }
 
@@ -516,13 +522,24 @@ function renderActionInboxDetail() {
 
 function renderActionInboxCreatePanel() {
   if (!state.actionInboxCreateOpen) return "";
+  const progressText = actionInboxCreateProgressText();
+  const draftText = String(state.actionInboxCreateDraftText || "");
   return `<form class="action-inbox-create" id="actionInboxCreateForm">
     <label class="action-inbox-create-label" for="actionInboxNaturalText">${"\u5f85\u529e\u5185\u5bb9"}</label>
-    <textarea id="actionInboxNaturalText" name="naturalText" rows="5" autocomplete="off" placeholder="${"\u4f8b\u5982\uff1a\u660e\u5929\u4e0b\u5348\u4e09\u70b9\u63d0\u9192\u6211\u7ed9\u5434\u840d\u53d1\u6750\u6599"}" maxlength="1000" required></textarea>
+    <textarea id="actionInboxNaturalText" name="naturalText" rows="5" autocomplete="off" placeholder="${"\u4f8b\u5982\uff1a\u660e\u5929\u4e0b\u5348\u4e09\u70b9\u63d0\u9192\u6211\u7ed9\u5434\u840d\u53d1\u6750\u6599"}" maxlength="1000" required ${state.actionInboxCreateBusy ? "disabled" : ""}>${escapeHtml(draftText)}</textarea>
+    ${progressText ? `<div class="action-inbox-create-progress" role="status" aria-live="polite"><span class="automation-loading-spinner" aria-hidden="true"></span><span>${escapeHtml(progressText)}</span></div>` : ""}
     <div class="action-inbox-create-actions">
       <button class="primary-button compact" type="submit" ${state.actionInboxCreateBusy ? "disabled" : ""}>${state.actionInboxCreateBusy ? "\u6b63\u5728\u7406\u89e3" : "\u751f\u6210\u5e76\u4fdd\u5b58"}</button>
     </div>
   </form>`;
+}
+
+function actionInboxCreateProgressText() {
+  const step = String(state.actionInboxCreateProgressStep || "");
+  if (step === "understanding") return "\u6b63\u5728\u8bf7\u6a21\u578b\u7406\u89e3\u5f85\u529e\u5185\u5bb9";
+  if (step === "drafting") return "\u6b63\u5728\u751f\u6210\u5f85\u529e\u8349\u7a3f";
+  if (step === "saving") return "\u6b63\u5728\u786e\u8ba4\u5e76\u4fdd\u5b58\u5f85\u529e";
+  return "";
 }
 
 function renderActionInboxList() {
@@ -725,6 +742,8 @@ async function createActionInboxManualItem(root) {
   const naturalText = root.querySelector("#actionInboxNaturalText")?.value?.trim() || "";
   if (!naturalText) return;
   state.actionInboxCreateBusy = true;
+  state.actionInboxCreateDraftText = naturalText;
+  state.actionInboxCreateProgressStep = "understanding";
   renderActionInboxView({ preserveScroll: true });
   try {
     const interpreted = await api("/api/action-inbox/todo-drafts/interpret", {
@@ -735,6 +754,8 @@ async function createActionInboxManualItem(root) {
         text: naturalText,
       }),
     });
+    state.actionInboxCreateProgressStep = "drafting";
+    if (state.actionInboxCreateOpen && state.viewMode === "inbox") renderActionInboxView({ preserveScroll: true });
     const draft = interpreted.draft || {};
     const missingFields = Array.isArray(interpreted.missingFields)
       ? interpreted.missingFields
@@ -744,6 +765,8 @@ async function createActionInboxManualItem(root) {
         ? `\u5f85\u529e\u4fe1\u606f\u8fd8\u9700\u8981\u8865\u5145\uff1a${missingFields.join("\uff0c")}`
         : "\u5f85\u529e\u4fe1\u606f\u8fd8\u9700\u8981\u786e\u8ba4");
     }
+    state.actionInboxCreateProgressStep = "saving";
+    if (state.actionInboxCreateOpen && state.viewMode === "inbox") renderActionInboxView({ preserveScroll: true });
     const result = await api("/api/action-inbox/todos", {
       method: "POST",
       body: JSON.stringify(Object.assign({}, draft, {
@@ -754,10 +777,13 @@ async function createActionInboxManualItem(root) {
       })),
     });
     state.actionInboxCreateOpen = false;
+    state.actionInboxCreateDraftText = "";
+    state.actionInboxCreateProgressStep = "";
     state.selectedActionInboxItemId = result.item?.id || "";
     await loadActionInbox({ preserveScroll: true });
   } finally {
     state.actionInboxCreateBusy = false;
+    state.actionInboxCreateProgressStep = "";
     if (state.actionInboxCreateOpen && state.viewMode === "inbox") renderActionInboxView({ preserveScroll: true });
   }
 }

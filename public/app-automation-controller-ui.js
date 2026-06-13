@@ -449,6 +449,9 @@ function renderAutomationPanel(options = {}) {
   });
   conversation.querySelector("[data-close-automation-create]")?.addEventListener("click", () => {
     state.automationCreateOpen = false;
+    state.automationCreateBusy = false;
+    state.automationCreateDraftText = "";
+    state.automationCreateProgressStep = "";
     renderAutomationView();
   });
   conversation.querySelector("[data-close-automation-edit]")?.addEventListener("click", () => {
@@ -474,14 +477,25 @@ function renderAutomationPanel(options = {}) {
 
 function renderAutomationCreatePanel() {
   if (!state.automationCreateOpen) return "";
+  const progressText = automationCreateProgressText();
+  const draftText = String(state.automationCreateDraftText || "");
   return `<form id="automationCreateForm" class="automation-create">
     <label class="automation-create-label" for="automationNaturalText">新建自动化</label>
-    <textarea id="automationNaturalText" class="automation-create-input" rows="4" placeholder="用自然语言描述要做什么、什么时候执行、需要生成什么交付文件"></textarea>
+    <textarea id="automationNaturalText" class="automation-create-input" rows="4" placeholder="用自然语言描述要做什么、什么时候执行、需要生成什么交付文件" ${state.automationCreateBusy ? "disabled" : ""}>${escapeHtml(draftText)}</textarea>
+    ${progressText ? `<div class="automation-create-progress" role="status" aria-live="polite"><span class="automation-loading-spinner" aria-hidden="true"></span><span>${escapeHtml(progressText)}</span></div>` : ""}
     <div class="automation-create-actions">
-      <button class="secondary-small" type="button" data-close-automation-create>取消</button>
-      <button class="primary-small" type="submit">创建</button>
+      <button class="secondary-small" type="button" data-close-automation-create ${state.automationCreateBusy ? "disabled" : ""}>取消</button>
+      <button class="primary-small" type="submit" ${state.automationCreateBusy ? "disabled" : ""}>${state.automationCreateBusy ? "处理中" : "创建"}</button>
     </div>
   </form>`;
+}
+
+function automationCreateProgressText() {
+  const step = String(state.automationCreateProgressStep || "");
+  if (step === "understanding") return "正在请模型理解自动化需求";
+  if (step === "drafting") return "正在生成自动化草稿";
+  if (step === "saving") return "正在确认并保存自动化";
+  return "";
 }
 
 function renderAutomationEditPanel(job) {
