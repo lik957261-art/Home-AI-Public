@@ -12,6 +12,57 @@ function fileToBase64(file) {
   });
 }
 
+function closeAttachFileMenu() {
+  state.attachFileMenuOpen = false;
+  const menu = $("attachFileMenu");
+  if (!menu) return;
+  menu.hidden = true;
+  menu.innerHTML = "";
+}
+
+function renderAttachFileMenu() {
+  const menu = $("attachFileMenu");
+  if (!menu) return;
+  menu.innerHTML = `<button class="attach-file-option" type="button" data-attach-menu-system>
+    <span class="attach-file-option-icon system" aria-hidden="true"></span>
+    <span>系统文件</span>
+  </button>
+  <button class="attach-file-option" type="button" data-attach-menu-server>
+    <span class="attach-file-option-icon server" aria-hidden="true"></span>
+    <span>服务器文件</span>
+  </button>`;
+  menu.querySelector("[data-attach-menu-system]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeAttachFileMenu();
+    openAttachFilePicker();
+  });
+  menu.querySelector("[data-attach-menu-server]")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeAttachFileMenu();
+    openServerFileAttachmentPicker().catch(showError);
+  });
+}
+
+function openAttachFileMenu() {
+  const menu = $("attachFileMenu");
+  if (!menu) {
+    openAttachFilePicker();
+    return;
+  }
+  state.attachFilePickerActivationAt = Date.now();
+  state.attachFileMenuOpen = true;
+  renderAttachFileMenu();
+  menu.hidden = false;
+  const closeOnOutside = (event) => {
+    if (event.target?.closest?.("#attachFileMenu") || event.target?.closest?.("#attachFile")) return;
+    closeAttachFileMenu();
+    document.removeEventListener("pointerdown", closeOnOutside, true);
+  };
+  setTimeout(() => document.addEventListener("pointerdown", closeOnOutside, true), 0);
+}
+
 function renderPendingArtifacts() {
   let panel = $("pendingArtifacts");
   if (!panel) {
@@ -38,6 +89,64 @@ function renderPendingArtifacts() {
       updateComposerAction();
     });
   });
+}
+
+function restoreAfterServerFileAttachmentPicker() {
+  state.serverFileAttachmentPickerOpen = false;
+  const restored = typeof restoreDirectoryReturnRoute === "function" ? restoreDirectoryReturnRoute() : false;
+  if (!restored) {
+    state.viewMode = "single";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    applyViewMode();
+    renderCurrentThread({ stickToBottom: true });
+  }
+}
+
+async function openServerFileAttachmentPicker() {
+  if (!state.currentThreadId && state.viewMode === "single") await loadSingleWindow();
+  if (isDraftThread(state.currentThread)) await materializeCurrentThread();
+  if (!state.currentThreadId) throw new Error("请先打开一个可发送的对话。");
+  state.serverFileAttachmentTargetThreadId = state.currentThreadId;
+  state.serverFileAttachmentPickerOpen = true;
+  state.directoryReturnRoute = typeof captureDirectoryReturnRoute === "function" ? captureDirectoryReturnRoute() : state.directoryReturnRoute;
+  state.viewMode = "projects";
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
+  state.directoryPath = "";
+  state.directoryRootPath = "";
+  state.directoryPreview = null;
+  state.directoryError = "";
+  state.sharedDirectoryManagerOpen = false;
+  applyViewMode();
+  await loadProjects();
+  await loadDirectoryView({ resetPath: true });
+  if (isMobileLayout()) closeSidebar();
+}
+
+async function attachServerFileToComposer(entry = {}) {
+  const threadId = state.serverFileAttachmentTargetThreadId || state.currentThreadId || "";
+  const filePath = String(entry.path || "").trim();
+  if (!threadId || !filePath) return;
+  $("connectionState").textContent = "Attaching";
+  try {
+    const result = await api(`/api/threads/${encodeURIComponent(threadId)}/server-file-attachments`, {
+      method: "POST",
+      body: JSON.stringify({
+        path: filePath,
+        filename: entry.name || "",
+        workspaceId: state.selectedWorkspaceId || "owner",
+      }),
+    });
+    if (result.artifact && !state.pendingArtifacts.some((item) => item.id === result.artifact.id)) {
+      state.pendingArtifacts.push(result.artifact);
+    }
+    state.serverFileAttachmentTargetThreadId = "";
+    restoreAfterServerFileAttachmentPicker();
+    renderPendingArtifacts();
+    updateComposerAction();
+    $("connectionState").textContent = "Home AI OK";
+  } catch (err) {
+    showError(err);
+  }
 }
 
 async function interruptRun() {

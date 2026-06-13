@@ -77,6 +77,21 @@ const THREAD_READ_UPLOAD_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["thread", "artifact", "file"],
     tags: ["thread", "upload", "artifact"],
   },
+  {
+    id: "thread-server-file-attachments-create",
+    method: "POST",
+    pathRegex: /^\/api\/threads\/[^/]+\/server-file-attachments$/,
+    group: "thread",
+    moduleKey: "thread-upload",
+    handlerKey: "threadServerFileAttachment",
+    summary: "Attach an already server-side directory file to a thread composer.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["thread", "artifact", "file", "directory"],
+    tags: ["thread", "server-file", "artifact"],
+  },
 ]);
 
 function requireFunctions(deps, names) {
@@ -111,6 +126,7 @@ function createThreadReadUploadApiRoutes(deps = {}) {
     "readBody",
     "registerUploadArtifact",
     "requireWorkspaceAccess",
+    "resolveBrowserPathAsync",
     "safeFileName",
     "saveState",
     "searchThreadMessages",
@@ -125,6 +141,7 @@ function createThreadReadUploadApiRoutes(deps = {}) {
 
   deps.mkdirSync = deps.mkdirSync || ((dir) => fs.mkdirSync(dir, { recursive: true }));
   deps.randomBytes = deps.randomBytes || ((size) => crypto.randomBytes(size));
+  deps.statSync = deps.statSync || ((filePath) => fs.statSync(filePath));
   deps.writeFileSync = deps.writeFileSync || ((filePath, buffer) => fs.writeFileSync(filePath, buffer));
 
   const registry = createApiRouteRegistry(THREAD_READ_UPLOAD_API_ROUTE_SPECS);
@@ -289,6 +306,56 @@ function createThreadReadUploadApiRoutes(deps = {}) {
     deps.sendJson(res, 201, { artifact });
   }
 
+  async function handleServerFileAttachment(req, res, url) {
+    const auth = deps.authenticateRequest(req);
+    const thread = deps.findThreadForRequest(req, routeIdFromPath(url.pathname, /^\/api\/threads\/([^/]+)\/server-file-attachments$/));
+    if (!thread) {
+      deps.sendJson(res, 404, { error: "Thread not found" });
+      return;
+    }
+    const body = await deps.readBody(req, 8192);
+    const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || thread.workspaceId || auth?.workspaceId || "owner");
+    if (!workspaceId) return;
+    const params = new URLSearchParams();
+    const pathText = String(body.path || body.displayPath || body.workspacePath || "").trim();
+    const alias = String(body.alias || "").trim();
+    if (pathText) params.set("path", pathText);
+    if (alias) params.set("alias", alias);
+    if (!pathText && !alias) {
+      deps.sendJson(res, 400, { error: "Missing server file path" });
+      return;
+    }
+    const resolved = await deps.resolveBrowserPathAsync(Object.assign({}, thread, { workspaceId }), params);
+    if (!resolved) {
+      deps.sendJson(res, 404, { error: "Server file not found or not allowed" });
+      return;
+    }
+    if (resolved.remote) {
+      deps.sendJson(res, 400, { error: "Remote server files are not attachable yet" });
+      return;
+    }
+    let stat;
+    try {
+      stat = deps.statSync(resolved.localPath);
+    } catch (_) {
+      deps.sendJson(res, 404, { error: "Server file not found" });
+      return;
+    }
+    if (!stat.isFile()) {
+      deps.sendJson(res, 400, { error: "Server attachment path must be a file" });
+      return;
+    }
+    const artifact = deps.registerUploadArtifact(
+      Object.assign({}, thread, { workspaceId }),
+      null,
+      resolved.localPath,
+      deps.safeFileName(body.filename || path.basename(resolved.localPath)),
+      { workspaceId },
+    );
+    deps.saveState();
+    deps.sendJson(res, 201, { artifact });
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -301,6 +368,7 @@ function createThreadReadUploadApiRoutes(deps = {}) {
     else if (route.id === "thread-read") await handleThreadRead(req, res, url, context);
     else if (route.id === "thread-messages-list") await handleThreadMessagesList(req, res, url, context);
     else if (route.id === "thread-uploads-create") await handleThreadUpload(req, res, url, context);
+    else if (route.id === "thread-server-file-attachments-create") await handleServerFileAttachment(req, res, url, context);
     else return { handled: false };
 
     return { handled: true, route, auth: context.auth };

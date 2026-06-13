@@ -98,10 +98,13 @@ function renderDirectoryEntries() {
   return `<div class="directory-entry-list">${visible.map((entry) => {
     const kind = directoryEntryKind(entry);
     const meta = directoryEntryMeta(entry);
+    const selectingServerFile = Boolean(state.serverFileAttachmentPickerOpen);
     const main = entry.type === "directory"
       ? `<button class="directory-entry-main" type="button" data-open-directory-path="${escapeHtml(entry.path || "")}">`
+      : selectingServerFile
+        ? `<button class="directory-entry-main" type="button" data-attach-server-file-path="${escapeHtml(entry.path || "")}" data-attach-server-file-name="${escapeHtml(entry.name || "item")}">`
       : `<a class="directory-entry-main" href="${escapeHtml(directoryEntryHref(entry))}" target="_self" rel="noopener"${directoryEntryDocumentAttrs(entry)}>`;
-    const close = entry.type === "directory" ? "</button>" : "</a>";
+    const close = entry.type === "directory" || selectingServerFile ? "</button>" : "</a>";
     return `<article class="directory-entry ${escapeHtml(kind)}">
       ${main}
         <span class="directory-entry-icon" aria-hidden="true"></span>
@@ -111,7 +114,7 @@ function renderDirectoryEntries() {
         </span>
         <span class="directory-entry-chevron">›</span>
       ${close}
-      ${renderDirectoryEntryMenu(entry)}
+      ${selectingServerFile ? "" : renderDirectoryEntryMenu(entry)}
     </article>`;
   }).join("")}</div>`;
 }
@@ -119,12 +122,13 @@ function renderDirectoryEntries() {
 function renderDirectoryView() {
   if (state.viewMode !== "projects") return;
   const conversation = $("conversation");
-  $("threadTitle").textContent = "目录";
+  $("threadTitle").textContent = state.serverFileAttachmentPickerOpen ? "选择服务器文件" : "目录";
   $("threadMeta").textContent = "";
   $("interruptRun").disabled = true;
   updateNavigationControls();
   configureComposer({ enabled: false, placeholder: "Directory management" });
   conversation.innerHTML = `<section class="directory-shell">
+    ${state.serverFileAttachmentPickerOpen ? `<div class="server-file-picker-banner">选择服务器上的文件作为附件引用，不会重复上传。</div>` : ""}
     ${renderDirectoryControls()}
     ${renderDirectoryEntries()}
   </section>`;
@@ -528,6 +532,16 @@ function wireDirectoryView(root) {
       ensureDirectoryRootForPath(state.directoryPath);
       syncDirectoryRouteFromPath(state.directoryPath);
       loadDirectoryView().catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-attach-server-file-path]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      attachServerFileToComposer({
+        path: button.dataset.attachServerFilePath || "",
+        name: button.dataset.attachServerFileName || "",
+      }).catch(showError);
     });
   });
   root.querySelectorAll("[data-share-root-project]").forEach((button) => {

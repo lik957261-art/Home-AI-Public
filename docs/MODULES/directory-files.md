@@ -42,6 +42,15 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
 - Directory entries should be filtered by the authenticated workspace and shared-directory ACLs.
 - Shared roots may be read-only; create/upload/delete must reject non-owner writes to read-only shares.
 - Upload must not overwrite existing files by default.
+- Composer may attach a file that already exists in a Directory-visible server
+  folder. This path registers an artifact reference through
+  `POST /api/threads/:id/server-file-attachments` and must not copy the file
+  through browser `dataBase64` upload. The route resolves the requested path
+  through the Directory browser boundary before registering the artifact.
+- Server-file Composer attachment is local-file only in the first version.
+  Remote/WSL volume entries remain browsable when supported by Directory, but
+  they must not be attached as thread artifacts until a productized streaming
+  or staging path exists.
 - Delete must be explicit and non-recursive unless a dedicated audited policy says otherwise.
 - Protected roots include workspace root, sync/download roots, cache/delivery roots, hidden roots, and allowed-root boundaries.
 - When Directory is opened as the built-in plugin, right-swipe/back must return
@@ -203,6 +212,9 @@ instructions.
   `pdf-viewer.html`; the harness must verify at least one rendered PDF canvas,
   not only that the iframe/viewer shell opened.
 - Run focused directory/share/file-artifact tests when touching these route modules.
+- Run `node tests\thread-read-upload-api-routes.test.js` and
+  `node tests\server-file-attachment-ui.test.js` when changing Composer
+  server-file attachment behavior.
 - Run `node tests\shared-directory-projection-service.test.js` when changing
   directory root projection or shared-root visibility.
 - Run `node tests\task-list-ui.test.js` for directory UI routing/static version changes.

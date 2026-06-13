@@ -17,7 +17,6 @@ const { createTodoApiRoutes } = require("./todo-api-routes");
 const { createWorkspaceOnboardingApiRoutes } = require("./workspace-onboarding-api-routes");
 const { createWorkspaceOnboardingService } = require("../adapters/workspace-onboarding-service");
 function callBootTrace(deps, label) { if (typeof deps.bootTrace === "function") deps.bootTrace(label); }
-
 function createMobileApiComposition(deps = {}) {
   const platformComposition = createMobileApiPlatformComposition(deps);
   const {
@@ -136,6 +135,7 @@ function createMobileApiComposition(deps = {}) {
     readBody: deps.readBody,
     registerUploadArtifact: deps.registerUploadArtifact,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    resolveBrowserPathAsync: (...args) => deps.getDirectoryBrowserBoundaryService().resolveBrowserPathAsync(...args),
     safeFileName: deps.safeFileName,
     saveState: deps.saveState,
     searchThreadMessages: deps.searchThreadMessages,

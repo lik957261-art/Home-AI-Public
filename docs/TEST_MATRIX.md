@@ -385,6 +385,11 @@ composer, including after Chat->Topics tab switching or route restore paths that
 call generic composer enable helpers. `node tests\task-list-ui.test.js` is the
 focused DOM contract, and visual smoke must include composer bounds or absence
 on the topic root plus normal composer visibility inside a topic detail.
+Composer server-file attachment changes must prove both sides of the boundary:
+`node tests\thread-read-upload-api-routes.test.js` for the authenticated
+Directory-resolved artifact route, and
+`node tests\server-file-attachment-ui.test.js` for the add-file menu,
+Directory picker state, and no `dataBase64` re-upload in the server-file path.
 For Mac production frontend incidents where the live app already has no local
 Playwright dependency, use the shared production QA install instead of adding
 Playwright to the live app package:

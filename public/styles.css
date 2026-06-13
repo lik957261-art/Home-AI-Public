@@ -16426,6 +16426,52 @@ body.task-markdown-preview-open {
   display: none;
 }
 
+.attach-file-menu {
+  position: absolute;
+  left: 12px;
+  bottom: calc(100% + 8px);
+  z-index: 20;
+  display: grid;
+  gap: 5px;
+  min-width: 168px;
+  padding: 6px;
+  color: var(--ink);
+  background: var(--ui-menu-bg);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(34, 28, 20, 0.08);
+}
+
+.attach-file-menu[hidden] {
+  display: none;
+}
+
+.attach-file-option {
+  width: 100%;
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  color: var(--ink);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
+  font: inherit;
+  text-align: left;
+}
+
+.attach-file-option-icon {
+  width: 22px;
+  height: 22px;
+  background: url("/icons/file-generic.svg") center / contain no-repeat;
+}
+
+.attach-file-option-icon.server {
+  background-image: url("/icons/file-folder.svg");
+}
+
 .composer-source-option {
   width: 100%;
   min-height: 34px;
@@ -17067,6 +17113,16 @@ body.voice-input-press-active .voice-input-overlay button {
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+}
+
+.server-file-picker-banner {
+  padding: 8px 10px;
+  color: var(--muted);
+  background: var(--ui-soft-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .quoted-reply {

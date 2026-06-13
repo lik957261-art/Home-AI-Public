@@ -563,7 +563,8 @@ function handleAttachFileActivation(event, options = {}) {
     closeChatSearch();
     return true;
   }
-  openAttachFilePicker();
+  if (state.attachFileMenuOpen) closeAttachFileMenu();
+  else openAttachFileMenu();
   return true;
 }
 

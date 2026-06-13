@@ -6,6 +6,13 @@ Weixin/iLink ingress owns inbound event normalization, workspace/account routing
 
 Hermes Mobile owns product routing and delivery state; official Hermes Gateway remains the model/tool execution kernel.
 
+Weixin file ingress is a server-side file entry path, not the primary product
+communication channel. Files that arrive through Weixin should be made visible
+through a Directory-protected server folder when the sidecar has a local
+server path for them. Composer attachment then references that server-side file
+artifact instead of downloading it to the browser and uploading a duplicate
+copy.
+
 ## Core Files
 
 - `docs/WEIXIN_INGRESS.md`
@@ -29,6 +36,12 @@ Hermes Mobile owns product routing and delivery state; official Hermes Gateway r
 - Weixin traffic is separated from ordinary Hermes Mobile chat.
 - The dedicated Weixin window is identified by `thread.externalIngress.source === "weixin"` and opened with `weixinChat=1`.
 - Ordinary private chat must not absorb Weixin messages.
+- Weixin should not be expanded as a general AI chat transport. Its durable
+  value is file ingress: inbound files can land in a configured server
+  directory and then be selected from Home AI Directory/Composer.
+- Composer server-file attachment must use the existing Directory ACL boundary
+  and artifact registration path. It must not re-upload the file body through
+  browser `dataBase64` when the file already exists on the server.
 - A normalized inbound text event that is exactly `#` or full-width `＃`, with no attachments, is a heartbeat command. It must not create a thread, message, Gateway run, or delivery.
 - Only one poller may own a Weixin account. Do not run a legacy direct Gateway poller and the Mobile sidecar for the same account.
 - Ingress uses its own sidecar credential. Production ingress smokes use

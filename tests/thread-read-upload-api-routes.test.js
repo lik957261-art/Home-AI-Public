@@ -85,7 +85,9 @@ function makeRoutes(overrides = {}) {
     prune: 0,
     readBody: [],
     registerArtifact: [],
+    resolve: [],
     saved: 0,
+    stat: [],
     uploads: [],
     write: [],
   };
@@ -176,6 +178,17 @@ function makeRoutes(overrides = {}) {
       }
       return String(workspaceId || "owner");
     },
+    async resolveBrowserPathAsync(thread, params) {
+      calls.resolve.push({ threadId: thread.id, workspaceId: thread.workspaceId, path: params.get("path") || "", alias: params.get("alias") || "" });
+      const pathText = params.get("path") || "";
+      if (pathText === "missing") return null;
+      if (pathText === "remote/file.pdf") return { remote: "wsl", remoteEntry: { type: "file" } };
+      return {
+        displayPath: pathText || "微信导入/report.pdf",
+        workspacePath: pathText || "微信导入/report.pdf",
+        localPath: pathText === "folder" ? "/safe/folder" : "/safe/weixin/report.pdf",
+      };
+    },
     safeFileName(value) {
       return String(value || "upload.bin").replace(/[<>:"/\\|?*\x00-\x1F]/g, "_") || "upload.bin";
     },
@@ -240,6 +253,10 @@ function makeRoutes(overrides = {}) {
     randomBytes() {
       return Buffer.from("a1b2c3", "hex");
     },
+    statSync(filePath) {
+      calls.stat.push(filePath);
+      return { isFile: () => filePath !== "/safe/folder" };
+    },
     writeFileSync(filePath, buffer) {
       calls.write.push({ filePath, text: buffer.toString("utf8"), length: buffer.length });
     },
@@ -267,6 +284,7 @@ async function testRouteMetadataAndFallthrough() {
     "thread-read",
     "thread-messages-list",
     "thread-uploads-create",
+    "thread-server-file-attachments-create",
   ]);
 
   const { routes } = makeRoutes();
@@ -275,10 +293,11 @@ async function testRouteMetadataAndFallthrough() {
   assert.equal(routes.match({ method: "GET", path: "/api/threads/thread-a" }).id, "thread-read");
   assert.equal(routes.match({ method: "GET", path: "/api/threads/thread-a/messages" }).id, "thread-messages-list");
   assert.equal(routes.match({ method: "POST", path: "/api/threads/thread-a/uploads" }).id, "thread-uploads-create");
+  assert.equal(routes.match({ method: "POST", path: "/api/threads/thread-a/server-file-attachments" }).id, "thread-server-file-attachments-create");
   assert.equal(routes.match({ method: "POST", path: "/api/threads/thread-a/messages" }), null);
   assert.equal(routes.summary({ public: true }).byModule.thread, 3);
   assert.equal(routes.summary({ public: true }).byModule["thread-message"], 1);
-  assert.equal(routes.summary({ public: true }).byModule["thread-upload"], 1);
+  assert.equal(routes.summary({ public: true }).byModule["thread-upload"], 2);
 
   const miss = await request(routes, "GET", "/api/status");
   assert.equal(miss.result.handled, false);
@@ -387,6 +406,47 @@ async function testThreadUpload() {
   assert.deepEqual(denied.body, { error: "Workspace upload directory is not available" });
 }
 
+async function testThreadServerFileAttachment() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/threads/thread-a/server-file-attachments", {
+    auth: { ok: true, workspaceId: "owner" },
+    body: {
+      path: "微信导入/report.pdf",
+      workspaceId: "owner",
+    },
+  });
+
+  assert.equal(got.res.statusCode, 201);
+  assert.equal(got.body.artifact.id, "artifact-a");
+  assert.deepEqual(calls.access.at(-1), "owner");
+  assert.deepEqual(calls.resolve.at(-1), {
+    threadId: "thread-a",
+    workspaceId: "owner",
+    path: "微信导入/report.pdf",
+    alias: "",
+  });
+  assert.equal(calls.write.length, 0);
+  assert.equal(calls.registerArtifact.at(-1).filePath, "/safe/weixin/report.pdf");
+  assert.equal(calls.registerArtifact.at(-1).originalName, "report.pdf");
+  assert.equal(calls.saved, 1);
+
+  const missingBody = await request(routes, "POST", "/api/threads/thread-a/server-file-attachments", { body: {} });
+  assert.equal(missingBody.res.statusCode, 400);
+  assert.deepEqual(missingBody.body, { error: "Missing server file path" });
+
+  const missingFile = await request(routes, "POST", "/api/threads/thread-a/server-file-attachments", { body: { path: "missing" } });
+  assert.equal(missingFile.res.statusCode, 404);
+  assert.deepEqual(missingFile.body, { error: "Server file not found or not allowed" });
+
+  const remote = await request(routes, "POST", "/api/threads/thread-a/server-file-attachments", { body: { path: "remote/file.pdf" } });
+  assert.equal(remote.res.statusCode, 400);
+  assert.deepEqual(remote.body, { error: "Remote server files are not attachable yet" });
+
+  const folder = await request(routes, "POST", "/api/threads/thread-a/server-file-attachments", { body: { path: "folder" } });
+  assert.equal(folder.res.statusCode, 400);
+  assert.deepEqual(folder.body, { error: "Server attachment path must be a file" });
+}
+
 function testDependencyValidation() {
   assert.throws(
     () => createThreadReadUploadApiRoutes({}),
@@ -401,6 +461,7 @@ async function run() {
   await testThreadReadAndMessagePaging();
   await testThreadMessagesSearchAndPage();
   await testThreadUpload();
+  await testThreadServerFileAttachment();
   testDependencyValidation();
   console.log("thread read upload api routes tests passed");
 }
