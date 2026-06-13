@@ -317,6 +317,8 @@ function createNaturalLanguageDraftService(options = {}) {
       "Decide whether the user is asking Home AI to create a Todo, reminder, alarm, or assigned action item.",
       "Return strict JSON only. Do not include Markdown fences or prose.",
       "Do not use keyword-only guessing. Use semantic intent, and be conservative when the wording is probably ordinary chat.",
+      "Requests asking Home AI, Hermes, a plugin, or an agent to do work now are ordinary chat execution requests, not Todo creation requests.",
+      "Examples that are not Todos unless the user explicitly says to add/save/create a Todo/reminder/alarm/later follow-up: inspect code, operate a plugin, search, summarize, fix a bug, rename product copy, replace text, deploy, continue current work.",
       "If this is not a Todo/reminder/alarm creation request, return {\"isTodoRequest\":false,\"confidence\":0,\"todoDraft\":null}.",
       "If it is a Todo request, return {\"isTodoRequest\":true,\"confidence\":0.0,\"todoDraft\":{...}} using the Home AI Todo Intake Skill output shape.",
       "Use Asia/Shanghai local time. Current server time is " + nowIso() + ".",

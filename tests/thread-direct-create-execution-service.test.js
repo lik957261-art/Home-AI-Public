@@ -405,6 +405,45 @@ async function testModelTodoIntakeSkipsNonTodoWithoutCreating() {
   assert.deepEqual(thread.messages, []);
 }
 
+async function testModelTodoIntakeSkipsLowConfidenceWithoutCreating() {
+  const sourceText = "现在还有哪些地方把我们的产品叫做 Hermes mobile?我们现在正式的名称是Home AI,要做一下全部的替换。";
+  const { calls, service } = makeHarness({
+    todoDetection: {
+      isTodoRequest: true,
+      confidence: 0.78,
+      todoDraft: {
+        title: "将产品名称从 Hermes mobile 全部替换为 Home AI",
+        summary: "排查仍把产品称为 Hermes mobile 的地方",
+        assigneeWorkspaceId: "owner",
+        creatorWorkspaceId: "owner",
+        dueAt: "",
+        remindAt: "",
+        priority: "normal",
+        recurrence: { kind: "none" },
+        needsConfirmation: false,
+        missingFields: [],
+        confidence: 0.78,
+        sourceText,
+      },
+    },
+  });
+  const thread = baseThread({ workspaceId: "owner" });
+  const plan = Object.assign(directTodoPlan(thread), {
+    nextAction: "start-run",
+    directAction: { type: "none", action: "" },
+    text: sourceText,
+  });
+
+  const result = await service.executeModelTodoIntake({ thread, plan });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.skipped, true);
+  assert.equal(result.reason, "todo_intake_low_confidence");
+  assert.equal(result.threshold, 0.9);
+  assert.equal(calls.todoCreate.length, 0);
+  assert.deepEqual(thread.messages, []);
+}
+
 async function testDirectKanbanSuccessUsesInterpreterAndFormatter() {
   const { calls, service } = makeHarness();
   const thread = baseThread({ workspaceId: "owner" });
@@ -478,6 +517,7 @@ async function testDirectKanbanProviderFailureFinalizesWithoutVerification() {
   await testDirectTodoVerificationFailureFinalizesWithoutSuccessNotifications();
   await testModelTodoIntakeCreatesWithoutFinalizingThread();
   await testModelTodoIntakeSkipsNonTodoWithoutCreating();
+  await testModelTodoIntakeSkipsLowConfidenceWithoutCreating();
   await testDirectKanbanSuccessUsesInterpreterAndFormatter();
   await testDirectKanbanProviderFailureFinalizesWithoutVerification();
   console.log("thread-direct-create-execution-service tests passed");

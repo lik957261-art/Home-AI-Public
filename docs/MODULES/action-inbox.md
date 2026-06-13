@@ -139,6 +139,15 @@ created-Todo context. The model may draft or discuss Todos, but Home AI host
 services remain responsible for validation, Web Push, audit events, and
 persistence.
 
+Current-work execution requests are not Todo requests. Messages asking Home AI,
+Hermes, a plugin, or an agent to inspect code, operate a plugin, search,
+summarize, fix a bug, rename product copy, replace text, deploy, or continue
+current work must proceed as ordinary chat unless the user explicitly asks to
+add/save/create a Todo, reminder, alarm, or later follow-up. Even when the
+Todo-intake model returns a draft, host auto-creation requires high confidence
+from both the detection and draft; below the auto-create threshold, the host
+skips persistence and lets the normal chat turn proceed unchanged.
+
 Because the Todo-intake model pass runs before the normal chat run is created,
 the client must not look frozen during this phase. The chat composer should
 optimistically render a pending run-progress panel that says the host is

@@ -173,6 +173,8 @@ async function main() {
   assert.equal(result.todoDraft, null);
   assert.equal(calls[0].body.conversation, "home_ai_todo_detect_fixed");
   assert.match(calls[0].body.input, /Do not use keyword-only guessing/);
+  assert.match(calls[0].body.input, /Requests asking Home AI, Hermes, a plugin, or an agent to do work now/);
+  assert.match(calls[0].body.input, /rename product copy, replace text, deploy/);
   assert.match(calls[0].body.input, /Known assignable workspace candidates/);
 }
 

@@ -1,5 +1,7 @@
 "use strict";
 
+const MODEL_TODO_AUTO_CREATE_CONFIDENCE = 0.9;
+
 function asObject(value, fallback = {}) {
   return value && typeof value === "object" ? value : fallback;
 }
@@ -71,6 +73,14 @@ function directTodoSuccessContent(draft = {}, todo = {}) {
   const dueAt = String(draft.dueAt || todo.dueAt || "").trim();
   const title = String(draft.title || todo.title || todo.content || "todo").trim() || "todo";
   return `\u5df2\u65b0\u589e\u5f85\u529e\uff1a${assignee} | ${dueAt || "\u65e0\u622a\u6b62\u65f6\u95f4"} | ${title}`;
+}
+
+function todoAutoCreateConfidence(detected = {}, draft = {}) {
+  const values = [
+    Number(detected?.confidence),
+    Number(draft?.confidence),
+  ].filter((value) => Number.isFinite(value));
+  return values.length ? Math.min(...values) : 0;
 }
 
 function createThreadDirectCreateExecutionService(options = {}) {
@@ -405,6 +415,17 @@ function createThreadDirectCreateExecutionService(options = {}) {
       };
     }
     const todoDraft = detected.todoDraft || null;
+    const autoCreateConfidence = todoAutoCreateConfidence(detected, todoDraft);
+    if (autoCreateConfidence < MODEL_TODO_AUTO_CREATE_CONFIDENCE) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "todo_intake_low_confidence",
+        detection: detected,
+        todoDraft,
+        threshold: MODEL_TODO_AUTO_CREATE_CONFIDENCE,
+      };
+    }
     if (todoDraft?.needsConfirmation || (Array.isArray(todoDraft?.missingFields) && todoDraft.missingFields.length)) {
       return {
         ok: true,
