@@ -132,6 +132,21 @@ function testSystemSeedPhrasebookAppliesSafeAliases() {
   assert.equal(runtimeState.voiceInput.phrasebook.some((entry) => entry.source === "system_seed"), true);
 }
 
+function testShortCjkHomophonePhrasebookRescueIsExactOnly() {
+  const { service } = createHarness();
+  const scope = { actorId: "owner", workspaceId: "owner", surfaceType: "chat" };
+  service.recordSentTextEvidence(Object.assign({}, scope, { text: "吴萍" }));
+  service.recordSentTextEvidence(Object.assign({}, scope, { text: "吴萍" }));
+
+  const short = service.applyCorrections(Object.assign({}, scope, { text: "无凭。" }));
+  assert.equal(short.text, "吴萍。");
+  assert.equal(short.phrasebookApplied.length, 1);
+
+  const sentence = service.applyCorrections(Object.assign({}, scope, { text: "无凭无据不要乱改" }));
+  assert.equal(sentence.text, "无凭无据不要乱改");
+  assert.equal(sentence.phrasebookApplied.length, 0);
+}
+
 function testSentTextLearnsPhrasesWithoutFullTextPersistence() {
   const { runtimeState, service } = createHarness();
   const scope = { actorId: "owner", workspaceId: "owner", surfaceType: "chat", pluginId: "codex-mobile" };
@@ -156,6 +171,7 @@ function run() {
   testDisableCorrectionStopsApplication();
   testCorrectionUpdateRequiresMatchingScopeWhenProvided();
   testSystemSeedPhrasebookAppliesSafeAliases();
+  testShortCjkHomophonePhrasebookRescueIsExactOnly();
   testSentTextLearnsPhrasesWithoutFullTextPersistence();
   console.log("voice input correction service tests passed");
 }

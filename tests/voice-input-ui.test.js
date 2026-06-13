@@ -20,25 +20,30 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-mic-indicator-v732[\s\S]*app-voice-input-ui\.js\?v=20260613-mic-indicator-v732[\s\S]*app-voice-learning-ui\.js\?v=20260613-mic-indicator-v732[\s\S]*app-wire-start-ui\.js\?v=20260613-mic-indicator-v732/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-mic-indicator-v732/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-mic-indicator-v732/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-fast-shortname-v733[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-fast-shortname-v733[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-fast-shortname-v733[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-fast-shortname-v733/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-fast-shortname-v733/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-fast-shortname-v733/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
 
 function testSendButtonGestureContract() {
-  assert.match(voiceUi, /const VOICE_INPUT_LONG_PRESS_MS = 560/);
+  assert.match(voiceUi, /const VOICE_INPUT_LONG_PRESS_MS = 420/);
   assert.match(voiceUi, /document\.addEventListener\("pointerdown", handleVoiceInputPointerDown, true\)/);
   assert.match(voiceUi, /document\.addEventListener\("pointerup", handleVoiceInputPointerUp, true\)/);
   assert.match(voiceUi, /document\.addEventListener\("click", suppressVoiceInputClickEvent, true\)/);
   assert.match(voiceUi, /navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)/);
   assert.match(voiceUi, /const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted"/);
   assert.match(voiceUi, /function voiceInputMicrophonePermissionState\(\)/);
+  assert.match(voiceUi, /Date\.now\(\) - Number\(voice\.statusCache\.loadedAt \|\| 0\) < 300000/);
+  assert.match(voiceUi, /if \(voice\.statusPromise\) return voice\.statusPromise/);
+  assert.match(voiceUi, /function voiceInputPrewarmStatus\(\)/);
+  assert.match(voiceUi, /const permissionStatePromise = voiceInputMicrophonePermissionState\(\)/);
   assert.match(voiceUi, /setVoiceInputStatus\(permissionState === "granted" \? "preparing" : "requesting"\)/);
   assert.match(voiceUi, /voiceInputRememberMicGranted\(\)/);
   assert.match(voiceUi, /new MediaRecorder\(stream/);
   assert.match(voiceUi, /\/api\/voice-input\/status/);
+  assert.match(voiceUi, /voiceInputPrewarmStatus\(\)/);
   assert.match(voiceUi, /\/api\/voice-input\/transcribe/);
   assert.match(voiceUi, /\/api\/voice-input\/commit/);
   assert.doesNotMatch(read("public/app-event-stream-ui.js"), /\/api\/voice-input\/learn-sent-text/);

@@ -1,6 +1,6 @@
 "use strict";
 
-const VOICE_INPUT_LONG_PRESS_MS = 560;
+const VOICE_INPUT_LONG_PRESS_MS = 420;
 const VOICE_INPUT_MIN_CLIENT_DURATION_MS = 300;
 const VOICE_INPUT_PRESS_EVENTS_BOUND = "__homeAiVoiceInputPressEventsBound";
 const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted";
@@ -529,13 +529,22 @@ function cancelVoiceInput() {
 
 async function voiceInputLoadStatus() {
   const voice = ensureVoiceInputState();
-  if (voice.statusCache && Date.now() - Number(voice.statusCache.loadedAt || 0) < 30000) return voice.statusCache;
-  const payload = await api(`/api/voice-input/status?workspaceId=${encodeURIComponent(state.selectedWorkspaceId || "owner")}`, {
+  if (voice.statusCache && Date.now() - Number(voice.statusCache.loadedAt || 0) < 300000) return voice.statusCache;
+  if (voice.statusPromise) return voice.statusPromise;
+  voice.statusPromise = api(`/api/voice-input/status?workspaceId=${encodeURIComponent(state.selectedWorkspaceId || "owner")}`, {
     method: "GET",
     timeoutMs: 15000,
+  }).then((payload) => {
+    voice.statusCache = Object.assign({ loadedAt: Date.now() }, payload || {});
+    return voice.statusCache;
+  }).finally(() => {
+    voice.statusPromise = null;
   });
-  voice.statusCache = Object.assign({ loadedAt: Date.now() }, payload || {});
-  return voice.statusCache;
+  return voice.statusPromise;
+}
+
+function voiceInputPrewarmStatus() {
+  voiceInputLoadStatus().catch(() => {});
 }
 
 async function startVoiceInputRecording(event, options = {}) {
@@ -559,6 +568,7 @@ async function startVoiceInputRecording(event, options = {}) {
   event?.preventDefault?.();
   setVoiceInputStatus("checking");
   try {
+    const permissionStatePromise = voiceInputMicrophonePermissionState();
     const serviceStatus = await voiceInputLoadStatus();
     if (voice.cancelRequested) {
       closeVoiceInputOverlay();
@@ -572,7 +582,7 @@ async function startVoiceInputRecording(event, options = {}) {
       setVoiceInputStatus("failed", { error: "当前浏览器不支持录音" });
       return;
     }
-    const permissionState = await voiceInputMicrophonePermissionState();
+    const permissionState = await permissionStatePromise;
     if (permissionState === "denied") {
       setVoiceInputStatus("failed", { error: "麦克风权限未开启" });
       return;
@@ -845,6 +855,7 @@ function handleVoiceInputPointerDown(event) {
   voice.suppressClickButton = null;
   voiceInputClearSelection();
   document.body?.classList?.add("voice-input-press-active");
+  voiceInputPrewarmStatus();
   try {
     button?.setPointerCapture?.(event.pointerId);
   } catch (_) {}

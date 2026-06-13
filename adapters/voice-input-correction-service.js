@@ -44,6 +44,11 @@ const DEFAULT_SYSTEM_PHRASES = Object.freeze([
   { term: "交付文件", aliases: ["交付的文件"] },
 ]);
 
+const CJK_HOMOPHONE_ALIAS_CHARS = Object.freeze({
+  吴: ["无"],
+  萍: ["平", "凭"],
+});
+
 function containsStructuredSpan(text) {
   const value = String(text || "");
   return (
@@ -214,6 +219,34 @@ function uniquePhrases(items) {
     result.push(term);
   }
   return result;
+}
+
+function cjkOnlyText(value) {
+  return /^[\u4e00-\u9fff]{2,4}$/.test(String(value || ""));
+}
+
+function generatedCjkHomophoneAliases(term) {
+  const value = normalizePhraseTerm(term);
+  if (!cjkOnlyText(value)) return [];
+  const variants = [""];
+  for (const char of Array.from(value)) {
+    const replacements = CJK_HOMOPHONE_ALIAS_CHARS[char] || [];
+    const choices = [char, ...replacements].slice(0, 4);
+    const next = [];
+    for (const prefix of variants) {
+      for (const choice of choices) next.push(`${prefix}${choice}`);
+    }
+    variants.splice(0, variants.length, ...next.slice(0, 32));
+  }
+  return uniquePhrases(variants.filter((item) => item !== value)).slice(0, 12);
+}
+
+function cjkExactAliasReplacement(text, alias, term) {
+  if (!cjkOnlyText(alias) || !cjkOnlyText(term) || alias.length !== term.length) return "";
+  const value = String(text || "");
+  const match = value.match(/^(\s*)([\u4e00-\u9fff]{2,4})([，。！？,.!?]?\s*)$/u);
+  if (!match || match[2] !== alias) return "";
+  return `${match[1]}${term}${match[3]}`;
 }
 
 function extractPhraseCandidatesFromText(text, options = {}) {
@@ -399,12 +432,20 @@ function createVoiceInputCorrectionService(options = {}) {
     const phrases = activePhraseEntries(scope);
     phrases.sort((a, b) => String(b.term || "").length - String(a.term || "").length);
     for (const entry of phrases.slice(0, 80)) {
-      const aliases = uniquePhrases([...(entry.aliases || []), entry.term]).filter((alias) => alias !== entry.term);
+      const aliases = uniquePhrases([
+        ...(entry.aliases || []),
+        ...generatedCjkHomophoneAliases(entry.term),
+        entry.term,
+      ]).filter((alias) => alias !== entry.term);
       for (const alias of aliases.slice(0, 12)) {
-        if (!/^[A-Za-z][A-Za-z0-9 +_.-]*$/.test(alias) || !/^[A-Za-z][A-Za-z0-9 +_.-]*$/.test(entry.term)) continue;
-        const pattern = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi");
-        const replaced = nextText.replace(pattern, entry.term);
-        if (replaced !== nextText) {
+        let replaced = "";
+        if (/^[A-Za-z][A-Za-z0-9 +_.-]*$/.test(alias) && /^[A-Za-z][A-Za-z0-9 +_.-]*$/.test(entry.term)) {
+          const pattern = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "gi");
+          replaced = nextText.replace(pattern, entry.term);
+        } else {
+          replaced = cjkExactAliasReplacement(nextText, alias, entry.term);
+        }
+        if (replaced && replaced !== nextText) {
           nextText = replaced;
           entry.lastAppliedAt = now;
           applied.push(publicPhrase(entry));

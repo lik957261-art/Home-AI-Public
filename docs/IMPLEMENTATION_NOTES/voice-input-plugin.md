@@ -244,6 +244,13 @@ Home AI voice input correction uses three bounded learning sources:
      scope. This helps short personal names during decoding. It does not
      blindly rewrite arbitrary post-ASR text; wrong-to-right substitutions
      still require alias or correction evidence.
+   - Extremely short CJK audio, especially two-character personal names, can
+     still be decoded as a common homophone even when the active phrasebook term
+     is present in the ASR prompt. The correction layer may rescue only exact
+     whole-transcript short aliases, such as a two-character homophone plus
+     trailing punctuation. It must not globally replace that alias inside a
+     longer sentence, because normal phrases such as "无凭无据" would otherwise
+     be corrupted.
    - Sent-text entries are phrasebook candidates. They do not create automatic
      `from -> to` replacement rules by themselves. They can bias later ASR
      correction, capitalization normalization, and suggestion ranking after
@@ -284,6 +291,8 @@ Application behavior:
   high-impact automatic text substitution.
 - Phrasebook entries can normalize exact English/case variants such as
   `home ai` -> `Home AI` and can provide future ASR backend bias lists.
+- CJK phrasebook aliases are limited to exact short whole-transcript rescue
+  rules. They are not used as general find-and-replace rules in longer text.
 - Low-confidence learned phrasebook entries should be suggestions or bias
   signals until repeated support promotes them.
 
