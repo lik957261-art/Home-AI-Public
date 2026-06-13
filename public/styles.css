@@ -17023,6 +17023,57 @@ body.voice-input-press-active .voice-input-overlay button {
   white-space: nowrap;
 }
 
+.voice-learning-asr-list {
+  display: grid;
+  gap: 8px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voice-learning-asr-row {
+  display: grid;
+  gap: 6px;
+  padding: 9px 10px;
+  background: var(--ui-field-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 8px;
+}
+
+.voice-learning-asr-row-selected {
+  border-color: var(--ui-hairline-strong);
+  background: var(--ui-accent-soft);
+}
+
+.voice-learning-asr-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.voice-learning-asr-engine {
+  min-width: 0;
+  color: var(--ui-accent-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.voice-learning-asr-meta {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.voice-learning-asr-text {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .voice-learning-mode-banner {
   display: flex;
   align-items: center;

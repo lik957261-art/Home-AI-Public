@@ -99,6 +99,7 @@ async function testTranscribeCommitAndCorrectionUpdate() {
     pluginId: "codex-mobile",
     threadId: "thread_1",
     audioBase64: "AA==",
+    comparison: true,
     mimeType: "audio/webm",
   }, { principalId: "user-a", workspaceId: "child-a" });
   assert.equal(transcribed.res.statusCode, 200);
@@ -108,6 +109,7 @@ async function testTranscribeCommitAndCorrectionUpdate() {
     pluginId: "codex-mobile",
     threadId: "thread_1",
     audioBase64: "AA==",
+    comparison: true,
     mimeType: "audio/webm",
     actorId: "user-a",
     surfaceType: "chat",

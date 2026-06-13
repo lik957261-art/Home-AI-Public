@@ -705,11 +705,15 @@ async function finalizeVoiceInputRecording() {
       method: "POST",
       body: JSON.stringify(Object.assign({}, voiceInputRequestScope(), {
         audioBase64,
+        comparison: typeof voiceLearningModeActive === "function" && voiceLearningModeActive(),
         durationMs,
         mimeType: blob.type || voice.mimeType || "audio/webm",
       })),
       timeoutMs: 90000,
     });
+    if (typeof voiceLearningHandleTranscribeResult === "function") {
+      voiceLearningHandleTranscribeResult(result);
+    }
     setVoiceInputStatus("inserting", {
       transcript: result?.text || "",
       voiceSessionId: result?.voiceSessionId || "",

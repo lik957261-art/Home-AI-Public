@@ -91,6 +91,34 @@ function voiceInputPhraseHintPrompt(phrases = []) {
   return `可能出现的专有名词、人名或产品词：${unique.join("、")}。请优先按这些词转写同音或近音短语。`;
 }
 
+function countCjkPunctuation(text) {
+  const matches = String(text || "").match(/[，。！？、；：]/g);
+  return matches ? matches.length : 0;
+}
+
+function countPunctuation(text) {
+  const matches = String(text || "").match(/[，。！？、；：,.!?;:]/g);
+  return matches ? matches.length : 0;
+}
+
+function comparisonMetric(result = {}, corrected = {}) {
+  const rawText = cleanString(result.text || "", 240000);
+  const text = cleanString(corrected.text || rawText, 240000);
+  return {
+    backend: cleanString(result.backend || "", 120),
+    status: cleanString(result.status || "ok", 40),
+    elapsedMs: Math.max(0, Number(result.elapsedMs || result.durationMs || 0) || 0),
+    language: cleanString(result.language || "", 40),
+    rawChars: rawText.length,
+    textChars: text.length,
+    punctuationCount: countPunctuation(text),
+    cjkPunctuationCount: countCjkPunctuation(text),
+    appliedCount: Array.isArray(corrected.applied) ? corrected.applied.length : 0,
+    suggestionCount: Array.isArray(corrected.suggestions) ? corrected.suggestions.length : 0,
+    phrasebookAppliedCount: Array.isArray(corrected.phrasebookApplied) ? corrected.phrasebookApplied.length : 0,
+  };
+}
+
 function ensureVoiceInputState(runtimeState) {
   const root = runtimeState && typeof runtimeState === "object" && !Array.isArray(runtimeState) ? runtimeState : {};
   if (!root.voiceInput || typeof root.voiceInput !== "object" || Array.isArray(root.voiceInput)) root.voiceInput = {};
@@ -212,13 +240,14 @@ function createVoiceInputService(options = {}) {
     const tempDir = pathImpl.join(dataDir, "tmp", "voice-input");
     const tempPath = pathImpl.join(tempDir, `${safeTempId(sessionId)}.audio`);
     let asrResult = null;
+    let comparisonResult = null;
     await fsPromises.mkdir(tempDir, { recursive: true });
     await fsPromises.writeFile(tempPath, buffer);
     try {
       const phraseHints = typeof options.correctionService.listPhrases === "function"
         ? voiceInputPhraseHintPrompt(options.correctionService.listPhrases(scope))
         : "";
-      asrResult = await options.asrProvider.transcribeAudio(Object.assign({}, scope, {
+      const asrInput = Object.assign({}, scope, {
         audioPath: tempPath,
         composerId: cleanString(input.composerId || input.composer_id, 160),
         durationMs,
@@ -226,7 +255,15 @@ function createVoiceInputService(options = {}) {
         localeHint: cleanString(input.localeHint || input.locale || "", 40),
         mimeType,
         requestId,
-      }));
+      });
+      if (input.comparison && typeof options.asrProvider.transcribeAudioWithComparison === "function") {
+        comparisonResult = await options.asrProvider.transcribeAudioWithComparison(asrInput);
+        asrResult = (comparisonResult.results || []).find((row) => row.status === "ok" && cleanString(row.text))
+          || (comparisonResult.results || []).find((row) => row.status === "ok")
+          || null;
+      } else {
+        asrResult = await options.asrProvider.transcribeAudio(asrInput);
+      }
     } finally {
       await removeTempFile(tempPath);
     }
@@ -249,6 +286,41 @@ function createVoiceInputService(options = {}) {
       throw errorWithStatus("没有检测到有效语音", 422, "voice_asr_likely_no_speech");
     }
     const corrected = options.correctionService.applyCorrections(Object.assign({}, scope, { text: rawText }));
+    const comparison = comparisonResult
+      ? (comparisonResult.results || []).map((row) => {
+          if (row.status !== "ok" || !cleanString(row.text)) {
+            return {
+              backend: cleanString(row.backend || "", 120),
+              status: cleanString(row.status || "unavailable", 40),
+              protocol: cleanString(row.protocol || "", 80),
+              elapsedMs: Math.max(0, Number(row.elapsedMs || 0) || 0),
+              error: cleanString(row.error || "", 160),
+              text: "",
+              rawText: "",
+              language: cleanString(row.language || "", 40),
+              corrections: { applied: [], suggestions: [], phrasebookApplied: [] },
+              metrics: comparisonMetric(row, { text: "" }),
+            };
+          }
+          const rowCorrected = options.correctionService.applyCorrections(Object.assign({}, scope, { text: row.text }));
+          return {
+            backend: cleanString(row.backend || "", 120),
+            status: "ok",
+            protocol: cleanString(row.protocol || "", 80),
+            elapsedMs: Math.max(0, Number(row.elapsedMs || row.durationMs || 0) || 0),
+            text: rowCorrected.text,
+            rawText: cleanString(row.text || "", 240000),
+            language: cleanString(row.language || "", 40),
+            confidence: Number.isFinite(Number(row.confidence)) ? Number(row.confidence) : 0,
+            corrections: {
+              applied: rowCorrected.applied,
+              suggestions: rowCorrected.suggestions,
+              phrasebookApplied: rowCorrected.phrasebookApplied || [],
+            },
+            metrics: comparisonMetric(row, rowCorrected),
+          };
+        })
+      : [];
     const createdAt = nowIso();
     activeSessions.set(sessionId, {
       id: sessionId,
@@ -259,7 +331,7 @@ function createVoiceInputService(options = {}) {
       backend: cleanString(asrResult?.backend || provider.backend || "", 120),
     });
     appendAudit({
-      event: "transcribe",
+      event: comparison.length ? "transcribe_comparison" : "transcribe",
       actorId: scope.actorId,
       workspaceId: scope.workspaceId,
       surfaceType: scope.surfaceType,
@@ -271,6 +343,8 @@ function createVoiceInputService(options = {}) {
       textChars: corrected.text.length,
       appliedCount: corrected.applied.length,
       suggestionCount: corrected.suggestions.length,
+      comparisonCount: comparison.length,
+      comparisonMetrics: comparison.map((row) => row.metrics).slice(0, 5),
     });
     return {
       ok: true,
@@ -284,6 +358,7 @@ function createVoiceInputService(options = {}) {
         suggestions: corrected.suggestions,
         phrasebookApplied: corrected.phrasebookApplied || [],
       },
+      comparison,
     };
   }
 

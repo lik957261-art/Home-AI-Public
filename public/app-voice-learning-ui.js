@@ -33,6 +33,56 @@ function voiceLearningAssistantHtml(result) {
   `;
 }
 
+function voiceLearningEngineLabel(backend) {
+  const labels = {
+    "whisper-large-v3-turbo": "Whisper",
+    "whisper-local": "Whisper",
+    "funasr-local": "FunASR",
+    "sensevoice-local": "SenseVoice",
+  };
+  return labels[String(backend || "")] || String(backend || "ASR");
+}
+
+function voiceLearningComparisonHtml(result) {
+  const rows = Array.isArray(result?.comparison) ? result.comparison : [];
+  if (!rows.length) return "";
+  const selectedBackend = String(result?.backend || "");
+  const rowHtml = rows.map((row) => {
+    const ok = row?.status === "ok";
+    const selected = selectedBackend && row?.backend === selectedBackend;
+    const corrections = row?.corrections || {};
+    const appliedCount = (corrections.applied || []).length + (corrections.phrasebookApplied || []).length;
+    const suggestionCount = (corrections.suggestions || []).length;
+    const meta = ok
+      ? `${Math.max(0, Number(row.elapsedMs || 0) || 0)}ms · 修正 ${appliedCount} · 候选 ${suggestionCount}`
+      : `${escapeHtml(row?.status || "unavailable")} · ${escapeHtml(row?.error || "不可用")}`;
+    return `
+      <li class="voice-learning-asr-row${selected ? " voice-learning-asr-row-selected" : ""}">
+        <div class="voice-learning-asr-row-head">
+          <span class="voice-learning-asr-engine">${escapeHtml(voiceLearningEngineLabel(row?.backend))}</span>
+          <span class="voice-learning-asr-meta">${meta}${selected ? " · 已插入" : ""}</span>
+        </div>
+        <div class="voice-learning-asr-text">${ok ? escapeHtml(row.text || "") : "未返回可用文本"}</div>
+      </li>
+    `;
+  }).join("");
+  return `
+    <div class="voice-learning-reply voice-learning-asr-reply">
+      <div class="voice-learning-reply-title">语音转写对比</div>
+      <div class="voice-learning-thresholds">已把默认后端结果插入下方输入框。你可以修改后 Send，只训练语音学习，不进入模型。</div>
+      <ul class="voice-learning-asr-list">${rowHtml}</ul>
+    </div>
+  `;
+}
+
+function voiceLearningHandleTranscribeResult(result) {
+  if (!voiceLearningModeActive()) return;
+  const html = voiceLearningComparisonHtml(result);
+  if (!html) return;
+  voiceLearningState.entries.push({ role: "assistant", html });
+  renderVoiceLearningConversation();
+}
+
 function renderVoiceLearningConversation() {
   const conversation = $("conversation");
   if (!conversation) return;

@@ -310,6 +310,79 @@ async function testActivePhrasebookIsSentAsAsrPromptHint() {
   }
 }
 
+async function testComparisonTranscribeReturnsCorrectedEngineRows() {
+  const harness = createHarness({
+    asrProvider: {
+      status() {
+        return {
+          enabled: true,
+          configured: true,
+          backend: "whisper-large-v3-turbo",
+          hasUrl: true,
+          comparison: [
+            { backend: "whisper-large-v3-turbo", configured: true },
+            { backend: "funasr-local", configured: true },
+            { backend: "sensevoice-local", configured: true },
+          ],
+        };
+      },
+      transcribeAudio() {
+        throw new Error("single backend should not be used for comparison");
+      },
+      transcribeAudioWithComparison(input) {
+        harness.providerCalls.push(input);
+        assert.equal(fs.existsSync(input.audioPath), true);
+        return Promise.resolve({
+          ok: true,
+          results: [
+            { status: "ok", backend: "whisper-large-v3-turbo", text: "无凭", language: "zh", elapsedMs: 15 },
+            { status: "ok", backend: "funasr-local", text: "吴萍", language: "zh", elapsedMs: 18 },
+            { status: "error", backend: "sensevoice-local", error: "backend_failed", elapsedMs: 20 },
+          ],
+        });
+      },
+    },
+  });
+  try {
+    harness.service.learnSentText({
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      text: "吴萍",
+    });
+    harness.service.learnSentText({
+      actorId: "owner",
+      workspaceId: "owner",
+      surfaceType: "chat",
+      text: "吴萍",
+    });
+    const result = await harness.service.transcribe({
+      actorId: "owner",
+      workspaceId: "owner",
+      audioBase64: audioBase64(),
+      comparison: true,
+      durationMs: 1000,
+      mimeType: "audio/webm",
+      surfaceType: "chat",
+      threadId: "thread_1",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.backend, "whisper-large-v3-turbo");
+    assert.equal(result.text, "吴萍");
+    assert.equal(result.comparison.length, 3);
+    assert.equal(result.comparison[0].text, "吴萍");
+    assert.equal(result.comparison[0].rawText, "无凭");
+    assert.equal(result.comparison[1].text, "吴萍");
+    assert.equal(result.comparison[2].status, "error");
+    assert.equal(result.comparison[2].text, "");
+    assert.equal(harness.runtimeState.voiceInput.audit[0].event, "transcribe_comparison");
+    assert.equal(harness.runtimeState.voiceInput.audit[0].comparisonCount, 3);
+    assert.equal(JSON.stringify(harness.runtimeState).includes("无凭"), false);
+  } finally {
+    harness.cleanup();
+  }
+}
+
 async function run() {
   await testTranscribeDeletesTemporaryAudioAndReturnsEditableText();
   await testLikelyNoSpeechTranscriptIsRejected();
@@ -320,6 +393,7 @@ async function run() {
   testLearnSentTextStoresOnlyPhrasebookAndAuditMetadata();
   await testPhrasebookAppliesSystemSeedAliasesDuringTranscribe();
   await testActivePhrasebookIsSentAsAsrPromptHint();
+  await testComparisonTranscribeReturnsCorrectedEngineRows();
   console.log("voice input service tests passed");
 }
 

@@ -242,6 +242,19 @@ Current repo entry points for this phase:
 4. Persist only bounded comparison metrics.
 5. Keep ordinary chat insertion on the configured default backend.
 
+Implementation contract:
+
+- The frontend sends `comparison: true` only while `Voice Learning` mode is
+  active.
+- The normal Home AI composer voice path keeps returning and inserting one
+  default transcript.
+- In learning mode, the receipt displays all available engine rows, but the
+  composer receives only the selected default backend text so the user can edit
+  and Send one final training sample.
+- The backend may return full per-engine transcripts to the current client
+  response, but durable audit stores only bounded metrics such as character
+  counts, elapsed time, correction counts, phrasebook-hit counts, and status.
+
 ### Phase 3: Pinyin Correction Upgrade
 
 1. Add a pinyin candidate generator behind the correction service.

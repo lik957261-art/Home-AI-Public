@@ -20,6 +20,8 @@ async function testDisabledByDefaultWithoutUrl() {
     configured: false,
     backend: "disabled",
     hasUrl: false,
+    protocol: "json-base64",
+    comparison: [],
   });
   await assert.rejects(() => provider.transcribeAudio({ audioBase64: "AA==" }), {
     status: 503,
@@ -173,6 +175,50 @@ function testProviderStatusAndNormalization() {
   assert.equal(providerProtocolFromConfig({ backend: "whisper-large-v3-turbo", url: "http://127.0.0.1:8001/v1/audio/transcriptions" }), "openai-multipart");
 }
 
+async function testComparisonBackendsReturnBoundedRows() {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "voice-asr-compare-provider-"));
+  const audioPath = path.join(tempDir, "sample.webm");
+  fs.writeFileSync(audioPath, Buffer.from("audio"));
+  const calls = [];
+  const provider = createVoiceInputAsrProvider({
+    backend: "whisper-large-v3-turbo",
+    enabled: true,
+    env: {},
+    url: "http://127.0.0.1:8001/v1/audio/transcriptions",
+    comparisonBackends: [
+      { backend: "whisper-large-v3-turbo", protocol: "openai-multipart", url: "http://127.0.0.1:8001/v1/audio/transcriptions" },
+      { backend: "funasr-local", protocol: "openai-multipart", url: "http://127.0.0.1:8002/v1/audio/transcriptions" },
+      { backend: "sensevoice-local", protocol: "openai-multipart", url: "http://127.0.0.1:8003/v1/audio/transcriptions" },
+    ],
+    fetchImpl(url) {
+      calls.push(url);
+      return Promise.resolve({
+        ok: !url.includes("8003"),
+        status: url.includes("8003") ? 503 : 200,
+        json() {
+          return Promise.resolve({ text: url.includes("8002") ? "吴萍" : "无凭", language: "zh", backend: url.includes("8002") ? "funasr-local" : "whisper-large-v3-turbo" });
+        },
+      });
+    },
+  });
+  const status = provider.status();
+  assert.equal(status.comparison.length, 3);
+  const result = await provider.transcribeAudioWithComparison({
+    audioPath,
+    durationMs: 1000,
+    mimeType: "audio/webm",
+    localeHint: "zh-CN",
+    requestId: "req_1",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.results.length, 3);
+  assert.equal(result.results[0].status, "ok");
+  assert.equal(result.results[1].backend, "funasr-local");
+  assert.equal(result.results[2].status, "error");
+  assert.equal(calls.length, 3);
+  fs.rmSync(tempDir, { recursive: true, force: true });
+}
+
 async function run() {
   await testDisabledByDefaultWithoutUrl();
   await testHttpProviderPostsBoundedPayload();
@@ -181,6 +227,7 @@ async function run() {
   testMergedInitialPromptKeepsDefaultAndDynamicHints();
   await testMultipartFallbackBodyBuilder();
   testProviderStatusAndNormalization();
+  await testComparisonBackendsReturnBoundedRows();
   console.log("voice input asr provider tests passed");
 }
 
