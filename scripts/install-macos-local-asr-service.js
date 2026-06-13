@@ -184,7 +184,7 @@ ${envRows}
 `;
 }
 
-function waitForHealth(url, timeoutMs = 20000) {
+function waitForHealth(url, timeoutMs = 90000) {
   const started = Date.now();
   let last = "";
   while (Date.now() - started < timeoutMs) {
@@ -192,7 +192,16 @@ function waitForHealth(url, timeoutMs = 20000) {
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
     });
-    if (result.status === 0) return { ok: true, body: String(result.stdout || "").slice(0, 1600) };
+    if (result.status === 0) {
+      const body = String(result.stdout || "").slice(0, 1600);
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed && parsed.package_available === false) {
+          return { ok: false, body, error: "asr_package_unavailable" };
+        }
+      } catch (_err) {}
+      return { ok: true, body };
+    }
     last = String(result.stderr || result.stdout || "").slice(0, 600);
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1000);
   }
@@ -254,7 +263,7 @@ function main() {
   sudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(p.plistPath)} >/dev/null 2>&1 || true`], password);
   sudo("/bin/launchctl", ["bootstrap", "system", p.plistPath], password);
   sudo("/bin/launchctl", ["kickstart", "-k", `system/${engine.label}`], password);
-  const health = waitForHealth(p.healthUrl, 20000);
+  const health = waitForHealth(p.healthUrl, 90000);
   const result = { ok: health.ok, plan, health };
   console.log(json ? JSON.stringify(result, null, 2) : `installed ${engine.label} health=${health.ok}`);
   if (!health.ok) process.exitCode = 1;
