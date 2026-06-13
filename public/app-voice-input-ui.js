@@ -547,6 +547,28 @@ function voiceInputPrewarmStatus() {
   voiceInputLoadStatus().catch(() => {});
 }
 
+function handleVoiceInputStopButtonPointerDown(event, button) {
+  const voice = ensureVoiceInputState();
+  voiceInputClearPressTimer();
+  voice.pointerId = event.pointerId;
+  voice.pointerButton = button;
+  voice.pointerComposer = null;
+  voice.suppressNextClick = false;
+  voice.suppressClickButton = null;
+  voiceInputClearSelection();
+  document.body?.classList?.add("voice-input-press-active");
+  try {
+    button?.setPointerCapture?.(event.pointerId);
+  } catch (_) {}
+  voice.pressTimer = setTimeout(() => {
+    voice.pressTimer = 0;
+    voice.suppressNextClick = true;
+    voice.suppressClickButton = button;
+    scheduleVoiceInputClickSuppressionClear();
+    voiceInputClearSelection();
+  }, VOICE_INPUT_LONG_PRESS_MS);
+}
+
 async function startVoiceInputRecording(event, options = {}) {
   const voice = ensureVoiceInputState();
   const target = options.target || { kind: "native" };
@@ -845,6 +867,10 @@ function handleVoiceInputPointerDown(event) {
   const voice = ensureVoiceInputState();
   if (event.pointerType === "mouse" && event.button !== 0) return;
   const button = event.target?.closest?.("button");
+  if (button?.id === "sendMessage" && isComposerStopMode()) {
+    handleVoiceInputStopButtonPointerDown(event, button);
+    return;
+  }
   const composer = voiceInputComposerForButton(button);
   if (!voiceInputNativeComposerAvailable(composer)) return;
   voiceInputClearPressTimer();
@@ -875,11 +901,15 @@ function handleVoiceInputPointerUp(event) {
     voice.pointerButton?.releasePointerCapture?.(event.pointerId);
   } catch (_) {}
   voice.pointerId = 0;
+  const button = voice.pointerButton;
   voice.pointerButton = null;
   voice.pointerComposer = null;
   if (voice.pressTimer) {
     voiceInputClearPressTimer();
     return;
+  }
+  if (voice.suppressNextClick && voice.suppressClickButton === button) {
+    document.body?.classList?.remove("voice-input-press-active");
   }
   if (["checking", "requesting", "preparing", "recording", "finalizing"].includes(voice.status)) {
     event.preventDefault();
@@ -898,6 +928,9 @@ function handleVoiceInputPointerCancel(event) {
     voiceInputClearPressTimer();
     closeVoiceInputOverlay();
     return;
+  }
+  if (voice.suppressNextClick && voice.suppressClickButton) {
+    document.body?.classList?.remove("voice-input-press-active");
   }
   if (["checking", "requesting", "preparing", "recording", "finalizing"].includes(voice.status)) cancelVoiceInput();
 }

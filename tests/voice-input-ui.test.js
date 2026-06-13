@@ -20,9 +20,9 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-fast-shortname-v733[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-fast-shortname-v733[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-fast-shortname-v733[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-fast-shortname-v733/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-fast-shortname-v733/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-fast-shortname-v733/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-stop-longpress-guard-v734[\s\S]*app-voice-input-ui\.js\?v=20260613-stop-longpress-guard-v734[\s\S]*app-voice-learning-ui\.js\?v=20260613-stop-longpress-guard-v734[\s\S]*app-wire-start-ui\.js\?v=20260613-stop-longpress-guard-v734/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-stop-longpress-guard-v734/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-stop-longpress-guard-v734/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -39,6 +39,9 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /if \(voice\.statusPromise\) return voice\.statusPromise/);
   assert.match(voiceUi, /function voiceInputPrewarmStatus\(\)/);
   assert.match(voiceUi, /const permissionStatePromise = voiceInputMicrophonePermissionState\(\)/);
+  assert.match(voiceUi, /function handleVoiceInputStopButtonPointerDown\(event, button\)/);
+  assert.match(voiceUi, /button\?\.id === "sendMessage" && isComposerStopMode\(\)/);
+  assert.match(voiceUi, /voice\.suppressNextClick = true;[\s\S]*?voice\.suppressClickButton = button;/);
   assert.match(voiceUi, /setVoiceInputStatus\(permissionState === "granted" \? "preparing" : "requesting"\)/);
   assert.match(voiceUi, /voiceInputRememberMicGranted\(\)/);
   assert.match(voiceUi, /new MediaRecorder\(stream/);
@@ -49,6 +52,7 @@ function testSendButtonGestureContract() {
   assert.doesNotMatch(read("public/app-event-stream-ui.js"), /\/api\/voice-input\/learn-sent-text/);
   assert.doesNotMatch(read("public/app-event-stream-ui.js"), /learnVoiceInputSentText/);
   assert.match(read("public/app-event-stream-ui.js"), /handleSendMessageResult\(result, createsNewTask, consumedPendingDirectory\);\s+if \(typeof commitPendingVoiceInputFinalText === "function"\) commitPendingVoiceInputFinalText\(text, body\);/);
+  assert.match(read("public/app-event-stream-ui.js"), /if \(isComposerStopMode\(\)\) \{[\s\S]*?await interruptRun\(\);/);
   assert.match(wireStart, /if \(typeof initializeVoiceInputUi === "function"\) initializeVoiceInputUi\(\)/);
   assert.match(wireStart, /handleVoiceInputSendClick\(event\)[\s\S]*void sendMessage\(event\)/);
   assert.match(composerUi, /refreshVoiceInputSendButton/);

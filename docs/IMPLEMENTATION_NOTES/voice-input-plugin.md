@@ -106,6 +106,10 @@ The host overlay is a Home AI shell surface:
 - entry: long press on the active composer send button. Normal tap keeps its
   existing send behavior. Long press starts recording; release finalizes the
   clip and starts ASR transcription;
+- stop state: when the main composer button is showing `Stop`, voice input is
+  unavailable. A normal tap still stops the active turn, but a long press must
+  suppress text selection and cancel the resulting click so an attempted voice
+  gesture does not accidentally interrupt the active turn;
 - active recording: the send button becomes a pressed recording affordance with
   a compact timer/status. It must suppress native text selection, callouts, and
   context menus for the gesture target. On iOS/PWA this suppression must be
