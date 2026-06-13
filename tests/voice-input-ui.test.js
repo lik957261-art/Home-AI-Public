@@ -20,9 +20,9 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-stop-longpress-v748[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-stop-longpress-v748[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-stop-longpress-v748[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-stop-longpress-v748/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-stop-longpress-v748/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-stop-longpress-v748/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-stop-hold-record-v749[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-stop-hold-record-v749[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-stop-hold-record-v749[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-stop-hold-record-v749/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-stop-hold-record-v749/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-stop-hold-record-v749/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -38,13 +38,10 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /document\.addEventListener\("click", suppressVoiceInputClickEvent, true\)/);
   assert.match(voiceUi, /navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)/);
   assert.match(voiceUi, /const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted"/);
-  assert.match(voiceUi, /const VOICE_INPUT_MIC_HOLD_RETRY_MS = 15000/);
   assert.match(voiceUi, /function voiceInputMicrophonePermissionState\(\)/);
   assert.match(voiceUi, /function voiceInputAcquireMicrophoneStream\(options = \{\}\)/);
-  assert.match(voiceUi, /function voiceInputRefreshMicHoldFromForeground\(\)/);
-  assert.match(voiceUi, /document\.addEventListener\("visibilitychange", voiceInputRefreshMicHoldFromForeground\)/);
-  assert.match(voiceUi, /window\.addEventListener\("focus", voiceInputRefreshMicHoldFromForeground\)/);
-  assert.match(voiceUi, /window\.addEventListener\("pageshow", voiceInputRefreshMicHoldFromForeground\)/);
+  assert.doesNotMatch(voiceUi, /function voiceInputRefreshMicHoldFromForeground\(\)/);
+  assert.doesNotMatch(voiceUi, /voiceInputRefreshMicHoldFromForeground/);
   assert.match(voiceUi, /voiceInputStreamIsLive\(voice\.micHoldStream\)/);
   assert.match(voiceUi, /voiceInputAttachMicHoldStream\(stream\)/);
   assert.match(voiceUi, /Date\.now\(\) - Number\(voice\.statusCache\.loadedAt \|\| 0\) < 300000/);
@@ -58,6 +55,9 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /if \(button\?\.id === "sendMessage" && isComposerStopMode\(\)\) \{[\s\S]*?voice\.touchFallbackActive = true;[\s\S]*?handleVoiceInputStopButtonPointerDown\(event, button\);[\s\S]*?return;/);
   assert.match(voiceUi, /if \(voice\.pointerButton\?\.id === "sendMessage" && isComposerStopMode\(\)\) \{[\s\S]*?endVoiceInputStopButtonPress\(event\);[\s\S]*?return;/);
   assert.match(voiceUi, /const longPress = !voice\.pressTimer && voice\.suppressNextClick && voice\.suppressClickButton/);
+  assert.match(voiceUi, /allowStopMode: true/);
+  assert.match(voiceUi, /if \(longPress && \["checking", "requesting", "preparing", "recording", "finalizing"\]\.includes\(voice\.status\)\) \{[\s\S]*?stopVoiceInputRecording\(\);/);
+  assert.match(voiceUi, /voiceInputNativeComposerAvailable\(target\.composer \|\| voiceInputMainComposerDefinition\(\), \{[\s\S]*?allowStopMode: Boolean\(target\.allowStopMode\),/);
   assert.match(voiceUi, /if \(!longPress && typeof sendMessage === "function"\) \{[\s\S]*?void sendMessage\(event\);/);
   assert.match(voiceUi, /voice\.suppressNextClick = true;[\s\S]*?voice\.suppressClickButton = button;/);
   assert.match(voiceUi, /setVoiceInputStatus\(permissionState === "granted" \? "preparing" : "requesting"\)/);

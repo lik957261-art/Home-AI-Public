@@ -4,7 +4,6 @@ const VOICE_INPUT_LONG_PRESS_MS = 420;
 const VOICE_INPUT_MIN_CLIENT_DURATION_MS = 300;
 const VOICE_INPUT_PRESS_EVENTS_BOUND = "__homeAiVoiceInputPressEventsBound";
 const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted";
-const VOICE_INPUT_MIC_HOLD_RETRY_MS = 15000;
 
 function ensureVoiceInputState() {
   if (!state.voiceInput || typeof state.voiceInput !== "object") {
@@ -193,13 +192,15 @@ function voiceInputHostComposerButtons() {
   ].join(", "))).filter((button) => voiceInputComposerForButton(button));
 }
 
-function voiceInputNativeComposerAvailable(composer = voiceInputMainComposerDefinition()) {
+function voiceInputNativeComposerAvailable(composer = voiceInputMainComposerDefinition(), options = {}) {
+  const allowStopMode = Boolean(options.allowStopMode);
   if (!composer?.container || !composer?.input || !composer?.button) return false;
   if (!voiceInputElementVisible(composer.container)) return false;
   if (composer.button.disabled && composer.kind !== "main") return false;
   if (composer.kind === "main" && composer.button.disabled && !isComposerStopMode()) return false;
   if (composer.input.disabled || composer.input.readOnly) return false;
-  if (composer.kind === "main" && (isChatSearchMode() || isComposerStopMode())) return false;
+  if (composer.kind === "main" && isChatSearchMode()) return false;
+  if (composer.kind === "main" && isComposerStopMode() && !allowStopMode) return false;
   if (document.body?.classList?.contains("embedded-plugin-preview-fullscreen-active")) return false;
   return true;
 }
@@ -364,28 +365,10 @@ async function voiceInputAcquireMicrophoneStream(options = {}) {
   if (!userGesture) {
     const permissionState = await voiceInputMicrophonePermissionState();
     if (permissionState !== "granted" && !voiceInputMicWasGranted()) return null;
-    const lastLostAt = Number(voice.micHoldLostAt || 0);
-    if (lastLostAt && Date.now() - lastLostAt < VOICE_INPUT_MIC_HOLD_RETRY_MS) return null;
   }
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   voiceInputRememberMicGranted();
   return voiceInputAttachMicHoldStream(stream);
-}
-
-function voiceInputRefreshMicHoldFromForeground() {
-  const voice = ensureVoiceInputState();
-  if (!voiceInputMicWasGranted()) return;
-  if (document.visibilityState === "hidden") return;
-  if (!navigator.mediaDevices?.getUserMedia) return;
-  if (voiceInputStreamIsLive(voice.micHoldStream)) return;
-  if (voice.micHoldRefreshPromise) return;
-  voice.micHoldRefreshPromise = voiceInputAcquireMicrophoneStream({ userGesture: false })
-    .catch((err) => {
-      if (["NotAllowedError", "SecurityError"].includes(String(err?.name || ""))) voiceInputForgetMicGranted();
-    })
-    .finally(() => {
-      voice.micHoldRefreshPromise = null;
-    });
 }
 
 function voiceInputStartErrorMessage(err) {
@@ -596,9 +579,6 @@ function bindVoiceInputPressSelectionGuards() {
   document.addEventListener("touchend", handleVoiceInputTouchEnd, { capture: true, passive: false });
   document.addEventListener("touchcancel", handleVoiceInputTouchCancel, { capture: true, passive: false });
   document.addEventListener("click", suppressVoiceInputClickEvent, true);
-  document.addEventListener("visibilitychange", voiceInputRefreshMicHoldFromForeground);
-  window.addEventListener("focus", voiceInputRefreshMicHoldFromForeground);
-  window.addEventListener("pageshow", voiceInputRefreshMicHoldFromForeground);
   window.addEventListener("pagehide", () => {
     const voice = ensureVoiceInputState();
     if (voice.recorder && voice.recorder.state !== "inactive") {
@@ -678,6 +658,14 @@ function handleVoiceInputStopButtonPointerDown(event, button) {
     voice.suppressClickButton = button;
     scheduleVoiceInputClickSuppressionClear();
     voiceInputClearSelection();
+    void startVoiceInputRecording(event, {
+      target: {
+        kind: "native",
+        composer: voiceInputMainComposerDefinition(),
+        button,
+        allowStopMode: true,
+      },
+    });
   }, VOICE_INPUT_LONG_PRESS_MS);
 }
 
@@ -698,6 +686,10 @@ function endVoiceInputStopButtonPress(event, options = {}) {
   event?.stopPropagation?.();
   event?.stopImmediatePropagation?.();
   voiceInputClearSelection();
+  if (longPress && ["checking", "requesting", "preparing", "recording", "finalizing"].includes(voice.status)) {
+    stopVoiceInputRecording();
+    return;
+  }
   if (!longPress && typeof sendMessage === "function") {
     void sendMessage(event);
   }
@@ -706,9 +698,14 @@ function endVoiceInputStopButtonPress(event, options = {}) {
 async function startVoiceInputRecording(event, options = {}) {
   const voice = ensureVoiceInputState();
   const target = options.target || { kind: "native" };
+  if (target.kind === "native") {
+    target.composer = voiceInputFreshNativeComposer(target.composer) || voiceInputMainComposerDefinition();
+  }
   const targetAvailable = target.kind === "embedded-plugin"
     ? voiceInputEmbeddedComposerAvailable(target.def)
-    : voiceInputNativeComposerAvailable(target.composer || voiceInputMainComposerDefinition());
+    : voiceInputNativeComposerAvailable(target.composer || voiceInputMainComposerDefinition(), {
+      allowStopMode: Boolean(target.allowStopMode),
+    });
   if (!targetAvailable) {
     setVoiceInputStatus("failed", { error: "当前输入框不可写" });
     return;
