@@ -99,6 +99,7 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /function voiceInputDownsampleToPcm16\(input, sourceRate, targetRate\)/);
   assert.match(voiceUi, /voiceInputStartStreamingSession\(stream, serviceStatus\)/);
   assert.match(voiceUi, /voiceInputApplyProvisionalTranscript\(result\.text\)/);
+  assert.match(voiceUi, /sendEmbeddedPluginVoiceInputAction\("provisional_text"/);
   assert.match(voiceUi, /streaming final failed; falling back to full clip/);
   assert.match(voiceUi, /composer\.setText\?\.\(voice\.provisionalBaseText\)/);
   assert.match(voiceUi, /\/api\/voice-input\/commit/);
@@ -137,7 +138,7 @@ function testNativeDraftInsertionAndPrivacyBoundary() {
   assert.match(voiceUi, /当前输入框不可写：当前是 Stop 状态，请长按 Stop 按钮录音/);
   assert.match(voiceUi, /const composer = voiceInputFreshNativeComposer\(voice\.target\?\.composer\) \|\| voiceInputMainComposerDefinition\(\)/);
   assert.match(voiceUi, /const unavailableReason = voiceInputNativeComposerUnavailableReason\(composer, \{ allowStopMode: Boolean\(voice\.target\?\.allowStopMode\) \}\)/);
-  assert.match(voiceUi, /voiceInputComposerUnavailableMessage\(unavailableReason\)/);
+  assert.match(voiceUi, /if \(unavailableReason\) \{\s+closeVoiceInputOverlay\(\);\s+return;\s+\}/);
   assert.match(voiceUi, /composer\.setText\?\.\(next\)/);
   assert.match(voiceUi, /composer\.setCaret\?\.\(caret\)/);
   assert.match(voiceUi, /function trackPendingVoiceInputCommit\(finalText\)/);
@@ -174,6 +175,7 @@ function testEmbeddedPluginBridgeContract() {
   assert.match(embeddedPluginUi, /voice_input\.capability_query/);
   assert.match(embeddedPluginUi, /voice_input\.append_text/);
   assert.match(embeddedPluginUi, /voice_input\.replace_draft/);
+  assert.match(embeddedPluginUi, /voice_input\.provisional_text/);
   assert.match(embeddedPluginUi, /voice_input\.start_request/);
   assert.match(embeddedPluginUi, /voice_input\.stop_request/);
   assert.match(embeddedPluginUi, /voice_input\.commit_result/);

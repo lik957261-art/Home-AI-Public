@@ -330,7 +330,18 @@ function voiceInputResetProvisionalComposer() {
 function voiceInputApplyProvisionalTranscript(text) {
   const voice = ensureVoiceInputState();
   const value = String(text || "").trim();
-  if (!value || voice.target?.kind !== "native") return;
+  if (!value) return;
+  if (voice.target?.kind === "embedded-plugin") {
+    if (typeof sendEmbeddedPluginVoiceInputAction === "function") {
+      sendEmbeddedPluginVoiceInputAction("provisional_text", {
+        text: value,
+        voiceSessionId: voice.streaming?.voiceSessionId || voice.voiceSessionId || "",
+        composerId: voice.target.composerId || "default",
+      }, voice.target.def);
+    }
+    return;
+  }
+  if (voice.target?.kind !== "native") return;
   const composer = voiceInputFreshNativeComposer(voice.target?.composer) || voiceInputMainComposerDefinition();
   if (!composer?.setText || voice.provisionalLocked) return;
   if (!voice.provisionalComposer) {
@@ -1022,12 +1033,7 @@ async function startVoiceInputRecording(event, options = {}) {
       allowStopMode: Boolean(target.allowStopMode),
     });
   if (!targetAvailable) {
-    const reason = target.kind === "native"
-      ? voiceInputNativeComposerUnavailableReason(target.composer || voiceInputMainComposerDefinition(), {
-        allowStopMode: Boolean(target.allowStopMode),
-      })
-      : "";
-    setVoiceInputStatus("failed", { error: voiceInputComposerUnavailableMessage(reason) });
+    closeVoiceInputOverlay();
     return;
   }
   voice.target = target;
@@ -1280,7 +1286,7 @@ async function insertVoiceInputTranscript(mode = "append") {
       composerId: voice.target.composerId || "default",
     }, voice.target.def);
     if (!ok) {
-      setVoiceInputStatus("failed", { error: "插件输入框暂时不可写" });
+      closeVoiceInputOverlay();
       return;
     }
     setVoiceInputStatus("inserted", { transcript: text });
@@ -1290,7 +1296,7 @@ async function insertVoiceInputTranscript(mode = "append") {
   const composer = voiceInputFreshNativeComposer(voice.target?.composer) || voiceInputMainComposerDefinition();
   const unavailableReason = voiceInputNativeComposerUnavailableReason(composer, { allowStopMode: Boolean(voice.target?.allowStopMode) });
   if (unavailableReason) {
-    setVoiceInputStatus("failed", { error: voiceInputComposerUnavailableMessage(unavailableReason) });
+    closeVoiceInputOverlay();
     return;
   }
   if (voice.provisionalText && !voice.provisionalLocked && voice.provisionalBaseText != null) {

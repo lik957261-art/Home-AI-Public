@@ -689,6 +689,7 @@ function embeddedPluginVoiceInputMessageType(action) {
   const normalized = String(action || "").trim();
   if (normalized === "append" || normalized === "append_text") return "voice_input.append_text";
   if (normalized === "replace" || normalized === "replace_draft") return "voice_input.replace_draft";
+  if (normalized === "provisional" || normalized === "provisional_text") return "voice_input.provisional_text";
   if (normalized === "insert" || normalized === "insert_text") return "voice_input.insert_text";
   if (normalized === "submit") return "voice_input.submit";
   return "";
@@ -738,7 +739,12 @@ function handleEmbeddedPluginVoiceInputMessage(def, payload = {}) {
   }
   if (payload.type === "voice_input.insert_result") {
     embeddedPluginRecord(def.id).voiceInputLastMessageAt = Date.now();
-    if (payload.ok === false && typeof showError === "function") showError(new Error(payload.error || "插件语音文本插入失败"));
+    if (payload.ok === false && typeof showError === "function") {
+      const code = String(payload.code || payload.error || "").toLowerCase();
+      if (!code.includes("composer_not_writable") && !code.includes("provisional_voice_input_rejected")) {
+        showError(new Error(payload.error || "插件语音文本插入失败"));
+      }
+    }
     return true;
   }
   if (payload.type === "voice_input.commit_result") {

@@ -131,12 +131,11 @@ The host overlay is a Home AI shell surface:
 - recording states: idle, requesting permission, recording, paused,
   finalizing, transcribing, editable transcript, inserting, inserted, failed;
 - realtime text: when the configured provider exposes streaming, the host may
-  write provisional partial text into the active native composer while the
-  user is still holding the send button. The host must stop overwriting if the
-  user edits the composer during recording, and final insertion must replace
-  the provisional text with the final corrected transcript instead of
-  appending a duplicate. Embedded plugin composers may receive final text first
-  until their bridge explicitly supports safe provisional draft replacement;
+  write provisional partial text into the active native or embedded plugin
+  composer while the user is still holding the send button. The host/plugin
+  pair must stop overwriting if the user edits the composer during recording,
+  and final insertion must replace the provisional text with the final
+  corrected transcript instead of appending a duplicate;
 - visible controls after release: no insert/replace/discard decision is shown
   for the native host composer path. The transcript is automatically inserted
   into the composer, where normal editing and final send determine whether the
@@ -599,6 +598,7 @@ The plugin replies:
   actions: {
     insert_text: true,
     append_text: true,
+    provisional_text: true,
     replace_draft: true,
     submit: false
   }
@@ -633,6 +633,24 @@ Mobile must keep its existing send-button behavior unless it explicitly opts
 into the same host contract in a separate product decision.
 
 The host injects text:
+
+During streaming, the host may send provisional text. Plugins must treat this
+as replaceable draft state for the same `voiceSessionId`, not as committed text
+for learning or final-send audit:
+
+```js
+{
+  type: "voice_input.provisional_text",
+  version: 1,
+  requestId: "uuid",
+  voiceSessionId: "uuid",
+  pluginId: "codex-mobile",
+  composerId: "thread-composer",
+  text: "partial transcript"
+}
+```
+
+After release, the host sends the final text:
 
 ```js
 {
@@ -723,8 +741,11 @@ Required Codex Mobile changes:
 - when running inside Home AI only, optionally map a composer send-button long
   press to `voice_input.start_request` / `voice_input.stop_request` so the Home
   AI host owns recording and transcription;
-- implement `append_text` and `replace_draft` by updating Codex Mobile draft
-  state, not by dispatching keyboard events;
+- implement `provisional_text`, `append_text`, and `replace_draft` by updating
+  Codex Mobile draft state, not by dispatching keyboard events. `provisional_text`
+  must replace only the previous provisional segment for the same
+  `voiceSessionId`, and final text must restore the provisional base before
+  insertion to avoid duplicate content;
 - optionally implement `submit` only after draft validation and duplicate-send
   guards are proven;
 - attach `voiceSessionId` metadata to a draft segment inserted by Home AI;
