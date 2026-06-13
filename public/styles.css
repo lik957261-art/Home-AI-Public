@@ -16785,6 +16785,184 @@ body.voice-input-press-active .voice-input-overlay button {
   white-space: normal;
 }
 
+.voice-learning-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 132;
+  display: grid;
+  place-items: center;
+  padding: calc(env(safe-area-inset-top) + 14px) max(14px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 14px) max(14px, env(safe-area-inset-left));
+  background: rgba(34, 28, 20, 0.22);
+}
+
+.voice-learning-panel[hidden] {
+  display: none;
+}
+
+.voice-learning-card {
+  width: min(640px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 14px;
+  color: var(--ink);
+  background: var(--ui-menu-bg);
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 12px;
+  box-shadow: 0 16px 34px rgba(34, 28, 20, 0.14);
+}
+
+.voice-learning-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.voice-learning-header h2 {
+  margin: 0;
+  color: var(--ui-accent-ink);
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.voice-learning-header p,
+.voice-learning-status,
+.voice-learning-thresholds,
+.voice-learning-empty {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.voice-learning-form {
+  display: grid;
+  gap: 10px;
+}
+
+.voice-learning-editor {
+  width: 100%;
+  min-height: 180px;
+  max-height: min(42vh, 360px);
+  padding: 10px;
+  color: var(--ink);
+  background: var(--ui-field-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  outline: none;
+  resize: vertical;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.voice-learning-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.voice-learning-status {
+  min-height: 19px;
+  margin-top: 10px;
+}
+
+.voice-learning-receipt {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ui-hairline);
+}
+
+.voice-learning-receipt-summary,
+.voice-learning-keyword-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.voice-learning-receipt-summary {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.voice-learning-keyword-list {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.voice-learning-keyword-row {
+  padding: 8px 10px;
+  background: var(--ui-field-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 8px;
+}
+
+.voice-learning-keyword {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.voice-learning-keyword-meta {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.voice-learning-mode-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px auto 12px;
+  width: min(720px, calc(100% - 24px));
+  padding: 10px 12px;
+  color: var(--ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 10px;
+}
+
+.voice-learning-mode-banner div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.voice-learning-mode-banner span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.voice-learning-message {
+  max-width: min(720px, calc(100% - 24px));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.voice-learning-reply {
+  display: grid;
+  gap: 8px;
+}
+
+.voice-learning-reply-title {
+  color: var(--ui-accent-ink);
+  font-weight: 700;
+}
+
+.voice-learning-error {
+  color: var(--danger);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .pending-artifacts {
   grid-column: 1 / -1;
   order: -1;

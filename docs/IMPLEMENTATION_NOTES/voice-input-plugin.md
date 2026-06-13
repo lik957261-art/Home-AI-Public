@@ -207,6 +207,13 @@ Home AI voice input correction uses three bounded learning sources:
      the voice learning service, regardless of whether the source was Home AI
      voice input, the system keyboard, a third-party input method, paste, or
      manual typing.
+   - Users can also open `语音学习` from the chat top-more menu. This switches
+     the current chat surface into a local learning mode: the normal bottom
+     composer stays in place, but Send calls `/api/voice-input/learn-sent-text`
+     with `receiptMode: "phrasebook"` and must not call
+     `/api/threads/:id/messages`, create a chat message, start Gateway, or send
+     the content to a model. The conversation area renders the server learning
+     receipt as a local assistant-style response.
    - The server-side thread message commit path is the browser learning hook:
      once the user message is accepted into the thread, it records bounded
      sent-text evidence through `voiceInputService.learnSentText`. Browser

@@ -111,6 +111,12 @@ This file records durable product rules that implementation must preserve.
   and bounded metadata, require repeated evidence before automatic application,
   and avoid learning or auto-applying dates, amounts, file paths, URLs, code,
   command flags, account identifiers, or other structured/sensitive spans.
+- Each authenticated user may open a voice-learning composer from the chat
+  top-more menu. This mode reuses the normal chat composer UI, but Send submits
+  text only to the voice phrasebook learning route and must not create a chat
+  message, start a Gateway run, or send content to a model. The conversation
+  area shows a local learning receipt with extracted keywords, support counts,
+  suggest/active status, and thresholds.
 - Correction scope must resolve authenticated actor, effective workspace,
   composer surface, optional plugin id, and optional thread id. Global
   correction promotion requires an explicit user action; one plugin's edits or

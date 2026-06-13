@@ -57,6 +57,11 @@ async function sendMessage(event) {
     if (ownerElevationOnceTag) clearOwnerElevationOnce();
     return;
   }
+  if (typeof voiceLearningModeActive === "function" && voiceLearningModeActive()) {
+    if (ownerElevationOnceTag) clearOwnerElevationOnce();
+    await handleVoiceLearningComposerSend(text);
+    return;
+  }
   const directoryTopicDraftSend = typeof isDirectoryTopicDraftActive === "function"
     ? isDirectoryTopicDraftActive()
     : state.viewMode === "tasks"

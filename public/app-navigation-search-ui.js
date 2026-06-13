@@ -633,6 +633,11 @@ function updateTopMoreControls() {
     searchChat.hidden = !chatView;
     searchChat.disabled = !chatView || !state.currentThread;
   }
+  const voiceLearning = $("topVoiceLearning");
+  if (voiceLearning) {
+    voiceLearning.hidden = !chatView;
+    voiceLearning.disabled = !chatView;
+  }
   const readingFullscreen = $("topToggleReadingFullscreen");
   if (readingFullscreen) {
     readingFullscreen.hidden = wardrobeView;

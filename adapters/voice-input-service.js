@@ -283,7 +283,12 @@ function createVoiceInputService(options = {}) {
       textChars: finalText.length,
       recordedCount: result.recorded.length,
     });
-    return Object.assign({ ok: true }, result);
+    return Object.assign({
+      ok: true,
+      thresholds: typeof options.correctionService.thresholds === "function"
+        ? options.correctionService.thresholds()
+        : {},
+    }, result);
   }
 
   function listCorrections(scopeInput = {}) {

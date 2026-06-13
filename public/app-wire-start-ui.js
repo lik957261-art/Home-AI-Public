@@ -553,6 +553,10 @@ function wireUi() {
   $("topSearchChat")?.addEventListener("click", () => {
     openChatSearch();
   });
+  $("topVoiceLearning")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openVoiceLearningPanel();
+  });
   $("topToggleGroupChat")?.addEventListener("click", () => {
     toggleGroupChat().catch(showError);
   });
@@ -747,6 +751,7 @@ async function start() {
     setBootSplashText("Loading workspace");
     await startupPerfStep("bootstrap-with-retry", () => withTimeout(bootstrapWithRetry(), 26000, "Workspace bootstrap timed out"));
     showApp();
+    if (typeof initializeVoiceLearningUi === "function") initializeVoiceLearningUi();
     finishStartupPerf("ok");
   } catch (err) {
     finishStartupPerf("error", { error: String(err?.message || err || "").slice(0, 180) });
@@ -780,5 +785,6 @@ async function startFromBootRecovery() {
   setBootSplashText("Loading workspace");
   await startupPerfStep("bootstrap-with-retry", () => withTimeout(bootstrapWithRetry(), 26000, "Workspace bootstrap timed out"));
   showApp();
+  if (typeof initializeVoiceLearningUi === "function") initializeVoiceLearningUi();
   finishStartupPerf("ok");
 }

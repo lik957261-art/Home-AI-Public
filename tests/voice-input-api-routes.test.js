@@ -58,7 +58,7 @@ function makeRoutes(overrides = {}) {
       },
       learnSentText(input) {
         calls.push({ type: "learnSentText", input });
-        return { ok: true, recorded: [{ term: "Home AI" }] };
+        return { ok: true, recorded: [{ term: "Home AI" }], thresholds: { phraseActiveSupportCount: 2, correctionAutoApplySupportCount: 3 } };
       },
       listCorrections(scope) {
         calls.push({ type: "listCorrections", scope });
@@ -133,6 +133,16 @@ async function testTranscribeCommitAndCorrectionUpdate() {
   assert.equal("recorded" in learned.body, false);
   assert.equal(JSON.stringify(learned.body).includes("Home AI"), false);
   assert.equal(calls.find((call) => call.type === "learnSentText").input.actorId, "user-a");
+
+  const receipt = await request(routes, "POST", "/api/voice-input/learn-sent-text", {
+    workspaceId: "child-a",
+    text: "Home AI",
+    receiptMode: "phrasebook",
+  }, { principalId: "user-a", workspaceId: "child-a" });
+  assert.equal(receipt.res.statusCode, 200);
+  assert.equal(receipt.body.ok, true);
+  assert.equal(Array.isArray(receipt.body.recorded), true);
+  assert.equal(receipt.body.thresholds.phraseActiveSupportCount, 2);
 
   const updated = await request(routes, "PATCH", "/api/voice-input/corrections", {
     workspaceId: "child-a",

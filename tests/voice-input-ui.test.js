@@ -13,14 +13,16 @@ const indexHtml = read("public/index.html");
 const serviceWorker = read("public/service-worker.js");
 const appJs = read("public/app.js");
 const voiceUi = read("public/app-voice-input-ui.js");
+const voiceLearningUi = read("public/app-voice-learning-ui.js");
 const wireStart = read("public/app-wire-start-ui.js");
 const composerUi = read("public/app-chat-composer-ui.js");
 const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-server-learning-v730[\s\S]*app-voice-input-ui\.js\?v=20260613-server-learning-v730[\s\S]*app-wire-start-ui\.js\?v=20260613-server-learning-v730/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-server-learning-v730/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-learning-v731[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-learning-v731[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-learning-v731[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-learning-v731/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-learning-v731/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-learning-v731/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -41,6 +43,21 @@ function testSendButtonGestureContract() {
   assert.match(wireStart, /if \(typeof initializeVoiceInputUi === "function"\) initializeVoiceInputUi\(\)/);
   assert.match(wireStart, /handleVoiceInputSendClick\(event\)[\s\S]*void sendMessage\(event\)/);
   assert.match(composerUi, /refreshVoiceInputSendButton/);
+}
+
+function testVoiceLearningComposerMode() {
+  assert.match(indexHtml, /id="topVoiceLearning"[\s\S]*>语音学习<\/button>/);
+  assert.match(read("public/app-navigation-search-ui.js"), /const voiceLearning = \$\("topVoiceLearning"\);[\s\S]*voiceLearning\.hidden = !chatView;[\s\S]*voiceLearning\.disabled = !chatView;/);
+  assert.match(wireStart, /\$\("topVoiceLearning"\)\?\.addEventListener\("click", \(\) => \{[\s\S]*closeTopMoreMenu\(\);[\s\S]*openVoiceLearningPanel\(\);[\s\S]*\}\);/);
+  assert.match(read("public/app-event-stream-ui.js"), /if \(typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)\) \{[\s\S]*await handleVoiceLearningComposerSend\(text\);[\s\S]*return;[\s\S]*\}/);
+  assert.match(voiceLearningUi, /function openVoiceLearningPanel\(\)/);
+  assert.match(voiceLearningUi, /function handleVoiceLearningComposerSend\(text\)/);
+  assert.match(voiceLearningUi, /\/api\/voice-input\/learn-sent-text/);
+  assert.match(voiceLearningUi, /receiptMode: "phrasebook"/);
+  assert.doesNotMatch(voiceLearningUi, /\/api\/threads\/[^"']*\/messages/);
+  assert.match(voiceLearningUi, /关键词激活阈值/);
+  assert.match(voiceLearningUi, /纠错自动应用阈值/);
+  assert.match(styles, /\.voice-learning-mode-banner/);
 }
 
 function testNativeDraftInsertionAndPrivacyBoundary() {
@@ -110,6 +127,7 @@ function testNoTextSelectionOnSendButtonLongPress() {
 
 testStaticLoadingAndCache();
 testSendButtonGestureContract();
+testVoiceLearningComposerMode();
 testNativeDraftInsertionAndPrivacyBoundary();
 testHostComposerRegistry();
 testEmbeddedPluginBridgeContract();

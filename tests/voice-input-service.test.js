@@ -225,6 +225,8 @@ function testLearnSentTextStoresOnlyPhrasebookAndAuditMetadata() {
     });
     assert.equal(learned.ok, true);
     assert.equal(learned.recorded.some((entry) => entry.term === "Home AI"), true);
+    assert.equal(learned.thresholds.phraseActiveSupportCount, 2);
+    assert.equal(learned.thresholds.correctionAutoApplySupportCount, 3);
     assert.equal(harness.runtimeState.voiceInput.audit[0].event, "sent_text");
     assert.equal(harness.runtimeState.voiceInput.audit[0].recordedCount, learned.recorded.length);
     const stateJson = JSON.stringify(harness.runtimeState);

@@ -464,6 +464,15 @@ function createVoiceInputCorrectionService(options = {}) {
       .map(publicPhrase);
   }
 
+  function thresholds() {
+    return {
+      correctionAutoApplySupportCount: autoApplySupportCount,
+      phraseActiveSupportCount,
+      maxPhrases,
+      maxCorrections,
+    };
+  }
+
   function updateCorrectionStatus(input = {}) {
     const id = cleanString(input.id || input.correctionId || input.correction_id, 120);
     const status = cleanString(input.status, 40);
@@ -511,6 +520,7 @@ function createVoiceInputCorrectionService(options = {}) {
     recordCorrectionEvidence,
     recordSentTextEvidence,
     seedSystemPhrasebook,
+    thresholds,
     updateCorrectionStatus,
   });
 }
