@@ -128,7 +128,10 @@ async function testTranscribeCommitAndCorrectionUpdate() {
     text: "Home AI",
   }, { principalId: "user-a", workspaceId: "child-a" });
   assert.equal(learned.res.statusCode, 200);
-  assert.equal(learned.body.recorded[0].term, "Home AI");
+  assert.equal(learned.body.ok, true);
+  assert.equal(learned.body.recordedCount, 1);
+  assert.equal("recorded" in learned.body, false);
+  assert.equal(JSON.stringify(learned.body).includes("Home AI"), false);
   assert.equal(calls.find((call) => call.type === "learnSentText").input.actorId, "user-a");
 
   const updated = await request(routes, "PATCH", "/api/voice-input/corrections", {

@@ -205,7 +205,10 @@ function createVoiceInputApiRoutes(deps = {}) {
       const workspaceId = requireWorkspace(req, res, url, body, context);
       if (!workspaceId) return;
       const result = deps.voiceInputService.learnSentText(Object.assign({}, body, scopeFromRequest(url, body, context.auth, workspaceId)));
-      deps.sendJson(res, 200, result);
+      deps.sendJson(res, 200, {
+        ok: Boolean(result?.ok),
+        recordedCount: Array.isArray(result?.recorded) ? result.recorded.length : 0,
+      });
     } catch (err) {
       sendServiceError(res, err);
     }

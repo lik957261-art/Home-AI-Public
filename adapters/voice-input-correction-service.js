@@ -220,7 +220,7 @@ function extractPhraseCandidatesFromText(text, options = {}) {
   const value = normalizeText(text, 8000);
   if (!value) return [];
   const candidates = [];
-  const latinPattern = /\b(?:[A-Z][A-Za-z0-9]*(?:[ -][A-Z0-9][A-Za-z0-9]*){0,4}|[A-Z]{2,8}|[A-Za-z]+(?:[ -](?:AI|API|MCP|PWA|CLI|UI|ASR|LLM|OAuth|Codex|Gateway|Home)){1,4})\b/g;
+  const latinPattern = /\b(?:[A-Z][A-Za-z0-9]*(?:[ -][A-Z0-9][A-Za-z0-9]*){0,1}|[A-Z]{2,8}|[A-Za-z]+(?:[ -](?:AI|API|MCP|PWA|CLI|UI|ASR|LLM|OAuth|Codex|Gateway|Home)){1,2})\b/g;
   for (const match of value.matchAll(latinPattern)) {
     candidates.push(match[0]);
   }

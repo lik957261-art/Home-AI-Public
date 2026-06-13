@@ -136,13 +136,16 @@ function testSentTextLearnsPhrasesWithoutFullTextPersistence() {
   const { runtimeState, service } = createHarness();
   const scope = { actorId: "owner", workspaceId: "owner", surfaceType: "chat", pluginId: "codex-mobile" };
   const learned = service.recordSentTextEvidence(Object.assign({}, scope, {
-    text: "今天用 Home AI 处理起凡邮箱和 Codex Mobile handoff。",
+    text: "今天用 Home AI Codex Mobile MCP 处理起凡邮箱。",
   }));
   assert.equal(learned.ok, true);
   assert.equal(learned.recorded.some((entry) => entry.term === "Home AI"), true);
   assert.equal(learned.recorded.some((entry) => entry.term === "Codex Mobile"), true);
+  assert.equal(learned.recorded.some((entry) => entry.term === "MCP"), true);
+  assert.equal(learned.recorded.some((entry) => entry.term === "Home AI Codex Mobile MCP"), false);
   const stateJson = JSON.stringify(runtimeState);
-  assert.equal(stateJson.includes("今天用 Home AI 处理起凡邮箱和 Codex Mobile handoff。"), false);
+  assert.equal(stateJson.includes("今天用 Home AI Codex Mobile MCP 处理起凡邮箱。"), false);
+  assert.equal(stateJson.includes("Home AI Codex Mobile MCP"), false);
   assert.equal(runtimeState.voiceInput.phrasebook.length > 0, true);
 }
 
