@@ -1071,9 +1071,11 @@ function scheduleEmbeddedPluginLaunchHealthCheck(def, frame, loadedAt = Date.now
   window.setTimeout(() => {
     if (seq !== record.frameHealthSeq) return;
     if (state.viewMode !== def.viewMode) return;
-    if (currentEmbeddedPluginShell(def)?.querySelector(".embedded-plugin-frame") !== frame) return;
+    const shell = currentEmbeddedPluginShell(def);
+    if (shell?.querySelector(".embedded-plugin-frame") !== frame) return;
     if (!embeddedPluginFrameSrcUsesLaunchToken(frame)) return;
     if (Number(record.navigationLastAt || 0) >= loadedAt) return;
+    if (!shell?.classList.contains("is-loading")) return;
     requestEmbeddedPluginHealthRefresh(def);
   }, timeoutMs);
 }
@@ -1083,6 +1085,8 @@ function bindEmbeddedPluginFrameHealth(def, frame) {
   frame.dataset.embeddedPluginHealthBound = "1";
   frame.addEventListener("load", () => {
     frame.closest(".embedded-plugin-shell")?.classList.remove("is-loading");
+    const record = embeddedPluginRecord(def.id);
+    record.frameLoadedAt = Date.now();
     scheduleEmbeddedPluginLaunchHealthCheck(def, frame, Date.now());
     [0, 80, 240].forEach((delay) => window.setTimeout(() => sendEmbeddedPluginViewportMetrics(def, "frame_load"), delay));
     [160, 700].forEach((delay) => window.setTimeout(() => requestEmbeddedPluginVoiceInputCapability(def), delay));
@@ -1229,10 +1233,6 @@ function renderEmbeddedPluginView(def) {
   const appearanceKey = embeddedPluginAppearanceKey();
   const pluginManifest = embeddedPluginCurrentManifest(def);
   if (!pluginManifest && embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appearanceKey)) {
-    if (embeddedPluginUsesLaunchToken(record.manifest)) {
-      refreshEmbeddedPluginFrameFromFreshManifest(def);
-      return;
-    }
     record.frameOrigin = record.frameOrigin || embeddedPluginEntryOrigin(def, record.manifest);
     if (attachEmbeddedPluginShell(def, record.renderedEntryUrl)) {
       updateNavigationControls();
