@@ -344,6 +344,14 @@ Initial providers:
 - `disabled`: returns a bounded unavailable diagnostic for public installs
   without an ASR backend.
 
+The multi-engine comparison rollout is tracked separately in
+`docs/IMPLEMENTATION_NOTES/voice-input-asr-benchmark-plan.md`. The durable
+boundary is that ordinary composer insertion keeps one configured default ASR
+backend, while voice-learning/training mode may request bounded comparison
+results from multiple local engines for diagnostics and correction learning.
+Pinyin/homophone correction is a required post-ASR layer and must apply
+consistently to every engine result.
+
 Configuration must be public-deployable:
 
 - `HERMES_MOBILE_VOICE_INPUT_ENABLED`;

@@ -155,6 +155,13 @@ service root.
 - Host voice input ASR launchd label:
   `com.hermesmobile.whisper-large-v3-turbo`. Install or repair it with
   `node scripts/install-macos-whisper-large-v3-turbo-service.js --execute`.
+  Optional comparison engines use independent labels:
+  `com.hermesmobile.funasr-local` on port `8002` and
+  `com.hermesmobile.sensevoice-local` on port `8003`. Install or repair them
+  with `node scripts/install-macos-local-asr-service.js --engine funasr --execute`
+  and `node scripts/install-macos-local-asr-service.js --engine sensevoice --execute`.
+  They are comparison candidates only until the voice-input provider is
+  explicitly configured to use them.
   On Apple Silicon Mac production the service runs with `WHISPER_ENGINE=auto`
   and prefers the offline MLX model directory
   `/Users/hermes-host/HermesMobile/services/whisper-large-v3-turbo/models/mlx-community-whisper-large-v3-turbo`
