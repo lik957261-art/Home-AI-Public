@@ -35,6 +35,19 @@ def clean_text(value):
     return str(value or "").strip()
 
 
+def clean_sensevoice_text(value):
+    text = clean_text(value)
+    markers = (
+        "<|zh|>", "<|en|>", "<|yue|>", "<|ja|>", "<|ko|>", "<|nospeech|>",
+        "<|HAPPY|>", "<|SAD|>", "<|ANGRY|>", "<|NEUTRAL|>", "<|EMO_UNKNOWN|>",
+        "<|Speech|>", "<|BGM|>", "<|Applause|>", "<|Laughter|>", "<|withitn|>",
+        "<|woitn|>",
+    )
+    for marker in markers:
+        text = text.replace(marker, "")
+    return text.strip()
+
+
 def load_model():
     global _model, _model_error
     if _model is not None:
@@ -68,7 +81,7 @@ def normalize_result(result, elapsed_ms):
     for index, item in enumerate(items):
         if not isinstance(item, dict):
             continue
-        text = clean_text(item.get("text") or "")
+        text = clean_sensevoice_text(item.get("text") or "")
         if text:
             texts.append(text)
         if item.get("language"):
