@@ -154,8 +154,8 @@ and plugin fullscreen preview state.
 
 Microphone permission timing:
 
-- Home AI must not request microphone permission on app boot, app open,
-  deployment, service worker refresh, or composer discovery.
+- Home AI must not request first-time microphone permission on app boot, app
+  open, deployment, service worker refresh, or composer discovery.
 - The browser/system permission prompt is only allowed after a user performs
   the voice-entry gesture and the host is about to call
   `navigator.mediaDevices.getUserMedia({ audio: true })`.
@@ -169,11 +169,19 @@ Microphone permission timing:
 - After Home AI has successfully opened the microphone once for the current
   origin, later recording attempts should treat phone calls, video calls, and
   other voice input methods as audio-session interruptions rather than as a new
-  permission request. The client should silently rebuild the `getUserMedia`
-  stream on the next user gesture, show `preparing microphone` instead of
-  `requesting permission` when permission is already granted or remembered,
-  and only show a permission diagnostic when the browser reports `denied` or
-  `NotAllowedError`.
+  permission request. The client should keep a host-owned microphone hold
+  stream alive after the first successful grant when the browser allows it,
+  reuse that stream for later `MediaRecorder` sessions, and silently rebuild
+  the stream on foreground restore or the next user gesture when permission is
+  already granted or remembered. This hold stream is not background
+  transcription and must not upload or persist audio unless an explicit
+  recording gesture starts a `MediaRecorder`.
+- Home AI cannot auto-click, hide, or bypass the browser/system microphone
+  prompt. If iOS/PWA, Safari, site settings, reinstall, or another app revokes
+  or interrupts the origin's microphone grant, Home AI should rebuild the
+  stream when possible, show `preparing microphone` instead of `requesting
+  permission` when permission is already granted or remembered, and only show a
+  permission diagnostic when the browser reports `denied` or `NotAllowedError`.
 - Recording must have a visible microphone affordance. While active recording
   is in progress the host overlay shows a pulsing microphone indicator plus
   elapsed time, so users can distinguish a live recording from permission

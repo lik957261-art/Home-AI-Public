@@ -20,9 +20,9 @@ const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 
 function testStaticLoadingAndCache() {
-  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-server-file-attach-v735[\s\S]*app-voice-input-ui\.js\?v=20260613-server-file-attach-v735[\s\S]*app-voice-learning-ui\.js\?v=20260613-server-file-attach-v735[\s\S]*app-wire-start-ui\.js\?v=20260613-server-file-attach-v735/);
-  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-server-file-attach-v735/);
-  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-server-file-attach-v735/);
+  assert.match(indexHtml, /app-composer-send-ui\.js\?v=20260613-voice-mic-hold-v745[\s\S]*app-voice-input-ui\.js\?v=20260613-voice-mic-hold-v745[\s\S]*app-voice-learning-ui\.js\?v=20260613-voice-mic-hold-v745[\s\S]*app-wire-start-ui\.js\?v=20260613-voice-mic-hold-v745/);
+  assert.match(serviceWorker, /\/app-voice-input-ui\.js\?v=20260613-voice-mic-hold-v745/);
+  assert.match(serviceWorker, /\/app-voice-learning-ui\.js\?v=20260613-voice-mic-hold-v745/);
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
   assert.match(appJs, /pendingVoiceInputCommit: null/);
 }
@@ -34,7 +34,15 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /document\.addEventListener\("click", suppressVoiceInputClickEvent, true\)/);
   assert.match(voiceUi, /navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)/);
   assert.match(voiceUi, /const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted"/);
+  assert.match(voiceUi, /const VOICE_INPUT_MIC_HOLD_RETRY_MS = 15000/);
   assert.match(voiceUi, /function voiceInputMicrophonePermissionState\(\)/);
+  assert.match(voiceUi, /function voiceInputAcquireMicrophoneStream\(options = \{\}\)/);
+  assert.match(voiceUi, /function voiceInputRefreshMicHoldFromForeground\(\)/);
+  assert.match(voiceUi, /document\.addEventListener\("visibilitychange", voiceInputRefreshMicHoldFromForeground\)/);
+  assert.match(voiceUi, /window\.addEventListener\("focus", voiceInputRefreshMicHoldFromForeground\)/);
+  assert.match(voiceUi, /window\.addEventListener\("pageshow", voiceInputRefreshMicHoldFromForeground\)/);
+  assert.match(voiceUi, /voiceInputStreamIsLive\(voice\.micHoldStream\)/);
+  assert.match(voiceUi, /voiceInputAttachMicHoldStream\(stream\)/);
   assert.match(voiceUi, /Date\.now\(\) - Number\(voice\.statusCache\.loadedAt \|\| 0\) < 300000/);
   assert.match(voiceUi, /if \(voice\.statusPromise\) return voice\.statusPromise/);
   assert.match(voiceUi, /function voiceInputPrewarmStatus\(\)/);

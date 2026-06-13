@@ -4,6 +4,7 @@ const VOICE_INPUT_LONG_PRESS_MS = 420;
 const VOICE_INPUT_MIN_CLIENT_DURATION_MS = 300;
 const VOICE_INPUT_PRESS_EVENTS_BOUND = "__homeAiVoiceInputPressEventsBound";
 const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted";
+const VOICE_INPUT_MIC_HOLD_RETRY_MS = 15000;
 
 function ensureVoiceInputState() {
   if (!state.voiceInput || typeof state.voiceInput !== "object") {
@@ -284,6 +285,104 @@ async function voiceInputMicrophonePermissionState() {
   }
 }
 
+function voiceInputStreamIsLive(stream) {
+  try {
+    const tracks = stream?.getAudioTracks?.() || stream?.getTracks?.() || [];
+    return tracks.some((track) => track && track.readyState !== "ended");
+  } catch (_) {
+    return false;
+  }
+}
+
+function voiceInputAttachMicHoldStream(stream) {
+  const voice = ensureVoiceInputState();
+  if (!stream) return null;
+  if (voice.micHoldStream && voice.micHoldStream !== stream) {
+    try {
+      voice.micHoldStream.getTracks?.().forEach((track) => track.stop());
+    } catch (_) {}
+  }
+  voice.micHoldStream = stream;
+  voice.stream = stream;
+  voice.micHoldLostAt = 0;
+  try {
+    stream.getAudioTracks?.().forEach((track) => {
+      if (track.__homeAiVoiceInputHoldBound) return;
+      try {
+        track.__homeAiVoiceInputHoldBound = true;
+      } catch (_) {}
+      track.addEventListener?.("ended", () => {
+        const current = ensureVoiceInputState();
+        if (current.micHoldStream === stream) {
+          current.micHoldLostAt = Date.now();
+          current.micHoldStream = null;
+          if (current.stream === stream) current.stream = null;
+        }
+      }, { once: true });
+    });
+  } catch (_) {}
+  return stream;
+}
+
+function voiceInputReleaseMicHold() {
+  const voice = ensureVoiceInputState();
+  const stream = voice.micHoldStream || voice.stream;
+  voice.micHoldStream = null;
+  voice.stream = null;
+  try {
+    stream?.getTracks?.().forEach((track) => track.stop());
+  } catch (_) {}
+}
+
+function voiceInputClearRecordingStream(options = {}) {
+  const voice = ensureVoiceInputState();
+  const releaseHold = Boolean(options.releaseHold);
+  if (releaseHold) {
+    voiceInputReleaseMicHold();
+    return;
+  }
+  if (voice.stream && voice.stream !== voice.micHoldStream) {
+    try {
+      voice.stream.getTracks?.().forEach((track) => track.stop());
+    } catch (_) {}
+  }
+  voice.stream = voiceInputStreamIsLive(voice.micHoldStream) ? voice.micHoldStream : null;
+}
+
+async function voiceInputAcquireMicrophoneStream(options = {}) {
+  const voice = ensureVoiceInputState();
+  if (voiceInputStreamIsLive(voice.micHoldStream)) {
+    voice.stream = voice.micHoldStream;
+    return voice.micHoldStream;
+  }
+  const userGesture = Boolean(options.userGesture);
+  if (!userGesture) {
+    const permissionState = await voiceInputMicrophonePermissionState();
+    if (permissionState !== "granted" && !voiceInputMicWasGranted()) return null;
+    const lastLostAt = Number(voice.micHoldLostAt || 0);
+    if (lastLostAt && Date.now() - lastLostAt < VOICE_INPUT_MIC_HOLD_RETRY_MS) return null;
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  voiceInputRememberMicGranted();
+  return voiceInputAttachMicHoldStream(stream);
+}
+
+function voiceInputRefreshMicHoldFromForeground() {
+  const voice = ensureVoiceInputState();
+  if (!voiceInputMicWasGranted()) return;
+  if (document.visibilityState === "hidden") return;
+  if (!navigator.mediaDevices?.getUserMedia) return;
+  if (voiceInputStreamIsLive(voice.micHoldStream)) return;
+  if (voice.micHoldRefreshPromise) return;
+  voice.micHoldRefreshPromise = voiceInputAcquireMicrophoneStream({ userGesture: false })
+    .catch((err) => {
+      if (["NotAllowedError", "SecurityError"].includes(String(err?.name || ""))) voiceInputForgetMicGranted();
+    })
+    .finally(() => {
+      voice.micHoldRefreshPromise = null;
+    });
+}
+
 function voiceInputStartErrorMessage(err) {
   const name = String(err?.name || "");
   if (name === "NotAllowedError" || name === "SecurityError") {
@@ -489,6 +588,17 @@ function bindVoiceInputPressSelectionGuards() {
   document.addEventListener("pointerup", handleVoiceInputPointerUp, true);
   document.addEventListener("pointercancel", handleVoiceInputPointerCancel, true);
   document.addEventListener("click", suppressVoiceInputClickEvent, true);
+  document.addEventListener("visibilitychange", voiceInputRefreshMicHoldFromForeground);
+  window.addEventListener("focus", voiceInputRefreshMicHoldFromForeground);
+  window.addEventListener("pageshow", voiceInputRefreshMicHoldFromForeground);
+  window.addEventListener("pagehide", () => {
+    const voice = ensureVoiceInputState();
+    if (voice.recorder && voice.recorder.state !== "inactive") {
+      try {
+        voice.recorder.stop();
+      } catch (_) {}
+    }
+  });
 }
 
 function scheduleVoiceInputClickSuppressionClear() {
@@ -499,15 +609,6 @@ function scheduleVoiceInputClickSuppressionClear() {
     voice.suppressNextClick = false;
     voice.suppressClickButton = null;
   }, 1200);
-}
-
-function voiceInputStopTracks() {
-  const voice = ensureVoiceInputState();
-  const stream = voice.stream;
-  voice.stream = null;
-  try {
-    stream?.getTracks?.().forEach((track) => track.stop());
-  } catch (_) {}
 }
 
 function cancelVoiceInput() {
@@ -522,7 +623,7 @@ function cancelVoiceInput() {
     } catch (_) {}
   }
   voice.recorder = null;
-  voiceInputStopTracks();
+  voiceInputClearRecordingStream();
   document.body?.classList?.remove("voice-input-press-active");
   closeVoiceInputOverlay();
 }
@@ -611,10 +712,9 @@ async function startVoiceInputRecording(event, options = {}) {
       return;
     }
     setVoiceInputStatus(permissionState === "granted" ? "preparing" : "requesting");
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    voiceInputRememberMicGranted();
+    const stream = await voiceInputAcquireMicrophoneStream({ userGesture: true });
     if (voice.cancelRequested) {
-      stream.getTracks?.().forEach((track) => track.stop());
+      voiceInputClearRecordingStream();
       closeVoiceInputOverlay();
       return;
     }
@@ -637,7 +737,7 @@ async function startVoiceInputRecording(event, options = {}) {
     voice.maxTimer = setTimeout(() => stopVoiceInputRecording(), maxDurationMs);
     if (voice.pendingStopAfterStart) setTimeout(() => stopVoiceInputRecording(), 120);
   } catch (err) {
-    voiceInputStopTracks();
+    voiceInputClearRecordingStream({ releaseHold: ["NotAllowedError", "SecurityError"].includes(String(err?.name || "")) });
     setVoiceInputStatus("failed", { error: voiceInputStartErrorMessage(err) });
   }
 }
@@ -660,7 +760,7 @@ function stopVoiceInputRecording() {
     try {
       voice.recorder.stop();
     } catch (err) {
-      voiceInputStopTracks();
+      voiceInputClearRecordingStream();
       setVoiceInputStatus("failed", { error: err?.message || "无法停止录音" });
     }
   }
@@ -683,7 +783,7 @@ async function finalizeVoiceInputRecording() {
   const startedAt = Number(voice.recordingStartedAt || Date.now());
   const durationMs = Math.max(0, Date.now() - startedAt);
   if (voice.cancelRequested) {
-    voiceInputStopTracks();
+    voiceInputClearRecordingStream();
     closeVoiceInputOverlay();
     return;
   }
@@ -691,7 +791,7 @@ async function finalizeVoiceInputRecording() {
   voice.maxTimer = 0;
   if (voice.recordingTicker) clearInterval(voice.recordingTicker);
   voice.recordingTicker = 0;
-  voiceInputStopTracks();
+  voiceInputClearRecordingStream();
   const chunks = voice.chunks || [];
   voice.chunks = [];
   if (!chunks.length || durationMs < VOICE_INPUT_MIN_CLIENT_DURATION_MS) {
