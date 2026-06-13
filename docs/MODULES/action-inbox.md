@@ -15,6 +15,10 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
 - Inbox root actions, including new manual Inbox item creation, belong in the top-right overflow menu rather than inline page buttons.
 - Inbox detail/create screens are secondary screens. They must use the shared top-left back button and right-swipe back path; the content area should not render another back button or duplicate the top bar title.
 - Existing simple Todo behavior becomes an Action Inbox item type instead of a separate product tab.
+- Todo must appear as its own primary Inbox filter tab. The default Inbox list
+  opens on `待办`, and ordinary non-Todo Inbox status tabs such as `待处理`,
+  `稍后`, `已完成`, and `其他` exclude `itemType=todo` so Todo rows do not mix
+  with Automation, plugin, Growth, approval, or delivery rows.
 - Active chat/topic task receipts should not enter the default Inbox. Those are immediate responses to a request the user just made, so Web Push should route directly back to the relevant chat/topic/task view.
 
 ## Non-Goals

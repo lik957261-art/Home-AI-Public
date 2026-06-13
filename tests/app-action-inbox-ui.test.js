@@ -12,7 +12,7 @@ const sandbox = {
   URL,
   URLSearchParams,
   state: {
-    actionInboxStatusFilter: "open",
+    actionInboxStatusFilter: "todo",
     selectedActionInboxItemId: "",
     selectedWorkspaceId: "owner",
   },
@@ -33,6 +33,8 @@ const sandbox = {
 
 vm.runInNewContext(`${source}
 this.ActionInboxUiTest = {
+  actionInboxFilterQuery,
+  actionInboxCountsText,
   actionInboxDisplaySummary,
   actionInboxDisplayTitle,
   actionInboxActionMenuItems,
@@ -46,11 +48,24 @@ this.ActionInboxUiTest = {
   openActionInboxItemDeliverableById,
   renderActionInboxActionSheet,
   renderActionInboxDetail,
+  renderActionInboxFilters,
   renderActionInboxItem,
   actionInboxShouldShowLoading,
 };`, sandbox);
 
 const ui = sandbox.ActionInboxUiTest;
+
+assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&itemType=todo");
+sandbox.state.actionInboxStatusFilter = "open";
+assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&excludeItemType=todo&status=open");
+sandbox.state.actionInboxStatusFilter = "all";
+assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&excludeItemType=todo&includeDone=1");
+sandbox.state.actionInboxStatusFilter = "todo";
+sandbox.state.actionInboxCounts = { byStatus: { open: 2, waiting: 1, done: 3 }, byItemType: { todo: 4 } };
+assert.equal(ui.actionInboxCountsText(), "\u5f85\u529e 4 · \u5f85\u5904\u7406 2 · \u7a0d\u540e 1 · \u5df2\u5b8c\u6210 3");
+const filterHtml = ui.renderActionInboxFilters();
+assert.match(filterHtml, /data-action-inbox-filter="todo"[^>]*aria-selected="true"[^>]*>\u5f85\u529e<\/button>/);
+assert.match(filterHtml, /data-action-inbox-filter="all"[^>]*>\u5176\u4ed6<\/button>/);
 
 const openTodo = {
   id: "ainb-todo-1",
@@ -146,6 +161,7 @@ assert.equal(ui.actionInboxStatusActionLabel(Object.assign({}, openTodo, { statu
 sandbox.state.selectedActionInboxItemId = "";
 sandbox.state.actionInboxDetail = null;
 sandbox.state.actionInboxItems = [];
+sandbox.state.actionInboxCounts = null;
 assert.equal(ui.actionInboxShouldShowLoading({}), true);
 sandbox.state.actionInboxItems = [openTodo];
 assert.equal(ui.actionInboxShouldShowLoading({}), false);

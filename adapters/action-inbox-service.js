@@ -142,17 +142,25 @@ function createActionInboxService(options = {}) {
     const workspaceId = clean(input.workspaceId || input.workspace_id || "owner", 120) || "owner";
     const sourceType = clean(input.sourceType || input.source_type, 80);
     const excludedSourceTypes = sourceType ? [] : defaultHiddenSourceTypes;
+    const itemType = clean(input.itemType || input.item_type, 80);
+    const excludedItemTypes = Array.isArray(input.excludedItemTypes || input.excluded_item_types)
+      ? (input.excludedItemTypes || input.excluded_item_types).map((item) => clean(item, 80)).filter(Boolean)
+      : [];
     const items = sortActionInboxItems(store.listActionInboxItems({
       workspaceId,
       status: clean(input.status || input.filterStatus, 40),
       sourceType,
       excludedSourceTypes,
-      itemType: clean(input.itemType || input.item_type, 80),
+      itemType,
+      excludedItemTypes: itemType ? [] : excludedItemTypes,
       search: clean(input.search, 200),
       includeDone: Boolean(input.includeDone || input.include_done),
       limit: Math.max(1, Math.min(500, Number(input.limit || 100) || 100)),
     }));
-    const counts = typeof store.actionInboxCounts === "function" ? store.actionInboxCounts(workspaceId, { excludedSourceTypes }) : { byStatus: {}, bySourceType: {} };
+    const counts = typeof store.actionInboxCounts === "function" ? store.actionInboxCounts(workspaceId, {
+      excludedSourceTypes,
+      excludedItemTypes: itemType ? [] : excludedItemTypes,
+    }) : { byStatus: {}, bySourceType: {}, byItemType: {} };
     return { ok: true, items, counts, source: { name: "action_inbox", storage: "sqlite" } };
   }
 

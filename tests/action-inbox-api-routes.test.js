@@ -225,7 +225,7 @@ async function testFinanceLedgerJoinReviewUsesItemWorkspaceAndBroadcastsRefresh(
 
 async function testListAndCreate() {
   const { routes, calls } = makeRoutes();
-  const listed = await request(routes, "GET", "/api/action-inbox?workspaceId=child&status=open&sourceType=growth&limit=5&search=review");
+  const listed = await request(routes, "GET", "/api/action-inbox?workspaceId=child&status=open&sourceType=growth&excludeItemType=todo&limit=5&search=review");
   assert.equal(listed.res.statusCode, 200);
   assert.deepEqual(calls.workspaceAccess, ["child"]);
   assert.deepEqual(calls.list, [{
@@ -233,6 +233,7 @@ async function testListAndCreate() {
     status: "open",
     sourceType: "growth",
     itemType: "",
+    excludedItemTypes: ["todo"],
     search: "review",
     includeDone: false,
     limit: 5,

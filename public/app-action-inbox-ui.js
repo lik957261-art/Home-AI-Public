@@ -122,10 +122,15 @@ function actionInboxDetailMessage(item = {}) {
 }
 
 function actionInboxFilterQuery() {
-  const filter = String(state.actionInboxStatusFilter || "open");
+  const filter = String(state.actionInboxStatusFilter || "todo");
   const params = new URLSearchParams({ workspaceId: state.selectedWorkspaceId || "owner", limit: "120" });
+  if (filter === "todo") {
+    params.set("itemType", "todo");
+  } else {
+    params.set("excludeItemType", "todo");
+  }
   if (filter === "all") params.set("includeDone", "1");
-  else if (filter) params.set("status", filter);
+  else if (filter && filter !== "todo") params.set("status", filter);
   if (state.actionInboxSourceFilter) params.set("sourceType", state.actionInboxSourceFilter);
   const search = typeof currentSearchText === "function" ? currentSearchText() : "";
   if (search) params.set("search", search);
@@ -135,10 +140,12 @@ function actionInboxFilterQuery() {
 function actionInboxCountsText() {
   const counts = state.actionInboxCounts || {};
   const byStatus = counts.byStatus || {};
+  const byItemType = counts.byItemType || {};
+  const todo = Number(byItemType.todo || 0);
   const open = Number(byStatus.open || 0);
   const waiting = Number(byStatus.waiting || 0);
   const done = Number(byStatus.done || 0);
-  return `${"\u5f85\u5904\u7406"} ${open} · ${"\u7a0d\u540e"} ${waiting} · ${"\u5df2\u5b8c\u6210"} ${done}`;
+  return `${"\u5f85\u529e"} ${todo} · ${"\u5f85\u5904\u7406"} ${open} · ${"\u7a0d\u540e"} ${waiting} · ${"\u5df2\u5b8c\u6210"} ${done}`;
 }
 
 function actionInboxIsManualTodo(item = {}) {
@@ -439,10 +446,11 @@ function openActionInboxCreate() {
 
 function renderActionInboxFilters() {
   const filters = [
+    ["todo", "\u5f85\u529e"],
     ["open", "\u5f85\u5904\u7406"],
     ["waiting", "\u7a0d\u540e"],
     ["done", "\u5df2\u5b8c\u6210"],
-    ["all", "\u5168\u90e8"],
+    ["all", "\u5176\u4ed6"],
   ];
   return `<div class="action-inbox-filter-row" role="tablist" aria-label="${"\u6536\u4ef6\u7bb1\u72b6\u6001"}">
     ${filters.map(([id, label]) => `<button class="action-inbox-filter${state.actionInboxStatusFilter === id ? " active" : ""}" type="button" data-action-inbox-filter="${escapeHtml(id)}" role="tab" aria-selected="${state.actionInboxStatusFilter === id ? "true" : "false"}">${escapeHtml(label)}</button>`).join("")}

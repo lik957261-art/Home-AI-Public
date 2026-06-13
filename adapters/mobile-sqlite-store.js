@@ -1843,6 +1843,9 @@ function createMobileSqliteStore(options = {}) {
       .map((item) => String(item || "").trim())
       .filter(Boolean);
     const itemType = String(args.itemType || args.item_type || "").trim();
+    const excludedItemTypes = (Array.isArray(args.excludedItemTypes) ? args.excludedItemTypes : (Array.isArray(args.excluded_item_types) ? args.excluded_item_types : []))
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
     const search = String(args.search || "").trim().toLowerCase();
     const includeDone = Boolean(args.includeDone || args.include_done);
     const limit = Math.max(1, Math.min(500, Number(args.limit || 100)));
@@ -1864,6 +1867,9 @@ function createMobileSqliteStore(options = {}) {
     if (itemType) {
       clauses.push("item_type = ?");
       values.push(itemType);
+    } else if (excludedItemTypes.length) {
+      clauses.push(`item_type NOT IN (${excludedItemTypes.map(() => "?").join(", ")})`);
+      values.push(...excludedItemTypes);
     }
     const rows = open().prepare(`
       SELECT * FROM action_inbox_items
@@ -1915,28 +1921,38 @@ function createMobileSqliteStore(options = {}) {
     const excludedSourceTypes = (Array.isArray(args.excludedSourceTypes) ? args.excludedSourceTypes : (Array.isArray(args.excluded_source_types) ? args.excluded_source_types : []))
       .map((item) => String(item || "").trim())
       .filter(Boolean);
+    const excludedItemTypes = (Array.isArray(args.excludedItemTypes) ? args.excludedItemTypes : (Array.isArray(args.excluded_item_types) ? args.excluded_item_types : []))
+      .map((item) => String(item || "").trim())
+      .filter(Boolean);
     const clauses = ["(workspace_id = ? OR assignee_workspace_id = ?)"];
     const values = [workspace, workspace];
     if (excludedSourceTypes.length) {
       clauses.push(`source_type NOT IN (${excludedSourceTypes.map(() => "?").join(", ")})`);
       values.push(...excludedSourceTypes);
     }
+    if (excludedItemTypes.length) {
+      clauses.push(`item_type NOT IN (${excludedItemTypes.map(() => "?").join(", ")})`);
+      values.push(...excludedItemTypes);
+    }
     const rows = open().prepare(`
-      SELECT status, source_type, COUNT(*) AS count
+      SELECT status, source_type, item_type, COUNT(*) AS count
       FROM action_inbox_items
       WHERE ${clauses.join(" AND ")}
-      GROUP BY status, source_type
+      GROUP BY status, source_type, item_type
     `).all(...values);
     const byStatus = {};
     const bySourceType = {};
+    const byItemType = {};
     for (const row of rows) {
       const count = Number(row.count || 0);
       const status = String(row.status || "");
       const sourceType = String(row.source_type || "");
+      const itemType = String(row.item_type || "");
       byStatus[status] = (byStatus[status] || 0) + count;
       bySourceType[sourceType] = (bySourceType[sourceType] || 0) + count;
+      byItemType[itemType] = (byItemType[itemType] || 0) + count;
     }
-    return { byStatus, bySourceType };
+    return { byStatus, bySourceType, byItemType };
   }
 
   function getTopicContextSummary(topicId, taskGroupId) {

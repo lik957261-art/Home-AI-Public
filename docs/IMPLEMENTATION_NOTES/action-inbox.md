@@ -128,12 +128,18 @@ Current mobile behavior: the Inbox top-right overflow menu exposes Automation li
 Inbox list should support:
 
 - compact rows with explicit source/type badges, title, summary, status, time, and primary action;
-- filters: all/open/waiting/done and source tags;
+- filters: a dedicated `待办` tab for `itemType=todo`, plus non-Todo
+  status tabs such as `待处理`, `稍后`, `已完成`, and `其他`;
 - detail panel with event timeline and source deep link;
 - complete, dismiss, and snooze actions;
 - route target `view=inbox&inboxItemId=<id>`.
 
 Keep list rendering stable on mobile: no heavy cards inside cards, no large hero, no multi-line tab wraps, no layout shifts when statuses update.
+
+The list API supports `itemType=todo` for the dedicated Todo tab and
+`excludeItemType=todo` for ordinary non-Todo Inbox tabs. Do not implement the
+Todo tab by client-side hiding alone; the server result and counts should match
+the selected tab.
 
 ## Source Integration
 

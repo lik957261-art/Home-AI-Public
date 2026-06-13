@@ -599,6 +599,17 @@ function testActionInboxCrud() {
   });
   assert.equal(second.id, first.id);
   assert.equal(second.title, "Automation delivery updated");
+  const todo = store.upsertActionInboxItem({
+    workspaceId: "child",
+    sourceType: "manual",
+    sourceId: "todo-1",
+    itemType: "todo",
+    status: "open",
+    title: "Manual Todo",
+    dedupeKey: "manual:todo-1",
+    createdAt: "2026-05-26T00:01:30.000Z",
+    updatedAt: "2026-05-26T00:01:30.000Z",
+  });
   const event = store.addActionInboxEvent({
     itemId: first.id,
     eventType: "source_updated",
@@ -608,15 +619,20 @@ function testActionInboxCrud() {
   });
   assert.equal(event.eventType, "source_updated");
   assert.deepEqual(store.listActionInboxEvents(first.id).map((item) => item.id), [event.id]);
-  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child" }).map((item) => item.id), [first.id]);
-  assert.equal(store.actionInboxCounts("child").byStatus.open, 1);
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child" }).map((item) => item.id).sort(), [first.id, todo.id].sort());
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child", excludedItemTypes: ["todo"] }).map((item) => item.id), [first.id]);
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child", itemType: "todo" }).map((item) => item.id), [todo.id]);
+  assert.equal(store.actionInboxCounts("child").byStatus.open, 2);
+  assert.equal(store.actionInboxCounts("child").byItemType.todo, 1);
+  assert.equal(store.actionInboxCounts("child", { excludedItemTypes: ["todo"] }).byItemType.todo, undefined);
   const done = store.updateActionInboxItem(first.id, {
     status: "done",
     completedAt: "2026-05-26T00:03:00.000Z",
   });
   assert.equal(done.status, "done");
-  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child" }), []);
-  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child", includeDone: true }).map((item) => item.id), [first.id]);
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child" }).map((item) => item.id), [todo.id]);
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child", excludedItemTypes: ["todo"] }), []);
+  assert.deepEqual(store.listActionInboxItems({ workspaceId: "child", includeDone: true }).map((item) => item.id).sort(), [first.id, todo.id].sort());
   store.close();
 }
 

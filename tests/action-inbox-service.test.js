@@ -174,9 +174,13 @@ function testDefaultListSortsNewestItemsFirst() {
       updatedAt: "2026-05-26T11:00:00.000Z",
       dedupeKey: "automation:job-2:sig",
     });
-    const listed = h.service.listItems({ workspaceId: "owner" });
+    const listed = h.service.listItems({ workspaceId: "owner", excludedItemTypes: ["todo"] });
     assert.deepEqual(listed.items.map((item) => item.id), [
       delivery.item.id,
+    ]);
+    assert.equal(listed.counts.byItemType.todo, undefined);
+    const todoListed = h.service.listItems({ workspaceId: "owner", itemType: "todo" });
+    assert.deepEqual(todoListed.items.map((item) => item.id), [
       scheduledTodo.item.id,
       todo.item.id,
     ]);

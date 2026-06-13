@@ -191,6 +191,7 @@ function createActionInboxApiRoutes(deps = {}) {
       status: url.searchParams.get("status") || "",
       sourceType: url.searchParams.get("sourceType") || "",
       itemType: url.searchParams.get("itemType") || "",
+      excludedItemTypes: url.searchParams.getAll("excludeItemType").concat(url.searchParams.getAll("excludedItemType")),
       search: url.searchParams.get("search") || "",
       includeDone: /^(1|true|yes|on)$/i.test(String(url.searchParams.get("includeDone") || "")),
       limit: Number(url.searchParams.get("limit") || 100),
