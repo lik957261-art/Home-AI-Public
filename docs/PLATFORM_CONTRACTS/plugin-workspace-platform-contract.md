@@ -170,11 +170,14 @@ falling back to Owner's plugin key or Owner's records. The same rule applies to
 the embedded plugin launch path and the Gateway MCP profile path.
 
 The Moira plugin service also has its own launch/MCP authorization boundary.
-Mac production deployments that keep a static `MOIRA_HERMES_ALLOWED_WORKSPACES`
-allowlist must update and reload that plugin service when grants change, or the
-plugin must provide a dynamic host-verified workspace authorizer. Home AI must
-not treat a local binding alone as proof that the Moira service will accept a
-workspace at runtime.
+Home AI provisioning writes granted workspaces to the plugin-side
+`MOIRA_HERMES_ALLOWED_WORKSPACES_FILE`, normally
+`plugins/moira/data/allowed-workspaces.txt`; the Moira service reloads that file
+during launch/MCP authorization checks. Static
+`MOIRA_HERMES_ALLOWED_WORKSPACES` remains a deployment seed, not the only grant
+source. Home AI must not treat a local binding alone as proof that the Moira
+service will accept a workspace at runtime unless the allowlist file or a future
+dynamic host-verified authorizer also covers it.
 
 ## Same-Origin Proxy CSP Contract
 

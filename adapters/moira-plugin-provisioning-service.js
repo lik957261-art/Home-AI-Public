@@ -31,6 +31,15 @@ function moiraWorkspaceConfigPath(input = {}) {
   return root ? path.join(root, ".hermes-moira", "config.json") : "";
 }
 
+function moiraAllowedWorkspacesPath(input = {}) {
+  const explicit = stringValue(input.allowedWorkspacesFile)
+    || stringValue(input.env?.MOIRA_HERMES_ALLOWED_WORKSPACES_FILE);
+  if (explicit) return explicit;
+  const dataDir = stringValue(input.dataDir) || defaultDataDir(input.env);
+  if (!dataDir) return "";
+  return path.join(path.dirname(dataDir), "plugins", "moira", "data", "allowed-workspaces.txt");
+}
+
 function moiraApiBaseUrl(manifestUrl = "") {
   try {
     return new URL(stringValue(manifestUrl)).origin;
@@ -85,6 +94,24 @@ function writeMoiraWorkspaceConfig(input = {}) {
   }
 }
 
+function updateMoiraAllowedWorkspaces(input = {}) {
+  const workspaceId = stringValue(input.workspaceId);
+  if (!workspaceId) return { ok: false, error: "workspace_id_required" };
+  const filePath = moiraAllowedWorkspacesPath(input);
+  if (!filePath) return { ok: false, error: "moira_allowlist_path_required" };
+  try {
+    const existingText = fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : "";
+    const existing = existingText.split(/[\r\n,]+/).map((item) => item.trim()).filter(Boolean);
+    const next = Array.from(new Set([...existing, workspaceId])).sort();
+    const nextText = `${next.join("\n")}\n`;
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, nextText, { encoding: "utf8", mode: 0o600 });
+    return { ok: true, filePath, workspaceCount: next.length, changed: nextText !== existingText };
+  } catch (_) {
+    return { ok: false, error: "moira_allowlist_write_failed" };
+  }
+}
+
 function createMoiraPluginProvisioningService(options = {}) {
   const dataDir = options.dataDir;
   const env = options.env || process.env;
@@ -113,12 +140,25 @@ function createMoiraPluginProvisioningService(options = {}) {
         keyCreated: Boolean(key.created),
       };
     }
+    const allowlist = updateMoiraAllowedWorkspaces({ dataDir, env, workspaceId });
+    if (!allowlist.ok) {
+      return {
+        ok: false,
+        error: allowlist.error || "moira_allowlist_update_failed",
+        keyCreated: Boolean(key.created),
+        configCreated: true,
+        configPath: config.configPath,
+      };
+    }
     return {
       ok: true,
       workspaceId,
       keyCreated: Boolean(key.created),
       configCreated: true,
       configPath: config.configPath,
+      allowlistUpdated: true,
+      allowlistPath: allowlist.filePath,
+      allowlistWorkspaceCount: allowlist.workspaceCount,
     };
   }
 
@@ -129,9 +169,11 @@ module.exports = {
   createMoiraPluginProvisioningService,
   ensureMoiraWorkspaceKey,
   generateMoiraWorkspaceKey,
+  moiraAllowedWorkspacesPath,
   moiraApiBaseUrl,
   moiraWorkspaceConfigPath,
   moiraWorkspaceKeyPath,
   moiraWorkspaceRoot,
+  updateMoiraAllowedWorkspaces,
   writeMoiraWorkspaceConfig,
 };

@@ -42,9 +42,11 @@ the effective workspace is authorized and has its own complete binding. Owner
 and `weixin_wuping` do not share Moira access: a non-Owner workspace without
 its own `.hermes-moira` binding must see Moira as unavailable instead of using
 Owner's key. The Moira plugin service must also accept the target workspace
-through its own launch/MCP authorization boundary; production LaunchDaemon
-allowlists must be kept in sync with granted workspaces until the Moira plugin
-supports a dynamic host-verified authorizer.
+through its own launch/MCP authorization boundary. Home AI provisioning writes
+granted workspaces to `MOIRA_HERMES_ALLOWED_WORKSPACES_FILE`, normally
+`plugins/moira/data/allowed-workspaces.txt`; the Moira service reloads that file
+during launch/MCP authorization checks. Static LaunchDaemon allowlists remain
+deployment seeds, not the only grant source.
 
 Moira's Gateway MCP surface is read-only. The plugin-side MCP tools expose
 saved-record metadata plus compact chart/year evidence packages; the host model
@@ -1069,7 +1071,9 @@ mode is designed and reviewed.
 Moira is no longer a shared-owner exception. It uses the same effective
 workspace binding rule as ordinary workspace-private plugins: `.hermes-moira`
 must exist under the target workspace, and a non-Owner workspace never reuses
-Owner's Moira key.
+Owner's Moira key. Provisioning also updates the plugin-side workspace
+allowlist file so the Moira service can authorize the newly opened workspace
+without restart.
 
 The side navigation plugin manager is the canonical admin surface for installed
 plugin authorization:
