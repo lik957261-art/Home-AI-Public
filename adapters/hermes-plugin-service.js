@@ -30,6 +30,9 @@ const {
   noteWorkspaceKeyPath,
 } = require("./note-plugin-provisioning-service");
 const {
+  createMoiraPluginProvisioningService,
+} = require("./moira-plugin-provisioning-service");
+const {
   createWardrobePluginProvisioningService,
   readWardrobeWorkspaceConfig,
 } = require("./wardrobe-plugin-provisioning-service");
@@ -242,7 +245,7 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
     riskLevel: "workspace-private",
     defaultVisibility: "owner-only",
     allowWorkspaceGrant: true,
-    provisioning: { supported: false, mode: "manual_binding" },
+    provisioning: { supported: true, mode: "workspace_binding" },
     notifications: { supported: false, routeOwner: "hermes" },
     runtimeSecurity: { wasmEval: true },
   },
@@ -1048,7 +1051,7 @@ function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
 }
 
 function pluginSupportsHermesProvisioning(plugin) {
-  return ["finance", "wardrobe", "email", "health", "note", "growth"].includes(stringValue(plugin?.id)) && plugin?.provisioning?.supported === true;
+  return ["finance", "wardrobe", "email", "health", "note", "growth", "moira"].includes(stringValue(plugin?.id)) && plugin?.provisioning?.supported === true;
 }
 
 function pluginInitialProvisioningStatus(plugin) {
@@ -1518,6 +1521,10 @@ function createHermesPluginService(options = {}) {
     growthOwnerKey: options.growthOwnerKey,
     growthOwnerKeyPath: options.growthOwnerKeyPath,
   });
+  const moiraProvisioningService = options.moiraProvisioningService || createMoiraPluginProvisioningService({
+    dataDir: options.dataDir,
+    env: options.env,
+  });
   const wardrobeProvisioningService = options.wardrobeProvisioningService || createWardrobePluginProvisioningService({
     dataDir: options.dataDir,
     env: options.env,
@@ -1601,6 +1608,13 @@ function createHermesPluginService(options = {}) {
         workspaceId,
         displayName,
         growthManifestUrl: plugin.manifestUrl,
+      });
+    }
+    if (id === "moira") {
+      return moiraProvisioningService.provisionWorkspace({
+        workspaceId,
+        displayName,
+        moiraManifestUrl: plugin.manifestUrl,
       });
     }
     return financeProvisioningService.provisionWorkspace({
@@ -1761,7 +1775,11 @@ function createHermesPluginService(options = {}) {
         ...records.map((record) => ({
           workspaceId: record.workspaceId,
           status: record.status,
-          provisioningStatus: pluginProjectedProvisioningStatus(item, record.provisioningStatus),
+          provisioningStatus: item.id === "moira"
+            && ["", "not_started", "not_supported", "manual_required"].includes(stringValue(record.provisioningStatus || ""))
+            && findMoiraWorkspaceLocalAccessKeyPath({ workspaceId: record.workspaceId }, launchOptions)
+            ? "active"
+            : pluginProjectedProvisioningStatus(item, record.provisioningStatus),
           provisioningError: record.provisioningError || "",
           provisioningUpdatedAt: record.provisioningUpdatedAt || "",
           source: "authorization_store",
@@ -1974,6 +1992,15 @@ function createHermesPluginService(options = {}) {
             keyCreated: Boolean(provisioned.keyCreated),
             configCreated: Boolean(provisioned.configCreated),
             growthWorkspaceId: provisioned.growthWorkspaceId || "",
+          }, gatewayProvisioning),
+        });
+      }
+      if (id === "moira") {
+        return Object.assign({}, saved, {
+          provisioning: Object.assign({
+            status: "active",
+            keyCreated: Boolean(provisioned.keyCreated),
+            configCreated: Boolean(provisioned.configCreated),
           }, gatewayProvisioning),
         });
       }

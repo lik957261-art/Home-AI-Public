@@ -33,11 +33,18 @@ docs. The Home AI development source path is
 `npm run --silent deploy:macos -- --plugin moira --reason <reason> --execute
 --password-file <sudo-password-file> --json`.
 
-Moira follows normal workspace-private plugin provisioning. Home AI may expose
-Moira only when the effective workspace has its own `.hermes-moira/config.json`
-and configured key file. Owner and `weixin_wuping` do not share Moira access:
-a non-Owner workspace without its own `.hermes-moira` binding must see the
-plugin as unavailable instead of using Owner's key.
+Moira follows normal workspace-private plugin provisioning. Granting Moira
+through the Home AI plugin manager creates a workspace-local
+`.hermes-moira/config.json` and `access-key.txt`; the raw key stays only in the
+workspace-local key file and must not appear in grant responses, manifests,
+frontend state, logs, docs, or model context. Home AI may expose Moira only when
+the effective workspace is authorized and has its own complete binding. Owner
+and `weixin_wuping` do not share Moira access: a non-Owner workspace without
+its own `.hermes-moira` binding must see Moira as unavailable instead of using
+Owner's key. The Moira plugin service must also accept the target workspace
+through its own launch/MCP authorization boundary; production LaunchDaemon
+allowlists must be kept in sync with granted workspaces until the Moira plugin
+supports a dynamic host-verified authorizer.
 
 Moira's Gateway MCP surface is read-only. The plugin-side MCP tools expose
 saved-record metadata plus compact chart/year evidence packages; the host model

@@ -158,14 +158,23 @@ endpoints that correctly require a workspace id/key are reported as
 ## Moira Workspace Binding
 
 Moira follows the normal workspace-private plugin provisioning contract. Home AI
-must expose Moira only when the effective workspace has its own
+plugin-manager grants must create the effective workspace's own
 `.hermes-moira/config.json` plus the configured basename-only key file, normally
-`access-key.txt` or `workspace-key.txt`.
+`access-key.txt`, before marking the grant active. Existing manual bindings may
+also be discovered, including a legacy basename such as `workspace-key.txt`, but
+new provisioning writes `access-key.txt`.
 
 Owner and `weixin_wuping` do not share a Moira binding. A non-Owner workspace
 without its own `.hermes-moira` binding must see Moira as unavailable instead of
 falling back to Owner's plugin key or Owner's records. The same rule applies to
 the embedded plugin launch path and the Gateway MCP profile path.
+
+The Moira plugin service also has its own launch/MCP authorization boundary.
+Mac production deployments that keep a static `MOIRA_HERMES_ALLOWED_WORKSPACES`
+allowlist must update and reload that plugin service when grants change, or the
+plugin must provide a dynamic host-verified workspace authorizer. Home AI must
+not treat a local binding alone as proof that the Moira service will accept a
+workspace at runtime.
 
 ## Same-Origin Proxy CSP Contract
 
