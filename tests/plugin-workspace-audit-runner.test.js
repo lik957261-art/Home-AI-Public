@@ -43,7 +43,7 @@ function main() {
     "const argv = process.argv.slice(2);",
     "fs.writeFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify({ argv, cwd: process.cwd() }, null, 2));",
     "const outputIndex = argv.indexOf('--output-last-message');",
-    "if (outputIndex >= 0 && argv[outputIndex + 1]) fs.writeFileSync(argv[outputIndex + 1], 'index.js:1 MEDIUM - fake issue from read-only review\\n');",
+    "if (outputIndex >= 0 && argv[outputIndex + 1]) fs.writeFileSync(argv[outputIndex + 1], 'index.js:1 MEDIUM - 来自只读审计的模拟问题\\n');",
     "console.log('Codex review executed in ' + process.cwd());",
     "console.log('transcript output should not be preferred over final message');",
   ].join("\n") + "\n");
@@ -93,8 +93,8 @@ function main() {
   assert.equal(payload.summary.pluginId, "codex-mobile");
   assert.equal(payload.summary.findingCount >= 1, true);
   assert.match(payload.output, /MEDIA:/);
-  assert.match(payload.output, /Codex Read-Only Review/);
-  assert.match(payload.output, /index\.js:1 MEDIUM - fake issue/);
+  assert.match(payload.output, /Codex 只读审计/);
+  assert.match(payload.output, /index\.js:1 MEDIUM - 来自只读审计的模拟问题/);
   assert.equal(payload.output.includes(workspace), false, "report must not expose target workspace absolute path");
   assert.equal(fs.existsSync(payload.reportPath), true);
   assert.equal(path.dirname(payload.reportPath), path.join(outputRoot, "audit_job_1"));
@@ -107,7 +107,7 @@ function main() {
   assert.equal(fakeCall.argv.includes("--ignore-user-config"), true);
   assert.equal(fakeCall.argv.includes("--output-last-message"), true);
   assert.equal(fakeCall.argv.includes("--cd"), true);
-  assert.match(fakeCall.argv.join("\n"), /Do not edit files/);
+  assert.match(fakeCall.argv.join("\n"), /不要编辑文件/);
 
   const store = createMobileSqliteStore({ dbPath });
   try {

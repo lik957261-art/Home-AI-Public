@@ -325,6 +325,9 @@ calls `scripts/plugin-workspace-audit-runner.js`. The runner:
   target absolute path from captured output, appends the bounded review to the
   Markdown report, and records a high-severity finding if the explicitly
   enabled Codex phase fails.
+- delivers user-facing audit reports in Simplified Chinese while preserving
+  source paths, function names, variable names, config keys, commands, and
+  error codes in their original form.
 
 ## Phase 2
 

@@ -173,28 +173,32 @@ function codexAuditConfig() {
 
 function buildCodexPrompt(job, audit) {
   return [
-    "You are running a Home AI plugin workspace audit.",
+    "你正在执行 Home AI 插件工作区审计。",
     "",
-    "Hard constraints:",
-    "- This is a read-only audit. Do not edit files, create files, install packages, run migrations, commit, push, deploy, restart services, or mutate databases.",
-    "- Inspect only the current working directory and use relative paths in the final answer.",
-    "- Do not print raw secrets, tokens, private keys, environment values, subscription endpoints, or full large logs.",
-    "- If a check could write cache/build artifacts, skip it and say why.",
+    "硬性约束：",
+    "- 这是只读审计。不要编辑文件、创建文件、安装包、运行迁移、提交、推送、部署、重启服务或修改数据库。",
+    "- 只检查当前工作目录，最终回复中的路径使用相对路径。",
+    "- 不要输出原始 secrets、tokens、private keys、环境变量值、subscription endpoints 或完整长日志。",
+    "- 如果某项检查可能写入缓存或构建产物，跳过并说明原因。",
     "",
-    "Review stance:",
-    "- Prioritize concrete bugs, regressions, security/privacy risks, data-loss risks, and missing tests.",
-    "- Lead with findings ordered by severity and include file/line references when available.",
-    "- Keep the final answer concise. If there are no findings, say so and mention residual test gaps.",
+    "交付语言：",
+    "- 最终审计结论必须使用简体中文。",
+    "- 文件路径、函数名、变量名、错误码、命令、配置项和代码标识保持原文。",
+    "",
+    "审计口径：",
+    "- 优先指出具体 bug、回归风险、安全/隐私风险、数据丢失风险和缺失测试。",
+    "- 先列问题，按严重程度排序；能定位时给出文件/行号引用。",
+    "- 回复保持精简。如果没有发现问题，明确说明，并列出剩余测试缺口。",
     "",
     `Job id: ${clean(job.id, 80) || "unknown"}`,
-    `Plugin: ${audit.pluginTitle || audit.pluginId}`,
-    `Audit mode: ${audit.mode}`,
-    `Revision: ${audit.head || "unknown"}`,
-    `Branch: ${audit.branch || "unknown"}`,
+    `插件：${audit.pluginTitle || audit.pluginId}`,
+    `审计模式：${audit.mode}`,
+    `版本：${audit.head || "unknown"}`,
+    `分支：${audit.branch || "unknown"}`,
     "",
-    "Deterministic pre-scan summary:",
-    `- Top severity: ${audit.topSeverity}`,
-    `- Finding count: ${audit.findingCount}`,
+    "确定性预扫描摘要：",
+    `- 最高严重级别：${audit.topSeverity}`,
+    `- 问题数量：${audit.findingCount}`,
     audit.statusLines.length ? "- Git status:\n" + audit.statusLines.slice(0, 20).map((line) => `  - ${line}`).join("\n") : "- Git status: clean or unavailable",
     audit.diffStat.length ? "- Diff stat:\n" + audit.diffStat.slice(0, 20).map((line) => `  - ${line}`).join("\n") : "- Diff stat: none or unavailable",
   ].join("\n");
@@ -207,7 +211,7 @@ function runCodexReview(job, audit, workspacePath) {
       enabled: false,
       ok: true,
       status: "disabled",
-      output: "Codex read-only review is disabled by runtime configuration.",
+      output: "运行时配置未启用 Codex 只读审计。",
     };
   }
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-audit-codex-"));
@@ -290,19 +294,19 @@ function buildAudit(job) {
   const findings = [];
 
   if (!head.ok) {
-    findings.push(finding("high", "Workspace is not readable as a Git repository", [head.stderr || head.stdout], "The read-only audit could not establish source revision metadata."));
+    findings.push(finding("high", "工作区无法作为 Git 仓库读取", [head.stderr || head.stdout], "只读审计无法建立源码版本元数据。"));
   }
   if (statusLines.length) {
-    findings.push(finding("medium", "Workspace has uncommitted changes", statusLines.slice(0, 20), "Read-only audit results may include local changes that have not been reviewed or pushed."));
+    findings.push(finding("medium", "工作区存在未提交变更", statusLines.slice(0, 20), "只读审计结果可能包含尚未审查或推送的本地变更。"));
   }
   if (secretFiles.length) {
-    findings.push(finding("high", "Tracked files look secret-like", secretFiles, "The audit detected tracked filenames that commonly carry secrets. It did not read or print file contents."));
+    findings.push(finding("high", "已跟踪文件名疑似包含敏感配置", secretFiles, "审计发现了常见于 secrets 的已跟踪文件名；未读取或打印文件内容。"));
   }
   if (todoHits.length) {
-    findings.push(finding("low", "TODO/FIXME markers are present", todoHits, "These markers may represent intentional backlog or unfinished code paths."));
+    findings.push(finding("low", "存在 TODO/FIXME 标记", todoHits, "这些标记可能代表计划内 backlog 或尚未完成的代码路径。"));
   }
   if (!findings.length) {
-    findings.push(finding("info", "No deterministic findings from read-only metadata scan", [], "The runner completed git metadata and bounded source marker checks without detecting configured risk markers."));
+    findings.push(finding("info", "只读元数据扫描未发现确定性问题", [], "runner 已完成 Git 元数据和有边界的源码标记检查，未发现配置的风险标记。"));
   }
   const severityRank = { high: 3, medium: 2, low: 1, info: 0 };
   const topSeverity = findings.reduce((acc, item) => (severityRank[item.severity] > severityRank[acc] ? item.severity : acc), "info");
@@ -332,9 +336,9 @@ function buildAudit(job) {
   if (auditResult.codex.enabled && !auditResult.codex.ok) {
     auditResult.findings.unshift(finding(
       "high",
-      "Codex read-only review failed",
+      "Codex 只读审计执行失败",
       [auditResult.codex.error || `status=${auditResult.codex.status}`],
-      "The deterministic audit completed, but the configured Codex read-only executor did not return a usable review.",
+      "确定性审计已完成，但配置的 Codex 只读执行器没有返回可用审计结论。",
     ));
     auditResult.findingCount = auditResult.findings.filter((item) => item.severity !== "info").length;
     auditResult.topSeverity = auditResult.findings.reduce((acc, item) => (severityRank[item.severity] > severityRank[acc] ? item.severity : acc), "info");
@@ -350,27 +354,27 @@ function markdownList(items = [], fallback = "- None") {
 function renderReport(job, audit) {
   const findings = audit.findings.map((item, index) => [
     `### ${index + 1}. ${item.severity.toUpperCase()} - ${item.title}`,
-    item.rationale ? `Rationale: ${item.rationale}` : "",
-    item.evidence.length ? "Evidence:" : "",
+    item.rationale ? `理由: ${item.rationale}` : "",
+    item.evidence.length ? "证据:" : "",
     item.evidence.map((line) => `- \`${line.replace(/`/g, "'")}\``).join("\n"),
   ].filter(Boolean).join("\n\n")).join("\n\n");
   return [
-    `# Plugin Workspace Audit - ${audit.pluginTitle || audit.pluginId}`,
+    `# 插件工作区审计 - ${audit.pluginTitle || audit.pluginId}`,
     "",
-    "## Summary",
+    "## 摘要",
     "",
-    `- Job id: ${clean(job.id, 80) || "unknown"}`,
-    `- Plugin: ${audit.pluginId}`,
-    `- Target workspace: ${audit.targetWorkspaceId || "owner"}`,
-    `- Workspace path ref: ${audit.pathRef}`,
-    `- Audit mode: ${audit.mode}`,
-    `- Revision: ${audit.head || "unknown"}`,
-    `- Branch: ${audit.branch || "unknown"}`,
-    `- Top severity: ${audit.topSeverity}`,
-    `- Finding count: ${audit.findingCount}`,
-    `- Generated at: ${audit.diagnostics.generatedAt}`,
+    `- 任务 id: ${clean(job.id, 80) || "unknown"}`,
+    `- 插件: ${audit.pluginId}`,
+    `- 目标工作区: ${audit.targetWorkspaceId || "owner"}`,
+    `- 工作区路径引用: ${audit.pathRef}`,
+    `- 审计模式: ${audit.mode}`,
+    `- 版本: ${audit.head || "unknown"}`,
+    `- 分支: ${audit.branch || "unknown"}`,
+    `- 最高严重级别: ${audit.topSeverity}`,
+    `- 问题数量: ${audit.findingCount}`,
+    `- 生成时间: ${audit.diagnostics.generatedAt}`,
     "",
-    "## Findings",
+    "## 问题",
     "",
     findings,
     "",
@@ -382,32 +386,32 @@ function renderReport(job, audit) {
     "",
     markdownList(audit.diffStat),
     "",
-    "## Recent Commits",
+    "## 最近提交",
     "",
     markdownList(audit.recentLog),
     "",
-    "## Sampled Files",
+    "## 抽样文件",
     "",
     markdownList(audit.sampledFiles.slice(0, 80)),
     "",
-    "## Codex Read-Only Review",
+    "## Codex 只读审计",
     "",
-    `- Enabled: ${audit.codex?.enabled ? "yes" : "no"}`,
-    `- Status: ${audit.codex?.status || "unknown"}`,
-    audit.codex?.command ? `- Command: ${audit.codex.command}` : "",
-    audit.codex?.error ? "### Executor Diagnostics" : "",
+    `- 已启用: ${audit.codex?.enabled ? "yes" : "no"}`,
+    `- 状态: ${audit.codex?.status || "unknown"}`,
+    audit.codex?.command ? `- 命令: ${audit.codex.command}` : "",
+    audit.codex?.error ? "### 执行器诊断" : "",
     audit.codex?.error ? "```text\n" + audit.codex.error.replace(/```/g, "'''") + "\n```" : "",
-    "### Review Output",
+    "### 审计结论",
     "",
     "```text",
     clean(audit.codex?.output || "No Codex review output.", 80_000).replace(/```/g, "'''"),
     "```",
     "",
-    "## Read-Only Enforcement",
+    "## 只读约束",
     "",
-    "- The runner used bounded metadata/source-inspection commands only.",
-    "- It did not edit files, run migrations, install packages, commit, push, deploy, restart services, or read secret file contents.",
-    "- The report intentionally omits the target workspace absolute path; only the configured path reference is shown.",
+    "- runner 只使用有边界的元数据和源码检查命令。",
+    "- 未编辑文件、运行迁移、安装包、提交、推送、部署、重启服务或读取 secret 文件内容。",
+    "- 报告有意省略目标工作区绝对路径，只显示配置的路径引用。",
   ].join("\n");
 }
 

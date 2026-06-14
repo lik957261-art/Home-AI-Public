@@ -29,7 +29,7 @@ assert.match(runner, /"--sandbox",\s*"read-only"/);
 assert.match(runner, /"--ignore-user-config"/);
 assert.match(runner, /"--output-last-message"/);
 assert.match(runner, /redactWorkspacePath/);
-assert.match(runner, /report intentionally omits the target workspace absolute path/i);
+assert.match(runner, /报告有意省略目标工作区绝对路径/);
 assert.match(coreProviders, /parseAuditTargetConfig/);
 assert.match(coreProviders, /allowedExceptionRoots[\s\S]*parseAuditTargetConfig\(\{ env \}\)/);
 
