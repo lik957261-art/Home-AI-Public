@@ -55,6 +55,7 @@ function createAutomationProvider(options = {}) {
   const jobMatchesOwner = typeof options.jobMatchesOwner === "function"
     ? options.jobMatchesOwner
     : (job, ownerPrincipalId) => String(job?.ownerPrincipalId || "owner") === String(ownerPrincipalId || "owner");
+  const actionInboxService = options.actionInboxService || null;
   const automationBackend = String(options.automationBackend || "hermes_cron").trim().toLowerCase();
   const allowLocalAutomationWrites = options.allowLocalAutomationWrites !== undefined
     ? Boolean(options.allowLocalAutomationWrites)
@@ -334,6 +335,61 @@ function createAutomationProvider(options = {}) {
     };
   }
 
+  function sourceRefUrlMatches(sourceRef = {}, args = {}) {
+    const kind = String(args.kind || "output");
+    const jobId = String(args.jobId || "").trim();
+    if (!jobId) return false;
+    const candidates = [
+      sourceRef.reportUrl,
+      sourceRef.report_url,
+      sourceRef.latestDeliverable?.url,
+      sourceRef.latest_deliverable?.url,
+      sourceRef.latestDeliverableUrl,
+      sourceRef.latest_deliverable_url,
+    ].map((item) => String(item || "").trim()).filter(Boolean);
+    for (const candidate of candidates) {
+      try {
+        const parsed = new URL(candidate, "http://localhost");
+        if (kind === "deliverable" && parsed.pathname !== "/api/automations/deliverable") continue;
+        if (kind === "output" && parsed.pathname !== "/api/automations/output") continue;
+        if (String(parsed.searchParams.get("jobId") || "") !== jobId) continue;
+        if (kind === "deliverable") {
+          if (String(parsed.searchParams.get("run") || "") !== String(args.run || "")) continue;
+          if (String(parsed.searchParams.get("index") || "0") !== String(args.index || "0")) continue;
+        } else if (String(parsed.searchParams.get("file") || "") !== String(args.file || "")) {
+          continue;
+        }
+        return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  function actionInboxAllowsArchivedAutomationFile(query, args = {}) {
+    if (!actionInboxService || typeof actionInboxService.listItems !== "function") return false;
+    const workspaceId = String(queryValue(query, "workspaceId") || "owner");
+    const jobId = String(queryValue(query, "jobId") || "").trim();
+    if (!jobId) return false;
+    let result;
+    try {
+      result = actionInboxService.listItems({
+        workspaceId,
+        sourceType: "automation",
+        includeDone: true,
+        limit: 500,
+      });
+    } catch (_) {
+      return false;
+    }
+    const items = Array.isArray(result?.items) ? result.items : [];
+    return items.some((item) => {
+      const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
+      const refJobId = String(sourceRef.automationId || sourceRef.automation_id || sourceRef.jobId || sourceRef.job_id || "").trim();
+      if (refJobId !== jobId) return false;
+      return sourceRefUrlMatches(sourceRef, Object.assign({ jobId }, args));
+    });
+  }
+
   async function resolveAuthorizedFile(args = {}) {
     const query = args.query || {};
     const workspaceId = String(queryValue(query, "workspaceId") || "owner");
@@ -352,7 +408,17 @@ function createAutomationProvider(options = {}) {
     }
     if (!result?.ok) return { status: 503, error: result?.error || "Hermes CRON bridge failed" };
     const allowed = (result.jobs || []).some((job) => String(job?.id || "") === jobId && jobMatchesOwner(job, ownerPrincipalId));
-    if (!allowed) return { status: 404, error: "Automation output not found" };
+    const archivedAllowed = allowed ? false : actionInboxAllowsArchivedAutomationFile(query, args.kind === "deliverable"
+      ? {
+        kind: "deliverable",
+        run: String(queryValue(query, "run") || ""),
+        index: String(queryValue(query, "index") || "0"),
+      }
+      : {
+        kind: "output",
+        file: String(queryValue(query, "file") || ""),
+      });
+    if (!allowed && !archivedAllowed) return { status: 404, error: "Automation output not found" };
     const localResult = args.kind === "deliverable" ? resolveDeliverableFile(query) : resolveOutputFile(query);
     if (localResult.file || typeof runBridge !== "function") return localResult;
     try {

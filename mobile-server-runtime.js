@@ -999,6 +999,7 @@ const automationProvider = createAutomationProvider({
   authCanAccessWorkspace,
   workspacePrincipal,
   jobMatchesOwner: cronJobMatchesOwner,
+  actionInboxService,
 });
 const externalIntegrationProvider = createExternalIntegrationProvider({
   envPaths: HERMES_ENV_PATHS,
@@ -1173,7 +1174,7 @@ const listWorkspaceAccessKeyStatuses = (...args) => mobileRuntimeWorkspaceFacade
 const rotateWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateWorkspaceAccessKey(...args);
 const revokeWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.revokeWorkspaceAccessKey(...args);
 const rotateGlobalAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateGlobalAccessKey(...args);
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260612-email-content-mcp-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260614-moira-mcp-evidence-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
   normalizeSingleWindowMode,

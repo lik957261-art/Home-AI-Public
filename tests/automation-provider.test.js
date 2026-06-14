@@ -233,6 +233,59 @@ async function run() {
   });
   assert.equal(authorized.file.name, "notes.md");
 
+  const archivedOutputRoot = path.join(tempRoot, "archived-output");
+  const archivedJobRoot = path.join(archivedOutputRoot, "archived_job_1");
+  fs.mkdirSync(archivedJobRoot, { recursive: true });
+  fs.writeFileSync(path.join(archivedJobRoot, "report.md"), "# Archived audit\n");
+  const archivedProvider = createAutomationProvider({
+    cacheTtlMs: 0,
+    cronOutputRoot: archivedOutputRoot,
+    normalizeLocalPath: (value) => String(value || ""),
+    mimeFor: () => "text/markdown",
+    findWorkspace(workspaceId) {
+      return workspaceId === "workspace_a" ? { id: "workspace_a" } : null;
+    },
+    authCanAccessWorkspace(auth, workspaceId) {
+      return auth?.workspaceId === workspaceId;
+    },
+    workspacePrincipal(workspaceId) {
+      return `principal:${workspaceId}`;
+    },
+    jobMatchesOwner(job, ownerPrincipalId) {
+      return job.ownerPrincipalId === ownerPrincipalId;
+    },
+    actionInboxService: {
+      listItems() {
+        return {
+          ok: true,
+          items: [{
+            sourceRef: {
+              automationId: "archived_job_1",
+              reportUrl: "/api/automations/output?jobId=archived_job_1&file=report.md",
+              latestDeliverable: {
+                url: "/api/automations/output?jobId=archived_job_1&file=report.md",
+              },
+            },
+          }],
+        };
+      },
+    },
+    async runBridge(payload) {
+      if (payload.action === "list") return { ok: true, jobs: [], source: { name: "hermes_cron" } };
+      return { ok: false, error: "unexpected bridge action" };
+    },
+  });
+  const archivedAuthorized = await archivedProvider.resolveAuthorizedOutputFile({
+    query: new URLSearchParams({ workspaceId: "workspace_a", jobId: "archived_job_1", file: "report.md" }),
+    auth: { workspaceId: "workspace_a" },
+  });
+  assert.equal(archivedAuthorized.file.name, "report.md");
+  const archivedDenied = await archivedProvider.resolveAuthorizedOutputFile({
+    query: new URLSearchParams({ workspaceId: "workspace_a", jobId: "archived_job_1", file: "other.md" }),
+    auth: { workspaceId: "workspace_a" },
+  });
+  assert.equal(archivedDenied.status, 404);
+
   fs.rmSync(jobOutputRoot, { recursive: true, force: true });
   const bridgeAuthorized = await provider.resolveAuthorizedDeliverableFile({
     query: new URLSearchParams({ workspaceId: "workspace_a", jobId: "job_1", run: "run.md", index: "0" }),
