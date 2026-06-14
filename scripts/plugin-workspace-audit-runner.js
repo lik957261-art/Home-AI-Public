@@ -225,7 +225,8 @@ function runCodexReview(job, audit, workspacePath) {
     timeout: config.timeoutMs,
     maxBuffer: MAX_CODEX_BYTES,
     env: Object.assign({}, process.env, {
-      HOME: process.env.HOME || os.homedir(),
+      HOME: os.homedir() || process.env.HOME,
+      CODEX_HOME: process.env.CODEX_HOME || path.join(os.homedir() || process.env.HOME || "", ".codex"),
       NO_COLOR: "1",
       TERM: "dumb",
     }),
