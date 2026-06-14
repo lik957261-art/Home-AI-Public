@@ -250,13 +250,14 @@ function runCodexReview(job, audit, workspacePath) {
     const output = redactWorkspacePath(clean(finalMessage || stdout, 80_000), workspacePath);
     const timedOut = result.error && result.error.code === "ETIMEDOUT";
     const status = timedOut ? "timeout" : (result.error ? clean(result.error.code || result.error.message, 120) : String(Number(result.status || 0)));
+    const ok = result.status === 0 && !timedOut;
     return {
       enabled: true,
-      ok: result.status === 0 && !timedOut,
+      ok,
       status,
       command: path.basename(config.command),
       output: output || "(Codex produced no final message.)",
-      error: stderr,
+      error: ok ? "" : stderr,
     };
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
