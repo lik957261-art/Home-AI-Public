@@ -34,7 +34,7 @@ function compactList(value, maxItems = 20, maxText = 120) {
 function safeAuditSourceRef(input = {}) {
   const source = objectValue(input);
   const out = {};
-  for (const key of ["reportUrl", "report_url", "automationId", "automation_id", "jobId", "job_id", "route"]) {
+  for (const key of ["reportUrl", "report_url", "automationId", "automation_id", "jobId", "job_id", "latestDocumentName", "latest_document_name", "route"]) {
     if (source[key] == null) continue;
     if (key === "route" && typeof source[key] === "object" && !Array.isArray(source[key])) {
       out.route = {
@@ -45,6 +45,14 @@ function safeAuditSourceRef(input = {}) {
     } else {
       out[key] = clean(source[key], 600);
     }
+  }
+  const deliverable = objectValue(source.latestDeliverable || source.latest_deliverable);
+  if (deliverable.url || deliverable.name) {
+    out.latestDeliverable = {
+      name: clean(deliverable.name || source.latestDocumentName || source.latest_document_name || "delivery.md", 160) || "delivery.md",
+      url: clean(deliverable.url, 600),
+      mime: clean(deliverable.mime || deliverable.contentType || deliverable.content_type, 120),
+    };
   }
   return out;
 }

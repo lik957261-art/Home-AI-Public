@@ -90,6 +90,44 @@ function gitFileList(cwd, args, limit = 80) {
   };
 }
 
+function fileSystemFileList(cwd, limit = 160) {
+  const files = [];
+  const ignoredDirs = new Set([
+    ".git",
+    ".codegraph",
+    ".codex",
+    "node_modules",
+    "dist",
+    "build",
+    "coverage",
+    "logs",
+    "tmp",
+    "temp",
+  ]);
+  function walk(dir, prefix = "") {
+    if (files.length >= limit) return;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+      return;
+    }
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+    for (const entry of entries) {
+      if (files.length >= limit) break;
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!ignoredDirs.has(entry.name)) walk(fullPath, relative);
+      } else if (entry.isFile()) {
+        files.push(relative);
+      }
+    }
+  }
+  walk(cwd);
+  return { ok: true, files, error: "" };
+}
+
 function rgTodoScan(cwd) {
   const result = spawnSync("rg", [
     "-n",
@@ -122,6 +160,7 @@ function secretLikeTrackedFiles(files = []) {
 function modeFileSample(cwd, mode) {
   if (mode === "alignment") {
     const tracked = gitFileList(cwd, ["ls-files"], 160);
+    const source = tracked.ok ? tracked : fileSystemFileList(cwd, 220);
     const priority = [
       ".agent-context/PROJECT_CONTEXT.md",
       ".agent-context/HANDOFF.md",
@@ -132,23 +171,28 @@ function modeFileSample(cwd, mode) {
       "docs/ARCHITECTURE_BOUNDARY.md",
       "docs/TEST_MATRIX.md",
     ];
-    const files = tracked.files || [];
+    const files = source.files || [];
     const selected = [
       ...priority.filter((name) => files.includes(name)),
       ...files.filter((name) => /^docs\/IMPLEMENTATION_NOTES\/.+\.md$/i.test(name)).slice(0, 24),
       ...files.filter((name) => /\.(js|ts|tsx|jsx|py|sh|md)$/i.test(name) && !name.startsWith("docs/")).slice(0, 80),
     ];
     return {
-      ok: tracked.ok,
+      ok: source.ok,
       files: [...new Set(selected)].slice(0, 120),
-      error: tracked.error,
+      error: source.error || tracked.error,
+      source: tracked.ok ? "git" : "filesystem",
     };
   }
   if (mode === "dirty_diff") return gitFileList(cwd, ["status", "--short"], 80);
-  if (mode === "full_sample") return gitFileList(cwd, ["ls-files"], 120);
+  if (mode === "full_sample") {
+    const tracked = gitFileList(cwd, ["ls-files"], 120);
+    return tracked.ok ? Object.assign({}, tracked, { source: "git" }) : Object.assign(fileSystemFileList(cwd, 120), { source: "filesystem" });
+  }
   const recent = gitFileList(cwd, ["diff", "--name-only", "HEAD~5..HEAD"], 80);
-  if (recent.ok && recent.files.length) return recent;
-  return gitFileList(cwd, ["ls-files"], 80);
+  if (recent.ok && recent.files.length) return Object.assign({}, recent, { source: "git" });
+  const tracked = gitFileList(cwd, ["ls-files"], 80);
+  return tracked.ok ? Object.assign({}, tracked, { source: "git" }) : Object.assign(fileSystemFileList(cwd, 80), { source: "filesystem" });
 }
 
 function finding(severity, title, evidence = [], rationale = "") {
@@ -330,8 +374,10 @@ function buildAudit(job) {
   const statusLines = splitLines(status.stdout, 80);
   const findings = [];
 
-  if (!head.ok) {
-    findings.push(finding("high", "工作区无法作为 Git 仓库读取", [head.stderr || head.stdout], "只读审计无法建立源码版本元数据。"));
+  if (!head.ok && !sample.files.length) {
+    findings.push(finding("high", "工作区无法读取 Git 元数据且没有可抽样文件", [head.stderr || head.stdout, sample.error].filter(Boolean), "只读审计无法建立源码版本元数据，也无法用文件系统抽样继续审计。"));
+  } else if (!head.ok) {
+    findings.push(finding("info", "工作区没有 Git 元数据，已改用文件系统抽样", [head.stderr || head.stdout].filter(Boolean), "生产部署目录可能不包含 .git；runner 已继续读取有边界的文档和源码文件列表。"));
   }
   if (statusLines.length) {
     findings.push(finding("medium", "工作区存在未提交变更", statusLines.slice(0, 20), "只读审计结果可能包含尚未审查或推送的本地变更。"));
@@ -364,6 +410,7 @@ function buildAudit(job) {
     topSeverity,
     diagnostics: {
       gitStatusOk: status.ok,
+      sampleSource: sample.source || (sample.ok ? "git" : "unknown"),
       sampledFileCount: sample.files.length,
       todoHitCount: todoHits.length,
       generatedAt: new Date().toISOString(),
@@ -494,8 +541,14 @@ function upsertInbox(job, audit, report, options = {}) {
         automationId: clean(job.id, 80),
         jobId: clean(job.id, 80),
         reportUrl: `/api/automations/output?jobId=${encodeURIComponent(clean(job.id, 80))}&file=${encodeURIComponent(report.fileName)}`,
+        latestDeliverable: {
+          name: report.fileName,
+          url: `/api/automations/output?jobId=${encodeURIComponent(clean(job.id, 80))}&file=${encodeURIComponent(report.fileName)}`,
+          mime: "text/markdown; charset=utf-8",
+        },
+        latestDocumentName: report.fileName,
       },
-      deepLink: `/?view=automation&automationId=${encodeURIComponent(clean(job.id, 80))}&returnTo=inbox`,
+      deepLink: `/api/automations/output?jobId=${encodeURIComponent(clean(job.id, 80))}&file=${encodeURIComponent(report.fileName)}`,
     });
   } finally {
     store.close();

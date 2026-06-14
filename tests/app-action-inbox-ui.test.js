@@ -279,8 +279,30 @@ assert.match(deliveryHtml, /data-task-doc/);
 assert.match(deliveryHtml, /data-artifact-mime="text\/markdown"/);
 assert.deepEqual(ui.actionInboxActionMenuItems(automationDelivery).map((action) => action.id), ["complete", "snooze", "dismiss"]);
 
+const automationReviewDelivery = {
+  id: "ainb-audit-review",
+  sourceType: "automation",
+  itemType: "review",
+  status: "open",
+  title: "Codex audit needs review",
+  summary: "1 finding, top severity high.",
+  sourceRef: {
+    automationId: "audit-job-1",
+    latestDeliverable: {
+      name: "plugin-workspace-audit-codex-mobile.md",
+      url: "/api/automations/output?jobId=audit-job-1&file=plugin-workspace-audit-codex-mobile.md",
+      mime: "text/markdown; charset=utf-8",
+    },
+  },
+  workspaceId: "owner",
+};
+const reviewDeliveryHtml = ui.renderActionInboxItem(automationReviewDelivery);
+assert.equal(ui.actionInboxPrimaryDeliverable(automationReviewDelivery).name, "plugin-workspace-audit-codex-mobile.md");
+assert.match(reviewDeliveryHtml, /data-action-inbox-open-deliverable-id="ainb-audit-review"/);
+assert.match(reviewDeliveryHtml, /class="action-inbox-deliverable-chip automation-doc-preview compact doc-markdown"/);
+
 const openedDeliverables = [];
-sandbox.state.actionInboxItems = [automationDelivery];
+sandbox.state.actionInboxItems = [automationDelivery, automationReviewDelivery];
 sandbox.document = {
   createElement(tag) {
     assert.equal(tag, "a");

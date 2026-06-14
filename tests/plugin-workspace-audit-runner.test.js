@@ -32,6 +32,16 @@ function makeGitWorkspace(root) {
   return workspace;
 }
 
+function makePlainWorkspace(root) {
+  const workspace = path.join(root, "plain-plugin");
+  fs.mkdirSync(path.join(workspace, "docs", "IMPLEMENTATION_NOTES"), { recursive: true });
+  fs.writeFileSync(path.join(workspace, "package.json"), "{\"name\":\"plain-plugin-fixture\"}\n");
+  fs.writeFileSync(path.join(workspace, "index.js"), "export function main() { return true; }\n");
+  fs.writeFileSync(path.join(workspace, "docs", "README.md"), "# Plain Plugin\n\nRuntime deployment without Git metadata.\n");
+  fs.writeFileSync(path.join(workspace, "docs", "IMPLEMENTATION_NOTES", "runtime.md"), "# Runtime\n\nKeep audit useful without .git.\n");
+  return workspace;
+}
+
 function main() {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "plugin-audit-runner-"));
   const workspace = makeGitWorkspace(tempRoot);
@@ -124,9 +134,48 @@ function main() {
     assert.equal(items[0].sourceRef.pluginId, "codex-mobile");
     assert.equal(items[0].sourceRef.rawDiff, undefined);
     assert.match(items[0].sourceRef.reportUrl, /\/api\/automations\/output\?jobId=audit_job_1/);
+    assert.equal(items[0].sourceRef.latestDeliverable.name.startsWith("plugin-workspace-audit-codex-mobile-"), true);
+    assert.match(items[0].sourceRef.latestDeliverable.url, /\/api\/automations\/output\?jobId=audit_job_1/);
   } finally {
     store.close();
   }
+
+  const plainWorkspace = makePlainWorkspace(tempRoot);
+  const plainJob = Object.assign({}, job, {
+    id: "audit_plain_1",
+    audit: Object.assign({}, job.audit, {
+      workspacePath: plainWorkspace,
+      workspacePathRef: "plain-runtime-fixture",
+      executor: "none",
+    }),
+  });
+  const plainJobFile = path.join(tempRoot, "plain-job.json");
+  fs.writeFileSync(plainJobFile, JSON.stringify(plainJob));
+  const plain = spawnSync(process.execPath, [
+    runner,
+    "--job-file",
+    plainJobFile,
+    "--output-root",
+    outputRoot,
+    "--json",
+  ], {
+    cwd: repoRoot,
+    env: Object.assign({}, process.env, {
+      HERMES_WEB_DB_PATH: path.join(tempRoot, "data", "plain-hermes-mobile.sqlite3"),
+      HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED: "0",
+    }),
+    encoding: "utf8",
+    maxBuffer: 5 * 1024 * 1024,
+  });
+  assert.equal(plain.status, 0, plain.stderr || plain.stdout);
+  const plainPayload = JSON.parse(plain.stdout);
+  assert.equal(plainPayload.ok, true);
+  assert.equal(plainPayload.summary.findingCount, 0);
+  assert.match(plainPayload.output, /工作区没有 Git 元数据，已改用文件系统抽样/);
+  assert.match(plainPayload.output, /docs\/README\.md/);
+  assert.match(plainPayload.output, /docs\/IMPLEMENTATION_NOTES\/runtime\.md/);
+  assert.match(plainPayload.output, /index\.js/);
+  assert.doesNotMatch(plainPayload.output, /HIGH - 工作区无法作为 Git 仓库读取/);
 
   const badJobFile = path.join(tempRoot, "bad-job.json");
   fs.writeFileSync(badJobFile, JSON.stringify(Object.assign({}, job, { readonly: false })));

@@ -211,7 +211,7 @@ function actionInboxPrimaryDeliverable(item = {}) {
   const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
   const itemType = String(item?.itemType || item?.item_type || "").trim().toLowerCase();
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
-  const canReadDirectly = itemType === "delivery" || (itemType === "todo" && sourceRef.scheduledTodo);
+  const canReadDirectly = itemType === "delivery" || itemType === "review" || (itemType === "todo" && sourceRef.scheduledTodo);
   if (sourceType !== "automation" || !canReadDirectly) return null;
   return actionInboxLatestDeliverable(item);
 }

@@ -141,6 +141,12 @@ function testAuditInboxProjectionIsSummaryOnly() {
     summary: "2 high-risk findings.",
     sourceRef: {
       reportUrl: "/api/automations/output?jobId=job-1&file=run.md",
+      latestDeliverable: {
+        name: "run.md",
+        url: "/api/automations/output?jobId=job-1&file=run.md",
+        mime: "text/markdown; charset=utf-8",
+      },
+      latestDocumentName: "run.md",
       rawDiff: "must not be copied",
     },
   });
@@ -153,6 +159,9 @@ function testAuditInboxProjectionIsSummaryOnly() {
   assert.equal(calls[0].sourceRef.pluginId, "codex-mobile");
   assert.equal(calls[0].sourceRef.auditRunId, "run-1");
   assert.equal(calls[0].sourceRef.findingCount, 2);
+  assert.equal(calls[0].sourceRef.latestDeliverable.name, "run.md");
+  assert.equal(calls[0].sourceRef.latestDeliverable.url, "/api/automations/output?jobId=job-1&file=run.md");
+  assert.equal(calls[0].sourceRef.latestDocumentName, "run.md");
   assert.equal(calls[0].sourceRef.rawDiff, undefined);
   assert.equal(calls[0].summary, "2 high-risk findings.");
 }
