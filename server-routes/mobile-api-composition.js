@@ -15,6 +15,7 @@ const { createThreadReadUploadApiRoutes } = require("./thread-read-upload-api-ro
 const { createThreadTaskApiRoutes } = require("./thread-task-api-routes");
 const { createTodoApiRoutes } = require("./todo-api-routes");
 const { createWorkspaceOnboardingApiRoutes } = require("./workspace-onboarding-api-routes");
+const { createPluginWorkspaceAuditService } = require("../adapters/plugin-workspace-audit-service");
 const { createWorkspaceOnboardingService } = require("../adapters/workspace-onboarding-service");
 function callBootTrace(deps, label) { if (typeof deps.bootTrace === "function") deps.bootTrace(label); }
 function createMobileApiComposition(deps = {}) {
@@ -245,6 +246,7 @@ function createMobileApiComposition(deps = {}) {
     learningGrowthExperienceSignalService,
     learningGrowthStageAssessmentService,
   } = learningComposition.services;
+  const pluginWorkspaceAuditService = deps.pluginWorkspaceAuditService || createPluginWorkspaceAuditService({ actionInboxService, auditTargets: deps.pluginWorkspaceAuditTargets, compactText: deps.compactText, env: deps.env, isPathProtected: deps.isPathProtected, nowIso: deps.nowIso, pluginService: hermesPluginService, resolveAuditTarget: deps.resolvePluginWorkspaceAuditTarget, resolveAutomationCronProfile: deps.resolveAutomationCronProfile });
 
   const automationApiRoutes = createAutomationApiRoutes({
     automationListSortByLatestDeliverable: deps.webPushDeliveryService.automationListSortByLatestDeliverable,
@@ -256,6 +258,7 @@ function createMobileApiComposition(deps = {}) {
     cronJobMatchesSearch: deps.cronJobMatchesSearch,
     findWorkspace: deps.findWorkspace,
     interpretAutomationNaturalLanguage: deps.interpretAutomationNaturalLanguage,
+    pluginWorkspaceAuditService,
     readBody: deps.readBody,
     requireOwner: deps.requireOwner,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
@@ -339,6 +342,7 @@ function createMobileApiComposition(deps = {}) {
       growthPluginFacadeService,
       learningGrowthSubmissionService,
       platformCurrencyService,
+      pluginWorkspaceAuditService,
       learningGrowthTeachingCheckService,
       learningGrowthExperienceSignalService,
       learningGrowthStageAssessmentService,

@@ -82,6 +82,39 @@ This file records durable product rules that implementation must preserve.
 - Every plugin topic should have a standard workspace-local delivery directory for cleaned reports and user-facing outputs. That directory must not store raw plugin keys, launch tokens, browser cookies, provider credentials, full mailbox bodies, raw ledger rows, private inventories, health record dumps, or plugin database files.
 - Owner switching into a non-Owner workspace must use the target workspace's plugin topic, plugin app, delivery directory, and MCP binding. Owner fallback is a permission failure.
 
+## Plugin Workspace Audit Loop
+
+- Plugin workspace audit is a Home AI host capability for embedded plugin
+  workspaces. It is not a Codex Mobile standalone/public feature and must not
+  expand the independent Codex Mobile app's default product surface.
+- The audit loop may only target registered, enabled plugin workspaces that the
+  effective workspace is authorized to inspect. It must not accept arbitrary
+  local paths, Owner fallback plugin bindings, or unprovisioned plugin
+  directories as valid targets.
+- Automation owns scheduling, pause/resume, retry, and durable job state for
+  audit plans. Codex, Gateway, or another executor is only the bounded
+  read-only audit runner.
+- Version 1 is read-only. It may inspect metadata, source text, git status,
+  recent changes, and bounded logs, but it must not write files, modify
+  databases, run deploy scripts, commit, push, install packages, or restart
+  services. Any future write/repair mode requires an explicit Owner-only
+  whitelist and a separate product rule.
+- Each scheduled audit creates an audit run that is separate from ordinary
+  development or chat threads. It must not inherit the user's active thread
+  context, hidden UI state, one-time approvals, or transient shell state.
+- Audit reports are user-facing summaries. They should be written to an audit
+  history and, when useful, a plugin delivery directory; Action Inbox receives
+  summary-only review/error items with links to the report or audit thread.
+  Inbox must not store full diffs, raw logs, secrets, tokens, launch keys, push
+  endpoints, private paths, or full model transcripts.
+- High-risk audit findings may create pending review/task-card suggestions.
+  They are not automatic repair tasks until the user explicitly confirms a
+  follow-up implementation workflow.
+- A fresh public deployment must work without private machine paths or
+  preinstalled private Codex profiles. If no safe audit executor or plugin
+  workspace resolver is configured, the feature must be disabled with a bounded
+  diagnostic instead of silently running with a local fallback.
+
 ## Host Voice Input
 
 - Voice input for Home AI composer surfaces is a Home AI host capability, not
@@ -189,6 +222,9 @@ This file records durable product rules that implementation must preserve.
 
 - Automation list should preserve full-detail user format when foreground data is shown.
 - Automation is a background capability, not a permanent primary bottom-tab destination. User-facing automation results should be delivered through Action Inbox when the Inbox domain is active.
+- Plugin workspace audit plans are Automation-backed jobs. Their natural
+  language creation belongs behind an explicit Automation or audit creation
+  surface, not a per-message ordinary chat preflight.
 - Web Push notifications should deep-link to the specific resource when an id is available.
 - Notification click handling must target top-level app windows, not embedded viewer iframes.
 
@@ -226,6 +262,9 @@ This file records durable product rules that implementation must preserve.
   `remindAt`; periodic or complex recurring tasks are Automation-backed and
   create one Inbox Todo occurrence per trigger.
 - Ordinary active chat/topic task receipts should use Web Push to return directly to the relevant route and should not create default Inbox items.
+- Plugin workspace audit receipts are Action Inbox `review` or `error`
+  projections. The source of truth remains the audit run and its report; Inbox
+  stores only bounded summary metadata, severity, status, and safe deep links.
 - Inbox items are summary/action projections. Source modules remain canonical and full private content must stay in the source detail views.
 - Repeated source refreshes, Web Push events, and background polling must dedupe by stable source references instead of creating duplicate items.
 - Official Kanban Todo compatibility is retired for ordinary user-created

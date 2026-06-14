@@ -34,6 +34,21 @@ const AUTOMATION_API_ROUTE_SPECS = Object.freeze([
     tags: ["automation", "create"],
   },
   {
+    id: "automations-plugin-workspace-audits-create",
+    method: "POST",
+    path: "/api/automations/plugin-workspace-audits",
+    group: "automation",
+    moduleKey: "automation",
+    handlerKey: "createPluginWorkspaceAudit",
+    summary: "Create a read-only plugin workspace audit automation plan.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["automation", "plugin", "review"],
+    tags: ["automation", "plugin", "audit", "create"],
+  },
+  {
     id: "automations-action",
     method: "POST",
     pathRegex: /^\/api\/automations\/[^/]+\/(?:delete|pause|resume|run|update)$/,
@@ -196,6 +211,9 @@ function createAutomationApiRoutes(deps = {}) {
   if (!deps.automationProvider || typeof deps.automationProvider.createJob !== "function" || typeof deps.automationProvider.mutateJob !== "function") {
     throw new Error("automation api routes require automationProvider.createJob/mutateJob");
   }
+  if (!deps.pluginWorkspaceAuditService || typeof deps.pluginWorkspaceAuditService.createAuditPlan !== "function") {
+    throw new Error("automation api routes require pluginWorkspaceAuditService.createAuditPlan");
+  }
   const resolveAutomationCronProfile = typeof deps.resolveAutomationCronProfile === "function"
     ? deps.resolveAutomationCronProfile
     : () => "";
@@ -315,6 +333,46 @@ function createAutomationApiRoutes(deps = {}) {
     });
   }
 
+  async function handleCreatePluginWorkspaceAudit(req, res) {
+    const body = await deps.readBody(req).catch(() => ({}));
+    const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || body.workspace_id || "owner");
+    if (!workspaceId) return;
+    const workspace = deps.findWorkspace(workspaceId);
+    const ownerPrincipalId = deps.workspacePrincipal(workspaceId);
+    const dryRun = deps.boolParam(body.dryRun || body.dry_run);
+    let result;
+    try {
+      result = await deps.pluginWorkspaceAuditService.createAuditPlan(Object.assign({}, body, {
+        workspaceId,
+        dryRun,
+        ownerPrincipalId,
+        automationProvider: deps.automationProvider,
+        accessPolicyContext: deps.sanitizePolicy(workspace?.policy || {}),
+      }));
+    } catch (err) {
+      deps.sendJson(res, err.status || 500, { error: compactError(deps, err) });
+      return;
+    }
+    if (!result?.ok) {
+      deps.sendJson(res, result?.status || 400, {
+        error: deps.compactText(result?.error || "Plugin workspace audit creation failed", 800),
+        code: result?.code || "plugin_workspace_audit_create_failed",
+        draft: result?.draft || null,
+        result,
+      });
+      return;
+    }
+    if (!dryRun) deps.clearCronListCache();
+    deps.sendJson(res, dryRun ? 200 : 201, {
+      ok: true,
+      job: result.job,
+      draft: result.draft,
+      audit: result.audit,
+      source: result.source,
+      dryRun,
+    });
+  }
+
   async function handleAction(req, res, url) {
     const parsed = automationActionFromPath(url.pathname);
     if (!parsed) return false;
@@ -405,6 +463,7 @@ function createAutomationApiRoutes(deps = {}) {
 
     if (route.id === "automations-list") await handleList(req, res, url);
     else if (route.id === "automations-create") await handleCreate(req, res);
+    else if (route.id === "automations-plugin-workspace-audits-create") await handleCreatePluginWorkspaceAudit(req, res);
     else if (route.id === "automations-action") await handleAction(req, res, url);
     else if (route.id === "automations-push-tick") await handlePushTick(req, res, url);
     else if (route.id === "automations-deliverable") {

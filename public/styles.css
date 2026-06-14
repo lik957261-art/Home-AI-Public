@@ -15291,6 +15291,7 @@ body.task-markdown-preview-open {
 }
 
 .action-inbox-create input,
+.action-inbox-create select,
 .action-inbox-create textarea {
   width: 100%;
   box-sizing: border-box;

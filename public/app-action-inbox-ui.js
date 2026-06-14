@@ -405,6 +405,7 @@ function openActionInboxList() {
   state.actionInboxDetail = null;
   state.actionInboxActionMenuItemId = "";
   state.actionInboxCreateOpen = false;
+  state.actionInboxCreateMode = "todo";
   state.actionInboxCreateBusy = false;
   state.actionInboxCreateDraftText = "";
   state.actionInboxCreateProgressStep = "";
@@ -417,9 +418,26 @@ function openActionInboxCreate() {
   state.actionInboxDetail = null;
   state.actionInboxActionMenuItemId = "";
   state.actionInboxCreateOpen = true;
+  state.actionInboxCreateMode = "todo";
   state.actionInboxCreateBusy = false;
   state.actionInboxCreateDraftText = "";
   state.actionInboxCreateProgressStep = "";
+  renderActionInboxView();
+}
+
+function openActionInboxPluginAuditCreate() {
+  state.skillDetail = null;
+  state.selectedActionInboxItemId = "";
+  state.actionInboxDetail = null;
+  state.actionInboxActionMenuItemId = "";
+  state.actionInboxCreateOpen = true;
+  state.actionInboxCreateMode = "plugin-audit";
+  state.actionInboxCreateBusy = false;
+  state.actionInboxCreateDraftText = "";
+  state.actionInboxCreateProgressStep = "";
+  state.actionInboxPluginAuditPluginId = state.actionInboxPluginAuditPluginId || "codex-mobile";
+  state.actionInboxPluginAuditSchedule = state.actionInboxPluginAuditSchedule || "0 22 * * 0";
+  state.actionInboxPluginAuditMode = state.actionInboxPluginAuditMode || "recent_changes";
   renderActionInboxView();
 }
 
@@ -522,6 +540,7 @@ function renderActionInboxDetail() {
 
 function renderActionInboxCreatePanel() {
   if (!state.actionInboxCreateOpen) return "";
+  if (state.actionInboxCreateMode === "plugin-audit") return renderActionInboxPluginAuditCreatePanel();
   const progressText = actionInboxCreateProgressText();
   const draftText = String(state.actionInboxCreateDraftText || "");
   return `<form class="action-inbox-create" id="actionInboxCreateForm">
@@ -534,8 +553,34 @@ function renderActionInboxCreatePanel() {
   </form>`;
 }
 
+function renderActionInboxPluginAuditCreatePanel() {
+  const progressText = actionInboxCreateProgressText();
+  const instructions = String(state.actionInboxCreateDraftText || "");
+  const pluginId = String(state.actionInboxPluginAuditPluginId || "codex-mobile");
+  const schedule = String(state.actionInboxPluginAuditSchedule || "0 22 * * 0");
+  const auditMode = String(state.actionInboxPluginAuditMode || "recent_changes");
+  return `<form class="action-inbox-create" id="actionInboxCreateForm" data-action-inbox-create-mode="plugin-audit">
+    <label class="action-inbox-create-label" for="actionInboxPluginAuditPluginId">插件审计</label>
+    <input id="actionInboxPluginAuditPluginId" name="pluginId" type="text" autocomplete="off" value="${escapeHtml(pluginId)}" placeholder="codex-mobile" ${state.actionInboxCreateBusy ? "disabled" : ""}>
+    <input id="actionInboxPluginAuditSchedule" name="schedule" type="text" autocomplete="off" value="${escapeHtml(schedule)}" placeholder="0 22 * * 0" ${state.actionInboxCreateBusy ? "disabled" : ""}>
+    <select id="actionInboxPluginAuditMode" name="auditMode" ${state.actionInboxCreateBusy ? "disabled" : ""}>
+      ${[["recent_changes", "最近变更"], ["dirty_diff", "未提交变更"], ["full_sample", "全仓抽样"]].map(([value, label]) => `<option value="${escapeHtml(value)}"${auditMode === value ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+    </select>
+    <textarea id="actionInboxNaturalText" name="naturalText" rows="4" autocomplete="off" placeholder="补充审计重点，可留空" maxlength="1000" ${state.actionInboxCreateBusy ? "disabled" : ""}>${escapeHtml(instructions)}</textarea>
+    ${progressText ? `<div class="action-inbox-create-progress" role="status" aria-live="polite"><span class="automation-loading-spinner" aria-hidden="true"></span><span>${escapeHtml(progressText)}</span></div>` : ""}
+    <div class="action-inbox-create-actions">
+      <button class="primary-button compact" type="submit" ${state.actionInboxCreateBusy ? "disabled" : ""}>${state.actionInboxCreateBusy ? "正在保存" : "创建审计"}</button>
+    </div>
+  </form>`;
+}
+
 function actionInboxCreateProgressText() {
   const step = String(state.actionInboxCreateProgressStep || "");
+  if (state.actionInboxCreateMode === "plugin-audit") {
+    if (step === "saving") return "正在保存插件审计计划";
+    if (step === "done") return "插件审计计划已保存";
+    return "";
+  }
   if (step === "understanding") return "\u6b63\u5728\u8bf7\u6a21\u578b\u7406\u89e3\u5f85\u529e\u5185\u5bb9";
   if (step === "drafting") return "\u6b63\u5728\u751f\u6210\u5f85\u529e\u8349\u7a3f";
   if (step === "saving") return "\u6b63\u5728\u786e\u8ba4\u5e76\u4fdd\u5b58\u5f85\u529e";
@@ -555,7 +600,7 @@ function renderActionInboxView(options = {}) {
   if (list) list.innerHTML = "";
   const item = currentActionInboxItem();
   const creating = Boolean(state.actionInboxCreateOpen);
-  $("threadTitle").textContent = creating ? "\u65b0\u589e\u4e8b\u9879" : (item ? "\u6536\u4ef6\u8be6\u60c5" : "\u6536\u4ef6\u7bb1");
+  $("threadTitle").textContent = creating ? (state.actionInboxCreateMode === "plugin-audit" ? "新建审计" : "\u65b0\u589e\u4e8b\u9879") : (item ? "\u6536\u4ef6\u8be6\u60c5" : "\u6536\u4ef6\u7bb1");
   $("threadMeta").textContent = creating
     ? "\u6536\u4ef6\u7bb1"
     : (item ? `${actionInboxPluginLabel(item)} · ${actionInboxStatusLabel(item.status)}` : actionInboxCountsText());
@@ -589,7 +634,8 @@ function wireActionInboxView(root) {
   });
   root.querySelector("#actionInboxCreateForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
-    createActionInboxManualItem(root).catch(showError);
+    if (state.actionInboxCreateMode === "plugin-audit") createActionInboxPluginAuditPlan(root).catch(showError);
+    else createActionInboxManualItem(root).catch(showError);
   });
   root.querySelectorAll("[data-action-inbox-id]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -785,6 +831,46 @@ async function createActionInboxManualItem(root) {
     state.actionInboxCreateBusy = false;
     state.actionInboxCreateProgressStep = "";
     if (state.actionInboxCreateOpen && state.viewMode === "inbox") renderActionInboxView({ preserveScroll: true });
+  }
+}
+
+async function createActionInboxPluginAuditPlan(root) {
+  const pluginId = root.querySelector("#actionInboxPluginAuditPluginId")?.value?.trim() || "codex-mobile";
+  const schedule = root.querySelector("#actionInboxPluginAuditSchedule")?.value?.trim() || "";
+  const auditMode = root.querySelector("#actionInboxPluginAuditMode")?.value?.trim() || "recent_changes";
+  const instructions = root.querySelector("#actionInboxNaturalText")?.value?.trim() || "";
+  if (!pluginId || !schedule) return;
+  state.actionInboxCreateBusy = true;
+  state.actionInboxPluginAuditPluginId = pluginId;
+  state.actionInboxPluginAuditSchedule = schedule;
+  state.actionInboxPluginAuditMode = auditMode;
+  state.actionInboxCreateDraftText = instructions;
+  state.actionInboxCreateProgressStep = "saving";
+  renderActionInboxView({ preserveScroll: true });
+  try {
+    await api("/api/automations/plugin-workspace-audits", {
+      method: "POST",
+      body: JSON.stringify({
+        workspaceId: state.selectedWorkspaceId || "owner",
+        pluginId,
+        schedule,
+        auditMode,
+        instructions,
+      }),
+    });
+    state.actionInboxCreateOpen = false;
+    state.actionInboxCreateMode = "todo";
+    state.actionInboxCreateBusy = false;
+    state.actionInboxCreateDraftText = "";
+    state.actionInboxCreateProgressStep = "";
+    state.actionInboxStatusFilter = "open";
+    if (typeof invalidateAutomationListCache === "function") invalidateAutomationListCache();
+    await loadActionInbox({ preserveScroll: false });
+  } catch (err) {
+    state.actionInboxCreateBusy = false;
+    state.actionInboxCreateProgressStep = "";
+    renderActionInboxView({ preserveScroll: true });
+    throw err;
   }
 }
 

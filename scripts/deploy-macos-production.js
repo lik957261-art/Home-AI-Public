@@ -27,6 +27,18 @@ const HOME_AI_VOICE_INPUT_COMPARE_BACKENDS = "whisper-large-v3-turbo,funasr-loca
 const HOME_AI_VOICE_INPUT_LANGUAGE = "zh";
 const HOME_AI_VOICE_INPUT_TASK = "transcribe";
 const HOME_AI_VOICE_INPUT_INITIAL_PROMPT = "以下是普通话语音转写，请使用简体中文，并加入合适的中文标点符号。";
+const HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS = Object.freeze({
+  "codex-mobile": "codex-mobile-web",
+  "codex-mobile-web": "codex-mobile-web",
+  email: "email",
+  finance: "finance",
+  growth: "growth",
+  health: "healthy",
+  healthy: "healthy",
+  moira: "moira",
+  note: "note",
+  wardrobe: "wardrobe",
+});
 const HOME_AI_CRON_PROFILE_READ_ACL = `user:${PRODUCTION_SERVICE_USER} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
 const HOME_AI_CRON_PROFILE_TRAVERSE_ACL = `user:${PRODUCTION_SERVICE_USER} allow search,readattr,readextattr,readsecurity`;
 const HOME_AI_CRON_PLUGIN_BINDING_DIR_NAMES = Object.freeze([
@@ -616,6 +628,15 @@ function gatewayPoolManifestPath(macRoot) {
   return posixJoin(normalizePath(macRoot || DEFAULT_MAC_ROOT), "data", "gateway-pool-manifest-mac.json");
 }
 
+function buildPluginWorkspaceAuditTargetJson(macRoot) {
+  const root = normalizePath(macRoot || DEFAULT_MAC_ROOT);
+  const rows = {};
+  for (const [pluginId, dirName] of Object.entries(HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS)) {
+    rows[pluginId] = posixJoin(root, "plugins", dirName);
+  }
+  return JSON.stringify(rows);
+}
+
 function safeProfileId(value) {
   const text = String(value || "").trim();
   return SAFE_PROFILE_ID_PATTERN.test(text) ? text : "";
@@ -901,7 +922,10 @@ function installHomeAiListenerVoiceInputEnv(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const plistPath = `/Library/LaunchDaemons/${HOME_AI_LISTENER_LABEL}.plist`;
   runSudo("/bin/test", ["-f", plistPath], password);
+  const pluginWorkspaceAuditTargets = buildPluginWorkspaceAuditTargetJson(plan.macRoot);
   const rows = {
+    HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS: pluginWorkspaceAuditTargets,
+    HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS: pluginWorkspaceAuditTargets,
     HERMES_MOBILE_VOICE_INPUT_ENABLED: "1",
     HERMES_MOBILE_VOICE_INPUT_ASR_BACKEND: HOME_AI_VOICE_INPUT_ASR_BACKEND,
     HERMES_MOBILE_VOICE_INPUT_ASR_PROTOCOL: HOME_AI_VOICE_INPUT_ASR_PROTOCOL,
@@ -940,12 +964,13 @@ function installHomeAiListenerVoiceInputEnv(plan, password) {
   for (const [key, value] of Object.entries(rows)) plistBuddySetEnv(plistPath, key, value, password);
   runSudo("/usr/bin/plutil", ["-lint", plistPath], password);
   return {
-    type: "home-ai-listener-voice-input-env",
+    type: "home-ai-listener-runtime-env",
     label: HOME_AI_LISTENER_LABEL,
     plistPath,
     backend: HOME_AI_VOICE_INPUT_ASR_BACKEND,
     protocol: HOME_AI_VOICE_INPUT_ASR_PROTOCOL,
     url: HOME_AI_VOICE_INPUT_ASR_URL,
+    pluginWorkspaceAuditTargetCount: Object.keys(HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS).length,
   };
 }
 
@@ -1444,6 +1469,7 @@ module.exports = {
   assertExecutablePlan,
   runValidation,
   buildHomeAiCronProfileAliasPlan,
+  buildPluginWorkspaceAuditTargetJson,
   buildHomeAiBridgeHostLaunchdPlist,
   buildHomeAiCronLaunchdPlist,
   cronProfileAliasRowsFromManifest,

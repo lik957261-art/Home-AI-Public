@@ -495,6 +495,14 @@ window for Mac cold-start validation: a cold worker can become healthy after
 the default window, which otherwise creates a user-visible failed task while
 the worker becomes reusable moments later.
 
+Home AI plugin workspace audit creation also depends on listener launchd
+environment. The central Mac deploy script sets
+`HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS` and
+`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS` to a JSON target map under
+`<macRoot>/plugins`. The map is configuration only: the runtime still validates
+plugin registry visibility, absolute existing directories, read-only mode, and
+protected-path rejection before creating a `plugin_workspace_audit` job.
+
 Mac workspace Gateway start scripts must execute the official runtime through
 the production venv Python (`$ROOT/runtime/hermes-agent-official/venv/bin/python
 -m hermes_cli.main`) instead of the `venv/bin/hermes` console script. Console

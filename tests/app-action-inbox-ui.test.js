@@ -47,6 +47,7 @@ this.ActionInboxUiTest = {
   actionInboxDetailMessage,
   openActionInboxItemDeliverableById,
   renderActionInboxActionSheet,
+  renderActionInboxCreatePanel,
   renderActionInboxDetail,
   renderActionInboxFilters,
   renderActionInboxItem,
@@ -66,6 +67,22 @@ assert.equal(ui.actionInboxCountsText(), "\u5f85\u529e 4 · \u5f85\u5904\u7406 2
 const filterHtml = ui.renderActionInboxFilters();
 assert.match(filterHtml, /data-action-inbox-filter="todo"[^>]*aria-selected="true"[^>]*>\u5f85\u529e<\/button>/);
 assert.match(filterHtml, /data-action-inbox-filter="all"[^>]*>\u5176\u4ed6<\/button>/);
+
+sandbox.state.actionInboxCreateOpen = true;
+sandbox.state.actionInboxCreateMode = "plugin-audit";
+sandbox.state.actionInboxPluginAuditPluginId = "codex-mobile";
+sandbox.state.actionInboxPluginAuditSchedule = "0 22 * * 0";
+sandbox.state.actionInboxPluginAuditMode = "recent_changes";
+sandbox.state.actionInboxCreateDraftText = "Focus on routing.";
+const pluginAuditCreateHtml = ui.renderActionInboxCreatePanel();
+assert.match(pluginAuditCreateHtml, /data-action-inbox-create-mode="plugin-audit"/);
+assert.match(pluginAuditCreateHtml, /id="actionInboxPluginAuditPluginId"/);
+assert.match(pluginAuditCreateHtml, /value="codex-mobile"/);
+assert.match(pluginAuditCreateHtml, /id="actionInboxPluginAuditSchedule"/);
+assert.match(pluginAuditCreateHtml, /id="actionInboxPluginAuditMode"/);
+assert.match(pluginAuditCreateHtml, />\u521b\u5efa\u5ba1\u8ba1<\/button>/);
+sandbox.state.actionInboxCreateOpen = false;
+sandbox.state.actionInboxCreateMode = "todo";
 
 const openTodo = {
   id: "ainb-todo-1",

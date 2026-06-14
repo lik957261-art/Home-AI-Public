@@ -53,6 +53,7 @@ function makeRoutes(overrides = {}) {
     mutate: [],
     owner: [],
     outputResolve: [],
+    pluginAudit: [],
     profileResolve: [],
     pushTick: [],
     workspaceAccess: [],
@@ -92,6 +93,18 @@ function makeRoutes(overrides = {}) {
     interpretAutomationNaturalLanguage(text, workspace, ownerPrincipalId) {
       calls.interpret.push({ text, workspaceId: workspace.id, ownerPrincipalId });
       return Promise.resolve({ name: `Draft ${text}`, schedule: "daily" });
+    },
+    pluginWorkspaceAuditService: {
+      createAuditPlan(payload) {
+        calls.pluginAudit.push(payload);
+        return Promise.resolve({
+          ok: true,
+          job: { id: "audit-job" },
+          draft: { kind: "plugin_workspace_audit", name: "Audit Codex" },
+          audit: { kind: "plugin_workspace_audit", pluginId: payload.pluginId, readonly: true },
+          source: { name: "hermes_cron", kind: "plugin_workspace_audit" },
+        });
+      },
     },
     readBody(req) {
       return Promise.resolve(req.body || {});
@@ -182,6 +195,7 @@ async function testRouteMetadataAndFallthrough() {
   assert.deepEqual(AUTOMATION_API_ROUTE_SPECS.map((route) => route.id), [
     "automations-list",
     "automations-create",
+    "automations-plugin-workspace-audits-create",
     "automations-action",
     "automations-push-tick",
     "automations-deliverable",
@@ -191,12 +205,13 @@ async function testRouteMetadataAndFallthrough() {
   ]);
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/automations" }).id, "automations-list");
+  assert.equal(routes.match({ method: "POST", path: "/api/automations/plugin-workspace-audits" }).id, "automations-plugin-workspace-audits-create");
   assert.equal(routes.match({ method: "POST", path: "/api/automations/job%2F1/pause" }).id, "automations-action");
   assert.equal(routes.match({ method: "POST", path: "/api/automations/push/tick" }).id, "automations-push-tick");
   assert.equal(routes.match({ method: "POST", path: "/api/automations/job-1/run" }).id, "automations-action");
   const summary = routes.summary({ public: true });
-  assert.equal(summary.total, 8);
-  assert.deepEqual(summary.byAuthMode, { "access-key": 7, owner: 1 });
+  assert.equal(summary.total, 9);
+  assert.deepEqual(summary.byAuthMode, { "access-key": 8, owner: 1 });
   assert.equal(JSON.stringify(summary).includes("/api/automations"), false);
 
   const miss = await request(routes, "GET", "/api/status");
@@ -366,6 +381,30 @@ async function testCreateNormalizesOriginDeliveryWithoutTarget() {
   assert.equal(got.body.draft.deliver, "local");
 }
 
+async function testCreatePluginWorkspaceAuditUsesExplicitRoute() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/automations/plugin-workspace-audits", {
+    body: {
+      workspaceId: "child",
+      pluginId: "codex-mobile",
+      schedule: "0 22 * * 0",
+      auditMode: "recent_changes",
+      dryRun: true,
+    },
+  });
+  assert.equal(got.res.statusCode, 200);
+  assert.equal(got.body.ok, true);
+  assert.equal(got.body.dryRun, true);
+  assert.equal(got.body.audit.pluginId, "codex-mobile");
+  assert.equal(calls.pluginAudit.length, 1);
+  assert.equal(calls.pluginAudit[0].workspaceId, "child");
+  assert.equal(calls.pluginAudit[0].ownerPrincipalId, "principal-child");
+  assert.equal(calls.pluginAudit[0].dryRun, true);
+  assert.deepEqual(calls.pluginAudit[0].accessPolicyContext, { allowed_toolsets: ["cronjob"] });
+  assert.equal(calls.cacheClear, 0);
+  assert.deepEqual(calls.interpret, []);
+}
+
 async function testActionDecodesJobAndClearsCache() {
   const { routes, calls } = makeRoutes();
   const got = await request(routes, "POST", "/api/automations/job%2F42/update?workspaceId=child", {
@@ -470,6 +509,7 @@ function testDependencyValidation() {
       cronJobMatchesSearch() {},
       findWorkspace() {},
       interpretAutomationNaturalLanguage() {},
+      pluginWorkspaceAuditService: {},
       readBody() {},
       requireOwner() {},
       requireWorkspaceAccess() {},
@@ -499,6 +539,7 @@ function testDependencyValidation() {
   await testCreatePassesProviderErrorStatus();
   await testCreateAddsResolvedCronProfile();
   await testCreateNormalizesOriginDeliveryWithoutTarget();
+  await testCreatePluginWorkspaceAuditUsesExplicitRoute();
   await testActionDecodesJobAndClearsCache();
   await testPushTickOwnerOnly();
   await testAuthorizedFileRoutesUseResolvers();

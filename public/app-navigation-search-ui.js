@@ -552,6 +552,11 @@ function updateTopMoreControls() {
     newAutomation.hidden = !(automationList || inboxView);
     newAutomation.disabled = !(automationList || inboxView);
   }
+  const newPluginAudit = $("topNewPluginAudit");
+  if (newPluginAudit) {
+    newPluginAudit.hidden = !inboxView;
+    newPluginAudit.disabled = !inboxView;
+  }
   const selectedInboxItem = typeof currentActionInboxItem === "function" ? currentActionInboxItem() : null;
   const selectedInboxItemLink = typeof actionInboxSourceDeepLink === "function" ? actionInboxSourceDeepLink(selectedInboxItem) : (selectedInboxItem?.deepLink || "");
   const inboxItemTerminal = !selectedInboxItem || ["done", "dismissed", "archived"].includes(String(selectedInboxItem.status || "").toLowerCase());

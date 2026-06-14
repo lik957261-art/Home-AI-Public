@@ -146,6 +146,63 @@ function main() {
   assert.equal(invalidWorkdir.ok, false);
   assert.match(invalidWorkdir.error, /workdir is outside/);
 
+  const auditWorkspace = fs.mkdtempSync(path.join(tempRoot, "codex-audit-"));
+  const createAudit = runBridge(baseEnv, {
+    action: "create",
+    dry_run: false,
+    job: {
+      kind: "plugin_workspace_audit",
+      name: "Codex workspace audit",
+      prompt: "Read-only audit",
+      schedule: "0 22 * * 0",
+      readonly: true,
+      audit: {
+        kind: "plugin_workspace_audit",
+        pluginId: "codex-mobile",
+        pluginTitle: "Codex",
+        targetWorkspaceId: "owner",
+        workspacePathRef: "test-registry",
+        workspacePath: auditWorkspace,
+        auditMode: "recent_changes",
+        executor: "codex_readonly",
+        readonly: true,
+      },
+    },
+    owner_principal_id: "owner",
+  });
+  assert.equal(createAudit.ok, true);
+  assert.equal(createAudit.job.kind, "plugin_workspace_audit");
+  assert.equal(createAudit.job.readonly, true);
+  assert.equal(createAudit.job.audit.pluginId, "codex-mobile");
+  assert.equal(createAudit.job.audit.workspacePath, undefined);
+  const persistedAuditDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  const persistedAuditJob = persistedAuditDoc.jobs.find((job) => job.name === "Codex workspace audit");
+  assert.equal(persistedAuditJob.kind, "plugin_workspace_audit");
+  assert.equal(persistedAuditJob.audit.workspacePath, auditWorkspace);
+
+  const invalidAudit = runBridge(baseEnv, {
+    action: "create",
+    dry_run: true,
+    job: {
+      kind: "plugin_workspace_audit",
+      name: "Invalid audit",
+      prompt: "Should fail",
+      schedule: "0 22 * * 0",
+      readonly: false,
+      enabled_toolsets: ["terminal"],
+      audit: {
+        kind: "plugin_workspace_audit",
+        pluginId: "codex-mobile",
+        workspacePath: auditWorkspace,
+        auditMode: "recent_changes",
+        executor: "codex_readonly",
+        readonly: true,
+      },
+    },
+  }, 1);
+  assert.equal(invalidAudit.ok, false);
+  assert.match(invalidAudit.error, /readonly|toolsets/);
+
   const invalidProfile = runBridge(baseEnv, {
     action: "create",
     dry_run: true,

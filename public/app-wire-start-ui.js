@@ -525,6 +525,10 @@ function wireUi() {
     if (state.viewMode === "automation") openAutomationCreate();
     else openAutomationSurface({ create: true, returnTo: state.viewMode === "inbox" ? "inbox" : "" }).catch(showError);
   });
+  $("topNewPluginAudit")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openActionInboxPluginAuditCreate();
+  });
   $("topEditAutomation")?.addEventListener("click", () => {
     openAutomationEdit();
   });

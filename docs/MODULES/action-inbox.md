@@ -13,6 +13,10 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
 - `自动化` becomes a background capability. Its completed/failed deliveries should enter Action Inbox instead of requiring a permanent bottom tab.
 - The Inbox top-right overflow menu is the primary mobile entry for Automation management: open the Automation list or create a new automation from Inbox without restoring Automation as a bottom tab.
 - Inbox root actions, including new manual Inbox item creation, belong in the top-right overflow menu rather than inline page buttons.
+- During Plugin Workspace Audit V1, the same Inbox overflow menu may expose a
+  temporary `新建审计` entry. The entry creates an Automation-owned
+  `plugin_workspace_audit` plan; it does not make Action Inbox the scheduler or
+  store full audit reports in Inbox rows.
 - Inbox detail/create screens are secondary screens. They must use the shared top-left back button and right-swipe back path; the content area should not render another back button or duplicate the top bar title.
 - Existing simple Todo behavior becomes an Action Inbox item type instead of a separate product tab.
 - Todo must appear as its own primary Inbox filter tab. The default Inbox list
@@ -175,6 +179,24 @@ return context.
 Automation remains a background job engine. A successful run that creates a user-facing delivery should upsert a `delivery` Inbox item. A failed run should upsert an `error` item with a short failure summary and a deep link to the relevant job detail or output history.
 
 Foreground push refresh should update Inbox state when automation push payloads include an Inbox item id or source reference.
+
+Plugin workspace audit runs are Automation-owned review sources. A successful
+audit with findings should upsert an Inbox `itemType=review` item with
+`sourceType=automation`, `sourceRef.kind=plugin_workspace_audit`,
+`sourceRef.pluginId`, `sourceRef.auditRunId`, severity summary, finding count,
+and safe deep links to the report, audit run, or Automation detail. A failed
+audit should upsert an `itemType=error` row with a bounded failure summary. A
+clean audit may create an `itemType=info` row only when the user has explicitly
+enabled clean-run receipts.
+
+Audit Inbox rows are triage pointers, not report storage. They must not copy
+full report bodies, raw diffs, raw executor logs, raw model output, prompts,
+tokens, launch keys, push endpoints, private plugin data, or local filesystem
+paths. The source report and audit history remain canonical.
+
+Host-side audit projection is provided by `pluginWorkspaceAuditService` and
+uses `actionInboxService.upsertSourceItem`. Projection callers must pass only
+summary fields, safe report/deep-link references, severity, and finding count.
 
 Automation delivery items may carry a summary-only `sourceRef.latestDeliverable`
 object with `name`, `url`, `mime`, and timestamp metadata. The Inbox list may

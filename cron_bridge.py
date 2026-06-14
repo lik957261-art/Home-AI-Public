@@ -687,6 +687,7 @@ def public_job(job: dict[str, Any], detail: str = "full") -> dict[str, Any]:
     job_id = str(job.get("id") or "")
     payload = {
         "id": job_id,
+        "kind": compact_text(job.get("kind"), 80),
         "name": compact_text(job.get("name") or job.get("id") or "Cron job", 120),
         "promptPreview": compact_text(job.get("prompt"), 220),
         "schedule": schedule["display"],
@@ -716,6 +717,17 @@ def public_job(job: dict[str, Any], detail: str = "full") -> dict[str, Any]:
         "profile": compact_text(job.get("profile"), 120),
         "workdir": compact_text(job.get("workdir"), 600),
         "dataContext": {"type": compact_text((job.get("data_context") or {}).get("type"), 120)} if isinstance(job.get("data_context"), dict) else None,
+        "audit": {
+            "kind": compact_text((job.get("audit") or {}).get("kind"), 80),
+            "pluginId": compact_text((job.get("audit") or {}).get("pluginId"), 80),
+            "pluginTitle": compact_text((job.get("audit") or {}).get("pluginTitle"), 120),
+            "targetWorkspaceId": compact_text((job.get("audit") or {}).get("targetWorkspaceId"), 120),
+            "workspacePathRef": compact_text((job.get("audit") or {}).get("workspacePathRef"), 120),
+            "auditMode": compact_text((job.get("audit") or {}).get("auditMode"), 40),
+            "executor": compact_text((job.get("audit") or {}).get("executor"), 80),
+            "readonly": bool((job.get("audit") or {}).get("readonly")),
+        } if isinstance(job.get("audit"), dict) else None,
+        "readonly": bool(job.get("readonly")),
         "hasScript": bool(job.get("script")),
         "hasWorkdir": bool(job.get("workdir")),
         "hasDataContext": isinstance(job.get("data_context"), dict),
@@ -956,6 +968,71 @@ def normalize_data_context(value: Any) -> dict[str, Any] | None:
     return normalized
 
 
+def normalize_audit_metadata(value: Any) -> dict[str, Any] | None:
+    if value in (None, ""):
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("audit must be an object")
+    kind = str(value.get("kind") or "plugin_workspace_audit").strip()
+    plugin_id = str(value.get("pluginId") or value.get("plugin_id") or "").strip()
+    workspace_path = str(value.get("workspacePath") or value.get("workspace_path") or "").strip()
+    audit_mode = str(value.get("auditMode") or value.get("audit_mode") or "recent_changes").strip() or "recent_changes"
+    executor = str(value.get("executor") or "codex_readonly").strip() or "codex_readonly"
+    if kind != "plugin_workspace_audit":
+        raise ValueError("audit.kind is invalid")
+    if not re.match(r"^[a-z0-9][a-z0-9_-]{0,79}$", plugin_id):
+        raise ValueError("audit.pluginId is invalid")
+    if audit_mode not in {"recent_changes", "dirty_diff", "full_sample"}:
+        raise ValueError("audit.auditMode is invalid")
+    if executor != "codex_readonly":
+        raise ValueError("audit.executor is invalid")
+    if not workspace_path or not os.path.isabs(workspace_path):
+        raise ValueError("audit.workspacePath must be absolute")
+    normalized: dict[str, Any] = {
+        "kind": kind,
+        "pluginId": plugin_id,
+        "pluginTitle": compact_text(value.get("pluginTitle") or value.get("plugin_title"), 120),
+        "targetWorkspaceId": compact_text(value.get("targetWorkspaceId") or value.get("target_workspace_id"), 120),
+        "workspacePathRef": compact_text(value.get("workspacePathRef") or value.get("workspace_path_ref") or "configured", 120),
+        "workspacePath": workspace_path,
+        "auditMode": audit_mode,
+        "executor": executor,
+        "readonly": True,
+        "createdAt": compact_text(value.get("createdAt") or value.get("created_at"), 80),
+    }
+    scope = value.get("scope")
+    if isinstance(scope, dict):
+        normalized["scope"] = {
+            "includeGlobs": normalize_string_list(scope.get("includeGlobs") or scope.get("include_globs"))[:20],
+            "excludeGlobs": normalize_string_list(scope.get("excludeGlobs") or scope.get("exclude_globs"))[:20],
+        }
+    return normalized
+
+
+def validate_plugin_workspace_audit_payload(raw: dict[str, Any], payload: dict[str, Any]) -> None:
+    if str(payload.get("kind") or "").strip() != "plugin_workspace_audit":
+        return
+    if raw.get("readonly") is False or raw.get("readOnly") is False or raw.get("read_only") is False:
+        raise ValueError("plugin workspace audit must be readonly")
+    if raw.get("script"):
+        raise ValueError("plugin workspace audit cannot define script")
+    if raw.get("context_from") or raw.get("contextFrom"):
+        raise ValueError("plugin workspace audit cannot define context_from")
+    if payload.get("provider") or payload.get("model"):
+        raise ValueError("plugin workspace audit cannot override model or provider")
+    if payload.get("enabled_toolsets"):
+        raise ValueError("plugin workspace audit cannot enable toolsets")
+    if payload.get("data_context"):
+        raise ValueError("plugin workspace audit cannot define data_context")
+    if str(payload.get("deliver") or "local") != "local":
+        raise ValueError("plugin workspace audit deliver must be local")
+    audit = payload.get("audit")
+    if not isinstance(audit, dict):
+        raise ValueError("plugin workspace audit metadata is required")
+    if audit.get("readonly") is not True:
+        raise ValueError("plugin workspace audit metadata must be readonly")
+
+
 def normalize_create_payload(request: dict[str, Any]) -> dict[str, Any]:
     raw = request.get("job") if isinstance(request.get("job"), dict) else request
     name = compact_text(raw.get("name") or request.get("text") or "Hermes automation", 120)
@@ -972,7 +1049,9 @@ def normalize_create_payload(request: dict[str, Any]) -> dict[str, Any]:
         repeat = int(repeat)
         if repeat <= 0:
             repeat = None
-    return {
+    kind = str(raw.get("kind") or "").strip()
+    payload = {
+        "kind": kind or None,
         "name": name,
         "prompt": prompt,
         "schedule": schedule,
@@ -985,9 +1064,13 @@ def normalize_create_payload(request: dict[str, Any]) -> dict[str, Any]:
         "profile": normalize_profile(raw.get("profile") or request.get("profile")),
         "workdir": normalize_workdir(raw.get("workdir")),
         "data_context": normalize_data_context(raw.get("data_context") or raw.get("dataContext")),
+        "audit": normalize_audit_metadata(raw.get("audit")),
+        "readonly": True if kind == "plugin_workspace_audit" else bool(raw.get("readonly") or raw.get("readOnly") or raw.get("read_only")),
         "owner_principal_id": str(request.get("owner_principal_id") or request.get("ownerPrincipalId") or "").strip() or None,
         "access_policy_context": request.get("access_policy_context") if isinstance(request.get("access_policy_context"), dict) else None,
     }
+    validate_plugin_workspace_audit_payload(raw, payload)
+    return payload
 
 
 def try_native_create_job(payload: dict[str, Any]) -> dict[str, Any] | None:
@@ -1062,6 +1145,7 @@ def manual_create_job(payload: dict[str, Any], *, dry_run: bool = False) -> dict
     skills = payload.get("skills") or []
     job = {
         "id": job_id,
+        "kind": payload.get("kind"),
         "name": payload["name"],
         "prompt": payload["prompt"],
         "skills": skills,
@@ -1092,6 +1176,8 @@ def manual_create_job(payload: dict[str, Any], *, dry_run: bool = False) -> dict
         "enabled_toolsets": payload.get("enabled_toolsets") or None,
         "workdir": ensure_workdir(payload.get("workdir"), dry_run=dry_run),
         "data_context": payload.get("data_context") or None,
+        "audit": payload.get("audit") or None,
+        "readonly": bool(payload.get("readonly")),
     }
     if dry_run:
         return job
@@ -1108,6 +1194,8 @@ def create_job_from_request(request: dict[str, Any]) -> dict[str, Any]:
     dry_run = bool(request.get("dry_run") or request.get("dryRun"))
     if dry_run:
         job = manual_create_job(payload, dry_run=True)
+    elif payload.get("kind") == "plugin_workspace_audit":
+        job = manual_create_job(payload, dry_run=False)
     else:
         job = try_native_create_job(payload) or manual_create_job(payload, dry_run=False)
     return {

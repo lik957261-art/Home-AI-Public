@@ -72,6 +72,29 @@ embed, or the plugin explicitly emits its bounded `*.plugin.refresh_required`
 event. This host-level persistence protects plugin SPA routes, scroll position,
 and in-progress UI state during ordinary navigation; plugin projects still own
 durable draft persistence for OS process kills or full PWA reloads.
+
+Home AI plugin workspace audit is host-owned. The plugin registry may expose a
+workspace path reference and display metadata for authorized audit targets, but
+embedded plugin iframes do not own the scheduler or dispatch policy. The host
+must resolve audit targets through the same effective-workspace plugin
+authorization and complete-binding checks used by launch, topic, and MCP
+projection. A plugin that is not registered, not enabled, partially
+provisioned, or visible only through an Owner fallback must not become an audit
+target.
+
+Codex Mobile can be the first audit target because its workspace can be
+reviewed by a read-only Codex executor, but that integration is a Home AI
+embedded-plugin capability. The independent Codex Mobile public/standalone app
+must not gain a default audit scheduler from this feature. Other plugins may
+later add host-visible audit history links or plugin-specific read-only audit
+extensions through the platform contract, but they must not bypass Automation,
+Action Inbox, workspace authorization, or read-only policy.
+
+Plugin source/workspace paths for audit are not inferred from manifest URLs.
+They must be supplied through Home AI audit target configuration, and the host
+must verify that the configured path exists, is absolute, is a directory, and is
+not protected by the path security boundary.
+
 The Mac development-to-production deployment contract is tracked in
 `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`. All
 embedded plugin projects must use the shared production access and deploy

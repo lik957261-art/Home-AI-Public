@@ -98,6 +98,9 @@ assert.match(script, /HOME_AI_VOICE_INPUT_LANGUAGE = "zh"/);
 assert.match(script, /HERMES_MOBILE_VOICE_INPUT_LANGUAGE/);
 assert.match(script, /HERMES_MOBILE_VOICE_INPUT_INITIAL_PROMPT/);
 assert.match(script, /HERMES_WEB_VOICE_INPUT_VAD_FILTER/);
+assert.match(script, /HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS/);
+assert.match(script, /HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS/);
+assert.match(script, /HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS/);
 assert.match(script, /Atomics\.wait/);
 assert.match(script, /attempt/);
 assert.match(script, /backups", "deploy/);
@@ -226,6 +229,12 @@ assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/app\/scripts\/herme
 assert.match(cronPlist, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/data\/hermes-home\/cron\/jobs\.json/);
 assert.match(cronPlist, /<key>HERMES_CRON_SCRIPT_TIMEOUT<\/key>\s*<string>1800<\/string>/);
+
+const pluginWorkspaceAuditTargets = JSON.parse(deployScript.buildPluginWorkspaceAuditTargetJson("/Users/hermes-host/HermesMobile"));
+assert.equal(pluginWorkspaceAuditTargets["codex-mobile"], "/Users/hermes-host/HermesMobile/plugins/codex-mobile-web");
+assert.equal(pluginWorkspaceAuditTargets.finance, "/Users/hermes-host/HermesMobile/plugins/finance");
+assert.equal(pluginWorkspaceAuditTargets.health, "/Users/hermes-host/HermesMobile/plugins/healthy");
+assert.equal(pluginWorkspaceAuditTargets.wardrobe, "/Users/hermes-host/HermesMobile/plugins/wardrobe");
 
 const cronAliasPlan = deployScript.buildHomeAiCronProfileAliasPlan("/Users/hermes-host/HermesMobile", {
   workers: [

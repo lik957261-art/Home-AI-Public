@@ -1,0 +1,344 @@
+# Plugin Workspace Audit Loop
+
+Status: V1 implemented for plan creation, validation, canonical Automation
+storage, summary-only Action Inbox projection helpers, and Mac production target
+configuration. The read-only executor/report runner is still a follow-up.
+
+## Product Position
+
+Plugin workspace audit is a Home AI embedded-plugin capability, not a generic
+Codex Mobile standalone feature. The user is configuring Home AI to inspect a
+registered plugin workspace on a schedule, produce an audit report, and surface
+follow-up review items in Action Inbox.
+
+The first version should be deliberately small:
+
+1. Owner or an authorized workspace configures an audit plan for one registered
+   plugin workspace.
+2. Automation persists the schedule in the canonical scheduler.
+3. At the scheduled time, Home AI launches a new read-only audit run with a
+   fixed audit prompt and a resolved plugin workspace root.
+4. The executor produces a bounded report.
+5. Home AI stores audit history, upserts an Action Inbox review/error item, and
+   optionally creates pending task-card suggestions for high-risk findings.
+
+## Goals
+
+- Inspect Home AI registered plugin workspaces on a schedule.
+- Keep audit threads separate from ordinary development and chat threads.
+- Default to read-only operation with no repair, commit, push, deploy, or
+  service restart.
+- Deliver concise reports through audit history, plugin delivery directories,
+  Action Inbox, and Web Push when configured.
+- Keep the feature productized for public deployments: missing executor or
+  missing workspace binding becomes a disabled diagnostic, not a private-path
+  fallback.
+
+## Non-Goals
+
+- Do not add this as a Codex Mobile standalone scheduler or public default
+  workflow.
+- Do not audit arbitrary local paths that are not registered plugin workspaces.
+- Do not auto-fix code, write files, create commits, push branches, deploy
+  services, or mutate plugin databases in version 1.
+- Do not copy full diffs, raw logs, full model transcripts, secrets, launch
+  keys, provider tokens, push endpoints, or private database paths into Inbox,
+  long-lived diagnostics, or documentation.
+- Do not run a natural-language audit-intent preflight before every ordinary
+  chat message.
+
+## Responsibility Boundaries
+
+### Home AI Host
+
+- Owns product authorization, plugin workspace resolution, audit plan creation
+  UI, Action Inbox projection, and Web Push metadata.
+- Resolves the target plugin through the same effective-workspace plugin
+  registry used by launch, topic, MCP/toolset, and delivery-directory surfaces.
+- Converts natural-language audit requests only inside an explicit audit or
+  Automation creation surface.
+
+### Automation
+
+- Owns schedule, pause/resume, retry, run history linkage, and canonical job
+  persistence.
+- Stores the audit plan as a job kind such as `plugin_workspace_audit`.
+- Dispatches due runs quickly and leaves long audit execution to a bounded
+  runner process.
+
+### Audit Executor
+
+- Runs with the target plugin workspace as `cwd`.
+- Receives a fixed read-only prompt and structured audit scope.
+- May use read-only commands and source inspection.
+- Must not write to the repository, plugin data store, Home AI source checkout,
+  runtime database, scheduler store, or production service roots.
+- Produces a bounded Markdown or JSON+Markdown report.
+
+### Codex Mobile Embedded Plugin
+
+- May provide a deep link to the audit thread or report when running inside Home
+  AI.
+- Does not own the scheduler, microphone/input behavior, Action Inbox records,
+  or audit persistence.
+- Standalone/public Codex Mobile remains unaffected.
+
+### Action Inbox
+
+- Stores summary-only `review` or `error` projections for audit runs.
+- Links to the Automation detail, audit run detail, report preview, or plugin
+  route.
+- Does not store full reports, raw logs, raw model output, secrets, tokens, or
+  local private paths.
+
+## Job Shape
+
+The Automation job should be structured instead of prompt-only:
+
+```json
+{
+  "kind": "plugin_workspace_audit",
+  "pluginId": "codex-mobile",
+  "workspaceId": "owner",
+  "targetWorkspaceId": "owner",
+  "workspacePathRef": "plugin_registry",
+  "schedule": "0 22 * * 0",
+  "auditMode": "recent_changes",
+  "executor": "codex_readonly",
+  "readonly": true,
+  "delivery": {
+    "auditHistory": true,
+    "actionInbox": true,
+    "webPush": true,
+    "pluginDeliveryDirectory": true
+  }
+}
+```
+
+Rules:
+
+- `workspacePathRef` should resolve through Home AI's plugin registry or
+  platform contract. Persist raw absolute paths only when the deployment cannot
+  avoid it, and never expose them to non-Owner clients.
+- `pluginId` must exist in the host plugin registry and be enabled for the
+  effective workspace.
+- `readonly` must be true in version 1.
+- `auditMode` should start with a small set: `recent_changes`, `dirty_diff`,
+  and `full_sample`.
+- The job may include a bounded `scope` object, such as file globs or max report
+  size, but the server must validate that scope before dispatch.
+
+## Execution Flow
+
+1. User opens the explicit audit creation surface from Automation, Action Inbox,
+   plugin settings, or a plugin workspace management screen.
+2. If natural language is used, Home AI calls a Skill-guided model to produce a
+   structured audit draft. The draft is not trusted until host validation
+   passes.
+3. Home AI validates plugin id, workspace access, plugin provisioning,
+   workspace path, schedule, audit mode, executor availability, and read-only
+   policy.
+4. Automation creates or updates the canonical scheduled job.
+5. At the due time, the dispatcher creates an audit run record and launches the
+   executor in a bounded process.
+6. The executor reads the workspace and produces a report with severity,
+   evidence, and recommended follow-up tasks.
+7. Home AI stores the report under the audit history or plugin delivery
+   directory, with retention and access control.
+8. Home AI upserts an Action Inbox item:
+   - `itemType=review` for successful reports with findings;
+   - `itemType=info` for clean reports when the user requested receipts;
+   - `itemType=error` for failed runs.
+9. Optional Web Push opens the Inbox row, Automation detail, or report preview
+   with same-window navigation.
+
+## Read-Only Enforcement
+
+Read-only must be enforced by policy and by runner mechanics.
+
+Allowed examples:
+
+- `git status --short`
+- `git diff --stat`
+- `git diff -- <bounded paths>`
+- `git log --oneline --max-count=<n>`
+- `rg`, `sed`, `ls`, `find` with bounded output
+- reading focused docs and source files
+
+Blocked examples:
+
+- `apply_patch`, file writes, database writes, package installs, build outputs
+  inside the repo, code generation, migrations, commit, push, deploy, restart,
+  service-control commands, or credential export.
+- arbitrary test commands in version 1, because many test suites write caches,
+  snapshots, or temporary build artifacts into the repository. A later safe-test
+  mode may mount a scratch directory and verify that repo state is unchanged.
+
+The runner should snapshot `git status --short` before and after execution and
+fail the run if the workspace changed. The failure report should include only a
+bounded diagnostic, not raw modified file content.
+
+## Audit Prompt Contract
+
+The fixed prompt should require:
+
+- code-review stance, findings first, ordered by severity;
+- concrete file and line references when available;
+- no implementation changes;
+- no deployment, commit, push, package install, or service restart;
+- no secret printing;
+- concise report with residual risks and suggested next actions.
+
+The prompt should receive structured scope separately from free text. Free text
+from the user is treated as guidance, not authority to override read-only
+policy.
+
+## Report Contract
+
+Minimum report fields:
+
+- audit run id;
+- plugin id and display name;
+- target workspace id;
+- audit mode and time window;
+- source revision or dirty-state summary;
+- findings with severity, evidence references, and rationale;
+- recommended task-card drafts;
+- skipped areas and reasons;
+- executor diagnostics;
+- retention metadata.
+
+Reports may be Markdown for human reading, with optional JSON front matter for
+machine projection. Long raw logs and full diffs should remain out of the
+report; link to controlled artifacts only when they pass access control and
+redaction.
+
+## Action Inbox Projection
+
+Audit Inbox items should use:
+
+- `sourceType=automation` when the audit is schedule-owned;
+- `sourceRef.kind=plugin_workspace_audit`;
+- `sourceRef.pluginId`;
+- `sourceRef.auditRunId`;
+- safe report or Automation deep links;
+- severity summary and finding count.
+
+The Inbox item should not duplicate the report body. It is a triage pointer.
+
+## Security And Privacy
+
+- Audit configuration is Owner-only by default. A narrower workspace-level
+  delegation can be added later only if the target plugin workspace belongs to
+  that workspace and policy allows self-audit.
+- The target path must resolve through the plugin registry, not through raw user
+  input.
+- Reports and task-card suggestions must redact secrets, access keys, push
+  endpoints, OAuth tokens, plugin launch tokens, private database paths, and raw
+  customer content.
+- Public deployments must not depend on private Codex profiles, private
+  machine paths, hand-copied scheduler state, or one-time approvals.
+
+## MVP
+
+- Create/read/update/delete audit plans from an explicit host surface.
+- Support one plugin workspace per plan.
+- Support `recent_changes` and `dirty_diff`.
+- Launch a read-only executor with a fixed prompt.
+- Store a bounded report and Action Inbox review/error item.
+- Disable with a bounded diagnostic when no executor is configured.
+
+## Initial API And Configuration
+
+The first implementation exposes the explicit creation route:
+
+- `POST /api/automations/plugin-workspace-audits`
+
+The request body is structured and does not go through the ordinary
+natural-language Automation interpreter:
+
+```json
+{
+  "workspaceId": "owner",
+  "pluginId": "codex-mobile",
+  "schedule": "0 22 * * 0",
+  "auditMode": "recent_changes",
+  "instructions": "Focus on recent route changes.",
+  "dryRun": true
+}
+```
+
+Home AI resolves audit workspaces only from configured targets. Supported
+configuration forms are:
+
+- `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS` /
+  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS`, a JSON object keyed by plugin id;
+- `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_<PLUGIN_ID>_PATH` /
+  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_<PLUGIN_ID>_PATH` for a single target.
+
+If no target is configured, creation fails with
+`plugin_audit_target_unconfigured`. The server does not guess private local
+paths.
+
+The central Mac deploy script injects a productized default target map for
+registered production plugin source roots under `<macRoot>/plugins`, including
+`codex-mobile -> <macRoot>/plugins/codex-mobile-web`, `finance`,
+`wardrobe`, `email`, `note`, `growth`, `moira`, and `health -> healthy`.
+Installations with different roots should pass `--mac-root` or override the
+environment variables. The runtime still validates that the resolved target is
+an absolute existing directory and rejects protected paths.
+
+The bridge persists `kind=plugin_workspace_audit`, `readonly=true`, and bounded
+`audit` metadata. It rejects audit jobs that try to set `readonly=false`,
+`script`, `context_from`, `enabled_toolsets`, `data_context`, model/provider
+overrides, non-local delivery, or an executor other than `codex_readonly`.
+
+## Phase 2
+
+- Add safe scratch test mode for selected plugin-defined commands.
+- Add audit history UI inside plugin management.
+- Add recurring summary trends.
+- Add cross-plugin dependency checks, such as host contract drift.
+- Add richer task-card suggestions with user confirmation.
+
+## Long-Term
+
+- Add Owner-whitelisted repair workflows that are separate from audit jobs.
+- Add pull request creation or branch push only after explicit policy, access,
+  and confirmation design.
+- Add plugin-provided audit extensions through the platform contract, with
+  strict read-only capability declarations.
+
+## Test And Harness Plan
+
+Implementation should add focused coverage before production use:
+
+- service tests for audit plan validation and plugin workspace resolution;
+- Automation route/provider tests for `plugin_workspace_audit` creation,
+  update, pause/resume, and canonical scheduler projection;
+- executor policy tests that reject write/commit/push/deploy modes in version 1;
+- Action Inbox projection tests for summary-only review/error rows;
+- public-install tests proving missing executor/profile disables the feature
+  with a bounded diagnostic;
+- privacy scan coverage for reports, diagnostics, and docs;
+- optional visual harness for the audit creation surface and report deep link.
+
+Current focused tests:
+
+- `node tests/plugin-workspace-audit-service.test.js`
+- `node tests/automation-api-routes.test.js`
+- `node tests/cron-bridge.test.js`
+- `node tests/action-inbox-service.test.js`
+- `node tests/api-route-inventory.test.js`
+- `node tests/mobile-api-dispatcher.test.js`
+- `node tests/architecture-refactor-boundary.test.js`
+
+## Open Product Questions
+
+- Whether non-Owner workspaces can schedule self-audits for their own plugin
+  workspaces.
+- Retention duration for audit reports and executor diagnostics.
+- Whether clean reports should always create Inbox receipts or only when the
+  user explicitly asks for them.
+- Which plugin workspaces are first enabled: Codex Mobile, Wardrobe, Finance,
+  Email, Health, Note, Growth, or a smaller Owner-only subset.

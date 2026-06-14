@@ -159,6 +159,8 @@ remaining gap as an explicit follow-up.
   `docs/IMPLEMENTATION_NOTES/voice-input-plugin.md`
 - Voice input multi-ASR benchmark and pinyin correction plan:
   `docs/IMPLEMENTATION_NOTES/voice-input-asr-benchmark-plan.md`
+- Plugin workspace audit loop:
+  `docs/IMPLEMENTATION_NOTES/plugin-workspace-audit-loop.md`
 - Directory topic collections: `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`

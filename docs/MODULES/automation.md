@@ -61,6 +61,11 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
   `waiting` items with `availableAt`; recurring rules should create one Inbox
   Todo occurrence per trigger and leave recurrence editing, pause/resume, and
   failure diagnostics in Automation.
+- Plugin workspace audit plans are Automation-backed jobs. The explicit
+  creation surface may use a Skill-guided model to draft schedule and scope, but
+  ordinary chat must not run an audit-intent preflight before every message.
+  Version 1 audit jobs are read-only and must not write files, commit, push,
+  deploy, restart services, install packages, or mutate plugin databases.
 
 ## Canonical Store Boundary
 
@@ -207,6 +212,45 @@ delivery directory.
 `$HERMES_HOME/automation-workspaces` or the CRON output root, and creates the
 directory on create/update. Unsafe workdirs are rejected instead of silently
 falling back to the app directory.
+
+Plugin workspace audit jobs are a special read-only job class. They should be
+stored as `kind=plugin_workspace_audit` with structured fields such as
+`pluginId`, `targetWorkspaceId`, `workspacePathRef`, `auditMode`, `executor`,
+`readonly=true`, and `delivery`. The dispatcher must resolve
+`workspacePathRef` through Home AI's plugin registry or platform contract at run
+time, then launch a bounded audit executor with the plugin workspace as `cwd`.
+It must not accept arbitrary user-provided paths. If the plugin is not
+registered, not enabled for the target workspace, lacks a complete workspace
+binding, or no read-only executor is configured, the run should fail with a
+bounded diagnostic and upsert an Action Inbox error item.
+
+Audit jobs should write human-readable reports under audit history or the
+authorized plugin delivery directory, not under the source checkout. They should
+also upsert Action Inbox `review` or `error` items with summary metadata and
+safe deep links. Full diffs, raw executor logs, prompts, secrets, launch tokens,
+provider tokens, push endpoints, and private local paths must not be copied into
+Automation rows, Inbox rows, Web Push payloads, or docs.
+
+Read-only enforcement is part of the Automation contract for this job class.
+The first implementation should allow only source inspection and metadata
+commands. Arbitrary tests are out of scope for version 1 because many test
+suites write cache/build artifacts. A future safe-test mode must use scratch
+storage and prove that the plugin workspace git state is unchanged before and
+after the run.
+
+The explicit creation route is `POST /api/automations/plugin-workspace-audits`.
+The route calls `pluginWorkspaceAuditService` to validate plugin visibility,
+configured target path, schedule, audit mode, and read-only policy, then creates
+the canonical Automation job through `automationProvider.createJob`. It must not
+call the generic natural-language Automation interpreter for ordinary audit plan
+creation.
+
+Audit target paths are configuration, not user input. Deployments may configure
+targets with `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS` /
+`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS` or per-plugin
+`HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_<PLUGIN_ID>_PATH` /
+`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_<PLUGIN_ID>_PATH`. Missing targets fail
+closed with `plugin_audit_target_unconfigured`.
 
 Analysis automations that need Home AI runtime state must use host-provided
 data contexts instead of asking the model to discover or query SQLite directly.

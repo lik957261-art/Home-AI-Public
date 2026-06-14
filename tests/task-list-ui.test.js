@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260613-create-progress-v766";
+const CLIENT_VERSION = "20260614-plugin-audit-v767";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -23,6 +23,7 @@ const pdfViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "pdf-viewer.
 const markdownViewerHtml = fs.readFileSync(path.join(repoRoot, "public", "markdown-viewer.html"), "utf8");
 const clientResetHtml = fs.readFileSync(path.join(repoRoot, "public", "client-reset.html"), "utf8");
 const markdownRendererClient = fs.readFileSync(path.join(repoRoot, "public", "markdown-renderer-client.js"), "utf8");
+const appActionInboxUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-action-inbox-ui.js"), "utf8");
 const voiceInputUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-voice-input-ui.js"), "utf8");
 const voiceLearningUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-voice-learning-ui.js"), "utf8");
 const markdownRendererJs = fs.readFileSync(path.join(repoRoot, "adapters", "markdown-renderer.js"), "utf8");
@@ -210,8 +211,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260613-create-progress-v766" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260613-create-progress-v766"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260614-plugin-audit-v767" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260614-plugin-audit-v767"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -409,6 +410,7 @@ assert.match(stylesCss, /\.action-inbox-source-badge\.source-automation/);
 assert.match(stylesCss, /\.action-inbox-source-badge\.source-growth/);
 assert.match(stylesCss, /\.action-inbox-source-badge\.source-plugin/);
 assert.match(indexHtml, /id="topOpenAutomation"/);
+assert.match(indexHtml, /id="topNewPluginAudit"/);
 assert.match(indexHtml, /id="topNewActionInbox"/);
 assert.match(indexHtml, /id="topOpenActionInboxItem"/);
 assert.match(indexHtml, /id="topCompleteActionInboxItem"/);
@@ -430,6 +432,9 @@ assert.match(appJs, /newAutomation\.hidden = !\(automationList \|\| inboxView\)/
 assert.match(appJs, /\$\("topOpenAutomation"\)/);
 assert.match(appJs, /openAutomationSurface\(\{ returnTo: state\.viewMode === "inbox" \? "inbox" : "" \}\)\.catch\(showError\)/);
 assert.match(appJs, /openAutomationSurface\(\{ create: true, returnTo: state\.viewMode === "inbox" \? "inbox" : "" \}\)\.catch\(showError\)/);
+assert.match(appJs, /\$\("topNewPluginAudit"\)/);
+assert.match(appJs, /openActionInboxPluginAuditCreate\(\)/);
+assert.match(appActionInboxUiJs, /\/api\/automations\/plugin-workspace-audits/);
 assert.match(appJs, /function openActionInboxCreate\(\)/);
 assert.match(appJs, /function openCurrentActionInboxItemLink\(\)/);
 assert.match(appJs, /function actionInboxSourceDeepLink\(item = \{\}\)/);
@@ -444,7 +449,7 @@ assert.match(appJs, /openCurrentActionInboxItemLink\(\)\.catch\(showError\)/);
 assert.match(appJs, /const link = actionInboxSourceDeepLink\(item\)/);
 assert.match(stylesCss, /\.action-inbox-detail-actions \{[\s\S]*?display: flex;[\s\S]*?gap: 8px;/);
 assert.match(stylesCss, /\.action-inbox-detail-message pre \{[\s\S]*?white-space: pre-wrap;/);
-assert.match(appJs, /\$\("threadTitle"\)\.textContent = creating \? "\\u65b0\\u589e\\u4e8b\\u9879" : \(item \? "\\u6536\\u4ef6\\u8be6\\u60c5" : "\\u6536\\u4ef6\\u7bb1"\)/);
+assert.match(appJs, /\$\("threadTitle"\)\.textContent = creating \? \(state\.actionInboxCreateMode === "plugin-audit" \? "新建审计" : "\\u65b0\\u589e\\u4e8b\\u9879"\) : \(item \? "\\u6536\\u4ef6\\u8be6\\u60c5" : "\\u6536\\u4ef6\\u7bb1"\)/);
 assert.match(appJs, /conversation\.innerHTML = `<section class="action-inbox-shell\$\{creating \|\| item \? " action-inbox-secondary" : ""\}">/);
 assert.match(appJs, /const selectedInboxItemLink = typeof actionInboxSourceDeepLink === "function" \? actionInboxSourceDeepLink\(selectedInboxItem\) : \(selectedInboxItem\?\.deepLink \|\| ""\)/);
 assert.match(appJs, /openInboxItem\.hidden = !actionInboxDetail \|\| !selectedInboxItemLink/);
@@ -2584,14 +2589,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260613-create-progress-v766/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260613-create-progress-v766/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260613-create-progress-v766/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260613-create-progress-v766/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260613-create-progress-v766/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260613-create-progress-v766/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260613-create-progress-v766/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260613-create-progress-v766/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260614-plugin-audit-v767/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260614-plugin-audit-v767/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260614-plugin-audit-v767/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260614-plugin-audit-v767/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260614-plugin-audit-v767/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260614-plugin-audit-v767/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260614-plugin-audit-v767/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260614-plugin-audit-v767/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);
