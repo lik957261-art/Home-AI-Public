@@ -174,6 +174,23 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
 - Do not publish `.agent-context`, runtime data, SQLite DBs, logs, uploads, backups, keys, OAuth state, push endpoints, worker manifests with real API keys, or private reports.
 - Run privacy scan and productization checks according to the release scope.
 
+## Public Online Updates
+
+- Public deployments should keep the Home AI checkout and plugin checkouts as
+  Git repositories with HTTPS public remotes.
+- Owner login checks `/api/app-update/status`. The response covers both Home AI
+  and plugin source directories declared in `config/public-plugin-sources.json`.
+- The in-app update action is Owner-only and fast-forward-only. It must fail
+  closed on a dirty worktree, missing checkout, non-fast-forward remote, or
+  unreadable plugin source directory.
+- Plugin updates are source updates. If a deployment needs service restarts,
+  dependency installs, or plugin production sync after a source update, set
+  `HERMES_MOBILE_POST_UPDATE_COMMAND` or `HERMES_WEB_POST_UPDATE_COMMAND` to a
+  local restart/deploy script. Do not put raw secrets in that command; use
+  secret files or OS service configuration.
+- Do not silently auto-apply updates for every login. The product default is:
+  check on Owner login, show the update badge, then apply after Owner action.
+
 ## Known Follow-Up
 
 The current README contains older Chinese public-update text that may render as mojibake in some tools. Do not do a casual whole-file rewrite on Windows; clean it in a separate UTF-8-safe documentation polish pass.

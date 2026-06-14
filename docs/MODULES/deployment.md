@@ -384,6 +384,19 @@ and loopback manifest smoke URL. Public installers must use those HTTPS GitHub
 URLs to clone or update source before invoking `scripts/deploy-macos-production.js`.
 The deploy script itself continues to require local source directories.
 
+Home AI also exposes an Owner-only in-app update path for public deployments:
+Owner login calls `/api/app-update/status`, which checks the Home AI checkout
+and every present plugin checkout listed in `config/public-plugin-sources.json`.
+The status projection reports `appUpdateAvailable`, `pluginUpdateAvailable`,
+and one row per plugin. The in-app apply path only performs clean-worktree,
+fast-forward Git updates; it does not merge, rebase, overwrite local changes,
+or silently update as a non-Owner. If a deployment needs the update to restart
+services or redeploy plugin runtime directories, configure
+`HERMES_MOBILE_POST_UPDATE_COMMAND` / `HERMES_WEB_POST_UPDATE_COMMAND` to a
+local operator-owned script. Without that command, Home AI returns
+`restartRequired=true` after updating source so the Owner can restart through
+the deployment's normal service manager.
+
 Growth first install uses `scripts/install-growth-launchd-service.js` from the
 Home AI app workspace. The script generates the
 `com.hermesmobile.plugin.growth` LaunchDaemon, creates the Growth registration

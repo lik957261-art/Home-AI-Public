@@ -149,8 +149,11 @@ async function testAppUpdateStatusProjectsRepositoryWithoutRemoteUrl() {
     currentVersion: "20260514-2100",
     latestVersion: "20260514-2130",
     updateAvailable: true,
+    appUpdateAvailable: true,
+    pluginUpdateAvailable: false,
     latestCommit: "remote-sha",
     currentCommit: "local-sha",
+    plugins: [],
     repository: {
       available: true,
       clean: true,
@@ -158,6 +161,14 @@ async function testAppUpdateStatusProjectsRepositoryWithoutRemoteUrl() {
       branch: "main",
       remoteName: "origin",
       updateBranch: "main",
+    },
+    mode: "git-fast-forward",
+    policy: {
+      ownerOnly: true,
+      requiresCleanWorktree: true,
+      requiresFastForward: true,
+      postUpdateCommandConfigured: false,
+      autoApplyOnLogin: false,
     },
     canFastForward: true,
     warning: "",
@@ -195,6 +206,14 @@ async function testAppUpdateStatusNotGitFallback() {
     branch: "",
     remoteName: "origin",
     updateBranch: "main",
+  });
+  assert.equal(status.mode, "git-fast-forward");
+  assert.deepEqual(status.policy, {
+    ownerOnly: true,
+    requiresCleanWorktree: true,
+    requiresFastForward: true,
+    postUpdateCommandConfigured: false,
+    autoApplyOnLogin: false,
   });
   assert.equal(status.warning, "Current app directory is not a git checkout.");
 }
@@ -318,8 +337,154 @@ async function testApplyAppUpdateFastForwardSuccess() {
   assert.equal(result.ok, true);
   assert.equal(result.updated, true);
   assert.equal(result.restartRequired, true);
-  assert.match(result.message, /Restart Hermes Mobile/);
+  assert.match(result.message, /Restart Home AI/);
   assert.equal(calls.some((call) => call.key === "merge --ff-only origin/main"), true);
+}
+
+async function testApplyAppUpdateRunsConfiguredPostUpdateCommand() {
+  const root = tempRoot();
+  const indexHtmlPath = makeIndex(root, "20260514-2100");
+  const calls = [];
+  const processCalls = [];
+  const service = createSystemRuntimeStatusService({
+    repoRoot: root,
+    indexHtmlPath,
+    postUpdateCommand: "npm run restart-home-ai",
+    platform: "darwin",
+    runProcessText(command, args, options) {
+      processCalls.push({ command, args, options });
+      return Promise.resolve({ ok: true, status: 0, stdout: "scheduled", stderr: "" });
+    },
+    git: {
+      run: gitRunner({
+        "rev-parse --is-inside-work-tree": { ok: true, status: 0, stdout: "true", stderr: "" },
+        "rev-parse HEAD": { ok: true, status: 0, stdout: "local-sha", stderr: "" },
+        "rev-parse --abbrev-ref HEAD": { ok: true, status: 0, stdout: "main", stderr: "" },
+        "remote get-url origin": { ok: true, status: 0, stdout: "https://github.com/acme/mobile.git", stderr: "" },
+        "status --porcelain --untracked-files=normal": { ok: true, status: 0, stdout: "", stderr: "" },
+        "ls-remote origin refs/heads/main": { ok: true, status: 0, stdout: "remote-sha\trefs/heads/main", stderr: "" },
+        "fetch origin main": { ok: true, status: 0, stdout: "", stderr: "" },
+        "rev-parse origin/main": { ok: true, status: 0, stdout: "remote-sha", stderr: "" },
+        "merge-base --is-ancestor HEAD origin/main": { ok: true, status: 0, stdout: "", stderr: "" },
+        "merge --ff-only origin/main": { ok: true, status: 0, stdout: "fast-forward", stderr: "" },
+      }, calls),
+    },
+    fetchText: async () => '<meta name="hermes-web-client-version" content="20260514-2130">',
+    nowIso: () => "2026-05-15T00:07:00.000Z",
+  });
+
+  const result = await service.applyAppUpdate();
+  assert.equal(result.ok, true);
+  assert.equal(result.updated, true);
+  assert.equal(result.restartRequired, false);
+  assert.deepEqual(result.postUpdate, { ok: true, status: 0, stdout: "scheduled", stderr: "" });
+  assert.equal(processCalls[0].command, "/bin/sh");
+  assert.deepEqual(processCalls[0].args, ["-lc", "npm run restart-home-ai"]);
+  assert.equal(processCalls[0].options.cwd, root);
+  assert.match(result.message, /configured post-update command/);
+}
+
+async function testApplyAppUpdateReportsPostUpdateFailure() {
+  const root = tempRoot();
+  const indexHtmlPath = makeIndex(root, "20260514-2100");
+  const service = createSystemRuntimeStatusService({
+    repoRoot: root,
+    indexHtmlPath,
+    postUpdateCommand: "restart-home-ai",
+    runProcessText() {
+      return Promise.resolve({ ok: false, status: 1, stdout: "", stderr: "restart token abcdefghijklmnopqrstuvwxyz failed" });
+    },
+    git: {
+      run: gitRunner({
+        "rev-parse --is-inside-work-tree": { ok: true, status: 0, stdout: "true", stderr: "" },
+        "rev-parse HEAD": { ok: true, status: 0, stdout: "local-sha", stderr: "" },
+        "rev-parse --abbrev-ref HEAD": { ok: true, status: 0, stdout: "main", stderr: "" },
+        "remote get-url origin": { ok: true, status: 0, stdout: "https://github.com/acme/mobile.git", stderr: "" },
+        "status --porcelain --untracked-files=normal": { ok: true, status: 0, stdout: "", stderr: "" },
+        "ls-remote origin refs/heads/main": { ok: true, status: 0, stdout: "remote-sha\trefs/heads/main", stderr: "" },
+        "fetch origin main": { ok: true, status: 0, stdout: "", stderr: "" },
+        "rev-parse origin/main": { ok: true, status: 0, stdout: "remote-sha", stderr: "" },
+        "merge-base --is-ancestor HEAD origin/main": { ok: true, status: 0, stdout: "", stderr: "" },
+        "merge --ff-only origin/main": { ok: true, status: 0, stdout: "fast-forward", stderr: "" },
+      }),
+    },
+    fetchText: async () => '<meta name="hermes-web-client-version" content="20260514-2130">',
+    nowIso: () => "2026-05-15T00:08:00.000Z",
+  });
+
+  const result = await service.applyAppUpdate();
+  assert.equal(result.ok, false);
+  assert.equal(result.updated, true);
+  assert.equal(result.restartRequired, true);
+  assert.equal(result.error, "restart token [redacted] failed");
+  assert.equal(result.postUpdate.stderr, "restart token [redacted] failed");
+  assert.equal(JSON.stringify(result).includes("abcdefghijklmnopqrstuvwxyz"), false);
+}
+
+async function testPluginUpdateStatusAndApplyFastForwardPluginSource() {
+  const root = tempRoot();
+  const indexHtmlPath = makeIndex(root, "20260514-2100");
+  const pluginDir = path.join(root, "plugins", "note");
+  fs.mkdirSync(pluginDir, { recursive: true });
+  const pluginSourcesPath = path.join(root, "app", "config", "public-plugin-sources.json");
+  writeFile(pluginSourcesPath, JSON.stringify({
+    schemaVersion: 1,
+    plugins: [{
+      id: "note",
+      sourceDir: "plugins/note",
+      repositoryUrl: "https://github.com/acme/note-public.git",
+      ref: "main",
+    }],
+  }));
+  const calls = [];
+  const service = createSystemRuntimeStatusService({
+    repoRoot: root,
+    publicSourceRoot: root,
+    publicPluginSourcesPath: pluginSourcesPath,
+    indexHtmlPath,
+    git: {
+      run(args, options = {}) {
+        const key = `${options.cwd || root}|${args.join(" ")}`;
+        calls.push({ key, args, options });
+        const isPlugin = options.cwd === pluginDir;
+        const responses = {
+          "rev-parse --is-inside-work-tree": { ok: true, status: 0, stdout: "true", stderr: "" },
+          "rev-parse HEAD": { ok: true, status: 0, stdout: isPlugin ? "plugin-local" : "app-local", stderr: "" },
+          "rev-parse --abbrev-ref HEAD": { ok: true, status: 0, stdout: "main", stderr: "" },
+          "remote get-url origin": { ok: true, status: 0, stdout: isPlugin ? "https://github.com/acme/note-public.git" : "https://github.com/acme/mobile.git", stderr: "" },
+          "status --porcelain --untracked-files=normal": { ok: true, status: 0, stdout: "", stderr: "" },
+          "ls-remote origin refs/heads/main": { ok: true, status: 0, stdout: "app-local\trefs/heads/main", stderr: "" },
+          "ls-remote https://github.com/acme/note-public.git refs/heads/main": { ok: true, status: 0, stdout: "plugin-remote\trefs/heads/main", stderr: "" },
+          "fetch origin main": { ok: true, status: 0, stdout: "", stderr: "" },
+          "fetch https://github.com/acme/note-public.git main": { ok: true, status: 0, stdout: "", stderr: "" },
+          "rev-parse origin/main": { ok: true, status: 0, stdout: "app-local", stderr: "" },
+          "rev-parse FETCH_HEAD": { ok: true, status: 0, stdout: "plugin-remote", stderr: "" },
+          "merge-base --is-ancestor HEAD origin/main": { ok: true, status: 0, stdout: "", stderr: "" },
+          "merge-base --is-ancestor HEAD FETCH_HEAD": { ok: true, status: 0, stdout: "", stderr: "" },
+          "merge --ff-only origin/main": { ok: true, status: 0, stdout: "fast-forward", stderr: "" },
+          "merge --ff-only FETCH_HEAD": { ok: true, status: 0, stdout: "fast-forward", stderr: "" },
+        };
+        return Promise.resolve(responses[args.join(" ")] || { ok: false, status: 1, stdout: "", stderr: `unexpected ${key}` });
+      },
+    },
+    fetchText: async () => '<meta name="hermes-web-client-version" content="20260514-2100">',
+    nowIso: () => "2026-05-15T00:09:00.000Z",
+  });
+
+  const status = await service.appUpdateStatus();
+  assert.equal(status.appUpdateAvailable, false);
+  assert.equal(status.pluginUpdateAvailable, true);
+  assert.equal(status.updateAvailable, true);
+  assert.equal(status.plugins.length, 1);
+  assert.equal(status.plugins[0].id, "note");
+  assert.equal(status.plugins[0].canFastForward, true);
+
+  const result = await service.applyAppUpdate();
+  assert.equal(result.ok, true);
+  assert.equal(result.updated, true);
+  assert.deepEqual(result.updatedPlugins, ["note"]);
+  assert.equal(calls.some((call) => call.key === `${pluginDir}|fetch https://github.com/acme/note-public.git main`), true);
+  assert.equal(calls.some((call) => call.key === `${pluginDir}|merge --ff-only FETCH_HEAD`), true);
 }
 
 async function testClientVersionInfoUsesCachedFallback() {
@@ -350,6 +515,9 @@ async function run() {
   await testApplyAppUpdateRejectsDirtyRepository();
   await testApplyAppUpdateRejectsNonFastForward();
   await testApplyAppUpdateFastForwardSuccess();
+  await testApplyAppUpdateRunsConfiguredPostUpdateCommand();
+  await testApplyAppUpdateReportsPostUpdateFailure();
+  await testPluginUpdateStatusAndApplyFastForwardPluginSource();
   await testClientVersionInfoUsesCachedFallback();
   console.log("system runtime status service tests passed");
 }

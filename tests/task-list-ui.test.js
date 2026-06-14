@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260614-plugin-audit-v770";
+const CLIENT_VERSION = "20260614-public-update-v771";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -211,8 +211,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260614-plugin-audit-v770" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260614-plugin-audit-v770"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260614-public-update-v771" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260614-public-update-v771"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -1169,8 +1169,8 @@ assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt
 assert.match(gatewayRunInstructionServiceJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `chatgpt_image_erase`/);
 assert.match(serverJs, /GATEWAY_TOOL_SCHEMA_EPOCH/);
-assert.match(serverJs, /20260612-email-content-mcp-v1/);
-assert.match(gatewayRunInstructionServiceJs, /20260612-finance-owner-stocks-mcp-v1/);
+assert.match(serverJs, /20260614-moira-mcp-evidence-v1/);
+assert.match(gatewayRunInstructionServiceJs, /20260614-moira-mcp-evidence-v1/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT[\s\S]*\|\| "0"/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS[\s\S]*\|\| "8000"/);
 assert.match(serverJs, /enabled: GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED \|\| GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED/);
@@ -2589,14 +2589,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260614-plugin-audit-v770/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260614-plugin-audit-v770/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260614-plugin-audit-v770/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260614-plugin-audit-v770/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260614-plugin-audit-v770/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260614-plugin-audit-v770/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260614-plugin-audit-v770/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260614-plugin-audit-v770/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260614-public-update-v771/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260614-public-update-v771/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260614-public-update-v771/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260614-public-update-v771/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260614-public-update-v771/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260614-public-update-v771/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260614-public-update-v771/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260614-public-update-v771/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);

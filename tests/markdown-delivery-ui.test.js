@@ -59,7 +59,7 @@ assert.match(artifactTextRegistrationServiceJs, /source_md_\$\{deps\.crypto\.cre
 assert.match(artifactTextRegistrationServiceJs, /\/api\/files\?\$\{params\.toString\(\)\}/);
 assert.match(systemApiRoutes, /\/api\/app-update\/status/);
 assert.match(systemApiRoutes, /\/api\/app-update\/apply/);
-assert.match(systemRuntimeStatusServiceJs, /async function gitRepositoryStatus\(\)/);
+assert.match(systemRuntimeStatusServiceJs, /async function gitRepositoryStatus\(repoRoot = deps\.repoRoot\)/);
 assert.match(systemRuntimeStatusServiceJs, /merge", "--ff-only"/);
 
 assert.match(appJs, /function isMarkdownArtifact\(artifact\)/);

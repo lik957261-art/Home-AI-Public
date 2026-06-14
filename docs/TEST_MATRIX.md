@@ -536,6 +536,12 @@ resolve `skills` and `memories` to `owner-full`, non-Owner profiles prefer the
 single concrete `skillWorkspaceIds` store over legacy `skillProfile` aliases,
 and the effective worker user can write temporary files under both stores and
 read/write the materialized profile `SOUL.md`.
+Public online update checks must cover both Home AI and plugin source
+checkouts. The system status service test must prove Owner-only update routes,
+clean-worktree fast-forward behavior, plugin rows from
+`config/public-plugin-sources.json`, `updatedPlugins` reporting, and the
+optional `HERMES_MOBILE_POST_UPDATE_COMMAND` / `HERMES_WEB_POST_UPDATE_COMMAND`
+post-update hook with bounded output redaction.
 The same NAS harness must include an ordinary representative message smoke,
 not a probe-only or content-specific shortcut. The smoke must compare the
 Mobile run phase timeline with Windows/local production behavior:

@@ -21,8 +21,12 @@ function renderClientVersion() {
   const update = state.appUpdate || {};
   const updateAvailable = Boolean(update.updateAvailable);
   badge.textContent = clientRefreshAvailable ? "刷新" : (updateAvailable ? "更新" : (version ? `v${compactClientVersion(version)}` : ""));
+  const pluginCount = Array.isArray(update.plugins) ? update.plugins.filter((plugin) => plugin?.updateAvailable).length : 0;
+  const updateTarget = update.appUpdateAvailable && pluginCount
+    ? `Home AI + ${pluginCount} plugin${pluginCount > 1 ? "s" : ""}`
+    : (pluginCount ? `${pluginCount} plugin${pluginCount > 1 ? "s" : ""}` : "Home AI");
   badge.title = updateAvailable
-    ? `Update available: ${update.latestVersion || update.latestCommit || "latest"}`
+    ? `Update available: ${updateTarget}`
     : (clientRefreshAvailable ? `Client update available: ${serverVersion}` : (version ? `Client version ${version}` : ""));
   badge.classList.toggle("update-available", Boolean(updateAvailable || clientRefreshAvailable));
   badge.toggleAttribute("data-update-available", Boolean(updateAvailable || clientRefreshAvailable));
@@ -78,6 +82,7 @@ function appUpdateMessage(result) {
   if (isSelfUpdateUnsupported(result)) return "当前安装方式不支持应用内更新。";
   if (result.error) return result.error;
   if (result.warning) return result.warning;
+  if (Array.isArray(result.updatedPlugins) && result.updatedPlugins.length) return `插件已更新：${result.updatedPlugins.join(", ")}`;
   if (result.updated) return result.message || "Updated.";
   if (result.upToDate) return "Already up to date.";
   if (!result.updateAvailable) return "No update is available.";

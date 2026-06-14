@@ -183,6 +183,8 @@ const mobileRuntimeSystemStatusFacadeService = createMobileRuntimeSystemStatusFa
   isUncPath,
   nowIso,
   path,
+  postUpdateCommand: process.env.HERMES_MOBILE_POST_UPDATE_COMMAND || process.env.HERMES_WEB_POST_UPDATE_COMMAND || "",
+  postUpdateTimeoutMs: process.env.HERMES_MOBILE_POST_UPDATE_TIMEOUT_MS || process.env.HERMES_WEB_POST_UPDATE_TIMEOUT_MS || "",
   process,
   repoRoot: REPO_ROOT,
   runProcessText,
