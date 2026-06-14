@@ -1280,9 +1280,24 @@ function repairCodexMobileLogPermissions(plan, password) {
     runSudo("/bin/chmod", [repair.fileMode, logPath], password);
     files.push(logPath);
   }
+  let launchdReloadRequired = false;
   if (repair.launchdPlistPath && files.length >= 2) {
-    runSudo("/usr/libexec/PlistBuddy", ["-c", `Set :StandardOutPath ${files[0]}`, repair.launchdPlistPath], password);
-    runSudo("/usr/libexec/PlistBuddy", ["-c", `Set :StandardErrorPath ${files[1]}`, repair.launchdPlistPath], password);
+    let currentStdoutPath = "";
+    let currentStderrPath = "";
+    try {
+      currentStdoutPath = String(runSudo("/usr/libexec/PlistBuddy", ["-c", "Print :StandardOutPath", repair.launchdPlistPath], password).stdout || "").trim();
+      currentStderrPath = String(runSudo("/usr/libexec/PlistBuddy", ["-c", "Print :StandardErrorPath", repair.launchdPlistPath], password).stdout || "").trim();
+    } catch (_) {
+      launchdReloadRequired = true;
+    }
+    if (currentStdoutPath !== files[0]) {
+      runSudo("/usr/libexec/PlistBuddy", ["-c", `Set :StandardOutPath ${files[0]}`, repair.launchdPlistPath], password);
+      launchdReloadRequired = true;
+    }
+    if (currentStderrPath !== files[1]) {
+      runSudo("/usr/libexec/PlistBuddy", ["-c", `Set :StandardErrorPath ${files[1]}`, repair.launchdPlistPath], password);
+      launchdReloadRequired = true;
+    }
     runSudo("/usr/sbin/chown", ["root:wheel", repair.launchdPlistPath], password);
     runSudo("/bin/chmod", ["644", repair.launchdPlistPath], password);
     runSudo("/usr/bin/plutil", ["-lint", repair.launchdPlistPath], password);
@@ -1299,6 +1314,7 @@ function repairCodexMobileLogPermissions(plan, password) {
     launchdPlistPath: repair.launchdPlistPath,
     stdoutPath: files[0] || "",
     stderrPath: files[1] || "",
+    launchdReloadRequired,
   };
 }
 
@@ -1334,7 +1350,7 @@ function executePlan(plan, options) {
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
 
   const reloadedLabels = new Set();
-  if (codexMobileLogRepair && codexMobileLogRepair.launchdLabel && codexMobileLogRepair.launchdPlistPath) {
+  if (codexMobileLogRepair && codexMobileLogRepair.launchdReloadRequired && codexMobileLogRepair.launchdLabel && codexMobileLogRepair.launchdPlistPath) {
     runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(codexMobileLogRepair.launchdPlistPath)} >/dev/null 2>&1 || true`], password);
     runSudo("/bin/launchctl", ["bootstrap", "system", codexMobileLogRepair.launchdPlistPath], password);
     reloadedLabels.add(codexMobileLogRepair.launchdLabel);
