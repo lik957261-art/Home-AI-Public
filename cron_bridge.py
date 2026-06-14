@@ -982,7 +982,7 @@ def normalize_audit_metadata(value: Any) -> dict[str, Any] | None:
         raise ValueError("audit.kind is invalid")
     if not re.match(r"^[a-z0-9][a-z0-9_-]{0,79}$", plugin_id):
         raise ValueError("audit.pluginId is invalid")
-    if audit_mode not in {"recent_changes", "dirty_diff", "full_sample"}:
+    if audit_mode not in {"alignment", "recent_changes", "dirty_diff", "full_sample"}:
         raise ValueError("audit.auditMode is invalid")
     if executor != "codex_readonly":
         raise ValueError("audit.executor is invalid")

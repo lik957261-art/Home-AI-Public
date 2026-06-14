@@ -163,7 +163,7 @@ function main() {
         targetWorkspaceId: "owner",
         workspacePathRef: "test-registry",
         workspacePath: auditWorkspace,
-        auditMode: "recent_changes",
+        auditMode: "alignment",
         executor: "codex_readonly",
         readonly: true,
       },
@@ -174,6 +174,7 @@ function main() {
   assert.equal(createAudit.job.kind, "plugin_workspace_audit");
   assert.equal(createAudit.job.readonly, true);
   assert.equal(createAudit.job.audit.pluginId, "codex-mobile");
+  assert.equal(createAudit.job.audit.auditMode, "alignment");
   assert.equal(createAudit.job.audit.workspacePath, undefined);
   const persistedAuditDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
   const persistedAuditJob = persistedAuditDoc.jobs.find((job) => job.name === "Codex workspace audit");
