@@ -1474,6 +1474,21 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   Gateway exposure; onboarding or a focused provisioning repair must mirror the
   complete binding into `/Users/<hm-user>/HermesWorkspace/.hermes-growth`
   before the worker profile is rendered or restarted.
+- Moira MCP follows the same workspace-bound rule with `.hermes-moira`.
+  Gateway profile generation must require `.hermes-moira/config.json` and the
+  configured basename-only key file before exposing `moira` in `toolsets`,
+  `platform_toolsets.api_server`, or `mcp_servers.moira`. The Moira wrapper is
+  Node-based; launch it with `node`, `moira-mcp-stdio.mjs`,
+  `--workspace <target-user-root>`, `--no-workspace-override`, and the
+  deployment-specific `--api-base-url`. Owner and `weixin_wuping` do not share
+  Moira MCP bindings; a profile for `weixin_wuping` must use that workspace's
+  own `.hermes-moira` key or omit Moira. Valid schema evidence is a
+  selected-profile callable such as `mcp_moira_get_chart_evidence` or
+  `mcp_moira_get_year_forecast_evidence`. The tools are read-only evidence
+  sources; final fortune interpretation remains model-owned. On macOS, the
+  workspace provisioning executor materializes the Moira worker file set from
+  `<root>/plugins/moira` into `<root>/gateway-worker/moira-mcp` before profile
+  rendering.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - Targeted starts such as `-StartProfiles lowgw13,lowgw14 -ForceConfigure`
   must pass `HERMES_GATEWAY_START_PROFILES` through to

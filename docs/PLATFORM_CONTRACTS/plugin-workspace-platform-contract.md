@@ -155,25 +155,17 @@ endpoints that correctly require a workspace id/key are reported as
 `authRequired=true`; tool-specific schema closure still belongs to
 `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`.
 
-## Moira Shared-Owner Exception
+## Moira Workspace Binding
 
-Moira is a documented exception to the normal workspace-private plugin
-provisioning contract. The exception exists because current Moira records are
-local-first browser records (`localStorage` key `moira.chartRecords.v1`), while
-the Moira server only provides manifest, launch, session and static hosting. It
-does not yet provide a server-side per-workspace record store.
+Moira follows the normal workspace-private plugin provisioning contract. Home AI
+must expose Moira only when the effective workspace has its own
+`.hermes-moira/config.json` plus the configured basename-only key file, normally
+`access-key.txt` or `workspace-key.txt`.
 
-Home AI may expose Moira only to Owner and an explicit shared-owner allowlist,
-currently `weixin_wuping`. For an allowlisted workspace that has no local
-`.hermes-moira/access-key.txt` or `.hermes-moira/workspace-key.txt`, the host
-may launch Moira with the Owner plugin workspace/key. If the workspace later has
-its own `.hermes-moira` key, the host must pass that workspace id/key to Moira
-instead.
-
-This is not a generic plugin authorization pattern. Finance, Wardrobe, Email,
-Health, Note, Growth, and future workspace-backed plugins must not use Owner
-plugin keys for non-Owner launches; they must provision or discover real
-workspace bindings and resolve all data through the effective workspace.
+Owner and `weixin_wuping` do not share a Moira binding. A non-Owner workspace
+without its own `.hermes-moira` binding must see Moira as unavailable instead of
+falling back to Owner's plugin key or Owner's records. The same rule applies to
+the embedded plugin launch path and the Gateway MCP profile path.
 
 ## Same-Origin Proxy CSP Contract
 

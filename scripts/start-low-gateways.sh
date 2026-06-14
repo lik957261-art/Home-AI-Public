@@ -334,24 +334,29 @@ health_mcp_command="${HERMES_MOBILE_HEALTH_MCP_COMMAND:-node}"
 health_mcp_path="${HERMES_MOBILE_HEALTH_MCP_PATH:-$gateway_worker_root/health-mcp/scripts/mcp-health-wrapper.js}"
 growth_mcp_command="${HERMES_MOBILE_GROWTH_MCP_COMMAND:-node}"
 growth_mcp_path="${HERMES_MOBILE_GROWTH_MCP_PATH:-$gateway_worker_root/growth-mcp/scripts/growth-mcp-wrapper.js}"
+moira_mcp_command="${HERMES_MOBILE_MOIRA_MCP_COMMAND:-node}"
+moira_mcp_path="${HERMES_MOBILE_MOIRA_MCP_PATH:-$gateway_worker_root/moira-mcp/scripts/moira-mcp-stdio.mjs}"
 email_mcp_python="${HERMES_MOBILE_EMAIL_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
 email_mcp_path="${HERMES_MOBILE_EMAIL_MCP_PATH:-$gateway_worker_root/email-mcp/scripts/email-mcp-wrapper.py}"
 default_finance_mcp_api_base_url="http://127.0.0.1:8791"
 default_note_mcp_api_base_url="http://127.0.0.1:4181"
 default_health_mcp_api_base_url="http://127.0.0.1:4877"
 default_growth_mcp_api_base_url="http://127.0.0.1:4881"
+default_moira_mcp_api_base_url="http://127.0.0.1:4174"
 default_email_mcp_api_base_url="http://127.0.0.1:5175"
 if [[ "$gateway_worker_root" == /mnt/* ]] && [ -n "${windows_host_gateway:-}" ]; then
   default_finance_mcp_api_base_url="http://${windows_host_gateway}:8791"
   default_note_mcp_api_base_url="http://${windows_host_gateway}:4181"
   default_health_mcp_api_base_url="http://${windows_host_gateway}:4877"
   default_growth_mcp_api_base_url="http://${windows_host_gateway}:4881"
+  default_moira_mcp_api_base_url="http://${windows_host_gateway}:4174"
   default_email_mcp_api_base_url="http://${windows_host_gateway}:5175"
 fi
 finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-$default_finance_mcp_api_base_url}"
 note_mcp_api_base_url="${HERMES_MOBILE_NOTE_MCP_API_BASE_URL:-$default_note_mcp_api_base_url}"
 health_mcp_api_base_url="${HERMES_MOBILE_HEALTH_MCP_API_BASE_URL:-$default_health_mcp_api_base_url}"
 growth_mcp_api_base_url="${HERMES_MOBILE_GROWTH_MCP_API_BASE_URL:-$default_growth_mcp_api_base_url}"
+moira_mcp_api_base_url="${HERMES_MOBILE_MOIRA_MCP_API_BASE_URL:-$default_moira_mcp_api_base_url}"
 email_mcp_api_base_url="${HERMES_MOBILE_EMAIL_MCP_API_BASE_URL:-$default_email_mcp_api_base_url}"
 finance_user_drive_root="${HERMES_MOBILE_FINANCE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_finance_workspace_override="${HERMES_MOBILE_OWNER_FINANCE_WORKSPACE:-}"
@@ -365,6 +370,7 @@ wuping_health_workspace_override="${HERMES_MOBILE_WUPING_HEALTH_WORKSPACE:-}"
 growth_user_drive_root="${HERMES_MOBILE_GROWTH_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_growth_workspace_override="${HERMES_MOBILE_OWNER_GROWTH_WORKSPACE:-}"
 wuping_growth_workspace_override="${HERMES_MOBILE_WUPING_GROWTH_WORKSPACE:-}"
+moira_user_drive_root="${HERMES_MOBILE_MOIRA_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 email_user_drive_root="${HERMES_MOBILE_EMAIL_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_email_workspace_override="${HERMES_MOBILE_OWNER_EMAIL_WORKSPACE:-}"
 wuping_email_workspace_override="${HERMES_MOBILE_WUPING_EMAIL_WORKSPACE:-}"
@@ -462,6 +468,9 @@ compute_configure_signature() {
     --value "growth_user_drive_root=$growth_user_drive_root" \
     --value "owner_growth_workspace_override=$owner_growth_workspace_override" \
     --value "wuping_growth_workspace_override=$wuping_growth_workspace_override" \
+    --value "moira_mcp_command=$moira_mcp_command" \
+    --value "moira_mcp_api_base_url=$moira_mcp_api_base_url" \
+    --value "moira_user_drive_root=$moira_user_drive_root" \
     --value "email_mcp_python=$email_mcp_python" \
     --value "email_mcp_api_base_url=$email_mcp_api_base_url" \
     --value "email_user_drive_root=$email_user_drive_root" \
@@ -483,6 +492,7 @@ compute_configure_signature() {
     --path "$note_mcp_path" \
     --path "$health_mcp_path" \
     --path "$growth_mcp_path" \
+    --path "$moira_mcp_path" \
     --path "$email_mcp_path" \
     --path "$outlook_graph_mcp_path" <<'PY'
 import hashlib

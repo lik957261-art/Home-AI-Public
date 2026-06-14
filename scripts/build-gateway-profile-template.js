@@ -299,6 +299,28 @@ function mcpServersForProfile(values = {}) {
       },
     });
   }
+  if (boolValue(values.moira_enabled)) {
+    servers.push({
+      name: "moira",
+      command: valueMapValue(values, "moira_mcp_command", "node"),
+      args: [
+        valueMapValue(values, "moira_mcp_path"),
+        "--workspace",
+        valueMapValue(values, "moira_workspace"),
+        "--no-workspace-override",
+        "--api-base-url",
+        valueMapValue(values, "moira_mcp_api_base_url"),
+      ],
+      env: {
+        HERMES_HOME: profileLink,
+        HERMES_PROFILE: profile,
+      },
+      extra: {
+        startup_timeout: "60",
+        connect_timeout: "60",
+      },
+    });
+  }
   if (boolValue(values.email_enabled)) {
     servers.push({
       name: "email",
@@ -370,6 +392,7 @@ function renderProfileConfigYaml(values = {}) {
   if (boolValue(values.note_enabled)) extras.push("note");
   if (boolValue(values.health_enabled)) extras.push("health");
   if (boolValue(values.growth_enabled)) extras.push("growth");
+  if (boolValue(values.moira_enabled)) extras.push("moira");
   if (boolValue(values.email_enabled)) extras.push("email");
   if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
   appendStandardBase(lines, [...STANDARD_TOOLSETS, ...extras], [...STANDARD_TOOLSETS, ...extras], standardPluginNames(values));
@@ -412,6 +435,7 @@ function renderMaintenanceConfigYaml(values = {}) {
   if (boolValue(values.note_enabled)) extras.push("note");
   if (boolValue(values.health_enabled)) extras.push("health");
   if (boolValue(values.growth_enabled)) extras.push("growth");
+  if (boolValue(values.moira_enabled)) extras.push("moira");
   if (boolValue(values.email_enabled)) extras.push("email");
   if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
   const toolsets = [

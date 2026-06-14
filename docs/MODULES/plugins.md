@@ -33,21 +33,16 @@ docs. The Home AI development source path is
 `npm run --silent deploy:macos -- --plugin moira --reason <reason> --execute
 --password-file <sudo-password-file> --json`.
 
-Moira is a controlled exception to normal workspace-private plugin
-provisioning. Its current Web app is local-first: saved chart records live in
-browser `localStorage` under the fixed key `moira.chartRecords.v1`, and the
-plugin-side server only issues short launch/session tokens. It does not yet
-have a server-side per-workspace record store. Therefore Home AI may expose
-Moira only to Owner and the explicit shared-owner allowlist, currently
-`weixin_wuping`, and must not present it as generally grantable to all
-workspaces. When an allowlisted workspace has no `.hermes-moira` workspace key,
-Home AI launches Moira through the Owner plugin key and Owner plugin
-workspace. If a real `.hermes-moira/access-key.txt` or
-`.hermes-moira/workspace-key.txt` later exists for that workspace, Home AI must
-use that workspace id/key instead. This exception is Moira-specific and must
-not be copied to Finance, Wardrobe, Email, Health, Note, or Growth, which must
-continue to use real workspace provisioning and effective-workspace data
-isolation.
+Moira follows normal workspace-private plugin provisioning. Home AI may expose
+Moira only when the effective workspace has its own `.hermes-moira/config.json`
+and configured key file. Owner and `weixin_wuping` do not share Moira access:
+a non-Owner workspace without its own `.hermes-moira` binding must see the
+plugin as unavailable instead of using Owner's key.
+
+Moira's Gateway MCP surface is read-only. The plugin-side MCP tools expose
+saved-record metadata plus compact chart/year evidence packages; the host model
+owns final interpretation and must not treat Moira as generating a complete
+fortune narrative.
 
 Current development visual evidence is recorded in the Moira pointer doc and
 AI Ops ledger as
@@ -1064,14 +1059,10 @@ contains code execution, file access, long-lived thread context, and task-agent
 surfaces, so it remains Owner-only unless a separate restricted Codex product
 mode is designed and reviewed.
 
-Moira is a narrower exception: it is not Owner-critical like Codex, but its
-current records are local-first rather than workspace-backed. Home AI therefore
-uses a fixed shared-owner allowlist (`owner` plus `weixin_wuping` by default)
-instead of the general grant/provisioning flow. An allowlisted non-Owner
-workspace without its own `.hermes-moira` key launches against the Owner Moira
-workspace; a workspace with its own `.hermes-moira` key launches with that
-workspace. No other plugin may use this fallback without a documented product
-decision and focused route/service tests.
+Moira is no longer a shared-owner exception. It uses the same effective
+workspace binding rule as ordinary workspace-private plugins: `.hermes-moira`
+must exist under the target workspace, and a non-Owner workspace never reuses
+Owner's Moira key.
 
 The side navigation plugin manager is the canonical admin surface for installed
 plugin authorization:

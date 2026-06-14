@@ -208,6 +208,25 @@ Stock valuation queries must refresh live prices and FX; natural-language
 position deltas must not ask the user to provide live market prices or exchange
 rates.
 
+## Moira Evidence MCP Pattern
+
+The 2026-06-14 Moira evidence upgrade adds these callable names when the
+`moira` toolset is enabled:
+
+- `mcp_moira_list_records`
+- `mcp_moira_get_chart_evidence`
+- `mcp_moira_get_year_forecast_evidence`
+
+The Mobile schema epoch for this callable set is
+`20260614-moira-mcp-evidence-v1`. Before production exposure, prove the Moira
+service schema, Gateway selected-profile callable schema, Mobile instruction
+hints, and selected worker schema all include the Moira callables. Moira uses
+ordinary workspace-private binding: each effective workspace must have its own
+`.hermes-moira/config.json` and key; Owner and `weixin_wuping` must not share
+Moira MCP credentials. These tools return read-only chart/year evidence only;
+the model owns final interpretation and must not claim Moira generated a full
+fortune narrative.
+
 ## Failure Classification
 
 - Service schema missing local tool:

@@ -147,6 +147,31 @@ function Resolve-DefaultEmailMcpApiBaseUrl {
   return "http://$($preferred[0]):$port"
 }
 
+function Resolve-DefaultMoiraMcpApiBaseUrl {
+  $configured = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_MOIRA_MCP_API_BASE_URL", "Process")
+  if ($configured) { return $configured }
+  $port = [Environment]::GetEnvironmentVariable("MOIRA_PLUGIN_PORT", "Process")
+  if (-not $port) { $port = "4174" }
+  $wslHost = Resolve-WslHostGatewayAddress
+  if ($wslHost) { return "http://${wslHost}:$port" }
+  $addresses = @()
+  try {
+    $addresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
+      Where-Object {
+        $_.IPAddress -and
+        $_.IPAddress -ne "127.0.0.1" -and
+        $_.IPAddress -notmatch "^169\.254\." -and
+        ($_.AddressState -eq "Preferred" -or -not $_.AddressState)
+      } |
+      Select-Object -ExpandProperty IPAddress)
+  } catch {
+    $addresses = @()
+  }
+  $preferred = @($addresses | Where-Object { $_ -match "^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)" } | Select-Object -First 1)
+  if ($preferred.Count -eq 0) { return "" }
+  return "http://$($preferred[0]):$port"
+}
+
 if (-not [Environment]::GetEnvironmentVariable("HERMES_MOBILE_FINANCE_MCP_API_BASE_URL", "Process")) {
   $financeApiBase = Resolve-DefaultFinanceMcpApiBaseUrl
   if ($financeApiBase) {
@@ -168,6 +193,13 @@ if (-not [Environment]::GetEnvironmentVariable("HERMES_MOBILE_EMAIL_MCP_API_BASE
   }
 }
 
+if (-not [Environment]::GetEnvironmentVariable("HERMES_MOBILE_MOIRA_MCP_API_BASE_URL", "Process")) {
+  $moiraApiBase = Resolve-DefaultMoiraMcpApiBaseUrl
+  if ($moiraApiBase) {
+    [Environment]::SetEnvironmentVariable("HERMES_MOBILE_MOIRA_MCP_API_BASE_URL", $moiraApiBase, "Process")
+  }
+}
+
 $passthroughEnvNames = @(
   "HERMES_MOBILE_FINANCE_MCP_API_BASE_URL",
   "HERMES_MOBILE_FINANCE_MCP_PATH",
@@ -181,6 +213,10 @@ $passthroughEnvNames = @(
   "HERMES_MOBILE_NOTE_USER_DRIVE_ROOT",
   "HERMES_MOBILE_OWNER_NOTE_WORKSPACE",
   "HERMES_MOBILE_WUPING_NOTE_WORKSPACE",
+  "HERMES_MOBILE_MOIRA_MCP_API_BASE_URL",
+  "HERMES_MOBILE_MOIRA_MCP_PATH",
+  "HERMES_MOBILE_MOIRA_MCP_COMMAND",
+  "HERMES_MOBILE_MOIRA_USER_DRIVE_ROOT",
   "HERMES_MOBILE_EMAIL_MCP_API_BASE_URL",
   "HERMES_MOBILE_EMAIL_MCP_PATH",
   "HERMES_MOBILE_EMAIL_MCP_PYTHON",

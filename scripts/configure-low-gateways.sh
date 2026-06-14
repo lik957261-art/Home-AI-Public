@@ -74,6 +74,8 @@ health_mcp_command="${HERMES_MOBILE_HEALTH_MCP_COMMAND:-node}"
 health_mcp_path="${HERMES_MOBILE_HEALTH_MCP_PATH:-$gateway_worker_root/health-mcp/scripts/mcp-health-wrapper.js}"
 growth_mcp_command="${HERMES_MOBILE_GROWTH_MCP_COMMAND:-node}"
 growth_mcp_path="${HERMES_MOBILE_GROWTH_MCP_PATH:-$gateway_worker_root/growth-mcp/scripts/growth-mcp-wrapper.js}"
+moira_mcp_command="${HERMES_MOBILE_MOIRA_MCP_COMMAND:-node}"
+moira_mcp_path="${HERMES_MOBILE_MOIRA_MCP_PATH:-$gateway_worker_root/moira-mcp/scripts/moira-mcp-stdio.mjs}"
 email_mcp_python="${HERMES_MOBILE_EMAIL_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
 email_mcp_path="${HERMES_MOBILE_EMAIL_MCP_PATH:-$gateway_worker_root/email-mcp/scripts/email-mcp-wrapper.py}"
 detect_windows_host_gateway() {
@@ -84,12 +86,14 @@ default_finance_mcp_api_base_url="http://127.0.0.1:8791"
 default_note_mcp_api_base_url="http://127.0.0.1:4181"
 default_health_mcp_api_base_url="http://127.0.0.1:4877"
 default_growth_mcp_api_base_url="http://127.0.0.1:4881"
+default_moira_mcp_api_base_url="http://127.0.0.1:4174"
 default_email_mcp_api_base_url="http://127.0.0.1:5175"
 if [[ "$gateway_worker_root" == /mnt/* ]] && [ -n "$windows_host_gateway" ]; then
   default_finance_mcp_api_base_url="http://${windows_host_gateway}:8791"
   default_note_mcp_api_base_url="http://${windows_host_gateway}:4181"
   default_health_mcp_api_base_url="http://${windows_host_gateway}:4877"
   default_growth_mcp_api_base_url="http://${windows_host_gateway}:4881"
+  default_moira_mcp_api_base_url="http://${windows_host_gateway}:4174"
   default_email_mcp_api_base_url="http://${windows_host_gateway}:5175"
 fi
 finance_mcp_api_base_url="${HERMES_MOBILE_FINANCE_MCP_API_BASE_URL:-$default_finance_mcp_api_base_url}"
@@ -97,6 +101,8 @@ finance_mcp_schema_probe_timeout_seconds="${HERMES_MOBILE_FINANCE_MCP_SCHEMA_PRO
 note_mcp_api_base_url="${HERMES_MOBILE_NOTE_MCP_API_BASE_URL:-$default_note_mcp_api_base_url}"
 health_mcp_api_base_url="${HERMES_MOBILE_HEALTH_MCP_API_BASE_URL:-$default_health_mcp_api_base_url}"
 growth_mcp_api_base_url="${HERMES_MOBILE_GROWTH_MCP_API_BASE_URL:-$default_growth_mcp_api_base_url}"
+moira_mcp_api_base_url="${HERMES_MOBILE_MOIRA_MCP_API_BASE_URL:-$default_moira_mcp_api_base_url}"
+moira_mcp_schema_probe_timeout_seconds="${HERMES_MOBILE_MOIRA_MCP_SCHEMA_PROBE_TIMEOUT_SECONDS:-3}"
 email_mcp_api_base_url="${HERMES_MOBILE_EMAIL_MCP_API_BASE_URL:-$default_email_mcp_api_base_url}"
 finance_user_drive_root="${HERMES_MOBILE_FINANCE_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_finance_workspace_override="${HERMES_MOBILE_OWNER_FINANCE_WORKSPACE:-}"
@@ -110,6 +116,7 @@ wuping_health_workspace_override="${HERMES_MOBILE_WUPING_HEALTH_WORKSPACE:-}"
 growth_user_drive_root="${HERMES_MOBILE_GROWTH_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_growth_workspace_override="${HERMES_MOBILE_OWNER_GROWTH_WORKSPACE:-}"
 wuping_growth_workspace_override="${HERMES_MOBILE_WUPING_GROWTH_WORKSPACE:-}"
+moira_user_drive_root="${HERMES_MOBILE_MOIRA_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 email_user_drive_root="${HERMES_MOBILE_EMAIL_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_email_workspace_override="${HERMES_MOBILE_OWNER_EMAIL_WORKSPACE:-}"
 wuping_email_workspace_override="${HERMES_MOBILE_WUPING_EMAIL_WORKSPACE:-}"
@@ -470,6 +477,109 @@ if config.exists() and key.exists():
 PY
 }
 
+find_first_moira_workspace_root() {
+  local workspace_id="${1:-}"
+  local drive_root="${2:-$moira_user_drive_root}"
+  python3 - "$workspace_id" "$drive_root" <<'PY' 2>/dev/null || true
+from pathlib import Path
+import json
+import sys
+workspace_id = (sys.argv[1] or "").strip()
+drive_root = Path(sys.argv[2])
+if not workspace_id:
+    raise SystemExit(0)
+user_root = drive_root / workspace_id
+if not user_root.exists():
+    raise SystemExit(0)
+for config in sorted(user_root.rglob(".hermes-moira/config.json")):
+    config_dir = config.parent
+    try:
+        parsed = json.loads(config.read_text(encoding="utf-8"))
+    except Exception:
+        parsed = {}
+    key_name = str(parsed.get("access_key_file") or parsed.get("accessKeyFile") or "access-key.txt").strip()
+    if not key_name or Path(key_name).name != key_name:
+        continue
+    if (config_dir / key_name).exists():
+        print(config_dir.parent.as_posix())
+        break
+PY
+}
+
+moira_mcp_schema_ready() {
+  local workspace_root="${1:-}"
+  local api_base_url="${2:-$moira_mcp_api_base_url}"
+  local timeout_seconds="${3:-$moira_mcp_schema_probe_timeout_seconds}"
+  python3 - "$workspace_root" "$api_base_url" "$timeout_seconds" <<'PY' 2>/dev/null
+import json
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+workspace_root = Path(sys.argv[1])
+api_base_url = str(sys.argv[2] or "").rstrip("/")
+try:
+    timeout_seconds = max(1.0, min(15.0, float(sys.argv[3] or "3")))
+except Exception:
+    timeout_seconds = 3.0
+
+config_dir = workspace_root / ".hermes-moira"
+config_path = config_dir / "config.json"
+try:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+except Exception:
+    raise SystemExit(1)
+if not isinstance(config, dict):
+    raise SystemExit(1)
+key_file = str(config.get("access_key_file") or config.get("accessKeyFile") or "access-key.txt").strip()
+if not key_file:
+    raise SystemExit(1)
+key_path = Path(key_file)
+if key_path.is_absolute():
+    raise SystemExit(1)
+resolved_key = (config_dir / key_path).resolve()
+try:
+    resolved_key.relative_to(config_dir.resolve())
+except Exception:
+    raise SystemExit(1)
+try:
+    workspace_key = resolved_key.read_text(encoding="utf-8").strip()
+except Exception:
+    raise SystemExit(1)
+workspace_id = str(
+    config.get("workspace_id")
+    or config.get("workspaceId")
+    or config.get("hermes_workspace_id")
+    or config.get("hermesWorkspaceId")
+    or workspace_root.name
+).strip()
+if not api_base_url or not workspace_id or not workspace_key:
+    raise SystemExit(1)
+request = urllib.request.Request(
+    f"{api_base_url}/api/moira/mcp/schemas",
+    headers={
+        "Content-Type": "application/json",
+        "X-Moira-MCP-Workspace-Id": workspace_id,
+        "X-Moira-MCP-Workspace-Key": workspace_key,
+    },
+    method="GET",
+)
+try:
+    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+        parsed = json.loads((response.read(2 * 1024 * 1024) or b"{}").decode("utf-8"))
+except urllib.error.HTTPError:
+    raise SystemExit(1)
+except Exception:
+    raise SystemExit(1)
+schemas = parsed.get("schemas") if isinstance(parsed, dict) else None
+if not isinstance(schemas, list) or not schemas:
+    raise SystemExit(1)
+if not any(isinstance(item, dict) and str(item.get("name") or "").startswith("moira.") for item in schemas):
+    raise SystemExit(1)
+PY
+}
+
 find_first_email_workspace_root() {
   local workspace_id="${1:-}"
   local drive_root="${2:-$email_user_drive_root}"
@@ -500,6 +610,7 @@ owner_health_workspace="${owner_health_workspace_override:-$(find_first_health_w
 wuping_health_workspace="${wuping_health_workspace_override:-$(find_first_health_workspace_root weixin_wuping)}"
 owner_growth_workspace="${owner_growth_workspace_override:-$(find_first_growth_workspace_root owner)}"
 wuping_growth_workspace="${wuping_growth_workspace_override:-$(find_first_growth_workspace_root weixin_wuping)}"
+owner_moira_workspace="$(find_first_moira_workspace_root owner)"
 owner_email_workspace="${owner_email_workspace_override:-$(find_first_email_workspace_root owner)}"
 wuping_email_workspace="${wuping_email_workspace_override:-$(find_first_email_workspace_root weixin_wuping)}"
 
@@ -1243,6 +1354,8 @@ ${plugin_enabled_lines%$'\n'}"
   health_api_toolset_block=""
   growth_toolset_block=""
   growth_api_toolset_block=""
+  moira_toolset_block=""
+  moira_api_toolset_block=""
   email_toolset_block=""
   email_api_toolset_block=""
   mcp_server_lines=""
@@ -1407,6 +1520,37 @@ ${plugin_enabled_lines%$'\n'}"
     startup_timeout: 60
     connect_timeout: 60"$'\n'
   fi
+  profile_moira_workspace=""
+  if is_owner_connector_profile "$profile"; then
+    profile_moira_workspace="$owner_moira_workspace"
+  else
+    if [ -z "$profile_workspace_id" ]; then
+      profile_workspace_id="$(workspace_id_for_gateway_profile "$profile")"
+    fi
+    if [ -n "$profile_workspace_id" ]; then
+      profile_moira_workspace="$(find_first_moira_workspace_root "$profile_workspace_id")"
+    fi
+  fi
+  if [ -n "$profile_moira_workspace" ] && [ -f "$moira_mcp_path" ] && moira_mcp_schema_ready "$profile_moira_workspace" "$moira_mcp_api_base_url"; then
+    moira_toolset_block="  - moira"
+    moira_api_toolset_block="    - moira"
+    mcp_server_lines="${mcp_server_lines}  moira:
+    command: $moira_mcp_command
+    args:
+      - $moira_mcp_path
+      - --workspace
+      - $profile_moira_workspace
+      - --no-workspace-override
+      - --api-base-url
+      - $moira_mcp_api_base_url
+    env:
+      HERMES_HOME: $profile_link
+      HERMES_PROFILE: $profile
+    startup_timeout: 60
+    connect_timeout: 60"$'\n'
+  elif [ -n "$profile_moira_workspace" ] && [ -f "$moira_mcp_path" ]; then
+    echo "[WARN] Skipping moira MCP for $profile: schema probe failed for configured workspace"
+  fi
   profile_email_workspace=""
   if is_owner_connector_profile "$profile"; then
     profile_email_workspace="$owner_email_workspace"
@@ -1511,6 +1655,11 @@ ${mcp_server_lines%$'\n'}"
     --value "growth_mcp_path=$growth_mcp_path" \
     --value "growth_workspace=$profile_growth_workspace" \
     --value "growth_mcp_api_base_url=$growth_mcp_api_base_url" \
+    --value "moira_enabled=${moira_toolset_block:+1}" \
+    --value "moira_mcp_command=$moira_mcp_command" \
+    --value "moira_mcp_path=$moira_mcp_path" \
+    --value "moira_workspace=$profile_moira_workspace" \
+    --value "moira_mcp_api_base_url=$moira_mcp_api_base_url" \
     --value "email_enabled=${email_toolset_block:+1}" \
     --value "email_mcp_python=$email_mcp_python" \
     --value "email_mcp_path=$email_mcp_path" \
@@ -1549,6 +1698,7 @@ ${finance_toolset_block}
 ${note_toolset_block}
 ${health_toolset_block}
 ${growth_toolset_block}
+${moira_toolset_block}
 ${email_toolset_block}
 ${outlook_toolset_block}
 platform_toolsets:
@@ -1578,6 +1728,7 @@ ${finance_api_toolset_block}
 ${note_api_toolset_block}
 ${health_api_toolset_block}
 ${growth_api_toolset_block}
+${moira_api_toolset_block}
 ${email_api_toolset_block}
 ${outlook_api_toolset_block}
 agent:

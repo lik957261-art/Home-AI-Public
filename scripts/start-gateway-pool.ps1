@@ -630,6 +630,10 @@ function Ensure-OwnerMaintenanceProfileConfig {
   if (-not $emailApiBaseUrl) { $emailApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_WEB_EMAIL_MCP_API_BASE_URL") }
   if (-not $emailApiBaseUrl) { $emailApiBaseUrl = Resolve-GatewayPoolWslHostApiBaseUrl -Port 5175 }
   if (-not $emailApiBaseUrl) { $emailApiBaseUrl = "http://127.0.0.1:5175" }
+  $moiraApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_MOBILE_MOIRA_MCP_API_BASE_URL")
+  if (-not $moiraApiBaseUrl) { $moiraApiBaseUrl = [Environment]::GetEnvironmentVariable("HERMES_WEB_MOIRA_MCP_API_BASE_URL") }
+  if (-not $moiraApiBaseUrl) { $moiraApiBaseUrl = Resolve-GatewayPoolWslHostApiBaseUrl -Port 4174 }
+  if (-not $moiraApiBaseUrl) { $moiraApiBaseUrl = "http://127.0.0.1:4174" }
   $normalizedProvider = ([string]$Provider).Trim().ToLowerInvariant()
   if ($normalizedProvider -eq "deepseek") {
     $modelBlock = "model:`n  default: deepseek-chat`n  provider: deepseek"
@@ -663,6 +667,7 @@ toolsets:
   - finance
   - note
   - health
+  - moira
   - email
   - chatgpt_pro
   - hermes-cli
@@ -692,6 +697,7 @@ platform_toolsets:
     - finance
     - note
     - health
+    - moira
     - email
     - chatgpt_pro
     - hermes-cli
@@ -774,6 +780,20 @@ mcp_servers:
       - --gateway-tool-names
       - --api-base-url
       - $healthApiBaseUrl
+    env:
+      HERMES_HOME: $profileRoot
+      HERMES_PROFILE: $profile
+    startup_timeout: 60
+    connect_timeout: 60
+  moira:
+    command: node
+    args:
+      - $gatewayWorkerRootWsl/moira-mcp/scripts/moira-mcp-stdio.mjs
+      - --workspace
+      - $ownerWorkspace
+      - --no-workspace-override
+      - --api-base-url
+      - $moiraApiBaseUrl
     env:
       HERMES_HOME: $profileRoot
       HERMES_PROFILE: $profile

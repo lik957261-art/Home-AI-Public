@@ -39,10 +39,39 @@ function testWorkspaceLocalPluginBindingsBecomeToolsets() {
     workspace_id: "growth:owner",
     access_key_file: "access-key.txt",
   }));
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-moira", "access-key.txt"), "moira-key\n");
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-moira", "config.json"), JSON.stringify({
+    workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }));
 
   const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 0 });
 
-  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["wardrobe", "finance", "note", "health", "email", "growth"]);
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["wardrobe", "finance", "note", "health", "email", "growth", "moira"]);
+}
+
+function testMoiraKeyOnlyBindingDoesNotBecomeToolset() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-plugin-toolsets-moira-key-only-"));
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-moira", "access-key.txt"), "moira-key\n");
+
+  const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 0 });
+
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), []);
+}
+
+function testMoiraWorkspaceBindingDoesNotLeakToOtherWorkspace() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-plugin-toolsets-moira-isolated-"));
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-moira", "access-key.txt"), "moira-key\n");
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-moira", "config.json"), JSON.stringify({
+    workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }));
+
+  const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 0 });
+
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["moira"]);
+  assert.deepEqual(service.toolsetsForWorkspace("weixin_wuping"), []);
+  assert.deepEqual(service.toolsetsForWorkspace("weixin_other"), []);
 }
 
 function testKeyOnlyFinanceBindingDoesNotBecomeToolset() {
@@ -70,6 +99,8 @@ function testCacheCanBeClearedAfterProvisioning() {
 }
 
 testWorkspaceLocalPluginBindingsBecomeToolsets();
+testMoiraKeyOnlyBindingDoesNotBecomeToolset();
+testMoiraWorkspaceBindingDoesNotLeakToOtherWorkspace();
 testKeyOnlyFinanceBindingDoesNotBecomeToolset();
 testCacheCanBeClearedAfterProvisioning();
 console.log("plugin-authorized-toolset-service tests passed");

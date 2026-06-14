@@ -39,6 +39,7 @@ const WORKSPACE_PLUGIN_BINDINGS = Object.freeze([
   { id: "note", dir: ".hermes-note", required: ["access-key.txt", "config.json"] },
   { id: "health", dir: ".hermes-health", required: ["access-key.txt", "config.json"] },
   { id: "growth", dir: ".hermes-growth", required: ["access-key.txt", "config.json"] },
+  { id: "moira", dir: ".hermes-moira", required: ["config.json"], requiredAny: [["access-key.txt", "workspace-key.txt"]] },
   { id: "email", dir: ".hermes-email", required: ["access-key.txt", "config.json"] },
 ]);
 const GATEWAY_MCP_WORKER_ASSETS = Object.freeze([
@@ -55,6 +56,23 @@ const GATEWAY_MCP_WORKER_ASSETS = Object.freeze([
       },
     ],
   },
+  {
+    id: "moira",
+    files: [
+      {
+        source: ["plugins", "moira", "scripts", "moira-mcp-stdio.mjs"],
+        target: ["gateway-worker", "moira-mcp", "scripts", "moira-mcp-stdio.mjs"],
+      },
+      {
+        source: ["plugins", "moira", "server", "moira-mcp-service.mjs"],
+        target: ["gateway-worker", "moira-mcp", "server", "moira-mcp-service.mjs"],
+      },
+      {
+        source: ["plugins", "moira", "package.json"],
+        target: ["gateway-worker", "moira-mcp", "package.json"],
+      },
+    ],
+  },
 ]);
 const GATEWAY_MCP_SERVER_FILES = Object.freeze({
   wardrobe: ["gateway-worker", "wardrobe-mcp", "scripts", "wardrobe-mcp.py"],
@@ -62,6 +80,7 @@ const GATEWAY_MCP_SERVER_FILES = Object.freeze({
   note: ["gateway-worker", "note-mcp", "scripts", "note_mcp_stdio.py"],
   health: ["gateway-worker", "health-mcp", "scripts", "mcp-health-wrapper.js"],
   growth: ["gateway-worker", "growth-mcp", "scripts", "growth-mcp-wrapper.js"],
+  moira: ["gateway-worker", "moira-mcp", "scripts", "moira-mcp-stdio.mjs"],
   email: ["gateway-worker", "email-mcp", "scripts", "email-mcp-wrapper.py"],
 });
 const ALLOWED_ACTIONS = new Set([
@@ -338,12 +357,23 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
 
   function completePluginBinding(root, binding) {
     if (!root || !binding?.dir) return false;
-    return (binding.required || []).every((file) => {
+    const allRequired = (binding.required || []).every((file) => {
       try {
         return fs.statSync(path.posix.join(root, binding.dir, file)).isFile();
       } catch (_) {
         return false;
       }
+    });
+    if (!allRequired) return false;
+    return (binding.requiredAny || []).every((choices) => {
+      const files = Array.isArray(choices) ? choices : [choices];
+      return files.some((file) => {
+        try {
+          return fs.statSync(path.posix.join(root, binding.dir, file)).isFile();
+        } catch (_) {
+          return false;
+        }
+      });
     });
   }
 
@@ -761,6 +791,13 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
         growth_mcp_path: path.posix.join(fields.root, "gateway-worker", "growth-mcp", "scripts", "growth-mcp-wrapper.js"),
         growth_workspace: workspaceRoot,
         growth_mcp_api_base_url: "http://127.0.0.1:4881",
+      });
+      if (binding.id === "moira" && fileExists(path.posix.join(fields.root, "gateway-worker", "moira-mcp", "scripts", "moira-mcp-stdio.mjs"))) Object.assign(pluginValues, {
+        moira_enabled: "1",
+        moira_mcp_command: nodeCommand,
+        moira_mcp_path: path.posix.join(fields.root, "gateway-worker", "moira-mcp", "scripts", "moira-mcp-stdio.mjs"),
+        moira_workspace: workspaceRoot,
+        moira_mcp_api_base_url: "http://127.0.0.1:4174",
       });
       if (binding.id === "email" && fileExists(path.posix.join(fields.root, "gateway-worker", "email-mcp", "scripts", "email-mcp-wrapper.py"))) Object.assign(pluginValues, {
         email_enabled: "1",

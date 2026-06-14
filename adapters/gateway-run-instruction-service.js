@@ -2,7 +2,7 @@
 
 const { explicitSearchContext } = require("./gateway-run-search-budget-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260612-finance-owner-stocks-mcp-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260614-moira-mcp-evidence-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -87,6 +87,11 @@ function createGatewayRunInstructionService(options = {}) {
       ],
       health: [
         "mcp_health_records_get_summary",
+      ],
+      moira: [
+        "mcp_moira_list_records",
+        "mcp_moira_get_chart_evidence",
+        "mcp_moira_get_year_forecast_evidence",
       ],
       email: [
         "mcp_email_list_accounts",
@@ -257,6 +262,13 @@ function createGatewayRunInstructionService(options = {}) {
       lines.push(
         "Current tool schema override: the `health` toolset is enabled for this run. Callable function names normally begin with `mcp_health_`, including `mcp_health_records_get_summary` when the plugin wrapper exposes local tool names correctly.",
         "If Health callables are double-prefixed such as `mcp_health_mcp_health_records_get_summary`, treat that as a plugin wrapper naming bug rather than a valid callable contract."
+      );
+    }
+    if (policyHasToolset(policy, "moira")) {
+      lines.push(
+        "Current tool schema override: the `moira` toolset is enabled for this run. Callable function names normally begin with `mcp_moira_`, including `mcp_moira_list_records`, `mcp_moira_get_chart_evidence`, and `mcp_moira_get_year_forecast_evidence`.",
+        "Use Moira MCP only as a read-only evidence source for saved chart records, chart structure, and annual-flow evidence. The model owns final interpretation; do not claim Moira generated a complete fortune narrative.",
+        "Do not pass `workspace_id` or `workspaceId` to Moira MCP calls. The Gateway profile is already bound to one Moira workspace/key; if the callable schema lacks `mcp_moira_*` while `Enabled toolsets` includes `moira`, report a Gateway schema mismatch instead of inventing astrology evidence."
       );
     }
     return lines.join("\n");

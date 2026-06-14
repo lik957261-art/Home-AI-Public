@@ -48,7 +48,6 @@ const DEFAULT_GROWTH_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4881/api/v1/hermes/
 const DEFAULT_MOIRA_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
-const DEFAULT_MOIRA_SHARED_OWNER_WORKSPACES = Object.freeze(["weixin_wuping"]);
 const PLUGIN_APPEARANCE_THEMES = new Set(["system", "dark", "light"]);
 const PLUGIN_APPEARANCE_FONT_SIZES = new Set(["small", "default", "large", "xlarge", "xxlarge"]);
 
@@ -121,24 +120,8 @@ function parseWorkspaceList(value) {
 
 function configuredAuthorizedWorkspaceIds(pluginId, env = process.env) {
   return [...new Set([
-    ...configuredMoiraSharedOwnerWorkspaceIds(pluginId, env),
     ...parseWorkspaceList(env[envKeyForPlugin(pluginId, "WORKSPACES")]),
   ])];
-}
-
-function configuredMoiraSharedOwnerWorkspaceIds(pluginId, env = process.env) {
-  if (stringValue(pluginId) !== "moira") return [];
-  const configured = parseWorkspaceList(
-    env.HERMES_MOBILE_MOIRA_SHARED_OWNER_WORKSPACES
-    || env.HERMES_MOBILE_PLUGIN_MOIRA_SHARED_OWNER_WORKSPACES,
-  );
-  return configured.length ? configured : [...DEFAULT_MOIRA_SHARED_OWNER_WORKSPACES];
-}
-
-function moiraSharedOwnerWorkspaceAllowed(workspaceId, options = {}) {
-  const id = stringValue(workspaceId);
-  if (!id || id === "owner") return false;
-  return configuredMoiraSharedOwnerWorkspaceIds("moira", options.env || process.env).includes(id);
 }
 
 function configuredLiveRoot(options = {}) {
@@ -827,25 +810,13 @@ function findGrowthAccessKeyPath(input = {}, options = {}) {
 }
 
 function findMoiraAccessKeyPath(input = {}, options = {}) {
-  const explicit = stringValue(input.moiraAccessKeyPath || options.moiraAccessKeyPath);
-  if (explicit && fs.existsSync(explicit)) return explicit;
-  const env = options.env || process.env;
   const workspaceId = stringValue(input.workspaceId || "owner");
-  const candidates = [
-    stringValue(env.HERMES_MOBILE_MOIRA_PLUGIN_ACCESS_KEY_PATH),
-    stringValue(env.HERMES_MOBILE_PLUGIN_MOIRA_ACCESS_KEY_PATH),
-    stringValue(env.MOIRA_HERMES_PLUGIN_ACCESS_KEY_PATH),
-    workspaceId === "owner" ? stringValue(env.HERMES_WEB_AUTH_KEY_PATH) : "",
-  ].filter(Boolean);
-  const configured = candidates.find((candidate) => fs.existsSync(candidate));
-  if (configured) return configured;
+  const explicit = stringValue(input.moiraAccessKeyPath || options.moiraAccessKeyPath);
+  if (workspaceId === "owner" && explicit && fs.existsSync(explicit)) return explicit;
+  const env = options.env || process.env;
   const dataDir = stringValue(options.dataDir) || defaultDataDir(env);
   const workspaceRoot = path.join(dataDir, "drive", "users", workspaceId);
   const maxDepth = Number(options.maxKeySearchDepth || DEFAULT_MAX_KEY_SEARCH_DEPTH);
-  const targetSets = [
-    [".hermes-moira", "access-key.txt"],
-    [".hermes-moira", "workspace-key.txt"],
-  ];
 
   function walk(dir, depth) {
     if (depth > maxDepth) return "";
@@ -855,9 +826,20 @@ function findMoiraAccessKeyPath(input = {}, options = {}) {
     } catch (_) {
       return "";
     }
-    for (const parts of targetSets) {
-      const direct = path.join(dir, ...parts);
-      if (fs.existsSync(direct)) return direct;
+    const configDir = path.join(dir, ".hermes-moira");
+    const configPath = path.join(configDir, "config.json");
+    if (fs.existsSync(configPath)) {
+      let keyFile = "access-key.txt";
+      try {
+        const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+        keyFile = stringValue(parsed.access_key_file || parsed.accessKeyFile) || keyFile;
+      } catch (_) {
+        keyFile = "access-key.txt";
+      }
+      if (keyFile && path.basename(keyFile) === keyFile) {
+        const keyPath = path.join(configDir, keyFile);
+        if (fs.existsSync(keyPath)) return keyPath;
+      }
     }
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
@@ -868,12 +850,7 @@ function findMoiraAccessKeyPath(input = {}, options = {}) {
     return "";
   }
 
-  const workspaceKey = walk(workspaceRoot, 0);
-  if (workspaceKey) return workspaceKey;
-  if (moiraSharedOwnerWorkspaceAllowed(workspaceId, options)) {
-    return findMoiraAccessKeyPath(Object.assign({}, input, { workspaceId: "owner" }), options);
-  }
-  return "";
+  return walk(workspaceRoot, 0);
 }
 
 function findMoiraWorkspaceLocalAccessKeyPath(input = {}, options = {}) {
@@ -881,10 +858,6 @@ function findMoiraWorkspaceLocalAccessKeyPath(input = {}, options = {}) {
   const dataDir = stringValue(options.dataDir) || defaultDataDir(options.env);
   const workspaceRoot = path.join(dataDir, "drive", "users", workspaceId);
   const maxDepth = Number(options.maxKeySearchDepth || DEFAULT_MAX_KEY_SEARCH_DEPTH);
-  const targetSets = [
-    [".hermes-moira", "access-key.txt"],
-    [".hermes-moira", "workspace-key.txt"],
-  ];
 
   function walk(dir, depth) {
     if (depth > maxDepth) return "";
@@ -894,9 +867,20 @@ function findMoiraWorkspaceLocalAccessKeyPath(input = {}, options = {}) {
     } catch (_) {
       return "";
     }
-    for (const parts of targetSets) {
-      const direct = path.join(dir, ...parts);
-      if (fs.existsSync(direct)) return direct;
+    const configDir = path.join(dir, ".hermes-moira");
+    const configPath = path.join(configDir, "config.json");
+    if (fs.existsSync(configPath)) {
+      let keyFile = "access-key.txt";
+      try {
+        const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+        keyFile = stringValue(parsed.access_key_file || parsed.accessKeyFile) || keyFile;
+      } catch (_) {
+        keyFile = "access-key.txt";
+      }
+      if (keyFile && path.basename(keyFile) === keyFile) {
+        const keyPath = path.join(configDir, keyFile);
+        if (fs.existsSync(keyPath)) return keyPath;
+      }
     }
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
@@ -1015,6 +999,9 @@ function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
   if (pluginId === "growth") {
     return growthWorkspaceLocalConfigReady({ workspaceId }, options);
   }
+  if (pluginId === "moira") {
+    return Boolean(findMoiraWorkspaceLocalAccessKeyPath({ workspaceId }, options));
+  }
   if (workspaceId === "owner") return true;
   if (plugin?.allowWorkspaceGrant === false) return false;
   const authorized = Array.isArray(plugin?.authorizedWorkspaceIds) ? plugin.authorizedWorkspaceIds : [];
@@ -1023,7 +1010,6 @@ function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
     && options.authorizationService.isWorkspaceAuthorized(pluginId, workspaceId)) {
     return true;
   }
-  if (pluginId === "moira" && moiraSharedOwnerWorkspaceAllowed(workspaceId, options)) return true;
   if (pluginId !== "codex-mobile") {
     return Boolean(findPluginAccessKeyPath(pluginId, { workspaceId }, options));
   }
@@ -1031,11 +1017,8 @@ function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
 }
 
 function pluginLaunchWorkspaceId(pluginId, workspaceId, options = {}) {
-  const id = stringValue(pluginId);
   const requested = stringValue(workspaceId || "owner") || "owner";
-  if (id !== "moira" || requested === "owner") return requested;
-  if (findMoiraWorkspaceLocalAccessKeyPath({ workspaceId: requested }, options)) return requested;
-  return moiraSharedOwnerWorkspaceAllowed(requested, options) ? "owner" : requested;
+  return requested;
 }
 
 function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {

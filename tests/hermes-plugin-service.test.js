@@ -693,7 +693,17 @@ async function testFrameAncestorsBlockedReturnsUnavailable() {
 }
 
 async function testDefaultLocalManifestUrls() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-default-plugin-urls-"));
+  const moiraKeyPath = path.join(dir, "drive", "users", "owner", ".hermes-moira", "access-key.txt");
+  const moiraConfigPath = path.join(dir, "drive", "users", "owner", ".hermes-moira", "config.json");
+  fs.mkdirSync(path.dirname(moiraKeyPath), { recursive: true });
+  fs.writeFileSync(moiraKeyPath, "owner-moira-key\n", "utf8");
+  fs.writeFileSync(moiraConfigPath, JSON.stringify({
+    workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }), "utf8");
   const service = createHermesPluginService({
+    dataDir: dir,
     env: {},
     wardrobeAccessKeyPath: "missing-key.txt",
     fetch() {
@@ -729,6 +739,7 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   const ownerGrowthKey = path.join(dir, "drive", "users", "owner", ".hermes-growth", "access-key.txt");
   const ownerGrowthConfig = path.join(dir, "drive", "users", "owner", ".hermes-growth", "config.json");
   const ownerMoiraKey = path.join(dir, "drive", "users", "owner", ".hermes-moira", "access-key.txt");
+  const ownerMoiraConfig = path.join(dir, "drive", "users", "owner", ".hermes-moira", "config.json");
   const wardrobeKey = path.join(dir, "drive", "users", "weixin_wuping", "Hermes-吴萍", "衣橱", ".hermes-wardrobe", "access-key.txt");
   const financeKey = path.join(dir, "drive", "users", "child_workspace", ".hermes-finance", "access-key.txt");
   const financeConfig = path.join(dir, "drive", "users", "child_workspace", ".hermes-finance", "config.json");
@@ -738,6 +749,7 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   const growthKey = path.join(dir, "drive", "users", "growth_workspace", ".hermes-growth", "access-key.txt");
   const growthConfig = path.join(dir, "drive", "users", "growth_workspace", ".hermes-growth", "config.json");
   const moiraKey = path.join(dir, "drive", "users", "moira_workspace", "Moira", ".hermes-moira", "workspace-key.txt");
+  const moiraConfig = path.join(dir, "drive", "users", "moira_workspace", "Moira", ".hermes-moira", "config.json");
   fs.mkdirSync(path.dirname(ownerWardrobeKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerFinanceKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerEmailKey), { recursive: true });
@@ -766,6 +778,11 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   }), "utf8");
   fs.writeFileSync(ownerGrowthKey, "owner-growth-key\n", "utf8");
   fs.writeFileSync(ownerMoiraKey, "owner-moira-key\n", "utf8");
+  fs.writeFileSync(ownerMoiraConfig, JSON.stringify({
+    workspace_id: "owner",
+    hermes_workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }), "utf8");
   fs.writeFileSync(ownerGrowthConfig, JSON.stringify({
     workspace_id: "growth:owner",
     hermes_workspace_id: "owner",
@@ -793,6 +810,11 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
     access_key_file: "access-key.txt",
   }), "utf8");
   fs.writeFileSync(moiraKey, "moira-key\n", "utf8");
+  fs.writeFileSync(moiraConfig, JSON.stringify({
+    workspace_id: "moira_workspace",
+    hermes_workspace_id: "moira_workspace",
+    access_key_file: "workspace-key.txt",
+  }), "utf8");
 
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("wardrobe", { dataDir: dir }).sort(), ["owner", "weixin_wuping"].sort());
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("finance", { dataDir: dir }).sort(), ["owner", "child_workspace"].sort());
@@ -814,7 +836,7 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   assert.deepEqual(installed.find((item) => item.id === "email").authorizedWorkspaceIds.sort(), ["owner", "mail_workspace"].sort());
   assert.deepEqual(installed.find((item) => item.id === "health").authorizedWorkspaceIds.sort(), ["owner", "health_workspace"].sort());
   assert.deepEqual(installed.find((item) => item.id === "growth").authorizedWorkspaceIds.sort(), ["owner", "growth_workspace"].sort());
-  assert.deepEqual(installed.find((item) => item.id === "moira").authorizedWorkspaceIds.sort(), ["owner", "moira_workspace", "weixin_wuping"].sort());
+  assert.deepEqual(installed.find((item) => item.id === "moira").authorizedWorkspaceIds.sort(), ["owner", "moira_workspace"].sort());
   assert.deepEqual(installed.find((item) => item.id === "finance").workspaceAuthorizations.sort((left, right) => left.workspaceId.localeCompare(right.workspaceId)), [{
     workspaceId: "child_workspace",
     status: "authorized",
@@ -2029,10 +2051,19 @@ async function testFinanceLaunchEntryUsesWorkspaceKeyBody() {
 }
 
 async function testMoiraLaunchEntryUsesBearerAndSameOriginProxy() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-moira-owner-launch-"));
+  const ownerKeyPath = path.join(dir, "drive", "users", "owner", ".hermes-moira", "access-key.txt");
+  const ownerConfigPath = path.join(dir, "drive", "users", "owner", ".hermes-moira", "config.json");
+  fs.mkdirSync(path.dirname(ownerKeyPath), { recursive: true });
+  fs.writeFileSync(ownerKeyPath, "owner-moira-key\n", "utf8");
+  fs.writeFileSync(ownerConfigPath, JSON.stringify({
+    workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }), "utf8");
   const calls = [];
   const service = createHermesPluginService({
+    dataDir: dir,
     plugins: [{ id: "moira", manifestUrl: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest" }],
-    moiraAccessKeyPath: __filename,
     fetch(url, options = {}) {
       calls.push({ url, options });
       if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
@@ -2080,65 +2111,50 @@ async function testMoiraLaunchEntryUsesBearerAndSameOriginProxy() {
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"workspace_key"|"user_key"/);
 }
 
-async function testMoiraWupingUsesSharedOwnerLaunchWhenNoWorkspaceKeyExists() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-moira-shared-owner-"));
-  const ownerKeyPath = path.join(dir, "owner-web-key.secret");
+async function testMoiraWupingRequiresWorkspaceBinding() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-moira-no-shared-owner-"));
+  const ownerKeyPath = path.join(dir, "drive", "users", "owner", ".hermes-moira", "access-key.txt");
+  const ownerConfigPath = path.join(dir, "drive", "users", "owner", ".hermes-moira", "config.json");
+  fs.mkdirSync(path.dirname(ownerKeyPath), { recursive: true });
   fs.writeFileSync(ownerKeyPath, "owner-moira-key\n", "utf8");
-  const calls = [];
+  fs.writeFileSync(ownerConfigPath, JSON.stringify({
+    workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }), "utf8");
   const service = createHermesPluginService({
     dataDir: dir,
-    env: { HERMES_WEB_AUTH_KEY_PATH: ownerKeyPath },
+    env: {},
     plugins: [{ id: "moira", manifestUrl: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest" }],
-    fetch(url, options = {}) {
-      calls.push({ url, options });
-      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve(sampleMoiraManifest()),
-        });
-      }
-      if (url.endsWith("/api/v1/hermes/plugin/launch")) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({
-            entry_path: "/api/v1/hermes/plugin/launch/moira_wuping_once",
-            expires_in: 300,
-          }),
-        });
-      }
-      throw new Error(`unexpected fetch ${url}`);
+    fetch() {
+      throw new Error("Moira without workspace binding must not fetch manifest");
     },
   });
 
-  assert.ok(service.list({ workspaceId: "weixin_wuping" }).some((item) => item.id === "moira"));
-  assert.equal(service.list({ workspaceId: "weixin_other" }).some((item) => item.id === "moira"), false);
+  assert.equal(service.list({ workspaceId: "weixin_wuping" }).some((item) => item.id === "moira"), false);
   const manifest = await service.manifest({
     id: "moira",
     workspaceId: "weixin_wuping",
     appOrigin: "http://127.0.0.1:19073",
     launchPlugin: true,
   });
-  assert.equal(manifest.available, true);
-  assert.match(manifest.entry.url, /workspaceId=weixin_wuping/);
-  const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
-  assert.ok(launchCall);
-  assert.deepEqual(JSON.parse(launchCall.options.body), { workspace_id: "owner" });
-  assert.equal(launchCall.options.headers.Authorization, "Bearer owner-moira-key");
+  assert.equal(manifest.available, false);
+  assert.equal(manifest.code, "plugin_workspace_not_authorized");
 }
 
-async function testMoiraWupingUsesWorkspaceLaunchWhenWorkspaceKeyExists() {
+async function testMoiraWupingUsesWorkspaceLaunchWhenWorkspaceBindingExists() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-moira-workspace-key-"));
-  const ownerKeyPath = path.join(dir, "owner-web-key.secret");
   const workspaceKeyPath = path.join(dir, "drive", "users", "weixin_wuping", ".hermes-moira", "access-key.txt");
-  fs.writeFileSync(ownerKeyPath, "owner-moira-key\n", "utf8");
+  const workspaceConfigPath = path.join(dir, "drive", "users", "weixin_wuping", ".hermes-moira", "config.json");
   fs.mkdirSync(path.dirname(workspaceKeyPath), { recursive: true });
   fs.writeFileSync(workspaceKeyPath, "wuping-moira-key\n", "utf8");
+  fs.writeFileSync(workspaceConfigPath, JSON.stringify({
+    workspace_id: "weixin_wuping",
+    access_key_file: "access-key.txt",
+  }), "utf8");
   const calls = [];
   const service = createHermesPluginService({
     dataDir: dir,
-    env: { HERMES_WEB_AUTH_KEY_PATH: ownerKeyPath },
+    env: {},
     plugins: [{ id: "moira", manifestUrl: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest" }],
     fetch(url, options = {}) {
       calls.push({ url, options });
@@ -2540,9 +2556,19 @@ function testFindGrowthAccessKeyPath() {
 }
 
 function testFindMoiraAccessKeyPath() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-moira-key-path-"));
+  const workspaceKeyPath = path.join(dir, "drive", "users", "weixin_wuping", ".hermes-moira", "workspace-key.txt");
+  const workspaceConfigPath = path.join(dir, "drive", "users", "weixin_wuping", ".hermes-moira", "config.json");
+  fs.mkdirSync(path.dirname(workspaceKeyPath), { recursive: true });
+  fs.writeFileSync(workspaceKeyPath, "wuping-moira-key\n", "utf8");
+  fs.writeFileSync(workspaceConfigPath, JSON.stringify({
+    workspace_id: "weixin_wuping",
+    access_key_file: "workspace-key.txt",
+  }), "utf8");
+
   assert.equal(findMoiraAccessKeyPath({ moiraAccessKeyPath: __filename }), __filename);
-  assert.equal(findMoiraAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), __filename);
-  assert.equal(findMoiraAccessKeyPath({ workspaceId: "weixin_wuping" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), __filename);
+  assert.equal(findMoiraAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+  assert.equal(findMoiraAccessKeyPath({ workspaceId: "weixin_wuping" }, { dataDir: dir, env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), workspaceKeyPath);
   assert.equal(findMoiraAccessKeyPath({ workspaceId: "weixin_other" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
 }
 
@@ -2630,8 +2656,8 @@ async function run() {
   await testCodexLaunchEntryUsesServerSideKey();
   await testFinanceLaunchEntryUsesWorkspaceKeyBody();
   await testMoiraLaunchEntryUsesBearerAndSameOriginProxy();
-  await testMoiraWupingUsesSharedOwnerLaunchWhenNoWorkspaceKeyExists();
-  await testMoiraWupingUsesWorkspaceLaunchWhenWorkspaceKeyExists();
+  await testMoiraWupingRequiresWorkspaceBinding();
+  await testMoiraWupingUsesWorkspaceLaunchWhenWorkspaceBindingExists();
   testMoiraProxyRuntimeSecurityDeclaresWasmEval();
   await testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided();
   await testHttpsHermesUsesSameOriginProxyForLocalCodexEntryAfterLaunch();

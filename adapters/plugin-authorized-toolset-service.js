@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
 const { discoverPluginWorkspaceIdsFromAccessKeys } = require("./hermes-plugin-service");
 
 const DEFAULT_GATEWAY_PLUGIN_TOOLSETS = Object.freeze({
@@ -9,6 +11,7 @@ const DEFAULT_GATEWAY_PLUGIN_TOOLSETS = Object.freeze({
   health: "health",
   email: "email",
   growth: "growth",
+  moira: "moira",
 });
 const DEFAULT_CACHE_TTL_MS = 30 * 1000;
 
@@ -33,6 +36,55 @@ function dedupe(values = []) {
 
 function normalizeWorkspaceId(value) {
   return stringValue(value).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 120) || "owner";
+}
+
+function moiraBindingCompleteAt(workspaceRoot) {
+  const configDir = path.join(workspaceRoot, ".hermes-moira");
+  const configPath = path.join(configDir, "config.json");
+  try {
+    if (!fs.statSync(configPath).isFile()) return false;
+  } catch (_) {
+    return false;
+  }
+  let keyFile = "access-key.txt";
+  try {
+    const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    keyFile = stringValue(parsed.access_key_file || parsed.accessKeyFile) || keyFile;
+  } catch (_) {
+    keyFile = "access-key.txt";
+  }
+  if (!keyFile || path.basename(keyFile) !== keyFile) return false;
+  const explicitKey = path.join(configDir, keyFile);
+  const fallbackKeys = [explicitKey, path.join(configDir, "access-key.txt"), path.join(configDir, "workspace-key.txt")];
+  return fallbackKeys.some((candidate) => {
+    try {
+      return fs.statSync(candidate).isFile();
+    } catch (_) {
+      return false;
+    }
+  });
+}
+
+function moiraWorkspaceRoot(dataDir, workspaceId, maxDepth = 4) {
+  const userRoot = path.join(dataDir, "drive", "users", normalizeWorkspaceId(workspaceId));
+  function walk(dir, depth) {
+    if (depth > maxDepth) return "";
+    if (moiraBindingCompleteAt(dir)) return dir;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return "";
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === ".hermes-cache" || entry.name === "node_modules" || entry.name === ".git") continue;
+      const found = walk(path.join(dir, entry.name), depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+  return walk(userRoot, 0);
 }
 
 function normalizePluginToolsetMap(input = {}) {
@@ -64,11 +116,21 @@ function createPluginAuthorizedToolsetService(options = {}) {
     }
   }
 
+  function moiraToolsetAuthorizedForWorkspace(workspaceId) {
+    const dataDir = resolveDataDir();
+    const targetWorkspaceId = normalizeWorkspaceId(workspaceId);
+    return Boolean(moiraWorkspaceRoot(dataDir, targetWorkspaceId, options.maxKeySearchDepth));
+  }
+
   function computeToolsetsForWorkspace(workspaceId) {
     const targetWorkspaceId = normalizeWorkspaceId(workspaceId);
     const out = [];
     for (const [pluginId, toolset] of Object.entries(pluginToolsets)) {
-      if (discoveredWorkspaceIds(pluginId).includes(targetWorkspaceId)) out.push(toolset);
+      if (pluginId === "moira") {
+        if (moiraToolsetAuthorizedForWorkspace(targetWorkspaceId)) out.push(toolset);
+      } else if (discoveredWorkspaceIds(pluginId).includes(targetWorkspaceId)) {
+        out.push(toolset);
+      }
     }
     return dedupe(out);
   }

@@ -2233,6 +2233,15 @@ Plugin MCP callable changes still require `node tests\mcp-tool-upgrade-closure-h
 and the checked `scripts\mcp-tool-upgrade-closure-smoke.js` path. Embedded UI
 changes still require visual/Appium evidence under the mobile UI contract.
 
+Moira MCP Gateway registration must additionally prove ordinary
+workspace-private binding: `.hermes-moira/config.json` plus key in the target
+workspace, no Owner/`weixin_wuping` credential sharing, service schema
+`moira.get_chart_evidence`, Mobile hints for `mcp_moira_get_chart_evidence`,
+and schema epoch `20260614-moira-mcp-evidence-v1`. A `--skip-gateway` closure
+smoke is source/service evidence only; production closure still requires a
+selected-profile callable schema smoke after app/plugin deploy and Gateway
+profile restart.
+
 ## Production Verification Tiers
 
 - Static-only change: sync static/test files, run syntax/focused UI tests in production app directory, smoke `/api/client-version`.
