@@ -40,9 +40,12 @@ function main() {
   fs.writeFileSync(fakeCodex, [
     "#!/usr/bin/env node",
     "const fs = require('node:fs');",
-    "fs.writeFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd() }, null, 2));",
+    "const argv = process.argv.slice(2);",
+    "fs.writeFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify({ argv, cwd: process.cwd() }, null, 2));",
+    "const outputIndex = argv.indexOf('--output-last-message');",
+    "if (outputIndex >= 0 && argv[outputIndex + 1]) fs.writeFileSync(argv[outputIndex + 1], 'index.js:1 MEDIUM - fake issue from read-only review\\n');",
     "console.log('Codex review executed in ' + process.cwd());",
-    "console.log('index.js:1 MEDIUM - fake issue from read-only review');",
+    "console.log('transcript output should not be preferred over final message');",
   ].join("\n") + "\n");
   fs.chmodSync(fakeCodex, 0o755);
   const job = {
@@ -102,6 +105,7 @@ function main() {
   assert.equal(fakeCall.argv.includes("read-only"), true);
   assert.equal(fakeCall.argv.includes("--ephemeral"), true);
   assert.equal(fakeCall.argv.includes("--ignore-user-config"), true);
+  assert.equal(fakeCall.argv.includes("--output-last-message"), true);
   assert.equal(fakeCall.argv.includes("--cd"), true);
   assert.match(fakeCall.argv.join("\n"), /Do not edit files/);
 

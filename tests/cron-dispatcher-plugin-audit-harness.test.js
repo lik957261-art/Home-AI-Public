@@ -27,6 +27,7 @@ assert.match(runner, /HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME/);
 assert.match(runner, /const args = \[\s*"exec"/);
 assert.match(runner, /"--sandbox",\s*"read-only"/);
 assert.match(runner, /"--ignore-user-config"/);
+assert.match(runner, /"--output-last-message"/);
 assert.match(runner, /redactWorkspacePath/);
 assert.match(runner, /report intentionally omits the target workspace absolute path/i);
 assert.match(coreProviders, /parseAuditTargetConfig/);

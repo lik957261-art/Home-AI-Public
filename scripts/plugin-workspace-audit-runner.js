@@ -9,7 +9,7 @@ const { createMobileSqliteStore } = require("../adapters/mobile-sqlite-store");
 const { createPluginWorkspaceAuditService } = require("../adapters/plugin-workspace-audit-service");
 
 const MAX_COMMAND_BYTES = 80_000;
-const MAX_CODEX_BYTES = 120_000;
+const MAX_CODEX_BYTES = 5_000_000;
 
 function clean(value, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
@@ -210,6 +210,8 @@ function runCodexReview(job, audit, workspacePath) {
       output: "Codex read-only review is disabled by runtime configuration.",
     };
   }
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-audit-codex-"));
+  const finalMessagePath = path.join(tempDir, "last-message.txt");
   const args = [
     "exec",
     "--sandbox",
@@ -218,6 +220,8 @@ function runCodexReview(job, audit, workspacePath) {
     workspacePath,
     "--ephemeral",
     "--ignore-user-config",
+    "--output-last-message",
+    finalMessagePath,
     "--color",
     "never",
     "--skip-git-repo-check",
@@ -226,31 +230,37 @@ function runCodexReview(job, audit, workspacePath) {
   args.push(buildCodexPrompt(job, audit));
   const codexHome = config.codexHome || path.join(os.homedir() || process.env.HOME || "", ".codex");
   const codexParentHome = codexHome.endsWith(`${path.sep}.codex`) ? path.dirname(codexHome) : (os.homedir() || process.env.HOME || "");
-  const result = spawnSync(config.command, args, {
-    cwd: workspacePath,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-    timeout: config.timeoutMs,
-    maxBuffer: MAX_CODEX_BYTES,
-    env: Object.assign({}, process.env, {
-      HOME: codexParentHome,
-      CODEX_HOME: codexHome,
-      NO_COLOR: "1",
-      TERM: "dumb",
-    }),
-  });
-  const stdout = redactWorkspacePath(clean(result.stdout, 80_000), workspacePath);
-  const stderr = redactWorkspacePath(clean(result.stderr, 12_000), workspacePath);
-  const timedOut = result.error && result.error.code === "ETIMEDOUT";
-  const status = timedOut ? "timeout" : (result.error ? clean(result.error.code || result.error.message, 120) : String(Number(result.status || 0)));
-  return {
-    enabled: true,
-    ok: result.status === 0 && !timedOut,
-    status,
-    command: path.basename(config.command),
-    output: stdout || "(Codex produced no stdout.)",
-    error: stderr,
-  };
+  try {
+    const result = spawnSync(config.command, args, {
+      cwd: workspacePath,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: config.timeoutMs,
+      maxBuffer: MAX_CODEX_BYTES,
+      env: Object.assign({}, process.env, {
+        HOME: codexParentHome,
+        CODEX_HOME: codexHome,
+        NO_COLOR: "1",
+        TERM: "dumb",
+      }),
+    });
+    const finalMessage = fs.existsSync(finalMessagePath) ? fs.readFileSync(finalMessagePath, "utf8") : "";
+    const stdout = redactWorkspacePath(clean(result.stdout, 12_000), workspacePath);
+    const stderr = redactWorkspacePath(clean(result.stderr, 12_000), workspacePath);
+    const output = redactWorkspacePath(clean(finalMessage || stdout, 80_000), workspacePath);
+    const timedOut = result.error && result.error.code === "ETIMEDOUT";
+    const status = timedOut ? "timeout" : (result.error ? clean(result.error.code || result.error.message, 120) : String(Number(result.status || 0)));
+    return {
+      enabled: true,
+      ok: result.status === 0 && !timedOut,
+      status,
+      command: path.basename(config.command),
+      output: output || "(Codex produced no final message.)",
+      error: stderr,
+    };
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 }
 
 function buildAudit(job) {
