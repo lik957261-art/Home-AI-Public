@@ -975,7 +975,8 @@ The central macOS deploy script runs the `codex-auth-profile-audit` gate after
 plugin deploys because MCP/profile refresh work can otherwise leave an
 `openai-codex` profile with root-owned regular auth files instead of the
 shared-auth symlinks required by Gateway runs.
-Before that audit, the deploy script repairs bounded shared-auth permissions on
+Before that audit, every non-`sync-only`, non-static Home AI or plugin deploy
+repairs bounded shared-auth permissions on
 `gateway-worker/telemetry/profiles/shared-auth`: it grants the active
 `openai-codex` worker users read/write ACLs on `auth.json` and `auth.lock`
 without reading or printing credential contents. A profile audit failure with

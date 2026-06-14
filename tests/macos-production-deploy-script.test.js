@@ -66,7 +66,7 @@ assert.match(script, /home-ai-cron-builtin-skills/);
 assert.match(script, /HOME_AI_SHARED_BUILTIN_SKILLS = Object\.freeze\(\["home-ai-todo-intake"\]\)/);
 assert.match(script, /skill-profiles", "shared-global", "skills", "productivity/);
 assert.match(script, /sharedInstalled/);
-assert.match(script, /home-ai-codex-shared-auth-permissions-repair/);
+assert.match(script, /codex-shared-auth-permissions-repair/);
 assert.match(script, /home-ai-automation-cron-audit/);
 assert.match(script, /macos-automation-cron-audit\.js/);
 assert.match(script, /home-ai-gateway-start-script-bridge-env-repair/);
@@ -93,6 +93,7 @@ assert.match(script, /codex-auth-profile-audit/);
 assert.match(script, /CODEX_AUTH_AUDIT_ISSUE_PREFIX/);
 assert.match(script, /codex_auth_profile_audit_failed/);
 assert.match(script, /repairCodexSharedAuthPermissions/);
+assert.match(script, /shouldRepairCodexSharedAuthPermissions/);
 assert.match(script, /gateway-worker", "telemetry", "profiles", "shared-auth/);
 assert.match(script, /HOME_AI_VOICE_INPUT_LANGUAGE = "zh"/);
 assert.match(script, /HERMES_MOBILE_VOICE_INPUT_LANGUAGE/);
@@ -347,6 +348,10 @@ assert.deepEqual(pluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.fin
 assert.equal(pluginPayload.plan.healthUrl, "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest");
 assert.ok(pluginPayload.plan.validation.some((item) => item.type === "health-url"));
 assert.ok(pluginPayload.plan.validation.some((item) => item.type === "codex-auth-profile-audit"));
+assert.equal(
+  deployScript.shouldRepairCodexSharedAuthPermissions(pluginPayload.plan),
+  true,
+);
 assert.ok(pluginPayload.plan.rsyncExcludes.includes("data/"));
 assert.ok(pluginPayload.plan.rsyncExcludes.includes(".git"));
 assert.ok(pluginPayload.plan.rsyncExcludes.includes(".venv/"));
@@ -518,6 +523,15 @@ assert.equal(growthSyncOnlyPayload.plan.syncOnly, true);
 assert.equal(growthSyncOnlyPayload.plan.runtimeValidationSkipped, true);
 assert.deepEqual(growthSyncOnlyPayload.plan.restartLabels, []);
 assert.deepEqual(growthSyncOnlyPayload.plan.validation, []);
+assert.equal(
+  deployScript.shouldRepairCodexSharedAuthPermissions(growthSyncOnlyPayload.plan),
+  false,
+);
+
+assert.equal(
+  deployScript.shouldRepairCodexSharedAuthPermissions(staticPayload.plan),
+  false,
+);
 
 const invalidSyncOnlyRun = spawnSync(process.execPath, [
   scriptPath,

@@ -1132,8 +1132,12 @@ function installHomeAiCronBuiltinSkills(plan, password) {
   };
 }
 
+function shouldRepairCodexSharedAuthPermissions(plan = {}) {
+  return Boolean(plan && plan.surface !== "static" && !plan.syncOnly);
+}
+
 function repairCodexSharedAuthPermissions(plan, password) {
-  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  if (!shouldRepairCodexSharedAuthPermissions(plan)) return null;
   const manifestPath = posixJoin(plan.macRoot, "data", "gateway-pool-manifest-mac.json");
   const sharedAuthRoot = posixJoin(plan.macRoot, "gateway-worker", "telemetry", "profiles", "shared-auth");
   const script = `
@@ -1168,7 +1172,8 @@ printf '{"ok":true,"skipped":false,"userCount":%s}\\n' "$count"
 `;
   const result = runSudo("/bin/bash", ["-lc", script], password);
   return {
-    type: "home-ai-codex-shared-auth-permissions-repair",
+    type: "codex-shared-auth-permissions-repair",
+    target: plan.target,
     status: result.status,
     stdout: String(result.stdout || "").slice(0, 400),
   };
@@ -1517,6 +1522,7 @@ module.exports = {
   buildHomeAiCronLaunchdPlist,
   cronProfileAliasRowsFromManifest,
   buildRsyncArgs,
+  shouldRepairCodexSharedAuthPermissions,
   postSyncRepairsForTarget,
   repairCodexMobileLogPermissions,
   deployDirtyFiles,
