@@ -1,8 +1,9 @@
 # Plugin Workspace Audit Loop
 
 Status: V1 implemented for plan creation, validation, canonical Automation
-storage, summary-only Action Inbox projection helpers, and Mac production target
-configuration. The read-only executor/report runner is still a follow-up.
+storage, deterministic read-only report execution, summary-only Action Inbox
+projection helpers, and Mac production target configuration. Model-assisted
+deep review is still a follow-up.
 
 ## Product Position
 
@@ -74,6 +75,10 @@ The first version should be deliberately small:
 - Must not write to the repository, plugin data store, Home AI source checkout,
   runtime database, scheduler store, or production service roots.
 - Produces a bounded Markdown or JSON+Markdown report.
+- V1 uses `scripts/plugin-workspace-audit-runner.js`, a deterministic read-only
+  runner called by `scripts/hermes-mobile-cron-dispatcher.py` for
+  `kind=plugin_workspace_audit`. It does not launch ordinary model-backed CRON
+  `run_job()` and does not require model proxy egress.
 
 ### Codex Mobile Embedded Plugin
 
@@ -139,10 +144,10 @@ Rules:
    workspace path, schedule, audit mode, executor availability, and read-only
    policy.
 4. Automation creates or updates the canonical scheduled job.
-5. At the due time, the dispatcher creates an audit run record and launches the
-   executor in a bounded process.
-6. The executor reads the workspace and produces a report with severity,
-   evidence, and recommended follow-up tasks.
+5. At the due time, the dispatcher creates a bounded child process for the
+   read-only audit runner.
+6. The executor reads Git metadata and bounded source markers, then produces a
+   Markdown report with severity, evidence, and recommended follow-up context.
 7. Home AI stores the report under the audit history or plugin delivery
    directory, with retention and access control.
 8. Home AI upserts an Action Inbox item:
@@ -293,6 +298,23 @@ The bridge persists `kind=plugin_workspace_audit`, `readonly=true`, and bounded
 `script`, `context_from`, `enabled_toolsets`, `data_context`, model/provider
 overrides, non-local delivery, or an executor other than `codex_readonly`.
 
+At dispatch time, `scripts/hermes-mobile-cron-dispatcher.py` detects
+`kind=plugin_workspace_audit`, skips the ordinary model proxy requirement, and
+calls `scripts/plugin-workspace-audit-runner.js`. The runner:
+
+- validates `readonly=true` in both the job and audit metadata;
+- validates the target workspace is an absolute existing directory;
+- runs bounded read-only commands such as `git status --short`,
+  `git diff --stat`, `git log --oneline`, `git ls-files`, and a bounded
+  `rg` marker scan;
+- writes a Markdown report under the CRON output root for the job and returns a
+  `MEDIA:<report>` line so existing Automation output preview can open it;
+- omits the target workspace absolute path from the report and uses only
+  `workspacePathRef`;
+- upserts a summary-only Action Inbox review/error item when a configured
+  runtime SQLite path is available through `HERMES_WEB_DB_PATH`,
+  `HERMES_MOBILE_DB_PATH`, or the data-dir default.
+
 ## Phase 2
 
 - Add safe scratch test mode for selected plugin-defined commands.
@@ -300,6 +322,8 @@ overrides, non-local delivery, or an executor other than `codex_readonly`.
 - Add recurring summary trends.
 - Add cross-plugin dependency checks, such as host contract drift.
 - Add richer task-card suggestions with user confirmation.
+- Add optional model-assisted review on top of the deterministic report, still
+  under read-only policy.
 
 ## Long-Term
 
@@ -326,6 +350,8 @@ Implementation should add focused coverage before production use:
 Current focused tests:
 
 - `node tests/plugin-workspace-audit-service.test.js`
+- `node tests/plugin-workspace-audit-runner.test.js`
+- `node tests/cron-dispatcher-plugin-audit-harness.test.js`
 - `node tests/automation-api-routes.test.js`
 - `node tests/cron-bridge.test.js`
 - `node tests/action-inbox-service.test.js`

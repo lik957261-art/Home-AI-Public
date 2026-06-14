@@ -168,6 +168,7 @@ const HOME_AI_PROOF_FILES = [
   "server-routes/mobile-api-composition.js",
   "scripts/deploy-macos-production.js",
   "scripts/macos-automation-cron-audit.js",
+  "scripts/plugin-workspace-audit-runner.js",
   "scripts/production-status-smoke.js",
   "scripts/macos-gateway-start-script-bridge-env-repair.js",
 ];

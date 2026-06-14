@@ -245,6 +245,15 @@ the canonical Automation job through `automationProvider.createJob`. It must not
 call the generic natural-language Automation interpreter for ordinary audit plan
 creation.
 
+At due time, the Mac/NAS dispatcher detects `kind=plugin_workspace_audit` and
+runs `scripts/plugin-workspace-audit-runner.js` instead of official
+model-backed `cron.scheduler.run_job()`. This keeps V1 deterministic and
+read-only: the runner only uses bounded Git/source-inspection commands, writes a
+Markdown report under the CRON output root, returns a `MEDIA:` line for the
+existing Automation output preview path, and marks the canonical CRON run
+success/failure through `mark_job_run()`. It does not use the model proxy, does
+not enable toolsets, and does not execute user-provided scripts.
+
 Audit target paths are configuration, not user input. Deployments may configure
 targets with `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS` /
 `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS` or per-plugin

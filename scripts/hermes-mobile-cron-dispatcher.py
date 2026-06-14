@@ -17,6 +17,7 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -268,6 +269,8 @@ def _proxy_endpoint_available(proxy_url: str) -> bool:
 
 
 def _job_requires_model_proxy(job: dict[str, Any]) -> bool:
+    if str(job.get("kind") or "").strip() == "plugin_workspace_audit":
+        return False
     if bool(job.get("no_agent")):
         return False
     network_mode = str(os.environ.get("HERMES_MOBILE_NETWORK_MODE") or "").strip().lower()
@@ -505,6 +508,53 @@ def _load_job(job_id: str) -> dict[str, Any] | None:
     return None
 
 
+def _run_plugin_workspace_audit_job(job: dict[str, Any]) -> tuple[bool, str, str]:
+    job_id = str(job.get("id") or "").strip()
+    payload_path = None
+    try:
+        fd, payload_path = tempfile.mkstemp(prefix=f"plugin-audit-{job_id}-", suffix=".json", dir=str(_state_dir()))
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(job, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        try:
+            os.chmod(payload_path, 0o600)
+        except OSError:
+            pass
+        command = [
+            _node_bin(),
+            str(_app_dir() / "scripts" / "plugin-workspace-audit-runner.js"),
+            "--job-file",
+            payload_path,
+            "--output-root",
+            str(_cron_output_root()),
+            "--json",
+        ]
+        result = subprocess.run(
+            command,
+            text=True,
+            capture_output=True,
+            timeout=int(os.environ.get("HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TIMEOUT_SECONDS") or "300"),
+            check=False,
+            env=os.environ.copy(),
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip().replace("\n", " ")[:800]
+            return False, "", f"plugin_workspace_audit_runner_failed:{detail or result.returncode}"
+        try:
+            parsed = json.loads(result.stdout or "{}")
+        except Exception as exc:
+            return False, "", f"plugin_workspace_audit_runner_invalid_json:{exc}"
+        if not parsed.get("ok"):
+            return False, "", str(parsed.get("error") or "plugin_workspace_audit_runner_failed")[:800]
+        return True, str(parsed.get("output") or ""), ""
+    finally:
+        if payload_path:
+            try:
+                Path(payload_path).unlink()
+            except OSError:
+                pass
+
+
 def run_one_job(job_id: str) -> int:
     from cron.jobs import mark_job_run, save_job_output
 
@@ -516,6 +566,14 @@ def run_one_job(job_id: str) -> int:
 
     print(f"mobile cron runner: start job {job_id} name={job.get('name', '')!r}")
     try:
+        if str(job.get("kind") or "").strip() == "plugin_workspace_audit":
+            success, output, error = _run_plugin_workspace_audit_job(job)
+            output_file = save_job_output(job_id, output or error)
+            print(f"mobile cron runner: plugin workspace audit output saved {output_file}")
+            mark_job_run(job_id, success, error)
+            print(f"mobile cron runner: finish plugin workspace audit job {job_id} success={success}")
+            return 0 if success else 1
+
         proxy_error = _ensure_model_proxy_for_job(job)
         if proxy_error:
             print(f"mobile cron runner: proxy check failed job {job_id}: {proxy_error}")

@@ -197,6 +197,12 @@ paths. The source report and audit history remain canonical.
 Host-side audit projection is provided by `pluginWorkspaceAuditService` and
 uses `actionInboxService.upsertSourceItem`. Projection callers must pass only
 summary fields, safe report/deep-link references, severity, and finding count.
+When the plugin workspace audit runner executes from CRON, it may upsert this
+summary item directly through the runtime SQLite store if a configured database
+path is available. If no database path is configured, the run still succeeds and
+the report remains available through Automation output. The Inbox item must
+continue to store only summary metadata and a report URL, not the report body or
+target workspace path.
 
 Automation delivery items may carry a summary-only `sourceRef.latestDeliverable`
 object with `name`, `url`, `mime`, and timestamp metadata. The Inbox list may

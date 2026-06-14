@@ -193,6 +193,7 @@ assert.ok(payload.plan.proofFiles.includes("adapters/automation-cron-profile-ser
 assert.ok(payload.plan.proofFiles.includes("cron_bridge.py"));
 assert.ok(payload.plan.proofFiles.includes("server-routes/automation-api-routes.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-automation-cron-audit.js"));
+assert.ok(payload.plan.proofFiles.includes("scripts/plugin-workspace-audit-runner.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-gateway-start-script-bridge-env-repair.js"));
 assert.equal(payload.plan.cronProfileAliases.type, "home-ai-cron-profile-aliases");
 assert.equal(payload.plan.cronProfileAliases.manifestPath, "/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json");
