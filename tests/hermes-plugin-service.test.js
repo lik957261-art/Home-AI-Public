@@ -2141,6 +2141,44 @@ async function testMoiraWupingRequiresWorkspaceBinding() {
   assert.equal(manifest.code, "plugin_workspace_not_authorized");
 }
 
+async function testMoiraAuthorizedWorkspaceIsVisibleButDoesNotShareOwnerBinding() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-moira-authorized-visible-"));
+  const ownerKeyPath = path.join(dir, "drive", "users", "owner", ".hermes-moira", "access-key.txt");
+  const ownerConfigPath = path.join(dir, "drive", "users", "owner", ".hermes-moira", "config.json");
+  fs.mkdirSync(path.dirname(ownerKeyPath), { recursive: true });
+  fs.writeFileSync(ownerKeyPath, "owner-moira-key\n", "utf8");
+  fs.writeFileSync(ownerConfigPath, JSON.stringify({
+    workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }), "utf8");
+  const service = createHermesPluginService({
+    dataDir: dir,
+    env: {},
+    plugins: [{ id: "moira", manifestUrl: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["headless_ws"] }],
+    fetch(url) {
+      if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(sampleMoiraManifest()),
+        });
+      }
+      throw new Error(`unexpected Moira launch without local binding: ${url}`);
+    },
+  });
+
+  assert.equal(service.list({ workspaceId: "headless_ws" }).some((item) => item.id === "moira"), true);
+  const manifest = await service.manifest({
+    id: "moira",
+    workspaceId: "headless_ws",
+    appOrigin: "http://127.0.0.1:19073",
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, false);
+  assert.equal(manifest.code, "plugin_launch_key_missing");
+  assert.match(manifest.warning, /access key file was not found/);
+}
+
 async function testMoiraWupingUsesWorkspaceLaunchWhenWorkspaceBindingExists() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-moira-workspace-key-"));
   const workspaceKeyPath = path.join(dir, "drive", "users", "weixin_wuping", ".hermes-moira", "access-key.txt");
@@ -2657,6 +2695,7 @@ async function run() {
   await testFinanceLaunchEntryUsesWorkspaceKeyBody();
   await testMoiraLaunchEntryUsesBearerAndSameOriginProxy();
   await testMoiraWupingRequiresWorkspaceBinding();
+  await testMoiraAuthorizedWorkspaceIsVisibleButDoesNotShareOwnerBinding();
   await testMoiraWupingUsesWorkspaceLaunchWhenWorkspaceBindingExists();
   testMoiraProxyRuntimeSecurityDeclaresWasmEval();
   await testFinanceLaunchEntryUsesSeparateWorkspaceUserKeyWhenProvided();

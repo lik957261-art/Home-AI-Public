@@ -999,9 +999,6 @@ function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
   if (pluginId === "growth") {
     return growthWorkspaceLocalConfigReady({ workspaceId }, options);
   }
-  if (pluginId === "moira") {
-    return Boolean(findMoiraWorkspaceLocalAccessKeyPath({ workspaceId }, options));
-  }
   if (workspaceId === "owner") return true;
   if (plugin?.allowWorkspaceGrant === false) return false;
   const authorized = Array.isArray(plugin?.authorizedWorkspaceIds) ? plugin.authorizedWorkspaceIds : [];
