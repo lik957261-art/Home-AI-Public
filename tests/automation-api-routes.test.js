@@ -102,7 +102,7 @@ function makeRoutes(overrides = {}) {
           ok: true,
           job: { id: "audit-job" },
           draft: { kind: "plugin_workspace_audit", name: "Audit Codex" },
-          audit: { kind: "plugin_workspace_audit", pluginId: payload.pluginId, readonly: true },
+          audit: { kind: "plugin_workspace_audit", pluginId: payload.pluginId, workspacePath: "/private/plugin", readonly: true },
           source: { name: "hermes_cron", kind: "plugin_workspace_audit" },
         });
       },
@@ -113,7 +113,7 @@ function makeRoutes(overrides = {}) {
           job: { id: "audit-run-job", state: "scheduled" },
           createdJob: { id: "audit-run-job" },
           draft: { kind: "plugin_workspace_audit", name: "Audit Codex" },
-          audit: { kind: "plugin_workspace_audit", pluginId: payload.pluginId, auditMode: payload.auditMode || "alignment", readonly: true },
+          audit: { kind: "plugin_workspace_audit", pluginId: payload.pluginId, auditMode: payload.auditMode || "alignment", workspacePath: "/private/plugin", readonly: true },
           run: { ok: true, source: { runMode: "next_tick" } },
           source: { name: "hermes_cron", kind: "plugin_workspace_audit", triggerMode: "manual" },
         });
@@ -411,6 +411,7 @@ async function testCreatePluginWorkspaceAuditUsesExplicitRoute() {
   assert.equal(got.body.ok, true);
   assert.equal(got.body.dryRun, true);
   assert.equal(got.body.audit.pluginId, "codex-mobile");
+  assert.equal(got.body.audit.workspacePath, undefined);
   assert.equal(calls.pluginAudit.length, 1);
   assert.equal(calls.pluginAudit[0].workspaceId, "child");
   assert.equal(calls.pluginAudit[0].ownerPrincipalId, "principal-child");
@@ -435,6 +436,7 @@ async function testRunPluginWorkspaceAuditUsesExplicitRoute() {
   assert.equal(got.body.dryRun, false);
   assert.equal(got.body.audit.pluginId, "codex-mobile");
   assert.equal(got.body.audit.auditMode, "alignment");
+  assert.equal(got.body.audit.workspacePath, undefined);
   assert.equal(calls.pluginAuditRun.length, 1);
   assert.equal(calls.pluginAuditRun[0].workspaceId, "child");
   assert.equal(calls.pluginAuditRun[0].ownerPrincipalId, "principal-child");

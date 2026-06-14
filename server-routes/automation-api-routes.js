@@ -165,6 +165,14 @@ function compactError(deps, err) {
   return deps.compactText(err?.message || String(err), 800);
 }
 
+function publicPluginWorkspaceAudit(audit) {
+  if (!audit || typeof audit !== "object" || Array.isArray(audit)) return audit || null;
+  const out = Object.assign({}, audit);
+  delete out.workspacePath;
+  delete out.workspace_path;
+  return out;
+}
+
 function automationActionFromPath(pathname) {
   const match = String(pathname || "").match(/^\/api\/automations\/([^/]+)\/(delete|pause|resume|run|update)$/);
   if (!match) return null;
@@ -226,8 +234,10 @@ function createAutomationApiRoutes(deps = {}) {
   if (!deps.automationProvider || typeof deps.automationProvider.createJob !== "function" || typeof deps.automationProvider.mutateJob !== "function") {
     throw new Error("automation api routes require automationProvider.createJob/mutateJob");
   }
-  if (!deps.pluginWorkspaceAuditService || typeof deps.pluginWorkspaceAuditService.createAuditPlan !== "function") {
-    throw new Error("automation api routes require pluginWorkspaceAuditService.createAuditPlan");
+  if (!deps.pluginWorkspaceAuditService
+    || typeof deps.pluginWorkspaceAuditService.createAuditPlan !== "function"
+    || typeof deps.pluginWorkspaceAuditService.triggerManualAudit !== "function") {
+    throw new Error("automation api routes require pluginWorkspaceAuditService.createAuditPlan/triggerManualAudit");
   }
   const resolveAutomationCronProfile = typeof deps.resolveAutomationCronProfile === "function"
     ? deps.resolveAutomationCronProfile
@@ -382,7 +392,7 @@ function createAutomationApiRoutes(deps = {}) {
       ok: true,
       job: result.job,
       draft: result.draft,
-      audit: result.audit,
+      audit: publicPluginWorkspaceAudit(result.audit),
       source: result.source,
       dryRun,
     });
@@ -423,7 +433,7 @@ function createAutomationApiRoutes(deps = {}) {
       job: result.job,
       createdJob: result.createdJob,
       draft: result.draft,
-      audit: result.audit,
+      audit: publicPluginWorkspaceAudit(result.audit),
       run: result.run,
       source: result.source,
       dryRun,
