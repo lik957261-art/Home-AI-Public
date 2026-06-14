@@ -922,21 +922,27 @@ function installRootOwnedTextFile(targetPath, text, password, mode = "644", owne
 }
 
 function plistBuddySetEnv(plistPath, key, value, password) {
-  const buddy = "/usr/libexec/PlistBuddy";
-  const envPath = `:EnvironmentVariables:${key}`;
-  const setResult = spawnSync("/usr/bin/sudo", [
+  const replaceResult = spawnSync("/usr/bin/sudo", [
     ...(password ? ["-S", "-p", ""] : ["-n"]),
-    buddy,
-    "-c",
-    `Set ${envPath} ${value}`,
+    "/usr/bin/plutil",
+    "-replace",
+    `EnvironmentVariables.${key}`,
+    "-string",
+    String(value),
     plistPath,
   ], {
     input: password ? `${password}\n` : "",
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
   });
-  if (setResult.status === 0) return;
-  runSudo(buddy, ["-c", `Add ${envPath} string ${value}`, plistPath], password);
+  if (replaceResult.status === 0) return;
+  runSudo("/usr/bin/plutil", [
+    "-insert",
+    `EnvironmentVariables.${key}`,
+    "-string",
+    String(value),
+    plistPath,
+  ], password);
 }
 
 function installHomeAiListenerVoiceInputEnv(plan, password) {
