@@ -120,6 +120,30 @@ function secretLikeTrackedFiles(files = []) {
 }
 
 function modeFileSample(cwd, mode) {
+  if (mode === "alignment") {
+    const tracked = gitFileList(cwd, ["ls-files"], 160);
+    const priority = [
+      ".agent-context/PROJECT_CONTEXT.md",
+      ".agent-context/HANDOFF.md",
+      "docs/README.md",
+      "docs/DOCS_INDEX.md",
+      "docs/PRODUCT_REQUIREMENTS.md",
+      "docs/ARCHITECTURE.md",
+      "docs/ARCHITECTURE_BOUNDARY.md",
+      "docs/TEST_MATRIX.md",
+    ];
+    const files = tracked.files || [];
+    const selected = [
+      ...priority.filter((name) => files.includes(name)),
+      ...files.filter((name) => /^docs\/IMPLEMENTATION_NOTES\/.+\.md$/i.test(name)).slice(0, 24),
+      ...files.filter((name) => /\.(js|ts|tsx|jsx|py|sh|md)$/i.test(name) && !name.startsWith("docs/")).slice(0, 80),
+    ];
+    return {
+      ok: tracked.ok,
+      files: [...new Set(selected)].slice(0, 120),
+      error: tracked.error,
+    };
+  }
   if (mode === "dirty_diff") return gitFileList(cwd, ["status", "--short"], 80);
   if (mode === "full_sample") return gitFileList(cwd, ["ls-files"], 120);
   const recent = gitFileList(cwd, ["diff", "--name-only", "HEAD~5..HEAD"], 80);
@@ -172,8 +196,9 @@ function codexAuditConfig() {
 }
 
 function buildCodexPrompt(job, audit) {
+  const alignment = audit.mode === "alignment";
   return [
-    "你正在执行 Home AI 插件工作区审计。",
+    alignment ? "你正在执行 Home AI 插件工作区目标一致性审计。" : "你正在执行 Home AI 插件工作区审计。",
     "",
     "硬性约束：",
     "- 这是只读审计。不要编辑文件、创建文件、安装包、运行迁移、提交、推送、部署、重启服务或修改数据库。",
@@ -186,9 +211,20 @@ function buildCodexPrompt(job, audit) {
     "- 文件路径、函数名、变量名、错误码、命令、配置项和代码标识保持原文。",
     "",
     "审计口径：",
-    "- 优先指出具体 bug、回归风险、安全/隐私风险、数据丢失风险和缺失测试。",
+    alignment
+      ? "- 先读取工作区文档目标，再对照实现状态，判断目标已实现、部分实现、未实现、实现偏离文档、文档过期和缺失测试。"
+      : "- 优先指出具体 bug、回归风险、安全/隐私风险、数据丢失风险和缺失测试。",
+    alignment
+      ? "- 覆盖产品目标、安全/隐私、跨平台、部署产品化、扩展性、性能、UI/交互一致性和 Harness 覆盖。"
+      : "",
+    alignment
+      ? "- 建议任务卡只能作为后续人工确认或独立线程执行的建议，不要在本审计中修改代码。"
+      : "",
     "- 先列问题，按严重程度排序；能定位时给出文件/行号引用。",
     "- 回复保持精简。如果没有发现问题，明确说明，并列出剩余测试缺口。",
+    "",
+    alignment ? "优先阅读这些目标文档（如果存在）：" : "",
+    alignment ? "- `.agent-context/PROJECT_CONTEXT.md`, `.agent-context/HANDOFF.md`, `docs/README.md`, `docs/DOCS_INDEX.md`, `docs/PRODUCT_REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/TEST_MATRIX.md`。" : "",
     "",
     `Job id: ${clean(job.id, 80) || "unknown"}`,
     `插件：${audit.pluginTitle || audit.pluginId}`,
@@ -201,7 +237,8 @@ function buildCodexPrompt(job, audit) {
     `- 问题数量：${audit.findingCount}`,
     audit.statusLines.length ? "- Git status:\n" + audit.statusLines.slice(0, 20).map((line) => `  - ${line}`).join("\n") : "- Git status: clean or unavailable",
     audit.diffStat.length ? "- Diff stat:\n" + audit.diffStat.slice(0, 20).map((line) => `  - ${line}`).join("\n") : "- Diff stat: none or unavailable",
-  ].join("\n");
+    audit.sampledFiles.length ? "- 抽样文件:\n" + audit.sampledFiles.slice(0, 30).map((line) => `  - ${line}`).join("\n") : "",
+  ].filter(Boolean).join("\n");
 }
 
 function runCodexReview(job, audit, workspacePath) {
@@ -359,7 +396,9 @@ function renderReport(job, audit) {
     item.evidence.map((line) => `- \`${line.replace(/`/g, "'")}\``).join("\n"),
   ].filter(Boolean).join("\n\n")).join("\n\n");
   return [
-    `# 插件工作区审计 - ${audit.pluginTitle || audit.pluginId}`,
+    audit.mode === "alignment"
+      ? `# 插件工作区目标一致性审计 - ${audit.pluginTitle || audit.pluginId}`
+      : `# 插件工作区审计 - ${audit.pluginTitle || audit.pluginId}`,
     "",
     "## 摘要",
     "",
@@ -390,7 +429,7 @@ function renderReport(job, audit) {
     "",
     markdownList(audit.recentLog),
     "",
-    "## 抽样文件",
+    audit.mode === "alignment" ? "## 文档与实现抽样文件" : "## 抽样文件",
     "",
     markdownList(audit.sampledFiles.slice(0, 80)),
     "",

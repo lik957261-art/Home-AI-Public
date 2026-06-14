@@ -19,8 +19,10 @@ function run(command, args, cwd) {
 function makeGitWorkspace(root) {
   const workspace = path.join(root, "plugin");
   fs.mkdirSync(workspace, { recursive: true });
+  fs.mkdirSync(path.join(workspace, "docs"), { recursive: true });
   fs.writeFileSync(path.join(workspace, "package.json"), "{\"name\":\"plugin-fixture\"}\n");
   fs.writeFileSync(path.join(workspace, "index.js"), "function main() { return true; }\nmodule.exports = { main };\n");
+  fs.writeFileSync(path.join(workspace, "docs", "PRODUCT_REQUIREMENTS.md"), "# Product Requirements\n\nKeep implementation aligned with docs.\n");
   run("git", ["init"], workspace);
   run("git", ["config", "user.name", "Audit Harness"], workspace);
   run("git", ["config", "user.email", "audit@example.invalid"], workspace);
@@ -61,7 +63,7 @@ function main() {
       targetWorkspaceId: "owner",
       workspacePathRef: "test-registry",
       workspacePath: workspace,
-      auditMode: "dirty_diff",
+      auditMode: "alignment",
       executor: "codex_readonly",
       readonly: true,
     },
@@ -94,6 +96,9 @@ function main() {
   assert.equal(payload.summary.findingCount >= 1, true);
   assert.match(payload.output, /MEDIA:/);
   assert.match(payload.output, /Codex 只读审计/);
+  assert.match(payload.output, /插件工作区目标一致性审计/);
+  assert.match(payload.output, /文档与实现抽样文件/);
+  assert.match(payload.output, /docs\/PRODUCT_REQUIREMENTS\.md/);
   assert.match(payload.output, /index\.js:1 MEDIUM - 来自只读审计的模拟问题/);
   assert.equal(payload.output.includes(workspace), false, "report must not expose target workspace absolute path");
   assert.equal(fs.existsSync(payload.reportPath), true);
@@ -108,6 +113,7 @@ function main() {
   assert.equal(fakeCall.argv.includes("--output-last-message"), true);
   assert.equal(fakeCall.argv.includes("--cd"), true);
   assert.match(fakeCall.argv.join("\n"), /不要编辑文件/);
+  assert.match(fakeCall.argv.join("\n"), /目标一致性审计/);
 
   const store = createMobileSqliteStore({ dbPath });
   try {

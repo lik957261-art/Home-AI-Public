@@ -194,6 +194,14 @@ full report bodies, raw diffs, raw executor logs, raw model output, prompts,
 tokens, launch keys, push endpoints, private plugin data, or local filesystem
 paths. The source report and audit history remain canonical.
 
+Action Inbox may expose the first manual plugin workspace alignment audit
+surface. That surface only selects a registered plugin target, an audit mode
+defaulting to `alignment`, and optional guidance. It must call the explicit
+manual route `POST /api/automations/plugin-workspace-audits/run`, not the
+generic natural-language Automation interpreter and not an arbitrary path
+runner. The created Inbox row remains a summary pointer to the Automation
+report; it must not duplicate the full report body.
+
 Host-side audit projection is provided by `pluginWorkspaceAuditService` and
 uses `actionInboxService.upsertSourceItem`. Projection callers must pass only
 summary fields, safe report/deep-link references, severity, and finding count.

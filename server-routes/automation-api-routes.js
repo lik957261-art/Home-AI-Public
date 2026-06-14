@@ -49,6 +49,21 @@ const AUTOMATION_API_ROUTE_SPECS = Object.freeze([
     tags: ["automation", "plugin", "audit", "create"],
   },
   {
+    id: "automations-plugin-workspace-audits-run",
+    method: "POST",
+    path: "/api/automations/plugin-workspace-audits/run",
+    group: "automation",
+    moduleKey: "automation",
+    handlerKey: "runPluginWorkspaceAudit",
+    summary: "Create and request an immediate read-only plugin workspace alignment audit.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["automation", "plugin", "review"],
+    tags: ["automation", "plugin", "audit", "run"],
+  },
+  {
     id: "automations-action",
     method: "POST",
     pathRegex: /^\/api\/automations\/[^/]+\/(?:delete|pause|resume|run|update)$/,
@@ -373,6 +388,48 @@ function createAutomationApiRoutes(deps = {}) {
     });
   }
 
+  async function handleRunPluginWorkspaceAudit(req, res) {
+    const body = await deps.readBody(req).catch(() => ({}));
+    const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || body.workspace_id || "owner");
+    if (!workspaceId) return;
+    const workspace = deps.findWorkspace(workspaceId);
+    const ownerPrincipalId = deps.workspacePrincipal(workspaceId);
+    const dryRun = deps.boolParam(body.dryRun || body.dry_run);
+    let result;
+    try {
+      result = await deps.pluginWorkspaceAuditService.triggerManualAudit(Object.assign({}, body, {
+        workspaceId,
+        dryRun,
+        ownerPrincipalId,
+        automationProvider: deps.automationProvider,
+        accessPolicyContext: deps.sanitizePolicy(workspace?.policy || {}),
+      }));
+    } catch (err) {
+      deps.sendJson(res, err.status || 500, { error: compactError(deps, err) });
+      return;
+    }
+    if (!result?.ok) {
+      deps.sendJson(res, result?.status || 400, {
+        error: deps.compactText(result?.error || "Plugin workspace audit run request failed", 800),
+        code: result?.code || "plugin_workspace_audit_run_failed",
+        draft: result?.draft || null,
+        result,
+      });
+      return;
+    }
+    if (!dryRun) deps.clearCronListCache();
+    deps.sendJson(res, dryRun ? 200 : 202, {
+      ok: true,
+      job: result.job,
+      createdJob: result.createdJob,
+      draft: result.draft,
+      audit: result.audit,
+      run: result.run,
+      source: result.source,
+      dryRun,
+    });
+  }
+
   async function handleAction(req, res, url) {
     const parsed = automationActionFromPath(url.pathname);
     if (!parsed) return false;
@@ -464,6 +521,7 @@ function createAutomationApiRoutes(deps = {}) {
     if (route.id === "automations-list") await handleList(req, res, url);
     else if (route.id === "automations-create") await handleCreate(req, res);
     else if (route.id === "automations-plugin-workspace-audits-create") await handleCreatePluginWorkspaceAudit(req, res);
+    else if (route.id === "automations-plugin-workspace-audits-run") await handleRunPluginWorkspaceAudit(req, res);
     else if (route.id === "automations-action") await handleAction(req, res, url);
     else if (route.id === "automations-push-tick") await handlePushTick(req, res, url);
     else if (route.id === "automations-deliverable") {

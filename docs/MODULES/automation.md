@@ -213,8 +213,9 @@ delivery directory.
 directory on create/update. Unsafe workdirs are rejected instead of silently
 falling back to the app directory.
 
-Plugin workspace audit jobs are a special read-only job class. They should be
-stored as `kind=plugin_workspace_audit` with structured fields such as
+Plugin workspace audit jobs are a special read-only job class. They may be
+created as scheduled plans or as manual one-shot alignment audits. They should
+be stored as `kind=plugin_workspace_audit` with structured fields such as
 `pluginId`, `targetWorkspaceId`, `workspacePathRef`, `auditMode`, `executor`,
 `readonly=true`, and `delivery`. The dispatcher must resolve
 `workspacePathRef` through Home AI's plugin registry or platform contract at run
@@ -238,12 +239,21 @@ suites write cache/build artifacts. A future safe-test mode must use scratch
 storage and prove that the plugin workspace git state is unchanged before and
 after the run.
 
-The explicit creation route is `POST /api/automations/plugin-workspace-audits`.
+The explicit scheduled-plan creation route is
+`POST /api/automations/plugin-workspace-audits`.
 The route calls `pluginWorkspaceAuditService` to validate plugin visibility,
 configured target path, schedule, audit mode, and read-only policy, then creates
 the canonical Automation job through `automationProvider.createJob`. It must not
 call the generic natural-language Automation interpreter for ordinary audit plan
 creation.
+
+The first manual alignment route is
+`POST /api/automations/plugin-workspace-audits/run`. It uses the same service
+validation and target resolution, creates a canonical one-shot job with
+`schedule=manual`, `repeat=once`, `auditMode=alignment` by default, and requests
+the existing Automation `run` action. Execution still happens through the
+normal dispatcher tick so report creation, run history, and Action Inbox
+projection remain on the same canonical path as scheduled jobs.
 
 At due time, the Mac/NAS dispatcher detects `kind=plugin_workspace_audit` and
 runs `scripts/plugin-workspace-audit-runner.js` instead of official

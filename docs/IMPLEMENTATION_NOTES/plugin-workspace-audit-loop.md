@@ -2,15 +2,18 @@
 
 Status: V1 implemented for plan creation, validation, canonical Automation
 storage, deterministic read-only report execution, summary-only Action Inbox
-projection helpers, and Mac production target configuration. Model-assisted
-deep review is still a follow-up.
+projection helpers, Mac production target configuration, Simplified Chinese
+reports, and manual plugin workspace alignment audit trigger. Model-assisted
+repair loops remain a follow-up.
 
 ## Product Position
 
 Plugin workspace audit is a Home AI embedded-plugin capability, not a generic
 Codex Mobile standalone feature. The user is configuring Home AI to inspect a
-registered plugin workspace on a schedule, produce an audit report, and surface
-follow-up review items in Action Inbox.
+registered plugin workspace, produce an audit report, and surface follow-up
+review items in Action Inbox. The first alignment phase is manually triggered;
+nightly batch execution is intentionally deferred until report quality and task
+card quality are stable.
 
 The first version should be deliberately small:
 
@@ -25,8 +28,11 @@ The first version should be deliberately small:
 
 ## Goals
 
-- Inspect Home AI registered plugin workspaces on a schedule.
+- Inspect Home AI registered plugin workspaces manually in the first phase, and
+  on a schedule in a later phase.
 - Keep audit threads separate from ordinary development and chat threads.
+- Compare plugin workspace docs, platform contracts, and implementation state
+  to detect product-goal drift before repair work starts.
 - Default to read-only operation with no repair, commit, push, deploy, or
   service restart.
 - Deliver concise reports through audit history, plugin delivery directories,
@@ -40,6 +46,7 @@ The first version should be deliberately small:
 - Do not add this as a Codex Mobile standalone scheduler or public default
   workflow.
 - Do not audit arbitrary local paths that are not registered plugin workspaces.
+- Do not audit the Home AI host workspace in the first alignment phase.
 - Do not auto-fix code, write files, create commits, push branches, deploy
   services, or mutate plugin databases in version 1.
 - Do not copy full diffs, raw logs, full model transcripts, secrets, launch
@@ -52,8 +59,9 @@ The first version should be deliberately small:
 
 ### Home AI Host
 
-- Owns product authorization, plugin workspace resolution, audit plan creation
-  UI, Action Inbox projection, and Web Push metadata.
+- Owns product authorization, plugin workspace resolution, manual audit trigger
+  UI, future audit plan creation UI, Action Inbox projection, and Web Push
+  metadata.
 - Resolves the target plugin through the same effective-workspace plugin
   registry used by launch, topic, MCP/toolset, and delivery-directory surfaces.
 - Converts natural-language audit requests only inside an explicit audit or
@@ -61,8 +69,8 @@ The first version should be deliberately small:
 
 ### Automation
 
-- Owns schedule, pause/resume, retry, run history linkage, and canonical job
-  persistence.
+- Owns schedule, manual run requests, pause/resume, retry, run history linkage,
+  and canonical job persistence.
 - Stores the audit plan as a job kind such as `plugin_workspace_audit`.
 - Dispatches due runs quickly and leaves long audit execution to a bounded
   runner process.
@@ -98,6 +106,11 @@ The first version should be deliberately small:
 
 ## Job Shape
 
+The first manual alignment trigger creates the same canonical
+`plugin_workspace_audit` job shape and immediately requests a manual run. The
+job uses `schedule=manual`, `repeat=once`, `auditMode=alignment`, and
+`audit.triggerMode=manual`.
+
 The Automation job should be structured instead of prompt-only:
 
 ```json
@@ -108,7 +121,7 @@ The Automation job should be structured instead of prompt-only:
   "targetWorkspaceId": "owner",
   "workspacePathRef": "plugin_registry",
   "schedule": "0 22 * * 0",
-  "auditMode": "recent_changes",
+  "auditMode": "alignment",
   "executor": "codex_readonly",
   "readonly": true,
   "delivery": {
@@ -128,14 +141,14 @@ Rules:
 - `pluginId` must exist in the host plugin registry and be enabled for the
   effective workspace.
 - `readonly` must be true in version 1.
-- `auditMode` should start with a small set: `recent_changes`, `dirty_diff`,
-  and `full_sample`.
+- `auditMode` supports `alignment`, `recent_changes`, `dirty_diff`, and
+  `full_sample`. The default manual mode is `alignment`.
 - The job may include a bounded `scope` object, such as file globs or max report
   size, but the server must validate that scope before dispatch.
 
 ## Execution Flow
 
-1. User opens the explicit audit creation surface from Automation, Action Inbox,
+1. User opens the explicit plugin audit surface from Action Inbox, Automation,
    plugin settings, or a plugin workspace management screen.
 2. If natural language is used, Home AI calls a Skill-guided model to produce a
    structured audit draft. The draft is not trusted until host validation
@@ -143,11 +156,15 @@ Rules:
 3. Home AI validates plugin id, workspace access, plugin provisioning,
    workspace path, schedule, audit mode, executor availability, and read-only
    policy.
-4. Automation creates or updates the canonical scheduled job.
-5. At the due time, the dispatcher creates a bounded child process for the
-   read-only audit runner.
-6. The executor reads Git metadata and bounded source markers, then produces a
-   Markdown report with severity, evidence, and recommended follow-up context.
+4. For manual alignment audit, Automation creates a canonical one-shot job and
+   immediately marks it for the next dispatcher tick. For scheduled audit,
+   Automation creates or updates the canonical scheduled job.
+5. At the manual or scheduled run time, the dispatcher creates a bounded child
+   process for the read-only audit runner.
+6. The executor reads Git metadata, bounded source markers, and for
+   `alignment` mode prioritizes workspace context/docs and platform contract
+   files before implementation samples. It then produces a Markdown report with
+   severity, evidence, and recommended follow-up context.
 7. Home AI stores the report under the audit history or plugin delivery
    directory, with retention and access control.
 8. Home AI upserts an Action Inbox item:
@@ -188,6 +205,10 @@ bounded diagnostic, not raw modified file content.
 The fixed prompt should require:
 
 - code-review stance, findings first, ordered by severity;
+- for `alignment` mode, read workspace docs first and compare documented goals,
+  platform contracts, implementation state, stale documentation, security,
+  privacy, cross-platform, deploy productization, extensibility, performance,
+  UI consistency, and harness coverage;
 - concrete file and line references when available;
 - no implementation changes;
 - no deployment, commit, push, package install, or service restart;
@@ -213,6 +234,12 @@ Minimum report fields:
 - executor diagnostics;
 - retention metadata.
 
+For `alignment` mode the user-facing report title should be
+`插件工作区目标一致性审计 - <plugin>`, delivered in Simplified Chinese. The
+report should include implemented/partial/missing documented goals when Codex
+can determine them, document drift, platform-contract gaps, recommended task
+card drafts, and uncertainty. It must not auto-repair code.
+
 Reports may be Markdown for human reading, with optional JSON front matter for
 machine projection. Long raw logs and full diffs should remain out of the
 report; link to controlled artifacts only when they pass access control and
@@ -230,6 +257,9 @@ Audit Inbox items should use:
 - severity summary and finding count.
 
 The Inbox item should not duplicate the report body. It is a triage pointer.
+For manual alignment audit, `sourceType=automation` still applies because
+Automation owns the canonical job/run record; `sourceRef.triggerMode=manual`
+may be included by later projections.
 
 ## Security And Privacy
 
@@ -246,9 +276,11 @@ The Inbox item should not duplicate the report body. It is a triage pointer.
 
 ## MVP
 
-- Create/read/update/delete audit plans from an explicit host surface.
+- Manually trigger a plugin workspace alignment audit from an explicit host
+  surface.
+- Create/read/update/delete scheduled audit plans from an explicit host surface.
 - Support one plugin workspace per plan.
-- Support `recent_changes` and `dirty_diff`.
+- Support `alignment`, `recent_changes`, and `dirty_diff`.
 - Launch a read-only executor with a fixed prompt.
 - Store a bounded report and Action Inbox review/error item.
 - Disable with a bounded diagnostic when no executor is configured.
@@ -258,6 +290,7 @@ The Inbox item should not duplicate the report body. It is a triage pointer.
 The first implementation exposes the explicit creation route:
 
 - `POST /api/automations/plugin-workspace-audits`
+- `POST /api/automations/plugin-workspace-audits/run`
 
 The request body is structured and does not go through the ordinary
 natural-language Automation interpreter:
@@ -272,6 +305,22 @@ natural-language Automation interpreter:
   "dryRun": true
 }
 ```
+
+Manual alignment trigger:
+
+```json
+{
+  "workspaceId": "owner",
+  "pluginId": "codex-mobile",
+  "auditMode": "alignment",
+  "instructions": "Focus on product goal drift.",
+  "dryRun": true
+}
+```
+
+The manual route creates a canonical one-shot job with `schedule=manual`,
+`repeat=once`, and immediately requests a `run` action. The dispatcher still
+owns actual execution, report creation, Inbox projection, and run history.
 
 Home AI resolves audit workspaces only from configured targets. Supported
 configuration forms are:
@@ -334,6 +383,7 @@ calls `scripts/plugin-workspace-audit-runner.js`. The runner:
 - Add safe scratch test mode for selected plugin-defined commands.
 - Add audit history UI inside plugin management.
 - Add recurring summary trends.
+- Add nightly batch alignment audit for idle plugin workspaces only.
 - Add cross-plugin dependency checks, such as host contract drift.
 - Add richer task-card suggestions with user confirmation.
 - Add Codex Mobile bridge execution as an alternative to local CLI execution

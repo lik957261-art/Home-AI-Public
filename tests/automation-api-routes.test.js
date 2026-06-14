@@ -54,6 +54,7 @@ function makeRoutes(overrides = {}) {
     owner: [],
     outputResolve: [],
     pluginAudit: [],
+    pluginAuditRun: [],
     profileResolve: [],
     pushTick: [],
     workspaceAccess: [],
@@ -103,6 +104,18 @@ function makeRoutes(overrides = {}) {
           draft: { kind: "plugin_workspace_audit", name: "Audit Codex" },
           audit: { kind: "plugin_workspace_audit", pluginId: payload.pluginId, readonly: true },
           source: { name: "hermes_cron", kind: "plugin_workspace_audit" },
+        });
+      },
+      triggerManualAudit(payload) {
+        calls.pluginAuditRun.push(payload);
+        return Promise.resolve({
+          ok: true,
+          job: { id: "audit-run-job", state: "scheduled" },
+          createdJob: { id: "audit-run-job" },
+          draft: { kind: "plugin_workspace_audit", name: "Audit Codex" },
+          audit: { kind: "plugin_workspace_audit", pluginId: payload.pluginId, auditMode: payload.auditMode || "alignment", readonly: true },
+          run: { ok: true, source: { runMode: "next_tick" } },
+          source: { name: "hermes_cron", kind: "plugin_workspace_audit", triggerMode: "manual" },
         });
       },
     },
@@ -196,6 +209,7 @@ async function testRouteMetadataAndFallthrough() {
     "automations-list",
     "automations-create",
     "automations-plugin-workspace-audits-create",
+    "automations-plugin-workspace-audits-run",
     "automations-action",
     "automations-push-tick",
     "automations-deliverable",
@@ -206,12 +220,13 @@ async function testRouteMetadataAndFallthrough() {
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "GET", path: "/api/automations" }).id, "automations-list");
   assert.equal(routes.match({ method: "POST", path: "/api/automations/plugin-workspace-audits" }).id, "automations-plugin-workspace-audits-create");
+  assert.equal(routes.match({ method: "POST", path: "/api/automations/plugin-workspace-audits/run" }).id, "automations-plugin-workspace-audits-run");
   assert.equal(routes.match({ method: "POST", path: "/api/automations/job%2F1/pause" }).id, "automations-action");
   assert.equal(routes.match({ method: "POST", path: "/api/automations/push/tick" }).id, "automations-push-tick");
   assert.equal(routes.match({ method: "POST", path: "/api/automations/job-1/run" }).id, "automations-action");
   const summary = routes.summary({ public: true });
-  assert.equal(summary.total, 9);
-  assert.deepEqual(summary.byAuthMode, { "access-key": 8, owner: 1 });
+  assert.equal(summary.total, 10);
+  assert.deepEqual(summary.byAuthMode, { "access-key": 9, owner: 1 });
   assert.equal(JSON.stringify(summary).includes("/api/automations"), false);
 
   const miss = await request(routes, "GET", "/api/status");
@@ -405,6 +420,30 @@ async function testCreatePluginWorkspaceAuditUsesExplicitRoute() {
   assert.deepEqual(calls.interpret, []);
 }
 
+async function testRunPluginWorkspaceAuditUsesExplicitRoute() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/automations/plugin-workspace-audits/run", {
+    body: {
+      workspaceId: "child",
+      pluginId: "codex-mobile",
+      auditMode: "alignment",
+      dryRun: false,
+    },
+  });
+  assert.equal(got.res.statusCode, 202);
+  assert.equal(got.body.ok, true);
+  assert.equal(got.body.dryRun, false);
+  assert.equal(got.body.audit.pluginId, "codex-mobile");
+  assert.equal(got.body.audit.auditMode, "alignment");
+  assert.equal(calls.pluginAuditRun.length, 1);
+  assert.equal(calls.pluginAuditRun[0].workspaceId, "child");
+  assert.equal(calls.pluginAuditRun[0].ownerPrincipalId, "principal-child");
+  assert.equal(calls.pluginAuditRun[0].dryRun, false);
+  assert.deepEqual(calls.pluginAuditRun[0].accessPolicyContext, { allowed_toolsets: ["cronjob"] });
+  assert.equal(calls.cacheClear, 1);
+  assert.deepEqual(calls.interpret, []);
+}
+
 async function testActionDecodesJobAndClearsCache() {
   const { routes, calls } = makeRoutes();
   const got = await request(routes, "POST", "/api/automations/job%2F42/update?workspaceId=child", {
@@ -540,6 +579,7 @@ function testDependencyValidation() {
   await testCreateAddsResolvedCronProfile();
   await testCreateNormalizesOriginDeliveryWithoutTarget();
   await testCreatePluginWorkspaceAuditUsesExplicitRoute();
+  await testRunPluginWorkspaceAuditUsesExplicitRoute();
   await testActionDecodesJobAndClearsCache();
   await testPushTickOwnerOnly();
   await testAuthorizedFileRoutesUseResolvers();

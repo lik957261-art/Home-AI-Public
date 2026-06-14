@@ -557,19 +557,17 @@ function renderActionInboxPluginAuditCreatePanel() {
   const progressText = actionInboxCreateProgressText();
   const instructions = String(state.actionInboxCreateDraftText || "");
   const pluginId = String(state.actionInboxPluginAuditPluginId || "codex-mobile");
-  const schedule = String(state.actionInboxPluginAuditSchedule || "0 22 * * 0");
-  const auditMode = String(state.actionInboxPluginAuditMode || "recent_changes");
+  const auditMode = String(state.actionInboxPluginAuditMode || "alignment");
   return `<form class="action-inbox-create" id="actionInboxCreateForm" data-action-inbox-create-mode="plugin-audit">
-    <label class="action-inbox-create-label" for="actionInboxPluginAuditPluginId">插件审计</label>
+    <label class="action-inbox-create-label" for="actionInboxPluginAuditPluginId">插件工作区审计</label>
     <input id="actionInboxPluginAuditPluginId" name="pluginId" type="text" autocomplete="off" value="${escapeHtml(pluginId)}" placeholder="codex-mobile" ${state.actionInboxCreateBusy ? "disabled" : ""}>
-    <input id="actionInboxPluginAuditSchedule" name="schedule" type="text" autocomplete="off" value="${escapeHtml(schedule)}" placeholder="0 22 * * 0" ${state.actionInboxCreateBusy ? "disabled" : ""}>
     <select id="actionInboxPluginAuditMode" name="auditMode" ${state.actionInboxCreateBusy ? "disabled" : ""}>
-      ${[["recent_changes", "最近变更"], ["dirty_diff", "未提交变更"], ["full_sample", "全仓抽样"]].map(([value, label]) => `<option value="${escapeHtml(value)}"${auditMode === value ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}
+      ${[["alignment", "目标一致性"], ["recent_changes", "最近变更"], ["dirty_diff", "未提交变更"], ["full_sample", "全仓抽样"]].map(([value, label]) => `<option value="${escapeHtml(value)}"${auditMode === value ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}
     </select>
     <textarea id="actionInboxNaturalText" name="naturalText" rows="4" autocomplete="off" placeholder="补充审计重点，可留空" maxlength="1000" ${state.actionInboxCreateBusy ? "disabled" : ""}>${escapeHtml(instructions)}</textarea>
     ${progressText ? `<div class="action-inbox-create-progress" role="status" aria-live="polite"><span class="automation-loading-spinner" aria-hidden="true"></span><span>${escapeHtml(progressText)}</span></div>` : ""}
     <div class="action-inbox-create-actions">
-      <button class="primary-button compact" type="submit" ${state.actionInboxCreateBusy ? "disabled" : ""}>${state.actionInboxCreateBusy ? "正在保存" : "创建审计"}</button>
+      <button class="primary-button compact" type="submit" ${state.actionInboxCreateBusy ? "disabled" : ""}>${state.actionInboxCreateBusy ? "正在提交" : "立即审计"}</button>
     </div>
   </form>`;
 }
@@ -577,8 +575,8 @@ function renderActionInboxPluginAuditCreatePanel() {
 function actionInboxCreateProgressText() {
   const step = String(state.actionInboxCreateProgressStep || "");
   if (state.actionInboxCreateMode === "plugin-audit") {
-    if (step === "saving") return "正在保存插件审计计划";
-    if (step === "done") return "插件审计计划已保存";
+    if (step === "saving") return "正在提交插件工作区审计";
+    if (step === "done") return "插件工作区审计已提交";
     return "";
   }
   if (step === "understanding") return "\u6b63\u5728\u8bf7\u6a21\u578b\u7406\u89e3\u5f85\u529e\u5185\u5bb9";
@@ -836,24 +834,21 @@ async function createActionInboxManualItem(root) {
 
 async function createActionInboxPluginAuditPlan(root) {
   const pluginId = root.querySelector("#actionInboxPluginAuditPluginId")?.value?.trim() || "codex-mobile";
-  const schedule = root.querySelector("#actionInboxPluginAuditSchedule")?.value?.trim() || "";
-  const auditMode = root.querySelector("#actionInboxPluginAuditMode")?.value?.trim() || "recent_changes";
+  const auditMode = root.querySelector("#actionInboxPluginAuditMode")?.value?.trim() || "alignment";
   const instructions = root.querySelector("#actionInboxNaturalText")?.value?.trim() || "";
-  if (!pluginId || !schedule) return;
+  if (!pluginId) return;
   state.actionInboxCreateBusy = true;
   state.actionInboxPluginAuditPluginId = pluginId;
-  state.actionInboxPluginAuditSchedule = schedule;
   state.actionInboxPluginAuditMode = auditMode;
   state.actionInboxCreateDraftText = instructions;
   state.actionInboxCreateProgressStep = "saving";
   renderActionInboxView({ preserveScroll: true });
   try {
-    await api("/api/automations/plugin-workspace-audits", {
+    await api("/api/automations/plugin-workspace-audits/run", {
       method: "POST",
       body: JSON.stringify({
         workspaceId: state.selectedWorkspaceId || "owner",
         pluginId,
-        schedule,
         auditMode,
         instructions,
       }),

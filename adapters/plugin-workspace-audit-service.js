@@ -5,7 +5,7 @@ const path = require("node:path");
 
 const AUDIT_KIND = "plugin_workspace_audit";
 const DEFAULT_AUDIT_EXECUTOR = "codex_readonly";
-const ALLOWED_AUDIT_MODES = new Set(["recent_changes", "dirty_diff", "full_sample"]);
+const ALLOWED_AUDIT_MODES = new Set(["alignment", "recent_changes", "dirty_diff", "full_sample"]);
 
 function clean(value, max = 200) {
   return String(value || "").trim().slice(0, max);
@@ -159,6 +159,34 @@ function createPluginWorkspaceAuditService(options = {}) {
     const notes = clean(input.instructions || input.notes, 1200);
     const includeGlobs = compactList(input.scope?.includeGlobs || input.scope?.include_globs, 20, 160);
     const excludeGlobs = compactList(input.scope?.excludeGlobs || input.scope?.exclude_globs, 20, 160);
+    if (mode === "alignment") {
+      return [
+        `You are auditing the Home AI embedded plugin workspace \"${pluginTitle}\" for design-goal alignment.`,
+        "",
+        "Read-only policy:",
+        "- Do not edit files, create files, delete files, run migrations, install packages, commit, push, deploy, restart services, or mutate databases.",
+        "- Use source inspection and bounded metadata commands only.",
+        "- Do not print secrets, access keys, tokens, push endpoints, private user content, or long raw logs.",
+        "",
+        "Alignment audit objective:",
+        "- Read the plugin workspace context and docs first, including `.agent-context/PROJECT_CONTEXT.md`, `.agent-context/HANDOFF.md`, `docs/README.md`, `docs/DOCS_INDEX.md`, product requirements, architecture notes, implementation notes, and test matrices when present.",
+        "- Compare documented goals, platform contracts, and current implementation.",
+        "- Identify implemented goals, partial implementations, missing promised behavior, stale docs, security/privacy risks, cross-platform/deploy gaps, UI consistency gaps, performance/extensibility risks, and missing harness coverage.",
+        "- Produce suggested task cards only as recommendations. Do not perform the repairs.",
+        "",
+        "Audit output:",
+        "- Deliver the final report in Simplified Chinese.",
+        "- Findings first, ordered by severity.",
+        "- Include concrete file/line references when available.",
+        "- Include residual risks and suggested follow-up task cards.",
+        "- Keep the report concise and product-safe.",
+        "",
+        `Audit mode: ${mode}.`,
+        includeGlobs.length ? `Include globs: ${includeGlobs.join(", ")}` : "",
+        excludeGlobs.length ? `Exclude globs: ${excludeGlobs.join(", ")}` : "",
+        notes ? `User guidance: ${notes}` : "",
+      ].filter(Boolean).join("\n");
+    }
     return [
       `You are auditing the Home AI embedded plugin workspace \"${pluginTitle}\".`,
       "",
@@ -208,6 +236,7 @@ function createPluginWorkspaceAuditService(options = {}) {
       workspacePathRef: target.pathRef,
       workspacePath: target.path,
       auditMode,
+      triggerMode: clean(input.triggerMode || input.trigger_mode || "scheduled", 40) || "scheduled",
       executor: clean(input.executor || DEFAULT_AUDIT_EXECUTOR, 80) || DEFAULT_AUDIT_EXECUTOR,
       readonly: true,
       scope: {
@@ -286,6 +315,86 @@ function createPluginWorkspaceAuditService(options = {}) {
     };
   }
 
+  async function triggerManualAudit(input = {}) {
+    const draft = await buildAuditDraft(Object.assign({}, input, {
+      schedule: clean(input.schedule, 120) || "manual",
+      auditMode: clean(input.auditMode || input.audit_mode || "alignment", 40) || "alignment",
+      triggerMode: "manual",
+    }));
+    if (!draft.ok) return draft;
+    const automationProvider = input.automationProvider || options.automationProvider;
+    if (!automationProvider || typeof automationProvider.createJob !== "function" || typeof automationProvider.mutateJob !== "function") {
+      return targetError(503, "automation_provider_unavailable", "Automation provider is unavailable");
+    }
+    const dryRun = Boolean(input.dryRun || input.dry_run);
+    let created;
+    try {
+      created = await automationProvider.createJob({
+        dryRun,
+        text: clean(input.text || input.instructions || draft.job.name, 1000),
+        job: Object.assign({}, draft.job, {
+          schedule: "manual",
+          repeat: "once",
+        }),
+        ownerPrincipalId: draft.ownerPrincipalId,
+        accessPolicyContext: objectValue(input.accessPolicyContext || input.access_policy_context),
+      });
+    } catch (err) {
+      return targetError(err.status || 500, "plugin_audit_create_failed", compactText(err.message || err, 800));
+    }
+    if (!created?.ok) {
+      return {
+        ok: false,
+        status: created?.status || 400,
+        code: created?.code || "plugin_audit_create_failed",
+        error: compactText(created?.error || "Plugin workspace audit manual creation failed", 800),
+        draft: draft.job,
+        result: created,
+      };
+    }
+    const jobId = clean(created.job?.id || created.job_id, 120);
+    let run = null;
+    if (!dryRun && jobId) {
+      try {
+        run = await automationProvider.mutateJob({
+          action: "run",
+          jobId,
+          ownerPrincipalId: draft.ownerPrincipalId,
+          dryRun: false,
+          reason: "manual_plugin_workspace_alignment_audit",
+        });
+      } catch (err) {
+        return targetError(err.status || 500, "plugin_audit_run_request_failed", compactText(err.message || err, 800));
+      }
+      if (!run?.ok) {
+        return {
+          ok: false,
+          status: run?.status || 400,
+          code: run?.code || "plugin_audit_run_request_failed",
+          error: compactText(run?.error || "Plugin workspace audit manual run request failed", 800),
+          draft: draft.job,
+          job: created.job || null,
+          result: run,
+        };
+      }
+    }
+    return {
+      ok: true,
+      job: run?.job || created.job || null,
+      createdJob: created.job || null,
+      draft: draft.job,
+      audit: draft.audit,
+      run: run || null,
+      source: Object.assign({}, created.source || {}, {
+        workspaceId: draft.workspaceId,
+        ownerPrincipalId: draft.ownerPrincipalId,
+        kind: AUDIT_KIND,
+        triggerMode: "manual",
+        runMode: run?.source?.runMode || created.source?.runMode || "next_tick",
+      }),
+    };
+  }
+
   function upsertAuditInboxItem(input = {}) {
     if (!actionInboxService || typeof actionInboxService.upsertSourceItem !== "function") {
       return targetError(503, "action_inbox_unavailable", "Action Inbox service is unavailable");
@@ -321,6 +430,7 @@ function createPluginWorkspaceAuditService(options = {}) {
   return Object.freeze({
     buildAuditDraft,
     createAuditPlan,
+    triggerManualAudit,
     upsertAuditInboxItem,
   });
 }

@@ -48,6 +48,53 @@ async function testBuildsReadonlyAuditDraftForConfiguredPlugin() {
   }
 }
 
+async function testBuildsAlignmentManualAuditAndRequestsRun() {
+  const dir = tempDir();
+  const calls = [];
+  try {
+    const service = createPluginWorkspaceAuditService({
+      auditTargets: { "codex-mobile": { path: dir, pathRef: "test-registry" } },
+      nowIso: () => "2026-06-14T00:00:00.000Z",
+      pluginService: {
+        list() {
+          return [{ id: "codex-mobile", title: "Codex" }];
+        },
+      },
+      resolveAutomationCronProfile() {
+        return "hm-owner-openai-1";
+      },
+      automationProvider: {
+        createJob(payload) {
+          calls.push({ type: "create", payload });
+          return Promise.resolve({ ok: true, job: { id: "audit-manual-1" }, source: { name: "hermes_cron" } });
+        },
+        mutateJob(payload) {
+          calls.push({ type: "mutate", payload });
+          return Promise.resolve({ ok: true, job: { id: payload.jobId, state: "scheduled" }, source: { name: "hermes_cron", runMode: "next_tick" } });
+        },
+      },
+    });
+    const result = await service.triggerManualAudit({
+      workspaceId: "owner",
+      ownerPrincipalId: "principal-owner",
+      pluginId: "codex-mobile",
+      instructions: "Check product goals.",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.audit.auditMode, "alignment");
+    assert.equal(result.audit.triggerMode, "manual");
+    assert.match(result.draft.prompt, /design-goal alignment/);
+    assert.equal(calls[0].type, "create");
+    assert.equal(calls[0].payload.job.schedule, "manual");
+    assert.equal(calls[0].payload.job.repeat, "once");
+    assert.equal(calls[1].type, "mutate");
+    assert.equal(calls[1].payload.action, "run");
+    assert.equal(calls[1].payload.jobId, "audit-manual-1");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 async function testRejectsUnconfiguredTargetAndNonReadonlyMode() {
   const service = createPluginWorkspaceAuditService({
     pluginService: {
@@ -112,6 +159,7 @@ function testAuditInboxProjectionIsSummaryOnly() {
 
 (async () => {
   await testBuildsReadonlyAuditDraftForConfiguredPlugin();
+  await testBuildsAlignmentManualAuditAndRequestsRun();
   await testRejectsUnconfiguredTargetAndNonReadonlyMode();
   testAuditInboxProjectionIsSummaryOnly();
   console.log("plugin-workspace-audit-service tests passed");

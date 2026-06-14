@@ -71,16 +71,16 @@ assert.match(filterHtml, /data-action-inbox-filter="all"[^>]*>\u5176\u4ed6<\/but
 sandbox.state.actionInboxCreateOpen = true;
 sandbox.state.actionInboxCreateMode = "plugin-audit";
 sandbox.state.actionInboxPluginAuditPluginId = "codex-mobile";
-sandbox.state.actionInboxPluginAuditSchedule = "0 22 * * 0";
-sandbox.state.actionInboxPluginAuditMode = "recent_changes";
+sandbox.state.actionInboxPluginAuditMode = "alignment";
 sandbox.state.actionInboxCreateDraftText = "Focus on routing.";
 const pluginAuditCreateHtml = ui.renderActionInboxCreatePanel();
 assert.match(pluginAuditCreateHtml, /data-action-inbox-create-mode="plugin-audit"/);
 assert.match(pluginAuditCreateHtml, /id="actionInboxPluginAuditPluginId"/);
 assert.match(pluginAuditCreateHtml, /value="codex-mobile"/);
-assert.match(pluginAuditCreateHtml, /id="actionInboxPluginAuditSchedule"/);
+assert.doesNotMatch(pluginAuditCreateHtml, /id="actionInboxPluginAuditSchedule"/);
 assert.match(pluginAuditCreateHtml, /id="actionInboxPluginAuditMode"/);
-assert.match(pluginAuditCreateHtml, />\u521b\u5efa\u5ba1\u8ba1<\/button>/);
+assert.match(pluginAuditCreateHtml, />\u76ee\u6807\u4e00\u81f4\u6027<\/option>/);
+assert.match(pluginAuditCreateHtml, />\u7acb\u5373\u5ba1\u8ba1<\/button>/);
 sandbox.state.actionInboxCreateOpen = false;
 sandbox.state.actionInboxCreateMode = "todo";
 

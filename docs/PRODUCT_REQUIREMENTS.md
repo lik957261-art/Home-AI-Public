@@ -91,17 +91,22 @@ This file records durable product rules that implementation must preserve.
   effective workspace is authorized to inspect. It must not accept arbitrary
   local paths, Owner fallback plugin bindings, or unprovisioned plugin
   directories as valid targets.
+- The first alignment phase is manually triggered by the user and only targets
+  plugin workspaces. It must not audit the Home AI host workspace or start
+  nightly batch audits until the manual report and task-card quality are
+  accepted.
 - Automation owns scheduling, pause/resume, retry, and durable job state for
-  audit plans. Codex, Gateway, or another executor is only the bounded
-  read-only audit runner.
+  audit plans and manual run requests. Codex, Gateway, or another executor is
+  only the bounded read-only audit runner.
 - Version 1 is read-only. It may inspect metadata, source text, git status,
   recent changes, and bounded logs, but it must not write files, modify
   databases, run deploy scripts, commit, push, install packages, or restart
   services. Any future write/repair mode requires an explicit Owner-only
   whitelist and a separate product rule.
-- Each scheduled audit creates an audit run that is separate from ordinary
-  development or chat threads. It must not inherit the user's active thread
-  context, hidden UI state, one-time approvals, or transient shell state.
+- Each scheduled or manually triggered audit creates an audit run that is
+  separate from ordinary development or chat threads. It must not inherit the
+  user's active thread context, hidden UI state, one-time approvals, or
+  transient shell state.
 - Audit reports are user-facing summaries. They should be written to an audit
   history and, when useful, a plugin delivery directory; Action Inbox receives
   summary-only review/error items with links to the report or audit thread.
@@ -225,6 +230,9 @@ This file records durable product rules that implementation must preserve.
 - Plugin workspace audit plans are Automation-backed jobs. Their natural
   language creation belongs behind an explicit Automation or audit creation
   surface, not a per-message ordinary chat preflight.
+- Manual plugin workspace alignment audit belongs behind an explicit audit
+  button and uses a structured route. It must not run through ordinary chat
+  preflight or arbitrary natural-language path resolution.
 - Web Push notifications should deep-link to the specific resource when an id is available.
 - Notification click handling must target top-level app windows, not embedded viewer iframes.
 
@@ -265,6 +273,9 @@ This file records durable product rules that implementation must preserve.
 - Plugin workspace audit receipts are Action Inbox `review` or `error`
   projections. The source of truth remains the audit run and its report; Inbox
   stores only bounded summary metadata, severity, status, and safe deep links.
+- Action Inbox may expose the first manual plugin workspace alignment audit
+  button. The default audit mode is `alignment`, and the user may supply bounded
+  guidance, but target resolution remains server-side and registry-based.
 - Inbox items are summary/action projections. Source modules remain canonical and full private content must stay in the source detail views.
 - Repeated source refreshes, Web Push events, and background polling must dedupe by stable source references instead of creating duplicate items.
 - Official Kanban Todo compatibility is retired for ordinary user-created

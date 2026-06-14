@@ -56,6 +56,18 @@ pointer. A plugin thread that starts H1/H2, deployment, visual-debug,
 MCP/schema, plugin-provisioning, or cross-module work without the control-plane
 intake packet is outside the platform contract.
 
+For plugin workspace audit creation, manual alignment trigger, runner report
+language, or Action Inbox audit entry changes, run:
+
+```bash
+node tests/plugin-workspace-audit-service.test.js
+node tests/plugin-workspace-audit-runner.test.js
+node tests/automation-api-routes.test.js
+node tests/cron-dispatcher-plugin-audit-harness.test.js
+node tests/app-action-inbox-ui.test.js
+node tests/static-cache-version-harness.test.js
+```
+
 ## Harness Requirement Gate
 
 Before implementing non-trivial workflow changes, classify the change with
