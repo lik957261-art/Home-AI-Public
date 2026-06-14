@@ -35,6 +35,16 @@ function main() {
   const workspace = makeGitWorkspace(tempRoot);
   const outputRoot = path.join(tempRoot, "output");
   const dbPath = path.join(tempRoot, "data", "hermes-mobile.sqlite3");
+  const fakeCodexLog = path.join(tempRoot, "fake-codex-call.json");
+  const fakeCodex = path.join(tempRoot, "fake-codex.js");
+  fs.writeFileSync(fakeCodex, [
+    "#!/usr/bin/env node",
+    "const fs = require('node:fs');",
+    "fs.writeFileSync(process.env.FAKE_CODEX_LOG, JSON.stringify({ argv: process.argv.slice(2), cwd: process.cwd() }, null, 2));",
+    "console.log('Codex review executed in ' + process.cwd());",
+    "console.log('index.js:1 MEDIUM - fake issue from read-only review');",
+  ].join("\n") + "\n");
+  fs.chmodSync(fakeCodex, 0o755);
   const job = {
     id: "audit_job_1",
     kind: "plugin_workspace_audit",
@@ -66,6 +76,10 @@ function main() {
     cwd: repoRoot,
     env: Object.assign({}, process.env, {
       HERMES_WEB_DB_PATH: dbPath,
+      HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED: "1",
+      HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND: fakeCodex,
+      HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: "30000",
+      FAKE_CODEX_LOG: fakeCodexLog,
     }),
     encoding: "utf8",
     maxBuffer: 5 * 1024 * 1024,
@@ -76,9 +90,19 @@ function main() {
   assert.equal(payload.summary.pluginId, "codex-mobile");
   assert.equal(payload.summary.findingCount >= 1, true);
   assert.match(payload.output, /MEDIA:/);
+  assert.match(payload.output, /Codex Read-Only Review/);
+  assert.match(payload.output, /index\.js:1 MEDIUM - fake issue/);
   assert.equal(payload.output.includes(workspace), false, "report must not expose target workspace absolute path");
   assert.equal(fs.existsSync(payload.reportPath), true);
   assert.equal(path.dirname(payload.reportPath), path.join(outputRoot, "audit_job_1"));
+  const fakeCall = JSON.parse(fs.readFileSync(fakeCodexLog, "utf8"));
+  assert.equal(fakeCall.cwd, fs.realpathSync.native(workspace));
+  assert.equal(fakeCall.argv[0], "exec");
+  assert.equal(fakeCall.argv.includes("--sandbox"), true);
+  assert.equal(fakeCall.argv.includes("read-only"), true);
+  assert.equal(fakeCall.argv.includes("--ephemeral"), true);
+  assert.equal(fakeCall.argv.includes("--cd"), true);
+  assert.match(fakeCall.argv.join("\n"), /Do not edit files/);
 
   const store = createMobileSqliteStore({ dbPath });
   try {

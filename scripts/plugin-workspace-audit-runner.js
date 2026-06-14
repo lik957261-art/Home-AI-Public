@@ -8,6 +8,7 @@ const { createMobileSqliteStore } = require("../adapters/mobile-sqlite-store");
 const { createPluginWorkspaceAuditService } = require("../adapters/plugin-workspace-audit-service");
 
 const MAX_COMMAND_BYTES = 80_000;
+const MAX_CODEX_BYTES = 120_000;
 
 function clean(value, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
@@ -73,6 +74,12 @@ function splitLines(text, limit = 40) {
   return String(text || "").split(/\r?\n/).map((line) => clean(line, 500)).filter(Boolean).slice(0, limit);
 }
 
+function envFlag(name, fallback = false) {
+  const raw = clean(process.env[name], 40).toLowerCase();
+  if (!raw) return fallback;
+  return ["1", "true", "yes", "on", "enabled"].includes(raw);
+}
+
 function gitFileList(cwd, args, limit = 80) {
   const result = runGit(cwd, args, { maxText: 30_000 });
   return {
@@ -123,6 +130,117 @@ function finding(severity, title, evidence = [], rationale = "") {
   return { severity, title: clean(title, 180), evidence: evidence.slice(0, 20), rationale: clean(rationale, 500) };
 }
 
+function redactWorkspacePath(text, workspacePath) {
+  let out = String(text || "");
+  const real = clean(workspacePath, 4000);
+  if (!real) return out;
+  const variants = new Set([real, real.replace(/\\/g, "/")]);
+  if (real.startsWith("/private/")) variants.add(real.slice("/private".length));
+  if (real.startsWith("/var/")) variants.add(`/private${real}`);
+  for (const variant of variants) out = out.split(variant).join("[workspace]");
+  return out;
+}
+
+function codexAuditConfig() {
+  const enabled = envFlag("HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED")
+    || envFlag("HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED");
+  const command = clean(
+    process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND
+      || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND
+      || "codex",
+    2000,
+  );
+  const model = clean(
+    process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_MODEL
+      || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_MODEL
+      || "",
+    200,
+  );
+  const timeoutMs = Math.max(30_000, Number(
+    process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS
+      || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS
+      || 600_000,
+  ) || 600_000);
+  return { enabled, command, model, timeoutMs };
+}
+
+function buildCodexPrompt(job, audit) {
+  return [
+    "You are running a Home AI plugin workspace audit.",
+    "",
+    "Hard constraints:",
+    "- This is a read-only audit. Do not edit files, create files, install packages, run migrations, commit, push, deploy, restart services, or mutate databases.",
+    "- Inspect only the current working directory and use relative paths in the final answer.",
+    "- Do not print raw secrets, tokens, private keys, environment values, subscription endpoints, or full large logs.",
+    "- If a check could write cache/build artifacts, skip it and say why.",
+    "",
+    "Review stance:",
+    "- Prioritize concrete bugs, regressions, security/privacy risks, data-loss risks, and missing tests.",
+    "- Lead with findings ordered by severity and include file/line references when available.",
+    "- Keep the final answer concise. If there are no findings, say so and mention residual test gaps.",
+    "",
+    `Job id: ${clean(job.id, 80) || "unknown"}`,
+    `Plugin: ${audit.pluginTitle || audit.pluginId}`,
+    `Audit mode: ${audit.mode}`,
+    `Revision: ${audit.head || "unknown"}`,
+    `Branch: ${audit.branch || "unknown"}`,
+    "",
+    "Deterministic pre-scan summary:",
+    `- Top severity: ${audit.topSeverity}`,
+    `- Finding count: ${audit.findingCount}`,
+    audit.statusLines.length ? "- Git status:\n" + audit.statusLines.slice(0, 20).map((line) => `  - ${line}`).join("\n") : "- Git status: clean or unavailable",
+    audit.diffStat.length ? "- Diff stat:\n" + audit.diffStat.slice(0, 20).map((line) => `  - ${line}`).join("\n") : "- Diff stat: none or unavailable",
+  ].join("\n");
+}
+
+function runCodexReview(job, audit, workspacePath) {
+  const config = codexAuditConfig();
+  if (!config.enabled) {
+    return {
+      enabled: false,
+      ok: true,
+      status: "disabled",
+      output: "Codex read-only review is disabled by runtime configuration.",
+    };
+  }
+  const args = [
+    "exec",
+    "--sandbox",
+    "read-only",
+    "--cd",
+    workspacePath,
+    "--ephemeral",
+    "--color",
+    "never",
+    "--skip-git-repo-check",
+  ];
+  if (config.model) args.push("--model", config.model);
+  args.push(buildCodexPrompt(job, audit));
+  const result = spawnSync(config.command, args, {
+    cwd: workspacePath,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: config.timeoutMs,
+    maxBuffer: MAX_CODEX_BYTES,
+    env: Object.assign({}, process.env, {
+      NO_COLOR: "1",
+      TERM: "dumb",
+    }),
+  });
+  const stdout = redactWorkspacePath(clean(result.stdout, 80_000), workspacePath);
+  const stderr = redactWorkspacePath(clean(result.stderr, 12_000), workspacePath);
+  const timedOut = result.error && result.error.code === "ETIMEDOUT";
+  const status = timedOut ? "timeout" : (result.error ? clean(result.error.code || result.error.message, 120) : String(Number(result.status || 0)));
+  return {
+    enabled: true,
+    ok: result.status === 0 && !timedOut,
+    status,
+    command: path.basename(config.command),
+    output: stdout || "(Codex produced no stdout.)",
+    error: stderr,
+  };
+}
+
 function buildAudit(job) {
   const audit = job.audit && typeof job.audit === "object" ? job.audit : {};
   if (job.kind !== "plugin_workspace_audit" || audit.kind !== "plugin_workspace_audit") throw new Error("plugin_audit_job_required");
@@ -165,7 +283,7 @@ function buildAudit(job) {
   }
   const severityRank = { high: 3, medium: 2, low: 1, info: 0 };
   const topSeverity = findings.reduce((acc, item) => (severityRank[item.severity] > severityRank[acc] ? item.severity : acc), "info");
-  return {
+  const auditResult = {
     pluginId,
     pluginTitle,
     targetWorkspaceId: clean(audit.targetWorkspaceId || audit.target_workspace_id || job.owner_principal_id || "owner", 120),
@@ -187,6 +305,18 @@ function buildAudit(job) {
       generatedAt: new Date().toISOString(),
     },
   };
+  auditResult.codex = runCodexReview(job, auditResult, realPath);
+  if (auditResult.codex.enabled && !auditResult.codex.ok) {
+    auditResult.findings.unshift(finding(
+      "high",
+      "Codex read-only review failed",
+      [auditResult.codex.error || `status=${auditResult.codex.status}`],
+      "The deterministic audit completed, but the configured Codex read-only executor did not return a usable review.",
+    ));
+    auditResult.findingCount = auditResult.findings.filter((item) => item.severity !== "info").length;
+    auditResult.topSeverity = auditResult.findings.reduce((acc, item) => (severityRank[item.severity] > severityRank[acc] ? item.severity : acc), "info");
+  }
+  return auditResult;
 }
 
 function markdownList(items = [], fallback = "- None") {
@@ -236,6 +366,19 @@ function renderReport(job, audit) {
     "## Sampled Files",
     "",
     markdownList(audit.sampledFiles.slice(0, 80)),
+    "",
+    "## Codex Read-Only Review",
+    "",
+    `- Enabled: ${audit.codex?.enabled ? "yes" : "no"}`,
+    `- Status: ${audit.codex?.status || "unknown"}`,
+    audit.codex?.command ? `- Command: ${audit.codex.command}` : "",
+    audit.codex?.error ? "### Executor Diagnostics" : "",
+    audit.codex?.error ? "```text\n" + audit.codex.error.replace(/```/g, "'''") + "\n```" : "",
+    "### Review Output",
+    "",
+    "```text",
+    clean(audit.codex?.output || "No Codex review output.", 80_000).replace(/```/g, "'''"),
+    "```",
     "",
     "## Read-Only Enforcement",
     "",

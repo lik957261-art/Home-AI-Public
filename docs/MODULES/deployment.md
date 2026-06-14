@@ -502,6 +502,13 @@ environment. The central Mac deploy script sets
 `<macRoot>/plugins`. The map is configuration only: the runtime still validates
 plugin registry visibility, absolute existing directories, read-only mode, and
 protected-path rejection before creating a `plugin_workspace_audit` job.
+Codex-assisted review is off by default for productized installs. Operators may
+enable it by setting `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1`
+and `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND=<codex-command>` before
+running the deploy script; the script mirrors the `HERMES_WEB_*` aliases into
+the listener launchd environment. The runner still invokes Codex with
+`--sandbox read-only` and keeps the deterministic audit report available when
+the optional Codex phase is disabled.
 
 Mac workspace Gateway start scripts must execute the official runtime through
 the production venv Python (`$ROOT/runtime/hermes-agent-official/venv/bin/python

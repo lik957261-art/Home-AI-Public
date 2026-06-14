@@ -254,6 +254,17 @@ existing Automation output preview path, and marks the canonical CRON run
 success/failure through `mark_job_run()`. It does not use the model proxy, does
 not enable toolsets, and does not execute user-provided scripts.
 
+The runner may add a Codex read-only review section when the deployment
+explicitly enables it with
+`HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1` or
+`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1`. The command is configured
+with `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND` /
+`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND` and is invoked as
+`codex exec --sandbox read-only --cd <target> --ephemeral`. Public installs
+must remain functional with this flag disabled; missing Codex CLI/auth should
+produce a bounded diagnostic instead of granting write access or blocking
+ordinary deterministic audit reports.
+
 Audit target paths are configuration, not user input. Deployments may configure
 targets with `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS` /
 `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS` or per-plugin

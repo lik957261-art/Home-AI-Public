@@ -314,6 +314,17 @@ calls `scripts/plugin-workspace-audit-runner.js`. The runner:
 - upserts a summary-only Action Inbox review/error item when a configured
   runtime SQLite path is available through `HERMES_WEB_DB_PATH`,
   `HERMES_MOBILE_DB_PATH`, or the data-dir default.
+- optionally runs a model-assisted Codex read-only review after the
+  deterministic scan when
+  `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1` or
+  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1`. The configured command
+  defaults to `codex` and may be overridden with
+  `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND` /
+  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND`. The runner invokes
+  `codex exec --sandbox read-only --cd <target> --ephemeral`, redacts the
+  target absolute path from captured output, appends the bounded review to the
+  Markdown report, and records a high-severity finding if the explicitly
+  enabled Codex phase fails.
 
 ## Phase 2
 
@@ -322,8 +333,8 @@ calls `scripts/plugin-workspace-audit-runner.js`. The runner:
 - Add recurring summary trends.
 - Add cross-plugin dependency checks, such as host contract drift.
 - Add richer task-card suggestions with user confirmation.
-- Add optional model-assisted review on top of the deterministic report, still
-  under read-only policy.
+- Add Codex Mobile bridge execution as an alternative to local CLI execution
+  where service-user auth should be delegated to the embedded Codex plugin.
 
 ## Long-Term
 
