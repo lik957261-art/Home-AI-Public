@@ -440,8 +440,11 @@ def find_exact_markdown_under_root(root: Path, names: list[str]) -> Path | None:
 
 
 def source_markdown_for_delivery(run_path: Path, delivery_path: Path) -> Path | None:
-    if delivery_path.suffix.lower() == ".md" and delivery_path.is_file():
-        return delivery_path
+    try:
+        if delivery_path.suffix.lower() == ".md" and delivery_path.is_file():
+            return delivery_path
+    except OSError:
+        return None
     candidates = [delivery_path.with_suffix(".md")]
     roots = markdown_source_directories_from_run(run_path)
     names = source_markdown_name_candidates(delivery_path)
@@ -495,10 +498,13 @@ def deliverable_paths_from_run(path: Path) -> list[Path]:
 
 
 def delivery_document(clean_job_id: str, run_path: Path, index: int, path: Path, *, source: str = "delivery", run_stat: os.stat_result | None = None) -> dict[str, Any] | None:
-    if path.suffix.lower() not in MEDIA_DOCUMENT_EXTENSIONS or not path.is_file():
+    try:
+        if path.suffix.lower() not in MEDIA_DOCUMENT_EXTENSIONS or not path.is_file():
+            return None
+        stat = path.stat()
+        run_stat = run_stat or run_path.stat()
+    except OSError:
         return None
-    stat = path.stat()
-    run_stat = run_stat or run_path.stat()
     return {
         "name": path.name,
         "mime": mime_for_output(path),

@@ -35,6 +35,10 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
   feedback belongs to the explicit create surface and must not reintroduce a
   per-message model preflight in ordinary chat.
 - Completed user-visible deliveries and failed runs should upsert Action Inbox items so the user reads/acts from Inbox. A failed run must still create an Inbox error item and Web Push even when it produced no new deliverable file.
+- Automation list projection must tolerate a single unreadable, missing, or
+  permission-denied deliverable file. That file should be skipped or reported as
+  bounded item-level metadata; it must not make the full Automation list return
+  zero jobs or mark the canonical CRON source unavailable.
 - Summary/detail optimizations must not visually downgrade the user-facing list.
 - Full-cache reads are only a first paint: the background full refresh must update the visible list when newer status or ordering arrives.
 - The list should sort by latest activity, defined as the latest of last run time or latest deliverable time, so failed runs without new files still surface promptly.

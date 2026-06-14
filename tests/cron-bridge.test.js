@@ -346,6 +346,31 @@ function main() {
   assert.ok(silentJob);
   assert.deepEqual(silentJob.outputDocuments, []);
 
+  const blockedJobRoot = path.join(outputRoot, "job_blocked_delivery");
+  const blockedRoot = path.join(tempRoot, "blocked-delivery-root");
+  const blockedFile = path.join(blockedRoot, "blocked.md");
+  fs.mkdirSync(blockedJobRoot, { recursive: true });
+  fs.mkdirSync(blockedRoot, { recursive: true });
+  fs.writeFileSync(blockedFile, "# blocked\n");
+  fs.writeFileSync(path.join(blockedJobRoot, "run.md"), `MEDIA:${blockedFile}\n`);
+  jobsDoc.jobs.push({
+    id: "job_blocked_delivery",
+    name: "Blocked delivery file job",
+    enabled: true,
+    owner_principal_id: "owner",
+    schedule: { kind: "cron", expr: "0 12 * * *", display: "0 12 * * *" },
+    repeat: { times: null, completed: 0 },
+  });
+  fs.writeFileSync(jobsPath, JSON.stringify(jobsDoc));
+  fs.chmodSync(blockedRoot, 0o000);
+  const blockedDeliveryList = runBridge(Object.assign({}, baseEnv, {
+    HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT: "0",
+  }));
+  fs.chmodSync(blockedRoot, 0o700);
+  const blockedJob = blockedDeliveryList.jobs.find((job) => job.id === "job_blocked_delivery");
+  assert.ok(blockedJob);
+  assert.deepEqual(blockedJob.outputDocuments, []);
+
   fs.rmSync(tempRoot, { recursive: true, force: true });
   console.log("cron-bridge tests passed");
 }
