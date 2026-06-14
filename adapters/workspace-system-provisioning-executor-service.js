@@ -193,6 +193,48 @@ function workspaceIdsForWorker(worker = {}) {
   return out;
 }
 
+function workspaceStoreId(value) {
+  let candidate = text(value).toLowerCase();
+  if (candidate.startsWith("workspace:")) candidate = candidate.slice("workspace:".length);
+  if (candidate === "owner") return "owner-full";
+  if (candidate === "owner-full") return "owner-full";
+  return safeWorkspaceId(candidate);
+}
+
+function workspaceStoreIdsForWorker(worker = {}, keys = []) {
+  const out = [];
+  for (const key of keys) {
+    const raw = worker[key];
+    const values = Array.isArray(raw) ? raw : (typeof raw === "string" ? raw.split(/[,;\s]+/) : []);
+    for (const item of values) {
+      const id = workspaceStoreId(item);
+      if (id && id !== "*" && !out.includes(id)) out.push(id);
+    }
+  }
+  return out;
+}
+
+function skillStoreIdForWorker(fields, worker = {}) {
+  const skillWorkspaceIds = workspaceStoreIdsForWorker(worker, ["skillWorkspaceIds", "skill_workspace_ids"]);
+  const privateSkillWorkspaceIds = skillWorkspaceIds.filter((id) => id !== "owner-full");
+  if (privateSkillWorkspaceIds.length === 1) return privateSkillWorkspaceIds[0];
+  if (skillWorkspaceIds.length === 1 && skillWorkspaceIds[0] === "owner-full") return "owner-full";
+
+  const skillProfile = text(worker.skillProfile || worker.skill_profile);
+  if (skillProfile === "owner-full") return "owner-full";
+  if (skillProfile.toLowerCase().startsWith("workspace:")) {
+    const id = workspaceStoreId(skillProfile);
+    if (id) return id;
+  }
+
+  const allowedWorkspaceIds = workspaceStoreIdsForWorker(worker, ["allowedWorkspaceIds", "allowed_workspace_ids"]);
+  const privateAllowedWorkspaceIds = allowedWorkspaceIds.filter((id) => id !== "owner-full");
+  if (privateAllowedWorkspaceIds.length === 1) return privateAllowedWorkspaceIds[0];
+  if (allowedWorkspaceIds.length === 1 && allowedWorkspaceIds[0] === "owner-full") return "owner-full";
+
+  return fields.workspaceId === "owner" ? "owner-full" : fields.workspaceId;
+}
+
 function stringList(value) {
   if (Array.isArray(value)) return value.map(text).filter(Boolean);
   if (typeof value === "string") return value.split(/[,;\s]+/).map(text).filter(Boolean);
@@ -470,7 +512,8 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     if (platformFailure) return platformFailure;
     const fields = contextFields(context);
     if (fields.error) return { ok: false, error: fields.error };
-    const skillRoot = path.posix.join(fields.dataRoot, "skill-profiles", fields.workspaceId);
+    const skillStoreId = fields.workspaceId === "owner" ? "owner-full" : fields.workspaceId;
+    const skillRoot = path.posix.join(fields.dataRoot, "skill-profiles", skillStoreId);
     ensureDirectory(fields.workerWorkspaceRoot, "700", `${fields.macUser}:staff`);
     ensureDirectory(path.posix.join(fields.workerWorkspaceRoot, ".hermes-gateway"), "700", `${fields.macUser}:staff`);
     ensureDirectory(path.posix.join(fields.workerWorkspaceRoot, ".hermes-gateway", "profiles"), "700", `${fields.macUser}:staff`);
@@ -731,7 +774,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
   function ensureProfileMaterialized(fields, worker, manifestPath) {
     const profile = safeProfile(worker.profile || worker.name);
     const dir = profileDir(fields, profile);
-    const skillRoot = path.posix.join(fields.dataRoot, "skill-profiles", fields.workspaceId);
+    const skillRoot = path.posix.join(fields.dataRoot, "skill-profiles", skillStoreIdForWorker(fields, worker));
     const logsDir = path.posix.join(dir, "logs");
     if (useSudoWrites) {
       privileged("/bin/mkdir", ["-p", dir]);

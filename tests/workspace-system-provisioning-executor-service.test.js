@@ -199,12 +199,81 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
     assert.equal(fs.lstatSync(authLockLink).isSymbolicLink(), true);
     assert.equal(fs.readlinkSync(authLockLink), `${root}/gateway-worker/telemetry/profiles/shared-auth/auth.lock`);
     assert.equal(fs.existsSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/deepseekgw31/auth.json`), false);
+    assert.equal(fs.readlinkSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/skills`), `${root}/data/skill-profiles/xulu/skills`);
+    assert.equal(fs.readlinkSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/memories`), `${root}/data/skill-profiles/xulu/memories`);
     assert.ok(result.codexAuth.some((entry) => entry.profile === "lowgw31" && entry.linked === true));
     assert.ok(result.codexAuth.some((entry) => entry.profile === "deepseekgw31" && entry.linked === false));
     assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit") && call.args.includes(`${root}/gateway-worker/telemetry/profiles/shared-auth`)));
     assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity") && call.args.includes(`${root}/gateway-worker/telemetry/profiles/shared-auth/auth.json`)));
     assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity") && call.args.includes(`${root}/gateway-worker/telemetry/profiles/shared-auth/auth.lock`)));
     assert.ok(calls.some((call) => call.command === "/bin/launchctl" && call.args[0] === "bootstrap"));
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+async function testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases() {
+  const root = posixTempRoot();
+  const calls = [];
+  try {
+    const context = {
+      workspaceId: "owner",
+      macUser: "hm-owner",
+      paths: {
+        liveRoot: root,
+        dataRoot: `${root}/data`,
+        driveRoot: `${root}/data/drive`,
+        workspaceDataRoot: `${root}/data/drive/users/owner`,
+        workerHome: `${root}/users/hm-owner`,
+        workerWorkspaceRoot: `${root}/users/hm-owner/HermesWorkspace`,
+      },
+      gateway: {
+        manifestPath: `${root}/data/gateway-pool-manifest-mac.json`,
+        profiles: ["hm-owner-openai-1", "legacy-alias"],
+      },
+    };
+    writeJson(context.gateway.manifestPath, {
+      enabled: true,
+      workers: [
+        {
+          profile: "hm-owner-openai-1",
+          provider: "openai-codex",
+          port: 18781,
+          enabled: true,
+          allowedWorkspaceIds: ["owner"],
+          skillWorkspaceIds: ["owner"],
+          skillProfile: "owner-full",
+        },
+        {
+          profile: "legacy-alias",
+          provider: "openai-codex",
+          port: 18782,
+          enabled: true,
+          allowedWorkspaceIds: ["user-981731fe"],
+          skillWorkspaceIds: ["user-981731fe"],
+          skillProfile: "workspace:xuyan",
+          osUser: "hm-owner",
+        },
+      ],
+    });
+    const service = createWorkspaceSystemProvisioningExecutorService({
+      forceEnabled: true,
+      fs,
+      launchDaemonsDir: `${root}/LaunchDaemons`,
+      liveRoot: root,
+      path,
+      platform: "darwin",
+      run: fakeRunFactory(calls),
+      useSudoWrites: false,
+    });
+
+    const result = await service.runStep("ensure_launchd_services", context);
+
+    assert.equal(result.ok, true);
+    assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/skills`), `${root}/data/skill-profiles/owner-full/skills`);
+    assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/memories`), `${root}/data/skill-profiles/owner-full/memories`);
+    assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/legacy-alias/skills`), `${root}/data/skill-profiles/user-981731fe/skills`);
+    assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/legacy-alias/memories`), `${root}/data/skill-profiles/user-981731fe/memories`);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -518,6 +587,7 @@ async function run() {
   await testValidationHelpersAndDisabledStates();
   await testEnsureMacUserCreatesHiddenAccount();
   await testEnsureLaunchdMaterializesWorkerFilesAndManifest();
+  await testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases();
   await testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig();
   await testEnsureLaunchdKickstartsWorkersWhenRequested();
   await testRepairWorkspaceAclSkipsSystemUsersRoot();

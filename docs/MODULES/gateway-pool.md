@@ -467,6 +467,15 @@ launch, even when configure is skipped. If `lowgw14` is stopped after serving
 memory reads/writes must move with the requested workspace instead of staying in
 the old physical profile directory.
 
+For Mac materialized profiles, `skillWorkspaceIds` is the primary source for
+that `<workspaceId>` store. Owner maps to `owner-full`. `skillProfile` may
+carry `owner-full` or `workspace:<id>` for diagnostics and compatibility, but
+it must not override a single concrete `skillWorkspaceIds` binding. This keeps
+legacy display aliases from relinking a worker to the wrong Skill/Memory store.
+Every enabled materialized profile must also have a worker-owned `SOUL.md` and
+the worker user must be able to read/write `SOUL.md` and write temporary files
+under both resolved `skills` and `memories`.
+
 Gateway Pool must distinguish the profile's authorized capability set from the
 run's active schema set. A workspace/tier/provider template may know about all
 authorized plugin MCPs and Skill bundles, while an ordinary chat run injects

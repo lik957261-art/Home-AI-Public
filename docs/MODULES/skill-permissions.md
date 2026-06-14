@@ -50,10 +50,15 @@ deployment-wide shared Skills use `shared-global`.
 - Gateway `HERMES_HOME/skills` is not an independent profile-local Skill Store.
   It must be a link to the workspace Skill Store for that Gateway template:
   Owner resolves to `owner-full`, non-Owner workspaces resolve to
-  `<workspaceId>`, and deployment-wide shared Skills remain `shared-global`.
+  the single manifest `skillWorkspaceIds` entry, and deployment-wide shared
+  Skills remain `shared-global`.
   Provider labels or legacy profile aliases such as `grok`, `deepseek`, or a
   slot name are not Skill Store ids; the Skill Store dimension is workspace,
   not model provider.
+  If `skillWorkspaceIds` and `skillProfile: workspace:<id>` disagree because of
+  legacy aliases, profile materialization and startup must prefer
+  `skillWorkspaceIds`; otherwise a real workspace such as `user-981731fe` can
+  be rematerialized into a nonexistent alias store.
   Official Hermes Skill create/update flows that write under
   `HERMES_HOME/skills` must therefore land in the workspace store so sibling
   Gateways for the same workspace receive the same updated Skill bundle.

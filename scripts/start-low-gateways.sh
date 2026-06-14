@@ -148,11 +148,6 @@ if request_workspace == "owner":
     raise SystemExit(0)
 
 def profile_from_worker(worker):
-    skill_profile = str(worker.get("skillProfile") or worker.get("skill_profile") or "").strip()
-    if skill_profile.lower().startswith("workspace:"):
-        value = clean_profile(skill_profile)
-        if value:
-            return value
     candidates = []
     for key in ("skillWorkspaceIds", "skill_workspace_ids", "allowedWorkspaceIds", "allowed_workspace_ids"):
         raw = worker.get(key) or []
@@ -165,6 +160,11 @@ def profile_from_worker(worker):
             private_ids.append(item)
     if len(private_ids) == 1:
         return private_ids[0]
+    skill_profile = str(worker.get("skillProfile") or worker.get("skill_profile") or "").strip()
+    if skill_profile.lower().startswith("workspace:"):
+        value = clean_profile(skill_profile)
+        if value:
+            return value
     return "owner-full"
 
 try:
@@ -212,11 +212,6 @@ if request_workspace == "owner":
     raise SystemExit(0)
 
 def profile_from_worker(worker):
-    skill_profile = str(worker.get("skillProfile") or worker.get("skill_profile") or "").strip()
-    if skill_profile.lower().startswith("workspace:"):
-        value = clean_profile(skill_profile)
-        if value:
-            return value
     candidates = []
     for key in ("skillWorkspaceIds", "skill_workspace_ids", "allowedWorkspaceIds", "allowed_workspace_ids"):
         raw = worker.get(key) or []
@@ -229,6 +224,11 @@ def profile_from_worker(worker):
             private_ids.append(item)
     if len(private_ids) == 1:
         return private_ids[0]
+    skill_profile = str(worker.get("skillProfile") or worker.get("skill_profile") or "").strip()
+    if skill_profile.lower().startswith("workspace:"):
+        value = clean_profile(skill_profile)
+        if value:
+            return value
     return "owner-full"
 
 try:

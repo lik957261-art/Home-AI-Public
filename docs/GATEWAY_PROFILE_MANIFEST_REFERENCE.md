@@ -36,8 +36,8 @@ This reference documents public-safe manifest fields. The example file is `examp
 | `launchdLabel` / `launchd_label` | Mac production | System LaunchDaemon label for the worker, for example `com.hermesmobile.gateway.hm-xulu.openai.1`. Every enabled Mac worker must have a loaded service with this label, even when the worker is cold. |
 | `allowMaintenance` | owner-maintenance | Required for explicit Owner maintenance workers. |
 | `provider` | optional | Provider hint such as `xai-oauth` for Grok profile routing. |
-| `skillProfile` | recommended | Non-secret Skill store/profile label for diagnostics and routing. |
-| `skillWorkspaceIds` | recommended | Workspace ids served by this Skill store. |
+| `skillProfile` | recommended | Non-secret Skill store/profile label for diagnostics and routing. `owner-full` means the Owner full Skill/Memory store. `workspace:<id>` is a compatibility hint, not stronger than `skillWorkspaceIds`. |
+| `skillWorkspaceIds` | recommended | Workspace ids served by this Skill store. Runtime materialization and startup use this as the primary source of truth for profile-local `skills` and `memories` links. |
 | `telemetryStateDbPath` | optional | Gateway profile state DB for usage telemetry. Treat as non-public deployment metadata. |
 | `telemetryResponseStoreDbPath` | optional | Gateway response store DB for usage telemetry. Treat as non-public deployment metadata. |
 

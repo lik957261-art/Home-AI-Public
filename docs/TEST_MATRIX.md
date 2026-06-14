@@ -531,6 +531,11 @@ workspace-local: Wardrobe, Finance, Email, Health, Note, and future plugin tools
 advertised only when the worker's target workspace has the matching
 `.hermes-<plugin>` config/key directory. A worker without plugin config must not
 fall back to Owner or expose a broken plugin toolset.
+Mac profile materialization checks must additionally prove that Owner profiles
+resolve `skills` and `memories` to `owner-full`, non-Owner profiles prefer the
+single concrete `skillWorkspaceIds` store over legacy `skillProfile` aliases,
+and the effective worker user can write temporary files under both stores and
+read/write the materialized profile `SOUL.md`.
 The same NAS harness must include an ordinary representative message smoke,
 not a probe-only or content-specific shortcut. The smoke must compare the
 Mobile run phase timeline with Windows/local production behavior:
