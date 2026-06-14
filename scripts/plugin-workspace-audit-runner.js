@@ -157,12 +157,18 @@ function codexAuditConfig() {
       || "",
     200,
   );
+  const codexHome = clean(
+    process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME
+      || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME
+      || "",
+    2000,
+  );
   const timeoutMs = Math.max(30_000, Number(
     process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS
       || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS
       || 600_000,
   ) || 600_000);
-  return { enabled, command, model, timeoutMs };
+  return { enabled, command, model, codexHome, timeoutMs };
 }
 
 function buildCodexPrompt(job, audit) {
@@ -218,6 +224,8 @@ function runCodexReview(job, audit, workspacePath) {
   ];
   if (config.model) args.push("--model", config.model);
   args.push(buildCodexPrompt(job, audit));
+  const codexHome = config.codexHome || path.join(os.homedir() || process.env.HOME || "", ".codex");
+  const codexParentHome = codexHome.endsWith(`${path.sep}.codex`) ? path.dirname(codexHome) : (os.homedir() || process.env.HOME || "");
   const result = spawnSync(config.command, args, {
     cwd: workspacePath,
     encoding: "utf8",
@@ -225,8 +233,8 @@ function runCodexReview(job, audit, workspacePath) {
     timeout: config.timeoutMs,
     maxBuffer: MAX_CODEX_BYTES,
     env: Object.assign({}, process.env, {
-      HOME: os.homedir() || process.env.HOME,
-      CODEX_HOME: process.env.CODEX_HOME || path.join(os.homedir() || process.env.HOME || "", ".codex"),
+      HOME: codexParentHome,
+      CODEX_HOME: codexHome,
       NO_COLOR: "1",
       TERM: "dumb",
     }),
