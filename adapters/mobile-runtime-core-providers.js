@@ -13,6 +13,7 @@ const { createGatewayStatusProjection } = require("./gateway-status-projection")
 const { createLearningCoinService } = require("./learning-coin-service");
 const { createPathPolicyProvider } = require("./path-policy-provider");
 const { createPluginAuthorizedToolsetService } = require("./plugin-authorized-toolset-service");
+const { parseAuditTargetConfig } = require("./plugin-workspace-audit-service");
 const { createProjectDiscoveryProvider } = require("./project-discovery-provider");
 const { createRunConcurrencyPolicy } = require("./run-concurrency-policy");
 const { createSecurityBoundaryProvider } = require("./security-boundary-provider");
@@ -106,6 +107,9 @@ function createMobileRuntimeCoreProviders(deps = {}) {
       runtimeEnv.GROUP_DELIVERIES_DIR,
       runtimeEnv.CRON_OUTPUT_ROOT,
       runtimeEnv.CRON_RUN_LOG_ROOT,
+      ...Object.values(parseAuditTargetConfig({ env }))
+        .map((target) => target && typeof target === "object" ? (target.path || target.workspacePath || target.workspace_path) : "")
+        .filter(Boolean),
       ...deps.normalizeStringList(env.HERMES_MOBILE_SECURITY_ALLOWED_EXCEPTIONS || env.HERMES_WEB_SECURITY_ALLOWED_EXCEPTIONS || ""),
     ].filter(Boolean)),
   });

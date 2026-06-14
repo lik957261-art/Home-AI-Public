@@ -7,6 +7,7 @@ const path = require("node:path");
 const repoRoot = path.resolve(__dirname, "..");
 const dispatcher = fs.readFileSync(path.join(repoRoot, "scripts", "hermes-mobile-cron-dispatcher.py"), "utf8");
 const runner = fs.readFileSync(path.join(repoRoot, "scripts", "plugin-workspace-audit-runner.js"), "utf8");
+const coreProviders = fs.readFileSync(path.join(repoRoot, "adapters", "mobile-runtime-core-providers.js"), "utf8");
 
 assert.match(dispatcher, /def _run_plugin_workspace_audit_job/);
 assert.match(dispatcher, /plugin-workspace-audit-runner\.js/);
@@ -26,5 +27,7 @@ assert.match(runner, /const args = \[\s*"exec"/);
 assert.match(runner, /"--sandbox",\s*"read-only"/);
 assert.match(runner, /redactWorkspacePath/);
 assert.match(runner, /report intentionally omits the target workspace absolute path/i);
+assert.match(coreProviders, /parseAuditTargetConfig/);
+assert.match(coreProviders, /allowedExceptionRoots[\s\S]*parseAuditTargetConfig\(\{ env \}\)/);
 
 console.log("cron dispatcher plugin audit harness passed");
