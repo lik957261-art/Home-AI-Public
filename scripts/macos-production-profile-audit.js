@@ -500,6 +500,43 @@ function userCanAccessFile(file, user, mode = "read", options = {}) {
   }
 }
 
+function workerCanWriteDirectory(dir, user, options = {}) {
+  const value = String(dir || "").trim();
+  const safeUser = String(user || "").trim();
+  if (!value || !safeUser || !exists(value)) return false;
+  const probeName = `.home-ai-profile-audit-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const probeFile = path.join(value, probeName);
+  if (typeof options.workerDirectoryWriteProbe === "function") {
+    return Boolean(options.workerDirectoryWriteProbe(value, safeUser, probeFile));
+  }
+  if (process.platform === "darwin") {
+    const result = spawnSync("sudo", [
+      "-u",
+      safeUser,
+      "/bin/sh",
+      "-c",
+      "probe_dir=$1; probe_file=$2; umask 077; : > \"$probe_file\" && /bin/rm -f \"$probe_file\"",
+      "home-ai-profile-audit",
+      value,
+      probeFile,
+    ], {
+      encoding: "utf8",
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    return result.status === 0;
+  }
+  try {
+    fs.writeFileSync(probeFile, "profile-audit\n", { encoding: "utf8", mode: 0o600 });
+    fs.rmSync(probeFile, { force: true });
+    return true;
+  } catch (_) {
+    try {
+      fs.rmSync(probeFile, { force: true });
+    } catch (_) {}
+    return false;
+  }
+}
+
 function workerApiKeyFile(worker = {}) {
   return String(worker.apiKeyFile || worker.api_key_file || worker.apiKeyPath || worker.api_key_path || "").trim();
 }
@@ -615,6 +652,15 @@ function osUserForWorker(worker = {}) {
   if (workspace === "user-981731fe") return "hm-xuyan";
   if (workspace === "user-a87aaa61") return "hm-xulu";
   return "";
+}
+
+function profileDirForWorker(worker = {}, profile = "", osUser = "", options = {}) {
+  if (typeof options.profileDirForWorker === "function") {
+    return String(options.profileDirForWorker(worker, profile, osUser) || "").trim();
+  }
+  return osUser && profile
+    ? path.join("/Users", osUser, "HermesWorkspace", ".hermes-gateway", "profiles", profile)
+    : "";
 }
 
 function isOpenAiCodexWorker(worker = {}) {
@@ -850,11 +896,20 @@ function buildAudit(options) {
     const profileId = workspaceProfileId(workspaceId);
     const expectedSkillRoot = path.join(skillProfilesRoot, profileId, "skills");
     const expectedMemoryRoot = path.join(skillProfilesRoot, profileId, "memories");
-    const profileDir = osUser && profile
-      ? path.join("/Users", osUser, "HermesWorkspace", ".hermes-gateway", "profiles", profile)
-      : "";
+    const profileDir = profileDirForWorker(worker, profile, osUser, options);
+    const soulPath = path.join(profileDir, "SOUL.md");
     const skills = linkInfo(path.join(profileDir, "skills"), root, expectedSkillRoot);
     const memories = linkInfo(path.join(profileDir, "memories"), root, expectedMemoryRoot);
+    const profileAccess = {
+      skillsCanWriteTemp: skills.exists ? workerCanWriteDirectory(path.join(profileDir, "skills"), osUser, options) : false,
+      memoriesCanWriteTemp: memories.exists ? workerCanWriteDirectory(path.join(profileDir, "memories"), osUser, options) : false,
+      soul: {
+        exists: exists(soulPath),
+        path: compactPath(soulPath, root),
+        workerCanRead: exists(soulPath) ? userCanAccessFile(soulPath, osUser, "read", options) : false,
+        workerCanWrite: exists(soulPath) ? userCanAccessFile(soulPath, osUser, "write", options) : false,
+      },
+    };
     const configExists = exists(path.join(profileDir, "config.yaml"));
     const launchd = launchdServiceStatus(worker, options);
     const telemetry = options.checkTelemetry === false ? null : telemetryStatus(worker, root, options);
@@ -874,6 +929,7 @@ function buildAudit(options) {
       configExists,
       skills,
       memories,
+      profileAccess,
       launchd,
       telemetry,
       filePluginRoots,
@@ -885,6 +941,11 @@ function buildAudit(options) {
     if (!configExists) issue(`profile_config_missing:${profile}`);
     if (!skills.exists) issue(`profile_skills_missing:${profile}`);
     if (!memories.exists) issue(`profile_memories_missing:${profile}`);
+    if (skills.exists && !profileAccess.skillsCanWriteTemp) issue(`profile_skills_temp_write_failed:${profile}`);
+    if (memories.exists && !profileAccess.memoriesCanWriteTemp) issue(`profile_memories_temp_write_failed:${profile}`);
+    if (!profileAccess.soul.exists) issue(`profile_soul_missing:${profile}`);
+    if (profileAccess.soul.exists && !profileAccess.soul.workerCanRead) issue(`profile_soul_unreadable:${profile}`);
+    if (profileAccess.soul.exists && !profileAccess.soul.workerCanWrite) issue(`profile_soul_unwritable:${profile}`);
     if (!launchd.label) issue(`launchd_label_missing:${profile}`);
     if (launchd.label && launchd.plistChecked && !launchd.plistExists) issue(`launchd_plist_missing:${profile}`);
     if (launchd.checked && !launchd.loaded) issue(`launchd_service_not_loaded:${profile}`);

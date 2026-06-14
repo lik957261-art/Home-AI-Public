@@ -213,7 +213,13 @@ profile audit on the Mac with the pinned runtime. The production audit must
 return `ok=true`, empty `issues`, no blocking `warnings`, active workspace keys
 for registered retained users, required plugin Skill bundles, shared Response
 baseline presence, and profile `skills`/`memories` links whose realpath points
-at the matching `data/skill-profiles/<profileId>` store. On macOS it must also
+at the matching `data/skill-profiles/<profileId>` store. It must also use the
+effective worker user to create/delete temporary probe files under both
+resolved stores and verify the materialized profile `SOUL.md` is readable and
+writable. `profile_skills_temp_write_failed`,
+`profile_memories_temp_write_failed`, `profile_soul_missing`,
+`profile_soul_unreadable`, or `profile_soul_unwritable` are cold-start
+blockers. On macOS it must also
 prove every enabled manifest worker's system LaunchDaemon is loaded; any
 `launchd_service_not_loaded:<profile>` issue is a cold-start blocker. It must
 also prove each enabled worker's runtime users can read the live Gateway

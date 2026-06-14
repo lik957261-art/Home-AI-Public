@@ -18,6 +18,14 @@ assert.match(script, /skill-profiles/);
 assert.match(script, /\.hermes-gateway/);
 assert.match(script, /profile_skills_not_linked/);
 assert.match(script, /profile_memories_not_linked/);
+assert.match(script, /profile_skills_temp_write_failed/);
+assert.match(script, /profile_memories_temp_write_failed/);
+assert.match(script, /profile_soul_missing/);
+assert.match(script, /profile_soul_unreadable/);
+assert.match(script, /profile_soul_unwritable/);
+assert.match(script, /workerCanWriteDirectory/);
+assert.match(script, /workerDirectoryWriteProbe/);
+assert.match(script, /profileDirForWorker/);
 assert.match(script, /codex_auth_json_not_linked/);
 assert.match(script, /codex_auth_lock_unwritable/);
 assert.match(script, /codex_auth_json_target_unexpected/);
@@ -166,6 +174,63 @@ try {
   assert.ok(audit.issues.some((item) => item.startsWith("profile_config_missing:")));
   assert.ok(audit.issues.includes("mobile_bridge_env_missing:hm-wuping-openai-1:HERMES_MOBILE_BRIDGE_HOST_URL"));
   assert.ok(audit.issues.includes("mobile_bridge_key_path_missing:hm-wuping-openai-1:data/secrets/bridge-host.secret"));
+  assert.ok(audit.issues.some((item) => item.startsWith("profile_soul_missing:")));
+  const profileFixtureRoot = path.join(tempRoot, "profile-fixtures");
+  function materializeProfile(profile, profileId) {
+    const profileDir = path.join(profileFixtureRoot, profile);
+    fs.mkdirSync(profileDir, { recursive: true });
+    fs.writeFileSync(path.join(profileDir, "config.yaml"), "profile: fixture\n", "utf8");
+    fs.writeFileSync(path.join(profileDir, "SOUL.md"), "fixture soul\n", "utf8");
+    for (const name of ["skills", "memories"]) {
+      const link = path.join(profileDir, name);
+      const target = path.join(data, "skill-profiles", profileId, name);
+      fs.mkdirSync(target, { recursive: true });
+      try {
+        fs.rmSync(link, { recursive: true, force: true });
+      } catch (_) {}
+      fs.symlinkSync(target, link);
+    }
+    return profileDir;
+  }
+  materializeProfile("hm-owner-openai-1", "owner-full");
+  materializeProfile("deepseekgw1", "owner-full");
+  materializeProfile("hm-wuping-openai-1", "weixin_wuping");
+  const profileAccessReadyAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: [],
+    expectedPlugins: [],
+    requiredWorkspacePlugins: {},
+    requiredSharedSkills: [],
+    checkTelemetry: false,
+    profileDirForWorker: (_worker, profile) => path.join(profileFixtureRoot, profile),
+    workerDirectoryWriteProbe: () => true,
+    workerFileAccessProbe: () => true,
+  });
+  assert.ok(!profileAccessReadyAudit.issues.some((item) => item.startsWith("profile_skills_temp_write_failed:")));
+  assert.ok(!profileAccessReadyAudit.issues.some((item) => item.startsWith("profile_memories_temp_write_failed:")));
+  assert.ok(!profileAccessReadyAudit.issues.some((item) => item.startsWith("profile_soul_missing:")));
+  assert.ok(!profileAccessReadyAudit.issues.some((item) => item.startsWith("profile_soul_unreadable:")));
+  assert.ok(!profileAccessReadyAudit.issues.some((item) => item.startsWith("profile_soul_unwritable:")));
+  const ownerProfileCheck = profileAccessReadyAudit.profileChecks.find((item) => item.profile === "hm-owner-openai-1");
+  assert.equal(ownerProfileCheck.profileAccess.skillsCanWriteTemp, true);
+  assert.equal(ownerProfileCheck.profileAccess.memoriesCanWriteTemp, true);
+  assert.equal(ownerProfileCheck.profileAccess.soul.workerCanRead, true);
+  assert.equal(ownerProfileCheck.profileAccess.soul.workerCanWrite, true);
+  const profileAccessDriftAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: [],
+    expectedPlugins: [],
+    requiredWorkspacePlugins: {},
+    requiredSharedSkills: [],
+    checkTelemetry: false,
+    profileDirForWorker: (_worker, profile) => path.join(profileFixtureRoot, profile),
+    workerDirectoryWriteProbe: (dir, user) => !(user === fixtureWupingUser && dir.endsWith("/memories")),
+    workerFileAccessProbe: (file, user, mode) => !(user === fixtureWupingUser && file.endsWith("/SOUL.md") && mode === "write"),
+  });
+  assert.ok(profileAccessDriftAudit.issues.includes("profile_memories_temp_write_failed:hm-wuping-openai-1"));
+  assert.ok(profileAccessDriftAudit.issues.includes("profile_soul_unwritable:hm-wuping-openai-1"));
+  assert.ok(!profileAccessDriftAudit.issues.includes("profile_skills_temp_write_failed:hm-wuping-openai-1"));
+  assert.ok(!profileAccessDriftAudit.issues.includes("profile_soul_unreadable:hm-wuping-openai-1"));
   const workerSecretDriftAudit = buildAudit({
     root: tempRoot,
     expectedWorkspaces: [],
