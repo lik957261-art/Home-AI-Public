@@ -101,6 +101,7 @@ function main() {
   assert.equal(fakeCall.argv.includes("--sandbox"), true);
   assert.equal(fakeCall.argv.includes("read-only"), true);
   assert.equal(fakeCall.argv.includes("--ephemeral"), true);
+  assert.equal(fakeCall.argv.includes("--ignore-user-config"), true);
   assert.equal(fakeCall.argv.includes("--cd"), true);
   assert.match(fakeCall.argv.join("\n"), /Do not edit files/);
 

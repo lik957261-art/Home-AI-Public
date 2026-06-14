@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { createActionInboxService } = require("../adapters/action-inbox-service");
@@ -210,6 +211,7 @@ function runCodexReview(job, audit, workspacePath) {
     "--cd",
     workspacePath,
     "--ephemeral",
+    "--ignore-user-config",
     "--color",
     "never",
     "--skip-git-repo-check",
@@ -223,6 +225,7 @@ function runCodexReview(job, audit, workspacePath) {
     timeout: config.timeoutMs,
     maxBuffer: MAX_CODEX_BYTES,
     env: Object.assign({}, process.env, {
+      HOME: process.env.HOME || os.homedir(),
       NO_COLOR: "1",
       TERM: "dumb",
     }),
