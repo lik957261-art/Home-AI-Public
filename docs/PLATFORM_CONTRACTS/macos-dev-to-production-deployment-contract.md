@@ -295,7 +295,14 @@ npm run --silent deploy:macos -- --plugin growth --source /Users/hermes-dev/Herm
 
 ```bash
 node scripts/install-growth-launchd-service.js --json
-node scripts/install-growth-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+node scripts/install-growth-launchd-service.js --execute --bootstrap \
+  --gateway-authoring-endpoint http://127.0.0.1:18751/v1/responses \
+  --gateway-authoring-access-token-path <gateway-worker-token-file> \
+  --gateway-authoring-protocol responses \
+  --gateway-evaluation-endpoint http://127.0.0.1:18751/v1/responses \
+  --gateway-evaluation-access-token-path <gateway-worker-token-file> \
+  --gateway-evaluation-protocol responses \
+  --password-file <private-local-password-file> --json
 ```
 
 `--sync-only` is allowed only for plugin first-install source sync before a

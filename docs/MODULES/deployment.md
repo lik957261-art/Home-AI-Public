@@ -397,11 +397,15 @@ plus `GROWTH_LEGACY_AUDIO_ROOTS=/Users/hermes-host/HermesMobile/data` for
 bounded historical audio playback,
 so first install must also import or roll back the plugin-owned SQLite copy
 before declaring production closure.
-When Growth card authoring is enabled, pass the Gateway Responses boundary to
-the installer with `--gateway-authoring-endpoint`,
-`--gateway-authoring-access-token-path`, and
-`--gateway-authoring-protocol responses`. The token path must point to a
-server-side Gateway worker secret file; do not put raw token values in the
+When Growth AI card authoring/evaluation is enabled, pass the Gateway
+Responses boundary to the installer with `--gateway-authoring-endpoint`,
+`--gateway-authoring-access-token-path`,
+`--gateway-authoring-protocol responses`, `--gateway-evaluation-endpoint`,
+`--gateway-evaluation-access-token-path`, and
+`--gateway-evaluation-protocol responses`. The evaluation endpoint may point to
+the same Gateway Responses endpoint as authoring when the selected worker is
+allowed to handle both Growth prompt kinds. Token paths must point to
+server-side Gateway worker secret files; do not put raw token values in the
 plist or deployment logs.
 After SQLite import, run the Growth plugin `backfill:audio-blobs` dry-run and
 then `--write` only after an online SQLite backup exists; this moves historical

@@ -27,6 +27,10 @@ function parseArgs(argv) {
     gatewayAuthoringAccessTokenPath: argValue(argv, "--gateway-authoring-access-token-path", process.env.GROWTH_GATEWAY_AUTHORING_ACCESS_TOKEN_PATH || ""),
     gatewayAuthoringProtocol: argValue(argv, "--gateway-authoring-protocol", process.env.GROWTH_GATEWAY_AUTHORING_PROTOCOL || ""),
     gatewayAuthoringModel: argValue(argv, "--gateway-authoring-model", process.env.GROWTH_GATEWAY_AUTHORING_MODEL || ""),
+    gatewayEvaluationEndpoint: argValue(argv, "--gateway-evaluation-endpoint", process.env.GROWTH_GATEWAY_EVALUATION_ENDPOINT || ""),
+    gatewayEvaluationAccessTokenPath: argValue(argv, "--gateway-evaluation-access-token-path", process.env.GROWTH_GATEWAY_EVALUATION_ACCESS_TOKEN_PATH || ""),
+    gatewayEvaluationProtocol: argValue(argv, "--gateway-evaluation-protocol", process.env.GROWTH_GATEWAY_EVALUATION_PROTOCOL || ""),
+    gatewayEvaluationModel: argValue(argv, "--gateway-evaluation-model", process.env.GROWTH_GATEWAY_EVALUATION_MODEL || ""),
   };
 }
 
@@ -66,6 +70,10 @@ function plistFor(options = {}) {
   if (options.gatewayAuthoringAccessTokenPath) env.GROWTH_GATEWAY_AUTHORING_ACCESS_TOKEN_PATH = options.gatewayAuthoringAccessTokenPath;
   if (options.gatewayAuthoringProtocol) env.GROWTH_GATEWAY_AUTHORING_PROTOCOL = options.gatewayAuthoringProtocol;
   if (options.gatewayAuthoringModel) env.GROWTH_GATEWAY_AUTHORING_MODEL = options.gatewayAuthoringModel;
+  if (options.gatewayEvaluationEndpoint) env.GROWTH_GATEWAY_EVALUATION_ENDPOINT = options.gatewayEvaluationEndpoint;
+  if (options.gatewayEvaluationAccessTokenPath) env.GROWTH_GATEWAY_EVALUATION_ACCESS_TOKEN_PATH = options.gatewayEvaluationAccessTokenPath;
+  if (options.gatewayEvaluationProtocol) env.GROWTH_GATEWAY_EVALUATION_PROTOCOL = options.gatewayEvaluationProtocol;
+  if (options.gatewayEvaluationModel) env.GROWTH_GATEWAY_EVALUATION_MODEL = options.gatewayEvaluationModel;
   const envXml = Object.entries(env).map(([key, value]) => [
     "      <key>", xmlEscape(key), "</key>\n",
     "      <string>", xmlEscape(value), "</string>",
@@ -155,6 +163,10 @@ function plan(options = {}) {
     gatewayAuthoringAccessTokenPath: options.gatewayAuthoringAccessTokenPath || "",
     gatewayAuthoringProtocol: options.gatewayAuthoringProtocol || "",
     gatewayAuthoringModel: options.gatewayAuthoringModel || "",
+    gatewayEvaluationEndpoint: options.gatewayEvaluationEndpoint || "",
+    gatewayEvaluationAccessTokenPath: options.gatewayEvaluationAccessTokenPath || "",
+    gatewayEvaluationProtocol: options.gatewayEvaluationProtocol || "",
+    gatewayEvaluationModel: options.gatewayEvaluationModel || "",
     bootstrap: Boolean(options.bootstrap),
   };
 }
