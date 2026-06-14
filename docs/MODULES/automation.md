@@ -250,10 +250,11 @@ creation.
 The first manual alignment route is
 `POST /api/automations/plugin-workspace-audits/run`. It uses the same service
 validation and target resolution, creates a canonical one-shot job with
-`schedule=manual`, `repeat=once`, `auditMode=alignment` by default, and requests
-the existing Automation `run` action. Execution still happens through the
-normal dispatcher tick so report creation, run history, and Action Inbox
-projection remain on the same canonical path as scheduled jobs.
+a CRON-compatible placeholder schedule such as `1m`, `repeat=1`,
+`auditMode=alignment` by default, and requests the existing Automation `run`
+action. Execution still happens through the normal dispatcher tick so report
+creation, run history, and Action Inbox projection remain on the same canonical
+path as scheduled jobs.
 
 At due time, the Mac/NAS dispatcher detects `kind=plugin_workspace_audit` and
 runs `scripts/plugin-workspace-audit-runner.js` instead of official

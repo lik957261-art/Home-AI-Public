@@ -85,8 +85,8 @@ async function testBuildsAlignmentManualAuditAndRequestsRun() {
     assert.equal(result.audit.triggerMode, "manual");
     assert.match(result.draft.prompt, /design-goal alignment/);
     assert.equal(calls[0].type, "create");
-    assert.equal(calls[0].payload.job.schedule, "manual");
-    assert.equal(calls[0].payload.job.repeat, "once");
+    assert.equal(calls[0].payload.job.schedule, "1m");
+    assert.equal(calls[0].payload.job.repeat, 1);
     assert.equal(calls[1].type, "mutate");
     assert.equal(calls[1].payload.action, "run");
     assert.equal(calls[1].payload.jobId, "audit-manual-1");

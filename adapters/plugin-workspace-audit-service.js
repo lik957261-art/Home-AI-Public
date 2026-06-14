@@ -317,7 +317,7 @@ function createPluginWorkspaceAuditService(options = {}) {
 
   async function triggerManualAudit(input = {}) {
     const draft = await buildAuditDraft(Object.assign({}, input, {
-      schedule: clean(input.schedule, 120) || "manual",
+      schedule: clean(input.schedule, 120) || "1m",
       auditMode: clean(input.auditMode || input.audit_mode || "alignment", 40) || "alignment",
       triggerMode: "manual",
     }));
@@ -333,8 +333,8 @@ function createPluginWorkspaceAuditService(options = {}) {
         dryRun,
         text: clean(input.text || input.instructions || draft.job.name, 1000),
         job: Object.assign({}, draft.job, {
-          schedule: "manual",
-          repeat: "once",
+          schedule: clean(input.schedule, 120) || "1m",
+          repeat: 1,
         }),
         ownerPrincipalId: draft.ownerPrincipalId,
         accessPolicyContext: objectValue(input.accessPolicyContext || input.access_policy_context),

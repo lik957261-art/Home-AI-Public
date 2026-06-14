@@ -108,8 +108,10 @@ The first version should be deliberately small:
 
 The first manual alignment trigger creates the same canonical
 `plugin_workspace_audit` job shape and immediately requests a manual run. The
-job uses `schedule=manual`, `repeat=once`, `auditMode=alignment`, and
-`audit.triggerMode=manual`.
+job uses a CRON-compatible one-shot placeholder such as `schedule=1m`,
+`repeat=1`, `auditMode=alignment`, and `audit.triggerMode=manual`; the route
+then immediately requests the existing Automation `run` action so execution is
+queued for the next dispatcher tick.
 
 The Automation job should be structured instead of prompt-only:
 
@@ -318,9 +320,10 @@ Manual alignment trigger:
 }
 ```
 
-The manual route creates a canonical one-shot job with `schedule=manual`,
-`repeat=once`, and immediately requests a `run` action. The dispatcher still
-owns actual execution, report creation, Inbox projection, and run history.
+The manual route creates a canonical one-shot job with a CRON-compatible
+placeholder schedule such as `1m`, `repeat=1`, and immediately requests a
+`run` action. The dispatcher still owns actual execution, report creation,
+Inbox projection, and run history.
 
 Home AI resolves audit workspaces only from configured targets. Supported
 configuration forms are:
