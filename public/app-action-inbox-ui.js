@@ -436,8 +436,7 @@ function openActionInboxPluginAuditCreate() {
   state.actionInboxCreateDraftText = "";
   state.actionInboxCreateProgressStep = "";
   state.actionInboxPluginAuditPluginId = state.actionInboxPluginAuditPluginId || "codex-mobile";
-  state.actionInboxPluginAuditSchedule = state.actionInboxPluginAuditSchedule || "0 22 * * 0";
-  state.actionInboxPluginAuditMode = state.actionInboxPluginAuditMode || "recent_changes";
+  state.actionInboxPluginAuditMode = state.actionInboxPluginAuditMode || "alignment";
   renderActionInboxView();
 }
 
@@ -844,7 +843,7 @@ async function createActionInboxPluginAuditPlan(root) {
   state.actionInboxCreateProgressStep = "saving";
   renderActionInboxView({ preserveScroll: true });
   try {
-    await api("/api/automations/plugin-workspace-audits/run", {
+    const result = await api("/api/automations/plugin-workspace-audits/run", {
       method: "POST",
       body: JSON.stringify({
         workspaceId: state.selectedWorkspaceId || "owner",
@@ -860,6 +859,12 @@ async function createActionInboxPluginAuditPlan(root) {
     state.actionInboxCreateProgressStep = "";
     state.actionInboxStatusFilter = "open";
     if (typeof invalidateAutomationListCache === "function") invalidateAutomationListCache();
+    const jobId = String(result?.job?.id || result?.createdJob?.id || "").trim();
+    const message = jobId
+      ? `插件审计已提交，后台执行中：${jobId}`
+      : "插件审计已提交，后台执行中";
+    if (typeof showPushToast === "function") showPushToast(message, "success");
+    else if (typeof $ === "function" && $("connectionState")) $("connectionState").textContent = message;
     await loadActionInbox({ preserveScroll: false });
   } catch (err) {
     state.actionInboxCreateBusy = false;

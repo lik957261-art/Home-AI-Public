@@ -56,6 +56,10 @@ this.ActionInboxUiTest = {
 
 const ui = sandbox.ActionInboxUiTest;
 
+assert.doesNotMatch(source, /actionInboxPluginAuditSchedule/);
+assert.match(source, /state\.actionInboxPluginAuditMode = state\.actionInboxPluginAuditMode \|\| "alignment"/);
+assert.match(source, /showPushToast\(message, "success"\)/);
+
 assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&itemType=todo");
 sandbox.state.actionInboxStatusFilter = "open";
 assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&excludeItemType=todo&status=open");
