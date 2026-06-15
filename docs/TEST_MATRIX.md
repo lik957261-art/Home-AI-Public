@@ -11,8 +11,33 @@ Use this matrix to pick focused tests before broader gates. Always add syntax ch
 - Architecture boundary: `node tests\architecture-refactor-boundary.test.js`
 - Privacy scan: `node scripts\privacy-scan.js --all-files`
 - Diff hygiene: `git diff --check`
+- Engineering governance: `node scripts\engineering-governance-check.js`
 
 Use full gates before public release, broad shared-service/runtime changes, permission/security/persistence changes, or when requested.
+
+## Engineering Governance Gate
+
+Changes to CI, deployment behavior, production diagnostics, public release
+behavior, or productization rules must run:
+
+```bash
+node scripts/engineering-governance-check.js --json
+node tests/engineering-governance-check.test.js
+```
+
+The gate enforces three repository-level requirements:
+
+- CI-enforced constraints remain connected through `npm run productization:check`;
+- production self-diagnostics remain documented and discoverable;
+- the Productization Acceptance Matrix in
+  `docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md` remains part of
+  the test and documentation routing.
+
+Use the matrix for every product-facing change: Owner behavior, non-Owner
+behavior, public fresh install, public update, migration/restore,
+backup/rollback, permission boundaries, UI/PWA cache behavior, and production
+self-diagnostic coverage. Mark non-applicable dimensions explicitly instead of
+silently omitting them.
 
 ## AI Operations Control Plane Gate
 

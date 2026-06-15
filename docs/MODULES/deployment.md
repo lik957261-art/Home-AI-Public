@@ -77,6 +77,11 @@ decision, and production validation, and the development user must not be given
 ordinary write access to production app or plugin source roots.
 The shared script is `scripts/deploy-macos-production.js`. It is plan-only by
 default and requires `--execute` before it writes production.
+Production closure must preserve the engineering governance baseline described
+in `docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md`: the CI gate,
+production self-diagnostics, and productization acceptance matrix must remain
+valid before a release is treated as public-deployable. The static guard is
+`node scripts/engineering-governance-check.js`.
 For every non-`--sync-only` Home AI or plugin deployment, the shared script also
 runs a focused `codex-auth-profile-audit` gate after restart/health checks. The
 gate reads `scripts/macos-production-profile-audit.js --expected-workspaces
@@ -369,6 +374,11 @@ canonical Hermes CRON store, starts the dispatcher every 60 seconds with
 `HERMES_CRON_SCRIPT_TIMEOUT=1800` for long-running `no_agent` scripts, and
 validates both `system/com.hermesmobile.listener` and
 `system/com.hermesmobile.cron`.
+After Automation cron provisioning, dispatch changes, or repeated background
+job failures, run `scripts/macos-automation-cron-audit.js` on Mac production
+with the pinned runtime and bounded JSON output. The audit is part of the
+production self-diagnostic baseline and must not print raw keys, prompts,
+full job bodies, or private task output.
 
 The central deploy script can plan or execute all known plugin service roots
 with `npm run --silent deploy:macos -- --plugin all --json`. The all-plugin

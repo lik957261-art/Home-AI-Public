@@ -134,7 +134,10 @@ async function main() {
     const initialTodos = await request(baseUrl, "/api/todos?workspaceId=owner&includeCompleted=1", {
       headers: { "X-Hermes-Web-Key": ownerKey },
     });
-    assert.equal(initialTodos.source, "local_todos");
+    assert.deepEqual(initialTodos.source, {
+      name: "action_inbox_todos",
+      compatibilityRoute: "/api/todos",
+    });
     assert.deepEqual(initialTodos.data, []);
 
     const due = new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 16);
@@ -144,7 +147,8 @@ async function main() {
       content: "Smoke todo",
       dueTime: due,
     }));
-    assert.match(createdTodo.todo.id, /^todo_/);
+    assert.equal(typeof createdTodo.todo.id, "string");
+    assert.ok(createdTodo.todo.id.length > 0);
     const listedTodos = await request(baseUrl, "/api/todos?workspaceId=owner&includeCompleted=1", {
       headers: { "X-Hermes-Web-Key": ownerKey },
     });

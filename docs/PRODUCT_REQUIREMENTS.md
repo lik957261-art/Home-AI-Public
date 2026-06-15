@@ -13,6 +13,12 @@ This file records durable product rules that implementation must preserve.
   configuration and must not depend on private machine paths, copied production
   state, local-only secrets, hidden approvals, or manual repairs performed only
   in the maintainer's environment.
+- Product-facing changes must satisfy the engineering governance gates:
+  CI-enforced constraints, production self-diagnostics, and the Productization
+  acceptance matrix. A fix is not productized if it only works in the
+  maintainer's current production state and lacks documented fresh-install,
+  update, permission-boundary, and diagnostic coverage for applicable failure
+  modes.
 
 ## Multi-User And Multi-Task Platform
 

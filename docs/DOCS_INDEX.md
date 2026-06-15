@@ -52,6 +52,10 @@ remaining gap as an explicit follow-up.
 - Module-to-test matrix: `docs/TEST_MATRIX.md`
 - Harness required matrix: `docs/IMPLEMENTATION_NOTES/harness-required-matrix.md`
 - Harness/context loading discipline: `docs/IMPLEMENTATION_NOTES/harness-context-loading-discipline.md`
+- Engineering governance gates:
+  `docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md`,
+  `scripts/engineering-governance-check.js`,
+  `tests/engineering-governance-check.test.js`
 - Original layered topic-context design: `docs/TOPIC_CONTEXT_LAYERED_COMPACTION_IMPLEMENTATION.zh-CN.md`
 
 ## Current Priority Modules

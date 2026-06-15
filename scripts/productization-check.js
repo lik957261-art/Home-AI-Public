@@ -38,6 +38,7 @@ function startupCheck() {
 }
 
 function main() {
+  run("Engineering governance check", "node", ["scripts/engineering-governance-check.js"]);
   runNpm(["test"]);
   startupCheck();
   run("Whitespace diff check", "git", ["diff", "--check"]);
