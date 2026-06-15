@@ -268,6 +268,14 @@ function testTitleSummaryIsCompactForChineseText() {
   );
   assert.equal(summarizeReceiptTitle("").length > 0, true);
   assert.equal(summarizeReceiptTitle("\u9644\u4ef6:\n- receipt.md\n\n\u6765\u6e90: Hermes Mobile \u56de\u6267"), "\u56de\u6267 | receipt.md");
+  assert.equal(
+    summarizeReceiptTitle([
+      "\u6309\u73b0\u5728\u7684\u72b6\u6001\uff0c\u6211\u7684\u5224\u65ad\u662f\uff1a",
+      "",
+      "Python\u201c\u77e5\u8bc6\u4e3b\u7ebf\u201d\u5df2\u7ecf\u63a5\u8fd1\u540e\u6bb5\uff0c\u4f46\u201c\u80fd\u529b\u7ed3\u8bfe\u201d\u8fd8\u6ca1\u5230\u3002",
+    ].join("\n"), { createdAt: "2026-06-15T03:51:11.079Z" }),
+    "\u56de\u6267 | 2026-06-15 | Python\u201c\u77e5\u8bc6\u4e3b\u7ebf\u201d\u5df2\u7ecf\u63a5\u8fd1\u540e\u6bb5\uff0c\u4f46\u201c\u80fd\u529b\u7ed3\u8bfe\u201d\u8fd8\u6ca1\u5230\u3002",
+  );
 }
 
 async function run() {

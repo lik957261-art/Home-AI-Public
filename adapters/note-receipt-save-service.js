@@ -175,7 +175,16 @@ function receiptTitleCandidateLines(text = "") {
       clean
       && !/^[-*+\u2022\u00b7]\s*$/.test(raw)
       && !/^(attachments?|source|conversation|time|error|\u9644\u4ef6|\u6765\u6e90|\u4f1a\u8bdd|\u65f6\u95f4)[:\uff1a]?/i.test(clean)
+      && !isLowSignalReceiptTitleLine(raw, clean)
     ));
+}
+
+function isLowSignalReceiptTitleLine(raw = "", clean = "") {
+  const original = String(raw || "").trim();
+  const text = String(clean || "").trim();
+  if (!text) return true;
+  if (/[\uff1a:]$/.test(original) && text.length <= 36) return true;
+  return /^(按现在的状态|我的判断是|结论先说|先说结论|我查了一下|我看了一下|简单说|整体看|总体看|目前看|从现在的情况看)[\s\uff1a:，,。.!！?？]*$/i.test(text);
 }
 
 function compactReceiptTitle(value = "", options = {}) {
