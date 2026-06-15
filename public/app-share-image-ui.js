@@ -382,9 +382,13 @@ async function shareMessageImage(messageId) {
 
 function openSavedNoteReceiptFromToast(noteId) {
   const id = String(noteId || "").trim();
-  if (typeof rememberNotePluginReturnRoute === "function") rememberNotePluginReturnRoute();
-  if (typeof setNotePluginOpenRoute === "function") {
-    setNotePluginOpenRoute(id ? { pluginRoute: "note", pluginItemId: id } : { pluginRoute: "note" });
+  if (typeof openNotePluginReceipt === "function") {
+    openNotePluginReceipt(id, { refreshNonce: `receipt-${Date.now().toString(36)}` });
+  } else {
+    if (typeof rememberNotePluginReturnRoute === "function") rememberNotePluginReturnRoute();
+    if (typeof setNotePluginOpenRoute === "function") {
+      setNotePluginOpenRoute(id ? { pluginRoute: "note", pluginItemId: id } : { pluginRoute: "note" });
+    }
   }
   state.viewMode = "note";
   localStorage.setItem("hermesWebViewMode", state.viewMode);

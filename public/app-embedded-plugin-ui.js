@@ -281,7 +281,7 @@ function embeddedPluginMessageOriginAllowed(def, event) {
 function normalizeEmbeddedPluginOpenRoute(route = {}) {
   const value = route && typeof route === "object" ? route : {};
   const out = {};
-  ["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"].forEach((key) => {
+  ["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId", "pluginRefresh"].forEach((key) => {
     const text = String(value[key] || "").trim().slice(0, 180);
     if (text) out[key] = text;
   });
@@ -317,6 +317,7 @@ function embeddedPluginOpenRouteFromCurrentUrl(def) {
         pluginThreadId: params.get("pluginThreadId") || params.get("threadId") || "",
         pluginTaskId: params.get("pluginTaskId") || params.get("taskId") || "",
         sourceTurnId: params.get("sourceTurnId") || params.get("turnId") || "",
+        pluginRefresh: params.get("pluginRefresh") || "",
       });
     }
   } catch (_) {}
@@ -1578,6 +1579,20 @@ function rememberNotePluginReturnRoute() {
 
 function setNotePluginOpenRoute(route = {}) {
   return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS.note, route);
+}
+
+function openNotePluginReceipt(noteId = "", options = {}) {
+  const id = String(noteId || "").trim();
+  const refreshNonce = String(options.refreshNonce || Date.now().toString(36)).trim();
+  const route = id
+    ? { pluginRoute: "note", pluginItemId: id, sourceTurnId: refreshNonce, pluginRefresh: refreshNonce }
+    : { pluginRoute: "note", sourceTurnId: refreshNonce, pluginRefresh: refreshNonce };
+  if (typeof rememberNotePluginReturnRoute === "function") rememberNotePluginReturnRoute();
+  setNotePluginOpenRoute(route);
+  if (state.viewMode === EMBEDDED_PLUGIN_DEFS.note.viewMode && typeof requestEmbeddedPluginRefresh === "function") {
+    requestEmbeddedPluginRefresh(EMBEDDED_PLUGIN_DEFS.note, Object.assign({ force: true }, route));
+  }
+  return route;
 }
 
 function restoreNotePluginReturnRoute() {

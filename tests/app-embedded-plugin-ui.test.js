@@ -167,7 +167,11 @@ assert.match(embeddedPluginUi, /function setEmbeddedPluginOpenRoute\(def, route 
 assert.match(embeddedPluginUi, /if \(record\.openRoute\) record\.canGoBack = true;/);
 assert.match(embeddedPluginUi, /function embeddedPluginEntryUrlForFrame\(def, manifest\)/);
 assert.match(embeddedPluginUi, /parsed\.searchParams\.set\("pluginId", def\.id\)/);
-assert.match(embeddedPluginUi, /\["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"\]\.forEach/);
+assert.match(embeddedPluginUi, /\["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId", "pluginRefresh"\]\.forEach/);
+assert.match(embeddedPluginUi, /pluginRefresh: params\.get\("pluginRefresh"\) \|\| ""/);
+assert.match(embeddedPluginUi, /function openNotePluginReceipt\(noteId = "", options = \{\}\)/);
+assert.match(embeddedPluginUi, /pluginRefresh: refreshNonce/);
+assert.match(embeddedPluginUi, /requestEmbeddedPluginRefresh\(EMBEDDED_PLUGIN_DEFS\.note, Object\.assign\(\{ force: true \}, route\)\)/);
 assert.match(wardrobeUi, /function setWardrobePluginOpenRoute\(route = {}\)/);
 assert.match(wardrobeUi, /if \(state\.wardrobePluginOpenRoute\) state\.wardrobePluginCanGoBack = true;/);
 assert.match(wardrobeUi, /function wardrobePluginEntryUrlForFrame\(entryUrl = ""\)/);

@@ -202,6 +202,10 @@ another authorized workspace. Missing Note binding, key, or API-base errors
 must be visible in the UI and may offer the Note install-request action instead
 of failing silently. Note remains the owner of attachment storage, note rows,
 and attachment asset indexing.
+After a receipt save succeeds, the chat toast action that opens Note must carry
+the saved note id plus a one-time refresh nonce. Hermes must not reuse a stale
+resident Note iframe for this path; if the user is already on the Note tab, the
+host must force the standard Note plugin refresh before showing the saved note.
 
 Note MCP uses the common single-prefix stdio contract. Gateway profiles may add
 `mcp_servers.note`, `toolsets: [note]`, and
