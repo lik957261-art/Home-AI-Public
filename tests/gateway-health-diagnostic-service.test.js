@@ -7,6 +7,7 @@ const path = require("node:path");
 const {
   createGatewayHealthDiagnosticService,
   isGatewayHealthFailure,
+  isGatewayRunFailure,
 } = require("../adapters/gateway-health-diagnostic-service");
 
 function makeTempRoot() {
@@ -88,6 +89,67 @@ function testHealthFailurePredicateIsNarrow() {
   }), false);
 }
 
+async function testGatewayRunFailureDiagnosticWritesGenericReport() {
+  const root = makeTempRoot();
+  const dataDir = path.join(root, "data");
+  const reportRoot = path.join(dataDir, "diagnostics", "gateway-runtime");
+  const keyPath = path.join(dataDir, "secrets", "gateway-workers", "hm-wuping-openai-2.key");
+  const manifestPath = path.join(dataDir, "gateway-pool-manifest.json");
+  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+  fs.writeFileSync(keyPath, "generic-worker-secret\n", "utf8");
+  fs.writeFileSync(manifestPath, `${JSON.stringify({
+    workers: [{
+      profile: "hm-wuping-openai-2",
+      provider: "openai-codex",
+      host: "127.0.0.1",
+      port: 18758,
+      apiKeyFile: keyPath,
+      allowedWorkspaceIds: ["weixin_wuping"],
+    }],
+  }, null, 2)}\n`, "utf8");
+  const service = createGatewayHealthDiagnosticService({
+    dataDir,
+    reportRoot,
+    manifestPaths: [manifestPath],
+    nowIso: () => "2026-06-15T10:10:00.000Z",
+    fetch: async () => ({ status: 503 }),
+  });
+
+  const report = await service.runGatewayRunFailureDiagnostic({
+    event: { event: "run.stream_failed", preview: "This operation was aborted" },
+    runId: "resp_1",
+    thread: { id: "thread_1", workspaceId: "weixin_wuping" },
+    message: { id: "assistant_1", status: "failed", taskGroupId: "chat", content: "" },
+    stream: {
+      gatewayProfile: "hm-wuping-openai-2",
+      gatewayUrl: "http://127.0.0.1:18758",
+      gatewaySource: "worker_pool",
+      startedAt: 10,
+      lastEventAt: 20,
+      failureReason: "stale",
+    },
+  });
+
+  assert.equal(report.kind, "gateway_run_failure");
+  assert.equal(report.trigger.eventName, "run.stream_failed");
+  assert.equal(report.worker.profileId, "hm-wuping-openai-2");
+  assert.equal(report.worker.activeStream.gatewaySource, "worker_pool");
+  assert.equal(report.checks.health.attempted, true);
+  assert.equal(report.checks.health.ok, false);
+  assert.equal(report.repair.codexRepairTaskCard.requiresOwnerApproval, true);
+  assert.ok(fs.existsSync(report.reportPath));
+  const saved = fs.readFileSync(report.reportPath, "utf8");
+  assert.ok(saved.includes("gateway_run_failure"));
+  assert.ok(!saved.includes("generic-worker-secret"));
+}
+
+function testRunFailurePredicateCoversTerminalFailures() {
+  assert.equal(isGatewayRunFailure({ event: { event: "run.stream_failed" } }), true);
+  assert.equal(isGatewayRunFailure({ event: { event: "response.failed" } }), true);
+  assert.equal(isGatewayRunFailure({ status: "failed" }), true);
+  assert.equal(isGatewayRunFailure({ event: { event: "run.cancelled" } }), false);
+}
+
 function testTriggerGatewayWorkerFailureDiagnosticFiltersAndDedupes() {
   const root = makeTempRoot();
   const calls = [];
@@ -121,7 +183,9 @@ function testTriggerGatewayWorkerFailureDiagnosticFiltersAndDedupes() {
 
 async function main() {
   await testGatewayHealthFailureDiagnosticWritesBoundedReport();
+  await testGatewayRunFailureDiagnosticWritesGenericReport();
   testHealthFailurePredicateIsNarrow();
+  testRunFailurePredicateCoversTerminalFailures();
   testTriggerGatewayWorkerFailureDiagnosticFiltersAndDedupes();
   console.log("gateway health diagnostic service tests passed");
 }

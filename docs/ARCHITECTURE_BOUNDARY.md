@@ -994,7 +994,7 @@ Current CI guardrails:
   queued-run scheduling plus active-run lifecycle handoff, not queued prompt
   text, queued assistant factory, history compaction policy, or broad Gateway
   composition;
-- `gateway-run-terminal-state-service.js` must stay at or below 160 lines and
+- `gateway-run-terminal-state-service.js` must stay at or below 180 lines and
   remain failed/cancelled/detached terminal projection, not event parsing,
   completed output projection, stream handling, remote stop, or worker
   selection;

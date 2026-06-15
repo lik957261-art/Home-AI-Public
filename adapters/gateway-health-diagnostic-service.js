@@ -97,9 +97,26 @@ function isGatewayHealthFailure(input = {}) {
     || (code === "gateway_elastic_worker_start_failed" && failureCode === "health_check_failed");
 }
 
+function isGatewayRunFailure(input = {}) {
+  const event = input.event || {};
+  const eventName = cleanString(event.event || event.type || input.eventName);
+  if (isGatewayHealthFailure(input)) return true;
+  if (input.status === "failed" || event.status === "failed") return true;
+  return [
+    "run.failed",
+    "response.failed",
+    "run.stream_failed",
+    "run.liveness_stale",
+    "run.gateway_start_timeout",
+    "run.toolset_selection_failed",
+    "run.wardrobe_workflow_gate_failed",
+    "run.wardrobe_outfit_completion_gate_failed",
+  ].includes(eventName);
+}
+
 function createGatewayHealthDiagnosticService(options = {}) {
   const dataDir = cleanString(options.dataDir || process.env.HERMES_WEB_DATA_DIR || process.env.HERMES_MOBILE_DATA_DIR, 500);
-  const reportRoot = cleanString(options.reportRoot, 500) || (dataDir ? path.join(dataDir, "diagnostics", "gateway-health") : "");
+  const reportRoot = cleanString(options.reportRoot, 500) || (dataDir ? path.join(dataDir, "diagnostics", "gateway-runtime") : "");
   const manifestPaths = typeof options.manifestPaths === "function"
     ? options.manifestPaths
     : (() => Array.isArray(options.manifestPaths) ? options.manifestPaths : []);
@@ -149,6 +166,7 @@ function createGatewayHealthDiagnosticService(options = {}) {
 
   function repairGuidance(report) {
     const profile = report.worker.profileId || report.trigger.profileId || "selected worker";
+    const kind = cleanString(report.kind) || "gateway_run_failure";
     return {
       autoRepairPolicy: "report_only",
       safeActions: [],
@@ -156,11 +174,13 @@ function createGatewayHealthDiagnosticService(options = {}) {
         eligible: true,
         requiresOwnerApproval: true,
         status: "pending_owner_approval",
-        suggestedTitle: `Repair Gateway health check failure for ${profile}`,
+        suggestedTitle: kind === "gateway_worker_health_failure"
+          ? `Repair Gateway health check failure for ${profile}`
+          : `Repair Gateway run failure for ${profile}`,
         scope: "runtime_config_or_code_repair",
         prompt: [
-          "Use the gateway health diagnostic report as evidence.",
-          "Inspect the affected workspace Gateway worker manifest, launchd state, key-file ACLs, provider-key ACLs, and health endpoint.",
+          "Use the Gateway runtime diagnostic report as evidence.",
+          "Inspect the affected workspace Gateway worker manifest, launchd state, key-file ACLs, provider-key ACLs, health endpoint, run events, and terminal failure state.",
           "All repair actions must be performed by a Codex repair thread after Owner approval.",
           "Prefer a bounded runtime/config repair before code changes, but do not execute changes from the diagnostic worker itself.",
           "Do not print raw secrets or copy private file contents.",
@@ -169,14 +189,14 @@ function createGatewayHealthDiagnosticService(options = {}) {
     };
   }
 
-  async function runGatewayWorkerFailureDiagnostic(input = {}) {
-    const event = input.event || {};
-    const manifest = loadManifest();
-    const profileId = cleanString(event.profileId || event.profile || event.workerId || input.profileId);
-    const worker = manifest.workers.find((item) => workerProfile(item) === profileId)
+  function findWorkerByProfile(manifest, profileId) {
+    return manifest.workers.find((item) => workerProfile(item) === profileId)
       || manifest.workers.find((item) => cleanString(item.id || item.name) === profileId)
       || null;
-    const workerMeta = worker ? {
+  }
+
+  function workerMetaFor(worker, profileId) {
+    return worker ? {
       profileId: workerProfile(worker),
       provider: cleanString(worker.provider),
       workspaceIds: Array.isArray(worker.allowedWorkspaceIds || worker.allowed_workspace_ids)
@@ -188,6 +208,26 @@ function createGatewayHealthDiagnosticService(options = {}) {
       providerKeyFiles: workerProviderKeyFiles(worker, dataDir).map(fileMeta),
       optionalLegacyProviderKeyFallback: optionalLegacyProviderKeyFallback(dataDir),
     } : { profileId, missing: true };
+  }
+
+  function writeReport(report, profileId) {
+    if (!reportRoot) return report;
+    fs.mkdirSync(reportRoot, { recursive: true });
+    const stamp = report.createdAt.replace(/[^0-9A-Za-z]+/g, "-").replace(/-+$/g, "");
+    const name = `${stamp}-${safeSegment(report.kind)}-${safeSegment(profileId)}-${safeSegment(report.trigger.runId)}.json`;
+    const target = path.join(reportRoot, name);
+    report.repair.codexRepairTaskCard.reportPath = target;
+    fs.writeFileSync(target, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    report.reportPath = target;
+    return report;
+  }
+
+  async function runGatewayWorkerFailureDiagnostic(input = {}) {
+    const event = input.event || {};
+    const manifest = loadManifest();
+    const profileId = cleanString(event.profileId || event.profile || event.workerId || input.profileId);
+    const worker = findWorkerByProfile(manifest, profileId);
+    const workerMeta = workerMetaFor(worker, profileId);
     const report = {
       schemaVersion: 1,
       kind: "gateway_worker_health_failure",
@@ -216,16 +256,71 @@ function createGatewayHealthDiagnosticService(options = {}) {
       },
     };
     report.repair = repairGuidance(report);
-    if (reportRoot) {
-      fs.mkdirSync(reportRoot, { recursive: true });
-      const stamp = report.createdAt.replace(/[^0-9A-Za-z]+/g, "-").replace(/-+$/g, "");
-      const name = `${stamp}-${safeSegment(profileId)}-${safeSegment(report.trigger.runId)}.json`;
-      const target = path.join(reportRoot, name);
-      report.repair.codexRepairTaskCard.reportPath = target;
-      fs.writeFileSync(target, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-      report.reportPath = target;
-    }
-    return report;
+    return writeReport(report, profileId);
+  }
+
+  async function runGatewayRunFailureDiagnostic(input = {}) {
+    const event = input.event || {};
+    const stream = input.stream || {};
+    const manifest = loadManifest();
+    const profileId = cleanString(
+      event.profileId
+      || event.profile
+      || input.profileId
+      || stream.gatewayProfile
+      || stream.gatewayName,
+    );
+    const worker = findWorkerByProfile(manifest, profileId);
+    const workerMeta = workerMetaFor(worker, profileId);
+    const runId = cleanString(input.runId || event.runId || event.run_id || input.message?.runId);
+    const report = {
+      schemaVersion: 1,
+      kind: "gateway_run_failure",
+      createdAt: nowIso(),
+      trigger: {
+        eventName: cleanString(event.event || event.type || input.eventName || "run.failed"),
+        failureCode: extractFailureCode(event, input.err || input.error),
+        runId,
+        threadId: cleanString(input.threadId || input.thread?.id),
+        messageId: cleanString(input.messageId || input.message?.id),
+        workspaceId: cleanString(event.workspaceId || input.workspaceId || input.thread?.workspaceId),
+        profileId,
+        provider: cleanString(event.provider || stream.provider),
+        diagnostic: cleanString(event.diagnostic || event.preview || input.err?.message || input.error?.message || input.error || input.err, 500),
+      },
+      manifest: {
+        found: Boolean(manifest.path),
+        path: manifest.path,
+        checkedPaths: manifest.checked,
+        workerCount: manifest.workers.length,
+        workerFound: Boolean(worker),
+      },
+      worker: Object.assign({}, workerMeta, {
+        activeStream: {
+          gatewayUrl: cleanString(stream.gatewayUrl, 500),
+          gatewayName: cleanString(stream.gatewayName),
+          gatewayProfile: cleanString(stream.gatewayProfile),
+          gatewaySource: cleanString(stream.gatewaySource),
+          startedAt: Math.max(0, Number(stream.startedAt || 0) || 0),
+          lastEventAt: Math.max(0, Number(stream.lastEventAt || 0) || 0),
+          firstGatewayEventAt: Math.max(0, Number(stream.firstGatewayEventAt || 0) || 0),
+          firstModelOutputAt: Math.max(0, Number(stream.firstModelOutputAt || 0) || 0),
+          terminalEventSeen: Boolean(stream.terminalEventSeen),
+          failureReason: cleanString(stream.failureReason, 300),
+        },
+      }),
+      message: {
+        id: cleanString(input.message?.id),
+        status: cleanString(input.message?.status),
+        taskGroupId: cleanString(input.message?.taskGroupId),
+        contentLength: String(input.message?.content || "").length,
+      },
+      checks: {
+        health: worker ? await healthCheck(worker) : { attempted: false, ok: false, reason: "worker_not_found" },
+      },
+    };
+    report.repair = repairGuidance(report);
+    return writeReport(report, profileId || "unknown");
   }
 
   function triggerGatewayWorkerFailureDiagnostic(input = {}) {
@@ -248,9 +343,33 @@ function createGatewayHealthDiagnosticService(options = {}) {
     return { scheduled: true, reason: "health_check_failed", profileId, runId };
   }
 
+  function triggerGatewayRunFailureDiagnostic(input = {}) {
+    if (!isGatewayRunFailure(input)) return { scheduled: false, reason: "not_gateway_run_failure" };
+    const event = input.event || {};
+    const stream = input.stream || {};
+    const profileId = cleanString(event.profileId || event.profile || input.profileId || stream.gatewayProfile || stream.gatewayName);
+    const runId = cleanString(input.runId || event.runId || event.run_id || input.message?.runId);
+    const key = `run:${profileId || "unknown"}:${runId || input.messageId || "no-run"}`;
+    const last = recent.get(key) || 0;
+    const now = nowMs();
+    if (cooldownMs && last && now - last < cooldownMs) return { scheduled: false, reason: "cooldown" };
+    recent.set(key, now);
+    setImmediateImpl(() => {
+      runGatewayRunFailureDiagnostic(input).catch((err) => {
+        try {
+          logger.error?.(`Gateway run failure diagnostic failed: ${err.message || String(err)}`);
+        } catch (_) {}
+      });
+    });
+    return { scheduled: true, reason: "gateway_run_failure", profileId, runId };
+  }
+
   return Object.freeze({
     isGatewayHealthFailure,
+    isGatewayRunFailure,
+    runGatewayRunFailureDiagnostic,
     runGatewayWorkerFailureDiagnostic,
+    triggerGatewayRunFailureDiagnostic,
     triggerGatewayWorkerFailureDiagnostic,
   });
 }
@@ -258,4 +377,5 @@ function createGatewayHealthDiagnosticService(options = {}) {
 module.exports = {
   createGatewayHealthDiagnosticService,
   isGatewayHealthFailure,
+  isGatewayRunFailure,
 };

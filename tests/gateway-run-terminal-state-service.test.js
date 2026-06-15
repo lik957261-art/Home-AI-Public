@@ -27,6 +27,7 @@ function makeHarness(overrides = {}) {
     removed: [],
     saved: 0,
     scheduled: [],
+    diagnostics: [],
   };
   const service = createGatewayRunTerminalStateService(Object.assign({
     state: () => state,
@@ -47,6 +48,9 @@ function makeHarness(overrides = {}) {
     },
     compactTerminalTopicContext: (item, message, reason) => calls.compacted.push({ threadId: item.id, messageId: message.id, reason }),
     scheduleNextQueuedRunForTaskGroup: (item, taskGroupId) => calls.scheduled.push({ threadId: item.id, taskGroupId }),
+    gatewayHealthDiagnosticService: {
+      triggerGatewayRunFailureDiagnostic: (input) => calls.diagnostics.push(input),
+    },
   }, overrides));
   return { activeStreams, calls, service, state, thread, message: thread.messages[1] };
 }
@@ -72,6 +76,10 @@ function testMarkRunFailedMutatesTerminalStateAndNotifies() {
   assert.equal(calls.saved, 1);
   assert.equal(calls.broadcasts[0].type, "run.failed");
   assert.deepEqual(calls.scheduled, [{ threadId: "thread_1", taskGroupId: "chat" }]);
+  assert.equal(calls.diagnostics.length, 1);
+  assert.equal(calls.diagnostics[0].event.event, "run.failed");
+  assert.equal(calls.diagnostics[0].thread, thread);
+  assert.equal(calls.diagnostics[0].message, message);
 }
 
 function testMarkRunCancelledMutatesTerminalStateWithoutNotification() {
@@ -85,6 +93,7 @@ function testMarkRunCancelledMutatesTerminalStateWithoutNotification() {
   assert.equal(thread.status, "idle");
   assert.deepEqual(calls.enqueued, []);
   assert.deepEqual(calls.notified, []);
+  assert.deepEqual(calls.diagnostics, []);
   assert.deepEqual(calls.compacted, [{ threadId: "thread_1", messageId: "assistant_1", reason: "run-cancelled" }]);
   assert.equal(calls.broadcasts[0].type, "run.cancelled");
   assert.deepEqual(calls.scheduled, [{ threadId: "thread_1", taskGroupId: "chat" }]);

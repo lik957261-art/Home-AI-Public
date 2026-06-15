@@ -47,6 +47,7 @@ function createGatewayRunTerminalStateService(options = {}) {
   const scheduleNextQueuedRunForTaskGroup = typeof options.scheduleNextQueuedRunForTaskGroup === "function"
     ? options.scheduleNextQueuedRunForTaskGroup
     : (() => {});
+  const gatewayHealthDiagnosticService = options.gatewayHealthDiagnosticService || null;
 
   function state() {
     const value = stateProvider();
@@ -77,6 +78,21 @@ function createGatewayRunTerminalStateService(options = {}) {
     thread.updatedAt = failedAt;
     compactTerminalTopicContext(thread, message, "run-failed");
     saveState();
+    if (typeof gatewayHealthDiagnosticService?.triggerGatewayRunFailureDiagnostic === "function") {
+      const stream = activeStreams.get(runId) || activeStreams.get(message.runId) || null;
+      gatewayHealthDiagnosticService.triggerGatewayRunFailureDiagnostic({
+        event: { event: "run.failed", preview: message.error },
+        err,
+        message,
+        messageId,
+        profileId: message.gatewayProfile,
+        runId,
+        stream,
+        thread,
+        threadId,
+        workspaceId: thread.workspaceId,
+      });
+    }
     broadcast({ type: "run.failed", threadId, runId, message: compactMessage(message), thread: threadSummary(thread) });
     notifyTaskTerminal(thread, message, "failed");
     scheduleNextQueuedRunForTaskGroup(thread, message.taskGroupId);

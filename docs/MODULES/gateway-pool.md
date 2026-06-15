@@ -447,13 +447,18 @@ become healthy after the 30-second default. A one-shot immediate health miss
 after script success is a scheduler race, not proof the worker failed to start.
 
 When a Mobile run emits `run.gateway_worker_start_failed` with
-`failureCode=health_check_failed`, Home AI schedules a bounded triggered
-self-diagnostic report under `<dataDir>/diagnostics/gateway-health/`. The
-report may include manifest paths, worker profile/provider/workspace ids,
-launchd label, key-file path metadata, provider-key path metadata, and a
-bounded `/health` status check. It must not include raw worker API keys,
-provider keys, prompt bodies, model output, private file contents, or long
-logs.
+`failureCode=health_check_failed`, or a run reaches a failed terminal state such
+as `run.failed`, `response.failed`, `run.stream_failed`,
+`run.liveness_stale`, or `run.gateway_start_timeout`, Home AI schedules a
+bounded triggered self-diagnostic report under
+`<dataDir>/diagnostics/gateway-runtime/`. The report may include manifest
+paths, worker profile/provider/workspace ids, launchd label, key-file path
+metadata, provider-key path metadata, active-stream timing metadata, terminal
+message status, and a bounded `/health` status check. It must not include raw
+worker API keys, provider keys, prompt bodies, model output, private file
+contents, or long logs. Ordinary user-initiated cancellation does not trigger a
+failure diagnostic; interrupt requests are tracked separately with a bounded
+`run.interrupt_requested` event.
 
 The triggered diagnostic is report-only. It must not restart services, edit
 files, change ACLs, mutate databases, or run deploy commands. Repairs for

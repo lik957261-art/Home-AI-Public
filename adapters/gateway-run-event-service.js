@@ -172,6 +172,7 @@ function createGatewayRunEventService(options = {}) {
         compactMessage,
         compactTerminalTopicContext,
         enqueueExternalDeliveryForTerminalMessage,
+        gatewayHealthDiagnosticService: options.gatewayHealthDiagnosticService,
         notifyTaskTerminal,
         nowIso,
         removeThreadActiveRun,

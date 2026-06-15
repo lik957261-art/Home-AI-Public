@@ -1814,7 +1814,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /gateway-run-start-service\.js` must stay at or below 75 lines/);
   assert.match(doc, /gateway-run-queue-projection-service\.js` must stay at or below 100\s+lines/);
   assert.match(doc, /gateway-run-queue-service\.js` must stay at or below 180\s+lines/);
-  assert.match(doc, /gateway-run-terminal-state-service\.js` must stay at or below 160\s+lines/);
+  assert.match(doc, /gateway-run-terminal-state-service\.js` must stay at or below 180\s+lines/);
   assert.match(doc, /gateway-run-completion-service\.js` must stay at or below 270\s+lines/);
   assert.match(doc, /gateway-run-delta-event-service\.js` must stay at or below 85\s+lines/);
   assert.match(doc, /gateway-run-output-event-service\.js` must stay at or below 160\s+lines/);
@@ -2126,7 +2126,7 @@ function testServiceFirstArchitectureContract() {
   assert.ok(webPushVapidLineCount <= 130, `web-push-vapid-service.js line budget exceeded: ${webPushVapidLineCount} > 130`);
   assert.ok(gatewayRunQueueProjectionLineCount <= 100, `gateway-run-queue-projection-service.js line budget exceeded: ${gatewayRunQueueProjectionLineCount} > 100`);
   assert.ok(gatewayRunQueueLineCount <= 180, `gateway-run-queue-service.js line budget exceeded: ${gatewayRunQueueLineCount} > 180`);
-  assert.ok(gatewayRunTerminalStateLineCount <= 160, `gateway-run-terminal-state-service.js line budget exceeded: ${gatewayRunTerminalStateLineCount} > 160`);
+  assert.ok(gatewayRunTerminalStateLineCount <= 180, `gateway-run-terminal-state-service.js line budget exceeded: ${gatewayRunTerminalStateLineCount} > 180`);
   assert.ok(gatewayRunCompletionLineCount <= 270, `gateway-run-completion-service.js line budget exceeded: ${gatewayRunCompletionLineCount} > 270`);
   assert.ok(gatewayRunDeltaEventLineCount <= 85, `gateway-run-delta-event-service.js line budget exceeded: ${gatewayRunDeltaEventLineCount} > 85`);
   assert.ok(gatewayRunOutputEventLineCount <= 160, `gateway-run-output-event-service.js line budget exceeded: ${gatewayRunOutputEventLineCount} > 160`);

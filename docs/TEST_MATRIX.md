@@ -1007,14 +1007,17 @@ worker's `/health` for the configured bounded window before emitting
 `health_check_failed`; a single immediate health miss is a failing harness case
 because it can race the newly opened Gateway listener.
 When a `run.gateway_worker_start_failed` event has
-`failureCode=health_check_failed`, the event path must schedule the Gateway
-health diagnostic service. Focused checks must prove non-health failures do not
-trigger this diagnostic, the report is written under
-`data/diagnostics/gateway-health`, raw worker/provider keys are not serialized,
+`failureCode=health_check_failed`, or a Gateway run reaches a failed terminal
+state such as `run.failed`, `response.failed`, `run.stream_failed`,
+`run.liveness_stale`, or `run.gateway_start_timeout`, the event path must
+schedule the Gateway runtime diagnostic service. Focused checks must prove
+cancelled runs do not trigger failure diagnostics, the report is written under
+`data/diagnostics/gateway-runtime`, raw worker/provider keys are not serialized,
 and the embedded Codex repair task card is `pending_owner_approval` with no
 automatic repair actions. Focused checks:
 `node tests\gateway-health-diagnostic-service.test.js` and
-`node tests\gateway-run-start-event-service.test.js`.
+`node tests\gateway-run-start-event-service.test.js`,
+`node tests\gateway-run-terminal-state-service.test.js`.
 Thread interrupt routes must also leave a bounded `run.interrupt_requested`
 event before stopping local active streams so cancelled runs can be
 distinguished from network failures during production incident review. Focused
