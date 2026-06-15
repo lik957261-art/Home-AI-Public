@@ -56,6 +56,22 @@ pointer. A plugin thread that starts H1/H2, deployment, visual-debug,
 MCP/schema, plugin-provisioning, or cross-module work without the control-plane
 intake packet is outside the platform contract.
 
+For plugin manifest load recovery, restart label resolution, or local plugin
+cold-restart behavior, run:
+
+```bash
+node tests/plugin-launch-recovery-service.test.js
+node tests/hermes-plugin-service.test.js
+node tests/hermes-plugin-api-routes.test.js
+node tests/macos-production-deploy-script.test.js
+node tests/production-status-smoke-harness.test.js
+node tests/architecture-refactor-boundary.test.js
+```
+
+Coverage must prove recoverable local manifest failures can request exactly one
+bounded restart and retry, while external manifests, workspace authorization
+failures, and non-`com.hermesmobile.plugin.*` labels do not trigger restart.
+
 For plugin workspace audit creation, manual alignment trigger, runner report
 language, or Action Inbox audit entry changes, run:
 

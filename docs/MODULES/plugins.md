@@ -508,6 +508,29 @@ against the local manifest source before returning a browser-facing proxy path.
 This prevents plugin navigation and iOS right-swipe/back state from depending
 on a personal or previous production domain.
 
+When a local or LAN plugin manifest cannot be fetched because the plugin
+process is down or unhealthy, the host may attempt a bounded launch recovery
+before surfacing the failure. This recovery is host-side and does not depend on
+the failing plugin iframe. It applies only to recoverable manifest failures:
+transport errors, timeouts, or `502`/`503`/`504` manifest responses from a
+loopback or private-network manifest URL. It must not run for workspace
+authorization failures, provisioning failures, external HTTPS plugin manifests,
+or arbitrary non-plugin launchd labels.
+
+The recovery service resolves a plugin launchd label from the plugin record,
+`HERMES_MOBILE_PLUGIN_<ID>_LAUNCHD_LABEL`, or
+`config/public-plugin-sources.json`; the fallback is
+`com.hermesmobile.plugin.<plugin-id>`. Only labels under
+`com.hermesmobile.plugin.` are accepted. If
+`HERMES_MOBILE_PLUGIN_RECOVERY_COMMAND` / `HERMES_WEB_PLUGIN_RECOVERY_COMMAND`
+is configured, Hermes calls that local operator-owned command with
+`--plugin-id`, `--launchd-label`, `--manifest-url`, and `--reason`. Otherwise,
+on macOS it attempts `/bin/launchctl kickstart -k system/<label>`. Attempts are
+rate-limited per launchd label, then the manifest fetch is retried once after a
+short delay. Public deployments without permission to restart system
+LaunchDaemons degrade to a bounded `recovery` diagnostic instead of blocking
+Home AI startup or exposing secrets.
+
 When Hermes serves a plugin through the same-origin proxy, the browser is
 framing the Hermes proxy URL rather than the upstream plugin origin. Upstream
 `frame-ancestors` diagnostics must not make the normalized manifest unavailable

@@ -384,6 +384,20 @@ and loopback manifest smoke URL. Public installers must use those HTTPS GitHub
 URLs to clone or update source before invoking `scripts/deploy-macos-production.js`.
 The deploy script itself continues to require local source directories.
 
+Home AI plugin-load recovery also uses `config/public-plugin-sources.json` as
+the default plugin label map. When a loopback or private-network plugin
+manifest fails with a transport error, timeout, or `502`/`503`/`504`, the host
+may try one bounded restart and then retry the manifest once. Operators can set
+`HERMES_MOBILE_PLUGIN_RECOVERY_COMMAND` / `HERMES_WEB_PLUGIN_RECOVERY_COMMAND`
+to a local restart script. The command receives `--plugin-id`,
+`--launchd-label`, `--manifest-url`, and `--reason`. Without a command, macOS
+deployments try `/bin/launchctl kickstart -k system/<label>` for labels under
+`com.hermesmobile.plugin.` only. `HERMES_MOBILE_PLUGIN_RECOVERY_COOLDOWN_MS`
+and `HERMES_MOBILE_PLUGIN_RECOVERY_RETRY_DELAY_MS` tune the per-label cooldown
+and post-restart retry delay. Public installs that lack system launchd
+permission must report a bounded recovery failure diagnostic rather than
+requiring private credentials in the runtime process.
+
 Home AI also exposes an Owner-only in-app update path for public deployments:
 Owner login calls `/api/app-update/status`, which checks the Home AI checkout
 and every present plugin checkout listed in `config/public-plugin-sources.json`.

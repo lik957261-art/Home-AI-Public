@@ -1861,6 +1861,9 @@ async function testHttpsManifestOverride() {
 async function testFetchFailureReturnsUnavailable() {
   const service = createHermesPluginService({
     plugins: [{ id: "wardrobe", manifestUrl: "http://nas/plugin.json" }],
+    pluginLaunchRecoveryService: {
+      recover: () => Promise.resolve({ attempted: false, reason: "test_recovery_disabled" }),
+    },
     fetch() {
       return Promise.resolve({ ok: false, status: 503 });
     },
@@ -1870,6 +1873,51 @@ async function testFetchFailureReturnsUnavailable() {
   assert.equal(manifest.available, false);
   assert.equal(manifest.code, "plugin_manifest_fetch_failed");
   assert.equal(manifest.status, 503);
+}
+
+async function testManifestRetriesAfterRecoverableLaunchFailure() {
+  const calls = [];
+  const recoveryCalls = [];
+  const service = createHermesPluginService({
+    plugins: [{
+      id: "codex-mobile",
+      manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest",
+      launchdLabel: "com.hermesmobile.plugin.codex-mobile",
+    }],
+    pluginLaunchRecoveryService: {
+      retryDelayMs: 0,
+      recover(input) {
+        recoveryCalls.push(input);
+        return Promise.resolve({
+          attempted: true,
+          restarted: true,
+          method: "launchctl",
+          launchdLabel: "com.hermesmobile.plugin.codex-mobile",
+          retryDelayMs: 0,
+        });
+      },
+    },
+    fetch(url) {
+      calls.push(url);
+      if (calls.length === 1) return Promise.reject(new Error("connect ECONNREFUSED 127.0.0.1:8787"));
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(sampleCodexManifest()),
+      });
+    },
+  });
+  const manifest = await service.manifest({ id: "codex-mobile", workspaceId: "owner" });
+  assert.equal(manifest.ok, true);
+  assert.equal(manifest.available, true);
+  assert.equal(manifest.id, "codex-mobile");
+  assert.equal(calls.length, 2);
+  assert.equal(recoveryCalls.length, 1);
+  assert.equal(recoveryCalls[0].pluginId, "codex-mobile");
+  assert.equal(recoveryCalls[0].launchdLabel, "com.hermesmobile.plugin.codex-mobile");
+  assert.equal(recoveryCalls[0].failure.code, "plugin_manifest_error");
+  assert.equal(manifest.recovery.attempted, true);
+  assert.equal(manifest.recovery.retried, true);
 }
 
 async function testLaunchEntryUsesServerSideWorkspaceKey() {
@@ -2791,6 +2839,7 @@ async function run() {
   await testLegacyWardrobePendingProvisioningBlocksManifest();
   await testHttpsManifestOverride();
   await testFetchFailureReturnsUnavailable();
+  await testManifestRetriesAfterRecoverableLaunchFailure();
   await testLaunchEntryUsesServerSideWorkspaceKey();
   await testCodexLaunchEntryUsesServerSideKey();
   await testFinanceLaunchEntryUsesWorkspaceKeyBody();

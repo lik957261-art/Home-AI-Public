@@ -40,6 +40,9 @@ const {
   macUserForWorkspaceId,
   workspacePaths,
 } = require("./workspace-onboarding-service");
+const {
+  createPluginLaunchRecoveryService,
+} = require("./plugin-launch-recovery-service");
 
 const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest";
 const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
@@ -330,6 +333,7 @@ function configuredPlugins(options = {}) {
       const base = {
         id: stringValue(item.id),
         manifestUrl: stringValue(item.manifestUrl || item.url),
+        launchdLabel: stringValue(item.launchdLabel || item.label),
         authorizedWorkspaceIds: parseWorkspaceList(
           Array.isArray(item.authorizedWorkspaceIds) ? item.authorizedWorkspaceIds.join(",") : item.authorizedWorkspaceIds,
         ),
@@ -1540,6 +1544,10 @@ function createHermesPluginService(options = {}) {
     ? options.workspaceLabelForId
     : () => "";
   const plugins = configuredPlugins(options);
+  const pluginLaunchRecoveryService = options.pluginLaunchRecoveryService || createPluginLaunchRecoveryService({
+    env: options.env,
+    pluginSourcesPath: options.pluginSourcesPath,
+  });
   const launchOptions = {
     dataDir: options.dataDir,
     env: options.env,
@@ -1850,52 +1858,73 @@ function createHermesPluginService(options = {}) {
     if (typeof fetchImpl !== "function") {
       return { ok: false, available: false, id, code: "fetch_unavailable" };
     }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetchImpl(plugin.manifestUrl, {
-        method: "GET",
-        headers: Object.assign(
-          { Accept: "application/json" },
-          originOf(input.appOrigin || "") ? {
-            "x-hermes-public-origin": originOf(input.appOrigin || ""),
-            "x-forwarded-origin": originOf(input.appOrigin || ""),
-          } : {},
-        ),
-        signal: controller.signal,
-      });
-      if (!response || !response.ok) {
+    async function fetchAndNormalizeManifest() {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetchImpl(plugin.manifestUrl, {
+          method: "GET",
+          headers: Object.assign(
+            { Accept: "application/json" },
+            originOf(input.appOrigin || "") ? {
+              "x-hermes-public-origin": originOf(input.appOrigin || ""),
+              "x-forwarded-origin": originOf(input.appOrigin || ""),
+            } : {},
+          ),
+          signal: controller.signal,
+        });
+        if (!response || !response.ok) {
+          return {
+            ok: false,
+            available: false,
+            id,
+            code: "plugin_manifest_fetch_failed",
+            status: response?.status || 0,
+          };
+        }
+        const raw = await response.json();
+        const hostTitle = plugin.title && plugin.title !== plugin.id ? plugin.title : "";
+        const normalized = normalizeManifest(raw, {
+          id,
+          title: hostTitle,
+          manifestUrl: plugin.manifestUrl,
+          fetchedAt: nowIso(),
+        });
+        const launchedManifest = await withPluginLaunchEntry(normalized, input, fetchImpl, launchOptions);
+        const entrySchemeManifest = validateHttpsEntryScheme(launchedManifest, input);
+        if (entrySchemeManifest?.embed?.sameOriginProxy) return entrySchemeManifest;
+        return validateFrameAncestors(entrySchemeManifest, input, fetchImpl);
+      } catch (err) {
         return {
           ok: false,
           available: false,
           id,
-          code: "plugin_manifest_fetch_failed",
-          status: response?.status || 0,
+          code: err?.name === "AbortError" ? "plugin_manifest_timeout" : "plugin_manifest_error",
+          warning: stringValue(err?.message || err).slice(0, 300),
         };
+      } finally {
+        clearTimeout(timer);
       }
-      const raw = await response.json();
-      const hostTitle = plugin.title && plugin.title !== plugin.id ? plugin.title : "";
-      const manifest = normalizeManifest(raw, {
-        id,
-        title: hostTitle,
-        manifestUrl: plugin.manifestUrl,
-        fetchedAt: nowIso(),
-      });
-      const launchedManifest = await withPluginLaunchEntry(manifest, input, fetchImpl, launchOptions);
-      const entrySchemeManifest = validateHttpsEntryScheme(launchedManifest, input);
-      if (entrySchemeManifest?.embed?.sameOriginProxy) return entrySchemeManifest;
-      return validateFrameAncestors(entrySchemeManifest, input, fetchImpl);
-    } catch (err) {
-      return {
-        ok: false,
-        available: false,
-        id,
-        code: err?.name === "AbortError" ? "plugin_manifest_timeout" : "plugin_manifest_error",
-        warning: stringValue(err?.message || err).slice(0, 300),
-      };
-    } finally {
-      clearTimeout(timer);
     }
+    const first = await fetchAndNormalizeManifest();
+    if (first?.ok !== false || !pluginLaunchRecoveryService || typeof pluginLaunchRecoveryService.recover !== "function") {
+      return first;
+    }
+    const recovery = await pluginLaunchRecoveryService.recover({
+      pluginId: id,
+      manifestUrl: plugin.manifestUrl,
+      launchdLabel: plugin.launchdLabel,
+      failure: first,
+    });
+    if (!recovery?.attempted || !recovery.restarted) {
+      return Object.assign({}, first, { recovery });
+    }
+    const retryDelayMs = Number(recovery.retryDelayMs || pluginLaunchRecoveryService.retryDelayMs || 0);
+    if (retryDelayMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+    }
+    const second = await fetchAndNormalizeManifest();
+    return Object.assign({}, second, { recovery: Object.assign({}, recovery, { retried: true }) });
   }
 
   async function grantWorkspace(input = {}) {
