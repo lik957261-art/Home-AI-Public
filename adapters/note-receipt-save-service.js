@@ -20,6 +20,7 @@ const PLUGIN_NOTE_RECEIPT_TAGS = Object.freeze({
   note: "\u7b14\u8bb0",
   "codex-mobile": "Codex",
 });
+const NOTE_RECEIPT_METADATA_COMMENT_RE = /<!--\s*homeai-note(?:-[a-z]+)?[\s\S]*?-->/gi;
 
 function stringValue(value) {
   return String(value || "").trim();
@@ -87,6 +88,60 @@ function stripMarkdownForTitle(value = "") {
     .replace(/[`*_#>\[\]()+|~-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function splitNoteReceiptTags(value = "") {
+  const seen = new Set();
+  return String(value || "")
+    .split(/[,\uff0c\u3001;\uff1b\n]+/g)
+    .map((item) => item.trim())
+    .filter((item) => {
+      if (!item || seen.has(item)) return false;
+      seen.add(item);
+      return true;
+    })
+    .slice(0, 12);
+}
+
+function compactMetadataTitle(value = "") {
+  const clean = stripMarkdownForTitle(value);
+  if (!clean) return "";
+  return compactReceiptTitle(clean, {
+    maxCjkChars: 48,
+    maxWords: 12,
+    maxLatinChars: 96,
+  });
+}
+
+function parseNoteReceiptMetadataLine(line = "", out = {}) {
+  const match = String(line || "").trim().match(/^(title|tags?)\s*[:\uff1a]\s*(.+)$/i);
+  if (!match) return out;
+  const key = match[1].toLowerCase();
+  const value = match[2].trim();
+  if (key === "title" && !out.title) out.title = compactMetadataTitle(value);
+  if ((key === "tag" || key === "tags") && !out.tags.length) out.tags = splitNoteReceiptTags(value);
+  return out;
+}
+
+function extractNoteReceiptMetadata(text = "") {
+  const source = String(text || "");
+  const out = { title: "", tags: [] };
+  const singleTitle = source.match(/<!--\s*homeai-note-title\s*[:\uff1a]\s*([\s\S]*?)-->/i);
+  if (singleTitle) out.title = compactMetadataTitle(singleTitle[1]);
+  const singleTags = source.match(/<!--\s*homeai-note-tags\s*[:\uff1a]\s*([\s\S]*?)-->/i);
+  if (singleTags) out.tags = splitNoteReceiptTags(singleTags[1]);
+
+  const blockRe = /<!--\s*homeai-note\b([\s\S]*?)-->/gi;
+  let match;
+  while ((match = blockRe.exec(source))) {
+    const body = String(match[1] || "").trim();
+    for (const line of body.split(/\r?\n/)) parseNoteReceiptMetadataLine(line, out);
+  }
+  return out;
+}
+
+function stripNoteReceiptMetadataComments(text = "") {
+  return String(text || "").replace(NOTE_RECEIPT_METADATA_COMMENT_RE, "").trim();
 }
 
 function summarizeReceiptTitleLegacy(text = "") {
@@ -169,6 +224,8 @@ function readableReceiptTitle(parts = {}) {
 }
 
 function summarizeReceiptTitle(text = "", options = {}) {
+  const metadataTitle = compactMetadataTitle(options.noteTitle || options.note_title || "");
+  if (metadataTitle) return metadataTitle;
   const heading = String(text || "")
     .split(/\r?\n/)
     .map((raw) => String(raw || "").trim().match(/^#{1,4}\s+(.+)$/))
@@ -186,7 +243,7 @@ function summarizeReceiptTitle(text = "", options = {}) {
 }
 
 function messageNoteBody(message = {}, thread = {}) {
-  const content = String(message.content || "").trim();
+  const content = stripNoteReceiptMetadataComments(message.content || "");
   const error = message.error ? `Error: ${message.error}` : "";
   const artifactNames = Array.isArray(message.artifacts)
     ? message.artifacts
@@ -202,6 +259,20 @@ function messageNoteBody(message = {}, thread = {}) {
     message?.createdAt ? `时间: ${message.createdAt}` : "",
   ].filter(Boolean).join("\n");
   return [content, error, attachments, meta].filter(Boolean).join("\n\n").trim();
+}
+
+function receiptNoteTagsWithMetadata(message = {}, thread = {}, input = {}) {
+  const baseTags = receiptNoteTags(message, thread, input);
+  const metadata = extractNoteReceiptMetadata(message.content || "");
+  const seen = new Set();
+  return baseTags.concat(metadata.tags || [])
+    .map((tag) => stringValue(tag).slice(0, 60))
+    .filter((tag) => {
+      if (!tag || seen.has(tag)) return false;
+      seen.add(tag);
+      return true;
+    })
+    .slice(0, 16);
 }
 
 function basenameFromArtifact(artifact = {}) {
@@ -398,12 +469,18 @@ function createNoteReceiptSaveService(options = {}) {
       throw serviceError("note_receipt_empty", "Receipt has no content to save", 400);
     }
     const pluginId = receiptPluginId(message, thread, input);
-    const title = summarizeReceiptTitle(body, { pluginId, threadTitle: thread.title, createdAt: message.createdAt });
+    const metadata = extractNoteReceiptMetadata(message.content || "");
+    const title = summarizeReceiptTitle(body, {
+      pluginId,
+      threadTitle: thread.title,
+      createdAt: message.createdAt,
+      noteTitle: metadata.title,
+    });
     const binding = loadNoteWorkspaceBinding({ dataDir, env, workspaceId });
     const payload = {
       title,
       body,
-      tags: receiptNoteTags(message, thread, input),
+      tags: receiptNoteTagsWithMetadata(message, thread, input),
       notebookId: "hermes",
       attachments,
     };
@@ -424,6 +501,8 @@ function createNoteReceiptSaveService(options = {}) {
     messageNoteBody,
     saveReceipt,
     summarizeReceiptTitle,
+    extractNoteReceiptMetadata,
+    stripNoteReceiptMetadataComments,
   };
 }
 
@@ -431,7 +510,9 @@ module.exports = {
   MAX_NOTE_RECEIPT_ATTACHMENT_BYTES,
   MAX_NOTE_RECEIPT_ATTACHMENTS,
   createNoteReceiptSaveService,
+  extractNoteReceiptMetadata,
   messageNoteBody,
   receiptNoteTags,
+  stripNoteReceiptMetadataComments,
   summarizeReceiptTitle,
 };

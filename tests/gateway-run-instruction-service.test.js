@@ -212,6 +212,25 @@ function testBuildHermesInstructionsPreservesChatAndAttachmentGuidance() {
   assert.match(text, /Do not surface internal task IDs/);
 }
 
+function testBuiltInNoteReceiptMetadataInstruction() {
+  const service = createService();
+  const direct = service.noteReceiptMetadataInstructions();
+  assert.match(direct, /homeai-note/);
+  assert.match(direct, /title: short readable Note title/);
+  assert.match(direct, /save-to-Note action/);
+  assert.match(direct, /For casual chat, acknowledgements, questions, or ordinary short replies, omit this metadata/);
+
+  const text = service.buildHermesInstructions(
+    { hermesSessionId: "s" },
+    { allowed_toolsets: ["file"] },
+    { root: "C:/workspace" },
+    "生成一份修复报告",
+  );
+  assert.match(text, /For formal receipts, reports, audit summaries, automation results/);
+  assert.match(text, /<!-- homeai-note/);
+  assert.match(text, /Do not include secrets, access keys, private paths/);
+}
+
 function testDirectoryRunScopeInstructionPinsPluginDataWorkspace() {
   const service = createService();
   const text = service.buildHermesInstructions(
@@ -359,6 +378,7 @@ testWebSearchBudgetInstructionCanBeDisabled();
 testChineseCurrentPriceRequestUsesExplicitSearchInstruction();
 testGatewayConversationIdEpochForSchemaSensitiveToolsets();
 testBuildHermesInstructionsPreservesChatAndAttachmentGuidance();
+testBuiltInNoteReceiptMetadataInstruction();
 testDirectoryRunScopeInstructionPinsPluginDataWorkspace();
 testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream();
 testWardrobePluginTopicContextForcesSkillMcpAndSkipsDirectoryCleaning();

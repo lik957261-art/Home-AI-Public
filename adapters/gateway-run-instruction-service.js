@@ -371,6 +371,17 @@ function createGatewayRunInstructionService(options = {}) {
     return lines.join("\n");
   }
 
+  function noteReceiptMetadataInstructions() {
+    return [
+      "For formal receipts, reports, audit summaries, automation results, or other user-facing deliverables that may later be saved to Note, append one hidden Markdown HTML comment at the very end:",
+      "<!-- homeai-note",
+      "title: short readable Note title",
+      "tags: optional, comma-separated, non-sensitive tags",
+      "-->",
+      "This hidden metadata is only for Home AI's save-to-Note action. Do not display or explain it in visible prose. Do not include secrets, access keys, private paths, raw endpoints, or long user content in the metadata. For casual chat, acknowledgements, questions, or ordinary short replies, omit this metadata.",
+    ].join("\n");
+  }
+
   function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, buildOptions = {}) {
     const singleWindowMode = normalizeSingleWindowMode(buildOptions.singleWindowMode || buildOptions.single_window_mode || "");
     const groupChatDeliveryRoot = String(buildOptions.groupChatDeliveryRoot || buildOptions.group_chat_delivery_root || "").trim();
@@ -390,6 +401,7 @@ function createGatewayRunInstructionService(options = {}) {
       pluginTopicContextInstructions(buildOptions),
       pluginCapabilityCatalogInstructions(buildOptions),
       requiredSkillPreloadInstructions(buildOptions),
+      noteReceiptMetadataInstructions(),
       "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",
       "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
       "Do not send external chat/app messages unless the user explicitly asks for external delivery.",
@@ -451,6 +463,7 @@ function createGatewayRunInstructionService(options = {}) {
     currentToolSchemaOverrideInstructions,
     formatAccessPolicyInstructionSummary,
     gatewayConversationId,
+    noteReceiptMetadataInstructions,
     pluginCapabilityCatalogInstructions,
     policyHasToolset,
     buildHermesInstructions,

@@ -7,7 +7,9 @@ const path = require("node:path");
 const {
   MAX_NOTE_RECEIPT_ATTACHMENTS,
   createNoteReceiptSaveService,
+  extractNoteReceiptMetadata,
   receiptNoteTags,
+  stripNoteReceiptMetadataComments,
   summarizeReceiptTitle,
 } = require("../adapters/note-receipt-save-service");
 
@@ -129,6 +131,68 @@ async function testPluginReceiptUsesPluginTag() {
   assert.equal(fetchCalls[0].body.title, "\u8863\u6a71 | Wardrobe receipt body");
 }
 
+async function testHiddenNoteMetadataOverridesTitleAndIsStrippedFromBody() {
+  const dataDir = tempRoot();
+  writeNoteBinding(dataDir, "owner");
+  const fetchCalls = [];
+  const service = createNoteReceiptSaveService({
+    dataDir,
+    fetch(url, options) {
+      fetchCalls.push({ url, body: JSON.parse(options.body) });
+      return Promise.resolve({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ note: { id: "note-hidden" } }),
+      });
+    },
+    resolveArtifactForRequest() {
+      throw new Error("unexpected resolver");
+    },
+  });
+
+  await service.saveReceipt({
+    workspaceId: "owner",
+    thread: { id: "thread-1", title: "backup incident" },
+    message: {
+      id: "msg-1",
+      role: "assistant",
+      taskGroupId: "plugin:health",
+      createdAt: "2026-06-15T11:20:00.000+08:00",
+      content: [
+        "# 长标题不应该被用作 Note 标题",
+        "",
+        "已完成备份失败诊断和修复。",
+        "",
+        "<!-- homeai-note",
+        "title: Home AI NAS 备份失败修复记录",
+        "tags: Home AI, 自动化、备份, NAS",
+        "-->",
+      ].join("\n"),
+      artifacts: [],
+    },
+  });
+
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(fetchCalls[0].body.title, "Home AI NAS 备份失败修复记录");
+  assert.deepEqual(fetchCalls[0].body.tags, ["\u5065\u5eb7", "Home AI", "\u81ea\u52a8\u5316", "\u5907\u4efd", "NAS"]);
+  assert.match(fetchCalls[0].body.body, /已完成备份失败诊断和修复/);
+  assert.doesNotMatch(fetchCalls[0].body.body, /homeai-note/);
+  assert.doesNotMatch(fetchCalls[0].body.body, /Home AI NAS 备份失败修复记录/);
+}
+
+function testHiddenNoteMetadataHelpers() {
+  const source = [
+    "visible",
+    "<!-- homeai-note-title: 简短标题 -->",
+    "<!-- homeai-note-tags: A, B、C -->",
+  ].join("\n");
+  assert.deepEqual(extractNoteReceiptMetadata(source), {
+    title: "\u7b80\u77ed\u6807\u9898",
+    tags: ["A", "B", "C"],
+  });
+  assert.equal(stripNoteReceiptMetadataComments(source), "visible");
+}
+
 function testReceiptNoteTagsFallbackAndPluginMapping() {
   assert.deepEqual(receiptNoteTags({ taskGroupId: "chat" }, {}), ["hermes-receipt"]);
   assert.deepEqual(receiptNoteTags({ taskGroupId: "plugin:finance" }, {}), ["\u8bb0\u8d26"]);
@@ -209,6 +273,8 @@ function testTitleSummaryIsCompactForChineseText() {
 async function run() {
   await testSaveReceiptPostsBoundedBodyAndAttachments();
   await testPluginReceiptUsesPluginTag();
+  await testHiddenNoteMetadataOverridesTitleAndIsStrippedFromBody();
+  testHiddenNoteMetadataHelpers();
   testReceiptNoteTagsFallbackAndPluginMapping();
   await testMissingNoteBindingIsControlled();
   await testTooManyAttachmentsFailsBeforeRemoteCall();

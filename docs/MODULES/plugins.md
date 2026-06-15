@@ -179,7 +179,16 @@ generated deterministically without a model call in the readable form
 `<source> | <YYYY-MM-DD> | <summary>`, where `<source>` is the plugin Chinese
 category tag or `回执`, the date comes from the saved assistant message timestamp
 when available, and the summary comes from the first Markdown heading or first
-content line after Markdown/meta stripping. The chat footer action
+content line after Markdown/meta stripping. Model runs also receive a built-in
+Home AI host instruction, not a Skill, that allows formal receipts, reports,
+audit summaries, automation results, and other durable deliverables to append a
+hidden Markdown HTML comment:
+`<!-- homeai-note ... title: ... tags: ... -->`. The save-to-Note service must
+prefer that hidden `title` over the fallback title, may append bounded
+non-sensitive hidden `tags` after the server-derived receipt tag, and must strip
+the hidden metadata comment from the Note body before sending it to Note. Casual
+chat, acknowledgements, questions, and ordinary short replies should omit this
+metadata. The chat footer action
 keeps a message-level in-flight guard so repeated taps or rerenders do not
 submit the same receipt twice while the first save is still running. Hermes must
 not pass local file paths, private URLs, launch tokens, or raw access keys to
