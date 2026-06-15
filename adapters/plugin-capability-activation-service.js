@@ -55,6 +55,15 @@ const DEFAULT_PLUGIN_CAPABILITIES = Object.freeze([
     summary: "Inspect bounded Growth learning cards, board status, and learner progress projections.",
     triggers: Object.freeze(["growth", "learning", "study", "card", "\u6210\u957f", "\u5b66\u4e60", "\u4efb\u52a1\u5361", "\u5b66\u4e60\u5361"]),
   }),
+  Object.freeze({
+    pluginId: "moira",
+    label: "Moira",
+    primaryToolset: "moira",
+    requiredToolsets: Object.freeze(["moira"]),
+    requiredSkills: Object.freeze([]),
+    summary: "Inspect astrological chart records, chart evidence, forecasts, and Moira calculation outputs.",
+    triggers: Object.freeze(["moira", "astrology", "chart", "\u661f\u76d8", "\u547d\u76d8", "\u8d77\u76d8", "\u5360\u661f"]),
+  }),
 ]);
 
 function cleanString(value, fallback = "") {

@@ -286,14 +286,15 @@ or raw plugin credentials.
   A fixed `plugin:<id>` topic must not self-authorize a missing plugin MCP just
   because the route or delivery directory names that plugin.
 - Fixed plugin task groups such as `plugin:wardrobe`, `plugin:finance`,
-  `plugin:email`, and `plugin:health` must not enter the ordinary
+  `plugin:email`, `plugin:health`, and `plugin:moira` must not enter the ordinary
   directory-bound topic attachment path. Even when a plugin-topic message
   carries a delivery `directoryRoute`, Gateway run context must treat
   `taskDirectory` as absent for normal plugin work.
 - Plugin-topic run context is plugin-first: configured plugin MCP/toolsets and
   exact plugin Skill paths are mandatory run context. Wardrobe is currently
   configured as `wardrobe`, `vision`, `file`, and `skills` with required Skill
-  `productivity/wardrobe-style-operations`.
+  `productivity/wardrobe-style-operations`; Moira/星盘 is configured as the
+  required `moira` toolset when the effective workspace authorizes it.
 - Plugin-topic run context is not all-plugin eager context. The current plugin's
   required MCP/toolset and Skill rules are loaded eagerly, while other
   authorized plugins are represented by the compact capability catalog until the

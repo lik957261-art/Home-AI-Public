@@ -13,7 +13,13 @@ function renderText(text, message = {}) {
 }
 
 function cleanDisplayText(value) {
-  return String(value || "").split(/\n/).filter((line) => !/^\s*MEDIA:\s*/i.test(line)).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return String(value || "")
+    .replace(/<!--\s*homeai-note(?:-[a-z]+)?[\s\S]*?-->/gi, "")
+    .split(/\n/)
+    .filter((line) => !/^\s*MEDIA:\s*/i.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function renderInlineMarkdown(value) {

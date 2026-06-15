@@ -11,12 +11,12 @@ function createService() {
 
 function basePolicy(overrides = {}) {
   return Object.assign({
-    allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth"],
-    authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth"],
+    allowed_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth", "moira"],
+    authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth", "moira"],
     toolset_routing: {
       mode: "disabled",
       reason: "toolset_pruning_disabled",
-      selected_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth"],
+      selected_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth", "moira"],
       suggested_toolsets: ["web"],
       suggested_mode: "minimal",
       suggested_reason: "plain_chat_light_tools",
@@ -35,10 +35,10 @@ function testOrdinaryChatKeepsAuthorizedPluginCatalogButDoesNotActivatePluginMcp
     userMessage: { content: "test" },
   });
 
-  assert.deepEqual(result.policy.authorized_toolsets, ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth"]);
+  assert.deepEqual(result.policy.authorized_toolsets, ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth", "moira"]);
   assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, []);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "email", "growth"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "email", "growth", "moira"]);
   const catalog = catalogByPlugin(result.context);
   assert.equal(catalog.wardrobe.status, "catalog_only");
   assert.equal(catalog.finance.status, "catalog_only");
@@ -46,6 +46,7 @@ function testOrdinaryChatKeepsAuthorizedPluginCatalogButDoesNotActivatePluginMcp
   assert.equal(catalog.health.status, "catalog_only");
   assert.equal(catalog.email.status, "catalog_only");
   assert.equal(catalog.growth.status, "catalog_only");
+  assert.equal(catalog.moira.status, "catalog_only");
 }
 
 function testPluginTopicForcesCurrentPluginAndLeavesOtherPluginsCatalogOnly() {
@@ -66,7 +67,7 @@ function testPluginTopicForcesCurrentPluginAndLeavesOtherPluginsCatalogOnly() {
   assert.deepEqual(result.policy.required_toolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.deepEqual(result.policy.required_skills, ["productivity/wardrobe-style-operations"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["wardrobe"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["finance", "note", "health", "email", "growth"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["finance", "note", "health", "email", "growth", "moira"]);
   const catalog = catalogByPlugin(result.context);
   assert.equal(catalog.wardrobe.status, "active");
   assert.equal(catalog.finance.status, "catalog_only");
@@ -74,6 +75,7 @@ function testPluginTopicForcesCurrentPluginAndLeavesOtherPluginsCatalogOnly() {
   assert.equal(catalog.health.status, "catalog_only");
   assert.equal(catalog.email.status, "catalog_only");
   assert.equal(catalog.growth.status, "catalog_only");
+  assert.equal(catalog.moira.status, "catalog_only");
 }
 
 function testPluginTopicContextCannotAuthorizeMissingWorkspacePlugin() {
@@ -146,7 +148,7 @@ function testLatestTextCanDeterministicallyActivateFinancePlugin() {
   assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "finance"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["finance"]);
   assert.deepEqual(result.context.probeRequests.map((item) => item.pluginId), ["finance"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "note", "health", "email", "growth"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "note", "health", "email", "growth", "moira"]);
   assert.equal(catalogByPlugin(result.context).finance.status, "active");
 }
 
@@ -160,7 +162,7 @@ function testLatestTextCanDeterministicallyActivateHealthPlugin() {
   assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "health"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["health"]);
   assert.deepEqual(result.context.probeRequests.map((item) => item.pluginId), ["health"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "email", "growth"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "email", "growth", "moira"]);
   assert.equal(catalogByPlugin(result.context).health.status, "active");
 }
 
@@ -174,7 +176,7 @@ function testLatestTextCanDeterministicallyActivateEmailPlugin() {
   assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "email"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["email"]);
   assert.deepEqual(result.context.probeRequests.map((item) => item.pluginId), ["email"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "growth"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "growth", "moira"]);
   assert.equal(catalogByPlugin(result.context).email.status, "active");
 }
 
@@ -188,8 +190,44 @@ function testLatestTextCanDeterministicallyActivateGrowthPlugin() {
   assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "growth"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["growth"]);
   assert.deepEqual(result.context.probeRequests.map((item) => item.pluginId), ["growth"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "email"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "email", "moira"]);
   assert.equal(catalogByPlugin(result.context).growth.status, "active");
+}
+
+function testLatestTextCanDeterministicallyActivateMoiraPlugin() {
+  const service = createService();
+  const result = service.buildRunPluginCapabilityContext({
+    policy: basePolicy(),
+    userMessage: { content: "\u7528\u661f\u76d8\u63d2\u4ef6\u7ed9\u5434\u840d\u8d77\u76d8" },
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "moira"]);
+  assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["moira"]);
+  assert.deepEqual(result.context.probeRequests.map((item) => item.pluginId), ["moira"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "email", "growth"]);
+  assert.equal(catalogByPlugin(result.context).moira.status, "active");
+}
+
+function testMoiraPluginTopicForcesMoiraToolsetForNonOwnerWorkspace() {
+  const service = createService();
+  const result = service.buildRunPluginCapabilityContext({
+    policy: basePolicy(),
+    userMessage: { content: "\u7528\u661f\u76d8\u63d2\u4ef6\u7ed9\u5434\u840d\u8d77\u76d8", taskGroupId: "plugin:moira" },
+    pluginTopicContext: {
+      pluginId: "moira",
+      requiredToolsets: ["moira"],
+      requiredSkills: [],
+    },
+    requiredPluginToolsets: ["moira"],
+    requiredPluginSkills: [],
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, ["file", "web", "vision", "skills", "moira"]);
+  assert.deepEqual(result.policy.required_toolsets, ["moira"]);
+  assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["moira"]);
+  assert.deepEqual(result.context.activeSchemaSet.required_plugin_id, "moira");
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "finance", "note", "health", "email", "growth"]);
+  assert.equal(catalogByPlugin(result.context).moira.status, "active");
 }
 
 function testForcedEscalationRetryActivatesSelectedPluginToolset() {
@@ -197,7 +235,7 @@ function testForcedEscalationRetryActivatesSelectedPluginToolset() {
   const result = service.buildRunPluginCapabilityContext({
     policy: basePolicy({
       allowed_toolsets: ["finance"],
-      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth"],
+      authorized_toolsets: ["file", "web", "wardrobe", "vision", "skills", "finance", "note", "health", "email", "growth", "moira"],
     }),
     userMessage: { content: "retry" },
     runOptions: {
@@ -209,7 +247,7 @@ function testForcedEscalationRetryActivatesSelectedPluginToolset() {
 
   assert.deepEqual(result.policy.allowed_toolsets, ["finance"]);
   assert.deepEqual(result.context.activeSchemaSet.active_plugin_toolsets, ["finance"]);
-  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "note", "health", "email", "growth"]);
+  assert.deepEqual(result.context.omittedPluginToolsets, ["wardrobe", "note", "health", "email", "growth", "moira"]);
 }
 
 function testFailedProbeResultRemovesOptionalPluginFromActiveSchema() {
@@ -270,6 +308,8 @@ testLatestTextCanDeterministicallyActivateFinancePlugin();
 testLatestTextCanDeterministicallyActivateHealthPlugin();
 testLatestTextCanDeterministicallyActivateEmailPlugin();
 testLatestTextCanDeterministicallyActivateGrowthPlugin();
+testLatestTextCanDeterministicallyActivateMoiraPlugin();
+testMoiraPluginTopicForcesMoiraToolsetForNonOwnerWorkspace();
 testForcedEscalationRetryActivatesSelectedPluginToolset();
 testFailedProbeResultRemovesOptionalPluginFromActiveSchema();
 testSuccessfulProbeResultKeepsOptionalPluginActiveWithEvidence();

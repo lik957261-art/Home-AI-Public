@@ -61,6 +61,10 @@ tool routing, and delivery-directory context.
   - the normal baseline tools allowed by the workspace policy;
   - companion tools required by the plugin's domain, such as `file`, `vision`,
     `weather`, `search`, or `web`, when policy permits.
+- Fixed plugin topic ids include ordinary app plugins such as
+  `plugin:wardrobe`, `plugin:finance`, `plugin:email`, `plugin:health`,
+  `plugin:growth`, and `plugin:moira`; every fixed plugin topic must map to
+  its required primary toolset before Gateway request assembly.
 - Hermes Mobile creates a standard plugin file directory for the plugin topic.
 - The plugin file directory contributes cleaned, selected context to the topic; it
   is not treated as the canonical plugin database.

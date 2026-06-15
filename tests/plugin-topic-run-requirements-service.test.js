@@ -11,6 +11,7 @@ const {
 function testKnownPluginTopicContexts() {
   assert.deepEqual(pluginToolsetsForTaskGroup("plugin:health"), ["health"]);
   assert.deepEqual(pluginToolsetsForTaskGroup("plugin:growth"), ["growth"]);
+  assert.deepEqual(pluginToolsetsForTaskGroup("plugin:moira"), ["moira"]);
   assert.deepEqual(pluginToolsetsForTaskGroup("plugin:wardrobe"), ["wardrobe", "vision", "file", "skills"]);
   assert.equal(pluginTopicContextForTaskGroup("general"), null);
 }

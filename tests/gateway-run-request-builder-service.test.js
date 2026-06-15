@@ -205,6 +205,36 @@ function testPluginTopicDoesNotAuthorizeMissingWorkspaceToolset() {
   assert.equal(instructions.pluginTopicContext.requiredToolsets.length, 0);
 }
 
+function testMoiraPluginTopicRequiresMoiraToolsetWhenAuthorized() {
+  const { service } = createBuilder({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "moira"],
+      authorized_toolsets: ["file", "moira"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+  });
+  const request = service.buildRunRequest(
+    baseThread({ workspaceId: "weixin_wuping" }),
+    baseUser({
+      content: "用星盘插件给吴萍起盘",
+      senderWorkspaceId: "weixin_wuping",
+      taskGroupId: "plugin:moira",
+    }),
+    { id: "assistant_1" },
+    {},
+  );
+  const instructions = JSON.parse(request.body.instructions);
+
+  assert.equal(request.pluginTopicContext.pluginId, "moira");
+  assert.deepEqual(request.pluginTopicContext.requiredToolsets, ["moira"]);
+  assert.deepEqual(request.gatewayRouting.requiredToolsets, ["moira"]);
+  assert.ok(request.body.enabled_toolsets.includes("moira"));
+  assert.deepEqual(request.pluginCapabilityContext.activeSchemaSet.active_toolsets, ["moira"]);
+  assert.deepEqual(instructions.pluginTopicContext.requiredToolsets, ["moira"]);
+}
+
 function testDirectoryBoundRunUsesTargetWorkspaceForGatewayAndPolicy() {
   const { service } = createBuilder({
     taskDirectoryAttachmentForMessage: () => ({
@@ -277,6 +307,7 @@ function testBuildGroupChatRunContextMergesDeliveryRoots() {
 testWorkspaceHelpersStayStable();
 testBuildRunRequestAddsPluginRequirementsAndRouting();
 testPluginTopicDoesNotAuthorizeMissingWorkspaceToolset();
+testMoiraPluginTopicRequiresMoiraToolsetWhenAuthorized();
 testDirectoryBoundRunUsesTargetWorkspaceForGatewayAndPolicy();
 testBuildGroupChatRunContextMergesDeliveryRoots();
 

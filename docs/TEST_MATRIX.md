@@ -829,8 +829,8 @@ coverage for that increment:
 - Groups displayed inside directory-topic collection cards are removed from the
   regular topic grid to avoid duplicate entries.
 - Plugin fixed topics such as `plugin:wardrobe`, `plugin:finance`,
-  `plugin:email`, `plugin:health`, and `plugin:note` must not be included in directory-topic
-  collection cards.
+  `plugin:email`, `plugin:health`, `plugin:note`, and `plugin:moira` must not
+  be included in directory-topic collection cards.
 - The current Dock projection keeps the Directory capability in the global
   plugin Dock with the external plugin icons. It has no permanent chat/file
   mini actions beside the icon; Directory quick actions live in the
