@@ -79,7 +79,25 @@ function testAbortedStreamWithFailureReasonMarksFailed() {
   assert.deepEqual(cancellations, []);
 }
 
-function testAbortedStreamWithoutFailureReasonMarksCancelled() {
+function testUserStoppedAbortedStreamWithoutFailureReasonMarksCancelled() {
+  const streams = new Map([[
+    "public_run",
+    { realRunId: "real_response", failureReason: "", userStopRequested: true },
+  ]]);
+  const closed = [];
+  const failures = [];
+  const cancellations = [];
+  const service = makeService(streams, closed, failures, cancellations);
+
+  const result = service.handleStreamCompletion("public_run", "thread_1", "message_1", controller(true));
+
+  assert.deepEqual(result, { action: "cancelled_after_user_stop", runId: "real_response" });
+  assert.deepEqual(closed, []);
+  assert.deepEqual(failures, []);
+  assert.deepEqual(cancellations, [["thread_1", "message_1", "real_response"]]);
+}
+
+function testUntrackedAbortedStreamWithoutFailureReasonMarksFailed() {
   const streams = new Map([["public_run", { realRunId: "real_response", failureReason: "" }]]);
   const closed = [];
   const failures = [];
@@ -88,10 +106,16 @@ function testAbortedStreamWithoutFailureReasonMarksCancelled() {
 
   const result = service.handleStreamCompletion("public_run", "thread_1", "message_1", controller(true));
 
-  assert.deepEqual(result, { action: "cancelled_after_abort", runId: "real_response" });
+  assert.equal(result.action, "failed_after_untracked_abort");
+  assert.equal(result.runId, "real_response");
+  assert.match(result.error.message, /without a user stop request/);
   assert.deepEqual(closed, []);
-  assert.deepEqual(failures, []);
-  assert.deepEqual(cancellations, [["thread_1", "message_1", "real_response"]]);
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0][0], "thread_1");
+  assert.equal(failures[0][1], "message_1");
+  assert.equal(failures[0][2], "real_response");
+  assert.match(failures[0][3].message, /without a user stop request/);
+  assert.deepEqual(cancellations, []);
 }
 
 function testMissingStreamFallsBackToCloseRecovery() {
@@ -107,7 +131,8 @@ function testMissingStreamFallsBackToCloseRecovery() {
 testTerminalEventSeenDoesNothing();
 testNoTerminalDelegatesToCloseRecovery();
 testAbortedStreamWithFailureReasonMarksFailed();
-testAbortedStreamWithoutFailureReasonMarksCancelled();
+testUserStoppedAbortedStreamWithoutFailureReasonMarksCancelled();
+testUntrackedAbortedStreamWithoutFailureReasonMarksFailed();
 testMissingStreamFallsBackToCloseRecovery();
 
 console.log("gateway run stream completion service tests passed");

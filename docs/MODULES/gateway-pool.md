@@ -458,7 +458,10 @@ message status, and a bounded `/health` status check. It must not include raw
 worker API keys, provider keys, prompt bodies, model output, private file
 contents, or long logs. Ordinary user-initiated cancellation does not trigger a
 failure diagnostic; interrupt requests are tracked separately with a bounded
-`run.interrupt_requested` event.
+`run.interrupt_requested` event. Abort handling must use an explicit
+user-stop marker: a stream abort created by the Stop/interrupt path may become
+`cancelled`, but an abort without that marker is a failed terminal state and
+must enter the same Gateway runtime diagnostic path.
 
 The triggered diagnostic is report-only. It must not restart services, edit
 files, change ACLs, mutate databases, or run deploy commands. Repairs for

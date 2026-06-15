@@ -45,6 +45,7 @@ function createGatewayRunStreamStopService(options = {}) {
     for (const runId of dedupe(runIds || [])) {
       const stream = activeStreamForRun(runId);
       if (stream?.controller) {
+        stream.userStopRequested = true;
         stream.controller.abort();
         stopped.push(runId);
         continue;

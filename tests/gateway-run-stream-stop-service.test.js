@@ -51,6 +51,7 @@ async function testStopUsesActiveAbortThenGatewayStop() {
 
   assert.deepEqual(stopped, ["public_run", "remote_run", "gone_run"]);
   assert.equal(controller.abortCount, 1);
+  assert.equal(activeStreams.get("public_run").userStopRequested, true);
   assert.deepEqual(stopCalls.map((call) => call.runId), ["remote_run", "gone_run"]);
   assert.deepEqual(stopCalls[0].options, {
     gatewayUrl: "http://remote_run.gateway",

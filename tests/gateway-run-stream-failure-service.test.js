@@ -68,8 +68,11 @@ function testAbortedStreamWithFailureReasonMarksFailedWithReason() {
   assert.equal(events[0].options.runId, "real_response");
 }
 
-function testAbortedStreamWithoutFailureReasonMarksCancelled() {
-  const streams = new Map([["public_run", { realRunId: "real_response", failureReason: "" }]]);
+function testUserStoppedAbortedStreamWithoutFailureReasonMarksCancelled() {
+  const streams = new Map([[
+    "public_run",
+    { realRunId: "real_response", failureReason: "", userStopRequested: true },
+  ]]);
   const events = [];
   const failures = [];
   const cancellations = [];
@@ -83,9 +86,32 @@ function testAbortedStreamWithoutFailureReasonMarksCancelled() {
     new Error("aborted"),
   );
 
-  assert.deepEqual(result, { action: "cancelled_after_abort", runId: "real_response" });
+  assert.deepEqual(result, { action: "cancelled_after_user_stop", runId: "real_response" });
   assert.deepEqual(failures, []);
   assert.deepEqual(cancellations, [["thread_1", "message_1", "real_response"]]);
+  assert.equal(events[0].event, "run.stream_failed");
+  assert.equal(events[0].options.error, true);
+}
+
+function testUntrackedAbortedStreamWithoutFailureReasonMarksFailed() {
+  const streams = new Map([["public_run", { realRunId: "real_response", failureReason: "" }]]);
+  const events = [];
+  const failures = [];
+  const cancellations = [];
+  const service = makeService(streams, events, failures, cancellations);
+  const err = new Error("aborted");
+
+  const result = service.handleStreamFailure(
+    "public_run",
+    "thread_1",
+    "message_1",
+    controller(true),
+    err,
+  );
+
+  assert.deepEqual(result, { action: "failed_after_untracked_abort", runId: "real_response", error: err });
+  assert.deepEqual(failures, [["thread_1", "message_1", "real_response", err]]);
+  assert.deepEqual(cancellations, []);
   assert.equal(events[0].event, "run.stream_failed");
   assert.equal(events[0].options.error, true);
 }
@@ -107,7 +133,8 @@ function testMissingStreamFallsBackToPublicRunId() {
 
 testNormalErrorEmitsUserFacingFailureAndMarksFailed();
 testAbortedStreamWithFailureReasonMarksFailedWithReason();
-testAbortedStreamWithoutFailureReasonMarksCancelled();
+testUserStoppedAbortedStreamWithoutFailureReasonMarksCancelled();
+testUntrackedAbortedStreamWithoutFailureReasonMarksFailed();
 testMissingStreamFallsBackToPublicRunId();
 
 console.log("gateway run stream failure service tests passed");

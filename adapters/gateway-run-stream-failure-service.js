@@ -33,8 +33,12 @@ function createGatewayRunStreamFailureService(options = {}) {
       return { action: "failed_after_abort_reason", runId: visibleRunId, error: failure };
     }
     if (controller?.signal?.aborted) {
-      markRunCancelled(threadId, messageId, visibleRunId);
-      return { action: "cancelled_after_abort", runId: visibleRunId };
+      if (stream?.userStopRequested) {
+        markRunCancelled(threadId, messageId, visibleRunId);
+        return { action: "cancelled_after_user_stop", runId: visibleRunId };
+      }
+      markRunFailed(threadId, messageId, visibleRunId, err);
+      return { action: "failed_after_untracked_abort", runId: visibleRunId, error: err };
     }
     markRunFailed(threadId, messageId, visibleRunId, err);
     return { action: "failed", runId: visibleRunId, error: err };

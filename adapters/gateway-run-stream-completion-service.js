@@ -27,8 +27,13 @@ function createGatewayRunStreamCompletionService(options = {}) {
       return { action: "failed_after_abort_reason", runId: visibleRunId, error: failure };
     }
     if (controller?.signal?.aborted) {
-      markRunCancelled(threadId, messageId, visibleRunId);
-      return { action: "cancelled_after_abort", runId: visibleRunId };
+      if (stream?.userStopRequested) {
+        markRunCancelled(threadId, messageId, visibleRunId);
+        return { action: "cancelled_after_user_stop", runId: visibleRunId };
+      }
+      const failure = new Error("Gateway stream aborted before completion without a user stop request.");
+      markRunFailed(threadId, messageId, visibleRunId, failure);
+      return { action: "failed_after_untracked_abort", runId: visibleRunId, error: failure };
     }
     if (stream?.terminalEventSeen) {
       return { action: "terminal_event_seen", runId: visibleRunId };

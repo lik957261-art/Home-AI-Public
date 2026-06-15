@@ -216,8 +216,9 @@ remote runs, or mutate terminal thread/message state.
 `gateway-run-stream-failure-service.js` owns Gateway stream reader failure
 projection: emitting `run.stream_failed` with the user-facing Gateway error
 preview, mapping aborted streams with a stored failure reason to failed
-thread/message state, mapping aborted streams without a stored reason to
-cancelled state, and mapping ordinary reader errors to failed state. It must not
+thread/message state, mapping user-stop-marked aborted streams to cancelled
+state, mapping untracked aborted streams to failed state, and mapping ordinary
+reader errors to failed state. It must not
 read response streams, parse Gateway events, own active stream storage, check
 liveness, stop remote runs, or mutate Gateway targets.
 

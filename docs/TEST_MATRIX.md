@@ -1011,13 +1011,17 @@ When a `run.gateway_worker_start_failed` event has
 state such as `run.failed`, `response.failed`, `run.stream_failed`,
 `run.liveness_stale`, or `run.gateway_start_timeout`, the event path must
 schedule the Gateway runtime diagnostic service. Focused checks must prove
-cancelled runs do not trigger failure diagnostics, the report is written under
-`data/diagnostics/gateway-runtime`, raw worker/provider keys are not serialized,
-and the embedded Codex repair task card is `pending_owner_approval` with no
-automatic repair actions. Focused checks:
+user-requested cancelled runs do not trigger failure diagnostics, untracked
+stream aborts are classified as failed instead of cancelled, the report is
+written under `data/diagnostics/gateway-runtime`, raw worker/provider keys are
+not serialized, and the embedded Codex repair task card is
+`pending_owner_approval` with no automatic repair actions. Focused checks:
 `node tests\gateway-health-diagnostic-service.test.js` and
 `node tests\gateway-run-start-event-service.test.js`,
-`node tests\gateway-run-terminal-state-service.test.js`.
+`node tests\gateway-run-terminal-state-service.test.js`,
+`node tests\gateway-run-stream-stop-service.test.js`,
+`node tests\gateway-run-stream-failure-service.test.js`, and
+`node tests\gateway-run-stream-completion-service.test.js`.
 Thread interrupt routes must also leave a bounded `run.interrupt_requested`
 event before stopping local active streams so cancelled runs can be
 distinguished from network failures during production incident review. Focused
