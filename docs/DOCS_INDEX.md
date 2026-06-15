@@ -55,6 +55,8 @@ remaining gap as an explicit follow-up.
 - Engineering governance gates:
   `docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md`,
   `scripts/engineering-governance-check.js`,
+  `scripts/production-self-diagnostics.js`,
+  `scripts/productization-acceptance-matrix.js`,
   `tests/engineering-governance-check.test.js`
 - Original layered topic-context design: `docs/TOPIC_CONTEXT_LAYERED_COMPACTION_IMPLEMENTATION.zh-CN.md`
 

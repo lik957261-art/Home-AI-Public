@@ -22,7 +22,11 @@ behavior, or productization rules must run:
 
 ```bash
 node scripts/engineering-governance-check.js --json
+node scripts/production-self-diagnostics.js
+node scripts/productization-acceptance-matrix.js --verify-docs
 node tests/engineering-governance-check.test.js
+node tests/production-self-diagnostics.test.js
+node tests/productization-acceptance-matrix.test.js
 ```
 
 The gate enforces three repository-level requirements:
@@ -32,6 +36,11 @@ The gate enforces three repository-level requirements:
 - the Productization Acceptance Matrix in
   `docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md` remains part of
   the test and documentation routing.
+
+`node scripts/production-self-diagnostics.js --markdown` prints the maintained
+production diagnostic checklist with command templates. `node
+scripts/productization-acceptance-matrix.js --markdown` prints the acceptance
+matrix template for implementation notes, pull requests, or handoffs.
 
 Use the matrix for every product-facing change: Owner behavior, non-Owner
 behavior, public fresh install, public update, migration/restore,

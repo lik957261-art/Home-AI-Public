@@ -40,6 +40,20 @@ The maintained baseline diagnostics are:
 - `scripts/macos-automation-cron-audit.js`;
 - `scripts/macos-production-closure-validation.js`.
 
+The machine-readable baseline is:
+
+```bash
+node scripts/production-self-diagnostics.js
+node scripts/production-self-diagnostics.js --markdown
+node tests/production-self-diagnostics.test.js
+```
+
+The JSON output lists the diagnostic id, script path, source harness, intended
+production command, required use cases, and bounded-output policy. This command
+does not execute production repair or smoke actions by itself; it is the
+operator-facing checklist and source-side guard for selecting the right
+production diagnostic before closure.
+
 Diagnostic output must be bounded metadata. It must not print raw Access Keys,
 provider keys, OAuth tokens, push endpoints, full prompts, full model
 responses, private file contents, or long logs. A diagnostic may report paths,
@@ -63,8 +77,21 @@ Required dimensions:
 - backup and rollback path when production data can be changed;
 - permission boundary for workspace, plugin, Gateway, Skill, Memory, Soul, or
   filesystem access;
-- UI/PWA visual and cache behavior when static client behavior changes;
+- UI, PWA, and cache behavior when static client behavior changes;
 - production self-diagnostic coverage for likely failure modes.
+
+The machine-readable matrix is:
+
+```bash
+node scripts/productization-acceptance-matrix.js
+node scripts/productization-acceptance-matrix.js --markdown
+node scripts/productization-acceptance-matrix.js --verify-docs
+node tests/productization-acceptance-matrix.test.js
+```
+
+Use `--markdown` when a change needs a checklist in an implementation note,
+pull request, or handoff. Use `--verify-docs` when changing the matrix or
+governance docs.
 
 If a dimension is not applicable, the implementation note, test plan, or
 handoff must say why. If it is applicable but not yet covered, the gap must be
@@ -78,6 +105,8 @@ diagnostics, public release behavior, or this document:
 ```bash
 node scripts/engineering-governance-check.js --json
 node tests/engineering-governance-check.test.js
+node tests/production-self-diagnostics.test.js
+node tests/productization-acceptance-matrix.test.js
 ```
 
 The broad gate remains:

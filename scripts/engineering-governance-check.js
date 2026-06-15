@@ -42,6 +42,8 @@ function checkRequiredFiles(issues) {
     "docs/MODULES/deployment.md",
     "docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md",
     "scripts/productization-check.js",
+    "scripts/production-self-diagnostics.js",
+    "scripts/productization-acceptance-matrix.js",
     "scripts/production-status-smoke.js",
     "scripts/macos-production-profile-audit.js",
     "scripts/macos-worker-filesystem-access-harness.js",
@@ -50,6 +52,8 @@ function checkRequiredFiles(issues) {
     "scripts/macos-bound-directory-preview-smoke.js",
     "scripts/macos-automation-cron-audit.js",
     "scripts/macos-production-closure-validation.js",
+    "tests/production-self-diagnostics.test.js",
+    "tests/productization-acceptance-matrix.test.js",
   ].forEach((relativePath) => requireFile(issues, relativePath));
 }
 
@@ -116,9 +120,23 @@ function checkDocs(issues) {
   requireText(
     issues,
     "docs/TEST_MATRIX.md",
-    /engineering-governance-check\.js[\s\S]+Productization Acceptance Matrix/i,
+    /engineering-governance-check\.js[\s\S]+production-self-diagnostics\.js[\s\S]+productization-acceptance-matrix\.js[\s\S]+Productization Acceptance Matrix/i,
     "test_matrix_missing_governance_gate",
     "TEST_MATRIX must include the governance check and productization matrix",
+  );
+  requireText(
+    issues,
+    "docs/DOCS_INDEX.md",
+    /production-self-diagnostics\.js[\s\S]+productization-acceptance-matrix\.js/,
+    "docs_index_missing_governance_tools",
+    "DOCS_INDEX must point to the production diagnostics and productization matrix tools",
+  );
+  requireText(
+    issues,
+    "docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md",
+    /production-self-diagnostics\.js[\s\S]+productization-acceptance-matrix\.js/,
+    "governance_doc_missing_executable_tools",
+    "engineering-governance-gates.md must describe the executable governance tools",
   );
 }
 

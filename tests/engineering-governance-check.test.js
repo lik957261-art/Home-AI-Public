@@ -26,15 +26,24 @@ function testProductizationRunsGovernanceCheck() {
   assert.match(source, /engineering-governance-check\.js/);
 }
 
+function testGovernanceToolsAreIndexed() {
+  const index = read("docs/DOCS_INDEX.md");
+  assert.match(index, /production-self-diagnostics\.js/);
+  assert.match(index, /productization-acceptance-matrix\.js/);
+}
+
 function testGovernanceDocContainsRequiredSections() {
   const source = read("docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md");
   assert.match(source, /## CI-Enforced Constraints/);
   assert.match(source, /## Production Self-Diagnostics/);
   assert.match(source, /## Productization Acceptance Matrix/);
+  assert.match(source, /production-self-diagnostics\.js/);
+  assert.match(source, /productization-acceptance-matrix\.js/);
 }
 
 testGovernanceCheckPasses();
 testProductizationRunsGovernanceCheck();
+testGovernanceToolsAreIndexed();
 testGovernanceDocContainsRequiredSections();
 
 console.log("engineering-governance-check tests passed");
