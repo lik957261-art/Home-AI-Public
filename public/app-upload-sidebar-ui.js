@@ -360,6 +360,7 @@ function wireRightSwipeGuard() {
   document.documentElement.dataset.rightSwipeGuardBound = "1";
   let touch = null;
   const interactiveSelector = ".sidebar, .directory-shell, input, select, textarea, [contenteditable='true']";
+  const messageSelectionSwipeBlockSelector = ".message[data-message-id], .assistant-receipt, .text-content";
   const taskListScrollSelector = ".task-list-mode .conversation, .task-list-mode .thread-list";
   const clear = () => {
     touch = null;
@@ -369,6 +370,7 @@ function wireRightSwipeGuard() {
       !isMobileLayout()
       || event.touches.length !== 1
       || event.target?.closest?.(interactiveSelector)
+      || event.target?.closest?.(messageSelectionSwipeBlockSelector)
       || (typeof globalPluginDockOwnsTouchTarget === "function" && globalPluginDockOwnsTouchTarget(event.target))
     ) {
       touch = null;

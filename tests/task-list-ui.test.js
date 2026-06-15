@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260616-moira-topic-v774";
+const CLIENT_VERSION = "20260616-message-select-v775";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -211,8 +211,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260616-moira-topic-v774" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260616-moira-topic-v774"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260616-message-select-v775" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260616-message-select-v775"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2491,6 +2491,8 @@ assert.match(appJs, /app\?\.classList\.remove\("global-plugin-dock-expanded-mode
 assert.match(appJs, /function closeGlobalPluginDockForNavigation\(options = \{\}\) \{[\s\S]*?global-plugin-dock-navigation-settling[\s\S]*?setGlobalPluginDockExpanded\(false, \{ persist: options\.persist !== false \}\)/);
 assert.match(appJs, /function applyBackSwipeDrag\(swipe, dx\) \{[\s\S]*?globalPluginDockClosedForBackSwipe[\s\S]*?closeGlobalPluginDockForNavigation\(\{ reason: "back_swipe" \}\)/);
 assert.match(appJs, /function wireRightSwipeGuard\(\) \{[\s\S]*?globalPluginDockOwnsTouchTarget\(event\.target\)[\s\S]*?touch = null;[\s\S]*?return;/);
+assert.match(appJs, /const messageSelectionSwipeBlockSelector = "\.message\[data-message-id\], \.assistant-receipt, \.text-content";/);
+assert.match(appJs, /event\.target\?\.closest\?\.\(messageSelectionSwipeBlockSelector\)/);
 assert.match(appJs, /const startEdgeSwipe = \(event\) => \{[\s\S]*?globalPluginDockOwnsTouchTarget\(event\.target\)[\s\S]*?return;/);
 assert.match(appJs, /async function handleInAppBackNavigation\(options = \{\}\) \{[\s\S]*?closeGlobalPluginDockForNavigation\(\{ reason: "back_navigation" \}\)/);
 assert.match(appJs, /button\.closest\?\.\("\.topic-plugin-dock"\)[\s\S]*?setGlobalPluginDockExpanded\(false, \{ persist: false \}\)[\s\S]*?openPluginTopicApp/);
@@ -2508,6 +2510,10 @@ assert.match(appJs, /"bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "b
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-safe-area: min\(env\(safe-area-inset-bottom\), 8px\)/);
 assert.match(stylesCss, /--mobile-bottom-nav-content-safe-area: max\(0px, min\(var\(--mobile-bottom-safe-area\), 3px\)\)/);
+assert.match(stylesCss, /\.message-body \{[\s\S]*?touch-action: pan-y;/);
+assert.match(stylesCss, /\.message-prose \{[\s\S]*?touch-action: pan-y;/);
+assert.match(stylesCss, /\.message-prose pre \{[\s\S]*?touch-action: pan-x pan-y;/);
+assert.match(stylesCss, /\.prose-table-wrap \{[\s\S]*?touch-action: pan-x pan-y;/);
 assert.match(stylesCss, /--mobile-bottom-nav-height: 58px/);
 assert.match(stylesCss, /--mobile-bottom-nav-visual-lift: 0px/);
 assert.match(stylesCss, /--mobile-bottom-nav-comfort-inset: 18px/);
@@ -2595,14 +2601,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260616-moira-topic-v774/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260616-moira-topic-v774/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260616-moira-topic-v774/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260616-moira-topic-v774/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260616-moira-topic-v774/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260616-moira-topic-v774/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260616-moira-topic-v774/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260616-moira-topic-v774/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260616-message-select-v775/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260616-message-select-v775/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260616-message-select-v775/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260616-message-select-v775/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260616-message-select-v775/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260616-message-select-v775/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260616-message-select-v775/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260616-message-select-v775/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);
