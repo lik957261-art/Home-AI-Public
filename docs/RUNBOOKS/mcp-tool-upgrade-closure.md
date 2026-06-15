@@ -216,16 +216,20 @@ The 2026-06-14 Moira evidence upgrade adds these callable names when the
 - `mcp_moira_list_records`
 - `mcp_moira_get_chart_evidence`
 - `mcp_moira_get_year_forecast_evidence`
+- `mcp_moira_get_pick_day_evidence`
+- `mcp_moira_get_monthly_selection_evidence`
 
 The Mobile schema epoch for this callable set is
-`20260614-moira-mcp-evidence-v1`. Before production exposure, prove the Moira
+`20260615-moira-pick-month-mcp-v1`. Before production exposure, prove the Moira
 service schema, Gateway selected-profile callable schema, Mobile instruction
 hints, and selected worker schema all include the Moira callables. Moira uses
 ordinary workspace-private binding: each effective workspace must have its own
 `.hermes-moira/config.json` and key; Owner and `weixin_wuping` must not share
-Moira MCP credentials. These tools return read-only chart/year evidence only;
-the model owns final interpretation and must not claim Moira generated a full
-fortune narrative.
+Moira MCP credentials. These tools return read-only chart/year/election
+evidence only; the model owns final interpretation and must not claim Moira
+generated a full fortune narrative. PICK/择日 and 择月 tools return bounded
+calculation evidence; unless promoted rule commentary is explicitly returned,
+they are status-only facts and not a complete auspicious/inauspicious verdict.
 
 ## Failure Classification
 

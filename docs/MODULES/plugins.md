@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-06-11.
+Last updated: 2026-06-15.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -49,18 +49,19 @@ during launch/MCP authorization checks. Static LaunchDaemon allowlists remain
 deployment seeds, not the only grant source.
 
 Moira's Gateway MCP surface is read-only. The plugin-side MCP tools expose
-saved-record metadata plus compact chart/year evidence packages; the host model
-owns final interpretation and must not treat Moira as generating a complete
-fortune narrative.
+saved-record metadata plus compact birth-chart, annual-flow, PICK/择日, and
+择月 evidence packages; the host model owns final interpretation and must not
+treat Moira as generating a complete fortune narrative. PICK/择日 and 择月
+evidence is calculation evidence unless the returned payload explicitly includes
+promoted rule commentary.
 
 Current development visual evidence is recorded in the Moira pointer doc and
 AI Ops ledger as
 `evidence-79a79cc1-019c-4222-9b6f-7c5959a6db05` and
-`evidence-eec3aa0d-5d18-412e-9c86-c2ad4f5c9c81`; the latest production deploy
-evidence is `evidence-799e0143-0258-42a3-b71b-929456bc7ed5` for Moira
-`0.2.43`; installed-PWA/
-real-device safe-area evidence remains a separate acceptance gate when Moira UI
-changes.
+`evidence-eec3aa0d-5d18-412e-9c86-c2ad4f5c9c81`. Moira production plugin
+`0.2.344` has direct service readback for client version, PWA cache, MCP schema,
+and parallel PICK/择日 plus 择月 evidence dispatch. Installed-PWA and real-device
+safe-area evidence remain separate acceptance gates when Moira UI changes.
 
 The embedded UI layout contract is tracked separately in
 `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must

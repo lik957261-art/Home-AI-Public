@@ -109,6 +109,26 @@ const PLUGIN_HEALTH_URLS = Object.freeze({
   wardrobe: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
 });
 
+const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
+  moira: Object.freeze([
+    Object.freeze({
+      source: "scripts/moira-mcp-stdio.mjs",
+      target: "gateway-worker/moira-mcp/scripts/moira-mcp-stdio.mjs",
+      mode: "755",
+    }),
+    Object.freeze({
+      source: "server/moira-mcp-service.mjs",
+      target: "gateway-worker/moira-mcp/server/moira-mcp-service.mjs",
+      mode: "755",
+    }),
+    Object.freeze({
+      source: "package.json",
+      target: "gateway-worker/moira-mcp/package.json",
+      mode: "755",
+    }),
+  ]),
+});
+
 const DEFAULT_RESTART_LABELS = {
   "home-ai": [HOME_AI_LISTENER_LABEL, HOME_AI_BRIDGE_HOST_LABEL, HOME_AI_CRON_LABEL],
   ...Object.fromEntries(PLUGIN_DEPLOY_ORDER.map((plugin) => [`plugin:${plugin}`, [PLUGIN_RESTART_LABELS[plugin]]])),
@@ -415,6 +435,15 @@ function postSyncRepairsForTarget(options) {
   return [];
 }
 
+function postSyncMirrorsForTarget(options) {
+  const plugin = String(options.target || "").replace(/^plugin:/, "");
+  const mirrors = PLUGIN_GATEWAY_MCP_MIRRORS[plugin] || [];
+  return mirrors.map((item) => Object.assign({}, item, {
+    type: "gateway-mcp-worker-asset",
+    plugin,
+  }));
+}
+
 function readTextIfExists(filePath) {
   try {
     return fs.readFileSync(filePath, "utf8");
@@ -468,6 +497,7 @@ function buildPlan(options) {
   const rsyncExcludes = rsyncExcludesForTarget(options);
   const productionOwner = productionOwnerForTarget(options.target);
   const postSyncRepairs = postSyncRepairsForTarget(options);
+  const postSyncMirrors = postSyncMirrorsForTarget(options);
   const validation = [];
   if (options.target === "home-ai") {
     const command = [
@@ -544,6 +574,7 @@ function buildPlan(options) {
     healthUrl,
     rsyncExcludes,
     postSyncRepairs,
+    postSyncMirrors,
     sync: options.surface === "static"
       ? HOME_AI_STATIC_SYNC_ROOTS.map((root) => ({ source: `${root}`, target: `${root}` }))
       : [{ source: "./", target: "./" }],
@@ -1391,6 +1422,46 @@ function repairCodexMobileLogPermissions(plan, password) {
   };
 }
 
+function syncPostSyncMirrors(plan, password) {
+  const mirrors = Array.isArray(plan.postSyncMirrors) ? plan.postSyncMirrors : [];
+  const rows = [];
+  for (const mirror of mirrors) {
+    if (!mirror || mirror.type !== "gateway-mcp-worker-asset") continue;
+    const relSource = String(mirror.source || "").trim();
+    const relTarget = String(mirror.target || "").trim();
+    if (!relSource || !relTarget) continue;
+    const sourcePath = path.join(plan.productionPath, relSource);
+    const targetPath = path.join(plan.macRoot, relTarget);
+    assertInside(sourcePath, plan.productionPath, "post_sync_mirror_source");
+    assertInside(targetPath, plan.macRoot, "post_sync_mirror_target");
+    runSudo("/bin/mkdir", ["-p", path.posix.dirname(targetPath)], password);
+    runSudo("/usr/bin/install", [
+      "-m",
+      String(mirror.mode || "755"),
+      "-o",
+      PRODUCTION_SERVICE_USER,
+      "-g",
+      PRODUCTION_SERVICE_GROUP,
+      sourcePath,
+      targetPath,
+    ], password);
+    rows.push({
+      plugin: mirror.plugin || "",
+      source: relSource,
+      target: relTarget,
+      mode: String(mirror.mode || "755"),
+    });
+  }
+  if (!rows.length) return null;
+  return {
+    type: "post-sync-gateway-mcp-worker-assets",
+    status: 0,
+    target: plan.target,
+    fileCount: rows.length,
+    files: rows,
+  };
+}
+
 function executePlan(plan, options) {
   const password = readPassword(options.passwordFile);
   if (options.passwordFile && !password) throw new Error("sudo_password_file_empty");
@@ -1414,6 +1485,7 @@ function executePlan(plan, options) {
   }
 
   const codexMobileLogRepair = repairCodexMobileLogPermissions(plan, password);
+  const postSyncMirrorResult = syncPostSyncMirrors(plan, password);
   const bridgeHostInstall = installHomeAiBridgeHostLaunchd(plan, password);
   const cronInstall = installHomeAiCronLaunchd(plan, password);
   const listenerVoiceInputEnv = installHomeAiListenerVoiceInputEnv(plan, password);
@@ -1442,6 +1514,7 @@ function executePlan(plan, options) {
 
   const validations = [];
   if (codexMobileLogRepair) validations.push(codexMobileLogRepair);
+  if (postSyncMirrorResult) validations.push(postSyncMirrorResult);
   if (bridgeHostInstall) validations.push(Object.assign({ status: 0 }, bridgeHostInstall));
   if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));
   if (listenerVoiceInputEnv) validations.push(Object.assign({ status: 0 }, listenerVoiceInputEnv));

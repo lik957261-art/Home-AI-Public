@@ -36,6 +36,10 @@ assert.match(script, /PLUGIN_DEPLOY_ORDER/);
 assert.match(script, /PLUGIN_ALIASES/);
 assert.match(script, /health: "healthy"/);
 assert.match(script, /PLUGIN_HEALTH_URLS/);
+assert.match(script, /PLUGIN_GATEWAY_MCP_MIRRORS/);
+assert.match(script, /gateway-worker\/moira-mcp\/scripts\/moira-mcp-stdio\.mjs/);
+assert.match(script, /gateway-worker\/moira-mcp\/server\/moira-mcp-service\.mjs/);
+assert.match(script, /post-sync-gateway-mcp-worker-assets/);
 assert.match(script, /buildAllPluginPlan/);
 assert.match(script, /\$\{label\}_outside_allowed_root/);
 assert.match(script, /assertInside\(source, options\.devRoot, "source"\)/);
@@ -147,6 +151,7 @@ assert.match(contract, /--source \/Users\/hermes-dev\/HermesMobileDev\/plugins\/
 assert.match(contract, /--restart-label <label>/);
 assert.match(contract, /--health-url <url>/);
 assert.match(contract, /--sync-only/);
+assert.match(contract, /gateway-worker\/<plugin>-mcp/);
 assert.match(contract, /selected Gateway callable-schema/);
 assert.match(contract, /must not bypass it with a plugin-private\s+production write path/);
 assert.match(contract, /\.codegraph/);
@@ -158,6 +163,8 @@ assert.match(pluginWorkspaceContract, /must not replace the central deploy path 
 assert.match(pluginWorkspaceContract, /npm run --silent deploy:macos -- --plugin <plugin-id>/);
 assert.match(deploymentDoc, /--sync-only/);
 assert.match(deploymentDoc, /Backup rsync uses a narrower exclude list/);
+assert.match(deploymentDoc, /gateway-worker\/<plugin>-mcp/);
+assert.match(deploymentDoc, /gateway-worker\/moira-mcp/);
 assert.match(productionAccess, /--sync-only/);
 
 assert.match(pluginsDoc, /Plugin Codex threads must read that central contract before production deploys/);
@@ -443,6 +450,39 @@ assert.equal(growthPluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobil
 assert.equal(growthPluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/growth");
 assert.deepEqual(growthPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.growth"]);
 assert.equal(growthPluginPayload.plan.healthUrl, "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest");
+assert.deepEqual(growthPluginPayload.plan.postSyncMirrors, []);
+
+const moiraPluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "moira",
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "harness",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(moiraPluginRun.status, 0, moiraPluginRun.stderr);
+const moiraPluginPayload = JSON.parse(moiraPluginRun.stdout);
+assert.equal(moiraPluginPayload.plan.target, "plugin:moira");
+assert.equal(moiraPluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/moira");
+assert.equal(moiraPluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/moira");
+assert.deepEqual(moiraPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.moira"]);
+assert.equal(moiraPluginPayload.plan.healthUrl, "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest");
+assert.equal(moiraPluginPayload.plan.postSyncMirrors.length, 3);
+assert.deepEqual(
+  moiraPluginPayload.plan.postSyncMirrors.map((item) => item.target),
+  [
+    "gateway-worker/moira-mcp/scripts/moira-mcp-stdio.mjs",
+    "gateway-worker/moira-mcp/server/moira-mcp-service.mjs",
+    "gateway-worker/moira-mcp/package.json",
+  ],
+);
+assert.ok(moiraPluginPayload.plan.postSyncMirrors.every((item) => item.type === "gateway-mcp-worker-asset"));
+assert.ok(moiraPluginPayload.plan.postSyncMirrors.every((item) => item.plugin === "moira"));
 
 const allPluginRun = spawnSync(process.execPath, [
   scriptPath,
@@ -485,6 +525,14 @@ assert.ok(allPluginPayload.plan.plans.every((item) => item.healthUrl.includes("/
 assert.equal(
   allPluginPayload.plan.plans.filter((item) => item.postSyncRepairs.some((repair) => repair.type === "codex-mobile-log-permissions")).length,
   1,
+);
+assert.deepEqual(
+  allPluginPayload.plan.plans.filter((item) => item.postSyncMirrors.length).map((item) => item.target),
+  ["plugin:moira"],
+);
+assert.equal(
+  allPluginPayload.plan.plans.find((item) => item.target === "plugin:moira").postSyncMirrors.length,
+  3,
 );
 
 const allPluginSourceOverrideRun = spawnSync(process.execPath, [

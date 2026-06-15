@@ -2270,8 +2270,10 @@ changes still require visual/Appium evidence under the mobile UI contract.
 Moira MCP Gateway registration must additionally prove ordinary
 workspace-private binding: `.hermes-moira/config.json` plus key in the target
 workspace, no Owner/`weixin_wuping` credential sharing, service schema
-`moira.get_chart_evidence`, Mobile hints for `mcp_moira_get_chart_evidence`,
-and schema epoch `20260614-moira-mcp-evidence-v1`. A `--skip-gateway` closure
+`moira.get_chart_evidence`, `moira.get_year_forecast_evidence`,
+`moira.get_pick_day_evidence`, and `moira.get_monthly_selection_evidence`,
+Mobile hints for the matching `mcp_moira_*` callables, and schema epoch
+`20260615-moira-pick-month-mcp-v1`. A `--skip-gateway` closure
 smoke is source/service evidence only; production closure still requires a
 selected-profile callable schema smoke after app/plugin deploy and Gateway
 profile restart.

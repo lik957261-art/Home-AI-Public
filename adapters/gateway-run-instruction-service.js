@@ -2,7 +2,7 @@
 
 const { explicitSearchContext } = require("./gateway-run-search-budget-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260614-moira-mcp-evidence-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260615-moira-pick-month-mcp-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -92,6 +92,8 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_moira_list_records",
         "mcp_moira_get_chart_evidence",
         "mcp_moira_get_year_forecast_evidence",
+        "mcp_moira_get_pick_day_evidence",
+        "mcp_moira_get_monthly_selection_evidence",
       ],
       email: [
         "mcp_email_list_accounts",
@@ -266,8 +268,9 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "moira")) {
       lines.push(
-        "Current tool schema override: the `moira` toolset is enabled for this run. Callable function names normally begin with `mcp_moira_`, including `mcp_moira_list_records`, `mcp_moira_get_chart_evidence`, and `mcp_moira_get_year_forecast_evidence`.",
-        "Use Moira MCP only as a read-only evidence source for saved chart records, chart structure, and annual-flow evidence. The model owns final interpretation; do not claim Moira generated a complete fortune narrative.",
+        "Current tool schema override: the `moira` toolset is enabled for this run. Callable function names normally begin with `mcp_moira_`, including `mcp_moira_list_records`, `mcp_moira_get_chart_evidence`, `mcp_moira_get_year_forecast_evidence`, `mcp_moira_get_pick_day_evidence`, and `mcp_moira_get_monthly_selection_evidence`.",
+        "Use Moira MCP only as a read-only evidence source for saved chart records, birth chart structure, annual-flow evidence, PICK/择日 candidate evidence, and 择月 candidate evidence. The model owns final interpretation; do not claim Moira generated a complete fortune narrative.",
+        "Moira PICK/择日吉凶 verdicts are not authoritative unless the returned evidence explicitly includes promoted rule commentary. Treat status-only PICK/month evidence as calculation facts, not as a complete auspicious/inauspicious judgment.",
         "Do not pass `workspace_id` or `workspaceId` to Moira MCP calls. The Gateway profile is already bound to one Moira workspace/key; if the callable schema lacks `mcp_moira_*` while `Enabled toolsets` includes `moira`, report a Gateway schema mismatch instead of inventing astrology evidence."
       );
     }

@@ -391,7 +391,10 @@ On macOS, also verify that the workspace provisioning executor materialized the
 plugin MCP worker file set under `<root>/gateway-worker/<plugin>-mcp`, mirrored
 the complete `.hermes-<plugin>` binding into the target worker home, and updated
 the selected worker manifest `toolsets`, `mcpServers`, and `configPath` from
-the rendered profile YAML.
+the rendered profile YAML. For Moira, ordinary `--plugin moira` source deploys
+also mirror the plugin-owned MCP wrapper files from `<root>/plugins/moira` into
+`<root>/gateway-worker/moira-mcp`; this is the productized replacement for any
+hand-copied Gateway worker MCP asset refresh.
 
 They must not require per-plugin SSH aliases, copied private keys, interactive
 sudo prompts, or direct production workspace write access.
