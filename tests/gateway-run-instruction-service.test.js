@@ -218,7 +218,8 @@ function testBuiltInNoteReceiptMetadataInstruction() {
   assert.match(direct, /homeai-note/);
   assert.match(direct, /title: short readable Note title/);
   assert.match(direct, /save-to-Note action/);
-  assert.match(direct, /For casual chat, acknowledgements, questions, or ordinary short replies, omit this metadata/);
+  assert.match(direct, /For every final assistant reply/);
+  assert.match(direct, /still include the comment/);
 
   const text = service.buildHermesInstructions(
     { hermesSessionId: "s" },
@@ -226,7 +227,7 @@ function testBuiltInNoteReceiptMetadataInstruction() {
     { root: "C:/workspace" },
     "生成一份修复报告",
   );
-  assert.match(text, /For formal receipts, reports, audit summaries, automation results/);
+  assert.match(text, /For every final assistant reply/);
   assert.match(text, /<!-- homeai-note/);
   assert.match(text, /Do not include secrets, access keys, private paths/);
 }

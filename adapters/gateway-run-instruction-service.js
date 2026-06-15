@@ -373,12 +373,12 @@ function createGatewayRunInstructionService(options = {}) {
 
   function noteReceiptMetadataInstructions() {
     return [
-      "For formal receipts, reports, audit summaries, automation results, or other user-facing deliverables that may later be saved to Note, append one hidden Markdown HTML comment at the very end:",
+      "For every final assistant reply, append one hidden Markdown HTML comment at the very end so Home AI can later save a readable Note title without another model call:",
       "<!-- homeai-note",
       "title: short readable Note title",
       "tags: optional, comma-separated, non-sensitive tags",
       "-->",
-      "This hidden metadata is only for Home AI's save-to-Note action. Do not display or explain it in visible prose. Do not include secrets, access keys, private paths, raw endpoints, or long user content in the metadata. For casual chat, acknowledgements, questions, or ordinary short replies, omit this metadata.",
+      "This hidden metadata is only for Home AI's save-to-Note action. Do not display or explain it in visible prose. Keep the title concise and useful for a notes list. Do not include secrets, access keys, private paths, raw endpoints, or long user content in the metadata. For casual chat, acknowledgements, questions, or ordinary short replies, still include the comment, but keep the title short and leave tags empty unless a safe category is obvious.",
     ].join("\n");
   }
 
