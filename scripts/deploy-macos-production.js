@@ -117,8 +117,15 @@ const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
       mode: "755",
     }),
     Object.freeze({
-      source: "server/moira-mcp-service.mjs",
-      target: "gateway-worker/moira-mcp/server/moira-mcp-service.mjs",
+      kind: "directory",
+      source: "server",
+      target: "gateway-worker/moira-mcp/server",
+      mode: "755",
+    }),
+    Object.freeze({
+      kind: "directory",
+      source: "web",
+      target: "gateway-worker/moira-mcp/web",
       mode: "755",
     }),
     Object.freeze({
@@ -1429,26 +1436,35 @@ function syncPostSyncMirrors(plan, password) {
     if (!mirror || mirror.type !== "gateway-mcp-worker-asset") continue;
     const relSource = String(mirror.source || "").trim();
     const relTarget = String(mirror.target || "").trim();
+    const kind = String(mirror.kind || "file").trim().toLowerCase();
     if (!relSource || !relTarget) continue;
     const sourcePath = path.join(plan.productionPath, relSource);
     const targetPath = path.join(plan.macRoot, relTarget);
     assertInside(sourcePath, plan.productionPath, "post_sync_mirror_source");
     assertInside(targetPath, plan.macRoot, "post_sync_mirror_target");
-    runSudo("/bin/mkdir", ["-p", path.posix.dirname(targetPath)], password);
-    runSudo("/usr/bin/install", [
-      "-m",
-      String(mirror.mode || "755"),
-      "-o",
-      PRODUCTION_SERVICE_USER,
-      "-g",
-      PRODUCTION_SERVICE_GROUP,
-      sourcePath,
-      targetPath,
-    ], password);
+    if (kind === "directory") {
+      runSudo("/bin/mkdir", ["-p", path.posix.dirname(targetPath)], password);
+      runSudo("/usr/bin/rsync", ["-a", "--delete", `${sourcePath}/`, `${targetPath}/`], password);
+      runSudo("/usr/sbin/chown", ["-R", `${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, targetPath], password);
+      runSudo("/bin/chmod", ["-R", "u+rwX,go+rX", targetPath], password);
+    } else {
+      runSudo("/bin/mkdir", ["-p", path.posix.dirname(targetPath)], password);
+      runSudo("/usr/bin/install", [
+        "-m",
+        String(mirror.mode || "755"),
+        "-o",
+        PRODUCTION_SERVICE_USER,
+        "-g",
+        PRODUCTION_SERVICE_GROUP,
+        sourcePath,
+        targetPath,
+      ], password);
+    }
     rows.push({
       plugin: mirror.plugin || "",
       source: relSource,
       target: relTarget,
+      kind,
       mode: String(mirror.mode || "755"),
     });
   }

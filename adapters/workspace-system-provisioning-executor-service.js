@@ -71,6 +71,16 @@ const GATEWAY_MCP_WORKER_ASSETS = Object.freeze([
         source: ["plugins", "moira", "package.json"],
         target: ["gateway-worker", "moira-mcp", "package.json"],
       },
+      {
+        kind: "directory",
+        source: ["plugins", "moira", "server"],
+        target: ["gateway-worker", "moira-mcp", "server"],
+      },
+      {
+        kind: "directory",
+        source: ["plugins", "moira", "web"],
+        target: ["gateway-worker", "moira-mcp", "web"],
+      },
     ],
   },
 ]);
@@ -472,12 +482,14 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
       const files = Array.isArray(asset.files) ? asset.files : [];
       if (!files.length) continue;
       const resolved = files.map((file) => ({
+        kind: text(file.kind || "file").toLowerCase(),
         source: path.posix.join(fields.root, ...file.source),
         target: path.posix.join(fields.root, ...file.target),
       }));
-      if (!resolved.every((file) => fileExists(file.source))) continue;
+      if (!resolved.every((file) => file.kind === "directory" ? pathExists(file.source) : fileExists(file.source))) continue;
       for (const file of resolved) {
-        copyExecutableFile(file.source, file.target, `${listenerUser}:staff`);
+        if (file.kind === "directory") copyDirectory(file.source, file.target, `${listenerUser}:staff`);
+        else copyExecutableFile(file.source, file.target, `${listenerUser}:staff`);
       }
       synced.push(asset.id);
     }

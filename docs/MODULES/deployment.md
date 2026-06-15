@@ -1009,12 +1009,15 @@ only after all of these preflight checks pass:
   provisioning executor materializes the file set from
   `<root>/plugins/growth` into `<root>/gateway-worker/growth-mcp` before
   rendering profiles. For Moira source deploys, the central macOS deploy script
-  mirrors the plugin-owned MCP wrapper files from `<root>/plugins/moira` into
+  mirrors the plugin-owned MCP runtime from `<root>/plugins/moira` into
   `<root>/gateway-worker/moira-mcp` after the normal plugin source sync. The
-  Gateway manifest must then be updated from the rendered profile capabilities
-  so `toolsets`, `mcpServers`, and `configPath` match the actual `config.yaml`;
-  otherwise a selected worker may omit the plugin toolset even though the
-  profile file contains `mcp_servers.<plugin>`.
+  mirror includes the stdio wrapper, `package.json`, and the `server` plus
+  `web` subtrees because the MCP service imports rule/commentary and chart
+  calculation providers from those directories. The Gateway manifest must then
+  be updated from the rendered profile capabilities so `toolsets`,
+  `mcpServers`, and `configPath` match the actual `config.yaml`; otherwise a
+  selected worker may omit the plugin toolset even though the profile file
+  contains `mcp_servers.<plugin>`.
 The central macOS deploy script runs the `codex-auth-profile-audit` gate after
 plugin deploys because MCP/profile refresh work can otherwise leave an
 `openai-codex` profile with root-owned regular auth files instead of the

@@ -38,7 +38,8 @@ assert.match(script, /health: "healthy"/);
 assert.match(script, /PLUGIN_HEALTH_URLS/);
 assert.match(script, /PLUGIN_GATEWAY_MCP_MIRRORS/);
 assert.match(script, /gateway-worker\/moira-mcp\/scripts\/moira-mcp-stdio\.mjs/);
-assert.match(script, /gateway-worker\/moira-mcp\/server\/moira-mcp-service\.mjs/);
+assert.match(script, /gateway-worker\/moira-mcp\/server/);
+assert.match(script, /gateway-worker\/moira-mcp\/web/);
 assert.match(script, /post-sync-gateway-mcp-worker-assets/);
 assert.match(script, /buildAllPluginPlan/);
 assert.match(script, /\$\{label\}_outside_allowed_root/);
@@ -472,13 +473,14 @@ assert.equal(moiraPluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobile
 assert.equal(moiraPluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/moira");
 assert.deepEqual(moiraPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.moira"]);
 assert.equal(moiraPluginPayload.plan.healthUrl, "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest");
-assert.equal(moiraPluginPayload.plan.postSyncMirrors.length, 3);
+assert.equal(moiraPluginPayload.plan.postSyncMirrors.length, 4);
 assert.deepEqual(
-  moiraPluginPayload.plan.postSyncMirrors.map((item) => item.target),
+  moiraPluginPayload.plan.postSyncMirrors.map((item) => [item.kind || "file", item.target]),
   [
-    "gateway-worker/moira-mcp/scripts/moira-mcp-stdio.mjs",
-    "gateway-worker/moira-mcp/server/moira-mcp-service.mjs",
-    "gateway-worker/moira-mcp/package.json",
+    ["file", "gateway-worker/moira-mcp/scripts/moira-mcp-stdio.mjs"],
+    ["directory", "gateway-worker/moira-mcp/server"],
+    ["directory", "gateway-worker/moira-mcp/web"],
+    ["file", "gateway-worker/moira-mcp/package.json"],
   ],
 );
 assert.ok(moiraPluginPayload.plan.postSyncMirrors.every((item) => item.type === "gateway-mcp-worker-asset"));
@@ -532,7 +534,7 @@ assert.deepEqual(
 );
 assert.equal(
   allPluginPayload.plan.plans.find((item) => item.target === "plugin:moira").postSyncMirrors.length,
-  3,
+  4,
 );
 
 const allPluginSourceOverrideRun = spawnSync(process.execPath, [

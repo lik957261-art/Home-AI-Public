@@ -1525,9 +1525,12 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   selected-profile callable such as `mcp_moira_get_chart_evidence` or
   `mcp_moira_get_year_forecast_evidence`. The tools are read-only evidence
   sources; final fortune interpretation remains model-owned. On macOS, the
-  workspace provisioning executor materializes the Moira worker file set from
+  workspace provisioning executor materializes the Moira worker runtime from
   `<root>/plugins/moira` into `<root>/gateway-worker/moira-mcp` before profile
-  rendering.
+  rendering. That runtime must include the stdio wrapper, `package.json`, and
+  the `server` plus `web` subtrees; mirroring only `moira-mcp-service.mjs` is
+  insufficient because the MCP service imports rule/commentary providers from
+  those directories.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - Targeted starts such as `-StartProfiles lowgw13,lowgw14 -ForceConfigure`
   must pass `HERMES_GATEWAY_START_PROFILES` through to

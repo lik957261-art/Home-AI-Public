@@ -315,6 +315,9 @@ async function testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig() {
     fs.writeFileSync(`${root}/plugins/moira/scripts/moira-mcp-stdio.mjs`, "export {};\n", "utf8");
     fs.mkdirSync(`${root}/plugins/moira/server`, { recursive: true });
     fs.writeFileSync(`${root}/plugins/moira/server/moira-mcp-service.mjs`, "export {};\n", "utf8");
+    fs.writeFileSync(`${root}/plugins/moira/server/moira-election-rule-judgment-service.mjs`, "export {};\n", "utf8");
+    fs.mkdirSync(`${root}/plugins/moira/web/src/providers`, { recursive: true });
+    fs.writeFileSync(`${root}/plugins/moira/web/src/providers/ResourceProvider.js`, "export {};\n", "utf8");
     fs.writeFileSync(`${root}/plugins/moira/package.json`, "{\"version\":\"0.0.0\"}\n", "utf8");
     const service = createWorkspaceSystemProvisioningExecutorService({
       forceEnabled: true,
@@ -341,6 +344,8 @@ async function testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig() {
     assert.equal(fs.existsSync(`${root}/gateway-worker/growth-mcp/src/mcp/growth-mcp-schemas.js`), true);
     assert.equal(fs.existsSync(`${root}/gateway-worker/moira-mcp/scripts/moira-mcp-stdio.mjs`), true);
     assert.equal(fs.existsSync(`${root}/gateway-worker/moira-mcp/server/moira-mcp-service.mjs`), true);
+    assert.equal(fs.existsSync(`${root}/gateway-worker/moira-mcp/server/moira-election-rule-judgment-service.mjs`), true);
+    assert.equal(fs.existsSync(`${root}/gateway-worker/moira-mcp/web/src/providers/ResourceProvider.js`), true);
     assert.equal(fs.existsSync(`${root}/gateway-worker/moira-mcp/package.json`), true);
     const config = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/config.yaml`, "utf8");
     assert.match(config, /  - health/);
