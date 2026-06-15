@@ -153,6 +153,7 @@ function createMobileApiComposition(deps = {}) {
   });
 
   const threadTaskApiRoutes = createThreadTaskApiRoutes({
+    addThreadEvent: deps.addThreadEvent,
     broadcast: deps.broadcast,
     compactThread: deps.compactThread,
     dedupe: deps.dedupe,

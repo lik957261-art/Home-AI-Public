@@ -65,6 +65,7 @@ function createMobileRuntimeGatewayCompositionOptionsService(options = {}) {
       ensureGroupChatSharedArtifactCopies: d.ensureGroupChatSharedArtifactCopies,
       enqueueExternalDeliveryForTerminalMessage: d.enqueueExternalDeliveryForTerminalMessage,
       findWorkspace: d.findWorkspace,
+      gatewayHealthDiagnosticService: s.gatewayHealthDiagnosticService || null,
       gatewayConversationId: d.gatewayConversationId,
       gatewayPool: d.gatewayPool,
       gatewaySkillRoutingForWorkspace: d.gatewaySkillRoutingForWorkspace,

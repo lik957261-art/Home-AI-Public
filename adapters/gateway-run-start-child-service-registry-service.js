@@ -97,6 +97,7 @@ function createGatewayRunStartChildServiceRegistry(options = {}) {
     addThreadEvent,
     broadcast,
     dedupe,
+    gatewayHealthDiagnosticService: options.gatewayHealthDiagnosticService,
     nowMs,
     threadSummary,
   });

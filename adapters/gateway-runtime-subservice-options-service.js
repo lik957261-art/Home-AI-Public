@@ -34,6 +34,7 @@ function createGatewayRuntimeSubserviceOptionsService(deps = {}) {
       dedupe: deps.dedupe,
       effectiveProjectForThread: deps.effectiveProjectForThread,
       findWorkspace: deps.findWorkspace,
+      gatewayHealthDiagnosticService: deps.gatewayHealthDiagnosticService,
       gatewayConversationId: deps.gatewayConversationId,
       gatewaySkillRoutingForWorkspace: deps.gatewaySkillRoutingForWorkspace,
       groupChatDeliveryRootForThread: deps.groupChatDeliveryRootForThread,

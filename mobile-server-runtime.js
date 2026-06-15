@@ -23,6 +23,7 @@ const { createAutomationDeliveryRequirement, createDeliveryBoundaryInstructions 
 const { createExternalIntegrationProvider } = require("./adapters/external-integration-provider");
 const { createGatewayRunInstructionService } = require("./adapters/gateway-run-instruction-service"); const { createGatewayRunToolsetRoutingService } = require("./adapters/gateway-run-toolset-routing-service"); const { createGatewayRunModelToolsetSelectionService } = require("./adapters/gateway-run-model-toolset-selection-service");
 const { createGatewayRunContentService } = require("./adapters/gateway-run-content-service");
+const { createGatewayHealthDiagnosticService } = require("./adapters/gateway-health-diagnostic-service");
 const { createGatewayRuntimeCompositionService } = require("./adapters/gateway-runtime-composition-service");
 const { createMobileRuntimeArtifactFacadeService } = require("./adapters/mobile-runtime-artifact-facade-service");
 const { createMobileRuntimeGatewayFacadeService } = require("./adapters/mobile-runtime-gateway-facade-service");
@@ -388,6 +389,16 @@ const allowedRoots = (...args) => mobileRuntimePathAccessService.allowedRoots(..
 const isPathAllowed = (...args) => mobileRuntimePathAccessService.isPathAllowed(...args);
 const isPathAllowedForThread = (...args) => mobileRuntimePathAccessService.isPathAllowedForThread(...args);
 const isDirectoryBrowserPathAllowedForThread = (...args) => mobileRuntimePathAccessService.isDirectoryBrowserPathAllowedForThread(...args);
+const gatewayHealthDiagnosticService = createGatewayHealthDiagnosticService({
+  dataDir: DATA_DIR,
+  fetch,
+  fs,
+  logger: console,
+  manifestPaths: () => GATEWAY_POOL_MANIFEST_PATHS,
+  nowIso,
+  nowMs: () => Date.now(),
+  path,
+});
 const getGatewayRuntimeCompositionService = () => mobileRuntimeGatewayFacadeService.getGatewayRuntimeCompositionService();
 const addThreadActiveRun = (...args) => getGatewayRuntimeCompositionService().addThreadActiveRun(...args);
 const replaceThreadActiveRun = (...args) => getGatewayRuntimeCompositionService().replaceThreadActiveRun(...args);
@@ -516,6 +527,7 @@ const mobileRuntimeGatewayCompositionOptionsService = createMobileRuntimeGateway
     state: () => state,
   }),
   services: () => ({
+    gatewayHealthDiagnosticService,
     gatewayRunModelToolsetSelectionService,
     gatewayRunToolsetRoutingService,
     getRuntimeStateThreadService,

@@ -446,6 +446,22 @@ the health wait to `90000` because the official Hermes cold-start path can
 become healthy after the 30-second default. A one-shot immediate health miss
 after script success is a scheduler race, not proof the worker failed to start.
 
+When a Mobile run emits `run.gateway_worker_start_failed` with
+`failureCode=health_check_failed`, Home AI schedules a bounded triggered
+self-diagnostic report under `<dataDir>/diagnostics/gateway-health/`. The
+report may include manifest paths, worker profile/provider/workspace ids,
+launchd label, key-file path metadata, provider-key path metadata, and a
+bounded `/health` status check. It must not include raw worker API keys,
+provider keys, prompt bodies, model output, private file contents, or long
+logs.
+
+The triggered diagnostic is report-only. It must not restart services, edit
+files, change ACLs, mutate databases, or run deploy commands. Repairs for
+these reports must be done through Codex: the report includes a Codex repair
+task-card suggestion with the report path, required Owner approval, and a
+bounded repair prompt. Owner approval is the boundary between diagnosis and
+repair, including low-risk operations such as a worker restart.
+
 Worker reuse must be keyed by workspace, profile, provider, permission tier,
 effective toolset/schema set, MCP/plugin binding, and manifest identity. Do not
 reuse a healthy worker across incompatible providers, permission tiers, or

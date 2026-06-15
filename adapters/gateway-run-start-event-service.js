@@ -22,6 +22,7 @@ function createGatewayRunStartEventService(options = {}) {
   const addThreadEvent = maybeCall(options.addThreadEvent, defaultAddThreadEvent);
   const broadcast = maybeCall(options.broadcast, () => {});
   const threadSummary = maybeCall(options.threadSummary, (thread) => thread);
+  const gatewayHealthDiagnosticService = options.gatewayHealthDiagnosticService || null;
 
   function broadcastLatestRunEvent(thread, runId) {
     broadcast({
@@ -74,6 +75,12 @@ function createGatewayRunStartEventService(options = {}) {
       error: Boolean(event.error || eventName.endsWith("_failed")),
     });
     broadcastLatestRunEvent(thread, id);
+    const failureCode = cleanString(event.failureCode || event.lastFailureCode);
+    if (eventName === "run.gateway_worker_start_failed"
+      && failureCode === "health_check_failed"
+      && typeof gatewayHealthDiagnosticService?.triggerGatewayWorkerFailureDiagnostic === "function") {
+      gatewayHealthDiagnosticService.triggerGatewayWorkerFailureDiagnostic({ thread, runId: id, event });
+    }
   }
 
   function appendPluginCapabilityProbeEvents(thread, assistantMessage, probeResults = []) {

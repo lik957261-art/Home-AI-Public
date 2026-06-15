@@ -93,6 +93,25 @@ function createThreadTaskApiRoutes(deps = {}) {
 
   const registry = createApiRouteRegistry(THREAD_TASK_API_ROUTE_SPECS);
 
+  function appendInterruptAuditEvent(thread, runIds = [], stoppedRunIds = [], taskGroupId = "") {
+    if (!thread || typeof deps.addThreadEvent !== "function") return;
+    deps.addThreadEvent(thread, {
+      event: "run.interrupt_requested",
+      timestamp: Date.parse(deps.nowIso()) / 1000,
+      runId: runIds[0] || "",
+      tool: "hermes_mobile",
+      preview: JSON.stringify({
+        route: "thread_interrupt",
+        taskGroupId,
+        runCount: runIds.length,
+        stoppedRunCount: stoppedRunIds.length,
+        runIds: runIds.slice(0, 4),
+        stoppedRunIds: stoppedRunIds.slice(0, 4),
+      }),
+      error: false,
+    });
+  }
+
   async function handleRename(req, res, url) {
     const { threadId, taskGroupId: rawTaskGroupId } = decodeThreadTaskRoute(url.pathname);
     const thread = deps.findThreadForRequest(req, threadId);
@@ -203,7 +222,9 @@ function createThreadTaskApiRoutes(deps = {}) {
       return;
     }
     try {
-      await deps.stopRunIds(runIds);
+      const stoppedRunIds = await deps.stopRunIds(runIds);
+      appendInterruptAuditEvent(thread, runIds, stoppedRunIds, taskGroupId);
+      deps.saveState();
       deps.sendJson(res, 200, { ok: true, runIds });
     } catch (err) {
       deps.sendJson(res, err.status || 502, { error: err.message || String(err) });

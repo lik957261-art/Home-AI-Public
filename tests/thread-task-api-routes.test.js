@@ -66,6 +66,7 @@ function makeRoutes(overrides = {}) {
   };
   const calls = {
     broadcast: [],
+    events: [],
     readBody: [],
     saveState: [],
     stopRunIds: [],
@@ -73,6 +74,11 @@ function makeRoutes(overrides = {}) {
   const deps = Object.assign({
     broadcast(event) {
       calls.broadcast.push(event);
+    },
+    addThreadEvent(thread, event) {
+      thread.events = Array.isArray(thread.events) ? thread.events : [];
+      thread.events.push(event);
+      calls.events.push(event);
     },
     compactThread(thread) {
       return {
@@ -224,6 +230,11 @@ async function main() {
     assert.equal(got.res.statusCode, 200);
     assert.deepEqual(got.body.runIds, ["run-a", "run-b", "run-other"]);
     assert.deepEqual(calls.stopRunIds[0], ["run-a", "run-b", "run-other"]);
+    assert.equal(calls.events[0].event, "run.interrupt_requested");
+    assert.equal(calls.events[0].runId, "run-a");
+    assert.equal(JSON.parse(calls.events[0].preview).runCount, 3);
+    assert.deepEqual(JSON.parse(calls.events[0].preview).runIds, ["run-a", "run-b", "run-other"]);
+    assert.equal(calls.saveState.length, 1);
   }
 
   {
@@ -232,6 +243,8 @@ async function main() {
     assert.equal(got.res.statusCode, 200);
     assert.deepEqual(got.body.runIds, ["run-b"]);
     assert.deepEqual(calls.stopRunIds[0], ["run-b"]);
+    assert.equal(JSON.parse(calls.events[0].preview).taskGroupId, "task-b");
+    assert.deepEqual(JSON.parse(calls.events[0].preview).stoppedRunIds, ["run-b"]);
   }
 
   {

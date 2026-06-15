@@ -60,6 +60,13 @@ responses, private file contents, or long logs. A diagnostic may report paths,
 ids, labels, versions, counts, status codes, and issue codes when those values
 are needed for repair.
 
+Triggered production diagnostics follow the same rule. A runtime failure such
+as a Gateway worker `health_check_failed` may write a bounded report and a
+Codex repair task-card recommendation, but the diagnostic process must stay
+report-only. Any repair that changes runtime state, files, ACLs, databases,
+deployments, or service processes must be performed by a Codex repair thread
+after explicit Owner approval.
+
 ## Productization Acceptance Matrix
 
 Every product-facing change must be reviewed against this acceptance matrix.

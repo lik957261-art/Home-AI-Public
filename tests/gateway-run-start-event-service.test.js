@@ -3,7 +3,7 @@
 const assert = require("node:assert/strict");
 const { createGatewayRunStartEventService } = require("../adapters/gateway-run-start-event-service");
 
-function makeHarness() {
+function makeHarness(overrides = {}) {
   const calls = {
     broadcasts: [],
     events: [],
@@ -16,9 +16,36 @@ function makeHarness() {
       calls.events.push(event);
     },
     broadcast: (payload) => calls.broadcasts.push(payload),
+    gatewayHealthDiagnosticService: overrides.gatewayHealthDiagnosticService,
     threadSummary: (thread) => ({ id: thread.id, status: thread.status }),
   });
   return { calls, service };
+}
+
+function testAppendGatewaySchedulerEventTriggersHealthDiagnosticOnlyForHealthFailures() {
+  const diagnosticCalls = [];
+  const { service } = makeHarness({
+    gatewayHealthDiagnosticService: {
+      triggerGatewayWorkerFailureDiagnostic: (input) => diagnosticCalls.push(input),
+    },
+  });
+  const thread = { id: "thread_1", status: "running" };
+
+  service.appendGatewaySchedulerEvent(thread, "run_2", {
+    event: "run.gateway_worker_start_failed",
+    profileId: "owner-low-1",
+    failureCode: "invalid_key",
+  });
+  service.appendGatewaySchedulerEvent(thread, "run_3", {
+    event: "run.gateway_worker_start_failed",
+    profileId: "owner-low-2",
+    failureCode: "health_check_failed",
+  });
+
+  assert.equal(diagnosticCalls.length, 1);
+  assert.equal(diagnosticCalls[0].thread, thread);
+  assert.equal(diagnosticCalls[0].runId, "run_3");
+  assert.equal(diagnosticCalls[0].event.profileId, "owner-low-2");
 }
 
 function testAppendRunStartEventBroadcastsLatestThreadEvent() {
@@ -192,6 +219,7 @@ function testPreviewAndRoutingProjectionHelpers() {
 
 testAppendRunStartEventBroadcastsLatestThreadEvent();
 testAppendGatewaySchedulerEventKeepsBoundedDiagnostics();
+testAppendGatewaySchedulerEventTriggersHealthDiagnosticOnlyForHealthFailures();
 testAppendPluginCapabilityProbeEventsPublishesAvailableAndUnavailable();
 testAppendRequiredSkillPreloadEventsSkipsMissingSkills();
 testPreviewAndRoutingProjectionHelpers();
