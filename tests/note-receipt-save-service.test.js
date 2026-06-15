@@ -80,8 +80,7 @@ async function testSaveReceiptPostsBoundedBodyAndAttachments() {
   assert.equal(fetchCalls[0].url, "http://127.0.0.1:4181/api/v1/notes");
   assert.equal(fetchCalls[0].options.headers.Authorization, "Bearer hnt_test_workspace_key");
   assert.equal(fetchCalls[0].options.headers["x-note-workspace-id"], "note:owner");
-  assert.equal(fetchCalls[0].body.title.length > 10, true);
-  assert.equal(fetchCalls[0].body.title.length <= 28, true);
+  assert.equal(fetchCalls[0].body.title, "\u56de\u6267 | 2026-06-04 | \u4eca\u5929\u7684\u7a7f\u642d\u5efa\u8bae\uff1a\u767d\u886c\u886b\u642d\u914d\u9ed1\u88e4\uff0c\u6574\u4f53\u4fdd\u6301\u7b80\u6d01\u3002");
   assert.match(fetchCalls[0].body.body, /今天的穿搭建议/);
   assert.deepEqual(fetchCalls[0].body.tags, ["hermes-receipt"]);
   assert.equal(fetchCalls[0].body.notebookId, "hermes");
@@ -127,7 +126,7 @@ async function testPluginReceiptUsesPluginTag() {
 
   assert.equal(fetchCalls.length, 1);
   assert.deepEqual(fetchCalls[0].body.tags, ["\u8863\u6a71"]);
-  assert.match(fetchCalls[0].body.title, /^\u8863\u6a71 - /);
+  assert.equal(fetchCalls[0].body.title, "\u8863\u6a71 | Wardrobe receipt body");
 }
 
 function testReceiptNoteTagsFallbackAndPluginMapping() {
@@ -186,19 +185,25 @@ async function testTooManyAttachmentsFailsBeforeRemoteCall() {
 }
 
 function testTitleSummaryIsCompactForChineseTextLegacy() {
-  assert.equal(summarizeReceiptTitle("今天的穿搭建议：白衬衫搭配黑裤，整体保持简洁。").length <= 10, true);
+  assert.equal(
+    summarizeReceiptTitle("今天的穿搭建议：白衬衫搭配黑裤，整体保持简洁。"),
+    "\u56de\u6267 | \u4eca\u5929\u7684\u7a7f\u642d\u5efa\u8bae\uff1a\u767d\u886c\u886b\u642d\u914d\u9ed1\u88e4\uff0c\u6574\u4f53\u4fdd\u6301\u7b80\u6d01\u3002",
+  );
   assert.equal(summarizeReceiptTitle("").length > 0, true);
-  assert.equal(summarizeReceiptTitle("附件:\n- receipt.md\n\n来源: Hermes Mobile 回执"), "Hermes回执");
+  assert.equal(summarizeReceiptTitle("附件:\n- receipt.md\n\n来源: Hermes Mobile 回执"), "\u56de\u6267 | receipt.md");
 }
 
 function testTitleSummaryIsCompactForChineseText() {
-  assert.equal(summarizeReceiptTitle("\u4eca\u5929\u7684\u7a7f\u642d\u5efa\u8bae\uff1a\u767d\u886c\u886b\u642d\u914d\u9ed1\u88e4\uff0c\u6574\u4f53\u4fdd\u6301\u7b80\u6d01\u3002").length <= 28, true);
   assert.equal(
     summarizeReceiptTitle("## \u6b63\u5f0f\u642d\u914d\u56de\u6267\n\n\u5185\u5bb9", { pluginId: "wardrobe" }),
-    "\u8863\u6a71 - \u6b63\u5f0f\u642d\u914d\u56de\u6267",
+    "\u8863\u6a71 | \u6b63\u5f0f\u642d\u914d\u56de\u6267",
+  );
+  assert.equal(
+    summarizeReceiptTitle("\u4eca\u5929\u7684\u7a7f\u642d\u5efa\u8bae\uff1a\u767d\u886c\u886b\u642d\u914d\u9ed1\u88e4\uff0c\u6574\u4f53\u4fdd\u6301\u7b80\u6d01\u3002", { createdAt: "2026-06-04T00:00:00.000Z" }),
+    "\u56de\u6267 | 2026-06-04 | \u4eca\u5929\u7684\u7a7f\u642d\u5efa\u8bae\uff1a\u767d\u886c\u886b\u642d\u914d\u9ed1\u88e4\uff0c\u6574\u4f53\u4fdd\u6301\u7b80\u6d01\u3002",
   );
   assert.equal(summarizeReceiptTitle("").length > 0, true);
-  assert.equal(summarizeReceiptTitle("\u9644\u4ef6:\n- receipt.md\n\n\u6765\u6e90: Hermes Mobile \u56de\u6267"), "receipt.md");
+  assert.equal(summarizeReceiptTitle("\u9644\u4ef6:\n- receipt.md\n\n\u6765\u6e90: Hermes Mobile \u56de\u6267"), "\u56de\u6267 | receipt.md");
 }
 
 async function run() {

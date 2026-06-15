@@ -123,13 +123,49 @@ function receiptTitleCandidateLines(text = "") {
     ));
 }
 
-function compactReceiptTitle(value = "") {
+function compactReceiptTitle(value = "", options = {}) {
+  const maxCjkChars = Math.max(8, Number(options.maxCjkChars || 34) || 34);
+  const maxWords = Math.max(3, Number(options.maxWords || 9) || 9);
+  const maxLatinChars = Math.max(24, Number(options.maxLatinChars || 80) || 80);
   const text = String(value || "").replace(/\s+/g, " ").trim();
   if (!text) return "";
   if (/[\u3400-\u9fff\uf900-\ufaff]/.test(text)) {
-    return Array.from(text).slice(0, 28).join("").trim();
+    return Array.from(text).slice(0, maxCjkChars).join("").trim();
   }
-  return text.split(/\s+/).filter(Boolean).slice(0, 8).join(" ").slice(0, 72).trim();
+  return text.split(/\s+/).filter(Boolean).slice(0, maxWords).join(" ").slice(0, maxLatinChars).trim();
+}
+
+function receiptTitleDate(value = "") {
+  const raw = stringValue(value);
+  if (!raw) return "";
+  const direct = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (direct) return direct[1];
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw.slice(0, 10);
+  return date.toISOString().slice(0, 10);
+}
+
+function readableReceiptTitle(parts = {}) {
+  const label = compactReceiptTitle(parts.label || "\u56de\u6267", {
+    maxCjkChars: 8,
+    maxWords: 3,
+    maxLatinChars: 24,
+  }) || "\u56de\u6267";
+  const date = receiptTitleDate(parts.createdAt || parts.created_at || "");
+  const summary = compactReceiptTitle(parts.summary || "", {
+    maxCjkChars: 34,
+    maxWords: 9,
+    maxLatinChars: 80,
+  }) || "Hermes Receipt";
+  const values = [label, date, summary]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+  const deduped = [];
+  for (const value of values) {
+    if (deduped.some((existing) => value === existing || value.startsWith(`${existing} `))) continue;
+    deduped.push(value);
+  }
+  return deduped.join(" | ");
 }
 
 function summarizeReceiptTitle(text = "", options = {}) {
@@ -142,10 +178,11 @@ function summarizeReceiptTitle(text = "", options = {}) {
     || candidates[0]?.clean
     || stripMarkdownForTitle(options.threadTitle || "")
     || "Hermes Receipt";
-  const title = compactReceiptTitle(source) || "Hermes Receipt";
-  const prefix = receiptTitlePrefix(options.pluginId || "");
-  if (!prefix || title.startsWith(prefix)) return title;
-  return `${prefix} - ${title}`;
+  return readableReceiptTitle({
+    label: receiptTitlePrefix(options.pluginId || "") || "\u56de\u6267",
+    createdAt: options.createdAt || options.created_at || "",
+    summary: source,
+  });
 }
 
 function messageNoteBody(message = {}, thread = {}) {
@@ -361,7 +398,7 @@ function createNoteReceiptSaveService(options = {}) {
       throw serviceError("note_receipt_empty", "Receipt has no content to save", 400);
     }
     const pluginId = receiptPluginId(message, thread, input);
-    const title = summarizeReceiptTitle(body, { pluginId, threadTitle: thread.title });
+    const title = summarizeReceiptTitle(body, { pluginId, threadTitle: thread.title, createdAt: message.createdAt });
     const binding = loadNoteWorkspaceBinding({ dataDir, env, workspaceId });
     const payload = {
       title,

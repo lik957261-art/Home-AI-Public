@@ -174,7 +174,12 @@ compact title, body, and bounded base64 attachments via Note's
 receipt notes is `hermes`. Receipt tags are derived server-side from the
 authorized message context: plugin-bound topic receipts use the plugin's Chinese
 category tag, such as `衣橱` for `plugin:wardrobe`, while ordinary non-plugin
-chat receipts keep the fallback `hermes-receipt` tag. The chat footer action
+chat receipts keep the fallback `hermes-receipt` tag. Receipt titles are
+generated deterministically without a model call in the readable form
+`<source> | <YYYY-MM-DD> | <summary>`, where `<source>` is the plugin Chinese
+category tag or `回执`, the date comes from the saved assistant message timestamp
+when available, and the summary comes from the first Markdown heading or first
+content line after Markdown/meta stripping. The chat footer action
 keeps a message-level in-flight guard so repeated taps or rerenders do not
 submit the same receipt twice while the first save is still running. Hermes must
 not pass local file paths, private URLs, launch tokens, or raw access keys to
