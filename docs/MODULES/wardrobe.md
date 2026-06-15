@@ -99,6 +99,12 @@ Current registration and production upstream rules:
   `api_base_url: "http://127.0.0.1:8765"`. The access key must be a Wardrobe
   Program API key accepted by the Mac Wardrobe SQLite `api_tokens` table; a
   key that works against the old NAS/Windows service is not valid Mac evidence.
+- Wardrobe MCP may keep structured resource JSON under the workspace-local
+  `.hermes-cache/resources` directory, but visual-verification thumbnails must
+  be cached under a Home AI file/image-readable root. New provisioning writes
+  `photo_cache_dir` to `<HERMES_DATA_DIR>/artifacts/wardrobe-thumbnails/<workspaceId>`
+  so `wardrobe.get_primary_thumbnail` returns paths the Gateway file/image
+  tools can consume without exposing the whole worker profile workspace.
 - Production HTTPS PWA deployments should override the manifest URL with an
   HTTPS endpoint through environment configuration. An HTTPS Hermes page must
   not iframe an HTTP plugin entry; Chromium blocks that as mixed content and the

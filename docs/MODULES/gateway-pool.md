@@ -1357,6 +1357,12 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   and marks the workspace profile binding refreshed in the Gateway Pool manifest
   so the next selected-profile start/restart rebuilds the MCP profile config.
 - Wardrobe MCP is launched with `--no-workspace-override`; a model call must not switch a Gateway profile to another owner's `.hermes-wardrobe/access-key.txt`.
+- Wardrobe thumbnail paths returned for image-backed checks must be inside a
+  Home AI file/image-readable root. Workspace-local `.hermes-cache/resources`
+  can remain private to the MCP, but `photo_cache_dir` should point to
+  `<HERMES_DATA_DIR>/artifacts/wardrobe-thumbnails/<workspaceId>` or an
+  equivalent allowed root. Do not solve thumbnail read failures by adding the
+  full `/Users/<hm-user>/HermesWorkspace` profile workspace to file-tool roots.
 - Finance MCP is generated from the same source script. The generator checks the
   effective workspace root directly for `.hermes-finance/config.json` and a
   sibling `access-key.txt` or `workspace-key.txt`; it must not scan the user's

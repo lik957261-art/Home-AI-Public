@@ -11,6 +11,7 @@ const {
   readWardrobeWorkspaceConfig,
   sha256Hex,
   validateWardrobeSkillBundle,
+  wardrobePhotoCacheDir,
   wardrobeRegistrationUrl,
   wardrobeWorkspaceConfigPath,
   wardrobeWorkspaceIdForHermesWorkspace,
@@ -155,6 +156,9 @@ async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding()
   assert.equal(config.owner_display_name, "Test Wardrobe");
   assert.equal(config.access_key_file, ".hermes-wardrobe/access-key.txt");
   assert.equal(config.cache_dir, ".hermes-cache");
+  assert.equal(config.photo_cache_dir, wardrobePhotoCacheDir({ dataDir, workspaceId: "weixin_test_wardrobe" }));
+  assert.equal(fs.existsSync(config.photo_cache_dir), true);
+  assert.match(config.photo_cache_dir, /[/\\]artifacts[/\\]wardrobe-thumbnails[/\\]weixin_test_wardrobe$/);
   assert.deepEqual(config.scopes, DEFAULT_WARDROBE_SCOPES);
 
   assert.equal(calls.length, 1);

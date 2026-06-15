@@ -71,6 +71,13 @@ function wardrobeWorkspaceKeyPath(input = {}) {
   return configDir ? path.join(configDir, "access-key.txt") : "";
 }
 
+function wardrobePhotoCacheDir(input = {}) {
+  const dataDir = stringValue(input.dataDir) || defaultDataDir(input.env);
+  const workspaceId = safeWorkspaceId(input.workspaceId);
+  if (!dataDir || !workspaceId) return "";
+  return path.join(dataDir, "artifacts", "wardrobe-thumbnails", workspaceId);
+}
+
 function findWardrobeAccessKeyPath(input = {}, options = {}) {
   const explicit = stringValue(input.wardrobeAccessKeyPath || options.wardrobeAccessKeyPath);
   if (explicit && fs.existsSync(explicit)) return explicit;
@@ -209,7 +216,7 @@ function writeWardrobeWorkspaceConfig(input = {}) {
     cache_dir: ".hermes-cache",
     manifest_path: ".hermes-cache/outfit-context-manifest.json",
     resource_cache_dir: ".hermes-cache/resources",
-    photo_cache_dir: ".hermes-cache/photos",
+    photo_cache_dir: wardrobePhotoCacheDir(input),
     scopes: DEFAULT_WARDROBE_SCOPES.slice(),
     provisioned_by: "hermes-mobile",
     updated_at: typeof input.nowIso === "function" ? input.nowIso() : new Date().toISOString(),
@@ -218,6 +225,7 @@ function writeWardrobeWorkspaceConfig(input = {}) {
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
     fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
     fs.mkdirSync(path.join(wardrobeWorkspaceRoot(input), ".hermes-cache"), { recursive: true });
+    if (config.photo_cache_dir) fs.mkdirSync(config.photo_cache_dir, { recursive: true });
     return { ok: true, configPath, config };
   } catch (_) {
     return { ok: false, error: "wardrobe_config_write_failed" };
@@ -732,6 +740,7 @@ module.exports = {
   validateWardrobeSkillBundle,
   verifyLocalProvisioning,
   wardrobeApiBaseUrl,
+  wardrobePhotoCacheDir,
   wardrobeRegistrationUrl,
   wardrobeWorkspaceConfigPath,
   wardrobeWorkspaceIdForHermesWorkspace,
