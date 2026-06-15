@@ -1,6 +1,7 @@
 "use strict";
 
 const noteReceiptSaveInFlightIds = new Set();
+const noteReceiptSavedByMessageId = new Map();
 
 function messageShareText(message) {
   if (!message) return "";
@@ -452,10 +453,40 @@ function showNotePluginUnavailableToast(workspaceId = "") {
   });
 }
 
+function rememberSavedNoteReceipt(messageId, note = {}) {
+  const id = String(messageId || "").trim();
+  const noteId = String(note?.id || "").trim();
+  if (!id || !noteId) return null;
+  const record = {
+    id: noteId,
+    attachmentCount: Number(note?.attachmentCount || 0) || 0,
+  };
+  noteReceiptSavedByMessageId.set(id, record);
+  return record;
+}
+
+function showSavedNoteReceiptToast(record = {}, duplicate = false) {
+  const noteId = String(record?.id || "").trim();
+  const count = Number(record?.attachmentCount || 0) || 0;
+  const toastText = duplicate
+    ? "\u5df2\u4fdd\u5b58\u8fc7 Note"
+    : (count ? `\u5df2\u4fdd\u5b58\u5230 Note \u00b7 ${count} \u4e2a\u9644\u4ef6` : "\u5df2\u4fdd\u5b58\u5230 Note");
+  showPushToast(toastText, duplicate ? "warning" : "success", noteId ? {
+    actionLabel: "\u6253\u5f00",
+    ariaLabel: "\u6253\u5f00\u5df2\u4fdd\u5b58\u7684 Note",
+    onClick: () => openSavedNoteReceiptFromToast(noteId),
+  } : {});
+}
+
 async function saveMessageToNote(messageId) {
   const noteMessageId = String(messageId || "").trim();
   if (!noteMessageId) throw new Error("Message not found");
   if (noteReceiptSaveInFlightIds.has(noteMessageId)) return { ok: false, duplicate: true };
+  const savedRecord = noteReceiptSavedByMessageId.get(noteMessageId);
+  if (savedRecord?.id) {
+    showSavedNoteReceiptToast(savedRecord, true);
+    return { ok: true, duplicate: true, note: savedRecord };
+  }
   noteReceiptSaveInFlightIds.add(noteMessageId);
   try {
     const message = currentMessageById(noteMessageId);
@@ -473,14 +504,8 @@ async function saveMessageToNote(messageId) {
         workspaceId,
       }),
     });
-    const count = Number(result?.note?.attachmentCount || 0) || 0;
-    const noteId = String(result?.note?.id || "").trim();
-    const toastText = count ? `\u5df2\u4fdd\u5b58\u5230 Note \u00b7 ${count} \u4e2a\u9644\u4ef6` : "\u5df2\u4fdd\u5b58\u5230 Note";
-    showPushToast(toastText, "success", noteId ? {
-      actionLabel: "\u6253\u5f00",
-      ariaLabel: "\u6253\u5f00\u5df2\u4fdd\u5b58\u7684 Note",
-      onClick: () => openSavedNoteReceiptFromToast(noteId),
-    } : {});
+    const record = rememberSavedNoteReceipt(noteMessageId, result?.note);
+    showSavedNoteReceiptToast(record || result?.note || {}, Boolean(result?.duplicate));
     return result;
   } catch (err) {
     if (isNoteReceiptPluginUnavailableError(err)) {

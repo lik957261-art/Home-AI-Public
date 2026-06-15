@@ -71,6 +71,19 @@ async function testSaveTargetsMessageWorkspace() {
   assert.deepEqual(calls.toasts[0], { message: "已保存到 Note", kind: "success", actionLabel: "打开" });
 }
 
+async function testDuplicateSaveUsesSavedNoteWithoutSecondApiCall() {
+  const { calls, harness } = createHarness();
+
+  const first = await harness.save("msg-1");
+  const second = await harness.save("msg-1");
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(second.duplicate, true);
+  assert.equal(calls.api.length, 1);
+  assert.deepEqual(calls.toasts[1], { message: "已保存过 Note", kind: "warning", actionLabel: "打开" });
+}
+
 async function testUnavailableNoteShowsVisibleInstallToast() {
   const err = new Error("Note workspace is not configured");
   err.code = "note_workspace_not_configured";
@@ -107,6 +120,7 @@ async function testGenericNoteFailureShowsVisibleErrorToast() {
 
 async function run() {
   await testSaveTargetsMessageWorkspace();
+  await testDuplicateSaveUsesSavedNoteWithoutSecondApiCall();
   await testUnavailableNoteShowsVisibleInstallToast();
   await testGenericNoteFailureShowsVisibleErrorToast();
   console.log("note-receipt-ui tests passed");

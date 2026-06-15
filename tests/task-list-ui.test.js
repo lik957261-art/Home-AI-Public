@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260615-note-open-refresh-v772";
+const CLIENT_VERSION = "20260615-note-dedupe-v773";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -211,8 +211,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260615-note-open-refresh-v772" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260615-note-open-refresh-v772"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260615-note-dedupe-v773" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260615-note-dedupe-v773"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -992,6 +992,9 @@ assert.match(appJs, /function noteReceiptWorkspaceIdForMessage\(message = null\)
 assert.match(appJs, /taskGroupOwnerWorkspaceId\(group, ""\)/);
 assert.match(appJs, /\/api\/note\/receipts/);
 assert.match(appJs, /workspaceId,/);
+assert.match(appJs, /const noteReceiptSavedByMessageId = new Map\(\)/);
+assert.match(appJs, /function rememberSavedNoteReceipt\(messageId, note = \{\}\)/);
+assert.match(appJs, /showSavedNoteReceiptToast\(savedRecord, true\)/);
 assert.match(appJs, /showPushToast\(`保存到 Note 失败：\$\{err\.message \|\| String\(err\)\}`, "error"\)/);
 assert.match(appJs, /function isNoteReceiptPluginUnavailableError\(err\)/);
 assert.match(appJs, /"note_workspace_not_configured"/);
@@ -1004,7 +1007,7 @@ assert.match(appJs, /if \(noteReceiptSaveInFlightIds\.has\(noteMessageId\)\) ret
 assert.match(appJs, /noteReceiptSaveInFlightIds\.delete\(noteMessageId\)/);
 assert.match(appJs, /function openSavedNoteReceiptFromToast\(noteId\)/);
 assert.match(appJs, /openNotePluginReceipt\(id, \{ refreshNonce: `receipt-\$\{Date\.now\(\)\.toString\(36\)\}` \}\)/);
-assert.match(appJs, /showPushToast\(toastText, "success", noteId \? \{/);
+assert.match(appJs, /showPushToast\(toastText, duplicate \? "warning" : "success", noteId \? \{/);
 assert.match(appJs, /actionLabel: "\\u6253\\u5f00"/);
 assert.match(appJs, /ariaLabel: "\\u6253\\u5f00\\u5df2\\u4fdd\\u5b58\\u7684 Note"/);
 assert.match(appJs, /function showPushToast\(message, kind = "", options = \{\}\)/);
@@ -2591,14 +2594,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260615-note-open-refresh-v772/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260615-note-open-refresh-v772/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260615-note-open-refresh-v772/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260615-note-open-refresh-v772/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260615-note-open-refresh-v772/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260615-note-open-refresh-v772/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260615-note-open-refresh-v772/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260615-note-open-refresh-v772/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260615-note-dedupe-v773/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260615-note-dedupe-v773/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260615-note-dedupe-v773/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260615-note-dedupe-v773/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260615-note-dedupe-v773/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260615-note-dedupe-v773/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260615-note-dedupe-v773/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260615-note-dedupe-v773/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);

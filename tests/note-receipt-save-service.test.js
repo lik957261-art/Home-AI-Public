@@ -131,6 +131,94 @@ async function testPluginReceiptUsesPluginTag() {
   assert.equal(fetchCalls[0].body.title, "\u8863\u6a71 | Wardrobe receipt body");
 }
 
+async function testDuplicateReceiptReturnsExistingNoteWithoutRemotePost() {
+  const dataDir = tempRoot();
+  writeNoteBinding(dataDir, "owner");
+  const fetchCalls = [];
+  const service = createNoteReceiptSaveService({
+    dataDir,
+    fetch(url, options) {
+      fetchCalls.push({ url, body: JSON.parse(options.body) });
+      return Promise.resolve({
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ note: { id: "note-dedupe", title: "saved once" } }),
+      });
+    },
+    resolveArtifactForRequest() {
+      throw new Error("unexpected resolver");
+    },
+  });
+  const input = {
+    workspaceId: "owner",
+    thread: { id: "thread-dedupe", title: "duplicate save" },
+    message: {
+      id: "msg-dedupe",
+      role: "assistant",
+      content: "Duplicate receipt body",
+      artifacts: [],
+    },
+  };
+
+  const first = await service.saveReceipt(input);
+  const second = await service.saveReceipt(input);
+
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(first.ok, true);
+  assert.deepEqual(second, {
+    ok: true,
+    duplicate: true,
+    note: { id: "note-dedupe", title: "saved once", attachmentCount: 0 },
+  });
+}
+
+async function testConcurrentDuplicateReceiptSharesPendingSave() {
+  const dataDir = tempRoot();
+  writeNoteBinding(dataDir, "owner");
+  const fetchCalls = [];
+  let resolveFetch;
+  const fetchGate = new Promise((resolve) => {
+    resolveFetch = resolve;
+  });
+  const service = createNoteReceiptSaveService({
+    dataDir,
+    async fetch(url, options) {
+      fetchCalls.push({ url, body: JSON.parse(options.body) });
+      await fetchGate;
+      return {
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({ note: { id: "note-concurrent", title: "saved concurrently" } }),
+      };
+    },
+    resolveArtifactForRequest() {
+      throw new Error("unexpected resolver");
+    },
+  });
+  const input = {
+    workspaceId: "owner",
+    thread: { id: "thread-concurrent", title: "concurrent save" },
+    message: {
+      id: "msg-concurrent",
+      role: "assistant",
+      content: "Concurrent duplicate receipt body",
+      artifacts: [],
+    },
+  };
+
+  const firstPromise = service.saveReceipt(input);
+  const secondPromise = service.saveReceipt(input);
+  resolveFetch();
+  const [first, second] = await Promise.all([firstPromise, secondPromise]);
+
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(first.ok, true);
+  assert.equal(first.duplicate, undefined);
+  assert.equal(second.ok, true);
+  assert.equal(second.duplicate, true);
+  assert.equal(second.note.id, "note-concurrent");
+}
+
 async function testHiddenNoteMetadataOverridesTitleAndIsStrippedFromBody() {
   const dataDir = tempRoot();
   writeNoteBinding(dataDir, "owner");
@@ -281,6 +369,8 @@ function testTitleSummaryIsCompactForChineseText() {
 async function run() {
   await testSaveReceiptPostsBoundedBodyAndAttachments();
   await testPluginReceiptUsesPluginTag();
+  await testDuplicateReceiptReturnsExistingNoteWithoutRemotePost();
+  await testConcurrentDuplicateReceiptSharesPendingSave();
   await testHiddenNoteMetadataOverridesTitleAndIsStrippedFromBody();
   testHiddenNoteMetadataHelpers();
   testReceiptNoteTagsFallbackAndPluginMapping();

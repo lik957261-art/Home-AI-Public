@@ -192,7 +192,10 @@ chat, acknowledgements, questions, and ordinary short replies still include the
 hidden comment but should use a short title and leave tags empty unless a safe
 category is obvious. The chat footer action
 keeps a message-level in-flight guard so repeated taps or rerenders do not
-submit the same receipt twice while the first save is still running. Hermes must
+submit the same receipt twice while the first save is still running. After a
+successful save, Hermes must also treat the same workspace/thread/message tuple
+as idempotent and return the existing Note reference instead of creating a
+second note. Hermes must
 not pass local file paths, private URLs, launch tokens, or raw access keys to
 Note. The receipt target workspace is the authenticated/effective Hermes
 workspace requested by the client, after `requireWorkspaceAccess()` clamps or

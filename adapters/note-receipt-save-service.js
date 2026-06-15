@@ -1,5 +1,6 @@
 "use strict";
 
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
@@ -12,6 +13,7 @@ const MAX_NOTE_RECEIPT_ATTACHMENTS = 8;
 const MAX_NOTE_RECEIPT_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const DEFAULT_NOTE_RECEIPT_TIMEOUT_MS = 30000;
 const DEFAULT_NOTE_RECEIPT_TAG = "hermes-receipt";
+const NOTE_RECEIPT_DEDUPE_VERSION = 1;
 const PLUGIN_NOTE_RECEIPT_TAGS = Object.freeze({
   wardrobe: "\u8863\u6a71",
   finance: "\u8bb0\u8d26",
@@ -24,6 +26,10 @@ const NOTE_RECEIPT_METADATA_COMMENT_RE = /<!--\s*homeai-note(?:-[a-z]+)?[\s\S]*?
 
 function stringValue(value) {
   return String(value || "").trim();
+}
+
+function sha256Hex(value = "") {
+  return crypto.createHash("sha256").update(String(value), "utf8").digest("hex");
 }
 
 function boundedError(value, fallback = "note_receipt_save_failed") {
@@ -307,6 +313,78 @@ function readJsonFile(filePath) {
   }
 }
 
+function readOptionalJsonFile(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (_) {
+    return {};
+  }
+}
+
+function writeJsonFileAtomic(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmpPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  fs.renameSync(tmpPath, filePath);
+}
+
+function noteReceiptDedupeStorePath(dataDir = "", workspaceId = "") {
+  const root = stringValue(dataDir);
+  if (!root) return "";
+  return path.join(root, "note-receipts", "dedupe", `${sha256Hex(workspaceId || "owner").slice(0, 24)}.json`);
+}
+
+function noteReceiptDedupeKey(input = {}) {
+  const workspaceId = stringValue(input.workspaceId) || "owner";
+  const threadId = stringValue(input.threadId || input.thread?.id || input.thread_id);
+  const messageId = stringValue(input.messageId || input.message?.id || input.message_id);
+  if (!threadId || !messageId) return "";
+  return sha256Hex([workspaceId, threadId, messageId].join("\n"));
+}
+
+function noteReceiptDedupeLookup(dataDir = "", input = {}) {
+  const key = noteReceiptDedupeKey(input);
+  const storePath = noteReceiptDedupeStorePath(dataDir, input.workspaceId);
+  if (!key || !storePath) return null;
+  const store = readOptionalJsonFile(storePath);
+  const record = store?.receipts && typeof store.receipts === "object" ? store.receipts[key] : null;
+  if (!record?.noteId) return null;
+  return {
+    ok: true,
+    duplicate: true,
+    note: {
+      id: stringValue(record.noteId),
+      title: stringValue(record.title),
+      attachmentCount: Number(record.attachmentCount || 0) || 0,
+    },
+  };
+}
+
+function noteReceiptDedupeRemember(dataDir = "", input = {}, note = {}) {
+  const key = noteReceiptDedupeKey(input);
+  const storePath = noteReceiptDedupeStorePath(dataDir, input.workspaceId);
+  const noteId = stringValue(note.id);
+  if (!key || !storePath || !noteId) return;
+  const store = readOptionalJsonFile(storePath);
+  const now = new Date().toISOString();
+  const next = {
+    schemaVersion: NOTE_RECEIPT_DEDUPE_VERSION,
+    updatedAt: now,
+    receipts: store?.receipts && typeof store.receipts === "object" ? store.receipts : {},
+  };
+  next.receipts[key] = {
+    noteId,
+    title: stringValue(note.title),
+    attachmentCount: Number(note.attachmentCount || 0) || 0,
+    workspaceId: stringValue(input.workspaceId) || "owner",
+    threadId: stringValue(input.threadId || input.thread?.id || input.thread_id),
+    messageId: stringValue(input.messageId || input.message?.id || input.message_id),
+    savedAt: next.receipts[key]?.savedAt || now,
+    updatedAt: now,
+  };
+  writeJsonFileAtomic(storePath, next);
+}
+
 function noteAccessKeyFile(configPath, config = {}, dataDir = "", env = process.env, workspaceId = "") {
   const configured = stringValue(config.access_key_file);
   if (configured) {
@@ -371,6 +449,7 @@ function createNoteReceiptSaveService(options = {}) {
   const resolveArtifactForRequest = options.resolveArtifactForRequest;
   const mimeFor = options.mimeFor || (() => "application/octet-stream");
   const timeoutMs = Math.max(1, Number(options.timeoutMs || DEFAULT_NOTE_RECEIPT_TIMEOUT_MS) || DEFAULT_NOTE_RECEIPT_TIMEOUT_MS);
+  const pendingReceiptSaves = new Map();
 
   function statAttachmentFile(localPath) {
     try {
@@ -472,6 +551,21 @@ function createNoteReceiptSaveService(options = {}) {
     if (message.revokedAt) {
       throw serviceError("note_receipt_message_revoked", "Revoked receipts cannot be saved to Note", 400);
     }
+    const dedupeInput = {
+      workspaceId,
+      threadId: input.threadId || input.thread_id || thread.id,
+      messageId: input.messageId || input.message_id || message.id,
+      thread,
+      message,
+    };
+    const existing = noteReceiptDedupeLookup(dataDir, dedupeInput);
+    if (existing) return existing;
+    const dedupeKey = noteReceiptDedupeKey(dedupeInput);
+    if (dedupeKey && pendingReceiptSaves.has(dedupeKey)) {
+      const pending = await pendingReceiptSaves.get(dedupeKey);
+      return Object.assign({}, pending, { duplicate: true });
+    }
+    const savePromise = (async () => {
     const body = messageNoteBody(message, thread);
     const attachments = materializeAttachments(message, auth);
     if (!body && !attachments.length) {
@@ -494,7 +588,7 @@ function createNoteReceiptSaveService(options = {}) {
       attachments,
     };
     const result = await postNote(binding, payload);
-    return {
+    const saved = {
       ok: true,
       note: {
         id: result?.note?.id || result?.id || "",
@@ -502,6 +596,15 @@ function createNoteReceiptSaveService(options = {}) {
         attachmentCount: attachments.length,
       },
     };
+    noteReceiptDedupeRemember(dataDir, dedupeInput, saved.note);
+    return saved;
+    })();
+    if (dedupeKey) pendingReceiptSaves.set(dedupeKey, savePromise);
+    try {
+      return await savePromise;
+    } finally {
+      if (dedupeKey) pendingReceiptSaves.delete(dedupeKey);
+    }
   }
 
   return {
@@ -521,6 +624,8 @@ module.exports = {
   createNoteReceiptSaveService,
   extractNoteReceiptMetadata,
   messageNoteBody,
+  noteReceiptDedupeKey,
+  noteReceiptDedupeLookup,
   receiptNoteTags,
   stripNoteReceiptMetadataComments,
   summarizeReceiptTitle,
