@@ -85,11 +85,30 @@ run_with_timeout() {
 }
 
 nfs_write_probe() {
-  local destination="$1"
-  mkdir -p "$destination"
-  local test_file="${destination%/}/.homeai-nfs-write-test-$$"
-  printf 'ok\n' > "$test_file"
+  local dir="$1"
+  mkdir -p "$dir"
+  local test_file="${dir%/}/.homeai-nfs-write-test-$$"
+  (printf 'ok\n' > "$test_file") 2>/dev/null || return 1
   rm -f "$test_file"
+}
+
+nfs_prepare_current_dir() {
+  local destination="$1"
+  local current="${destination%/}/current"
+  mkdir -p "$destination"
+  if [[ -e "$current" ]]; then
+    if run_with_timeout "$NFS_OP_TIMEOUT_SECONDS" nfs_write_probe "$current"; then
+      return 0
+    fi
+    local stamp
+    stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    local quarantine="${destination%/}/.homeai-nfs-inaccessible-current-${stamp}"
+    if ! run_with_timeout "$NFS_OP_TIMEOUT_SECONDS" mv "$current" "$quarantine"; then
+      echo "nfs_destination_current_unwritable:${current}" >&2
+      return 1
+    fi
+  fi
+  run_with_timeout "$NFS_OP_TIMEOUT_SECONDS" nfs_write_probe "$current"
 }
 
 if ! run_with_timeout "$NFS_OP_TIMEOUT_SECONDS" nfs_write_probe "$DESTINATION"; then
@@ -108,7 +127,7 @@ if [[ "$USE_SUDO" != "0" ]]; then
 fi
 sudo_cmd chmod -R u+rwX,go-rwx "${STAGING%/}/current"
 
-if ! run_with_timeout "$NFS_OP_TIMEOUT_SECONDS" mkdir -p "${DESTINATION%/}/current"; then
+if ! nfs_prepare_current_dir "$DESTINATION"; then
   echo "nfs_destination_current_unavailable:${DESTINATION%/}/current" >&2
   exit 78
 fi

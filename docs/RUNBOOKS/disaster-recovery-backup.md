@@ -57,6 +57,14 @@ If the failure references `.codegraph/`, Codex `logs_*.sqlite*`, or SQLite
 should be excluded from the daily backup instead of copied as restore-critical
 payload.
 
+If the failure references `nfs_destination_current_unavailable` or an
+`Operation not permitted` error opening the NAS `current/` directory, the
+wrapper must verify write access to both the destination root and `current/`.
+When an inherited or server-owned `current/` directory is not writable by the
+cron operator user, the supported repair is to rename it under the same NAS
+directory as `.homeai-nfs-inaccessible-current-<timestamp>` and create a fresh
+`current/`; do not delete the old directory in place.
+
 ## Coverage Checklist
 
 Verify the manifest includes these categories without printing secret contents:

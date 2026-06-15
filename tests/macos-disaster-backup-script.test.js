@@ -162,6 +162,9 @@ function makeFixture() {
   assert.match(runSource, /HOMEAI_DISASTER_BACKUP_USE_SUDO/);
   assert.match(runSource, /HOMEAI_NAS_BACKUP_OP_TIMEOUT_SECONDS/);
   assert.match(runSource, /nfs_destination_write_unavailable/);
+  assert.match(runSource, /nfs_prepare_current_dir/);
+  assert.match(runSource, /nfs_destination_current_unwritable/);
+  assert.match(runSource, /\.homeai-nfs-inaccessible-current-/);
   assert.match(runSource, /nfs_destination_rsync_failed/);
   assert.match(runSource, /rsync -rlpt --delete --links --safe-links --inplace/);
   assert.doesNotMatch(runSource, /expect|NAS_SSH|ssh -p|mount_smbfs|NAS_SMB/i);
