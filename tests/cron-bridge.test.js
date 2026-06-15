@@ -283,6 +283,47 @@ function main() {
   assert.equal(mdJob.outputDocuments[0].source, "source-markdown");
   assert.match(mdJob.outputDocuments[0].url, /\/api\/automations\/deliverable\?/);
 
+  const runOutputJobRoot = path.join(outputRoot, "job_run_output");
+  fs.mkdirSync(runOutputJobRoot, { recursive: true });
+  fs.writeFileSync(path.join(runOutputJobRoot, "2026-06-15_08-31-32.md"), [
+    "# Cron Job: 每周运动总结（有氧+力量）",
+    "",
+    "## Response",
+    "",
+    "# 徐欣｜每周运动总结",
+    "",
+    "本周有氧和力量训练均已完成记录。",
+  ].join("\n"));
+  jobsDoc.jobs.push({
+    id: "job_run_output",
+    name: "Weekly exercise summary",
+    enabled: true,
+    owner_principal_id: "owner",
+    schedule: { kind: "cron", expr: "30 8 * * 1", display: "30 8 * * 1" },
+    repeat: { times: null, completed: 0 },
+  });
+  fs.writeFileSync(jobsPath, JSON.stringify(jobsDoc));
+  const runOutputList = runBridge(Object.assign({}, baseEnv, {
+    HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIMIT: "0",
+  }));
+  const runOutputJob = runOutputList.jobs.find((job) => job.id === "job_run_output");
+  assert.ok(runOutputJob);
+  assert.deepEqual(
+    runOutputJob.outputDocuments.map((item) => item.name),
+    ["2026-06-15_08-31-32.md"],
+  );
+  assert.equal(runOutputJob.outputDocuments[0].source, "run-output");
+  assert.match(runOutputJob.outputDocuments[0].url, /\/api\/automations\/deliverable\?/);
+  const runOutputFile = runBridge(baseEnv, {
+    action: "read_deliverable",
+    job_id: "job_run_output",
+    owner_principal_id: "owner",
+    run: "2026-06-15_08-31-32.md",
+    index: 0,
+  });
+  assert.equal(runOutputFile.ok, true);
+  assert.equal(runOutputFile.file.name, "2026-06-15_08-31-32.md");
+
   const sourceJobRoot = path.join(outputRoot, "job_source");
   const sourceRoot = path.join(tempRoot, "source-docs");
   const sourceMarkdown = path.join(sourceRoot, "daily-report.md");

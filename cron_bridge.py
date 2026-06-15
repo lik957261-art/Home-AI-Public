@@ -37,6 +37,7 @@ OUTPUT_SCAN_LIMIT = int(os.environ.get("HERMES_MOBILE_AUTOMATION_OUTPUT_SCAN_LIM
 MAX_READ_FILE_BYTES = int(os.environ.get("HERMES_MOBILE_CRON_FILE_MAX_BYTES") or os.environ.get("HERMES_WEB_CRON_FILE_MAX_BYTES") or "26214400")
 PROFILE_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 MEDIA_LINE_PATTERN = re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:.*?[:：]\s*)?MEDIA:\s*(.+?)\s*$")
+RESPONSE_SECTION_PATTERN = re.compile(r"(?im)^## Response\s*$")
 MEDIA_PATH_PATTERN = re.compile(
     r"(?i)(\\\\wsl(?:\.localhost|\$)\\[^\r\n]+?\.(?:pdf|docx|doc|md)|"
     r"[a-z]:\\[^\r\n]+?\.(?:pdf|docx|doc|md)|"
@@ -261,11 +262,21 @@ def run_text(path: Path) -> str:
 
 def response_text_from_run(path: Path) -> str:
     text = run_text(path)
-    marker = "\n## Response"
-    index = text.rfind(marker)
-    if index < 0:
+    matches = list(RESPONSE_SECTION_PATTERN.finditer(text))
+    if not matches:
         return text
-    return text[index:]
+    return text[matches[-1].end():]
+
+
+def run_output_is_deliverable(path: Path) -> bool:
+    if path.suffix.lower() != ".md":
+        return False
+    response = response_text_from_run(path)
+    without_media = MEDIA_LINE_PATTERN.sub("", response).strip()
+    if not without_media:
+        return False
+    normalized = re.sub(r"\s+", " ", without_media).strip().lower()
+    return normalized not in {"[silent]", "silent"}
 
 
 def media_paths_from_run(path: Path) -> list[Path]:
@@ -490,6 +501,8 @@ def deliverable_items_from_run(path: Path) -> list[dict[str, Any]]:
             add_item(source_md, "source-markdown")
         if delivery_path.suffix.lower() != ".md":
             add_item(delivery_path, "delivery")
+    if not items and run_output_is_deliverable(path):
+        add_item(path, "run-output")
     return items
 
 

@@ -35,6 +35,12 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
   feedback belongs to the explicit create surface and must not reintroduce a
   per-message model preflight in ordinary chat.
 - Completed user-visible deliveries and failed runs should upsert Action Inbox items so the user reads/acts from Inbox. A failed run must still create an Inbox error item and Web Push even when it produced no new deliverable file.
+- A successful CRON run whose `.md` run output contains a non-empty,
+  non-`[SILENT]` `## Response` section is itself a user-facing Markdown
+  delivery when no explicit `MEDIA:` deliverable is present. The Automation
+  projection should expose that run output as an `outputDocuments` entry so
+  Inbox/Web Push delivery does not depend on the model creating a separate
+  attachment file.
 - Automation list projection must tolerate a single unreadable, missing, or
   permission-denied deliverable file. That file should be skipped or reported as
   bounded item-level metadata; it must not make the full Automation list return

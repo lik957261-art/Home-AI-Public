@@ -178,6 +178,12 @@ return context.
 
 Automation remains a background job engine. A successful run that creates a user-facing delivery should upsert a `delivery` Inbox item. A failed run should upsert an `error` item with a short failure summary and a deep link to the relevant job detail or output history.
 
+For model-backed CRON jobs that produce the final answer directly in the run
+Markdown instead of writing a separate `MEDIA:` file, the non-empty
+non-`[SILENT]` run output is a delivery document. The Inbox projection should
+show it as a normal automation delivery pointer and keep the report body in the
+Automation output file instead of copying it into the Inbox row.
+
 Foreground push refresh should update Inbox state when automation push payloads include an Inbox item id or source reference.
 
 Plugin workspace audit runs are Automation-owned review sources. A successful
