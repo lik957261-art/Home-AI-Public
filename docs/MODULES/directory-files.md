@@ -65,6 +65,11 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
   reports `owner_high_privilege_required`, the client must retry with a
   one-shot token instead of relying on possibly stale local timed-elevation
   state. Message retry elevation remains Owner-workspace-only.
+- A direct delete error such as `EACCES: permission denied, rmdir ...` after
+  Owner elevation is a filesystem ownership/mode problem, not another model or
+  Gateway permission prompt. Mac production diagnostics must catch
+  `data/drive/users` directories that lost the owner write bit after import or
+  migration.
 - An approved Owner high-privilege Gateway run may delete only the exact
   non-empty directory target requested by the user after resolving the target
   through the current directory/workspace boundary. It must not broaden the

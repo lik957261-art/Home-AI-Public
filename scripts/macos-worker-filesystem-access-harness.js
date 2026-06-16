@@ -14,12 +14,19 @@ function hasArg(name) {
   return process.argv.includes(name);
 }
 
+function numberArg(name, fallback) {
+  const value = Number(argValue(name, ""));
+  if (!Number.isFinite(value) || value < 1) return fallback;
+  return Math.floor(value);
+}
+
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
 
 function run(command, args = []) {
   return spawnSync(command, args, {
+    cwd: "/",
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -58,6 +65,90 @@ function testAsUser(user, targetPath, writeSmoke) {
 
 function compactPath(root, value) {
   return String(value).replace(root, "<HERMES_MOBILE_ROOT>");
+}
+
+function modeOctal(stat) {
+  return `0${(stat.mode & 0o777).toString(8).padStart(3, "0")}`;
+}
+
+function scanDriveDirectoriesMissingOwnerWrite(root, options = {}) {
+  const driveUsersRoot = path.join(root, "data", "drive", "users");
+  const limit = Number.isFinite(options.limit) && options.limit > 0 ? Math.floor(options.limit) : 200;
+  const findings = [];
+  let scanned = 0;
+  let truncated = false;
+
+  function walk(dir) {
+    if (findings.length >= limit) {
+      truncated = true;
+      return;
+    }
+    let stat;
+    try {
+      stat = fs.lstatSync(dir);
+    } catch (err) {
+      findings.push({
+        path: compactPath(root, dir),
+        reason: "stat_failed",
+        error: String(err.message || err).slice(0, 160),
+      });
+      return;
+    }
+    if (!stat.isDirectory() || stat.isSymbolicLink()) return;
+    scanned += 1;
+    if ((stat.mode & 0o200) === 0) {
+      findings.push({
+        path: compactPath(root, dir),
+        reason: "owner_write_missing",
+        mode: modeOctal(stat),
+      });
+      if (findings.length >= limit) {
+        truncated = true;
+        return;
+      }
+    }
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+      findings.push({
+        path: compactPath(root, dir),
+        reason: "list_failed",
+        error: String(err.message || err).slice(0, 160),
+      });
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+      walk(path.join(dir, entry.name));
+      if (findings.length >= limit) {
+        truncated = true;
+        return;
+      }
+    }
+  }
+
+  if (!fs.existsSync(driveUsersRoot)) {
+    return {
+      checked: false,
+      status: "skipped",
+      reason: "drive_users_root_missing",
+      path: compactPath(root, driveUsersRoot),
+      scanned,
+      findings,
+      truncated,
+    };
+  }
+
+  walk(driveUsersRoot);
+  return {
+    checked: true,
+    status: findings.length ? "failed" : "ok",
+    path: compactPath(root, driveUsersRoot),
+    scanned,
+    findings,
+    truncated,
+  };
 }
 
 function defaultChecks(root) {
@@ -136,6 +227,7 @@ function main() {
   const root = path.resolve(argValue("--root", process.env.HERMES_MOBILE_ROOT || "/Users/hermes-host/HermesMobile"));
   const json = hasArg("--json");
   const writeSmoke = !hasArg("--no-write-smoke");
+  const driveWriteScanLimit = numberArg("--drive-write-scan-limit", 200);
   const results = [];
   let failed = false;
 
@@ -219,6 +311,20 @@ function main() {
     }
   }
 
+  const driveWriteScan = scanDriveDirectoriesMissingOwnerWrite(root, { limit: driveWriteScanLimit });
+  if (driveWriteScan.status === "failed") failed = true;
+  results.push({
+    user: "hermes-host",
+    label: "drive-directory-owner-write",
+    path: driveWriteScan.path,
+    status: driveWriteScan.status,
+    reason: driveWriteScan.reason || "",
+    scanned: driveWriteScan.scanned,
+    findingCount: driveWriteScan.findings.length,
+    truncated: driveWriteScan.truncated,
+    findings: driveWriteScan.findings,
+  });
+
   if (json) {
     console.log(JSON.stringify({ ok: !failed, root: compactPath(root, root), results }, null, 2));
   } else {
@@ -242,4 +348,13 @@ function main() {
   process.exit(failed ? 1 : 0);
 }
 
-main();
+if (require.main === module) {
+  main();
+}
+
+module.exports = {
+  compactPath,
+  defaultChecks,
+  defaultDenyChecks,
+  scanDriveDirectoriesMissingOwnerWrite,
+};

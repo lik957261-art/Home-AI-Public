@@ -220,9 +220,13 @@ service root.
   The pass condition is not only positive read/write access for each workspace
   worker. The harness must also prove cross-user deny checks for Owner
   Skill/Memory stores, other users' drive roots, and `.hermes-*` plugin private
-  directories. Do not leave workspace-private roots as `drwxr-xr-x+`; remove
-  default group/other access and grant only `hermes-host`, the matching
-  workspace OS user, and Owner operations.
+  directories. It also scans `data/drive/users` for directories missing the
+  owner write bit, because imported or migrated read-only directories can make
+  the Home AI listener fail direct Directory delete with `EACCES` even when the
+  path is inside the authenticated user's own workspace. Do not leave
+  workspace-private roots as `drwxr-xr-x+`; remove default group/other access
+  and grant only `hermes-host`, the matching workspace OS user, and Owner
+  operations.
   See `docs/RUNBOOKS/macos-worker-filesystem-access.md`.
 - Workspace onboarding now has a Home AI service/API layer:
   `adapters/workspace-onboarding-service.js` and
