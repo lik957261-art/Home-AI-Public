@@ -8,6 +8,7 @@ const {
 const { createWebPushNativeChannelService } = require("./web-push-native-channel-service");
 const { createWebPushSendService } = require("./web-push-send-service");
 const { createWebPushVapidService } = require("./web-push-vapid-service");
+const { createNotificationChannelService, normalizeNotificationChannel } = require("./notification-channel-service");
 
 function defaultNowIso() {
   return new Date().toISOString();
@@ -234,13 +235,11 @@ function createWebPushDeliveryService(options = {}) {
   } = webPushSendService;
 
   const webPushNativeChannelService = createWebPushNativeChannelService({ appRouteUrl, compactText, logger, nativeNotificationService: options.nativeNotificationService, normalizeStringList, workspaceIdForPrincipal });
-
-  async function sendPushNotification(payload = {}, sendOptions = {}) {
-    const webResult = await sendWebPushNotification(payload, sendOptions);
-    const nativeResults = await webPushNativeChannelService.sendNativeNotification(payload, sendOptions);
-    if (!nativeResults) return webResult;
-    return Object.assign({}, webResult, { native: nativeResults });
-  }
+  const notificationChannelService = createNotificationChannelService({
+    sendNativeNotification: (...args) => webPushNativeChannelService.sendNativeNotification(...args),
+    sendWebPushNotification,
+  });
+  const sendPushNotification = (...args) => notificationChannelService.sendNotification(...args);
 
   function todoProvider() { return getProvider(options.todoProvider); }
   function automationProvider() { return getProvider(options.automationProvider); }
@@ -984,6 +983,8 @@ function createWebPushDeliveryService(options = {}) {
       status,
       requireInteraction: true,
     };
+    const notificationChannel = normalizeNotificationChannel(message?.notificationChannel || message?.notification_channel || message?.runOptions?.notificationChannel || message?.runOptions?.notification_channel, "");
+    if (notificationChannel) data.notificationChannel = notificationChannel;
     const tag = `hermes-task-${message?.id || message?.runId || Date.now()}`;
     if (hasSentPushDeliveryForTag(tag, messageType)) {
       return Promise.resolve({
@@ -1007,6 +1008,7 @@ function createWebPushDeliveryService(options = {}) {
       data,
     }, {
       principalIds: [principalId],
+      notificationChannel: notificationChannel || "both",
       urgency: "high",
       ttl: 24 * 60 * 60,
     }).catch((err) => {

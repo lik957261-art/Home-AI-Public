@@ -168,6 +168,7 @@ async function runFailedSendRollbackTest() {
 
   assert.strictEqual(apiRequest.pathValue, "/api/threads/thread_chat/messages");
   assert.strictEqual(apiRequest.options.timeoutMs, COMPOSER_SEND_TIMEOUT_MS);
+  assert.strictEqual(JSON.parse(apiRequest.options.body).notificationChannel, "web_push");
   assert.strictEqual(suppressMs, 1800);
   assert.strictEqual(blurCalls, 1);
   assert.strictEqual(state.currentThread.messages.length, 0);

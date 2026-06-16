@@ -6,6 +6,7 @@ const {
   resolveGatewayModelRoute: defaultResolveGatewayModelRoute,
 } = require("./gateway-model-routing-service");
 const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
+const { normalizeNotificationChannel } = require("./notification-channel-service");
 const { resolveSearchSourceForMessage: defaultResolveSearchSourceForMessage } = require("./search-source-routing-service");
 
 const DEFAULT_SINGLE_WINDOW_CHAT_TASK_GROUP_ID = "chat";
@@ -162,6 +163,7 @@ function createThreadMessageCreateService(options = {}) {
 
   function normalizeBody(body = {}) {
     const source = objectValue(body);
+    const clientContext = objectValue(source.clientContext || source.client_context, {});
     return {
       source,
       text: cleanString(source.text),
@@ -169,6 +171,14 @@ function createThreadMessageCreateService(options = {}) {
       singleWindowMode: normalizeSingleWindowMode(source.singleWindowMode || source.single_window_mode || ""),
       requestedActorWorkspaceId: cleanString(source.workspaceId || source.actorWorkspaceId || source.actor_workspace_id || ""),
       requestedReasoningEffort: cleanString(source.reasoning_effort),
+      notificationChannel: normalizeNotificationChannel(
+        source.notificationChannel
+          || source.notification_channel
+          || source.clientNotificationChannel
+          || source.client_notification_channel
+          || clientContext.notificationChannel
+          || clientContext.notification_channel,
+      ),
     };
   }
 
@@ -314,6 +324,7 @@ function createThreadMessageCreateService(options = {}) {
       singleWindowMode,
       taskGroupId,
       searchSource,
+      notificationChannel,
     } = context;
     const senderInfo = senderInfoForWorkspace(actorWorkspaceId);
     const userMessage = {
@@ -337,6 +348,7 @@ function createThreadMessageCreateService(options = {}) {
       reasoningEffort,
       singleWindowMode,
     };
+    if (notificationChannel) userMessage.notificationChannel = notificationChannel;
     if (searchSource?.explicit) {
       userMessage.searchSource = searchSource.source;
       userMessage.sourceIntent = searchSource.sourceIntent;
@@ -362,6 +374,7 @@ function createThreadMessageCreateService(options = {}) {
       reasoningEffort,
       singleWindowMode,
     };
+    if (notificationChannel) assistantMessage.notificationChannel = notificationChannel;
     if (searchSource?.explicit) {
       assistantMessage.searchSource = searchSource.source;
       assistantMessage.sourceIntent = searchSource.sourceIntent;
@@ -578,6 +591,7 @@ function createThreadMessageCreateService(options = {}) {
       messageKind,
       quotedMessage: quoted.quotedMessage,
       reasoningEffort,
+      notificationChannel: normalized.notificationChannel,
       searchSource,
       singleWindowMode: normalized.singleWindowMode,
       taskGroupId: taskGroup.taskGroupId,
@@ -610,6 +624,7 @@ function createThreadMessageCreateService(options = {}) {
       messageKind,
       gatewayRouting: routing.gatewayRouting,
       reasoningEffort,
+      notificationChannel: normalized.notificationChannel,
       searchSource,
       directoryAttachment,
       userMessage: messages.userMessage,
@@ -835,5 +850,6 @@ function createThreadMessageCreateService(options = {}) {
 module.exports = {
   createThreadMessageCreateService,
   defaultSingleWindowChatTaskGroupId,
+  normalizeNotificationChannel,
   normalizeSingleWindowMode,
 };

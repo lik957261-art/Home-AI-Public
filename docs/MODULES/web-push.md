@@ -10,6 +10,15 @@ The same bounded event summaries may also be bridged to the independent native
 iOS APNs channel `native_ios_apns`; native device registration and APNs token
 storage are documented in `docs/MODULES/native-notifications.md`.
 
+Channel selection is explicit. PWA-originated interactive messages set
+`notificationChannel=web_push`, and their terminal receipts must stay Web Push
+only. Native-shell-originated interactive messages set
+`notificationChannel=native_ios_apns`, and their terminal receipts must stay
+APNs only. Background events without a foreground sender may use
+`notificationChannel=both`. The PWA settings test endpoint `/api/push/test` is
+Web Push only; native APNs testing is handled by
+`/api/native/devices/test-notification`.
+
 ## Core Files
 
 - `adapters/web-push-delivery-service.js`

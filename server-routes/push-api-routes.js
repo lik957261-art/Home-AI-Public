@@ -299,11 +299,12 @@ function createPushApiRoutes(deps = {}) {
           workspaceId: pushWorkspaceId,
           principalId: targetPrincipalId,
           messageType: "test",
+          notificationChannel: "web_push",
           testId,
           sentAt,
           requireInteraction: true,
         },
-      }, { urgency: "high", ttl: 5 * 60, principalIds: [targetPrincipalId] });
+      }, { urgency: "high", ttl: 5 * 60, principalIds: [targetPrincipalId], notificationChannel: "web_push" });
       sendJson(res, 200, {
         ok: true,
         result,

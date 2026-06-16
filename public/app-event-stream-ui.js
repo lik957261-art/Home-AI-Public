@@ -2,6 +2,20 @@
 
 const COMPOSER_SEND_TIMEOUT_MS = 30000;
 
+function currentClientNotificationChannel() {
+  try {
+    const root = typeof document !== "undefined" ? document.documentElement : null;
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search || "") : null;
+    const nativeShell = params?.get("nativeShell") === "ios"
+      || root?.dataset?.nativeShell === "ios"
+      || root?.classList?.contains("native-shell-ios")
+      || (typeof localStorage !== "undefined" && localStorage.getItem("homeAI.nativeShell") === "ios");
+    return nativeShell ? "native_ios_apns" : "web_push";
+  } catch (_) {
+    return "web_push";
+  }
+}
+
 function connectEvents() {
   if (state.events) state.events.close();
   const params = new URLSearchParams();
@@ -109,7 +123,12 @@ async function sendMessage(event) {
   let consumedPendingDirectory = false;
   let optimisticSend = null;
   try {
-    const body = { text, artifacts: state.pendingArtifacts, workspaceId: state.selectedWorkspaceId };
+    const body = {
+      text,
+      artifacts: state.pendingArtifacts,
+      workspaceId: state.selectedWorkspaceId,
+      notificationChannel: currentClientNotificationChannel(),
+    };
     if (searchSourceFields) Object.assign(body, searchSourceFields);
     if (ownerElevationActive() || ownerElevationOnceTag || chatGptProOnceApproved) {
       body.maintenanceMode = true;

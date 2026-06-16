@@ -629,6 +629,26 @@ async function testServerSideSentTextLearningAfterMessageCommit() {
   assert.equal(plainThread.messages.length, 1);
 }
 
+async function testNotificationChannelPropagatesFromClientMessage() {
+  const { calls, service } = makeHarness();
+  const thread = baseThread({ workspaceId: "owner" });
+  const plan = service.prepareThreadMessageCreate({
+    thread,
+    body: { text: "send from native shell", notificationChannel: "native_ios_apns" },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+  assert.equal(plan.ok, true);
+  assert.equal(plan.notificationChannel, "native_ios_apns");
+  assert.equal(plan.userMessage.notificationChannel, "native_ios_apns");
+  assert.equal(plan.assistantMessage.notificationChannel, "native_ios_apns");
+  assert.equal(Object.hasOwn(plan.runOptions, "notificationChannel"), false);
+
+  const result = await service.commitRunMessageAndDispatch(thread, plan);
+  assert.equal(result.status, 202);
+  assert.equal(calls.starts[0].assistantMessage.notificationChannel, "native_ios_apns");
+  assert.equal(Object.hasOwn(calls.starts[0].runOptions, "notificationChannel"), false);
+}
+
 function testConcurrencyErrorBeforeStateMutation() {
   const { service } = makeHarness({
     concurrencyError: {
@@ -666,6 +686,7 @@ function testConcurrencyErrorBeforeStateMutation() {
   testChatDataContextIsInjectedOnlyForMatchingRequests();
   await testQueuedChatRunSkipsConcurrencyAndStart();
   await testServerSideSentTextLearningAfterMessageCommit();
+  await testNotificationChannelPropagatesFromClientMessage();
   testConcurrencyErrorBeforeStateMutation();
   console.log("thread-message-create-service tests passed");
 })().catch((err) => {

@@ -272,9 +272,11 @@ async function testPushTestUsesScopedPrincipalAndPayload() {
   assert.equal(calls.sent[0].options.urgency, "high");
   assert.equal(calls.sent[0].options.ttl, 300);
   assert.deepEqual(calls.sent[0].options.principalIds, ["principal_child"]);
+  assert.equal(calls.sent[0].options.notificationChannel, "web_push");
   assert.equal(calls.sent[0].payload.title, "\u901a\u77e5\u6d4b\u8bd5");
   assert.equal(calls.sent[0].payload.data.workspaceId, "child");
   assert.equal(calls.sent[0].payload.data.principalId, "principal_child");
+  assert.equal(calls.sent[0].payload.data.notificationChannel, "web_push");
   assert.equal(calls.sent[0].payload.data.sentAt, "2026-05-14T13:00:00.000Z");
   assert.match(calls.sent[0].payload.data.testId, /^test_/);
 

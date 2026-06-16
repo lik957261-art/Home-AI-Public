@@ -229,21 +229,21 @@ async function testPushNotification() {
   state.pushStatus = result.push || state.pushStatus;
   updatePushButton();
   const delivery = result.result || {};
-  const attempted = Number(delivery.attempted || 0);
-  const sent = Number(delivery.sent || 0);
-  const failed = Number(delivery.failed || 0);
-  if (!attempted) {
-    throw new Error(`当前工作区没有可用通知订阅：${result?.target?.principalId || state.selectedWorkspaceId || "unknown"}`);
+  const webAttempted = Number(delivery.attempted || 0);
+  const webSent = Number(delivery.sent || 0);
+  const webFailed = Number(delivery.failed || 0);
+  if (!webAttempted) {
+    throw new Error(`当前工作区没有可用 PWA 通知订阅：${result?.target?.principalId || state.selectedWorkspaceId || "unknown"}`);
   }
-  if (failed || sent < attempted) {
-    throw new Error(`测试通知发送不完整：${sent}/${attempted}，失败 ${failed}`);
+  if (webFailed || webSent < webAttempted) {
+    throw new Error(`PWA 测试通知发送不完整：${webSent}/${webAttempted}`);
   }
   return result;
 }
 
 function pushTestResultText(result) {
   const delivery = result?.result || {};
-  return `测试已交给系统通知：${delivery.sent || 0}/${delivery.attempted || 0}`;
+  return `PWA 测试通知已交给系统：${delivery.sent || 0}/${delivery.attempted || 0}`;
 }
 
 function shouldRunLocalPushProbe() {

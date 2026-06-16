@@ -238,6 +238,55 @@ function testNativeNotificationChannelReceivesWorkspaceEvents() {
   });
 }
 
+function testNotificationChannelSelectionSeparatesWebAndNative() {
+  return withTempDir((root) => {
+    const nativeCalls = [];
+    const { calls, service } = createHarness(root, {
+      serviceOptions: {
+        nativeNotificationService: {
+          async sendToWorkspace(payload) {
+            nativeCalls.push(payload);
+            return { ok: true, attempted: 1, sent: 1, failed: 0, results: [] };
+          },
+        },
+      },
+    });
+    service.savePushSubscription({
+      endpoint: "endpoint-child",
+      keys: { p256dh: "p", auth: "a" },
+    }, {
+      workspaceId: "child",
+      principalId: "child-principal",
+      clientContext: { displayMode: "standalone", standalone: true, origin: "https://prod.example.test" },
+    });
+
+    return service.sendPushNotification({
+      title: "PWA only",
+      data: { workspaceId: "child" },
+    }, {
+      principalId: "child-principal",
+      notificationChannel: "web_push",
+    }).then((webResult) => {
+      assert.equal(webResult.attempted, 1);
+      assert.equal(calls.sends.length, 1);
+      assert.equal(nativeCalls.length, 0);
+      return service.sendPushNotification({
+        title: "Native only",
+        data: { workspaceId: "child" },
+      }, {
+        principalId: "child-principal",
+        notificationChannel: "native_ios_apns",
+      });
+    }).then((nativeResult) => {
+      assert.equal(nativeResult.notificationChannel, "native_ios_apns");
+      assert.equal(nativeResult.native.length, 1);
+      assert.equal(calls.sends.length, 1);
+      assert.equal(nativeCalls.length, 1);
+      assert.equal(nativeCalls[0].workspaceId, "child");
+    });
+  });
+}
+
 function testIosBrowserSubscriptionsAreRejectedAndSkipped() {
   withTempDir((root) => {
     const { calls, service, state } = createHarness(root);
@@ -794,6 +843,43 @@ function testTaskTerminalAndGroupMentionNotifications() {
   });
 }
 
+function testTaskTerminalUsesStoredNotificationChannel() {
+  return withTempDir((root) => {
+    const nativeCalls = [];
+    const { calls, service, state } = createHarness(root, {
+      serviceOptions: {
+        nativeNotificationService: {
+          async sendToWorkspace(payload) {
+            nativeCalls.push(payload);
+            return { ok: true, attempted: 1, sent: 1, failed: 0, results: [] };
+          },
+        },
+      },
+    });
+    state.pushSubscriptions.push({
+      subscription: { endpoint: "child-endpoint" },
+      principalIds: ["child-principal"],
+      workspaceIds: ["child"],
+    });
+    const thread = { id: "thread-1", title: "Thread", workspaceId: "child", messages: [] };
+    const message = {
+      id: "a-native",
+      role: "assistant",
+      content: "Native shell result",
+      notificationChannel: "native_ios_apns",
+      taskGroupId: "task-1",
+    };
+    return service.notifyTaskTerminal(thread, message, "done").then((result) => {
+      assert.equal(result.notificationChannel, "native_ios_apns");
+      assert.equal(calls.sends.length, 0);
+      assert.equal(nativeCalls.length, 1);
+      assert.equal(nativeCalls[0].workspaceId, "child");
+      assert.equal(nativeCalls[0].data.notificationChannel, "native_ios_apns");
+      assert.equal(nativeCalls[0].data.channel, "native_ios_apns");
+    });
+  });
+}
+
 function testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt() {
   withTempDir((root) => {
     const inboxCalls = [];
@@ -1092,6 +1178,7 @@ Promise.resolve()
   .then(testSubscriptionSendAndRemoval)
   .then(testDeploymentOriginFiltersCopiedSubscriptions)
   .then(testNativeNotificationChannelReceivesWorkspaceEvents)
+  .then(testNotificationChannelSelectionSeparatesWebAndNative)
   .then(testIosBrowserSubscriptionsAreRejectedAndSkipped)
   .then(testReceiptMarksTodoWithoutCountingAttempt)
   .then(testTodoTickReconcilesAndDeliversPendingEvents)
@@ -1103,6 +1190,7 @@ Promise.resolve()
   .then(testScheduledTodoAutomationDoesNotAlternateDeliverableAndEmptyPush)
   .then(testAutomationTickInitializesOldFailedRunWithoutDeliverable)
   .then(testTaskTerminalAndGroupMentionNotifications)
+  .then(testTaskTerminalUsesStoredNotificationChannel)
   .then(testTaskTerminalPushDoesNotCreateInboxItemForActiveChatReceipt)
   .then(testTaskTerminalPushIsIdempotentPerMessageTag)
   .then(testLearningGrowthEvaluationPushRoutesToTaskCard)

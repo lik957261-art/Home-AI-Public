@@ -175,6 +175,28 @@ other bounded notification surfaces. It delegates APNs fanout to
 This keeps Web Push and native APNs storage separate while allowing the same
 bounded event summary to reach both channels.
 
+Delivery channel selection is explicit:
+
+- `notificationChannel=web_push` sends only to browser/PWA Web Push
+  subscriptions.
+- `notificationChannel=native_ios_apns` sends only to registered iOS APNs
+  devices.
+- `notificationChannel=both` is reserved for background events that do not have
+  a foreground client source, such as scheduled Automation, Todo/reminder, and
+  durable review notifications.
+
+Interactive chat/task terminal receipts must preserve the sending client
+source. Messages submitted from the PWA set `notificationChannel=web_push`;
+messages submitted from the native iOS shell set
+`notificationChannel=native_ios_apns`. The terminal notifier reads the stored
+assistant message channel and must not fan out those foreground receipts to both
+channels just because the same workspace has both a PWA subscription and an APNs
+device.
+
+PWA notification settings use `POST /api/push/test` and are Web Push only.
+Native settings use `POST /api/native/devices/test-notification` and are APNs
+only.
+
 ## Payload Rules
 
 APNs payloads use a bounded alert:
