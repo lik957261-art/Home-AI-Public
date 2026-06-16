@@ -848,6 +848,17 @@ function embeddedPluginHostBottomSafeArea(def, footerVisible, bottomLayout = {})
   return embeddedPluginCssPx("--mobile-bottom-nav-comfort-inset");
 }
 
+function embeddedPluginHostTopSafeArea() {
+  const measured = window.__hermesMobileBottomLayoutMetrics?.safeAreaTop;
+  if (Number.isFinite(Number(measured)) && Number(measured) > 0) return Math.round(Number(measured));
+  if (typeof clientLayoutDiagnosticSafeAreaProbe === "function") {
+    const probe = clientLayoutDiagnosticSafeAreaProbe();
+    const top = Number(probe?.top);
+    if (Number.isFinite(top) && top > 0) return Math.round(top);
+  }
+  return 0;
+}
+
 function embeddedPluginViewportPayload(def, frame, reason = "layout") {
   const visual = window.visualViewport;
   const layoutWidth = Math.round(window.innerWidth || document.documentElement?.clientWidth || 0);
@@ -861,6 +872,7 @@ function embeddedPluginViewportPayload(def, frame, reason = "layout") {
   const footerVisible = Boolean(nav && !nav.hidden && window.getComputedStyle?.(nav).display !== "none");
   const bottomLayout = window.__hermesMobileBottomLayoutMetrics || {};
   const hostBottomSafeArea = embeddedPluginHostBottomSafeArea(def, footerVisible, bottomLayout);
+  const hostTopSafeArea = embeddedPluginHostTopSafeArea();
   return {
     type: "hermes.plugin.viewport",
     version: 1,
@@ -876,6 +888,8 @@ function embeddedPluginViewportPayload(def, frame, reason = "layout") {
       scale: Number.isFinite(visual?.scale) ? Number(visual.scale) : 1,
       layoutWidth,
       layoutHeight,
+      safeAreaTop: hostTopSafeArea,
+      hostTopSafeArea,
     },
     keyboard: {
       visible: Boolean(keyboard?.keyboardLikely),
@@ -884,11 +898,18 @@ function embeddedPluginViewportPayload(def, frame, reason = "layout") {
       height: Math.max(0, Math.round(keyboard?.bottomInset || 0)),
     },
     iframe: embeddedPluginRectPayload(frame),
-    host: embeddedPluginRectPayload(embeddedPluginHost(def)),
+    host: Object.assign(embeddedPluginRectPayload(embeddedPluginHost(def)), {
+      safeAreaTop: hostTopSafeArea,
+      topSafeArea: hostTopSafeArea,
+      hostTopSafeArea,
+    }),
     footer: {
       visible: footerVisible,
       rect: footerVisible ? embeddedPluginRectPayload(nav) : null,
       bottom: embeddedPluginCssPx("--mobile-bottom-nav-bottom-runtime"),
+      safeAreaTop: hostTopSafeArea,
+      topSafeArea: hostTopSafeArea,
+      hostTopSafeArea,
       safeAreaBottom: hostBottomSafeArea,
       bottomSafeArea: hostBottomSafeArea,
       hostBottomSafeArea,

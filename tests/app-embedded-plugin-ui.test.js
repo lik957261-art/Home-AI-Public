@@ -121,6 +121,9 @@ assert.match(embeddedPluginUi, /workspaceId: embeddedPluginCurrentWorkspaceId\(\
 assert.match(embeddedPluginUi, /footer:[\s\S]*?pluginContextBottom: embeddedPluginCssPx\("--plugin-context-main-bottom"\)/);
 assert.match(embeddedPluginUi, /function embeddedPluginHostBottomSafeArea\(def, footerVisible, bottomLayout = \{\}\)/);
 assert.match(embeddedPluginUi, /safeAreaBottom: hostBottomSafeArea/);
+assert.match(embeddedPluginUi, /function embeddedPluginHostTopSafeArea\(\)/);
+assert.match(embeddedPluginUi, /safeAreaTop: hostTopSafeArea/);
+assert.match(embeddedPluginUi, /hostTopSafeArea/);
 assert.match(embeddedPluginUi, /function sendEmbeddedPluginViewportMetrics\(def = embeddedPluginDefByView\(\), reason = "layout"\)/);
 assert.match(embeddedPluginUi, /frame\.contentWindow\.postMessage\(embeddedPluginViewportPayload\(def, frame, reason\), origin\)/);
 assert.match(embeddedPluginUi, /function resetEmbeddedPluginHostScroll\(reason = "layout"\)/);

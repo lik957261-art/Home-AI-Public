@@ -118,7 +118,9 @@ native keyboard without going through the Home AI composer focus path:
     offsetLeft: 0,
     scale: 1,
     layoutWidth: 390,
-    layoutHeight: 844
+    layoutHeight: 844,
+    safeAreaTop: 47,
+    hostTopSafeArea: 47
   },
   keyboard: {
     visible: true,
@@ -127,11 +129,24 @@ native keyboard without going through the Home AI composer focus path:
     height: 274
   },
   iframe: { top: 0, right: 390, bottom: 570, left: 0, width: 390, height: 570 },
-  host: { top: 0, right: 390, bottom: 570, left: 0, width: 390, height: 570 },
+  host: {
+    top: 0,
+    right: 390,
+    bottom: 570,
+    left: 0,
+    width: 390,
+    height: 570,
+    safeAreaTop: 47,
+    topSafeArea: 47,
+    hostTopSafeArea: 47
+  },
   footer: {
     visible: true,
     rect: { top: 570, right: 390, bottom: 624, left: 0, width: 390, height: 54 },
     bottom: 12,
+    safeAreaTop: 47,
+    topSafeArea: 47,
+    hostTopSafeArea: 47,
     offsetHeight: 58,
     reservedHeight: 80,
     stackHeight: 80,
@@ -161,6 +176,9 @@ embedded-mode host geometry:
   already ends at `footer.rect.top`;
 - use `iframe.height` / `host.height` to size iframe-root panels when
   `embed=hermes`;
+- use `viewport.safeAreaTop` or `host.hostTopSafeArea` for plugin-owned headers
+  that need native-shell status-area clearance; do not ask the host to move the
+  whole iframe down for an iframe-internal header;
 - keep native keyboard positioning owned by either the plugin's local viewport
   model or an explicit plugin-side contract; the host payload is not raw system
   input-method state.

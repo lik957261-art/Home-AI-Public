@@ -1552,7 +1552,7 @@ button {
 }
 
 :root.native-shell-ios.embedded-plugin-shell-active .app.embedded-plugin-host-active {
-  --plugin-context-main-top: env(safe-area-inset-top);
+  --plugin-context-main-top: 0px;
 }
 
 :root.native-shell-ios.embedded-plugin-shell-active body::before {

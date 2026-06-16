@@ -212,11 +212,15 @@ running under the native shell and an embedded plugin iframe is active, the host
 marks the root with `embedded-plugin-shell-active`. That state is the only place
 where the Web status-bar shim is removed, refresh notices are suppressed over
 plugin content, and keyboard viewport shrinkage from an iframe input is allowed
-to drive the host keyboard layout. The iframe still keeps a single
-`safe-area-inset-top` reservation for plugin-owned headers; removing both the
-shim and the top reservation can place the plugin header behind the native iOS
-status area. Standalone PWA/browser behavior must not enter this branch and must
-keep the ordinary PWA safe-area, refresh notice, and keyboard behavior.
+to drive the host keyboard layout. The host must not move the whole iframe down
+with `--plugin-context-main-top`, because that reintroduces a blank band on
+plugin primary pages and can shrink the iframe in a way that lets the native
+keyboard cover plugin composers. Instead, the host keeps the iframe at top `0`
+and sends the measured top safe area through the `hermes.plugin.viewport`
+payload as `viewport.safeAreaTop` / `host.hostTopSafeArea`; plugin-owned
+headers may consume that value inside their own iframe. Standalone PWA/browser
+behavior must not enter this branch and must keep the ordinary PWA safe-area,
+refresh notice, and keyboard behavior.
 
 ## System Notifications
 
