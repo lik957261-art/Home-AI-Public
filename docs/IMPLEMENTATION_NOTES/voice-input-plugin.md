@@ -267,6 +267,13 @@ ordinary browser/PWA `MediaRecorder` path remains the fallback.
 Native `partial` callbacks must use the same provisional Composer insertion
 path as browser streaming chunks, so the active Composer updates while recording
 instead of waiting for the final transcript.
+The provisional path must be treated as an input-method composition state, not
+as repeated final draft writes. Browser and native partial callbacks should be
+batched to the next animation frame, reveal newly appended text in small bounded
+slices, and throttle status-panel partial metadata updates. Permission, failure,
+final insertion, and cancellation states still render immediately. This keeps
+near-realtime text visible without forcing a full Composer/status-panel layout
+pass for every ASR partial.
 
 Use a bounded composition session instead of appending plain text events:
 

@@ -126,7 +126,11 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /Number\(streaming\.bufferedSamples \|\| 0\) < voiceInputStreamingTargetSamples\(streaming\)/);
   assert.doesNotMatch(voiceUi, /function voiceInputFlushStreamingChunks\(/);
   assert.match(voiceUi, /voiceInputStartStreamingSession\(stream, serviceStatus\)/);
-  assert.match(voiceUi, /voiceInputApplyProvisionalTranscript\(result\.text\)/);
+  assert.match(voiceUi, /const VOICE_INPUT_PROVISIONAL_REVEAL_MAX_CHARS = 14/);
+  assert.match(voiceUi, /const VOICE_INPUT_PARTIAL_STATUS_RENDER_MS = 260/);
+  assert.match(voiceUi, /function voiceInputScheduleProvisionalTranscript\(text, options = \{\}\)/);
+  assert.match(voiceUi, /function voiceInputFlushProvisionalTranscript\(force = false\)/);
+  assert.match(voiceUi, /voiceInputScheduleProvisionalTranscript\(result\.text\)/);
   assert.match(voiceUi, /sendEmbeddedPluginVoiceInputAction\("provisional_text"/);
   assert.match(voiceUi, /const VOICE_INPUT_EMBEDDED_INSERT_MAX_ATTEMPTS = 3/);
   assert.match(voiceUi, /function handleVoiceInputEmbeddedInsertResult\(def, payload = \{\}\)/);
@@ -262,7 +266,8 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(voiceUi, /function initializeNativeVoiceInputBridge\(\)/);
   assert.match(voiceUi, /window\.HomeAINativeVoiceInput = Object\.assign\(existing, \{/);
   assert.match(voiceUi, /updateVoiceInputFromNative\(payload, payload\.status \|\| "pending"\)/);
-  assert.match(voiceUi, /if \(status === "transcribing" && payload\.text\) \{\s+voiceInputApplyProvisionalTranscript\(String\(payload\.text\)\);\s+\}/);
+  assert.match(voiceUi, /const partialText = status === "transcribing" && payload\.text \? String\(payload\.text\) : ""/);
+  assert.match(voiceUi, /voiceInputScheduleProvisionalTranscript\(partialText\)/);
 }
 
 testStaticLoadingAndCache();

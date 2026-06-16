@@ -7,6 +7,8 @@ const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted";
 const VOICE_INPUT_EMBEDDED_INSERT_MAX_ATTEMPTS = 3;
 const VOICE_INPUT_STREAMING_CHUNK_TARGET_MS = 300;
 const VOICE_INPUT_STATUS_PANEL_KEY = "homeAiVoiceInputStatusPanel";
+const VOICE_INPUT_PROVISIONAL_REVEAL_MAX_CHARS = 14;
+const VOICE_INPUT_PARTIAL_STATUS_RENDER_MS = 260;
 
 function ensureVoiceInputState() {
   if (!state.voiceInput || typeof state.voiceInput !== "object") {
@@ -467,11 +469,80 @@ function voiceInputDownsampleToPcm16(input, sourceRate, targetRate) {
 
 function voiceInputResetProvisionalComposer() {
   const voice = ensureVoiceInputState();
+  voiceInputCancelProvisionalFlush(voice);
   voice.provisionalComposer = null;
   voice.provisionalBaseText = "";
   voice.provisionalText = "";
+  voice.provisionalPendingText = "";
+  voice.provisionalLastFlushAt = 0;
   voice.provisionalCaret = 0;
   voice.provisionalLocked = false;
+}
+
+function voiceInputCancelProvisionalFlush(voice = ensureVoiceInputState()) {
+  const raf = voice.provisionalFlushRaf;
+  if (raf) {
+    try {
+      if (typeof cancelAnimationFrame === "function") cancelAnimationFrame(raf);
+      else clearTimeout(raf);
+    } catch (_) {}
+  }
+  voice.provisionalFlushRaf = 0;
+}
+
+function voiceInputScheduleFrame(callback) {
+  if (typeof requestAnimationFrame === "function") return requestAnimationFrame(callback);
+  return setTimeout(() => callback(Date.now()), 16);
+}
+
+function voiceInputNextProvisionalReveal(current, pending, force = false) {
+  const previous = String(current || "");
+  const target = String(pending || "");
+  if (force || !previous || !target.startsWith(previous)) return target;
+  const remaining = target.slice(previous.length);
+  if (!remaining) return target;
+  const budget = Math.max(1, Math.min(VOICE_INPUT_PROVISIONAL_REVEAL_MAX_CHARS, Math.ceil(remaining.length / 2)));
+  return previous + remaining.slice(0, budget);
+}
+
+function voiceInputFlushProvisionalTranscript(force = false) {
+  const voice = ensureVoiceInputState();
+  voice.provisionalFlushRaf = 0;
+  const pending = String(voice.provisionalPendingText || "").trim();
+  if (!pending) return;
+  const now = Date.now();
+  if (!force && voice.provisionalLastFlushAt && now - Number(voice.provisionalLastFlushAt || 0) < 16) {
+    voice.provisionalFlushRaf = voiceInputScheduleFrame(() => voiceInputFlushProvisionalTranscript(false));
+    return;
+  }
+  const next = voiceInputNextProvisionalReveal(voice.provisionalText, pending, force);
+  voice.provisionalLastFlushAt = now;
+  voiceInputApplyProvisionalTranscript(next);
+  if (!voice.provisionalLocked && next !== pending) {
+    voice.provisionalPendingText = pending;
+    voice.provisionalFlushRaf = voiceInputScheduleFrame(() => voiceInputFlushProvisionalTranscript(false));
+  } else {
+    voice.provisionalPendingText = "";
+  }
+}
+
+function voiceInputScheduleProvisionalTranscript(text, options = {}) {
+  const voice = ensureVoiceInputState();
+  const value = String(text || "").trim();
+  if (!value) return;
+  if (voice.target?.kind === "embedded-plugin") {
+    voiceInputApplyProvisionalTranscript(value);
+    return;
+  }
+  voice.provisionalPendingText = value;
+  if (options.force) {
+    voiceInputCancelProvisionalFlush(voice);
+    voiceInputFlushProvisionalTranscript(true);
+    return;
+  }
+  if (!voice.provisionalFlushRaf) {
+    voice.provisionalFlushRaf = voiceInputScheduleFrame(() => voiceInputFlushProvisionalTranscript(false));
+  }
 }
 
 function voiceInputApplyProvisionalTranscript(text) {
@@ -830,6 +901,7 @@ function closeVoiceInputOverlay() {
   voice.panelVisible = false;
   voice.statusDetail = "";
   voice.statusUpdatedAt = 0;
+  voice.lastPartialStatusRenderAt = 0;
   voice.nativeStatus = null;
   voice.partialCount = 0;
   voice.maxTimer = 0;
@@ -1100,8 +1172,12 @@ function voiceInputMaybeFlushStreamingChunks(options = {}) {
     if (result?.text) {
       voice.transcript = result.text;
       voice.corrections = result.corrections || null;
-      voiceInputApplyProvisionalTranscript(result.text);
-      renderVoiceInputOverlay();
+      voiceInputScheduleProvisionalTranscript(result.text);
+      const now = Date.now();
+      if (now - Number(voice.lastPartialStatusRenderAt || 0) >= VOICE_INPUT_PARTIAL_STATUS_RENDER_MS) {
+        voice.lastPartialStatusRenderAt = now;
+        renderVoiceInputOverlay();
+      }
     }
   }).catch((err) => {
     streaming.failed = true;
@@ -1583,6 +1659,7 @@ function handleVoiceInputEmbeddedInsertResult(def, payload = {}) {
 
 async function insertVoiceInputTranscript(mode = "append") {
   const voice = ensureVoiceInputState();
+  voiceInputCancelProvisionalFlush(voice);
   const text = String(voice.transcript || "").trim();
   if (!text) {
     setVoiceInputStatus("no_speech", { statusDetail: "没有可写入的转写文本" });
@@ -1875,21 +1952,36 @@ function updateVoiceInputFromNative(payload = {}, fallbackStatus = "pending") {
   const requestId = String(payload.requestId || "").trim();
   if (requestId && voice.nativeRequestId && requestId !== voice.nativeRequestId) return;
   const status = voiceInputNormalizeNativeStatus(payload.status || payload.state || fallbackStatus);
+  const partialText = status === "transcribing" && payload.text ? String(payload.text) : "";
   voice.nativeStatus = Object.assign({}, payload, { source: "native-shell" });
   if (voice.nativeCapture?.active && ["recording", "transcribing", "finalizing", "inserting"].includes(status)) {
     voice.nativeCapture.started = true;
   }
-  voice.partialCount = Number(voice.partialCount || 0) + (status === "transcribing" && payload.text ? 1 : 0);
-  setVoiceInputStatus(status, {
+  voice.partialCount = Number(voice.partialCount || 0) + (partialText ? 1 : 0);
+  const statusFields = {
     panelVisible: true,
     statusDetail: String(payload.detail || payload.message || "").slice(0, 120),
     error: status === "failed" ? String(payload.error || payload.message || "原生语音输入失败").slice(0, 180) : "",
     transcript: payload.text ? String(payload.text) : voice.transcript,
     voiceSessionId: String(payload.voiceSessionId || payload.voice_session_id || voice.voiceSessionId || "").slice(0, 160),
     corrections: payload.corrections || voice.corrections || null,
-  });
-  if (status === "transcribing" && payload.text) {
-    voiceInputApplyProvisionalTranscript(String(payload.text));
+  };
+  const now = Date.now();
+  const shouldRenderStatus = !partialText
+    || voice.status !== status
+    || now - Number(voice.lastPartialStatusRenderAt || 0) >= VOICE_INPUT_PARTIAL_STATUS_RENDER_MS;
+  if (shouldRenderStatus) {
+    setVoiceInputStatus(status, statusFields);
+    if (partialText) voice.lastPartialStatusRenderAt = now;
+  } else if (!(voice.dismissedByUser && status !== "idle" && !statusFields.forceVisible)) {
+    Object.assign(voice, statusFields, {
+      status,
+      panelVisible: status !== "idle" || Boolean(statusFields.panelVisible),
+      statusUpdatedAt: now,
+    });
+  }
+  if (partialText) {
+    voiceInputScheduleProvisionalTranscript(partialText);
   }
 }
 
