@@ -204,6 +204,9 @@ async function refreshEmbeddedPluginList(options = {}) {
     if (record.requestSeq === seq && record.workspaceId === workspaceId) {
       record.loading = false;
       updateNavigationControls();
+      if (typeof refreshPluginAppOrderSurfaces === "function") {
+        refreshPluginAppOrderSurfaces({ force: true });
+      }
     }
   }
   return record;

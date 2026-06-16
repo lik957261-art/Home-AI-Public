@@ -85,6 +85,10 @@ or raw plugin credentials.
   settle states. Codex plugin edition is Owner-only, but its app-icon drawer,
   reorder, and optional pinned bottom-tab affordances follow the same host
   rules as other external plugins.
+- Effective-workspace embedded plugin list loading is asynchronous. When the
+  list request completes, the host must refresh the Dock/drawer projection even
+  if the previous Dock was empty. A cold restart must not require switching to
+  another tab or repeated reloads before plugin app icons appear.
 - The Dock remains single-row. Its first visible card is `常用`, a compact menu
   of up to six usage-ranked plugin quick actions. The remaining cards are
   app/plugin launch entries. When one to six entries are visible,

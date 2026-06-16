@@ -212,6 +212,7 @@ assert.match(composerContextUi, /scheduleEmbeddedPluginViewportBroadcast\("plugi
 assert.match(embeddedPluginUi, /function embeddedPluginListState\(\)/);
 assert.match(embeddedPluginUi, /async function refreshEmbeddedPluginList\(options = \{\}\)/);
 assert.match(embeddedPluginUi, /\/api\/hermes-plugins\?\$\{params\.toString\(\)\}/);
+assert.match(embeddedPluginUi, /refreshPluginAppOrderSurfaces\(\{ force: true \}\);/);
 assert.match(embeddedPluginUi, /function embeddedPluginNavigationAvailable\(def\)/);
 assert.match(embeddedPluginUi, /function embeddedPluginCurrentWorkspaceId\(\)/);
 assert.match(embeddedPluginUi, /function codexPluginNavigationAvailable\(\)/);

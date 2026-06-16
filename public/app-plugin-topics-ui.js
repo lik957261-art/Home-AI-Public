@@ -2018,14 +2018,15 @@ function movePluginAppOrder(pluginId = "", direction = "up") {
   refreshPluginAppOrderSurfaces();
 }
 
-function refreshPluginAppOrderSurfaces() {
+function refreshPluginAppOrderSurfaces(options = {}) {
   const dock = $("topicPluginDock");
+  const force = options.force === true;
   const dockHadContent = typeof globalPluginDockLauncherPresent === "function"
     ? globalPluginDockLauncherPresent(dock)
     : Boolean(dock?.querySelector?.(".plugin-app-card"));
   const wasExpanded = Boolean(dock?.classList?.contains("global-plugin-dock-expanded"));
   if (typeof updateSidebarPluginLauncher === "function") updateSidebarPluginLauncher();
-  if (!dockHadContent || typeof renderPluginAppLauncher !== "function" || typeof setTopicPluginDock !== "function") return;
+  if ((!force && !dockHadContent) || typeof renderPluginAppLauncher !== "function" || typeof setTopicPluginDock !== "function") return;
   setTopicPluginDock(renderPluginAppLauncher());
   if (typeof applyGlobalPluginDockState === "function") applyGlobalPluginDockState(dock, wasExpanded);
   if (typeof updateTopicPluginDockChrome === "function") {
