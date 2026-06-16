@@ -136,6 +136,11 @@ the change is part of a dedicated infrastructure rename.
     the inline run-progress panel so their combined visible area stays within
     one conversation viewport. The full assistant receipt is rendered only after
     the message reaches a terminal state.
+  - If the active assistant message has not received user-visible text deltas
+    yet, safe run events such as model-stream start and output-start may project
+    a bounded streaming receipt preview into the same assistant message. This is
+    UI-only progress feedback; it must not mutate final assistant content, raw
+    function arguments, private tool output, or persisted receipt text.
   - After an assistant receipt reaches a terminal state, detailed run-progress
     rows should collapse into a small `模型状态` footer tag next to Usage/Skill.
     Opening the tag shows historical rows from the first retained event, keeps

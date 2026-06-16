@@ -76,4 +76,15 @@ const emptyRunningHtml = context.renderText("", {
 assert.match(emptyRunningHtml, /streaming-receipt empty/);
 assert.match(emptyRunningHtml, /hidden/);
 
+const reasoningPreviewHtml = context.renderText("", {
+  id: "assistant-reasoning",
+  role: "assistant",
+  status: "running",
+  streamingRunPreview: "正在整理上下文\n模型流已连接\n开始调用工具",
+});
+assert.match(reasoningPreviewHtml, /data-streaming-receipt="1"/);
+assert.doesNotMatch(reasoningPreviewHtml, /streaming-receipt empty/);
+assert.match(reasoningPreviewHtml, /正在整理上下文/);
+assert.match(reasoningPreviewHtml, /开始调用工具/);
+
 console.log("streaming receipt preview UI tests passed");

@@ -108,11 +108,32 @@ function appendRunEventToCurrentThread(payload) {
     state.currentThread.activeRunIds = payload.thread.activeRunIds || [];
     state.currentThread.updatedAt = payload.thread.updatedAt || state.currentThread.updatedAt;
   }
+  appendRunEventStreamingReceiptPreview(state.currentThread, event, payload);
   if (scheduleRunProgressRenderForRun(event.runId || payload.runId || "")) {
     clearRunProgressFallbackThreadRefresh(payload.threadId);
   } else {
     scheduleRunProgressFallbackThreadRefresh(payload.threadId);
   }
+}
+
+function appendRunEventStreamingReceiptPreview(thread, event, payload = {}) {
+  if (!thread || !event) return;
+  const runId = event.runId || payload.runId || "";
+  const message = messageForRunProgress(thread, runId);
+  if (!message?.id || message.role !== "assistant" || !messageStatusIsActive(message)) return;
+  if (String(message.content || "").trim()) return;
+  const title = runEventTitle(event);
+  const preview = runEventPreviewLabel(event);
+  const line = [title, preview].filter(Boolean).join(": ").trim();
+  if (!line) return;
+  const lines = Array.isArray(message.streamingRunPreviewLines)
+    ? message.streamingRunPreviewLines.slice()
+    : String(message.streamingRunPreview || "").split(/\n/).filter(Boolean);
+  if (lines[lines.length - 1] !== line) lines.push(line);
+  message.streamingRunPreviewLines = lines.slice(-6);
+  message.streamingRunPreview = message.streamingRunPreviewLines.join("\n");
+  message.updatedAt = payload.updatedAt || new Date().toISOString();
+  if (typeof scheduleStreamingMessageRender === "function") scheduleStreamingMessageRender(message);
 }
 
 function runEventPreviewField(event, fields = []) {

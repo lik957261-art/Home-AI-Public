@@ -49,6 +49,38 @@ function voiceInputNativeShellActive() {
   }
 }
 
+function voiceInputNativeBridgeAvailable() {
+  if (!voiceInputNativeShellActive()) return false;
+  try {
+    const capability = window.HomeAINativeVoiceInputCapability || {};
+    const declared = capability.voiceCapture === true
+      || document.documentElement?.dataset?.nativeVoiceInput === "1"
+      || localStorage.getItem("homeAI.nativeVoiceInput") === "1";
+    if (!declared) return false;
+    return typeof window.webkit?.messageHandlers?.homeAI?.postMessage === "function";
+  } catch (_) {
+    return false;
+  }
+}
+
+function voiceInputPostNativeBridge(type, fields = {}) {
+  if (!voiceInputNativeBridgeAvailable()) return false;
+  const voice = ensureVoiceInputState();
+  const payload = Object.assign({
+    type,
+    protocolVersion: 1,
+    requestId: voice.nativeRequestId || voiceInputRequestId("voice_native"),
+  }, fields);
+  voice.nativeRequestId = payload.requestId;
+  try {
+    window.webkit.messageHandlers.homeAI.postMessage(payload);
+    return true;
+  } catch (err) {
+    console.warn("[voice-input] native bridge post failed", err?.message || err);
+    return false;
+  }
+}
+
 function voiceInputStatusPanelExpanded() {
   try {
     const params = new URLSearchParams(window.location.search || "");
@@ -329,6 +361,46 @@ function voiceInputRequestScope() {
     threadId: voice.target?.composer?.threadId || state.currentThreadId || "",
     composerId: voice.target?.composer?.id || "home-ai-native",
   };
+}
+
+function voiceInputStartNativeBridgeCapture(target) {
+  if (target?.kind !== "native" || !voiceInputNativeBridgeAvailable()) return false;
+  const voice = ensureVoiceInputState();
+  const requestId = voiceInputRequestId("voice_native");
+  voice.nativeRequestId = requestId;
+  voice.nativeCapture = {
+    active: true,
+    requestId,
+    started: false,
+    postedAt: Date.now(),
+  };
+  setVoiceInputStatus("preparing", { statusDetail: "交给 iOS 原生麦克风" });
+  const ok = voiceInputPostNativeBridge("voiceInput.start", Object.assign({}, voiceInputRequestScope(), {
+    requestId,
+    mode: "append",
+  }));
+  if (!ok) {
+    voice.nativeCapture = null;
+    voice.nativeRequestId = "";
+    return false;
+  }
+  return true;
+}
+
+function voiceInputStopNativeBridgeCapture(action = "stop") {
+  const voice = ensureVoiceInputState();
+  if (!voice.nativeCapture?.active) return false;
+  const type = action === "cancel" ? "voiceInput.cancel" : "voiceInput.stop";
+  const ok = voiceInputPostNativeBridge(type, {
+    requestId: voice.nativeCapture.requestId || voice.nativeRequestId || voiceInputRequestId("voice_native"),
+  });
+  if (action === "cancel") {
+    voice.nativeCapture = null;
+    setVoiceInputStatus("cancelled", { statusDetail: "录音已取消" });
+  } else {
+    setVoiceInputStatus("finalizing", { statusDetail: "等待原生转写" });
+  }
+  return ok;
 }
 
 function voiceInputEmbeddedComposerAvailable(def) {
@@ -877,6 +949,11 @@ function scheduleVoiceInputClickSuppressionClear() {
 
 function cancelVoiceInput() {
   const voice = ensureVoiceInputState();
+  if (voice.nativeCapture?.active) {
+    voiceInputStopNativeBridgeCapture("cancel");
+    document.body?.classList?.remove("voice-input-press-active");
+    return;
+  }
   voice.cancelRequested = true;
   voice.pendingStopAfterStart = false;
   voice.chunks = [];
@@ -1204,6 +1281,7 @@ async function startVoiceInputRecording(event, options = {}) {
   voiceInputResetProvisionalComposer();
   event?.preventDefault?.();
   setVoiceInputStatus("checking", { statusDetail: "检查本地 ASR 与权限状态" });
+  if (voiceInputStartNativeBridgeCapture(target)) return;
   try {
     const permissionStatePromise = voiceInputMicrophonePermissionState();
     const serviceStatus = await voiceInputLoadStatus();
@@ -1271,6 +1349,10 @@ function stopVoiceInputRecording() {
   voice.maxTimer = 0;
   if (voice.recordingTicker) clearInterval(voice.recordingTicker);
   voice.recordingTicker = 0;
+  if (voice.nativeCapture?.active) {
+    voiceInputStopNativeBridgeCapture("stop");
+    return;
+  }
   if (voice.status === "checking" || voice.status === "requesting" || voice.status === "preparing") {
     voice.cancelRequested = true;
     voice.pendingStopAfterStart = false;
@@ -1790,8 +1872,13 @@ function voiceInputNormalizeNativeStatus(status) {
 
 function updateVoiceInputFromNative(payload = {}, fallbackStatus = "pending") {
   const voice = ensureVoiceInputState();
+  const requestId = String(payload.requestId || "").trim();
+  if (requestId && voice.nativeRequestId && requestId !== voice.nativeRequestId) return;
   const status = voiceInputNormalizeNativeStatus(payload.status || payload.state || fallbackStatus);
   voice.nativeStatus = Object.assign({}, payload, { source: "native-shell" });
+  if (voice.nativeCapture?.active && ["recording", "transcribing", "finalizing", "inserting"].includes(status)) {
+    voice.nativeCapture.started = true;
+  }
   voice.partialCount = Number(voice.partialCount || 0) + (status === "transcribing" && payload.text ? 1 : 0);
   setVoiceInputStatus(status, {
     panelVisible: true,
@@ -1831,14 +1918,17 @@ function initializeNativeVoiceInputBridge() {
         voice.target = { kind: "native", composer: voiceInputMainComposerDefinition(), button: $("sendMessage") };
       }
       if (payload.text) await insertVoiceInputTranscript(String(payload.mode || "append") === "replace" ? "replace" : "append");
+      voice.nativeCapture = null;
       return true;
     },
     failed(payload = {}) {
       updateVoiceInputFromNative(Object.assign({}, payload, { status: "failed" }), "failed");
+      ensureVoiceInputState().nativeCapture = null;
       return true;
     },
     cancelled(payload = {}) {
       updateVoiceInputFromNative(Object.assign({}, payload, { status: "cancelled" }), "cancelled");
+      ensureVoiceInputState().nativeCapture = null;
       return true;
     },
   });

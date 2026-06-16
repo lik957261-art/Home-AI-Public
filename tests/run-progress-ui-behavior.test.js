@@ -737,6 +737,37 @@ testState.runProgressFallbackRefreshThreadId = "";
 
 fallbackRefreshCalls = 0;
 fullRenderCalls = 0;
+testState.currentThread = {
+  id: "thread_reasoning_preview",
+  activeRunId: "resp_reasoning_preview",
+  activeRunIds: ["resp_reasoning_preview"],
+  messages: [
+    {
+      id: "msg_current",
+      role: "assistant",
+      status: "running",
+      runId: "resp_reasoning_preview",
+      responseRunId: "resp_reasoning_preview",
+      content: "",
+    },
+  ],
+  events: [],
+};
+appendRunEventToCurrentThread({
+  threadId: "thread_reasoning_preview",
+  runId: "resp_reasoning_preview",
+  event: {
+    runId: "resp_reasoning_preview",
+    event: "run.model_stream_started",
+    timestamp: "2026-05-27T13:11:00.000Z",
+    preview: "provider connected",
+  },
+});
+assert.match(testState.currentThread.messages[0].streamingRunPreview, /模型流已连接/);
+assert.match(testState.currentThread.messages[0].streamingRunPreview, /provider connected/);
+
+fallbackRefreshCalls = 0;
+fullRenderCalls = 0;
 testState.currentThread = { id: "thread_event_missing_message", messages: [], events: [] };
 appendRunEventToCurrentThread({
   threadId: "thread_event_missing_message",

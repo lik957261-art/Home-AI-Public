@@ -80,6 +80,11 @@ Current native capabilities:
   `POST /api/native/devices/register`.
 - `ios_share_extension`: iOS Share Extension uploads inbound files through Home
   AI Directory APIs or a future dedicated native share endpoint.
+- `native_voice_input_bridge`: native microphone capture is exposed to the PWA
+  only after the shell injects an explicit voice capability marker. The current
+  manager uses `AVAudioEngine`, mono PCM16 chunks, and Home AI
+  `/api/voice-input/stream/*` APIs with `X-Hermes-Web-Key`; final text still
+  enters the active Home AI Composer through the host composer insertion path.
 
 Near-term priority capabilities:
 
@@ -89,11 +94,11 @@ Near-term priority capabilities:
   and optionally exposing notification action buttons such as complete, snooze,
   or open. Home AI Server still decides notification content and authorization.
 
-- `native_voice_input_overlay`: native microphone/voice capture and editing
-  layer, described in the Xcode workspace's
-  `docs/native-voice-input-overlay.md`, reusing the Home AI
-  `/api/voice-input/*` routes and PWA composer insertion path. It is not a
-  system input method and must not simulate keyboard entry.
+- `native_voice_input_overlay`: complete the native voice status/feedback loop
+  described in the Xcode workspace's `docs/native-voice-input-overlay.md`,
+  including bounded status display, partial transcript projection, and later
+  provisional Composer replacement. It is not a system input method and must not
+  simulate keyboard entry.
 - `system_share_receive`: system-level share, open-in, document picker,
   universal-link, or extension receive flows that attach inbound content to
   authorized Home AI workspaces, threads, directories, or plugin contexts.
@@ -139,6 +144,19 @@ workspace/thread/plugin scope, and final send behavior.
 The native shell must not become a system input method and must not inject text
 by simulating keyboard events. Confirmed text must be inserted through the Home
 AI host composer API or the active plugin composer protocol.
+
+The PWA must not infer voice support from the generic native `homeAI` message
+handler alone. Older shells can expose that handler for settings, Health, APNs,
+or debug messages without implementing microphone capture. The voice branch is
+enabled only when a native-shell signal is present plus at least one explicit
+voice capability marker such as:
+
+- `window.HomeAINativeVoiceInputCapability.voiceCapture === true`;
+- `document.documentElement.dataset.nativeVoiceInput === "1"`;
+- `localStorage.homeAI.nativeVoiceInput === "1"`.
+
+If the explicit marker is absent, the standalone PWA/browser recording path is
+used unchanged.
 
 The target native-shell voice experience is direct Composer composition. The
 native shell should not present a second transcript text box as the primary

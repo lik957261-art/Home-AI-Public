@@ -43,6 +43,16 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted"/);
   assert.match(voiceUi, /function voiceInputMicrophonePermissionState\(\)/);
   assert.match(voiceUi, /function voiceInputAcquireMicrophoneStream\(options = \{\}\)/);
+  assert.match(voiceUi, /function voiceInputNativeBridgeAvailable\(\)/);
+  assert.match(voiceUi, /window\.HomeAINativeVoiceInputCapability/);
+  assert.match(voiceUi, /homeAI\.nativeVoiceInput/);
+  assert.match(voiceUi, /document\.documentElement\?\.dataset\?\.nativeVoiceInput === "1"/);
+  assert.match(voiceUi, /function voiceInputPostNativeBridge\(type, fields = \{\}\)/);
+  assert.match(voiceUi, /window\.webkit\.messageHandlers\.homeAI\.postMessage\(payload\)/);
+  assert.match(voiceUi, /function voiceInputStartNativeBridgeCapture\(target\)/);
+  assert.match(voiceUi, /voiceInputPostNativeBridge\("voiceInput.start"/);
+  assert.match(voiceUi, /function voiceInputStopNativeBridgeCapture\(action = "stop"\)/);
+  assert.match(voiceUi, /voiceInputPostNativeBridge\(type, \{/);
   assert.doesNotMatch(voiceUi, /function voiceInputRefreshMicHoldFromForeground\(\)/);
   assert.doesNotMatch(voiceUi, /voiceInputRefreshMicHoldFromForeground/);
   assert.match(voiceUi, /voiceInputStreamIsLive\(voice\.micHoldStream\)/);
@@ -53,6 +63,7 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /if \(voice\.statusPromise\) return voice\.statusPromise/);
   assert.match(voiceUi, /function voiceInputPrewarmStatus\(\)/);
   assert.match(voiceUi, /const permissionStatePromise = voiceInputMicrophonePermissionState\(\)/);
+  assert.match(voiceUi, /if \(voiceInputStartNativeBridgeCapture\(target\)\) return;/);
   assert.match(voiceUi, /function handleVoiceInputStopButtonPointerDown\(event, button\)/);
   assert.match(voiceUi, /function endVoiceInputStopButtonPress\(event, options = \{\}\)/);
   assert.match(voiceUi, /function voiceInputSetButtonVisualLabel\(button, label\)/);
@@ -83,6 +94,8 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /target: \{ kind: "native", composer, button, allowStopMode \}/);
   assert.match(voiceUi, /const allowStopMode = voiceInputShouldAllowStopModeForPress\(button, composer\);[\s\S]*?voiceInputNativeComposerAvailable\(composer, \{ allowStopMode \}\)/);
   assert.match(voiceUi, /if \(longPress && \["checking", "requesting", "preparing", "recording", "finalizing"\]\.includes\(voice\.status\)\) \{[\s\S]*?stopVoiceInputRecording\(\);/);
+  assert.match(voiceUi, /if \(voice\.nativeCapture\?\.active\) \{[\s\S]*?voiceInputStopNativeBridgeCapture\("stop"\);[\s\S]*?return;[\s\S]*?\}/);
+  assert.match(voiceUi, /if \(voice\.nativeCapture\?\.active\) \{[\s\S]*?voiceInputStopNativeBridgeCapture\("cancel"\);/);
   assert.match(voiceUi, /voiceInputNativeComposerAvailable\(target\.composer \|\| voiceInputMainComposerDefinition\(\), \{[\s\S]*?allowStopMode: Boolean\(target\.allowStopMode\),/);
   assert.match(voiceUi, /if \(!longPress && typeof sendMessage === "function"\) \{[\s\S]*?void sendMessage\(event\);/);
   assert.match(voiceUi, /voice\.suppressNextClick = true;[\s\S]*?voice\.suppressClickButton = button;/);

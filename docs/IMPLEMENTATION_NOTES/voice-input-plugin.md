@@ -250,6 +250,21 @@ bridge capability is present. Standalone PWA behavior stays on the existing
 browser recorder/host voice-input path and must not change because the native
 shell path exists.
 
+The iOS shell must declare voice capture explicitly before the PWA uses the
+native bridge. A generic `window.webkit.messageHandlers.homeAI` handler is not
+enough because older shells may expose the Home AI bridge without implementing
+voice input. The current handshake is:
+
+- `localStorage.homeAI.nativeShell === "ios"` or `nativeShell=ios`;
+- plus `window.HomeAINativeVoiceInputCapability.voiceCapture === true`,
+  `document.documentElement.dataset.nativeVoiceInput === "1"`, or
+  `localStorage.homeAI.nativeVoiceInput === "1"`;
+- plus `window.webkit.messageHandlers.homeAI.postMessage`.
+
+When the handshake is present, long-press Send posts
+`voiceInput.start|stop|cancel` to the native shell. When it is absent, the
+ordinary browser/PWA `MediaRecorder` path remains the fallback.
+
 Use a bounded composition session instead of appending plain text events:
 
 ```text
@@ -318,7 +333,13 @@ Implementation should follow the service-first rule:
   - owns upload/transcribe/correction API glue and calls services;
 - `public/app-voice-input-ui.js`
   - owns the composer send-button long-press gesture, host overlay, recorder
-    state, host draft insertion, postMessage protocol, and visible status;
+    fallback, explicit iOS native bridge detection, `voiceInput.*` native
+    messages, native status/partial/final callbacks, host composer insertion,
+    and pending correction commit tracking;
+- `/Users/xuxin/Xcode/Home AI/Home AI/HomeAIVoiceInputManager.swift`
+  - owns iOS microphone permission, `AVAudioSession`, `AVAudioEngine` capture,
+    mono PCM16 conversion, 300 ms chunking, Home AI stream API calls using
+    `X-Hermes-Web-Key`, and native-to-PWA callback injection;
 - `tests/voice-input-*.test.js`
   - own focused service, route, and UI bridge coverage.
 
@@ -514,10 +535,11 @@ Configuration must be public-deployable:
 - `HERMES_MOBILE_VOICE_INPUT_AUDIO_RETENTION_SECONDS`;
 - `HERMES_MOBILE_VOICE_INPUT_DEBUG_AUDIO_RETENTION_SECONDS`.
 
-For FunASR local streaming, the browser sends mono PCM16 chunks through Home AI
-HTTP routes under `/api/voice-input/stream/*`; the browser must not connect
-directly to `127.0.0.1:8002` because iOS/PWA clients run on a different
-device. Home AI proxies the chunks to the local FunASR service's
+For FunASR local streaming, the browser/PWA recorder or the iOS native shell
+sends mono PCM16 chunks through Home AI HTTP routes under
+`/api/voice-input/stream/*`; clients must not connect directly to
+`127.0.0.1:8002` because iOS/PWA clients run on a different device. Home AI
+proxies the chunks to the local FunASR service's
 `/v1/audio/transcriptions/stream/start|chunk|final|cancel` endpoints. Partial
 results use `paraformer-zh-streaming` for low-latency feedback, while final
 results are re-run through the offline FunASR model with punctuation so the
@@ -911,6 +933,9 @@ Mitigations:
 - suspend global plugin Dock gestures while the overlay is active;
 - treat microphone permission denial as a normal recoverable state;
 - use idempotent voice session ids and insertion request ids;
+- require the explicit native voice capability marker before sending
+  `voiceInput.*` messages, so older native shells with only the generic Home AI
+  bridge continue to use the PWA fallback instead of hanging;
 - clear pending injection on plugin iframe reload, route change, workspace
   change, or visibility loss;
 - require iOS installed-PWA harness evidence for overlay geometry and

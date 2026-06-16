@@ -772,7 +772,9 @@ composer send-button tap versus long-press behavior, release-to-transcribe,
 cancel-without-transcribe, no native text selection/callout on long press,
 host draft auto-insertion, silent close for too-short recordings or permission
 prompt release-cancel, wrong-origin postMessage rejection, stale voice session
-rejection, unsupported plugin bridge insert/replace/submit actions, over-limit
+rejection, explicit native-shell voice capability detection before using
+`window.webkit.messageHandlers.homeAI`, unsupported plugin bridge
+insert/replace/submit actions, over-limit
 text, native-shell status panel visibility on voice-entry press before
 microphone permission resolves, status projection for permission/setup,
 recording, ASR, insertion, cancellation, no-speech, and failure states, no
@@ -798,6 +800,12 @@ draft or plugin draft only after the valid host/bridge acknowledgement.
 Public-release closure must also run the privacy scan and productization check
 so installs without a local ASR backend fail disabled instead of depending on
 private Mac paths.
+Active assistant streaming-receipt changes that affect visible in-progress
+output must also run `node tests\run-progress-ui-behavior.test.js` and
+`node tests\streaming-receipt-preview-ui.test.js`. They must prove safe
+run-event previews appear before the final assistant text when no text delta has
+arrived, stay fixed-line and non-scrolling, and do not become persisted final
+assistant content.
 NAS Growth audio parity must cover the platform-specific transcription path:
 Windows may use `scripts\transcribe-reading-audio.ps1`, while Linux/NAS must use
 `scripts\transcribe-reading-audio.js` against the local Whisper large v3 Turbo
