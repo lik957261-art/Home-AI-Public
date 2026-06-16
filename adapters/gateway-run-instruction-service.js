@@ -2,7 +2,7 @@
 
 const { explicitSearchContext } = require("./gateway-run-search-budget-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260616-moira-interpretation-context-mcp-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260616-moira-analysis-bundle-mcp-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -92,6 +92,7 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_moira_list_records",
         "mcp_moira_get_chart_evidence",
         "mcp_moira_get_interpretation_context",
+        "mcp_moira_get_analysis_evidence_bundle",
         "mcp_moira_get_year_forecast_evidence",
         "mcp_moira_get_current_progression_evidence",
         "mcp_moira_get_pick_day_evidence",
@@ -278,9 +279,9 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "moira")) {
       lines.push(
-        "Current tool schema override: the `moira` toolset is enabled for this run. Callable function names normally begin with `mcp_moira_`, including `mcp_moira_list_records`, `mcp_moira_get_chart_evidence`, `mcp_moira_get_interpretation_context`, `mcp_moira_get_year_forecast_evidence`, `mcp_moira_get_current_progression_evidence`, `mcp_moira_get_pick_day_evidence`, `mcp_moira_get_monthly_selection_evidence`, `mcp_moira_get_transit_event_evidence`, `mcp_moira_get_eclipse_event_evidence`, `mcp_moira_get_aspect_evidence`, `mcp_moira_get_pick_change_position_evidence`, `mcp_moira_get_fixed_star_change_position_evidence`, `mcp_moira_get_rule_migration_status`, `mcp_moira_get_rule_commentary_readiness`, and `mcp_moira_get_functional_coverage_status`.",
+        "Current tool schema override: the `moira` toolset is enabled for this run. Callable function names normally begin with `mcp_moira_`, including `mcp_moira_list_records`, `mcp_moira_get_chart_evidence`, `mcp_moira_get_interpretation_context`, `mcp_moira_get_analysis_evidence_bundle`, `mcp_moira_get_year_forecast_evidence`, `mcp_moira_get_current_progression_evidence`, `mcp_moira_get_pick_day_evidence`, `mcp_moira_get_monthly_selection_evidence`, `mcp_moira_get_transit_event_evidence`, `mcp_moira_get_eclipse_event_evidence`, `mcp_moira_get_aspect_evidence`, `mcp_moira_get_pick_change_position_evidence`, `mcp_moira_get_fixed_star_change_position_evidence`, `mcp_moira_get_rule_migration_status`, `mcp_moira_get_rule_commentary_readiness`, and `mcp_moira_get_functional_coverage_status`.",
         "Use Moira MCP only as a read-only evidence source for saved chart records, birth chart structure, annual-flow evidence, current/progression evidence, PICK/择日 candidate evidence, 择月 candidate evidence, transit/aspect/eclipse/change-position evidence, and rule/coverage readiness facts. The model owns final interpretation; do not claim Moira generated a complete fortune narrative.",
-        "When starting a broad Moira chart analysis, prefer `mcp_moira_get_interpretation_context` first when present; it returns the bounded evidence-routing packet and recommended follow-up Moira MCP calls without generating a final fortune narrative.",
+        "When starting a broad Moira chart analysis, prefer `mcp_moira_get_analysis_evidence_bundle` first when present; it returns the bounded chart, annual/current, aspect, transit, eclipse and optional PICK/month evidence sections without generating a final fortune narrative. Use `mcp_moira_get_interpretation_context` when only routing/completeness guidance is needed.",
         "Moira PICK/择日吉凶 verdicts are not authoritative unless the returned evidence explicitly includes promoted rule commentary. Treat status-only PICK/month evidence as calculation facts, not as a complete auspicious/inauspicious judgment.",
         "Do not pass `workspace_id` or `workspaceId` to Moira MCP calls. The Gateway profile is already bound to one Moira workspace/key; if the callable schema lacks `mcp_moira_*` while `Enabled toolsets` includes `moira`, report a Gateway schema mismatch instead of inventing astrology evidence."
       );

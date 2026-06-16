@@ -1173,8 +1173,8 @@ assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt
 assert.match(gatewayRunInstructionServiceJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `chatgpt_image_erase`/);
 assert.match(serverJs, /GATEWAY_TOOL_SCHEMA_EPOCH/);
-assert.match(serverJs, /20260616-moira-interpretation-context-mcp-v1/);
-assert.match(gatewayRunInstructionServiceJs, /20260616-moira-interpretation-context-mcp-v1/);
+assert.match(serverJs, /20260616-moira-analysis-bundle-mcp-v1/);
+assert.match(gatewayRunInstructionServiceJs, /20260616-moira-analysis-bundle-mcp-v1/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT[\s\S]*\|\| "0"/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS[\s\S]*\|\| "8000"/);
 assert.match(serverJs, /enabled: GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED \|\| GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED/);
@@ -1196,6 +1196,7 @@ assert.match(gatewayRunInstructionServiceJs, /mcp_finance_get_owner_stock_summar
 assert.match(gatewayRunInstructionServiceJs, /mcp_finance_apply_owner_stock_position_delta/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_health_records_get_summary/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_interpretation_context/);
+assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_analysis_evidence_bundle/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_pick_day_evidence/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_monthly_selection_evidence/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_current_progression_evidence/);

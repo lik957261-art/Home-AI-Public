@@ -216,6 +216,7 @@ The 2026-06-16 Moira evidence upgrade exposes these callable names when the
 - `mcp_moira_list_records`
 - `mcp_moira_get_chart_evidence`
 - `mcp_moira_get_interpretation_context`
+- `mcp_moira_get_analysis_evidence_bundle`
 - `mcp_moira_get_year_forecast_evidence`
 - `mcp_moira_get_current_progression_evidence`
 - `mcp_moira_get_pick_day_evidence`
@@ -230,7 +231,7 @@ The 2026-06-16 Moira evidence upgrade exposes these callable names when the
 - `mcp_moira_get_functional_coverage_status`
 
 The Mobile schema epoch for this callable set is
-`20260616-moira-interpretation-context-mcp-v1`. Before production exposure, prove the Moira
+`20260616-moira-analysis-bundle-mcp-v1`. Before production exposure, prove the Moira
 service schema, Gateway selected-profile callable schema, Mobile instruction
 hints, and selected worker schema all include the Moira callables. Moira uses
 ordinary workspace-private binding: each effective workspace must have its own
