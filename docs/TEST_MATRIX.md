@@ -2374,7 +2374,7 @@ workspace, no Owner/`weixin_wuping` credential sharing, service schema
 `moira.get_rule_migration_status`, `moira.get_rule_commentary_readiness`, and
 `moira.get_functional_coverage_status`,
 Mobile hints for the matching `mcp_moira_*` callables, and schema epoch
-`20260616-moira-complete-evidence-mcp-v1`. A `--skip-gateway` closure
+`20260616-moira-interpretation-context-mcp-v1`. A `--skip-gateway` closure
 smoke is source/service evidence only; production closure still requires a
 selected-profile callable schema smoke after app/plugin deploy and Gateway
 profile restart.
