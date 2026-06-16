@@ -3,6 +3,7 @@
 const { createAccessKeyApiRoutes } = require("./access-key-api-routes");
 const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes");
 const { createMobileApiFamilyProfileComposition } = require("./mobile-api-family-profile-composition");
+const { createNativeDeviceApiRoutes } = require("./native-device-api-routes");
 const { createPlatformCurrencyApiRoutes } = require("./platform-currency-api-routes");
 const { createPublicApiRoutes } = require("./public-api-routes");
 const { createPushApiRoutes } = require("./push-api-routes");
@@ -134,6 +135,8 @@ function createMobileApiPlatformComposition(deps = {}) {
     workspacePrincipal: deps.workspacePrincipal,
   });
 
+  const nativeDeviceApiRoutes = createNativeDeviceApiRoutes({ appRouteUrl: deps.appRouteUrl, nativeNotificationService: deps.nativeNotificationService, readBody: deps.readBody, requireWorkspaceAccess: deps.requireWorkspaceAccess, sendJson: deps.sendJson, workspacePrincipal: deps.workspacePrincipal });
+
   const workspaceApiRoutes = createWorkspaceApiRoutes({
     bootTrace: deps.bootTrace,
     loadCatalog: deps.loadCatalog,
@@ -177,6 +180,7 @@ function createMobileApiPlatformComposition(deps = {}) {
     routes: {
       accessKeyApiRoutes,
       familyProfileApiRoutes,
+      nativeDeviceApiRoutes,
       ownerElevationApiRoutes,
       platformCurrencyApiRoutes,
       publicApiRoutes,

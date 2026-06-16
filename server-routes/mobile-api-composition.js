@@ -23,7 +23,7 @@ function createMobileApiComposition(deps = {}) {
   const {
     accessKeyApiRoutes,
     familyProfileApiRoutes,
-    ownerElevationApiRoutes,
+    nativeDeviceApiRoutes, ownerElevationApiRoutes,
     platformCurrencyApiRoutes,
     publicApiRoutes,
     pushApiRoutes,
@@ -309,6 +309,7 @@ function createMobileApiComposition(deps = {}) {
     learningParentReviewApiRoutes,
     learningProgramApiRoutes,
     noteReceiptApiRoutes,
+    nativeDeviceApiRoutes,
     ownerElevationApiRoutes,
     publicApiRoutes,
     pushApiRoutes,

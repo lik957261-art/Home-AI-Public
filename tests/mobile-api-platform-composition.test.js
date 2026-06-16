@@ -49,6 +49,11 @@ function createDeps(options = {}) {
       loadCatalog: () => ({ workspaces: [{ id: "owner", label: "Owner" }] }),
       localWorkspaceDefaults: () => ({ workspaceId: "owner" }),
       mobileSqliteStore: () => null,
+      nativeNotificationService: {
+        registerDevice: () => ({ ok: true }),
+        sendToWorkspace: () => ({ ok: true }),
+        unregisterDevice: () => ({ ok: true }),
+      },
       nowIso: () => "2026-06-07T00:00:00.000Z",
       ownerSetupStatus: () => ({ setupRequired: false }),
       pendingWeixinOutboundDeliveries: () => [],
@@ -111,6 +116,7 @@ function testCompositionContract() {
   assert.deepEqual(Object.keys(composition.routes).sort(), [
     "accessKeyApiRoutes",
     "familyProfileApiRoutes",
+    "nativeDeviceApiRoutes",
     "ownerElevationApiRoutes",
     "platformCurrencyApiRoutes",
     "publicApiRoutes",

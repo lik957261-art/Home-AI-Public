@@ -93,6 +93,7 @@ const { createWorkspaceSystemProvisioningExecutorService } = require("./adapters
 const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
 const { createWeixinRuntimeCompositionService } = require("./adapters/weixin-runtime-composition-service");
 const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service"); const { createActionInboxService } = require("./adapters/action-inbox-service"); const { createDataContextService } = require("./adapters/data-context-service");
+const { createNativeNotificationService } = require("./adapters/native-notification-service");
 const { createMobileApiComposition } = require("./server-routes/mobile-api-composition");
 const { createMobileRuntimeEnvironment } = require("./adapters/mobile-runtime-environment-service");
 const runtimeEnv = createMobileRuntimeEnvironment({ toolRoot: __dirname });
@@ -581,12 +582,19 @@ const learningCoinAwardService = createLearningCoinAwardService({
   onAward: (award) => broadcast({ type: "learning-coins.updated", workspaceId: award.workspaceId, studentId: award.studentId }),
 });
 const actionInboxService = createActionInboxService({ compactText, makeId, nowIso, store: mobileSqliteStore });
+const nativeNotificationService = createNativeNotificationService({
+  env: process.env,
+  hashValue,
+  logger: console,
+  nowIso,
+  store: mobileSqliteStore,
+});
 webPushDeliveryService = createWebPushDeliveryService({
   actionInboxService: () => actionInboxService, appRouteUrl, automationProvider: () => automationProvider, chatGroupMemberWorkspaceIds, compactText, dedupe,
   effectiveWebPushSubject, effectiveWebPushVapidPath, hashValue, findWorkspace: (...args) => findWorkspace(...args),
   isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
   loadCatalog: (...args) => loadCatalog(...args), loadRuntimeConfig, logger: console, makeId, maybeReconcileKanbanDependencyBlocks, normalizeStringList,
-  nowIso, publicTodo, saveState, state: () => state, todoProvider: () => todoProvider, useKanbanTodoBackend,
+  nativeNotificationService, nowIso, publicTodo, saveState, state: () => state, todoProvider: () => todoProvider, useKanbanTodoBackend,
   webpush, workspaceLabel, workspaceIdForPrincipal, workspacePrincipal,
   automationDeliverableExtensions: AUTOMATION_PUSH_DELIVERABLE_EXTENSIONS,
   automationDeliverableFutureGraceMs: AUTOMATION_PUSH_DELIVERABLE_FUTURE_GRACE_MS,
@@ -1306,6 +1314,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: composedMobileApiSe
   isSingleWindowConversationTaskGroupId, joinLocalPath: (parent, name) => path.join(parent, name), kanbanCardProvider, kanbanCaseShareService, kanbanErrorResponse,
   kanbanReadingWorkflowService, kanbanSingleCardCasePayload, kanbanStudyArtifactService, learningCardGuidanceService, learningCoinService, listWorkspaceAccessKeyStatuses, loadCatalog, localWorkspaceDefaults,
   makeId, maxUploadBytes: MAX_UPLOAD_BYTES, maybeReconcileKanbanDependencyBlocks, mimeFor, mobileSqliteStore, mkdir: (value) => fs.mkdirSync(value),
+  nativeNotificationService,
   normalizeChatGroup, normalizeKanbanMaxParallel, normalizeKanbanNotificationAssignee, normalizeKanbanPlanReasoningEffort, normalizeStringList,
   nowIso, ownerSetupStatus, pendingWeixinOutboundDeliveries, planKanbanMultiAgent, publicConcurrencyForAuth,
   publicGatewayPoolStatusForAuth, publicKanbanCardDetail, publicOwnerElevationStatus, publicPushStatus: webPushDeliveryService.publicPushStatus, publicReasoningInfoForAuth,

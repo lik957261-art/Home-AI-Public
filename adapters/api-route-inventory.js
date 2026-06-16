@@ -161,6 +161,18 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     ownerOnly: true,
     resourceTypes: ["web-push"],
   })),
+  exact("native-device-register", "POST", "/api/native/devices/register", "native-devices", routeOptions("native-devices", {
+    workspaceScoped: true,
+    resourceTypes: ["native-notification", "device"],
+  })),
+  exact("native-device-unregister", "POST", "/api/native/devices/unregister", "native-devices", routeOptions("native-devices", {
+    workspaceScoped: true,
+    resourceTypes: ["native-notification", "device"],
+  })),
+  exact("native-device-test-notification", "POST", "/api/native/devices/test-notification", "native-devices", routeOptions("native-devices", {
+    workspaceScoped: true,
+    resourceTypes: ["native-notification", "apns"],
+  })),
 
   exact("workspaces-list", "GET", "/api/workspaces", "workspace-admin", routeOptions("workspace-admin", {
     resourceTypes: ["workspace"],

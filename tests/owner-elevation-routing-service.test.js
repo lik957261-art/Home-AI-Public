@@ -119,11 +119,40 @@ function testChatGptProRoutesOnlyToOwnerMaintenanceProfilesAfterApproval() {
   assert.match(service.ownerElevationInstructions({ chatGptProGenerate: true }), /chatgpt_pro_generate/);
 }
 
+function testChinesePermissionBoundaryInfersOwnerElevation() {
+  const service = makeService();
+  const inferred = service.inferPermissionApprovalRequest(
+    "当前 Gateway 权限范围不足，无法访问这个路径，需要 Owner 高权限授权后继续删除非空文件夹。",
+  );
+  assert.ok(inferred);
+  assert.equal(inferred.elevationRequired, true);
+  assert.equal(inferred.elevationScope, "owner_high_privilege");
+  assert.equal(inferred.elevationSource, "model_permission_boundary_heuristic");
+
+  const request = service.modelPermissionApprovalRequest(
+    "当前权限不足，不能访问目标路径，请申请 Owner 授权。",
+    { runOptions: { gatewayRouting: { maintenance: false } } },
+  );
+  assert.ok(request);
+  assert.equal(request.elevationRequired, true);
+  assert.equal(request.elevationScope, "owner_high_privilege");
+}
+
+function testOwnerHighPrivilegeInstructionsCoverDirectoryDeleteBoundary() {
+  const service = makeService();
+  const instructions = service.ownerElevationInstructions({ elevationScope: "owner_high_privilege" });
+  assert.match(instructions, /non-empty or recursive directory deletion/);
+  assert.match(instructions, /exact target/);
+  assert.match(instructions, /owner_high_privilege_required/);
+}
+
 testLearningContentUpdateDoesNotForceMaintenanceRouting();
 testPythonLessonSummaryDoesNotForceElevation();
 testCrossAccountAutomationDoesNotPreemptNormalModelRun();
 testExplicitMaintenanceModeStillRequiresElevation();
 testChatGptProTextDoesNotPreemptNormalModelRunWithoutExplicitMaintenance();
 testChatGptProRoutesOnlyToOwnerMaintenanceProfilesAfterApproval();
+testChinesePermissionBoundaryInfersOwnerElevation();
+testOwnerHighPrivilegeInstructionsCoverDirectoryDeleteBoundary();
 
 console.log("owner-elevation-routing-service tests passed");

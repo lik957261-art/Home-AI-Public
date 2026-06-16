@@ -190,6 +190,7 @@ const mobileRuntimeWorkspaceFacadeService = require("../adapters/mobile-runtime-
 const mobileRuntimeWorkspaceCatalogFacade = require("../adapters/mobile-runtime-workspace-catalog-facade");
 const markdownRenderer = require("../adapters/markdown-renderer");
 const naturalLanguageDraftService = require("../adapters/natural-language-draft-service");
+const nativeNotificationService = require("../adapters/native-notification-service");
 const noteReceiptSaveService = require("../adapters/note-receipt-save-service");
 const ownerElevationGrantService = require("../adapters/owner-elevation-grant-service");
 const ownerElevationRoutingService = require("../adapters/owner-elevation-routing-service");
@@ -229,6 +230,7 @@ const webPushAutomationProjectionService = require("../adapters/web-push-automat
 const webPushDeliveryService = require("../adapters/web-push-delivery-service");
 const webPushDeliveryNormalizationService = require("../adapters/web-push-delivery-normalization-service");
 const webPushSendService = require("../adapters/web-push-send-service");
+const webPushNativeChannelService = require("../adapters/web-push-native-channel-service");
 const webPushVapidService = require("../adapters/web-push-vapid-service");
 const workspaceDisplayPathService = require("../adapters/workspace-display-path-service");
 const workspaceOnboardingService = require("../adapters/workspace-onboarding-service");
@@ -258,6 +260,7 @@ const mobileApiDirectoryComposition = require("../server-routes/mobile-api-direc
 const mobileApiLearningComposition = require("../server-routes/mobile-api-learning-composition");
 const mobileApiPlatformComposition = require("../server-routes/mobile-api-platform-composition");
 const mobileApiVoiceComposition = require("../server-routes/mobile-api-voice-composition");
+const nativeDeviceApiRoutes = require("../server-routes/native-device-api-routes");
 const noteReceiptApiRoutes = require("../server-routes/note-receipt-api-routes");
 const ownerElevationApiRoutes = require("../server-routes/owner-elevation-api-routes");
 const publicApiRoutes = require("../server-routes/public-api-routes");
@@ -551,6 +554,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof markdownRenderer.renderWeixinMarkdownForwardHtml, "function");
   assert.equal(typeof naturalLanguageDraftService.createNaturalLanguageDraftService, "function");
   assert.equal(typeof naturalLanguageDraftService.extractJsonObject, "function");
+  assert.equal(typeof nativeNotificationService.createNativeNotificationService, "function");
   assert.equal(typeof noteReceiptSaveService.createNoteReceiptSaveService, "function");
   assert.equal(typeof ownerElevationGrantService.createOwnerElevationGrantService, "function");
   assert.equal(typeof ownerElevationRoutingService.createOwnerElevationRoutingService, "function");
@@ -603,6 +607,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof webPushDeliveryNormalizationService.createWebPushDeliveryNormalizationService, "function");
   assert.equal(typeof webPushDeliveryNormalizationService.normalizeWebPushOrigin, "function");
   assert.equal(typeof webPushSendService.createWebPushSendService, "function");
+  assert.equal(typeof webPushNativeChannelService.createWebPushNativeChannelService, "function");
   assert.equal(typeof webPushVapidService.createWebPushVapidService, "function");
   assert.equal(typeof workspaceDisplayPathService.createWorkspaceDisplayPathService, "function");
   assert.equal(typeof workspaceOnboardingService.createWorkspaceOnboardingService, "function");
@@ -614,6 +619,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof systemApiRoutes.createSystemApiRoutes, "function");
   assert.equal(typeof runtimeConfigApiRoutes.createRuntimeConfigApiRoutes, "function");
   assert.equal(typeof pushApiRoutes.createPushApiRoutes, "function");
+  assert.equal(typeof nativeDeviceApiRoutes.createNativeDeviceApiRoutes, "function");
   assert.equal(typeof eventStreamApiRoutes.createEventStreamApiRoutes, "function");
   assert.equal(typeof ownerElevationApiRoutes.createOwnerElevationApiRoutes, "function");
   assert.equal(typeof weixinApiRoutes.createWeixinApiRoutes, "function");
@@ -1429,6 +1435,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(dispatcher, /key: "runtimeConfigApiRoutes"/);
   assert.match(mobilePlatformComposition, /createPushApiRoutes/);
   assert.match(dispatcher, /key: "pushApiRoutes"/);
+  assert.match(mobilePlatformComposition, /createNativeDeviceApiRoutes/);
+  assert.match(dispatcher, /key: "nativeDeviceApiRoutes"/);
   assert.match(server, /createAppRouteUrlService/);
   assert.match(appRouteUrl, /function appRouteUrl/);
   assert.doesNotMatch(server, /function appRouteUrl/);
@@ -1575,7 +1583,8 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(webPushAutomationProjection, /function setAutomationPushMark/);
   assert.doesNotMatch(webPushDelivery, /^  function scopedPushWorkspaceIds/gm);
   assert.doesNotMatch(webPushDelivery, /^  function assertPushSubscriptionClientAllowed/gm);
-  assert.doesNotMatch(webPushDelivery, /^  async function sendPushNotification/gm);
+  assert.match(webPushDelivery, /sendPushNotification: sendWebPushNotification/);
+  assert.match(webPushDelivery, /createWebPushNativeChannelService/);
   assert.doesNotMatch(webPushDelivery, /^  function publicPushStatus/gm);
   assert.doesNotMatch(webPushDelivery, /^  function removePushSubscription/gm);
   assert.doesNotMatch(webPushDelivery, /^  function loadVapidConfig/gm);

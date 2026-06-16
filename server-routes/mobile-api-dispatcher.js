@@ -12,6 +12,7 @@ const MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE = Object.freeze([
   Object.freeze({ key: "ownerElevationApiRoutes", passAuth: false }),
   Object.freeze({ key: "runtimeConfigApiRoutes", passAuth: false }),
   Object.freeze({ key: "pushApiRoutes", passAuth: false }),
+  Object.freeze({ key: "nativeDeviceApiRoutes", passAuth: false }),
   Object.freeze({ key: "workspaceApiRoutes", passAuth: true }),
   Object.freeze({ key: "workspaceOnboardingApiRoutes", passAuth: true }),
   Object.freeze({ key: "platformCurrencyApiRoutes", passAuth: true }),

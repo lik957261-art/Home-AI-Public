@@ -52,6 +52,19 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
   they must not be attached as thread artifacts until a productized streaming
   or staging path exists.
 - Delete must be explicit and non-recursive unless a dedicated audited policy says otherwise.
+- Deleting an empty in-scope directory is ordinary directory work. Deleting a
+  non-empty directory is Owner high-privilege work and must be guarded by the
+  directory delete policy. A low-permission Gateway result that reports Chinese
+  or English permission-boundary text must still surface the Owner elevation
+  action in the client.
+- An approved Owner high-privilege Gateway run may delete only the exact
+  non-empty directory target requested by the user after resolving the target
+  through the current directory/workspace boundary. It must not broaden the
+  delete to siblings, parent paths, hidden roots, cache roots, sync roots, or
+  delivery roots. If the ordinary directory API still returns
+  `owner_high_privilege_required` during an approved run, the model should use
+  the available elevated filesystem/directory tool path for that exact target
+  or report a bounded failure rather than silently attempting a broader delete.
 - Protected roots include workspace root, sync/download roots, cache/delivery roots, hidden roots, and allowed-root boundaries.
 - When Directory is opened as the built-in plugin, right-swipe/back must return
   through directory levels first, then return from a route root to the

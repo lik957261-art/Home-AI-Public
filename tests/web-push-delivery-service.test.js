@@ -199,6 +199,45 @@ function testDeploymentOriginFiltersCopiedSubscriptions() {
   });
 }
 
+function testNativeNotificationChannelReceivesWorkspaceEvents() {
+  withTempDir((root) => {
+    const nativeCalls = [];
+    const { calls, service } = createHarness(root, {
+      serviceOptions: {
+        nativeNotificationService: {
+          async sendToWorkspace(payload) {
+            nativeCalls.push(payload);
+            return { ok: true, attempted: 1, sent: 1, failed: 0, results: [] };
+          },
+        },
+      },
+    });
+    return service.sendPushNotification({
+      title: "Task complete",
+      body: "The report is ready.",
+      data: {
+        workspaceId: "child",
+        url: "/?view=single&workspaceId=child&threadId=t1&messageId=m1",
+        threadId: "t1",
+        messageId: "m1",
+      },
+    }, {
+      principalId: "child-principal",
+    }).then((result) => {
+      assert.equal(result.enabled, true);
+      assert.equal(result.attempted, 0);
+      assert.equal(result.native.length, 1);
+      assert.equal(calls.sends.length, 0);
+      assert.equal(nativeCalls.length, 1);
+      assert.equal(nativeCalls[0].workspaceId, "child");
+      assert.equal(nativeCalls[0].title, "Task complete");
+      assert.equal(nativeCalls[0].body, "The report is ready.");
+      assert.equal(nativeCalls[0].deepLink, "/?view=single&workspaceId=child&threadId=t1&messageId=m1");
+      assert.equal(nativeCalls[0].data.channel, "native_ios_apns");
+    });
+  });
+}
+
 function testIosBrowserSubscriptionsAreRejectedAndSkipped() {
   withTempDir((root) => {
     const { calls, service, state } = createHarness(root);
@@ -1052,6 +1091,7 @@ Promise.resolve()
   .then(testVapidLifecycleAndPublicStatus)
   .then(testSubscriptionSendAndRemoval)
   .then(testDeploymentOriginFiltersCopiedSubscriptions)
+  .then(testNativeNotificationChannelReceivesWorkspaceEvents)
   .then(testIosBrowserSubscriptionsAreRejectedAndSkipped)
   .then(testReceiptMarksTodoWithoutCountingAttempt)
   .then(testTodoTickReconcilesAndDeliversPendingEvents)

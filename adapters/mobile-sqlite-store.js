@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_SCHEMA_VERSION = 6;
+const CURRENT_SCHEMA_VERSION = 7;
 
 function nowIso() {
   return new Date().toISOString();
@@ -141,6 +141,30 @@ function publicActionInboxEventFromRow(row) {
   };
 }
 
+function publicNativeDeviceFromRow(row) {
+  if (!row) return null;
+  const raw = parseJson(row.raw_json, {});
+  return Object.assign({}, raw && typeof raw === "object" ? raw : {}, {
+    id: String(row.id || ""),
+    workspaceId: String(row.workspace_id || ""),
+    principalId: String(row.principal_id || ""),
+    platform: String(row.platform || ""),
+    pushProvider: String(row.push_provider || ""),
+    tokenHash: String(row.token_hash || ""),
+    tokenCiphertext: String(row.token_ciphertext || ""),
+    tokenCiphertextEncoding: String(row.token_ciphertext_encoding || ""),
+    appBundleId: String(row.app_bundle_id || ""),
+    appVersion: String(row.app_version || ""),
+    buildNumber: String(row.build_number || ""),
+    environment: String(row.environment || ""),
+    enabled: Number(row.enabled || 0) === 1,
+    disabledAt: String(row.disabled_at || ""),
+    lastSeenAt: String(row.last_seen_at || ""),
+    createdAt: String(row.created_at || ""),
+    updatedAt: String(row.updated_at || ""),
+  });
+}
+
 function publicTopicContextSummaryFromRow(row) {
   if (!row) return null;
   const summary = parseJson(row.summary_json, {});
@@ -245,6 +269,7 @@ const TABLES = [
   "todo_items",
   "kanban_case_shares",
   "shared_directories",
+  "native_devices",
   "push_deliveries",
   "push_receipts",
   "push_subscriptions",
@@ -268,6 +293,7 @@ const TABLE_COUNT_COLUMNS = {
   push_subscriptions: "id",
   push_receipts: "id",
   push_deliveries: "id",
+  native_devices: "id",
   shared_directories: "id",
   kanban_case_shares: "id",
   todo_items: "id",
@@ -486,6 +512,32 @@ function createMobileSqliteStore(options = {}) {
       );
 
       CREATE INDEX IF NOT EXISTS idx_push_deliveries_type ON push_deliveries(message_type, created_at);
+
+      CREATE TABLE IF NOT EXISTS native_devices (
+        id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL DEFAULT '',
+        principal_id TEXT NOT NULL DEFAULT '',
+        platform TEXT NOT NULL DEFAULT '',
+        push_provider TEXT NOT NULL DEFAULT '',
+        token_hash TEXT NOT NULL DEFAULT '',
+        token_ciphertext TEXT NOT NULL DEFAULT '',
+        token_ciphertext_encoding TEXT NOT NULL DEFAULT '',
+        app_bundle_id TEXT NOT NULL DEFAULT '',
+        app_version TEXT NOT NULL DEFAULT '',
+        build_number TEXT NOT NULL DEFAULT '',
+        environment TEXT NOT NULL DEFAULT '',
+        enabled INTEGER NOT NULL DEFAULT 1,
+        disabled_at TEXT NOT NULL DEFAULT '',
+        last_seen_at TEXT NOT NULL DEFAULT '',
+        raw_json TEXT,
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_native_devices_workspace_token
+        ON native_devices(workspace_id, platform, push_provider, token_hash);
+      CREATE INDEX IF NOT EXISTS idx_native_devices_workspace_enabled
+        ON native_devices(workspace_id, enabled, updated_at);
 
       CREATE TABLE IF NOT EXISTS shared_directories (
         id TEXT PRIMARY KEY,
@@ -793,6 +845,7 @@ function createMobileSqliteStore(options = {}) {
     markMigration(4, "action_inbox");
     markMigration(5, "platform_currency");
     markMigration(6, "voice_input_learning_state");
+    markMigration(7, "native_notification_devices");
     setMeta("schemaVersion", CURRENT_SCHEMA_VERSION);
   }
 
@@ -1711,6 +1764,131 @@ function createMobileSqliteStore(options = {}) {
       rows = rows.filter((row) => row.enabled !== false && String(row.state || row.status || "") !== "paused");
     }
     return rows;
+  }
+
+  function getNativeDevice(deviceId) {
+    migrate();
+    const row = open().prepare("SELECT * FROM native_devices WHERE id = ?").get(String(deviceId || ""));
+    return publicNativeDeviceFromRow(row);
+  }
+
+  function getNativeDeviceByToken(workspaceId, platform, pushProvider, tokenHash) {
+    migrate();
+    const row = open().prepare(`
+      SELECT * FROM native_devices
+      WHERE workspace_id = ? AND platform = ? AND push_provider = ? AND token_hash = ?
+    `).get(
+      String(workspaceId || "").trim(),
+      String(platform || "").trim(),
+      String(pushProvider || "").trim(),
+      String(tokenHash || "").trim(),
+    );
+    return publicNativeDeviceFromRow(row);
+  }
+
+  function upsertNativeDevice(input = {}) {
+    migrate();
+    const workspaceId = String(input.workspaceId || input.workspace_id || "owner").trim() || "owner";
+    const platform = String(input.platform || "ios").trim();
+    const pushProvider = String(input.pushProvider || input.push_provider || "apns").trim();
+    const tokenHash = String(input.tokenHash || input.token_hash || "").trim();
+    if (!workspaceId || !platform || !pushProvider || !tokenHash) return null;
+    const before = getNativeDeviceByToken(workspaceId, platform, pushProvider, tokenHash);
+    const id = before?.id || String(input.id || input.deviceId || input.device_id || "").trim() || generatedId("ndev");
+    const createdAt = normalizeIso(before?.createdAt || input.createdAt || input.created_at || nowIso());
+    const updatedAt = normalizeIso(input.updatedAt || input.updated_at || nowIso());
+    open().prepare(`
+      INSERT INTO native_devices(id, workspace_id, principal_id, platform, push_provider, token_hash,
+        token_ciphertext, token_ciphertext_encoding, app_bundle_id, app_version, build_number, environment,
+        enabled, disabled_at, last_seen_at, raw_json, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(workspace_id, platform, push_provider, token_hash) DO UPDATE SET
+        principal_id = excluded.principal_id,
+        token_ciphertext = excluded.token_ciphertext,
+        token_ciphertext_encoding = excluded.token_ciphertext_encoding,
+        app_bundle_id = excluded.app_bundle_id,
+        app_version = excluded.app_version,
+        build_number = excluded.build_number,
+        environment = excluded.environment,
+        enabled = excluded.enabled,
+        disabled_at = excluded.disabled_at,
+        last_seen_at = excluded.last_seen_at,
+        raw_json = excluded.raw_json,
+        updated_at = excluded.updated_at
+    `).run(
+      id,
+      workspaceId,
+      String(input.principalId || input.principal_id || "").trim(),
+      platform,
+      pushProvider,
+      tokenHash,
+      String(input.tokenCiphertext || input.token_ciphertext || "").trim(),
+      String(input.tokenCiphertextEncoding || input.token_ciphertext_encoding || "").trim(),
+      String(input.appBundleId || input.app_bundle_id || "").trim(),
+      String(input.appVersion || input.app_version || "").trim(),
+      String(input.buildNumber || input.build_number || "").trim(),
+      String(input.environment || "sandbox").trim(),
+      input.enabled === false ? 0 : 1,
+      normalizeIso(input.disabledAt || input.disabled_at),
+      normalizeIso(input.lastSeenAt || input.last_seen_at || updatedAt),
+      stableJson(input.rawJson && typeof input.rawJson === "object" ? input.rawJson : {}),
+      createdAt,
+      updatedAt,
+    );
+    return getNativeDeviceByToken(workspaceId, platform, pushProvider, tokenHash);
+  }
+
+  function listNativeDevices(args = {}) {
+    migrate();
+    const workspaceId = String(args.workspaceId || args.workspace_id || "").trim();
+    const platform = String(args.platform || "").trim();
+    const pushProvider = String(args.pushProvider || args.push_provider || "").trim();
+    const environment = String(args.environment || "").trim();
+    const enabledOnly = Boolean(args.enabledOnly || args.enabled_only);
+    const clauses = [];
+    const values = [];
+    if (workspaceId) {
+      clauses.push("workspace_id = ?");
+      values.push(workspaceId);
+    }
+    if (platform) {
+      clauses.push("platform = ?");
+      values.push(platform);
+    }
+    if (pushProvider) {
+      clauses.push("push_provider = ?");
+      values.push(pushProvider);
+    }
+    if (environment) {
+      clauses.push("environment = ?");
+      values.push(environment);
+    }
+    if (enabledOnly) clauses.push("enabled = 1");
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const limit = Math.max(1, Math.min(500, Number(args.limit || 100) || 100));
+    return open().prepare(`
+      SELECT * FROM native_devices
+      ${where}
+      ORDER BY updated_at DESC, created_at DESC
+      LIMIT ?
+    `).all(...values, limit).map(publicNativeDeviceFromRow).filter(Boolean);
+  }
+
+  function disableNativeDevice(input = {}) {
+    migrate();
+    const now = normalizeIso(input.disabledAt || input.disabled_at || input.updatedAt || input.updated_at || nowIso());
+    const deviceId = String(input.deviceId || input.id || "").trim();
+    let device = deviceId ? getNativeDevice(deviceId) : null;
+    if (!device && input.workspaceId && input.platform && input.pushProvider && input.tokenHash) {
+      device = getNativeDeviceByToken(input.workspaceId, input.platform, input.pushProvider, input.tokenHash);
+    }
+    if (!device) return null;
+    open().prepare(`
+      UPDATE native_devices
+      SET enabled = 0, disabled_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run(now, now, device.id);
+    return getNativeDevice(device.id);
   }
 
   function getActionInboxItem(itemId) {
@@ -2643,6 +2821,7 @@ function createMobileSqliteStore(options = {}) {
     clearImportedData,
     close,
     dbPath,
+    disableNativeDevice,
     getMeta,
     importAccessKey,
     importFromDataDir,
@@ -2664,6 +2843,8 @@ function createMobileSqliteStore(options = {}) {
     getActionInboxItem,
     getActionInboxItemByDedupe,
     getKanbanCaseShare,
+    getNativeDevice,
+    getNativeDeviceByToken,
     getTodoItem,
     getPlatformCurrencyWallet,
     getTopicContextSummary,
@@ -2674,6 +2855,7 @@ function createMobileSqliteStore(options = {}) {
     listActionInboxItems,
     listDueActionInboxItems,
     listKanbanCaseShares,
+    listNativeDevices,
     listPlatformCurrencyLedger,
     listTopicContextRefs,
     listTodoItems,
@@ -2687,6 +2869,7 @@ function createMobileSqliteStore(options = {}) {
     upsertTopicWorkingState,
     upsertActionInboxItem,
     upsertKanbanCaseShare,
+    upsertNativeDevice,
     replaceTopicContextRefs,
   };
 }

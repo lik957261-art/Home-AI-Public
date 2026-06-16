@@ -106,6 +106,29 @@ Coverage must prove recoverable local manifest failures can request exactly one
 bounded restart and retry, while external manifests, workspace authorization
 failures, and non-`com.hermesmobile.plugin.*` labels do not trigger restart.
 
+For native iOS/APNs notification registration, device persistence, APNs fanout,
+or the Web Push to native notification bridge, run:
+
+```bash
+node --check adapters/native-notification-service.js
+node --check adapters/web-push-native-channel-service.js
+node --check server-routes/native-device-api-routes.js
+node tests/native-notification-service.test.js
+node tests/native-device-api-routes.test.js
+node tests/mobile-sqlite-store.test.js
+node tests/web-push-delivery-service.test.js
+node tests/mobile-api-platform-composition.test.js
+node tests/mobile-api-dispatcher.test.js
+node tests/api-route-inventory.test.js
+node tests/architecture-refactor-boundary.test.js
+```
+
+Coverage must prove `X-Hermes-Web-Key` scoped registration, workspace spoof
+rejection, idempotent `workspace+platform+provider+tokenHash` upsert, no raw
+token exposure in API responses, sandbox/production APNs routing, invalid-token
+disable behavior, and that Web Push subscriptions remain separate from native
+APNs devices.
+
 For plugin workspace audit creation, manual alignment trigger, runner report
 language, or Action Inbox audit entry changes, run:
 

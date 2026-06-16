@@ -6,6 +6,10 @@ Web Push notifies browser/PWA clients about task completion, mentions, automatio
 
 Push payloads are navigation hints. Sensitive content must still be fetched through authenticated APIs after the app opens.
 
+The same bounded event summaries may also be bridged to the independent native
+iOS APNs channel `native_ios_apns`; native device registration and APNs token
+storage are documented in `docs/MODULES/native-notifications.md`.
+
 ## Core Files
 
 - `adapters/web-push-delivery-service.js`

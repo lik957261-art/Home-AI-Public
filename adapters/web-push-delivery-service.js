@@ -5,6 +5,7 @@ const {
   createWebPushDeliveryNormalizationService,
   normalizeWebPushOrigin,
 } = require("./web-push-delivery-normalization-service");
+const { createWebPushNativeChannelService } = require("./web-push-native-channel-service");
 const { createWebPushSendService } = require("./web-push-send-service");
 const { createWebPushVapidService } = require("./web-push-vapid-service");
 
@@ -229,20 +230,21 @@ function createWebPushDeliveryService(options = {}) {
     activePushPrincipals,
     publicPushStatus,
     removePushSubscription,
-    sendPushNotification,
+    sendPushNotification: sendWebPushNotification,
   } = webPushSendService;
 
-  function todoProvider() {
-    return getProvider(options.todoProvider);
+  const webPushNativeChannelService = createWebPushNativeChannelService({ appRouteUrl, compactText, logger, nativeNotificationService: options.nativeNotificationService, normalizeStringList, workspaceIdForPrincipal });
+
+  async function sendPushNotification(payload = {}, sendOptions = {}) {
+    const webResult = await sendWebPushNotification(payload, sendOptions);
+    const nativeResults = await webPushNativeChannelService.sendNativeNotification(payload, sendOptions);
+    if (!nativeResults) return webResult;
+    return Object.assign({}, webResult, { native: nativeResults });
   }
 
-  function automationProvider() {
-    return getProvider(options.automationProvider);
-  }
-
-  function actionInboxService() {
-    return getProvider(options.actionInboxService);
-  }
+  function todoProvider() { return getProvider(options.todoProvider); }
+  function automationProvider() { return getProvider(options.automationProvider); }
+  function actionInboxService() { return getProvider(options.actionInboxService); }
 
   async function upsertActionInboxSourceItem(input = {}) {
     const service = actionInboxService();

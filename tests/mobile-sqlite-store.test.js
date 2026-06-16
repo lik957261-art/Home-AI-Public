@@ -641,6 +641,67 @@ function testActionInboxCrud() {
   store.close();
 }
 
+function testNativeDeviceCrud() {
+  const dir = tempDir();
+  const store = createMobileSqliteStore({ dbPath: path.join(dir, "native-devices.sqlite3") });
+  store.migrate();
+  const first = store.upsertNativeDevice({
+    workspaceId: "owner",
+    principalId: "owner",
+    platform: "ios",
+    pushProvider: "apns",
+    tokenHash: "a".repeat(64),
+    tokenCiphertext: "encrypted-token",
+    tokenCiphertextEncoding: "aes-256-gcm",
+    appBundleId: "com.xuxin.homeai.native",
+    appVersion: "1.0",
+    buildNumber: "100",
+    environment: "sandbox",
+    enabled: true,
+    now: "2026-06-16T00:00:00.000Z",
+  });
+  assert.equal(first.workspaceId, "owner");
+  assert.equal(first.enabled, true);
+  assert.equal(first.tokenHash, "a".repeat(64));
+  assert.equal(first.tokenCiphertext, "encrypted-token");
+
+  const second = store.upsertNativeDevice({
+    workspaceId: "owner",
+    principalId: "owner",
+    platform: "ios",
+    pushProvider: "apns",
+    tokenHash: "a".repeat(64),
+    tokenCiphertext: "encrypted-token-2",
+    tokenCiphertextEncoding: "aes-256-gcm",
+    appBundleId: "com.xuxin.homeai.native",
+    appVersion: "1.1",
+    buildNumber: "101",
+    environment: "production",
+    enabled: true,
+    now: "2026-06-16T00:01:00.000Z",
+  });
+  assert.equal(second.id, first.id);
+  assert.equal(second.appVersion, "1.1");
+  assert.equal(second.environment, "production");
+  assert.equal(second.tokenCiphertext, "encrypted-token-2");
+  assert.equal(store.listNativeDevices({ workspaceId: "owner" }).length, 1);
+  assert.equal(store.listNativeDevices({ workspaceId: "owner", environment: "sandbox" }).length, 0);
+  assert.equal(store.listNativeDevices({ workspaceId: "owner", environment: "production" }).length, 1);
+
+  const disabled = store.disableNativeDevice({
+    workspaceId: "owner",
+    platform: "ios",
+    pushProvider: "apns",
+    tokenHash: "a".repeat(64),
+    now: "2026-06-16T00:02:00.000Z",
+  });
+  assert.equal(disabled.id, first.id);
+  assert.equal(disabled.enabled, false);
+  assert.equal(store.listNativeDevices({ workspaceId: "owner", enabledOnly: true }).length, 0);
+  assert.equal(store.listNativeDevices({ workspaceId: "owner", includeDisabled: true }).length, 1);
+  store.close();
+}
+
 testImportAndIntegrity();
 testWorkspaceInferenceFallback();
 testServiceLayerLocalRows();
@@ -649,4 +710,5 @@ testRuntimeStateRoundTrip();
 testAuditStoresDecisionPayload();
 testTopicContextCrud();
 testActionInboxCrud();
+testNativeDeviceCrud();
 console.log("mobile-sqlite-store tests passed");

@@ -167,6 +167,8 @@ function createOwnerElevationRoutingService(options = {}) {
       return [
         "APPROVED OWNER HIGH-PRIVILEGE RUN: this run is routed to an Owner maintenance Gateway because the Owner explicitly authorized high-privilege execution in Hermes Mobile.",
         "Use elevated tools only for the latest user request. Do not make unrelated changes, expose raw secrets, print keys/tokens, or modify worker manifests/runtime configuration unless the user explicitly requested that exact maintenance action.",
+        "For non-empty or recursive directory deletion, delete only the exact target the user requested after resolving the path through the current workspace/directory boundary. Do not delete sibling paths, parent paths, hidden roots, cache roots, sync roots, or delivery roots unless the user explicitly named that exact protected target and the active policy allows it.",
+        "If an ordinary low-permission directory API still returns `owner_high_privilege_required` during this approved run, use the current elevated filesystem/directory tool path when available, or report that the elevated run could not perform the recursive delete. Do not silently fall back to a broader delete.",
         "Image editing, object removal, background cleanup, P image requests, and erase/inpainting requests inside the current workspace are ordinary user work, not maintenance work. Even in an elevated run, use ChatGPT Image 2 image editing tools when available; do not use local PIL/OpenCV/rembg/SAM/ffmpeg/terminal/code image repair unless the user explicitly asks for local image processing.",
         "If the requested target is ambiguous, stop and ask for clarification instead of guessing.",
       ].join("\n");
@@ -227,11 +229,11 @@ function createOwnerElevationRoutingService(options = {}) {
     const permissionDenied = (
       /outside\s+(?:the\s+)?current\s+(?:workspace\/Gateway\s+)?permission\s+scope/i.test(raw)
       || /permission\s+boundary|access_policy_context|current\s+Gateway\s+permission/i.test(raw)
-      || /褰撳墠.*鏉冮檺|鏉冮檺鑼冨洿|鏉冮檺杈圭晫|瓒呭嚭.*鏉冮檺|涓嶅湪.*鏉冮檺|鏃犳硶璁块棶.*璺緞/.test(raw)
+      || /当前.*权限|权限(?:范围|边界|不足)|超出.*权限|不在.*权限|无权限|没有权限|无法访问.*路径|不能访问.*路径|无权访问|访问被拒绝/.test(raw)
     );
     const elevationHint = (
       /Owner|approval|approve|elevation|maintenance|high[-_\s]?privilege/i.test(raw)
-      || /鎻愭潈|楂樻潈闄恷鎵瑰噯|鎺堟潈|Owner/.test(raw)
+      || /提权|高权限|批准|授权|Owner\s*授权|需要.*授权|申请.*权限|申请.*高权限/.test(raw)
     );
     if (!permissionDenied || !elevationHint) return null;
     return {
