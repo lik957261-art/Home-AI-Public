@@ -210,11 +210,13 @@ PWA remains responsible for rendering product UI and applying layout policy.
 Embedded plugin WebView layout is a host-level responsibility. When Home AI is
 running under the native shell and an embedded plugin iframe is active, the host
 marks the root with `embedded-plugin-shell-active`. That state is the only place
-where the Web status-bar shim is removed, the plugin-context top inset is
-forced to zero, refresh notices are suppressed over plugin content, and
-keyboard viewport shrinkage from an iframe input is allowed to drive the host
-keyboard layout. Standalone PWA/browser behavior must not enter this branch and
-must keep the ordinary PWA safe-area, refresh notice, and keyboard behavior.
+where the Web status-bar shim is removed, refresh notices are suppressed over
+plugin content, and keyboard viewport shrinkage from an iframe input is allowed
+to drive the host keyboard layout. The iframe still keeps a single
+`safe-area-inset-top` reservation for plugin-owned headers; removing both the
+shim and the top reservation can place the plugin header behind the native iOS
+status area. Standalone PWA/browser behavior must not enter this branch and must
+keep the ordinary PWA safe-area, refresh notice, and keyboard behavior.
 
 ## System Notifications
 
