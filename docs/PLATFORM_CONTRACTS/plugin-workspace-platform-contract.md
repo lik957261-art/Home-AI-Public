@@ -137,6 +137,11 @@ central platform pointer and AI Operations flow, but it must not appear in
 plugin Dock, plugin-topic, MCP, Gateway worker, workspace grant, LaunchDaemon,
 or loopback manifest checks. The durable module doc is
 `docs/MODULES/native-ios-shell.md`.
+Standalone PWA behavior is the compatibility baseline: native-shell changes must
+be opt-in through `nativeShell=ios` or a bounded native bridge capability
+handshake, and the ordinary PWA/browser route must keep its existing UI,
+navigation, composer, plugin, and permission behavior unless an independent PWA
+requirement changes it.
 APNs registration is governed by `docs/MODULES/native-notifications.md`: native
 clients use `POST /api/native/devices/register` with `X-Hermes-Web-Key`, send
 only device/app metadata plus the APNs token, and rely on Home AI to clamp
@@ -556,7 +561,7 @@ pointer or module doc:
 | `home_ai_origin_policy` | yes | Must state HTTPS-only Home AI origin usage and no LAN/local plugin HTTP access. |
 | `auth_transport` | yes | Home AI browser/API Access Key transport, currently `X-Hermes-Web-Key`. |
 | `default_workspace_id` | yes | Default selected Home AI workspace, normally `owner`. |
-| `native_shell_query` | yes | Native shell marker such as `nativeShell=ios`. |
+| `native_shell_query` | yes | Native shell marker such as `nativeShell=ios`. Native-specific behavior must be disabled when this marker or an equivalent bridge handshake is absent. |
 | `native_capabilities` | yes | Bounded capability ids such as `pwa_webview_shell`, `apple_health_sync`, `apns_device_registration`, `ios_share_extension`, `native_voice_input_overlay`, `system_share_receive`, `apns_interaction_completion`, and `webview_recovery_bridge`. Apple Watch and Bluetooth/BLE ids should not be declared as active or near-term capabilities unless a future contract reopens them. |
 | `platform_management_status` | yes | `managed_native_client` when the target is checked by the Home AI platform checker. |
 | `ai_ops_control_plane_command` | yes | Same Home AI `scripts/ai-ops-control-plane.js intake --task "<task>" --json` entrypoint used by plugin workspaces. |

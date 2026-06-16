@@ -18,6 +18,14 @@ enter Home AI through explicit server APIs or native-to-Web bridge messages;
 they must not turn the shell into a second product UI or a plugin-specific
 credential holder.
 
+Standalone PWA compatibility is a hard boundary. The PWA/browser version is the
+baseline product surface and must keep its current modes, routes, layout,
+menus, composer behavior, plugin surfaces, and permission prompts unless a
+change is independently required for PWA users. Native-shell-specific behavior
+must be gated by `nativeShell=ios` or an explicit native bridge capability
+handshake; absence of that signal means Home AI must behave exactly like the
+ordinary PWA.
+
 Apple Watch and Bluetooth/BLE bridges are explicitly deferred. They are valid
 future extension points, but they are not part of the current or near-term
 native shell roadmap unless a separate product requirement reopens them with a
@@ -43,6 +51,8 @@ known local development path above.
 
 - The native shell loads Home AI through a PWA-first `WKWebView` surface with
   `nativeShell=ios`.
+- Native-shell compatibility branches must be opt-in. Do not change standalone
+  PWA defaults to prepare for native shell features.
 - Native auth uses the Home AI browser/API Access Key transport:
   `X-Hermes-Web-Key`.
 - Native capabilities call Home AI HTTPS APIs and let Home AI resolve
@@ -129,6 +139,21 @@ workspace/thread/plugin scope, and final send behavior.
 The native shell must not become a system input method and must not inject text
 by simulating keyboard events. Confirmed text must be inserted through the Home
 AI host composer API or the active plugin composer protocol.
+
+The target native-shell voice experience is direct Composer composition. The
+native shell should not present a second transcript text box as the primary
+input surface. Instead, the shell starts native audio capture, streams or uploads
+audio to Home AI ASR, and sends provisional/final text updates back to the
+existing active Composer through a composition-session bridge. The PWA Composer
+continues to own draft rendering, user edits, send behavior, and correction
+learning.
+
+The bridge must account for ASR partial latency. If the ASR backend can only
+emit useful partial text at a cadence such as hundreds of milliseconds, the
+native shell should still keep audio capture and transport low-latency while
+Home AI writes bounded provisional text into the Composer and later replaces it
+with the final transcript. This improves perceived realtime behavior without
+trading away final transcript quality.
 
 ### System Share And Receive
 

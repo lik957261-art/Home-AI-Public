@@ -216,6 +216,71 @@ Microphone permission timing:
   viewport bottom so the native keyboard does not lift it by the hidden bottom
   stack height.
 
+### Native Shell Direct Composer Composition
+
+The preferred iOS native shell direction is native audio capture with direct
+composition into the existing Home AI Composer. The native shell should not
+create a separate transcript editor as the primary user input surface. It may
+show a compact recording/microphone indicator, but the visible text should land
+in the active Composer draft so the user can edit and send through the normal
+Home AI flow.
+
+This path is enabled only when `nativeShell=ios` or an explicit native voice
+bridge capability is present. Standalone PWA behavior stays on the existing
+browser recorder/host voice-input path and must not change because the native
+shell path exists.
+
+Use a bounded composition session instead of appending plain text events:
+
+```text
+sessionId
+targetComposerId
+surface
+workspaceId
+pluginId
+threadId
+baseDraft
+draftRevision
+insertRange
+provisionalText
+finalText
+seq
+state
+```
+
+Session rules:
+
+- `sessionId` and `seq` reject stale or out-of-order native/ASR events.
+- `targetComposerId`, `surface`, `workspaceId`, `pluginId`, and `threadId`
+  bind the voice session to the active composer and prevent cross-surface
+  insertion.
+- `baseDraft`, `draftRevision`, and `insertRange` let Home AI replace only the
+  provisional voice segment instead of appending duplicate partial text.
+- `provisionalText` is allowed to be lower confidence and may be replaced.
+  `finalText` is the quality path and may include punctuation, personal
+  correction, hotword, and pinyin/homophone fixes.
+- If the user edits inside the provisional range, the host must stop overwriting
+  that edited span and either continue at the current cursor tail or finalize
+  with a conflict state.
+
+Latency rule:
+
+- Native capture should use low-latency audio frames and small upload chunks,
+  but Home AI must not fake text before ASR returns usable content.
+- If the ASR provider emits partial text at a cadence such as roughly
+  0.6 seconds, the UI can still feel realtime by minimizing native/PWA/bridge
+  overhead, throttling Composer patch updates to a bounded interval, and
+  replacing a provisional range in place.
+- Partial updates should avoid expensive punctuation restoration and heavy
+  correction. Final updates may run the higher-quality pass and replace the
+  provisional range.
+
+The acceptance criterion is not that every character appears instantly. The
+criterion is that native capture and bridge overhead add minimal delay, partial
+text reaches the existing Composer without whole-page re-rendering, final text
+replaces provisional text without duplication, and ordinary user editing/sending
+semantics remain unchanged.
+
 ## Service Architecture
 
 Implementation should follow the service-first rule:

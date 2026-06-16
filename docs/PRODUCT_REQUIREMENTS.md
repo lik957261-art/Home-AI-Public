@@ -132,6 +132,12 @@ This file records durable product rules that implementation must preserve.
   product UI, not an embedded business plugin, and not a plugin credential
   holder. The Home AI Web/PWA surface remains the source of truth for product
   UI, workspace policy, plugin routing, Gateway/MCP use, and server APIs.
+- Standalone PWA behavior is the compatibility baseline. If Home AI is opened
+  as a normal browser/PWA without the native shell marker and bridge handshake,
+  existing modes, routes, layout, menus, composer behavior, plugin surfaces,
+  and permission flows must remain unchanged. Native-shell work may add
+  compatibility paths only after `nativeShell=ios` or an equivalent native
+  bridge capability is detected.
 - Near-term native shell work should focus on system push completion, native
   voice-input capture, system share/receive flows, and WebView stability
   bridges. Each native capability must enter Home AI through explicit server
@@ -165,6 +171,11 @@ This file records durable product rules that implementation must preserve.
   Home AI composers and through an explicit plugin bridge protocol for
   embedded plugin composers. It must not simulate keyboard typing, inspect
   plugin DOM, or call plugin-private JavaScript functions.
+- In the iOS native shell path, native voice capture should write directly into
+  the existing Home AI Composer draft through a bounded composition session. It
+  should not introduce a separate transcript text box as the primary input
+  surface. Provisional streaming text may appear in the Composer and must be
+  replaced by final text without duplicate insertion.
 - Raw audio is temporary processing input by default. Successful transcription
   must delete raw audio unless an Owner-configured debug retention policy is
   explicitly enabled. Debug retention must be bounded and must live under
