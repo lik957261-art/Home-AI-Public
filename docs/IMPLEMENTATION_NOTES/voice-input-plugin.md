@@ -264,6 +264,9 @@ voice input. The current handshake is:
 When the handshake is present, long-press Send posts
 `voiceInput.start|stop|cancel` to the native shell. When it is absent, the
 ordinary browser/PWA `MediaRecorder` path remains the fallback.
+Native `partial` callbacks must use the same provisional Composer insertion
+path as browser streaming chunks, so the active Composer updates while recording
+instead of waiting for the final transcript.
 
 Use a bounded composition session instead of appending plain text events:
 

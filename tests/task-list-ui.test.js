@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260616-native-voice-bridge-v779";
+const CLIENT_VERSION = "20260616-native-partial-composer-v781";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -211,8 +211,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260616-native-voice-bridge-v779" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260616-native-voice-bridge-v779"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260616-native-partial-composer-v781" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260616-native-partial-composer-v781"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2581,6 +2581,9 @@ assert.doesNotMatch(wardrobePluginTopbarBlock, /display: flex !important;/);
 assert.doesNotMatch(embeddedPluginTopbarBlock, /display: flex !important;/);
 assert.match(stylesCss, /--plugin-context-main-top: 0px/);
 assert.match(stylesCss, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?:root \{[\s\S]*?--plugin-context-main-top: env\(safe-area-inset-top\);/);
+assert.match(stylesCss, /:root\.native-shell-ios \.app\.codex-mode\.embedded-plugin-host-active \{[\s\S]*?--plugin-context-main-top: 0px;/);
+assert.match(stylesCss, /:root\.native-shell-ios \.app\.codex-mode\.embedded-plugin-host-active \.refresh-notice \{[\s\S]*?display: none !important;/);
+const nativeShellCodexHostBlock = cssRuleBody(":root.native-shell-ios .app.codex-mode.embedded-plugin-host-active");
 assert.match(stylesCss, /\.wardrobe-plugin-host-active:not\(\.plugin-context-nav-mode\) \.main,[\s\S]*?\.embedded-plugin-host-active:not\(\.plugin-context-nav-mode\) \.main \{[\s\S]*?padding-top: var\(--plugin-context-main-top, 0\);/);
 assert.match(stylesCss, /\.plugin-context-nav-mode\.wardrobe-plugin-host-active \.main,[\s\S]*?\.plugin-context-nav-mode\.embedded-plugin-host-active \.main \{[\s\S]*?position: absolute;[\s\S]*?top: var\(--plugin-context-main-top, 0\);[\s\S]*?right: 0;[\s\S]*?bottom: var\(--plugin-context-main-bottom, var\(--plugin-context-bottom-nav-height\)\);[\s\S]*?left: 0;[\s\S]*?min-height: 0;/);
 assert.match(appJs, /function updatePluginContextViewportReservation\(\)/);
@@ -2598,7 +2601,7 @@ assert.match(appJs, /const bottomInset = Math\.max\(0, navVisibleTopInset \+ vie
 assert.match(appJs, /window\.__hermesPluginContextViewportMetrics = \{/);
 assert.match(appJs, /if \(typeof updatePluginContextViewportReservation === "function"\) updatePluginContextViewportReservation\(\);/);
 assert.match(stylesCss, /\.plugin-context-nav-mode \.wardrobe-plugin-shell,[\s\S]*?\.plugin-context-nav-mode \.embedded-plugin-frame \{[\s\S]*?min-height: 0;/);
-assert.doesNotMatch(stylesCss, /\.app\.codex-mode\.embedded-plugin-host-active \{[\s\S]*?padding-bottom: 0;/);
+assert.doesNotMatch(nativeShellCodexHostBlock, /padding-bottom:/);
 assert.doesNotMatch(stylesCss, /\.codex-mode\.embedded-plugin-host-active \.bottom-nav \{[\s\S]*?display: none !important;/);
 assert.match(stylesCss, /\.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-collapsed-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: 0;/);
 assert.match(stylesCss, /\.embedded-plugin-host-active:not\(\.codex-mode\)\.global-plugin-dock-expanded-mode \.embedded-plugin-host \{[\s\S]*?padding-bottom: calc\(var\(--topic-plugin-dock-height\) \+ 6px\);/);
@@ -2615,14 +2618,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260616-native-voice-bridge-v779/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260616-native-voice-bridge-v779/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260616-native-voice-bridge-v779/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260616-native-voice-bridge-v779/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260616-native-voice-bridge-v779/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260616-native-voice-bridge-v779/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260616-native-voice-bridge-v779/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260616-native-voice-bridge-v779/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260616-native-partial-composer-v781/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260616-native-partial-composer-v781/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260616-native-partial-composer-v781/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260616-native-partial-composer-v781/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260616-native-partial-composer-v781/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260616-native-partial-composer-v781/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260616-native-partial-composer-v781/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260616-native-partial-composer-v781/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);

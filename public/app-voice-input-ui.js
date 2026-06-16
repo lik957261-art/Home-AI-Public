@@ -1888,6 +1888,9 @@ function updateVoiceInputFromNative(payload = {}, fallbackStatus = "pending") {
     voiceSessionId: String(payload.voiceSessionId || payload.voice_session_id || voice.voiceSessionId || "").slice(0, 160),
     corrections: payload.corrections || voice.corrections || null,
   });
+  if (status === "transcribing" && payload.text) {
+    voiceInputApplyProvisionalTranscript(String(payload.text));
+  }
 }
 
 function initializeNativeVoiceInputBridge() {

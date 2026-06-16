@@ -262,6 +262,7 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(voiceUi, /function initializeNativeVoiceInputBridge\(\)/);
   assert.match(voiceUi, /window\.HomeAINativeVoiceInput = Object\.assign\(existing, \{/);
   assert.match(voiceUi, /updateVoiceInputFromNative\(payload, payload\.status \|\| "pending"\)/);
+  assert.match(voiceUi, /if \(status === "transcribing" && payload\.text\) \{\s+voiceInputApplyProvisionalTranscript\(String\(payload\.text\)\);\s+\}/);
 }
 
 testStaticLoadingAndCache();
