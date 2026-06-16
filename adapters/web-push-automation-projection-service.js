@@ -177,6 +177,13 @@ function createWebPushAutomationProjectionService(options = {}) {
   function automationPushSignature(job, latestDoc = null) {
     const lastRunAt = String(job?.lastRunAt || "").trim();
     if (!lastRunAt) return "";
+    if (automationRunFailed(job)) {
+      return [
+        lastRunAt,
+        "failed",
+        automationFailureSummary(job),
+      ].join("|");
+    }
     const docSignature = latestDoc ? [
       String(latestDoc.name || "").trim(),
       String(latestDoc.updatedAt || "").trim(),

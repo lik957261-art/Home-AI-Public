@@ -35,6 +35,11 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
   feedback belongs to the explicit create surface and must not reintroduce a
   per-message model preflight in ordinary chat.
 - Completed user-visible deliveries and failed runs should upsert Action Inbox items so the user reads/acts from Inbox. A failed run must still create an Inbox error item and Web Push even when it produced no new deliverable file.
+- Failed-run Web Push and Inbox projection must be stable per failed run. The
+  failure notification signature is based on the run timestamp and bounded
+  failure summary, not on whether the failed run also produced a Markdown
+  output file. A failed run output appearing or being filtered must not
+  alternate signatures and repeatedly notify the user for the same failure.
 - A successful CRON run whose `.md` run output contains a non-empty,
   non-`[SILENT]` `## Response` section is itself a user-facing Markdown
   delivery when no explicit `MEDIA:` deliverable is present. The Automation

@@ -430,6 +430,62 @@ function testAutomationTickSendsFailedRunWithoutDeliverableToInbox() {
   });
 }
 
+function testFailedAutomationDoesNotAlternateDeliverableAndEmptyPush() {
+  withTempDir((root) => {
+    const runAt = new Date().toISOString();
+    let includeDoc = true;
+    const inboxCalls = [];
+    const automationProvider = {
+      async listJobs() {
+        return {
+          ok: true,
+          jobs: [{
+            id: "failed-doc-job",
+            ownerPrincipalId: "owner",
+            lastRunAt: runAt,
+            lastStatus: "error",
+            status: "error",
+            lastError: "Script exited with code 1",
+            outputDocuments: includeDoc ? [{
+              name: "failure.md",
+              url: "/api/automations/deliverable?jobId=failed-doc-job&run=run.md&index=0",
+              size: 12,
+              updatedAt: runAt,
+              runOutputUpdatedAt: runAt,
+            }] : [],
+          }],
+        };
+      },
+    };
+    const { calls, service, state } = createHarness(root, {
+      automationProvider,
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: "ainb_failed_doc_job", workspaceId: input.workspaceId } };
+          },
+        },
+      },
+    });
+    state.pushSubscriptions.push({ subscription: { endpoint: "owner-endpoint" }, principalIds: ["owner"], workspaceIds: ["owner"] });
+    return service.runAutomationWebPushTick()
+      .then((first) => {
+        assert.equal(first.deliveries.length, 1);
+        assert.equal(calls.sends.length, 1);
+        assert.equal(inboxCalls.length, 1);
+        assert.equal(state.automationPushMarks["failed-doc-job"].signature, `${runAt}|failed|Script exited with code 1`);
+        includeDoc = false;
+        return service.runAutomationWebPushTick();
+      })
+      .then((second) => {
+        assert.equal(second.deliveries.length, 0);
+        assert.equal(calls.sends.length, 1);
+        assert.equal(inboxCalls.length, 1);
+      });
+  });
+}
+
 function testAutomationDeliveryInboxKeepsDirectDeliverableReference() {
   withTempDir((root) => {
     const runAt = new Date().toISOString();
@@ -1001,6 +1057,7 @@ Promise.resolve()
   .then(testTodoTickReconcilesAndDeliversPendingEvents)
   .then(testAutomationTickInitializesOldDeliveriesAndSendsRecentOnes)
   .then(testAutomationTickSendsFailedRunWithoutDeliverableToInbox)
+  .then(testFailedAutomationDoesNotAlternateDeliverableAndEmptyPush)
   .then(testAutomationDeliveryInboxKeepsDirectDeliverableReference)
   .then(testScheduledTodoAutomationCreatesTodoInboxItemWithoutDeliverable)
   .then(testScheduledTodoAutomationDoesNotAlternateDeliverableAndEmptyPush)

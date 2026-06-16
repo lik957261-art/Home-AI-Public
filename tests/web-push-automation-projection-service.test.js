@@ -91,6 +91,21 @@ function testSignatureSourceRefAndMarkProjection() {
   });
 }
 
+function testFailedRunSignatureIgnoresDeliverableSelection() {
+  const { service } = createHarness();
+  const job = {
+    id: "job-failed",
+    lastRunAt: "2026-06-08T11:00:00.000Z",
+    lastStatus: "error",
+    status: "error",
+    lastError: "Script exited with code 1",
+  };
+  const signatureWithDoc = service.automationPushSignature(job, doc("failure.md", "2026-06-08T11:05:00.000Z"));
+  const signatureWithoutDoc = service.automationPushSignature(job, null);
+  assert.equal(signatureWithDoc, "2026-06-08T11:00:00.000Z|failed|Script exited with code 1");
+  assert.equal(signatureWithoutDoc, signatureWithDoc);
+}
+
 function testEventProjectionAndRecentInitialDetection() {
   const { service } = createHarness();
   const latestDoc = doc("report.md", "2026-06-08T11:30:00.000Z");
@@ -139,5 +154,6 @@ function testEventProjectionAndRecentInitialDetection() {
 
 testLatestDeliverableFilteringAndSorting();
 testSignatureSourceRefAndMarkProjection();
+testFailedRunSignatureIgnoresDeliverableSelection();
 testEventProjectionAndRecentInitialDetection();
 console.log("web-push-automation-projection-service tests passed");
