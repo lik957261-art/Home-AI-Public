@@ -226,13 +226,21 @@ function createOwnerElevationRoutingService(options = {}) {
   function inferPermissionApprovalRequest(text) {
     const raw = String(text || "");
     if (!raw.trim()) return null;
+    const explicitOwnerHighPrivilegeRequired = (
+      /owner_high_privilege_required|owner[-_\s]?high[-_\s]?privilege\s+approval\s+is\s+required/i.test(raw)
+      || /elevationRequired["'\s:]+true/i.test(raw)
+      || /需要\s*Owner\s*高权限(?:批准|授权|提权)|Owner\s*高权限(?:批准|授权).*需要/.test(raw)
+    );
     const permissionDenied = (
-      /outside\s+(?:the\s+)?current\s+(?:workspace\/Gateway\s+)?permission\s+scope/i.test(raw)
+      explicitOwnerHighPrivilegeRequired
+      || /high[-_\s]?privilege\s+(?:approval\s+)?required/i.test(raw)
+      || /outside\s+(?:the\s+)?current\s+(?:workspace\/Gateway\s+)?permission\s+scope/i.test(raw)
       || /permission\s+boundary|access_policy_context|current\s+Gateway\s+permission/i.test(raw)
       || /当前.*权限|权限(?:范围|边界|不足)|超出.*权限|不在.*权限|无权限|没有权限|无法访问.*路径|不能访问.*路径|无权访问|访问被拒绝/.test(raw)
     );
     const elevationHint = (
-      /Owner|approval|approve|elevation|maintenance|high[-_\s]?privilege/i.test(raw)
+      explicitOwnerHighPrivilegeRequired
+      || /Owner|approval|approve|elevation|maintenance|high[-_\s]?privilege/i.test(raw)
       || /提权|高权限|批准|授权|Owner\s*授权|需要.*授权|申请.*权限|申请.*高权限/.test(raw)
     );
     if (!permissionDenied || !elevationHint) return null;

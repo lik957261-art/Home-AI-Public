@@ -138,6 +138,24 @@ function testChinesePermissionBoundaryInfersOwnerElevation() {
   assert.equal(request.elevationScope, "owner_high_privilege");
 }
 
+function testDirectoryToolOwnerHighPrivilegeCodeInfersOwnerElevation() {
+  const service = makeService();
+  const codeOnly = service.modelPermissionApprovalRequest(
+    '{"error":"Owner high-privilege approval is required to delete a non-empty directory.","code":"owner_high_privilege_required","elevationRequired":true}',
+    { runOptions: { gatewayRouting: { maintenance: false } } },
+  );
+  assert.ok(codeOnly);
+  assert.equal(codeOnly.elevationRequired, true);
+  assert.equal(codeOnly.elevationScope, "owner_high_privilege");
+
+  const chineseCode = service.inferPermissionApprovalRequest(
+    "删除目录失败：owner_high_privilege_required。需要 Owner 高权限批准。",
+  );
+  assert.ok(chineseCode);
+  assert.equal(chineseCode.elevationRequired, true);
+  assert.equal(chineseCode.elevationScope, "owner_high_privilege");
+}
+
 function testOwnerHighPrivilegeInstructionsCoverDirectoryDeleteBoundary() {
   const service = makeService();
   const instructions = service.ownerElevationInstructions({ elevationScope: "owner_high_privilege" });
@@ -153,6 +171,7 @@ testExplicitMaintenanceModeStillRequiresElevation();
 testChatGptProTextDoesNotPreemptNormalModelRunWithoutExplicitMaintenance();
 testChatGptProRoutesOnlyToOwnerMaintenanceProfilesAfterApproval();
 testChinesePermissionBoundaryInfersOwnerElevation();
+testDirectoryToolOwnerHighPrivilegeCodeInfersOwnerElevation();
 testOwnerHighPrivilegeInstructionsCoverDirectoryDeleteBoundary();
 
 console.log("owner-elevation-routing-service tests passed");
