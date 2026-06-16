@@ -158,6 +158,14 @@ Token-based APNs configuration is supported through:
 - `HERMES_NATIVE_APNS_TOPIC`
 - `HERMES_NATIVE_DEVICE_TOKEN_ENCRYPTION_KEY`
 
+The App Store Connect API key used by the TestFlight upload harness is not an
+APNs provider key. Production APNs delivery needs a separate Apple Developer
+APNs Auth Key with Push Notifications enabled for the Team ID and topic. If the
+Home AI listener has no `HERMES_NATIVE_APNS_*` variables, the native test route
+returns `apns_not_configured`. If a non-APNs key is supplied, Apple APNs returns
+provider-token errors such as `InvalidProviderToken`; do not treat that as a
+native device registration failure.
+
 Device records carry `environment=sandbox|production`. Delivery chooses
 `https://api.sandbox.push.apple.com` for sandbox devices and
 `https://api.push.apple.com` for production devices.

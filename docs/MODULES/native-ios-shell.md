@@ -80,6 +80,10 @@ Current native capabilities:
   `POST /api/native/devices/register`.
 - `ios_share_extension`: iOS Share Extension uploads inbound files through Home
   AI Directory APIs or a future dedicated native share endpoint.
+- `webview_file_input_picker`: the native shell owns the `WKWebView` file-input
+  picker on supported iOS versions so Home AI's ordinary PWA attachment input
+  can offer camera photo, camera video, photo library, and file choices without
+  depending on WebKit's default action sheet inside the shell.
 - `native_voice_input_bridge`: native microphone capture is exposed to the PWA
   only after the shell injects an explicit voice capability marker. The current
   manager uses `AVAudioEngine`, mono PCM16 chunks, and Home AI
@@ -198,6 +202,17 @@ Preferred behavior is to attach a server-side file/link reference rather than
 forcing a second upload when the item is already in the native shared container.
 The shell must not bypass Directory APIs or write directly into plugin-private
 storage.
+
+The ordinary Home AI PWA attachment button remains a Web/PWA-owned file input.
+When Home AI is embedded in the native iOS shell, the shell may intercept
+`WKUIDelegate.webView(_:runOpenPanelWith:initiatedByFrame:completionHandler:)`
+and present a native source menu for camera photo, camera video, photo library,
+and files. The selected media is copied to temporary app-local files and passed
+back to WebKit through the standard file-input completion handler, so Home AI's
+existing upload path still receives normal `File` objects. This native picker
+must be gated to the iOS shell and must not change standalone PWA behavior.
+Because the current SDK exposes `WKOpenPanelParameters` only on newer iOS
+versions, older supported iOS builds keep the WebKit default picker fallback.
 
 ### WebView Stability
 
