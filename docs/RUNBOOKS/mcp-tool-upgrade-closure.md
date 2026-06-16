@@ -210,26 +210,36 @@ rates.
 
 ## Moira Evidence MCP Pattern
 
-The 2026-06-14 Moira evidence upgrade adds these callable names when the
+The 2026-06-16 Moira evidence upgrade exposes these callable names when the
 `moira` toolset is enabled:
 
 - `mcp_moira_list_records`
 - `mcp_moira_get_chart_evidence`
 - `mcp_moira_get_year_forecast_evidence`
+- `mcp_moira_get_current_progression_evidence`
 - `mcp_moira_get_pick_day_evidence`
 - `mcp_moira_get_monthly_selection_evidence`
+- `mcp_moira_get_transit_event_evidence`
+- `mcp_moira_get_eclipse_event_evidence`
+- `mcp_moira_get_aspect_evidence`
+- `mcp_moira_get_pick_change_position_evidence`
+- `mcp_moira_get_fixed_star_change_position_evidence`
+- `mcp_moira_get_rule_migration_status`
+- `mcp_moira_get_rule_commentary_readiness`
+- `mcp_moira_get_functional_coverage_status`
 
 The Mobile schema epoch for this callable set is
-`20260615-moira-pick-month-mcp-v1`. Before production exposure, prove the Moira
+`20260616-moira-complete-evidence-mcp-v1`. Before production exposure, prove the Moira
 service schema, Gateway selected-profile callable schema, Mobile instruction
 hints, and selected worker schema all include the Moira callables. Moira uses
 ordinary workspace-private binding: each effective workspace must have its own
 `.hermes-moira/config.json` and key; Owner and `weixin_wuping` must not share
-Moira MCP credentials. These tools return read-only chart/year/election
-evidence only; the model owns final interpretation and must not claim Moira
-generated a full fortune narrative. PICK/择日 and 择月 tools return bounded
-calculation evidence; unless promoted rule commentary is explicitly returned,
-they are status-only facts and not a complete auspicious/inauspicious verdict.
+Moira MCP credentials. These tools return read-only chart/year/current/election,
+transit/aspect/eclipse/change-position, and rule-readiness evidence only; the
+model owns final interpretation and must not claim Moira generated a full
+fortune narrative. PICK/择日 and 择月 tools return bounded calculation evidence;
+unless promoted rule commentary is explicitly returned, they are status-only
+facts and not a complete auspicious/inauspicious verdict.
 
 ## Failure Classification
 

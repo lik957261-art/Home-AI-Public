@@ -1196,7 +1196,7 @@ const listWorkspaceAccessKeyStatuses = (...args) => mobileRuntimeWorkspaceFacade
 const rotateWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateWorkspaceAccessKey(...args);
 const revokeWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.revokeWorkspaceAccessKey(...args);
 const rotateGlobalAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateGlobalAccessKey(...args);
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260615-moira-pick-month-mcp-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260616-moira-complete-evidence-mcp-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
   normalizeSingleWindowMode,

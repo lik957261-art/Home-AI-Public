@@ -1173,8 +1173,8 @@ assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt
 assert.match(gatewayRunInstructionServiceJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `chatgpt_image_erase`/);
 assert.match(serverJs, /GATEWAY_TOOL_SCHEMA_EPOCH/);
-assert.match(serverJs, /20260615-moira-pick-month-mcp-v1/);
-assert.match(gatewayRunInstructionServiceJs, /20260615-moira-pick-month-mcp-v1/);
+assert.match(serverJs, /20260616-moira-complete-evidence-mcp-v1/);
+assert.match(gatewayRunInstructionServiceJs, /20260616-moira-complete-evidence-mcp-v1/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT[\s\S]*\|\| "0"/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS[\s\S]*\|\| "8000"/);
 assert.match(serverJs, /enabled: GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED \|\| GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED/);
@@ -1197,6 +1197,9 @@ assert.match(gatewayRunInstructionServiceJs, /mcp_finance_apply_owner_stock_posi
 assert.match(gatewayRunInstructionServiceJs, /mcp_health_records_get_summary/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_pick_day_evidence/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_monthly_selection_evidence/);
+assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_current_progression_evidence/);
+assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_aspect_evidence/);
+assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_rule_migration_status/);
 assert.match(serverJs, /toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH/);
 assert.match(gatewayRunInstructionServiceJs, /Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing/);
 assert.match(ownerElevationRoutingServiceJs, /Image editing, object removal, background cleanup, P image requests, and erase\/inpainting requests inside the current workspace are ordinary user work/);
