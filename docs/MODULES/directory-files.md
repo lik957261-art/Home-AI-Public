@@ -57,6 +57,14 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
   directory delete policy. A low-permission Gateway result that reports Chinese
   or English permission-boundary text must still surface the Owner elevation
   action in the client.
+- Direct Directory UI deletion must make the operation visible after the native
+  delete confirmation. It should show an in-app progress/error toast, include
+  directory-thread preparation failures in the same error path, and let Owner
+  request a one-shot elevation token for the current directory context even when
+  the selected workspace is not the Owner workspace. If the backend still
+  reports `owner_high_privilege_required`, the client must retry with a
+  one-shot token instead of relying on possibly stale local timed-elevation
+  state. Message retry elevation remains Owner-workspace-only.
 - An approved Owner high-privilege Gateway run may delete only the exact
   non-empty directory target requested by the user after resolving the target
   through the current directory/workspace boundary. It must not broaden the

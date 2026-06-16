@@ -201,15 +201,20 @@ async function deleteDirectoryEntry(button) {
     ? `删除目录“${name}”？如果目录非空，需要 Owner 高权限批准后才会递归删除。`
     : `删除文件“${name}”？`;
   if (!window.confirm(message)) return;
-  const threadId = await ensureDirectoryThread();
-  const body = { threadId, path };
+  if (typeof showPushToast === "function") showPushToast(type === "directory" ? "正在删除目录..." : "正在删除文件...");
+  let body = null;
   try {
+    const threadId = await ensureDirectoryThread();
+    body = { threadId, path };
     await api("/api/directories/delete", {
       method: "POST",
       body: JSON.stringify(body),
     });
   } catch (err) {
-    if (!shouldOfferOwnerElevation(err)) throw err;
+    if (!shouldOfferOwnerElevation(err)) {
+      if (typeof showPushToast === "function") showPushToast(err.message || "删除失败", "error");
+      throw err;
+    }
     const ok = await openOwnerElevationApprovalDialog({
       title: "Owner Approval",
       message: ownerElevationConfirmMessage(err),
@@ -219,8 +224,10 @@ async function deleteDirectoryEntry(button) {
     let ownerElevationOnceRequested = false;
     try {
       let onceToken = "";
-      if (!ownerElevationActive()) {
-        await activateOwnerElevationOnce({ confirm: false });
+      if (typeof ownerElevationOnceActive === "function" && ownerElevationOnceActive()) {
+        onceToken = state.ownerElevationOnceToken;
+      } else {
+        await activateOwnerElevationOnce({ confirm: false, requireOwnerWorkspace: false });
         onceToken = state.ownerElevationOnceToken;
         ownerElevationOnceRequested = true;
       }
@@ -230,12 +237,16 @@ async function deleteDirectoryEntry(button) {
         method: "POST",
         body: JSON.stringify(elevatedBody),
       });
+    } catch (retryErr) {
+      if (typeof showPushToast === "function") showPushToast(retryErr.message || "删除失败", "error");
+      throw retryErr;
     } finally {
       if (ownerElevationOnceRequested) clearOwnerElevationOnce();
     }
   }
   if (!directoryActivePath() || wasRootListProject) await loadProjects();
   await loadDirectoryView();
+  if (typeof showPushToast === "function") showPushToast("已删除", "success");
 }
 
 function closeDirectoryEntryMenus(root = document) {

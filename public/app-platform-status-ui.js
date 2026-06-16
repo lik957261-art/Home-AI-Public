@@ -371,7 +371,7 @@ function ownerElevationOnceActive() {
 }
 
 async function activateOwnerElevationOnce(options = {}) {
-  if (!state.auth?.isOwner || state.selectedWorkspaceId !== "owner") {
+  if (!state.auth?.isOwner || (options.requireOwnerWorkspace !== false && state.selectedWorkspaceId !== "owner")) {
     throw new Error("Owner access is required");
   }
   if (options.confirm !== false) {
