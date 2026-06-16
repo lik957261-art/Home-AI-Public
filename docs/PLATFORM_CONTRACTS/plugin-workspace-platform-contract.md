@@ -133,6 +133,11 @@ Extension upload, and future native voice capture. It must declare the central
 platform pointer and AI Operations flow, but it must not appear in plugin Dock,
 plugin-topic, MCP, Gateway worker, workspace grant, LaunchDaemon, or loopback
 manifest checks. The durable module doc is `docs/MODULES/native-ios-shell.md`.
+APNs registration is governed by `docs/MODULES/native-notifications.md`: native
+clients use `POST /api/native/devices/register` with `X-Hermes-Web-Key`, send
+only device/app metadata plus the APNs token, and rely on Home AI to clamp
+workspace access, protect token storage, and fan out on channel
+`native_ios_apns`.
 
 Codex Mobile Web remains special for Owner-only visibility and permission
 policy. It is not a normal workspace-grantable business plugin, but it must

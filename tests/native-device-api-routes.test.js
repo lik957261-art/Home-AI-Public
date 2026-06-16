@@ -79,7 +79,10 @@ async function testRegisterUsesWorkspaceAccessAndReturnsPublicDevice() {
       deviceToken: "raw-secret-token",
       workspaceId: "owner",
       appBundleId: "com.xuxin.homeai.native",
+      appVersion: "1.0.3",
+      buildNumber: "103",
       environment: "sandbox",
+      source: "home_ai_native",
     },
   };
   const res = makeResponse();
@@ -87,6 +90,13 @@ async function testRegisterUsesWorkspaceAccessAndReturnsPublicDevice() {
   assert.equal(res.statusCode, 201);
   assert.equal(calls.workspaceAccess[0], "owner");
   assert.equal(calls.registered[0].principalId, "owner");
+  assert.equal(calls.registered[0].platform, "ios");
+  assert.equal(calls.registered[0].pushProvider, "apns");
+  assert.equal(calls.registered[0].appBundleId, "com.xuxin.homeai.native");
+  assert.equal(calls.registered[0].appVersion, "1.0.3");
+  assert.equal(calls.registered[0].buildNumber, "103");
+  assert.equal(calls.registered[0].environment, "sandbox");
+  assert.equal(calls.registered[0].source, "home_ai_native");
   const body = parseBody(res);
   assert.equal(body.ok, true);
   assert.equal(body.channel, "native_ios_apns");

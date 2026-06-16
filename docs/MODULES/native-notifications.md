@@ -33,6 +33,100 @@ reuse Web Push subscriptions or plugin credentials.
 
 The native app must not send plugin keys or plugin tokens to these routes.
 
+## Native Shell Registration Protocol
+
+The current Home AI native iOS shell exposes this flow from its native settings
+surface, labelled `Native Notifications`:
+
+1. The user enters the Home AI origin, Access Key, and workspace id.
+2. The native shell calls
+   `UNUserNotificationCenter.requestAuthorization` with `alert`, `badge`, and
+   `sound`.
+3. If permission is granted and a cached APNs token already exists, the native
+   shell uploads that token immediately.
+4. If permission is granted but no cached token exists, the native shell calls
+   `UIApplication.registerForRemoteNotifications()` and uploads the token from
+   `didRegisterForRemoteNotificationsWithDeviceToken`.
+5. A successful Home AI response is the only point where the native shell marks
+   the device as registered with Home AI.
+
+The native shell persists only local registration state under these UserDefaults
+keys:
+
+```text
+homeAI.notifications.apnsDeviceToken
+homeAI.notifications.registeredAt
+```
+
+The settings UI may display a bounded token preview, for example the first and
+last eight characters. It must not display or log the full token.
+
+The register request is:
+
+```http
+POST /api/native/devices/register
+X-Hermes-Web-Key: <Home AI Access Key>
+Content-Type: application/json; charset=utf-8
+Accept: application/json
+```
+
+Request body:
+
+```json
+{
+  "platform": "ios",
+  "pushProvider": "apns",
+  "deviceToken": "<apns token>",
+  "workspaceId": "owner",
+  "appBundleId": "com.xuxin.homeai.native",
+  "appVersion": "1.0.0",
+  "buildNumber": "100",
+  "environment": "sandbox",
+  "source": "home_ai_native"
+}
+```
+
+`environment` is `sandbox` for native DEBUG builds and `production` for
+non-DEBUG builds. The current local native entitlement is development APNs; a
+TestFlight/App Store build requires a production APNs entitlement/profile and
+matching Home AI APNs provider configuration.
+
+Successful response:
+
+```json
+{
+  "ok": true,
+  "channel": "native_ios_apns",
+  "device": {
+    "id": "ndev_...",
+    "workspaceId": "owner",
+    "principalId": "owner",
+    "platform": "ios",
+    "pushProvider": "apns",
+    "tokenHash": "...",
+    "appBundleId": "com.xuxin.homeai.native",
+    "appVersion": "1.0.0",
+    "buildNumber": "100",
+    "environment": "sandbox",
+    "enabled": true,
+    "lastSeenAt": "2026-06-16T00:00:00.000Z",
+    "createdAt": "2026-06-16T00:00:00.000Z",
+    "updatedAt": "2026-06-16T00:00:00.000Z"
+  }
+}
+```
+
+The response must not include `deviceToken`, token ciphertext, Access Key,
+plugin credentials, or APNs provider secrets. HTTP `404` means the native shell
+is newer than the Home AI Server and should show the existing compatibility
+message that the server has not provided the registration endpoint yet. HTTP
+`401` or `403` means the Access Key/workspace boundary rejected the request.
+
+Unregister requests may identify the device by raw `deviceToken`, `tokenHash`,
+or `deviceId`; the server still clamps the operation to the authenticated
+workspace before disabling the device. Test-notification requests accept a
+bounded `title`, `body`, and optional `deepLink`.
+
 ## Storage
 
 Native devices are stored in SQLite table `native_devices`.
@@ -104,6 +198,13 @@ APNs payloads use a bounded alert:
 Payloads are navigation hints. Sensitive content must still be fetched through
 authenticated Home AI APIs after the app opens.
 
+The current native shell presents foreground notifications with banner, list,
+sound, and badge options. Notification-tap deep-link routing is not implemented
+in the native shell yet: Home AI already includes `deepLink` in the APNs payload,
+but the shell currently acknowledges the tap without navigating the `WKWebView`.
+Until that native-side bridge is added, APNs tap behavior is delivery-only and
+must not be treated as a completed navigation contract.
+
 ## Validation
 
 - `node --check adapters/native-notification-service.js`
@@ -117,4 +218,3 @@ authenticated Home AI APIs after the app opens.
 - `node tests/mobile-api-dispatcher.test.js`
 - `node tests/api-route-inventory.test.js`
 - `node tests/architecture-refactor-boundary.test.js`
-

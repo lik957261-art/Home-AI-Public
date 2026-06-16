@@ -136,8 +136,12 @@ node tests/architecture-refactor-boundary.test.js
 Coverage must prove `X-Hermes-Web-Key` scoped registration, workspace spoof
 rejection, idempotent `workspace+platform+provider+tokenHash` upsert, no raw
 token exposure in API responses, sandbox/production APNs routing, invalid-token
-disable behavior, and that Web Push subscriptions remain separate from native
-APNs devices.
+disable behavior, forwarding of the native shell's app bundle/version/build,
+`environment`, and `source=home_ai_native` fields, and that Web Push
+subscriptions remain separate from native APNs devices. The native shell
+currently receives `deepLink` in APNs payloads but does not route the `WKWebView`
+on notification tap; tests should not claim tap-to-route completion until the
+native bridge is implemented.
 
 For plugin workspace audit creation, manual alignment trigger, runner report
 language, or Action Inbox audit entry changes, run:

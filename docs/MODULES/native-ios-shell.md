@@ -64,6 +64,32 @@ Planned capability:
   `docs/native-voice-input-overlay.md`, reusing the Home AI
   `/api/voice-input/*` routes and PWA composer insertion path.
 
+## System Notifications
+
+The APNs bridge is a native client capability, but the protocol source of truth
+is Home AI server-side documentation:
+
+- Register route: `POST /api/native/devices/register`
+- Auth transport: `X-Hermes-Web-Key`
+- Channel: `native_ios_apns`
+- Current native settings label: `Native Notifications`
+- Current native local state keys:
+  `homeAI.notifications.apnsDeviceToken` and
+  `homeAI.notifications.registeredAt`
+
+The native shell sends `platform=ios`, `pushProvider=apns`, `deviceToken`,
+`workspaceId`, app bundle/version/build metadata, `environment`, and
+`source=home_ai_native`. Home AI clamps the requested workspace to the
+authenticated Access Key, stores only token hash plus protected token material,
+and returns a public device projection without the raw APNs token.
+
+Foreground native notifications are shown with banner, list, sound, and badge
+options. Server payloads already include `deepLink`, but the current native
+shell does not consume that value on notification tap; tap-to-route remains a
+future native bridge task. See `docs/MODULES/native-notifications.md` for the
+full request/response contract, privacy rules, APNs environment mapping, and
+validation matrix.
+
 ## Platform Management
 
 The Home AI platform contract checker includes native clients as managed
