@@ -125,6 +125,12 @@ function embeddedPluginRecord(pluginId) {
       bridgeBound: false,
       frameHealthSeq: 0,
       viewportMessageTimer: 0,
+      stableHostTopSafeArea: 0,
+      stableHostTopSafeAreaAt: 0,
+      lastViewportPayloadSignature: "",
+      lastViewportPayloadSnapshot: null,
+      lastViewportReason: "",
+      lastViewportDeliveredAt: 0,
       voiceInputCapability: null,
       voiceInputLastMessageAt: 0,
       loading: false,
@@ -851,7 +857,7 @@ function embeddedPluginHostBottomSafeArea(def, footerVisible, bottomLayout = {})
   return embeddedPluginCssPx("--mobile-bottom-nav-comfort-inset");
 }
 
-function embeddedPluginHostTopSafeArea() {
+function embeddedPluginRawHostTopSafeArea() {
   const measured = window.__hermesMobileBottomLayoutMetrics?.safeAreaTop;
   if (Number.isFinite(Number(measured)) && Number(measured) > 0) return Math.round(Number(measured));
   if (typeof clientLayoutDiagnosticSafeAreaProbe === "function") {
@@ -860,6 +866,20 @@ function embeddedPluginHostTopSafeArea() {
     if (Number.isFinite(top) && top > 0) return Math.round(top);
   }
   return 0;
+}
+
+function embeddedPluginHostTopSafeArea(def = embeddedPluginDefByView()) {
+  const raw = embeddedPluginRawHostTopSafeArea();
+  if (!def) return raw;
+  const record = embeddedPluginRecord(def.id);
+  const previous = Math.max(0, Math.round(Number(record.stableHostTopSafeArea || 0) || 0));
+  if (previous > 0 && raw <= 0 && Date.now() - Number(record.stableHostTopSafeAreaAt || 0) < 5000) {
+    return previous;
+  }
+  const next = previous > 0 && raw > 0 && Math.abs(raw - previous) <= 2 ? previous : raw;
+  record.stableHostTopSafeArea = next;
+  record.stableHostTopSafeAreaAt = Date.now();
+  return next;
 }
 
 function embeddedPluginViewportPayload(def, frame, reason = "layout") {
@@ -875,7 +895,7 @@ function embeddedPluginViewportPayload(def, frame, reason = "layout") {
   const footerVisible = Boolean(nav && !nav.hidden && window.getComputedStyle?.(nav).display !== "none");
   const bottomLayout = window.__hermesMobileBottomLayoutMetrics || {};
   const hostBottomSafeArea = embeddedPluginHostBottomSafeArea(def, footerVisible, bottomLayout);
-  const hostTopSafeArea = embeddedPluginHostTopSafeArea();
+  const hostTopSafeArea = embeddedPluginHostTopSafeArea(def);
   return {
     type: "hermes.plugin.viewport",
     version: 1,
@@ -925,14 +945,78 @@ function embeddedPluginViewportPayload(def, frame, reason = "layout") {
   };
 }
 
+function embeddedPluginViewportPayloadStableShape(payload) {
+  if (!payload || typeof payload !== "object") return "";
+  return {
+    pluginId: payload.pluginId || "",
+    workspaceId: payload.workspaceId || "",
+    appearance: payload.appearance || null,
+    viewport: payload.viewport || null,
+    keyboard: payload.keyboard || null,
+    iframe: payload.iframe || null,
+    host: payload.host || null,
+    footer: payload.footer || null,
+  };
+}
+
+function embeddedPluginViewportPayloadSignature(payload) {
+  const stableShape = embeddedPluginViewportPayloadStableShape(payload);
+  return stableShape ? JSON.stringify(stableShape) : "";
+}
+
+function embeddedPluginViewportPayloadSimilar(left, right, tolerance = 2) {
+  if (left === right) return true;
+  if (typeof left === "number" || typeof right === "number") {
+    const leftNumber = Number(left);
+    const rightNumber = Number(right);
+    return Number.isFinite(leftNumber)
+      && Number.isFinite(rightNumber)
+      && Math.abs(leftNumber - rightNumber) <= tolerance;
+  }
+  if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false;
+    return left.every((item, index) => embeddedPluginViewportPayloadSimilar(item, right[index], tolerance));
+  }
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+  for (const key of keys) {
+    if (!embeddedPluginViewportPayloadSimilar(left[key], right[key], tolerance)) return false;
+  }
+  return true;
+}
+
+function embeddedPluginViewportDeliveryForced(record, reason = "") {
+  const normalized = String(reason || "").trim();
+  if (!/^(host_visible|frame_attach|frame_render|frame_load)$/.test(normalized)) return false;
+  return String(record?.lastViewportReason || "") !== normalized;
+}
+
 function sendEmbeddedPluginViewportMetrics(def = embeddedPluginDefByView(), reason = "layout") {
   if (!def || state.viewMode !== def.viewMode) return false;
   const frame = embeddedPluginActiveFrame(def);
   const record = embeddedPluginRecord(def.id);
   const origin = record.frameOrigin || embeddedPluginEntryOrigin(def, record.manifest) || embeddedPluginEntryOrigin(def);
   if (!frame?.contentWindow || !origin) return false;
-  frame.contentWindow.postMessage(embeddedPluginViewportPayload(def, frame, reason), origin);
-  record.lastViewportMessageAt = Date.now();
+  const payload = embeddedPluginViewportPayload(def, frame, reason);
+  const stableShape = embeddedPluginViewportPayloadStableShape(payload);
+  const signature = stableShape ? JSON.stringify(stableShape) : "";
+  const now = Date.now();
+  if (
+    signature
+    && (
+      signature === record.lastViewportPayloadSignature
+      || embeddedPluginViewportPayloadSimilar(stableShape, record.lastViewportPayloadSnapshot)
+    )
+    && !embeddedPluginViewportDeliveryForced(record, reason)
+  ) {
+    return false;
+  }
+  frame.contentWindow.postMessage(payload, origin);
+  record.lastViewportPayloadSignature = signature;
+  record.lastViewportPayloadSnapshot = stableShape;
+  record.lastViewportReason = String(reason || "").slice(0, 60);
+  record.lastViewportDeliveredAt = now;
+  record.lastViewportMessageAt = now;
   return true;
 }
 
@@ -1052,6 +1136,10 @@ function discardEmbeddedPluginShell(def) {
     renderedEntryUrl: "",
     renderedWorkspaceId: "",
     renderedAppearanceKey: "",
+    lastViewportPayloadSignature: "",
+    lastViewportPayloadSnapshot: null,
+    lastViewportReason: "",
+    lastViewportDeliveredAt: 0,
   });
 }
 

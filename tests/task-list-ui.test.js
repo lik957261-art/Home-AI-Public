@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260617-plugin-dock-refresh-v789";
+const CLIENT_VERSION = "20260617-codex-shell-viewport-stable-v790";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -216,8 +216,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-plugin-dock-refresh-v789" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-plugin-dock-refresh-v789"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-codex-shell-viewport-stable-v790" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-codex-shell-viewport-stable-v790"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2593,9 +2593,16 @@ assert.match(stylesCss, /:root\.native-shell-ios\.embedded-plugin-shell-active \
 assert.match(stylesCss, /:root\.native-shell-ios\.keyboard-viewport-active\.embedded-plugin-shell-active \.plugin-context-nav-mode\.embedded-plugin-host-active \.main \{[\s\S]*?bottom: 0;/);
 assert.match(appEmbeddedPluginUiJs, /classList\?\.toggle\("embedded-plugin-shell-active", visible\)/);
 assert.match(appEmbeddedPluginUiJs, /classList\?\.toggle\("codex-plugin-shell-active", visible && def\.id === "codex-mobile"\)/);
-assert.match(appEmbeddedPluginUiJs, /function embeddedPluginHostTopSafeArea\(\)/);
+assert.match(appEmbeddedPluginUiJs, /function embeddedPluginRawHostTopSafeArea\(\)/);
+assert.match(appEmbeddedPluginUiJs, /function embeddedPluginHostTopSafeArea\(def = embeddedPluginDefByView\(\)\)/);
+assert.match(appEmbeddedPluginUiJs, /stableHostTopSafeArea/);
+assert.match(appEmbeddedPluginUiJs, /Math\.abs\(raw - previous\) <= 2/);
 assert.match(appEmbeddedPluginUiJs, /safeAreaTop: hostTopSafeArea/);
 assert.match(appEmbeddedPluginUiJs, /hostTopSafeArea/);
+assert.match(appEmbeddedPluginUiJs, /function embeddedPluginViewportPayloadStableShape\(payload\)/);
+assert.match(appEmbeddedPluginUiJs, /function embeddedPluginViewportPayloadSignature\(payload\)/);
+assert.match(appEmbeddedPluginUiJs, /function embeddedPluginViewportPayloadSimilar\(left, right, tolerance = 2\)/);
+assert.match(appEmbeddedPluginUiJs, /embeddedPluginViewportPayloadSimilar\(stableShape, record\.lastViewportPayloadSnapshot\)/);
 assert.match(appJs, /const nativeEmbeddedPluginActive = Boolean\([\s\S]*?root\.classList\.contains\("native-shell-ios"\)[\s\S]*?root\.classList\.contains\("embedded-plugin-shell-active"\)[\s\S]*?app\?\.classList\.contains\("embedded-plugin-host-active"\)/);
 assert.match(stylesCss, /\.wardrobe-plugin-host-active:not\(\.plugin-context-nav-mode\) \.main,[\s\S]*?\.embedded-plugin-host-active:not\(\.plugin-context-nav-mode\) \.main \{[\s\S]*?padding-top: var\(--plugin-context-main-top, 0\);/);
 assert.match(stylesCss, /\.plugin-context-nav-mode\.wardrobe-plugin-host-active \.main,[\s\S]*?\.plugin-context-nav-mode\.embedded-plugin-host-active \.main \{[\s\S]*?position: absolute;[\s\S]*?top: var\(--plugin-context-main-top, 0\);[\s\S]*?right: 0;[\s\S]*?bottom: var\(--plugin-context-main-bottom, var\(--plugin-context-bottom-nav-height\)\);[\s\S]*?left: 0;[\s\S]*?min-height: 0;/);
@@ -2631,14 +2638,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-plugin-dock-refresh-v789/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-plugin-dock-refresh-v789/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-plugin-dock-refresh-v789/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-plugin-dock-refresh-v789/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-plugin-dock-refresh-v789/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-plugin-dock-refresh-v789/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-plugin-dock-refresh-v789/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-plugin-dock-refresh-v789/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-codex-shell-viewport-stable-v790/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-codex-shell-viewport-stable-v790/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-codex-shell-viewport-stable-v790/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-codex-shell-viewport-stable-v790/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-codex-shell-viewport-stable-v790/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-codex-shell-viewport-stable-v790/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-codex-shell-viewport-stable-v790/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-codex-shell-viewport-stable-v790/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);

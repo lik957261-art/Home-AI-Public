@@ -237,6 +237,15 @@ headers may consume that value inside their own iframe. Standalone PWA/browser
 behavior must not enter this branch and must keep the ordinary PWA safe-area,
 refresh notice, and keyboard behavior.
 
+The native-shell viewport bridge must be stable. Home AI may broadcast the first
+viewport payload for iframe attach, render, load, and host-visible lifecycle
+events, but it should suppress exact duplicate payloads and payloads that differ
+only by 1-2px measurement noise. The measured top safe-area value should also
+hold the last positive native-shell value briefly when the probe temporarily
+returns `0`, and ignore 1-2px top-inset drift. This prevents embedded apps such
+as Codex from repeatedly applying iframe-internal safe-area or recovery layout
+updates while the standalone PWA/browser path remains unchanged.
+
 ## System Notifications
 
 The APNs bridge is a native client capability, but the protocol source of truth

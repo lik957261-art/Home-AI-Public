@@ -158,9 +158,17 @@ native keyboard without going through the Home AI composer focus path:
 
 The payload is layout metadata only. It must not contain raw keys, launch
 tokens, cookies, plugin private data, route URLs, or user content. The host sends
-it to the iframe entry origin recorded in the normalized manifest. Repeated
-settled broadcasts may send the same bounded payload shape several times during
-keyboard animation; plugins should treat the latest event as authoritative.
+it to the iframe entry origin recorded in the normalized manifest. Lifecycle
+events such as iframe attach, render, load, and host-visible transitions should
+still send a first viewport payload so a newly loaded plugin can initialize its
+layout contract. After that, the host suppresses exact duplicate viewport
+payloads and payloads that differ only by small measurement noise, such as
+1-2px safe-area, visual viewport, or iframe-rect drift. Native iOS shell
+safe-area probes can briefly alternate between a positive top inset and `0`;
+the host keeps the last positive top safe-area value briefly and ignores
+1-2px top inset jitter before broadcasting. Plugins should treat the latest
+delivered event as authoritative and must not depend on periodic duplicate
+viewport broadcasts for ordinary repainting.
 
 The `appearance` object is also bounded layout metadata. The host must send the
 current sanitized device-local theme and font-size preference in both the launch
