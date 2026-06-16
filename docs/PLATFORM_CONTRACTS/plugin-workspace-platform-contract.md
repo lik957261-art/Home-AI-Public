@@ -128,11 +128,15 @@ The checker validates:
 Home AI Native iOS Shell is a managed native client target, not an embedded
 business plugin. It has `client_id=home-ai-native-ios`, lives in the Xcode
 workspace `/Users/xuxin/Xcode/Home AI`, and contributes Apple system bridges
-such as the `WKWebView` shell, HealthKit sync, APNs device registration, Share
-Extension upload, and future native voice capture. It must declare the central
-platform pointer and AI Operations flow, but it must not appear in plugin Dock,
-plugin-topic, MCP, Gateway worker, workspace grant, LaunchDaemon, or loopback
-manifest checks. The durable module doc is `docs/MODULES/native-ios-shell.md`.
+such as the `WKWebView` shell, HealthKit sync, APNs device registration, native
+voice input capture, system share/receive, and WebView recovery signals. Its
+near-term roadmap is system push completion, native voice input, system
+share/receive, and WebView stability. Apple Watch and Bluetooth/BLE bridges are
+deferred extension points, not current platform obligations. It must declare the
+central platform pointer and AI Operations flow, but it must not appear in
+plugin Dock, plugin-topic, MCP, Gateway worker, workspace grant, LaunchDaemon,
+or loopback manifest checks. The durable module doc is
+`docs/MODULES/native-ios-shell.md`.
 APNs registration is governed by `docs/MODULES/native-notifications.md`: native
 clients use `POST /api/native/devices/register` with `X-Hermes-Web-Key`, send
 only device/app metadata plus the APNs token, and rely on Home AI to clamp
@@ -553,7 +557,7 @@ pointer or module doc:
 | `auth_transport` | yes | Home AI browser/API Access Key transport, currently `X-Hermes-Web-Key`. |
 | `default_workspace_id` | yes | Default selected Home AI workspace, normally `owner`. |
 | `native_shell_query` | yes | Native shell marker such as `nativeShell=ios`. |
-| `native_capabilities` | yes | Bounded capability ids such as `pwa_webview_shell`, `apple_health_sync`, `apns_device_registration`, and `ios_share_extension`. |
+| `native_capabilities` | yes | Bounded capability ids such as `pwa_webview_shell`, `apple_health_sync`, `apns_device_registration`, `ios_share_extension`, `native_voice_input_overlay`, `system_share_receive`, `apns_interaction_completion`, and `webview_recovery_bridge`. Apple Watch and Bluetooth/BLE ids should not be declared as active or near-term capabilities unless a future contract reopens them. |
 | `platform_management_status` | yes | `managed_native_client` when the target is checked by the Home AI platform checker. |
 | `ai_ops_control_plane_command` | yes | Same Home AI `scripts/ai-ops-control-plane.js intake --task "<task>" --json` entrypoint used by plugin workspaces. |
 | `ai_ops_required_flow` | yes | Must include `intake`, `required-checks`, `lane allocate if visual`, `evidence append`, `production smoke`, and `handoff`. |

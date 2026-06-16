@@ -10,6 +10,19 @@ an independent Home AI product fork. The native shell contributes Apple
 system-capability bridges while the Home AI Web/PWA app remains the product UI,
 workspace, plugin, auth, Gateway/MCP, and server API source of truth.
 
+The long-term role of the native shell is to host capabilities that require
+Apple system integration and cannot be implemented reliably in the PWA alone.
+The near-term focus is system push, a native voice-input capture layer, system
+share/receive flows, and WebView stability bridges. These capabilities must
+enter Home AI through explicit server APIs or native-to-Web bridge messages;
+they must not turn the shell into a second product UI or a plugin-specific
+credential holder.
+
+Apple Watch and Bluetooth/BLE bridges are explicitly deferred. They are valid
+future extension points, but they are not part of the current or near-term
+native shell roadmap unless a separate product requirement reopens them with a
+specific user workflow and validation plan.
+
 ## Local Workspace
 
 - Native client id: `home-ai-native-ios`
@@ -58,11 +71,85 @@ Current native capabilities:
 - `ios_share_extension`: iOS Share Extension uploads inbound files through Home
   AI Directory APIs or a future dedicated native share endpoint.
 
-Planned capability:
+Near-term priority capabilities:
 
-- Native voice-input overlay, described in the Xcode workspace's
+- `apns_interaction_completion`: complete the APNs loop after registration by
+  consuming notification `deepLink` values on tap, routing the `WKWebView` to
+  the target workspace/thread/inbox/plugin, supporting bounded badge updates,
+  and optionally exposing notification action buttons such as complete, snooze,
+  or open. Home AI Server still decides notification content and authorization.
+
+- `native_voice_input_overlay`: native microphone/voice capture and editing
+  layer, described in the Xcode workspace's
   `docs/native-voice-input-overlay.md`, reusing the Home AI
-  `/api/voice-input/*` routes and PWA composer insertion path.
+  `/api/voice-input/*` routes and PWA composer insertion path. It is not a
+  system input method and must not simulate keyboard entry.
+- `system_share_receive`: system-level share, open-in, document picker,
+  universal-link, or extension receive flows that attach inbound content to
+  authorized Home AI workspaces, threads, directories, or plugin contexts.
+- `webview_recovery_bridge`: native diagnostics and recovery hooks for WebView
+  crash/blank-screen recovery, network status, client-version refresh,
+  safe-area/keyboard metrics, and native-shell health pulses.
+
+Deferred capabilities:
+
+- `apple_watch_bridge`: Apple Watch connectivity is not a near-term goal.
+  Revisit only after notification, voice input, share/receive, and WebView
+  stability work has a stable product path.
+- `bluetooth_system_bridge`: Bluetooth/BLE is not a near-term goal. Revisit only
+  for a concrete hardware workflow where CoreBluetooth access is required.
+
+## Capability Details
+
+### System Push
+
+System push is the first native-shell system bridge. The server owns
+notification content, workspace authorization, channel selection, and privacy
+rules. The native shell owns APNs permission, token registration, foreground
+presentation, badge projection, and notification-tap delivery back to Home AI.
+
+Near-term completion requires:
+
+- APNs registration and unregister flows through Home AI APIs;
+- foreground notification display with bounded alert text;
+- notification-tap `deepLink` routing into the `WKWebView`;
+- optional action buttons mapped to Home AI API calls after workspace access is
+  confirmed;
+- no raw APNs token, Access Key, push endpoint, or plugin credential in logs,
+  payloads, or documents.
+
+### Native Voice Input
+
+Native voice input exists to avoid iOS/PWA microphone, keyboard, focus, and
+selection instability. The shell may own microphone permission, press-to-talk
+recording, native audio capture, short recording indicators, and upload/stream
+transport. Home AI owns ASR routing, correction learning, composer insertion,
+workspace/thread/plugin scope, and final send behavior.
+
+The native shell must not become a system input method and must not inject text
+by simulating keyboard events. Confirmed text must be inserted through the Home
+AI host composer API or the active plugin composer protocol.
+
+### System Share And Receive
+
+System share/receive covers iOS Share Extension, Open In, document picker,
+universal-link receive, and file/link/image handoff from other apps. The shell
+may gather the inbound item and a user-selected Home AI target. Home AI Server
+must validate the target workspace, thread, directory, or plugin context before
+persisting or linking the content.
+
+Preferred behavior is to attach a server-side file/link reference rather than
+forcing a second upload when the item is already in the native shared container.
+The shell must not bypass Directory APIs or write directly into plugin-private
+storage.
+
+### WebView Stability
+
+The native shell may provide WebView health support that the PWA cannot provide
+itself: crash detection, blank-screen recovery, native network status, safe-area
+and keyboard metrics, client refresh/reload controls, and native-shell layout
+pulses. These signals should remain bounded diagnostics or bridge messages; the
+PWA remains responsible for rendering product UI and applying layout policy.
 
 ## System Notifications
 
