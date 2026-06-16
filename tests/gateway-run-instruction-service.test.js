@@ -43,7 +43,7 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /wardrobe -> mcp_wardrobe_wardrobe_write_item, mcp_wardrobe_wardrobe_write_history, mcp_wardrobe_wardrobe_upload_photo, mcp_wardrobe_wardrobe_set_primary_photo, mcp_wardrobe_wardrobe_get_item, mcp_wardrobe_wardrobe_search_items/);
   assert.match(summary, /finance -> mcp_finance_list_ledgers, mcp_finance_list_transactions, mcp_finance_get_summary, mcp_finance_get_report, mcp_finance_create_transaction, mcp_finance_add_transaction_attachment, mcp_finance_reference_object_types, mcp_finance_reference_get, mcp_finance_reference_summarize, mcp_finance_get_owner_asset_summary, mcp_finance_list_owner_asset_snapshots, mcp_finance_upsert_owner_asset_snapshot, mcp_finance_get_owner_stock_summary, mcp_finance_list_owner_stock_snapshots, mcp_finance_apply_owner_stock_position_delta/);
   assert.match(summary, /health -> mcp_health_records_get_summary/);
-  assert.match(summary, /moira -> mcp_moira_list_records, mcp_moira_get_chart_evidence, mcp_moira_get_interpretation_context, mcp_moira_get_analysis_evidence_bundle, mcp_moira_get_year_forecast_evidence, mcp_moira_get_current_progression_evidence, mcp_moira_get_pick_day_evidence, mcp_moira_get_monthly_selection_evidence, mcp_moira_get_transit_event_evidence, mcp_moira_get_eclipse_event_evidence, mcp_moira_get_aspect_evidence, mcp_moira_get_pick_change_position_evidence, mcp_moira_get_fixed_star_change_position_evidence, mcp_moira_get_rule_migration_status, mcp_moira_get_rule_commentary_readiness, mcp_moira_get_functional_coverage_status/);
+  assert.match(summary, /moira -> mcp_moira_list_records, mcp_moira_get_chart_evidence, mcp_moira_get_interpretation_context, mcp_moira_get_analysis_evidence_bundle, mcp_moira_get_rule_evidence_bundle, mcp_moira_get_year_forecast_evidence, mcp_moira_get_current_progression_evidence, mcp_moira_get_pick_day_evidence, mcp_moira_get_monthly_selection_evidence, mcp_moira_get_transit_event_evidence, mcp_moira_get_eclipse_event_evidence, mcp_moira_get_aspect_evidence, mcp_moira_get_pick_change_position_evidence, mcp_moira_get_fixed_star_change_position_evidence, mcp_moira_get_rule_migration_status, mcp_moira_get_rule_commentary_readiness, mcp_moira_get_functional_coverage_status/);
   assert.match(summary, /email -> mcp_email_list_accounts, mcp_email_list_mailboxes, mcp_email_search_messages, mcp_email_get_message, mcp_email_get_message_body, mcp_email_get_digest, mcp_email_list_attachments, mcp_email_get_attachment_content, mcp_email_sync_account, mcp_email_apply_mail_action, mcp_email_delete_local_by_search, mcp_email_apply_mail_action_bulk/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
@@ -106,6 +106,7 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /`mcp_moira_get_chart_evidence`/);
   assert.match(text, /`mcp_moira_get_interpretation_context`/);
   assert.match(text, /`mcp_moira_get_analysis_evidence_bundle`/);
+  assert.match(text, /`mcp_moira_get_rule_evidence_bundle`/);
   assert.match(text, /`mcp_moira_get_pick_day_evidence`/);
   assert.match(text, /`mcp_moira_get_monthly_selection_evidence`/);
   assert.match(text, /`mcp_moira_get_current_progression_evidence`/);
@@ -115,6 +116,7 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /PICK\/择日 candidate evidence/);
   assert.match(text, /status-only PICK\/month evidence/);
   assert.match(text, /prefer `mcp_moira_get_analysis_evidence_bundle` first/);
+  assert.match(text, /For rule-focused analysis, use `mcp_moira_get_rule_evidence_bundle`/);
   assert.match(text, /do not claim Moira generated a complete fortune narrative/);
   assert.match(text, /Do not pass `workspace_id` or `workspaceId`/);
   assert.match(text, /Gateway schema mismatch/);
@@ -169,19 +171,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260616-moira-analysis-bundle-mcp-v1_file",
+    "session_a_group_1_20260616-moira-rule-evidence-bundle-mcp-v1_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260616-moira-analysis-bundle-mcp-v1_memory",
+    "session_a_group_1_20260616-moira-rule-evidence-bundle-mcp-v1_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260616-moira-analysis-bundle-mcp-v1_x_search",
+    "session_a_group_1_20260616-moira-rule-evidence-bundle-mcp-v1_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260616-moira-analysis-bundle-mcp-v1_file-vision-wardrobe",
+    "session_a_group_1_20260616-moira-rule-evidence-bundle-mcp-v1_file-vision-wardrobe",
   );
 }
 
