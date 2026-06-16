@@ -48,6 +48,8 @@ function createGatewayRunTerminalStateService(options = {}) {
     ? options.scheduleNextQueuedRunForTaskGroup
     : (() => {});
   const gatewayHealthDiagnosticService = options.gatewayHealthDiagnosticService || null;
+  const modelPermissionApprovalRequest = typeof options.modelPermissionApprovalRequest === "function" ? options.modelPermissionApprovalRequest : (() => null);
+  const isOrdinaryToolSchemaElevationRequest = typeof options.isOrdinaryToolSchemaElevationRequest === "function" ? options.isOrdinaryToolSchemaElevationRequest : (() => false);
 
   function state() {
     const value = stateProvider();
@@ -71,6 +73,17 @@ function createGatewayRunTerminalStateService(options = {}) {
     const failedAt = nowIso();
     message.status = "failed";
     message.error = safeErrorMessage(err);
+    const approvalRequest = modelPermissionApprovalRequest(message.error, message);
+    const validApprovalRequest = isOrdinaryToolSchemaElevationRequest(approvalRequest, message.error, message) ? null : approvalRequest;
+    if (validApprovalRequest?.elevationRequired) {
+      message.elevationRequired = true;
+      message.elevationScope = validApprovalRequest.elevationScope;
+      message.elevationReason = validApprovalRequest.elevationReason;
+      message.elevationSource = validApprovalRequest.elevationSource;
+    } else {
+      message.elevationRequired = false;
+      message.elevationScope = message.elevationReason = message.elevationSource = "";
+    }
     message.failedAt = failedAt;
     message.updatedAt = failedAt;
     enqueueExternalDeliveryForTerminalMessage(thread, message, "failed");

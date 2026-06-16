@@ -82,6 +82,30 @@ function testMarkRunFailedMutatesTerminalStateAndNotifies() {
   assert.equal(calls.diagnostics[0].message, message);
 }
 
+function testMarkRunFailedCanRequestOwnerElevation() {
+  const { calls, message, service, thread } = makeHarness({
+    modelPermissionApprovalRequest: (text) => {
+      if (!/owner_high_privilege_required/.test(text)) return null;
+      return {
+        elevationRequired: true,
+        elevationScope: "owner_high_privilege",
+        elevationReason: "Non-empty directory delete requested.",
+        elevationSource: "model_permission_boundary_heuristic",
+      };
+    },
+  });
+  const err = new Error("owner_high_privilege_required: Owner high-privilege approval is required to delete a non-empty directory.");
+
+  const result = service.markRunFailed(thread.id, message.id, "run_1", err);
+
+  assert.equal(result.action, "failed");
+  assert.equal(message.status, "failed");
+  assert.equal(message.elevationRequired, true);
+  assert.equal(message.elevationScope, "owner_high_privilege");
+  assert.equal(message.elevationReason, "Non-empty directory delete requested.");
+  assert.equal(calls.broadcasts[0].message.status, "failed");
+}
+
 function testMarkRunCancelledMutatesTerminalStateWithoutNotification() {
   const { calls, message, service, thread } = makeHarness();
 
@@ -125,6 +149,7 @@ function testReconcileDetachedActiveRunsFailsDetachedAndSchedulesQueued() {
 }
 
 testMarkRunFailedMutatesTerminalStateAndNotifies();
+testMarkRunFailedCanRequestOwnerElevation();
 testMarkRunCancelledMutatesTerminalStateWithoutNotification();
 testTerminalStatusAndMissingTargetsAreIgnored();
 testReconcileDetachedActiveRunsFailsDetachedAndSchedulesQueued();

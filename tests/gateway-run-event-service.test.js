@@ -593,6 +593,38 @@ function testResponseFailedUsesNestedGatewayError() {
   assert.doesNotMatch(harness.message.error, /health_check_failed/);
 }
 
+function testResponseFailedCanRequestOwnerElevation() {
+  const harness = makeHarness({
+    modelPermissionApprovalRequest: (text) => {
+      if (!/Owner high-privilege approval is required/.test(text)) return null;
+      return {
+        elevationRequired: true,
+        elevationScope: "owner_high_privilege",
+        elevationReason: "Non-empty directory delete requested.",
+        elevationSource: "model_permission_boundary_heuristic",
+      };
+    },
+  });
+
+  const result = harness.service.applyHermesRunEvent({
+    event: "response.failed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      error: {
+        code: "owner_high_privilege_required",
+        message: "Owner high-privilege approval is required to delete a non-empty directory.",
+      },
+    },
+  });
+
+  assert.equal(result.action, "failed");
+  assert.equal(harness.message.status, "failed");
+  assert.equal(harness.message.elevationRequired, true);
+  assert.equal(harness.message.elevationScope, "owner_high_privilege");
+  assert.equal(harness.message.elevationReason, "Non-empty directory delete requested.");
+}
+
 function testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime() {
   const { activeStreams, calls, service, thread } = makeHarness();
   const stream = activeStreams.get("public_run");
@@ -1007,6 +1039,7 @@ testFailedAndCancelledRunsUseTerminalHelpers();
 testFailedRunFormatsGatewayCapacityError();
 testResponseFailedWithoutDetailsDoesNotShowGenericRunFailed();
 testResponseFailedUsesNestedGatewayError();
+testResponseFailedCanRequestOwnerElevation();
 testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
 testToolsetEscalationMarkerIsHiddenAndStored();
