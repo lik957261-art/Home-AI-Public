@@ -1,6 +1,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -42,11 +43,34 @@ const REQUIRED_POINTER_TEXT = [
   "Do not record raw",
 ];
 
+const REQUIRED_NATIVE_POINTER_TEXT = [
+  `Home AI platform contract version: \`${CONTRACT_VERSION}\``,
+  "`client_id`",
+  "`repository_path_macos`",
+  "`xcode_project`",
+  "`main_bundle_id`",
+  "`share_extension_bundle_id`",
+  "`app_group`",
+  "`home_ai_origin_policy`",
+  "`auth_transport`",
+  "`default_workspace_id`",
+  "`native_shell_query`",
+  "`native_capabilities`",
+  "`platform_management_status`",
+  "`ai_ops_control_plane_command`",
+  "`ai_ops_required_flow`",
+  "`ai_ops_evidence_ledger`",
+  "`local_validation_command`",
+  "Do not record raw",
+];
+
 const RUNTIME_URL_FIELDS = [
   "windows_dev_base_url",
   "macos_production_base_url",
   "manifest_url",
 ];
+
+const NATIVE_IOS_WORKSPACE_OVERRIDE = process.env.HOMEAI_NATIVE_IOS_WORKSPACE || "";
 
 const FORBIDDEN_PLUGIN_RUNTIME_DOMAINS = [
   /hermes-xuxin\.synology\.me/i,
@@ -159,6 +183,34 @@ const PLUGINS = [
   },
 ];
 
+const NATIVE_CLIENTS = [
+  {
+    id: "home-ai-native-ios",
+    title: "Home AI Native iOS Shell",
+    type: "native_client",
+    dirName: path.join("Xcode", "Home AI"),
+    commonPaths: NATIVE_IOS_WORKSPACE_OVERRIDE
+      ? [NATIVE_IOS_WORKSPACE_OVERRIDE]
+      : [
+        path.join(os.homedir(), "Xcode", "Home AI"),
+        "/Users/xuxin/Xcode/Home AI",
+      ],
+    xcodeProject: "Home AI.xcodeproj",
+    mainBundleId: "com.xuxin.homeai.native",
+    shareExtensionBundleId: "com.xuxin.homeai.native.ShareExtension",
+    appGroup: "group.com.xuxin.homeai",
+    authTransport: "X-Hermes-Web-Key",
+    requiredCapabilities: [
+      "pwa_webview_shell",
+      "apple_health_sync",
+      "apns_device_registration",
+      "ios_share_extension",
+    ],
+  },
+];
+
+const PLATFORM_TARGETS = [...PLUGINS, ...NATIVE_CLIENTS];
+
 function parseArgs(argv) {
   const out = {
     repoRoot: path.resolve(__dirname, ".."),
@@ -175,6 +227,7 @@ function parseArgs(argv) {
     if (arg === "--repo-root") out.repoRoot = path.resolve(argv[++index] || out.repoRoot);
     else if (arg === "--workspace-root") out.workspaceRoot = path.resolve(argv[++index] || "");
     else if (arg === "--plugin") out.plugins.push(...splitCsv(argv[++index] || ""));
+    else if (arg === "--target") out.plugins.push(...splitCsv(argv[++index] || ""));
     else if (arg === "--probe-mac") out.probeMac = true;
     else if (arg === "--require-mac-ok") out.requireMacOk = true;
     else if (arg === "--ssh-alias") out.sshAlias = argv[++index] || out.sshAlias;
@@ -206,7 +259,8 @@ function printHelp() {
     "Usage: node scripts/plugin-workspace-platform-contract-check.js [options]",
     "",
     "Options:",
-    "  --plugin <ids>         Comma-separated plugin ids. Defaults to all standard inserted plugins.",
+    "  --plugin <ids>         Comma-separated plugin/native-client ids. Defaults to all managed targets.",
+    "  --target <ids>         Alias for --plugin.",
     "  --workspace-root <dir> Parent directory containing plugin workspaces.",
     "  --repo-root <dir>      Home AI repository root.",
     "  --probe-mac            Run read-only Mac source/launchd/HTTP probes through SSH.",
@@ -276,18 +330,36 @@ function checkPointerRuntimeUrls(plugin, text) {
   return issues;
 }
 
-function selectedPlugins(options) {
+function selectedTargets(options) {
   const ids = options.plugins.length ? new Set(options.plugins) : null;
-  const selected = PLUGINS.filter((plugin) => !ids || ids.has(plugin.id));
+  const selected = PLATFORM_TARGETS.filter((target) => !ids || ids.has(target.id));
   if (ids) {
-    const known = new Set(PLUGINS.map((plugin) => plugin.id));
+    const known = new Set(PLATFORM_TARGETS.map((target) => target.id));
     const unknown = [...ids].filter((id) => !known.has(id));
-    if (unknown.length) throw new Error(`Unknown plugin id(s): ${unknown.join(", ")}`);
+    if (unknown.length) throw new Error(`Unknown plugin/native-client id(s): ${unknown.join(", ")}`);
   }
   return selected;
 }
 
+function checkAiOpsPointerFields(text, result) {
+  const aiOpsCommand = pointerFieldText(text, "ai_ops_control_plane_command");
+  if (!/ai-ops-control-plane\.js/.test(aiOpsCommand) || !/\bintake\b/.test(aiOpsCommand) || !/--json/.test(aiOpsCommand)) {
+    result.issues.push("ai_ops_control_plane_command_missing");
+  }
+  const aiOpsFlow = pointerFieldText(text, "ai_ops_required_flow");
+  for (const requiredFlowStep of ["intake", "required-checks", "lane allocate", "evidence append", "production smoke", "handoff"]) {
+    if (!aiOpsFlow.toLowerCase().includes(requiredFlowStep)) {
+      result.issues.push(`ai_ops_required_flow_missing:${requiredFlowStep}`);
+    }
+  }
+  const aiOpsLedger = pointerFieldText(text, "ai_ops_evidence_ledger");
+  if (!/\.homeai-qa/.test(aiOpsLedger) || !/\.jsonl/.test(aiOpsLedger)) {
+    result.issues.push("ai_ops_evidence_ledger_missing");
+  }
+}
+
 function checkPointer(plugin, options) {
+  if (plugin.type === "native_client") return checkNativeClientPointer(plugin, options);
   const workspacePath = resolvePluginWorkspacePath(plugin, options);
   const pointerPath = path.join(workspacePath, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
   const handoffPath = path.join(workspacePath, ".agent-context", "HANDOFF.md");
@@ -331,20 +403,7 @@ function checkPointer(plugin, options) {
   if (!/(npm run ios:pwa:visual|scripts\/ios-pwa-visual-harness\.js)/.test(visualHarnessCommand)) {
     result.issues.push("ios_visual_harness_command_missing");
   }
-  const aiOpsCommand = pointerFieldText(text, "ai_ops_control_plane_command");
-  if (!/ai-ops-control-plane\.js/.test(aiOpsCommand) || !/\bintake\b/.test(aiOpsCommand) || !/--json/.test(aiOpsCommand)) {
-    result.issues.push("ai_ops_control_plane_command_missing");
-  }
-  const aiOpsFlow = pointerFieldText(text, "ai_ops_required_flow");
-  for (const requiredFlowStep of ["intake", "required-checks", "lane allocate", "evidence append", "production smoke", "handoff"]) {
-    if (!aiOpsFlow.toLowerCase().includes(requiredFlowStep)) {
-      result.issues.push(`ai_ops_required_flow_missing:${requiredFlowStep}`);
-    }
-  }
-  const aiOpsLedger = pointerFieldText(text, "ai_ops_evidence_ledger");
-  if (!/\.homeai-qa/.test(aiOpsLedger) || !/\.jsonl/.test(aiOpsLedger)) {
-    result.issues.push("ai_ops_evidence_ledger_missing");
-  }
+  checkAiOpsPointerFields(text, result);
   const runtimePrerequisites = pointerFieldText(text, "dev_runtime_prerequisites").toLowerCase();
   for (const keyword of plugin.devRuntimeKeywords || []) {
     if (!runtimePrerequisites.includes(String(keyword).toLowerCase())) {
@@ -355,6 +414,87 @@ function checkPointer(plugin, options) {
     result.issues.push(`pointer_secret_pattern:${match}`);
   }
   result.issues.push(...checkPointerRuntimeUrls(plugin, text));
+  if (exists(handoffPath)) {
+    const handoff = readText(handoffPath);
+    result.handoffPointer = handoff.includes("Home AI Platform Contract Pointer") && handoff.includes(CONTRACT_VERSION);
+  }
+  if (!result.handoffPointer) result.warnings.push("handoff_pointer_missing");
+  return result;
+}
+
+function checkNativeClientPointer(client, options) {
+  const workspacePath = resolveNativeClientWorkspacePath(client, options);
+  const pointerPath = path.join(workspacePath, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  const handoffPath = path.join(workspacePath, ".agent-context", "HANDOFF.md");
+  const result = {
+    plugin: client.id,
+    type: client.type,
+    workspacePath,
+    pointerPath,
+    pointerExists: exists(pointerPath),
+    handoffPointer: false,
+    issues: [],
+    warnings: [],
+  };
+  if (!result.pointerExists) {
+    result.issues.push("pointer_missing");
+    return result;
+  }
+  const text = readText(pointerPath);
+  for (const missing of includesAll(text, REQUIRED_NATIVE_POINTER_TEXT)) {
+    result.issues.push(`pointer_missing_text:${missing}`);
+  }
+  for (const missing of includesAll(text, REQUIRED_CENTRAL_DOCS)) {
+    result.issues.push(`pointer_missing_central_doc:${missing}`);
+  }
+  for (const requiredDoc of ["native-ios-shell.md", "native-notifications.md", "voice-input-plugin.md"]) {
+    if (!text.includes(requiredDoc)) result.issues.push(`pointer_missing_central_doc:${requiredDoc}`);
+  }
+  if (!text.includes(`| \`client_id\` | \`${client.id}\` |`)) {
+    result.issues.push(`client_id_mismatch:${client.id}`);
+  }
+  if (!text.includes(client.xcodeProject)) {
+    result.issues.push(`xcode_project_missing:${client.xcodeProject}`);
+  }
+  if (!text.includes(client.mainBundleId)) {
+    result.issues.push(`main_bundle_id_missing:${client.mainBundleId}`);
+  }
+  if (!text.includes(client.shareExtensionBundleId)) {
+    result.issues.push(`share_extension_bundle_id_missing:${client.shareExtensionBundleId}`);
+  }
+  if (!text.includes(client.appGroup)) {
+    result.issues.push(`app_group_missing:${client.appGroup}`);
+  }
+  const authTransport = pointerFieldText(text, "auth_transport");
+  if (!authTransport.includes(client.authTransport)) {
+    result.issues.push(`auth_transport_missing:${client.authTransport}`);
+  }
+  const originPolicy = pointerFieldText(text, "home_ai_origin_policy");
+  if (!/HTTPS/i.test(originPolicy) || /http:\/\//i.test(originPolicy)) {
+    result.issues.push("home_ai_origin_policy_not_https_only");
+  }
+  const nativeShellQuery = pointerFieldText(text, "native_shell_query");
+  if (!/nativeShell=ios/.test(nativeShellQuery)) {
+    result.issues.push("native_shell_query_missing");
+  }
+  const capabilities = pointerFieldText(text, "native_capabilities").toLowerCase();
+  for (const capability of client.requiredCapabilities) {
+    if (!capabilities.includes(capability.toLowerCase())) {
+      result.issues.push(`native_capability_missing:${capability}`);
+    }
+  }
+  const platformStatus = pointerFieldText(text, "platform_management_status").toLowerCase();
+  if (!platformStatus.includes("managed_native_client")) {
+    result.issues.push("platform_management_status_missing");
+  }
+  const validationCommand = pointerFieldText(text, "local_validation_command");
+  if (!/xcodebuild/.test(validationCommand) || !validationCommand.includes(client.xcodeProject)) {
+    result.issues.push("local_validation_command_missing");
+  }
+  checkAiOpsPointerFields(text, result);
+  for (const match of forbiddenSecretMatches(text)) {
+    result.issues.push(`pointer_secret_pattern:${match}`);
+  }
   if (exists(handoffPath)) {
     const handoff = readText(handoffPath);
     result.handoffPointer = handoff.includes("Home AI Platform Contract Pointer") && handoff.includes(CONTRACT_VERSION);
@@ -378,12 +518,21 @@ function resolvePluginWorkspacePath(plugin, options) {
   return candidates.find((candidate) => exists(candidate)) || candidates[0];
 }
 
-function checkCentralDocs(options, plugins) {
+function resolveNativeClientWorkspacePath(client, options) {
+  const candidates = [
+    path.join(options.workspaceRoot, client.dirName),
+    ...client.commonPaths,
+  ];
+  return candidates.find((candidate) => exists(candidate)) || candidates[0];
+}
+
+function checkCentralDocs(options, targets) {
   const statusPath = path.join(options.repoRoot, "docs", "IMPLEMENTATION_NOTES", "plugin-workspace-contract-rollout-status.md");
   const platformContractPath = path.join(options.repoRoot, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md");
   const testMatrixPath = path.join(options.repoRoot, "docs", "TEST_MATRIX.md");
   const docsIndexPath = path.join(options.repoRoot, "docs", "DOCS_INDEX.md");
-  const files = [statusPath, platformContractPath, testMatrixPath, docsIndexPath];
+  const nativeShellPath = path.join(options.repoRoot, "docs", "MODULES", "native-ios-shell.md");
+  const files = [statusPath, platformContractPath, testMatrixPath, docsIndexPath, nativeShellPath];
   const result = { issues: [], warnings: [], files };
   for (const file of files) {
     if (!exists(file)) {
@@ -395,15 +544,21 @@ function checkCentralDocs(options, plugins) {
   const platformText = readText(platformContractPath);
   const matrixText = readText(testMatrixPath);
   const indexText = readText(docsIndexPath);
-  for (const plugin of plugins) {
+  const nativeShellText = readText(nativeShellPath);
+  for (const plugin of targets.filter((target) => target.type !== "native_client")) {
     if (!statusText.includes(plugin.title) || !statusText.includes("docs/HOME_AI_PLATFORM_CONTRACT.md")) {
       result.issues.push(`status_missing_plugin:${plugin.id}`);
+    }
+  }
+  for (const client of targets.filter((target) => target.type === "native_client")) {
+    if (!statusText.includes(client.title) || !platformText.includes(client.id) || !nativeShellText.includes(client.id)) {
+      result.issues.push(`status_missing_native_client:${client.id}`);
     }
   }
   if (!/Codex Mobile Web[\s\S]{0,180}Owner-critical special insertion/.test(statusText)) {
     result.issues.push("codex_special_insertion_missing");
   }
-  for (const text of [statusText, platformText, matrixText, indexText]) {
+  for (const text of [statusText, platformText, matrixText, indexText, nativeShellText]) {
     for (const match of forbiddenSecretMatches(text)) {
       result.issues.push(`central_secret_pattern:${match}`);
     }
@@ -422,8 +577,11 @@ function checkCentralDocs(options, plugins) {
     "ai_ops_evidence_ledger",
     "npm run ios:pwa:visual",
     "ios_visual_harness_command",
+    "native-ios-shell.md",
+    "home-ai-native-ios",
+    "managed_native_client",
   ]) {
-    const joined = `${statusText}\n${platformText}\n${matrixText}\n${indexText}`;
+    const joined = `${statusText}\n${platformText}\n${matrixText}\n${indexText}\n${nativeShellText}`;
     if (!joined.includes(required)) result.issues.push(`central_doc_reference_missing:${required}`);
   }
   return result;
@@ -511,6 +669,17 @@ function macHttpProbe(plugin, options, probe) {
 }
 
 function macProbe(plugin, options) {
+  if (plugin.type === "native_client") {
+    return {
+      plugin: plugin.id,
+      ok: true,
+      skipped: true,
+      reason: "native client has no Mac production plugin service, launchd label, or loopback manifest",
+      sourcePath: { ok: true, skipped: true, attempts: [] },
+      launchd: { ok: true, skipped: true, label: "", checked: false },
+      http: [],
+    };
+  }
   if (plugin.macProbeDeferred) {
     return {
       plugin: plugin.id,
@@ -540,10 +709,10 @@ function macProbe(plugin, options) {
 }
 
 function buildReport(options) {
-  const plugins = selectedPlugins(options);
-  const pointerChecks = plugins.map((plugin) => checkPointer(plugin, options));
-  const central = checkCentralDocs(options, plugins);
-  const mac = options.probeMac ? plugins.map((plugin) => macProbe(plugin, options)) : [];
+  const targets = selectedTargets(options);
+  const pointerChecks = targets.map((plugin) => checkPointer(plugin, options));
+  const central = checkCentralDocs(options, targets);
+  const mac = options.probeMac ? targets.map((plugin) => macProbe(plugin, options)) : [];
   const issues = [
     ...central.issues.map((issue) => `central:${issue}`),
     ...pointerChecks.flatMap((check) => check.issues.map((issue) => `${check.plugin}:${issue}`)),
@@ -554,7 +723,9 @@ function buildReport(options) {
   return {
     ok: issues.length === 0,
     contractVersion: CONTRACT_VERSION,
-    checkedPlugins: plugins.map((plugin) => plugin.id),
+    checkedPlugins: targets.filter((target) => target.type !== "native_client").map((plugin) => plugin.id),
+    checkedNativeClients: targets.filter((target) => target.type === "native_client").map((client) => client.id),
+    checkedTargets: targets.map((target) => target.id),
     excludedPlugins: [],
     central,
     plugins: pointerChecks,
@@ -591,6 +762,8 @@ if (require.main === module) {
 module.exports = {
   CONTRACT_VERSION,
   PLUGINS,
+  NATIVE_CLIENTS,
+  PLATFORM_TARGETS,
   buildReport,
   parseArgs,
 };

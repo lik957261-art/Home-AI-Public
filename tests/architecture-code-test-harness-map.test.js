@@ -58,6 +58,7 @@ const requiredExistingReferences = [
   "docs/TEST_MATRIX.md",
   "docs/FRONTEND_STATE_MAP.md",
   "docs/MODULES/static-client.md",
+  "docs/MODULES/native-ios-shell.md",
   "docs/MODULES/ai-operations-control-plane.md",
   "docs/MODULES/gateway-pool.md",
   "docs/MODULES/plugins.md",

@@ -8,7 +8,7 @@ const { spawnSync } = require("node:child_process");
 
 const repoRoot = path.resolve(__dirname, "..");
 const scriptPath = path.join(repoRoot, "scripts", "plugin-workspace-platform-contract-check.js");
-const { CONTRACT_VERSION, PLUGINS } = require("../scripts/plugin-workspace-platform-contract-check");
+const { CONTRACT_VERSION, PLUGINS, NATIVE_CLIENTS, PLATFORM_TARGETS } = require("../scripts/plugin-workspace-platform-contract-check");
 
 function write(file, body) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -65,16 +65,63 @@ function pointerFor(plugin, overrides = {}) {
   ].join("\n");
 }
 
+function nativePointerFor(client) {
+  return [
+    "# Home AI Platform Contract Pointer",
+    "",
+    "Last updated: 2026-06-16.",
+    `Home AI platform contract version: \`${CONTRACT_VERSION}\`.`,
+    "",
+    "## Canonical Home AI Docs",
+    "",
+    "- `plugin-workspace-platform-contract.md`",
+    "- `plugin-mobile-ui-visual-contract.md`",
+    "- `macos-production-access.md`",
+    "- `mcp-tool-upgrade-closure.md`",
+    "- `macos-ios-simulator-appium.md`",
+    "- `ai-operations-control-plane.md`",
+    "- `reference-memory-graph-v1.md`",
+    "- `reference-memory-graph-harness-plan.md`",
+    "- `native-ios-shell.md`",
+    "- `native-notifications.md`",
+    "- `voice-input-plugin.md`",
+    "",
+    "## Native Client Local Facts",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    `| \`client_id\` | \`${client.id}\` |`,
+    "| `repository_path_macos` | `/fixture/Xcode/Home AI` |",
+    `| \`xcode_project\` | \`${client.xcodeProject}\` |`,
+    `| \`main_bundle_id\` | \`${client.mainBundleId}\` |`,
+    `| \`share_extension_bundle_id\` | \`${client.shareExtensionBundleId}\` |`,
+    `| \`app_group\` | \`${client.appGroup}\` |`,
+    "| `home_ai_origin_policy` | `HTTPS only; no LAN or local HTTP origin` |",
+    `| \`auth_transport\` | \`${client.authTransport}\` |`,
+    "| `default_workspace_id` | `owner` |",
+    "| `native_shell_query` | `nativeShell=ios` |",
+    "| `native_capabilities` | `pwa_webview_shell, apple_health_sync, apns_device_registration, ios_share_extension` |",
+    "| `platform_management_status` | `managed_native_client` |",
+    "| `ai_ops_control_plane_command` | `cd /Users/hermes-dev/HermesMobileDev/app && node scripts/ai-ops-control-plane.js intake --task \"<task>\" --json` |",
+    "| `ai_ops_required_flow` | `intake -> required-checks -> lane allocate if visual -> evidence append -> production smoke -> handoff` |",
+    "| `ai_ops_evidence_ledger` | `$HOME/.homeai-qa/evidence-ledger.jsonl` |",
+    `| \`local_validation_command\` | \`xcodebuild -project '${client.xcodeProject}' -scheme 'Home AI' -destination 'generic/platform=iOS Simulator' build\` |`,
+    "",
+    "Do not record raw secrets or credentials here.",
+  ].join("\n");
+}
+
 function makeFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-plugin-contract-"));
   const repo = path.join(root, "Agent");
   write(path.join(repo, "docs", "IMPLEMENTATION_NOTES", "plugin-workspace-contract-rollout-status.md"), [
     "# Plugin Workspace Contract Rollout Status",
-    "Finance Wardrobe Note Email Health Growth Moira Codex Mobile Web",
+    "Finance Wardrobe Note Email Health Growth Moira Codex Mobile Web Home AI Native iOS Shell",
     "plugin-workspace-platform-contract.md",
     "plugin-mobile-ui-visual-contract.md",
     "docs/HOME_AI_PLATFORM_CONTRACT.md",
     "Codex Mobile Web is an Owner-critical special insertion and is included in this platform contract checker.",
+    "Home AI Native iOS Shell is a managed native client target.",
     "plugin-workspace-platform-contract-check.js",
     "plugin-workspace-platform-contract-check.test.js",
     "ai-ops-control-plane.js",
@@ -86,13 +133,22 @@ function makeFixture() {
     "ai_ops_evidence_ledger",
     "npm run ios:pwa:visual",
     "ios_visual_harness_command",
+    "native-ios-shell.md",
+    "home-ai-native-ios",
+    "managed_native_client",
   ].join("\n"));
-  write(path.join(repo, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "plugin-workspace-platform-contract-check.js\nnpm run ios:pwa:visual\nscripts/ios-pwa-visual-harness.js\nios_visual_harness_command\nai-ops-control-plane.js\nai_ops_control_plane_command\nai_ops_required_flow\nai_ops_evidence_ledger\n");
+  write(path.join(repo, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "plugin-workspace-platform-contract-check.js\nnpm run ios:pwa:visual\nscripts/ios-pwa-visual-harness.js\nios_visual_harness_command\nai-ops-control-plane.js\nai_ops_control_plane_command\nai_ops_required_flow\nai_ops_evidence_ledger\nnative-ios-shell.md\nhome-ai-native-ios\nmanaged_native_client\n");
   write(path.join(repo, "docs", "TEST_MATRIX.md"), "plugin-workspace-platform-contract-check.test.js\nnode tests\\ios-pwa-visual-harness.test.js\nai-ops-control-plane-cli.test.js\n");
-  write(path.join(repo, "docs", "DOCS_INDEX.md"), "plugin-workspace-contract-rollout-status.md\nscripts/ios-pwa-visual-harness.js\nios-pwa-visual-harness.test.js\nai-ops-control-plane.js\n");
+  write(path.join(repo, "docs", "DOCS_INDEX.md"), "plugin-workspace-contract-rollout-status.md\nscripts/ios-pwa-visual-harness.js\nios-pwa-visual-harness.test.js\nai-ops-control-plane.js\nnative-ios-shell.md\nhome-ai-native-ios\nmanaged_native_client\n");
+  write(path.join(repo, "docs", "MODULES", "native-ios-shell.md"), "home-ai-native-ios\nmanaged_native_client\n");
   for (const plugin of PLUGINS) {
     const workspace = path.join(root, plugin.dirName);
     write(path.join(workspace, "docs", "HOME_AI_PLATFORM_CONTRACT.md"), pointerFor(plugin));
+    write(path.join(workspace, ".agent-context", "HANDOFF.md"), `## Home AI Platform Contract Pointer\n${CONTRACT_VERSION}\n`);
+  }
+  for (const client of NATIVE_CLIENTS) {
+    const workspace = path.join(root, client.dirName);
+    write(path.join(workspace, "docs", "HOME_AI_PLATFORM_CONTRACT.md"), nativePointerFor(client));
     write(path.join(workspace, ".agent-context", "HANDOFF.md"), `## Home AI Platform Contract Pointer\n${CONTRACT_VERSION}\n`);
   }
   return { root, repo };
@@ -100,15 +156,16 @@ function makeFixture() {
 
 function makeCentralOnlyFixture() {
   const fixture = makeFixture();
-  for (const plugin of PLUGINS) {
-    fs.rmSync(path.join(fixture.root, plugin.dirName), { recursive: true, force: true });
+  for (const target of PLATFORM_TARGETS) {
+    fs.rmSync(path.join(fixture.root, target.dirName), { recursive: true, force: true });
   }
   return fixture;
 }
 
-function run(args) {
+function run(args, env = {}) {
   return spawnSync(process.execPath, [scriptPath, ...args], {
     cwd: repoRoot,
+    env: { ...process.env, ...env },
     encoding: "utf8",
     timeout: 30_000,
     maxBuffer: 2 * 1024 * 1024,
@@ -122,6 +179,8 @@ function testFixturePasses() {
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.ok, true);
   assert.deepEqual(parsed.checkedPlugins, ["finance", "wardrobe", "note", "email", "health", "growth", "moira", "codex-mobile"]);
+  assert.deepEqual(parsed.checkedNativeClients, ["home-ai-native-ios"]);
+  assert.deepEqual(parsed.checkedTargets, PLATFORM_TARGETS.map((target) => target.id));
   assert.deepEqual(parsed.excludedPlugins, []);
 }
 
@@ -135,19 +194,31 @@ function testUnknownPluginFailsAndCodexIsAContractDescriptor() {
 
   const result = run(["--plugin", "codex-mobile-web", "--json"]);
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /Unknown plugin id/);
+  assert.match(result.stderr, /Unknown plugin\/native-client id/);
+}
+
+function testNativeClientIsAContractDescriptor() {
+  const fixture = makeFixture();
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--target", "home-ai-native-ios", "--json"]);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const parsed = JSON.parse(result.stdout);
+  assert.deepEqual(parsed.checkedPlugins, []);
+  assert.deepEqual(parsed.checkedNativeClients, ["home-ai-native-ios"]);
+  assert.equal(parsed.plugins[0].type, "native_client");
 }
 
 function testSingleRepositoryCheckoutReportsBoundedPointerMissing() {
   const fixture = makeCentralOnlyFixture();
-  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--json"]);
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--json"], {
+    HOMEAI_NATIVE_IOS_WORKSPACE: path.join(fixture.root, "__missing_native__"),
+  });
   assert.equal(result.status, 1);
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.central.issues.length, 0);
   assert.equal(parsed.plugins.every((plugin) => !plugin.pointerExists), true);
   assert.deepEqual(
     parsed.issues,
-    PLUGINS.map((plugin) => `${plugin.id}:pointer_missing`),
+    PLATFORM_TARGETS.map((plugin) => `${plugin.id}:pointer_missing`),
   );
 }
 
@@ -212,6 +283,23 @@ function testPointerRequiresDeclaredDevRuntimePrerequisites() {
   assert.ok(parsed.issues.includes("note:dev_runtime_prerequisite_missing:python"));
 }
 
+function testNativePointerRequiresManagedClientFields() {
+  const fixture = makeFixture();
+  const client = NATIVE_CLIENTS[0];
+  const pointerPath = path.join(fixture.root, client.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  write(pointerPath, nativePointerFor(client)
+    .replace(/\n\| `platform_management_status` \|[^\n]+/, "")
+    .replace(/\n\| `native_capabilities` \|[^\n]+/, ""));
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--target", client.id, "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.issues.includes("home-ai-native-ios:pointer_missing_text:`platform_management_status`"));
+  assert.ok(parsed.issues.includes("home-ai-native-ios:pointer_missing_text:`native_capabilities`"));
+  assert.ok(parsed.issues.includes("home-ai-native-ios:native_capability_missing:pwa_webview_shell"));
+  assert.ok(parsed.issues.includes("home-ai-native-ios:platform_management_status_missing"));
+}
+
 function testRepositoryContractIsCurrentlyClosed() {
   const result = run(["--json"]);
   const parsed = JSON.parse(result.stdout);
@@ -221,18 +309,19 @@ function testRepositoryContractIsCurrentlyClosed() {
     assert.equal(result.status, 1, result.stderr || result.stdout);
     assert.deepEqual(
       parsed.issues,
-      PLUGINS.map((plugin) => `${plugin.id}:pointer_missing`),
+      PLATFORM_TARGETS.map((plugin) => `${plugin.id}:pointer_missing`),
     );
     return;
   }
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(parsed.ok, true);
-  assert.equal(pointerCount, 8);
+  assert.equal(pointerCount, PLATFORM_TARGETS.length);
 }
 
 function testScriptDoesNotHandleSecretsOrSudo() {
   const script = fs.readFileSync(scriptPath, "utf8");
-  assert.doesNotMatch(script, /password-file|sudo\s+-S|X-Hermes-Web-Key|Access Key/i);
+  assert.doesNotMatch(script, /password-file|sudo\s+-S|Access Key/i);
+  assert.match(script, /X-Hermes-Web-Key/);
   assert.match(script, /--probe-mac/);
   assert.match(script, /ssh/);
   assert.match(script, /launchctl/);
@@ -243,11 +332,13 @@ function testScriptDoesNotHandleSecretsOrSudo() {
 
 testFixturePasses();
 testUnknownPluginFailsAndCodexIsAContractDescriptor();
+testNativeClientIsAContractDescriptor();
 testSingleRepositoryCheckoutReportsBoundedPointerMissing();
 testPointerRejectsPublicRuntimeUrls();
 testPointerRequiresIosVisualHarnessCommand();
 testPointerRequiresAiOpsControlPlaneFields();
 testPointerRequiresDeclaredDevRuntimePrerequisites();
+testNativePointerRequiresManagedClientFields();
 testRepositoryContractIsCurrentlyClosed();
 testScriptDoesNotHandleSecretsOrSudo();
 

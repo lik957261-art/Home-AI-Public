@@ -109,6 +109,8 @@ The checker validates:
 
 - the standard inserted plugin set plus the Owner-critical Codex Mobile Web
   special insertion: Finance, Wardrobe, Note, Email, Health, and Codex Mobile;
+- managed native client targets such as `home-ai-native-ios` separately from
+  embedded plugins;
 - plugin-local `docs/HOME_AI_PLATFORM_CONTRACT.md` files;
 - central contract references;
 - plugin-local required facts;
@@ -122,6 +124,15 @@ The checker validates:
   `npm run ios:pwa:visual` path;
 - Mac source directories, launchd labels, and manifest endpoints when
   `--probe-mac` is used.
+
+Home AI Native iOS Shell is a managed native client target, not an embedded
+business plugin. It has `client_id=home-ai-native-ios`, lives in the Xcode
+workspace `/Users/xuxin/Xcode/Home AI`, and contributes Apple system bridges
+such as the `WKWebView` shell, HealthKit sync, APNs device registration, Share
+Extension upload, and future native voice capture. It must declare the central
+platform pointer and AI Operations flow, but it must not appear in plugin Dock,
+plugin-topic, MCP, Gateway worker, workspace grant, LaunchDaemon, or loopback
+manifest checks. The durable module doc is `docs/MODULES/native-ios-shell.md`.
 
 Codex Mobile Web remains special for Owner-only visibility and permission
 policy. It is not a normal workspace-grantable business plugin, but it must
@@ -520,6 +531,30 @@ doc:
 | `ios_live_debug_available` | if embedded UI | `yes` when the plugin can be debugged through the Home AI live iOS PWA server; otherwise `no` with a short reason. |
 | `ios_visual_harness_command` | if embedded UI | Checked command using `npm run ios:pwa:visual` or `scripts/ios-pwa-visual-harness.js`; include `--scenario embedded-plugin-shell --plugin-id <plugin-id>` for plugin shell validation. Keyboard/composer changes must also declare or run `--scenario embedded-plugin-keyboard-composer --plugin-id <plugin-id>` with a real thread/route id when the input only exists on a detail page. Codex Mobile side-chat input changes must use `--scenario embedded-plugin-side-chat-keyboard --plugin-id codex-mobile --plugin-thread-id <thread-id>`. |
 
+## Required Native Client Facts
+
+Every Home AI native client target must declare these facts in its local
+pointer or module doc:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `client_id` | yes | Stable native client id, for example `home-ai-native-ios`. |
+| `repository_path_macos` | yes | Local native workspace checkout path. |
+| `xcode_project` | if Apple client | Xcode project file. |
+| `main_bundle_id` | if Apple app | Main app bundle id. |
+| `share_extension_bundle_id` | if share extension exists | Extension bundle id. |
+| `app_group` | if shared container exists | App Group id only; no credentials. |
+| `home_ai_origin_policy` | yes | Must state HTTPS-only Home AI origin usage and no LAN/local plugin HTTP access. |
+| `auth_transport` | yes | Home AI browser/API Access Key transport, currently `X-Hermes-Web-Key`. |
+| `default_workspace_id` | yes | Default selected Home AI workspace, normally `owner`. |
+| `native_shell_query` | yes | Native shell marker such as `nativeShell=ios`. |
+| `native_capabilities` | yes | Bounded capability ids such as `pwa_webview_shell`, `apple_health_sync`, `apns_device_registration`, and `ios_share_extension`. |
+| `platform_management_status` | yes | `managed_native_client` when the target is checked by the Home AI platform checker. |
+| `ai_ops_control_plane_command` | yes | Same Home AI `scripts/ai-ops-control-plane.js intake --task "<task>" --json` entrypoint used by plugin workspaces. |
+| `ai_ops_required_flow` | yes | Must include `intake`, `required-checks`, `lane allocate if visual`, `evidence append`, `production smoke`, and `handoff`. |
+| `ai_ops_evidence_ledger` | yes | Local append-only JSONL evidence path, normally under `$HOME/.homeai-qa/`, with no raw secrets or private payloads. |
+| `local_validation_command` | yes | Focused native build/test command, such as `xcodebuild ... build`. |
+
 ## Access And Privilege Boundary
 
 Plugins must not independently decide how to obtain SSH or sudo access.
@@ -859,10 +894,11 @@ Handoff updates must record:
 
 ## Required Platform Check
 
-The platform checker verifies each plugin workspace for:
+The platform checker verifies each plugin workspace or managed native client
+workspace for:
 
 - platform pointer file exists and names the contract version;
-- plugin-local facts are present;
+- plugin-local or native-client-local facts are present;
 - deploy command exists;
 - local tests are declared;
 - production smoke is declared;

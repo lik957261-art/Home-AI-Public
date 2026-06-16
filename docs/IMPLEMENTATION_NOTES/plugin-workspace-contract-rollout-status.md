@@ -5,9 +5,10 @@ Home AI platform contract version: `20260611-v3`.
 
 ## Scope
 
-This status file tracks inserted Home AI plugin workspaces that need local
-pointers to the central platform contract, including the Owner-critical Codex
-Mobile Web special insertion.
+This status file tracks inserted Home AI plugin workspaces and managed native
+client workspaces that need local pointers to the central platform contract,
+including the Owner-critical Codex Mobile Web special insertion and the Home AI
+Native iOS Shell.
 
 Included in this pass:
 
@@ -19,6 +20,8 @@ Included in this pass:
 - Growth
 - Codex Mobile Web, only for the Home AI embedded plugin variant registered as
   `codex-mobile`
+- Home AI Native iOS Shell, as managed native client target
+  `home-ai-native-ios`
 
 Still excluded in this pass:
 
@@ -46,6 +49,7 @@ credentials were changed by this rollout status update.
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
 - `scripts/ios-pwa-visual-harness.js`
 - `tests/ios-pwa-visual-harness.test.js`
+- `docs/MODULES/native-ios-shell.md`
 
 ## Executable Checker
 
@@ -124,6 +128,14 @@ The checker also enforces the standard inserted plugin runtime URL rule:
 the plugin loopback port. Public, NAS, tailnet, or historical personal domains
 are explicit external deployment overrides, not standard plugin defaults.
 
+The checker includes `home-ai-native-ios` as a managed native client target.
+This target validates the Xcode workspace pointer, bundle ids, App Group, Home
+AI `X-Hermes-Web-Key` auth transport, HTTPS-only origin policy, native
+capability ids, AI Operations flow, and Xcode build command. It skips embedded
+plugin-only checks such as loopback manifest URL, MCP schema endpoint,
+workspace grantability, LaunchDaemon label, plugin Dock visibility, and Mac
+plugin-service probes.
+
 ## Workspace Adoption Status
 
 | Plugin | Workspace | Snapshot | Local pointer | Handoff pointer | Primary remaining product work |
@@ -135,6 +147,7 @@ are explicit external deployment overrides, not standard plugin defaults.
 | Health | Windows Health workspace | `main` at `3495ae8`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; `ios_visual_harness_command` required for embedded UI or mobile navigation changes. |
 | Growth | Mac Growth plugin workspace | New plugin workspace at `/Users/hermes-dev/HermesMobileDev/plugins/growth`; production deployment pending | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Built-in Growth extraction is in progress. The plugin currently reads the Home AI `/api/growth/v1/*` facade, imports bounded snapshots with readback, delivers bounded events through the Home AI notification endpoint when configured, and exposes read-only MCP schemas plus execute. Production Mac probe is deferred until the service is installed. |
 | Codex Mobile Web | Mac Codex Mobile plugin workspace | `main` at `bc82703` plus local Mac hotfix work when pointer was added | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Owner-critical Home AI embedded plugin insertion only; not normal workspace-grantable plugin visibility and not a rule for independent Codex Mobile deployments. `ios_visual_harness_command` is required for embedded keyboard, gesture, cache, and PWA reproduction loops. |
+| Home AI Native iOS Shell | Xcode native workspace | `/Users/xuxin/Xcode/Home AI` on `main`; platform pointer and native voice overlay docs exist | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Managed native client, not embedded business plugin. Platform checker validates bundle ids, App Group, native capabilities, HTTPS/Home AI auth boundary, AI Ops flow, and Xcode build command. Native changes close with Xcode build plus target checker; APNs and voice bridge changes also run their module checks. |
 
 ## Mac Read-Only Probe Status
 
@@ -157,6 +170,7 @@ Verified facts:
 | Growth | `/Users/hermes-host/HermesMobile/plugins/growth` | `com.hermesmobile.plugin.growth` deferred | `http://127.0.0.1:4881/api/v1/hermes/plugin/manifest` deferred | Production service is not installed yet. Local contract/pointer checks are enforced; read-only Mac probe is intentionally skipped by the checker until deployment. |
 | Moira | `/Users/hermes-host/HermesMobile/plugins/moira` | `com.hermesmobile.plugin.moira` loaded | `http://127.0.0.1:4174/api/v1/hermes/plugin/manifest` returned HTTP 200 | Source is `/Users/hermes-dev/HermesMobileDev/plugins/moira`; first install used central `--plugin moira --sync-only` plus `scripts/install-moira-launchd-service.js`. Owner same-origin manifest/proxy smoke passed against Home AI production. |
 | Codex Mobile Web | `/Users/hermes-host/HermesMobile/plugins/codex-mobile-web` | `com.hermesmobile.plugin.codex-mobile` loaded | `http://127.0.0.1:8787/api/v1/hermes/plugin/manifest` returned HTTP 200 | 2026-06-08 same-host probe used `--ssh-alias local` and also verified `/api/public-config`. |
+| Home AI Native iOS Shell | N/A | N/A | N/A | Native client has no Mac plugin service, launchd label, or loopback manifest. Its target checker and Xcode build are the acceptance path. |
 
 ## Closure State
 
@@ -189,6 +203,10 @@ whose production Mac probe remains deferred:
     visual harness, lane lease, and central Appium start script, and must
     classify Appium/WDA/live-debug layer failures before treating a failure as
     plugin UI evidence.
+14. Home AI Native iOS Shell is included as a managed native client target:
+    it has a local platform pointer, central module doc, AI Operations flow,
+    and checker coverage while remaining outside normal embedded plugin
+    grant/Dock/MCP/LaunchDaemon/manifest paths.
 
 These items are now gates, not one-off notes:
 
@@ -204,6 +222,8 @@ These items are now gates, not one-off notes:
   generated by Hermes same-origin proxy logic, not by hardcoded domains.
 - Future Mac production path/launchd/manifest changes must run
   `node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-mac-ok --json`.
+- Future Home AI Native iOS Shell platform pointer changes must run
+  `node scripts\plugin-workspace-platform-contract-check.js --target home-ai-native-ios --json`.
 - Future plugin MCP callable changes must run the checked MCP upgrade closure
   path in `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`.
 - Future DEV-side test failures must first verify the declared

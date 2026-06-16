@@ -81,6 +81,7 @@ remaining gap as an explicit follow-up.
 - Workspace onboarding orchestration:
   `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`
 - Directory, files, previews, and shared roots: `docs/MODULES/directory-files.md`
+- Native iOS shell: `docs/MODULES/native-ios-shell.md`
 - Web Push delivery and deep links: `docs/MODULES/web-push.md`
 - Native iOS/APNs notifications: `docs/MODULES/native-notifications.md`
 - Weixin/iLink ingress and delivery: `docs/MODULES/weixin-ingress.md`
