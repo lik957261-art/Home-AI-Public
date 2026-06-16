@@ -192,6 +192,11 @@ npm run ios:pwa:visual -- \
   --debug-url http://127.0.0.1:19073/
 ```
 
+The embedded-plugin-shell scenario waits for the plugin shell and iframe to
+exist before measuring. If the Home AI PWA session is not authenticated, the
+report should be treated as an auth/session precondition failure, not as an
+embedded plugin layout assertion.
+
 For plugin Dock quick-action and menu gesture checks, use the native gesture
 scenario. It drives the installed PWA through the live debug server with native
 tap, long-press, and horizontal swipe actions, then reads bounded WebView state:

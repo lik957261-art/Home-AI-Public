@@ -979,9 +979,12 @@ function setEmbeddedPluginHostVisible(def, visible) {
   host.hidden = !visible;
   host.setAttribute("aria-hidden", visible ? "false" : "true");
   host.classList.toggle("active", visible);
+  document.documentElement?.classList?.toggle("embedded-plugin-shell-active", visible);
+  document.documentElement?.classList?.toggle("codex-plugin-shell-active", visible && def.id === "codex-mobile");
   $("app")?.classList.toggle(`${def.viewMode}-plugin-host-active`, visible);
   $("app")?.classList.toggle("embedded-plugin-host-active", visible);
   if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation(visible ? "plugin_host_visible" : "plugin_host_hidden", [0, 80, 240]);
+  if (typeof refreshKeyboardViewportSoon === "function") [0, 80, 180, 360].forEach(refreshKeyboardViewportSoon);
   if (typeof scheduleClientLayoutDiagnostics === "function") scheduleClientLayoutDiagnostics(visible ? "plugin_host_visible" : "plugin_host_hidden", [0, 300, 1200]);
   if (visible) scheduleEmbeddedPluginViewportBroadcast("host_visible", 0);
 }

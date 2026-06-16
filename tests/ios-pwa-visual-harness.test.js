@@ -32,6 +32,7 @@ const {
   defaultLockPath,
   parseArgs,
   sampleMobileBottomStability,
+  waitForEmbeddedPluginShellReady,
 } = require("../scripts/ios-pwa-visual-harness");
 
 assert.equal(packageJson.scripts["ios:pwa:visual"], "node scripts/ios-pwa-visual-harness.js");
@@ -70,6 +71,12 @@ assert.match(script, /debug_lane_lease_unavailable/);
 assert.match(script, /leaseToken/);
 assert.equal(typeof acquireDebugLaneLease, "function");
 assert.equal(typeof sampleMobileBottomStability, "function");
+assert.equal(typeof waitForEmbeddedPluginShellReady, "function");
+assert.match(script, /function waitForEmbeddedPluginShellReady\(options = \{\}\)/);
+assert.match(script, /label: "wait-embedded-plugin-shell"/);
+assert.match(script, /authenticated: Boolean\(appState\?\.auth\)/);
+assert.match(script, /appHidden: Boolean\(app\?\.classList\?\.contains\("hidden"\)\)/);
+assert.match(script, /report\.embeddedPluginReady = await waitForEmbeddedPluginShellReady\(options\)/);
 assert.match(script, /MOBILE_BOTTOM_STABILITY_SCRIPT/);
 assert.match(script, /mobile_bottom_nav_bottom_stable/);
 assert.match(script, /mobile_bottom_comfort_inset_not_self_cancelled/);

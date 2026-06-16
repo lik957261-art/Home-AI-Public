@@ -226,8 +226,18 @@ function keyboardViewportShouldClearAfterOrientation() {
 
 function updateKeyboardViewportMetrics() {
   const root = document.documentElement;
+  const app = $("app");
   const metrics = visualViewportKeyboardMetrics();
-  const active = Boolean(state.composerFocused && isMobileLayout() && metrics?.keyboardLikely);
+  const nativeEmbeddedPluginActive = Boolean(
+    root.classList.contains("native-shell-ios")
+    && root.classList.contains("embedded-plugin-shell-active")
+    && app?.classList.contains("embedded-plugin-host-active")
+  );
+  const active = Boolean(
+    isMobileLayout()
+    && metrics?.keyboardLikely
+    && (state.composerFocused || nativeEmbeddedPluginActive)
+  );
   state.keyboardViewportActive = active;
   root.classList.toggle("keyboard-viewport-active", active);
   if (active) {

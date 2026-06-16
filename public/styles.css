@@ -1551,6 +1551,30 @@ button {
   min-height: 0;
 }
 
+:root.native-shell-ios.embedded-plugin-shell-active .app.embedded-plugin-host-active {
+  --plugin-context-main-top: 0px;
+}
+
+:root.native-shell-ios.embedded-plugin-shell-active body::before {
+  content: none;
+}
+
+:root.native-shell-ios .app.codex-mode.embedded-plugin-host-active .refresh-notice,
+:root.native-shell-ios.embedded-plugin-shell-active .app.embedded-plugin-host-active #refreshNotice,
+:root.native-shell-ios.embedded-plugin-shell-active .app.embedded-plugin-host-active .refresh-notice {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+:root.native-shell-ios.keyboard-viewport-active.embedded-plugin-shell-active .app.embedded-plugin-host-active {
+  padding-bottom: 0;
+}
+
+:root.native-shell-ios.keyboard-viewport-active.embedded-plugin-shell-active .plugin-context-nav-mode.embedded-plugin-host-active .main {
+  bottom: 0;
+}
+
 @media (min-width: 1100px) and (pointer: fine) {
   .app.wardrobe-plugin-host-active,
   .app.embedded-plugin-host-active,

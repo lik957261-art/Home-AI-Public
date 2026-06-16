@@ -2887,6 +2887,7 @@ async function runHarness(options) {
       args: scenario.prepareArgs(options),
     });
     await sleep(options.waitMs);
+    report.embeddedPluginReady = await waitForEmbeddedPluginShellReady(options);
     if (typeof scenario.nativeRun === "function") {
       report.native = await scenario.nativeRun(options, report);
       if (report.native?.metrics) report.metrics = report.native.metrics;
@@ -3005,6 +3006,56 @@ async function measureEmbeddedPluginShellInParts(options = {}) {
   return Object.assign({}, base, { shell, frame });
 }
 
+async function waitForEmbeddedPluginShellReady(options = {}) {
+  const pluginId = String(options.pluginId || "").trim();
+  if (String(options.scenario || "") !== "embedded-plugin-shell" || !pluginId) {
+    return { ready: true, skipped: "not_embedded_plugin_shell" };
+  }
+  const timeoutMs = Math.max(5000, Math.min(16000, Math.max(Number(options.waitMs || 0) * 5, 9000)));
+  const startedAt = Date.now();
+  let attempts = 0;
+  let last = null;
+  while (Date.now() - startedAt < timeoutMs) {
+    attempts += 1;
+    try {
+      last = await postAction(options, {
+        type: "js",
+        label: "wait-embedded-plugin-shell",
+        args: [pluginId],
+        script: `
+          const pluginId = String(arguments[0] || "").trim();
+          const appState = typeof state !== "undefined" && state && typeof state === "object"
+            ? state
+            : (window.state && typeof window.state === "object" ? window.state : null);
+          const app = document.getElementById("app");
+          const shell = Array.from(document.querySelectorAll(".embedded-plugin-shell, .wardrobe-plugin-shell"))
+            .find((node) => node?.dataset?.pluginId === pluginId || (pluginId === "wardrobe" && node.classList.contains("wardrobe-plugin-shell"))) || null;
+          const frame = shell?.querySelector(".embedded-plugin-frame, .wardrobe-plugin-frame") || null;
+          return {
+            clientVersion: document.documentElement?.dataset?.clientVersion || "",
+            href: location.href,
+            readyState: document.readyState,
+            authenticated: Boolean(appState?.auth),
+            appHidden: Boolean(app?.classList?.contains("hidden")),
+            appClass: app?.className || "",
+            viewMode: appState?.viewMode || "",
+            workspaceId: appState?.selectedWorkspaceId || "",
+            shell: { exists: Boolean(shell), hidden: Boolean(shell?.hidden) },
+            frame: { exists: Boolean(frame), hasSrc: Boolean(frame?.getAttribute?.("src")) },
+          };
+        `,
+      });
+      if (last?.shell?.exists && last?.frame?.exists) {
+        return { ready: true, attempts, elapsedMs: Date.now() - startedAt, last };
+      }
+    } catch (err) {
+      last = { error: String(err?.message || err).slice(0, 300) };
+    }
+    await sleep(350);
+  }
+  return { ready: false, attempts, elapsedMs: Date.now() - startedAt, last };
+}
+
 async function sampleMobileBottomStability(options = {}) {
   if (String(options.scenario || "") === "embedded-plugin-shell") {
     return { ok: true, count: 0, intervalMs: 0, samples: [], skipped: "not_required_for_embedded_plugin_shell" };
@@ -3070,4 +3121,5 @@ module.exports = {
   parseArgs,
   runHarness,
   sampleMobileBottomStability,
+  waitForEmbeddedPluginShellReady,
 };

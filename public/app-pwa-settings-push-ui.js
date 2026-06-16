@@ -5,9 +5,20 @@ function refreshNoticeText(serverVersion) {
   return version ? `客户端已更新到 v${version}` : "客户端已更新";
 }
 
+function shouldSuppressRefreshNoticeForNativePluginShell() {
+  return Boolean(
+    document.documentElement?.classList?.contains("native-shell-ios")
+    && document.documentElement?.classList?.contains("embedded-plugin-shell-active")
+  );
+}
+
 function showRefreshNotice(serverVersion, options = {}) {
   const version = normalizeClientVersion(serverVersion);
   if (!version || (!options.force && version === state.refreshNoticeDismissedVersion)) return;
+  if (shouldSuppressRefreshNoticeForNativePluginShell()) {
+    hideRefreshNotice();
+    return;
+  }
   const notice = $("refreshNotice");
   if (!notice) return;
   $("refreshNoticeText").textContent = refreshNoticeText(version);
@@ -98,6 +109,11 @@ function handleClientVersion(info, source = "") {
     return;
   }
   if (clientVersion && serverVersion !== clientVersion) {
+    if (shouldSuppressRefreshNoticeForNativePluginShell()) {
+      hideRefreshNotice();
+      if (typeof renderClientVersion === "function") renderClientVersion();
+      return;
+    }
     showRefreshNotice(serverVersion, { force: Boolean(info?.refreshRequired) });
     scheduleClientVersionAutoReset(serverVersion, source);
     if (typeof renderClientVersion === "function") renderClientVersion();

@@ -207,6 +207,15 @@ and keyboard metrics, client refresh/reload controls, and native-shell layout
 pulses. These signals should remain bounded diagnostics or bridge messages; the
 PWA remains responsible for rendering product UI and applying layout policy.
 
+Embedded plugin WebView layout is a host-level responsibility. When Home AI is
+running under the native shell and an embedded plugin iframe is active, the host
+marks the root with `embedded-plugin-shell-active`. That state is the only place
+where the Web status-bar shim is removed, the plugin-context top inset is
+forced to zero, refresh notices are suppressed over plugin content, and
+keyboard viewport shrinkage from an iframe input is allowed to drive the host
+keyboard layout. Standalone PWA/browser behavior must not enter this branch and
+must keep the ordinary PWA safe-area, refresh notice, and keyboard behavior.
+
 ## System Notifications
 
 The APNs bridge is a native client capability, but the protocol source of truth
