@@ -33,13 +33,10 @@ function renderStreamingMessageContent(message) {
   if (!article || !body || !content || message.revokedAt) return false;
   const shouldStick = shouldForceChatStickToBottom() || isNearBottom();
   const messageStatus = String(message.status || "");
+  const active = ["queued", "running"].includes(messageStatus);
   try {
-    if (["queued", "running"].includes(messageStatus)) {
-      content.className = "text-content plain-text";
-      content.textContent = cleanDisplayText(message.content || "");
-    } else {
-      content.outerHTML = renderText(message.content || "", message);
-    }
+    article.classList.toggle("streaming-active", active);
+    content.outerHTML = renderText(message.content || "", message);
   } catch (err) {
     console.warn("renderStreamingMessageContent failed", err);
     content.className = "text-content plain-text";
@@ -54,7 +51,7 @@ function renderStreamingMessageContent(message) {
     state.conversationPinnedToBottom = false;
   }
   scheduleMessageScrollButtonVisibility($("conversation"));
-  if (!["queued", "running"].includes(messageStatus)) {
+  if (!active) {
     scheduleMessageScrollButtonVisibilitySettle(article, [120, 360]);
   }
   return true;

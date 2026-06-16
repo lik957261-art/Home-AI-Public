@@ -86,7 +86,14 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /voiceInputNativeComposerAvailable\(target\.composer \|\| voiceInputMainComposerDefinition\(\), \{[\s\S]*?allowStopMode: Boolean\(target\.allowStopMode\),/);
   assert.match(voiceUi, /if \(!longPress && typeof sendMessage === "function"\) \{[\s\S]*?void sendMessage\(event\);/);
   assert.match(voiceUi, /voice\.suppressNextClick = true;[\s\S]*?voice\.suppressClickButton = button;/);
-  assert.match(voiceUi, /setVoiceInputStatus\(permissionState === "granted" \? "preparing" : "requesting"\)/);
+  assert.match(voiceUi, /setVoiceInputStatus\(permissionState === "granted" \? "preparing" : "requesting", \{/);
+  assert.match(voiceUi, /voiceInputOpenStatusPanel\("pending", \{ statusDetail: "等待长按阈值" \}\)/);
+  assert.match(voiceUi, /voiceInputOpenStatusPanel\("pending", \{ statusDetail: "按住 Stop 进入语音输入" \}\)/);
+  assert.match(voiceUi, /function voiceInputDismissStatusPanel\(\)/);
+  assert.match(voiceUi, /voice\.dismissedByUser = true/);
+  assert.match(voiceUi, /function bindVoiceInputStatusPanelDismissGuards\(\)/);
+  assert.match(voiceUi, /document\.addEventListener\("pointerdown", dismissVoiceInputStatusPanelFromComposer, true\)/);
+  assert.match(voiceUi, /const suppressed = suppressVoiceInputClickEvent\(event\);[\s\S]*if \(!suppressed\) voiceInputDismissStatusPanel\(\);/);
   assert.match(voiceUi, /voiceInputRememberMicGranted\(\)/);
   assert.match(voiceUi, /new MediaRecorder\(stream/);
   assert.match(voiceUi, /\/api\/voice-input\/status/);
@@ -152,7 +159,7 @@ function testNativeDraftInsertionAndPrivacyBoundary() {
   assert.match(voiceUi, /当前输入框不可写：当前是 Stop 状态，请长按 Stop 按钮录音/);
   assert.match(voiceUi, /const composer = voiceInputFreshNativeComposer\(voice\.target\?\.composer\) \|\| voiceInputMainComposerDefinition\(\)/);
   assert.match(voiceUi, /const unavailableReason = voiceInputNativeComposerUnavailableReason\(composer, \{ allowStopMode: Boolean\(voice\.target\?\.allowStopMode\) \}\)/);
-  assert.match(voiceUi, /if \(unavailableReason\) \{\s+closeVoiceInputOverlay\(\);\s+return;\s+\}/);
+  assert.match(voiceUi, /if \(unavailableReason\) \{\s+setVoiceInputStatus\("failed", \{ error: voiceInputComposerUnavailableMessage\(unavailableReason\) \}\);\s+return;\s+\}/);
   assert.match(voiceUi, /composer\.setText\?\.\(next\)/);
   assert.match(voiceUi, /composer\.setCaret\?\.\(caret\)/);
   assert.match(voiceUi, /function trackPendingVoiceInputCommit\(finalText\)/);
@@ -162,7 +169,7 @@ function testNativeDraftInsertionAndPrivacyBoundary() {
   assert.doesNotMatch(voiceUi, /data-voice-action="append"/);
   assert.doesNotMatch(voiceUi, /data-voice-action="replace"/);
   assert.doesNotMatch(voiceUi, /data-voice-action="discard"/);
-  assert.match(voiceUi, /durationMs < VOICE_INPUT_MIN_CLIENT_DURATION_MS\) \{[\s\S]*?closeVoiceInputOverlay\(\);/);
+  assert.match(voiceUi, /durationMs < VOICE_INPUT_MIN_CLIENT_DURATION_MS\) \{[\s\S]*?setVoiceInputStatus\("no_speech", \{ statusDetail: "录音太短或没有音频片段" \}\);/);
   assert.doesNotMatch(voiceUi, /录音时间太短/);
   assert.doesNotMatch(voiceUi, /document\.querySelector\(["']iframe/);
 }
@@ -216,6 +223,11 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(voiceUi, /stopImmediatePropagation\?\.\(\)/);
   assert.match(styles, /\.voice-input-overlay/);
   assert.match(styles, /\.voice-input-overlay \{[\s\S]*?bottom: calc\(var\(--mobile-bottom-stack-height, 72px\) \+ 58px\);[\s\S]*?width: 34px;[\s\S]*?height: 34px;/);
+  assert.match(styles, /\.voice-input-overlay\.voice-input-status-panel-expanded \{[\s\S]*?grid-template-columns: 28px minmax\(0, 1fr\);[\s\S]*?min-height: 48px;/);
+  assert.match(styles, /\.voice-input-status-copy/);
+  assert.match(styles, /\.voice-input-status-title/);
+  assert.match(styles, /\.voice-input-status-detail/);
+  assert.match(styles, /\.voice-input-status-meta/);
   assert.match(styles, /\.voice-input-transcript/);
   assert.match(styles, /\.voice-input-mic-indicator/);
   assert.match(styles, /-webkit-mask: url\("data:image\/svg\+xml/);
@@ -229,9 +241,14 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.doesNotMatch(read("public/app-message-actions-ui.js"), /\$\("attachFile"\)\?\.classList\?\.contains\("voice-input-attach-indicator"\)/);
   assert.doesNotMatch(read("public/app-message-actions-ui.js"), /typeof voiceInputRecordingVisible === "function" && voiceInputRecordingVisible\(\)/);
   assert.match(voiceUi, /class="voice-input-mic-indicator"/);
-  assert.doesNotMatch(voiceUi, /data-voice-status/);
+  assert.match(voiceUi, /data-voice-status-title/);
+  assert.match(voiceUi, /data-voice-status-detail/);
+  assert.match(voiceUi, /data-voice-status-meta/);
   assert.doesNotMatch(voiceUi, /data-voice-action="cancel"/);
   assert.match(voiceUi, /voice-input-overlay-recording/);
+  assert.match(voiceUi, /function initializeNativeVoiceInputBridge\(\)/);
+  assert.match(voiceUi, /window\.HomeAINativeVoiceInput = Object\.assign\(existing, \{/);
+  assert.match(voiceUi, /updateVoiceInputFromNative\(payload, payload\.status \|\| "pending"\)/);
 }
 
 testStaticLoadingAndCache();

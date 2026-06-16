@@ -346,7 +346,12 @@ Gateway plugin/schema/profile changes:
   view, the up/start arrow must stay inline beside the Usage/Skill/status chips
   instead of floating away to the top of the message. Once content estimation or
   measured layout proves a reply is long, terminal Usage/Skill/run-status footer
-  refreshes must not clear the reply's long-scroll eligibility.
+  refreshes must not clear that eligibility.
+- Active assistant replies must not stream the full growing answer directly into
+  the visible receipt. While status is `queued` or `running`, the message should
+  show a fixed-line streaming receipt preview with hidden overflow and keep the
+  inline run-progress panel bounded in the same message body. After the assistant
+  reaches a terminal state, the normal full Markdown/receipt renderer takes over.
 - Save-to-Note success feedback must remain a local Hermes route action. If the
   Note API returns a saved note id, the toast should be clickable/keyboard
   actionable and open the Note plugin with that id in the plugin route payload.

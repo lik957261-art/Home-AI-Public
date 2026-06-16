@@ -6,6 +6,7 @@ const VOICE_INPUT_PRESS_EVENTS_BOUND = "__homeAiVoiceInputPressEventsBound";
 const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted";
 const VOICE_INPUT_EMBEDDED_INSERT_MAX_ATTEMPTS = 3;
 const VOICE_INPUT_STREAMING_CHUNK_TARGET_MS = 300;
+const VOICE_INPUT_STATUS_PANEL_KEY = "homeAiVoiceInputStatusPanel";
 
 function ensureVoiceInputState() {
   if (!state.voiceInput || typeof state.voiceInput !== "object") {
@@ -30,9 +31,76 @@ function voiceInputStatusLabel(status = ensureVoiceInputState().status) {
     ready: "转写完成",
     inserting: "正在插入",
     inserted: "已插入",
+    cancelled: "已取消",
+    no_speech: "未形成有效语音",
     failed: "语音输入失败",
   };
   return labels[status] || labels.idle;
+}
+
+function voiceInputNativeShellActive() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    return params.get("nativeShell") === "ios"
+      || document.documentElement?.dataset?.nativeShell === "ios"
+      || localStorage.getItem("homeAI.nativeShell") === "ios";
+  } catch (_) {
+    return document.documentElement?.dataset?.nativeShell === "ios";
+  }
+}
+
+function voiceInputStatusPanelExpanded() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    const query = params.get("voiceStatusPanel");
+    if (query === "0") return false;
+    if (query === "1") return true;
+    const stored = localStorage.getItem(VOICE_INPUT_STATUS_PANEL_KEY);
+    if (stored === "0") return false;
+    if (stored === "1") return true;
+  } catch (_) {}
+  return voiceInputNativeShellActive();
+}
+
+function voiceInputDebugStatusEnabled() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    if (params.get("voiceStatusDebug") === "1") return true;
+    return localStorage.getItem("homeAiVoiceInputStatusDebug") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function voiceInputStatusDetail(voice = ensureVoiceInputState()) {
+  if (voice.error) return voice.error;
+  if (voice.statusDetail) return voice.statusDetail;
+  if (voice.status === "pending") return "等待长按阈值";
+  if (voice.status === "checking") return "检查本地 ASR 与权限状态";
+  if (voice.status === "requesting") return "等待系统麦克风权限";
+  if (voice.status === "preparing") return "打开本地麦克风";
+  if (voice.status === "recording") return voiceInputFormatDuration(Date.now() - Number(voice.recordingStartedAt || Date.now()));
+  if (voice.status === "finalizing") return "整理音频片段";
+  if (voice.status === "transcribing") return "等待 ASR 返回";
+  if (voice.status === "inserting") return "写入当前 Composer";
+  if (voice.status === "inserted") return "等待编辑或发送";
+  if (voice.status === "cancelled") return "等待下一次语音输入";
+  if (voice.status === "no_speech") return "没有写入 Composer";
+  return "";
+}
+
+function voiceInputStatusMeta(voice = ensureVoiceInputState()) {
+  const parts = [];
+  const provider = voice.statusCache?.provider?.backend || voice.statusCache?.provider?.id || "";
+  if (provider) parts.push(`ASR ${provider}`);
+  const sessionId = voice.streaming?.voiceSessionId || voice.voiceSessionId || "";
+  if (sessionId) parts.push(`session ${String(sessionId).slice(-8)}`);
+  const source = voice.nativeStatus?.source || voice.target?.kind || "";
+  if (source) parts.push(String(source));
+  if (voice.partialCount) parts.push(`partial ${voice.partialCount}`);
+  if (voice.streaming?.sequence) parts.push(`chunk ${voice.streaming.sequence}`);
+  if (voice.statusUpdatedAt) parts.push(new Date(voice.statusUpdatedAt).toLocaleTimeString([], { hour12: false }));
+  return parts.join(" · ");
 }
 
 function voiceInputRequestId(prefix = "voice") {
@@ -608,13 +676,18 @@ function ensureVoiceInputOverlay() {
   overlay.setAttribute("aria-live", "polite");
   overlay.innerHTML = `
     <span class="voice-input-mic-indicator" aria-hidden="true"></span>
+    <span class="voice-input-status-copy">
+      <span class="voice-input-status-title" data-voice-status-title></span>
+      <span class="voice-input-status-detail" data-voice-status-detail></span>
+      <span class="voice-input-status-meta" data-voice-status-meta hidden></span>
+    </span>
   `;
   document.body.appendChild(overlay);
   return overlay;
 }
 
 function voiceInputRecordingVisible(voice = ensureVoiceInputState()) {
-  return voice.status !== "idle";
+  return Boolean(voice.panelVisible || voice.status !== "idle");
 }
 
 function voiceInputRestoreAttachMicIndicator() {
@@ -643,20 +716,37 @@ function voiceInputRenderAttachMicIndicator(voice = ensureVoiceInputState()) {
 function renderVoiceInputOverlay() {
   const voice = ensureVoiceInputState();
   const overlay = ensureVoiceInputOverlay();
+  const expanded = voiceInputStatusPanelExpanded();
+  const debug = voiceInputDebugStatusEnabled();
+  const title = overlay.querySelector("[data-voice-status-title]");
+  const detail = overlay.querySelector("[data-voice-status-detail]");
+  const meta = overlay.querySelector("[data-voice-status-meta]");
   voiceInputRenderAttachMicIndicator(voice);
   overlay.hidden = !voiceInputRecordingVisible(voice);
   overlay.classList.toggle("voice-input-overlay-active", !overlay.hidden);
+  overlay.classList.toggle("voice-input-status-panel-expanded", expanded);
+  overlay.classList.toggle("voice-input-status-panel-debug", debug);
   overlay.classList.toggle("voice-input-overlay-busy", ["checking", "requesting", "preparing", "recording", "finalizing", "transcribing", "inserting"].includes(voice.status));
   overlay.classList.toggle("voice-input-overlay-recording", voice.status === "recording");
   overlay.classList.toggle("voice-input-overlay-error", voice.status === "failed");
+  overlay.classList.toggle("voice-input-overlay-terminal", ["inserted", "cancelled", "no_speech", "failed"].includes(voice.status));
+  if (title) title.textContent = voiceInputStatusLabel(voice.status);
+  if (detail) detail.textContent = voiceInputStatusDetail(voice);
+  if (meta) {
+    const metaText = voiceInputStatusMeta(voice);
+    meta.textContent = metaText;
+    meta.hidden = !debug || !metaText;
+  }
   overlay.setAttribute("aria-label", voiceInputStatusLabel(voice.status));
-  overlay.setAttribute("title", voiceInputStatusLabel(voice.status));
+  overlay.setAttribute("title", [voiceInputStatusLabel(voice.status), voiceInputStatusDetail(voice)].filter(Boolean).join(" · "));
   refreshVoiceInputSendButton();
 }
 
 function closeVoiceInputOverlay() {
   const voice = ensureVoiceInputState();
   if (voice.embeddedFinalInsert?.timer) clearTimeout(voice.embeddedFinalInsert.timer);
+  if (voice.maxTimer) clearTimeout(voice.maxTimer);
+  if (voice.recordingTicker) clearInterval(voice.recordingTicker);
   voice.embeddedFinalInsert = null;
   voice.status = "idle";
   voice.error = "";
@@ -665,6 +755,13 @@ function closeVoiceInputOverlay() {
   voice.corrections = null;
   voice.target = null;
   voice.streaming = null;
+  voice.panelVisible = false;
+  voice.statusDetail = "";
+  voice.statusUpdatedAt = 0;
+  voice.nativeStatus = null;
+  voice.partialCount = 0;
+  voice.maxTimer = 0;
+  voice.recordingTicker = 0;
   voiceInputResetProvisionalComposer();
   document.body?.classList?.remove("voice-input-press-active");
   renderVoiceInputOverlay();
@@ -672,8 +769,41 @@ function closeVoiceInputOverlay() {
 
 function setVoiceInputStatus(status, fields = {}) {
   const voice = ensureVoiceInputState();
-  Object.assign(voice, fields, { status });
+  if (voice.dismissedByUser && status !== "idle" && !fields.forceVisible) return;
+  Object.assign(voice, fields, {
+    status,
+    panelVisible: status !== "idle" || Boolean(fields.panelVisible),
+    statusUpdatedAt: Date.now(),
+  });
   renderVoiceInputOverlay();
+}
+
+function voiceInputOpenStatusPanel(status = "pending", fields = {}) {
+  const voice = ensureVoiceInputState();
+  Object.assign(voice, fields, {
+    dismissedByUser: false,
+    panelVisible: true,
+    status,
+    statusUpdatedAt: Date.now(),
+  });
+  if (!voice.panelOpenedAt) voice.panelOpenedAt = Date.now();
+  renderVoiceInputOverlay();
+}
+
+function voiceInputDismissStatusPanel() {
+  const voice = ensureVoiceInputState();
+  voice.dismissedByUser = true;
+  voice.cancelRequested = true;
+  if (voice.pressTimer) voiceInputClearPressTimer();
+  if (voice.recorder && voice.recorder.state !== "inactive") {
+    try {
+      voice.recorder.stop();
+    } catch (_) {}
+  }
+  voice.recorder = null;
+  void voiceInputCancelStreamingSession();
+  voiceInputClearRecordingStream();
+  closeVoiceInputOverlay();
 }
 
 function voiceInputClearPressTimer() {
@@ -760,7 +890,7 @@ function cancelVoiceInput() {
   void voiceInputCancelStreamingSession();
   voiceInputClearRecordingStream();
   document.body?.classList?.remove("voice-input-press-active");
-  closeVoiceInputOverlay();
+  setVoiceInputStatus("cancelled", { statusDetail: "录音已取消" });
 }
 
 async function voiceInputLoadStatus(options = {}) {
@@ -986,6 +1116,9 @@ function handleVoiceInputStopButtonPointerDown(event, button) {
   scheduleVoiceInputClickSuppressionClear();
   voiceInputClearSelection();
   document.body?.classList?.add("voice-input-press-active");
+  if (voiceInputStatusPanelExpanded()) {
+    voiceInputOpenStatusPanel("pending", { statusDetail: "按住 Stop 进入语音输入" });
+  }
   try {
     button?.setPointerCapture?.(event.pointerId);
   } catch (_) {}
@@ -1051,25 +1184,31 @@ async function startVoiceInputRecording(event, options = {}) {
       allowStopMode: Boolean(target.allowStopMode),
     });
   if (!targetAvailable) {
-    closeVoiceInputOverlay();
+    const reason = target.kind === "embedded-plugin"
+      ? "当前插件输入框不可写"
+      : voiceInputComposerUnavailableMessage(voiceInputNativeComposerUnavailableReason(target.composer || voiceInputMainComposerDefinition(), {
+        allowStopMode: Boolean(target.allowStopMode),
+      }));
+    setVoiceInputStatus("failed", { error: reason });
     return;
   }
   voice.target = target;
   if (target.kind === "native" && !target.button) target.button = target.composer?.button || $("sendMessage");
+  voice.dismissedByUser = false;
   voice.suppressNextClick = target.kind === "native";
   voice.suppressClickButton = target.kind === "native" ? target.button : null;
   if (voice.suppressNextClick) scheduleVoiceInputClickSuppressionClear();
   voice.cancelRequested = false;
   voice.pendingStopAfterStart = false;
-    voice.chunks = [];
-    voiceInputResetProvisionalComposer();
-    event?.preventDefault?.();
-  setVoiceInputStatus("checking");
+  voice.chunks = [];
+  voiceInputResetProvisionalComposer();
+  event?.preventDefault?.();
+  setVoiceInputStatus("checking", { statusDetail: "检查本地 ASR 与权限状态" });
   try {
     const permissionStatePromise = voiceInputMicrophonePermissionState();
     const serviceStatus = await voiceInputLoadStatus();
     if (voice.cancelRequested) {
-      closeVoiceInputOverlay();
+      setVoiceInputStatus("cancelled", { statusDetail: "录音已取消" });
       return;
     }
     if (!serviceStatus?.enabled) {
@@ -1085,11 +1224,13 @@ async function startVoiceInputRecording(event, options = {}) {
       setVoiceInputStatus("failed", { error: "麦克风权限未开启" });
       return;
     }
-    setVoiceInputStatus(permissionState === "granted" ? "preparing" : "requesting");
+    setVoiceInputStatus(permissionState === "granted" ? "preparing" : "requesting", {
+      statusDetail: permissionState === "granted" ? "打开本地麦克风" : "等待系统麦克风权限",
+    });
     const stream = await voiceInputAcquireMicrophoneStream({ userGesture: true });
     if (voice.cancelRequested) {
       voiceInputClearRecordingStream();
-      closeVoiceInputOverlay();
+      setVoiceInputStatus("cancelled", { statusDetail: "录音已取消" });
       return;
     }
     const mimeType = voiceInputPreferredMimeType();
@@ -1105,7 +1246,7 @@ async function startVoiceInputRecording(event, options = {}) {
       void finalizeVoiceInputRecording();
     }, { once: true });
     recorder.start();
-    setVoiceInputStatus("recording", { recordingStartedAt: voice.recordingStartedAt });
+    setVoiceInputStatus("recording", { recordingStartedAt: voice.recordingStartedAt, statusDetail: "" });
     if (voiceInputStreamingConfigured(serviceStatus)) {
       voiceInputStartStreamingSession(stream, serviceStatus).catch((streamErr) => {
         const current = ensureVoiceInputState();
@@ -1133,7 +1274,7 @@ function stopVoiceInputRecording() {
   if (voice.status === "checking" || voice.status === "requesting" || voice.status === "preparing") {
     voice.cancelRequested = true;
     voice.pendingStopAfterStart = false;
-    closeVoiceInputOverlay();
+    setVoiceInputStatus("cancelled", { statusDetail: "麦克风尚未开始录音" });
     return;
   }
   if (voice.recorder && voice.recorder.state !== "inactive") {
@@ -1165,7 +1306,7 @@ async function finalizeVoiceInputRecording() {
   const durationMs = Math.max(0, Date.now() - startedAt);
   if (voice.cancelRequested) {
     voiceInputClearRecordingStream();
-    closeVoiceInputOverlay();
+    setVoiceInputStatus("cancelled", { statusDetail: "录音已取消" });
     return;
   }
   if (voice.maxTimer) clearTimeout(voice.maxTimer);
@@ -1182,11 +1323,11 @@ async function finalizeVoiceInputRecording() {
   const chunks = voice.chunks || [];
   voice.chunks = [];
   if (!chunks.length || durationMs < VOICE_INPUT_MIN_CLIENT_DURATION_MS) {
-    closeVoiceInputOverlay();
+    setVoiceInputStatus("no_speech", { statusDetail: "录音太短或没有音频片段" });
     return;
   }
   try {
-    setVoiceInputStatus("transcribing");
+    setVoiceInputStatus("transcribing", { statusDetail: "等待 ASR 返回" });
     if (streamingResult?.text) {
       if (typeof voiceLearningHandleTranscribeResult === "function") {
         voiceLearningHandleTranscribeResult(streamingResult);
@@ -1355,7 +1496,6 @@ function handleVoiceInputEmbeddedInsertResult(def, payload = {}) {
   }
   voice.embeddedFinalInsert = null;
   setVoiceInputStatus("inserted", { transcript: pending.text, error: "" });
-  setTimeout(closeVoiceInputOverlay, 650);
   return true;
 }
 
@@ -1363,7 +1503,7 @@ async function insertVoiceInputTranscript(mode = "append") {
   const voice = ensureVoiceInputState();
   const text = String(voice.transcript || "").trim();
   if (!text) {
-    closeVoiceInputOverlay();
+    setVoiceInputStatus("no_speech", { statusDetail: "没有可写入的转写文本" });
     return;
   }
   setVoiceInputStatus("inserting");
@@ -1385,7 +1525,7 @@ async function insertVoiceInputTranscript(mode = "append") {
   const composer = voiceInputFreshNativeComposer(voice.target?.composer) || voiceInputMainComposerDefinition();
   const unavailableReason = voiceInputNativeComposerUnavailableReason(composer, { allowStopMode: Boolean(voice.target?.allowStopMode) });
   if (unavailableReason) {
-    closeVoiceInputOverlay();
+    setVoiceInputStatus("failed", { error: voiceInputComposerUnavailableMessage(unavailableReason) });
     return;
   }
   if (voice.provisionalText && !voice.provisionalLocked && voice.provisionalBaseText != null) {
@@ -1400,7 +1540,6 @@ async function insertVoiceInputTranscript(mode = "append") {
   trackPendingVoiceInputCommit(text);
   voiceInputResetProvisionalComposer();
   setVoiceInputStatus("inserted", { transcript: text });
-  setTimeout(closeVoiceInputOverlay, 650);
 }
 
 function startVoiceInputFromEmbeddedPlugin(def, payload = {}) {
@@ -1455,6 +1594,9 @@ function beginVoiceInputPressGesture(event, button, composer, options = {}) {
   voice.suppressClickButton = null;
   voiceInputClearSelection();
   document.body?.classList?.add("voice-input-press-active");
+  if (voiceInputStatusPanelExpanded()) {
+    voiceInputOpenStatusPanel("pending", { statusDetail: "等待长按阈值" });
+  }
   voiceInputPrewarmStatus();
   if (options.pointerId) {
     voice.pointerId = options.pointerId;
@@ -1533,7 +1675,7 @@ function handleVoiceInputPointerCancel(event) {
   voice.stopButtonLongPressTriggered = false;
   if (voice.pressTimer) {
     voiceInputClearPressTimer();
-    closeVoiceInputOverlay();
+    setVoiceInputStatus("cancelled", { statusDetail: "语音手势已取消" });
     return;
   }
   if (voice.suppressNextClick && voice.suppressClickButton) {
@@ -1603,10 +1745,108 @@ function suppressVoiceInputClickEvent(event) {
 }
 
 function handleVoiceInputSendClick(event) {
-  return suppressVoiceInputClickEvent(event);
+  const suppressed = suppressVoiceInputClickEvent(event);
+  if (!suppressed) voiceInputDismissStatusPanel();
+  return suppressed;
+}
+
+function dismissVoiceInputStatusPanelFromComposer(event) {
+  if (!voiceInputRecordingVisible()) return;
+  if (!event?.target?.closest?.("#messageInput, textarea, input, [contenteditable='true']")) return;
+  if (event.target?.closest?.("#voiceInputOverlay")) return;
+  voiceInputDismissStatusPanel();
+}
+
+function bindVoiceInputStatusPanelDismissGuards() {
+  if (document.__homeAiVoiceInputStatusDismissBound) return;
+  document.__homeAiVoiceInputStatusDismissBound = true;
+  document.addEventListener("pointerdown", dismissVoiceInputStatusPanelFromComposer, true);
+  document.addEventListener("touchstart", dismissVoiceInputStatusPanelFromComposer, { capture: true, passive: true });
+}
+
+function voiceInputNormalizeNativeStatus(status) {
+  const normalized = String(status || "").trim().toLowerCase();
+  const map = {
+    started: "recording",
+    start: "recording",
+    recording: "recording",
+    permission: "requesting",
+    requesting: "requesting",
+    preparing: "preparing",
+    uploading: "finalizing",
+    finalizing: "finalizing",
+    transcribing: "transcribing",
+    partial: "transcribing",
+    final: "inserting",
+    inserting: "inserting",
+    inserted: "inserted",
+    failed: "failed",
+    error: "failed",
+    cancelled: "cancelled",
+    canceled: "cancelled",
+  };
+  return map[normalized] || normalized || "pending";
+}
+
+function updateVoiceInputFromNative(payload = {}, fallbackStatus = "pending") {
+  const voice = ensureVoiceInputState();
+  const status = voiceInputNormalizeNativeStatus(payload.status || payload.state || fallbackStatus);
+  voice.nativeStatus = Object.assign({}, payload, { source: "native-shell" });
+  voice.partialCount = Number(voice.partialCount || 0) + (status === "transcribing" && payload.text ? 1 : 0);
+  setVoiceInputStatus(status, {
+    panelVisible: true,
+    statusDetail: String(payload.detail || payload.message || "").slice(0, 120),
+    error: status === "failed" ? String(payload.error || payload.message || "原生语音输入失败").slice(0, 180) : "",
+    transcript: payload.text ? String(payload.text) : voice.transcript,
+    voiceSessionId: String(payload.voiceSessionId || payload.voice_session_id || voice.voiceSessionId || "").slice(0, 160),
+    corrections: payload.corrections || voice.corrections || null,
+  });
+}
+
+function initializeNativeVoiceInputBridge() {
+  const existing = window.HomeAINativeVoiceInput && typeof window.HomeAINativeVoiceInput === "object"
+    ? window.HomeAINativeVoiceInput
+    : {};
+  window.HomeAINativeVoiceInput = Object.assign(existing, {
+    capabilityResult(payload = {}) {
+      updateVoiceInputFromNative(payload, payload.available === false ? "failed" : "pending");
+      return true;
+    },
+    started(payload = {}) {
+      updateVoiceInputFromNative(payload, "recording");
+      return true;
+    },
+    status(payload = {}) {
+      updateVoiceInputFromNative(payload, payload.status || "pending");
+      return true;
+    },
+    partial(payload = {}) {
+      updateVoiceInputFromNative(Object.assign({}, payload, { status: "partial" }), "transcribing");
+      return true;
+    },
+    async final(payload = {}) {
+      updateVoiceInputFromNative(Object.assign({}, payload, { status: "final" }), "inserting");
+      const voice = ensureVoiceInputState();
+      if (!voice.target) {
+        voice.target = { kind: "native", composer: voiceInputMainComposerDefinition(), button: $("sendMessage") };
+      }
+      if (payload.text) await insertVoiceInputTranscript(String(payload.mode || "append") === "replace" ? "replace" : "append");
+      return true;
+    },
+    failed(payload = {}) {
+      updateVoiceInputFromNative(Object.assign({}, payload, { status: "failed" }), "failed");
+      return true;
+    },
+    cancelled(payload = {}) {
+      updateVoiceInputFromNative(Object.assign({}, payload, { status: "cancelled" }), "cancelled");
+      return true;
+    },
+  });
 }
 
 function initializeVoiceInputUi() {
   bindVoiceInputPressSelectionGuards();
+  bindVoiceInputStatusPanelDismissGuards();
+  initializeNativeVoiceInputBridge();
   refreshVoiceInputSendButton();
 }

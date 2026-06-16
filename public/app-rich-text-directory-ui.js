@@ -1,10 +1,19 @@
 "use strict";
 
+const ASSISTANT_STREAMING_RECEIPT_PREVIEW_MAX_CHARS = 900;
+const ASSISTANT_STREAMING_RECEIPT_PREVIEW_MAX_LINES = 6;
+
+function assistantReceiptMessageIsActive(message = {}) {
+  if (typeof assistantMessageIsActive === "function") return assistantMessageIsActive(message);
+  return ["queued", "running"].includes(String(message?.status || ""));
+}
+
 function renderText(text, message = {}) {
   const directoryAliases = extractDirectoryAliases(text || "");
   const cleaned = cleanDisplayText(rewriteDirectoryPathsForDisplay(directoryAliases.text));
   const aliases = renderDirectoryAliases(directoryAliases.aliases, message);
   if (message?.role === "assistant") {
+    if (assistantReceiptMessageIsActive(message)) return renderAssistantStreamingReceiptPreview(cleaned, aliases);
     if (shouldRenderLongMessagePreview(cleaned, message)) return renderLongMessagePreview(cleaned, aliases, message);
     const collapse = shouldOfferLongMessageCollapse(cleaned, message) ? renderLongMessageCollapseButton(message) : "";
     return `<div class="text-content message-prose assistant-receipt">${aliases}${renderRichText(cleaned, { assistantReceipt: true })}${collapse}</div>`;
@@ -20,6 +29,33 @@ function cleanDisplayText(value) {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+}
+
+function streamingReceiptPreviewText(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const charWindow = text.length > ASSISTANT_STREAMING_RECEIPT_PREVIEW_MAX_CHARS
+    ? text.slice(-ASSISTANT_STREAMING_RECEIPT_PREVIEW_MAX_CHARS)
+    : text;
+  const lines = charWindow
+    .split(/\n/)
+    .map((line) => line.trimEnd())
+    .filter((line, index, all) => line.trim() || all[index - 1]?.trim() || all[index + 1]?.trim());
+  return lines.slice(-ASSISTANT_STREAMING_RECEIPT_PREVIEW_MAX_LINES).join("\n").trim();
+}
+
+function renderAssistantStreamingReceiptPreview(text, aliases = "") {
+  const preview = streamingReceiptPreviewText(text);
+  if (!preview) {
+    return `<div class="text-content message-prose assistant-receipt streaming-receipt empty" data-streaming-receipt="1" hidden>${aliases}</div>`;
+  }
+  return `<div class="text-content message-prose assistant-receipt streaming-receipt" data-streaming-receipt="1">
+    ${aliases}
+    <div class="assistant-streaming-receipt" aria-live="polite">
+      <div class="assistant-streaming-receipt-kicker">\u6b63\u5728\u751f\u6210</div>
+      <div class="assistant-streaming-receipt-text">${escapeHtml(preview)}</div>
+    </div>
+  </div>`;
 }
 
 function renderInlineMarkdown(value) {

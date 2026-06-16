@@ -129,6 +129,13 @@ the change is part of a dedicated infrastructure rename.
   - After `run.model_output_started` / `run.final_message_started`, and when no
     later tool operation has started, the inline run-progress panel should use
     compact display so streamed assistant text remains visible.
+  - Active assistant messages must render streaming deltas as a bounded receipt
+    preview, not as an ever-growing full transcript. The preview belongs inside
+    the assistant message, keeps only the recent tail, clamps to a fixed line
+    count with hidden overflow, and shares the active message height budget with
+    the inline run-progress panel so their combined visible area stays within
+    one conversation viewport. The full assistant receipt is rendered only after
+    the message reaches a terminal state.
   - After an assistant receipt reaches a terminal state, detailed run-progress
     rows should collapse into a small `模型状态` footer tag next to Usage/Skill.
     Opening the tag shows historical rows from the first retained event, keeps

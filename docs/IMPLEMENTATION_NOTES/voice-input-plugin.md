@@ -210,6 +210,17 @@ Microphone permission timing:
   is in progress the host overlay shows a pulsing microphone indicator plus
   elapsed time, so users can distinguish a live recording from permission
   preparation or transcription.
+- Native-shell voice input may use a Composer-adjacent status panel that looks
+  like an input-method status area but is not text-editable. The panel appears
+  as soon as the voice gesture target is pressed, before microphone permission
+  or `getUserMedia`/native audio session setup completes. It must show bounded
+  lifecycle states such as waiting for long press, checking ASR, requesting
+  microphone permission, preparing microphone, recording, finalizing,
+  transcribing, inserting, inserted, cancelled, no-speech, and failed. The
+  panel is dismissed by explicit user interaction with the Composer or Send
+  button; successful insertion, too-short audio, permission delay, or ASR
+  failure must update the status instead of automatically closing the panel.
+  It must not display full transcripts or act as a second transcript editor.
 - The keyboard-safe composer layout must not reuse normal bottom navigation or
   plugin navigation offsets while `keyboard-viewport-active` is set. In plugin
   topic detail mode, the fixed composer should anchor to the active visual
@@ -224,6 +235,15 @@ create a separate transcript editor as the primary user input surface. It may
 show a compact recording/microphone indicator, but the visible text should land
 in the active Composer draft so the user can edit and send through the normal
 Home AI flow.
+
+For debugging and user feedback, the iOS native shell path may surface a
+Composer-adjacent voice status panel. This panel is host chrome, not a native
+keyboard extension and not a text entry field. It can be driven by the web
+recording path or by native bridge callbacks such as native status, partial,
+final, failed, and cancelled events. It is allowed to show stage labels,
+permission state, short provider/session metadata under a debug flag, and a
+microphone activity indicator. It must not log or expose raw audio, access
+keys, full transcript text, or plugin credentials.
 
 This path is enabled only when `nativeShell=ios` or an explicit native voice
 bridge capability is present. Standalone PWA behavior stays on the existing

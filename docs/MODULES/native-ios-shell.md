@@ -148,6 +148,19 @@ existing active Composer through a composition-session bridge. The PWA Composer
 continues to own draft rendering, user edits, send behavior, and correction
 learning.
 
+The native-shell path may show a Composer-adjacent voice status panel. This
+panel is a diagnostic/status surface, not a text input field. It should appear
+immediately when the user presses the voice entry, before microphone permission
+or native audio setup is complete, and then show the current lifecycle stage:
+waiting for long press, checking ASR, requesting microphone permission,
+preparing microphone, recording, finalizing, transcribing, inserting, inserted,
+cancelled, no-speech, or failed. Home AI should not automatically dismiss this
+panel after insertion or failure; it is dismissed when the user explicitly
+interacts with the Composer or Send button. The panel may show bounded debug
+metadata such as provider, session suffix, and chunk/partial counts only under
+a debug flag. It must not display full transcript text, raw audio, Access Keys,
+plugin credentials, or private payloads.
+
 The bridge must account for ASR partial latency. If the ASR backend can only
 emit useful partial text at a cadence such as hundreds of milliseconds, the
 native shell should still keep audio capture and transport low-latency while

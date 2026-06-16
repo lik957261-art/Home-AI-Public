@@ -176,6 +176,13 @@ This file records durable product rules that implementation must preserve.
   should not introduce a separate transcript text box as the primary input
   surface. Provisional streaming text may appear in the Composer and must be
   replaced by final text without duplicate insertion.
+- Native-shell voice input may show a Composer-adjacent status panel for the
+  microphone and lifecycle state. It is not a text input box. It must appear
+  immediately when the voice entry is pressed, including before microphone
+  permission succeeds, and must show microphone permission, local audio setup,
+  recording, ASR, insertion, cancellation, no-speech, and failure states. It is
+  dismissed by user interaction with the Composer or Send button, not by
+  automatic success/failure timers.
 - Raw audio is temporary processing input by default. Successful transcription
   must delete raw audio unless an Owner-configured debug retention policy is
   explicitly enabled. Debug retention must be bounded and must live under
