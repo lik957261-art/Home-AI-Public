@@ -75,6 +75,19 @@ function wireUi() {
       }
     });
   }
+  window.HomeAINativeNotifications = {
+    open(payload = {}) {
+      const route = String(payload.deepLink || payload.url || payload.clickUrl || payload.targetUrl || "").trim();
+      if (!route) return Promise.resolve(false);
+      return openNotificationRoute(route).then(() => true);
+    },
+  };
+  const pendingNativeNotifications = Array.isArray(window.__homeAIPendingNativeNotifications)
+    ? window.__homeAIPendingNativeNotifications.splice(0)
+    : [];
+  pendingNativeNotifications.forEach((payload) => {
+    window.HomeAINativeNotifications.open(payload).catch(showError);
+  });
   $("setupForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
     createOwnerSetup().catch((err) => {

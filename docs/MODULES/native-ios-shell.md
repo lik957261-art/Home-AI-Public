@@ -139,6 +139,15 @@ Near-term completion requires:
 - no raw APNs token, Access Key, push endpoint, or plugin credential in logs,
   payloads, or documents.
 
+When a notification is tapped and the `WKWebView` is already loaded, the shell
+must not reload the Home AI page just to apply the notification route. It should
+inject the `deepLink` into the Web app through
+`window.HomeAINativeNotifications.open(...)`, which reuses the same
+`openNotificationRoute(...)` path as PWA Web Push. Full URL loading is a
+fallback for cold start or bridge failure only. Receipt deep links must carry
+the terminal assistant `messageId` so the Web app can scroll to the start of
+the completed receipt after the message list renders.
+
 Notification deep links that open an Automation detail in the native shell must
 return to a freshly loaded Action Inbox list when the user swipes or taps back.
 The first Inbox filter is `当前`; `待办` remains the second filter for Todo-only

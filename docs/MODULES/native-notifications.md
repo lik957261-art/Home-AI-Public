@@ -225,6 +225,23 @@ APNs payloads use a bounded alert:
 }
 ```
 
+Notification taps in the native iOS shell must preserve the same routing
+semantics as PWA Web Push:
+
+- chat/task terminal receipt payloads must include the terminal assistant
+  `messageId` and the target `threadId` or `taskGroupId`;
+- if the `WKWebView` is already loaded, the native shell should deliver the
+  `deepLink` to `window.HomeAINativeNotifications.open(...)` and let the Web
+  app call `openNotificationRoute(...)` / `openHermesInternalRoute(...)`;
+- the shell should load the `deepLink` URL only for cold start, missing Web
+  app bridge, or route-bridge failure;
+- the Web route must keep `messageId` until the message list renders, then
+  scroll the receipt start into view.
+
+This avoids the native shell reloading the whole WebKit page on every
+notification tap and keeps APNs click behavior aligned with the PWA service
+worker `hermes.notification.open` path.
+
 Payloads are navigation hints. Sensitive content must still be fetched through
 authenticated Home AI APIs after the app opens.
 

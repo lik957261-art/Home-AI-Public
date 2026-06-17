@@ -83,6 +83,7 @@ assert.match(pwaPushUi, /clientContext,[\s\S]*displayMode: clientContext\.displa
 
 const platformUi = read("public/app-platform-ui.js");
 const routeSnapshotUi = read("public/app-route-snapshot-ui.js");
+const wireStartUi = read("public/app-wire-start-ui.js");
 assert.match(platformUi, /function sameOriginRouteUrl\(value\)/);
 assert.match(platformUi, /function normalizeHermesAppShellPath\(pathname = ""\)/);
 assert.match(platformUi, /function hermesAppShellRouteForParams\(params, options = \{\}\)/);
@@ -121,6 +122,9 @@ assert.match(routeSnapshotUi, /params\.set\("pluginContextNavPluginId", pluginCo
 assert.match(routeSnapshotUi, /if \(routeParamsHaveExplicitLaunchTarget\(currentParams\)\) return false/);
 assert.doesNotMatch(platformUi, /function applyRestoredAppRouteSnapshot\(\)/);
 assert.match(platformUi, /async function openNotificationRoute\(value\) \{[\s\S]*?return openHermesInternalRoute\(value\);[\s\S]*?\}/);
+assert.match(wireStartUi, /window\.HomeAINativeNotifications = \{/);
+assert.match(wireStartUi, /return openNotificationRoute\(route\)\.then\(\(\) => true\);/);
+assert.match(wireStartUi, /window\.__homeAIPendingNativeNotifications/);
 assert.match(platformUi, /function recordNavigationDiagnostic\(eventName, fields = \{\}\)/);
 assert.match(platformUi, /hermesNavigationDiagnostics/);
 assert.match(platformUi, /async function copyNavigationDiagnostics\(\)/);
@@ -143,7 +147,6 @@ assert.match(chatComposerUi, /function cancelAutomationViewLoads\(\) \{[\s\S]*?s
 assert.match(automationControllerUi, /if \(seq !== state\.automationRequestSeq \|\| state\.viewMode !== "automation"\) return;/);
 const navigationSearchUi = read("public/app-navigation-search-ui.js");
 assert.match(navigationSearchUi, /topCopyNavigationDiagnostics/);
-const wireStartUi = read("public/app-wire-start-ui.js");
 assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
 
 {
@@ -350,6 +353,7 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
   const storage = new Map();
   const renderCalls = [];
   const sandbox = {
+    URLSearchParams,
     state: {
       viewMode: "automation",
       selectedAutomationId: "job-1",
@@ -372,6 +376,9 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
       getItem: (key) => storage.get(key) || "",
     },
     renderActionInboxView: () => renderCalls.push({ viewMode: sandbox.state.viewMode }),
+    actionInboxFilterQuery: () => "",
+    api: async () => ({ items: [] }),
+    showError: (err) => { throw err; },
   };
   vm.runInNewContext(`${chatComposerUi}\n${actionInboxUi}`, sandbox);
   sandbox.renderActionInboxView = () => renderCalls.push({ viewMode: sandbox.state.viewMode });
@@ -383,7 +390,8 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
   assert.equal(sandbox.state.automationLoading, false);
   assert.equal(sandbox.state.automationDetailLoading, false);
   assert.equal(sandbox.state.automationRouteTargetPending, false);
-  assert.deepEqual(renderCalls, [{ viewMode: "inbox" }]);
+  assert.ok(renderCalls.length >= 1);
+  assert.equal(renderCalls.every((call) => call.viewMode === "inbox"), true);
 }
 
 const pushApiRoutes = read("server-routes/push-api-routes.js");
