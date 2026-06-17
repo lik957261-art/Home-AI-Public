@@ -109,6 +109,10 @@ Backups must allow a replacement machine to restore source, production app files
   Gateway worker/profile state, launchd plists, workspace Skill stores,
   workspace Memory stores, per-user/profile Soul files, and selected operator
   Codex/Hermes Agent state when readable.
+- Mac production deploy repairs read/traverse ACLs for `hermes-host` under
+  `data/artifacts` so generated plugin artifacts such as Wardrobe thumbnails
+  remain readable by the scheduled backup even when a plugin worker created
+  them with a private owner and `700` mode.
 - Daily backup excludes local tooling indexes and volatile runtime logs such as
   `.codegraph/`, Codex `logs_*.sqlite*`, and SQLite `*-wal` / `*-shm` sidecar
   files that are not the durable restore target and can change while rsync is

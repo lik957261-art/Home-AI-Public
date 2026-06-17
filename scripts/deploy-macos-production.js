@@ -58,6 +58,7 @@ const HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS = Object.freeze({
 });
 const HOME_AI_CRON_PROFILE_READ_ACL = `user:${PRODUCTION_SERVICE_USER} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
 const HOME_AI_CRON_PROFILE_TRAVERSE_ACL = `user:${PRODUCTION_SERVICE_USER} allow search,readattr,readextattr,readsecurity`;
+const HOME_AI_BACKUP_ARTIFACT_READ_ACL = `user:${PRODUCTION_SERVICE_USER} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
 const HOME_AI_CRON_PLUGIN_BINDING_DIR_NAMES = Object.freeze([
   ".hermes-email",
   ".hermes-finance",
@@ -1366,6 +1367,35 @@ function installHomeAiNasBackupMountLaunchd(plan, password) {
   };
 }
 
+function repairHomeAiBackupArtifactAcls(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const artifactsRoot = posixJoin(plan.macRoot, "data", "artifacts");
+  const script = `
+set -e
+root=${shQuote(artifactsRoot)}
+if [ ! -d "$root" ]; then
+  printf '{"ok":true,"skipped":true,"reason":"artifacts_root_missing"}\\n'
+  exit 0
+fi
+/bin/chmod +a ${shQuote(HOME_AI_BACKUP_ARTIFACT_READ_ACL)} "$root" 2>/dev/null || true
+updated=0
+while IFS= read -r entry; do
+  [ -n "$entry" ] || continue
+  /bin/chmod +a ${shQuote(HOME_AI_BACKUP_ARTIFACT_READ_ACL)} "$entry" 2>/dev/null || true
+  updated=$((updated + 1))
+done <<ENTRIES
+$(/usr/bin/find "$root" -mindepth 1 2>/dev/null)
+ENTRIES
+printf '{"ok":true,"skipped":false,"updated":%s}\\n' "$updated"
+`;
+  const result = runSudo("/bin/bash", ["-lc", script], password);
+  return {
+    type: "home-ai-backup-artifact-acl-repair",
+    status: result.status,
+    stdout: String(result.stdout || "").slice(0, 400),
+  };
+}
+
 function repairGatewayStartScriptBridgeEnv(plan, password) {
   if (plan.target !== "home-ai" || plan.surface !== "full") return null;
   const node = path.join(plan.macRoot, PINNED_NODE);
@@ -1604,6 +1634,7 @@ function executePlan(plan, options) {
   const listenerVoiceInputEnv = installHomeAiListenerVoiceInputEnv(plan, password);
   const cronProfileAliases = installHomeAiCronProfileAliases(plan, password);
   const cronBuiltinSkills = installHomeAiCronBuiltinSkills(plan, password);
+  const backupArtifactAclRepair = repairHomeAiBackupArtifactAcls(plan, password);
   const codexSharedAuthRepair = repairCodexSharedAuthPermissions(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
 
@@ -1634,6 +1665,7 @@ function executePlan(plan, options) {
   if (listenerVoiceInputEnv) validations.push(Object.assign({ status: 0 }, listenerVoiceInputEnv));
   if (cronProfileAliases) validations.push(Object.assign({ status: 0 }, cronProfileAliases));
   if (cronBuiltinSkills) validations.push(Object.assign({ status: 0 }, cronBuiltinSkills));
+  if (backupArtifactAclRepair) validations.push(backupArtifactAclRepair);
   if (codexSharedAuthRepair) validations.push(codexSharedAuthRepair);
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
   for (const check of plan.validation) {
@@ -1711,6 +1743,7 @@ module.exports = {
   cronProfileAliasRowsFromManifest,
   buildRsyncArgs,
   shouldRepairCodexSharedAuthPermissions,
+  repairHomeAiBackupArtifactAcls,
   postSyncRepairsForTarget,
   repairCodexMobileLogPermissions,
   deployDirtyFiles,
