@@ -202,11 +202,48 @@ function visualViewportKeyboardMetrics() {
   return { height, offsetTop, bottomInset, keyboardLikely };
 }
 
+function nativeShellEmbeddedPluginViewportActive() {
+  const root = document.documentElement;
+  const app = $("app");
+  return Boolean(
+    root?.classList?.contains("native-shell-ios")
+    && root.classList.contains("embedded-plugin-shell-active")
+    && app?.classList?.contains("embedded-plugin-host-active")
+  );
+}
+
+function stableKeyboardViewportMetrics(metrics) {
+  if (!metrics) return null;
+  if (!nativeShellEmbeddedPluginViewportActive()) {
+    state.keyboardViewportStableMetrics = null;
+    return metrics;
+  }
+  const previous = state.keyboardViewportStableMetrics || null;
+  const next = {
+    height: Math.max(0, Math.round(Number(metrics.height || 0))),
+    offsetTop: Math.max(0, Math.round(Number(metrics.offsetTop || 0))),
+    bottomInset: Math.max(0, Math.round(Number(metrics.bottomInset || 0))),
+    keyboardLikely: Boolean(metrics.keyboardLikely),
+  };
+  if (
+    previous
+    && previous.keyboardLikely === next.keyboardLikely
+    && Math.abs(previous.height - next.height) <= 3
+    && Math.abs(previous.offsetTop - next.offsetTop) <= 3
+    && Math.abs(previous.bottomInset - next.bottomInset) <= 3
+  ) {
+    return previous;
+  }
+  state.keyboardViewportStableMetrics = next;
+  return next;
+}
+
 function clearKeyboardViewportMetrics() {
   const root = document.documentElement;
   state.keyboardViewportActive = false;
   state.keyboardContextMode = false;
   state.keyboardContextTopPx = 0;
+  state.keyboardViewportStableMetrics = null;
   root.classList.remove("keyboard-viewport-active");
   root.style.removeProperty("--app-viewport-height");
   root.style.removeProperty("--app-viewport-offset-top");
@@ -220,19 +257,14 @@ function keyboardViewportShouldClearAfterOrientation() {
   const input = $("messageInput");
   const composerActuallyFocused = Boolean(input && document.activeElement === input);
   if (!state.composerFocused || !composerActuallyFocused) return true;
-  const metrics = visualViewportKeyboardMetrics();
+  const metrics = stableKeyboardViewportMetrics(visualViewportKeyboardMetrics());
   return !metrics?.keyboardLikely;
 }
 
 function updateKeyboardViewportMetrics() {
   const root = document.documentElement;
-  const app = $("app");
-  const metrics = visualViewportKeyboardMetrics();
-  const nativeEmbeddedPluginActive = Boolean(
-    root.classList.contains("native-shell-ios")
-    && root.classList.contains("embedded-plugin-shell-active")
-    && app?.classList.contains("embedded-plugin-host-active")
-  );
+  const metrics = stableKeyboardViewportMetrics(visualViewportKeyboardMetrics());
+  const nativeEmbeddedPluginActive = nativeShellEmbeddedPluginViewportActive();
   const active = Boolean(
     isMobileLayout()
     && metrics?.keyboardLikely

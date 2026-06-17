@@ -83,8 +83,8 @@ const reasoningPreviewHtml = context.renderText("", {
   streamingRunPreview: "正在整理上下文\n模型流已连接\n开始调用工具",
 });
 assert.match(reasoningPreviewHtml, /data-streaming-receipt="1"/);
-assert.doesNotMatch(reasoningPreviewHtml, /streaming-receipt empty/);
-assert.match(reasoningPreviewHtml, /正在整理上下文/);
-assert.match(reasoningPreviewHtml, /开始调用工具/);
+assert.match(reasoningPreviewHtml, /streaming-receipt empty/);
+assert.doesNotMatch(reasoningPreviewHtml, /正在整理上下文/);
+assert.doesNotMatch(reasoningPreviewHtml, /开始调用工具/);
 
 console.log("streaming receipt preview UI tests passed");

@@ -27,6 +27,9 @@ assert.match(appJs, /settleMobileBottomNavReservation\("view_change", \[0, 80, 2
 assert.match(appJs, /function keyboardViewportShouldClearAfterOrientation\(\)/);
 assert.match(appJs, /document\.activeElement === input/);
 assert.match(appJs, /function updateKeyboardViewportMetrics\(\)/);
+assert.match(appJs, /function nativeShellEmbeddedPluginViewportActive\(\)/);
+assert.match(appJs, /function stableKeyboardViewportMetrics\(metrics\)/);
+assert.match(appJs, /state\.keyboardViewportStableMetrics = null/);
 assert.match(appJs, /root\.classList\.toggle\("keyboard-viewport-active", active\)/);
 assert.match(appJs, /--app-viewport-height/);
 assert.match(appJs, /window\.scrollTo\(0, 0\)/);

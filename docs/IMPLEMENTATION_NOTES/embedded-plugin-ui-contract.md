@@ -163,12 +163,16 @@ events such as iframe attach, render, load, and host-visible transitions should
 still send a first viewport payload so a newly loaded plugin can initialize its
 layout contract. After that, the host suppresses exact duplicate viewport
 payloads and payloads that differ only by small measurement noise, such as
-1-2px safe-area, visual viewport, or iframe-rect drift. Native iOS shell
-safe-area probes can briefly alternate between a positive top inset and `0`;
-the host keeps the last positive top safe-area value briefly and ignores
-1-2px top inset jitter before broadcasting. Plugins should treat the latest
-delivered event as authoritative and must not depend on periodic duplicate
-viewport broadcasts for ordinary repainting.
+safe-area, visual viewport, or iframe-rect drift. Native iOS shell visual
+viewport events are especially noisy, so host-side layout handlers ignore
+non-orientation embedded-plugin shell changes within a small 3px tolerance
+instead of rerunning the conversation, keyboard, bottom-navigation, and
+embedded-plugin refresh chain. Native iOS shell safe-area probes can briefly
+alternate between a positive top inset and `0`; the host keeps the last
+positive top safe-area value briefly and ignores small top inset jitter before
+broadcasting. Plugins should treat the latest delivered event as authoritative
+and must not depend on periodic duplicate viewport broadcasts for ordinary
+repainting.
 
 The `appearance` object is also bounded layout metadata. The host must send the
 current sanitized device-local theme and font-size preference in both the launch

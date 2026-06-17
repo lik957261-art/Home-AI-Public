@@ -266,6 +266,7 @@ async function loadOlderChatMessages() {
 function handleViewportLayoutChange(event = null) {
   const type = String(event?.type || "");
   const orientationEvent = type === "orientationchange" || type === "change";
+  if (!orientationEvent && nativeShellViewportLayoutChangeIsNoise()) return;
   if (orientationEvent && conversationViewportRefreshApplies()) {
     state.conversationViewportSettleUntil = Date.now() + 900;
     state.conversationViewportBottomFollowUntil = Date.now() + 1100;
@@ -286,6 +287,45 @@ function handleViewportLayoutChange(event = null) {
   if (!shouldStickConversationOnViewportChange()) return;
   if (!shouldFollowConversationBottomDuringViewport()) return;
   scheduleConversationBottomStick();
+}
+
+function nativeShellViewportLayoutSnapshot() {
+  const viewport = window.visualViewport;
+  const keyboard = typeof stableKeyboardViewportMetrics === "function"
+    ? stableKeyboardViewportMetrics(visualViewportKeyboardMetrics())
+    : null;
+  return {
+    width: Math.round(Number(viewport?.width || window.innerWidth || 0)),
+    height: Math.round(Number(viewport?.height || window.innerHeight || document.documentElement?.clientHeight || 0)),
+    offsetTop: Math.round(Number(viewport?.offsetTop || 0)),
+    offsetLeft: Math.round(Number(viewport?.offsetLeft || 0)),
+    innerWidth: Math.round(Number(window.innerWidth || 0)),
+    innerHeight: Math.round(Number(window.innerHeight || 0)),
+    scrollX: Math.round(Number(window.scrollX || document.documentElement?.scrollLeft || document.body?.scrollLeft || 0)),
+    scrollY: Math.round(Number(window.scrollY || document.documentElement?.scrollTop || document.body?.scrollTop || 0)),
+    keyboardLikely: Boolean(keyboard?.keyboardLikely),
+  };
+}
+
+function nativeShellViewportLayoutChangeIsNoise() {
+  if (typeof nativeShellEmbeddedPluginViewportActive !== "function" || !nativeShellEmbeddedPluginViewportActive()) return false;
+  const next = nativeShellViewportLayoutSnapshot();
+  const previous = state.nativeShellViewportLayoutSnapshot || null;
+  if (!previous) {
+    state.nativeShellViewportLayoutSnapshot = next;
+    return false;
+  }
+  const stable = previous.keyboardLikely === next.keyboardLikely
+    && Math.abs(previous.width - next.width) <= 3
+    && Math.abs(previous.height - next.height) <= 3
+    && Math.abs(previous.offsetTop - next.offsetTop) <= 3
+    && Math.abs(previous.offsetLeft - next.offsetLeft) <= 3
+    && Math.abs(previous.innerWidth - next.innerWidth) <= 3
+    && Math.abs(previous.innerHeight - next.innerHeight) <= 3
+    && Math.abs(previous.scrollX - next.scrollX) <= 3
+    && Math.abs(previous.scrollY - next.scrollY) <= 3;
+  if (!stable) state.nativeShellViewportLayoutSnapshot = next;
+  return stable;
 }
 
 function messageElementById(messageId) {

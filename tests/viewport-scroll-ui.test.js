@@ -14,6 +14,8 @@ const escapedClientVersion = clientVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"
 
 assert.match(appJs, /conversationPinnedToBottom/);
 assert.match(appJs, /function handleViewportLayoutChange\(/);
+assert.match(appJs, /function nativeShellViewportLayoutChangeIsNoise\(\)/);
+assert.match(appJs, /if \(!orientationEvent && nativeShellViewportLayoutChangeIsNoise\(\)\) return;/);
 assert.match(appJs, /function updateMobileBottomNavReservation\(\)/);
 assert.match(appJs, /function recoverConversationViewportAfterOrientation\(conversation = \$\("conversation"\)\)/);
 assert.match(appJs, /function clearConversationViewportLayerReset\(conversation = \$\("conversation"\)\)/);

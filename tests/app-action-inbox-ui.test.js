@@ -34,6 +34,7 @@ const sandbox = {
 vm.runInNewContext(`${source}
 this.ActionInboxUiTest = {
   actionInboxFilterQuery,
+  actionInboxItemsForActiveFilter,
   actionInboxCountsText,
   actionInboxDisplaySummary,
   actionInboxDisplayTitle,
@@ -72,6 +73,16 @@ const filterHtml = ui.renderActionInboxFilters();
 assert.match(filterHtml, /data-action-inbox-filter="open"[^>]*aria-selected="true"[^>]*>\u5f53\u524d<\/button>/);
 assert.match(filterHtml, /data-action-inbox-filter="todo"[^>]*>\u5f85\u529e<\/button>/);
 assert.match(filterHtml, /data-action-inbox-filter="all"[^>]*>\u5176\u4ed6<\/button>/);
+
+const mixedInboxItems = [
+  { id: "todo-row", itemType: "todo" },
+  { id: "delivery-row", itemType: "delivery" },
+  { id: "error-row", item_type: "error" },
+];
+sandbox.state.actionInboxStatusFilter = "todo";
+assert.deepEqual(ui.actionInboxItemsForActiveFilter(mixedInboxItems).map((item) => item.id), ["todo-row"]);
+sandbox.state.actionInboxStatusFilter = "open";
+assert.deepEqual(ui.actionInboxItemsForActiveFilter(mixedInboxItems).map((item) => item.id), ["delivery-row", "error-row"]);
 
 sandbox.state.actionInboxCreateOpen = true;
 sandbox.state.actionInboxCreateMode = "plugin-audit";

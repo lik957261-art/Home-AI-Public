@@ -245,11 +245,15 @@ refresh notice, and keyboard behavior.
 The native-shell viewport bridge must be stable. Home AI may broadcast the first
 viewport payload for iframe attach, render, load, and host-visible lifecycle
 events, but it should suppress exact duplicate payloads and payloads that differ
-only by 1-2px measurement noise. The measured top safe-area value should also
+only by small measurement noise. In the native iOS shell, host-level
+`visualViewport` resize/scroll events that differ only by about 3px must not
+run the full conversation, keyboard, bottom-navigation, and embedded-plugin
+layout refresh chain. The measured top safe-area value should also
 hold the last positive native-shell value briefly when the probe temporarily
-returns `0`, and ignore 1-2px top-inset drift. This prevents embedded apps such
+returns `0`, and ignore small top-inset drift. This prevents embedded apps such
 as Codex from repeatedly applying iframe-internal safe-area or recovery layout
-updates while the standalone PWA/browser path remains unchanged.
+updates and prevents the native shell from visually nudging the whole page while
+the standalone PWA/browser path remains unchanged.
 
 ## System Notifications
 

@@ -985,6 +985,11 @@ function embeddedPluginViewportPayloadSimilar(left, right, tolerance = 2) {
   return true;
 }
 
+function embeddedPluginViewportNoiseTolerance() {
+  const root = document.documentElement;
+  return root?.classList?.contains?.("native-shell-ios") ? 4 : 2;
+}
+
 function embeddedPluginViewportDeliveryForced(record, reason = "") {
   const normalized = String(reason || "").trim();
   if (!/^(host_visible|frame_attach|frame_render|frame_load)$/.test(normalized)) return false;
@@ -1005,7 +1010,7 @@ function sendEmbeddedPluginViewportMetrics(def = embeddedPluginDefByView(), reas
     signature
     && (
       signature === record.lastViewportPayloadSignature
-      || embeddedPluginViewportPayloadSimilar(stableShape, record.lastViewportPayloadSnapshot)
+      || embeddedPluginViewportPayloadSimilar(stableShape, record.lastViewportPayloadSnapshot, embeddedPluginViewportNoiseTolerance())
     )
     && !embeddedPluginViewportDeliveryForced(record, reason)
   ) {

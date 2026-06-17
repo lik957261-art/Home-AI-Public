@@ -24,6 +24,11 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
   second filter tab. Ordinary non-Todo Inbox status tabs such as `当前`,
   `稍后`, `已完成`, and `其他` exclude `itemType=todo` so Todo rows do not mix
   with Automation, plugin, Growth, approval, or delivery rows.
+- The `待办` filter is strict: it may render only rows whose persisted
+  `itemType` is `todo`. The client keeps a final display-side guard in addition
+  to the API query so stale filters, deep-link refreshes, or cached responses
+  cannot show delivery, error, review, or plugin receipt rows inside the Todo
+  tab.
 - Active chat/topic task receipts should not enter the default Inbox. Those are immediate responses to a request the user just made, so Web Push should route directly back to the relevant chat/topic/task view.
 
 ## Non-Goals

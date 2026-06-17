@@ -763,8 +763,8 @@ appendRunEventToCurrentThread({
     preview: "provider connected",
   },
 });
-assert.match(testState.currentThread.messages[0].streamingRunPreview, /模型流已连接/);
-assert.match(testState.currentThread.messages[0].streamingRunPreview, /provider connected/);
+assert.equal(testState.currentThread.messages[0].streamingRunPreview, undefined);
+assert.equal(testState.currentThread.messages[0].streamingRunPreviewLines, undefined);
 
 fallbackRefreshCalls = 0;
 fullRenderCalls = 0;

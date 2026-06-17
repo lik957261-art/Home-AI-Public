@@ -148,10 +148,20 @@ function actionInboxCountsText() {
   return `${"\u5f85\u529e"} ${todo} · ${"\u5f85\u5904\u7406"} ${open} · ${"\u7a0d\u540e"} ${waiting} · ${"\u5df2\u5b8c\u6210"} ${done}`;
 }
 
+function actionInboxItemType(item = {}) {
+  return String(item?.itemType || item?.item_type || "").trim().toLowerCase();
+}
+
+function actionInboxItemsForActiveFilter(items = []) {
+  const list = Array.isArray(items) ? items : [];
+  const filter = String(state.actionInboxStatusFilter || "open").trim().toLowerCase();
+  if (filter === "todo") return list.filter((item) => actionInboxItemType(item) === "todo");
+  return list.filter((item) => actionInboxItemType(item) !== "todo");
+}
+
 function actionInboxIsManualTodo(item = {}) {
   const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
-  const itemType = String(item?.itemType || item?.item_type || "").trim().toLowerCase();
-  return sourceType === "manual" && itemType === "todo";
+  return sourceType === "manual" && actionInboxItemType(item) === "todo";
 }
 
 function actionInboxLinkTargetsLegacyTodo(link = "") {
@@ -365,7 +375,7 @@ async function loadActionInbox(options = {}) {
   try {
     const result = await api(`/api/action-inbox?${actionInboxFilterQuery()}`);
     if (seq !== state.actionInboxRequestSeq || state.viewMode !== "inbox") return;
-    state.actionInboxItems = result.items || result.data || [];
+    state.actionInboxItems = actionInboxItemsForActiveFilter(result.items || result.data || []);
     state.actionInboxCounts = result.counts || null;
     state.actionInboxSource = result.source || null;
     state.actionInboxLoading = false;

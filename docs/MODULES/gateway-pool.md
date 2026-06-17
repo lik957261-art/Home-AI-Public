@@ -817,6 +817,13 @@ Hermes Mobile also projects stream wait states into the run-progress panel:
   unchanged, but visually folds a paired start/done operation into one row with
   a status tone and elapsed operation duration such as `完成 · 2秒`; an unpaired
   operation remains visible as `运行中`.
+- The assistant receipt body must not show synthetic run-progress rows as if
+  they were model reasoning. If the backend does not provide a real bounded
+  reasoning/thinking delta stream, the active assistant receipt remains empty
+  until normal `message.delta` text arrives, while scheduler/model/tool status
+  stays only in the run-progress panel. A future reasoning stream must use a
+  separate explicit event contract instead of reusing `run.event` status
+  previews.
 
 ChatGPT Pro bridge runs may still set a stream-specific longer start/liveness
 window because those jobs can be intentionally long-running.

@@ -802,10 +802,11 @@ so installs without a local ASR backend fail disabled instead of depending on
 private Mac paths.
 Active assistant streaming-receipt changes that affect visible in-progress
 output must also run `node tests\run-progress-ui-behavior.test.js` and
-`node tests\streaming-receipt-preview-ui.test.js`. They must prove safe
-run-event previews appear before the final assistant text when no text delta has
-arrived, stay fixed-line and non-scrolling, and do not become persisted final
-assistant content.
+`node tests\streaming-receipt-preview-ui.test.js`. They must prove normal text
+deltas can show a bounded fixed-line in-progress receipt, while synthetic
+`run.event` scheduler/model/tool status does not appear in the assistant receipt
+as a fake reasoning stream. Real reasoning/thinking output requires a separate
+explicit event contract before it may be rendered.
 NAS Growth audio parity must cover the platform-specific transcription path:
 Windows may use `scripts\transcribe-reading-audio.ps1`, while Linux/NAS must use
 `scripts\transcribe-reading-audio.js` against the local Whisper large v3 Turbo

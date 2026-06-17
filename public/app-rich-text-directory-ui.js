@@ -13,7 +13,7 @@ function renderText(text, message = {}) {
   const cleaned = cleanDisplayText(rewriteDirectoryPathsForDisplay(directoryAliases.text));
   const aliases = renderDirectoryAliases(directoryAliases.aliases, message);
   if (message?.role === "assistant") {
-    if (assistantReceiptMessageIsActive(message)) return renderAssistantStreamingReceiptPreview(cleaned || assistantStreamingRunPreview(message), aliases);
+    if (assistantReceiptMessageIsActive(message)) return renderAssistantStreamingReceiptPreview(cleaned, aliases);
     if (shouldRenderLongMessagePreview(cleaned, message)) return renderLongMessagePreview(cleaned, aliases, message);
     const collapse = shouldOfferLongMessageCollapse(cleaned, message) ? renderLongMessageCollapseButton(message) : "";
     return `<div class="text-content message-prose assistant-receipt">${aliases}${renderRichText(cleaned, { assistantReceipt: true })}${collapse}</div>`;
@@ -29,13 +29,6 @@ function cleanDisplayText(value) {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-}
-
-function assistantStreamingRunPreview(message = {}) {
-  if (Array.isArray(message.streamingRunPreviewLines)) {
-    return message.streamingRunPreviewLines.map((line) => String(line || "").trim()).filter(Boolean).join("\n");
-  }
-  return String(message.streamingRunPreview || "").trim();
 }
 
 function streamingReceiptPreviewText(value) {
