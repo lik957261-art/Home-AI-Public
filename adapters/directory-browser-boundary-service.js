@@ -67,11 +67,37 @@ function createDirectoryBrowserBoundaryService(options = {}) {
     return null;
   }
 
+  function isAbsoluteBrowserPath(value) {
+    const text = String(value || "").trim();
+    return Boolean(text
+      && (path.isAbsolute(text)
+        || /^[A-Za-z]:[\\/]/.test(text)
+        || text.startsWith("/volume1/")));
+  }
+
+  function defaultWorkspacePathForThread(thread) {
+    const policy = policyForThread(thread);
+    return String(policy?.default_workspace || policy?.defaultWorkspace || "").trim();
+  }
+
+  function fallbackBrowserPath(thread, rawPath, alias) {
+    if (alias) return null;
+    const defaultWorkspace = defaultWorkspacePathForThread(thread);
+    if (!defaultWorkspace) return null;
+    if (!rawPath) return { label: path.basename(defaultWorkspace), path: defaultWorkspace };
+    if (isAbsoluteBrowserPath(rawPath)) return { label: path.basename(rawPath), path: rawPath };
+    if (rawPath.includes("..")) return null;
+    return {
+      label: path.basename(rawPath),
+      path: path.join(defaultWorkspace, rawPath),
+    };
+  }
+
   function resolveBrowserPath(thread, query) {
     const rawPath = String(query.get("path") || "").trim();
     const alias = String(query.get("alias") || "").trim();
     const aliasResolved = alias ? resolveDirectoryAlias(thread, alias) : null;
-    const resolved = aliasResolved || (rawPath ? { label: alias || path.basename(rawPath), path: rawPath } : null);
+    const resolved = aliasResolved || fallbackBrowserPath(thread, rawPath, alias);
     if (!resolved?.path) return null;
     const localPath = normalizeLocalPath(resolved.path);
     if (!localPath || !fs.existsSync(localPath)) return null;
@@ -113,7 +139,7 @@ function createDirectoryBrowserBoundaryService(options = {}) {
     const rawPath = String(query.get("path") || "").trim();
     const alias = String(query.get("alias") || "").trim();
     const aliasResolved = alias ? resolveDirectoryAlias(thread, alias) : null;
-    const fallback = aliasResolved || (rawPath ? { label: alias || path.basename(rawPath), path: rawPath } : null);
+    const fallback = aliasResolved || fallbackBrowserPath(thread, rawPath, alias);
 
     const remoteVolume1 = await resolveVolume1RemoteBrowserPath(thread, fallback);
     if (remoteVolume1) return remoteVolume1;

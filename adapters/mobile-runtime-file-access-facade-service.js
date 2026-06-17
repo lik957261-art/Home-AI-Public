@@ -93,11 +93,12 @@ function createMobileRuntimeFileAccessFacadeService(options = {}) {
     return fileResponseService.sendResolvedBridgeFilePreview(res, file);
   }
 
-  function ownerDirectoryBrowserThread() {
+  function directoryBrowserThread(workspaceId = "owner") {
+    const id = String(workspaceId || "owner").trim() || "owner";
     return {
-      id: "owner-directory-browser",
-      title: "Owner Directory Browser",
-      workspaceId: "owner",
+      id: `${id}-directory-browser`,
+      title: `${id} Directory Browser`,
+      workspaceId: id,
       projectId: "",
       subprojectId: "",
       singleWindow: false,
@@ -108,14 +109,21 @@ function createMobileRuntimeFileAccessFacadeService(options = {}) {
     };
   }
 
+  function ownerDirectoryBrowserThread() {
+    return directoryBrowserThread("owner");
+  }
+
   function findDirectoryThreadForRequest(req, threadId) {
     const auth = authenticateRequest(req);
     const thread = findThreadForAuth(auth, threadId);
     if (thread) return thread;
+    const workspaceId = String(auth?.workspaceId || "").trim();
+    if (workspaceId && authCanAccessWorkspace(auth, workspaceId)) return directoryBrowserThread(workspaceId);
     return isOwnerAuth(auth) ? ownerDirectoryBrowserThread() : null;
   }
 
   return {
+    directoryBrowserThread,
     findDirectoryThreadForRequest,
     getDirectoryBrowserBoundaryService,
     ownerDirectoryBrowserThread,

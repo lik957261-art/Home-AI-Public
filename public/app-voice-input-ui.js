@@ -9,6 +9,12 @@ const VOICE_INPUT_STREAMING_CHUNK_TARGET_MS = 300;
 const VOICE_INPUT_STATUS_PANEL_KEY = "homeAiVoiceInputStatusPanel";
 const VOICE_INPUT_PROVISIONAL_REVEAL_MAX_CHARS = 14;
 const VOICE_INPUT_PARTIAL_STATUS_RENDER_MS = 260;
+const VOICE_INPUT_TERMINAL_STATUS_HIDE_MS = Object.freeze({
+  inserted: 1400,
+  cancelled: 1400,
+  no_speech: 1800,
+  failed: 4200,
+});
 
 function ensureVoiceInputState() {
   if (!state.voiceInput || typeof state.voiceInput !== "object") {
@@ -833,6 +839,31 @@ function voiceInputRecordingVisible(voice = ensureVoiceInputState()) {
   return Boolean(voice.panelVisible || voice.status !== "idle");
 }
 
+function voiceInputTerminalHideDelay(status) {
+  return VOICE_INPUT_TERMINAL_STATUS_HIDE_MS[String(status || "")] || 0;
+}
+
+function clearVoiceInputTerminalHideTimer(voice = ensureVoiceInputState()) {
+  if (!voice.terminalHideTimer) return;
+  clearTimeout(voice.terminalHideTimer);
+  voice.terminalHideTimer = 0;
+  voice.terminalHideStatus = "";
+}
+
+function scheduleVoiceInputTerminalHide(status) {
+  const voice = ensureVoiceInputState();
+  clearVoiceInputTerminalHideTimer(voice);
+  const delayMs = voiceInputTerminalHideDelay(status);
+  if (!delayMs) return;
+  voice.terminalHideStatus = status;
+  voice.terminalHideTimer = setTimeout(() => {
+    const current = ensureVoiceInputState();
+    current.terminalHideTimer = 0;
+    if (current.status !== status || current.terminalHideStatus !== status) return;
+    closeVoiceInputOverlay();
+  }, delayMs);
+}
+
 function voiceInputRestoreAttachMicIndicator() {
   const attach = $("attachFile");
   if (!attach?.classList?.contains("voice-input-attach-indicator")) return;
@@ -890,6 +921,7 @@ function closeVoiceInputOverlay() {
   if (voice.embeddedFinalInsert?.timer) clearTimeout(voice.embeddedFinalInsert.timer);
   if (voice.maxTimer) clearTimeout(voice.maxTimer);
   if (voice.recordingTicker) clearInterval(voice.recordingTicker);
+  clearVoiceInputTerminalHideTimer(voice);
   voice.embeddedFinalInsert = null;
   voice.status = "idle";
   voice.error = "";
@@ -914,16 +946,19 @@ function closeVoiceInputOverlay() {
 function setVoiceInputStatus(status, fields = {}) {
   const voice = ensureVoiceInputState();
   if (voice.dismissedByUser && status !== "idle" && !fields.forceVisible) return;
+  clearVoiceInputTerminalHideTimer(voice);
   Object.assign(voice, fields, {
     status,
     panelVisible: status !== "idle" || Boolean(fields.panelVisible),
     statusUpdatedAt: Date.now(),
   });
   renderVoiceInputOverlay();
+  scheduleVoiceInputTerminalHide(status);
 }
 
 function voiceInputOpenStatusPanel(status = "pending", fields = {}) {
   const voice = ensureVoiceInputState();
+  clearVoiceInputTerminalHideTimer(voice);
   Object.assign(voice, fields, {
     dismissedByUser: false,
     panelVisible: true,
@@ -932,6 +967,7 @@ function voiceInputOpenStatusPanel(status = "pending", fields = {}) {
   });
   if (!voice.panelOpenedAt) voice.panelOpenedAt = Date.now();
   renderVoiceInputOverlay();
+  scheduleVoiceInputTerminalHide(status);
 }
 
 function voiceInputDismissStatusPanel() {

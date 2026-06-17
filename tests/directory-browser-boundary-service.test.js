@@ -152,9 +152,34 @@ function testSortAndParams() {
   assert.deepEqual(rows.map((row) => row.name), ["folder", "a.txt", "b.txt"]);
 }
 
+function testDefaultWorkspaceRelativeResolution() {
+  withTempDir((root) => {
+    const service = makeService(root);
+    const thread = { id: "thread-3", workspaceId: "owner" };
+    const ownerRoot = path.join(root, "owner");
+    const weixinRoot = path.join(ownerRoot, "微信入口附件");
+    const dateRoot = path.join(weixinRoot, "20260617");
+    fs.mkdirSync(dateRoot, { recursive: true });
+
+    const defaultRoot = service.resolveBrowserPath(thread, new URLSearchParams());
+    assert.equal(defaultRoot.localPath, ownerRoot);
+    assert.equal(defaultRoot.displayPath, ownerRoot);
+
+    const parent = service.resolveBrowserPath(thread, new URLSearchParams({ path: "微信入口附件" }));
+    assert.equal(parent.localPath, weixinRoot);
+    assert.equal(parent.displayPath, path.join(ownerRoot, "微信入口附件"));
+
+    const dated = service.resolveBrowserPath(thread, new URLSearchParams({ path: "微信入口附件/20260617" }));
+    assert.equal(dated.localPath, dateRoot);
+
+    assert.equal(service.resolveBrowserPath(thread, new URLSearchParams({ path: "../outside" })), null);
+  });
+}
+
 (async () => {
   testAliasAndLocalResolution();
   await testRemoteAndMutationPolicy();
   testSortAndParams();
+  testDefaultWorkspaceRelativeResolution();
   console.log("directory browser boundary service tests passed");
 })();

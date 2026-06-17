@@ -123,9 +123,19 @@ function testFindDirectoryThreadFallsBackForOwnerOnly() {
   assert.deepEqual(ownerFallback, owner.ownerDirectoryBrowserThread());
 
   const nonOwner = createMobileRuntimeFileAccessFacadeService(createDeps({
+    authCanAccessWorkspace: (auth, workspaceId) => auth?.workspaceId === workspaceId,
     isOwnerAuth: () => false,
   }).deps);
-  assert.equal(nonOwner.findDirectoryThreadForRequest({ auth: { workspaceId: "weixin_wuping" } }, "missing"), null);
+  assert.deepEqual(
+    nonOwner.findDirectoryThreadForRequest({ auth: { workspaceId: "weixin_wuping", ok: true } }, "missing"),
+    nonOwner.directoryBrowserThread("weixin_wuping"),
+  );
+
+  const denied = createMobileRuntimeFileAccessFacadeService(createDeps({
+    authCanAccessWorkspace: () => false,
+    isOwnerAuth: () => false,
+  }).deps);
+  assert.equal(denied.findDirectoryThreadForRequest({ auth: { workspaceId: "weixin_wuping" } }, "missing"), null);
 }
 
 function testRequiredDependencyGuard() {

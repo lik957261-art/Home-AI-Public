@@ -270,6 +270,21 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(voiceUi, /voiceInputScheduleProvisionalTranscript\(partialText\)/);
 }
 
+function testTerminalStatusAutoDismiss() {
+  assert.match(voiceUi, /const VOICE_INPUT_TERMINAL_STATUS_HIDE_MS = Object\.freeze\(\{/);
+  assert.match(voiceUi, /inserted: 1400/);
+  assert.match(voiceUi, /cancelled: 1400/);
+  assert.match(voiceUi, /no_speech: 1800/);
+  assert.match(voiceUi, /failed: 4200/);
+  assert.match(voiceUi, /function scheduleVoiceInputTerminalHide\(status\)/);
+  assert.match(voiceUi, /clearVoiceInputTerminalHideTimer\(voice\)/);
+  assert.match(voiceUi, /if \(current\.status !== status \|\| current\.terminalHideStatus !== status\) return;/);
+  assert.match(voiceUi, /closeVoiceInputOverlay\(\)/);
+  assert.match(voiceUi, /function closeVoiceInputOverlay\(\) \{[\s\S]*?clearVoiceInputTerminalHideTimer\(voice\);/);
+  assert.match(voiceUi, /function setVoiceInputStatus\(status, fields = \{\}\) \{[\s\S]*?clearVoiceInputTerminalHideTimer\(voice\);[\s\S]*?scheduleVoiceInputTerminalHide\(status\);/);
+  assert.match(voiceUi, /function voiceInputOpenStatusPanel\(status = "pending", fields = \{\}\) \{[\s\S]*?clearVoiceInputTerminalHideTimer\(voice\);[\s\S]*?scheduleVoiceInputTerminalHide\(status\);/);
+}
+
 testStaticLoadingAndCache();
 testSendButtonGestureContract();
 testVoiceLearningComposerMode();
@@ -277,4 +292,5 @@ testNativeDraftInsertionAndPrivacyBoundary();
 testHostComposerRegistry();
 testEmbeddedPluginBridgeContract();
 testNoTextSelectionOnSendButtonLongPress();
+testTerminalStatusAutoDismiss();
 console.log("voice input ui tests passed");
