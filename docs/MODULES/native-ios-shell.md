@@ -79,9 +79,9 @@ Current native capabilities:
 - `apns_device_registration`: APNs device token registration through
   `POST /api/native/devices/register`.
 - `ios_share_extension`: iOS Share Extension uploads inbound files through Home
-  AI Directory APIs into the same `微信入口附件/<YYYYMMDD>` server-side folder
-  used by Weixin file ingress. A future dedicated native share endpoint may
-  wrap this path, but it must preserve the same Directory ACL boundary.
+  AI Directory APIs into the same `系统分享` server-side folder used by Weixin
+  file ingress. A future dedicated native share endpoint may wrap this path,
+  but it must preserve the same Directory ACL boundary.
 - `webview_file_input_picker`: the native shell owns the `WKWebView` file-input
   picker on supported iOS versions so Home AI's ordinary PWA attachment input
   can offer camera photo, camera video, photo library, and file choices without
@@ -210,13 +210,20 @@ forcing a second upload when the item is already in the native shared container.
 The shell must not bypass Directory APIs or write directly into plugin-private
 storage.
 
-The first iOS Share Extension target is the existing Weixin file-ingress folder
-contract: files are uploaded through `POST /api/directories/create` and
-`POST /api/directories/upload` into `微信入口附件/<YYYYMMDD>` under the
-authenticated workspace default Directory root. The Directory API accepts an
-empty `threadId` for this route by constructing an authenticated workspace
-Directory browser context; it still resolves the target through the normal
-Directory boundary and write policy.
+The first iOS Share Extension target is the shared system-share file ingress
+folder contract: files are uploaded through `POST /api/directories/create` and
+`POST /api/directories/upload` into `系统分享` under the authenticated workspace
+default Directory root. The Directory API accepts an empty `threadId` for this
+route by constructing an authenticated workspace Directory browser context; it
+still resolves the target through the normal Directory boundary and write
+policy. Directory listing is sorted newest first by entry `mtime`, so this
+folder should stay flat instead of adding date subdirectories.
+
+After upload, the native shell should surface the saved server-file references
+inside Home AI so the user can attach them to the current conversation/plugin
+composer or leave them saved. The Web/PWA side owns target selection and
+Composer attachment; the Share Extension must not duplicate plugin/thread
+authorization logic.
 
 The ordinary Home AI PWA attachment button remains a Web/PWA-owned file input.
 When Home AI is embedded in the native iOS shell, the shell may intercept

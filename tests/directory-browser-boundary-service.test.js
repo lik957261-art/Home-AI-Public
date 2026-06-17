@@ -157,20 +157,16 @@ function testDefaultWorkspaceRelativeResolution() {
     const service = makeService(root);
     const thread = { id: "thread-3", workspaceId: "owner" };
     const ownerRoot = path.join(root, "owner");
-    const weixinRoot = path.join(ownerRoot, "微信入口附件");
-    const dateRoot = path.join(weixinRoot, "20260617");
-    fs.mkdirSync(dateRoot, { recursive: true });
+    const systemShareRoot = path.join(ownerRoot, "系统分享");
+    fs.mkdirSync(systemShareRoot, { recursive: true });
 
     const defaultRoot = service.resolveBrowserPath(thread, new URLSearchParams());
     assert.equal(defaultRoot.localPath, ownerRoot);
     assert.equal(defaultRoot.displayPath, ownerRoot);
 
-    const parent = service.resolveBrowserPath(thread, new URLSearchParams({ path: "微信入口附件" }));
-    assert.equal(parent.localPath, weixinRoot);
-    assert.equal(parent.displayPath, path.join(ownerRoot, "微信入口附件"));
-
-    const dated = service.resolveBrowserPath(thread, new URLSearchParams({ path: "微信入口附件/20260617" }));
-    assert.equal(dated.localPath, dateRoot);
+    const parent = service.resolveBrowserPath(thread, new URLSearchParams({ path: "系统分享" }));
+    assert.equal(parent.localPath, systemShareRoot);
+    assert.equal(parent.displayPath, path.join(ownerRoot, "系统分享"));
 
     assert.equal(service.resolveBrowserPath(thread, new URLSearchParams({ path: "../outside" })), null);
   });

@@ -645,6 +645,7 @@ const state = {
   selectedSubprojectId: localStorage.getItem("hermesWebSubproject") || "",
   events: null,
   pendingArtifacts: [],
+  nativeSharedFiles: [],
   attachFileMenuOpen: false,
   serverFileAttachmentPickerOpen: false,
   serverFileAttachmentTargetThreadId: "",

@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260617-voice-autohide-native-share-v802";
+const CLIENT_VERSION = "20260617-native-share-targets-v803";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -217,8 +217,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-voice-autohide-native-share-v802" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-voice-autohide-native-share-v802"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-native-share-targets-v803" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-native-share-targets-v803"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2507,6 +2507,10 @@ assert.match(appJs, /querySelectorAll\("\.bottom-tab"\)/);
 assert.match(appJs, /filter\(\(node\) => !node\.hidden && node\.getAttribute\("aria-hidden"\) !== "true"\)/);
 assert.match(appJs, /nav\.classList\.toggle\(`bottom-nav-count-\$\{index\}`, count === index\)/);
 assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY = "hermesGlobalPluginDockExpanded"/);
+assert.match(appJs, /let globalPluginDockExpandedRuntimePreference = false/);
+assert.match(appJs, /function readGlobalPluginDockExpandedPreference\(\) \{[\s\S]*?return Boolean\(globalPluginDockExpandedRuntimePreference\);[\s\S]*?\}/);
+assert.match(appJs, /function writeGlobalPluginDockExpandedPreference\(expanded\) \{[\s\S]*?globalPluginDockExpandedRuntimePreference = Boolean\(expanded\);/);
+assert.doesNotMatch(appJs, /function readGlobalPluginDockExpandedPreference\(\) \{[\s\S]*?localStorage\.getItem\(globalPluginDockStorageKey\(\)\) === "1"/);
 assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_DRAG_SLOP_PX = 10/);
 assert.match(appJs, /const GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX = 28/);
 assert.match(appJs, /function globalPluginDockHostSurfaceEligible\(\)/);
@@ -2654,14 +2658,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-voice-autohide-native-share-v802/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-voice-autohide-native-share-v802/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-voice-autohide-native-share-v802/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-voice-autohide-native-share-v802/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-voice-autohide-native-share-v802/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-voice-autohide-native-share-v802/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-voice-autohide-native-share-v802/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-voice-autohide-native-share-v802/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-native-share-targets-v803/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-native-share-targets-v803/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-native-share-targets-v803/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-native-share-targets-v803/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-native-share-targets-v803/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-native-share-targets-v803/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-native-share-targets-v803/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-native-share-targets-v803/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);

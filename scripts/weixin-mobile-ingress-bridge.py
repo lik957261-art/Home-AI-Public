@@ -344,8 +344,7 @@ class MobileIngressBridge:
         root = Path(route.default_workspace)
         if not root.exists():
             return str(local)
-        date_part = datetime.now().strftime("%Y%m%d")
-        target_dir = root / "微信入口附件" / date_part
+        target_dir = root / "系统分享"
         target_dir.mkdir(parents=True, exist_ok=True)
         digest = hashlib.sha1(str(local).encode("utf-8")).hexdigest()[:8]
         target = target_dir / f"{local.stem}-{digest}{local.suffix}"

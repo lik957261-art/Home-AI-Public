@@ -39,11 +39,13 @@ copy.
 - Weixin should not be expanded as a general AI chat transport. Its durable
   value is file ingress: inbound files can land in a configured server
   directory and then be selected from Home AI Directory/Composer.
-- The shared server-side file ingress directory is `微信入口附件/<YYYYMMDD>`
-  under the authenticated workspace's default Directory root. Weixin sidecar
-  downloads and iOS/system Share Extension uploads both use this directory
-  contract so files from Weixin and other apps are available through the same
-  Directory/Composer server-file attachment flow.
+- The shared server-side file ingress directory is `系统分享` under the
+  authenticated workspace's default Directory root. Weixin sidecar downloads
+  and iOS/system Share Extension uploads both use this directory contract so
+  files from Weixin and other apps are available through the same
+  Directory/Composer server-file attachment flow. Directory listing is sorted
+  newest first by entry `mtime`, so the latest shared files appear at the top
+  without date subdirectories.
 - Composer server-file attachment must use the existing Directory ACL boundary
   and artifact registration path. It must not re-upload the file body through
   browser `dataBase64` when the file already exists on the server.

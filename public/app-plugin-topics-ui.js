@@ -239,6 +239,7 @@ let pluginTopicPreferencesSyncTimer = 0;
 let pluginTopicActionManifestRefreshTimer = 0;
 let globalPluginDockGesture = null;
 let globalPluginDockGestureBound = false;
+let globalPluginDockExpandedRuntimePreference = false;
 const pluginTopicUsageLoadedAtByWorkspace = new Map();
 const pluginTopicUsageLoadingWorkspaces = new Map();
 const pluginTopicUsageLoadRetryAt = new Map();
@@ -1062,14 +1063,11 @@ function syncPinnedPluginBottomTabs() {
 }
 
 function readGlobalPluginDockExpandedPreference() {
-  try {
-    return localStorage.getItem(globalPluginDockStorageKey()) === "1";
-  } catch {
-    return false;
-  }
+  return Boolean(globalPluginDockExpandedRuntimePreference);
 }
 
 function writeGlobalPluginDockExpandedPreference(expanded) {
+  globalPluginDockExpandedRuntimePreference = Boolean(expanded);
   try {
     localStorage.setItem(globalPluginDockStorageKey(), expanded ? "1" : "0");
   } catch {

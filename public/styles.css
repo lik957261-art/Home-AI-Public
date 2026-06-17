@@ -17504,6 +17504,57 @@ body.voice-input-press-active .voice-input-overlay button {
   overflow: hidden;
 }
 
+.native-share-intake-panel {
+  grid-column: 1 / -1;
+  order: -3;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  color: var(--text);
+  background: var(--ui-control-bg);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 12px;
+}
+
+.native-share-intake-panel.hidden {
+  display: none;
+}
+
+.native-share-intake-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.native-share-intake-copy strong {
+  font-size: 14px;
+}
+
+.native-share-intake-copy span {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.native-share-intake-actions {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+}
+
+.native-share-intake-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  white-space: nowrap;
+  color: var(--ui-accent-ink);
+  background: var(--ui-accent-soft);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .server-file-picker-banner {
   padding: 8px 10px;
   color: var(--muted);

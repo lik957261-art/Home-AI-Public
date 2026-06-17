@@ -91,6 +91,131 @@ function renderPendingArtifacts() {
   });
 }
 
+function normalizeNativeSharedFiles(payload = {}) {
+  const files = Array.isArray(payload?.files) ? payload.files : (Array.isArray(payload) ? payload : []);
+  const seen = new Set();
+  return files.map((file) => ({
+    path: String(file?.path || file?.displayPath || "").trim(),
+    name: String(file?.name || file?.filename || "").trim(),
+    workspaceId: String(file?.workspaceId || state.selectedWorkspaceId || "owner").trim() || "owner",
+  })).filter((file) => {
+    if (!file.path) return false;
+    const key = `${file.workspaceId}\n${file.path}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function nativeSharedFileSummary(files = state.nativeSharedFiles || []) {
+  if (!files.length) return "";
+  if (files.length === 1) return files[0].name || files[0].path.split(/[\\/]/).pop() || "分享文件";
+  return `${files.length} 个分享文件`;
+}
+
+function renderNativeShareIntakePanel() {
+  const composer = $("composer");
+  if (!composer) return;
+  let panel = $("nativeShareIntakePanel");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "nativeShareIntakePanel";
+    panel.className = "native-share-intake-panel";
+    composer.insertBefore(panel, $("pendingArtifacts") || $("messageInput"));
+  }
+  const files = state.nativeSharedFiles || [];
+  if (!files.length) {
+    panel.innerHTML = "";
+    panel.classList.add("hidden");
+    return;
+  }
+  const summary = nativeSharedFileSummary(files);
+  panel.classList.remove("hidden");
+  panel.innerHTML = `<div class="native-share-intake-copy">
+      <strong>收到系统分享</strong>
+      <span>${escapeHtml(summary)} 已保存到服务器，可直接附加到当前对话。</span>
+    </div>
+    <div class="native-share-intake-actions">
+      <button type="button" data-native-share-attach>附加到当前对话</button>
+      <button type="button" data-native-share-open-directory>打开文件目录</button>
+      <button type="button" data-native-share-clear>仅保存</button>
+    </div>`;
+  panel.querySelector("[data-native-share-attach]")?.addEventListener("click", () => attachNativeSharedFilesToCurrentComposer().catch(showError));
+  panel.querySelector("[data-native-share-open-directory]")?.addEventListener("click", () => openNativeShareDirectory().catch(showError));
+  panel.querySelector("[data-native-share-clear]")?.addEventListener("click", () => {
+    state.nativeSharedFiles = [];
+    renderNativeShareIntakePanel();
+  });
+}
+
+function receiveNativeSharedFiles(payload = {}) {
+  const nextFiles = normalizeNativeSharedFiles(payload);
+  if (!nextFiles.length) return false;
+  const current = normalizeNativeSharedFiles(state.nativeSharedFiles || []);
+  state.nativeSharedFiles = normalizeNativeSharedFiles([...current, ...nextFiles]);
+  renderNativeShareIntakePanel();
+  if (typeof showPushToast === "function") showPushToast("已收到系统分享文件", "info");
+  return true;
+}
+
+async function attachNativeSharedFilesToCurrentComposer() {
+  const files = normalizeNativeSharedFiles(state.nativeSharedFiles || []);
+  if (!files.length) return;
+  if (!state.currentThreadId && state.viewMode === "single") await loadSingleWindow();
+  if (isDraftThread(state.currentThread)) await materializeCurrentThread();
+  if (!state.currentThreadId) throw new Error("请先打开一个可发送的对话。");
+  state.serverFileAttachmentTargetThreadId = state.currentThreadId;
+  const attached = [];
+  for (const file of files) {
+    const ok = await attachServerFileToComposer({
+      path: file.path,
+      name: file.name,
+      workspaceId: file.workspaceId,
+      restore: false,
+    });
+    if (ok !== false) attached.push(`${file.workspaceId}\n${file.path}`);
+  }
+  const attachedSet = new Set(attached);
+  state.nativeSharedFiles = files.filter((file) => !attachedSet.has(`${file.workspaceId}\n${file.path}`));
+  renderNativeShareIntakePanel();
+  renderPendingArtifacts();
+  updateComposerAction();
+  if (typeof showPushToast === "function") showPushToast("已附加分享文件", "success");
+}
+
+async function openNativeShareDirectory() {
+  const first = normalizeNativeSharedFiles(state.nativeSharedFiles || [])[0];
+  if (!first) return;
+  state.serverFileAttachmentPickerOpen = false;
+  state.serverFileAttachmentTargetThreadId = "";
+  state.directoryReturnRoute = typeof captureDirectoryReturnRoute === "function" ? captureDirectoryReturnRoute() : state.directoryReturnRoute;
+  state.viewMode = "projects";
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
+  state.directoryPath = first.path.replace(/[\\/][^\\/]*$/, "");
+  state.directoryRootPath = "";
+  state.directoryPreview = null;
+  state.directoryError = "";
+  state.sharedDirectoryManagerOpen = false;
+  applyViewMode();
+  await loadProjects();
+  ensureDirectoryRootForPath(state.directoryPath);
+  await loadDirectoryView();
+}
+
+function installNativeShareReceiver() {
+  const existing = window.HomeAINativeShare && typeof window.HomeAINativeShare === "object"
+    ? window.HomeAINativeShare
+    : {};
+  window.HomeAINativeShare = Object.assign(existing, {
+    receive: receiveNativeSharedFiles,
+  });
+  if (window.__homeAIPendingNativeShare) {
+    const pending = window.__homeAIPendingNativeShare;
+    window.__homeAIPendingNativeShare = null;
+    receiveNativeSharedFiles(pending);
+  }
+}
+
 function restoreAfterServerFileAttachmentPicker() {
   state.serverFileAttachmentPickerOpen = false;
   const restored = typeof restoreDirectoryReturnRoute === "function" ? restoreDirectoryReturnRoute() : false;
@@ -102,6 +227,10 @@ function restoreAfterServerFileAttachmentPicker() {
   }
 }
 
+function systemShareDirectoryPath() {
+  return "系统分享";
+}
+
 async function openServerFileAttachmentPicker() {
   if (!state.currentThreadId && state.viewMode === "single") await loadSingleWindow();
   if (isDraftThread(state.currentThread)) await materializeCurrentThread();
@@ -111,14 +240,15 @@ async function openServerFileAttachmentPicker() {
   state.directoryReturnRoute = typeof captureDirectoryReturnRoute === "function" ? captureDirectoryReturnRoute() : state.directoryReturnRoute;
   state.viewMode = "projects";
   localStorage.setItem("hermesWebViewMode", state.viewMode);
-  state.directoryPath = "";
+  state.directoryPath = systemShareDirectoryPath();
   state.directoryRootPath = "";
   state.directoryPreview = null;
   state.directoryError = "";
   state.sharedDirectoryManagerOpen = false;
   applyViewMode();
   await loadProjects();
-  await loadDirectoryView({ resetPath: true });
+  ensureDirectoryRootForPath(state.directoryPath);
+  await loadDirectoryView();
   if (isMobileLayout()) closeSidebar();
 }
 
@@ -133,21 +263,25 @@ async function attachServerFileToComposer(entry = {}) {
       body: JSON.stringify({
         path: filePath,
         filename: entry.name || "",
-        workspaceId: state.selectedWorkspaceId || "owner",
+        workspaceId: entry.workspaceId || state.selectedWorkspaceId || "owner",
       }),
     });
     if (result.artifact && !state.pendingArtifacts.some((item) => item.id === result.artifact.id)) {
       state.pendingArtifacts.push(result.artifact);
     }
     state.serverFileAttachmentTargetThreadId = "";
-    restoreAfterServerFileAttachmentPicker();
+    if (entry.restore !== false) restoreAfterServerFileAttachmentPicker();
     renderPendingArtifacts();
     updateComposerAction();
     $("connectionState").textContent = "Home AI OK";
+    return true;
   } catch (err) {
     showError(err);
+    return false;
   }
 }
+
+installNativeShareReceiver();
 
 async function interruptRun() {
   if (!state.currentThreadId) return;

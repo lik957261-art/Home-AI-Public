@@ -22,6 +22,7 @@ assert.match(indexHtml, /id="attachFileMenu"/);
 assert.match(appJs, /attachFileMenuOpen: false/);
 assert.match(appJs, /serverFileAttachmentPickerOpen: false/);
 assert.match(appJs, /serverFileAttachmentTargetThreadId: ""/);
+assert.match(appJs, /nativeSharedFiles: \[\]/);
 
 assert.match(messageActionsUi, /openAttachFileMenu\(\)/);
 assert.match(messageActionsUi, /openAttachFilePicker\(\)/);
@@ -32,12 +33,20 @@ assert.match(uploadSidebarUi, /data-attach-menu-server/);
 assert.match(uploadSidebarUi, />服务器文件</);
 assert.match(uploadSidebarUi, /openServerFileAttachmentPicker\(\)/);
 
+assert.match(uploadSidebarUi, /function systemShareDirectoryPath\(\) \{[\s\S]*?return "系统分享";/);
+assert.doesNotMatch(uploadSidebarUi, /yyyyMMdd|YYYYMMDD|getMonth\(\)|getDate\(\)/);
 assert.match(uploadSidebarUi, /function openServerFileAttachmentPicker\(\)/);
 assert.match(uploadSidebarUi, /if \(isDraftThread\(state\.currentThread\)\) await materializeCurrentThread\(\)/);
 assert.match(uploadSidebarUi, /state\.serverFileAttachmentTargetThreadId = state\.currentThreadId/);
+assert.match(uploadSidebarUi, /state\.directoryPath = systemShareDirectoryPath\(\)/);
+assert.doesNotMatch(uploadSidebarUi, /await loadDirectoryView\(\{ resetPath: true \}\)/);
 assert.match(uploadSidebarUi, /function attachServerFileToComposer\(entry = \{\}\)/);
 assert.match(uploadSidebarUi, /\/api\/threads\/\$\{encodeURIComponent\(threadId\)\}\/server-file-attachments/);
-assert.match(uploadSidebarUi, /body: JSON\.stringify\(\{[\s\S]*path: filePath,[\s\S]*filename: entry\.name \|\| "",[\s\S]*workspaceId: state\.selectedWorkspaceId \|\| "owner"/);
+assert.match(uploadSidebarUi, /body: JSON\.stringify\(\{[\s\S]*path: filePath,[\s\S]*filename: entry\.name \|\| "",[\s\S]*workspaceId: entry\.workspaceId \|\| state\.selectedWorkspaceId \|\| "owner"/);
+assert.match(uploadSidebarUi, /function receiveNativeSharedFiles\(payload = \{\}\)/);
+assert.match(uploadSidebarUi, /window\.HomeAINativeShare = Object\.assign\(existing, \{/);
+assert.match(uploadSidebarUi, /function attachNativeSharedFilesToCurrentComposer\(\)/);
+assert.match(uploadSidebarUi, /attachServerFileToComposer\(\{[\s\S]*path: file\.path,[\s\S]*workspaceId: file\.workspaceId,[\s\S]*restore: false/);
 
 const attachServerFileBody = uploadSidebarUi.match(/async function attachServerFileToComposer[\s\S]*?\n}\n/);
 assert.ok(attachServerFileBody, "attachServerFileToComposer must be present");
@@ -53,5 +62,7 @@ assert.match(sharedDirectoryUi, /选择服务器上的文件作为附件引用�
 assert.match(styles, /\.attach-file-menu/);
 assert.match(styles, /\.attach-file-option/);
 assert.match(styles, /\.server-file-picker-banner/);
+assert.match(styles, /\.native-share-intake-panel/);
+assert.match(styles, /\.native-share-intake-actions/);
 
 console.log("server file attachment UI contract passed");
