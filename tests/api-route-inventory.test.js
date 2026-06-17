@@ -149,11 +149,12 @@ const ROUTE_MODULES = Object.freeze([
     key: "directory-mutation-api-routes",
     exportName: "createDirectoryMutationApiRoutes",
     required: false,
-    minRoutes: 3,
+    minRoutes: 4,
     probes: [
       { method: "POST", path: "/api/directories/create", id: "directories-create" },
       { method: "POST", path: "/api/directories/upload", id: "directories-upload" },
       { method: "POST", path: "/api/directories/delete", id: "directories-delete" },
+      { method: "POST", path: "/api/directories/rename", id: "directories-rename" },
     ],
   },
   {
@@ -479,6 +480,7 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-coins/summary" }).id, "learning-coins-summary");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/platform-currency/wallet" }).id, "platform-currency-wallet");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/delete" }).id, "directories-delete");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/rename" }).id, "directories-rename");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/threads/thread-1/uploads" }).id, "thread-uploads-create");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/share/update" }).id, "directories-share-update");
   assert.equal(matchHermesMobileApiRoute({ method: "DELETE", path: "/api/threads/thread-1/tasks/task-1" }).id, "thread-task-delete");

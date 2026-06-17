@@ -63,6 +63,89 @@ function directoryButton() {
   };
 }
 
+function fileButton() {
+  return {
+    dataset: {
+      deleteDirectoryPath: "/root/note.txt",
+      deleteDirectoryName: "note.txt",
+      deleteDirectoryType: "file",
+    },
+  };
+}
+
+function renameFileButton() {
+  return {
+    dataset: {
+      renameDirectoryPath: "/root/note.txt",
+      renameDirectoryName: "note.txt",
+      renameDirectoryType: "file",
+    },
+  };
+}
+
+async function testFileDeleteShowsProgressAndCallsDeleteApi() {
+  const { calls, context } = makeContext();
+  context.api = async (targetPath, options) => {
+    calls.push(["api", targetPath, JSON.parse(options.body)]);
+    return { ok: true };
+  };
+
+  await context.deleteDirectoryEntry(fileButton());
+
+  assert.equal(calls.some((item) => item[0] === "toast" && item[1] === "正在删除文件..."), true);
+  assert.deepEqual(calls.find((item) => item[0] === "api"), ["api", "/api/directories/delete", {
+    threadId: "thread-1",
+    path: "/root/note.txt",
+  }]);
+  assert.equal(calls.some((item) => item[0] === "toast" && item[1] === "已删除" && item[2] === "success"), true);
+}
+
+async function testFileDeleteMissingPathShowsToastInsteadOfSilentReturn() {
+  const { calls, context } = makeContext();
+  context.api = async () => {
+    throw new Error("api should not be called");
+  };
+
+  await assert.rejects(() => context.deleteDirectoryEntry({ dataset: { deleteDirectoryType: "file" } }), /缺少文件路径/);
+
+  assert.equal(calls.some((item) => item[0] === "toast" && item[1] === "删除失败：缺少文件路径" && item[2] === "error"), true);
+}
+
+async function testFileRenameCallsRenameApi() {
+  const { calls, context } = makeContext({
+    window: {
+      confirm: () => true,
+      prompt: () => "renamed.txt",
+    },
+  });
+  context.api = async (targetPath, options) => {
+    calls.push(["api", targetPath, JSON.parse(options.body)]);
+    return { ok: true };
+  };
+
+  await context.renameDirectoryEntry(renameFileButton());
+
+  assert.equal(calls.some((item) => item[0] === "toast" && item[1] === "正在改名文件..."), true);
+  assert.deepEqual(calls.find((item) => item[0] === "api"), ["api", "/api/directories/rename", {
+    threadId: "thread-1",
+    path: "/root/note.txt",
+    name: "renamed.txt",
+  }]);
+  assert.equal(calls.some((item) => item[0] === "toast" && item[1] === "已改名" && item[2] === "success"), true);
+}
+
+function testEntryMenuIncludesRenameForFilesAndDirectories() {
+  const { context } = makeContext();
+  const fileMenu = context.renderDirectoryEntryMenu({ name: "note.txt", path: "/root/note.txt", type: "file" });
+  const dirMenu = context.renderDirectoryEntryMenu({ name: "folder", path: "/root/folder", type: "directory" });
+
+  assert.match(fileMenu, /data-rename-directory-path="\/root\/note\.txt"/);
+  assert.match(fileMenu, /data-delete-directory-path="\/root\/note\.txt"/);
+  assert.doesNotMatch(fileMenu, /data-start-directory-task-path/);
+  assert.match(dirMenu, /data-rename-directory-path="\/root\/folder"/);
+  assert.match(dirMenu, /data-start-directory-task-path="\/root\/folder"/);
+}
+
 async function testDirectoryDeleteUsesOwnerOnceTokenOutsideOwnerWorkspace() {
   const { calls, context } = makeContext();
   let apiCalls = 0;
@@ -153,6 +236,10 @@ function testOnceTokenHelperKeepsOwnerWorkspaceDefault() {
 }
 
 (async () => {
+  await testFileDeleteShowsProgressAndCallsDeleteApi();
+  await testFileDeleteMissingPathShowsToastInsteadOfSilentReturn();
+  await testFileRenameCallsRenameApi();
+  testEntryMenuIncludesRenameForFilesAndDirectories();
   await testDirectoryDeleteUsesOwnerOnceTokenOutsideOwnerWorkspace();
   await testDirectoryDeleteStillUsesOnceTokenWhenTimedElevationLooksActive();
   await testElevatedRetryFailureShowsToast();

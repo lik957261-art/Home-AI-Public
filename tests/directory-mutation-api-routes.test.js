@@ -51,6 +51,7 @@ function makeRoutes(overrides = {}) {
     findThread: [],
     invalidateCatalogCache: 0,
     mkdir: [],
+    rename: [],
     remoteEntries: [],
     resolve: [],
     rmdir: [],
@@ -104,6 +105,7 @@ function makeRoutes(overrides = {}) {
       if (payload.action === "mkdir") return Promise.resolve({ ok: true, entry: { name: payload.name, type: "directory" } });
       if (payload.action === "upload") return Promise.resolve({ ok: true, entry: { name: payload.filename, type: "file" } });
       if (payload.action === "delete") return Promise.resolve({ ok: true });
+      if (payload.action === "rename") return Promise.resolve({ ok: true, entry: { name: payload.name, type: "directory" } });
       return Promise.resolve({ ok: false, error: "unsupported" });
     },
     isSharedDirectoryWriteAllowed() {
@@ -168,6 +170,9 @@ function makeRoutes(overrides = {}) {
     mkdir(targetPath) {
       calls.mkdir.push(targetPath);
     },
+    rename(from, to) {
+      calls.rename.push({ from, to });
+    },
     write(targetPath, buffer, options) {
       calls.write.push({ targetPath, text: buffer.toString("utf8"), options });
     },
@@ -205,18 +210,20 @@ async function testMetadataAndFallthrough() {
     "directories-create",
     "directories-upload",
     "directories-delete",
+    "directories-rename",
   ]);
 
   const { routes } = makeRoutes();
   assert.equal(routes.match({ method: "POST", path: "/api/directories/create" }).id, "directories-create");
   assert.equal(routes.match({ method: "POST", path: "/api/directories/upload" }).id, "directories-upload");
   assert.equal(routes.match({ method: "POST", path: "/api/directories/delete" }).id, "directories-delete");
+  assert.equal(routes.match({ method: "POST", path: "/api/directories/rename" }).id, "directories-rename");
   assert.equal(routes.match({ method: "GET", path: "/api/directories/create" }), null);
 
   const summary = routes.summary({ public: true });
-  assert.equal(summary.total, 3);
-  assert.deepEqual(summary.byModule, { "directory-mutation": 3 });
-  assert.deepEqual(summary.byAuthMode, { "access-key": 3 });
+  assert.equal(summary.total, 4);
+  assert.deepEqual(summary.byModule, { "directory-mutation": 4 });
+  assert.deepEqual(summary.byAuthMode, { "access-key": 4 });
   assert.equal(JSON.stringify(summary).includes("/api/directories/create"), false);
 
   const publicRoutes = routes.list({ public: true });
@@ -436,6 +443,99 @@ async function testDeleteRemote() {
   });
 }
 
+async function testRenameLocalFile() {
+  const { routes, calls } = makeRoutes({
+    resolveBrowserPathAsync() {
+      return Promise.resolve({
+        displayPath: "C:\\Data\\docs\\note.txt",
+        workspacePath: "/docs/note.txt",
+        localPath: "C:\\Data\\docs\\note.txt",
+      });
+    },
+    stat(targetPath) {
+      calls.stat.push(targetPath);
+      return fileStat();
+    },
+  });
+  const got = await request(routes, "POST", "/api/directories/rename", {
+    threadId: "thread-1",
+    path: "C:\\Data\\docs\\note.txt",
+    name: "renamed.txt",
+  });
+
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.stat, ["C:\\Data\\docs\\note.txt"]);
+  assert.deepEqual(calls.exists, ["C:\\Data\\docs\\renamed.txt"]);
+  assert.deepEqual(calls.rename, [{ from: "C:\\Data\\docs\\note.txt", to: "C:\\Data\\docs\\renamed.txt" }]);
+  assert.equal(calls.invalidateCatalogCache, 1);
+  assert.deepEqual(got.body.entry, {
+    local: true,
+    parentDisplayPath: "C:\\Data\\docs",
+    parentLocalPath: "C:\\Data\\docs",
+    localPath: "C:\\Data\\docs\\renamed.txt",
+  });
+}
+
+async function testRenameLocalDirectory() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/directories/rename", {
+    threadId: "thread-1",
+    path: "C:\\Data\\docs",
+    name: "docs2",
+  });
+
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.rename, [{ from: "C:\\Data\\docs", to: "C:\\Data\\docs2" }]);
+  assert.equal(got.body.entry.localPath, "C:\\Data\\docs2");
+}
+
+async function testRenameExistingTargetReturnsConflict() {
+  const { routes, calls } = makeRoutes({
+    resolveBrowserPathAsync() {
+      return Promise.resolve({
+        displayPath: "C:\\Data\\docs\\note.txt",
+        workspacePath: "/docs/note.txt",
+        localPath: "C:\\Data\\docs\\note.txt",
+      });
+    },
+    stat(targetPath) {
+      calls.stat.push(targetPath);
+      return fileStat();
+    },
+    exists(targetPath) {
+      calls.exists.push(targetPath);
+      return true;
+    },
+  });
+  const got = await request(routes, "POST", "/api/directories/rename", {
+    threadId: "thread-1",
+    path: "C:\\Data\\docs\\note.txt",
+    name: "existing.txt",
+  });
+
+  assert.equal(got.res.statusCode, 409);
+  assert.deepEqual(got.body, { error: "File already exists" });
+  assert.deepEqual(calls.rename, []);
+}
+
+async function testRenameRemote() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/directories/rename", {
+    threadId: "thread-1",
+    path: "/volume1/shared",
+    name: "renamed",
+  });
+
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.runDirectoryBridge, [{ action: "rename", path: "/volume1/shared", name: "renamed" }]);
+  assert.deepEqual(got.body.entry, {
+    remote: true,
+    name: "renamed",
+    type: "directory",
+    parentDisplayPath: "/volume1",
+  });
+}
+
 async function testDeleteNonEmptyRemoteDirectoryWithOwnerElevation() {
   const { routes, calls } = makeRoutes({
     runDirectoryBridge(payload) {
@@ -633,15 +733,16 @@ function testDependencyValidation() {
     "rmdir",
     "rmDirRecursive",
     "unlink",
+    "rename",
     "isOwnerAuth",
     "isOwnerElevationActive",
     "consumeOwnerElevationOnce",
   ];
   const deps = Object.fromEntries(required.map((name) => [name, () => {}]));
-  delete deps.unlink;
+  delete deps.rename;
   assert.throws(
     () => createDirectoryMutationApiRoutes(deps),
-    /directory mutation api routes require unlink/,
+    /directory mutation api routes require rename/,
   );
 }
 
@@ -657,6 +758,10 @@ async function run() {
   await testDeleteNonEmptyLocalDirectoryWithOwnerElevation();
   await testDeleteNonEmptyLocalDirectoryWithOwnerElevationOnce();
   await testDeleteRemote();
+  await testRenameLocalFile();
+  await testRenameLocalDirectory();
+  await testRenameExistingTargetReturnsConflict();
+  await testRenameRemote();
   await testDeleteNonEmptyRemoteDirectoryWithOwnerElevation();
   await testReadOnlySharedDirectoryInterceptsMutation();
   await testProtectedRootDeleteInterceptsLocalAndRemote();

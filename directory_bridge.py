@@ -223,6 +223,18 @@ def handle(request: dict[str, Any]) -> None:
             path.unlink()
         json_response({"ok": True, "entry": entry})
 
+    if action == "rename":
+        if not path.exists():
+            json_response({"ok": False, "error": "Path not found"}, 1)
+        name = assert_child_name(request.get("name"))
+        parent = path.parent
+        target = parent / name
+        assert_child_path(parent, target)
+        if target.exists():
+            json_response({"ok": False, "error": "Target already exists"}, 3)
+        path.rename(target)
+        json_response({"ok": True, "entry": entry_payload(target)})
+
     json_response({"ok": False, "error": "Unknown action"}, 2)
 
 

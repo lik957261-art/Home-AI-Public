@@ -90,6 +90,7 @@ function createDeps(options = {}) {
       nowIso: () => "2026-06-07T00:00:00.000Z",
       readBody: async () => ({ threadId: "thread_1", messageId: "msg_1" }),
       requireWorkspaceAccess: () => "owner",
+      rename: fs.renameSync,
       resolveArtifactForRequest: () => ({ artifact: null }),
       resolveFileForBrowserRequest: () => ({ file: null, status: 404, error: "missing" }),
       rmdir: fs.promises.rmdir,

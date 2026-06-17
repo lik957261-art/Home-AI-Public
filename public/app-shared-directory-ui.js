@@ -73,12 +73,14 @@ function renderDirectoryEntryMenu(entry) {
   const taskAction = entry.type === "directory"
     ? `<button class="directory-entry-menu-item" type="button" data-start-directory-task-path="${itemPath}" data-start-directory-task-label="${itemName}">开启话题</button>`
     : "";
+  const renameAction = `<button class="directory-entry-menu-item" type="button" data-rename-directory-path="${itemPath}" data-rename-directory-name="${itemName}" data-rename-directory-type="${itemType}">改名</button>`;
   const deleteAction = `<button class="directory-entry-menu-item danger" type="button" data-delete-directory-path="${itemPath}" data-delete-directory-name="${itemName}" data-delete-directory-type="${itemType}">删除</button>`;
-  if (!taskAction && !deleteAction) return "";
+  if (!taskAction && !renameAction && !deleteAction) return "";
   return `<div class="directory-entry-menu-wrap">
     <button class="directory-entry-menu-button" type="button" data-directory-entry-menu aria-label="更多操作" title="更多操作" aria-expanded="false">&#8942;</button>
     <div class="directory-entry-menu" hidden>
       ${taskAction}
+      ${renameAction}
       ${deleteAction}
     </div>
   </div>`;
@@ -193,7 +195,11 @@ function deletedDirectoryWasRootListProject(pathText) {
 
 async function deleteDirectoryEntry(button) {
   const path = button?.dataset?.deleteDirectoryPath || "";
-  if (!path) return;
+  if (!path) {
+    const err = new Error("删除失败：缺少文件路径");
+    if (typeof showPushToast === "function") showPushToast(err.message, "error");
+    throw err;
+  }
   const wasRootListProject = deletedDirectoryWasRootListProject(path);
   const name = button.dataset.deleteDirectoryName || "item";
   const type = button.dataset.deleteDirectoryType || "file";
@@ -203,6 +209,7 @@ async function deleteDirectoryEntry(button) {
   if (!window.confirm(message)) return;
   if (typeof showPushToast === "function") showPushToast(type === "directory" ? "正在删除目录..." : "正在删除文件...");
   let body = null;
+  button.disabled = true;
   try {
     const threadId = await ensureDirectoryThread();
     body = { threadId, path };
@@ -243,10 +250,44 @@ async function deleteDirectoryEntry(button) {
     } finally {
       if (ownerElevationOnceRequested) clearOwnerElevationOnce();
     }
+  } finally {
+    button.disabled = false;
   }
   if (!directoryActivePath() || wasRootListProject) await loadProjects();
   await loadDirectoryView();
   if (typeof showPushToast === "function") showPushToast("已删除", "success");
+}
+
+async function renameDirectoryEntry(button) {
+  const path = button?.dataset?.renameDirectoryPath || "";
+  if (!path) {
+    const err = new Error("改名失败：缺少文件路径");
+    if (typeof showPushToast === "function") showPushToast(err.message, "error");
+    throw err;
+  }
+  const oldName = button.dataset.renameDirectoryName || "item";
+  const type = button.dataset.renameDirectoryType || "file";
+  const label = type === "directory" ? "目录" : "文件";
+  const nextName = window.prompt(`新的${label}名称`, oldName);
+  if (!nextName || !nextName.trim()) return;
+  const name = nextName.trim();
+  if (name === oldName) return;
+  if (typeof showPushToast === "function") showPushToast(type === "directory" ? "正在改名目录..." : "正在改名文件...");
+  button.disabled = true;
+  try {
+    const threadId = await ensureDirectoryThread();
+    await api("/api/directories/rename", {
+      method: "POST",
+      body: JSON.stringify({ threadId, path, name }),
+    });
+    await loadDirectoryView();
+    if (typeof showPushToast === "function") showPushToast("已改名", "success");
+  } catch (err) {
+    if (typeof showPushToast === "function") showPushToast(err.message || "改名失败", "error");
+    throw err;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function closeDirectoryEntryMenus(root = document) {
@@ -509,7 +550,10 @@ function wireDirectoryView(root) {
     });
   });
   root.querySelectorAll(".directory-entry-menu").forEach((menu) => {
-    menu.addEventListener("click", (event) => event.stopPropagation());
+    menu.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
   });
   root.querySelectorAll("[data-directory-crumb]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -612,6 +656,14 @@ function wireDirectoryView(root) {
       event.stopPropagation();
       closeDirectoryEntryMenus();
       deleteDirectoryEntry(button).catch(showError);
+    });
+  });
+  root.querySelectorAll("[data-rename-directory-path]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeDirectoryEntryMenus();
+      renameDirectoryEntry(button).catch(showError);
     });
   });
 }

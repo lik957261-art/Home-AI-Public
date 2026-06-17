@@ -55,6 +55,21 @@ const DIRECTORY_MUTATION_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["directory", "file"],
     tags: ["directory", "delete"],
   },
+  {
+    id: "directories-rename",
+    method: "POST",
+    path: "/api/directories/rename",
+    group: "directory-mutation",
+    moduleKey: "directory-mutation",
+    handlerKey: "renameDirectoryEntry",
+    summary: "Rename an authorized directory entry without moving it.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["directory", "file"],
+    tags: ["directory", "rename"],
+  },
 ]);
 
 function ensureFunction(deps, name) {
@@ -79,6 +94,15 @@ function posixBasename(value) {
 
 function localBasename(value) {
   return String(value || "").replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "";
+}
+
+function parentPath(value) {
+  const text = String(value || "").replace(/[\\/]+$/, "");
+  if (!text) return "";
+  const index = Math.max(text.lastIndexOf("\\"), text.lastIndexOf("/"));
+  if (index < 0) return "";
+  if (index === 0) return text[0] === "/" ? "/" : "";
+  return text.slice(0, index);
 }
 
 function hasInjectedAuth(context) {
@@ -133,6 +157,7 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     "rmdir",
     "rmDirRecursive",
     "unlink",
+    "rename",
     "isOwnerAuth",
     "isOwnerElevationActive",
     "consumeOwnerElevationOnce",
@@ -477,6 +502,126 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     return handledResult(route, context);
   }
 
+  function safeRenameName(depsRef, value, isDirectory) {
+    return isDirectory ? depsRef.safeDirectoryName(value || "") : depsRef.safeFileName(value || "");
+  }
+
+  function renamedPayload(reqCtx, targetDisplayPath, name, type) {
+    return {
+      path: targetDisplayPath,
+      displayPath: reqCtx.resolved.workspacePath || targetDisplayPath,
+      workspacePath: reqCtx.resolved.workspacePath || targetDisplayPath,
+      name,
+      type,
+    };
+  }
+
+  async function handleRemoteRename(reqCtx, res, rawName) {
+    const { thread, resolved } = reqCtx;
+    const isDirectory = resolved.remoteEntry?.type === "directory";
+    const name = safeRenameName(deps, rawName, isDirectory);
+    if (!name) {
+      deps.sendJson(res, 400, { error: isDirectory ? "Invalid directory name" : "Invalid file name" });
+      return;
+    }
+    if (!ensureWritable(reqCtx, res)) return;
+    if (isDirectory
+      && deps.isProtectedDirectoryRoot(thread, "", resolved.displayPath)
+      && !deps.isDeletableWorkspaceRootChild(thread, "", resolved.displayPath)) {
+      deps.sendJson(res, 400, { error: "Cannot rename a project/workspace root directory" });
+      return;
+    }
+    const sourceParentDisplayPath = parentPath(resolved.displayPath);
+    if (!sourceParentDisplayPath) {
+      deps.sendJson(res, 400, { error: "Cannot rename this path" });
+      return;
+    }
+    const targetDisplayPath = deps.joinDisplayPath(sourceParentDisplayPath, name);
+    if (!deps.isDirectoryBrowserPathAllowedForThread(thread, "", targetDisplayPath)) {
+      deps.sendJson(res, 403, { error: "Target path is not allowed" });
+      return;
+    }
+    const result = await deps.runDirectoryBridge({
+      action: "rename",
+      path: resolved.displayPath,
+      name,
+    }).catch((err) => ({ ok: false, error: errorMessage(err) }));
+    if (!result?.ok) {
+      deps.sendJson(res, /already exists/i.test(result?.error || "") ? 409 : 500, { error: result?.error || "Rename failed" });
+      return;
+    }
+    clearDirectoryCatalogCaches(deps, thread);
+    deps.sendJson(res, 200, {
+      ok: true,
+      entry: result.entry
+        ? deps.publicRemoteDirectoryEntry(thread, sourceParentDisplayPath, result.entry)
+        : renamedPayload(reqCtx, targetDisplayPath, name, isDirectory ? "directory" : "file"),
+    });
+  }
+
+  async function handleLocalRename(reqCtx, res, rawName) {
+    const { thread, resolved } = reqCtx;
+    let stat;
+    try {
+      stat = await maybeAwait(deps.stat(resolved.localPath));
+    } catch (_) {
+      deps.sendJson(res, 404, { error: "Path not found" });
+      return;
+    }
+    const name = safeRenameName(deps, rawName, stat.isDirectory());
+    if (!name) {
+      deps.sendJson(res, 400, { error: stat.isDirectory() ? "Invalid directory name" : "Invalid file name" });
+      return;
+    }
+    if (!ensureWritable(reqCtx, res)) return;
+    if (stat.isDirectory()
+      && deps.isProtectedDirectoryRoot(thread, resolved.localPath, resolved.displayPath)
+      && !deps.isDeletableWorkspaceRootChild(thread, resolved.localPath, resolved.displayPath)) {
+      deps.sendJson(res, 400, { error: "Cannot rename a project/workspace root directory" });
+      return;
+    }
+    const sourceParentLocalPath = parentPath(resolved.localPath);
+    const sourceParentDisplayPath = parentPath(resolved.displayPath);
+    if (!sourceParentLocalPath || !sourceParentDisplayPath) {
+      deps.sendJson(res, 400, { error: "Cannot rename this path" });
+      return;
+    }
+    const targetLocalPath = deps.joinLocalPath(sourceParentLocalPath, name);
+    const targetDisplayPath = deps.joinDisplayPath(sourceParentDisplayPath, name);
+    try {
+      deps.assertChildPathInside(sourceParentLocalPath, targetLocalPath);
+      if (!deps.isDirectoryBrowserPathAllowedForThread(thread, targetLocalPath, targetDisplayPath)) {
+        deps.sendJson(res, 403, { error: "Target path is not allowed" });
+        return;
+      }
+      if (await maybeAwait(deps.exists(targetLocalPath))) {
+        deps.sendJson(res, 409, { error: stat.isDirectory() ? "Directory already exists" : "File already exists" });
+        return;
+      }
+      await maybeAwait(deps.rename(resolved.localPath, targetLocalPath));
+      clearDirectoryCatalogCaches(deps, thread);
+      deps.sendJson(res, 200, {
+        ok: true,
+        entry: deps.publicManagedEntry(thread, sourceParentDisplayPath, sourceParentLocalPath, targetLocalPath),
+      });
+    } catch (err) {
+      deps.sendJson(res, isAlreadyExistsError(err) ? 409 : statusCode(err), {
+        error: isAlreadyExistsError(err) ? (stat.isDirectory() ? "Directory already exists" : "File already exists") : errorMessage(err),
+      });
+    }
+  }
+
+  async function handleRename(req, res, route, context) {
+    const bodyResult = await readJsonBody(req, res);
+    if (!bodyResult.ok) return handledResult(route, context);
+    const reqCtx = await requestContext(req, res, bodyResult.body, "Path not found or not allowed");
+    if (!reqCtx) return handledResult(route, context);
+    const rawName = bodyResult.body.name || "";
+    if (reqCtx.resolved.remote === "wsl") await handleRemoteRename(reqCtx, res, rawName);
+    else await handleLocalRename(reqCtx, res, rawName);
+    return handledResult(route, context);
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -487,6 +632,7 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     if (route.id === "directories-create") return handleCreate(req, res, route, context);
     if (route.id === "directories-upload") return handleUpload(req, res, route, context);
     if (route.id === "directories-delete") return handleDelete(req, res, route, context);
+    if (route.id === "directories-rename") return handleRename(req, res, route, context);
     return { handled: false };
   }
 

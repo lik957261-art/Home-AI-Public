@@ -1323,7 +1323,7 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: composedMobileApiSe
   refreshGatewayRuntimeConfig: (...args) => mobileRuntimeGatewayFacadeService.resetGatewayRuntimeConfig(...args),
   registerUploadArtifact, removeThreadActiveRun, requireOwner, requireWeixinIngress, requireWorkspaceAccess, resolveArtifactForRequest,
   resolveAuthorizedCronDeliverableFile, resolveAuthorizedCronOutputFile, resolveAutomationCronProfile, resolveFileForBrowserRequest, resolveKanbanCardAccess, resolveKanbanOutputFile,
-  revokeGroupMessagePayload, revokeOwnerElevation, revokeWorkspaceAccessKey, rmdir: (value) => fs.rmdirSync(value), rmDirRecursive: (value) => fs.rmSync(value, { recursive: true, force: false }), rotateGlobalAccessKey,
+  revokeGroupMessagePayload, revokeOwnerElevation, revokeWorkspaceAccessKey, rmdir: (value) => fs.rmdirSync(value), rmDirRecursive: (value) => fs.rmSync(value, { recursive: true, force: false }), rename: (from, to) => fs.renameSync(from, to), rotateGlobalAccessKey,
   rotateWorkspaceAccessKey, runAutomationWebPushTick: webPushDeliveryService.runAutomationWebPushTick, runConcurrencySnapshot, runCronListBridgeCached, runDirectoryBridge,
   safeDirectoryName, safeFileName, sanitizePolicy, saveRuntimeConfig, saveState,
   scheduleKanbanDependencyReconcile, scheduleNextQueuedRunForTaskGroup, searchThreadMessages, sendJson, sendResolvedBridgeFile,

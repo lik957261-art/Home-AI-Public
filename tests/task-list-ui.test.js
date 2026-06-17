@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260617-shell-viewport-inbox-v794";
+const CLIENT_VERSION = "20260617-directory-rename-delete-v795";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -25,6 +25,7 @@ const clientResetHtml = fs.readFileSync(path.join(repoRoot, "public", "client-re
 const markdownRendererClient = fs.readFileSync(path.join(repoRoot, "public", "markdown-renderer-client.js"), "utf8");
 const appActionInboxUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-action-inbox-ui.js"), "utf8");
 const appEmbeddedPluginUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-embedded-plugin-ui.js"), "utf8");
+const sharedDirectoryUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-shared-directory-ui.js"), "utf8");
 const voiceInputUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-voice-input-ui.js"), "utf8");
 const voiceLearningUiJs = fs.readFileSync(path.join(repoRoot, "public", "app-voice-learning-ui.js"), "utf8");
 const markdownRendererJs = fs.readFileSync(path.join(repoRoot, "adapters", "markdown-renderer.js"), "utf8");
@@ -216,8 +217,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-shell-viewport-inbox-v794" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-shell-viewport-inbox-v794"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-directory-rename-delete-v795" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-directory-rename-delete-v795"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -1143,12 +1144,16 @@ assert.match(appJs, /data-delete-directory-path="\$\{escapeHtml\(project\.root \
 assert.match(appJs, /function deletedDirectoryWasRootListProject\(pathText\)/);
 assert.match(appJs, /const wasRootListProject = deletedDirectoryWasRootListProject\(path\)/);
 assert.match(appJs, /if \(!directoryActivePath\(\) \|\| wasRootListProject\) await loadProjects\(\);/);
+assert.match(sharedDirectoryUiJs, /data-rename-directory-path="\$\{itemPath\}"/);
+assert.match(sharedDirectoryUiJs, /await api\("\/api\/directories\/rename"/);
+assert.match(sharedDirectoryUiJs, /删除失败：缺少文件路径/);
 assert.match(directoryBrowserBoundaryServiceJs, /function isDeletableWorkspaceRootChild\(thread, localPath, displayPath = ""\)/);
 assert.match(mobileApiDirectoryComposition, /directoryBoundaryMethod\(deps, "isDeletableWorkspaceRootChild"\)/);
 assert.match(pathBoundaryServiceJs, /function pathDirectChildOfRoot\(candidate, root, options = \{\}\)/);
 assert.doesNotMatch(serverJs, /function pathDirectChildOfRoot\(candidate, root/);
 assert.equal(serverJs.includes("Workspace users can delete empty folders only"), false);
 assert.match(directoryMutationApiRoutes, /id: "directories-delete"/);
+assert.match(directoryMutationApiRoutes, /id: "directories-rename"/);
 assert.match(directoryMutationApiRoutes, /clearDirectoryCatalogCaches\(deps, thread\)/);
 assert.match(directoryMutationApiRoutes, /deps\.clearDynamicProjectCache\(String\(thread\?\.workspaceId \|\| ""\)\)/);
 assert.match(semanticDirectoryAttachmentServiceJs, /function taskDirectoryAttachmentCandidatesForMessage\(thread, message\)/);
@@ -2638,14 +2643,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-shell-viewport-inbox-v794/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-shell-viewport-inbox-v794/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-shell-viewport-inbox-v794/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-shell-viewport-inbox-v794/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-shell-viewport-inbox-v794/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-shell-viewport-inbox-v794/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-shell-viewport-inbox-v794/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-shell-viewport-inbox-v794/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-directory-rename-delete-v795/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-directory-rename-delete-v795/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-directory-rename-delete-v795/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-directory-rename-delete-v795/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-directory-rename-delete-v795/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-directory-rename-delete-v795/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-directory-rename-delete-v795/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-directory-rename-delete-v795/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);

@@ -4,7 +4,8 @@
 
 The directory/file module owns embedded directory browsing, first-level project roots, shared roots, upload/create/delete operations, file preview, artifact access, and deliverable preview.
 
-The same ACL boundary must protect listing, preview, upload, delete, task directory attachment, and automation deliverable access.
+The same ACL boundary must protect listing, preview, upload, rename, delete,
+task directory attachment, and automation deliverable access.
 
 ## Core Files
 
@@ -52,6 +53,11 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
   they must not be attached as thread artifacts until a productized streaming
   or staging path exists.
 - Delete must be explicit and non-recursive unless a dedicated audited policy says otherwise.
+- Rename is a same-parent mutation, not a move operation. It must resolve the
+  source entry through the Directory browser boundary, sanitize the new child
+  name by entry type, reject overwriting an existing target, reject protected
+  project/workspace roots, and keep local and remote/bridge paths under the
+  same ACL rules as upload and delete.
 - Deleting an empty in-scope directory is ordinary directory work. Deleting a
   non-empty directory is Owner high-privilege work and must be guarded by the
   directory delete policy. A low-permission Gateway result that reports Chinese
@@ -65,6 +71,9 @@ The same ACL boundary must protect listing, preview, upload, delete, task direct
   reports `owner_high_privilege_required`, the client must retry with a
   one-shot token instead of relying on possibly stale local timed-elevation
   state. Message retry elevation remains Owner-workspace-only.
+- Direct Directory UI file deletion must never fail silently. If the client
+  cannot resolve the entry path from the row action payload, it must surface a
+  visible error toast instead of returning without feedback.
 - A direct delete error such as `EACCES: permission denied, rmdir ...` after
   Owner elevation is a filesystem ownership/mode problem, not another model or
   Gateway permission prompt. Mac production diagnostics must catch

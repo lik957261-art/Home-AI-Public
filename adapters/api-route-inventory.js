@@ -888,6 +888,11 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     riskLevel: "medium",
     resourceTypes: ["directory", "file"],
   })),
+  exact("directories-rename", "POST", "/api/directories/rename", "directory", routeOptions("directory-mutation", {
+    workspaceScoped: true,
+    riskLevel: "medium",
+    resourceTypes: ["directory", "file"],
+  })),
   exact("files-preview", "GET", "/api/files/preview", "file", routeOptions("file", {
     workspaceScoped: true,
     resourceTypes: ["file"],

@@ -101,6 +101,7 @@ function createMobileApiDirectoryComposition(deps = {}) {
     resolveBrowserPathAsync: directoryBoundaryMethod(deps, "resolveBrowserPathAsync"),
     rmdir: deps.rmdir,
     rmDirRecursive: deps.rmDirRecursive,
+    rename: deps.rename,
     runDirectoryBridge: deps.runDirectoryBridge,
     safeDirectoryName: deps.safeDirectoryName,
     safeFileName: deps.safeFileName,
