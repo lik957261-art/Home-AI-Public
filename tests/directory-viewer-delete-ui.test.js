@@ -27,6 +27,7 @@ function testDeleteFeedbackContract() {
   assert.match(html, /删除失败：缺少文件路径/);
   assert.match(html, /button\.dataset\.deleteConfirmUntil = String\(now \+ 5000\)/);
   assert.match(html, /button\.textContent = "再点删除"/);
+  assert.doesNotMatch(html, /showViewerToast\(message\)/);
   assert.match(html, /delete button\.dataset\.deleteConfirmUntil/);
   assert.match(html, /showViewerToast\(type === "directory" \? "正在删除目录\.\.\." : "正在删除文件\.\.\."\)/);
   assert.match(html, /showViewerToast\("已删除", "success"\)/);

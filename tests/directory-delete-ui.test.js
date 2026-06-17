@@ -99,6 +99,7 @@ async function testFileDeleteShowsProgressAndCallsDeleteApi() {
   await context.deleteDirectoryEntry(button);
   assert.equal(button.textContent, "再点删除");
   assert.equal(calls.some((item) => item[0] === "api"), false);
+  assert.equal(calls.some((item) => item[0] === "toast" && /删除文件/.test(item[1])), false);
 
   await context.deleteDirectoryEntry(button);
 

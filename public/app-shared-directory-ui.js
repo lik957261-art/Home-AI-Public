@@ -212,7 +212,8 @@ async function deleteDirectoryEntry(button) {
   if (!armedUntil || armedUntil < now) {
     button.dataset.deleteConfirmUntil = String(now + 5000);
     button.textContent = "再点删除";
-    if (typeof showPushToast === "function") showPushToast(message);
+    button.title = message;
+    button.setAttribute?.("aria-label", message);
     return;
   }
   delete button.dataset.deleteConfirmUntil;
