@@ -16,7 +16,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260617-directory-rename-delete-v795">
+  <link rel="stylesheet" href="/styles.css?v=20260617-directory-viewer-delete-toast-v796">
   <style>
     :root {
       --paper: #f6f0e4;
@@ -169,6 +169,35 @@
       border-radius: 18px;
     }
 
+    .viewer-toast {
+      position: fixed;
+      left: max(14px, env(safe-area-inset-left));
+      right: max(14px, env(safe-area-inset-right));
+      bottom: calc(14px + env(safe-area-inset-bottom));
+      z-index: 30;
+      min-height: 42px;
+      display: grid;
+      place-items: center;
+      padding: 10px 14px;
+      color: #fffaf1;
+      background: rgba(20, 32, 39, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      box-shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+      font-size: 14px;
+      font-weight: 700;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .viewer-toast.error {
+      background: rgba(132, 45, 39, 0.94);
+    }
+
+    .viewer-toast.success {
+      background: rgba(31, 119, 104, 0.94);
+    }
+
     .list {
       display: grid;
       gap: 9px;
@@ -285,11 +314,12 @@
     </div>
     <div id="status" class="status">Loading directory...</div>
     <div id="list" class="list" hidden></div>
+    <div id="viewerToast" class="viewer-toast" hidden></div>
   </main>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260617-directory-rename-delete-v795"></script>
-  <script src="/app-task-preview-ui.js?v=20260617-directory-rename-delete-v795"></script>
+  <script src="/markdown-renderer-client.js?v=20260617-directory-viewer-delete-toast-v796"></script>
+  <script src="/app-task-preview-ui.js?v=20260617-directory-viewer-delete-toast-v796"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const key = localStorage.getItem("hermesWebKey") || "";
@@ -298,7 +328,9 @@
     const titleEl = document.getElementById("title");
     const pathEl = document.getElementById("path");
     const uploadInput = document.getElementById("uploadInput");
+    const toastEl = document.getElementById("viewerToast");
     let currentData = null;
+    let toastTimer = null;
 
     function escapeHtml(value) {
       return String(value ?? "")
@@ -338,6 +370,17 @@
         if (value) payload[name] = value;
       }
       return Object.assign(payload, extra);
+    }
+
+    function showViewerToast(message, type = "") {
+      if (!message) return;
+      clearTimeout(toastTimer);
+      toastEl.textContent = message;
+      toastEl.className = `viewer-toast${type ? ` ${type}` : ""}`;
+      toastEl.hidden = false;
+      toastTimer = setTimeout(() => {
+        toastEl.hidden = true;
+      }, type === "error" ? 4200 : 2200);
     }
 
     function currentDirectoryQuery() {
@@ -503,6 +546,12 @@
     }
 
     async function deleteEntry(button) {
+      const targetPath = button.dataset.deletePath || "";
+      if (!targetPath) {
+        const err = new Error("删除失败：缺少文件路径");
+        showViewerToast(err.message, "error");
+        throw err;
+      }
       const name = button.dataset.deleteName || "item";
       const type = button.dataset.deleteType || "file";
       const message = type === "directory"
@@ -510,12 +559,16 @@
         : `删除文件“${name}”？`;
       if (!window.confirm(message)) return;
       statusEl.hidden = false;
-      statusEl.textContent = "Deleting...";
+      statusEl.textContent = type === "directory" ? "正在删除目录..." : "正在删除文件...";
+      showViewerToast(type === "directory" ? "正在删除目录..." : "正在删除文件...");
+      button.disabled = true;
       await directoryApi("/api/directories/delete", {
         threadId: params.get("threadId") || "",
-        path: button.dataset.deletePath || "",
+        path: targetPath,
       });
       await reloadDirectory();
+      showViewerToast("已删除", "success");
+      button.disabled = false;
     }
 
     document.getElementById("newFolder").addEventListener("click", () => {
@@ -546,6 +599,8 @@
       deleteEntry(button).catch((err) => {
         statusEl.hidden = false;
         statusEl.textContent = err.message || String(err);
+        showViewerToast(err.message || String(err), "error");
+        button.disabled = false;
       });
     });
 
