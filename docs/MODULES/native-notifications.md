@@ -228,6 +228,15 @@ APNs payloads use a bounded alert:
 Payloads are navigation hints. Sensitive content must still be fetched through
 authenticated Home AI APIs after the app opens.
 
+Notification titles should include a concise source context when the source is
+known. Interactive terminal receipts use the current conversation/plugin
+context, for example `聊天：任务完成`, `衣橱：任务完成`, or `星盘：任务完成`.
+Plugin-originated platform notifications prefix the plugin display label, for
+example `衣橱：腕表保养提醒`. The payload data also carries `contextLabel`
+when available so native shells can display or debug the same source without
+parsing the title. Do not put private message bodies, raw prompts, tokens, or
+plugin credentials into that label.
+
 The current native shell presents foreground notifications with banner, list,
 sound, and badge options. Notification-tap deep-link routing is not implemented
 in the native shell yet: Home AI already includes `deepLink` in the APNs payload,

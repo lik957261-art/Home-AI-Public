@@ -70,7 +70,9 @@ async function testPluginNotificationCreatesInboxAndPush() {
   assert.deepEqual(calls.inbox[0].sourceRef.route, { name: "watch-maintenance", itemId: "watch-1" });
   assert.equal(calls.inbox[0].deepLink, "/?view=wardrobe&workspaceId=weixin_wuping&pluginId=wardrobe&pluginRoute=watch-maintenance&pluginItemId=watch-1");
   assert.equal(calls.push.length, 1);
+  assert.equal(calls.push[0].payload.title, "衣橱：腕表保养提醒");
   assert.equal(calls.push[0].payload.data.messageType, "plugin_notification");
+  assert.equal(calls.push[0].payload.data.contextLabel, "衣橱");
   assert.equal(calls.push[0].payload.data.inboxItemId, "ainb-plugin-1");
   assert.equal(calls.push[0].payload.data.url, "/?view=inbox&workspaceId=weixin_wuping&inboxItemId=ainb-plugin-1");
   assert.equal(calls.push[0].options.principalId, "weixin_wuping");
@@ -90,6 +92,7 @@ async function testPluginOpenModeCanClickThroughToPluginTab() {
   });
   assert.equal(result.ok, true);
   assert.equal(result.clickUrl, "/?view=wardrobe&workspaceId=owner&pluginId=wardrobe&pluginRoute=outfit-log&pluginItemId=log-1");
+  assert.equal(calls.push[0].payload.title, "衣橱：穿着日志已更新");
   assert.equal(calls.push[0].payload.data.viewMode, "wardrobe");
   assert.equal(calls.push[0].payload.data.url, result.clickUrl);
   assert.equal(calls.push[0].payload.data.originalUrl, result.clickUrl);

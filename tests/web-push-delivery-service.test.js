@@ -791,6 +791,7 @@ function testTaskTerminalAndGroupMentionNotifications() {
     };
 
     return service.notifyTaskTerminal(thread, message, "done").then(() => {
+      assert.equal(calls.sends.at(-1).payload.title, "任务完成");
       assert.equal(calls.sends.at(-1).payload.data.viewMode, "tasks");
       assert.equal(calls.sends.at(-1).payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=task-1&messageId=a1");
       assert.equal(calls.sends.at(-1).payload.data.messageId, "a1");
@@ -802,6 +803,8 @@ function testTaskTerminalAndGroupMentionNotifications() {
       });
       return service.notifyTaskTerminal(thread, wardrobeMessage, "done");
     }).then(() => {
+      assert.equal(calls.sends.at(-1).payload.title, "衣橱：任务完成");
+      assert.equal(calls.sends.at(-1).payload.data.contextLabel, "衣橱");
       assert.equal(calls.sends.at(-1).payload.data.viewMode, "tasks");
       assert.equal(calls.sends.at(-1).payload.data.url, "/?view=tasks&workspaceId=child&taskGroupId=plugin%3Awardrobe&messageId=wardrobe-receipt-1");
       assert.equal(calls.sends.at(-1).payload.data.taskGroupId, "plugin:wardrobe");
@@ -814,6 +817,8 @@ function testTaskTerminalAndGroupMentionNotifications() {
       const chatMessage = Object.assign({}, message, { taskGroupId: "chat" });
       return service.notifyTaskTerminal(weixinThread, chatMessage, "failed");
     }).then(() => {
+      assert.equal(calls.sends.at(-1).payload.title, "聊天：任务失败");
+      assert.equal(calls.sends.at(-1).payload.data.contextLabel, "聊天");
       assert.equal(calls.sends.at(-1).payload.data.viewMode, "single");
       assert.equal(calls.sends.at(-1).payload.data.url, "/?view=single&workspaceId=child&threadId=thread-1&messageId=a1&weixinChat=1");
       assert.equal(calls.sends.at(-1).payload.data.threadId, "thread-1");
@@ -867,13 +872,15 @@ function testTaskTerminalUsesStoredNotificationChannel() {
       role: "assistant",
       content: "Native shell result",
       notificationChannel: "native_ios_apns",
-      taskGroupId: "task-1",
+      taskGroupId: "plugin:moira",
     };
     return service.notifyTaskTerminal(thread, message, "done").then((result) => {
       assert.equal(result.notificationChannel, "native_ios_apns");
       assert.equal(calls.sends.length, 0);
       assert.equal(nativeCalls.length, 1);
       assert.equal(nativeCalls[0].workspaceId, "child");
+      assert.equal(nativeCalls[0].title, "星盘：任务完成");
+      assert.equal(nativeCalls[0].data.contextLabel, "星盘");
       assert.equal(nativeCalls[0].data.notificationChannel, "native_ios_apns");
       assert.equal(nativeCalls[0].data.channel, "native_ios_apns");
     });

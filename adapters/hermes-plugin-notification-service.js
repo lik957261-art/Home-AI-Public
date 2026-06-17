@@ -1,5 +1,10 @@
 "use strict";
 
+const {
+  notificationContextLabelFromPluginId,
+  notificationTitleWithContext,
+} = require("./notification-context-label-service");
+
 function clean(value, max = 200) {
   return String(value ?? "").trim().slice(0, max);
 }
@@ -335,8 +340,9 @@ function createHermesPluginNotificationService(options = {}) {
     const sendPush = sendPushNotification();
     const pushReadiness = pluginNotificationPushReadiness(event);
     if (event.notify && typeof sendPush === "function" && pushReadiness.ok) {
+      const contextLabel = notificationContextLabelFromPluginId(event.pluginId);
       push = await sendPush({
-        title: event.title || "插件通知",
+        title: notificationTitleWithContext(event.title || "插件通知", contextLabel, "插件通知"),
         body: event.summary || event.title || "插件有新的通知",
         tag: `hermes-plugin-${event.pluginId}-${event.sourceId}`,
         renotify: true,
@@ -359,6 +365,7 @@ function createHermesPluginNotificationService(options = {}) {
           sourceTurnId: event.routeParams.sourceTurnId || "",
           inboxItemId: inboxResult?.item?.id || "",
           sourceInboxItemId: inboxResult?.item?.id || "",
+          contextLabel,
           requireInteraction: event.requireInteraction,
         },
       }, {

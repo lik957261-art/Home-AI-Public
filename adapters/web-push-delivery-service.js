@@ -9,7 +9,7 @@ const { createWebPushNativeChannelService } = require("./web-push-native-channel
 const { createWebPushSendService } = require("./web-push-send-service");
 const { createWebPushVapidService } = require("./web-push-vapid-service");
 const { createNotificationChannelService, normalizeNotificationChannel } = require("./notification-channel-service");
-
+const { notificationContextLabelForTask, notificationTitleWithContext } = require("./notification-context-label-service");
 function defaultNowIso() {
   return new Date().toISOString();
 }
@@ -966,7 +966,8 @@ function createWebPushDeliveryService(options = {}) {
     const principalId = workspacePrincipal(thread?.workspaceId || "owner");
     const workspaceId = thread?.workspaceId || workspaceIdForPrincipal(principalId) || "owner";
     const messageType = status === "failed" ? "task_failed" : "task_completed";
-    const title = status === "failed" ? "\u4efb\u52a1\u5931\u8d25" : "\u4efb\u52a1\u5b8c\u6210";
+    const contextLabel = notificationContextLabelForTask(thread, message);
+    const title = notificationTitleWithContext(status === "failed" ? "\u4efb\u52a1\u5931\u8d25" : "\u4efb\u52a1\u5b8c\u6210", contextLabel);
     const fallback = status === "failed" ? (message?.error || "Task failed") : "Task completed";
     const body = notificationBodyForMessage(thread, message, fallback);
     const route = terminalNotificationRoute(thread, message);
@@ -983,6 +984,7 @@ function createWebPushDeliveryService(options = {}) {
       status,
       requireInteraction: true,
     };
+    if (contextLabel) data.contextLabel = contextLabel;
     const notificationChannel = normalizeNotificationChannel(message?.notificationChannel || message?.notification_channel || message?.runOptions?.notificationChannel || message?.runOptions?.notification_channel, "");
     if (notificationChannel) data.notificationChannel = notificationChannel;
     const tag = `hermes-task-${message?.id || message?.runId || Date.now()}`;
