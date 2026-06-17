@@ -47,6 +47,10 @@ assert.match(uploadSidebarUi, /function receiveNativeSharedFiles\(payload = \{\}
 assert.match(uploadSidebarUi, /window\.HomeAINativeShare = Object\.assign\(existing, \{/);
 assert.match(uploadSidebarUi, /function attachNativeSharedFilesToCurrentComposer\(\)/);
 assert.match(uploadSidebarUi, /attachServerFileToComposer\(\{[\s\S]*path: file\.path,[\s\S]*workspaceId: file\.workspaceId,[\s\S]*restore: false/);
+assert.match(uploadSidebarUi, /<span class="pending-artifact-remove" aria-hidden="true"><\/span>/);
+assert.match(uploadSidebarUi, /data-native-share-attach title="附加到当前对话" aria-label="附加到当前对话">附加<\/button>/);
+assert.match(uploadSidebarUi, /data-native-share-open-directory title="打开文件目录" aria-label="打开文件目录">目录<\/button>/);
+assert.match(uploadSidebarUi, /data-native-share-clear title="仅保存，不附加" aria-label="仅保存，不附加">保存<\/button>/);
 
 const attachServerFileBody = uploadSidebarUi.match(/async function attachServerFileToComposer[\s\S]*?\n}\n/);
 assert.ok(attachServerFileBody, "attachServerFileToComposer must be present");
@@ -64,5 +68,8 @@ assert.match(styles, /\.attach-file-option/);
 assert.match(styles, /\.server-file-picker-banner/);
 assert.match(styles, /\.native-share-intake-panel/);
 assert.match(styles, /\.native-share-intake-actions/);
+assert.match(styles, /\.native-share-intake-actions \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+assert.match(styles, /\.native-share-intake-actions button \{[\s\S]*?font-size: 11px;/);
+assert.match(styles, /\.pending-artifact-remove::before/);
 
 console.log("server file attachment UI contract passed");

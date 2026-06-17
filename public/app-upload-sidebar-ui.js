@@ -81,6 +81,7 @@ function renderPendingArtifacts() {
   panel.innerHTML = state.pendingArtifacts.map((artifact, index) => `<button type="button" class="pending-artifact doc-${escapeHtml(artifactKind(artifact))}" data-remove-artifact="${index}">
     <span class="pending-artifact-icon" aria-hidden="true"></span>
     <span class="pending-artifact-name">${escapeHtml(artifact.name || artifact.id)}</span>
+    <span class="pending-artifact-remove" aria-hidden="true"></span>
   </button>`).join("");
   panel.querySelectorAll("[data-remove-artifact]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -136,9 +137,9 @@ function renderNativeShareIntakePanel() {
       <span>${escapeHtml(summary)} 已保存到服务器，可直接附加到当前对话。</span>
     </div>
     <div class="native-share-intake-actions">
-      <button type="button" data-native-share-attach>附加到当前对话</button>
-      <button type="button" data-native-share-open-directory>打开文件目录</button>
-      <button type="button" data-native-share-clear>仅保存</button>
+      <button type="button" data-native-share-attach title="附加到当前对话" aria-label="附加到当前对话">附加</button>
+      <button type="button" data-native-share-open-directory title="打开文件目录" aria-label="打开文件目录">目录</button>
+      <button type="button" data-native-share-clear title="仅保存，不附加" aria-label="仅保存，不附加">保存</button>
     </div>`;
   panel.querySelector("[data-native-share-attach]")?.addEventListener("click", () => attachNativeSharedFilesToCurrentComposer().catch(showError));
   panel.querySelector("[data-native-share-open-directory]")?.addEventListener("click", () => openNativeShareDirectory().catch(showError));
