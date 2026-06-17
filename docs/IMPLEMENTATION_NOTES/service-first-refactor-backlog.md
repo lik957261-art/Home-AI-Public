@@ -10,7 +10,8 @@ to reduce line counts by compressing code into fewer physical lines. The goal is
 to reduce context size per change, keep business logic in named services, and
 make harness selection obvious from module ownership.
 
-Line count is only a weak proxy. A successful refactor should:
+Line count is diagnostic metadata only, not a pass/fail architecture gate. A
+successful refactor should:
 
 - move business rules out of large composition files;
 - keep route/controller files as HTTP glue;
@@ -501,9 +502,9 @@ For each extracted area:
 
 ## Guardrails
 
-- Do not measure success by physical line count alone.
+- Do not measure success by physical line count.
 - Do not compress multiple unrelated statements into one line to satisfy a
-  line-count gate.
+  metric.
 - Do not create a generic "misc service" just to move text out of an entrypoint.
 - Do not move route/auth checks away from route modules unless a focused
   boundary service owns them.

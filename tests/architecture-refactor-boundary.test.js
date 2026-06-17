@@ -1981,274 +1981,32 @@ function testServiceFirstArchitectureContract() {
   const runtimeConfigPublicProjection = fileText("adapters/runtime-config-public-projection-service.js");
   const runtimeConfigSave = fileText("adapters/runtime-config-save-service.js");
   const sqliteStoreFacade = fileText("adapters/mobile-runtime-sqlite-store-facade-service.js");
-  const serverLineCount = server.split(/\r?\n/).length;
   const serverTopLevelFunctionCount = (server.match(/^function\s+/gm) || []).length;
-  const runtimeLineCount = runtime.split(/\r?\n/).length;
-  const appRouteUrlLineCount = appRouteUrl.split(/\r?\n/).length;
-  const automationJobFilterLineCount = automationJobFilter.split(/\r?\n/).length;
-  const basicHelperLineCount = basicHelper.split(/\r?\n/).length;
-  const operationErrorResponseLineCount = operationErrorResponse.split(/\r?\n/).length;
   const runtimeTopLevelFunctionCount = (runtime.match(/^function\s+/gm) || []).length;
   const runtimeAsyncTopLevelFunctionCount = (runtime.match(/^async function\s+/gm) || []).length;
-  const accessPolicyFacadeLineCount = accessPolicyFacade.split(/\r?\n/).length;
-  const authFacadeLineCount = authFacade.split(/\r?\n/).length;
-  const bootTraceLineCount = bootTraceService.split(/\r?\n/).length;
-  const naturalLanguageGatewayLineCount = naturalLanguageGateway.split(/\r?\n/).length;
-  const mobileApiCompositionLineCount = mobileApiCompositionSource.split(/\r?\n/).length;
-  const mobileApiDirectoryCompositionLineCount = mobileApiDirectoryCompositionSource.split(/\r?\n/).length;
-  const mobileApiLearningCompositionLineCount = mobileApiLearningCompositionSource.split(/\r?\n/).length;
-  const mobileApiPlatformCompositionLineCount = mobileApiPlatformCompositionSource.split(/\r?\n/).length;
-  const runtimeEnvironmentLineCount = runtimeEnvironment.split(/\r?\n/).length;
-  const gatewayEnvironmentLineCount = gatewayEnvironment.split(/\r?\n/).length;
-  const pathCandidateEnvironmentLineCount = pathCandidateEnvironment.split(/\r?\n/).length;
-  const statePathEnvironmentLineCount = statePathEnvironment.split(/\r?\n/).length;
-  const kanbanEnvironmentLineCount = kanbanEnvironment.split(/\r?\n/).length;
-  const envValueServiceLineCount = envValueService.split(/\r?\n/).length;
-  const pathAccessServiceLineCount = pathAccessService.split(/\r?\n/).length;
-  const runtimeConfigProviderLineCount = runtimeConfigProvider.split(/\r?\n/).length;
-  const runtimeConfigEffectiveLineCount = runtimeConfigEffective.split(/\r?\n/).length;
-  const runtimeConfigGatewayWorkerLineCount = runtimeConfigGatewayWorker.split(/\r?\n/).length;
-  const runtimeConfigWorkerPolicyContractLineCount = runtimeConfigWorkerPolicyContract.split(/\r?\n/).length;
-  const runtimeConfigKeyLineCount = runtimeConfigKey.split(/\r?\n/).length;
-  const runtimeConfigModelLineCount = runtimeConfigModel.split(/\r?\n/).length;
-  const runtimeConfigPublicProjectionLineCount = runtimeConfigPublicProjection.split(/\r?\n/).length;
-  const runtimeConfigSaveLineCount = runtimeConfigSave.split(/\r?\n/).length;
-  const pathBoundaryLineCount = fileText("adapters/path-boundary-service.js").split(/\r?\n/).length;
-  const sqliteStoreFacadeLineCount = sqliteStoreFacade.split(/\r?\n/).length;
-  const stateFacadeLineCount = stateFacade.split(/\r?\n/).length;
-  const appLineCount = app.split(/\r?\n/).length;
   const appTopLevelFunctionCount = (app.match(/^function\s+/gm) || []).length;
-  const fileAccessFacadeLineCount = fileAccessFacade.split(/\r?\n/).length;
-  const gatewayCompositionOptionsLineCount = gatewayCompositionOptions.split(/\r?\n/).length;
-  const gatewayContextFacadeLineCount = gatewayContextFacade.split(/\r?\n/).length;
-  const gatewayRuntimeCompositionLineCount = gatewayRuntimeComposition.split(/\r?\n/).length;
-  const gatewayRuntimeChildServiceRegistryLineCount = gatewayRuntimeChildServiceRegistry.split(/\r?\n/).length;
-  const gatewayRuntimeSubserviceOptionsLineCount = gatewayRuntimeSubserviceOptions.split(/\r?\n/).length;
-  const gatewayRunQueueLineCount = gatewayRunQueue.split(/\r?\n/).length;
-  const gatewayRunQueueProjectionLineCount = gatewayRunQueueProjection.split(/\r?\n/).length;
-  const gatewayRunCompletionLineCount = gatewayRunCompletion.split(/\r?\n/).length;
-  const gatewayRunDeltaEventLineCount = gatewayRunDeltaEvent.split(/\r?\n/).length;
-  const gatewayRunEventLineCount = gatewayRunEvent.split(/\r?\n/).length;
-  const gatewayRunOutputEventLineCount = gatewayRunOutputEvent.split(/\r?\n/).length;
-  const gatewayRunResponseCreatedLineCount = gatewayRunResponseCreated.split(/\r?\n/).length;
-  const gatewayRunStreamingSaveLineCount = gatewayRunStreamingSave.split(/\r?\n/).length;
-  const gatewayRunEvidenceLineCount = gatewayRunEvidence.split(/\r?\n/).length;
-  const gatewayRunToolsetEscalationLineCount = gatewayRunToolsetEscalation.split(/\r?\n/).length;
-  const gatewayRunToolsetEscalationRetryLineCount = gatewayRunToolsetEscalationRetry.split(/\r?\n/).length;
-  const gatewayRunTerminalStateLineCount = gatewayRunTerminalState.split(/\r?\n/).length;
-  const gatewayRunContentLineCount = gatewayRunContent.split(/\r?\n/).length;
-  const gatewayRunStreamLineCount = gatewayRunStream.split(/\r?\n/).length;
-  const gatewayRunStreamCompletionLineCount = gatewayRunStreamCompletion.split(/\r?\n/).length;
-  const gatewayRunStreamCloseRecoveryLineCount = gatewayRunStreamCloseRecovery.split(/\r?\n/).length;
-  const gatewayRunStreamEventLineCount = gatewayRunStreamEvent.split(/\r?\n/).length;
-  const gatewayRunStreamFailureLineCount = gatewayRunStreamFailure.split(/\r?\n/).length;
-  const gatewayRunStreamFirstEventLineCount = gatewayRunStreamFirstEvent.split(/\r?\n/).length;
-  const gatewayRunStreamLivenessLineCount = gatewayRunStreamLiveness.split(/\r?\n/).length;
-  const gatewayRunStreamLivenessTimerLineCount = gatewayRunStreamLivenessTimer.split(/\r?\n/).length;
-  const gatewayRunStreamRegistryLineCount = gatewayRunStreamRegistry.split(/\r?\n/).length;
-  const gatewayRunStreamStateLineCount = gatewayRunStreamState.split(/\r?\n/).length;
-  const gatewayRunStreamStopLineCount = gatewayRunStreamStop.split(/\r?\n/).length;
-  const gatewayConcurrencyLineCount = gatewayConcurrency.split(/\r?\n/).length;
-  const gatewayProviderLineCount = gatewayProvider.split(/\r?\n/).length;
-  const gatewayStatusLineCount = gatewayStatus.split(/\r?\n/).length;
-  const gatewayRunRequestBuilderLineCount = gatewayRunRequestBuilder.split(/\r?\n/).length;
-  const gatewayRunStartAssistantOptionsLineCount = gatewayRunStartAssistantOptions.split(/\r?\n/).length;
-  const gatewayRunStartChildRegistryLineCount = gatewayRunStartChildRegistry.split(/\r?\n/).length;
-  const gatewayRunStartEventLineCount = gatewayRunStartEvent.split(/\r?\n/).length;
-  const gatewayRunStartExecutionPhaseLineCount = gatewayRunStartExecutionPhase.split(/\r?\n/).length;
-  const gatewayRunStartPermissionLineCount = gatewayRunStartPermission.split(/\r?\n/).length;
-  const gatewayRunStartPluginProbeLineCount = gatewayRunStartPluginProbe.split(/\r?\n/).length;
-  const gatewayRunStartPreparationLineCount = gatewayRunStartPreparation.split(/\r?\n/).length;
-  const gatewayRunStartStreamHandoffLineCount = gatewayRunStartStreamHandoff.split(/\r?\n/).length;
-  const gatewayRunStartStreamOptionsLineCount = gatewayRunStartStreamOptions.split(/\r?\n/).length;
-  const gatewayRunStartStateLineCount = gatewayRunStartState.split(/\r?\n/).length;
-  const gatewayRunStartTargetPhaseLineCount = gatewayRunStartTargetPhase.split(/\r?\n/).length;
-  const gatewayRunStartTargetLineCount = gatewayRunStartTarget.split(/\r?\n/).length;
-  const gatewayRunStartToolsetPreflightLineCount = gatewayRunStartToolsetPreflight.split(/\r?\n/).length;
-  const gatewayRunStartToolsetSelectionLineCount = gatewayRunStartToolsetSelection.split(/\r?\n/).length;
-  const gatewayRunStartWardrobeGateLineCount = gatewayRunStartWardrobeGate.split(/\r?\n/).length;
-  const gatewayRunStartLineCount = gatewayRunStart.split(/\r?\n/).length;
-  const webPushDeliveryLineCount = webPushDelivery.split(/\r?\n/).length;
-  const webPushAutomationProjectionLineCount = webPushAutomationProjection.split(/\r?\n/).length;
-  const webPushNormalizationLineCount = webPushNormalization.split(/\r?\n/).length;
-  const webPushSendLineCount = webPushSend.split(/\r?\n/).length;
-  const webPushVapidLineCount = webPushVapid.split(/\r?\n/).length;
-  const gatewayFacadeLineCount = gatewayFacade.split(/\r?\n/).length;
-  const groupChatFacadeLineCount = groupChatFacade.split(/\r?\n/).length;
-  const artifactFacadeLineCount = artifactFacade.split(/\r?\n/).length;
-  const threadViewFacadeLineCount = threadViewFacade.split(/\r?\n/).length;
-  const todoFacadeLineCount = todoFacade.split(/\r?\n/).length;
-  const kanbanFacadeLineCount = kanbanFacade.split(/\r?\n/).length;
-  const workspaceIdentityFacadeLineCount = workspaceIdentityFacade.split(/\r?\n/).length;
-  const workspaceFacadeLineCount = workspaceFacade.split(/\r?\n/).length;
-  const workspaceCatalogFacadeLineCount = workspaceCatalogFacade.split(/\r?\n/).length;
-  const weixinFacadeLineCount = weixinFacade.split(/\r?\n/).length;
-  assert.ok(serverLineCount <= 3000, `server.js line budget exceeded: ${serverLineCount} > 3000`);
-  assert.ok(serverTopLevelFunctionCount <= 5, `server.js top-level function budget exceeded: ${serverTopLevelFunctionCount} > 5`);
-  assert.ok(runtimeLineCount <= 1375, `mobile-server-runtime.js line budget exceeded: ${runtimeLineCount} > 1375`);
-  assert.ok(runtimeTopLevelFunctionCount === 0, `mobile-server-runtime.js top-level function budget exceeded: ${runtimeTopLevelFunctionCount} > 0`);
-  assert.ok(runtimeAsyncTopLevelFunctionCount === 0, `mobile-server-runtime.js async top-level function budget exceeded: ${runtimeAsyncTopLevelFunctionCount} > 0`);
-  assert.ok(appRouteUrlLineCount <= 35, `app-route-url-service.js line budget exceeded: ${appRouteUrlLineCount} > 35`);
-  assert.ok(automationJobFilterLineCount <= 45, `automation-job-filter-service.js line budget exceeded: ${automationJobFilterLineCount} > 45`);
-  assert.ok(operationErrorResponseLineCount <= 35, `runtime-operation-error-response-service.js line budget exceeded: ${operationErrorResponseLineCount} > 35`);
-  assert.ok(accessPolicyFacadeLineCount <= 35, `mobile-runtime-access-policy-facade-service.js line budget exceeded: ${accessPolicyFacadeLineCount} > 35`);
-  assert.ok(authFacadeLineCount <= 40, `mobile-runtime-auth-facade-service.js line budget exceeded: ${authFacadeLineCount} > 40`);
-  assert.ok(bootTraceLineCount <= 35, `mobile-runtime-boot-trace-service.js line budget exceeded: ${bootTraceLineCount} > 35`);
-  assert.ok(naturalLanguageGatewayLineCount <= 70, `mobile-runtime-natural-language-gateway-service.js line budget exceeded: ${naturalLanguageGatewayLineCount} > 70`);
-  assert.ok(basicHelperLineCount <= 120, `mobile-runtime-basic-helper-service.js line budget exceeded: ${basicHelperLineCount} > 120`);
+  assert.ok(serverTopLevelFunctionCount <= 5, `server.js should remain process glue; top-level functions: ${serverTopLevelFunctionCount}`);
+  assert.ok(runtimeTopLevelFunctionCount === 0, `mobile-server-runtime.js must not add new top-level function declarations: ${runtimeTopLevelFunctionCount}`);
+  assert.ok(runtimeAsyncTopLevelFunctionCount === 0, `mobile-server-runtime.js must not add new async top-level function declarations: ${runtimeAsyncTopLevelFunctionCount}`);
   assert.doesNotMatch(basicHelper, /^  function isUncPath\(value\) \{ return /m);
-  assert.ok(fileAccessFacadeLineCount <= 140, `mobile-runtime-file-access-facade-service.js line budget exceeded: ${fileAccessFacadeLineCount} > 140`);
-  assert.ok(runtimeConfigProviderLineCount <= 190, `runtime-config-provider.js line budget exceeded: ${runtimeConfigProviderLineCount} > 190`);
-  assert.ok(runtimeConfigEffectiveLineCount <= 65, `runtime-config-effective-service.js line budget exceeded: ${runtimeConfigEffectiveLineCount} > 65`);
-  assert.ok(runtimeConfigGatewayWorkerLineCount <= 60, `runtime-config-gateway-worker-service.js line budget exceeded: ${runtimeConfigGatewayWorkerLineCount} > 60`);
-  assert.ok(runtimeConfigWorkerPolicyContractLineCount <= 135, `runtime-config-worker-policy-contract-service.js line budget exceeded: ${runtimeConfigWorkerPolicyContractLineCount} > 135`);
-  assert.ok(runtimeConfigKeyLineCount <= 115, `runtime-config-key-service.js line budget exceeded: ${runtimeConfigKeyLineCount} > 115`);
-  assert.ok(runtimeConfigModelLineCount <= 110, `runtime-config-model-service.js line budget exceeded: ${runtimeConfigModelLineCount} > 110`);
-  assert.ok(runtimeConfigPublicProjectionLineCount <= 75, `runtime-config-public-projection-service.js line budget exceeded: ${runtimeConfigPublicProjectionLineCount} > 75`);
-  assert.ok(runtimeConfigSaveLineCount <= 65, `runtime-config-save-service.js line budget exceeded: ${runtimeConfigSaveLineCount} > 65`);
-  assert.ok(sqliteStoreFacadeLineCount <= 35, `mobile-runtime-sqlite-store-facade-service.js line budget exceeded: ${sqliteStoreFacadeLineCount} > 35`);
-  assert.ok(stateFacadeLineCount <= 155, `mobile-runtime-state-facade-service.js line budget exceeded: ${stateFacadeLineCount} > 155`);
-  assert.ok(gatewayRuntimeCompositionLineCount <= 160, `gateway-runtime-composition-service.js line budget exceeded: ${gatewayRuntimeCompositionLineCount} > 160`);
-  assert.ok(gatewayRuntimeChildServiceRegistryLineCount <= 105, `gateway-runtime-child-service-registry-service.js line budget exceeded: ${gatewayRuntimeChildServiceRegistryLineCount} > 105`);
-  assert.ok(gatewayRuntimeSubserviceOptionsLineCount <= 145, `gateway-runtime-subservice-options-service.js line budget exceeded: ${gatewayRuntimeSubserviceOptionsLineCount} > 145`);
-  assert.ok(gatewayRunRequestBuilderLineCount <= 530, `gateway-run-request-builder-service.js line budget exceeded: ${gatewayRunRequestBuilderLineCount} > 530`);
-  assert.ok(gatewayRunStartAssistantOptionsLineCount <= 70, `gateway-run-start-assistant-options-service.js line budget exceeded: ${gatewayRunStartAssistantOptionsLineCount} > 70`);
-  assert.ok(gatewayRunStartEventLineCount <= 215, `gateway-run-start-event-service.js line budget exceeded: ${gatewayRunStartEventLineCount} > 215`);
-  assert.ok(gatewayRunStartExecutionPhaseLineCount <= 55, `gateway-run-start-execution-phase-service.js line budget exceeded: ${gatewayRunStartExecutionPhaseLineCount} > 55`);
-  assert.ok(gatewayRunStartPermissionLineCount <= 70, `gateway-run-start-permission-service.js line budget exceeded: ${gatewayRunStartPermissionLineCount} > 70`);
-  assert.ok(gatewayRunStartPluginProbeLineCount <= 75, `gateway-run-start-plugin-probe-service.js line budget exceeded: ${gatewayRunStartPluginProbeLineCount} > 75`);
-  assert.ok(gatewayRunStartPreparationLineCount <= 70, `gateway-run-start-preparation-service.js line budget exceeded: ${gatewayRunStartPreparationLineCount} > 70`);
-  assert.ok(gatewayRunStartStreamHandoffLineCount <= 75, `gateway-run-start-stream-handoff-service.js line budget exceeded: ${gatewayRunStartStreamHandoffLineCount} > 75`);
-  assert.ok(gatewayRunStartStreamOptionsLineCount <= 80, `gateway-run-start-stream-options-service.js line budget exceeded: ${gatewayRunStartStreamOptionsLineCount} > 80`);
-  assert.ok(gatewayRunStartStateLineCount <= 115, `gateway-run-start-state-service.js line budget exceeded: ${gatewayRunStartStateLineCount} > 115`);
-  assert.ok(gatewayRunStartTargetPhaseLineCount <= 85, `gateway-run-start-target-phase-service.js line budget exceeded: ${gatewayRunStartTargetPhaseLineCount} > 85`);
-  assert.ok(gatewayRunStartTargetLineCount <= 95, `gateway-run-start-target-service.js line budget exceeded: ${gatewayRunStartTargetLineCount} > 95`);
-  assert.ok(gatewayRunStartToolsetPreflightLineCount <= 155, `gateway-run-start-toolset-preflight-service.js line budget exceeded: ${gatewayRunStartToolsetPreflightLineCount} > 155`);
-  assert.ok(gatewayRunStartToolsetSelectionLineCount <= 95, `gateway-run-start-toolset-selection-service.js line budget exceeded: ${gatewayRunStartToolsetSelectionLineCount} > 95`);
-  assert.ok(gatewayRunStartWardrobeGateLineCount <= 85, `gateway-run-start-wardrobe-gate-service.js line budget exceeded: ${gatewayRunStartWardrobeGateLineCount} > 85`);
-  assert.ok(gatewayRunStartChildRegistryLineCount <= 260, `gateway-run-start-child-service-registry-service.js line budget exceeded: ${gatewayRunStartChildRegistryLineCount} > 260`);
-  assert.ok(gatewayRunStartLineCount <= 75, `gateway-run-start-service.js line budget exceeded: ${gatewayRunStartLineCount} > 75`);
-  assert.ok(webPushDeliveryLineCount <= 1080, `web-push-delivery-service.js line budget exceeded: ${webPushDeliveryLineCount} > 1080`);
-  assert.ok(webPushAutomationProjectionLineCount <= 320, `web-push-automation-projection-service.js line budget exceeded: ${webPushAutomationProjectionLineCount} > 320`);
-  assert.ok(webPushNormalizationLineCount <= 285, `web-push-delivery-normalization-service.js line budget exceeded: ${webPushNormalizationLineCount} > 285`);
-  assert.ok(webPushSendLineCount <= 150, `web-push-send-service.js line budget exceeded: ${webPushSendLineCount} > 150`);
-  assert.ok(webPushVapidLineCount <= 130, `web-push-vapid-service.js line budget exceeded: ${webPushVapidLineCount} > 130`);
-  assert.ok(gatewayRunQueueProjectionLineCount <= 100, `gateway-run-queue-projection-service.js line budget exceeded: ${gatewayRunQueueProjectionLineCount} > 100`);
-  assert.ok(gatewayRunQueueLineCount <= 180, `gateway-run-queue-service.js line budget exceeded: ${gatewayRunQueueLineCount} > 180`);
-  assert.ok(gatewayRunTerminalStateLineCount <= 180, `gateway-run-terminal-state-service.js line budget exceeded: ${gatewayRunTerminalStateLineCount} > 180`);
-  assert.ok(gatewayRunCompletionLineCount <= 270, `gateway-run-completion-service.js line budget exceeded: ${gatewayRunCompletionLineCount} > 270`);
-  assert.ok(gatewayRunDeltaEventLineCount <= 85, `gateway-run-delta-event-service.js line budget exceeded: ${gatewayRunDeltaEventLineCount} > 85`);
-  assert.ok(gatewayRunOutputEventLineCount <= 160, `gateway-run-output-event-service.js line budget exceeded: ${gatewayRunOutputEventLineCount} > 160`);
-  assert.ok(gatewayRunResponseCreatedLineCount <= 45, `gateway-run-response-created-service.js line budget exceeded: ${gatewayRunResponseCreatedLineCount} > 45`);
-  assert.ok(gatewayRunStreamingSaveLineCount <= 55, `gateway-run-streaming-save-service.js line budget exceeded: ${gatewayRunStreamingSaveLineCount} > 55`);
-  assert.ok(gatewayRunEvidenceLineCount <= 310, `gateway-run-evidence-service.js line budget exceeded: ${gatewayRunEvidenceLineCount} > 310`);
-  assert.ok(gatewayRunToolsetEscalationLineCount <= 195, `gateway-run-toolset-escalation-service.js line budget exceeded: ${gatewayRunToolsetEscalationLineCount} > 195`);
-  assert.ok(gatewayRunToolsetEscalationRetryLineCount <= 175, `gateway-run-toolset-escalation-retry-service.js line budget exceeded: ${gatewayRunToolsetEscalationRetryLineCount} > 175`);
-  assert.ok(gatewayRunEventLineCount <= 360, `gateway-run-event-service.js line budget exceeded: ${gatewayRunEventLineCount} > 360`);
   assert.match(fileAccessFacade, /findDirectoryThreadForRequest/);
   assert.match(fileAccessFacade, /ownerDirectoryBrowserThread/);
   assert.doesNotMatch(runtime, /^function findDirectoryThreadForRequest\(/m);
   assert.doesNotMatch(runtime, /^function ownerDirectoryBrowserThread\(/m);
-  assert.ok(gatewayCompositionOptionsLineCount <= 130, `mobile-runtime-gateway-composition-options-service.js line budget exceeded: ${gatewayCompositionOptionsLineCount} > 130`);
-  assert.ok(gatewayContextFacadeLineCount <= 90, `mobile-runtime-gateway-context-facade-service.js line budget exceeded: ${gatewayContextFacadeLineCount} > 90`);
-  assert.ok(gatewayRunContentLineCount <= 60, `gateway-run-content-service.js line budget exceeded: ${gatewayRunContentLineCount} > 60`);
-  assert.ok(gatewayRunStreamCompletionLineCount <= 55, `gateway-run-stream-completion-service.js line budget exceeded: ${gatewayRunStreamCompletionLineCount} > 55`);
-  assert.ok(gatewayRunStreamCloseRecoveryLineCount <= 70, `gateway-run-stream-close-recovery-service.js line budget exceeded: ${gatewayRunStreamCloseRecoveryLineCount} > 70`);
-  assert.ok(gatewayRunStreamEventLineCount <= 145, `gateway-run-stream-event-service.js line budget exceeded: ${gatewayRunStreamEventLineCount} > 145`);
-  assert.ok(gatewayRunStreamFailureLineCount <= 60, `gateway-run-stream-failure-service.js line budget exceeded: ${gatewayRunStreamFailureLineCount} > 60`);
-  assert.ok(gatewayRunStreamFirstEventLineCount <= 75, `gateway-run-stream-first-event-service.js line budget exceeded: ${gatewayRunStreamFirstEventLineCount} > 75`);
-  assert.ok(gatewayRunStreamLivenessLineCount <= 115, `gateway-run-stream-liveness-service.js line budget exceeded: ${gatewayRunStreamLivenessLineCount} > 115`);
-  assert.ok(gatewayRunStreamLivenessTimerLineCount <= 55, `gateway-run-stream-liveness-timer-service.js line budget exceeded: ${gatewayRunStreamLivenessTimerLineCount} > 55`);
-  assert.ok(gatewayRunStreamRegistryLineCount <= 115, `gateway-run-stream-registry-service.js line budget exceeded: ${gatewayRunStreamRegistryLineCount} > 115`);
-  assert.ok(gatewayRunStreamStateLineCount <= 60, `gateway-run-stream-state-service.js line budget exceeded: ${gatewayRunStreamStateLineCount} > 60`);
-  assert.ok(gatewayRunStreamStopLineCount <= 85, `gateway-run-stream-stop-service.js line budget exceeded: ${gatewayRunStreamStopLineCount} > 85`);
-  assert.ok(gatewayRunStreamLineCount <= 275, `gateway-run-stream-service.js line budget exceeded: ${gatewayRunStreamLineCount} > 275`);
-  assert.ok(gatewayFacadeLineCount <= 125, `mobile-runtime-gateway-facade-service.js line budget exceeded: ${gatewayFacadeLineCount} > 125`);
-  assert.ok(gatewayProviderLineCount <= 165, `mobile-runtime-gateway-provider-service.js line budget exceeded: ${gatewayProviderLineCount} > 165`);
-  assert.ok(gatewayStatusLineCount <= 50, `mobile-runtime-gateway-status-service.js line budget exceeded: ${gatewayStatusLineCount} > 50`);
-  assert.ok(gatewayConcurrencyLineCount <= 60, `mobile-runtime-gateway-concurrency-service.js line budget exceeded: ${gatewayConcurrencyLineCount} > 60`);
-  assert.ok(groupChatFacadeLineCount <= 95, `mobile-runtime-group-chat-facade-service.js line budget exceeded: ${groupChatFacadeLineCount} > 95`);
-  assert.ok(artifactFacadeLineCount <= 140, `mobile-runtime-artifact-facade-service.js line budget exceeded: ${artifactFacadeLineCount} > 140`);
-  assert.ok(threadViewFacadeLineCount <= 140, `mobile-runtime-thread-view-facade-service.js line budget exceeded: ${threadViewFacadeLineCount} > 140`);
-  assert.ok(todoFacadeLineCount <= 120, `mobile-runtime-todo-facade-service.js line budget exceeded: ${todoFacadeLineCount} > 120`);
-  assert.ok(kanbanFacadeLineCount <= 380, `mobile-runtime-kanban-facade-service.js line budget exceeded: ${kanbanFacadeLineCount} > 380`);
-  assert.ok(weixinFacadeLineCount <= 115, `mobile-runtime-weixin-facade-service.js line budget exceeded: ${weixinFacadeLineCount} > 115`);
-  assert.ok(workspaceIdentityFacadeLineCount <= 65, `mobile-runtime-workspace-identity-facade-service.js line budget exceeded: ${workspaceIdentityFacadeLineCount} > 65`);
-  assert.ok(workspaceFacadeLineCount <= 190, `mobile-runtime-workspace-facade-service.js line budget exceeded: ${workspaceFacadeLineCount} > 190`);
-  assert.ok(workspaceCatalogFacadeLineCount <= 105, `mobile-runtime-workspace-catalog-facade.js line budget exceeded: ${workspaceCatalogFacadeLineCount} > 105`);
-  assert.ok(mobileApiCompositionLineCount <= 410, `mobile-api-composition.js line budget exceeded: ${mobileApiCompositionLineCount} > 410`);
-  assert.ok(mobileApiDirectoryCompositionLineCount <= 150, `mobile-api-directory-composition.js line budget exceeded: ${mobileApiDirectoryCompositionLineCount} > 150`);
-  assert.ok(mobileApiLearningCompositionLineCount <= 350, `mobile-api-learning-composition.js line budget exceeded: ${mobileApiLearningCompositionLineCount} > 350`);
-  assert.ok(mobileApiPlatformCompositionLineCount <= 210, `mobile-api-platform-composition.js line budget exceeded: ${mobileApiPlatformCompositionLineCount} > 210`);
-  assert.ok(runtimeEnvironmentLineCount <= 380, `mobile-runtime-environment-service.js line budget exceeded: ${runtimeEnvironmentLineCount} > 380`);
-  assert.ok(gatewayEnvironmentLineCount <= 130, `mobile-runtime-gateway-environment-service.js line budget exceeded: ${gatewayEnvironmentLineCount} > 130`);
-  assert.ok(pathCandidateEnvironmentLineCount <= 150, `mobile-runtime-path-candidate-environment-service.js line budget exceeded: ${pathCandidateEnvironmentLineCount} > 150`);
-  assert.ok(statePathEnvironmentLineCount <= 90, `mobile-runtime-state-path-environment-service.js line budget exceeded: ${statePathEnvironmentLineCount} > 90`);
-  assert.ok(kanbanEnvironmentLineCount <= 100, `mobile-runtime-kanban-environment-service.js line budget exceeded: ${kanbanEnvironmentLineCount} > 100`);
-  assert.ok(envValueServiceLineCount <= 40, `mobile-runtime-env-value-service.js line budget exceeded: ${envValueServiceLineCount} > 40`);
-  assert.ok(pathAccessServiceLineCount <= 80, `mobile-runtime-path-access-service.js line budget exceeded: ${pathAccessServiceLineCount} > 80`);
-  assert.ok(pathBoundaryLineCount <= 65, `path-boundary-service.js line budget exceeded: ${pathBoundaryLineCount} > 65`);
-  assert.ok(appLineCount <= 10000, `public/app.js line budget exceeded: ${appLineCount} > 10000`);
-  assert.ok(appTopLevelFunctionCount <= 120, `public/app.js top-level function budget exceeded: ${appTopLevelFunctionCount} > 120`);
-
-  const frontendRuntimeModules = [
-    "public/app-shell-ui.js",
-    "public/app-task-groups-ui.js",
-    "public/app-chat-composer-ui.js",
-    "public/app-composer-source-ui.js",
-    "public/app-composer-context-ui.js",
-    "public/app-run-progress-ui.js",
-    "public/app-navigation-search-ui.js",
-    "public/app-sidebar-task-ui.js",
-    "public/app-message-skill-ui.js",
-    "public/app-message-actions-ui.js",
-    "public/app-route-snapshot-ui.js",
-    "public/app-platform-ui.js",
-    "public/app-pwa-settings-push-ui.js",
-    "public/app-workspace-admin-ui.js",
-    "public/app-access-key-manager-ui.js",
-    "public/app-share-image-ui.js",
-    "public/app-draft-thread-ui.js",
-    "public/app-directory-automation-ui.js",
-    "public/app-shared-directory-ui.js",
-    "public/app-automation-ui.js",
-    "public/app-learning-native-growth-submission-controller.js",
-    "public/app-learning-growth-teaching-controller.js",
-    "public/app-learning-growth-controller.js",
-    "public/app-learning-growth-task-ui.js",
-    "public/app-automation-controller-ui.js",
-    "public/app-thread-state-ui.js",
-    "public/app-group-topic-ui.js",
-    "public/app-kanban-core-ui.js",
-    "public/app-kanban-story-core-ui.js",
-    "public/app-kanban-todo-core-ui.js",
-    "public/app-kanban-render-ui.js",
-    "public/app-kanban-list-ui.js",
-    "public/app-kanban-learning-panel-ui.js",
-    "public/app-kanban-recorder-ui.js",
-    "public/app-todo-detail-ui.js",
-    "public/app-kanban-actions-ui.js",
-    "public/app-kanban-composer-actions-ui.js",
-    "public/app-kanban-card-actions-ui.js",
-    "public/app-kanban-study-actions-ui.js",
-    "public/app-thread-message-ui.js",
-    "public/app-thread-list-ui.js",
-    "public/app-thread-directory-ui.js",
-    "public/app-thread-card-message-ui.js",
-    "public/app-long-message-ui.js",
-    "public/app-rich-text-directory-ui.js",
-    "public/app-message-usage-ui.js",
-    "public/app-events-composer-ui.js",
-    "public/app-event-stream-ui.js",
-    "public/app-upload-sidebar-ui.js",
-    "public/app-composer-send-ui.js",
-    "public/app-wire-start-ui.js",
-    "public/app-start.js",
-  ];
-  for (const frontendModule of frontendRuntimeModules) {
-    const moduleLineCount = fileText(frontendModule).split(/\r?\n/).length;
-    assert.ok(moduleLineCount <= 1000, `${frontendModule} line budget exceeded: ${moduleLineCount} > 1000`);
-  }
+  assert.ok(appTopLevelFunctionCount <= 120, `public/app.js should stay the frontend state root, not regain split module functions: ${appTopLevelFunctionCount}`);
+  assert.match(runtime, /createMobileApiComposition/);
+  assert.match(runtime, /createMobileRuntimeGatewayFacadeService/);
+  assert.match(runtime, /createMobileRuntimeFileAccessFacadeService/);
+  assert.match(mobileApiCompositionSource, /createMobileApiDispatcher/);
+  assert.match(mobileApiDirectoryCompositionSource, /createDirectoryBrowserApiRoutes/);
+  assert.match(mobileApiLearningCompositionSource, /createLearningApiRoutes/);
+  assert.match(mobileApiPlatformCompositionSource, /createNativeDeviceApiRoutes/);
+  assert.doesNotMatch(runtime, /function\s+\w+[\s\S]*?readFileSync[\s\S]*?writeFileSync/);
+  assert.doesNotMatch(server, /function\s+\w+[\s\S]*?createMobileApiComposition/);
+  const boundaryDoc = fileText("docs/ARCHITECTURE_BOUNDARY.md");
+  assert.match(boundaryDoc, /Do not use physical line-count ceilings as architecture gates/);
+  assert.match(boundaryDoc, /forbidden ownership/);
+  assert.match(boundaryDoc, /regressions such as filesystem policy/);
 }
 
 function testRefactorPlanTracksTwelveWorkPackages() {

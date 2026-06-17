@@ -18,6 +18,35 @@ tests/<domain>-service.test.js
 `server.js` is the thin process entrypoint. It should do little more than load
 the runtime composition module and preserve the deployment command surface.
 
+## Architecture Gates
+
+Architecture gates should measure structure and ownership, not physical line
+counts. Do not use physical line-count ceilings as architecture gates for
+services, route modules, frontend modules, or composition files. Line count is
+too easy to satisfy by deleting blank lines, compressing helper functions, or
+making dense one-line statements; those changes reduce readability without
+improving the architecture.
+
+Use structured, testable constraints instead:
+
+- new business behavior lives in a named service/provider or focused route
+  module before it is wired into an entrypoint;
+- entrypoints and composition roots do not regain forbidden ownership
+  regressions such as filesystem policy, Gateway lifecycle state machines,
+  model prompt construction, permission policy, persistence rules, or plugin
+  business logic;
+- services expose stable factories or explicit public functions that can be
+  tested without loading the full runtime root;
+- route modules stay domain-scoped and delegate policy decisions to services;
+- frontend split modules remain separately loaded and do not move back into the
+  monolithic `public/app.js` state root;
+- harnesses assert the specific ownership boundary, export contract, route
+  wiring, or forbidden regression they care about.
+
+Physical line counts may still be used as diagnostic metadata in refactor
+planning, but they are not pass/fail gates and must not motivate one-line
+compression.
+
 `mobile-server-runtime.js` is the transitional runtime composition root while
 the remaining wiring is split into smaller service and route composition
 modules. It may:

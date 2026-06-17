@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260617-native-apns-route-v807";
+const CLIENT_VERSION = "20260617-bottom-tab-hitbox-v808";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -217,8 +217,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-native-apns-route-v807" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-native-apns-route-v807"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-bottom-tab-hitbox-v808" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-bottom-tab-hitbox-v808"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -2659,14 +2659,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-native-apns-route-v807/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-native-apns-route-v807/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-native-apns-route-v807/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-native-apns-route-v807/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-native-apns-route-v807/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-native-apns-route-v807/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-native-apns-route-v807/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-native-apns-route-v807/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);
@@ -3357,6 +3357,7 @@ assert.match(stylesCss, /--bottom-region-composer-nav-gap: 8px/);
 assert.match(stylesCss, /\.app\.main-back-visible \{[\s\S]*?padding-bottom: 0/);
 assert.match(stylesCss, /\.main-back-visible \.bottom-nav \{[\s\S]*?display: none/);
 assert.match(stylesCss, /\.bottom-nav \.bottom-tab \{[\s\S]*?transform: translateY\(calc\(-1 \* var\(--mobile-bottom-nav-visual-lift\)\)\);/);
+assert.match(stylesCss, /\.bottom-tab \{[\s\S]*?width: 100%;[\s\S]*?height: 100%;[\s\S]*?min-height: 44px;[\s\S]*?touch-action: manipulation;/);
 assert.match(stylesCss, /\.bottom-nav \{[\s\S]*?bottom: var\(--mobile-bottom-nav-bottom\);/);
 assert.match(stylesCss, /\.topbar \{[\s\S]*?min-height: calc\(44px \+ env\(safe-area-inset-top\)\)/);
 assert.match(stylesCss, /\.preflight-mobile-browser-shell::before \{[\s\S]*?height: env\(safe-area-inset-top\);[\s\S]*?background: var\(--ui-status-bar\);/);
