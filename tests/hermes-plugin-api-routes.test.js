@@ -479,6 +479,52 @@ async function testGrowthProxyAttachesServerSideWorkspaceBearerForWrites() {
   assert.equal(parseBody(res).published.taskCardId, "ltask_generated");
 }
 
+async function testHealthProxyAttachesServerSideWorkspaceBearerForReads() {
+  const authorizationCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "health", manifestUrl: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "health" });
+      },
+      pluginManifestUrl(id) {
+        return id === "health" ? "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" : "";
+      },
+      pluginProxyAuthorizationHeader(input) {
+        authorizationCalls.push(input);
+        return "Bearer health-workspace-secret";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:4877/api/v1/apple-health/sync-state?workspaceId=owner");
+      assert.equal(options.headers.Authorization, "Bearer health-workspace-secret");
+      assert.equal(Object.prototype.hasOwnProperty.call(options.headers, "authorization"), false);
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: true, domains: {} })),
+      });
+    },
+  });
+  const req = makeRequest("GET");
+  req.headers.authorization = "Bearer browser-supplied-value";
+  req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/health/proxy/api/v1/apple-health/sync-state?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(authorizationCalls, [{ pluginId: "health", workspaceId: "owner" }]);
+  assert.equal(parseBody(res).ok, true);
+}
+
 async function testPluginNotificationRoute() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
@@ -1541,6 +1587,7 @@ async function run() {
   await testPluginProxyDeniesUnauthorizedWorkspacePlugin();
   await testPluginProxyForwardsOwnerOnlyActorContext();
   await testGrowthProxyAttachesServerSideWorkspaceBearerForWrites();
+  await testHealthProxyAttachesServerSideWorkspaceBearerForReads();
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp();

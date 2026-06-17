@@ -782,7 +782,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
     headers["x-hermes-plugin-actor-workspace-id"] = String(auth?.workspaceId || "");
     headers["x-hermes-plugin-actor-role"] = ownerAuthorized(auth) ? "owner" : "workspace";
-    if (!["GET", "HEAD"].includes(method.toUpperCase()) && typeof deps.hermesPluginService?.pluginProxyAuthorizationHeader === "function") {
+    if (typeof deps.hermesPluginService?.pluginProxyAuthorizationHeader === "function") {
       const authorization = deps.hermesPluginService.pluginProxyAuthorizationHeader({ pluginId, workspaceId });
       if (authorization) headers.Authorization = authorization;
     }
