@@ -2,7 +2,7 @@
 
 const { explicitSearchContext } = require("./gateway-run-search-budget-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260616-moira-rule-evidence-bundle-mcp-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260617-email-body-readall-health-sleep-ecg-mcp-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -87,6 +87,13 @@ function createGatewayRunInstructionService(options = {}) {
       ],
       health: [
         "mcp_health_records_get_summary",
+        "mcp_health_sleep_records_list",
+        "mcp_health_recovery_sleep_list",
+        "mcp_health_apple_sleep_records_list",
+        "mcp_health_apple_ecg_records_list",
+        "mcp_health_apple_ecg_record_get",
+        "mcp_health_apple_daily_summaries_list",
+        "mcp_health_apple_workouts_list",
       ],
       moira: [
         "mcp_moira_list_records",
@@ -274,7 +281,8 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "health")) {
       lines.push(
-        "Current tool schema override: the `health` toolset is enabled for this run. Callable function names normally begin with `mcp_health_`, including `mcp_health_records_get_summary` when the plugin wrapper exposes local tool names correctly.",
+        "Current tool schema override: the `health` toolset is enabled for this run. Callable function names normally begin with `mcp_health_`, including `mcp_health_records_get_summary`, `mcp_health_sleep_records_list`, `mcp_health_apple_ecg_records_list`, and `mcp_health_apple_ecg_record_get` when the plugin wrapper exposes local tool names correctly.",
+        "For sleep questions, prefer `mcp_health_sleep_records_list`; it merges Apple Health sleepAnalysis with recovery sleep records. `mcp_health_recovery_sleep_list` is backward-compatible and should also return Apple Health rows when `sourceType` is Apple Health. For Apple Watch ECG waveform analysis, list records with `mcp_health_apple_ecg_records_list` and fetch one waveform with `mcp_health_apple_ecg_record_get`.",
         "If Health callables are double-prefixed such as `mcp_health_mcp_health_records_get_summary`, treat that as a plugin wrapper naming bug rather than a valid callable contract."
       );
     }
