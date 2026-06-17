@@ -65,6 +65,8 @@ function directoryButton() {
 
 function fileButton() {
   return {
+    textContent: "删除",
+    disabled: false,
     dataset: {
       deleteDirectoryPath: "/root/note.txt",
       deleteDirectoryName: "note.txt",
@@ -85,13 +87,19 @@ function renameFileButton() {
 
 async function testFileDeleteShowsProgressAndCallsDeleteApi() {
   const { calls, context } = makeContext();
+  const button = fileButton();
+  let sawInlineProgress = false;
   context.api = async (targetPath, options) => {
+    sawInlineProgress = button.disabled === true && button.textContent === "删除中...";
     calls.push(["api", targetPath, JSON.parse(options.body)]);
     return { ok: true };
   };
 
-  await context.deleteDirectoryEntry(fileButton());
+  await context.deleteDirectoryEntry(button);
 
+  assert.equal(sawInlineProgress, true);
+  assert.equal(button.disabled, false);
+  assert.equal(button.textContent, "删除");
   assert.equal(calls.some((item) => item[0] === "toast" && item[1] === "正在删除文件..."), true);
   assert.deepEqual(calls.find((item) => item[0] === "api"), ["api", "/api/directories/delete", {
     threadId: "thread-1",

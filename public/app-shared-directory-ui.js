@@ -198,6 +198,7 @@ async function deleteDirectoryEntry(button) {
   if (!path) {
     const err = new Error("删除失败：缺少文件路径");
     if (typeof showPushToast === "function") showPushToast(err.message, "error");
+    if (button) button.textContent = "缺少路径";
     throw err;
   }
   const wasRootListProject = deletedDirectoryWasRootListProject(path);
@@ -208,6 +209,8 @@ async function deleteDirectoryEntry(button) {
     : `删除文件“${name}”？`;
   if (!window.confirm(message)) return;
   if (typeof showPushToast === "function") showPushToast(type === "directory" ? "正在删除目录..." : "正在删除文件...");
+  const previousText = button.textContent;
+  button.textContent = type === "directory" ? "删除中..." : "删除中...";
   let body = null;
   button.disabled = true;
   try {
@@ -252,6 +255,7 @@ async function deleteDirectoryEntry(button) {
     }
   } finally {
     button.disabled = false;
+    button.textContent = previousText || "删除";
   }
   if (!directoryActivePath() || wasRootListProject) await loadProjects();
   await loadDirectoryView();
@@ -654,7 +658,6 @@ function wireDirectoryView(root) {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      closeDirectoryEntryMenus();
       deleteDirectoryEntry(button).catch(showError);
     });
   });

@@ -16,7 +16,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260617-directory-viewer-delete-toast-v796">
+  <link rel="stylesheet" href="/styles.css?v=20260617-directory-delete-inline-progress-v797">
   <style>
     :root {
       --paper: #f6f0e4;
@@ -318,8 +318,8 @@
   </main>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260617-directory-viewer-delete-toast-v796"></script>
-  <script src="/app-task-preview-ui.js?v=20260617-directory-viewer-delete-toast-v796"></script>
+  <script src="/markdown-renderer-client.js?v=20260617-directory-delete-inline-progress-v797"></script>
+  <script src="/app-task-preview-ui.js?v=20260617-directory-delete-inline-progress-v797"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const key = localStorage.getItem("hermesWebKey") || "";
@@ -561,14 +561,20 @@
       statusEl.hidden = false;
       statusEl.textContent = type === "directory" ? "正在删除目录..." : "正在删除文件...";
       showViewerToast(type === "directory" ? "正在删除目录..." : "正在删除文件...");
+      const previousText = button.textContent;
+      button.textContent = "删除中...";
       button.disabled = true;
-      await directoryApi("/api/directories/delete", {
-        threadId: params.get("threadId") || "",
-        path: targetPath,
-      });
-      await reloadDirectory();
-      showViewerToast("已删除", "success");
-      button.disabled = false;
+      try {
+        await directoryApi("/api/directories/delete", {
+          threadId: params.get("threadId") || "",
+          path: targetPath,
+        });
+        await reloadDirectory();
+        showViewerToast("已删除", "success");
+      } finally {
+        button.disabled = false;
+        button.textContent = previousText || "删除";
+      }
     }
 
     document.getElementById("newFolder").addEventListener("click", () => {
