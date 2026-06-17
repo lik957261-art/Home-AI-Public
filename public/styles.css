@@ -3135,13 +3135,15 @@ button {
 }
 
 .message.assistant.streaming-active .run-progress-panel.inline {
-  max-height: min(34dvh, 260px);
+  max-height: min(36dvh, 272px);
   min-height: 0;
+  padding-bottom: 12px;
   overflow: hidden;
 }
 
 .message.assistant.streaming-active .run-progress-panel.inline .run-progress-rows {
-  max-height: min(21dvh, 150px);
+  max-height: min(25dvh, 182px);
+  padding-bottom: 2px;
   overflow: hidden;
 }
 
@@ -4002,7 +4004,11 @@ button {
   }
 
   .message.assistant.streaming-active .run-progress-panel.inline {
-    max-height: min(30dvh, 220px);
+    max-height: min(34dvh, 252px);
+  }
+
+  .message.assistant.streaming-active .run-progress-panel.inline .run-progress-rows {
+    max-height: min(25dvh, 178px);
   }
 
   .assistant-streaming-receipt {
