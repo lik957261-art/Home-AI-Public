@@ -2280,7 +2280,7 @@ function renderPluginTopicCards(options = {}) {
         return `
         <article class="plugin-topic-card${expanded ? "" : " collapsed"}${hasChildren ? " has-children" : " single-topic"}" data-plugin-topic-card="${escapeHtml(def.id)}">
           <div class="plugin-topic-card-main-row">
-            <button class="plugin-topic-icon-entry" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u9ed8\u8ba4\u8bdd\u9898`)}">
+            <button class="plugin-topic-icon-entry" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
               <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
             </button>
             <button class="plugin-topic-row-body" type="button" ${bodyAttrs}>

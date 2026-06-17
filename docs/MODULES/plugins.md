@@ -67,6 +67,11 @@ The embedded UI layout contract is tracked separately in
 `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must
 follow that contract for iframe-root sizing, plugin-owned bottom navigation,
 floating action buttons, local action bars, and device visual harnesses.
+On the Home AI plugin-topic list, the visible plugin app icon opens the plugin
+application itself. The adjacent row body, child rows, and delivery chips are
+the topic/directory conversation entries. Do not wire the icon to an empty
+plugin-topic chat, because that makes the product look frozen when the topic
+has no recent messages.
 Standard embedded plugin apps must keep their iframe element resident after a
 successful launch. Switching to another Home AI tab, opening the global plugin
 Dock, or backgrounding and foregrounding the installed PWA must hide/show the

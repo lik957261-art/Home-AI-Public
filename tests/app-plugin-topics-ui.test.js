@@ -104,6 +104,7 @@ assert.match(runActionBody, /recordPluginTopicUsage\(def\.id, action\.id\);/);
 assert.match(runActionBody, /openPluginTopicApp\(def\.id, \{ recordUsage: false, action \}\);/);
 assert.match(topicCardsBody, /filter\(\(def\) => !def\.builtinKind && def\.id !== "codex-mobile"\)/);
 assert.match(topicCardsBody, /data-plugin-topic-open-topic/);
+assert.match(topicCardsBody, /plugin-topic-icon-entry" type="button" data-plugin-topic-open-app/);
 assert.match(topicCardsBody, /data-plugin-topic-toggle/);
 assert.match(topicCardsBody, /data-plugin-claimed-topic-open/);
 assert.match(topicCardsBody, /plugin-topic-list/);
@@ -120,7 +121,6 @@ assert.match(topicCardsBody, /readExpandedPluginTopics\(\)/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_EXPANDED_STORAGE_KEY = "hermesPluginTopicExpanded";/);
 assert.match(pluginTopicsUi, /function pluginTopicExpandedStorageKey\(workspaceId = pluginTopicUsageWorkspaceId\(\)\)/);
 assert.match(pluginTopicsUi, /function setPluginTopicExpanded\(pluginId, expanded\)/);
-assert.doesNotMatch(topicCardsBody, /data-plugin-topic-open-app/);
 
 assert.doesNotMatch(quickActionsBody, /preferred/);
 assert.match(quickActionsBody, /const pluginEntry = pluginTopicUsageEntry\(usage, def\.id\);/);
