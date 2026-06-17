@@ -297,6 +297,14 @@ function handleForegroundPushMessage(eventData = {}) {
   }
 }
 
+function pushShouldRefreshCurrentThread(messageType, pushThreadId, pushWorkspaceId) {
+  if (!["single", "tasks"].includes(state.viewMode)) return false;
+  if (pushWorkspaceId && pushWorkspaceId !== state.selectedWorkspaceId) return false;
+  if (pushThreadId && pushThreadId !== state.currentThreadId) return false;
+  if (["task_completed", "task_failed"].includes(String(messageType || ""))) return true;
+  return currentThreadHasPendingMessages();
+}
+
 const handleForegroundPushMessageBase = handleForegroundPushMessage;
 handleForegroundPushMessage = function handleForegroundPushMessageWithBusinessToast(eventData = {}) {
   handleForegroundPushMessageBase(eventData);
@@ -313,7 +321,7 @@ handleForegroundPushMessage = function handleForegroundPushMessageWithBusinessTo
   if (typeof refreshAutomationAfterPush === "function") refreshAutomationAfterPush(eventData).catch(showError);
   if (typeof refreshActionInboxAfterPush === "function") refreshActionInboxAfterPush(eventData).catch(showError);
   if (
-    terminalTaskPush
+    pushShouldRefreshCurrentThread(messageType, pushThreadId, pushWorkspaceId)
     && samePushWorkspace
     && (
       currentThreadHasPendingMessages()

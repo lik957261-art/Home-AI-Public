@@ -77,12 +77,24 @@ function handleAppForegrounded() {
   suppressComposerAutoFocus(900);
   blurComposerInput();
   if (typeof persistAppRouteSnapshot === "function") persistAppRouteSnapshot("foreground");
+  refreshPendingCurrentThreadOnForeground();
   if (state.viewMode === "todos") scheduleTodoAutoRefresh();
   if (state.viewMode === "inbox") loadActionInbox({ silent: true, preserveScroll: true }).catch(showError);
   if (typeof settleEmbeddedPluginViewportBroadcast === "function") settleEmbeddedPluginViewportBroadcast("host_foreground");
   if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation("host_foreground", [0, 80, 240, 520, 1000]);
   if (typeof scheduleClientLayoutDiagnostics === "function") scheduleClientLayoutDiagnostics("host_foreground", [0, 300, 1200]);
   scheduleConversationViewportRefresh();
+}
+
+function refreshPendingCurrentThreadOnForeground() {
+  if (!["single", "tasks"].includes(state.viewMode)) return;
+  if (typeof currentThreadHasPendingMessages !== "function") return;
+  if (typeof requestCurrentThreadRefresh !== "function") return;
+  if (!currentThreadHasPendingMessages()) return;
+  const now = Date.now();
+  if (now < Number(state.foregroundPendingThreadRefreshAfter || 0)) return;
+  state.foregroundPendingThreadRefreshAfter = now + 2500;
+  requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 120 });
 }
 
 function focusComposerSoon(options = {}) {
