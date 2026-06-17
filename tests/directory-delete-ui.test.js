@@ -59,6 +59,7 @@ function directoryButton() {
       deleteDirectoryPath: "/root/folder",
       deleteDirectoryName: "folder",
       deleteDirectoryType: "directory",
+      deleteConfirmUntil: String(Date.now() + 5000),
     },
   };
 }
@@ -94,6 +95,10 @@ async function testFileDeleteShowsProgressAndCallsDeleteApi() {
     calls.push(["api", targetPath, JSON.parse(options.body)]);
     return { ok: true };
   };
+
+  await context.deleteDirectoryEntry(button);
+  assert.equal(button.textContent, "再点删除");
+  assert.equal(calls.some((item) => item[0] === "api"), false);
 
   await context.deleteDirectoryEntry(button);
 

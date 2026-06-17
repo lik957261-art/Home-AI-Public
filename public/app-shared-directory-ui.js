@@ -207,7 +207,15 @@ async function deleteDirectoryEntry(button) {
   const message = type === "directory"
     ? `删除目录“${name}”？如果目录非空，需要 Owner 高权限批准后才会递归删除。`
     : `删除文件“${name}”？`;
-  if (!window.confirm(message)) return;
+  const now = Date.now();
+  const armedUntil = Number(button.dataset.deleteConfirmUntil || 0);
+  if (!armedUntil || armedUntil < now) {
+    button.dataset.deleteConfirmUntil = String(now + 5000);
+    button.textContent = "再点删除";
+    if (typeof showPushToast === "function") showPushToast(message);
+    return;
+  }
+  delete button.dataset.deleteConfirmUntil;
   if (typeof showPushToast === "function") showPushToast(type === "directory" ? "正在删除目录..." : "正在删除文件...");
   const previousText = button.textContent;
   button.textContent = type === "directory" ? "删除中..." : "删除中...";
@@ -255,7 +263,7 @@ async function deleteDirectoryEntry(button) {
     }
   } finally {
     button.disabled = false;
-    button.textContent = previousText || "删除";
+    button.textContent = previousText === "再点删除" ? "删除" : (previousText || "删除");
   }
   if (!directoryActivePath() || wasRootListProject) await loadProjects();
   await loadDirectoryView();
