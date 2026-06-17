@@ -166,14 +166,17 @@ function sanitizePublicText(text) {
 function copyFile(relativePath, outDir) {
   const source = path.join(REPO_ROOT, relativePath);
   const target = path.join(outDir, relativePath);
+  const sourceMode = fs.statSync(source).mode & 0o777;
   fs.mkdirSync(path.dirname(target), { recursive: true });
   if (isPublicTextFile(relativePath)) {
     let text = fs.readFileSync(source, "utf8");
     if (normalizePath(relativePath) === "README.md") text = transformPublicReadme(text);
     fs.writeFileSync(target, sanitizePublicText(text), "utf8");
+    fs.chmodSync(target, sourceMode);
     return;
   }
   fs.copyFileSync(source, target);
+  fs.chmodSync(target, sourceMode);
 }
 
 function sourceCommit() {
