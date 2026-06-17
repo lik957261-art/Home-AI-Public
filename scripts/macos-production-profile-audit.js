@@ -68,7 +68,7 @@ function escapeRegExp(value) {
 
 function parseArgs(argv) {
   const out = {
-    root: process.env.HERMES_MOBILE_ROOT || "/Users/hermes-host/HermesMobile",
+    root: process.env.HERMES_MOBILE_ROOT || "/Users/example/path",
     expectedWorkspaces: ["owner", "weixin_wuping", "weixin_stephen", "user-981731fe", "user-a87aaa61"],
     expectedPlugins: ["wardrobe", "finance", "note", "email", "health"],
     requiredWorkspacePlugins: DEFAULT_REQUIRED_WORKSPACE_PLUGINS,
@@ -759,7 +759,7 @@ function requiredSkillOptions(pluginId) {
 
 function buildAudit(options) {
   options = Object.assign({
-    root: "/Users/hermes-host/HermesMobile",
+    root: "/Users/example/path",
     expectedWorkspaces: ["owner", "weixin_wuping", "weixin_stephen", "user-981731fe", "user-a87aaa61"],
     expectedPlugins: ["wardrobe", "finance", "note", "email", "health"],
     requiredWorkspacePlugins: DEFAULT_REQUIRED_WORKSPACE_PLUGINS,

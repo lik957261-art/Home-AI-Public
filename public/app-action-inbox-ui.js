@@ -126,6 +126,7 @@ function actionInboxFilterQuery() {
   const params = new URLSearchParams({ workspaceId: state.selectedWorkspaceId || "owner", limit: "120" });
   if (filter === "todo") {
     params.set("itemType", "todo");
+    params.set("sourceType", "manual");
   } else {
     params.set("excludeItemType", "todo");
   }
@@ -155,7 +156,7 @@ function actionInboxItemType(item = {}) {
 function actionInboxItemsForActiveFilter(items = []) {
   const list = Array.isArray(items) ? items : [];
   const filter = String(state.actionInboxStatusFilter || "open").trim().toLowerCase();
-  if (filter === "todo") return list.filter((item) => actionInboxItemType(item) === "todo");
+  if (filter === "todo") return list.filter(actionInboxIsManualTodo);
   return list.filter((item) => actionInboxItemType(item) !== "todo");
 }
 

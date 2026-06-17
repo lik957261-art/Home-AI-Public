@@ -18,11 +18,11 @@ The development environment and production environment are separate security
 domains:
 
 ```text
-Development root: /Users/hermes-dev/HermesMobileDev
+Development root: /Users/example/path
 Development control user: xuxin
-Production root: /Users/hermes-host/HermesMobile
-Production app: /Users/hermes-host/HermesMobile/app
-Production plugins: /Users/hermes-host/HermesMobile/plugins
+Production root: /Users/example/path
+Production app: /Users/example/path
+Production plugins: /Users/example/path
 ```
 
 The development user must not receive normal write access to production app or
@@ -34,21 +34,21 @@ a filesystem edit in the live tree.
 The shared target paths are:
 
 ```text
-home-ai app -> /Users/hermes-host/HermesMobile/app
-codex-mobile-web -> /Users/hermes-host/HermesMobile/plugins/codex-mobile-web
+home-ai app -> /Users/example/path
+codex-mobile-web -> /Users/example/path
   (Home AI embedded plugin variant only; independently deployed Codex Mobile
   Web instances are outside this production target contract unless they
   explicitly opt into Home AI embedded-plugin deployment)
-email -> /Users/hermes-host/HermesMobile/plugins/email
-finance -> /Users/hermes-host/HermesMobile/plugins/finance
-growth -> /Users/hermes-host/HermesMobile/plugins/growth
-healthy -> /Users/hermes-host/HermesMobile/plugins/healthy
-moira -> /Users/hermes-host/HermesMobile/plugins/moira
-note -> /Users/hermes-host/HermesMobile/plugins/note
-wardrobe -> /Users/hermes-host/HermesMobile/plugins/wardrobe
+email -> /Users/example/path
+finance -> /Users/example/path
+growth -> /Users/example/path
+healthy -> /Users/example/path
+moira -> /Users/example/path
+note -> /Users/example/path
+wardrobe -> /Users/example/path
 ```
 
-Future plugins must use `/Users/hermes-host/HermesMobile/plugins/<plugin-id>`
+Future plugins must use `/Users/example/path<plugin-id>`
 unless a different production path is recorded in the plugin manifest and in
 `docs/RUNBOOKS/macos-production-access.md`.
 
@@ -66,8 +66,8 @@ that uses:
 - a restart decision based on the changed service surface;
 - post-deploy validation.
 
-Direct live edits such as opening `/Users/hermes-host/HermesMobile/app` or
-`/Users/hermes-host/HermesMobile/plugins/<plugin>` as a normal Codex workspace,
+Direct live edits such as opening `/Users/example/path` or
+`/Users/example/path<plugin>` as a normal Codex workspace,
 changing files there, and then treating that as deployment are forbidden.
 
 ## Required Deploy Plan
@@ -76,11 +76,11 @@ Every deployment must have a concise plan before production writes:
 
 ```text
 target: home-ai | plugin:<plugin-id>
-source_path: /Users/hermes-dev/HermesMobileDev/...
-production_path: /Users/hermes-host/HermesMobile/...
+source_path: /Users/example/path
+production_path: /Users/example/path
 source_ref: git commit or dirty-tree description
 changed_surface: static | node-service | plugin-service | launchd | data-repair
-backup_path: /Users/hermes-host/HermesMobile/.../.deploy-backups/<timestamp>-<reason>
+backup_path: /Users/example/path<timestamp>-<reason>
 restart_labels: launchd labels to restart, or none
 validation: commands/smokes to run after deploy
 rollback: restore backup and restart labels
@@ -113,7 +113,7 @@ tree. They must exclude:
 The production-side sync must preserve production-owned runtime state. For
 normal source deploys, do not overwrite:
 
-- `/Users/hermes-host/HermesMobile/data`;
+- `/Users/example/path`;
 - plugin runtime data directories;
 - production-owned virtual environments such as plugin `.venv/` directories;
 - workspace-local `.hermes-*` key/config directories;
@@ -130,7 +130,7 @@ After sync, the central deploy script must restore the production target owner.
 The default owner is `hermes-host:staff`; the Codex Mobile plugin uses
 `xuxin:staff` because its production launchd service runs as `xuxin`.
 Codex Mobile deployments must also keep launchd stdout/stderr in the service
-user's runtime root: `/Users/xuxin/.codex-mobile-web/logs`. The deploy script
+user's runtime root: `/Users/example/path`. The deploy script
 must ensure the two log files are `xuxin:staff` mode `600`, set
 `com.hermesmobile.plugin.codex-mobile` `StandardOutPath` / `StandardErrorPath`
 to those runtime logs, and reload the LaunchDaemon. Otherwise launchd can fail
@@ -179,7 +179,7 @@ Use the smallest sufficient set:
   reproduce/fix loop before recording final bounded evidence:
 
   ```bash
-  cd /Users/hermes-dev/HermesMobileDev/app
+  cd /Users/example/path
   npm run ios:pwa:debug
   ```
 
@@ -224,7 +224,7 @@ If the plugin thread starts from a plugin workspace, it must still load the
 central Home AI contract from:
 
 ```text
-/Users/hermes-dev/HermesMobileDev/app/docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md
+/Users/example/path
 ```
 
 The plugin-local `AGENTS.md`, `.agent-context/PROJECT_CONTEXT.md`,
@@ -246,13 +246,13 @@ Every plugin project must expose or document:
 For standard Mac development workspaces, the source path should be:
 
 ```text
-/Users/hermes-dev/HermesMobileDev/plugins/<plugin-id>
+/Users/example/path<plugin-id>
 ```
 
 The production target should be:
 
 ```text
-/Users/hermes-host/HermesMobile/plugins/<plugin-id>
+/Users/example/path<plugin-id>
 ```
 
 Plugin deployment scripts or plugin Codex threads should call the central Home
@@ -260,7 +260,7 @@ AI deploy script. The shared access shape is:
 
 ```text
 --password-file <private-local-password-file>
---mac-root /Users/hermes-host/HermesMobile
+--mac-root /Users/example/path
 --source <development-source-path>
 --plugin <plugin-id|all>
 --restart-label <plugin-launchd-label>
@@ -290,7 +290,7 @@ Use an explicit source-only sync first, then the shared installer from the Home
 AI app workspace:
 
 ```bash
-npm run --silent deploy:macos -- --plugin growth --source /Users/hermes-dev/HermesMobileDev/plugins/growth --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
 ```
 
 ```bash
@@ -327,7 +327,7 @@ scope is Owner-only and the Home AI host uses its server-side Owner web key for
 the Owner launch exchange:
 
 ```bash
-npm run --silent deploy:macos -- --plugin moira --source /Users/hermes-dev/HermesMobileDev/plugins/moira --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin moira --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
 node scripts/install-moira-launchd-service.js --json
 node scripts/install-moira-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
 ```
@@ -342,7 +342,7 @@ set:
 ```text
 HERMES_MOBILE_GROWTH_PLUGIN_MANIFEST_URL=http://127.0.0.1:4881/api/v1/hermes/plugin/manifest
 HERMES_MOBILE_PLUGIN_GROWTH_MANIFEST_URL=http://127.0.0.1:4881/api/v1/hermes/plugin/manifest
-HERMES_MOBILE_GROWTH_PLUGIN_OWNER_KEY_PATH=/Users/hermes-host/HermesMobile/data/plugin-secrets/growth-registration-key.txt
+HERMES_MOBILE_GROWTH_PLUGIN_OWNER_KEY_PATH=/Users/example/path
 ```
 
 Without the owner key path, Home AI can display the Growth manifest but
@@ -353,8 +353,8 @@ If the current shell is in a plugin workspace, call the Home AI script by
 absolute path or change directory to the Home AI app workspace first:
 
 ```bash
-cd /Users/hermes-dev/HermesMobileDev/app
-npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/hermes-dev/HermesMobileDev/plugins/<plugin-id> --json
+cd /Users/example/path
+npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/example/path<plugin-id> --json
 ```
 
 The Home AI app deployment command shape is:

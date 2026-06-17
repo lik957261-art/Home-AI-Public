@@ -11,7 +11,7 @@ const DEFAULT_ALLOWED_ROOTS = ["data/drive", "data/uploads", "data/artifacts"];
 
 function parseArgs(argv) {
   const out = {
-    root: process.env.HERMES_MOBILE_ROOT || "/Users/hermes-host/HermesMobile",
+    root: process.env.HERMES_MOBILE_ROOT || "/Users/example/path",
     profiles: [],
     python: "",
     keep: false,

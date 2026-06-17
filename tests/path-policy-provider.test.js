@@ -12,8 +12,8 @@ function run() {
     isGloballyAllowedPath: (value) => /C:\/ProgramData\/HermesMobile\/data\/artifacts/i.test(String(value || "")),
     uploadRootsForThread: () => ["C:/ProgramData/HermesMobile/data/uploads/thread-one"],
     policyForThread: (thread) => thread.policy || {},
-    ownerRootsForThread: () => ["C:/Users/xuxin/Documents"],
-    directoryOwnerRootsForThread: () => ["C:/Users/xuxin/Documents", "C:/Users/xuxin/SynologyDrive"],
+    ownerRootsForThread: () => ["C:/Users/example/path"],
+    directoryOwnerRootsForThread: () => ["C:/Users/example/path", "C:/Users/example/path"],
     audit: (eventType, payload) => audits.push({ eventType, payload }),
   });
 
@@ -46,7 +46,7 @@ function run() {
   assert.match(deniedAudit.payload.pathFingerprint, /^[a-f0-9]{16}$/);
 
   const ownerThread = { id: "owner-thread", policy: { principal_id: "owner", access_mode: "unrestricted" } };
-  assert.equal(provider.canBrowseDirectoryForThread(ownerThread, "C:/Users/xuxin/SynologyDrive/Reports").allowed, true);
+  assert.equal(provider.canBrowseDirectoryForThread(ownerThread, "C:/Users/example/path").allowed, true);
   assert.throws(() => provider.assertChildPathInside("C:/root/a", "C:/root"), /escapes/);
   assert.equal(provider.assertChildPathInside("C:/root/a", "C:/root/a/b"), true);
 

@@ -42,7 +42,7 @@ function normalizePluginIds(value, fallback = DEFAULT_PLUGIN_IDS) {
 
 function defaultLiveRoot(input = {}, options = {}) {
   return stringValue(input.liveRoot || input.live_root || options.liveRoot)
-    || "/Users/hermes-host/HermesMobile";
+    || "/Users/example/path";
 }
 
 function workspacePaths(input = {}, options = {}) {

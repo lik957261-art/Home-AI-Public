@@ -42,14 +42,14 @@ const {
 } = require("../scripts/macos-plugin-directory-production-smoke");
 
 const parsed = parseArgs([]);
-assert.equal(parsed.root, "/Users/hermes-host/HermesMobile");
+assert.equal(parsed.root, "/Users/example/path");
 assert.equal(parsed.base, "http://127.0.0.1:8797");
 assert.ok(parsed.accessKeyFile.endsWith("/data/secrets/owner-web-key.secret"));
 assert.equal(AUTH_HEADER, "X-Hermes-Web-Key");
 assert.deepEqual(PLUGIN_FOLDERS, ["衣橱", "记账", "邮箱", "健康", "笔记"]);
 
 assert.equal(
-  compactPath("/Users/hermes-host/HermesMobile/data/drive/users/owner/Hermes-徐欣", parsed.root),
+  compactPath("/Users/example/path", parsed.root),
   "$DRIVE/users/owner/Hermes-徐欣",
 );
 assert.equal(
@@ -62,7 +62,7 @@ assert.equal(
 );
 
 const compacted = compactError(
-  "EACCES: permission denied, mkdir '/Users/hermes-host/HermesMobile/data/drive/users/owner/Hermes-徐欣/Eileen/插件'",
+  "EACCES: permission denied, mkdir '/Users/example/path'",
   parsed.root,
 );
 assert.match(compacted, /\$DRIVE\/users\/owner\/Hermes-徐欣\/Eileen\/插件/);

@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_ROOT = "/Users/example/path";
 const PYTHON = "/usr/bin/python3";
 
 const ENGINES = Object.freeze({

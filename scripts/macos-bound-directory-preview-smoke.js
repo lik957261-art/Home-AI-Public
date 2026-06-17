@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_ROOT = "/Users/example/path";
 
 function parseArgs(argv) {
   const out = {

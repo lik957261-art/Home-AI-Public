@@ -4,7 +4,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_BASE = "http://127.0.0.1:8797";
 const AUTH_PROCESS_PATTERN = "[a]uth add xai-oauth|[m]acos-grok-xai-reauth";
 const macPath = path.posix;
@@ -74,7 +74,7 @@ function parseArgs(argv) {
     else if (arg === "--help") {
       console.log([
         "Usage: node scripts/macos-production-closure-validation.js [options]",
-        "  --root <dir>              Mac production root, default /Users/hermes-host/HermesMobile",
+        "  --root <dir>              Mac production root, default /Users/example/path",
         "  --app <dir>               Live app path, default <root>/app",
         "  --node <file>             Pinned Node path, default <root>/runtime/node-current/bin/node",
         "  --base <url>              Home AI origin, default http://127.0.0.1:8797",
@@ -516,7 +516,7 @@ async function runClosure(options) {
       options,
       "wuping",
       "hm-wuping-openai-1",
-      "/Users/hm-wuping/HermesWorkspace/.hermes-gateway/profiles",
+      "/Users/example/path",
       requiredTools(MAC_BASE_SCHEMA_TOOLS, [
         "mcp_wardrobe_wardrobe_search_items",
         "mcp_wardrobe_wardrobe_write_history",
@@ -529,7 +529,7 @@ async function runClosure(options) {
       options,
       "owner",
       "hm-owner-openai-1",
-      "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles",
+      "/Users/example/path",
       requiredTools(MAC_BASE_SCHEMA_TOOLS, [
         "mcp_health_records_get_summary",
         "mcp_note_notes_create",
@@ -539,7 +539,7 @@ async function runClosure(options) {
       options,
       "test",
       "hm-test-openai-1",
-      "/Users/hm-test/HermesWorkspace/.hermes-gateway/profiles",
+      "/Users/example/path",
       requiredTools(MAC_BASE_SCHEMA_TOOLS, [
         "mcp_wardrobe_wardrobe_search_items",
         "mcp_finance_list_ledgers",

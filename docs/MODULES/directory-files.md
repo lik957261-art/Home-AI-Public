@@ -74,6 +74,11 @@ task directory attachment, and automation deliverable access.
 - Direct Directory UI file deletion must never fail silently. If the client
   cannot resolve the entry path from the row action payload, it must surface a
   visible error toast instead of returning without feedback.
+- Directory content migration must use the checked mutation boundary rather
+  than raw filesystem paths. `/api/directories/move-contents` moves direct
+  children only after resolving both source and target through the same
+  directory thread/workspace, requires both directories to be writable local
+  directories, and fails on target-name conflicts instead of overwriting.
 - A direct delete error such as `EACCES: permission denied, rmdir ...` after
   Owner elevation is a filesystem ownership/mode problem, not another model or
   Gateway permission prompt. Mac production diagnostics must catch

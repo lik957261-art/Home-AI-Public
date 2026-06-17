@@ -67,7 +67,7 @@ assert.match(styles, /:root\[data-theme="dark"\] \.action-inbox-item-summary \{[
 
 assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&excludeItemType=todo&status=open");
 sandbox.state.actionInboxStatusFilter = "todo";
-assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&itemType=todo");
+assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&itemType=todo&sourceType=manual");
 sandbox.state.actionInboxStatusFilter = "all";
 assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&excludeItemType=todo&includeDone=1");
 sandbox.state.actionInboxStatusFilter = "open";
@@ -79,7 +79,8 @@ assert.match(filterHtml, /data-action-inbox-filter="todo"[^>]*>\u5f85\u529e<\/bu
 assert.match(filterHtml, /data-action-inbox-filter="all"[^>]*>\u5176\u4ed6<\/button>/);
 
 const mixedInboxItems = [
-  { id: "todo-row", itemType: "todo" },
+  { id: "todo-row", sourceType: "manual", itemType: "todo" },
+  { id: "automation-todo-row", sourceType: "automation", itemType: "todo" },
   { id: "delivery-row", itemType: "delivery" },
   { id: "error-row", item_type: "error" },
 ];

@@ -2,7 +2,7 @@
 
 const fs = require("node:fs");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_BASE = "http://127.0.0.1:8797";
 const AUTH_HEADER = "X-Hermes-Web-Key";
 const PLUGIN_FOLDERS = Object.freeze(["衣橱", "记账", "邮箱", "健康", "笔记"]);
@@ -27,7 +27,7 @@ function parseArgs(argv) {
     else if (arg === "--help") {
       console.log([
         "Usage: node scripts/macos-plugin-directory-production-smoke.js [options]",
-        "  --root <dir>              Mac production root, default /Users/hermes-host/HermesMobile",
+        "  --root <dir>              Mac production root, default /Users/example/path",
         "  --base <url>              Home AI origin, default http://127.0.0.1:8797",
         "  --access-key-file <file>  Owner Web key file; path and contents are not printed",
         "  --workspace <id>          Optional workspace filter; may be repeated",

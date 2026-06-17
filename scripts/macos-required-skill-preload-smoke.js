@@ -5,7 +5,7 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { createPluginRequiredSkillPreloadService } = require("../adapters/plugin-required-skill-preload-service");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_ROOT = "/Users/example/path";
 const SENSITIVE_PATH_RE = /(?:^|[/\\])(?:access-key|workspace-key|api-key|key|token|secret|credential|password|cookie)[^/\\]*(?:$|[/\\])/i;
 const DEFAULT_CHECKS = Object.freeze([
   {
@@ -39,7 +39,7 @@ function parseArgs(argv) {
     else if (arg === "--help") {
       console.log([
         "Usage: node scripts/macos-required-skill-preload-smoke.js [options]",
-        "  --root <dir>           Mac production root, default /Users/hermes-host/HermesMobile",
+        "  --root <dir>           Mac production root, default /Users/example/path",
         "  --app <dir>            Live app path, default <root>/app",
         "  --node <file>          Pinned Node path, default <root>/runtime/node-current/bin/node",
         "  --listener-user <user> Listener user that must read required Skill bundles, default hermes-host",

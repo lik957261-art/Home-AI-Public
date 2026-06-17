@@ -160,7 +160,7 @@ On Mac production, the central deployment script installs this wrapper as the
 `HERMES_CRON_SCRIPT_TIMEOUT=1800` so long-running `no_agent` scripts such as the
 NAS disaster backup are not killed by the official 120-second default. The job
 store is the canonical Hermes home file
-`/Users/hermes-host/HermesMobile/data/hermes-home/cron/jobs.json`; operators and
+`/Users/example/path`; operators and
 agents must not create native OS cron/launchd jobs for individual Home AI
 Automation tasks.
 
@@ -217,7 +217,7 @@ a separate local Automation store.
 Model-backed CRON jobs that write files must use an explicit persistent
 `workdir` under the runtime data tree, not the Home AI app/code directory. The
 macOS deployment path syncs the app directory with `rsync --delete`; any
-job-created directories under `/Users/hermes-host/HermesMobile/app` are
+job-created directories under `/Users/example/path` are
 deployment scratch and can be removed. User-visible reports, cursors,
 intermediate indexes, and `MEDIA:` deliverables should live under a data root
 such as `$HERMES_HOME/automation-workspaces/<job>/...` or another authorized

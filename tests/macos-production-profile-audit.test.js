@@ -291,7 +291,7 @@ try {
       text: [
         'MOBILE_BRIDGE_HOST_URL="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8798}}"',
         'MOBILE_BRIDGE_HOST_KEY_PATH="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/data/secrets/bridge-host.secret}}"',
-        'exec env HOME="/Users/hm-owner" "$ROOT/runtime/hermes-agent-official/venv/bin/python" -m hermes_cli.main gateway run --replace --accept-hooks',
+        'exec env HOME="/Users/example/path" "$ROOT/runtime/hermes-agent-official/venv/bin/python" -m hermes_cli.main gateway run --replace --accept-hooks',
       ].join("\n"),
     }),
   });
@@ -416,8 +416,8 @@ try {
       exists: true,
       text: file.includes("legacy")
         ? [
-          "ROOT='/Users/hermes-dev/HermesMobileDev'",
-          "exec env HOME='/Users/hm-weixin-stephen' PYTHONPATH=\"$RUNTIME_OVERRIDES:$RUNTIME_SOURCE\" \"$RUNTIME_PYTHON\" -m hermes_cli.main gateway run --replace --accept-hooks",
+          "ROOT='/Users/example/path'",
+          "exec env HOME='/Users/example/path' PYTHONPATH=\"$RUNTIME_OVERRIDES:$RUNTIME_SOURCE\" \"$RUNTIME_PYTHON\" -m hermes_cli.main gateway run --replace --accept-hooks",
         ].join("\n")
         : [
           `ROOT="${tempRoot}"`,

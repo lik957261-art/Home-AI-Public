@@ -25,10 +25,10 @@ Current Mac Studio production facts:
 LAN host: 192.168.10.110
 Tailnet HTTPS: <tailnet-https-origin>
 Default SSH user: <mac-admin-user>
-Production root: /Users/hermes-host/HermesMobile
-Production app: /Users/hermes-host/HermesMobile/app
-Production data: /Users/hermes-host/HermesMobile/data
-Production plugins: /Users/hermes-host/HermesMobile/plugins
+Production root: /Users/example/path
+Production app: /Users/example/path
+Production data: /Users/example/path
+Production plugins: /Users/example/path
 Listener URL on Mac loopback: http://127.0.0.1:8797
 Listener launchd label: com.hermesmobile.listener
 Automation cron tick launchd label: com.hermesmobile.cron
@@ -95,7 +95,7 @@ Example safe shape:
 
 ```powershell
 Get-Content -Raw $env:HOMEAI_MAC_SUDO_PASSWORD_FILE |
-  ssh homeai-mac "sudo -S /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js --json"
+  ssh homeai-mac "sudo -S /Users/example/path /Users/example/path --json"
 ```
 
 The environment variable name is the durable interface:
@@ -140,14 +140,14 @@ startup files, user `PATH`, `.zshrc`, `.bashrc`, or `sudo` secure path.
 Preferred Node path:
 
 ```text
-/Users/hermes-host/HermesMobile/runtime/node-current/bin/node
+/Users/example/path
 ```
 
 Examples:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js \
+sudo /Users/example/path \
+  /Users/example/path \
   --json
 ```
 
@@ -190,7 +190,7 @@ permission/quoting retries.
   redirection such as `< script.sql` in the same remote command. That
   redirection steals stdin from `sudo -S`. Use `sqlite3 database '.read
   /tmp/script.sql'` or a temporary script instead.
-- If a command needs `cd /Users/hermes-host/HermesMobile/app`, put the `cd` and
+- If a command needs `cd /Users/example/path`, put the `cd` and
   the command inside the same sudo shell. `ssh homeai-mac "cd <prod> && sudo
   ..."` fails before sudo because the control user cannot traverse the app root.
 - Apply sudo to the whole command chain. `sudo cmd1 && cmd2` leaves `cmd2`
@@ -213,28 +213,28 @@ The Mac development environment is intentionally separate from production:
 
 ```text
 Development entrypoint for xuxin/Codex:
-/Users/xuxin/Developer/HomeAIDev
+/Users/example/path
 
 Development root:
-/Users/hermes-dev/HermesMobileDev
+/Users/example/path
 
 Production root:
-/Users/hermes-host/HermesMobile
+/Users/example/path
 
 Single production Codex Mobile plugin service:
 com.hermesmobile.plugin.codex-mobile on 127.0.0.1:8787
 ```
 
 Codex running as macOS user `xuxin` may have full local development access to
-`/Users/hermes-dev/HermesMobileDev` so remote Codex Mobile control and local
+`/Users/example/path` so remote Codex Mobile control and local
 Mac Codex CLI/App sessions can edit, test, and run development code without
 extra prompts.
 
 There should still be only one active Codex Mobile service. The Home AI
 production plugin entry runs the production Codex Mobile Web service as
 `xuxin`, with `CODEX_HOME` pointing at the `xuxin` Codex home and
-`CODEX_MOBILE_RUNTIME_DIR` under `/Users/xuxin/.codex-mobile-web`. The cloned
-development repository under `/Users/hermes-dev/HermesMobileDev/plugins` is a
+`CODEX_MOBILE_RUNTIME_DIR` under `/Users/example/path`. The cloned
+development repository under `/Users/example/path` is a
 source working tree, not a second long-lived Codex Mobile runtime.
 
 Do not grant `xuxin` normal read/write access to the production app root as a
@@ -248,21 +248,21 @@ The production Codex Mobile plugin service needs a narrow exception so launchd
 can restart it:
 
 ```text
-/Users/hermes-host                         xuxin traverse/search only
-/Users/hermes-host/HermesMobile            xuxin traverse/search only
-/Users/hermes-host/HermesMobile/plugins    xuxin traverse/search only
-/Users/hermes-host/HermesMobile/plugins/codex-mobile-web
+/Users/example/path                         xuxin traverse/search only
+/Users/example/path            xuxin traverse/search only
+/Users/example/path    xuxin traverse/search only
+/Users/example/path
                                            xuxin read/search/execute only
 ```
 
-Do not extend that exception to `/Users/hermes-host/HermesMobile/app` or to
+Do not extend that exception to `/Users/example/path` or to
 other production plugin source roots unless a service has a specific run-user
 need and the exception is recorded.
 
 Mac development workspaces used by the single production Codex Mobile service
-are registered in `/Users/xuxin/.codex-mobile-web/workspace-registry.json`.
-Use canonical real paths under `/Users/hermes-dev/HermesMobileDev/...` as the
-visible workspace roots, not `/Users/xuxin/Developer/HomeAIDev/<repo>` symlink
+are registered in `/Users/example/path`.
+Use canonical real paths under `/Users/example/path` as the
+visible workspace roots, not `/Users/example/path<repo>` symlink
 paths. Codex normalizes new thread `cwd` values to real paths, so registering
 only the symlink path lets a new thread start successfully but disappear from
 the workspace's thread list. The `HomeAIDev` symlinks remain convenient Finder
@@ -273,14 +273,14 @@ state files so Desktop and the embedded Codex Mobile plugin expose the same
 workspaces:
 
 ```text
-/Users/xuxin/.codex/.codex-global-state.json
-/Users/xuxin/.codex-homes/previous/.codex-global-state.json
+/Users/example/path
+/Users/example/path
 ```
 
 The relevant keys are `electron-saved-workspace-roots`, `project-order`, and
 `active-workspace-roots`. These files contain local UI/workspace state, not
 auth tokens, but still back them up before operational edits. Do not add
-`/Users/hermes-host/HermesMobile/app` as a normal workspace root.
+`/Users/example/path` as a normal workspace root.
 
 For the single production Codex Mobile service, future Mobile-created
 development workspaces should also sync to Codex Desktop. Start the
@@ -293,9 +293,9 @@ API should expose only a sync boolean/count, not the local `.codex` file paths.
 Current development CLI tools exposed to `xuxin`:
 
 ```text
-/Users/xuxin/Developer/HomeAIDev/bin/node
-/Users/xuxin/Developer/HomeAIDev/bin/npm
-/Users/xuxin/Developer/HomeAIDev/bin/codex
+/Users/example/path
+/Users/example/path
+/Users/example/path
 ```
 
 `/usr/local/bin/node`, `/usr/local/bin/npm`, `/usr/local/bin/npx`, and
@@ -307,7 +307,7 @@ to run production commands without explicit production sudo boundaries.
 
 Home AI and every plugin must follow
 `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`.
-Development source is prepared under `/Users/hermes-dev/HermesMobileDev`;
+Development source is prepared under `/Users/example/path`;
 production source roots are updated only by a bounded deploy operation with a
 pre-deploy backup, controlled sync/install command, targeted restart decision,
 and post-deploy validation.
@@ -318,7 +318,7 @@ Use the shared Home AI deploy script as the default entrypoint:
 node scripts/deploy-macos-production.js --target home-ai --json
 node scripts/deploy-macos-production.js --plugin finance --json
 npm run --silent deploy:macos -- --target home-ai --json
-npm run --silent deploy:macos -- --plugin finance --source /Users/hermes-dev/HermesMobileDev/plugins/finance --json
+npm run --silent deploy:macos -- --plugin finance --source /Users/example/path --json
 npm run --silent deploy:macos -- --plugin all --json
 ```
 
@@ -342,7 +342,7 @@ Growth first production install also needs a source-only sync followed by the
 shared launchd installer:
 
 ```bash
-npm run --silent deploy:macos -- --plugin growth --source /Users/hermes-dev/HermesMobileDev/plugins/growth --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
 ```
 
 ```bash
@@ -367,7 +367,7 @@ Moira first production install also uses source-only sync before its LaunchDaemo
 exists:
 
 ```bash
-npm run --silent deploy:macos -- --plugin moira --source /Users/hermes-dev/HermesMobileDev/plugins/moira --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin moira --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
 node scripts/install-moira-launchd-service.js --json
 node scripts/install-moira-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
 ```
@@ -381,11 +381,11 @@ workspace has a server-side `.hermes-moira` key path.
 Plugin workspaces should read the central deployment contract before deploys:
 
 ```text
-/Users/hermes-dev/HermesMobileDev/app/docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md
+/Users/example/path
 ```
 
 If a deployment is initiated from a plugin Codex thread, the thread should call
-the Home AI app deploy script by changing to `/Users/hermes-dev/HermesMobileDev/app`
+the Home AI app deploy script by changing to `/Users/example/path`
 or by using the script's absolute path. Plugin-local code may provide
 plugin-specific facts such as label, health URL, MCP schema check, and data
 readback check, but must not define a separate production sudo or direct-write
@@ -398,7 +398,7 @@ Plugin deployment scripts should expose one shared access interface:
 ```text
 --ssh-alias homeai-mac
 --password-file <private-local-password-file>
---mac-root /Users/hermes-host/HermesMobile
+--mac-root /Users/example/path
 --source <development-source-path>
 --target-plugin <plugin-id>
 ```
@@ -414,26 +414,26 @@ They should not hard-code:
 For plugin services, use the plugin's production source path under:
 
 ```text
-/Users/hermes-host/HermesMobile/plugins/<plugin>
+/Users/example/path<plugin>
 ```
 
 Current standard plugin targets are:
 
 ```text
-codex-mobile-web -> /Users/hermes-host/HermesMobile/plugins/codex-mobile-web
-email -> /Users/hermes-host/HermesMobile/plugins/email
-finance -> /Users/hermes-host/HermesMobile/plugins/finance
-growth -> /Users/hermes-host/HermesMobile/plugins/growth
-healthy -> /Users/hermes-host/HermesMobile/plugins/healthy
-moira -> /Users/hermes-host/HermesMobile/plugins/moira
-note -> /Users/hermes-host/HermesMobile/plugins/note
-wardrobe -> /Users/hermes-host/HermesMobile/plugins/wardrobe
+codex-mobile-web -> /Users/example/path
+email -> /Users/example/path
+finance -> /Users/example/path
+growth -> /Users/example/path
+healthy -> /Users/example/path
+moira -> /Users/example/path
+note -> /Users/example/path
+wardrobe -> /Users/example/path
 ```
 
 For Home AI app checks, use:
 
 ```text
-/Users/hermes-host/HermesMobile/app
+/Users/example/path
 ```
 
 ## Required Production Validation
@@ -441,22 +441,22 @@ For Home AI app checks, use:
 After production deployment, use the relevant platform checks:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js \
+sudo /Users/example/path \
+  /Users/example/path \
   --json
 ```
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --json
 ```
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-worker-filesystem-access-harness.js \
-  --root /Users/hermes-host/HermesMobile
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path
 ```
 
 Plugin-specific production validation must add:
@@ -484,8 +484,8 @@ Candidate sudoers scope:
 
 ```text
 launchctl print/kickstart/bootout/bootstrap for Home AI labels
-rsync or install into /Users/hermes-host/HermesMobile/app and plugins
-chown/chmod/chmod +a under /Users/hermes-host/HermesMobile
+rsync or install into /Users/example/path and plugins
+chown/chmod/chmod +a under /Users/example/path
 Home AI pinned Node validation scripts under app/scripts
 ```
 

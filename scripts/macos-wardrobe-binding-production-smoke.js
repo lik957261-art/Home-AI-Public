@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_BASE = "http://127.0.0.1:8797";
 const DEFAULT_EXPECTED_ORIGIN = "http://127.0.0.1:8765";
 const DEFAULT_LEGACY_ORIGIN = "http://192.168.10.99:8765";
@@ -35,7 +35,7 @@ function parseArgs(argv) {
     else if (arg === "--help") {
       console.log([
         "Usage: node scripts/macos-wardrobe-binding-production-smoke.js [options]",
-        "  --root <dir>              Mac production root, default /Users/hermes-host/HermesMobile",
+        "  --root <dir>              Mac production root, default /Users/example/path",
         "  --base <url>              Home AI origin, default http://127.0.0.1:8797",
         "  --access-key-file <file>  Owner Web key file; path and contents are not printed",
         "  --expected-origin <url>   Expected Wardrobe plugin origin, default http://127.0.0.1:8765",

@@ -980,6 +980,10 @@ button {
   transform: translateY(-1px);
 }
 
+.bottom-nav.bottom-nav-interacting .bottom-tab-icon {
+  transition: none;
+}
+
 .bottom-nav.bottom-plugin-tabs-reordering .bottom-tab[data-plugin-bottom-tab-sort-id] {
   cursor: grab;
 }

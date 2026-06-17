@@ -71,7 +71,7 @@ that runbook instead of defining their own production access flow.
 The shared Mac development-to-production deployment contract is
 `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`.
 Home AI and all plugin projects must follow that contract: development work
-happens under `/Users/hermes-dev/HermesMobileDev`, production writes happen only
+happens under `/Users/example/path`, production writes happen only
 through a bounded deploy operation with backup, controlled sync, restart
 decision, and production validation, and the development user must not be given
 ordinary write access to production app or plugin source roots.
@@ -99,11 +99,11 @@ pre-deploy backup.
 Codex Mobile Web is a special plugin target because its LaunchDaemon runs as
 `xuxin` while most production roots are owned by `hermes-host`. The central
 deploy script now includes a Codex-only post-sync repair that keeps the service
-stdout/stderr under `/Users/xuxin/.codex-mobile-web/logs`, updates the
+stdout/stderr under `/Users/example/path`, updates the
 `com.hermesmobile.plugin.codex-mobile` LaunchDaemon `StandardOutPath` and
 `StandardErrorPath`, and reloads that LaunchDaemon during deploy. This prevents
 launchd `EX_CONFIG` failures if the shared production log directory or files
-under `/Users/hermes-host/HermesMobile/logs` later return to `hermes-host`
+under `/Users/example/path` later return to `hermes-host`
 ownership while Codex Mobile is running.
 
 Key decisions:
@@ -150,11 +150,11 @@ service root.
 - Host: `<mac-admin-user>@192.168.10.110`
 - Hostname: `xuxindeMac-Studio.local`
 - macOS: `26.4`, arm64
-- Deployment root: `/Users/hermes-host/HermesMobile`
-- App path: `/Users/hermes-host/HermesMobile/app`
-- Data path: `/Users/hermes-host/HermesMobile/data`
-- Plugin root: `/Users/hermes-host/HermesMobile/plugins`
-- Logs: `/Users/hermes-host/HermesMobile/logs`
+- Deployment root: `/Users/example/path`
+- App path: `/Users/example/path`
+- Data path: `/Users/example/path`
+- Plugin root: `/Users/example/path`
+- Logs: `/Users/example/path`
 - launchd scope: system LaunchDaemons
 - Listener launchd label: `com.hermesmobile.listener`
 - Automation cron tick launchd label: `com.hermesmobile.cron`
@@ -170,11 +170,11 @@ service root.
   explicitly configured to use them.
   On Apple Silicon Mac production the service runs with `WHISPER_ENGINE=auto`
   and prefers the offline MLX model directory
-  `/Users/hermes-host/HermesMobile/services/whisper-large-v3-turbo/models/mlx-community-whisper-large-v3-turbo`
+  `/Users/example/path`
   when it contains `weights.safetensors`. This is the maintained fast path for
   local `large-v3-turbo` transcription on Mac. If the MLX model or dependencies
   are unavailable, the service falls back to the offline CTranslate2 directory
-  `/Users/hermes-host/HermesMobile/services/whisper-large-v3-turbo/models/mobiuslabsgmbh-faster-whisper-large-v3-turbo`
+  `/Users/example/path`
   when it contains `model.bin`. If HuggingFace runtime download is blocked,
   prefetch the required MLX files (`config.json`, `configuration.json`, and
   `weights.safetensors`) or fallback faster-whisper files (`config.json`,
@@ -184,16 +184,16 @@ service root.
   The Home AI listener gets `HERMES_MOBILE_VOICE_INPUT_*` / `HERMES_WEB_VOICE_INPUT_*`
   ASR environment variables from the central Mac deploy script, pointing to
   FunASR at `http://127.0.0.1:8002/v1/audio/transcriptions` by default.
-- Node runtime: `/Users/hermes-host/HermesMobile/runtime/node-current`
+- Node runtime: `/Users/example/path`
 - Official Hermes release runtime:
-  `/Users/hermes-host/HermesMobile/runtime/hermes-agent-official`
+  `/Users/example/path`
 - Official Hermes release: `v2026.5.29.2` / `hermes-agent 0.15.2`
 - Mac Gateway Pool manifest:
-  `/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`
+  `/Users/example/path`
 - Mac Automation CRON runs official Hermes with
-  `/Users/hermes-host/HermesMobile/data/hermes-home` as `HERMES_HOME`. The
+  `/Users/example/path` as `HERMES_HOME`. The
   central Home AI deploy script maintains
-  `/Users/hermes-host/HermesMobile/data/hermes-home/profiles/<profile>` as
+  `/Users/example/path<profile>` as
   symlinks to enabled user Gateway profile directories discovered from the Mac
   Gateway Pool manifest. It grants `hermes-host` read/traverse ACLs on the
   referenced profile directories so official CRON can load the existing
@@ -206,8 +206,8 @@ service root.
   candidates that may start on demand and must cool down after the configured
   idle TTL.
 - Mac Gateway workers run as isolated OS users with workspace roots such as
-  `/Users/hm-owner/HermesWorkspace`, but Home AI run policy uses live data
-  paths such as `/Users/hermes-host/HermesMobile/data/drive`. The macOS ACL
+  `/Users/example/path`, but Home AI run policy uses live data
+  paths such as `/Users/example/path`. The macOS ACL
   layer must therefore allow each worker user to traverse the live root and
   read/write only the live data roots authorized for that worker. Otherwise the
   Gateway file tool can return `Permission denied` or `Path not found` even
@@ -216,7 +216,7 @@ service root.
   `scripts/macos-worker-filesystem-access-harness.js`. Run it on Mac
   production with the pinned Node runtime after deployment, data migration,
   worker-user creation, ACL repair, or workspace-isolation changes:
-  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-worker-filesystem-access-harness.js --root /Users/hermes-host/HermesMobile`.
+  `sudo /Users/example/path /Users/example/path --root /Users/example/path`.
   The pass condition is not only positive read/write access for each workspace
   worker. The harness must also prove cross-user deny checks for Owner
   Skill/Memory stores, other users' drive roots, and `.hermes-*` plugin private
@@ -244,7 +244,7 @@ service root.
   production listener runs as `hermes-host`, production privileged execution
   should use `scripts/workspace-system-provisioning-helper.js` as a root
   LaunchDaemon and set
-  `HERMES_MOBILE_WORKSPACE_SYSTEM_HELPER_SOCKET=/Users/hermes-host/HermesMobile/data/run/workspace-system-provisioning-helper.sock`
+  `HERMES_MOBILE_WORKSPACE_SYSTEM_HELPER_SOCKET=/Users/example/path`
   in the listener environment. The helper socket client is
   `adapters/workspace-system-provisioning-helper-client-service.js`. Without a
   configured `workspaceSystemProvisioningExecutor`, apply returns
@@ -254,7 +254,7 @@ service root.
   `scripts/macos-production-profile-audit.js`. Run it after user migration,
   plugin provisioning, worker profile repair, stale-user cleanup, or Access Key
   rotation:
-  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js --root /Users/hermes-host/HermesMobile --json`.
+  `sudo /Users/example/path /Users/example/path --root /Users/example/path --json`.
   Passing production output must have `ok=true`, empty `issues`, no blocking
   `warnings`, the expected active workspace keys, the shared Response baseline,
   complete required Wardrobe Skill bundles for workspaces that require
@@ -275,7 +275,7 @@ service root.
   `scripts/macos-production-closure-validation.js`. Run it after Mac
   deployment, data migration, Gateway/Profile repair, plugin provisioning,
   Weixin route repair, ACL repair, or before declaring Mac production closed:
-  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js --json`.
+  `sudo /Users/example/path /Users/example/path --json`.
   The aggregate harness reads the expected static client version from the live
   app shell by default and passes it as `--expected-version` to every checked
   `production-status-smoke.js` invocation. Operators may pass
@@ -299,7 +299,7 @@ service root.
   `scripts/macos-plugin-directory-production-smoke.js`. Run it after Mac data
   migration, workspace catalog path repair, local workspace rename, directory
   ACL repair, or plugin-topic delivery failure:
-  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-plugin-directory-production-smoke.js --root /Users/hermes-host/HermesMobile --base http://127.0.0.1:8797 --json`.
+  `sudo /Users/example/path /Users/example/path --root /Users/example/path --base http://127.0.0.1:8797 --json`.
   It must report bounded metadata only. It catches workspace catalog paths that
   still point at Windows or WSL drive prefixes such as
   `C:\ProgramData\HermesMobile\data\drive` or
@@ -309,7 +309,7 @@ service root.
   `scripts/macos-bound-directory-preview-smoke.js`. Run it after Mac data
   migration, shared-directory repair, directory-topic UI routing changes, or
   reports that directory-topic chips show `Directory not found or not allowed`:
-  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js --root /Users/hermes-host/HermesMobile --all-workspaces --simulate-ui-route --json`.
+  `sudo /Users/example/path /Users/example/path --root /Users/example/path --all-workspaces --simulate-ui-route --json`.
   The aggregate Mac closure harness now runs both path-only and
   `--simulate-ui-route` forms by default. The focused local harness is
   `node tests\macos-bound-directory-preview-smoke-harness.test.js`.
@@ -317,7 +317,7 @@ service root.
   `scripts/macos-directory-path-migration-repair.js`. Run it after a
   Windows/WSL-to-Mac data copy when existing directory-topic chips or artifact
   cards still point at legacy drive prefixes:
-  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js --root /Users/hermes-host/HermesMobile --json`.
+  `sudo /Users/example/path /Users/example/path --root /Users/example/path --json`.
   Dry-run is the default. The checked local harness is
   `node tests\macos-directory-path-migration-repair.test.js`. Before writing,
   prefer `activeGlobal=0`; after writing, rerun dry-run and restart
@@ -329,7 +329,7 @@ service root.
   listener launchd edits, Wardrobe plugin data migration, Wardrobe workspace
   authorization/key repair, or a report that an embedded Wardrobe plugin opens
   but shows no content:
-  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-wardrobe-binding-production-smoke.js --root /Users/hermes-host/HermesMobile --base http://127.0.0.1:8797 --json`.
+  `sudo /Users/example/path /Users/example/path --root /Users/example/path --base http://127.0.0.1:8797 --json`.
   It scans live drive `.hermes-wardrobe/config.json` files for stale legacy
   Wardrobe origins, verifies the Home manifest launches through
   `http://127.0.0.1:8765`, opens the same-origin proxy entry, and reads only
@@ -343,9 +343,9 @@ service root.
 - Tailscale Serve: tailnet-only HTTPS `<tailnet-https-origin>`
   proxies `/` to `http://127.0.0.1:8797`.
 - Tailscale certificate files:
-  `/Users/hermes-host/HermesMobile/config/tailscale-cert/<tailnet-cert-name>.crt`
+  `/Users/example/path<tailnet-cert-name>.crt`
   and
-  `/Users/hermes-host/HermesMobile/config/tailscale-cert/<tailnet-cert-name>.key`.
+  `/Users/example/path<tailnet-cert-name>.key`.
   The key is owned by `hermes-host` and must remain mode `0600`. Do not record
   PEM contents in docs, handoffs, logs, screenshots, or harness output.
 - Tailscale CLI path on the Mac:
@@ -372,7 +372,7 @@ The current isolated production deployment runs these launchd labels:
 For the Home AI target, the central deploy script manages both the web listener
 and the Automation cron tick service. A full Home AI deploy installs or refreshes
 `/Library/LaunchDaemons/com.hermesmobile.cron.plist`, ensures
-`/Users/hermes-host/HermesMobile/data/hermes-home/cron/jobs.json` exists as the
+`/Users/example/path` exists as the
 canonical Hermes CRON store, starts the dispatcher every 60 seconds with
 `scripts/hermes-mobile-cron-dispatcher.py --dispatch`, sets
 `HERMES_CRON_SCRIPT_TIMEOUT=1800` for long-running `no_agent` scripts, and
@@ -433,8 +433,8 @@ key file only when missing, and injects secrets by file path:
 run through the same password-file sudo boundary as the central deploy script
 and must not print raw key values.
 The LaunchDaemon sets `GROWTH_DATA_OWNER=plugin` and
-`GROWTH_LEARNING_DB_PATH=/Users/hermes-host/HermesMobile/plugins/growth/data/growth-learning.sqlite3`,
-plus `GROWTH_LEGACY_AUDIO_ROOTS=/Users/hermes-host/HermesMobile/data` for
+`GROWTH_LEARNING_DB_PATH=/Users/example/path`,
+plus `GROWTH_LEGACY_AUDIO_ROOTS=/Users/example/path` for
 bounded historical audio playback,
 so first install must also import or roll back the plugin-owned SQLite copy
 before declaring production closure.
@@ -458,14 +458,14 @@ endpoint without raw secrets:
 `HERMES_MOBILE_GROWTH_PLUGIN_MANIFEST_URL=http://127.0.0.1:4881/api/v1/hermes/plugin/manifest`,
 `HERMES_MOBILE_PLUGIN_GROWTH_MANIFEST_URL=http://127.0.0.1:4881/api/v1/hermes/plugin/manifest`,
 and
-`HERMES_MOBILE_GROWTH_PLUGIN_OWNER_KEY_PATH=/Users/hermes-host/HermesMobile/data/plugin-secrets/growth-registration-key.txt`.
+`HERMES_MOBILE_GROWTH_PLUGIN_OWNER_KEY_PATH=/Users/example/path`.
 
 Because the Growth launchd label does not exist before first install, the
 first source copy uses the central deploy script with explicit plugin
 `--sync-only`:
 
 ```bash
-npm run --silent deploy:macos -- --plugin growth --source /Users/hermes-dev/HermesMobileDev/plugins/growth --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
 ```
 
 `--sync-only` is not a deployment closure. It exists only to place plugin source
@@ -478,7 +478,7 @@ and selected Gateway `mcp_growth_*` schema smoke pass.
 Moira first install uses `scripts/install-moira-launchd-service.js` from the
 Home AI app workspace after a central `--plugin moira --sync-only` source copy.
 The script generates `com.hermesmobile.plugin.moira`, runs the plugin service
-from `/Users/hermes-host/HermesMobile/plugins/moira`, binds to
+from `/Users/example/path`, binds to
 `127.0.0.1:4174`, and sets only bounded values such as
 `MOIRA_PLUGIN_BASE_URL`, `MOIRA_HERMES_OWNER_WORKSPACE_ID`, and
 `MOIRA_HERMES_ALLOWED_WORKSPACES`. It does not create or print raw plugin keys.
@@ -487,17 +487,17 @@ an explicit Moira workspace key/binding.
 
 The Hermes Mobile launchd environment uses
 `HERMES_WEB_HOST=0.0.0.0`, `HERMES_WEB_PORT=8797`,
-`HERMES_WEB_DATA_DIR=/Users/hermes-host/HermesMobile/data`,
-`HERMES_MOBILE_DATA_DIR=/Users/hermes-host/HermesMobile/data`,
-`HERMES_WEB_AUTH_KEY_PATH=/Users/hermes-host/HermesMobile/data/secrets/owner-web-key.secret`,
+`HERMES_WEB_DATA_DIR=/Users/example/path`,
+`HERMES_MOBILE_DATA_DIR=/Users/example/path`,
+`HERMES_WEB_AUTH_KEY_PATH=/Users/example/path`,
 `HERMES_WEB_SERVICE_STORE=sqlite`, and
-`HERMES_WEB_DB_PATH=/Users/hermes-host/HermesMobile/data/hermes-mobile.sqlite3`.
+`HERMES_WEB_DB_PATH=/Users/example/path`.
 Gateway environment points to the workspace-aware Mac-native Gateway Pool:
 `HERMES_WEB_GATEWAY_POOL_ENABLED=1`,
-`HERMES_WEB_GATEWAY_POOL_MANIFEST=/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`,
-`HERMES_MOBILE_GATEWAY_POOL_MANIFEST=/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`,
+`HERMES_WEB_GATEWAY_POOL_MANIFEST=/Users/example/path`,
+`HERMES_MOBILE_GATEWAY_POOL_MANIFEST=/Users/example/path`,
 and
-`HERMES_GATEWAY_POOL_MANIFEST_PATH=/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json`.
+`HERMES_GATEWAY_POOL_MANIFEST_PATH=/Users/example/path`.
 Every enabled Mac manifest worker must also carry explicit
 `telemetryStateDbPath` and `telemetryResponseStoreDbPath` values pointing at
 that worker's real profile DBs under
@@ -508,7 +508,7 @@ Gateway runs can complete normally but Hermes Mobile cannot enrich the message
 usage from official Gateway `state.db` / `response_store.db`; the client will
 show cached input as `Not reported` even when the model actually used cached
 tokens. The checked repair entry is
-`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-gateway-telemetry-repair.js --root /Users/hermes-host/HermesMobile --write --grant-listener-read --json`.
+`sudo /Users/example/path /Users/example/path --root /Users/example/path --write --grant-listener-read --json`.
 The usage telemetry adapter also handles the official Gateway short-response-id
 store format by using a unique 24-character response-id prefix fallback after
 exact lookup fails. This fallback is intentionally narrow: ambiguous prefixes
@@ -519,7 +519,7 @@ materialized capability source; manifest `toolsets` are what Mobile uses for
 Gateway Pool filtering and wardrobe/file/weather pre-stream gates. After
 profile materialization, plugin provisioning, manifest hand edits, or a Mac
 data migration, run:
-`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-gateway-manifest-toolset-smoke.js --root /Users/hermes-host/HermesMobile --json`.
+`sudo /Users/example/path /Users/example/path --root /Users/example/path --json`.
 This smoke is read-only and must not print API keys, key paths, prompts, or
 raw profile config bodies.
 Hybrid Mac cold-start also requires the launchd listener environment to pass
@@ -626,7 +626,7 @@ installed gateway start scripts that compute the bridge URL/key path but forgot
 to pass `HERMES_MOBILE_BRIDGE_HOST_*` and `HERMES_WEB_BRIDGE_HOST_*` through the
 final `exec env`.
 After repairing those env roots, run the live DOCX smoke as a second gate:
-`sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-file-plugin-docx-root-smoke.js --root /Users/hermes-host/HermesMobile --profiles hm-wuping-openai-1 --json`.
+`sudo /Users/example/path /Users/example/path --root /Users/example/path --profiles hm-wuping-openai-1 --json`.
 The smoke generates a temporary DOCX under the live uploads root and imports the
 target profile's local `hermes-mobile-docx` plugin. It must return `ok=true`
 with no `docx_plugin_file_path_outside_allowed_roots:<profile>` issue before a
@@ -635,13 +635,13 @@ Mac file-plugin root repair is considered closed.
 Mac production also must explicitly connect the listener workspace catalog to
 the live Weixin route data:
 
-- `HERMES_WEB_WORKSPACE_USERS_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-users.json`
-- `HERMES_MOBILE_WORKSPACE_USERS_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-users.json`
-- `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-routing-map.json`
-- `HERMES_MOBILE_WORKSPACE_ROUTE_MAP_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-routing-map.json`
+- `HERMES_WEB_WORKSPACE_USERS_PATH=/Users/example/path`
+- `HERMES_MOBILE_WORKSPACE_USERS_PATH=/Users/example/path`
+- `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH=/Users/example/path`
+- `HERMES_MOBILE_WORKSPACE_ROUTE_MAP_PATH=/Users/example/path`
 
 Without these explicit LaunchDaemon variables, the runtime catalog checks
-`/Users/hermes-host/HermesMobile/config/access-control/workspace-*.json` by
+`/Users/example/path` by
 default, while the maintained Mac route files live under `data/config`. In that
 drift state `scripts/weixin-ingress-production-smoke.js` will authenticate but
 return `skipped=true` with `reason=unmatched_workspace_route` for valid
@@ -666,8 +666,8 @@ when the Mac plugin service and local database are healthy.
 Migration evidence recorded during the cutover:
 
 - Windows production Hermes data was copied from
-  `C:\ProgramData\HermesMobile\data` to `/Users/hermes-host/HermesMobile/data`.
-- Plugin workspaces were copied to `/Users/hermes-host/HermesMobile/plugins`:
+  `C:\ProgramData\HermesMobile\data` to `/Users/example/path`.
+- Plugin workspaces were copied to `/Users/example/path`:
   Wardrobe, Finance, Email, Health, Note, and Codex Mobile Web.
 - Codex runtime state was copied to `/Users/<mac-admin-user>/.codex` and
   `/Users/<mac-admin-user>/.codex-mobile-web`. This was a live snapshot because the
@@ -686,9 +686,9 @@ Migration evidence recorded during the cutover:
   reopened.
 - On 2026-06-05, a Wardrobe Markdown delivery failure was traced to missing
   macOS ACL access for `hm-owner` against live
-  `/Users/hermes-host/HermesMobile/data/drive`. The run policy already included
+  `/Users/example/path`. The run policy already included
   `file`, `skills`, `weather`, `wardrobe`, and
-  `allowed_roots=["/Users/hermes-host/HermesMobile/data/drive"]`; the failure
+  `allowed_roots=["/Users/example/path"]`; the failure
   was at the OS filesystem layer. The repair granted parent traversal ACLs and
   live-root write ACLs for the relevant worker users, then passed an
   `hm-owner` write/delete smoke under `data/drive/插件/衣橱`.
@@ -698,7 +698,7 @@ Migration evidence recorded during the cutover:
 - Windows LAN smoke to `http://192.168.10.110:8797/` returned `200`; the
   migrated plugin list contains six plugins.
 - Official Hermes release `v2026.5.29.2` was installed under
-  `/Users/hermes-host/HermesMobile/runtime/hermes-agent-official` with a
+  `/Users/example/path` with a
   uv-managed Python runtime.
 - Mac active Gateway profile `SOUL.md` files currently use the 513-byte
   baseline soul hash that also exists in Windows profile backups. Windows still
@@ -716,9 +716,9 @@ Migration evidence recorded during the cutover:
 - Home AI API smoke created a temporary Owner thread, posted a minimal message,
   and later read back two `done` messages with the expected assistant marker.
 - SQLite `quick_check` passed on the corrected Mac paths for Wardrobe
-  (`/Users/hermes-host/HermesMobile/plugins/wardrobe/data/wardrobe.db`) and
+  (`/Users/example/path`) and
   Email
-  (`/Users/hermes-host/HermesMobile/plugins/email/runtime/data/mail.sqlite`) in
+  (`/Users/example/path`) in
   addition to Hermes, Growth, Finance, Finance images, Health, Note, and Note
   attachments.
 - The temporary migration SSH key was removed after the shared production SSH
@@ -738,7 +738,7 @@ Migration evidence recorded during the cutover:
   Tailscale DNS configuration issue; it does not invalidate Mac-local Serve or
   iOS Simulator checks that use the Mac network stack.
 - Static-only Mac updates must still be synced into the live
-  `/Users/hermes-host/HermesMobile/app` root, not only the Windows development
+  `/Users/example/path` root, not only the Windows development
   checkout or a Mac development checkout. After any static sync, verify
   `/api/client-version` from the Mac listener and run visual smoke against
   `http://192.168.10.110:8797/` or a working tailnet URL. For Capability Entry
@@ -1286,7 +1286,7 @@ header was actually exercised without exposing key material.
 Do not replace it with a one-off inline Node/Python status script unless the
 new script is added to source and covered by a harness.
 - Mac production profile audit after deployment or profile repair:
-  `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js --root /Users/hermes-host/HermesMobile --json`.
+  `sudo /Users/example/path /Users/example/path --root /Users/example/path --json`.
   Treat non-empty `issues` as a blocker. Non-empty `warnings` are not a user
   login failure by themselves, but stale profile roots or unexpected profile
   link targets must be backed up and resolved before considering migration

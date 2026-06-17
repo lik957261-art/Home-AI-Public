@@ -7,13 +7,13 @@ incident.
 The checked closure harness is:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js \
+sudo /Users/example/path \
+  /Users/example/path \
   --json
 ```
 
 The harness reads the expected static client version from
-`/Users/hermes-host/HermesMobile/app/public/index.html` by default and passes it
+`/Users/example/path` by default and passes it
 to every `production-status-smoke.js` call as `--expected-version`. Operators
 may pass `--expected-version <version>` only when validating an explicitly
 reviewed production app path. A served version mismatch is a closure failure.
@@ -41,7 +41,7 @@ It validates:
   `telemetry_response_store_missing:<profile>` as allowed warnings after
   manifest telemetry paths and listener ACLs are already in place.
 - The configured Gateway runtime Python is executable and does not resolve into
-  a developer account home such as `/Users/xuxin` or `/Users/hermes-dev`.
+  a developer account home such as `/Users/example/path` or `/Users/example/path`.
   Production workers must run from a production-owned runtime copy.
 - Mac worker filesystem ACL checks pass, including cross-workspace deny checks.
 - Workspace catalog paths resolve to the Mac live drive, and all active
@@ -146,50 +146,50 @@ final `activeGlobal` as a production blocker for the non-Grok closure gate.
 Use the focused harnesses when investigating one subsystem:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/production-status-smoke.js \
-  --access-key-file /Users/hermes-host/HermesMobile/data/secrets/owner-web-key.secret \
+sudo /Users/example/path \
+  /Users/example/path \
+  --access-key-file /Users/example/path \
   --base http://127.0.0.1:8797 \
   --json
 
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --json
 
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-worker-filesystem-access-harness.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --json
 
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-plugin-directory-production-smoke.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --base http://127.0.0.1:8797 \
   --json
 
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --json
 
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --all-workspaces \
   --simulate-ui-route \
   --json
 
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-wardrobe-binding-production-smoke.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --base http://127.0.0.1:8797 \
   --json
 
-/Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/playwright-visual-smoke.js \
+/Users/example/path \
+  /Users/example/path \
   --url http://127.0.0.1:8797/?_hmv=<smoke-id> \
-  --access-key-path /Users/hermes-host/HermesMobile/data/secrets/owner-web-key.secret \
+  --access-key-path /Users/example/path \
   --view topics \
   --workspace-id owner \
   --viewport 390x844 \

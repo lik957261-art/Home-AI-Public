@@ -139,9 +139,9 @@ back to username/password login or a local MCP overview.
 Mac production has a focused smoke for this exact binding class:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-wardrobe-binding-production-smoke.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --base http://127.0.0.1:8797 \
   --json
 ```

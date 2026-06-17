@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const DEFAULT_MAC_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_MAC_ROOT = "/Users/example/path";
 const DEFAULT_LABEL = "com.hermesmobile.plugin.moira";
 const DEFAULT_LAUNCH_DAEMONS_DIR = "/Library/LaunchDaemons";
 const DEFAULT_PORT = "4174";

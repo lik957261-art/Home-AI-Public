@@ -127,7 +127,7 @@ The checker validates:
 
 Home AI Native iOS Shell is a managed native client target, not an embedded
 business plugin. It has `client_id=home-ai-native-ios`, lives in the Xcode
-workspace `/Users/xuxin/Xcode/Home AI`, and contributes Apple system bridges
+workspace `/Users/example/path AI`, and contributes Apple system bridges
 such as the `WKWebView` shell, HealthKit sync, APNs device registration, native
 voice input capture, system share/receive, and WebView recovery signals. Its
 near-term roadmap is system push completion, native voice input, system
@@ -160,7 +160,7 @@ registered as `codex-mobile` and deployed under the Home AI Mac production
 plugin root. It does not govern independently deployed Codex Mobile Web
 instances that are not installed through Home AI, do not use the Home AI plugin
 manifest/proxy/launch-token boundary, and do not deploy under
-`/Users/hermes-host/HermesMobile/plugins/codex-mobile-web`. Independent
+`/Users/example/path`. Independent
 deployments may keep their own deployment, debug, and validation workflow; they
 must not be forced to use the Home AI AI Operations Control Plane, Mac deploy
 script, or iOS visual lane allocator unless they explicitly opt into Home AI
@@ -302,7 +302,7 @@ MCP/schema, plugin provisioning, or cross-module work.
 Required entrypoint:
 
 ```bash
-cd /Users/hermes-dev/HermesMobileDev/app
+cd /Users/example/path
 node scripts/ai-ops-control-plane.js intake --task "<task>" --json
 ```
 
@@ -416,7 +416,7 @@ Minimum plugin pointer fields for visual-toolchain availability:
 
 ```text
 ios_live_debug_available: yes | no
-ios_visual_harness_command: cd /Users/hermes-dev/HermesMobileDev/app && npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id <plugin-id> --debug-url http://127.0.0.1:19073/
+ios_visual_harness_command: cd /Users/example/path && npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id <plugin-id> --debug-url http://127.0.0.1:19073/
 visual_toolchain_contract: 20260610-visual-toolchain-shared-lane
 visual_toolchain_owner: Home AI platform
 ```
@@ -525,7 +525,7 @@ doc:
 | --- | --- | --- |
 | `plugin_id` | yes | Stable id used by Home AI and Reference Graph. |
 | `workspace_path_windows` | yes | Local development checkout path. |
-| `production_source_path_macos` | yes | Usually under `/Users/hermes-host/HermesMobile/plugins/<plugin>`. |
+| `production_source_path_macos` | yes | Usually under `/Users/example/path<plugin>`. |
 | `production_data_root_macos` | yes | Data root and worker-local config roots. |
 | `windows_dev_base_url` | if service plugin | Local dev service URL. |
 | `macos_production_base_url` | if service plugin | Mac loopback production URL. |
@@ -539,7 +539,7 @@ doc:
 | `production_validation_commands` | yes | Health, version, schema, Gateway, and data smoke. |
 | `reference_contract_status` | yes | `none`, `planned`, `v1-minimal`, or `implemented`. |
 | `mobile_visual_harness_status` | if embedded UI | `none`, `playwright`, `appium-simulator`, or `installed-pwa`. |
-| `ai_ops_control_plane_command` | yes | Must call the Home AI `scripts/ai-ops-control-plane.js intake --task "<task>" --json` entrypoint from `/Users/hermes-dev/HermesMobileDev/app`. |
+| `ai_ops_control_plane_command` | yes | Must call the Home AI `scripts/ai-ops-control-plane.js intake --task "<task>" --json` entrypoint from `/Users/example/path`. |
 | `ai_ops_required_flow` | yes | Must include `intake`, `required-checks`, `lane allocate if visual`, `evidence append`, `production smoke`, and `handoff`. |
 | `ai_ops_evidence_ledger` | yes | Local append-only JSONL evidence path, normally under `$HOME/.homeai-qa/`, with no raw secrets or private payloads. |
 | `ios_live_debug_available` | if embedded UI | `yes` when the plugin can be debugged through the Home AI live iOS PWA server; otherwise `no` with a short reason. |
@@ -606,15 +606,15 @@ plugin-private sudo/rsync flow.
 Standard plugin deploy plan command:
 
 ```bash
-cd /Users/hermes-dev/HermesMobileDev/app
-npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/hermes-dev/HermesMobileDev/plugins/<plugin-id> --json
+cd /Users/example/path
+npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/example/path<plugin-id> --json
 ```
 
 Standard plugin execute command shape:
 
 ```bash
-cd /Users/hermes-dev/HermesMobileDev/app
-npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/hermes-dev/HermesMobileDev/plugins/<plugin-id> --restart-label <label> --health-url <url> --execute --password-file <private-local-password-file> --json
+cd /Users/example/path
+npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/example/path<plugin-id> --restart-label <label> --health-url <url> --execute --password-file <private-local-password-file> --json
 ```
 
 The password file path is an operator-local secret reference. Plugin docs may
@@ -717,7 +717,7 @@ visual evidence. The required level depends on the surface:
   Home AI live debug server:
 
   ```bash
-  cd /Users/hermes-dev/HermesMobileDev/app
+  cd /Users/example/path
   npm run ios:pwa:debug
   ```
 
@@ -767,7 +767,7 @@ visual evidence. The required level depends on the surface:
 - Final bounded visual evidence should use the checked visual harness:
 
   ```bash
-  cd /Users/hermes-dev/HermesMobileDev/app
+  cd /Users/example/path
   npm run ios:pwa:visual -- \
     --scenario embedded-plugin-shell \
     --plugin-id <plugin-id> \
@@ -778,7 +778,7 @@ visual evidence. The required level depends on the surface:
   scenario for the obstructed input surface:
 
   ```bash
-  cd /Users/hermes-dev/HermesMobileDev/app
+  cd /Users/example/path
   npm run ios:pwa:visual -- \
     --scenario embedded-plugin-keyboard-composer \
     --plugin-id <plugin-id> \
@@ -787,7 +787,7 @@ visual evidence. The required level depends on the surface:
   ```
 
   ```bash
-  cd /Users/hermes-dev/HermesMobileDev/app
+  cd /Users/example/path
   npm run ios:pwa:visual -- \
     --scenario embedded-plugin-side-chat-keyboard \
     --plugin-id codex-mobile \
@@ -803,7 +803,7 @@ visual evidence. The required level depends on the surface:
   workspaces must not keep plugin-local tap offset scripts for this gate:
 
   ```bash
-  cd /Users/hermes-dev/HermesMobileDev/app
+  cd /Users/example/path
   npm run ios:pwa:visual -- \
     --scenario plugin-drawer-action-gestures \
     --plugin-id finance \

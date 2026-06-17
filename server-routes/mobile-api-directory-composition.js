@@ -97,6 +97,7 @@ function createMobileApiDirectoryComposition(deps = {}) {
     mkdir: deps.mkdir,
     publicManagedEntry: directoryBoundaryMethod(deps, "publicManagedEntry"),
     publicRemoteDirectoryEntry: directoryBoundaryMethod(deps, "publicRemoteDirectoryEntry"),
+    readdir: deps.readdir,
     readBody: deps.readBody,
     resolveBrowserPathAsync: directoryBoundaryMethod(deps, "resolveBrowserPathAsync"),
     rmdir: deps.rmdir,

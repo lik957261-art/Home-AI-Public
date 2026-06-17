@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260617-bottom-tab-hitbox-v808";
+const CLIENT_VERSION = "20260617-bottom-nav-stability-v812";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -217,8 +217,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-bottom-tab-hitbox-v808" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-bottom-tab-hitbox-v808"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-bottom-nav-stability-v812" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-bottom-nav-stability-v812"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -587,6 +587,7 @@ assert.doesNotMatch(stylesCss, /:root\[data-font-size\] \.bottom-tab-label/);
 assert.match(stylesCss, /\.bottom-tab\.active,[\s\S]*?\.bottom-tab\.menu-open \{[\s\S]*?color: var\(--ui-accent-active\);/);
 assert.match(stylesCss, /\.bottom-tab-icon \{[\s\S]*?width: 31px;[\s\S]*?height: 31px;/);
 assert.match(stylesCss, /\.bottom-tab\.active \.bottom-tab-icon,[\s\S]*?\.bottom-tab\.menu-open \.bottom-tab-icon \{[\s\S]*?background: var\(--ui-accent-active-soft\);[\s\S]*?transform: translateY\(-1px\);/);
+assert.match(stylesCss, /\.bottom-nav\.bottom-nav-interacting \.bottom-tab-icon \{[\s\S]*?transition: none;/);
 assert.match(stylesCss, /\.sidebar #workspaceSelect \{[\s\S]*?font-size: 14\.5px;[\s\S]*?line-height: 1\.2;/);
 assert.match(stylesCss, /\.sidebar \.client-version \{[\s\S]*?font-size: 9\.5px;/);
 assert.match(stylesCss, /\.sidebar \.workspace-access-panel summary \{[\s\S]*?font-size: 11\.5px;[\s\S]*?line-height: 1\.25;/);
@@ -1734,6 +1735,9 @@ assert.match(appJs, /preparePrimaryNavigationChange[\s\S]*?closeBottomPluginMenu
 assert.match(appJs, /preparePrimaryNavigationChange[\s\S]*?closeTopMoreMenu/);
 assert.match(appJs, /preparePrimaryNavigationChange[\s\S]*?closeGlobalPluginDockForNavigation/);
 assert.match(appJs, /preparePrimaryNavigationChange[\s\S]*?closeSidebar/);
+assert.match(appJs, /function markBottomNavigationInteraction\(reason = "bottom_nav"\)/);
+assert.match(appJs, /function wireBottomNavigationInteractionGuard\(\) \{[\s\S]*?nav\.addEventListener\("pointerdown", mark, \{ capture: true, passive: true \}\);[\s\S]*?nav\.addEventListener\("click", mark, \{ capture: true \}\);/);
+assert.match(appJs, /function wireUi\(\) \{\s*wireBottomNavigationInteractionGuard\(\);/);
 assert.match(appJs, /bottomTasksMode"\)\?\.addEventListener\("click"[\s\S]*?await loadSelectedView\(\{ skipTaskListWindowRefresh: true \}\)/);
 assert.match(appJs, /tasksMode"\)\.addEventListener\("click"[\s\S]*?await loadSelectedView\(\{ skipTaskListWindowRefresh: true \}\)/);
 assert.doesNotMatch(appJs, /bottomTasksMode"\)\?\.addEventListener\("click"[\s\S]*?forceTaskListReload: true/);
@@ -2522,6 +2526,7 @@ assert.match(appJs, /if \(view === "single"\) return state\.singleWindowMode ===
 assert.match(appJs, /function ensureGlobalPluginDockContent\(\)/);
 assert.match(appJs, /function wireGlobalPluginDockGestures\(root\)/);
 assert.match(appJs, /function globalPluginDockOwnsTouchTarget\(target\) \{[\s\S]*?target\.closest\("\.topic-plugin-dock"\)/);
+assert.match(appJs, /function scheduleGlobalPluginDockRefresh\(reason = "view"\) \{[\s\S]*?const interactionSeq = Number\(state\.bottomNavigationInteractionSeq \|\| 0\) \|\| 0;[\s\S]*?if \(interactionSeq && interactionSeq !== \(Number\(state\.bottomNavigationInteractionSeq \|\| 0\) \|\| 0\)\) return;/);
 assert.match(appJs, /function setGlobalPluginDockExpanded\(expanded, options = \{\}\)/);
 assert.match(appJs, /app\?\.classList\.toggle\("global-plugin-dock-expanded-mode", next\)/);
 assert.match(appJs, /app\?\.classList\.toggle\("global-plugin-dock-collapsed-mode", !next\)/);
@@ -2607,6 +2612,7 @@ assert.match(stylesCss, /--plugin-context-main-top: 0px/);
 assert.match(stylesCss, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?:root \{[\s\S]*?--plugin-context-main-top: env\(safe-area-inset-top\);/);
 const nativeShellEmbeddedHostBlock = stylesCss.match(/:root\.native-shell-ios\.embedded-plugin-shell-active \.app\.embedded-plugin-host-active \{[\s\S]*?\n\}/)?.[0] || "";
 assert.match(nativeShellEmbeddedHostBlock, /--plugin-context-main-top: 0px;/);
+assert.doesNotMatch(stylesCss, /growth-plugin-mode\.embedded-plugin-host-active \{[\s\S]*?--plugin-context-main-top: env\(safe-area-inset-top\);/);
 assert.match(stylesCss, /:root\.native-shell-ios\.embedded-plugin-shell-active body::before \{[\s\S]*?content: none;/);
 assert.match(stylesCss, /:root\.native-shell-ios\.embedded-plugin-shell-active \.app\.embedded-plugin-host-active #refreshNotice,[\s\S]*?:root\.native-shell-ios\.embedded-plugin-shell-active \.app\.embedded-plugin-host-active \.refresh-notice \{[\s\S]*?display: none !important;[\s\S]*?visibility: hidden !important;[\s\S]*?pointer-events: none !important;/);
 assert.match(stylesCss, /:root\.native-shell-ios\.keyboard-viewport-active\.embedded-plugin-shell-active \.plugin-context-nav-mode\.embedded-plugin-host-active \.main \{[\s\S]*?bottom: 0;/);
@@ -2659,14 +2665,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-bottom-tab-hitbox-v808/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-bottom-nav-stability-v812/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-bottom-nav-stability-v812/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-bottom-nav-stability-v812/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-bottom-nav-stability-v812/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-bottom-nav-stability-v812/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-bottom-nav-stability-v812/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-bottom-nav-stability-v812/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-bottom-nav-stability-v812/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);

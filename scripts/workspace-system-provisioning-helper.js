@@ -9,7 +9,7 @@ const {
   createWorkspaceSystemProvisioningExecutorService,
 } = require("../adapters/workspace-system-provisioning-executor-service");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_SOCKET = `${DEFAULT_ROOT}/data/run/workspace-system-provisioning-helper.sock`;
 const DEFAULT_SOCKET_USER = "hermes-host";
 

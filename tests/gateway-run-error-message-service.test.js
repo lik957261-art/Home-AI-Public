@@ -28,7 +28,7 @@ function testWorkerStartFailureKeepsDiagnosticsOutOfUserMessage() {
   err.details = {
     reason: "worker_start_failed",
     failureCode: "port_busy",
-    diagnostic: "port 18751 busy; secret=/Users/hermes-host/HermesMobile/data/secrets/openai.secret",
+    diagnostic: "port 18751 busy; secret=/Users/example/path",
   };
 
   const message = gatewayRunUserFacingError(err);

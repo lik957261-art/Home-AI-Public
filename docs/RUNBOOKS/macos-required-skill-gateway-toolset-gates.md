@@ -63,9 +63,9 @@ provisioning, user migration, or any failure that mentions the required
 wardrobe Skill:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-required-skill-preload-smoke.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --json
 ```
 
@@ -74,9 +74,9 @@ plugin provisioning, data migration, or any failure that mentions Gateway
 toolsets:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-gateway-manifest-toolset-smoke.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --json
 ```
 

@@ -7,8 +7,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
-const DEFAULT_OPERATOR_HOME = "/Users/xuxin";
+const DEFAULT_ROOT = "/Users/example/path";
+const DEFAULT_OPERATOR_HOME = "/Users/example/path";
 const SQLITE_EXT_RE = /\.(sqlite|sqlite3|db)$/i;
 
 const COMMON_RSYNC_EXCLUDES = [
@@ -112,8 +112,8 @@ function printUsage() {
     "  --destination <path>  NAS-mounted or sync-backed disaster backup root.",
     "",
     "Options:",
-    "  --root <path>          Home AI production root. Default: /Users/hermes-host/HermesMobile",
-    "  --operator-home <path> Operator home for Codex/Hermes Agent custom stores. Default: /Users/xuxin",
+    "  --root <path>          Home AI production root. Default: /Users/example/path",
+    "  --operator-home <path> Operator home for Codex/Hermes Agent custom stores. Default: /Users/example/path",
     "  --skip-operator-state  Skip operator-home Codex/Hermes Agent state coverage.",
     "  --receipt-dir <path>   Receipt directory. Default: <root>/data/backups/disaster-recovery-receipts",
     "  --label <name>         Label used in the backup id. Default: daily",

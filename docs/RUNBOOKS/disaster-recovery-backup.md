@@ -14,7 +14,7 @@ Check Mac production backup wiring without writing files:
 
 ```bash
 eval "$(scripts/mount-macos-nas-backup-destination.sh)"
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node scripts/create-macos-disaster-backup.js \
+sudo /Users/example/path scripts/create-macos-disaster-backup.js \
   --destination "$HOMEAI_DISASTER_BACKUP_DESTINATION" \
   --check-only \
   --json
@@ -49,13 +49,13 @@ official no-agent scripts default to 120 seconds.
 Mac production deploy also installs `com.hermesmobile.nas-backup-mount`, a root
 LaunchDaemon that runs `scripts/homeai-nas-backup-mount-watchdog.sh` on load
 and every five minutes. If the daily job reports that
-`/Users/xuxin/HomeAI-NAS-Backup-NFS` is not mounted, first check that
+`/Users/example/path` is not mounted, first check that
 LaunchDaemon status and its logs:
 
 ```bash
 sudo launchctl print system/com.hermesmobile.nas-backup-mount
-tail -100 /Users/hermes-host/HermesMobile/logs/nas-backup-mount.err.log
-tail -100 /Users/hermes-host/HermesMobile/logs/nas-backup-mount.out.log
+tail -100 /Users/example/path
+tail -100 /Users/example/path
 ```
 
 Do not repair this by giving the CRON job access to the sudo password file.
@@ -86,7 +86,7 @@ Verify the manifest includes these categories without printing secret contents:
 - Home AI production app files
 - Home AI production data directory
 - Every installed plugin directory under
-  `/Users/hermes-host/HermesMobile/plugins`
+  `/Users/example/path`
 - Every plugin-owned `data` directory, including Wardrobe, Note, Finance,
   Growth, Health, Email, and Codex Mobile when installed
 - Online-consistent SQLite snapshots
@@ -97,9 +97,9 @@ Verify the manifest includes these categories without printing secret contents:
 - Gateway profile `SOUL.md` files under
   `gateway-worker/telemetry/profiles`
 - Readable operator Hermes Agent custom Skills and Memory stores, such as
-  `/Users/xuxin/.hermes/skills`, `/Users/xuxin/.hermes/memories`,
-  `/Users/xuxin/.hermes/profiles/*/skills`,
-  `/Users/xuxin/.hermes/profiles/*/memories`, and profile `SOUL.md` files
+  `/Users/example/path`, `/Users/example/path`,
+  `/Users/example/path`,
+  `/Users/example/path`, and profile `SOUL.md` files
 - Codex skills/config/state needed by local workflows
 - Codex Mobile state needed to recover cross-thread workspaces
 - launchd plist files needed to reconstruct production services
@@ -122,11 +122,11 @@ If the daily automation fails:
    The default helper is
    `scripts/mount-macos-nas-backup-destination.sh`, which mounts
    `192.168.10.99:/volume1/备份` at
-   `/Users/xuxin/HomeAI-NAS-Backup-NFS` and returns the destination under
+   `/Users/example/path` and returns the destination under
    `HomeAI-Production-Backups/mac-production`. NFS does not require the NAS
    account password.
 3. Run `scripts/run-macos-disaster-backup-to-nas.sh` manually if needed. It
-   stages to `/Users/xuxin/HomeAI-Disaster-Staging/mac-production` by default
+   stages to `/Users/example/path` by default
    and publishes `current` to the NFS destination as the normal operator user.
 4. For the production scheduled path, run the official Home AI
    Automation/Hermes CRON job manually if needed:

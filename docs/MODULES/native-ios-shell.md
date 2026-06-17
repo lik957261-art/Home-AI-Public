@@ -34,14 +34,14 @@ specific user workflow and validation plan.
 ## Local Workspace
 
 - Native client id: `home-ai-native-ios`
-- Local workspace: `/Users/xuxin/Xcode/Home AI`
+- Local workspace: `/Users/example/path AI`
 - Xcode project: `Home AI.xcodeproj`
 - Main bundle id: `com.xuxin.homeai.native`
 - Share Extension bundle id: `com.xuxin.homeai.native.ShareExtension`
 - App Group: `group.com.xuxin.homeai`
-- Platform pointer: `/Users/xuxin/Xcode/Home AI/docs/HOME_AI_PLATFORM_CONTRACT.md`
+- Platform pointer: `/Users/example/path AI/docs/HOME_AI_PLATFORM_CONTRACT.md`
 - Native voice overlay design:
-  `/Users/xuxin/Xcode/Home AI/docs/native-voice-input-overlay.md`
+  `/Users/example/path AI/docs/native-voice-input-overlay.md`
 
 The platform checker discovers this workspace through
 `HOMEAI_NATIVE_IOS_WORKSPACE`, the current user's `~/Xcode/Home AI`, or the
@@ -340,7 +340,7 @@ Native client checks require:
 
 The checker skips Mac plugin-service probes for this target because the native
 client has no loopback manifest, LaunchDaemon label, or production plugin
-source directory under `/Users/hermes-host/HermesMobile/plugins`.
+source directory under `/Users/example/path`.
 
 ## Validation
 

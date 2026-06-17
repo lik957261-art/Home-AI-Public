@@ -111,6 +111,10 @@ or raw plugin credentials.
   state. It must not call the full topic-thread renderer because rebuilding the
   Topics page during the menu click can leave the Dock/menu in a stuck
   intermediate state.
+- Bottom navigation taps have priority over delayed Dock layout refreshes.
+  When the user quickly switches bottom tabs, stale Dock refresh timers must be
+  discarded instead of repainting pinned plugin tabs or making the latest tab
+  feel unresponsive.
 - The Dock action menu must be bound to the touch long-press path as well as
   pointer/context interactions. The frontend CSS must suppress WebKit native
   touch callout on Dock icons so iOS/PWA long-press can reach the Home AI menu.

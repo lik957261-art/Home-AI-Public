@@ -18,7 +18,7 @@ modify user files.
 - Directory-bound topic chips open `directory-viewer.html` but the page reports
   `Directory not found or not allowed`.
 - The directory exists under
-  `/Users/hermes-host/HermesMobile/data/drive/users/...`.
+  `/Users/example/path`.
 - The affected topic was created from the directory three-dot menu before the
   Mac migration, usually while production still used Windows/WSL paths.
 - Existing Markdown/PDF/file artifact cards can return `404` until the
@@ -88,7 +88,7 @@ node tests\macos-bound-directory-preview-smoke-harness.test.js
 ```
 
 If the live production app is missing these tracked scripts or tests, sync the
-source versions into `/Users/hermes-host/HermesMobile/app` and run the same
+source versions into `/Users/example/path` and run the same
 syntax and harness checks there before declaring closure. `/tmp` copies are
 valid for triage only, not durable production evidence.
 
@@ -103,9 +103,9 @@ node tests\macos-task-directory-route-backfill.test.js
 Mac production dry-run:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --repair-rootless-drive \
   --sample-limit 5 \
   --json
@@ -115,9 +115,9 @@ For a known shared-directory migration mismatch, add one or more exact
 replacement pairs instead of writing ad hoc SQL:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --replace-path "/old/workspace-local/path" "/authorized/shared/path" \
   --sample-limit 5 \
   --json
@@ -138,10 +138,10 @@ long message/file contents.
    `X-Hermes-Access-Key` probe is a negative control only.
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/production-status-smoke.js \
+sudo /Users/example/path \
+  /Users/example/path \
   --base http://127.0.0.1:8797 \
-  --access-key-file /Users/hermes-host/HermesMobile/data/secrets/owner-web-key.secret \
+  --access-key-file /Users/example/path \
   --json
 ```
 
@@ -163,9 +163,9 @@ sudo launchctl bootout system /Library/LaunchDaemons/com.hermesmobile.listener.p
 ```
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-directory-path-migration-repair.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --repair-rootless-drive \
   --reset-state-snapshot \
   --write \
@@ -199,9 +199,9 @@ totals.parseErrors=0
   non-chat/topic binding surface:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --all-workspaces \
   --simulate-ui-route \
   --use-bound-thread-context \
@@ -212,9 +212,9 @@ If the path repair is clean but current directory-bound topics have route chips
 with missing task-level directory metadata, run the task route backfill dry-run:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-task-directory-route-backfill.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --sample-limit 10 \
   --json
 ```
@@ -225,9 +225,9 @@ re-import the old metadata:
 
 ```bash
 sudo launchctl bootout system /Library/LaunchDaemons/com.hermesmobile.listener.plist
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-task-directory-route-backfill.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --reset-state-snapshot \
   --write \
   --sample-limit 10 \
@@ -388,7 +388,7 @@ Owner `25/25`, `user-981731fe` `2/2`, `weixin_stephen` `1/1`,
 `weixin_test_1` `2/2`, and `weixin_wuping` `12/12`. `weixin_xiaonan` remained
 skipped as `unknown-workspace`. The live app was also repaired to include the
 tracked directory migration scripts and harness tests; backup:
-`/Users/hermes-host/HermesMobile/app/.deploy-backups/20260606T190655Z-directory-harness-sync`.
+`/Users/example/path`.
 
 ## 2026-06-07 UI Route Context Guard
 
@@ -404,17 +404,17 @@ The production smoke should therefore be run in both forms when debugging a
 chip-only failure:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --all-workspaces \
   --json
 ```
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-bound-directory-preview-smoke.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --all-workspaces \
   --simulate-ui-route \
   --json

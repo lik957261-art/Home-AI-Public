@@ -38,7 +38,7 @@ function testPublicTextSanitizer() {
     "C:\\Users\\private-user\\Documents\\Agent",
     ["/home", "private-user", "project"].join("/"),
     ["/mnt/c", "Users", "private-user", "Documents", "Agent"].join("/"),
-    "/Users/private-user/HermesMobileDev/app",
+    "/Users/example/path",
     "/home/hermes/runtime",
     "/home/example/path",
   ].join("\n");

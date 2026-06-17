@@ -92,8 +92,8 @@ async function testEnsureMacUserCreatesHiddenAccount() {
     workspaceId: "xulu",
     macUser: "hm-xulu",
     paths: {
-      workerHome: "/Users/hm-xulu",
-      workerWorkspaceRoot: "/Users/hm-xulu/HermesWorkspace",
+      workerHome: "/Users/example/path",
+      workerWorkspaceRoot: "/Users/example/path",
     },
   });
   assert.equal(result.ok, true);
@@ -121,7 +121,7 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
           skillWorkspaceIds: ["xulu"],
           apiKeyFile: `${root}/data/secrets/lowgw31.secret`,
           launchdLabel: "com.hermesmobile.gateway.hm-old.openai.1",
-          telemetryStateDbPath: "/Users/hm-old/HermesWorkspace/.hermes-gateway/profiles/lowgw31/state.db",
+          telemetryStateDbPath: "/Users/example/path",
         },
         {
           profile: "deepseekgw31",
@@ -423,7 +423,7 @@ async function testEnsureLaunchdKickstartsWorkersWhenRequested() {
 }
 
 async function testRepairWorkspaceAclSkipsSystemUsersRoot() {
-  const root = "/Users/hermes-host/HermesMobile";
+  const root = "/Users/example/path";
   const calls = [];
   const service = createWorkspaceSystemProvisioningExecutorService({
     forceEnabled: true,
@@ -441,14 +441,14 @@ async function testRepairWorkspaceAclSkipsSystemUsersRoot() {
       dataRoot: `${root}/data`,
       driveRoot: `${root}/data/drive`,
       workspaceDataRoot: `${root}/data/drive/users/xulu`,
-      workerHome: "/Users/hm-xulu",
-      workerWorkspaceRoot: "/Users/hm-xulu/HermesWorkspace",
+      workerHome: "/Users/example/path",
+      workerWorkspaceRoot: "/Users/example/path",
     },
   });
 
   assert.equal(result.ok, true);
   assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("/Users")), false);
-  assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("/Users/hermes-host")), true);
+  assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("/Users/example/path")), true);
   assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes(`${root}/data/skill-profiles/xulu`)), true);
   assert.equal(calls.some((call) => call.command === "/bin/chmod" && call.args.includes(`${root}/data/skill-profiles`)), true);
 }

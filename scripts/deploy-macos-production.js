@@ -6,8 +6,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const DEFAULT_DEV_ROOT = "/Users/hermes-dev/HermesMobileDev";
-const DEFAULT_MAC_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_DEV_ROOT = "/Users/example/path";
+const DEFAULT_MAC_ROOT = "/Users/example/path";
 const DEFAULT_BASE_URL = "http://127.0.0.1:8797";
 const PINNED_NODE = "runtime/node-current/bin/node";
 const DEFAULT_PRODUCTION_OWNER = "hermes-host:staff";
@@ -184,7 +184,7 @@ const CODEX_MOBILE_LOG_REPAIR = Object.freeze({
   serviceGroup: "staff",
   launchdLabel: "com.hermesmobile.plugin.codex-mobile",
   launchdPlistPath: "/Library/LaunchDaemons/com.hermesmobile.plugin.codex-mobile.plist",
-  runtimeLogRoot: "/Users/xuxin/.codex-mobile-web/logs",
+  runtimeLogRoot: "/Users/example/path",
   logFiles: Object.freeze([
     "codex-mobile-web.out.log",
     "codex-mobile-web.err.log",
@@ -309,8 +309,8 @@ function parseArgs(argv) {
         "",
         "Options:",
         "  --source <path>             Override development source path",
-        "  --mac-root <path>           Production root, default /Users/hermes-host/HermesMobile",
-        "  --dev-root <path>           Development root, default /Users/hermes-dev/HermesMobileDev",
+        "  --mac-root <path>           Production root, default /Users/example/path",
+        "  --dev-root <path>           Development root, default /Users/example/path",
         "  --password-file <path>      Private sudo password file; contents are never printed",
         "  --restart auto|none         Auto uses known labels for Home AI and known plugins",
         "  --restart-label <label>     Additional system launchd label to kickstart",

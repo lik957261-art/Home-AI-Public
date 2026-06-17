@@ -11,7 +11,7 @@ proves the full migration path.
 
 ## Current State
 
-- The clean plugin workspace is `/Users/hermes-dev/HermesMobileDev/plugins/growth`.
+- The clean plugin workspace is `/Users/example/path`.
 - The plugin remote is `git@github.com:pentiumxp/Education.git`.
 - The old remote `Education/main` was preserved as
   `archive/education-pre-growth-plugin-20260610`.
@@ -133,7 +133,7 @@ Current development status:
   the Home AI-hosted Growth plugin shell:
   `embedded-plugin-shell --plugin-id growth`,
   `clientVersion=20260610-growth-plugin-shell-v680`, screenshot artifact
-  `/Users/xuxin/.homeai-qa/artifacts/ios-pwa-visual-embedded-plugin-shell-growth-20260610T023822Z.png`.
+  `/Users/example/path`.
   The development host must bind `HERMES_WEB_HOST=0.0.0.0` and the simulator
   must open the Mac LAN URL, not `127.0.0.1`, because simulator-local
   `127.0.0.1` can resolve inside the iOS runtime.

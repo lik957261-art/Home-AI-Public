@@ -224,7 +224,7 @@ function defaultDenyChecks(root) {
 }
 
 function main() {
-  const root = path.resolve(argValue("--root", process.env.HERMES_MOBILE_ROOT || "/Users/hermes-host/HermesMobile"));
+  const root = path.resolve(argValue("--root", process.env.HERMES_MOBILE_ROOT || "/Users/example/path"));
   const json = hasArg("--json");
   const writeSmoke = !hasArg("--no-write-smoke");
   const driveWriteScanLimit = numberArg("--drive-write-scan-limit", 200);

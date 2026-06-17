@@ -346,7 +346,7 @@ Implementation should follow the service-first rule:
     fallback, explicit iOS native bridge detection, `voiceInput.*` native
     messages, native status/partial/final callbacks, host composer insertion,
     and pending correction commit tracking;
-- `/Users/xuxin/Xcode/Home AI/Home AI/HomeAIVoiceInputManager.swift`
+- `/Users/example/path AI/Home AI/HomeAIVoiceInputManager.swift`
   - owns iOS microphone permission, `AVAudioSession`, `AVAudioEngine` capture,
     mono PCM16 conversion, 300 ms chunking, Home AI stream API calls using
     `X-Hermes-Web-Key`, and native-to-PWA callback injection;
@@ -574,7 +574,7 @@ Mac production closure:
   skeleton and requirements for a local faster-whisper large-v3-turbo endpoint.
 - `scripts/install-macos-whisper-large-v3-turbo-service.js --execute` installs
   the service as launchd label `com.hermesmobile.whisper-large-v3-turbo` under
-  `/Users/hermes-host/HermesMobile/services/whisper-large-v3-turbo`.
+  `/Users/example/path`.
 - On Apple Silicon Mac production, `WHISPER_ENGINE=auto` prefers
   `mlx-whisper` with the offline local MLX model directory
   `models/mlx-community-whisper-large-v3-turbo` when it contains

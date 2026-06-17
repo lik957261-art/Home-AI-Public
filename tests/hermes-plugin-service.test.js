@@ -1016,14 +1016,14 @@ async function testFinanceGrantRefreshesGatewayProfilesAfterProvisioning() {
   const service = createHermesPluginService({
     dataDir: dir,
     env: {},
-    liveRoot: "/Users/hermes-host/HermesMobile",
+    liveRoot: "/Users/example/path",
     plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
     gatewayWorkspaceProvisioningService: {
       ensureWorkspaceGateway(input) {
         gatewayCalls.push(input);
         return {
           ok: true,
-          manifestPath: "/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json",
+          manifestPath: "/Users/example/path",
           macUser: "hm-stephen",
           profiles: ["hm-stephen-openai-1", "deepseekgw7"],
           profileBindingRefreshed: true,
@@ -1074,10 +1074,10 @@ async function testFinanceGrantRefreshesGatewayProfilesAfterProvisioning() {
   assert.equal(systemCalls[0].action, "ensure_launchd_services");
   assert.equal(systemCalls[0].context.workspaceId, "weixin_stephen");
   assert.equal(systemCalls[0].context.macUser, "hm-stephen");
-  assert.equal(systemCalls[0].context.paths.workspaceDataRoot, "/Users/hermes-host/HermesMobile/data/drive/users/weixin_stephen");
-  assert.equal(systemCalls[0].context.paths.workerWorkspaceRoot, "/Users/hm-stephen/HermesWorkspace");
+  assert.equal(systemCalls[0].context.paths.workspaceDataRoot, "/Users/example/path");
+  assert.equal(systemCalls[0].context.paths.workerWorkspaceRoot, "/Users/example/path");
   assert.equal(systemCalls[0].context.gateway.kickstart, true);
-  assert.equal(systemCalls[0].context.gateway.manifestPath, "/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json");
+  assert.equal(systemCalls[0].context.gateway.manifestPath, "/Users/example/path");
   assert.deepEqual(systemCalls[0].context.gateway.profiles, ["hm-stephen-openai-1", "deepseekgw7"]);
   assert.equal(fetchCalls[0].body.target_workspace_id, "weixin_stephen");
 }

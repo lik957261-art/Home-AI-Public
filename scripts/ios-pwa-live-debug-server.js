@@ -26,7 +26,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     streamMode: "simctl",
     laneOwner: process.env.HOMEAI_IOS_DEBUG_LANE_OWNER || process.env.USER || "homeai-ios-debug",
     leaseTtlMs: 120000,
-    appiumStartScript: path.join(process.env.HOME || "/Users/xuxin", ".homeai-qa/scripts/macos-ios-appium-start.sh"),
+    appiumStartScript: path.join(process.env.HOME || "/Users/example/path", ".homeai-qa/scripts/macos-ios-appium-start.sh"),
   };
   for (let i = 0; i < argv.length; i += 1) {
     const item = argv[i];

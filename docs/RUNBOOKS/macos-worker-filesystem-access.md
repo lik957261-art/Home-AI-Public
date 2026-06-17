@@ -7,14 +7,14 @@ the expected `allowed_roots`.
 
 ## Known Production Shape
 
-- Live Home AI root: `/Users/hermes-host/HermesMobile`.
-- Live data root: `/Users/hermes-host/HermesMobile/data`.
+- Live Home AI root: `/Users/example/path`.
+- Live data root: `/Users/example/path`.
 - Listener runs from the live root and builds run policy with live paths such
-  as `/Users/hermes-host/HermesMobile/data/drive`.
+  as `/Users/example/path`.
 - Gateway workers run as isolated macOS users such as `hm-owner`,
   `hm-wuping`, `hm-stephen`, `hm-xuyan`, `hm-xulu`, and `hm-test`.
 - Worker LaunchDaemons set `HERMES_WORKSPACE_ROOT` to paths such as
-  `/Users/hm-owner/HermesWorkspace`, but the file tool still receives the live
+  `/Users/example/path`, but the file tool still receives the live
   paths from Home AI policy.
 - Therefore macOS ACLs must let each worker user traverse the live root and
   read/write only the live data roots authorized for that worker.
@@ -27,7 +27,7 @@ the expected `allowed_roots`.
   `hermes-host` cannot read is a production failure and should surface as
   `plugin_required_skill_unreadable` in the profile audit.
 
-If the Home AI policy allows `/Users/hermes-host/HermesMobile/data/drive` but
+If the Home AI policy allows `/Users/example/path` but
 `hm-owner` cannot traverse that path at the OS layer, the model can correctly
 say it is allowed while the actual file tool fails with `Permission denied` or
 `Path not found`.
@@ -38,16 +38,16 @@ Run the harness on Mac production after deployment, data migration, user
 creation, ACL repair, or any change to worker isolation:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-worker-filesystem-access-harness.js \
-  --root /Users/hermes-host/HermesMobile
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path
 ```
 
 From Windows, use the shared SSH alias and pass sudo credentials through the
 normal local operator mechanism; do not print passwords or keys:
 
 ```powershell
-ssh homeai-mac "sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-worker-filesystem-access-harness.js --root /Users/hermes-host/HermesMobile"
+ssh homeai-mac "sudo /Users/example/path /Users/example/path --root /Users/example/path"
 ```
 
 Pass criteria:
@@ -87,11 +87,11 @@ Also verify the worker account and runtime Python path:
 
 ```bash
 id <hm-user>
-python_path=/Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python
+python_path=/Users/example/path
 readlink "$python_path"
 python_realpath="$(/usr/bin/python3 - <<'PY'
 import os
-print(os.path.realpath("/Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python"))
+print(os.path.realpath("/Users/example/path"))
 PY
 )"
 echo "$python_realpath"
@@ -101,7 +101,7 @@ sudo -u <hm-user> "$python_path" -V
 The `id` output must include `hermes-workers` unless the deployment explicitly
 configured another `HERMES_MOBILE_WORKER_GROUP`. The runtime Python realpath
 must stay under the production runtime tree or another production-owned runtime
-path; it must not resolve into `/Users/xuxin`, `/Users/hermes-dev`, or any
+path; it must not resolve into `/Users/example/path`, `/Users/example/path`, or any
 developer account home. Fix the production runtime copy/symlink and group
 membership instead of granting workspace workers access to a developer home.
 Gateway worker API key files must be readable by both the target worker user
@@ -112,11 +112,11 @@ file was created by root with mode `600` and no listener ACL.
 Repair only the minimum required access:
 
 ```bash
-sudo chmod +a "user:<hm-user> allow search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/secrets
-sudo chmod +a "user:<hm-user> allow search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/secrets/gateway-workers
-sudo chmod +a "user:<hm-user> allow read,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json
-sudo chmod +a "user:<hm-user> allow read,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/secrets/gateway-workers/<profile>.key
-sudo chmod +a "user:hermes-host allow read,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/secrets/gateway-workers/<profile>.key
+sudo chmod +a "user:<hm-user> allow search,readattr,readextattr,readsecurity" /Users/example/path
+sudo chmod +a "user:<hm-user> allow search,readattr,readextattr,readsecurity" /Users/example/path
+sudo chmod +a "user:<hm-user> allow read,readattr,readextattr,readsecurity" /Users/example/path
+sudo chmod +a "user:<hm-user> allow read,readattr,readextattr,readsecurity" /Users/example/path<profile>.key
+sudo chmod +a "user:hermes-host allow read,readattr,readextattr,readsecurity" /Users/example/path<profile>.key
 ```
 
 If the stderr shows `venv/bin/hermes: Permission denied`, inspect the console
@@ -134,7 +134,7 @@ Gateway provisioning so it writes a workspace-owned key file such as
 If a real run reaches the provider and then fails with `No Codex credentials
 stored`, check the affected `openai-codex` profile directory under the workspace
 worker home. `auth.json` and `auth.lock` must be symlinks to
-`/Users/hermes-host/HermesMobile/gateway-worker/telemetry/profiles/shared-auth`.
+`/Users/example/path`.
 This is separate from the manifest API-server key. If the run instead reports
 `Permission denied: .../auth.lock`, the symlink exists but the shared auth
 directory or lock/auth files are missing write ACLs for the worker. Re-run
@@ -150,9 +150,9 @@ audit after any Skill Store copy, worker-side Skill edit, plugin provisioning,
 user migration, or Gateway start-script repair:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-production-profile-audit.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --json
 ```
 
@@ -185,9 +185,9 @@ issue. These issues mean profile-local automation tools such as
 Then run an actual DOCX extraction smoke against at least the affected profile:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-file-plugin-docx-root-smoke.js \
-  --root /Users/hermes-host/HermesMobile \
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
   --profiles hm-wuping-openai-1 \
   --json
 ```
@@ -208,10 +208,10 @@ directory.
 Example ACL intent:
 
 ```bash
-sudo chmod +a "hm-owner allow list,search,readattr,readextattr,readsecurity" /Users/hermes-host
-sudo chmod +a "hm-owner allow list,search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile
-sudo chmod +a "hm-owner allow list,search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data
-sudo chmod -R +a "hm-owner allow list,search,readattr,readextattr,readsecurity,read,write,append,execute,add_file,add_subdirectory,delete_child,file_inherit,directory_inherit" /Users/hermes-host/HermesMobile/data/drive
+sudo chmod +a "hm-owner allow list,search,readattr,readextattr,readsecurity" /Users/example/path
+sudo chmod +a "hm-owner allow list,search,readattr,readextattr,readsecurity" /Users/example/path
+sudo chmod +a "hm-owner allow list,search,readattr,readextattr,readsecurity" /Users/example/path
+sudo chmod -R +a "hm-owner allow list,search,readattr,readextattr,readsecurity,read,write,append,execute,add_file,add_subdirectory,delete_child,file_inherit,directory_inherit" /Users/example/path
 ```
 
 Do not solve this by granting every worker write access to every user's data
@@ -228,15 +228,15 @@ or isolation scripts may later tighten a Skill Store parent back to `700`
 without changing the required bundle itself:
 
 ```bash
-sudo chmod -RN /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills
-sudo chown -R :staff /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations
-sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills
-sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity
-sudo chmod -R +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit" /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations
-sudo chmod g+rx,o-rwx /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills
-sudo chmod g+rx,o-rwx /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity
-sudo chmod -R g+rX,o-rwx /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations
-sudo -u hermes-host test -r /Users/hermes-host/HermesMobile/data/skill-profiles/owner-full/skills/productivity/wardrobe-style-operations/SKILL.md
+sudo chmod -RN /Users/example/path
+sudo chown -R :staff /Users/example/path
+sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/example/path
+sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/example/path
+sudo chmod -R +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit" /Users/example/path
+sudo chmod g+rx,o-rwx /Users/example/path
+sudo chmod g+rx,o-rwx /Users/example/path
+sudo chmod -R g+rX,o-rwx /Users/example/path
+sudo -u hermes-host test -r /Users/example/path
 ```
 
 Do not apply this pattern to secret files such as access keys, workspace keys,
@@ -248,10 +248,10 @@ group/other read bits still let other macOS users list another workspace's
 private plugin directory. The repair pattern is:
 
 ```bash
-sudo chmod -RN /Users/hermes-host/HermesMobile/data/drive/users/<workspaceId>
-sudo chmod -R u+rwX,go-rwx /Users/hermes-host/HermesMobile/data/drive/users/<workspaceId>
-sudo chmod -R +a "user:<hm-user> allow list,add_file,search,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" /Users/hermes-host/HermesMobile/data/drive/users/<workspaceId>
-sudo chmod -R +a "user:hm-owner allow list,add_file,search,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" /Users/hermes-host/HermesMobile/data/drive/users/<workspaceId>
+sudo chmod -RN /Users/example/path<workspaceId>
+sudo chmod -R u+rwX,go-rwx /Users/example/path<workspaceId>
+sudo chmod -R +a "user:<hm-user> allow list,add_file,search,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" /Users/example/path<workspaceId>
+sudo chmod -R +a "user:hm-owner allow list,add_file,search,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" /Users/example/path<workspaceId>
 ```
 
 ## Evidence From 2026-06-05 Incident
@@ -260,13 +260,13 @@ The failing Wardrobe Markdown delivery run had:
 
 - `principal_id=owner`
 - `access_mode=restricted`
-- `default_workspace=/Users/hermes-host/HermesMobile/data/drive`
-- `allowed_roots=["/Users/hermes-host/HermesMobile/data/drive"]`
+- `default_workspace=/Users/example/path`
+- `allowed_roots=["/Users/example/path"]`
 - `allowed_toolsets` included `weather`, `file`, `vision`, `skills`,
   `wardrobe`, and `x_search`
 
 The assistant could use Wardrobe MCP, but the file tool returned
 `Permission denied` when writing under
-`/Users/hermes-host/HermesMobile/data/drive/插件/衣橱` and then reported the live
+`/Users/example/path` and then reported the live
 drive root as `Path not found`. The root cause was missing macOS ACL access for
 the isolated `hm-owner` worker user, not a missing Wardrobe MCP schema.

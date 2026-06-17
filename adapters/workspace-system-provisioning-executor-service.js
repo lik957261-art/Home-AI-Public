@@ -6,7 +6,7 @@ const { spawnSync: defaultSpawnSync } = require("node:child_process");
 const { renderGatewayConfigYaml } = require("../scripts/build-gateway-profile-template");
 const { readCapabilities } = require("../scripts/verify-gateway-profile-template-sync");
 
-const DEFAULT_LIVE_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_LIVE_ROOT = "/Users/example/path";
 const DEFAULT_LISTENER_USER = "hermes-host";
 const DEFAULT_OWNER_USER = "hm-owner";
 const DEFAULT_WORKER_GROUP = "hermes-workers";

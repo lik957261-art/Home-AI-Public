@@ -120,7 +120,7 @@ const {
 } = require("../scripts/macos-production-closure-validation");
 
 const parsed = parseArgs([]);
-assert.equal(parsed.root, "/Users/hermes-host/HermesMobile");
+assert.equal(parsed.root, "/Users/example/path");
 assert.equal(parsed.base, "http://127.0.0.1:8797");
 assert.equal(parsed.expectedVersion, "");
 assert.ok(parsed.ownerKeyFile.endsWith("/data/secrets/owner-web-key.secret"));
@@ -200,9 +200,9 @@ assert.deepEqual(compactRuntimePython({ runtimePython: runtimePythonPath }), {
   executable: true,
   issue: "",
 });
-assert.deepEqual(compactRuntimePython({ runtimePython: "/Users/xuxin/missing-python" }), {
+assert.deepEqual(compactRuntimePython({ runtimePython: "/Users/example/path" }), {
   ok: false,
-  configuredPath: "/Users/xuxin/missing-python",
+  configuredPath: "/Users/example/path",
   realPath: "",
   executable: false,
   issue: "runtime_python_resolves_to_developer_home",
@@ -315,7 +315,7 @@ const wardrobeBinding = compactWardrobeBinding({
 assert.equal(wardrobeBinding.bindingCount, 1);
 assert.equal(wardrobeBinding.workspaces[0].bootstrap.itemCount, 39);
 
-const sanitized = sanitize("/Users/hermes-host/HermesMobile/data/secrets/owner-web-key.secret secret.abcdefghijklmnopqrstuvwxyz", parsed);
+const sanitized = sanitize("/Users/example/path secret.abcdefghijklmnopqrstuvwxyz", parsed);
 assert.doesNotMatch(sanitized, /owner-web-key\.secret/);
 assert.doesNotMatch(sanitized, /abcdefghijklmnopqrstuvwxyz/);
 

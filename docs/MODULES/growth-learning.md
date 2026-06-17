@@ -14,7 +14,7 @@ raw Growth internals into the plugin workspace.
 
 - `adapters/growth-plugin-facade-service.js` for the bounded migration facade.
 - `server-routes/growth-plugin-facade-api-routes.js` for `/api/growth/v1/*`.
-- `/Users/hermes-dev/HermesMobileDev/plugins/growth/src/services/growth-service.js`
+- `/Users/example/path`
   for the current plugin-side facade/snapshot read path.
 - `adapters/learning-growth-service.js`
 - `adapters/learning-program-service.js`
@@ -368,7 +368,7 @@ Current development visual evidence:
   existence, meaningful frame size, no horizontal overflow, expected client
   version, and non-empty screenshot.
 - Screenshot:
-  `/Users/xuxin/.homeai-qa/artifacts/ios-pwa-visual-embedded-plugin-shell-growth-20260610T023822Z.png`.
+  `/Users/example/path`.
 
 ## Constraints
 

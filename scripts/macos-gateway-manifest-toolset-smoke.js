@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_REQUIRED_CANDIDATE = Object.freeze({
   workspaceId: "owner",
   skillWorkspaceId: "owner",
@@ -54,7 +54,7 @@ function parseArgs(argv) {
     else if (arg === "--help") {
       console.log([
         "Usage: node scripts/macos-gateway-manifest-toolset-smoke.js [options]",
-        "  --root <dir>              Mac production root, default /Users/hermes-host/HermesMobile",
+        "  --root <dir>              Mac production root, default /Users/example/path",
         "  --manifest <file>         Manifest path, default <root>/data/gateway-pool-manifest-mac.json",
         "  --require-candidate <spec> workspace:skillWorkspace:provider:security:toolset,toolset[:min=N][:any]",
         "  --no-default-requirements Skip default Owner wardrobe candidate check",

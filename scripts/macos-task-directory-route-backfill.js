@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { DatabaseSync } = require("node:sqlite");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_ROOT = "/Users/example/path";
 
 function parseArgs(argv) {
   const out = {
@@ -26,7 +26,7 @@ function parseArgs(argv) {
     else if (arg === "--help") {
       console.log([
         "Usage: node scripts/macos-task-directory-route-backfill.js [options]",
-        "  --root <dir>          Mac production root, default /Users/hermes-host/HermesMobile",
+        "  --root <dir>          Mac production root, default /Users/example/path",
         "  --db <file>           SQLite DB path, default <root>/data/hermes-mobile.sqlite3",
         "  --write               Apply taskGroupMeta.directoryRoute updates",
         "  --reset-state-snapshot",

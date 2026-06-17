@@ -168,7 +168,7 @@ The root helper must run from the production app tree and listen on a local
 Unix socket such as:
 
 ```text
-/Users/hermes-host/HermesMobile/data/run/workspace-system-provisioning-helper.sock
+/Users/example/path
 ```
 
 The helper owns the socket directory permissions and chowns the socket to the

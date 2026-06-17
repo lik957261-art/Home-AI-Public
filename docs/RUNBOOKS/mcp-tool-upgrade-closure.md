@@ -118,13 +118,13 @@ node scripts/mcp-tool-upgrade-closure-smoke.js \
   --require-gateway-tool-property mcp_finance_add_transaction_attachment:file_path \
   --require-gateway-tool-property mcp_finance_add_transaction_attachment:upload_path \
   --epoch 20260606-finance-reference-mcp-v1 \
-  --manifest /Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json \
+  --manifest /Users/example/path \
   --profile hm-owner-openai-1 \
   --agent-schema-mode native \
-  --telemetry-root /Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles \
-  --runtime-source /Users/hermes-host/HermesMobile/runtime/hermes-agent-official \
-  --runtime-overrides /Users/hermes-host/HermesMobile/app/gateway-runtime-overrides \
-  --runtime-python /Users/hermes-host/HermesMobile/runtime/hermes-agent-official/venv/bin/python
+  --telemetry-root /Users/example/path \
+  --runtime-source /Users/example/path \
+  --runtime-overrides /Users/example/path \
+  --runtime-python /Users/example/path
 ```
 
 Do not accept a Mac schema probe that runs against the wrong profile root. A

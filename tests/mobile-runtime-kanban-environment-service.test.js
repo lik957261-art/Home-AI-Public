@@ -64,7 +64,7 @@ function testKanbanOverridesAndClamps() {
     dataDir,
     maxUploadBytes: 10_000_000,
     platform: "darwin",
-    toolRoot: "/Users/hermes-host/HermesMobile/app",
+    toolRoot: "/Users/example/path",
   });
   assert.equal(runtime.KANBAN_COMMAND, "custom-hermes");
   assert.equal(runtime.KANBAN_COMMAND_ARGS, "run --json");

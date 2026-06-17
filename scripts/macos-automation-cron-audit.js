@@ -80,7 +80,7 @@ function jobIssues(job, skillNames) {
 }
 
 function main() {
-  const root = path.resolve(argValue("--root", process.env.HERMES_MOBILE_ROOT || "/Users/hermes-host/HermesMobile"));
+  const root = path.resolve(argValue("--root", process.env.HERMES_MOBILE_ROOT || "/Users/example/path"));
   const hermesHome = path.resolve(argValue("--hermes-home", path.join(root, "data", "hermes-home")));
   const jobsPath = path.resolve(argValue("--jobs", path.join(hermesHome, "cron", "jobs.json")));
   const skillRoot = path.resolve(argValue("--skills-root", path.join(hermesHome, "skills")));

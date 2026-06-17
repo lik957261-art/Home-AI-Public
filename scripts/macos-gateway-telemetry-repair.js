@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const DEFAULT_ROOT = "/Users/hermes-host/HermesMobile";
+const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_LISTENER_USER = "hermes-host";
 
 function parseArgs(argv) {
@@ -27,7 +27,7 @@ function parseArgs(argv) {
     else if (arg === "--help") {
       console.log([
         "Usage: node scripts/macos-gateway-telemetry-repair.js [options]",
-        "  --root <dir>              Mac production root, default /Users/hermes-host/HermesMobile",
+        "  --root <dir>              Mac production root, default /Users/example/path",
         "  --manifest <file>         Gateway Pool manifest, default <root>/data/gateway-pool-manifest-mac.json",
         "  --listener-user <user>    Hermes Mobile listener user, default hermes-host",
         "  --write                   Write manifest telemetry paths after creating a backup",

@@ -330,7 +330,7 @@ function laneCommands(lane) {
     ],
     startAppium: `APPIUM_PORT=${lane.appiumPort} bash "$HOME/.homeai-qa/scripts/macos-ios-appium-start.sh"`,
     startLiveDebug: [
-      "cd /Users/hermes-dev/HermesMobileDev/app",
+      "cd /Users/example/path",
       `npm run ios:pwa:debug -- --port ${lane.liveDebugPort} --appium-url http://127.0.0.1:${lane.appiumPort} --wda-local-port ${lane.wdaLocalPort} --mjpeg-server-port ${lane.mjpegServerPort}`,
     ].join(" && "),
     debugUrl: `http://127.0.0.1:${lane.liveDebugPort}/`,

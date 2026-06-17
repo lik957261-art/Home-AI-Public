@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${HOMEAI_PRODUCTION_ROOT:-/Users/hermes-host/HermesMobile}"
+ROOT="${HOMEAI_PRODUCTION_ROOT:-/Users/example/path"
 NODE_BIN="${HOMEAI_PRODUCTION_NODE:-$ROOT/runtime/node-current/bin/node}"
-APP_SCRIPT="${HOMEAI_DISASTER_BACKUP_SCRIPT:-/Users/hermes-dev/HermesMobileDev/app/scripts/create-macos-disaster-backup.js}"
-STAGING="${HOMEAI_DISASTER_BACKUP_STAGING:-/Users/xuxin/HomeAI-Disaster-Staging/mac-production}"
-DEFAULT_NFS_DESTINATION="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/xuxin/HomeAI-NAS-Backup-NFS}/${HOMEAI_NAS_BACKUP_SUBDIR:-HomeAI-Production-Backups/mac-production}"
+APP_SCRIPT="${HOMEAI_DISASTER_BACKUP_SCRIPT:-/Users/example/path"
+STAGING="${HOMEAI_DISASTER_BACKUP_STAGING:-/Users/example/path"
+DEFAULT_NFS_DESTINATION="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path"
 DESTINATION="${HOMEAI_DISASTER_BACKUP_DESTINATION:-$DEFAULT_NFS_DESTINATION}"
 LABEL="${HOMEAI_DISASTER_BACKUP_LABEL:-daily-nfs}"
-SUDO_PASSWORD_FILE="${HOMEAI_MAC_SUDO_PASSWORD_FILE:-/Users/xuxin/.homeai-qa/sudo-password}"
+SUDO_PASSWORD_FILE="${HOMEAI_MAC_SUDO_PASSWORD_FILE:-/Users/example/path"
 OPERATOR_USER="${HOMEAI_DISASTER_BACKUP_OPERATOR_USER:-$(id -un)}"
 USE_SUDO="${HOMEAI_DISASTER_BACKUP_USE_SUDO:-1}"
 NFS_OP_TIMEOUT_SECONDS="${HOMEAI_NAS_BACKUP_OP_TIMEOUT_SECONDS:-30}"

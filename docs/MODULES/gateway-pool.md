@@ -324,7 +324,7 @@ acceptance smoke must prove:
 
 The maintained Mac launcher is `scripts/macos-launch-gateway-profile.sh`,
 installed in production as
-`/Users/hermes-host/HermesMobile/gateway-worker/macos-launch-gateway-profile.sh`.
+`/Users/example/path`.
 It must accept both compatibility profile arguments and replica-aware
 arguments: `--start-profiles` / `-StartProfiles`, `--stop-profiles` /
 `-StopProfiles`, `--start-replicas` / `-StartReplicas`, and `--stop-replicas` /

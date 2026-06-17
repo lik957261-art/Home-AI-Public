@@ -232,7 +232,7 @@ and SenseVoice are stable.
 1. Add public-safe service skeletons and installer scripts for FunASR and
    SenseVoice.
 2. Install them on Mac production under
-   `/Users/hermes-host/HermesMobile/services/`.
+   `/Users/example/path`.
 3. Keep launchd labels separate from the existing Whisper service.
 4. Smoke `GET /health` for ports `8001`, `8002`, and `8003`.
 5. Do not change the default Home AI insertion backend yet.

@@ -70,6 +70,21 @@ const DIRECTORY_MUTATION_API_ROUTE_SPECS = Object.freeze([
     resourceTypes: ["directory", "file"],
     tags: ["directory", "rename"],
   },
+  {
+    id: "directories-move-contents",
+    method: "POST",
+    path: "/api/directories/move-contents",
+    group: "directory-mutation",
+    moduleKey: "directory-mutation",
+    handlerKey: "moveDirectoryContents",
+    summary: "Move all direct children from one authorized local directory into another.",
+    riskLevel: "high",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["directory", "file"],
+    tags: ["directory", "move"],
+  },
 ]);
 
 function ensureFunction(deps, name) {
@@ -153,6 +168,7 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     "exists",
     "stat",
     "mkdir",
+    "readdir",
     "write",
     "rmdir",
     "rmDirRecursive",
@@ -206,6 +222,19 @@ function createDirectoryMutationApiRoutes(deps = {}) {
       return false;
     }
     return true;
+  }
+
+  function bodyWithPath(body, pathValue) {
+    return Object.assign({}, body, { path: pathValue });
+  }
+
+  async function resolveMoveDirectory(req, res, body, fieldName, notFoundMessage) {
+    const pathValue = String(body[fieldName] || body[`${fieldName}_path`] || "").trim();
+    if (!pathValue) {
+      deps.sendJson(res, 400, { error: `Missing ${fieldName}` });
+      return null;
+    }
+    return requestContext(req, res, bodyWithPath(body, pathValue), notFoundMessage);
   }
 
   async function handleRemoteCreate(reqCtx, res, name) {
@@ -622,6 +651,84 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     return handledResult(route, context);
   }
 
+  async function handleMoveContents(req, res, route, context) {
+    const bodyResult = await readJsonBody(req, res);
+    if (!bodyResult.ok) return handledResult(route, context);
+    const body = bodyResult.body;
+    const sourceCtx = await resolveMoveDirectory(req, res, body, "sourcePath", "Source directory not found or not allowed");
+    if (!sourceCtx) return handledResult(route, context);
+    const targetCtx = await resolveMoveDirectory(req, res, body, "targetPath", "Target directory not found or not allowed");
+    if (!targetCtx) return handledResult(route, context);
+    if (sourceCtx.thread.id !== targetCtx.thread.id || sourceCtx.thread.workspaceId !== targetCtx.thread.workspaceId) {
+      deps.sendJson(res, 400, { error: "Source and target must use the same directory thread" });
+      return handledResult(route, context);
+    }
+    if (sourceCtx.resolved.remote || targetCtx.resolved.remote) {
+      deps.sendJson(res, 400, { error: "Move contents supports local directories only" });
+      return handledResult(route, context);
+    }
+    if (!ensureWritable(sourceCtx, res) || !ensureWritable(targetCtx, res)) return handledResult(route, context);
+
+    try {
+      const [sourceStat, targetStat] = await Promise.all([
+        maybeAwait(deps.stat(sourceCtx.resolved.localPath)),
+        maybeAwait(deps.stat(targetCtx.resolved.localPath)),
+      ]);
+      if (!sourceStat.isDirectory() || !targetStat.isDirectory()) {
+        deps.sendJson(res, 400, { error: "Source and target must be directories" });
+        return handledResult(route, context);
+      }
+      if (sourceCtx.resolved.localPath === targetCtx.resolved.localPath) {
+        deps.sendJson(res, 400, { error: "Source and target must be different directories" });
+        return handledResult(route, context);
+      }
+      const entries = await maybeAwait(deps.readdir(sourceCtx.resolved.localPath, { withFileTypes: true }));
+      const moves = [];
+      for (const entry of entries || []) {
+        const name = String(entry?.name || "").trim();
+        if (!name || name === "." || name === "..") continue;
+        const sourceChildLocalPath = deps.joinLocalPath(sourceCtx.resolved.localPath, name);
+        const targetChildLocalPath = deps.joinLocalPath(targetCtx.resolved.localPath, name);
+        const targetChildDisplayPath = deps.joinDisplayPath(targetCtx.resolved.displayPath, name);
+        deps.assertChildPathInside(sourceCtx.resolved.localPath, sourceChildLocalPath);
+        deps.assertChildPathInside(targetCtx.resolved.localPath, targetChildLocalPath);
+        if (!deps.isDirectoryBrowserPathAllowedForThread(sourceCtx.thread, targetChildLocalPath, targetChildDisplayPath)) {
+          deps.sendJson(res, 403, { error: "Target child path is not allowed", name });
+          return handledResult(route, context);
+        }
+        if (await maybeAwait(deps.exists(targetChildLocalPath))) {
+          deps.sendJson(res, 409, { error: "Target entry already exists", name });
+          return handledResult(route, context);
+        }
+        moves.push({ name, from: sourceChildLocalPath, to: targetChildLocalPath });
+      }
+      for (const move of moves) {
+        await maybeAwait(deps.rename(move.from, move.to));
+      }
+      clearDirectoryCatalogCaches(deps, sourceCtx.thread);
+      deps.sendJson(res, 200, {
+        ok: true,
+        movedCount: moves.length,
+        source: {
+          path: sourceCtx.resolved.displayPath,
+          displayPath: sourceCtx.resolved.workspacePath,
+          workspacePath: sourceCtx.resolved.workspacePath,
+        },
+        target: {
+          path: targetCtx.resolved.displayPath,
+          displayPath: targetCtx.resolved.workspacePath,
+          workspacePath: targetCtx.resolved.workspacePath,
+        },
+        entries: moves.map((move) => ({ name: move.name })),
+      });
+    } catch (err) {
+      deps.sendJson(res, isAlreadyExistsError(err) ? 409 : statusCode(err), {
+        error: isAlreadyExistsError(err) ? "Target entry already exists" : errorMessage(err),
+      });
+    }
+    return handledResult(route, context);
+  }
+
   async function handle(req, res, url, context = {}) {
     const route = registry.match({
       method: req.method || "GET",
@@ -633,6 +740,7 @@ function createDirectoryMutationApiRoutes(deps = {}) {
     if (route.id === "directories-upload") return handleUpload(req, res, route, context);
     if (route.id === "directories-delete") return handleDelete(req, res, route, context);
     if (route.id === "directories-rename") return handleRename(req, res, route, context);
+    if (route.id === "directories-move-contents") return handleMoveContents(req, res, route, context);
     return { handled: false };
   }
 

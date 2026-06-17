@@ -26,8 +26,8 @@ bottom navigation entry, plugin-topic quick actions, resident iframe shell, and
 navigation/refresh event normalization. Moira owns its Web/PWA UI, local
 records, calculation code, plugin-side manifest/launch/session service, and
 docs. The Home AI development source path is
-`/Users/hermes-dev/HermesMobileDev/plugins/moira`; the Mac production target is
-`/Users/hermes-host/HermesMobile/plugins/moira`; the production launchd label is
+`/Users/example/path`; the Mac production target is
+`/Users/example/path`; the production launchd label is
 `com.hermesmobile.plugin.moira`; the loopback service URL is
 `http://127.0.0.1:4174`. Production updates use the central deploy script:
 `npm run --silent deploy:macos -- --plugin moira --reason <reason> --execute
@@ -112,10 +112,10 @@ boundary from that contract: plugin source changes are prepared in the Mac
 development tree, production plugin directories are updated only through a
 bounded deploy operation with backup, controlled sync, targeted restart, and
 plugin-specific production validation, and plugin projects must not request
-ordinary write access to `/Users/hermes-host/HermesMobile/plugins/<plugin>`.
+ordinary write access to `/Users/example/path<plugin>`.
 Plugin Codex threads must read that central contract before production deploys
 and should call the Home AI shared deploy script from
-`/Users/hermes-dev/HermesMobileDev/app`, passing plugin-local facts such as
+`/Users/example/path`, passing plugin-local facts such as
 `--plugin`, `--source`, `--restart-label`, `--health-url`, MCP schema checks,
 and data readback checks. The shared script also accepts `--plugin all` for a
 bounded all-plugin deployment plan over the known service roots. A plugin-local

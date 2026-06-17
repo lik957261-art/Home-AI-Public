@@ -106,8 +106,10 @@ function scheduleTopicPluginDockRevealAfterBackSwipe(reason = "back_swipe") {
 
 function scheduleGlobalPluginDockRefresh(reason = "view") {
   if (!isMobileLayout()) return;
+  const interactionSeq = Number(state.bottomNavigationInteractionSeq || 0) || 0;
   [0, 80, 240].forEach((delay) => {
     window.setTimeout(() => {
+      if (interactionSeq && interactionSeq !== (Number(state.bottomNavigationInteractionSeq || 0) || 0)) return;
       updateTopicPluginDockChrome(isTaskListView());
       if (typeof settleMobileBottomNavReservation === "function") {
         settleMobileBottomNavReservation(`global_plugin_dock_refresh_${reason}_${delay}`, [0, 120]);

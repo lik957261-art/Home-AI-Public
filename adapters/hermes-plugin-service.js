@@ -140,7 +140,7 @@ function configuredLiveRoot(options = {}) {
     || stringValue(env.HERMES_WEB_DATA_DIR)
     || stringValue(env.HERMES_MOBILE_DATA_DIR);
   if (dataDir && path.basename(dataDir) === "data") return path.dirname(dataDir);
-  return "/Users/hermes-host/HermesMobile";
+  return "/Users/example/path";
 }
 
 function cleanGatewayProfiles(value) {

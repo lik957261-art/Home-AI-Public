@@ -11,7 +11,38 @@ function preparePrimaryNavigationChange() {
   if (typeof closeSidebar === "function" && typeof isMobileLayout === "function" && isMobileLayout()) closeSidebar();
 }
 
+function markBottomNavigationInteraction(reason = "bottom_nav") {
+  state.bottomNavigationInteractionSeq = (Number(state.bottomNavigationInteractionSeq || 0) || 0) + 1;
+  state.bottomNavigationInteractionReason = String(reason || "bottom_nav").slice(0, 80);
+  state.bottomNavigationInteractionUntil = Date.now() + 480;
+  const nav = $("bottomNav");
+  if (nav) {
+    nav.classList.add("bottom-nav-interacting");
+    window.clearTimeout(state.bottomNavigationInteractionTimer || 0);
+    state.bottomNavigationInteractionTimer = window.setTimeout(() => {
+      if (Date.now() >= Number(state.bottomNavigationInteractionUntil || 0)) {
+        nav.classList.remove("bottom-nav-interacting");
+      }
+    }, 520);
+  }
+  return state.bottomNavigationInteractionSeq;
+}
+
+function wireBottomNavigationInteractionGuard() {
+  const nav = $("bottomNav");
+  if (!nav || nav.dataset.bottomNavigationInteractionGuardBound === "1") return;
+  nav.dataset.bottomNavigationInteractionGuardBound = "1";
+  const mark = (event) => {
+    const button = event.target?.closest?.(".bottom-tab");
+    if (!button || button.closest("#bottomNav") !== nav || button.disabled || button.hidden) return;
+    markBottomNavigationInteraction(button.id || "bottom_nav");
+  };
+  nav.addEventListener("pointerdown", mark, { capture: true, passive: true });
+  nav.addEventListener("click", mark, { capture: true });
+}
+
 function wireUi() {
+  wireBottomNavigationInteractionGuard();
   wireBackNavigationGuard();
   wireSidebarTouchScroll();
   wireRightSwipeGuard();

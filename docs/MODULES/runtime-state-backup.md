@@ -25,9 +25,9 @@ Backups must allow a replacement machine to restore source, production app files
 
 ## Production State
 
-- Current Mac production root is `/Users/hermes-host/HermesMobile`.
+- Current Mac production root is `/Users/example/path`.
 - Current production data directory is
-  `/Users/hermes-host/HermesMobile/data`.
+  `/Users/example/path`.
 - Current SQLite state is `hermes-mobile.sqlite3` under that data directory.
 - `state.json` is a snapshot/rollback artifact, not the preferred write target for new product behavior.
 - Home AI voice-input learning data is server-side runtime data. Learned
@@ -36,15 +36,15 @@ Backups must allow a replacement machine to restore source, production app files
   `voice_input_corrections`, and `voice_input_audit`; `state.json` is only the
   compatibility snapshot for that state.
 - Plugin data is plugin-owned and must be backed up together with Home AI:
-  `/Users/hermes-host/HermesMobile/plugins/<plugin>/data`.
+  `/Users/example/path<plugin>/data`.
 - Workspace-local Skill and Memory stores are under
-  `/Users/hermes-host/HermesMobile/data/skill-profiles/<profileId>/skills`
+  `/Users/example/path<profileId>/skills`
   and
-  `/Users/hermes-host/HermesMobile/data/skill-profiles/<profileId>/memories`.
+  `/Users/example/path<profileId>/memories`.
 - Production Soul files include at least
-  `/Users/hermes-host/HermesMobile/data/hermes-home/SOUL.md` and Gateway
+  `/Users/example/path` and Gateway
   profile `SOUL.md` files under
-  `/Users/hermes-host/HermesMobile/gateway-worker/telemetry/profiles`.
+  `/Users/example/path`.
 - Learning-growth data has its own SQLite schema and migration path behind the
   learning services.
 
@@ -75,7 +75,7 @@ Backups must allow a replacement machine to restore source, production app files
   directly against the NFS path with sudo.
 - The default Mac NAS mount helper is
   `scripts/mount-macos-nas-backup-destination.sh`. It creates or reuses
-  `/Users/xuxin/HomeAI-NAS-Backup-NFS` and mounts the dedicated Synology NFS
+  `/Users/example/path` and mounts the dedicated Synology NFS
   export `192.168.10.99:/volume1/备份`. NFS does not use the NAS account
   password; the helper uses `HOMEAI_MAC_SUDO_PASSWORD_FILE` only for the local
   macOS `mount_nfs` operation. The default backup subdirectory is
@@ -87,7 +87,7 @@ Backups must allow a replacement machine to restore source, production app files
   read the sudo password file or perform sudo escalation.
 - The supported NFS write path is local staging followed by ordinary-user NFS
   sync. `scripts/run-macos-disaster-backup-to-nas.sh` runs the builder with
-  sudo into `/Users/xuxin/HomeAI-Disaster-Staging/mac-production` by default,
+  sudo into `/Users/example/path` by default,
   then rsyncs `staging/current` to the mounted NFS destination as the operator
   user. This avoids Synology NFS root-squash failures from sudo writes.
   NFS directory creation, write probing, and publish sync are bounded by
@@ -96,10 +96,10 @@ Backups must allow a replacement machine to restore source, production app files
   fail with an explicit NFS destination error instead of blocking CRON.
 - The production scheduled path is a Hermes CRON `no_agent` job running as
   `hermes-host`. Its script is installed at
-  `/Users/hermes-host/HermesMobile/data/hermes-home/scripts/homeai-disaster-backup-cron.sh`
+  `/Users/example/path`
   and calls the same wrapper with `HOMEAI_DISASTER_BACKUP_USE_SUDO=0`,
   staging under
-  `/Users/hermes-host/HermesMobile/data/backups/disaster-recovery-staging/mac-production`.
+  `/Users/example/path`.
   The cron runner must have `HERMES_CRON_SCRIPT_TIMEOUT=1800` and read-only
   ACLs for backup-critical production/user state, including inherited
   read/traverse ACLs on `data/skill-profiles` for `hermes-host`; do not give
@@ -119,7 +119,7 @@ Backups must allow a replacement machine to restore source, production app files
   reading them.
 - Hermes Agent custom user Skills stores are mandatory backup coverage. The
   authoritative production store is `data/skill-profiles/*/skills`; the
-  operator-side Hermes Agent store, such as `/Users/xuxin/.hermes/skills` and
+  operator-side Hermes Agent store, such as `/Users/example/path` and
   profile-local `profiles/*/skills`, is included by the Mac backup script when
   readable.
 - Every workspace Memory store and Soul file is mandatory backup coverage.

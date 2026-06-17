@@ -75,6 +75,32 @@ Validation for this public release:
 - public export privacy scan
 - focused production smoke evidence from the source deployment before export
 
+## 2026-06-17 Public Update
+
+This update refreshes the public tree after the current mobile Home AI shell
+stability pass. The exact source commit is recorded in
+`.public-export-report.json`.
+
+Highlights:
+
+- Stabilizes rapid bottom-tab switching by making bottom navigation taps take
+  priority over delayed plugin Dock layout refreshes.
+- Reduces pinned plugin bottom-tab flicker during fast mobile tab changes.
+- Keeps the Inbox `待办` filter limited to manually created Todo/reminder rows;
+  automation reports and delivery notifications stay in the non-Todo attention
+  queue.
+- Adds a controlled directory content-move API used by plugin-bound directory
+  migrations without copying runtime data into Git.
+- Preserves the public install/update contract: runtime secrets, profile data,
+  uploads, generated reports, and local handoff files remain outside the public
+  source tree.
+
+Validation for this public update:
+
+- focused static UI/navigation tests
+- public export privacy scan
+- production static deploy smoke from the source deployment before export
+
 ## 1.0.2 Public Release
 
 This release refreshes the public tree from the current Home AI source and

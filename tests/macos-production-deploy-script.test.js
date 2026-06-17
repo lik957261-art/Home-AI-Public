@@ -142,8 +142,8 @@ assert.doesNotMatch(script, /\/usr\/bin\/tee/);
 
 for (const plugin of ["codex-mobile-web", "email", "finance", "growth", "healthy", "moira", "note", "wardrobe"]) {
   assert.match(script, new RegExp(`"${plugin}"`));
-  assert.match(contract, new RegExp(`${plugin} -> /Users/hermes-host/HermesMobile/plugins/${plugin}`));
-  assert.match(productionAccess, new RegExp(`${plugin} -> /Users/hermes-host/HermesMobile/plugins/${plugin}`));
+  assert.match(contract, new RegExp(`${plugin} -> /Users/example/path`));
+  assert.match(productionAccess, new RegExp(`${plugin} -> /Users/example/path`));
 }
 
 assert.match(deploymentDoc, /deploy-macos-production\.js/);
@@ -200,8 +200,8 @@ assert.equal(payload.ok, true);
 assert.equal(payload.plan.mode, "plan");
 assert.equal(payload.plan.target, "home-ai");
 assert.equal(payload.plan.surface, "full");
-assert.equal(payload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/app");
-assert.equal(payload.plan.productionPath, "/Users/hermes-host/HermesMobile/app");
+assert.equal(payload.plan.sourcePath, "/Users/example/path");
+assert.equal(payload.plan.productionPath, "/Users/example/path");
 assert.match(payload.plan.backupPath, /20260608T000000Z-home-ai-harness$/);
 assert.ok(payload.plan.rsyncExcludes.includes("AGENTS.md"));
 assert.ok(payload.plan.rsyncExcludes.includes(".git"));
@@ -217,8 +217,8 @@ assert.ok(payload.plan.proofFiles.includes("scripts/macos-automation-cron-audit.
 assert.ok(payload.plan.proofFiles.includes("scripts/plugin-workspace-audit-runner.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-gateway-start-script-bridge-env-repair.js"));
 assert.equal(payload.plan.cronProfileAliases.type, "home-ai-cron-profile-aliases");
-assert.equal(payload.plan.cronProfileAliases.manifestPath, "/Users/hermes-host/HermesMobile/data/gateway-pool-manifest-mac.json");
-assert.equal(payload.plan.cronProfileAliases.profilesRoot, "/Users/hermes-host/HermesMobile/data/hermes-home/profiles");
+assert.equal(payload.plan.cronProfileAliases.manifestPath, "/Users/example/path");
+assert.equal(payload.plan.cronProfileAliases.profilesRoot, "/Users/example/path");
 assert.deepEqual(payload.plan.cronProfileAliases.aliases, []);
 assert.ok(payload.plan.validation.some((item) => item.type === "production-file-hashes"));
 const statusSmoke = payload.plan.validation.find((item) => item.type === "home-ai-status-smoke");
@@ -230,7 +230,7 @@ assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" &
 assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.cron")));
 assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.listener")));
 
-const bridgeHostPlist = deployScript.buildHomeAiBridgeHostLaunchdPlist("/Users/hermes-host/HermesMobile");
+const bridgeHostPlist = deployScript.buildHomeAiBridgeHostLaunchdPlist("/Users/example/path");
 assert.match(bridgeHostPlist, /<string>com\.hermesmobile\.bridge-host<\/string>/);
 assert.match(bridgeHostPlist, /<string>hermes-host<\/string>/);
 assert.match(bridgeHostPlist, /\/Users\/hermes-host\/HermesMobile\/runtime\/node-current\/bin\/node/);
@@ -242,7 +242,7 @@ assert.match(bridgeHostPlist, /bridge-host\.secret/);
 assert.match(bridgeHostPlist, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(bridgeHostPlist, /<key>KeepAlive<\/key>\s*<true\/>/);
 
-const cronPlist = deployScript.buildHomeAiCronLaunchdPlist("/Users/hermes-host/HermesMobile");
+const cronPlist = deployScript.buildHomeAiCronLaunchdPlist("/Users/example/path");
 assert.match(cronPlist, /<string>com\.hermesmobile\.cron<\/string>/);
 assert.match(cronPlist, /<integer>60<\/integer>/);
 assert.match(cronPlist, /<string>hermes-host<\/string>/);
@@ -252,13 +252,13 @@ assert.match(cronPlist, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/data\/hermes-home\/cron\/jobs\.json/);
 assert.match(cronPlist, /<key>HERMES_CRON_SCRIPT_TIMEOUT<\/key>\s*<string>1800<\/string>/);
 
-const pluginWorkspaceAuditTargets = JSON.parse(deployScript.buildPluginWorkspaceAuditTargetJson("/Users/hermes-host/HermesMobile"));
-assert.equal(pluginWorkspaceAuditTargets["codex-mobile"], "/Users/hermes-host/HermesMobile/plugins/codex-mobile-web");
-assert.equal(pluginWorkspaceAuditTargets.finance, "/Users/hermes-host/HermesMobile/plugins/finance");
-assert.equal(pluginWorkspaceAuditTargets.health, "/Users/hermes-host/HermesMobile/plugins/healthy");
-assert.equal(pluginWorkspaceAuditTargets.wardrobe, "/Users/hermes-host/HermesMobile/plugins/wardrobe");
+const pluginWorkspaceAuditTargets = JSON.parse(deployScript.buildPluginWorkspaceAuditTargetJson("/Users/example/path"));
+assert.equal(pluginWorkspaceAuditTargets["codex-mobile"], "/Users/example/path");
+assert.equal(pluginWorkspaceAuditTargets.finance, "/Users/example/path");
+assert.equal(pluginWorkspaceAuditTargets.health, "/Users/example/path");
+assert.equal(pluginWorkspaceAuditTargets.wardrobe, "/Users/example/path");
 
-const cronAliasPlan = deployScript.buildHomeAiCronProfileAliasPlan("/Users/hermes-host/HermesMobile", {
+const cronAliasPlan = deployScript.buildHomeAiCronProfileAliasPlan("/Users/example/path", {
   workers: [
     {
       profile: "hm-owner-openai-1",
@@ -266,28 +266,28 @@ const cronAliasPlan = deployScript.buildHomeAiCronProfileAliasPlan("/Users/herme
       provider: "openai-codex",
       securityLevel: "user",
       toolsets: ["email", "file", "skills", "cronjob_mobile"],
-      configPath: "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/config.yaml",
+      configPath: "/Users/example/path",
     },
     {
       profile: "hm-owner-openai-2",
       enabled: false,
       securityLevel: "user",
       toolsets: ["cronjob_mobile"],
-      configPath: "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-2/config.yaml",
+      configPath: "/Users/example/path",
     },
     {
       profile: "officialclean1",
       enabled: true,
       securityLevel: "owner-maintenance",
       toolsets: ["cronjob_mobile"],
-      configPath: "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/officialclean1/config.yaml",
+      configPath: "/Users/example/path",
     },
     {
       profile: "hm-owner-openai-no-cron",
       enabled: true,
       securityLevel: "user",
       toolsets: ["email", "file", "skills"],
-      configPath: "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-no-cron/config.yaml",
+      configPath: "/Users/example/path",
     },
   ],
 });
@@ -295,16 +295,16 @@ assert.equal(cronAliasPlan.type, "home-ai-cron-profile-aliases");
 assert.deepEqual(cronAliasPlan.aliases.map((item) => item.profile), ["hm-owner-openai-1"]);
 assert.equal(
   cronAliasPlan.aliases[0].sourceDir,
-  "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1",
+  "/Users/example/path",
 );
 assert.equal(
   cronAliasPlan.aliases[0].aliasPath,
-  "/Users/hermes-host/HermesMobile/data/hermes-home/profiles/hm-owner-openai-1",
+  "/Users/example/path",
 );
-assert.ok(cronAliasPlan.aliases[0].ancestorDirs.includes("/Users/hm-owner/HermesWorkspace"));
-assert.equal(cronAliasPlan.aliases[0].workspaceRoot, "/Users/hm-owner/HermesWorkspace");
-assert.ok(cronAliasPlan.aliases[0].pluginBindingDirs.includes("/Users/hm-owner/HermesWorkspace/.hermes-email"));
-assert.ok(cronAliasPlan.aliases[0].pluginBindingDirs.includes("/Users/hm-owner/HermesWorkspace/.hermes-finance"));
+assert.ok(cronAliasPlan.aliases[0].ancestorDirs.includes("/Users/example/path"));
+assert.equal(cronAliasPlan.aliases[0].workspaceRoot, "/Users/example/path");
+assert.ok(cronAliasPlan.aliases[0].pluginBindingDirs.includes("/Users/example/path"));
+assert.ok(cronAliasPlan.aliases[0].pluginBindingDirs.includes("/Users/example/path"));
 
 const staticRun = spawnSync(process.execPath, [
   scriptPath,
@@ -357,8 +357,8 @@ const pluginRun = spawnSync(process.execPath, [
 assert.equal(pluginRun.status, 0, pluginRun.stderr);
 const pluginPayload = JSON.parse(pluginRun.stdout);
 assert.equal(pluginPayload.plan.target, "plugin:finance");
-assert.equal(pluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/finance");
-assert.equal(pluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/finance");
+assert.equal(pluginPayload.plan.sourcePath, "/Users/example/path");
+assert.equal(pluginPayload.plan.productionPath, "/Users/example/path");
 assert.equal(pluginPayload.plan.productionOwner, "hermes-host:staff");
 assert.deepEqual(pluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.finance"]);
 assert.equal(pluginPayload.plan.healthUrl, "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest");
@@ -396,8 +396,8 @@ const healthAliasPluginRun = spawnSync(process.execPath, [
 assert.equal(healthAliasPluginRun.status, 0, healthAliasPluginRun.stderr);
 const healthAliasPayload = JSON.parse(healthAliasPluginRun.stdout);
 assert.equal(healthAliasPayload.plan.target, "plugin:healthy");
-assert.equal(healthAliasPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/healthy");
-assert.equal(healthAliasPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/healthy");
+assert.equal(healthAliasPayload.plan.sourcePath, "/Users/example/path");
+assert.equal(healthAliasPayload.plan.productionPath, "/Users/example/path");
 assert.deepEqual(healthAliasPayload.plan.restartLabels, ["com.hermesmobile.plugin.health"]);
 assert.equal(healthAliasPayload.plan.healthUrl, "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest");
 
@@ -424,7 +424,7 @@ assert.deepEqual(codexPluginPayload.plan.postSyncRepairs, [
     serviceGroup: "staff",
     launchdLabel: "com.hermesmobile.plugin.codex-mobile",
     launchdPlistPath: "/Library/LaunchDaemons/com.hermesmobile.plugin.codex-mobile.plist",
-    runtimeLogRoot: "/Users/xuxin/.codex-mobile-web/logs",
+    runtimeLogRoot: "/Users/example/path",
     logFiles: [
       "codex-mobile-web.out.log",
       "codex-mobile-web.err.log",
@@ -455,8 +455,8 @@ const growthPluginRun = spawnSync(process.execPath, [
 assert.equal(growthPluginRun.status, 0, growthPluginRun.stderr);
 const growthPluginPayload = JSON.parse(growthPluginRun.stdout);
 assert.equal(growthPluginPayload.plan.target, "plugin:growth");
-assert.equal(growthPluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/growth");
-assert.equal(growthPluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/growth");
+assert.equal(growthPluginPayload.plan.sourcePath, "/Users/example/path");
+assert.equal(growthPluginPayload.plan.productionPath, "/Users/example/path");
 assert.deepEqual(growthPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.growth"]);
 assert.equal(growthPluginPayload.plan.healthUrl, "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest");
 assert.deepEqual(growthPluginPayload.plan.postSyncMirrors, []);
@@ -477,8 +477,8 @@ const moiraPluginRun = spawnSync(process.execPath, [
 assert.equal(moiraPluginRun.status, 0, moiraPluginRun.stderr);
 const moiraPluginPayload = JSON.parse(moiraPluginRun.stdout);
 assert.equal(moiraPluginPayload.plan.target, "plugin:moira");
-assert.equal(moiraPluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobileDev/plugins/moira");
-assert.equal(moiraPluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/moira");
+assert.equal(moiraPluginPayload.plan.sourcePath, "/Users/example/path");
+assert.equal(moiraPluginPayload.plan.productionPath, "/Users/example/path");
 assert.deepEqual(moiraPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.moira"]);
 assert.equal(moiraPluginPayload.plan.healthUrl, "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest");
 assert.equal(moiraPluginPayload.plan.postSyncMirrors.length, 9);

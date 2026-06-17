@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="${HERMES_MOBILE_APP_DIR:-/Users/hermes-host/HermesMobile/app}"
-MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/xuxin/HomeAI-NAS-Backup-NFS}"
+APP_DIR="${HERMES_MOBILE_APP_DIR:-/Users/example/path"
+MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path"
 DESTINATION="${HOMEAI_DISASTER_BACKUP_DESTINATION:-${MOUNT_POINT%/}/HomeAI-Production-Backups/mac-production}"
-STAGING="${HOMEAI_DISASTER_BACKUP_STAGING:-/Users/hermes-host/HermesMobile/data/backups/disaster-recovery-staging/mac-production}"
+STAGING="${HOMEAI_DISASTER_BACKUP_STAGING:-/Users/example/path"
 LABEL="${HOMEAI_DISASTER_BACKUP_LABEL:-daily-nfs-$(date -u +%Y%m%dT%H%M%SZ)}"
 
 if ! mount | grep -F " on ${MOUNT_POINT} " >/dev/null 2>&1; then

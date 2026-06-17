@@ -64,11 +64,11 @@ Mac Studio
 Recommended root:
 
 ```text
-/Users/hermes-host/HermesMobile/app
-/Users/hermes-host/HermesMobile/data
-/Users/hermes-host/HermesMobile/runtime
-/Users/hermes-host/HermesMobile/backups
-/Users/hermes-host/HermesMobile/plugins
+/Users/example/path
+/Users/example/path
+/Users/example/path
+/Users/example/path
+/Users/example/path
 ```
 
 The exact path may change during installation, but the installer must keep a
@@ -78,11 +78,11 @@ from it.
 Suggested environment names:
 
 ```text
-HERMES_MOBILE_ROOT=/Users/hermes-host/HermesMobile
-HERMES_MOBILE_APP_DIR=/Users/hermes-host/HermesMobile/app
-HERMES_MOBILE_DATA_DIR=/Users/hermes-host/HermesMobile/data
-HERMES_MOBILE_RUNTIME_DIR=/Users/hermes-host/HermesMobile/runtime
-HERMES_MOBILE_BACKUP_DIR=/Users/hermes-host/HermesMobile/backups
+HERMES_MOBILE_ROOT=/Users/example/path
+HERMES_MOBILE_APP_DIR=/Users/example/path
+HERMES_MOBILE_DATA_DIR=/Users/example/path
+HERMES_MOBILE_RUNTIME_DIR=/Users/example/path
+HERMES_MOBILE_BACKUP_DIR=/Users/example/path
 HERMES_MOBILE_NETWORK_MODE=direct|proxy
 ```
 
@@ -124,10 +124,10 @@ hm-wuping / hm-stephen / hm-xuyan / hm-test
 Directory ownership pattern:
 
 ```text
-/Users/hm-owner/HermesWorkspace       owner hm-owner, mode 700
-/Users/hm-wuping/HermesWorkspace      owner hm-wuping, mode 700
-/Users/hm-stephen/HermesWorkspace     owner hm-stephen, mode 700
-/Users/hm-xuyan/HermesWorkspace       owner hm-xuyan, mode 700
+/Users/example/path       owner hm-owner, mode 700
+/Users/example/path      owner hm-wuping, mode 700
+/Users/example/path     owner hm-stephen, mode 700
+/Users/example/path       owner hm-xuyan, mode 700
 ```
 
 Inside each workspace:
@@ -149,10 +149,10 @@ JavaScript, iframe URLs, model tool arguments, screenshots, docs, handoffs, or
 logs.
 
 Current Home AI production policy still exposes live data paths from
-`/Users/hermes-host/HermesMobile/data` to Gateway runs. A worker may have
-`HERMES_WORKSPACE_ROOT=/Users/hm-owner/HermesWorkspace`, but the official
+`/Users/example/path` to Gateway runs. A worker may have
+`HERMES_WORKSPACE_ROOT=/Users/example/path`, but the official
 Gateway file tool can receive an `access_policy_context.allowed_roots` entry
-such as `/Users/hermes-host/HermesMobile/data/drive`. The macOS isolation model
+such as `/Users/example/path`. The macOS isolation model
 therefore has two required layers:
 
 - Home AI policy must authorize only the intended live data roots.
@@ -164,9 +164,9 @@ Do not validate filesystem isolation only by checking launchd users or
 migration, ACL repair, and deployment:
 
 ```bash
-sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node \
-  /Users/hermes-host/HermesMobile/app/scripts/macos-worker-filesystem-access-harness.js \
-  --root /Users/hermes-host/HermesMobile
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path
 ```
 
 The detailed incident workflow is
@@ -230,7 +230,7 @@ Required for every workspace-enabled plugin:
 MCP wrapper contract:
 
 ```text
---workspace /Users/hm-wuping/HermesWorkspace
+--workspace /Users/example/path
 --no-workspace-override
 ```
 
@@ -365,8 +365,8 @@ must run with explicit paths and env.
 Mac official Hermes runtime should live outside the app checkout:
 
 ```text
-/Users/hermes-host/HermesMobile/runtime/official-clean
-/Users/hermes-host/HermesMobile/runtime/venv
+/Users/example/path
+/Users/example/path
 ```
 
 Gateway profiles should be generated from Hermes Mobile manifest and
@@ -454,11 +454,11 @@ The Mac first-start preflight must fail closed if any of these are false:
 
 Minimum smoke after install:
 
-- `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-production-closure-validation.js --json`.
+- `sudo /Users/example/path /Users/example/path --json`.
   This is the default Mac production closure gate after deployment, migration,
   Gateway/Profile repair, plugin provisioning, Weixin route repair, or ACL
   repair.
-- `sudo /Users/hermes-host/HermesMobile/runtime/node-current/bin/node /Users/hermes-host/HermesMobile/app/scripts/macos-plugin-directory-production-smoke.js --root /Users/hermes-host/HermesMobile --base http://127.0.0.1:8797 --json`.
+- `sudo /Users/example/path /Users/example/path --root /Users/example/path --base http://127.0.0.1:8797 --json`.
   Use this focused smoke after workspace catalog path repair, local workspace
   rename, directory ownership repair, or plugin-topic delivery-directory
   failures.

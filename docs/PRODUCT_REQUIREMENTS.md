@@ -283,10 +283,12 @@ This file records durable product rules that implementation must preserve.
 - Action Inbox is the primary passive/durable attention surface for manual Todo/reminder items, automation conclusions, Growth/executor card completion, permission requests, approvals, and review items.
 - Action Inbox must be backed by Hermes Mobile local persistence and audit events, not official Hermes Kanban.
 - The primary bottom navigation direction is `聊天 / 收件箱 / 话题 / 目录 / 成长`; Automation should move to a background/admin surface.
-- Manual and scheduled Todo rows must be separated into an Inbox `待办` filter
-  tab. Other Inbox tabs must exclude Todo rows so reminders and tasks are not
-  mixed with Automation deliveries, plugin notifications, approvals, or Growth
-  receipts.
+- Manually created Todo/reminder rows must be separated into an Inbox `待办`
+  filter tab. This tab is for user-created items that remind the user to
+  complete something at a specified time; Automation conclusions, scheduled
+  reports, plugin notifications, approvals, and Growth receipts must not appear
+  there. Other Inbox tabs must exclude Todo rows so reminders and tasks are not
+  mixed with delivery rows.
 - Todo/reminder is a host-owned Action Inbox item type, not a standalone plugin
   and not a revived official Kanban product surface. The old Todo/Kanban API is
   compatibility only.

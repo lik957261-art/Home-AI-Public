@@ -55,7 +55,7 @@ function makeService(overrides = {}) {
         };
       },
     },
-    liveRoot: "/Users/hermes-host/HermesMobile",
+    liveRoot: "/Users/example/path",
     nowIso: () => "2026-06-08T00:00:00.000Z",
     rotateWorkspaceAccessKey(workspaceId, options) {
       calls.keys.push({ workspaceId, options });

@@ -132,7 +132,7 @@ For each plugin with Mac deployment:
 ```text
 --ssh-alias homeai-mac
 --password-file <private-local-password-file>
---mac-root /Users/hermes-host/HermesMobile
+--mac-root /Users/example/path
 ```
 
 2. Ensure scripts use absolute Mac paths for privileged operations.
@@ -142,7 +142,7 @@ For each plugin with Mac deployment:
 5. Ensure production sync writes to the plugin's production source path under:
 
 ```text
-/Users/hermes-host/HermesMobile/plugins/<plugin>
+/Users/example/path<plugin>
 ```
 
 6. Ensure service restart and status checks are bounded and label-specific.

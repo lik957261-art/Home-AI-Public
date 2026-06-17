@@ -46,7 +46,7 @@ const {
 } = require("../scripts/macos-wardrobe-binding-production-smoke");
 
 const parsed = parseArgs([]);
-assert.equal(parsed.root, "/Users/hermes-host/HermesMobile");
+assert.equal(parsed.root, "/Users/example/path");
 assert.equal(parsed.base, "http://127.0.0.1:8797");
 assert.equal(parsed.expectedOrigin, "http://127.0.0.1:8765");
 assert.equal(parsed.legacyOrigin, "http://192.168.10.99:8765");
@@ -58,7 +58,7 @@ assert.equal(
 );
 
 assert.equal(
-  compactPath("/Users/hermes-host/HermesMobile/data/drive/users/weixin_wuping/.hermes-wardrobe/config.json", parsed.root),
+  compactPath("/Users/example/path", parsed.root),
   "<HERMES_MOBILE_ROOT>/data/drive/users/weixin_wuping/.hermes-wardrobe/config.json",
 );
 assert.deepEqual(

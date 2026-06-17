@@ -51,6 +51,7 @@ function makeRoutes(overrides = {}) {
     findThread: [],
     invalidateCatalogCache: 0,
     mkdir: [],
+    readdir: [],
     rename: [],
     remoteEntries: [],
     resolve: [],
@@ -170,6 +171,10 @@ function makeRoutes(overrides = {}) {
     mkdir(targetPath) {
       calls.mkdir.push(targetPath);
     },
+    readdir(targetPath) {
+      calls.readdir.push(targetPath);
+      return [];
+    },
     rename(from, to) {
       calls.rename.push({ from, to });
     },
@@ -211,6 +216,7 @@ async function testMetadataAndFallthrough() {
     "directories-upload",
     "directories-delete",
     "directories-rename",
+    "directories-move-contents",
   ]);
 
   const { routes } = makeRoutes();
@@ -218,12 +224,13 @@ async function testMetadataAndFallthrough() {
   assert.equal(routes.match({ method: "POST", path: "/api/directories/upload" }).id, "directories-upload");
   assert.equal(routes.match({ method: "POST", path: "/api/directories/delete" }).id, "directories-delete");
   assert.equal(routes.match({ method: "POST", path: "/api/directories/rename" }).id, "directories-rename");
+  assert.equal(routes.match({ method: "POST", path: "/api/directories/move-contents" }).id, "directories-move-contents");
   assert.equal(routes.match({ method: "GET", path: "/api/directories/create" }), null);
 
   const summary = routes.summary({ public: true });
-  assert.equal(summary.total, 4);
-  assert.deepEqual(summary.byModule, { "directory-mutation": 4 });
-  assert.deepEqual(summary.byAuthMode, { "access-key": 4 });
+  assert.equal(summary.total, 5);
+  assert.deepEqual(summary.byModule, { "directory-mutation": 5 });
+  assert.deepEqual(summary.byAuthMode, { "access-key": 5 });
   assert.equal(JSON.stringify(summary).includes("/api/directories/create"), false);
 
   const publicRoutes = routes.list({ public: true });
@@ -536,6 +543,104 @@ async function testRenameRemote() {
   });
 }
 
+async function testMoveContentsLocal() {
+  const source = {
+    displayPath: "C:\\Data\\source",
+    workspacePath: "/source",
+    localPath: "C:\\Data\\source",
+  };
+  const target = {
+    displayPath: "C:\\Data\\target",
+    workspacePath: "/target",
+    localPath: "C:\\Data\\target",
+  };
+  const { routes, calls } = makeRoutes({
+    resolveBrowserPathAsync(foundThread, params) {
+      calls.resolve.push({ thread: foundThread, params });
+      if (params.get("path") === "C:\\Data\\source") return Promise.resolve(source);
+      if (params.get("path") === "C:\\Data\\target") return Promise.resolve(target);
+      return Promise.resolve(null);
+    },
+    readdir(targetPath) {
+      calls.readdir.push(targetPath);
+      return [{ name: "a.md" }, { name: "nested" }];
+    },
+  });
+  const got = await request(routes, "POST", "/api/directories/move-contents", {
+    threadId: "thread-1",
+    sourcePath: "C:\\Data\\source",
+    targetPath: "C:\\Data\\target",
+  });
+
+  assert.equal(got.result.route.id, "directories-move-contents");
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.readdir, ["C:\\Data\\source"]);
+  assert.deepEqual(calls.exists, ["C:\\Data\\target\\a.md", "C:\\Data\\target\\nested"]);
+  assert.deepEqual(calls.rename, [
+    { from: "C:\\Data\\source\\a.md", to: "C:\\Data\\target\\a.md" },
+    { from: "C:\\Data\\source\\nested", to: "C:\\Data\\target\\nested" },
+  ]);
+  assert.equal(calls.invalidateCatalogCache, 1);
+  assert.deepEqual(got.body, {
+    ok: true,
+    movedCount: 2,
+    source: {
+      path: "C:\\Data\\source",
+      displayPath: "/source",
+      workspacePath: "/source",
+    },
+    target: {
+      path: "C:\\Data\\target",
+      displayPath: "/target",
+      workspacePath: "/target",
+    },
+    entries: [{ name: "a.md" }, { name: "nested" }],
+  });
+}
+
+async function testMoveContentsConflictDoesNotMove() {
+  const { routes, calls } = makeRoutes({
+    resolveBrowserPathAsync(foundThread, params) {
+      calls.resolve.push({ thread: foundThread, params });
+      return Promise.resolve({
+        displayPath: params.get("path"),
+        workspacePath: params.get("path"),
+        localPath: params.get("path"),
+      });
+    },
+    readdir(targetPath) {
+      calls.readdir.push(targetPath);
+      return [{ name: "a.md" }];
+    },
+    exists(targetPath) {
+      calls.exists.push(targetPath);
+      return true;
+    },
+  });
+  const got = await request(routes, "POST", "/api/directories/move-contents", {
+    threadId: "thread-1",
+    sourcePath: "C:\\Data\\source",
+    targetPath: "C:\\Data\\target",
+  });
+
+  assert.equal(got.res.statusCode, 409);
+  assert.deepEqual(got.body, { error: "Target entry already exists", name: "a.md" });
+  assert.deepEqual(calls.rename, []);
+}
+
+async function testMoveContentsRejectsRemote() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/directories/move-contents", {
+    threadId: "thread-1",
+    sourcePath: "/volume1/shared",
+    targetPath: "C:\\Data\\docs",
+  });
+
+  assert.equal(got.res.statusCode, 400);
+  assert.deepEqual(got.body, { error: "Move contents supports local directories only" });
+  assert.deepEqual(calls.rename, []);
+}
+
 async function testDeleteNonEmptyRemoteDirectoryWithOwnerElevation() {
   const { routes, calls } = makeRoutes({
     runDirectoryBridge(payload) {
@@ -729,6 +834,7 @@ function testDependencyValidation() {
     "exists",
     "stat",
     "mkdir",
+    "readdir",
     "write",
     "rmdir",
     "rmDirRecursive",
@@ -762,6 +868,9 @@ async function run() {
   await testRenameLocalDirectory();
   await testRenameExistingTargetReturnsConflict();
   await testRenameRemote();
+  await testMoveContentsLocal();
+  await testMoveContentsConflictDoesNotMove();
+  await testMoveContentsRejectsRemote();
   await testDeleteNonEmptyRemoteDirectoryWithOwnerElevation();
   await testReadOnlySharedDirectoryInterceptsMutation();
   await testProtectedRootDeleteInterceptsLocalAndRemote();

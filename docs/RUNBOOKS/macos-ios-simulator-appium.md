@@ -24,18 +24,18 @@ evidence still needs the installed home-screen app path or a real device.
 The user-level QA root is:
 
 ```bash
-/Users/xuxin/.homeai-qa
+/Users/example/path
 ```
 
 Installed components:
 
-- Node: `/Users/xuxin/.homeai-qa/node-current`
-- Appium npm prefix: `/Users/xuxin/.homeai-qa/appium-global`
-- Appium server log: `/Users/xuxin/.homeai-qa/logs/appium-4723.log`
+- Node: `/Users/example/path`
+- Appium npm prefix: `/Users/example/path`
+- Appium server log: `/Users/example/path`
 - Appium server URL: `http://127.0.0.1:4723`
 - XCUITest driver: installed under the Appium user package store
 
-The production Home AI runtime under `/Users/hermes-host/HermesMobile` is not
+The production Home AI runtime under `/Users/example/path` is not
 used as the Appium npm prefix and should not be made world-readable to support
 QA tooling.
 
@@ -341,7 +341,7 @@ The current Home AI Dock proof script on the Mac records:
 2026-06-06 evidence on Mac production `20260606-plugin-origin-allow-v575`:
 
 - Baseline artifact directory:
-  `/Users/xuxin/.homeai-qa/artifacts/homeai-dock-proof-directory-native-style`.
+  `/Users/example/path`.
 - The Directory Dock button long-press triggered the handler:
   `openMenuCount=1`, `chosenButtonMenuOpenClass=true`, and the menu computed
   as `display:grid`, `visibility:visible`, `position:fixed`, `z-index:45`.
@@ -368,7 +368,7 @@ Production fix validation:
   overlay while the menu is open and lets the Dock/launcher/strip overflow only
   during that open state.
 - Baseline artifact directory:
-  `/Users/xuxin/.homeai-qa/artifacts/homeai-dock-proof-directory-v576-baseline`.
+  `/Users/example/path`.
 - The baseline proof, without the harness-only CSS variant, reported the menu as
   `position:absolute`, `z-index:80`, `openMenuCount=1`, and
   `chosenButtonMenuOpenClass=true`.
@@ -382,9 +382,9 @@ Current production validation:
 - `20260606-directory-dock-consistent-v587` was validated with the same Mac
   Appium baseline proof against the Directory Dock button.
 - Long-press artifact directory:
-  `/Users/xuxin/.homeai-qa/artifacts/homeai-dock-proof-v587-directory-consistent`.
+  `/Users/example/path`.
 - Click-through artifact directory:
-  `/Users/xuxin/.homeai-qa/artifacts/homeai-directory-click-v587`.
+  `/Users/example/path`.
 - The proof loaded `data-client-version=20260606-directory-dock-consistent-v587`
   and used native `mobile: touchAndHold` at the translated Directory Dock
   point.
@@ -403,7 +403,7 @@ Historical v586 result:
 - `20260606-centered-file-icon-v586` was validated with the same Mac Appium
   baseline proof against the Directory Dock button.
 - Artifact directory:
-  `/Users/xuxin/.homeai-qa/artifacts/homeai-dock-proof-v586-centered-file-icon`.
+  `/Users/example/path`.
 - The proof loaded `data-client-version=20260606-centered-file-icon-v586` and
   used native `mobile: touchAndHold` at the translated Directory Dock point.
 - The menu opened with `openMenuCount=1`,

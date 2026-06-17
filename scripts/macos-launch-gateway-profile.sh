@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${HERMES_MOBILE_ROOT:-/Users/hermes-host/HermesMobile}"
+ROOT="${HERMES_MOBILE_ROOT:-/Users/example/path"
 MANIFEST="${HERMES_MOBILE_GATEWAY_POOL_MANIFEST:-$ROOT/data/gateway-pool-manifest-mac.json}"
 ACTION=""
 TARGETS=""

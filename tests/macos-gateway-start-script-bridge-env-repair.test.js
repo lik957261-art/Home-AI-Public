@@ -36,11 +36,11 @@ try {
   const productionRoot = path.join(tempRoot, "HermesMobile");
   const missingInjectionScript = [
     "#!/usr/bin/env bash",
-    "ROOT=\"/Users/hermes-host/HermesMobile\"",
+    "ROOT=\"/Users/example/path"",
     'MOBILE_BRIDGE_HOST_URL="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8798}}"',
     'MOBILE_BRIDGE_HOST_KEY_PATH="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/data/secrets/bridge-host.secret}}"',
     "exec env \\",
-    "  HOME=\"/Users/hm-owner\" \\",
+    "  HOME=\"/Users/example/path\" \\",
     "  PYTHONPATH=\"$ROOT/gateway-worker/runtime-overrides:$ROOT/runtime/hermes-agent-official/source\" \\",
     "  API_SERVER_KEY=\"$API_KEY\" \\",
     "  \"$ROOT/runtime/hermes-agent-official/venv/bin/python\" -m hermes_cli.main gateway run --replace --accept-hooks",
