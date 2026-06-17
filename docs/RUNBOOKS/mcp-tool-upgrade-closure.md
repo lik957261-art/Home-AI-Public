@@ -244,6 +244,20 @@ fortune narrative. PICK/择日 and 择月 tools return bounded calculation evide
 unless promoted rule commentary is explicitly returned, they are status-only
 facts and not a complete auspicious/inauspicious verdict.
 
+## Email Full Body Pagination Pattern
+
+The 2026-06-17 Email body-read upgrade changes the schema for
+`mcp_email_get_message_body` without adding a new callable name. The callable
+must expose the optional `readAll` and `maxChars` fields in the Gateway schema,
+and the Email service response must expose explicit continuation metadata:
+`hasMore`, `nextOffset`, and `remainingChars`.
+
+Before production exposure, prove the Email service schema/contract, Gateway
+wrapper schema, Mobile instruction hints, schema epoch, and selected worker
+schema. Long message smokes must use bounded synthetic or metadata-only content
+and must not dump full private email bodies into logs, docs, handoff, or the
+AI Ops evidence ledger.
+
 ## Failure Classification
 
 - Service schema missing local tool:

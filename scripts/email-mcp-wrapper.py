@@ -70,7 +70,7 @@ TOOLS = [
     },
     {
         "name": "get_message_body",
-        "description": "High-privilege read of cached sanitized message body text with purpose and pagination.",
+        "description": "High-privilege read of cached sanitized message body text. Use readAll=true for a full long message; otherwise follow nextOffset while truncated=true.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -78,6 +78,8 @@ TOOLS = [
                 "purpose": {"type": "string", "minLength": 6},
                 "offset": {"type": "number", "minimum": 0},
                 "limit": {"type": "number", "minimum": 1, "maximum": 20000, "default": 8000},
+                "readAll": {"type": "boolean", "default": False},
+                "maxChars": {"type": "number", "minimum": 1, "maximum": 100000, "default": 60000},
             },
             "required": ["messageId", "purpose"],
         },
@@ -244,6 +246,14 @@ def bounded_body_limit(value: Any) -> int:
     return min(max(parsed, 1), 20000)
 
 
+def bounded_body_total_limit(value: Any) -> int:
+    try:
+        parsed = int(value)
+    except Exception:
+        parsed = 60000
+    return min(max(parsed, 1), 100000)
+
+
 def bounded_attachment_limit(value: Any) -> int:
     try:
         parsed = int(value)
@@ -258,6 +268,14 @@ def bounded_offset(value: Any) -> int:
     except Exception:
         parsed = 0
     return max(parsed, 0)
+
+
+def truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "y", "on")
+    return bool(value)
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -501,14 +519,79 @@ class EmailClient:
             return {"ok": False, "error": "email_message_id_required"}
         if len(purpose) < 6:
             return {"ok": False, "error": "email_mcp_purpose_required"}
-        payload = self.http_json("GET", f"/api/mcp/messages/{urllib.parse.quote(message_id, safe='')}/body", query={
-            "purpose": purpose,
-            "offset": bounded_offset(args.get("offset")),
-            "limit": bounded_body_limit(args.get("limit")),
-        })
+        if truthy(args.get("readAll", args.get("read_all", False))):
+            return self.get_message_body_all(args, message_id, purpose)
+        payload = self.fetch_message_body_page(
+            message_id,
+            purpose,
+            bounded_offset(args.get("offset")),
+            bounded_body_limit(args.get("limit")),
+        )
         if payload.get("error"):
             return {"ok": False, "error": payload.get("error")}
         return payload
+
+    def fetch_message_body_page(self, message_id: str, purpose: str, offset: int, limit: int) -> dict[str, Any]:
+        return self.http_json("GET", f"/api/mcp/messages/{urllib.parse.quote(message_id, safe='')}/body", query={
+            "purpose": purpose,
+            "offset": offset,
+            "limit": limit,
+        })
+
+    def get_message_body_all(self, args: dict[str, Any], message_id: str, purpose: str) -> dict[str, Any]:
+        start_offset = bounded_offset(args.get("offset"))
+        page_limit = bounded_body_limit(args.get("limit"))
+        max_chars = bounded_body_total_limit(args.get("maxChars", args.get("max_chars")))
+        offset = start_offset
+        body_parts: list[str] = []
+        audit_ids: list[str] = []
+        last_payload: dict[str, Any] = {}
+
+        while sum(len(part) for part in body_parts) < max_chars:
+            remaining_budget = max_chars - sum(len(part) for part in body_parts)
+            payload = self.fetch_message_body_page(message_id, purpose, offset, min(page_limit, remaining_budget))
+            if payload.get("error"):
+                return {"ok": False, "error": payload.get("error")}
+            last_payload = payload
+            chunk = str(payload.get("bodyText") or "")
+            body_parts.append(chunk)
+            audit_id = payload.get("auditId")
+            if audit_id:
+                audit_ids.append(str(audit_id))
+            if not payload.get("truncated"):
+                break
+            returned = int(payload.get("returnedChars") or len(chunk))
+            if returned <= 0:
+                break
+            next_offset = payload.get("nextOffset")
+            try:
+                offset = int(next_offset)
+            except Exception:
+                offset = offset + returned
+
+        body_text = "".join(body_parts)
+        total_chars = int(last_payload.get("totalChars") or (start_offset + len(body_text)))
+        next_offset = start_offset + len(body_text)
+        truncated = next_offset < total_chars
+        return {
+            **last_payload,
+            "ok": True,
+            "bodyText": body_text,
+            "offset": start_offset,
+            "limit": page_limit,
+            "readAll": True,
+            "maxChars": max_chars,
+            "chunksRead": len(body_parts),
+            "returnedChars": len(body_text),
+            "totalChars": total_chars,
+            "truncated": truncated,
+            "hasMore": truncated,
+            "nextOffset": next_offset if truncated else None,
+            "remainingChars": max(total_chars - next_offset, 0),
+            "fullBodyReturned": start_offset == 0 and len(body_text) == total_chars,
+            "attachmentContentIncluded": False,
+            "auditIds": audit_ids,
+        }
 
     def get_attachment_content(self, args: dict[str, Any]) -> dict[str, Any]:
         attachment_id = str(args.get("attachmentId") or "").strip()
