@@ -47,6 +47,9 @@ function makeRoutes(overrides = {}) {
       return `/?${query.toString()}`;
     },
     nativeNotificationService,
+    authenticateRequest(req) {
+      return req.auth || { ok: true, workspaceId: "owner", role: "owner" };
+    },
     readBody(req) {
       return Promise.resolve(req.body || {});
     },
@@ -105,6 +108,31 @@ async function testRegisterUsesWorkspaceAccessAndReturnsPublicDevice() {
   assert.doesNotMatch(res.body, /raw-secret-token/);
 }
 
+async function testRegisterDefaultsToAuthenticatedWorkspaceWhenWorkspaceIdMissing() {
+  const { calls, routes } = makeRoutes();
+  const req = {
+    method: "POST",
+    auth: { ok: true, workspaceId: "weixin_l", role: "workspace" },
+    body: {
+      platform: "ios",
+      pushProvider: "apns",
+      deviceToken: "raw-secret-token",
+      appBundleId: "com.xuxin.homeai.native",
+      appVersion: "1.0.3",
+      buildNumber: "103",
+      environment: "sandbox",
+      source: "home_ai_native",
+    },
+  };
+  const res = makeResponse();
+  await routes.handle(req, res, makeUrl("/api/native/devices/register"));
+  assert.equal(res.statusCode, 201);
+  assert.equal(calls.workspaceAccess[0], "weixin_l");
+  assert.equal(calls.registered[0].workspaceId, "weixin_l");
+  assert.equal(calls.registered[0].principalId, "weixin_l-principal");
+  assert.doesNotMatch(res.body, /raw-secret-token/);
+}
+
 async function testRegisterRejectsWorkspaceSpoof() {
   const { calls, routes } = makeRoutes();
   const req = { method: "POST", body: { workspaceId: "blocked", deviceToken: "raw-secret-token" } };
@@ -132,6 +160,7 @@ async function testUnregisterAndTestNotification() {
 
 Promise.resolve()
   .then(testRegisterUsesWorkspaceAccessAndReturnsPublicDevice)
+  .then(testRegisterDefaultsToAuthenticatedWorkspaceWhenWorkspaceIdMissing)
   .then(testRegisterRejectsWorkspaceSpoof)
   .then(testUnregisterAndTestNotification)
   .then(() => {

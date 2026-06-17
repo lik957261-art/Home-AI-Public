@@ -22,9 +22,11 @@ reuse Web Push subscriptions or plugin credentials.
   - Authenticated by the normal browser/API Access Key transport:
     `X-Hermes-Web-Key` or the same-origin cookie.
   - Accepts iOS/APNs device registration payloads from the native shell.
-  - The requested `workspaceId` is passed through the authenticated workspace
-    access check before storage. A workspace-scoped key cannot register a device
-    for another workspace.
+  - If `workspaceId` is omitted, Home AI uses the workspace resolved from the
+    authenticated Access Key. If a client sends an explicit `workspaceId`, it is
+    still passed through the authenticated workspace access check before
+    storage. A workspace-scoped key cannot register a device for another
+    workspace.
 - `POST /api/native/devices/unregister`
   - Disables the current device by device id or device token hash lookup.
 - `POST /api/native/devices/test-notification`
@@ -38,7 +40,8 @@ The native app must not send plugin keys or plugin tokens to these routes.
 The current Home AI native iOS shell exposes this flow from its native settings
 surface, labelled `Native Notifications`:
 
-1. The user enters the Home AI origin, Access Key, and workspace id.
+1. The user enters the Home AI origin and Access Key. The workspace is resolved
+   by Home AI from the authenticated key.
 2. The native shell calls
    `UNUserNotificationCenter.requestAuthorization` with `alert`, `badge`, and
    `sound`.
@@ -77,7 +80,6 @@ Request body:
   "platform": "ios",
   "pushProvider": "apns",
   "deviceToken": "<apns token>",
-  "workspaceId": "owner",
   "appBundleId": "com.xuxin.homeai.native",
   "appVersion": "1.0.0",
   "buildNumber": "100",

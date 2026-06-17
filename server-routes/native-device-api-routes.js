@@ -65,10 +65,19 @@ function createNativeDeviceApiRoutes(deps = {}) {
     return { ok: false, error: clean(result.error || "native_notification_failed", 160) };
   }
 
+  function defaultWorkspaceId(req) {
+    const auth = typeof deps.authenticateRequest === "function" ? deps.authenticateRequest(req) : null;
+    return clean(auth?.workspaceId || "owner", 120) || "owner";
+  }
+
+  function requestedWorkspaceId(req, body = {}) {
+    const fallback = defaultWorkspaceId(req);
+    return clean(body.workspaceId || body.workspace_id || fallback, 120) || fallback;
+  }
+
   async function handleRegister(req, res) {
     const body = await deps.readBody(req).catch(() => ({}));
-    const requestedWorkspaceId = clean(body.workspaceId || body.workspace_id || "owner", 120) || "owner";
-    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId);
+    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(req, body));
     if (!workspaceId) return;
     const result = service.registerDevice(Object.assign({}, body, {
       workspaceId,
@@ -81,8 +90,7 @@ function createNativeDeviceApiRoutes(deps = {}) {
 
   async function handleUnregister(req, res) {
     const body = await deps.readBody(req).catch(() => ({}));
-    const requestedWorkspaceId = clean(body.workspaceId || body.workspace_id || "owner", 120) || "owner";
-    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId);
+    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(req, body));
     if (!workspaceId) return;
     const result = service.unregisterDevice(Object.assign({}, body, {
       workspaceId,
@@ -95,8 +103,7 @@ function createNativeDeviceApiRoutes(deps = {}) {
 
   async function handleTestNotification(req, res) {
     const body = await deps.readBody(req).catch(() => ({}));
-    const requestedWorkspaceId = clean(body.workspaceId || body.workspace_id || "owner", 120) || "owner";
-    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId);
+    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(req, body));
     if (!workspaceId) return;
     const deepLink = clean(body.deepLink || body.deep_link || appRouteUrl({ source: "pwa", nativeShell: "ios", view: "tasks", workspaceId }), 600);
     const result = await service.sendToWorkspace({

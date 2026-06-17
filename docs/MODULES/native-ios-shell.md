@@ -77,7 +77,10 @@ Current native capabilities:
   Health plugin proxy. The native app sends Home AI auth; Home AI injects plugin
   authorization server-side.
 - `apns_device_registration`: APNs device token registration through
-  `POST /api/native/devices/register`.
+  `POST /api/native/devices/register`. Native clients should omit
+  `workspaceId` and let Home AI resolve the authenticated workspace from the
+  Access Key; explicit workspace hints remain server-clamped compatibility
+  input only.
 - `ios_share_extension`: iOS Share Extension uploads inbound files through Home
   AI Directory APIs into the same `系统分享` server-side folder used by Weixin
   file ingress. A future dedicated native share endpoint may wrap this path,

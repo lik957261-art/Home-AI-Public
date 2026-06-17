@@ -135,7 +135,7 @@ function createMobileApiPlatformComposition(deps = {}) {
     workspacePrincipal: deps.workspacePrincipal,
   });
 
-  const nativeDeviceApiRoutes = createNativeDeviceApiRoutes({ appRouteUrl: deps.appRouteUrl, nativeNotificationService: deps.nativeNotificationService, readBody: deps.readBody, requireWorkspaceAccess: deps.requireWorkspaceAccess, sendJson: deps.sendJson, workspacePrincipal: deps.workspacePrincipal });
+  const nativeDeviceApiRoutes = createNativeDeviceApiRoutes({ appRouteUrl: deps.appRouteUrl, authenticateRequest: deps.authenticateRequest, nativeNotificationService: deps.nativeNotificationService, readBody: deps.readBody, requireWorkspaceAccess: deps.requireWorkspaceAccess, sendJson: deps.sendJson, workspacePrincipal: deps.workspacePrincipal });
 
   const workspaceApiRoutes = createWorkspaceApiRoutes({
     bootTrace: deps.bootTrace,
