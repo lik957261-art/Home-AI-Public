@@ -14,6 +14,7 @@ const indexHtml = read("public/index.html");
 const appJs = read("public/app.js");
 const messageActionsUi = read("public/app-message-actions-ui.js");
 const uploadSidebarUi = read("public/app-upload-sidebar-ui.js");
+const pwaPushUi = read("public/app-pwa-push-ui.js");
 const sharedDirectoryUi = read("public/app-shared-directory-ui.js");
 const eventStreamUi = read("public/app-event-stream-ui.js");
 const styles = read("public/styles.css");
@@ -45,6 +46,9 @@ assert.match(uploadSidebarUi, /\/api\/threads\/\$\{encodeURIComponent\(threadId\
 assert.match(uploadSidebarUi, /body: JSON\.stringify\(\{[\s\S]*path: filePath,[\s\S]*filename: entry\.name \|\| "",[\s\S]*workspaceId: entry\.workspaceId \|\| state\.selectedWorkspaceId \|\| "owner"/);
 assert.match(uploadSidebarUi, /function receiveNativeSharedFiles\(payload = \{\}\)/);
 assert.match(uploadSidebarUi, /window\.HomeAINativeShare = Object\.assign\(existing, \{/);
+assert.match(uploadSidebarUi, /showPushToast\("已收到系统分享文件", "info", \{ durationMs: 1400 \}\)/);
+assert.match(pwaPushUi, /Number\.isFinite\(options\?\.durationMs\) && options\.durationMs > 0/);
+assert.match(pwaPushUi, /Math\.max\(800, Math\.min\(10000, Number\(options\.durationMs\)\)\)/);
 assert.match(uploadSidebarUi, /function attachNativeSharedFilesToCurrentComposer\(\)/);
 assert.match(uploadSidebarUi, /attachServerFileToComposer\(\{[\s\S]*path: file\.path,[\s\S]*workspaceId: file\.workspaceId,[\s\S]*restore: false/);
 assert.match(uploadSidebarUi, /<span class="pending-artifact-remove" aria-hidden="true"><\/span>/);

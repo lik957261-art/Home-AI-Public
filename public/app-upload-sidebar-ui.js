@@ -155,7 +155,7 @@ function receiveNativeSharedFiles(payload = {}) {
   const current = normalizeNativeSharedFiles(state.nativeSharedFiles || []);
   state.nativeSharedFiles = normalizeNativeSharedFiles([...current, ...nextFiles]);
   renderNativeShareIntakePanel();
-  if (typeof showPushToast === "function") showPushToast("已收到系统分享文件", "info");
+  if (typeof showPushToast === "function") showPushToast("已收到系统分享文件", "info", { durationMs: 1400 });
   return true;
 }
 
