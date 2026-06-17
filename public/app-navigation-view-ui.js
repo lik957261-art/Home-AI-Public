@@ -22,6 +22,7 @@ function openTodoList() {
   state.skillDetail = null;
   state.selectedTodoId = "";
   state.todoCreateOpen = false;
+  state.actionInboxStatusFilter = "todo";
   if (typeof openActionInboxList === "function") {
     openActionInboxList();
   } else {

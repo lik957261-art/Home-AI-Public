@@ -15373,6 +15373,32 @@ body.task-markdown-preview-open {
   border-color: rgba(95, 139, 148, 0.24);
 }
 
+:root[data-theme="dark"] .action-inbox-filter {
+  color: rgba(235, 241, 240, 0.74);
+  background: rgba(27, 33, 35, 0.96);
+  border-color: rgba(221, 232, 232, 0.16);
+}
+
+:root[data-theme="dark"] .action-inbox-filter.active {
+  color: #f5f7f6;
+  background: rgba(70, 91, 95, 0.92);
+  border-color: rgba(191, 222, 224, 0.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .action-inbox-filter {
+    color: rgba(235, 241, 240, 0.74);
+    background: rgba(27, 33, 35, 0.96);
+    border-color: rgba(221, 232, 232, 0.16);
+  }
+
+  :root[data-theme="system"] .action-inbox-filter.active {
+    color: #f5f7f6;
+    background: rgba(70, 91, 95, 0.92);
+    border-color: rgba(191, 222, 224, 0.28);
+  }
+}
+
 .action-inbox-create,
 .action-inbox-detail,
 .action-inbox-item {
@@ -16438,6 +16464,94 @@ body.task-markdown-preview-open {
 
 .automation-error-context {
   font-size: 13px;
+}
+
+:root[data-theme="dark"] .automation-detail-card {
+  background: #151a1c;
+  border-color: rgba(221, 232, 232, 0.14);
+}
+
+:root[data-theme="dark"] .automation-card.paused,
+:root[data-theme="dark"] .automation-card.done,
+:root[data-theme="dark"] .automation-detail-card.paused,
+:root[data-theme="dark"] .automation-detail-card.done {
+  background: #151a1c;
+}
+
+:root[data-theme="dark"] .automation-run-times div,
+:root[data-theme="dark"] .automation-detail-grid div,
+:root[data-theme="dark"] .automation-doc-preview,
+:root[data-theme="dark"] .automation-output-folder,
+:root[data-theme="dark"] .automation-flags span,
+:root[data-theme="dark"] .automation-preview {
+  color: #f5f7f6;
+  background: #293133;
+  border-color: rgba(221, 232, 232, 0.18);
+}
+
+:root[data-theme="dark"] .automation-detail-id,
+:root[data-theme="dark"] .automation-detail-meta,
+:root[data-theme="dark"] .automation-output-title,
+:root[data-theme="dark"] .automation-doc-meta,
+:root[data-theme="dark"] .automation-flags span {
+  color: rgba(235, 241, 240, 0.72);
+}
+
+:root[data-theme="dark"] .automation-run-times strong,
+:root[data-theme="dark"] .automation-detail-grid strong,
+:root[data-theme="dark"] .automation-doc-label,
+:root[data-theme="dark"] .automation-preview strong {
+  color: #e8c978;
+}
+
+:root[data-theme="dark"] .automation-output-folder::before,
+:root[data-theme="dark"] .automation-output-folder::after {
+  color: #b8d7d9;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .automation-detail-card {
+    background: #151a1c;
+    border-color: rgba(221, 232, 232, 0.14);
+  }
+
+  :root[data-theme="system"] .automation-card.paused,
+  :root[data-theme="system"] .automation-card.done,
+  :root[data-theme="system"] .automation-detail-card.paused,
+  :root[data-theme="system"] .automation-detail-card.done {
+    background: #151a1c;
+  }
+
+  :root[data-theme="system"] .automation-run-times div,
+  :root[data-theme="system"] .automation-detail-grid div,
+  :root[data-theme="system"] .automation-doc-preview,
+  :root[data-theme="system"] .automation-output-folder,
+  :root[data-theme="system"] .automation-flags span,
+  :root[data-theme="system"] .automation-preview {
+    color: #f5f7f6;
+    background: #293133;
+    border-color: rgba(221, 232, 232, 0.18);
+  }
+
+  :root[data-theme="system"] .automation-detail-id,
+  :root[data-theme="system"] .automation-detail-meta,
+  :root[data-theme="system"] .automation-output-title,
+  :root[data-theme="system"] .automation-doc-meta,
+  :root[data-theme="system"] .automation-flags span {
+    color: rgba(235, 241, 240, 0.72);
+  }
+
+  :root[data-theme="system"] .automation-run-times strong,
+  :root[data-theme="system"] .automation-detail-grid strong,
+  :root[data-theme="system"] .automation-doc-label,
+  :root[data-theme="system"] .automation-preview strong {
+    color: #e8c978;
+  }
+
+  :root[data-theme="system"] .automation-output-folder::before,
+  :root[data-theme="system"] .automation-output-folder::after {
+    color: #b8d7d9;
+  }
 }
 
 .composer {

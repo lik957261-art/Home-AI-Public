@@ -137,6 +137,11 @@ Near-term completion requires:
 - no raw APNs token, Access Key, push endpoint, or plugin credential in logs,
   payloads, or documents.
 
+Notification deep links that open an Automation detail in the native shell must
+return to a freshly loaded Action Inbox list when the user swipes or taps back.
+The first Inbox filter is `当前`; `待办` remains the second filter for Todo-only
+items.
+
 ### Native Voice Input
 
 Native voice input exists to avoid iOS/PWA microphone, keyboard, focus, and

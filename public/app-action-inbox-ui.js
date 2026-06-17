@@ -122,7 +122,7 @@ function actionInboxDetailMessage(item = {}) {
 }
 
 function actionInboxFilterQuery() {
-  const filter = String(state.actionInboxStatusFilter || "todo");
+  const filter = String(state.actionInboxStatusFilter || "open");
   const params = new URLSearchParams({ workspaceId: state.selectedWorkspaceId || "owner", limit: "120" });
   if (filter === "todo") {
     params.set("itemType", "todo");
@@ -410,6 +410,7 @@ function openActionInboxList() {
   state.actionInboxCreateDraftText = "";
   state.actionInboxCreateProgressStep = "";
   renderActionInboxView();
+  if (typeof loadActionInbox === "function") loadActionInbox({ forceLoading: true }).catch(showError);
 }
 
 function openActionInboxCreate() {
@@ -442,8 +443,8 @@ function openActionInboxPluginAuditCreate() {
 
 function renderActionInboxFilters() {
   const filters = [
+    ["open", "\u5f53\u524d"],
     ["todo", "\u5f85\u529e"],
-    ["open", "\u5f85\u5904\u7406"],
     ["waiting", "\u7a0d\u540e"],
     ["done", "\u5df2\u5b8c\u6210"],
     ["all", "\u5176\u4ed6"],

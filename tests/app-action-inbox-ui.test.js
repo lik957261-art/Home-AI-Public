@@ -12,7 +12,7 @@ const sandbox = {
   URL,
   URLSearchParams,
   state: {
-    actionInboxStatusFilter: "todo",
+    actionInboxStatusFilter: "open",
     selectedActionInboxItemId: "",
     selectedWorkspaceId: "owner",
   },
@@ -60,16 +60,17 @@ assert.doesNotMatch(source, /actionInboxPluginAuditSchedule/);
 assert.match(source, /state\.actionInboxPluginAuditMode = state\.actionInboxPluginAuditMode \|\| "alignment"/);
 assert.match(source, /showPushToast\(message, "success"\)/);
 
-assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&itemType=todo");
-sandbox.state.actionInboxStatusFilter = "open";
 assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&excludeItemType=todo&status=open");
+sandbox.state.actionInboxStatusFilter = "todo";
+assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&itemType=todo");
 sandbox.state.actionInboxStatusFilter = "all";
 assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&excludeItemType=todo&includeDone=1");
-sandbox.state.actionInboxStatusFilter = "todo";
+sandbox.state.actionInboxStatusFilter = "open";
 sandbox.state.actionInboxCounts = { byStatus: { open: 2, waiting: 1, done: 3 }, byItemType: { todo: 4 } };
 assert.equal(ui.actionInboxCountsText(), "\u5f85\u529e 4 · \u5f85\u5904\u7406 2 · \u7a0d\u540e 1 · \u5df2\u5b8c\u6210 3");
 const filterHtml = ui.renderActionInboxFilters();
-assert.match(filterHtml, /data-action-inbox-filter="todo"[^>]*aria-selected="true"[^>]*>\u5f85\u529e<\/button>/);
+assert.match(filterHtml, /data-action-inbox-filter="open"[^>]*aria-selected="true"[^>]*>\u5f53\u524d<\/button>/);
+assert.match(filterHtml, /data-action-inbox-filter="todo"[^>]*>\u5f85\u529e<\/button>/);
 assert.match(filterHtml, /data-action-inbox-filter="all"[^>]*>\u5176\u4ed6<\/button>/);
 
 sandbox.state.actionInboxCreateOpen = true;

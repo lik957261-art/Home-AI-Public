@@ -564,7 +564,7 @@ const state = {
   actionInboxSource: null,
   actionInboxLoading: false,
   actionInboxRequestSeq: 0,
-  actionInboxStatusFilter: "todo",
+  actionInboxStatusFilter: "open",
   actionInboxSourceFilter: "",
   selectedActionInboxItemId: "",
   actionInboxDetail: null,
