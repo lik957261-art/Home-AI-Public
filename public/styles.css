@@ -15518,13 +15518,16 @@ body.task-markdown-preview-open {
 .action-inbox-item-head strong {
   min-width: 0;
   font-size: calc(15px * var(--app-font-scale));
+  color: var(--ink);
+  font-weight: 760;
   line-height: 1.3;
 }
 
 .action-inbox-item-summary {
-  color: var(--text);
+  color: var(--muted);
   font-size: calc(13px * var(--app-font-scale));
-  line-height: 1.35;
+  font-weight: 500;
+  line-height: 1.42;
 }
 
 .action-inbox-source-row,
@@ -15608,6 +15611,27 @@ body.task-markdown-preview-open {
   border-color: var(--ui-hairline);
 }
 
+:root[data-theme="dark"] .action-inbox-item {
+  background: rgba(26, 31, 33, 0.94);
+  border-color: rgba(221, 232, 232, 0.13);
+}
+
+:root[data-theme="dark"] .action-inbox-item-head strong {
+  color: #f6f8f7;
+}
+
+:root[data-theme="dark"] .action-inbox-item-summary {
+  color: rgba(226, 233, 232, 0.72);
+}
+
+:root[data-theme="dark"] .action-inbox-source-row,
+:root[data-theme="dark"] .action-inbox-item-meta,
+:root[data-theme="dark"] .action-inbox-detail-meta,
+:root[data-theme="dark"] .action-inbox-event,
+:root[data-theme="dark"] .action-inbox-item-time {
+  color: rgba(214, 224, 222, 0.58);
+}
+
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] .action-inbox-source-badge.source-automation,
   :root[data-theme="system"] .action-inbox-source-badge.source-growth,
@@ -15617,6 +15641,27 @@ body.task-markdown-preview-open {
     color: var(--ink);
     background: var(--ui-surface-muted);
     border-color: var(--ui-hairline);
+  }
+
+  :root[data-theme="system"] .action-inbox-item {
+    background: rgba(26, 31, 33, 0.94);
+    border-color: rgba(221, 232, 232, 0.13);
+  }
+
+  :root[data-theme="system"] .action-inbox-item-head strong {
+    color: #f6f8f7;
+  }
+
+  :root[data-theme="system"] .action-inbox-item-summary {
+    color: rgba(226, 233, 232, 0.72);
+  }
+
+  :root[data-theme="system"] .action-inbox-source-row,
+  :root[data-theme="system"] .action-inbox-item-meta,
+  :root[data-theme="system"] .action-inbox-detail-meta,
+  :root[data-theme="system"] .action-inbox-event,
+  :root[data-theme="system"] .action-inbox-item-time {
+    color: rgba(214, 224, 222, 0.58);
   }
 }
 

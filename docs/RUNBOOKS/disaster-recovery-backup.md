@@ -46,6 +46,20 @@ It requires read ACLs for backup-critical production/user state and the cron
 LaunchDaemon environment variable `HERMES_CRON_SCRIPT_TIMEOUT=1800`, because
 official no-agent scripts default to 120 seconds.
 
+Mac production deploy also installs `com.hermesmobile.nas-backup-mount`, a root
+LaunchDaemon that runs `scripts/homeai-nas-backup-mount-watchdog.sh` on load
+and every five minutes. If the daily job reports that
+`/Users/xuxin/HomeAI-NAS-Backup-NFS` is not mounted, first check that
+LaunchDaemon status and its logs:
+
+```bash
+sudo launchctl print system/com.hermesmobile.nas-backup-mount
+tail -100 /Users/hermes-host/HermesMobile/logs/nas-backup-mount.err.log
+tail -100 /Users/hermes-host/HermesMobile/logs/nas-backup-mount.out.log
+```
+
+Do not repair this by giving the CRON job access to the sudo password file.
+
 If a manual run reaches the manifest stage but reports rsync status 23 against
 `data/skill-profiles`, repair only the inherited read/traverse ACLs needed by
 the listener/cron user. Do not run the scheduled job with sudo. The intended

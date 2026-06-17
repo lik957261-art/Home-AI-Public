@@ -12,6 +12,7 @@ const scriptPath = path.join(repoRoot, "scripts", "create-macos-disaster-backup.
 const mountScriptPath = path.join(repoRoot, "scripts", "mount-macos-nas-backup-destination.sh");
 const runScriptPath = path.join(repoRoot, "scripts", "run-macos-disaster-backup-to-nas.sh");
 const cronScriptPath = path.join(repoRoot, "scripts", "homeai-disaster-backup-cron.sh");
+const mountWatchdogScriptPath = path.join(repoRoot, "scripts", "homeai-nas-backup-mount-watchdog.sh");
 const backup = require(scriptPath);
 const { createMobileSqliteStore } = require(path.join(repoRoot, "adapters", "mobile-sqlite-store"));
 
@@ -136,6 +137,7 @@ function makeFixture() {
   const mountSource = fs.readFileSync(mountScriptPath, "utf8");
   const runSource = fs.readFileSync(runScriptPath, "utf8");
   const cronSource = fs.readFileSync(cronScriptPath, "utf8");
+  const mountWatchdogSource = fs.readFileSync(mountWatchdogScriptPath, "utf8");
   assert.match(source, /data\/skill-profiles/);
   assert.match(source, /workspace Skill stores/);
   assert.match(source, /workspace Memory stores/);
@@ -154,8 +156,14 @@ function makeFixture() {
   assert.match(mountSource, /\/volume1\/备份/);
   assert.match(mountSource, /HomeAI-Production-Backups\/mac-production/);
   assert.match(mountSource, /mount_nfs/);
+  assert.match(mountSource, /EUID/);
+  assert.match(mountSource, /\/sbin\/mount_nfs -o resvport,nolocks/);
   assert.match(mountSource, /NFS does not use the NAS/);
   assert.doesNotMatch(mountSource, /mount_smbfs|NAS_SMB|NAS_PASSWORD/i);
+  assert.match(mountWatchdogSource, /homeai_nas_backup_mount_ok/);
+  assert.match(mountWatchdogSource, /homeai_nas_backup_mount_repaired/);
+  assert.match(mountWatchdogSource, /mount-macos-nas-backup-destination\.sh/);
+  assert.doesNotMatch(mountWatchdogSource, /SUDO_PASSWORD|HOMEAI_MAC_SUDO_PASSWORD_FILE|expect|ssh -p/i);
   assert.match(runSource, /local-staging-to-nfs/);
   assert.match(runSource, /HomeAI-Disaster-Staging\/mac-production/);
   assert.match(runSource, /sudo reads Mac production/);

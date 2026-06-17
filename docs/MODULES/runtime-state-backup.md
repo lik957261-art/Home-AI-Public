@@ -80,6 +80,11 @@ Backups must allow a replacement machine to restore source, production app files
   password; the helper uses `HOMEAI_MAC_SUDO_PASSWORD_FILE` only for the local
   macOS `mount_nfs` operation. The default backup subdirectory is
   `HomeAI-Production-Backups/mac-production`.
+- Mac production deploy installs `com.hermesmobile.nas-backup-mount`, a
+  root LaunchDaemon that runs `scripts/homeai-nas-backup-mount-watchdog.sh` at
+  load and every five minutes. It keeps the NAS NFS export mounted before the
+  `03:30` no-agent disaster-backup CRON job runs. The CRON job itself must not
+  read the sudo password file or perform sudo escalation.
 - The supported NFS write path is local staging followed by ordinary-user NFS
   sync. `scripts/run-macos-disaster-backup-to-nas.sh` runs the builder with
   sudo into `/Users/xuxin/HomeAI-Disaster-Staging/mac-production` by default,

@@ -62,10 +62,13 @@ assert.match(script, /\/bin\/launchctl/);
 assert.match(script, /kickstart/);
 assert.match(script, /HOME_AI_BRIDGE_HOST_LABEL/);
 assert.match(script, /HOME_AI_CRON_LABEL/);
+assert.match(script, /HOME_AI_NAS_BACKUP_MOUNT_LABEL/);
 assert.match(script, /buildHomeAiBridgeHostLaunchdPlist/);
 assert.match(script, /buildHomeAiCronLaunchdPlist/);
+assert.match(script, /buildHomeAiNasBackupMountLaunchdPlist/);
 assert.match(script, /home-ai-bridge-host-launchd-install/);
 assert.match(script, /home-ai-cron-launchd-install/);
+assert.match(script, /home-ai-nas-backup-mount-launchd-install/);
 assert.match(script, /home-ai-cron-profile-aliases/);
 assert.match(script, /home-ai-cron-builtin-skills/);
 assert.match(script, /HOME_AI_SHARED_BUILTIN_SKILLS = Object\.freeze\(\["home-ai-todo-intake"\]\)/);
@@ -85,6 +88,8 @@ assert.match(script, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(script, /HERMES_CRON_SCRIPT_TIMEOUT/);
 assert.match(script, /StartInterval/);
 assert.match(script, /hermes-mobile-cron-dispatcher\.py/);
+assert.match(script, /homeai-nas-backup-mount-watchdog\.sh/);
+assert.match(script, /com\.hermesmobile\.nas-backup-mount/);
 assert.match(script, /production-status-smoke\.js/);
 assert.match(script, /owner-web-key\.secret/);
 assert.match(script, /plugin_execute_requires_restart_label_or_health_url/);
@@ -473,12 +478,17 @@ assert.equal(moiraPluginPayload.plan.sourcePath, "/Users/hermes-dev/HermesMobile
 assert.equal(moiraPluginPayload.plan.productionPath, "/Users/hermes-host/HermesMobile/plugins/moira");
 assert.deepEqual(moiraPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.moira"]);
 assert.equal(moiraPluginPayload.plan.healthUrl, "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest");
-assert.equal(moiraPluginPayload.plan.postSyncMirrors.length, 4);
+assert.equal(moiraPluginPayload.plan.postSyncMirrors.length, 9);
 assert.deepEqual(
   moiraPluginPayload.plan.postSyncMirrors.map((item) => [item.kind || "file", item.target]),
   [
     ["file", "gateway-worker/moira-mcp/scripts/moira-mcp-stdio.mjs"],
+    ["directory", "gateway-worker/moira-mcp/scripts"],
     ["directory", "gateway-worker/moira-mcp/server"],
+    ["directory", "gateway-worker/moira-mcp/docs"],
+    ["directory", "gateway-worker/moira-mcp/tests"],
+    ["directory", "gateway-worker/moira-mcp/base"],
+    ["directory", "gateway-worker/moira-mcp/tools"],
     ["directory", "gateway-worker/moira-mcp/web"],
     ["file", "gateway-worker/moira-mcp/package.json"],
   ],
@@ -534,7 +544,7 @@ assert.deepEqual(
 );
 assert.equal(
   allPluginPayload.plan.plans.find((item) => item.target === "plugin:moira").postSyncMirrors.length,
-  4,
+  9,
 );
 
 const allPluginSourceOverrideRun = spawnSync(process.execPath, [

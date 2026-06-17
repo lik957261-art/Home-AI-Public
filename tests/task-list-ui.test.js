@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260617-native-share-toast-v805";
+const CLIENT_VERSION = "20260617-inbox-contrast-nas-mount-v806";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -217,8 +217,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-native-share-toast-v805" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-native-share-toast-v805"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260617-inbox-contrast-nas-mount-v806" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260617-inbox-contrast-nas-mount-v806"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -1201,9 +1201,8 @@ assert.match(gatewayRunInstructionServiceJs, /Current tool schema override: the 
 assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt_image_erase`/);
 assert.match(gatewayRunInstructionServiceJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `chatgpt_image_erase`/);
-assert.match(serverJs, /GATEWAY_TOOL_SCHEMA_EPOCH/);
-assert.match(serverJs, /20260616-moira-rule-evidence-bundle-mcp-v1/);
-assert.match(gatewayRunInstructionServiceJs, /20260616-moira-rule-evidence-bundle-mcp-v1/);
+assert.match(gatewayRunInstructionServiceJs, /DEFAULT_TOOL_SCHEMA_EPOCH/);
+assert.match(gatewayRunInstructionServiceJs, /20260617-email-body-readall-health-sleep-ecg-mcp-v1/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT[\s\S]*\|\| "0"/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT_TIMEOUT_MS[\s\S]*\|\| "8000"/);
 assert.match(serverJs, /enabled: GATEWAY_MODEL_PERMISSION_PREFLIGHT_ENABLED \|\| GATEWAY_MODEL_FIRST_TOOLSET_SELECTION_ENABLED/);
@@ -1232,7 +1231,7 @@ assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_monthly_selection_ev
 assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_current_progression_evidence/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_aspect_evidence/);
 assert.match(gatewayRunInstructionServiceJs, /mcp_moira_get_rule_migration_status/);
-assert.match(serverJs, /toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH/);
+assert.match(gatewayRunInstructionServiceJs, /toolSchemaEpoch/);
 assert.match(gatewayRunInstructionServiceJs, /Do not request Owner elevation merely because an ordinary current-workspace image editing tool is missing/);
 assert.match(ownerElevationRoutingServiceJs, /Image editing, object removal, background cleanup, P image requests, and erase\/inpainting requests inside the current workspace are ordinary user work/);
 assert.match(ownerElevationRoutingServiceJs, /do not use local PIL\/OpenCV\/rembg\/SAM\/ffmpeg\/terminal\/code image repair/);
@@ -2622,8 +2621,10 @@ assert.match(appEmbeddedPluginUiJs, /hostTopSafeArea/);
 assert.match(appEmbeddedPluginUiJs, /function embeddedPluginViewportPayloadStableShape\(payload\)/);
 assert.match(appEmbeddedPluginUiJs, /function embeddedPluginViewportPayloadSignature\(payload\)/);
 assert.match(appEmbeddedPluginUiJs, /function embeddedPluginViewportPayloadSimilar\(left, right, tolerance = 2\)/);
-assert.match(appEmbeddedPluginUiJs, /embeddedPluginViewportPayloadSimilar\(stableShape, record\.lastViewportPayloadSnapshot\)/);
-assert.match(appJs, /const nativeEmbeddedPluginActive = Boolean\([\s\S]*?root\.classList\.contains\("native-shell-ios"\)[\s\S]*?root\.classList\.contains\("embedded-plugin-shell-active"\)[\s\S]*?app\?\.classList\.contains\("embedded-plugin-host-active"\)/);
+assert.match(appEmbeddedPluginUiJs, /embeddedPluginViewportPayloadSimilar\(stableShape, record\.lastViewportPayloadSnapshot, embeddedPluginViewportNoiseTolerance\(\)\)/);
+assert.match(appJs, /function nativeShellEmbeddedPluginViewportActive\(\)/);
+assert.match(appJs, /root\?\.classList\?\.contains\("native-shell-ios"\)[\s\S]*?root\.classList\.contains\("embedded-plugin-shell-active"\)[\s\S]*?app\?\.classList\?\.contains\("embedded-plugin-host-active"\)/);
+assert.match(appJs, /const nativeEmbeddedPluginActive = nativeShellEmbeddedPluginViewportActive\(\)/);
 assert.match(stylesCss, /\.wardrobe-plugin-host-active:not\(\.plugin-context-nav-mode\) \.main,[\s\S]*?\.embedded-plugin-host-active:not\(\.plugin-context-nav-mode\) \.main \{[\s\S]*?padding-top: var\(--plugin-context-main-top, 0\);/);
 assert.match(stylesCss, /\.plugin-context-nav-mode\.wardrobe-plugin-host-active \.main,[\s\S]*?\.plugin-context-nav-mode\.embedded-plugin-host-active \.main \{[\s\S]*?position: absolute;[\s\S]*?top: var\(--plugin-context-main-top, 0\);[\s\S]*?right: 0;[\s\S]*?bottom: var\(--plugin-context-main-bottom, var\(--plugin-context-bottom-nav-height\)\);[\s\S]*?left: 0;[\s\S]*?min-height: 0;/);
 assert.match(appJs, /function updatePluginContextViewportReservation\(\)/);
@@ -2658,14 +2659,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-native-share-toast-v805/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-native-share-toast-v805/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-native-share-toast-v805/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-native-share-toast-v805/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-native-share-toast-v805/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-native-share-toast-v805/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-native-share-toast-v805/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-native-share-toast-v805/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260617-inbox-contrast-nas-mount-v806/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260617-inbox-contrast-nas-mount-v806/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260617-inbox-contrast-nas-mount-v806/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260617-inbox-contrast-nas-mount-v806/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260617-inbox-contrast-nas-mount-v806/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260617-inbox-contrast-nas-mount-v806/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260617-inbox-contrast-nas-mount-v806/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260617-inbox-contrast-nas-mount-v806/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);

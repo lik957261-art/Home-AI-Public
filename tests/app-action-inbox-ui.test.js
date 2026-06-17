@@ -7,6 +7,7 @@ const vm = require("vm");
 
 const repoRoot = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(repoRoot, "public", "app-action-inbox-ui.js"), "utf8");
+const styles = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
 const sandbox = {
   URL,
@@ -60,6 +61,9 @@ const ui = sandbox.ActionInboxUiTest;
 assert.doesNotMatch(source, /actionInboxPluginAuditSchedule/);
 assert.match(source, /state\.actionInboxPluginAuditMode = state\.actionInboxPluginAuditMode \|\| "alignment"/);
 assert.match(source, /showPushToast\(message, "success"\)/);
+assert.match(styles, /\.action-inbox-item-head strong \{[\s\S]*?font-weight: 760;/);
+assert.match(styles, /\.action-inbox-item-summary \{[\s\S]*?color: var\(--muted\);/);
+assert.match(styles, /:root\[data-theme="dark"\] \.action-inbox-item-summary \{[\s\S]*?rgba\(226, 233, 232, 0\.72\)/);
 
 assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&excludeItemType=todo&status=open");
 sandbox.state.actionInboxStatusFilter = "todo";

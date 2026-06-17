@@ -14,10 +14,12 @@ const DEFAULT_PRODUCTION_OWNER = "hermes-host:staff";
 const HOME_AI_LISTENER_LABEL = "com.hermesmobile.listener";
 const HOME_AI_BRIDGE_HOST_LABEL = "com.hermesmobile.bridge-host";
 const HOME_AI_CRON_LABEL = "com.hermesmobile.cron";
+const HOME_AI_NAS_BACKUP_MOUNT_LABEL = "com.hermesmobile.nas-backup-mount";
 const PRODUCTION_SERVICE_USER = "hermes-host";
 const PRODUCTION_SERVICE_GROUP = "staff";
 const HOME_AI_CRON_START_INTERVAL_SECONDS = 60;
 const HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS = 1800;
+const HOME_AI_NAS_BACKUP_MOUNT_START_INTERVAL_SECONDS = 300;
 const HOME_AI_BRIDGE_HOST_PORT = 8798;
 const HOME_AI_VOICE_INPUT_ASR_URL = "http://127.0.0.1:8002/v1/audio/transcriptions";
 const HOME_AI_VOICE_INPUT_STREAMING_URL = "http://127.0.0.1:8002/v1/audio/transcriptions/stream";
@@ -847,6 +849,20 @@ function homeAiBridgeHostPaths(macRoot) {
   };
 }
 
+function homeAiNasBackupMountPaths(macRoot) {
+  const root = normalizePath(macRoot || DEFAULT_MAC_ROOT);
+  const appRoot = posixJoin(root, "app");
+  const logsRoot = posixJoin(root, "logs");
+  return {
+    root,
+    appRoot,
+    mountScript: posixJoin(appRoot, "scripts", "homeai-nas-backup-mount-watchdog.sh"),
+    stdoutLog: posixJoin(logsRoot, "nas-backup-mount.out.log"),
+    stderrLog: posixJoin(logsRoot, "nas-backup-mount.err.log"),
+    plistPath: `/Library/LaunchDaemons/${HOME_AI_NAS_BACKUP_MOUNT_LABEL}.plist`,
+  };
+}
+
 function buildHomeAiCronLaunchdPlist(macRoot) {
   const paths = homeAiCronPaths(macRoot);
   const env = {
@@ -900,6 +916,33 @@ ${envRows}
   <true/>
   <key>StartInterval</key>
   <integer>${HOME_AI_CRON_START_INTERVAL_SECONDS}</integer>
+  <key>StandardOutPath</key>
+  <string>${xmlEscape(paths.stdoutLog)}</string>
+  <key>StandardErrorPath</key>
+  <string>${xmlEscape(paths.stderrLog)}</string>
+</dict>
+</plist>
+`;
+}
+
+function buildHomeAiNasBackupMountLaunchdPlist(macRoot) {
+  const paths = homeAiNasBackupMountPaths(macRoot);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${xmlEscape(HOME_AI_NAS_BACKUP_MOUNT_LABEL)}</string>
+  <key>WorkingDirectory</key>
+  <string>${xmlEscape(paths.appRoot)}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${xmlEscape(paths.mountScript)}</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>${HOME_AI_NAS_BACKUP_MOUNT_START_INTERVAL_SECONDS}</integer>
   <key>StandardOutPath</key>
   <string>${xmlEscape(paths.stdoutLog)}</string>
   <key>StandardErrorPath</key>
@@ -1300,6 +1343,29 @@ function installHomeAiBridgeHostLaunchd(plan, password) {
   };
 }
 
+function installHomeAiNasBackupMountLaunchd(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const paths = homeAiNasBackupMountPaths(plan.macRoot);
+  const plist = buildHomeAiNasBackupMountLaunchdPlist(plan.macRoot);
+
+  runSudo("/bin/mkdir", ["-p", path.posix.dirname(paths.stdoutLog)], password);
+  runSudo("/usr/bin/touch", [paths.stdoutLog, paths.stderrLog], password);
+  runSudo("/usr/sbin/chown", ["root:wheel", paths.stdoutLog, paths.stderrLog], password);
+  runSudo("/bin/chmod", ["640", paths.stdoutLog, paths.stderrLog], password);
+  runSudo("/bin/chmod", ["755", paths.mountScript], password);
+  installRootOwnedTextFile(paths.plistPath, plist, password, "644", "root:wheel");
+  runSudo("/usr/bin/plutil", ["-lint", paths.plistPath], password);
+  runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(paths.plistPath)} >/dev/null 2>&1 || true`], password);
+  runSudo("/bin/launchctl", ["bootstrap", "system", paths.plistPath], password);
+  runSudo("/bin/launchctl", ["kickstart", "-k", `system/${HOME_AI_NAS_BACKUP_MOUNT_LABEL}`], password);
+  return {
+    type: "home-ai-nas-backup-mount-launchd-install",
+    label: HOME_AI_NAS_BACKUP_MOUNT_LABEL,
+    plistPath: paths.plistPath,
+    startIntervalSeconds: HOME_AI_NAS_BACKUP_MOUNT_START_INTERVAL_SECONDS,
+  };
+}
+
 function repairGatewayStartScriptBridgeEnv(plan, password) {
   if (plan.target !== "home-ai" || plan.surface !== "full") return null;
   const node = path.join(plan.macRoot, PINNED_NODE);
@@ -1534,6 +1600,7 @@ function executePlan(plan, options) {
   const postSyncMirrorResult = syncPostSyncMirrors(plan, password);
   const bridgeHostInstall = installHomeAiBridgeHostLaunchd(plan, password);
   const cronInstall = installHomeAiCronLaunchd(plan, password);
+  const nasBackupMountInstall = installHomeAiNasBackupMountLaunchd(plan, password);
   const listenerVoiceInputEnv = installHomeAiListenerVoiceInputEnv(plan, password);
   const cronProfileAliases = installHomeAiCronProfileAliases(plan, password);
   const cronBuiltinSkills = installHomeAiCronBuiltinSkills(plan, password);
@@ -1563,6 +1630,7 @@ function executePlan(plan, options) {
   if (postSyncMirrorResult) validations.push(postSyncMirrorResult);
   if (bridgeHostInstall) validations.push(Object.assign({ status: 0 }, bridgeHostInstall));
   if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));
+  if (nasBackupMountInstall) validations.push(Object.assign({ status: 0 }, nasBackupMountInstall));
   if (listenerVoiceInputEnv) validations.push(Object.assign({ status: 0 }, listenerVoiceInputEnv));
   if (cronProfileAliases) validations.push(Object.assign({ status: 0 }, cronProfileAliases));
   if (cronBuiltinSkills) validations.push(Object.assign({ status: 0 }, cronBuiltinSkills));
@@ -1639,6 +1707,7 @@ module.exports = {
   buildPluginWorkspaceAuditTargetJson,
   buildHomeAiBridgeHostLaunchdPlist,
   buildHomeAiCronLaunchdPlist,
+  buildHomeAiNasBackupMountLaunchdPlist,
   cronProfileAliasRowsFromManifest,
   buildRsyncArgs,
   shouldRepairCodexSharedAuthPermissions,

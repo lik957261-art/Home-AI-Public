@@ -46,16 +46,19 @@ if mount | grep -F " on ${MOUNT_POINT} " >/dev/null 2>&1; then
     exit 73
   fi
 else
-  if [[ ! -f "$SUDO_PASSWORD_FILE" ]]; then
+  if [[ "${EUID:-$(id -u)}" == "0" ]]; then
+    /sbin/mount_nfs -o resvport,nolocks "${NAS_HOST}:${NAS_NFS_EXPORT}" "$MOUNT_POINT" >/dev/null
+  elif [[ ! -f "$SUDO_PASSWORD_FILE" ]]; then
     echo "sudo_password_file_missing_for_nfs_mount:$SUDO_PASSWORD_FILE" >&2
     exit 77
+  else
+    printf '%s\n' "$(cat "$SUDO_PASSWORD_FILE")" \
+      | sudo -S /sbin/mount_nfs -o resvport,nolocks "${NAS_HOST}:${NAS_NFS_EXPORT}" "$MOUNT_POINT" >/dev/null
   fi
-  printf '%s\n' "$(cat "$SUDO_PASSWORD_FILE")" \
-    | sudo -S /sbin/mount_nfs -o resvport,nolocks "${NAS_HOST}:${NAS_NFS_EXPORT}" "$MOUNT_POINT" >/dev/null
 fi
 
 DESTINATION="${MOUNT_POINT%/}/${DESTINATION_SUBDIR}"
-mkdir -p "$DESTINATION"
+mkdir -p "$DESTINATION" 2>/dev/null || true
 
 cat <<EOF
 export HOMEAI_DISASTER_BACKUP_DESTINATION=${DESTINATION}
