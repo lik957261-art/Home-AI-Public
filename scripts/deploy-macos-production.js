@@ -118,8 +118,38 @@ const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
     }),
     Object.freeze({
       kind: "directory",
+      source: "scripts",
+      target: "gateway-worker/moira-mcp/scripts",
+      mode: "755",
+    }),
+    Object.freeze({
+      kind: "directory",
       source: "server",
       target: "gateway-worker/moira-mcp/server",
+      mode: "755",
+    }),
+    Object.freeze({
+      kind: "directory",
+      source: "docs",
+      target: "gateway-worker/moira-mcp/docs",
+      mode: "755",
+    }),
+    Object.freeze({
+      kind: "directory",
+      source: "tests",
+      target: "gateway-worker/moira-mcp/tests",
+      mode: "755",
+    }),
+    Object.freeze({
+      kind: "directory",
+      source: "base",
+      target: "gateway-worker/moira-mcp/base",
+      mode: "755",
+    }),
+    Object.freeze({
+      kind: "directory",
+      source: "tools",
+      target: "gateway-worker/moira-mcp/tools",
       mode: "755",
     }),
     Object.freeze({
