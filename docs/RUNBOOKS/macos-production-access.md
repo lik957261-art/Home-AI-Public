@@ -426,6 +426,7 @@ finance -> /Users/example/path
 growth -> /Users/example/path
 healthy -> /Users/example/path
 moira -> /Users/example/path
+music -> /Users/example/path
 note -> /Users/example/path
 wardrobe -> /Users/example/path
 ```

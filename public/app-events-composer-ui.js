@@ -24,6 +24,22 @@ function scheduleRenderCurrentThread() {
   });
 }
 
+function isCurrentTopicRootListView() {
+  return Boolean(state.viewMode === "tasks" && state.currentThread?.singleWindow && !state.currentTaskGroupId);
+}
+
+function scheduleTopicRootListRefresh(delayMs = 140) {
+  if (!isCurrentTopicRootListView()) return;
+  window.clearTimeout(state.topicRootListRefreshTimer);
+  const conversation = $("conversation");
+  const restoreScrollTop = conversation?.scrollTop || 0;
+  state.topicRootListRefreshTimer = window.setTimeout(() => {
+    state.topicRootListRefreshTimer = 0;
+    if (!isCurrentTopicRootListView()) return;
+    renderCurrentThread({ stickToBottom: false, restoreScrollTop });
+  }, Math.max(0, Number(delayMs) || 0));
+}
+
 function renderStreamingMessageContent(message) {
   if (!message?.id || message.role !== "assistant") return false;
   if (isChatSearchMode() && currentChatSearchQuery()) return false;
@@ -134,10 +150,11 @@ function upsertMessage(message) {
   if (
     index >= 0
     && mergedMessage?.role === "assistant"
-    && ["queued", "running"].includes(String(mergedMessage.status || ""))
     && scheduleStreamingMessageRender(mergedMessage)
   ) {
-    scheduleRunProgressRenderForRun(mergedMessage.runId || state.currentThread.activeRunId || "");
+    if (["queued", "running"].includes(String(mergedMessage.status || ""))) {
+      scheduleRunProgressRenderForRun(mergedMessage.runId || state.currentThread.activeRunId || "");
+    }
     return;
   }
   scheduleRenderCurrentThread();
@@ -217,11 +234,17 @@ async function refreshCurrentThreadFromServer(options = {}) {
     ? Boolean(options.stickToBottom || shouldForceChatStickToBottom())
     : (shouldForceChatStickToBottom() || isNearBottom());
   try {
-    const params = isSingleWindowChatView()
-      ? `?${chatMessagePageParams({ limit: CHAT_MESSAGE_INITIAL_LIMIT })}`
-      : isTaskWindowView()
-        ? `?messageMode=tasks&messageLimit=${TASK_MESSAGE_INITIAL_LIMIT}`
-      : "";
+    let params = "";
+    if (isSingleWindowChatView()) {
+      params = `?${chatMessagePageParams({ limit: CHAT_MESSAGE_INITIAL_LIMIT })}`;
+    } else if (isTaskWindowView()) {
+      const query = new URLSearchParams({
+        messageMode: "tasks",
+        messageLimit: String(TASK_MESSAGE_INITIAL_LIMIT),
+      });
+      if (state.currentTaskGroupId) query.set("taskGroupId", state.currentTaskGroupId);
+      params = `?${query}`;
+    }
     const result = await api(`/api/threads/${encodeURIComponent(threadId)}${params}`);
     if ((state.currentThreadId || state.currentThread?.id || "") !== threadId) return;
     state.currentThread = mergeCurrentThread(result.thread);
@@ -287,14 +310,21 @@ function applyEvent(payload) {
   }
   if (payload.thread) upsertThreadSummary(payload.thread);
   if (payload.type === "thread.updated" && state.currentThread && payload.thread?.id === state.currentThread.id) {
-    const wasRunning = currentThreadHasPendingMessages(state.currentThread) || summaryHasActiveRun(payload.thread);
+    const summaryHasRunningState = summaryHasActiveRun(payload.thread);
+    const wasRunning = currentThreadHasPendingMessages(state.currentThread) || summaryHasRunningState;
+    const terminalSummaryRefresh = wasRunning && !summaryHasRunningState;
+    const shouldRefreshForSummary = shouldRefreshCurrentThreadForSummary(payload.thread);
     state.currentThread = mergeCurrentThread(payload.thread);
-    if (shouldRefreshCurrentThreadForSummary(payload.thread)) {
-      requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 120 });
+    if (shouldRefreshForSummary || terminalSummaryRefresh) {
+      requestCurrentThreadRefresh({
+        stickToBottom: terminalSummaryRefresh && (Boolean(state.currentTaskGroupId) || (state.viewMode === "single" && state.singleWindowMode === "chat")),
+        delayMs: terminalSummaryRefresh ? 180 : 120,
+      });
     }
     if (wasRunning) {
       updateComposerAction();
       renderComposerContext();
+      scheduleTopicRootListRefresh(120);
       return;
     }
     renderCurrentThread({ stickToBottom: false });
@@ -324,6 +354,13 @@ function applyEvent(payload) {
   if (payload.message) upsertCachedChatScopeMessage(payload.threadId, payload.message, payload.thread);
   if (payload.message && state.currentThread && payload.threadId === state.currentThread.id) {
     upsertMessage(payload.message);
+    scheduleTopicRootListRefresh(120);
+    if (
+      payload.message.role === "assistant"
+      && ["done", "failed", "cancelled"].includes(String(payload.message.status || ""))
+    ) {
+      requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 260 });
+    }
     if (payload.thread) {
       state.currentThread.status = payload.thread.status;
       state.currentThread.activeRunId = payload.thread.activeRunId;

@@ -166,6 +166,12 @@ function clearBackSwipeSurface(surface) {
   }
 }
 
+function clearActiveBackNavigationSurfaces() {
+  document.querySelectorAll(".page-back-dragging, .page-back-settling").forEach((surface) => {
+    clearBackSwipeSurface(surface);
+  });
+}
+
 function applyBackSwipeDrag(swipe, dx) {
   const surface = swipe?.surface;
   if (!surface) return;
@@ -218,10 +224,14 @@ async function handleInAppBackNavigation(options = {}) {
   const target = backSwipeTarget();
   if (!target) return false;
   if (typeof closeGlobalPluginDockForNavigation === "function") closeGlobalPluginDockForNavigation({ reason: "back_navigation" });
-  if (target === "directory-topic-draft") return closeDirectoryTopicDraft();
-  if (target === "directory") await navigateDirectoryBackFromShell({ animateEntry: Boolean(options.animateEntry) });
-  else performBackSwipeAction(target);
-  return true;
+  try {
+    if (target === "directory-topic-draft") return closeDirectoryTopicDraft();
+    if (target === "directory") await navigateDirectoryBackFromShell({ animateEntry: Boolean(options.animateEntry) });
+    else performBackSwipeAction(target);
+    return true;
+  } finally {
+    clearActiveBackNavigationSurfaces();
+  }
 }
 
 function pushBackNavigationGuard() {
@@ -274,8 +284,12 @@ function settleBackSwipe(swipe, accepted) {
     surface.style.transform = "";
     surface.style.opacity = "";
     requestAnimationFrame(() => {
-      performBackSwipeAction(target);
-      requestAnimationFrame(() => clearBackSwipeSurface(surface));
+      try {
+        performBackSwipeAction(target);
+      } finally {
+        requestAnimationFrame(() => clearBackSwipeSurface(surface));
+        window.setTimeout(() => clearBackSwipeSurface(surface), prefersReducedMotion() ? 0 : 260);
+      }
     });
     return;
   }
@@ -417,7 +431,7 @@ async function deleteTaskGroup(taskGroupId, options = {}) {
   if (!state.currentThreadId || !taskGroupId) return;
   const group = taskListGroupsForThread(state.currentThread).find((item) => item.id === taskGroupId);
   const label = taskDisplayId(group) || taskGroupId;
-  if (options.confirm !== false && !window.confirm(`删除话题“${label}”？磁盘文件不会被删除。`)) return;
+  if (options.confirm !== false && !await openTaskDeleteDialog(label)) return;
   const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/tasks/${encodeURIComponent(taskGroupId)}`, {
     method: "DELETE",
   });
@@ -425,6 +439,54 @@ async function deleteTaskGroup(taskGroupId, options = {}) {
   if (state.currentTaskGroupId === taskGroupId) state.currentTaskGroupId = "";
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
+}
+
+function openTaskDeleteDialog(label) {
+  const overlay = $("taskRenameOverlay");
+  if (!overlay) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (confirmed) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKeydown);
+      overlay.removeEventListener("click", onBackdropClick);
+      overlay.classList.add("hidden");
+      overlay.innerHTML = "";
+      resolve(Boolean(confirmed));
+    };
+    const onKeydown = (event) => {
+      if (event.key === "Escape") finish(false);
+    };
+    const onBackdropClick = (event) => {
+      if (event.target === overlay) finish(false);
+    };
+    overlay.innerHTML = `<div class="access-key-sheet task-rename-sheet" role="dialog" aria-modal="true" aria-labelledby="taskDeleteTitle">
+      <div class="access-key-header">
+        <div>
+          <div id="taskDeleteTitle" class="access-key-title">删除话题</div>
+          <div class="access-key-subtitle">只删除这个话题记录，不删除目录文件。</div>
+        </div>
+        <button class="icon-button" type="button" data-task-delete-cancel aria-label="关闭">&#10005;</button>
+      </div>
+      <div class="task-rename-field">
+        <span>话题</span>
+        <input type="text" value="${escapeHtml(label)}" readonly>
+      </div>
+      <div class="task-rename-actions">
+        <button type="button" data-task-delete-cancel>取消</button>
+        <button class="primary" type="button" data-task-delete-confirm>删除</button>
+      </div>
+    </div>`;
+    overlay.classList.remove("hidden");
+    overlay.addEventListener("click", onBackdropClick);
+    document.addEventListener("keydown", onKeydown);
+    overlay.querySelectorAll("[data-task-delete-cancel]").forEach((button) => {
+      button.addEventListener("click", () => finish(false));
+    });
+    overlay.querySelector("[data-task-delete-confirm]")?.addEventListener("click", () => finish(true));
+    requestAnimationFrame(() => overlay.querySelector("[data-task-delete-confirm]")?.focus({ preventScroll: true }));
+  });
 }
 
 function selectTaskRenameInput(input) {
@@ -621,6 +683,45 @@ function commitSwipeDelete(row, kind, itemId) {
   }, prefersReducedMotion() ? 0 : 150);
 }
 
+async function ensureTaskGroupMessagesLoaded(taskGroupId) {
+  const id = String(taskGroupId || "").trim();
+  if (!id || !state.currentThread?.id) return;
+  const groups = typeof taskGroupsForThread === "function" ? taskGroupsForThread(state.currentThread) : [];
+  const selected = groups.find((group) => group.id === id);
+  const selectedMessages = Array.isArray(selected?.messages) ? selected.messages : [];
+  const threadMessages = Array.isArray(state.currentThread?.messages) ? state.currentThread.messages : [];
+  const messagesById = new Map([...selectedMessages, ...threadMessages]
+    .filter((message) => String(message?.taskGroupId || "") === id)
+    .map((message) => [String(message?.id || ""), message]));
+  const loadedMessages = [...messagesById.values()];
+  const isSyntheticTaskSummary = (message) => /:last-(user|receipt)$/.test(String(message?.id || ""));
+  const loadedRealMessages = loadedMessages.filter((message) => !isSyntheticTaskSummary(message));
+  const hasAnyLoadedContent = loadedRealMessages.some((message) => message?.content);
+  const loadedAssistantMessages = loadedRealMessages.filter((message) => String(message?.role || "") === "assistant" && message?.content);
+  const meta = state.currentThread?.taskGroupMeta && typeof state.currentThread.taskGroupMeta === "object"
+    ? state.currentThread.taskGroupMeta[id] || {}
+    : {};
+  const lastMessageId = String(selected?.lastMessageId || meta.lastMessageId || "").trim();
+  const loadedLatestMessage = lastMessageId
+    ? loadedRealMessages.find((message) => String(message?.id || "") === lastMessageId && message?.content)
+    : null;
+  const hasLoadedLatestAssistant = !lastMessageId
+    ? loadedAssistantMessages.length > 0
+    : String(loadedLatestMessage?.role || "") === "assistant";
+  if (hasAnyLoadedContent && hasLoadedLatestAssistant) return;
+  const params = new URLSearchParams({
+    messageMode: "tasks",
+    taskGroupId: id,
+    messageLimit: String(TASK_MESSAGE_INITIAL_LIMIT),
+  });
+  const result = await api(`/api/threads/${encodeURIComponent(state.currentThread.id)}?${params}`);
+  if (result?.thread) {
+    state.currentThread = typeof mergeCurrentThread === "function" ? mergeCurrentThread(result.thread) : result.thread;
+    state.currentThreadId = result.thread.id || state.currentThreadId;
+    state.threads = [summarizeThread(state.currentThread)];
+  }
+}
+
 function openTaskGroupFromList(taskGroupId) {
   if (!taskGroupId) return;
   if (typeof rememberTaskListScrollPosition === "function") rememberTaskListScrollPosition();
@@ -631,6 +732,11 @@ function openTaskGroupFromList(taskGroupId) {
   state.currentTaskGroupId = taskGroupId;
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
+  ensureTaskGroupMessagesLoaded(taskGroupId)
+    .then(() => {
+      if (state.currentTaskGroupId === taskGroupId) renderCurrentThread({ stickToBottom: true });
+    })
+    .catch(showError);
 }
 
 async function openSharedTaskGroupFromList(threadId, taskGroupId) {

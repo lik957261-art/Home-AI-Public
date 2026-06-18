@@ -201,6 +201,9 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
     assert.equal(fs.existsSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/deepseekgw31/auth.json`), false);
     assert.equal(fs.readlinkSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/skills`), `${root}/data/skill-profiles/xulu/skills`);
     assert.equal(fs.readlinkSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/memories`), `${root}/data/skill-profiles/xulu/memories`);
+    const soulPath = `${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/SOUL.md`;
+    assert.ok(fs.existsSync(soulPath));
+    assert.match(fs.readFileSync(soulPath, "utf8"), /You are Hermes Agent/);
     assert.ok(result.codexAuth.some((entry) => entry.profile === "lowgw31" && entry.linked === true));
     assert.ok(result.codexAuth.some((entry) => entry.profile === "deepseekgw31" && entry.linked === false));
     assert.ok(calls.some((call) => call.command === "/bin/chmod" && call.args.includes("+a") && call.args.includes("user:hm-xulu allow list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit") && call.args.includes(`${root}/gateway-worker/telemetry/profiles/shared-auth`)));
@@ -256,6 +259,10 @@ async function testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases()
         },
       ],
     });
+    fs.mkdirSync(`${root}/plugins/music/src`, { recursive: true });
+    fs.writeFileSync(`${root}/plugins/music/src/mcp-stdio.js`, "import './music-service.js';\n", "utf8");
+    fs.writeFileSync(`${root}/plugins/music/src/music-service.js`, "export {};\n", "utf8");
+    fs.writeFileSync(`${root}/plugins/music/package.json`, "{\"type\":\"module\"}\n", "utf8");
     const service = createWorkspaceSystemProvisioningExecutorService({
       forceEnabled: true,
       fs,
@@ -270,10 +277,22 @@ async function testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases()
     const result = await service.runStep("ensure_launchd_services", context);
 
     assert.equal(result.ok, true);
+    assert.deepEqual(result.syncedGatewayMcpAssets, ["music"]);
+    assert.equal(fs.existsSync(`${root}/gateway-worker/music-mcp/src/mcp-stdio.js`), true);
+    assert.equal(fs.existsSync(`${root}/gateway-worker/music-mcp/package.json`), true);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/skills`), `${root}/data/skill-profiles/owner-full/skills`);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/memories`), `${root}/data/skill-profiles/owner-full/memories`);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/legacy-alias/skills`), `${root}/data/skill-profiles/user-981731fe/skills`);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/legacy-alias/memories`), `${root}/data/skill-profiles/user-981731fe/memories`);
+    const ownerConfig = fs.readFileSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/config.yaml`, "utf8");
+    assert.match(ownerConfig, /  - music/);
+    assert.match(ownerConfig, /mcp_servers:\n[\s\S]*  music:/);
+    assert.match(ownerConfig, /MUSIC_SQLITE_PATH: .*\/plugins\/music\/runtime\/music\.sqlite/);
+    const updatedManifest = JSON.parse(fs.readFileSync(context.gateway.manifestPath, "utf8"));
+    assert.ok(updatedManifest.workers[0].toolsets.includes("music"));
+    assert.ok(updatedManifest.workers[0].mcpServers.includes("music"));
+    assert.equal((updatedManifest.workers[1].toolsets || []).includes("music"), false);
+    assert.equal((updatedManifest.workers[1].mcpServers || []).includes("music"), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -537,7 +556,7 @@ async function testRunSmokesIgnoresUnrelatedProfileAuditIssues() {
     platform: "darwin",
     run: fakeRunFactory(calls, {
       [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-production-profile-audit.js --root ${root} --expected-workspaces xulu --json --no-strict --expected-plugins wardrobe,note --required-workspace-plugins xulu:wardrobe,note`]: () => ({ status: 0, stdout: profileAuditStdout, stderr: "" }),
-      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-gateway-manifest-toolset-smoke.js --root ${root} --json`]: () => ({ status: 0, stdout: "{\"ok\":true}", stderr: "" }),
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-gateway-manifest-toolset-smoke.js --root ${root} --json`]: () => ({ status: 0, stdout: JSON.stringify({ ok: false, issues: ["manifest_missing_config_toolset:legacygw1:moira"] }), stderr: "" }),
       [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-worker-filesystem-access-harness.js --root ${root} --json`]: () => ({ status: 0, stdout: "{\"ok\":true}", stderr: "" }),
     }),
   });
@@ -551,6 +570,9 @@ async function testRunSmokesIgnoresUnrelatedProfileAuditIssues() {
   assert.deepEqual(result.profileAudit.targetIssues, []);
   assert.deepEqual(result.profileAudit.targetWarnings, ["skill_root_empty:xulu"]);
   assert.equal(result.profileAudit.ignoredIssueCount, 1);
+  assert.equal(result.toolsets.smokeOk, false);
+  assert.deepEqual(result.toolsets.targetIssues, []);
+  assert.equal(result.toolsets.ignoredIssueCount, 1);
 }
 
 async function testRunSmokesFailsForTargetProfileAuditIssues() {
@@ -588,6 +610,39 @@ async function testRunSmokesFailsForTargetProfileAuditIssues() {
   assert.equal(calls.some((call) => call.args[0]?.endsWith("macos-gateway-manifest-toolset-smoke.js")), false);
 }
 
+async function testRunSmokesFailsForTargetToolsetIssues() {
+  const root = "/tmp/hm-workspace-executor-smoke";
+  const calls = [];
+  const profileAuditStdout = JSON.stringify({
+    ok: true,
+    issues: [],
+    warnings: [],
+    byWorkspace: {
+      xulu: {
+        workers: [{ profile: "lowgw31" }],
+      },
+    },
+  });
+  const service = createWorkspaceSystemProvisioningExecutorService({
+    forceEnabled: true,
+    liveRoot: root,
+    platform: "darwin",
+    run: fakeRunFactory(calls, {
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-production-profile-audit.js --root ${root} --expected-workspaces xulu --json --no-strict --expected-plugins wardrobe,note --required-workspace-plugins xulu:wardrobe,note`]: () => ({ status: 0, stdout: profileAuditStdout, stderr: "" }),
+      [`${root}/runtime/node-current/bin/node ${root}/app/scripts/macos-gateway-manifest-toolset-smoke.js --root ${root} --json`]: () => ({ status: 0, stdout: JSON.stringify({ ok: false, issues: ["manifest_missing_config_toolset:lowgw31:finance"] }), stderr: "" }),
+    }),
+  });
+
+  const result = await service.runStep("run_workspace_onboarding_smokes", Object.assign(baseContext(root), {
+    pluginIds: ["wardrobe", "note"],
+  }));
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "manifest_toolset_smoke_failed");
+  assert.deepEqual(result.toolsets.targetIssues, ["manifest_missing_config_toolset:lowgw31:finance"]);
+  assert.equal(calls.some((call) => call.args[0]?.endsWith("macos-worker-filesystem-access-harness.js")), false);
+}
+
 async function run() {
   await testValidationHelpersAndDisabledStates();
   await testEnsureMacUserCreatesHiddenAccount();
@@ -600,6 +655,7 @@ async function run() {
   await testRunSmokesIncludesPluginsAndToolsetGate();
   await testRunSmokesIgnoresUnrelatedProfileAuditIssues();
   await testRunSmokesFailsForTargetProfileAuditIssues();
+  await testRunSmokesFailsForTargetToolsetIssues();
   console.log("workspace system provisioning executor service tests passed");
 }
 

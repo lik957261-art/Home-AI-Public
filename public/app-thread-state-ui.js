@@ -60,6 +60,12 @@ function mergeCurrentThread(incomingThread) {
   const incomingHasMessageList = Array.isArray(incomingThread.messages);
   const incomingMessages = incomingHasMessageList ? incomingThread.messages : [];
   const existingThreadMessages = state.currentThread.messages || [];
+  if (!incomingHasMessageList) {
+    return Object.assign({}, state.currentThread, incomingThread, {
+      messages: existingThreadMessages,
+      messagesPage: existingPage,
+    });
+  }
   if (incomingPage && !incomingMessages.length && existingThreadMessages.length) {
     const messagesPage = mergeMessagesPage(existingPage, incomingPage, chatMessagesForThread(state.currentThread));
     return Object.assign({}, state.currentThread, incomingThread, { messages: existingThreadMessages, messagesPage });
@@ -234,7 +240,11 @@ async function loadSingleWindow(options = {}) {
   const restoreTaskListScrollTop = options.preserveTaskListScroll
     && messageMode === "tasks"
     && !state.currentTaskGroupId
-    ? $("conversation")?.scrollTop || 0
+    ? (
+      Number.isFinite(Number(options.restoreTaskListScrollTop))
+        ? Math.max(0, Number(options.restoreTaskListScrollTop) || 0)
+        : $("conversation")?.scrollTop || 0
+    )
     : null;
   renderThreads();
   await startupPerfStep("render-current-thread", () => {

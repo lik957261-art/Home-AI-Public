@@ -301,6 +301,7 @@ async function main() {
       "search",
       "x_search",
       "http",
+      "current_environment",
       "weather",
       "browser",
       "file",

@@ -180,6 +180,11 @@ function testRenderProfileConfigYaml() {
         moira_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/moira-mcp/scripts/moira-mcp-stdio.mjs",
         moira_workspace: "/mnt/c/ProgramData/HermesMobile/data/drive/users/owner",
         moira_mcp_api_base_url: "http://127.0.0.1:4174",
+        music_enabled: "1",
+        music_mcp_command: "node",
+        music_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/music-mcp/src/mcp-stdio.js",
+        music_workspace: "/mnt/c/ProgramData/HermesMobile/data/drive/users/owner",
+        music_sqlite_path: "/mnt/c/ProgramData/HermesMobile/plugins/music/runtime/music.sqlite",
         email_enabled: "1",
         email_mcp_python: "/opt/hermes-gateway-runtime/venv/bin/python",
         email_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/email-mcp/scripts/email-mcp-wrapper.py",
@@ -200,15 +205,17 @@ function testRenderProfileConfigYaml() {
       "hermes-mobile-weather",
       "hermes-mobile-web",
     ]);
-    assert.deepEqual(capabilities.mcpServers, ["email", "finance", "growth", "health", "moira", "note", "outlook_graph", "wardrobe"]);
+    assert.deepEqual(capabilities.mcpServers, ["email", "finance", "growth", "health", "moira", "music", "note", "outlook_graph", "wardrobe"]);
     assert.equal(capabilities.toolsets.includes("wardrobe"), true);
     assert.equal(capabilities.toolsets.includes("finance"), true);
     assert.equal(capabilities.toolsets.includes("note"), true);
     assert.equal(capabilities.toolsets.includes("health"), true);
     assert.equal(capabilities.toolsets.includes("growth"), true);
     assert.equal(capabilities.toolsets.includes("moira"), true);
+    assert.equal(capabilities.toolsets.includes("music"), true);
     assert.equal(capabilities.toolsets.includes("email"), true);
     assert.equal(capabilities.toolsets.includes("outlook_graph"), true);
+    assert.equal(yaml.includes("MUSIC_SQLITE_PATH: /mnt/c/ProgramData/HermesMobile/plugins/music/runtime/music.sqlite"), true);
     assert.equal(yaml.includes("port: 18760"), true);
   });
 }
@@ -289,6 +296,11 @@ function testRenderMaintenanceConfigYaml() {
         moira_mcp_path: "/mnt/c/moira.mjs",
         moira_workspace: "/mnt/c/owner",
         moira_mcp_api_base_url: "http://127.0.0.1:4174",
+        music_enabled: "1",
+        music_mcp_command: "node",
+        music_mcp_path: "/mnt/c/music/src/mcp-stdio.js",
+        music_workspace: "/mnt/c/owner",
+        music_sqlite_path: "/mnt/c/music/runtime/music.sqlite",
         email_enabled: "1",
         email_mcp_python: "/opt/hermes-gateway-runtime/venv/bin/python",
         email_mcp_path: "/mnt/c/email.py",
@@ -297,11 +309,11 @@ function testRenderMaintenanceConfigYaml() {
       },
     }));
     assert.equal(official.modelProvider, "openai-codex");
-    for (const toolset of ["web", "file", "skills", "wardrobe", "finance", "note", "health", "growth", "moira", "email", "weather", "http", "cronjob_mobile", "chatgpt_pro", "hermes-cli"]) {
+    for (const toolset of ["web", "file", "skills", "wardrobe", "finance", "note", "health", "growth", "moira", "music", "email", "weather", "http", "cronjob_mobile", "chatgpt_pro", "hermes-cli"]) {
       assert.equal(official.toolsets.includes(toolset), true, `missing maintenance toolset ${toolset}`);
       assert.equal(official.apiServerToolsets.includes(toolset), true, `missing maintenance api toolset ${toolset}`);
     }
-    assert.deepEqual(official.mcpServers, ["email", "finance", "growth", "health", "moira", "note", "wardrobe"]);
+    assert.deepEqual(official.mcpServers, ["email", "finance", "growth", "health", "moira", "music", "note", "wardrobe"]);
     assert.equal(official.plugins.includes("hermes-mobile-chatgpt-pro"), true);
     assert.equal(official.plugins.includes("hermes-mobile-web"), true);
 

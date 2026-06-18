@@ -78,6 +78,7 @@ function createService(overrides = {}) {
       gatewayRunToolsetRoutingService: {
         routePolicy: (...args) => ({ routed: args }),
       },
+      directoryTopicIndexService: { id: "directory-topic-index" },
       getRuntimeStateThreadService: () => ({
         storedGatewayUrlForRun: (...args) => ({ gatewayUrl: args }),
       }),
@@ -116,6 +117,7 @@ function testBuildsGatewayRuntimeCompositionOptions() {
   assert.deepEqual(options.notifyTaskTerminal("run-1"), { notification: ["run-1"] });
   assert.deepEqual(options.selectRunToolsetsWithModel("run-1"), { selected: ["run-1"] });
   assert.deepEqual(options.topicContextCompactionService, { id: "topic-context" });
+  assert.deepEqual(options.directoryTopicIndexService, { id: "directory-topic-index" });
 
   options.mkdirSync("C:/tmp", { recursive: true });
   assert.deepEqual(calls, [["mkdir", "C:/tmp", { recursive: true }]]);

@@ -35,6 +35,7 @@ function applyViewMode() {
   const note = state.viewMode === "note";
   const growth = state.viewMode === "growth";
   const moira = state.viewMode === "moira";
+  const music = state.viewMode === "music";
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
   if (typeof updateCodexPluginNavigationAvailability === "function") updateCodexPluginNavigationAvailability();
   if (typeof updateFinancePluginNavigationAvailability === "function") updateFinancePluginNavigationAvailability();
@@ -43,6 +44,7 @@ function applyViewMode() {
   if (typeof updateNotePluginNavigationAvailability === "function") updateNotePluginNavigationAvailability();
   if (typeof updateGrowthPluginNavigationAvailability === "function") updateGrowthPluginNavigationAvailability();
   if (typeof updateMoiraPluginNavigationAvailability === "function") updateMoiraPluginNavigationAvailability();
+  if (typeof updateMusicPluginNavigationAvailability === "function") updateMusicPluginNavigationAvailability();
   if (!(single && state.singleWindowMode === "chat")) renderChatScopeHeader(null);
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("inbox-mode", inbox);
@@ -58,6 +60,7 @@ function applyViewMode() {
   $("app")?.classList.toggle("note-mode", note);
   $("app")?.classList.toggle("growth-plugin-mode", growth);
   $("app")?.classList.toggle("moira-mode", moira);
+  $("app")?.classList.toggle("music-mode", music);
   $("chatManagementMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("inboxManagementMode")?.classList.toggle("active", inbox);
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
@@ -75,7 +78,7 @@ function applyViewMode() {
   $("bottomLearningMode")?.classList.toggle("active", learning);
   $("todosMode").classList.toggle("active", capabilities);
   $("bottomTodosMode")?.classList.toggle("active", capabilities);
-  $("bottomPluginMode")?.classList.toggle("active", wardrobe || finance || email || health || note || growth || moira);
+  $("bottomPluginMode")?.classList.toggle("active", wardrobe || finance || email || health || note || growth || moira || music);
   $("bottomPluginWardrobeMode")?.classList.toggle("active", wardrobe);
   $("bottomWardrobeMode")?.classList.toggle("active", wardrobe);
   $("bottomCodexMode")?.classList.toggle("active", codex);
@@ -87,14 +90,15 @@ function applyViewMode() {
   $("bottomNoteMode")?.classList.toggle("active", note);
   $("bottomGrowthMode")?.classList.toggle("active", growth);
   $("bottomMoiraMode")?.classList.toggle("active", moira);
+  $("bottomMusicMode")?.classList.toggle("active", music);
   $("taskModeControls")?.classList.add("hidden");
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
   $("directoryEntry")?.parentElement?.classList.add("hidden");
-  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira);
-  $("newThread").disabled = single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira;
+  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira || music);
+  $("newThread").disabled = single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira || music;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : moira ? "Search 星盘" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : moira ? "Search 星盘" : music ? "Search music" : "Search directories";
   updateSearchButton();
 }
 
@@ -210,6 +214,9 @@ async function loadSelectedView(options = {}) {
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "moira") {
     renderMoiraPluginView();
+    if (!currentViewStillSelected()) return;
+  } else if (state.viewMode === "music") {
+    renderMusicPluginView();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "projects") {
     await loadDirectoryView();

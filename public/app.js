@@ -622,6 +622,7 @@ const state = {
   workspaceOnboardingError: "",
   workspaceOnboardingDraft: null,
   workspaceOnboardingRun: null,
+  workspaceOnboardingPendingAction: "",
   runtimeConfigOpen: false,
   runtimeConfig: null,
   runtimeConfigLoading: false,
@@ -653,6 +654,7 @@ const state = {
   composerComposing: false,
   composerSendAfterComposition: false,
   composerSendAfterCompositionTimer: null,
+  composerSendInFlight: false,
   voiceInput: {
     status: "idle",
     chunks: [],

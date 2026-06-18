@@ -106,6 +106,21 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     manifestPath: "/api/hermes-plugins/moira/manifest",
     residentFrame: true,
   }),
+  music: Object.freeze({
+    id: "music",
+    viewMode: "music",
+    title: "\u97f3\u4e50",
+    label: "\u97f3\u4e50",
+    bottomButtonId: "bottomMusicMode",
+    appClass: "music-mode",
+    hostId: "musicPluginHost",
+    navVisibleClass: "music-visible",
+    navigationEventType: "music.plugin.navigation",
+    backResultEventType: "music.plugin.back_result",
+    refreshRequiredEventType: "music.plugin.refresh_required",
+    manifestPath: "/api/hermes-plugins/music/manifest",
+    residentFrame: true,
+  }),
 });
 
 function embeddedPluginRecord(pluginId) {
@@ -124,6 +139,8 @@ function embeddedPluginRecord(pluginId) {
       navigationLastAt: 0,
       bridgeBound: false,
       frameHealthSeq: 0,
+      navigationHealthSeq: 0,
+      lastNoNavigationRefreshAt: 0,
       viewportMessageTimer: 0,
       stableHostTopSafeArea: 0,
       stableHostTopSafeAreaAt: 0,
@@ -1122,8 +1139,10 @@ function attachEmbeddedPluginShell(def, entryUrl) {
   if (!frame || frame.getAttribute("src") !== entryUrl) return false;
   if (shell.parentNode !== embeddedPluginHost(def)) embeddedPluginHost(def).appendChild(shell);
   setEmbeddedPluginHostVisible(def, true);
-  embeddedPluginRecord(def.id).shellNode = shell;
+  const record = embeddedPluginRecord(def.id);
+  record.shellNode = shell;
   bindEmbeddedPluginFrameHealth(def, frame);
+  if (!Number(record.navigationLastAt || 0)) scheduleEmbeddedPluginNavigationHealthCheck(def, frame, Date.now());
   scheduleEmbeddedPluginViewportBroadcast("frame_attach", 0);
   return true;
 }
@@ -1138,6 +1157,8 @@ function discardEmbeddedPluginShell(def) {
     navigationRoute: null,
     navigationLastAt: 0,
     frameHealthSeq: (record.frameHealthSeq || 0) + 1,
+    navigationHealthSeq: (record.navigationHealthSeq || 0) + 1,
+    lastNoNavigationRefreshAt: 0,
     renderedEntryUrl: "",
     renderedWorkspaceId: "",
     renderedAppearanceKey: "",
@@ -1210,14 +1231,37 @@ function scheduleEmbeddedPluginLaunchHealthCheck(def, frame, loadedAt = Date.now
   }, timeoutMs);
 }
 
+function scheduleEmbeddedPluginNavigationHealthCheck(def, frame, observedAt = Date.now()) {
+  if (!frame || !def?.navigationEventType) return;
+  const record = embeddedPluginRecord(def.id);
+  const seq = (record.navigationHealthSeq || 0) + 1;
+  record.navigationHealthSeq = seq;
+  const timeoutMs = Math.max(0, Number(def?.navigationHealthTimeoutMs || 8000));
+  if (!timeoutMs) return;
+  window.setTimeout(() => {
+    if (seq !== record.navigationHealthSeq) return;
+    if (state.viewMode !== def.viewMode) return;
+    const shell = currentEmbeddedPluginShell(def);
+    if (shell?.querySelector(".embedded-plugin-frame") !== frame) return;
+    if (Number(record.navigationLastAt || 0) > 0) return;
+    const now = Date.now();
+    const cooldownMs = Math.max(0, Number(def?.navigationHealthCooldownMs || 60000));
+    if (cooldownMs > 0 && now - Number(record.lastNoNavigationRefreshAt || 0) < cooldownMs) return;
+    record.lastNoNavigationRefreshAt = now;
+    requestEmbeddedPluginHealthRefresh(def, { force: true, reason: "navigation_health_timeout" });
+  }, timeoutMs);
+}
+
 function bindEmbeddedPluginFrameHealth(def, frame) {
   if (!frame || frame.dataset.embeddedPluginHealthBound) return;
   frame.dataset.embeddedPluginHealthBound = "1";
   frame.addEventListener("load", () => {
     frame.closest(".embedded-plugin-shell")?.classList.remove("is-loading");
     const record = embeddedPluginRecord(def.id);
-    record.frameLoadedAt = Date.now();
-    scheduleEmbeddedPluginLaunchHealthCheck(def, frame, Date.now());
+    const loadedAt = Date.now();
+    record.frameLoadedAt = loadedAt;
+    scheduleEmbeddedPluginLaunchHealthCheck(def, frame, loadedAt);
+    scheduleEmbeddedPluginNavigationHealthCheck(def, frame, loadedAt);
     [0, 80, 240].forEach((delay) => window.setTimeout(() => sendEmbeddedPluginViewportMetrics(def, "frame_load"), delay));
     [160, 700].forEach((delay) => window.setTimeout(() => requestEmbeddedPluginVoiceInputCapability(def), delay));
   });
@@ -1850,4 +1894,61 @@ function parkMoiraPluginShell() {
 function renderMoiraPluginView() {
   updateMoiraPluginNavigationAvailability();
   renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.moira);
+}
+
+function updateMusicPluginNavigationAvailability() {
+  const def = EMBEDDED_PLUGIN_DEFS.music;
+  const button = $(def.bottomButtonId);
+  const nav = $("bottomNav");
+  const available = embeddedPluginNavigationAvailable(def);
+  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  if (button) {
+    button.hidden = !keepPluginContextButton;
+    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+  }
+  nav?.classList.remove(def.navVisibleClass);
+  if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("music", available);
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
+  return available;
+}
+
+function musicPluginBackActive() {
+  return embeddedPluginBackActive(EMBEDDED_PLUGIN_DEFS.music);
+}
+
+function musicPluginOuterBackActive() {
+  return embeddedPluginOuterBackActive(EMBEDDED_PLUGIN_DEFS.music);
+}
+
+function rememberMusicPluginReturnRoute() {
+  return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.music);
+}
+
+function setMusicPluginOpenRoute(route = {}) {
+  return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS.music, route);
+}
+
+function restoreMusicPluginReturnRoute() {
+  return restoreEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.music);
+}
+
+function sendMusicPluginBack() {
+  return sendEmbeddedPluginBack(EMBEDDED_PLUGIN_DEFS.music);
+}
+
+function sendMusicPluginBackOrReturn() {
+  if (sendMusicPluginBack()) return true;
+  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
+  return restoreMusicPluginReturnRoute();
+}
+
+function parkMusicPluginShell() {
+  return parkEmbeddedPluginShell(EMBEDDED_PLUGIN_DEFS.music);
+}
+
+function renderMusicPluginView() {
+  updateMusicPluginNavigationAvailability();
+  renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.music);
 }

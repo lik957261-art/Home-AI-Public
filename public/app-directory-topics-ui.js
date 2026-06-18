@@ -83,9 +83,22 @@ function directoryTopicCollectionGroupIds(collections = []) {
   return ids;
 }
 
+function directoryTopicDisplayParts(group) {
+  const baseTitle = String(group?.title || "").trim();
+  const receiptTitle = typeof topicReceiptSummaryTitleFromGroup === "function"
+    ? topicReceiptSummaryTitleFromGroup(group, { max: 120 })
+    : "";
+  const title = baseTitle || receiptTitle || "\u6682\u65e0\u56de\u6267\u6982\u8981";
+  const summary = baseTitle && receiptTitle && receiptTitle !== baseTitle ? receiptTitle : "";
+  return {
+    title,
+    summary,
+    fullTitle: summary ? `${title}\uFF5C${summary}` : title,
+  };
+}
+
 function directoryTopicDisplayTitle(group) {
-  const title = typeof taskShortTitle === "function" ? taskShortTitle(group) : "";
-  return title || (typeof taskTitle === "function" ? taskTitle(group) : "") || "\u8bdd\u9898";
+  return directoryTopicDisplayParts(group).fullTitle;
 }
 
 const DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY = "hermesDirectoryTopicCollapsed";
@@ -218,11 +231,16 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
           </div>
           <div class="directory-topic-bound-list" aria-label="${escapeHtml(`${collection.label}\u7684\u8bdd\u9898`)}">
             ${topics.map((group) => {
-              const title = directoryTopicDisplayTitle(group);
-              const fullTitle = typeof taskTitle === "function" ? taskTitle(group) : title;
-              return `<button class="directory-topic-chip${group.id === defaultGroup.id ? " default" : ""}" type="button" data-directory-topic-open-topic="${escapeHtml(group.id)}" title="${escapeHtml(fullTitle || title || "")}">
+              const display = directoryTopicDisplayParts(group);
+              const copyClass = `directory-topic-chip-copy${display.summary ? " has-summary" : ""}`;
+              const summaryHtml = display.summary
+                ? `<span class="directory-topic-chip-divider" aria-hidden="true">\uFF5C</span><span class="directory-topic-chip-summary">${escapeHtml(display.summary)}</span>`
+                : "";
+              return `<button class="directory-topic-chip${group.id === defaultGroup.id ? " default" : ""}" type="button" data-directory-topic-open-topic="${escapeHtml(group.id)}" title="${escapeHtml(display.fullTitle || display.title || "")}">
                 <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
-                <span class="directory-topic-chip-title">${escapeHtml(title || "\u8bdd\u9898")}</span>
+                <span class="${copyClass}">
+                  <span class="directory-topic-chip-title">${escapeHtml(display.title || "\u8bdd\u9898")}</span>${summaryHtml}
+                </span>
               </button>`;
             }).join("")}
           </div>

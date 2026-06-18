@@ -34,6 +34,7 @@ const TOOLSET_LABELS = Object.freeze({
   cronjob: "Read or operate automation and scheduled jobs.",
   file: "Read permitted workspace files and document attachments.",
   http: "Call scoped HTTP bridge tools and approved APIs.",
+  current_environment: "Read the current Home AI native device environment snapshot.",
   image_gen: "Generate or edit images.",
   kanban: "Read or update Kanban, Growth, and task cards.",
   memory: "Read durable assistant memory or prior-session summaries.",

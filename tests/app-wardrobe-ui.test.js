@@ -110,7 +110,7 @@ assert.match(sidebarTaskUi, /target === "wardrobe-plugin-outer"[\s\S]*restoreWar
 assert.match(navigationSearchUi, /const wardrobePluginBack = typeof wardrobePluginBackActive === "function" && wardrobePluginBackActive\(\)/);
 assert.match(navigationSearchUi, /const wardrobePluginOuterBack = typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive\(\)/);
 assert.match(wireStartUi, /bottomWardrobeMode/);
-assert.match(wireStartUi, /rememberWardrobePluginReturnRoute\(\)/);
+assert.match(wireStartUi, /openPinnedPluginBottomTab\("wardrobe", typeof rememberWardrobePluginReturnRoute === "function" \? rememberWardrobePluginReturnRoute : null\)/);
 assert.doesNotMatch(wireStartUi, /setWardrobeSection\(section\)/);
 assert.doesNotMatch(indexHtml, /topWardrobe(?:Overview|Watches|Maintenance|Wear|Looks|Log)/);
 assert.doesNotMatch(navigationSearchUi, /topWardrobe(?:Overview|Watches|Maintenance|Wear|Looks|Log)/);

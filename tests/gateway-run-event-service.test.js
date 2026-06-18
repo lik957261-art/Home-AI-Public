@@ -87,6 +87,30 @@ function makeHarness(overrides = {}) {
   return { activeStreams, calls, message: thread.messages[1], service, state, thread };
 }
 
+function createManualTimers() {
+  let nextId = 1;
+  const timers = new Map();
+  return {
+    setTimeout(fn, delayMs) {
+      const id = nextId++;
+      timers.set(id, { fn, delayMs, cleared: false });
+      return id;
+    },
+    clearTimeout(id) {
+      if (timers.has(id)) timers.get(id).cleared = true;
+    },
+    runAll() {
+      for (const [id, timer] of Array.from(timers.entries())) {
+        timers.delete(id);
+        if (!timer.cleared) timer.fn();
+      }
+    },
+    activeCount() {
+      return Array.from(timers.values()).filter((timer) => !timer.cleared).length;
+    },
+  };
+}
+
 function testPureTargetAndOutputHelpers() {
   const state = {
     threads: [
@@ -195,6 +219,32 @@ function testCompletedRunMutatesTerminalStateAndSchedulesQueue() {
   assert.deepEqual(calls.scheduled, [{ threadId: "thread_1", taskGroupId: "chat" }]);
   assert.deepEqual(calls.compacted, [{ threadId: "thread_1", taskGroupId: "chat", reason: "run-completed" }]);
   assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
+}
+
+function testCompletedRunUpdatesTaskGroupReceiptMeta() {
+  const { message, service, thread } = makeHarness();
+  message.taskGroupId = "plugin:wardrobe";
+  thread.taskGroupMeta = {
+    "plugin:wardrobe": {
+      title: "Wardrobe",
+      lastReceiptTitle: "previous receipt",
+      updatedAt: "2026-05-15T00:00:00.000Z",
+    },
+  };
+
+  const result = service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      output: [{ type: "message", content: [{ type: "output_text", text: "latest wardrobe receipt" }] }],
+    },
+  });
+
+  assert.equal(result.action, "completed");
+  assert.equal(thread.taskGroupMeta["plugin:wardrobe"].lastReceiptTitle, "latest wardrobe receipt");
+  assert.equal(thread.taskGroupMeta["plugin:wardrobe"].pluginTopic, true);
+  assert.equal(thread.taskGroupMeta["plugin:wardrobe"].lastMessageId, "assistant_1");
 }
 
 function testDuplicateCompletedEventDoesNotNotifyTwice() {
@@ -696,6 +746,64 @@ function testToolsetEscalationMarkerIsHiddenAndStored() {
   assert.deepEqual(JSON.parse(harness.thread.events.at(-1).preview).toolsets, ["weather", "wardrobe"]);
 }
 
+function testFinalMessageDoneFallbackCompletesWhenTerminalEventIsMissing() {
+  const timers = createManualTimers();
+  const harness = makeHarness({
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
+    finalMessageTerminalFallbackMs: 1,
+  });
+
+  const result = harness.service.applyHermesRunEvent({
+    event: "response.output_text.done",
+    run_id: "public_run",
+    text: "final answer",
+  });
+
+  assert.equal(result.action, "final_message_done");
+  assert.equal(harness.message.status, "running");
+  assert.equal(timers.activeCount(), 1);
+
+  timers.runAll();
+
+  assert.equal(harness.message.status, "done");
+  assert.equal(harness.message.content, "final answer");
+  assert.deepEqual(harness.thread.activeRunIds, []);
+  assert.equal(harness.thread.status, "idle");
+  assert.equal(harness.calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
+}
+
+function testFinalMessageFallbackClearsWhenTerminalEventArrives() {
+  const timers = createManualTimers();
+  const harness = makeHarness({
+    setTimeout: timers.setTimeout,
+    clearTimeout: timers.clearTimeout,
+    finalMessageTerminalFallbackMs: 1,
+  });
+
+  harness.service.applyHermesRunEvent({
+    event: "response.output_item.done",
+    run_id: "public_run",
+    item: {
+      type: "message",
+      content: [{ type: "output_text", text: "final output" }],
+    },
+  });
+  assert.equal(timers.activeCount(), 1);
+
+  const completed = harness.service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    output: "final output",
+  });
+  assert.equal(completed.action, "completed");
+  assert.equal(harness.message.status, "done");
+
+  timers.runAll();
+
+  assert.equal(harness.calls.broadcasts.filter((payload) => payload.type === "run.completed").length, 1);
+}
+
 function testStreamingToolsetEscalationMarkerIsSuppressedBeforeCompletion() {
   const harness = makeHarness({ maxMessageChars: 600 });
   harness.message.runOptions = {
@@ -1025,6 +1133,7 @@ testResponseCreatedAliasesRunAndBroadcasts();
 testDeltaUpdatesMessageAndThread();
 testStreamingDeltaSavesAreCoalesced();
 testCompletedRunMutatesTerminalStateAndSchedulesQueue();
+testCompletedRunUpdatesTaskGroupReceiptMeta();
 testDuplicateCompletedEventDoesNotNotifyTwice();
 testCompletedRunPersistsLoadedSkillReferences();
 testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim();
@@ -1043,6 +1152,8 @@ testResponseFailedCanRequestOwnerElevation();
 testSyntheticRunStatusDoesNotRefreshGatewayLastEventTime();
 testApprovalMarkersAreHiddenButValidRequestIsStored();
 testToolsetEscalationMarkerIsHiddenAndStored();
+testFinalMessageDoneFallbackCompletesWhenTerminalEventIsMissing();
+testFinalMessageFallbackClearsWhenTerminalEventArrives();
 testStreamingToolsetEscalationMarkerIsSuppressedBeforeCompletion();
 testToolsetEscalationAutoRetriesWithExpandedAuthorizedToolsets();
 testOutputItemFinalMessageCanTriggerToolsetEscalationRetryWithoutDeltas();

@@ -265,6 +265,7 @@ async function main() {
     assert.equal(bodyRequests[1].url.includes("offset=20"), true);
     assert.equal(bodyRequests[2].url.includes("offset=40"), true);
     assert.equal(fakeEmail.requests[0].authorization, "Bearer workspace-secret-key");
+    assert.deepEqual(fakeEmail.requests[0].body, { workspace_id: "owner", capabilities: ["full_content"] });
     assert.equal(fakeEmail.requests[1].session, "launch-test-token");
   } finally {
     await fakeEmail.close();

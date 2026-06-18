@@ -61,6 +61,7 @@ function createMobileRuntimeGatewayCompositionOptionsService(options = {}) {
       compactFullContent: d.compactFullContent,
       compactMessage: d.compactMessage,
       dedupe: d.dedupe,
+      directoryTopicIndexService: s.directoryTopicIndexService || null,
       effectiveProjectForThread: d.effectiveProjectForThread,
       ensureGroupChatSharedArtifactCopies: d.ensureGroupChatSharedArtifactCopies,
       enqueueExternalDeliveryForTerminalMessage: d.enqueueExternalDeliveryForTerminalMessage,

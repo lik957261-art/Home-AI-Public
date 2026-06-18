@@ -181,6 +181,24 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     ]),
   }),
   Object.freeze({
+    id: "music",
+    viewMode: "music",
+    label: "\u97f3\u4e50",
+    subtitle: "Roon \u64ad\u653e\u8bb0\u5f55\u3001\u6536\u85cf\u548c\u542c\u6b4c\u504f\u597d",
+    iconClass: "nav-plugins-icon",
+    appIconClass: "music",
+    appIconGlyph: "\u97f3",
+    sourceBadge: "\u97f3",
+    toolset: "music",
+    deliveryHints: ["music", "roon", "\u97f3\u4e50", "\u64ad\u653e\u5217\u8868", "\u6536\u85cf", "\u542c\u6b4c"],
+    actions: Object.freeze([
+      pluginRouteAction("stats", "\u542c\u6b4c\u7edf\u8ba1", "stats", "\u7edf", 10),
+      pluginRouteAction("favorites", "\u6536\u85cf\u4e13\u8f91", "favorites", "\u85cf", 20),
+      pluginRouteAction("volume_tags", "\u97f3\u91cf\u6807\u7b7e", "volume_tags", "\u97f3", 30),
+      pluginRouteAction("settings", "\u8bbe\u7f6e", "settings", "\u8bbe", 40),
+    ]),
+  }),
+  Object.freeze({
     id: "directory",
     builtinKind: "directory",
     viewMode: "projects",
@@ -251,6 +269,84 @@ const pluginTopicBindingsLoadedAtByWorkspace = new Map();
 const pluginTopicBindingsLoadingWorkspaces = new Map();
 const pluginTopicBindingsLoadRetryAt = new Map();
 const pluginTopicBindingProjectionByWorkspace = new Map();
+
+function stripTopicReceiptMetadataComments(text = "") {
+  return String(text || "").replace(/<!--\s*homeai-note(?:-[a-z]+)?[\s\S]*?-->/gi, "").trim();
+}
+
+function compactTopicReceiptSummary(value = "", max = 34) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  const limit = Math.max(8, Number(max || 34) || 34);
+  if (typeof compactDisplayText === "function") return compactDisplayText(text, limit);
+  if (/[\u3400-\u9fff\uf900-\ufaff]/.test(text)) return Array.from(text).slice(0, limit).join("").trim();
+  return text.split(/\s+/).filter(Boolean).slice(0, Math.max(3, Math.ceil(limit / 7))).join(" ").slice(0, Math.max(24, limit * 2)).trim();
+}
+
+function topicReceiptTitleMetadata(text = "", max = 34) {
+  const source = String(text || "");
+  const single = source.match(/<!--\s*homeai-note-title\s*[:\uff1a]\s*([\s\S]*?)-->/i);
+  if (single) return compactTopicReceiptSummary(single[1], max);
+  const blockRe = /<!--\s*homeai-note\b([\s\S]*?)-->/gi;
+  let match;
+  while ((match = blockRe.exec(source))) {
+    const body = String(match[1] || "");
+    for (const line of body.split(/\r?\n/)) {
+      const title = String(line || "").trim().match(/^title\s*[:\uff1a]\s*(.+)$/i);
+      if (title) return compactTopicReceiptSummary(title[1], max);
+    }
+  }
+  return "";
+}
+
+function cleanTopicReceiptTitleLine(line = "") {
+  let text = String(line || "").trim();
+  text = text.replace(/^#{1,4}\s+/, "");
+  text = text.replace(/^[-*+\u2022\u00b7]\s+/, "");
+  text = text.replace(/!\[[^\]]*]\([^)]+\)/g, "");
+  text = text.replace(/\[[^\]]*]\([^)]+\)/g, (match) => match.replace(/^\[|\]\([^)]+\)$/g, ""));
+  text = text.replace(/[`*_~>#]/g, "");
+  text = text.replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  if (/^(attachments?|source|conversation|time|error|\u9644\u4ef6|\u6765\u6e90|\u4f1a\u8bdd|\u65f6\u95f4)[:\uff1a]?/i.test(text)) return "";
+  if (/^(按现在的状态|我的判断是|结论先说|先说结论|我查了一下|我看了一下|简单说|整体看|总体看|目前看)[\s\uff1a:，,。.!！?？]*$/i.test(text)) return "";
+  return text;
+}
+
+function topicReceiptSummaryTitleFromText(text = "", options = {}) {
+  const limit = options.max || 34;
+  const metadataTitle = topicReceiptTitleMetadata(text, limit);
+  if (metadataTitle) return metadataTitle;
+  const clean = stripTopicReceiptMetadataComments(text);
+  const heading = clean.split(/\r?\n/)
+    .map((line) => String(line || "").trim().match(/^#{1,4}\s+(.+)$/))
+    .find(Boolean)?.[1] || "";
+  const candidate = cleanTopicReceiptTitleLine(heading)
+    || clean.split(/\r?\n/).map(cleanTopicReceiptTitleLine).find(Boolean)
+    || "";
+  return compactTopicReceiptSummary(candidate, limit);
+}
+
+function topicReceiptSummaryTitleFromMessage(message = {}, options = {}) {
+  const value = message?.content || message?.text || message?.summary || message?.title || "";
+  if (Array.isArray(value)) {
+    return topicReceiptSummaryTitleFromText(value.map((item) => (typeof item === "string" ? item : (item?.text || item?.content || ""))).filter(Boolean).join("\n"), options);
+  }
+  if (value && typeof value === "object") {
+    return topicReceiptSummaryTitleFromText(value.text || value.content || value.summary || "", options);
+  }
+  return topicReceiptSummaryTitleFromText(value, options);
+}
+
+function topicReceiptSummaryTitleFromGroup(group = {}, options = {}) {
+  const groupReceiptTitle = topicReceiptSummaryTitleFromText(group?.lastReceiptTitle || group?.last_receipt_title || "", options);
+  if (groupReceiptTitle) return groupReceiptTitle;
+  const messages = Array.isArray(group?.messages) ? group.messages : [];
+  const assistant = [...messages].reverse().find((message) => message?.role === "assistant" && (message.content || message.summary || message.title));
+  const assistantTitle = assistant ? topicReceiptSummaryTitleFromMessage(assistant, options) : "";
+  if (assistantTitle) return assistantTitle;
+  return "";
+}
 
 function pluginTopicId(value = "") {
   return String(value || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
@@ -334,6 +430,7 @@ function pluginTopicBottomButtonId(def) {
   if (id === "note") return "bottomNoteMode";
   if (id === "growth") return "bottomGrowthMode";
   if (id === "moira") return "bottomMoiraMode";
+  if (id === "music") return "bottomMusicMode";
   return "";
 }
 
@@ -344,7 +441,7 @@ function hideActivePluginHostsForPluginTopicNavigation() {
   }
   const app = $("app");
   app?.classList.remove("wardrobe-plugin-host-active", "embedded-plugin-host-active");
-  ["codex", "finance", "email", "health", "note", "moira"].forEach((id) => {
+  ["codex", "finance", "email", "health", "note", "moira", "music"].forEach((id) => {
     app?.classList.remove(`${id}-plugin-host-active`);
   });
 }
@@ -644,7 +741,7 @@ function pluginTopicDirectoryClaimForRoute(route = {}, group = null) {
 }
 
 function pluginTopicDirectoryClaimHidesRoot(claim = null) {
-  return Boolean(claim && claim.claimMode === "claimed_by_plugin" && claim.hideFromDirectoryTopicRoot !== false);
+  return false;
 }
 
 function pluginTopicClaimedDirectoryTopicCollections(collections = []) {
@@ -1144,7 +1241,7 @@ function globalPluginDockHostSurfaceEligible() {
   if (!app || app.classList.contains("hidden")) return false;
   if (!isMobileLayout()) return false;
   const view = String(state.viewMode || "");
-  const pluginAppSurface = ["wardrobe", "codex", "finance", "email", "health", "note", "growth", "moira"].includes(view);
+  const pluginAppSurface = ["wardrobe", "codex", "finance", "email", "health", "note", "growth", "moira", "music"].includes(view);
   if (state.keyboardViewportActive || document.documentElement.classList.contains("keyboard-viewport-active")) return false;
   if (state.mobileBrowserShellBlocked || app.classList.contains("mobile-browser-shell-blocked")) return false;
   if (app.classList.contains("embedded-plugin-preview-fullscreen-active")) return false;
@@ -2133,6 +2230,8 @@ function pluginTopicMessageTimestamp(message = {}) {
 }
 
 function pluginTopicMessagePreviewText(message = {}, max = 48) {
+  const receiptTitle = topicReceiptSummaryTitleFromMessage(message, { max });
+  if (receiptTitle) return receiptTitle;
   const value = message?.content || message?.text || message?.summary || message?.title || "";
   let raw = "";
   if (Array.isArray(value)) {
@@ -2154,15 +2253,16 @@ function pluginTopicMessagePreviewText(message = {}, max = 48) {
   return raw.replace(/\s+/g, " ").trim().slice(0, max);
 }
 
-function pluginTopicRecentMessageEntries(def, thread = state.currentThread, limit = 2) {
+function pluginTopicRecentMessageEntries(def, thread = state.currentThread, limit = 2, options = {}) {
   if (!def || def.builtinKind) return [];
+  const max = Math.max(26, Number(options.max || 34) || 34);
   return pluginTopicMessages(thread, pluginTopicGroupId(def.id))
-    .filter((message) => String(message?.role || "") !== "system")
+    .filter((message) => String(message?.role || "") === "assistant")
     .map((message) => ({
       kind: "recent_message",
       pluginId: def.id,
       taskGroupId: pluginTopicGroupId(def.id),
-      title: pluginTopicMessagePreviewText(message, 52),
+      title: pluginTopicMessagePreviewText(message, max),
       subtitle: pluginTopicMessageTimestamp(message) ? formatTime(pluginTopicMessageTimestamp(message)) : "",
       updatedAt: pluginTopicMessageTimestamp(message),
     }))
@@ -2191,14 +2291,17 @@ function pluginTopicGroupsForTaskList(thread) {
   });
 }
 
+function pluginTopicGroupForDef(def, thread = state.currentThread) {
+  if (!def || def.builtinKind || !thread) return null;
+  const groupId = pluginTopicGroupId(def.id);
+  const groups = typeof taskGroupsForThread === "function" ? taskGroupsForThread(thread) : [];
+  return groups.find((group) => String(group?.id || "") === groupId) || null;
+}
+
 function renderPluginTopicStats(def, options = {}) {
   if (!def || def.builtinKind) return "";
-  const claimedCollections = pluginTopicClaimedCollectionsForPlugin(options.claimedDirectoryTopicCollections || [], def.id);
-  const historyCount = claimedCollections.reduce((total, collection) => total + (collection.groups?.length || 0), 0);
-  const stats = [
-    historyCount > 0 ? `${historyCount} \u4e2a\u4e13\u9898` : "\u9ed8\u8ba4\u8bdd\u9898",
-  ].filter(Boolean);
-  return `<span class="plugin-topic-stats">${stats.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</span>`;
+  const summary = pluginTopicRowMeta(def, options);
+  return `<span class="plugin-topic-stats">${escapeHtml(summary || "\u6682\u65e0\u56de\u6267\u6982\u8981")}</span>`;
 }
 
 function pluginTopicCollectionUpdatedAt(collections = []) {
@@ -2208,18 +2311,13 @@ function pluginTopicCollectionUpdatedAt(collections = []) {
     .sort((a, b) => b - a)[0] || 0;
 }
 
-function pluginTopicRowMeta(def, childEntries = [], options = {}) {
+function pluginTopicRowMeta(def, options = {}) {
   if (!def || def.builtinKind) return "";
-  const recentEntry = childEntries.find((entry) => entry.kind === "recent_message");
-  const claimedCount = childEntries.filter((entry) => entry.kind === "claimed_directory").length;
-  if (recentEntry) {
-    return [claimedCount > 0 ? `${claimedCount} \u4e2a\u4e13\u9898` : "\u6700\u8fd1", recentEntry.title].filter(Boolean).join("\u3000");
-  }
-  if (!claimedCount) return "\u6682\u65e0\u6700\u8fd1\u5185\u5bb9";
-  const claimedCollections = pluginTopicClaimedCollectionsForPlugin(options.claimedDirectoryTopicCollections || [], def.id);
-  const updatedAtValue = pluginTopicCollectionUpdatedAt(claimedCollections);
-  const updated = updatedAtValue ? formatTime(new Date(updatedAtValue).toISOString()) : "";
-  return [ `${claimedCount} \u4e2a\u4e13\u9898`, updated ].filter(Boolean).join("\u3000");
+  const group = pluginTopicGroupForDef(def, options.thread || state.currentThread);
+  const groupTitle = group ? topicReceiptSummaryTitleFromGroup(group, { max: 120 }) : "";
+  if (groupTitle) return groupTitle;
+  const entry = pluginTopicRecentMessageEntries(def, options.thread || state.currentThread, 1, { max: 120 })[0];
+  return entry?.title || "\u6682\u65e0\u56de\u6267\u6982\u8981";
 }
 
 function pluginTopicExpandedStorageKey(workspaceId = pluginTopicUsageWorkspaceId()) {
@@ -2261,51 +2359,27 @@ function pluginTopicChildEntries(def, options = {}) {
 }
 
 function renderPluginTopicCards(options = {}) {
-  ensurePluginTopicBindingsLoaded();
   const defs = orderedPluginAppDefs(availablePluginTopicDefs())
     .filter((def) => !def.builtinKind && def.id !== "codex-mobile");
   if (!defs.length) return "";
-  const expandedTopics = readExpandedPluginTopics();
   return `<section class="plugin-topic-launcher" aria-label="\u63d2\u4ef6\u8bdd\u9898">
     <div class="plugin-topic-list">
       ${defs.map((def) => {
-        const childEntries = pluginTopicChildEntries(def, options);
-        const hasChildren = childEntries.length > 0;
-        const expanded = hasChildren && expandedTopics.has(def.id);
-        const bodyAttrs = hasChildren
-          ? `data-plugin-topic-toggle="${escapeHtml(def.id)}" aria-expanded="${expanded ? "true" : "false"}" aria-label="${escapeHtml(`${expanded ? "\u6536\u8d77" : "\u5c55\u5f00"}${def.label}\u8bdd\u9898`)}"`
-          : `data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}"`;
         return `
-        <article class="plugin-topic-card${expanded ? "" : " collapsed"}${hasChildren ? " has-children" : " single-topic"}" data-plugin-topic-card="${escapeHtml(def.id)}">
+        <article class="plugin-topic-card collapsed single-topic" data-plugin-topic-card="${escapeHtml(def.id)}">
           <div class="plugin-topic-card-main-row">
             <button class="plugin-topic-icon-entry" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
               <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
             </button>
-            <button class="plugin-topic-row-body" type="button" ${bodyAttrs}>
+            <button class="plugin-topic-row-body" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}">
               <span class="plugin-topic-text">
                 <span class="plugin-topic-title">${escapeHtml(def.label)}</span>
-                <span class="plugin-topic-subtitle">${escapeHtml(pluginTopicRowMeta(def, childEntries, options))}</span>
+                <span class="plugin-topic-separator" aria-hidden="true"></span>
+                <span class="plugin-topic-subtitle">${escapeHtml(pluginTopicRowMeta(def, options))}</span>
               </span>
             </button>
-            ${hasChildren ? `<button class="plugin-topic-row-toggle" type="button" ${bodyAttrs}>
-              <span class="plugin-topic-row-chevron directory-topic-chevron" aria-hidden="true"></span>
-            </button>` : `<span class="plugin-topic-row-chevron-placeholder" aria-hidden="true"></span>`}
+            <span class="plugin-topic-row-chevron-placeholder" aria-hidden="true"></span>
           </div>
-          ${hasChildren ? `<div class="plugin-topic-child-list directory-topic-bound-list" aria-label="${escapeHtml(`${def.label}\u4e13\u9898\u8bdd\u9898`)}">
-            ${childEntries.map((entry) => {
-              const attrs = entry.kind === "recent_message"
-                ? `data-plugin-topic-open-topic="${escapeHtml(entry.pluginId)}"`
-                : `data-plugin-claimed-topic-open="${escapeHtml(entry.taskGroupId)}" data-plugin-claimed-topic-plugin="${escapeHtml(entry.pluginId)}"`;
-              const title = entry.title || (entry.kind === "recent_message" ? "\u6700\u8fd1\u5185\u5bb9" : "\u4e13\u9898\u8bdd\u9898");
-              return `<button class="plugin-topic-child-row directory-topic-chip" type="button" ${attrs}>
-                <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
-                <span class="plugin-topic-child-text">
-                  <span class="plugin-topic-child-title directory-topic-chip-title">${escapeHtml(title)}</span>
-                  ${entry.subtitle ? `<span class="plugin-topic-child-meta">${escapeHtml(entry.subtitle)}</span>` : ""}
-                </span>
-              </button>`;
-            }).join("")}
-          </div>` : ""}
         </article>
       `;
       }).join("")}
@@ -2333,7 +2407,7 @@ function pluginTopicSwitcherEntries(def, thread = state.currentThread) {
         kind: "claimed_directory",
         pluginId: def.id,
         taskGroupId: group.id,
-        title: typeof directoryTopicDisplayTitle === "function" ? directoryTopicDisplayTitle(group) : (group.title || "\u5386\u53f2\u4e13\u9898"),
+        title: typeof directoryTopicDisplayTitle === "function" ? directoryTopicDisplayTitle(group) : (topicReceiptSummaryTitleFromGroup(group, { max: 26 }) || "\u6682\u65e0\u56de\u6267\u6982\u8981"),
         subtitle: collection.label || "\u5386\u53f2\u76ee\u5f55\u8bdd\u9898",
       });
     }
@@ -2529,6 +2603,7 @@ function setPluginTopicAppOpenRoute(def, route = {}) {
   if (def.id === "note" && typeof setNotePluginOpenRoute === "function") return setNotePluginOpenRoute(route);
   if (def.id === "growth" && typeof setGrowthPluginOpenRoute === "function") return setGrowthPluginOpenRoute(route);
   if (def.id === "moira" && typeof setMoiraPluginOpenRoute === "function") return setMoiraPluginOpenRoute(route);
+  if (def.id === "music" && typeof setMusicPluginOpenRoute === "function") return setMusicPluginOpenRoute(route);
   const embeddedDef = typeof EMBEDDED_PLUGIN_DEFS !== "undefined" ? EMBEDDED_PLUGIN_DEFS[def.id] : null;
   return Boolean(embeddedDef && typeof setEmbeddedPluginOpenRoute === "function" && setEmbeddedPluginOpenRoute(embeddedDef, route));
 }
@@ -2558,7 +2633,10 @@ async function openPluginTopicApp(pluginId, options = {}) {
   state.currentTaskGroupId = "";
   state.currentThread = null;
   state.currentThreadId = "";
-  await loadSelectedView();
+  if (typeof applyViewMode === "function") applyViewMode();
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  if (typeof scheduleSelectedViewLoad === "function") scheduleSelectedViewLoad();
+  else loadSelectedView().catch(showError);
 }
 
 async function openPluginTopicChat(pluginId, options = {}) {

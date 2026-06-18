@@ -11,6 +11,7 @@ const runtimeEnvironmentJs = fs.readFileSync(path.join(repoRoot, "adapters", "mo
 const systemRuntimeStatusServiceJs = fs.readFileSync(path.join(repoRoot, "adapters", "system-runtime-status-service.js"), "utf8");
 const systemRuntimeStatusFacadeJs = fs.readFileSync(path.join(repoRoot, "adapters", "mobile-runtime-system-status-facade-service.js"), "utf8");
 const appJs = readAppShellSource(repoRoot);
+const runProgressJs = fs.readFileSync(path.join(repoRoot, "public", "app-run-progress-ui.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
@@ -159,7 +160,7 @@ assert.match(appJs, /runProgressTicker: 0/);
 assert.match(appJs, /STREAMING_MESSAGE_RENDER_THROTTLE_MS/);
 assert.match(appJs, /function renderStreamingMessageContent\(message\)/);
 assert.match(appJs, /content\.outerHTML = renderText\(message\.content \|\| "", message\)/);
-assert.match(appJs, /content\.textContent = cleanDisplayText\(message\.content \|\| ""\)/);
+assert.match(appJs, /content\.textContent = String\(message\.content \|\| ""\)/);
 assert.match(appJs, /function scheduleStreamingMessageRender\(message\)/);
 assert.match(appJs, /ACTIVE_MESSAGE_RICH_RENDER_LIMIT/);
 assert.match(appJs, /function shouldRenderLongMessagePreview\(text, message = \{\}\)/);
@@ -167,14 +168,19 @@ assert.match(appJs, /function renderLongMessagePreview\(text, aliases, message =
 assert.match(appJs, /function wireLongMessageButtons\(root\)/);
 assert.match(appJs, /wireLongMessageButtons\(conversation\)/);
 assert.match(appJs, /if \(!scheduleStreamingMessageRender\(message\)\) scheduleRenderCurrentThread\(\)/);
+const upsertMessageBody = appJs.match(/function upsertMessage\(message\) \{[\s\S]*?\n\}/)?.[0] || "";
+assert.match(upsertMessageBody, /mergedMessage\?\.role === "assistant"[\s\S]*?&& scheduleStreamingMessageRender\(mergedMessage\)/);
+assert.match(upsertMessageBody, /if \(\["queued", "running"\]\.includes\(String\(mergedMessage\.status \|\| ""\)\)\) \{\s*scheduleRunProgressRenderForRun/);
 assert.match(appJs, /function renderRunProgressPanel\(thread, runIds, options = \{\}\)/);
 assert.doesNotMatch(appJs, /function renderRunProgressPanel\(thread, runIds(?:, options = \{\})?\) \{\s*return "";/);
 assert.match(appJs, /function runProgressOffsetLabel\(startMs, eventMs\)/);
 assert.match(appJs, /runEventTimeLabel\(event, startMs\)/);
-assert.doesNotMatch(appJs, /toLocaleTimeString/);
+assert.doesNotMatch(runProgressJs, /toLocaleTimeString/);
 assert.match(appJs, /function renderMessageRunProgress\(thread, message = \{\}(?:, options = \{\})?\)/);
 assert.match(appJs, /renderMessageRunProgress\(state\.currentThread, message\)/);
 assert.match(appJs, /runProgressRenderScheduled: new Set\(\)/);
+assert.match(appJs, /const RUN_PROGRESS_FINAL_MESSAGE_REFRESH_MS = 1800/);
+assert.match(appJs, /const RUN_PROGRESS_FINAL_MESSAGE_DONE_EVENTS = new Set/);
 assert.match(appJs, /function scheduleRunProgressRenderForRun\(runId\)/);
 assert.match(appJs, /function scheduleRunProgressFallbackThreadRefresh\(threadId = ""\)/);
 assert.match(appJs, /clearRunProgressFallbackThreadRefresh\(payload\.threadId\)/);
@@ -182,6 +188,7 @@ assert.match(appJs, /scheduleRunProgressFallbackThreadRefresh\(payload\.threadId
 const appendRunEventBody = appJs.match(/function appendRunEventToCurrentThread\(payload\) \{[\s\S]*?\n\}/)?.[0] || "";
 assert.doesNotMatch(appendRunEventBody, /renderThreads\(\)/);
 assert.doesNotMatch(appendRunEventBody, /scheduleRenderCurrentThread\(\);\s*$/);
+assert.match(appendRunEventBody, /finalMessageDoneEvent[\s\S]*requestCurrentThreadRefresh\(\{ stickToBottom: true, delayMs: RUN_PROGRESS_FINAL_MESSAGE_REFRESH_MS \}\)/);
 assert.match(appJs, /function syncRunProgressTicker\(root = document\)/);
 assert.match(appJs, /syncRunProgressTicker\(conversation\)/);
 assert.match(appJs, /timeoutMs: 6000/);

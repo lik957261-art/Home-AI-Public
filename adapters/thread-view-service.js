@@ -1,5 +1,10 @@
 "use strict";
 
+const {
+  createDirectoryTopicIndexService,
+  receiptSummaryTitleFromText,
+} = require("./directory-topic-index-service");
+
 function defaultCompactText(value, maxChars) {
   const text = String(value || "");
   if (!maxChars || text.length <= maxChars) return text;
@@ -97,6 +102,10 @@ function loadedToolsForPublicMessage(message = {}, thread = null) {
   return [...byName.values()];
 }
 
+function assistantReceiptTitle(message = {}, max = 96) {
+  return receiptSummaryTitleFromText(message?.content || "", { max });
+}
+
 function createThreadViewService(deps = {}) {
   const maxApiTextChars = Math.max(1, Number(deps.maxApiTextChars || 80_000) || 80_000);
   const maxEventPreviewChars = Math.max(0, Number(deps.maxEventPreviewChars || 240) || 240);
@@ -140,6 +149,12 @@ function createThreadViewService(deps = {}) {
   const projectSearchLabels = typeof deps.projectSearchLabels === "function"
     ? deps.projectSearchLabels
     : ((project) => [project?.label, project?.id].filter(Boolean));
+  const directoryTopicIndexService = deps.directoryTopicIndexService || createDirectoryTopicIndexService({
+    comparablePath,
+    compactText,
+    normalizeTaskGroupMeta,
+    isConversationTaskGroupId: isSingleWindowConversationTaskGroupId,
+  });
 
   function stateThreads() {
     const state = typeof deps.state === "function" ? deps.state() : deps.state;
@@ -196,11 +211,24 @@ function createThreadViewService(deps = {}) {
       let groupId = message.taskGroupId || "";
       if (!groupId) groupId = currentTaskGroupId || message.taskId || `task_${message.id}`;
       currentTaskGroupId = groupId;
+      const pluginTopicGroup = String(groupId || "").startsWith("plugin:");
       if (!groups.has(groupId)) {
         const groupMeta = meta[groupId] || {};
         groups.set(groupId, {
           id: groupId,
           title: groupMeta.title || "",
+          lastReceiptTitle: String(groupMeta.lastReceiptTitle || "").trim(),
+          lastUserPromptTitle: String(groupMeta.lastUserPromptTitle || "").trim(),
+          lastMessageId: String(groupMeta.lastMessageId || "").trim(),
+          sharedTopic: Boolean(groupMeta.sharedTopic),
+          kanbanCaseId: String(groupMeta.kanbanCaseId || "").trim(),
+          kanbanCaseMode: String(groupMeta.kanbanCaseMode || "").trim(),
+          performerWorkspaceIds: Array.isArray(groupMeta.performerWorkspaceIds) ? groupMeta.performerWorkspaceIds : [],
+          viewerWorkspaceIds: Array.isArray(groupMeta.viewerWorkspaceIds) ? groupMeta.viewerWorkspaceIds : [],
+          directoryRoute: groupMeta.directoryRoute && typeof groupMeta.directoryRoute === "object" ? groupMeta.directoryRoute : null,
+          pluginTopic: Boolean(groupMeta.pluginTopic || pluginTopicGroup),
+          sourceThreadId: String(groupMeta.sourceThreadId || "").trim(),
+          ownerWorkspaceId: String(groupMeta.ownerWorkspaceId || groupMeta.workspaceId || "").trim(),
           messages: [],
           createdAt: message.createdAt,
           updatedAt: groupMeta.updatedAt || message.updatedAt || message.createdAt,
@@ -209,6 +237,19 @@ function createThreadViewService(deps = {}) {
       const group = groups.get(groupId);
       group.messages.push(message);
       const updatedAt = message.completedAt || message.failedAt || message.cancelledAt || message.updatedAt || message.createdAt || "";
+      const messageCanRefreshMeta = !group.updatedAt || String(updatedAt || "") >= String(group.updatedAt || "");
+      if (message.role === "assistant" && message.content && (!group.lastReceiptTitle || messageCanRefreshMeta)) {
+        group.lastReceiptTitle = assistantReceiptTitle(message, 96);
+      } else if (message.role === "user" && message.content && (!group.lastUserPromptTitle || messageCanRefreshMeta)) {
+        group.lastUserPromptTitle = compactText(message.content || "", 160);
+      }
+      if (message.id && messageCanRefreshMeta) group.lastMessageId = String(message.id || "").trim();
+      if (!group.pluginTopic && !group.directoryRoute && message.directoryRoute && typeof message.directoryRoute === "object") {
+        group.directoryRoute = message.directoryRoute;
+      }
+      if (!group.ownerWorkspaceId) {
+        group.ownerWorkspaceId = messageOwnerWorkspaceId(message, thread?.workspaceId || "");
+      }
       if (String(updatedAt) > String(group.updatedAt || "")) group.updatedAt = updatedAt;
     }
     return [...groups.values()].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
@@ -225,9 +266,136 @@ function createThreadViewService(deps = {}) {
   }
 
   function taskGroupOwnerWorkspaceId(group, fallback = "") {
+    if (group?.ownerWorkspaceId) return String(group.ownerWorkspaceId || "").trim();
     const messages = group?.messages || [];
     const user = messages.find((message) => message.role === "user");
     return messageOwnerWorkspaceId(user || messages[0], fallback);
+  }
+
+  function createTaskGroupFromMeta(groupId, groupMeta = {}, thread = {}) {
+    const pluginTopicGroup = String(groupId || "").startsWith("plugin:");
+    return {
+      id: groupId,
+      title: groupMeta.title || "",
+      lastReceiptTitle: String(groupMeta.lastReceiptTitle || "").trim(),
+      lastUserPromptTitle: String(groupMeta.lastUserPromptTitle || "").trim(),
+      lastMessageId: String(groupMeta.lastMessageId || "").trim(),
+      sharedTopic: Boolean(groupMeta.sharedTopic),
+      kanbanCaseId: String(groupMeta.kanbanCaseId || "").trim(),
+      kanbanCaseMode: String(groupMeta.kanbanCaseMode || "").trim(),
+      performerWorkspaceIds: Array.isArray(groupMeta.performerWorkspaceIds) ? groupMeta.performerWorkspaceIds : [],
+      viewerWorkspaceIds: Array.isArray(groupMeta.viewerWorkspaceIds) ? groupMeta.viewerWorkspaceIds : [],
+      directoryRoute: !pluginTopicGroup && groupMeta.directoryRoute && typeof groupMeta.directoryRoute === "object" ? groupMeta.directoryRoute : null,
+      pluginTopic: Boolean(groupMeta.pluginTopic || pluginTopicGroup),
+      sourceThreadId: String(groupMeta.sourceThreadId || "").trim(),
+      ownerWorkspaceId: String(groupMeta.ownerWorkspaceId || groupMeta.workspaceId || thread.workspaceId || "").trim(),
+      messages: [],
+      createdAt: groupMeta.createdAt || groupMeta.updatedAt || thread.createdAt || "",
+      updatedAt: groupMeta.updatedAt || groupMeta.createdAt || thread.updatedAt || "",
+    };
+  }
+
+  function taskGroupsFromMeta(thread = {}) {
+    const meta = normalizeTaskGroupMeta(thread?.taskGroupMeta);
+    return Object.entries(meta)
+      .filter(([groupId]) => String(groupId || "").trim())
+      .map(([groupId, groupMeta]) => createTaskGroupFromMeta(groupId, groupMeta || {}, thread));
+  }
+
+  function mergeMessagesIntoTaskGroupMap(groups, messages = [], thread = {}) {
+    let currentTaskGroupId = "";
+    const meta = normalizeTaskGroupMeta(thread?.taskGroupMeta);
+    for (const message of messages || []) {
+      let groupId = message.taskGroupId || "";
+      if (!groupId) groupId = currentTaskGroupId || message.taskId || `task_${message.id}`;
+      currentTaskGroupId = groupId;
+      if (!groups.has(groupId)) {
+        groups.set(groupId, createTaskGroupFromMeta(groupId, meta[groupId] || {}, thread));
+      }
+      const group = groups.get(groupId);
+      group.messages.push(message);
+      const updatedAt = message.completedAt || message.failedAt || message.cancelledAt || message.updatedAt || message.createdAt || "";
+      const messageCanRefreshMeta = !group.updatedAt || String(updatedAt || "") >= String(group.updatedAt || "");
+      if (message.role === "assistant" && message.content && (!group.lastReceiptTitle || messageCanRefreshMeta)) {
+        group.lastReceiptTitle = assistantReceiptTitle(message, 96);
+      } else if (message.role === "user" && message.content && (!group.lastUserPromptTitle || messageCanRefreshMeta)) {
+        group.lastUserPromptTitle = compactText(message.content || "", 160);
+      }
+      if (message.id && messageCanRefreshMeta) group.lastMessageId = String(message.id || "").trim();
+      if (!group.pluginTopic && !group.directoryRoute && message.directoryRoute && typeof message.directoryRoute === "object") {
+        group.directoryRoute = message.directoryRoute;
+      }
+      if (!group.ownerWorkspaceId) {
+        group.ownerWorkspaceId = messageOwnerWorkspaceId(message, thread?.workspaceId || "");
+      }
+      if (!group.createdAt) group.createdAt = message.createdAt || "";
+      if (String(updatedAt) > String(group.updatedAt || "")) group.updatedAt = updatedAt;
+    }
+    return groups;
+  }
+
+  function taskGroupsForProjection(thread = {}, messages = []) {
+    const groups = new Map(taskGroupsFromMeta(thread).map((group) => [group.id, group]));
+    mergeMessagesIntoTaskGroupMap(groups, messages, thread);
+    return [...groups.values()].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  }
+
+  function compactTaskGroupForDirectoryIndex(group = {}, thread = {}) {
+    const messages = Array.isArray(group.messages) ? group.messages : [];
+    const firstUser = messages.find((message) => message.role === "user") || null;
+    const latestAssistant = [...messages].reverse().find((message) => message.role === "assistant" && message.content) || null;
+    const latestMessage = [...messages].reverse().find(Boolean) || null;
+    const compactMessages = [firstUser, latestAssistant || latestMessage].filter(Boolean);
+    const byId = new Map(compactMessages.map((message) => [message.id || `${message.role}:${message.createdAt || ""}`, message]));
+    return {
+      id: group.id,
+      title: String(group.title || "").trim(),
+      lastReceiptTitle: String(group.lastReceiptTitle || "").trim(),
+      lastUserPromptTitle: String(group.lastUserPromptTitle || "").trim(),
+      lastMessageId: String(group.lastMessageId || "").trim(),
+      ownerWorkspaceId: taskGroupOwnerWorkspaceId(group, thread.workspaceId || ""),
+      sharedTopic: Boolean(group.sharedTopic),
+      kanbanCaseId: String(group.kanbanCaseId || "").trim(),
+      kanbanCaseMode: String(group.kanbanCaseMode || "").trim(),
+      performerWorkspaceIds: Array.isArray(group.performerWorkspaceIds) ? group.performerWorkspaceIds : [],
+      viewerWorkspaceIds: Array.isArray(group.viewerWorkspaceIds) ? group.viewerWorkspaceIds : [],
+      directoryRoute: group.directoryRoute || null,
+      pluginTopic: Boolean(group.pluginTopic),
+      sourceThreadId: String(group.sourceThreadId || "").trim(),
+      createdAt: group.createdAt || "",
+      updatedAt: group.updatedAt || "",
+      messages: [...byId.values()].map((message) => compactMessage(message, thread)),
+    };
+  }
+
+  function hasDirectoryTopicIndexGap(thread = {}) {
+    const meta = normalizeTaskGroupMeta(thread.taskGroupMeta);
+    for (const message of Array.isArray(thread.messages) ? thread.messages : []) {
+      const taskGroupId = String(message?.taskGroupId || "").trim();
+      if (
+        !taskGroupId
+        || taskGroupId.startsWith("plugin:")
+        || taskGroupId.startsWith("case_")
+        || !message?.directoryRoute
+        || isSingleWindowConversationTaskGroupId(taskGroupId)
+      ) {
+        continue;
+      }
+      const indexed = meta[taskGroupId];
+      if (!indexed || !indexed.directoryRoute) return true;
+    }
+    return false;
+  }
+
+  function directoryTopicCollectionsForThread(thread = {}) {
+    const indexedThread = Object.assign({}, thread, {
+      taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
+      messages: Array.isArray(thread.messages) ? thread.messages : [],
+    });
+    if (indexedThread.messages.length || hasDirectoryTopicIndexGap(indexedThread)) {
+      directoryTopicIndexService.repairThreadIndexFromMessages(indexedThread, { limit: 5000 });
+    }
+    return directoryTopicIndexService.listCollections(indexedThread);
   }
 
   function taskGroupTaskId(group) {
@@ -246,7 +414,7 @@ function createThreadViewService(deps = {}) {
 
   function taskGroupPreview(group) {
     const assistant = [...(group?.messages || [])].reverse().find((message) => message.role === "assistant" && message.content);
-    return compactText(assistant?.content || "", 180) || taskGroupPrompt(group) || "No summary yet";
+    return assistantReceiptTitle(assistant, 96) || taskGroupPrompt(group) || "No summary yet";
   }
 
   function taskGroupStatus(group) {
@@ -504,6 +672,8 @@ function createThreadViewService(deps = {}) {
   function compactThread(thread = {}, options = {}) {
     const messagePage = options.messagePage || null;
     const messages = Array.isArray(options.messages) ? options.messages : (thread.messages || []);
+    const taskGroups = taskGroupsForProjection(thread, messages)
+      .filter((group) => !isSingleWindowConversationTaskGroupId(group.id));
     return {
       id: thread.id,
       title: thread.title,
@@ -518,6 +688,8 @@ function createThreadViewService(deps = {}) {
       createdAt: thread.createdAt,
       updatedAt: thread.updatedAt,
       taskGroupMeta: normalizeTaskGroupMeta(thread.taskGroupMeta),
+      taskGroups: taskGroups.map((group) => compactTaskGroupForDirectoryIndex(group, thread)),
+      directoryTopicCollections: directoryTopicCollectionsForThread(thread),
       chatGroup: publicChatGroup(thread),
       externalIngress: publicExternalIngress(thread),
       messages: messages.map((message) => compactMessage(message, thread)),

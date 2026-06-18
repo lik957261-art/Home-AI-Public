@@ -94,6 +94,15 @@ function testStateAndThreadNormalization() {
         "bad key": {
           name: "  Topic  ",
           performerWorkspaceIds: ["learner", "learner"],
+          directoryRouteKey: "owner|health||/r",
+          ownerWorkspaceId: "owner",
+          workspaceId: "owner",
+          lastReceiptAt: "2026-06-17T20:00:00.000Z",
+          lastUserPromptAt: "2026-06-17T19:59:00.000Z",
+          messageCount: 8,
+          sortOrder: 2,
+          isDefault: true,
+          purpose: "analysis",
           directoryRoute: {
             projectId: "health",
             subprojectId: "self",
@@ -101,6 +110,30 @@ function testStateAndThreadNormalization() {
             label: "Root",
             root: "/r",
             path: "/r",
+          },
+        },
+        "plugin:health": {
+          pluginTopic: true,
+          updatedAt: "2026-06-17T19:59:14.918Z",
+          createdAt: "2026-06-17T19:58:49.969Z",
+          lastReceiptTitle: "  Latest health receipt  ",
+          lastUserPromptTitle: "  Latest health prompt  ",
+          lastMessageId: "msg-health-latest",
+        },
+        "snake key": {
+          title: "Snake",
+          directory_route_key: "owner|finance||/reports",
+          owner_workspace_id: "owner",
+          workspace_id: "owner",
+          last_receipt_at: "2026-06-17T21:00:00.000Z",
+          last_user_prompt_at: "2026-06-17T20:59:00.000Z",
+          message_count: 0,
+          sort_order: 0,
+          is_default: "false",
+          directoryRoute: {
+            label: "Reports",
+            root: "/reports",
+            path: "/reports",
           },
         },
       },
@@ -126,6 +159,15 @@ function testStateAndThreadNormalization() {
   assert.equal(normalized.threads[0].messages[2].taskGroupId, "group-chat");
   assert.equal(normalized.threads[0].messages[2].content, "revoked");
   assert.equal(normalized.threads[0].taskGroupMeta.bad_key.title, "Topic");
+  assert.equal(normalized.threads[0].taskGroupMeta.bad_key.directoryRouteKey, "owner|health||/r");
+  assert.equal(normalized.threads[0].taskGroupMeta.bad_key.ownerWorkspaceId, "owner");
+  assert.equal(normalized.threads[0].taskGroupMeta.bad_key.workspaceId, "owner");
+  assert.equal(normalized.threads[0].taskGroupMeta.bad_key.lastReceiptAt, "2026-06-17T20:00:00.000Z");
+  assert.equal(normalized.threads[0].taskGroupMeta.bad_key.lastUserPromptAt, "2026-06-17T19:59:00.000Z");
+  assert.equal(normalized.threads[0].taskGroupMeta.bad_key.messageCount, 8);
+  assert.equal(normalized.threads[0].taskGroupMeta.bad_key.sortOrder, 2);
+  assert.equal(normalized.threads[0].taskGroupMeta.bad_key.isDefault, true);
+  assert.equal(normalized.threads[0].taskGroupMeta.bad_key.purpose, "analysis");
   assert.deepEqual(normalized.threads[0].taskGroupMeta.bad_key.directoryRoute, {
     label: "Root",
     root: "/r",
@@ -134,6 +176,23 @@ function testStateAndThreadNormalization() {
     subprojectId: "self",
     ownerWorkspaceId: "learner",
   });
+  assert.deepEqual(normalized.threads[0].taskGroupMeta["plugin:health"], {
+    title: "",
+    updatedAt: "2026-06-17T19:59:14.918Z",
+    pluginTopic: true,
+    lastReceiptTitle: "Latest health receipt",
+    lastUserPromptTitle: "Latest health prompt",
+    lastMessageId: "msg-health-latest",
+    createdAt: "2026-06-17T19:58:49.969Z",
+  });
+  assert.equal(normalized.threads[0].taskGroupMeta.snake_key.directoryRouteKey, "owner|finance||/reports");
+  assert.equal(normalized.threads[0].taskGroupMeta.snake_key.ownerWorkspaceId, "owner");
+  assert.equal(normalized.threads[0].taskGroupMeta.snake_key.workspaceId, "owner");
+  assert.equal(normalized.threads[0].taskGroupMeta.snake_key.lastReceiptAt, "2026-06-17T21:00:00.000Z");
+  assert.equal(normalized.threads[0].taskGroupMeta.snake_key.lastUserPromptAt, "2026-06-17T20:59:00.000Z");
+  assert.equal(normalized.threads[0].taskGroupMeta.snake_key.messageCount, 0);
+  assert.equal(normalized.threads[0].taskGroupMeta.snake_key.sortOrder, 0);
+  assert.equal(Object.prototype.hasOwnProperty.call(normalized.threads[0].taskGroupMeta.snake_key, "isDefault"), false);
   assert.deepEqual(normalized.pushSubscriptions, [{ keep: true, normalized: true }]);
   assert.deepEqual(normalized.pushReceipts, [{ keep: true }]);
   assert.deepEqual(normalized.pushDeliveries, [{ keep: true }]);

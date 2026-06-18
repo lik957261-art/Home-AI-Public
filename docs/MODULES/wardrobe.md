@@ -60,6 +60,13 @@ current forecast before recommending a set. General `web`/`search` remains an
 explicit-intent suggestion; with the selector disabled, ordinary authorized
 `web`/`search` can still be available to execution through the full authorized
 policy.
+When the Home AI iOS native shell provides a compact `environmentContext`, the
+Wardrobe workflow should treat matching current-device local weather as the
+primary environment evidence for outfit recommendations. This context enters
+through Home AI run options/model instructions, not through the Wardrobe iframe
+or Wardrobe MCP. If it is unavailable, lacks weather, is stale for the requested
+target time, or the user asks about another city/destination, the workflow
+falls back to the ordinary `weather` toolset.
 
 ## Plugin Host
 

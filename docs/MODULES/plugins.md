@@ -82,6 +82,13 @@ embed, or the plugin explicitly emits its bounded `*.plugin.refresh_required`
 event. This host-level persistence protects plugin SPA routes, scroll position,
 and in-progress UI state during ordinary navigation; plugin projects still own
 durable draft persistence for OS process kills or full PWA reloads.
+Plugin manifest loading, iframe creation, bounded refresh, and recovery/restart
+checks must not block Home AI primary navigation. Clicking a pinned plugin tab
+or plugin drawer icon may synchronously switch the visible shell state, but the
+actual `loadSelectedView()` work must be scheduled asynchronously and guarded by
+the current view-load sequence so that a later click on Chat, Inbox, Topics, or
+another plugin wins. A slow or stuck plugin must never leave the bottom tabs,
+topic list, or other host-owned controls unresponsive.
 
 Home AI plugin workspace audit is host-owned. The plugin registry may expose a
 workspace path reference and display metadata for authorized audit targets, but
@@ -119,7 +126,14 @@ and should call the Home AI shared deploy script from
 `--plugin`, `--source`, `--restart-label`, `--health-url`, MCP schema checks,
 and data readback checks. The shared script also accepts `--plugin all` for a
 bounded all-plugin deployment plan over the known service roots. A plugin-local
-deployment script may wrap the central script, but must not introduce a separate sudo, rsync, SSH, or production write-access path.
+deployment script may wrap the central script, but must not introduce a separate sudo, rsync, SSH, or production write-access path. Normal plugin
+deployments must also prove required frontend entry artifacts before closure:
+for example, Email must carry `dist/web/index.html` into production, while
+Codex Mobile Web, Growth, and Note prove their `public/index.html` entries.
+The central deploy script includes these files in production hash validation so
+an unbuilt or partially synced plugin cannot deploy as a black iframe. The
+`--sync-only` first-install path remains source-only and intentionally skips
+runtime/hash validation.
 
 Health/健康 is now an embedded-app plugin in the same workspace-private class as
 Wardrobe, Finance, and Email. Hermes Mobile owns its host registration, manifest
@@ -192,10 +206,14 @@ assistant reply to append a hidden Markdown HTML comment:
 `<!-- homeai-note ... title: ... tags: ... -->`. The save-to-Note service must
 prefer that hidden `title` over the fallback title, may append bounded
 non-sensitive hidden `tags` after the server-derived receipt tag, and must strip
-the hidden metadata comment from the Note body before sending it to Note. Casual
-chat, acknowledgements, questions, and ordinary short replies still include the
-hidden comment but should use a short title and leave tags empty unless a safe
-category is obvious. The chat footer action
+the hidden metadata comment from the Note body before sending it to Note. The
+saved Note body must include the bounded preceding user question, when available,
+before the assistant receipt so the note remains readable outside the original
+thread; the generated Note title still comes from the assistant receipt metadata
+or receipt content, not from the question. Casual chat, acknowledgements,
+questions, and ordinary short replies still include the hidden comment but should
+use a short title and leave tags empty unless a safe category is obvious. The
+chat footer action
 keeps a message-level in-flight guard so repeated taps or rerenders do not
 submit the same receipt twice while the first save is still running. After a
 successful save, Hermes must also treat the same workspace/thread/message tuple

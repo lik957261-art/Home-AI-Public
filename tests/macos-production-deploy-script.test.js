@@ -140,7 +140,7 @@ assert.doesNotMatch(script, /console\.log\(.*password/i);
 assert.doesNotMatch(script, /console\.error\(.*password/i);
 assert.doesNotMatch(script, /\/usr\/bin\/tee/);
 
-for (const plugin of ["codex-mobile-web", "email", "finance", "growth", "healthy", "moira", "note", "wardrobe"]) {
+for (const plugin of ["codex-mobile-web", "email", "finance", "growth", "healthy", "moira", "music", "note", "wardrobe"]) {
   assert.match(script, new RegExp(`"${plugin}"`));
   assert.match(contract, new RegExp(`${plugin} -> /Users/example/path`));
   assert.match(productionAccess, new RegExp(`${plugin} -> /Users/example/path`));
@@ -149,6 +149,7 @@ for (const plugin of ["codex-mobile-web", "email", "finance", "growth", "healthy
 assert.match(deploymentDoc, /deploy-macos-production\.js/);
 assert.match(deploymentDoc, /install-growth-launchd-service\.js/);
 assert.match(deploymentDoc, /install-moira-launchd-service\.js/);
+assert.match(deploymentDoc, /install-music-launchd-service\.js/);
 assert.match(productionAccess, /deploy-macos-production\.js/);
 assert.equal(packageJson.scripts["deploy:macos"], "node scripts/deploy-macos-production.js");
 
@@ -185,6 +186,10 @@ const dryRun = spawnSync(process.execPath, [
   scriptPath,
   "--target",
   "home-ai",
+  "--source",
+  repoRoot,
+  "--dev-root",
+  path.dirname(repoRoot),
   "--timestamp",
   "20260608T000000Z",
   "--reason",
@@ -200,14 +205,14 @@ assert.equal(payload.ok, true);
 assert.equal(payload.plan.mode, "plan");
 assert.equal(payload.plan.target, "home-ai");
 assert.equal(payload.plan.surface, "full");
-assert.equal(payload.plan.sourcePath, "/Users/example/path");
+assert.equal(payload.plan.sourcePath, repoRoot);
 assert.equal(payload.plan.productionPath, "/Users/example/path");
 assert.match(payload.plan.backupPath, /20260608T000000Z-home-ai-harness$/);
 assert.ok(payload.plan.rsyncExcludes.includes("AGENTS.md"));
 assert.ok(payload.plan.rsyncExcludes.includes(".git"));
 assert.ok(payload.plan.rsyncExcludes.includes(".codegraph/"));
 assert.equal(payload.plan.productionOwner, "hermes-host:staff");
-assert.deepEqual(payload.plan.restartLabels, ["com.hermesmobile.bridge-host", "com.hermesmobile.cron", "com.hermesmobile.listener"]);
+assert.deepEqual(payload.plan.restartLabels, ["com.hermesmobile.bridge-host", "com.hermesmobile.cron", "com.hermesmobile.listener", "com.hermesmobile.workspace-system-helper"]);
 assert.ok(payload.plan.expectedClientVersion);
 assert.ok(payload.plan.proofFiles.includes("scripts/deploy-macos-production.js"));
 assert.ok(payload.plan.proofFiles.includes("adapters/automation-cron-profile-service.js"));
@@ -229,6 +234,7 @@ assert.ok(payload.plan.validation.some((item) => item.type === "codex-auth-profi
 assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.bridge-host")));
 assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.cron")));
 assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.listener")));
+assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.workspace-system-helper")));
 
 const bridgeHostPlist = deployScript.buildHomeAiBridgeHostLaunchdPlist("/Users/example/path");
 assert.match(bridgeHostPlist, /<string>com\.hermesmobile\.bridge-host<\/string>/);
@@ -251,11 +257,16 @@ assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/app\/scripts\/herme
 assert.match(cronPlist, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/data\/hermes-home\/cron\/jobs\.json/);
 assert.match(cronPlist, /<key>HERMES_CRON_SCRIPT_TIMEOUT<\/key>\s*<string>1800<\/string>/);
+assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_TRANSPORT<\/key>\s*<string>auto<\/string>/);
+assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_SSH_TARGET<\/key>\s*<string>xuxinxp@192\.168\.10\.99<\/string>/);
+assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_SSH_DESTINATION<\/key>\s*<string>\/volume1\/备份\/HomeAI-Production-Backups\/mac-production<\/string>/);
+assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_SSH_OPTIONS<\/key>\s*<string>-p 2222 -i \/Users\/hermes-host\/\.ssh\/homeai_nas_backup_ed25519<\/string>/);
 
 const pluginWorkspaceAuditTargets = JSON.parse(deployScript.buildPluginWorkspaceAuditTargetJson("/Users/example/path"));
 assert.equal(pluginWorkspaceAuditTargets["codex-mobile"], "/Users/example/path");
 assert.equal(pluginWorkspaceAuditTargets.finance, "/Users/example/path");
 assert.equal(pluginWorkspaceAuditTargets.health, "/Users/example/path");
+assert.equal(pluginWorkspaceAuditTargets.music, "/Users/example/path");
 assert.equal(pluginWorkspaceAuditTargets.wardrobe, "/Users/example/path");
 
 const cronAliasPlan = deployScript.buildHomeAiCronProfileAliasPlan("/Users/example/path", {
@@ -306,10 +317,35 @@ assert.equal(cronAliasPlan.aliases[0].workspaceRoot, "/Users/example/path");
 assert.ok(cronAliasPlan.aliases[0].pluginBindingDirs.includes("/Users/example/path"));
 assert.ok(cronAliasPlan.aliases[0].pluginBindingDirs.includes("/Users/example/path"));
 
+const fixtureDevRoot = fs.mkdtempSync(path.join(os.tmpdir(), "home-ai-deploy-fixtures-"));
+function createPluginFixture(pluginId, files = {}) {
+  const source = path.join(fixtureDevRoot, "plugins", pluginId);
+  fs.mkdirSync(source, { recursive: true });
+  fs.writeFileSync(path.join(source, "package.json"), `{"name":"${pluginId}-fixture"}\n`);
+  for (const [relPath, body] of Object.entries(files)) {
+    const filePath = path.join(source, relPath);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, body);
+  }
+  return source;
+}
+for (const pluginId of ["finance", "healthy", "moira", "wardrobe"]) {
+  createPluginFixture(pluginId);
+}
+createPluginFixture("codex-mobile-web", { "public/index.html": "<html></html>\n" });
+createPluginFixture("email", { "dist/web/index.html": "<html></html>\n" });
+createPluginFixture("growth", { "public/index.html": "<html></html>\n" });
+createPluginFixture("music", { "dist/web/index.html": "<html></html>\n" });
+createPluginFixture("note", { "public/index.html": "<html></html>\n" });
+
 const staticRun = spawnSync(process.execPath, [
   scriptPath,
   "--target",
   "home-ai",
+  "--source",
+  repoRoot,
+  "--dev-root",
+  path.dirname(repoRoot),
   "--surface",
   "static",
   "--timestamp",
@@ -345,6 +381,8 @@ const pluginRun = spawnSync(process.execPath, [
   scriptPath,
   "--plugin",
   "finance",
+  "--dev-root",
+  fixtureDevRoot,
   "--timestamp",
   "20260608T000000Z",
   "--reason",
@@ -357,7 +395,7 @@ const pluginRun = spawnSync(process.execPath, [
 assert.equal(pluginRun.status, 0, pluginRun.stderr);
 const pluginPayload = JSON.parse(pluginRun.stdout);
 assert.equal(pluginPayload.plan.target, "plugin:finance");
-assert.equal(pluginPayload.plan.sourcePath, "/Users/example/path");
+assert.equal(pluginPayload.plan.sourcePath, path.join(fixtureDevRoot, "plugins", "finance"));
 assert.equal(pluginPayload.plan.productionPath, "/Users/example/path");
 assert.equal(pluginPayload.plan.productionOwner, "hermes-host:staff");
 assert.deepEqual(pluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.finance"]);
@@ -380,10 +418,55 @@ assert.deepEqual(
   ["-a", "--delete", "--exclude", ".codegraph/", "--exclude", ".codex/", "/prod/plugin/", "/backup/plugin/"],
 );
 
+const emailPluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "email",
+  "--dev-root",
+  fixtureDevRoot,
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "harness",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(emailPluginRun.status, 0, emailPluginRun.stderr);
+const emailPluginPayload = JSON.parse(emailPluginRun.stdout);
+assert.deepEqual(emailPluginPayload.plan.proofFiles, ["dist/web/index.html"]);
+assert.ok(emailPluginPayload.plan.validation.some((item) => (
+  item.type === "production-file-hashes"
+  && item.files.includes("dist/web/index.html")
+)));
+
+const tempPluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), "home-ai-plugin-proof-"));
+const tempEmailSource = path.join(tempPluginRoot, "plugins", "email");
+fs.mkdirSync(tempEmailSource, { recursive: true });
+fs.writeFileSync(path.join(tempEmailSource, "package.json"), "{\"name\":\"email-fixture\"}\n");
+const missingEmailProofRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "email",
+  "--source",
+  tempEmailSource,
+  "--dev-root",
+  tempPluginRoot,
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.notEqual(missingEmailProofRun.status, 0);
+assert.match(missingEmailProofRun.stderr, /plugin_proof_file_missing:email:dist\/web\/index\.html/);
+
 const healthAliasPluginRun = spawnSync(process.execPath, [
   scriptPath,
   "--plugin",
   "health",
+  "--dev-root",
+  fixtureDevRoot,
   "--timestamp",
   "20260608T000000Z",
   "--reason",
@@ -396,7 +479,7 @@ const healthAliasPluginRun = spawnSync(process.execPath, [
 assert.equal(healthAliasPluginRun.status, 0, healthAliasPluginRun.stderr);
 const healthAliasPayload = JSON.parse(healthAliasPluginRun.stdout);
 assert.equal(healthAliasPayload.plan.target, "plugin:healthy");
-assert.equal(healthAliasPayload.plan.sourcePath, "/Users/example/path");
+assert.equal(healthAliasPayload.plan.sourcePath, path.join(fixtureDevRoot, "plugins", "healthy"));
 assert.equal(healthAliasPayload.plan.productionPath, "/Users/example/path");
 assert.deepEqual(healthAliasPayload.plan.restartLabels, ["com.hermesmobile.plugin.health"]);
 assert.equal(healthAliasPayload.plan.healthUrl, "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest");
@@ -405,6 +488,8 @@ const codexPluginRun = spawnSync(process.execPath, [
   scriptPath,
   "--plugin",
   "codex-mobile-web",
+  "--dev-root",
+  fixtureDevRoot,
   "--timestamp",
   "20260608T000000Z",
   "--reason",
@@ -443,6 +528,8 @@ const growthPluginRun = spawnSync(process.execPath, [
   scriptPath,
   "--plugin",
   "growth",
+  "--dev-root",
+  fixtureDevRoot,
   "--timestamp",
   "20260608T000000Z",
   "--reason",
@@ -455,7 +542,7 @@ const growthPluginRun = spawnSync(process.execPath, [
 assert.equal(growthPluginRun.status, 0, growthPluginRun.stderr);
 const growthPluginPayload = JSON.parse(growthPluginRun.stdout);
 assert.equal(growthPluginPayload.plan.target, "plugin:growth");
-assert.equal(growthPluginPayload.plan.sourcePath, "/Users/example/path");
+assert.equal(growthPluginPayload.plan.sourcePath, path.join(fixtureDevRoot, "plugins", "growth"));
 assert.equal(growthPluginPayload.plan.productionPath, "/Users/example/path");
 assert.deepEqual(growthPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.growth"]);
 assert.equal(growthPluginPayload.plan.healthUrl, "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest");
@@ -465,6 +552,8 @@ const moiraPluginRun = spawnSync(process.execPath, [
   scriptPath,
   "--plugin",
   "moira",
+  "--dev-root",
+  fixtureDevRoot,
   "--timestamp",
   "20260608T000000Z",
   "--reason",
@@ -477,7 +566,7 @@ const moiraPluginRun = spawnSync(process.execPath, [
 assert.equal(moiraPluginRun.status, 0, moiraPluginRun.stderr);
 const moiraPluginPayload = JSON.parse(moiraPluginRun.stdout);
 assert.equal(moiraPluginPayload.plan.target, "plugin:moira");
-assert.equal(moiraPluginPayload.plan.sourcePath, "/Users/example/path");
+assert.equal(moiraPluginPayload.plan.sourcePath, path.join(fixtureDevRoot, "plugins", "moira"));
 assert.equal(moiraPluginPayload.plan.productionPath, "/Users/example/path");
 assert.deepEqual(moiraPluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.moira"]);
 assert.equal(moiraPluginPayload.plan.healthUrl, "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest");
@@ -503,6 +592,8 @@ const allPluginRun = spawnSync(process.execPath, [
   scriptPath,
   "--plugin",
   "all",
+  "--dev-root",
+  fixtureDevRoot,
   "--timestamp",
   "20260608T000000Z",
   "--reason",
@@ -522,6 +613,7 @@ assert.deepEqual(allPluginPayload.plan.pluginTargets, [
   "growth",
   "healthy",
   "moira",
+  "music",
   "note",
   "wardrobe",
 ]);
@@ -532,6 +624,7 @@ assert.deepEqual(allPluginPayload.plan.plans.map((item) => item.target), [
   "plugin:growth",
   "plugin:healthy",
   "plugin:moira",
+  "plugin:music",
   "plugin:note",
   "plugin:wardrobe",
 ]);
@@ -568,6 +661,8 @@ const growthSyncOnlyRun = spawnSync(process.execPath, [
   scriptPath,
   "--plugin",
   "growth",
+  "--dev-root",
+  fixtureDevRoot,
   "--restart",
   "none",
   "--sync-only",
@@ -613,6 +708,8 @@ const unsafePluginExecute = spawnSync(process.execPath, [
   scriptPath,
   "--plugin",
   "finance",
+  "--dev-root",
+  fixtureDevRoot,
   "--execute",
   "--restart",
   "none",

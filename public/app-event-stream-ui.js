@@ -16,6 +16,114 @@ function currentClientNotificationChannel() {
   }
 }
 
+function nativeEnvironmentContextBridgeAvailable() {
+  try {
+    const capability = window.HomeAINativeEnvironmentCapability || {};
+    const bridge = window.HomeAINativeEnvironment || {};
+    const root = document.documentElement;
+    const params = new URLSearchParams(window.location.search || "");
+    const nativeShell = params.get("nativeShell") === "ios"
+      || root?.dataset?.nativeShell === "ios"
+      || root?.classList?.contains("native-shell-ios")
+      || localStorage.getItem("homeAI.nativeShell") === "ios";
+    const enabled = capability.environmentContext === true
+      || capability.nativeEnvironmentContext === true
+      || root?.dataset?.nativeEnvironmentContext === "1"
+      || localStorage.getItem("homeAI.nativeEnvironmentContext") === "1"
+      || typeof bridge.getContext === "function";
+    return Boolean(nativeShell && enabled && typeof bridge.getContext === "function");
+  } catch (_) {
+    return false;
+  }
+}
+
+function nativeEnvironmentContextTargetAt(text = "") {
+  const value = String(text || "");
+  const now = new Date();
+  const target = new Date(now.getTime());
+  if (/(?:\u540e\u5929|day after tomorrow)/i.test(value)) {
+    target.setDate(target.getDate() + 2);
+  } else if (/(?:\u660e\u5929|tomorrow)/i.test(value)) {
+    target.setDate(target.getDate() + 1);
+  }
+  if (/(?:\u65e9\u4e0a|\u65e9\u6668|\u4e0a\u5348|morning)/i.test(value)) {
+    target.setHours(9, 0, 0, 0);
+  } else if (/(?:\u4e2d\u5348|\u5348\u996d|noon)/i.test(value)) {
+    target.setHours(12, 0, 0, 0);
+  } else if (/(?:\u4e0b\u5348|afternoon)/i.test(value)) {
+    target.setHours(15, 0, 0, 0);
+  } else if (/(?:\u665a\u4e0a|\u4eca\u665a|\u660e\u665a|evening|tonight)/i.test(value)) {
+    target.setHours(19, 0, 0, 0);
+  }
+  return target.toISOString();
+}
+
+function nativeEnvironmentContextPurpose(body = {}, text = "") {
+  const taskGroupId = String(body.taskGroupId || "");
+  if (taskGroupId === "plugin:wardrobe" || /(?:\bwardrobe\b|\boutfit\b|\u8863\u6a71|\u7a7f\u642d|\u914d\u4e00?\u5957|\u7a7f\u4ec0\u4e48)/i.test(text)) {
+    return "wardrobe_outfit";
+  }
+  if (/(?:\bweather\b|\bforecast\b|\u5929\u6c14|\u9884\u62a5|\u6e29\u5ea6|\u964d\u96e8|\u51fa\u95e8|\u8fd0\u52a8)/i.test(text)) {
+    return "general_environment";
+  }
+  return "";
+}
+
+async function requestNativeEnvironmentContextForSend(body = {}, text = "") {
+  if (!nativeEnvironmentContextBridgeAvailable()) return null;
+  const purpose = nativeEnvironmentContextPurpose(body, text);
+  if (!purpose) return null;
+  const request = {
+    targetAt: nativeEnvironmentContextTargetAt(text),
+    forceRefresh: false,
+    precise: false,
+    purpose,
+  };
+  const bridgePromise = window.HomeAINativeEnvironment.getContext(request);
+  const timeoutPromise = new Promise((resolve) => {
+    setTimeout(() => resolve(null), 1200);
+  });
+  try {
+    const context = await Promise.race([bridgePromise, timeoutPromise]);
+    if (!context || typeof context !== "object") return null;
+    return Object.assign({}, context, {
+      purpose,
+      targetAt: context.targetAt || request.targetAt,
+    });
+  } catch (_) {
+    return null;
+  }
+}
+
+async function refreshNativeEnvironmentSnapshotForSend() {
+  if (!nativeEnvironmentContextBridgeAvailable()) return null;
+  const bridgePromise = window.HomeAINativeEnvironment.getContext({
+    forceRefresh: false,
+    precise: false,
+    purpose: "model_tool_snapshot",
+  });
+  const timeoutPromise = new Promise((resolve) => {
+    setTimeout(() => resolve(null), 1200);
+  });
+  try {
+    const context = await Promise.race([bridgePromise, timeoutPromise]);
+    if (!context || typeof context !== "object") return null;
+    const body = {
+      workspaceId: state.selectedWorkspaceId,
+      deviceId: "native-ios-current",
+      environmentContext: Object.assign({}, context, { purpose: context.purpose || "model_tool_snapshot" }),
+    };
+    await api("/api/native/environment-context", {
+      method: "POST",
+      body: JSON.stringify(body),
+      timeoutMs: 2500,
+    });
+    return context;
+  } catch (_) {
+    return null;
+  }
+}
+
 function connectEvents() {
   if (state.events) state.events.close();
   const params = new URLSearchParams();
@@ -116,6 +224,8 @@ async function sendMessage(event) {
     ownerElevationOnceRequested = true;
     chatGptProOnceApproved = true;
   }
+  if (state.composerSendInFlight) return;
+  state.composerSendInFlight = true;
   closeGroupMentionMenu();
   $("sendMessage").disabled = true;
   let requestBody = null;
@@ -180,6 +290,9 @@ async function sendMessage(event) {
     if (model) body.model = model;
     const provider = selectedComposerProvider(text);
     if (provider) body.provider = provider;
+    await refreshNativeEnvironmentSnapshotForSend();
+    const environmentContext = await requestNativeEnvironmentContextForSend(body, text);
+    if (environmentContext) body.environmentContext = environmentContext;
     const quotedReply = activeQuotedReplyForSend();
     if (quotedReply) {
       body.taskGroupId = quotedReply.taskGroupId;
@@ -264,6 +377,7 @@ async function sendMessage(event) {
     showError(err);
   } finally {
     if (ownerElevationOnceRequested) clearOwnerElevationOnce();
+    state.composerSendInFlight = false;
     if (directoryTopicDraftSend) state.directoryTopicDraftSendInFlight = false;
     $("sendMessage").disabled = false;
     updateComposerAction();

@@ -95,6 +95,7 @@ function createGatewayRuntimeSubserviceOptionsService(deps = {}) {
       broadcast: deps.broadcast,
       compactFullContent: deps.compactFullContent,
       compactMessage: deps.compactMessage,
+      directoryTopicIndexService: deps.directoryTopicIndexService || null,
       enqueueExternalDeliveryForTerminalMessage: deps.enqueueExternalDeliveryForTerminalMessage,
       gatewayHealthDiagnosticService: deps.gatewayHealthDiagnosticService,
       isOrdinaryToolSchemaElevationRequest: deps.isOrdinaryToolSchemaElevationRequest,

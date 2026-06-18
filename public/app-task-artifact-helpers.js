@@ -38,6 +38,53 @@
     return cleaned.length <= max ? cleaned : `${cleaned.slice(0, max - 1)}...`;
   }
 
+  function stripReceiptMetadataComments(text = "") {
+    return String(text || "").replace(/<!--\s*homeai-note(?:-[a-z]+)?[\s\S]*?-->/gi, "").trim();
+  }
+
+  function receiptTitleMetadata(text = "", max = 96) {
+    const source = String(text || "");
+    const single = source.match(/<!--\s*homeai-note-title\s*[:\uff1a]\s*([\s\S]*?)-->/i);
+    if (single) return compactDisplayText(single[1], max);
+    const blockRe = /<!--\s*homeai-note\b([\s\S]*?)-->/gi;
+    let match;
+    while ((match = blockRe.exec(source))) {
+      const body = String(match[1] || "");
+      for (const line of body.split(/\r?\n/)) {
+        const title = String(line || "").trim().match(/^title\s*[:\uff1a]\s*(.+)$/i);
+        if (title) return compactDisplayText(title[1], max);
+      }
+    }
+    return "";
+  }
+
+  function cleanReceiptTitleLine(line = "") {
+    let text = String(line || "").trim();
+    text = text.replace(/^#{1,4}\s+/, "");
+    text = text.replace(/^[-*+\u2022\u00b7]\s+/, "");
+    text = text.replace(/!\[[^\]]*]\([^)]+\)/g, "");
+    text = text.replace(/\[[^\]]*]\([^)]+\)/g, (match) => match.replace(/^\[|\]\([^)]+\)$/g, ""));
+    text = text.replace(/[`*_~>#]/g, "");
+    text = text.replace(/\s+/g, " ").trim();
+    if (!text) return "";
+    if (/^(attachments?|source|conversation|time|error|\u9644\u4ef6|\u6765\u6e90|\u4f1a\u8bdd|\u65f6\u95f4)[:\uff1a]?/i.test(text)) return "";
+    if (/^(按现在的状态|我的判断是|结论先说|先说结论|我查了一下|我看了一下|简单说|整体看|总体看|目前看)[\s\uff1a:，,。.!！?？]*$/i.test(text)) return "";
+    return text;
+  }
+
+  function receiptSummaryTitleFromText(text = "", max = 96) {
+    const metadataTitle = receiptTitleMetadata(text, max);
+    if (metadataTitle) return metadataTitle;
+    const clean = stripReceiptMetadataComments(text);
+    const heading = clean.split(/\r?\n/)
+      .map((line) => String(line || "").trim().match(/^#{1,4}\s+(.+)$/))
+      .find(Boolean)?.[1] || "";
+    const candidate = cleanReceiptTitleLine(heading)
+      || clean.split(/\r?\n/).map(cleanReceiptTitleLine).find(Boolean)
+      || "";
+    return compactDisplayText(candidate, max);
+  }
+
   function stripTopicTitleNoise(value) {
     let text = String(value || "").trim();
     if (!text) return "";
@@ -81,31 +128,63 @@
     const groups = new Map();
     let currentTaskGroupId = "";
     const groupMeta = thread?.taskGroupMeta && typeof thread.taskGroupMeta === "object" ? thread.taskGroupMeta : {};
+    for (const projected of Array.isArray(thread?.taskGroups) ? thread.taskGroups : []) {
+      const groupId = String(projected?.id || "").trim();
+      if (!groupId || groups.has(groupId)) continue;
+      const meta = groupMeta[groupId] && typeof groupMeta[groupId] === "object" ? groupMeta[groupId] : {};
+      const pluginTopicGroup = groupId.startsWith("plugin:");
+      groups.set(groupId, Object.assign({}, projected, {
+        title: String(projected.title || "").trim(),
+        lastReceiptTitle: String(projected.lastReceiptTitle || meta.lastReceiptTitle || "").trim(),
+        lastUserPromptTitle: String(projected.lastUserPromptTitle || meta.lastUserPromptTitle || "").trim(),
+        lastMessageId: String(projected.lastMessageId || meta.lastMessageId || "").trim(),
+        pluginTopic: Boolean(projected.pluginTopic || meta.pluginTopic || pluginTopicGroup),
+        directoryRoute: pluginTopicGroup ? null : (projected.directoryRoute || meta.directoryRoute || null),
+        messages: Array.isArray(projected.messages) ? projected.messages.slice() : [],
+        ownerWorkspaceId: String(projected.ownerWorkspaceId || "").trim(),
+      }));
+    }
     for (const message of thread?.messages || []) {
       let groupId = message.taskGroupId || "";
       if (!groupId && message.role === "user") groupId = `task_${message.id}`;
       if (!groupId) groupId = currentTaskGroupId || message.taskId || `task_${message.id}`;
       currentTaskGroupId = groupId;
+      const pluginTopicGroup = String(groupId || "").startsWith("plugin:");
       if (!groups.has(groupId)) {
         const timestamp = messageTimelineTimestamp(message);
         const meta = groupMeta[groupId] && typeof groupMeta[groupId] === "object" ? groupMeta[groupId] : {};
         groups.set(groupId, {
           id: groupId,
           title: String(meta.title || "").trim(),
+          lastReceiptTitle: String(meta.lastReceiptTitle || "").trim(),
+          lastUserPromptTitle: String(meta.lastUserPromptTitle || "").trim(),
+          lastMessageId: String(meta.lastMessageId || "").trim(),
           sharedTopic: Boolean(meta.sharedTopic),
           kanbanCaseId: String(meta.kanbanCaseId || "").trim(),
           kanbanCaseMode: String(meta.kanbanCaseMode || "").trim(),
           performerWorkspaceIds: Array.isArray(meta.performerWorkspaceIds) ? meta.performerWorkspaceIds : [],
           viewerWorkspaceIds: Array.isArray(meta.viewerWorkspaceIds) ? meta.viewerWorkspaceIds : [],
-          directoryRoute: meta.directoryRoute && typeof meta.directoryRoute === "object" ? meta.directoryRoute : null,
+          directoryRoute: !pluginTopicGroup && meta.directoryRoute && typeof meta.directoryRoute === "object" ? meta.directoryRoute : null,
+          pluginTopic: Boolean(meta.pluginTopic || pluginTopicGroup),
           messages: [],
           createdAt: message.createdAt,
           updatedAt: meta.updatedAt || timestamp || message.updatedAt || message.createdAt,
         });
       }
       const group = groups.get(groupId);
-      group.messages.push(message);
+      if (!group.messages.some((item) => item?.id && item.id === message.id)) group.messages.push(message);
       const timestamp = messageTimelineTimestamp(message);
+      const messageCanRefreshMeta = !group.updatedAt || String(timestamp || "") >= String(group.updatedAt || "");
+      if (message.role === "assistant" && message.content && (!group.lastReceiptTitle || messageCanRefreshMeta)) {
+        group.lastReceiptTitle = receiptSummaryTitleFromText(message.content || "", 96);
+      } else if (message.role === "user" && message.content && (!group.lastUserPromptTitle || messageCanRefreshMeta)) {
+        group.lastUserPromptTitle = compactDisplayText(message.content || "", 160);
+      }
+      if (message.id && messageCanRefreshMeta) group.lastMessageId = String(message.id || "").trim();
+      if (!group.pluginTopic && !group.directoryRoute && message.directoryRoute && typeof message.directoryRoute === "object") {
+        group.directoryRoute = message.directoryRoute;
+      }
+      if (!group.ownerWorkspaceId) group.ownerWorkspaceId = messageOwnerWorkspaceId(message, thread?.workspaceId || "");
       if (String(timestamp || "") > String(group.updatedAt || "")) {
         group.updatedAt = timestamp;
       }
@@ -124,6 +203,7 @@
   }
 
   function taskGroupOwnerWorkspaceId(group, fallback = "") {
+    if (group?.ownerWorkspaceId) return String(group.ownerWorkspaceId || "").trim();
     const messages = group?.messages || [];
     const user = messages.find((message) => message.role === "user");
     return messageOwnerWorkspaceId(user || messages[0], fallback);
@@ -356,6 +436,7 @@
     formatBytes,
     compactDisplayText,
     compactTopicTitle,
+    receiptSummaryTitleFromText,
     taskGroupsForThread,
     messageOwnerWorkspaceId,
     taskGroupOwnerWorkspaceId,

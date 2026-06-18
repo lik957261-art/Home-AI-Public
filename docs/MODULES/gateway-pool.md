@@ -773,6 +773,11 @@ Hermes Mobile also projects stream wait states into the run-progress panel:
   newest assistant message by its own run ids (`runId`, `originalRunId`,
   `responseRunId`, `taskId`) and only use thread active ids as a fallback for a
   still-active message.
+- The run-progress client must treat terminal run events (`response.completed`,
+  `run.completed`, failure, and cancellation variants) as a full-thread refresh
+  trigger, not only as a local progress-panel update. This keeps the assistant
+  receipt and thread `activeRunIds` synchronized even when the terminal
+  `message.updated` event is delayed or missed by the foreground client.
 - The public `web_...` id must exist on the assistant message before
   `run.gateway_worker_queued`, `run.gateway_worker_starting`, and permission
   preflight events are broadcast. The inline panel should appear for queued or
@@ -824,6 +829,15 @@ Hermes Mobile also projects stream wait states into the run-progress panel:
   stays only in the run-progress panel. A future reasoning stream must use a
   separate explicit event contract instead of reusing `run.event` status
   previews.
+- `response.output_item.done` for a message item and `response.output_text.done`
+  prove the final visible answer text has arrived, but they are not terminal
+  run events. If the Gateway stream or iOS/Web foreground bridge misses the
+  later `response.completed` event, Home AI must synthesize a bounded
+  `response.completed` fallback after a short grace period and complete the run
+  from the already saved visible answer. This fallback is server-side, not a UI
+  hide rule: it must clear `activeRunIds`, mark the assistant message `done`,
+  enqueue terminal delivery/notifications once, and avoid double completion if
+  the real terminal event arrives first.
 
 ChatGPT Pro bridge runs may still set a stream-specific longer start/liveness
 window because those jobs can be intentionally long-running.
@@ -1060,6 +1074,10 @@ Current runtime behavior:
   escalation path instead of exposing broad schemas up front.
 - Product-specific MCP toolsets that are ordinary current-workspace capabilities
   must be present in the Mobile run policy before the selector can choose them.
+  `current_environment` is an ordinary low-permission toolset; it lets the model
+  read the latest TTL-bounded native environment snapshot when the user task
+  needs current-device facts, but it must not be treated as an implicit prompt
+  injection rule.
 - Before re-enabling the selector, the harness must prove the actual
   `/v1/responses` request path, not just a standalone agent-schema probe:
   Mobile must send a top-level `enabled_toolsets`, the runtime overlay must
@@ -1360,8 +1378,9 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
 - Workspace-private plugin MCP runtimes must follow the same profile-bound
   isolation model. Each MCP-capable plugin gets a workspace-local config/key
   directory such as `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`,
-  `.hermes-health`, `.hermes-growth`, or `.hermes-note`; the MCP wrapper reads
-  that directory and attaches the plugin workspace key internally.
+  `.hermes-health`, `.hermes-growth`, `.hermes-music`, or `.hermes-note`; the
+  MCP wrapper reads that directory and attaches the plugin workspace key
+  internally.
 - Gateway profile config must expose the plugin toolset in both `toolsets` and
   `platform_toolsets.api_server`, and must add a matching `mcp_servers.<id>`
   block only when the effective Hermes workspace has a valid plugin config/key
@@ -1538,6 +1557,25 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   the `server` plus `web` subtrees; mirroring only `moira-mcp-service.mjs` is
   insufficient because the MCP service imports rule/commentary providers from
   those directories.
+- Music MCP is an Owner-only special plugin. Gateway profile generation must
+  expose `music` in `toolsets`, `platform_toolsets.api_server`, and
+  `mcp_servers.music` only for Owner connector profiles. It must not be granted
+  to non-Owner workspaces. Unlike workspace-private plugin MCP wrappers, Music
+  does not require a `.hermes-music/access-key.txt` binding because its stdio
+  wrapper reads the local Music plugin SQLite ledger directly. Music uses the
+  plugin-owned Node stdio entry `src/mcp-stdio.js`; it does not accept a
+  model-provided workspace override. The profile must set `MUSIC_SQLITE_PATH`
+  to the shared Music plugin SQLite database, for example
+  `<root>/plugins/music/runtime/music.sqlite` on macOS, because the wrapper's
+  default relative `runtime/music.sqlite` would otherwise resolve inside the
+  Gateway profile and appear empty. Valid schema evidence is a selected-profile
+  callable such as `mcp_music_music_get_favorites`,
+  `mcp_music_music_get_taste_profile`, or
+  `mcp_music_music_get_recommendation_context`; the double `music` reflects
+  the `music` MCP server id plus plugin tool names such as
+  `music.get_favorites`.
+  A visible Music plugin UI or healthy `/api/hermes-plugins/music/manifest`
+  route does not by itself prove model-side Music MCP registration.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.
 - Targeted starts such as `-StartProfiles lowgw13,lowgw14 -ForceConfigure`
   must pass `HERMES_GATEWAY_START_PROFILES` through to
@@ -1579,6 +1617,24 @@ The official runtime checkout under `/opt/hermes-gateway-runtime/official-clean`
 - For mapped China cities, the plugin uses `weather.cn` city data first. If that provider fails, it may fall back to Open-Meteo using the mapped English city query instead of the original Chinese input.
 - Unknown Chinese locations should fail closed with `chinese_location_not_mapped` until the alias map is extended.
 - Changes to this plugin require copying the updated plugin into production and restarting Gateway Pool so already-running lowgw profiles reload the callable implementation.
+
+## Current Environment Plugin
+
+- `gateway-plugins/hermes-mobile-current-environment` is a Hermes Mobile-owned
+  profile-local Gateway plugin, not an official Hermes built-in toolset.
+- The plugin registers toolset `current_environment` and tool
+  `current_environment`. Low-permission Gateway profiles expose it in both
+  `toolsets` and `platform_toolsets.api_server` when the plugin is installed.
+- The tool calls the bridge host route `POST /bridge/current-environment` using
+  the bridge host key. The bridge host reads the compact native environment
+  snapshot store and returns either the latest unexpired snapshot or
+  `current_environment_unavailable`.
+- Native clients refresh the snapshot through
+  `POST /api/native/environment-context`; Gateway workers do not talk to the
+  native WebView bridge directly.
+- Changes to this plugin require copying the updated plugin into production and
+  restarting Gateway Pool so already-running lowgw profiles reload the callable
+  implementation.
 
 ## Image Plugin
 

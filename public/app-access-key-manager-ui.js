@@ -361,8 +361,8 @@ function renderAccessKeyManager() {
         </label>`).join("")}
       </fieldset>
       <div class="workspace-onboarding-actions">
-        <button type="button" data-workspace-onboarding-plan${state.workspaceOnboardingLoading ? " disabled" : ""}>预览计划</button>
-        <button type="button" data-workspace-onboarding-apply${state.workspaceOnboardingLoading ? " disabled" : ""}>确认开通</button>
+        <button type="button" data-workspace-onboarding-plan${state.workspaceOnboardingLoading ? " disabled" : ""}>${state.workspaceOnboardingPendingAction === "plan" ? "预览中..." : "预览计划"}</button>
+        <button type="button" data-workspace-onboarding-apply${state.workspaceOnboardingLoading ? " disabled" : ""}>${state.workspaceOnboardingPendingAction === "apply" ? "开通中..." : "确认开通"}</button>
       </div>
       ${state.workspaceOnboardingLoading ? `<div class="access-key-empty">请求已发送，正在等待后端回执...</div>` : ""}
       ${state.workspaceOnboardingError ? `<div class="access-key-empty error">${escapeHtml(state.workspaceOnboardingError)}</div>` : ""}
@@ -501,8 +501,8 @@ function renderAccessKeyManager() {
   overlay.querySelector("[data-close-access-keys]")?.addEventListener("click", closeAccessKeyManager);
   overlay.querySelector("[data-rotate-web-key]")?.addEventListener("click", () => rotateWebAccessKey().catch(showError));
   overlay.querySelector("[data-create-workspace]")?.addEventListener("click", () => createWorkspaceFromAccessKeyManager().catch(showError));
-  overlay.querySelector("[data-workspace-onboarding-plan]")?.addEventListener("click", () => planWorkspaceOnboardingFromAccessKeyManager().catch(showError));
-  overlay.querySelector("[data-workspace-onboarding-apply]")?.addEventListener("click", () => applyWorkspaceOnboardingFromAccessKeyManager().catch(showError));
+  bindWorkspaceOnboardingAction(overlay.querySelector("[data-workspace-onboarding-plan]"), () => planWorkspaceOnboardingFromAccessKeyManager());
+  bindWorkspaceOnboardingAction(overlay.querySelector("[data-workspace-onboarding-apply]"), () => applyWorkspaceOnboardingFromAccessKeyManager());
   wireWorkspaceCreateDefaults(overlay);
   overlay.querySelector("[data-copy-access-key]")?.addEventListener("click", () => copyTextToClipboard(state.generatedAccessKey?.key || "").catch(showError));
   overlay.querySelector("[data-relogin-after-access-key]")?.addEventListener("click", () => finishAccessKeyRelogin());
@@ -525,6 +525,25 @@ function renderAccessKeyManager() {
   overlay.querySelectorAll("[data-revoke-workspace-key]").forEach((button) => {
     button.addEventListener("click", () => revokeWorkspaceAccessKey(button.dataset.revokeWorkspaceKey || "").catch(showError));
   });
+}
+
+function bindWorkspaceOnboardingAction(button, handler) {
+  if (!button || typeof handler !== "function") return;
+  let lastActivatedAt = 0;
+  const activate = (event) => {
+    if (button.disabled) return;
+    const now = Date.now();
+    if (now - lastActivatedAt < 700) {
+      event?.preventDefault?.();
+      return;
+    }
+    lastActivatedAt = now;
+    event?.preventDefault?.();
+    Promise.resolve().then(handler).catch(showError);
+  };
+  button.addEventListener("pointerup", activate);
+  button.addEventListener("touchend", activate);
+  button.addEventListener("click", activate);
 }
 
 async function loadAccessKeyManager(options = {}) {
@@ -724,6 +743,7 @@ async function planWorkspaceOnboardingFromAccessKeyManager() {
   const payload = workspaceOnboardingPayload(root);
   rememberWorkspaceOnboardingDraft(payload);
   state.workspaceOnboardingLoading = true;
+  state.workspaceOnboardingPendingAction = "plan";
   state.workspaceOnboardingError = "";
   state.workspaceOnboardingResult = null;
   state.workspaceOnboardingRun = null;
@@ -734,6 +754,7 @@ async function planWorkspaceOnboardingFromAccessKeyManager() {
     state.workspaceOnboardingError = err.message || String(err);
   } finally {
     state.workspaceOnboardingLoading = false;
+    state.workspaceOnboardingPendingAction = "";
     renderAccessKeyManager();
   }
 }
@@ -743,6 +764,7 @@ async function applyWorkspaceOnboardingFromAccessKeyManager() {
   const payload = workspaceOnboardingPayload(root);
   rememberWorkspaceOnboardingDraft(payload);
   state.workspaceOnboardingLoading = true;
+  state.workspaceOnboardingPendingAction = "apply";
   state.workspaceOnboardingError = "";
   state.workspaceOnboardingResult = null;
   state.workspaceOnboardingRun = createWorkspaceOnboardingRunState(state.workspaceOnboardingPlan || {}, payload);
@@ -781,6 +803,7 @@ async function applyWorkspaceOnboardingFromAccessKeyManager() {
     state.workspaceOnboardingRun = failWorkspaceOnboardingRunState(state.workspaceOnboardingRun, message);
   } finally {
     state.workspaceOnboardingLoading = false;
+    state.workspaceOnboardingPendingAction = "";
     renderAccessKeyManager();
   }
 }

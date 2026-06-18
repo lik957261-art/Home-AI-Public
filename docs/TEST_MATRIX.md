@@ -143,6 +143,29 @@ currently receives `deepLink` in APNs payloads but does not route the `WKWebView
 on notification tap; tests should not claim tap-to-route completion until the
 native bridge is implemented.
 
+For native environment context snapshot and Gateway `current_environment` tool
+changes, run:
+
+```bash
+node --check adapters/current-environment-context-service.js
+node --check server-routes/native-environment-context-api-routes.js
+node --check public/app-event-stream-ui.js
+python3 -m py_compile gateway-plugins/hermes-mobile-current-environment/__init__.py
+node tests/current-environment-context-service.test.js
+node tests/native-environment-context-api-routes.test.js
+node tests/native-environment-context-ui.test.js
+node tests/mobile-api-platform-composition.test.js
+node tests/mobile-api-dispatcher.test.js
+node tests/api-route-inventory.test.js
+node tests/startup-scripts.test.js
+node tests/architecture-refactor-boundary.test.js
+```
+
+Coverage must prove workspace-clamped snapshot upsert, TTL expiry, compact
+normalization without full forecast arrays, native-shell best-effort snapshot
+refresh before send, bridge-host readback, and low Gateway profile exposure of
+the `current_environment` plugin/toolset.
+
 For plugin workspace audit creation, manual alignment trigger, runner report
 language, or Action Inbox audit entry changes, run:
 

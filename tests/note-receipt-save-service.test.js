@@ -116,7 +116,14 @@ async function testPluginReceiptUsesPluginTag() {
 
   await service.saveReceipt({
     workspaceId: "owner",
-    thread: { id: "thread-1", title: "wardrobe topic" },
+    thread: {
+      id: "thread-1",
+      title: "wardrobe topic",
+      messages: [
+        { id: "user-1", role: "user", taskGroupId: "plugin:wardrobe", content: "请保存这一套搭配的依据。" },
+        { id: "msg-1", role: "assistant", taskGroupId: "plugin:wardrobe", content: "Wardrobe receipt body", artifacts: [] },
+      ],
+    },
     message: {
       id: "msg-1",
       role: "assistant",
@@ -129,6 +136,8 @@ async function testPluginReceiptUsesPluginTag() {
   assert.equal(fetchCalls.length, 1);
   assert.deepEqual(fetchCalls[0].body.tags, ["\u8863\u6a71"]);
   assert.equal(fetchCalls[0].body.title, "\u8863\u6a71 | Wardrobe receipt body");
+  assert.match(fetchCalls[0].body.body, /问题:\n请保存这一套搭配的依据。/);
+  assert.match(fetchCalls[0].body.body, /回执:\nWardrobe receipt body/);
 }
 
 async function testDuplicateReceiptReturnsExistingNoteWithoutRemotePost() {

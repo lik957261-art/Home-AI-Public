@@ -336,7 +336,7 @@ class EmailClient:
         payload = self.http_json(
             "POST",
             self.context["launch_path"],
-            body={"workspace_id": self.context["workspace_id"]},
+            body={"workspace_id": self.context["workspace_id"], "capabilities": ["full_content"]},
             bearer=self.context["workspace_key"],
         )
         token = str(payload.get("launch_token") or "").strip()

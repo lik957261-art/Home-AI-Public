@@ -6407,9 +6407,9 @@ button.directory-alias-chip {
   min-width: 0;
   min-height: 48px;
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 16px;
+  grid-template-columns: 56px minmax(0, 1fr) 16px;
   align-items: center;
-  gap: 7px;
+  gap: 9px;
   padding: 5px 2px;
   color: var(--ink);
   background: transparent;
@@ -6445,9 +6445,12 @@ button.directory-alias-chip {
 }
 
 .plugin-topic-icon-entry {
-  width: 34px;
+  width: 56px;
+  min-width: 56px;
   display: grid;
   place-items: center;
+  position: relative;
+  z-index: 2;
 }
 
 .plugin-topic-row-body {
@@ -6647,14 +6650,17 @@ button.directory-alias-chip {
 
 .plugin-topic-text {
   min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: max-content 1px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 2px;
+  overflow: visible;
 }
 
 .plugin-topic-title {
-  min-width: 0;
+  min-width: max-content;
+  max-width: 5.5em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -6662,13 +6668,20 @@ button.directory-alias-chip {
   font-weight: 700;
 }
 
+.plugin-topic-separator {
+  width: 1px;
+  min-height: calc(18px * var(--app-font-scale));
+  align-self: stretch;
+  margin: 3px 0;
+  background: color-mix(in srgb, var(--muted) 34%, transparent);
+}
+
 .plugin-topic-subtitle {
-  flex: 0 1 auto;
   min-width: 0;
-  max-width: 58%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
   color: var(--muted);
   font-size: calc(12px * var(--app-font-scale));
   line-height: 1.36;
@@ -6870,7 +6883,7 @@ button.directory-alias-chip {
   min-width: 0;
   min-height: 62px;
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr) 16px;
+  grid-template-columns: 44px minmax(0, 1fr) 16px;
   align-items: center;
   gap: 9px;
   width: 100%;
@@ -6900,7 +6913,7 @@ button.directory-alias-chip {
 }
 
 .directory-topic-root-icon-entry {
-  width: 46px;
+  width: 44px;
   display: grid;
   place-items: center;
 }
@@ -6924,17 +6937,17 @@ button.directory-alias-chip {
 }
 
 .directory-topic-root-icon.plugin-topic-app-icon.directory {
-  width: 40px;
-  height: 40px;
-  --directory-folder-tab-left: 6px;
-  --directory-folder-tab-top: 9px;
-  --directory-folder-tab-width: 18px;
-  --directory-folder-tab-height: 7px;
+  width: 36px;
+  height: 36px;
+  --directory-folder-tab-left: 5px;
+  --directory-folder-tab-top: 8px;
+  --directory-folder-tab-width: 16px;
+  --directory-folder-tab-height: 6px;
   --directory-folder-body-left: 4px;
-  --directory-folder-body-top: 15px;
-  --directory-folder-body-width: 32px;
-  --directory-folder-body-height: 20px;
-  --directory-folder-radius: 6px;
+  --directory-folder-body-top: 14px;
+  --directory-folder-body-width: 28px;
+  --directory-folder-body-height: 18px;
+  --directory-folder-radius: 5px;
   background: linear-gradient(135deg, #3f8879 0%, #2d7185 52%, #22435f 100%);
   border-radius: 12px;
   box-shadow: 0 7px 14px rgba(24, 49, 63, 0.16), inset 0 1px 0 rgba(255,255,255,0.30);
@@ -7133,11 +7146,13 @@ button.directory-alias-chip {
 }
 
 .directory-topic-chip {
+  width: 100%;
   max-width: 100%;
   min-height: 30px;
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr);
   align-items: center;
+  justify-items: start;
   gap: 5px;
   padding: 0 7px;
   color: var(--ink);
@@ -7146,6 +7161,7 @@ button.directory-alias-chip {
   border-radius: 7px;
   font-size: 12px;
   line-height: 1;
+  text-align: left;
   overflow: hidden;
   touch-action: pan-y;
 }
@@ -7161,11 +7177,46 @@ button.directory-alias-chip {
   height: 14px;
 }
 
-.directory-topic-chip-title {
+.directory-topic-chip-copy {
+  min-width: 0;
+  max-width: 100%;
+  justify-self: stretch;
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  text-align: left;
+  overflow: hidden;
+}
+
+.directory-topic-chip-title,
+.directory-topic-chip-summary {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.directory-topic-chip-title {
+  flex: 1 1 auto;
+  color: var(--ink);
+  font-weight: 760;
+}
+
+.directory-topic-chip-copy.has-summary .directory-topic-chip-title {
+  flex: 0 1 auto;
+  max-width: 46%;
+}
+
+.directory-topic-chip-divider {
+  flex: 0 0 auto;
+  color: color-mix(in srgb, var(--muted) 58%, transparent);
+  font-weight: 650;
+}
+
+.directory-topic-chip-summary {
+  flex: 1 1 auto;
+  color: var(--muted);
+  font-weight: 640;
 }
 
 .directory-topic-chip-badge {
@@ -18529,10 +18580,10 @@ body.voice-input-press-active #sendMessage {
   .plugin-topic-card-main,
   .plugin-topic-card-main-row {
     min-height: 48px;
-    grid-template-columns: 34px minmax(0, 1fr) 16px;
+    grid-template-columns: 56px minmax(0, 1fr) 16px;
     justify-items: stretch;
     align-content: center;
-    gap: 7px;
+    gap: 9px;
     padding: 5px 2px;
     text-align: left;
   }
@@ -18546,6 +18597,11 @@ body.voice-input-press-active #sendMessage {
   .plugin-topic-icon-entry,
   .plugin-topic-row-body {
     min-height: 48px;
+  }
+
+  .plugin-topic-icon-entry {
+    width: 56px;
+    min-width: 56px;
   }
 
   .plugin-topic-child-list {
@@ -18595,15 +18651,15 @@ body.voice-input-press-active #sendMessage {
 
   .directory-topic-root-entry {
     min-height: 60px;
-    grid-template-columns: 46px minmax(0, 1fr) 16px;
+    grid-template-columns: 44px minmax(0, 1fr) 16px;
     gap: 9px;
     padding: 4px 2px 7px;
   }
 
   .directory-topic-root-icon.plugin-topic-app-icon.directory {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
   }
 
   .directory-topic-grid {

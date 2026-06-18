@@ -1,7 +1,7 @@
 # Plugin Workspace Contract Rollout Status
 
-Last updated: 2026-06-11.
-Home AI platform contract version: `20260611-v3`.
+Last updated: 2026-06-18.
+Home AI platform contract version: `20260618-v4`.
 
 ## Scope
 
@@ -18,6 +18,7 @@ Included in this pass:
 - Email
 - Health
 - Growth
+- Music
 - Codex Mobile Web, only for the Home AI embedded plugin variant registered as
   `codex-mobile`
 - Home AI Native iOS Shell, as managed native client target
@@ -146,6 +147,7 @@ plugin-service probes.
 | Email | Windows Email workspace | `main` at `75a1ea0`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1 for messages, threads, attachments, and accounts; exact deploy command stabilization; `ios_visual_harness_command` required for embedded UI or account switching changes. |
 | Health | Windows Health workspace | `main` at `3495ae8`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; `ios_visual_harness_command` required for embedded UI or mobile navigation changes. |
 | Growth | Mac Growth plugin workspace | New plugin workspace at `/Users/example/path`; production deployment pending | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Built-in Growth extraction is in progress. The plugin currently reads the Home AI `/api/growth/v1/*` facade, imports bounded snapshots with readback, delivers bounded events through the Home AI notification endpoint when configured, and exposes read-only MCP schemas plus execute. Production Mac probe is deferred until the service is installed. |
+| Music | Mac Music plugin workspace | New plugin workspace at `/Users/example/path`; production deployment pending | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Pending | Roon statistics, SQLite favorite/tag cache, and Music MCP recommendation context. `ios_visual_harness_command` is required before production UI closure; production Mac probe is deferred until the service is installed. |
 | Codex Mobile Web | Mac Codex Mobile plugin workspace | `main` at `bc82703` plus local Mac hotfix work when pointer was added | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Owner-critical Home AI embedded plugin insertion only; not normal workspace-grantable plugin visibility and not a rule for independent Codex Mobile deployments. `ios_visual_harness_command` is required for embedded keyboard, gesture, cache, and PWA reproduction loops. |
 | Home AI Native iOS Shell | Xcode native workspace | `/Users/example/path AI` on `main`; platform pointer and native voice overlay docs exist | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Managed native client, not embedded business plugin. Platform checker validates bundle ids, App Group, native capabilities, HTTPS/Home AI auth boundary, AI Ops flow, and Xcode build command. Native changes close with Xcode build plus target checker; APNs and voice bridge changes also run their module checks. |
 
@@ -169,6 +171,7 @@ Verified facts:
 | Health | `/Users/example/path` | `com.hermesmobile.plugin.health` loaded | `http://127.0.0.1:4877/api/v1/hermes/plugin/manifest` returned HTTP 200 | The source directory is `healthy`, not `health`; data root observed under `/Users/example/path`. |
 | Growth | `/Users/example/path` | `com.hermesmobile.plugin.growth` deferred | `http://127.0.0.1:4881/api/v1/hermes/plugin/manifest` deferred | Production service is not installed yet. Local contract/pointer checks are enforced; read-only Mac probe is intentionally skipped by the checker until deployment. |
 | Moira | `/Users/example/path` | `com.hermesmobile.plugin.moira` loaded | `http://127.0.0.1:4174/api/v1/hermes/plugin/manifest` returned HTTP 200 | Source is `/Users/example/path`; first install used central `--plugin moira --sync-only` plus `scripts/install-moira-launchd-service.js`. Owner same-origin manifest/proxy smoke passed against Home AI production. |
+| Music | `/Users/example/path` | `com.hermesmobile.plugin.music` deferred | `http://127.0.0.1:4891/api/v1/hermes/plugin/manifest` deferred | Development service runs from `/Users/example/path`; production service is not installed yet. Local contract/pointer checks are enforced; read-only Mac probe is intentionally skipped until deployment. |
 | Codex Mobile Web | `/Users/example/path` | `com.hermesmobile.plugin.codex-mobile` loaded | `http://127.0.0.1:8787/api/v1/hermes/plugin/manifest` returned HTTP 200 | 2026-06-08 same-host probe used `--ssh-alias local` and also verified `/api/public-config`. |
 | Home AI Native iOS Shell | N/A | N/A | N/A | Native client has no Mac plugin service, launchd label, or loopback manifest. Its target checker and Xcode build are the acceptance path. |
 

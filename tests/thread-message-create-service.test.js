@@ -310,6 +310,28 @@ function testDirectoryAttachmentPrecedence() {
   assert.equal(chat.directoryAttachment, null);
 }
 
+async function testPluginTopicWithDirectoryAttachmentKeepsPluginMeta() {
+  const { service } = makeHarness();
+  const thread = baseThread({ singleWindow: true });
+  const plan = service.prepareThreadMessageCreate({
+    thread,
+    body: {
+      text: "wardrobe prompt",
+      taskGroupId: "plugin:wardrobe",
+      directory: { explicit: true, path: "wardrobe-root" },
+    },
+    auth: {},
+  });
+
+  assert.equal(plan.ok, true);
+  assert.equal(plan.directoryAttachment.source, "explicit");
+  const committed = await service.commitRunMessageAndDispatch(thread, plan);
+  assert.equal(committed.status, 202);
+  assert.equal(thread.taskGroupMeta["plugin:wardrobe"].pluginTopic, true);
+  assert.equal(thread.taskGroupMeta["plugin:wardrobe"].lastUserPromptTitle, "wardrobe prompt");
+  assert.equal(thread.taskGroupMeta["plugin:wardrobe"].directoryRoute, undefined);
+}
+
 function testDirectCreateRoutingAndPayloads() {
   {
     const { calls, service } = makeHarness({ useKanbanTodoBackend: true });
@@ -649,6 +671,42 @@ async function testNotificationChannelPropagatesFromClientMessage() {
   assert.equal(Object.hasOwn(calls.starts[0].runOptions, "notificationChannel"), false);
 }
 
+async function testEnvironmentContextIsSanitizedIntoRunOptions() {
+  const { calls, service } = makeHarness();
+  const thread = baseThread({ workspaceId: "owner" });
+  const plan = service.prepareThreadMessageCreate({
+    thread,
+    body: {
+      text: "今天配一套衣服",
+      environmentContext: {
+        ok: true,
+        source: "homeai_native_ios",
+        purpose: "wardrobe_outfit",
+        location: {
+          latitude: 31.2345,
+          longitude: 121.4789,
+          place: { city: "上海市" },
+        },
+        weather: {
+          status: "available",
+          selected: { temperature: 24.56 },
+          hourlyForecast: [{ shouldNotPersist: true }],
+        },
+      },
+    },
+    auth: { owner: true, workspaces: ["owner"] },
+  });
+  assert.equal(plan.ok, true);
+  assert.equal(plan.runOptions.environmentContext.source, "homeai_native_ios");
+  assert.equal(plan.runOptions.environmentContext.location.latitude, 31.23);
+  assert.equal(plan.runOptions.environmentContext.weather.selected.temperatureC, 24.6);
+  assert.equal(plan.runOptions.environmentContext.weather.hourlyForecast, undefined);
+
+  const result = await service.commitRunMessageAndDispatch(thread, plan);
+  assert.equal(result.status, 202);
+  assert.equal(calls.starts[0].runOptions.environmentContext.location.city, "上海市");
+}
+
 function testConcurrencyErrorBeforeStateMutation() {
   const { service } = makeHarness({
     concurrencyError: {
@@ -676,6 +734,7 @@ function testConcurrencyErrorBeforeStateMutation() {
   testSingleWindowGroupChatPlainMessageCommit();
   testTaskGroupAndCaseTopicValidation();
   testDirectoryAttachmentPrecedence();
+  await testPluginTopicWithDirectoryAttachmentKeepsPluginMeta();
   testDirectCreateRoutingAndPayloads();
   await testRunOptionsAndDispatchHooks();
   await testDispatchFormatsGatewayCapacityFailure();
@@ -687,6 +746,7 @@ function testConcurrencyErrorBeforeStateMutation() {
   await testQueuedChatRunSkipsConcurrencyAndStart();
   await testServerSideSentTextLearningAfterMessageCommit();
   await testNotificationChannelPropagatesFromClientMessage();
+  await testEnvironmentContextIsSanitizedIntoRunOptions();
   testConcurrencyErrorBeforeStateMutation();
   console.log("thread-message-create-service tests passed");
 })().catch((err) => {

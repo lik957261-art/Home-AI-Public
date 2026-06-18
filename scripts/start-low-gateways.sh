@@ -338,6 +338,17 @@ moira_mcp_command="${HERMES_MOBILE_MOIRA_MCP_COMMAND:-node}"
 moira_mcp_path="${HERMES_MOBILE_MOIRA_MCP_PATH:-$gateway_worker_root/moira-mcp/scripts/moira-mcp-stdio.mjs}"
 email_mcp_python="${HERMES_MOBILE_EMAIL_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
 email_mcp_path="${HERMES_MOBILE_EMAIL_MCP_PATH:-$gateway_worker_root/email-mcp/scripts/email-mcp-wrapper.py}"
+music_mcp_command="${HERMES_MOBILE_MUSIC_MCP_COMMAND:-node}"
+if [[ "$gateway_worker_root" == /mnt/* ]]; then
+  default_music_mcp_path="$gateway_worker_root/music-mcp/src/mcp-stdio.js"
+  default_music_sqlite_path="$gateway_worker_root/music-mcp/runtime/music.sqlite"
+else
+  gateway_runtime_root="$(dirname "$gateway_worker_root")"
+  default_music_mcp_path="$gateway_runtime_root/plugins/music/src/mcp-stdio.js"
+  default_music_sqlite_path="$gateway_runtime_root/plugins/music/runtime/music.sqlite"
+fi
+music_mcp_path="${HERMES_MOBILE_MUSIC_MCP_PATH:-$default_music_mcp_path}"
+music_sqlite_path="${HERMES_MOBILE_MUSIC_SQLITE_PATH:-$default_music_sqlite_path}"
 default_finance_mcp_api_base_url="http://127.0.0.1:8791"
 default_note_mcp_api_base_url="http://127.0.0.1:4181"
 default_health_mcp_api_base_url="http://127.0.0.1:4877"
@@ -371,6 +382,7 @@ growth_user_drive_root="${HERMES_MOBILE_GROWTH_USER_DRIVE_ROOT:-/mnt/c/ProgramDa
 owner_growth_workspace_override="${HERMES_MOBILE_OWNER_GROWTH_WORKSPACE:-}"
 wuping_growth_workspace_override="${HERMES_MOBILE_WUPING_GROWTH_WORKSPACE:-}"
 moira_user_drive_root="${HERMES_MOBILE_MOIRA_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
+music_user_drive_root="${HERMES_MOBILE_MUSIC_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 email_user_drive_root="${HERMES_MOBILE_EMAIL_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_email_workspace_override="${HERMES_MOBILE_OWNER_EMAIL_WORKSPACE:-}"
 wuping_email_workspace_override="${HERMES_MOBILE_WUPING_EMAIL_WORKSPACE:-}"
@@ -471,6 +483,9 @@ compute_configure_signature() {
     --value "moira_mcp_command=$moira_mcp_command" \
     --value "moira_mcp_api_base_url=$moira_mcp_api_base_url" \
     --value "moira_user_drive_root=$moira_user_drive_root" \
+    --value "music_mcp_command=$music_mcp_command" \
+    --value "music_sqlite_path=$music_sqlite_path" \
+    --value "music_user_drive_root=$music_user_drive_root" \
     --value "email_mcp_python=$email_mcp_python" \
     --value "email_mcp_api_base_url=$email_mcp_api_base_url" \
     --value "email_user_drive_root=$email_user_drive_root" \
@@ -493,6 +508,7 @@ compute_configure_signature() {
     --path "$health_mcp_path" \
     --path "$growth_mcp_path" \
     --path "$moira_mcp_path" \
+    --path "$music_mcp_path" \
     --path "$email_mcp_path" \
     --path "$outlook_graph_mcp_path" <<'PY'
 import hashlib

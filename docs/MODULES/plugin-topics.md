@@ -44,8 +44,8 @@ or raw plugin credentials.
   not jump away from the plugin and Directory card area.
 - Host primary navigation starts with host-level surfaces:
   `聊天`, `信息`, and `话题`. The standalone `能力` bottom tab is retired.
-  Growth, Codex plugin edition, Wardrobe, Finance, Email, Health, Note, and
-  Directory app launch are plugin/Dock entries by default. The bottom
+  Growth, Codex plugin edition, Wardrobe, Finance, Email, Health, Note, Music,
+  and Directory app launch are plugin/Dock entries by default. The bottom
   navigation may expose up to six visible tabs total: the three host tabs plus
   workspace-scoped user-pinned plugin tabs.
 - When there is no saved launch view, Hermes Mobile opens the topic page first.
@@ -72,11 +72,17 @@ or raw plugin credentials.
   tab, and the user can long-press or context-click that bottom tab to remove
   the pin and return the plugin to the drawer.
 - The current frontend projection renders Growth, Codex plugin edition,
-  Wardrobe, Finance, Email, Health, Note, and the built-in Directory app in a
-  host-owned global plugin Dock anchored directly above the mobile bottom
+  Wardrobe, Finance, Email, Health, Note, Music, and the built-in Directory app
+  in a host-owned global plugin Dock anchored directly above the mobile bottom
   navigation when they are visible in the effective workspace. The Dock has a
   collapsed handle by default and expands in place from that handle; it is not
   a separate floating drawer and does not create new plugin grants.
+- External plugin visibility in the Dock/capability hub requires both a host
+  embedded-plugin registration and a matching `PLUGIN_TOPIC_DEFS` app
+  projection. Manifest availability and workspace authorization decide whether
+  the app is visible at runtime, but they do not replace the topic definition.
+  Owner-only special plugins such as Codex plugin edition and Music follow the
+  same display projection contract.
 - The global plugin Dock is available on eligible host root surfaces and
   top-level plugin App surfaces. It must not compete with composer,
   secondary-page back gestures, plugin iframe footers, keyboard state, or the
@@ -168,23 +174,54 @@ or raw plugin credentials.
   available from the plugin Dock/drawer and app launch surfaces, but it must
   not appear as a normal Topics-root plugin conversation shortcut.
 - Topics root plugin conversation shortcuts render as compact fixed root-topic
-  groups. They are collapsed by default per workspace. The left plugin icon
-  opens the default plugin topic; the row body expands or collapses the plugin
-  topic group when there are historical/special child topics or recent default
-  topic messages; expandable plugin rows use a small row-end chevron instead
-  of a left-leading tree chevron. Plugins with only an empty default topic open
-  directly and show `暂无最近内容` instead of a fake `默认话题` child. Expanded
-  child topics use the same compact indented visual language as
-  directory-bound topic rows, with recent default-topic messages rendered as
-  short preview entries that open the default plugin topic.
+  rows. The left plugin icon opens the plugin app; the row body directly opens
+  the fixed `plugin:<pluginId>` topic. Plugin rows do not expand and do not
+  render child topic lists, because directory-bound file topics remain in the
+  Directory topic tree instead of being merged into plugin topic rows. The row
+  subtitle displays the latest assistant receipt summary for that plugin topic,
+  or `暂无回执概要` when no assistant receipt summary exists.
+- Plugin topic rows must visually separate the plugin label from the receipt
+  summary with a stable separator mark. The summary should be allowed to wrap
+  and show the full concise receipt title instead of being forced into a
+  single-line ellipsis.
 - The compact plugin topic group row is a root-level entry like the Directory
   root entry: 32px plugin icon column, title/meta text column, optional row-end
   chevron, and a 48px row height. The left edge is reserved for root icons, not
   tree expanders. Directory-bound parent rows below the Directory root entry are
   the tree-level rows and use only the left chevron plus title/meta text.
-- Plugin topic rows and directory-bound topic rows render their count/update
+- Plugin topic rows and directory-bound topic rows render their summary
   metadata inline after the title, not as a second line, so the Topics root
   stays dense and scan-friendly.
+- Directory-bound child topic chips must stay left-aligned. Render the
+  persisted topic title and receipt summary as separate text elements so the
+  title can use primary text color while the summary uses secondary text color.
+- Plugin topic rows and directory-bound child topic rows must show the same
+  concise receipt-summary title used by the save-to-Note flow:
+  prefer the hidden `homeai-note` title metadata, then a Markdown heading, then
+  the first useful visible assistant-receipt line. They must not use the user's
+  question/prompt as the row title. When no assistant receipt summary is
+  available, show an empty-state title instead of falling back to a raw
+  directory path, a generic default-topic label, or a stale short task title.
+- Plugin topic detail must render concrete conversation messages from
+  `thread.messages` filtered by the active `taskGroupId`. Derived
+  `taskGroups[].messages` entries are list/metadata projections and can be
+  partial under pagination or summary repair, so they are only a fallback when
+  no real task-group messages have been loaded yet.
+- Returning from any plugin-topic or directory-bound topic detail to the topic
+  root must first restore the remembered task-list root thread snapshot when
+  available, then schedule a bounded single-window task-root refresh. Do not
+  render the root from the detail-page thread object and rely on the refresh to
+  correct it later, because that creates a visible stale/full-receipt flash.
+  The root projection is an index surface; it should converge back to the
+  server-side concise receipt summaries instead of staying on a detail-page or
+  derived-message projection.
+- While the user is on the Topics root, current-thread message and thread
+  update events must schedule a bounded in-place root refresh. The user should
+  not need to switch tabs or reload the page to see updated plugin-topic or
+  directory-bound topic summaries. These root refreshes and the deferred
+  directory-topic collection render must preserve the user's live scroll
+  position; background convergence must not pull the Topics root back to the
+  top while the user is reading lower rows.
 - The earlier Capability Entry Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md` is superseded. Topics
   root is conversation first: plugin conversation shortcuts, ordinary
@@ -259,7 +296,7 @@ or raw plugin credentials.
 - Directory-bound topic collections are visually attached below the Directory
   root entry and must exclude fixed plugin topics such as
   `plugin:wardrobe`,
-  `plugin:finance`, `plugin:email`, and `plugin:health`.
+  `plugin:finance`, `plugin:email`, `plugin:health`, and `plugin:music`.
 - Directory-bound topic collections render as compact collapsible folder-tree
   rows followed by an indented child-topic list. Directory-bound parent rows do
   not repeat the folder icon; the Directory root entry above the tree already
@@ -294,15 +331,17 @@ or raw plugin credentials.
   A fixed `plugin:<id>` topic must not self-authorize a missing plugin MCP just
   because the route or delivery directory names that plugin.
 - Fixed plugin task groups such as `plugin:wardrobe`, `plugin:finance`,
-  `plugin:email`, `plugin:health`, and `plugin:moira` must not enter the ordinary
-  directory-bound topic attachment path. Even when a plugin-topic message
-  carries a delivery `directoryRoute`, Gateway run context must treat
-  `taskDirectory` as absent for normal plugin work.
+  `plugin:email`, `plugin:health`, `plugin:moira`, and `plugin:music` must not
+  enter the ordinary directory-bound topic attachment path. Even when a
+  plugin-topic message carries a delivery `directoryRoute`, Gateway run context
+  must treat `taskDirectory` as absent for normal plugin work.
 - Plugin-topic run context is plugin-first: configured plugin MCP/toolsets and
   exact plugin Skill paths are mandatory run context. Wardrobe is currently
   configured as `wardrobe`, `vision`, `file`, and `skills` with required Skill
   `productivity/wardrobe-style-operations`; Moira/星盘 is configured as the
-  required `moira` toolset when the effective workspace authorizes it.
+  required `moira` toolset when the effective workspace authorizes it; Music is
+  configured as the Owner-only required `music` toolset for Owner model runs
+  and must not be granted to non-Owner workspaces.
 - Plugin-topic run context is not all-plugin eager context. The current plugin's
   required MCP/toolset and Skill rules are loaded eagerly, while other
   authorized plugins are represented by the compact capability catalog until the
@@ -499,9 +538,9 @@ Implemented in `20260610-plugin-topic-dock-box-v687`.
 Topics root now separates three entry layers:
 
 1. Plugin conversation shortcuts. These are labelled as plugin topics and open
-   `plugin:<pluginId>` or a claimed historical topic in plugin topic context.
-2. Ordinary directory-bound topic collections. These exclude directories that
-   are claimed by a plugin.
+   the fixed `plugin:<pluginId>` topic from the row body.
+2. Ordinary directory-bound topic collections. Directory-bound file topics stay
+   here even when their directory can be associated with a plugin.
 3. Plugin app entry. Dock icons and plugin app buttons continue to open the
    structured plugin app, not a topic.
 
@@ -514,8 +553,9 @@ Claim records live in
 `adapters/plugin-directory-context-binding-service.js` and are exposed through
 `/api/plugin-topic-bindings`:
 
-- `claimed_by_plugin` hides the directory from the ordinary directory topic
-  root and projects its historical topics into the plugin topic root rows.
+- `claimed_by_plugin` is now treated as legacy context metadata only. It must
+  not hide the directory from the ordinary directory topic root and must not
+  project historical topics into plugin topic root rows.
 - `auxiliary_context` allows the plugin to reference the directory but keeps the
   ordinary directory topic collection visible.
 

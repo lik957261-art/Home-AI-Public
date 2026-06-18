@@ -261,6 +261,7 @@ const mobileApiLearningComposition = require("../server-routes/mobile-api-learni
 const mobileApiPlatformComposition = require("../server-routes/mobile-api-platform-composition");
 const mobileApiVoiceComposition = require("../server-routes/mobile-api-voice-composition");
 const nativeDeviceApiRoutes = require("../server-routes/native-device-api-routes");
+const nativeEnvironmentContextApiRoutes = require("../server-routes/native-environment-context-api-routes");
 const noteReceiptApiRoutes = require("../server-routes/note-receipt-api-routes");
 const ownerElevationApiRoutes = require("../server-routes/owner-elevation-api-routes");
 const publicApiRoutes = require("../server-routes/public-api-routes");
@@ -614,12 +615,16 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof workspacePublicProjectionService.createWorkspacePublicProjectionService, "function");
   assert.equal(typeof workspaceSystemProvisioningExecutorService.createWorkspaceSystemProvisioningExecutorService, "function");
   assert.equal(typeof workspaceSystemProvisioningHelperClientService.createWorkspaceSystemProvisioningHelperClientService, "function");
+  const workspaceSystemProvisioningSource = fileText("adapters/workspace-system-provisioning-executor-service.js");
+  assert.match(workspaceSystemProvisioningSource, /"current_environment"/);
+  assert.match(workspaceSystemProvisioningSource, /hermes-mobile-current-environment/);
   assert.equal(sqliteStore.CURRENT_SCHEMA_VERSION >= 2, true);
   assert.equal(typeof publicApiRoutes.createPublicApiRoutes, "function");
   assert.equal(typeof systemApiRoutes.createSystemApiRoutes, "function");
   assert.equal(typeof runtimeConfigApiRoutes.createRuntimeConfigApiRoutes, "function");
   assert.equal(typeof pushApiRoutes.createPushApiRoutes, "function");
   assert.equal(typeof nativeDeviceApiRoutes.createNativeDeviceApiRoutes, "function");
+  assert.equal(typeof nativeEnvironmentContextApiRoutes.createNativeEnvironmentContextApiRoutes, "function");
   assert.equal(typeof eventStreamApiRoutes.createEventStreamApiRoutes, "function");
   assert.equal(typeof ownerElevationApiRoutes.createOwnerElevationApiRoutes, "function");
   assert.equal(typeof weixinApiRoutes.createWeixinApiRoutes, "function");
@@ -1176,6 +1181,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(publicStatus, /publicReasoningInfoForAuth/);
   assert.doesNotMatch(server, /function publicReasoningInfoForAuth/);
   assert.match(mobileComposition, /createMobileApiDispatcher/);
+  assert.match(mobileComposition, /nativeEnvironmentContextApiRoutes/);
   assert.match(httpServer, /mobileApiDispatcher\.handle\(req, res\)/);
   assert.match(dispatcher, /publicApiRoutes\.handle\(req, res, url\)/);
   assert.match(mobilePlatformComposition, /createSystemApiRoutes/);
@@ -1437,6 +1443,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(dispatcher, /key: "pushApiRoutes"/);
   assert.match(mobilePlatformComposition, /createNativeDeviceApiRoutes/);
   assert.match(dispatcher, /key: "nativeDeviceApiRoutes"/);
+  assert.match(dispatcher, /key: "nativeEnvironmentContextApiRoutes"/);
   assert.match(server, /createAppRouteUrlService/);
   assert.match(appRouteUrl, /function appRouteUrl/);
   assert.doesNotMatch(server, /function appRouteUrl/);
@@ -1998,9 +2005,11 @@ function testServiceFirstArchitectureContract() {
   assert.match(runtime, /createMobileRuntimeGatewayFacadeService/);
   assert.match(runtime, /createMobileRuntimeFileAccessFacadeService/);
   assert.match(mobileApiCompositionSource, /createMobileApiDispatcher/);
+  assert.match(mobileApiCompositionSource, /nativeEnvironmentContextApiRoutes/);
   assert.match(mobileApiDirectoryCompositionSource, /createDirectoryBrowserApiRoutes/);
   assert.match(mobileApiLearningCompositionSource, /createLearningApiRoutes/);
   assert.match(mobileApiPlatformCompositionSource, /createNativeDeviceApiRoutes/);
+  assert.match(mobileApiPlatformCompositionSource, /createNativeEnvironmentContextApiRoutes/);
   assert.doesNotMatch(runtime, /function\s+\w+[\s\S]*?readFileSync[\s\S]*?writeFileSync/);
   assert.doesNotMatch(server, /function\s+\w+[\s\S]*?createMobileApiComposition/);
   const boundaryDoc = fileText("docs/ARCHITECTURE_BOUNDARY.md");

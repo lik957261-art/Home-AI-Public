@@ -14,16 +14,24 @@ async function api(path, options = {}) {
 }
 function clearStoredAccessKey() {
   state.key = "";
-  localStorage.removeItem("hermesWebKey");
-  document.cookie = "hermes_web_key=; Path=/; Max-Age=0; SameSite=Lax";
+  try {
+    localStorage.removeItem("hermesWebKey");
+  } catch (_) {}
+  try {
+    document.cookie = "hermes_web_key=; Path=/; Max-Age=0; SameSite=Lax";
+  } catch (_) {}
 }
 
 function storeAccessKey(key) {
   const value = String(key || "").trim();
   if (!value) return;
   state.key = value;
-  localStorage.setItem("hermesWebKey", value);
-  document.cookie = `hermes_web_key=${encodeURIComponent(value)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  try {
+    localStorage.setItem("hermesWebKey", value);
+  } catch (_) {}
+  try {
+    document.cookie = `hermes_web_key=${encodeURIComponent(value)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+  } catch (_) {}
 }
 
 function logoutCurrentAccount() {
@@ -227,6 +235,8 @@ async function enterAfterSetup() {
 async function login(key) {
   await fetch("/api/login", {
     method: "POST",
+    cache: "no-store",
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ key }),
   }).then(async (res) => {

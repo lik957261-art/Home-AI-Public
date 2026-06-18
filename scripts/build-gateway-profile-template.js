@@ -101,6 +101,7 @@ function standardPluginNames(values = {}) {
   if (boolValue(values.weather_plugin_enabled)) out.push("hermes-mobile-weather");
   if (boolValue(values.web_plugin_enabled)) out.push("hermes-mobile-web");
   if (boolValue(values.http_plugin_enabled)) out.push("hermes-mobile-http");
+  if (boolValue(values.current_environment_plugin_enabled)) out.push("hermes-mobile-current-environment");
   if (boolValue(values.docx_plugin_enabled)) out.push("hermes-mobile-docx");
   if (boolValue(values.audio_plugin_enabled)) out.push("hermes-mobile-audio");
   if (boolValue(values.image_plugin_enabled)) out.push("hermes-mobile-image");
@@ -139,6 +140,7 @@ function standardExtraToolsets(values = {}) {
   const extras = [];
   if (boolValue(values.weather_plugin_enabled)) extras.push("weather");
   if (boolValue(values.http_plugin_enabled)) extras.push("http");
+  if (boolValue(values.current_environment_plugin_enabled)) extras.push("current_environment");
   if (boolValue(values.cronjob_plugin_enabled)) extras.push("cronjob_mobile");
   return extras;
 }
@@ -321,6 +323,24 @@ function mcpServersForProfile(values = {}) {
       },
     });
   }
+  if (boolValue(values.music_enabled)) {
+    servers.push({
+      name: "music",
+      command: valueMapValue(values, "music_mcp_command", "node"),
+      args: [
+        valueMapValue(values, "music_mcp_path"),
+      ],
+      env: {
+        HERMES_HOME: profileLink,
+        HERMES_PROFILE: profile,
+        MUSIC_SQLITE_PATH: valueMapValue(values, "music_sqlite_path"),
+      },
+      extra: {
+        startup_timeout: "60",
+        connect_timeout: "60",
+      },
+    });
+  }
   if (boolValue(values.email_enabled)) {
     servers.push({
       name: "email",
@@ -393,6 +413,7 @@ function renderProfileConfigYaml(values = {}) {
   if (boolValue(values.health_enabled)) extras.push("health");
   if (boolValue(values.growth_enabled)) extras.push("growth");
   if (boolValue(values.moira_enabled)) extras.push("moira");
+  if (boolValue(values.music_enabled)) extras.push("music");
   if (boolValue(values.email_enabled)) extras.push("email");
   if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
   appendStandardBase(lines, [...STANDARD_TOOLSETS, ...extras], [...STANDARD_TOOLSETS, ...extras], standardPluginNames(values));
@@ -436,6 +457,7 @@ function renderMaintenanceConfigYaml(values = {}) {
   if (boolValue(values.health_enabled)) extras.push("health");
   if (boolValue(values.growth_enabled)) extras.push("growth");
   if (boolValue(values.moira_enabled)) extras.push("moira");
+  if (boolValue(values.music_enabled)) extras.push("music");
   if (boolValue(values.email_enabled)) extras.push("email");
   if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
   const toolsets = [

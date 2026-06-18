@@ -9,6 +9,7 @@ const DEFAULT_LOW_PERMISSION_TOOLSETS = Object.freeze([
   "search",
   "x_search",
   "http",
+  "current_environment",
   "weather",
   "browser",
   "file",

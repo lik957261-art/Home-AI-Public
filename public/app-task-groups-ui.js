@@ -158,6 +158,30 @@ function sortedThreadMessages(messages) {
   });
 }
 
+function isSyntheticTaskSummaryMessage(message = {}) {
+  return /:last-(user|receipt)$/.test(String(message?.id || ""));
+}
+
+function taskGroupMessagesForThread(thread, taskGroupId = "", fallbackMessages = []) {
+  const id = String(taskGroupId || "").trim();
+  if (!id) return [];
+  const realThreadMessages = (thread?.messages || [])
+    .filter((message) => (
+      String(message?.taskGroupId || "") === id
+      && !isSyntheticTaskSummaryMessage(message)
+    ));
+  if (realThreadMessages.length) return sortedThreadMessages(realThreadMessages);
+  return sortedThreadMessages((fallbackMessages || [])
+    .filter((message) => String(message?.taskGroupId || "") === id));
+}
+
+function taskGroupWithThreadMessages(thread, group) {
+  if (!group?.id) return group || null;
+  return Object.assign({}, group, {
+    messages: taskGroupMessagesForThread(thread, group.id, group.messages || []),
+  });
+}
+
 function chatMessagePageParams(extra = {}) {
   const params = new URLSearchParams();
   params.set("messageMode", "chat");

@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const CONTRACT_VERSION = "20260611-v3";
+const CONTRACT_VERSION = "20260618-v4";
 
 const REQUIRED_CENTRAL_DOCS = [
   "plugin-workspace-platform-contract.md",
@@ -166,6 +166,21 @@ const PLUGINS = [
     devRuntimeKeywords: ["node", "npm"],
     optionalHttpProbes: [
       { name: "client_version", path: "/api/moira/client-version", requireText: ["moira"] },
+    ],
+  },
+  {
+    id: "music",
+    title: "Music",
+    dirName: "Music",
+    port: 4891,
+    commonPaths: ["/Users/example/path"],
+    macSourcePaths: ["/Users/example/path"],
+    launchdLabel: "com.hermesmobile.plugin.music",
+    manifestPath: "/api/v1/hermes/plugin/manifest",
+    devRuntimeKeywords: ["node", "npm", "vite"],
+    optionalHttpProbes: [
+      { name: "mcp_schema", path: "/api/v1/music/mcp/schemas", requireText: ["music.roon_listening_summary", "music.get_favorites"] },
+      { name: "roon_status", path: "/api/v1/music/roon/status", requireText: ["history_backfill_supported"] },
     ],
   },
   {
@@ -510,10 +525,24 @@ function macDevDirName(plugin) {
 }
 
 function resolvePluginWorkspacePath(plugin, options) {
-  const candidates = [
+  const workspaceScopedCandidates = [
     path.join(options.workspaceRoot, plugin.dirName),
     path.join(options.workspaceRoot, "plugins", macDevDirName(plugin)),
     path.join(options.workspaceRoot, macDevDirName(plugin)),
+  ];
+  const workspaceScoped = workspaceScopedCandidates.find((candidate) => exists(candidate));
+  const defaultWorkspaceRoot = path.resolve(options.repoRoot, "..");
+  const realRepoRoot = path.resolve(__dirname, "..");
+  const allowCommonPathFallback = (
+    path.resolve(options.repoRoot) === realRepoRoot
+    && path.resolve(options.workspaceRoot) === defaultWorkspaceRoot
+  );
+  if (workspaceScoped || !allowCommonPathFallback) {
+    return workspaceScoped || workspaceScopedCandidates[0];
+  }
+  const candidates = [
+    ...workspaceScopedCandidates,
+    ...(plugin.commonPaths || []),
   ];
   return candidates.find((candidate) => exists(candidate)) || candidates[0];
 }

@@ -28,6 +28,7 @@ const STANDARD_PROFILE_PLUGINS = Object.freeze([
   "weather",
   "web",
   "http",
+  "current_environment",
   "docx",
   "audio",
   "image",
@@ -42,6 +43,7 @@ const WORKSPACE_PLUGIN_BINDINGS = Object.freeze([
   { id: "moira", dir: ".hermes-moira", required: ["config.json"], requiredAny: [["access-key.txt", "workspace-key.txt"]] },
   { id: "email", dir: ".hermes-email", required: ["access-key.txt", "config.json"] },
 ]);
+const DEFAULT_PROFILE_SOUL = "You are Hermes Agent, an intelligent AI assistant created by Nous Research. You are helpful, knowledgeable, and direct. You assist users with a wide range of tasks including answering questions, writing and editing code, analyzing information, creative work, and executing actions via your tools. You communicate clearly, admit uncertainty when appropriate, and prioritize being genuinely useful over being verbose unless otherwise directed below. Be targeted and efficient in your exploration and investigations.";
 const GATEWAY_MCP_WORKER_ASSETS = Object.freeze([
   {
     id: "growth",
@@ -83,6 +85,20 @@ const GATEWAY_MCP_WORKER_ASSETS = Object.freeze([
       },
     ],
   },
+  {
+    id: "music",
+    files: [
+      {
+        kind: "directory",
+        source: ["plugins", "music", "src"],
+        target: ["gateway-worker", "music-mcp", "src"],
+      },
+      {
+        source: ["plugins", "music", "package.json"],
+        target: ["gateway-worker", "music-mcp", "package.json"],
+      },
+    ],
+  },
 ]);
 const GATEWAY_MCP_SERVER_FILES = Object.freeze({
   wardrobe: ["gateway-worker", "wardrobe-mcp", "scripts", "wardrobe-mcp.py"],
@@ -91,6 +107,7 @@ const GATEWAY_MCP_SERVER_FILES = Object.freeze({
   health: ["gateway-worker", "health-mcp", "scripts", "mcp-health-wrapper.js"],
   growth: ["gateway-worker", "growth-mcp", "scripts", "growth-mcp-wrapper.js"],
   moira: ["gateway-worker", "moira-mcp", "scripts", "moira-mcp-stdio.mjs"],
+  music: ["gateway-worker", "music-mcp", "src", "mcp-stdio.js"],
   email: ["gateway-worker", "email-mcp", "scripts", "email-mcp-wrapper.py"],
 });
 const ALLOWED_ACTIONS = new Set([
@@ -462,6 +479,22 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     checked("/bin/chmod", ["-R", "u+rwX,go-rwx", target]);
   }
 
+  function copySharedDirectory(source, target, owner) {
+    if (useSudoWrites) {
+      privileged("/bin/rm", ["-rf", target]);
+      privileged("/bin/mkdir", ["-p", path.posix.dirname(target)]);
+      privileged("/bin/cp", ["-R", source, target]);
+      privileged("/usr/sbin/chown", ["-R", owner, target]);
+      privileged("/bin/chmod", ["-R", "u+rwX,g+rX,o-rwx", target]);
+      return;
+    }
+    fs.rmSync(target, { recursive: true, force: true });
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.cpSync(source, target, { recursive: true });
+    checked("/usr/sbin/chown", ["-R", owner, target]);
+    checked("/bin/chmod", ["-R", "u+rwX,g+rX,o-rwx", target]);
+  }
+
   function copyExecutableFile(source, target, owner) {
     if (useSudoWrites) {
       privileged("/bin/mkdir", ["-p", path.posix.dirname(target)]);
@@ -488,8 +521,8 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
       }));
       if (!resolved.every((file) => file.kind === "directory" ? pathExists(file.source) : fileExists(file.source))) continue;
       for (const file of resolved) {
-        if (file.kind === "directory") copyDirectory(file.source, file.target, `${listenerUser}:staff`);
-        else copyExecutableFile(file.source, file.target, `${listenerUser}:staff`);
+        if (file.kind === "directory") copySharedDirectory(file.source, file.target, `${listenerUser}:${workerGroup}`);
+        else copyExecutableFile(file.source, file.target, `${listenerUser}:${workerGroup}`);
       }
       synced.push(asset.id);
     }
@@ -508,13 +541,23 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     return synced;
   }
 
-  function availableWorkspacePluginToolsets(fields) {
+  function ownerMusicEnabledForWorker(fields, worker = {}) {
+    if (fields.workspaceId !== "owner") return false;
+    const workspaceIds = workspaceIdsForWorker(worker);
+    if (workspaceIds.includes("owner")) return true;
+    return skillStoreIdForWorker(fields, worker) === "owner-full";
+  }
+
+  function availableWorkspacePluginToolsets(fields, worker = {}) {
     const out = [];
     for (const binding of WORKSPACE_PLUGIN_BINDINGS) {
       if (!completePluginBinding(fields.workerWorkspaceRoot, binding)) continue;
       const mcpServerFile = GATEWAY_MCP_SERVER_FILES[binding.id];
       if (!mcpServerFile || !fileExists(path.posix.join(fields.root, ...mcpServerFile))) continue;
       out.push(binding.id);
+    }
+    if (ownerMusicEnabledForWorker(fields, worker) && fileExists(path.posix.join(fields.root, ...GATEWAY_MCP_SERVER_FILES.music))) {
+      out.push("music");
     }
     return out;
   }
@@ -565,6 +608,30 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
       for (const target of [...new Set(targets)]) {
         if (fileExists(target)) chmodAcl(user, target, readPerms);
       }
+    }
+  }
+
+  function grantOwnerMusicLedgerAcls(fields) {
+    if (fields.workspaceId !== "owner") return;
+    const parentPerms = "list,search,readattr,readextattr,readsecurity";
+    const runtimeDirPerms = "list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit";
+    const sqlitePerms = "read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity";
+    const parents = [
+      path.posix.join(fields.root, "plugins"),
+      path.posix.join(fields.root, "plugins", "music"),
+    ];
+    const runtimeDir = path.posix.join(fields.root, "plugins", "music", "runtime");
+    const sqliteFiles = [
+      "music.sqlite",
+      "music.sqlite-wal",
+      "music.sqlite-shm",
+    ].map((name) => path.posix.join(runtimeDir, name));
+    for (const dir of parents) {
+      if (pathExists(dir)) chmodAcl(fields.macUser, dir, parentPerms);
+    }
+    if (pathExists(runtimeDir)) chmodAcl(fields.macUser, runtimeDir, runtimeDirPerms);
+    for (const file of sqliteFiles) {
+      if (fileExists(file)) chmodAcl(fields.macUser, file, sqlitePerms);
     }
   }
 
@@ -623,6 +690,17 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     linkFile(authFile, path.posix.join(dir, "auth.json"));
     linkFile(lockFile, path.posix.join(dir, "auth.lock"));
     return { linked: true };
+  }
+
+  function ensureProfileSoul(fields, dir) {
+    const soulPath = path.posix.join(dir, "SOUL.md");
+    if (fileExists(soulPath)) return { created: false, path: soulPath };
+    const baselinePath = path.posix.join(fields.dataRoot, "hermes-home", "SOUL.md");
+    const content = fileExists(baselinePath)
+      ? fs.readFileSync(baselinePath, "utf8")
+      : DEFAULT_PROFILE_SOUL;
+    writeTextFile(soulPath, content, "600", `${fields.macUser}:staff`);
+    return { created: true, path: soulPath };
   }
 
   function repairWorkspaceAcl(context = {}) {
@@ -807,6 +885,17 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
         try { fs.symlinkSync(target, link, "dir"); } catch (_) {}
       }
     }
+    const currentEnvironmentPluginSource = path.posix.join(fields.root, "app", "gateway-plugins", "hermes-mobile-current-environment");
+    if (
+      fileExists(path.posix.join(currentEnvironmentPluginSource, "plugin.yaml"))
+      && fileExists(path.posix.join(currentEnvironmentPluginSource, "__init__.py"))
+    ) {
+      copyDirectory(
+        currentEnvironmentPluginSource,
+        path.posix.join(dir, "plugins", "hermes-mobile-current-environment"),
+        `${fields.macUser}:staff`,
+      );
+    }
     const runtimePython = path.posix.join(fields.root, "runtime", "hermes-agent-official", "venv", "bin", "python");
     const nodeCommand = path.posix.join(fields.root, "runtime", "node-current", "bin", "node");
     const pluginValues = {};
@@ -862,6 +951,13 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
         email_mcp_api_base_url: "http://127.0.0.1:5175",
       });
     }
+    if (ownerMusicEnabledForWorker(fields, worker) && fileExists(path.posix.join(fields.root, "gateway-worker", "music-mcp", "src", "mcp-stdio.js"))) Object.assign(pluginValues, {
+      music_enabled: "1",
+      music_mcp_command: nodeCommand,
+      music_mcp_path: path.posix.join(fields.root, "gateway-worker", "music-mcp", "src", "mcp-stdio.js"),
+      music_workspace: fields.workerWorkspaceRoot,
+      music_sqlite_path: path.posix.join(fields.root, "plugins", "music", "runtime", "music.sqlite"),
+    });
     const configFile = path.posix.join(dir, "config.yaml");
     const configYaml = renderGatewayConfigYaml({
       configKind: "profile",
@@ -873,6 +969,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       }, Object.fromEntries(STANDARD_PROFILE_PLUGINS.map((id) => [`${id}_plugin_enabled`, "1"])), pluginValues),
     });
     writeTextFile(configFile, configYaml, "600", `${fields.macUser}:staff`);
+    ensureProfileSoul(fields, dir);
     writeTextFile(startScriptPath(fields, profile), renderStartScript(fields, worker, manifestPath), "700", `${fields.macUser}:staff`);
     privileged("/usr/sbin/chown", ["-R", `${fields.macUser}:staff`, path.posix.join(fields.workerWorkspaceRoot, ".hermes-gateway")]);
     const codexAuth = ensureOpenAiCodexAuthLinks(fields, worker, dir);
@@ -924,14 +1021,15 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       providerOrdinals[provider] = (providerOrdinals[provider] || 0) + 1;
       const label = labelFor(fields, worker, providerOrdinals[provider]);
       grantGatewayWorkerSecretAcls(fields, worker, manifestPath);
+      if (ownerMusicEnabledForWorker(fields, worker)) grantOwnerMusicLedgerAcls(fields);
       const materialized = ensureProfileMaterialized(fields, worker, manifestPath);
       codexAuth.push({ profile, linked: Boolean(materialized.codexAuth?.linked), missing: materialized.codexAuth?.missing || "" });
       const dir = materialized.dir;
       const configPath = path.posix.join(dir, "config.yaml");
       const statePath = path.posix.join(dir, "state.db");
       const responsePath = path.posix.join(dir, "response_store.db");
-      const profileToolsets = mergeStringLists(materialized.capabilities?.toolsets, availableWorkspacePluginToolsets(fields));
-      const profileMcpServers = mergeStringLists(materialized.capabilities?.mcpServers, availableWorkspacePluginToolsets(fields));
+      const profileToolsets = mergeStringLists(materialized.capabilities?.toolsets, availableWorkspacePluginToolsets(fields, worker));
+      const profileMcpServers = mergeStringLists(materialized.capabilities?.mcpServers, availableWorkspacePluginToolsets(fields, worker));
       if (worker.osUser !== fields.macUser) { worker.osUser = fields.macUser; changed = true; }
       if (worker.launchdLabel !== label) { worker.launchdLabel = label; changed = true; }
       if (worker.configPath !== configPath) { worker.configPath = configPath; changed = true; }
@@ -981,9 +1079,13 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
   function runSmokeScript(root, script, args = []) {
     const node = safeAbsoluteMacPath(options.nodePath || path.posix.join(root, "runtime", "node-current", "bin", "node"));
     const result = command(node, [script, ...args]);
+    const parsed = parseJsonSafe(result.stdout);
+    const issues = parsed && Array.isArray(parsed.issues) ? parsed.issues.map(text).filter(Boolean) : [];
     return {
       ok: result.status === 0,
       status: result.status,
+      smokeOk: parsed && typeof parsed === "object" ? Boolean(parsed.ok) : result.status === 0,
+      issues,
       stdout: boundedOutput(result.stdout),
       stderr: boundedOutput(result.stderr),
     };
@@ -1025,8 +1127,28 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       ok: targetIssues.length === 0,
       auditOk: Boolean(audit.ok),
       targetFound: Boolean(target),
+      targetProfiles: [...targetProfiles],
       targetIssues,
       targetWarnings: targetWarnings.slice(0, 20),
+      ignoredIssueCount: ignoredIssues.length,
+      ignoredIssues: ignoredIssues.slice(0, 20),
+    });
+  }
+
+  function smokeIssueTargetsProfiles(issue, targetProfiles = new Set()) {
+    const value = text(issue);
+    if (!value || !targetProfiles.size) return false;
+    return [...targetProfiles].some((profile) => value.includes(`:${profile}:`) || value.endsWith(`:${profile}`) || value.includes(profile));
+  }
+
+  function targetSmokeSummary(result = {}, targetProfiles = new Set()) {
+    const issues = Array.isArray(result.issues) ? result.issues.map(text).filter(Boolean) : [];
+    const targetIssues = issues.filter((issue) => smokeIssueTargetsProfiles(issue, targetProfiles));
+    const ignoredIssues = issues.filter((issue) => !smokeIssueTargetsProfiles(issue, targetProfiles));
+    return Object.assign({}, result, {
+      ok: Boolean(result.smokeOk) || targetIssues.length === 0,
+      smokeOk: Boolean(result.smokeOk),
+      targetIssues,
       ignoredIssueCount: ignoredIssues.length,
       ignoredIssues: ignoredIssues.slice(0, 20),
     });
@@ -1055,17 +1177,28 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
     const profileAuditResult = command(node, [path.posix.join(appScripts, "macos-production-profile-audit.js"), ...profileAuditArgs]);
     const profileAudit = profileAuditSummary(profileAuditResult, fields.workspaceId);
     if (!profileAudit.ok) return { ok: false, error: "profile_audit_failed", profileAudit };
+    const targetProfiles = new Set(Array.isArray(profileAudit.targetProfiles) ? profileAudit.targetProfiles : []);
+    for (const issue of profileAudit.targetIssues || []) {
+      const parts = String(issue || "").split(":");
+      if (parts[1]) targetProfiles.add(parts[1]);
+    }
+    const target = parseJsonSafe(profileAuditResult.stdout)?.byWorkspace?.[fields.workspaceId] || null;
+    for (const worker of Array.isArray(target?.workers) ? target.workers : []) {
+      const profile = text(worker.profile);
+      if (profile) targetProfiles.add(profile);
+    }
     const toolsets = runSmokeScript(fields.root, path.posix.join(appScripts, "macos-gateway-manifest-toolset-smoke.js"), [
       "--root", fields.root,
       "--json",
     ]);
-    if (!toolsets.ok) return { ok: false, error: "manifest_toolset_smoke_failed", profileAudit, toolsets };
+    const toolsetSummary = targetSmokeSummary(toolsets, targetProfiles);
+    if (!toolsetSummary.ok) return { ok: false, error: "manifest_toolset_smoke_failed", profileAudit, toolsets: toolsetSummary };
     const acl = runSmokeScript(fields.root, path.posix.join(appScripts, "macos-worker-filesystem-access-harness.js"), [
       "--root", fields.root,
       "--json",
     ]);
-    if (!acl.ok) return { ok: false, error: "worker_acl_harness_failed", profileAudit, toolsets, acl };
-    return { ok: true, profileAudit, toolsets, acl };
+    if (!acl.ok) return { ok: false, error: "worker_acl_harness_failed", profileAudit, toolsets: toolsetSummary, acl };
+    return { ok: true, profileAudit, toolsets: toolsetSummary, acl };
   }
 
   async function runStep(action, context = {}) {

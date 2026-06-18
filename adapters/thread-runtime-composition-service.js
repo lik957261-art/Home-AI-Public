@@ -58,6 +58,7 @@ function createThreadRuntimeCompositionService(deps = {}) {
         detectDirectKanbanCreateRequest: deps.detectDirectKanbanCreateRequest,
         detectDirectTodoCreateIntent: deps.detectDirectTodoCreateIntent,
         detectDirectTodoCreateIntentForWeb: deps.detectDirectTodoCreateIntentForWeb,
+        directoryTopicIndexService: deps.directoryTopicIndexService,
         directTodoCreateEnabled: deps.directTodoCreateEnabled,
         formatDirectTodoCreateSuccessMessage: deps.formatDirectTodoCreateSuccessMessage,
         gatewayRoutingForModelRun: deps.gatewayRoutingForModelRun,

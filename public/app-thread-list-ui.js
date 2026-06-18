@@ -278,7 +278,15 @@ function setTopicPluginDock(html = "") {
   if (!hasDockContent && typeof updateTopicPluginDockChrome === "function") updateTopicPluginDockChrome(false);
 }
 
-function directoryTopicRenderSignature(threadId = "", groups = []) {
+function directoryTopicRenderSignature(threadId = "", groups = [], collections = null) {
+  if (Array.isArray(collections)) {
+    const entries = collections.map((collection) => [
+      collection?.key || "",
+      collection?.updatedAt || "",
+      (collection?.groups || []).map((group) => group?.id || "").join(","),
+    ].join(":")).sort();
+    return [threadId || "", entries.join("|")].join("::");
+  }
   const entries = (groups || []).map((group) => {
     const routeKey = typeof directoryTopicPrimaryRoute === "function"
       ? directoryTopicRouteKey(directoryTopicPrimaryRoute(group), group)
@@ -358,16 +366,22 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       focusComposerSoon();
       return;
     }
-    const directoryTopicSignature = directoryTopicRenderSignature(thread.id, groups);
+    const indexedDirectoryTopicCollections = Array.isArray(thread.directoryTopicCollections)
+      ? thread.directoryTopicCollections
+      : null;
+    const directoryTopicSignature = directoryTopicRenderSignature(thread.id, groups, indexedDirectoryTopicCollections);
     const directoryTopicCollectionsReady = options.directoryTopicCollectionsReady === true
+      || Boolean(indexedDirectoryTopicCollections)
       || state.directoryTopicCollectionsReadySignature === directoryTopicSignature;
     if (directoryTopicCollectionsReady) {
       state.directoryTopicCollectionsReadySignature = directoryTopicSignature;
       state.directoryTopicRenderPendingSignature = "";
     }
-    const rawDirectoryTopicCollections = directoryTopicCollectionsReady && typeof directoryTopicCollectionsForGroups === "function"
-      ? directoryTopicCollectionsForGroups(groups.filter((group) => !(typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic)))
-      : [];
+    const rawDirectoryTopicCollections = indexedDirectoryTopicCollections || (
+      directoryTopicCollectionsReady && typeof directoryTopicCollectionsForGroups === "function"
+        ? directoryTopicCollectionsForGroups(groups.filter((group) => !(typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic)))
+        : []
+    );
     const claimedDirectoryTopicCollections = typeof pluginTopicClaimedDirectoryTopicCollections === "function"
       ? pluginTopicClaimedDirectoryTopicCollections(rawDirectoryTopicCollections)
       : [];
@@ -422,7 +436,10 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       scheduleDeferredDirectoryTopicRender(thread.id, options.restoreScrollTop, directoryTopicSignature);
     }
   } else {
-    const groupActiveRuns = (selected.messages || [])
+    const selectedMessages = typeof taskGroupMessagesForThread === "function"
+      ? taskGroupMessagesForThread(thread, selected.id, selected.messages || [])
+      : (selected.messages || []);
+    const groupActiveRuns = selectedMessages
       .filter((message) => ["queued", "running"].includes(message.status))
       .map((message) => message.runId)
       .filter(Boolean);
@@ -436,7 +453,6 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
         ? "\u65e0\u6743\u53d1\u8a00"
         : (selected.sharedTopic ? "\u53d1\u5230\u5b66\u4e60\u8bdd\u9898\uff1b@ChatGPT \u624d\u4f1a\u8c03\u7528 AI" : "Reply in this task..."),
     });
-    const selectedMessages = selected.messages || [];
     const keepRenderedTaskMessages = !selectedMessages.length
       && conversation.querySelector("[data-message-id]")
       && (
@@ -496,6 +512,7 @@ function scheduleDeferredDirectoryTopicRender(threadId = "", restoreScrollTop = 
   state.directoryTopicRenderPending = true;
   state.directoryTopicRenderPendingSignature = signature || state.directoryTopicRenderPendingSignature || "";
   const currentScrollTop = $("conversation")?.scrollTop || 0;
+  const scheduledScrollTop = currentScrollTop;
   const nextRestoreScrollTop = Number.isFinite(Number(restoreScrollTop))
     ? Math.max(0, Number(restoreScrollTop) || 0)
     : currentScrollTop;
@@ -510,9 +527,13 @@ function scheduleDeferredDirectoryTopicRender(threadId = "", restoreScrollTop = 
     }
     if (threadId && state.currentThread?.id !== threadId) return;
     if (expectedSignature && state.directoryTopicCollectionsReadySignature === expectedSignature) return;
+    const liveScrollTop = $("conversation")?.scrollTop || 0;
+    const restoreAtRenderTop = Math.abs(liveScrollTop - scheduledScrollTop) > 1
+      ? liveScrollTop
+      : nextRestoreScrollTop;
     renderCurrentThread({
       stickToBottom: false,
-      restoreScrollTop: nextRestoreScrollTop,
+      restoreScrollTop: restoreAtRenderTop,
       directoryTopicCollectionsReady: true,
     });
   };

@@ -44,6 +44,7 @@ finance -> /Users/example/path
 growth -> /Users/example/path
 healthy -> /Users/example/path
 moira -> /Users/example/path
+music -> /Users/example/path
 note -> /Users/example/path
 wardrobe -> /Users/example/path
 ```
@@ -284,6 +285,15 @@ smokes. It does not accept a single `--source`, `--restart-label`, or
 `--plugin health` as a readable alias; the actual source and production
 directory remain `plugins/healthy`.
 
+Normal plugin deployments include required frontend entry proof files in the
+same production hash validation used by Home AI static deploys. Email must
+include `dist/web/index.html`; Codex Mobile Web, Growth, and Note must include
+their `public/index.html` entries. If a required proof file is missing from the
+development source, the deployment plan must fail before writing production.
+This prevents a plugin service from launching with a missing iframe entry and
+presenting a black embedded surface. The `--sync-only` first-install path keeps
+its existing source-only semantics and does not run runtime/hash validation.
+
 Growth first production install has one extra launchd bootstrap step because
 `com.hermesmobile.plugin.growth` does not exist until the service is installed.
 Use an explicit source-only sync first, then the shared installer from the Home
@@ -335,6 +345,23 @@ node scripts/install-moira-launchd-service.js --execute --bootstrap --password-f
 Later Moira source deploys use `npm run --silent deploy:macos -- --plugin
 moira ...` with the default `com.hermesmobile.plugin.moira` restart label and
 `http://127.0.0.1:4174/api/v1/hermes/plugin/manifest` health smoke.
+
+Music first production install follows the Owner-only special-plugin pattern.
+The source workspace may live outside the standard plugin checkout root during
+early development, but the central deploy script must still write to the
+standard production target:
+
+```bash
+npm run --silent deploy:macos -- --plugin music --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+node scripts/install-music-launchd-service.js --json
+node scripts/install-music-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+```
+
+Before bootstrap, build the Music web bundle and install production
+dependencies in the synced production plugin directory. Later Music source
+deploys use `npm run --silent deploy:macos -- --plugin music ...` with the
+default `com.hermesmobile.plugin.music` restart label and
+`http://127.0.0.1:4891/api/v1/hermes/plugin/manifest` health smoke.
 
 Growth plugin-manager grants also require the Home AI listener LaunchDaemon to
 set:

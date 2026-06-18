@@ -11,6 +11,7 @@ const {
   DEFAULT_GROWTH_PLUGIN_MANIFEST_URL,
   DEFAULT_HEALTH_PLUGIN_MANIFEST_URL,
   DEFAULT_MOIRA_PLUGIN_MANIFEST_URL,
+  DEFAULT_MUSIC_PLUGIN_MANIFEST_URL,
   DEFAULT_NOTE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,
@@ -665,6 +666,26 @@ async function testCodexPluginCannotBeGrantedToNonOwner() {
   assert.equal(service.listInstalled().find((item) => item.id === "codex-mobile").allowWorkspaceGrant, false);
 }
 
+async function testMusicPluginCannotBeGrantedToNonOwner() {
+  const service = createHermesPluginService({
+    plugins: [{ id: "music", manifestUrl: "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["weixin_wuping"] }],
+    fetch() {
+      throw new Error("music non-owner grant must not fetch manifest");
+    },
+  });
+  const configured = configuredPlugins({
+    plugins: [{ id: "music", manifestUrl: "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["weixin_wuping"] }],
+  })[0];
+  assert.equal(configured.allowWorkspaceGrant, false);
+  assert.deepEqual(configured.authorizedWorkspaceIds, []);
+  assert.equal((await service.grantWorkspace({ id: "music", workspaceId: "weixin_wuping" })).error, "plugin_workspace_grant_not_allowed");
+  const manifest = await service.manifest({ id: "music", workspaceId: "weixin_wuping" });
+  assert.equal(manifest.available, false);
+  assert.deepEqual(service.list({ workspaceId: "weixin_wuping" }), []);
+  assert.equal(service.listInstalled().find((item) => item.id === "music").allowWorkspaceGrant, false);
+  assert.equal(service.listInstalled().find((item) => item.id === "music").riskLevel, "owner-critical");
+}
+
 async function testFrameAncestorsBlockedReturnsUnavailable() {
   const service = createHermesPluginService({
     plugins: [{ id: "wardrobe", manifestUrl: "https://wardrobe.example.test/api/v1/hermes/plugin/manifest" }],
@@ -719,6 +740,7 @@ async function testDefaultLocalManifestUrls() {
   assert.equal(service.list()[2].manifestUrl, DEFAULT_FINANCE_PLUGIN_MANIFEST_URL);
   assert.equal(service.list()[3].manifestUrl, DEFAULT_EMAIL_PLUGIN_MANIFEST_URL);
   assert.equal(service.list().find((item) => item.id === "moira").manifestUrl, DEFAULT_MOIRA_PLUGIN_MANIFEST_URL);
+  assert.equal(service.list().find((item) => item.id === "music").manifestUrl, DEFAULT_MUSIC_PLUGIN_MANIFEST_URL);
   assert.equal(service.listInstalled()[0].title, "衣橱");
   assert.equal(service.listInstalled()[1].title, "Codex");
   assert.equal(service.listInstalled()[2].title, "记账");
@@ -726,6 +748,7 @@ async function testDefaultLocalManifestUrls() {
   assert.equal(service.listInstalled()[4].manifestUrl, DEFAULT_HEALTH_PLUGIN_MANIFEST_URL);
   assert.equal(service.listInstalled()[6].title, "成长");
   assert.equal(service.listInstalled()[7].title, "星盘");
+  assert.equal(service.listInstalled()[8].title, "音乐");
 }
 
 function testInstalledPluginListReflectsWorkspaceKeyBindings() {
@@ -740,6 +763,8 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   const ownerGrowthConfig = path.join(dir, "drive", "users", "owner", ".hermes-growth", "config.json");
   const ownerMoiraKey = path.join(dir, "drive", "users", "owner", ".hermes-moira", "access-key.txt");
   const ownerMoiraConfig = path.join(dir, "drive", "users", "owner", ".hermes-moira", "config.json");
+  const ownerMusicKey = path.join(dir, "drive", "users", "owner", ".hermes-music", "access-key.txt");
+  const ownerMusicConfig = path.join(dir, "drive", "users", "owner", ".hermes-music", "config.json");
   const wardrobeKey = path.join(dir, "drive", "users", "weixin_wuping", "Hermes-吴萍", "衣橱", ".hermes-wardrobe", "access-key.txt");
   const financeKey = path.join(dir, "drive", "users", "child_workspace", ".hermes-finance", "access-key.txt");
   const financeConfig = path.join(dir, "drive", "users", "child_workspace", ".hermes-finance", "config.json");
@@ -756,6 +781,7 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   fs.mkdirSync(path.dirname(ownerHealthKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerGrowthKey), { recursive: true });
   fs.mkdirSync(path.dirname(ownerMoiraKey), { recursive: true });
+  fs.mkdirSync(path.dirname(ownerMusicKey), { recursive: true });
   fs.mkdirSync(path.dirname(wardrobeKey), { recursive: true });
   fs.mkdirSync(path.dirname(financeKey), { recursive: true });
   fs.mkdirSync(path.dirname(emailKey), { recursive: true });
@@ -779,6 +805,12 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   fs.writeFileSync(ownerGrowthKey, "owner-growth-key\n", "utf8");
   fs.writeFileSync(ownerMoiraKey, "owner-moira-key\n", "utf8");
   fs.writeFileSync(ownerMoiraConfig, JSON.stringify({
+    workspace_id: "owner",
+    hermes_workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }), "utf8");
+  fs.writeFileSync(ownerMusicKey, "owner-music-key\n", "utf8");
+  fs.writeFileSync(ownerMusicConfig, JSON.stringify({
     workspace_id: "owner",
     hermes_workspace_id: "owner",
     access_key_file: "access-key.txt",
@@ -822,6 +854,7 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("health", { dataDir: dir }).sort(), ["owner", "health_workspace"].sort());
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("growth", { dataDir: dir }).sort(), ["owner", "growth_workspace"].sort());
   assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("moira", { dataDir: dir }).sort(), ["owner", "moira_workspace"].sort());
+  assert.deepEqual(discoverPluginWorkspaceIdsFromAccessKeys("music", { dataDir: dir }).sort(), ["owner"].sort());
 
   const service = createHermesPluginService({
     dataDir: dir,
@@ -2738,8 +2771,9 @@ function testFindHealthAccessKeyPath() {
 }
 
 function testFindGrowthAccessKeyPath() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-growth-key-path-"));
   assert.equal(findGrowthAccessKeyPath({ growthAccessKeyPath: __filename }), __filename);
-  assert.equal(findGrowthAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+  assert.equal(findGrowthAccessKeyPath({ workspaceId: "owner" }, { dataDir: dir, env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
 }
 
 function testFindMoiraAccessKeyPath() {
@@ -2813,6 +2847,7 @@ async function run() {
   await testPluginWorkspaceAuthorizationDefaultsToOwnerOnly();
   await testExplicitPluginWorkspaceAuthorizationAllowsNonOwner();
   await testCodexPluginCannotBeGrantedToNonOwner();
+  await testMusicPluginCannotBeGrantedToNonOwner();
   await testFrameAncestorsBlockedReturnsUnavailable();
   await testDefaultLocalManifestUrls();
   testInstalledPluginListReflectsWorkspaceKeyBindings();

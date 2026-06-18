@@ -6,8 +6,17 @@ MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path"
 DESTINATION="${HOMEAI_DISASTER_BACKUP_DESTINATION:-${MOUNT_POINT%/}/HomeAI-Production-Backups/mac-production}"
 STAGING="${HOMEAI_DISASTER_BACKUP_STAGING:-/Users/example/path"
 LABEL="${HOMEAI_DISASTER_BACKUP_LABEL:-daily-nfs-$(date -u +%Y%m%dT%H%M%SZ)}"
+TRANSPORT="${HOMEAI_DISASTER_BACKUP_TRANSPORT:-auto}"
+SSH_TARGET="${HOMEAI_DISASTER_BACKUP_SSH_TARGET:-}"
+SSH_DESTINATION="${HOMEAI_DISASTER_BACKUP_SSH_DESTINATION:-}"
 
-if ! mount | grep -F " on ${MOUNT_POINT} " >/dev/null 2>&1; then
+if [[ "$TRANSPORT" == "auto" && -n "$SSH_TARGET" && -n "$SSH_DESTINATION" ]]; then
+  TRANSPORT="ssh"
+elif [[ "$TRANSPORT" == "auto" ]]; then
+  TRANSPORT="nfs"
+fi
+
+if [[ "$TRANSPORT" == "nfs" ]] && ! mount | grep -F " on ${MOUNT_POINT} " >/dev/null 2>&1; then
   echo "Home AI NAS backup failed: NFS mount is not available at ${MOUNT_POINT}"
   exit 1
 fi
@@ -20,6 +29,7 @@ fi
 export HOMEAI_DISASTER_BACKUP_DESTINATION="$DESTINATION"
 export HOMEAI_DISASTER_BACKUP_STAGING="$STAGING"
 export HOMEAI_DISASTER_BACKUP_LABEL="$LABEL"
+export HOMEAI_DISASTER_BACKUP_TRANSPORT="$TRANSPORT"
 export HOMEAI_DISASTER_BACKUP_USE_SUDO=0
 export HOMEAI_DISASTER_BACKUP_OPERATOR_USER="$(id -un)"
 
@@ -29,7 +39,11 @@ run_output="$("${APP_DIR}/scripts/run-macos-disaster-backup-to-nas.sh" 2>&1)" ||
   exit 1
 }
 
-manifest="${DESTINATION%/}/current/DISASTER-RECOVERY-MANIFEST.json"
+if [[ "$TRANSPORT" == "ssh" ]]; then
+  manifest="${STAGING%/}/current/DISASTER-RECOVERY-MANIFEST.json"
+else
+  manifest="${DESTINATION%/}/current/DISASTER-RECOVERY-MANIFEST.json"
+fi
 if [[ ! -f "$manifest" ]]; then
   echo "Home AI NAS backup failed: manifest was not published to ${manifest}"
   exit 1

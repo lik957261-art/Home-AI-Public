@@ -52,6 +52,7 @@ const DEFAULT_HEALTH_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4877/api/v1/hermes/
 const DEFAULT_NOTE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest";
 const DEFAULT_GROWTH_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest";
 const DEFAULT_MOIRA_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest";
+const DEFAULT_MUSIC_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
 const PLUGIN_APPEARANCE_THEMES = new Set(["system", "dark", "light"]);
@@ -111,6 +112,12 @@ function configuredMoiraManifestUrl(env = process.env) {
   return stringValue(env.HERMES_MOBILE_MOIRA_PLUGIN_MANIFEST_URL)
     || stringValue(env.HERMES_MOBILE_PLUGIN_MOIRA_MANIFEST_URL)
     || DEFAULT_MOIRA_PLUGIN_MANIFEST_URL;
+}
+
+function configuredMusicManifestUrl(env = process.env) {
+  return stringValue(env.HERMES_MOBILE_MUSIC_PLUGIN_MANIFEST_URL)
+    || stringValue(env.HERMES_MOBILE_PLUGIN_MUSIC_MANIFEST_URL)
+    || DEFAULT_MUSIC_PLUGIN_MANIFEST_URL;
 }
 
 function envKeyForPlugin(pluginId, suffix) {
@@ -252,6 +259,14 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
     notifications: { supported: false, routeOwner: "hermes" },
     runtimeSecurity: { wasmEval: true },
   },
+  music: {
+    title: "音乐",
+    riskLevel: "owner-critical",
+    defaultVisibility: "owner-only",
+    allowWorkspaceGrant: false,
+    provisioning: { supported: false, mode: "owner_only" },
+    notifications: { supported: false, routeOwner: "hermes" },
+  },
 });
 
 function pluginSecurityDefaults(pluginId = "") {
@@ -326,6 +341,10 @@ function configuredPlugins(options = {}) {
     {
       id: "moira",
       manifestUrl: configuredMoiraManifestUrl(env),
+    },
+    {
+      id: "music",
+      manifestUrl: configuredMusicManifestUrl(env),
     },
   ];
   return plugins
@@ -901,6 +920,45 @@ function findMoiraWorkspaceLocalAccessKeyPath(input = {}, options = {}) {
   return walk(workspaceRoot, 0);
 }
 
+function findMusicAccessKeyPath(input = {}, options = {}) {
+  const explicit = stringValue(input.musicAccessKeyPath || options.musicAccessKeyPath);
+  if (explicit && fs.existsSync(explicit)) return explicit;
+  const env = options.env || process.env;
+  const workspaceId = stringValue(input.workspaceId || "owner");
+  const candidates = [
+    stringValue(env.HERMES_MOBILE_MUSIC_PLUGIN_ACCESS_KEY_PATH),
+    stringValue(env.HERMES_MOBILE_PLUGIN_MUSIC_ACCESS_KEY_PATH),
+    stringValue(env.MUSIC_HERMES_PLUGIN_ACCESS_KEY_PATH),
+  ].filter(Boolean);
+  const configured = candidates.find((candidate) => fs.existsSync(candidate));
+  if (configured) return configured;
+  const dataDir = stringValue(options.dataDir) || defaultDataDir(env);
+  const workspaceRoot = path.join(dataDir, "drive", "users", workspaceId);
+  const maxDepth = Number(options.maxKeySearchDepth || DEFAULT_MAX_KEY_SEARCH_DEPTH);
+  const targetParts = [".hermes-music", "access-key.txt"];
+
+  function walk(dir, depth) {
+    if (depth > maxDepth) return "";
+    const candidate = path.join(dir, ...targetParts);
+    if (fs.existsSync(candidate)) return candidate;
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return "";
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === ".hermes-cache" || entry.name === "node_modules" || entry.name === ".git") continue;
+      const found = walk(path.join(dir, entry.name), depth + 1);
+      if (found) return found;
+    }
+    return "";
+  }
+
+  return walk(workspaceRoot, 0);
+}
+
 function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
   if (pluginId === "codex-mobile") return findCodexMobileAccessKeyPath(input, options);
   if (pluginId === "finance") return findFinanceAccessKeyPath(input, options);
@@ -909,6 +967,7 @@ function findPluginAccessKeyPath(pluginId, input = {}, options = {}) {
   if (pluginId === "note") return findNoteAccessKeyPath(input, options);
   if (pluginId === "growth") return findGrowthAccessKeyPath(input, options);
   if (pluginId === "moira") return findMoiraAccessKeyPath(input, options);
+  if (pluginId === "music") return findMusicAccessKeyPath(input, options);
   return findWardrobeAccessKeyPath(input, options);
 }
 
@@ -2122,6 +2181,7 @@ module.exports = {
   DEFAULT_GROWTH_PLUGIN_MANIFEST_URL,
   DEFAULT_HEALTH_PLUGIN_MANIFEST_URL,
   DEFAULT_MOIRA_PLUGIN_MANIFEST_URL,
+  DEFAULT_MUSIC_PLUGIN_MANIFEST_URL,
   DEFAULT_NOTE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,

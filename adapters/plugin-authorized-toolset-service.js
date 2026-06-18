@@ -12,6 +12,7 @@ const DEFAULT_GATEWAY_PLUGIN_TOOLSETS = Object.freeze({
   email: "email",
   growth: "growth",
   moira: "moira",
+  music: "music",
 });
 const DEFAULT_CACHE_TTL_MS = 30 * 1000;
 
@@ -128,6 +129,8 @@ function createPluginAuthorizedToolsetService(options = {}) {
     for (const [pluginId, toolset] of Object.entries(pluginToolsets)) {
       if (pluginId === "moira") {
         if (moiraToolsetAuthorizedForWorkspace(targetWorkspaceId)) out.push(toolset);
+      } else if (pluginId === "music") {
+        if (targetWorkspaceId === "owner") out.push(toolset);
       } else if (discoveredWorkspaceIds(pluginId).includes(targetWorkspaceId)) {
         out.push(toolset);
       }

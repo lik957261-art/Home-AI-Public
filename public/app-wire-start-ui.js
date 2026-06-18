@@ -1,6 +1,7 @@
 "use strict";
 
 function preparePrimaryNavigationChange() {
+  if (typeof cancelScheduledSelectedViewLoad === "function") cancelScheduledSelectedViewLoad();
   if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
   if (typeof closeTopMoreMenu === "function") closeTopMoreMenu();
   if (typeof closeTaskCardMenus === "function") closeTaskCardMenus();
@@ -39,6 +40,36 @@ function wireBottomNavigationInteractionGuard() {
   };
   nav.addEventListener("pointerdown", mark, { capture: true, passive: true });
   nav.addEventListener("click", mark, { capture: true });
+}
+
+function cancelScheduledSelectedViewLoad() {
+  const timer = Number(state.scheduledSelectedViewLoadTimer || 0) || 0;
+  if (timer) window.clearTimeout(timer);
+  state.scheduledSelectedViewLoadTimer = 0;
+}
+
+function scheduleSelectedViewLoad(options = {}) {
+  if (typeof cancelScheduledSelectedViewLoad === "function") cancelScheduledSelectedViewLoad();
+  const run = () => {
+    state.scheduledSelectedViewLoadTimer = 0;
+    if (typeof loadSelectedView !== "function") return;
+    loadSelectedView(options).catch(showError);
+  };
+  state.scheduledSelectedViewLoadTimer = window.setTimeout(run, 0);
+}
+
+function openPinnedPluginBottomTab(viewMode, rememberReturnRoute = null) {
+  clearQuotedReply({ render: false });
+  if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
+  if (typeof rememberReturnRoute === "function") rememberReturnRoute();
+  state.viewMode = viewMode;
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
+  state.currentTaskGroupId = "";
+  state.currentThread = null;
+  state.currentThreadId = "";
+  if (typeof applyViewMode === "function") applyViewMode();
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  scheduleSelectedViewLoad();
 }
 
 function wireUi() {
@@ -333,28 +364,8 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
-  $("learningMode")?.addEventListener("click", async () => {
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
-    state.viewMode = "growth";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView();
-  });
-  $("bottomLearningMode")?.addEventListener("click", async () => {
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
-    state.viewMode = "growth";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView();
-  });
+  $("learningMode")?.addEventListener("click", () => openPinnedPluginBottomTab("growth", typeof rememberGrowthPluginReturnRoute === "function" ? rememberGrowthPluginReturnRoute : null));
+  $("bottomLearningMode")?.addEventListener("click", () => openPinnedPluginBottomTab("growth", typeof rememberGrowthPluginReturnRoute === "function" ? rememberGrowthPluginReturnRoute : null));
   $("todosMode").addEventListener("click", async () => {
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
@@ -377,94 +388,15 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView({ skipTaskListWindowRefresh: true });
   });
-  $("bottomWardrobeMode")?.addEventListener("click", async () => {
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberWardrobePluginReturnRoute === "function") rememberWardrobePluginReturnRoute();
-    state.viewMode = "wardrobe";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView();
-  });
-  $("bottomCodexMode")?.addEventListener("click", async () => {
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberCodexPluginReturnRoute === "function") rememberCodexPluginReturnRoute();
-    state.viewMode = "codex";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView();
-  });
-  $("bottomFinanceMode")?.addEventListener("click", async () => {
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberFinancePluginReturnRoute === "function") rememberFinancePluginReturnRoute();
-    state.viewMode = "finance";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView();
-  });
-  $("bottomEmailMode")?.addEventListener("click", async () => {
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberEmailPluginReturnRoute === "function") rememberEmailPluginReturnRoute();
-    state.viewMode = "email";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView();
-  });
-  $("bottomHealthMode")?.addEventListener("click", async () => {
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberHealthPluginReturnRoute === "function") rememberHealthPluginReturnRoute();
-    state.viewMode = "health";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView();
-  });
-  $("bottomNoteMode")?.addEventListener("click", async () => {
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberNotePluginReturnRoute === "function") rememberNotePluginReturnRoute();
-    state.viewMode = "note";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView();
-  });
-  $("bottomGrowthMode")?.addEventListener("click", async () => {
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberGrowthPluginReturnRoute === "function") rememberGrowthPluginReturnRoute();
-    state.viewMode = "growth";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView();
-  });
-  $("bottomMoiraMode")?.addEventListener("click", async () => {
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    if (typeof rememberMoiraPluginReturnRoute === "function") rememberMoiraPluginReturnRoute();
-    state.viewMode = "moira";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView();
-  });
+  $("bottomWardrobeMode")?.addEventListener("click", () => openPinnedPluginBottomTab("wardrobe", typeof rememberWardrobePluginReturnRoute === "function" ? rememberWardrobePluginReturnRoute : null));
+  $("bottomCodexMode")?.addEventListener("click", () => openPinnedPluginBottomTab("codex", typeof rememberCodexPluginReturnRoute === "function" ? rememberCodexPluginReturnRoute : null));
+  $("bottomFinanceMode")?.addEventListener("click", () => openPinnedPluginBottomTab("finance", typeof rememberFinancePluginReturnRoute === "function" ? rememberFinancePluginReturnRoute : null));
+  $("bottomEmailMode")?.addEventListener("click", () => openPinnedPluginBottomTab("email", typeof rememberEmailPluginReturnRoute === "function" ? rememberEmailPluginReturnRoute : null));
+  $("bottomHealthMode")?.addEventListener("click", () => openPinnedPluginBottomTab("health", typeof rememberHealthPluginReturnRoute === "function" ? rememberHealthPluginReturnRoute : null));
+  $("bottomNoteMode")?.addEventListener("click", () => openPinnedPluginBottomTab("note", typeof rememberNotePluginReturnRoute === "function" ? rememberNotePluginReturnRoute : null));
+  $("bottomGrowthMode")?.addEventListener("click", () => openPinnedPluginBottomTab("growth", typeof rememberGrowthPluginReturnRoute === "function" ? rememberGrowthPluginReturnRoute : null));
+  $("bottomMoiraMode")?.addEventListener("click", () => openPinnedPluginBottomTab("moira", typeof rememberMoiraPluginReturnRoute === "function" ? rememberMoiraPluginReturnRoute : null));
+  $("bottomMusicMode")?.addEventListener("click", () => openPinnedPluginBottomTab("music", typeof rememberMusicPluginReturnRoute === "function" ? rememberMusicPluginReturnRoute : null));
   if (typeof wirePinnedPluginBottomTabUnpin === "function") {
     [
       ["bottomWardrobeMode", "wardrobe"],
@@ -475,6 +407,7 @@ function wireUi() {
       ["bottomNoteMode", "note"],
       ["bottomGrowthMode", "growth"],
       ["bottomMoiraMode", "moira"],
+      ["bottomMusicMode", "music"],
     ].forEach(([buttonId, pluginId]) => wirePinnedPluginBottomTabUnpin($(buttonId), pluginId));
   }
   $("threadSearch").addEventListener("input", () => {

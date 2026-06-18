@@ -3,9 +3,21 @@
 const RUN_EVENT_PREVIEW_MAX_CHARS = 180;
 const RUN_PROGRESS_RENDER_THROTTLE_MS = 750;
 const RUN_PROGRESS_FALLBACK_REFRESH_MS = 650;
+const RUN_PROGRESS_FINAL_MESSAGE_REFRESH_MS = 1800;
 const RUN_PROGRESS_START_EVENT_REVEAL_MS = 1000;
 const RUN_PROGRESS_MAX_VISIBLE_EVENTS = 12;
 const RUN_PROGRESS_TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"]);
+const RUN_PROGRESS_TERMINAL_EVENTS = new Set([
+  "response.completed",
+  "run.completed",
+  "response.failed",
+  "run.failed",
+  "response.incomplete",
+  "run.cancelled",
+  "run.canceled",
+  "cancelled",
+  "canceled",
+]);
 const RUN_PROGRESS_START_EVENTS = new Set([
   "run.request_preparing",
   "run.todo_intake_started",
@@ -36,6 +48,11 @@ const RUN_PROGRESS_START_EVENTS = new Set([
 ]);
 const RUN_PROGRESS_HIDDEN_EVENTS = new Set([
   "run.liveness_warning",
+]);
+const RUN_PROGRESS_FINAL_MESSAGE_DONE_EVENTS = new Set([
+  "response.output_item.done",
+  "response.output_text.done",
+  "run.final_message_done",
 ]);
 
 function boundedRunEventPreview(value) {
@@ -96,6 +113,8 @@ function runEventKey(event) {
 function appendRunEventToCurrentThread(payload) {
   if (!state.currentThread || payload.threadId !== state.currentThread.id) return;
   const event = normalizeRunEvent(payload.event || {}, payload.runId || "");
+  const terminalEvent = RUN_PROGRESS_TERMINAL_EVENTS.has(String(event.event || ""));
+  const finalMessageDoneEvent = RUN_PROGRESS_FINAL_MESSAGE_DONE_EVENTS.has(String(event.event || ""));
   state.currentThread.events = Array.isArray(state.currentThread.events) ? state.currentThread.events : [];
   const key = runEventKey(event);
   if (!state.currentThread.events.some((item) => runEventKey(normalizeRunEvent(item)) === key)) {
@@ -112,6 +131,11 @@ function appendRunEventToCurrentThread(payload) {
     clearRunProgressFallbackThreadRefresh(payload.threadId);
   } else {
     scheduleRunProgressFallbackThreadRefresh(payload.threadId);
+  }
+  if (terminalEvent && typeof requestCurrentThreadRefresh === "function") {
+    requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 0 });
+  } else if (finalMessageDoneEvent && typeof requestCurrentThreadRefresh === "function") {
+    requestCurrentThreadRefresh({ stickToBottom: true, delayMs: RUN_PROGRESS_FINAL_MESSAGE_REFRESH_MS });
   }
 }
 

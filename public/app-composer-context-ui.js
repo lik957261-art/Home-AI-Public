@@ -13,7 +13,10 @@ function activeTaskRunIds() {
   if (!isTaskDetailView()) return [];
   const pluginGroups = typeof pluginTopicGroupsForTaskList === "function" ? pluginTopicGroupsForTaskList(state.currentThread) : [];
   const selected = taskListGroupsForThread(state.currentThread).concat(pluginGroups).find((group) => group.id === state.currentTaskGroupId);
-  return (selected?.messages || [])
+  const messages = typeof taskGroupMessagesForThread === "function"
+    ? taskGroupMessagesForThread(state.currentThread, state.currentTaskGroupId, selected?.messages || [])
+    : (selected?.messages || []);
+  return messages
     .filter((message) => ["queued", "running"].includes(message.status))
     .map((message) => message.runId)
     .filter(Boolean);
@@ -159,7 +162,12 @@ function composerDirectoryLabel() {
 }
 
 function composerStatusMessages() {
-  if (isTaskDetailView()) return currentTaskGroup()?.messages || [];
+  if (isTaskDetailView()) {
+    const group = currentTaskGroup();
+    return typeof taskGroupMessagesForThread === "function"
+      ? taskGroupMessagesForThread(state.currentThread, state.currentTaskGroupId, group?.messages || [])
+      : (group?.messages || []);
+  }
   if (isTaskWindowView()) return state.currentThread?.messages || [];
   if (isSingleWindowChatView()) return chatMessagesForThread(state.currentThread);
   if (isSingleWindowView()) return state.currentThread?.messages || [];

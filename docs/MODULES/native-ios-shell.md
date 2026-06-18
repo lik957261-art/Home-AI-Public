@@ -94,6 +94,16 @@ Current native capabilities:
   manager uses `AVAudioEngine`, mono PCM16 chunks, and Home AI
   `/api/voice-input/stream/*` APIs with `X-Hermes-Web-Key`; final text still
   enters the active Home AI Composer through the host composer insertion path.
+- `native_environment_context`: native location and WeatherKit context is
+  exposed to the PWA through `window.HomeAINativeEnvironment.getContext(...)`.
+  The Web shell may attach a compact `environmentContext` to model-bound
+  Composer sends when the user task needs local weather or location context, and
+  in the native shell it also refreshes a compact server-side snapshot before
+  sends. Gateway runs read that TTL-bounded snapshot only through the
+  `current_environment` tool when the model decides it needs current-device
+  facts. Home AI normalizes this payload before persistence/model use and strips
+  full forecast arrays. Standalone PWA clients keep the existing server/Gateway
+  weather fallback.
 
 Near-term priority capabilities:
 
@@ -208,6 +218,51 @@ native shell should still keep audio capture and transport low-latency while
 Home AI writes bounded provisional text into the Composer and later replaces it
 with the final transcript. This improves perceived realtime behavior without
 trading away final transcript quality.
+
+### Native Environment Context
+
+Native environment context is a host-level capability, not a plugin-owned API.
+The native shell may provide approximate current place, timezone, WeatherKit
+current conditions, and a target-time forecast selection. Home AI PWA owns when
+to request it, how to normalize it, and how to fall back when unavailable.
+
+The Web shell should attach this context directly to a model request only for
+tasks that plausibly need current-device local environment facts, such as
+wardrobe outfit selection, weather-aware planning, exercise, or travel. In the
+native shell, ordinary Composer sends may first refresh a compact server-side
+snapshot through `POST /api/native/environment-context`; this is a cache refresh
+for model tools, not prompt injection. The request may include `targetAt` so the
+native shell can select hourly or daily weather for the actual business time.
+
+The current Xcode shell implementation exposes
+`window.HomeAINativeEnvironmentCapability`,
+`window.HomeAINativeEnvironment.getContext(options)`, and
+`getCurrentLocation`. The native manager keeps an in-memory cache with a
+15-minute TTL, honors the native location permission/toggle, rounds approximate
+coordinates, and computes selected weather through WeatherKit with an Open-Meteo
+fallback. It does not push location continuously to Home AI; the Web shell must
+ask for a snapshot.
+
+Home AI Server treats the returned payload as user context, not as a durable
+location stream. Before storing it in message run options, writing a snapshot,
+or showing it to the model, the server must reduce it to a compact
+`environmentContext` containing bounded source, target time, approximate
+place/coordinate precision, and selected weather fields. It must not persist
+full hourly/daily forecast arrays, raw native payloads, Access Keys, plugin
+credentials, or exact coordinates when the native user has not enabled precise
+coordinates. The current server snapshot store defaults to
+`HERMES_MOBILE_ENVIRONMENT_CONTEXT_SNAPSHOT_PATH`, then
+`HERMES_WEB_ENVIRONMENT_CONTEXT_SNAPSHOT_PATH`, then
+`<dataDir>/environment-context-snapshots.json`; entries expire after the native
+cache TTL, capped at one hour.
+
+Plugins and Skills must not call `window.HomeAINativeEnvironment` directly from
+plugin iframes. Gateway profiles expose the `current_environment` toolset for
+model-initiated lookup of the latest authorized snapshot via the bridge host
+route `POST /bridge/current-environment`. If the user asks about another city,
+travel destination, or a target time outside the provided native context, the
+model should use the normal weather tool or ask a bounded follow-up instead of
+treating device GPS as the requested place.
 
 ### System Share And Receive
 

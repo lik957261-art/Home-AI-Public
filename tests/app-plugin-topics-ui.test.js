@@ -105,19 +105,40 @@ assert.match(runActionBody, /openPluginTopicApp\(def\.id, \{ recordUsage: false,
 assert.match(topicCardsBody, /filter\(\(def\) => !def\.builtinKind && def\.id !== "codex-mobile"\)/);
 assert.match(topicCardsBody, /data-plugin-topic-open-topic/);
 assert.match(topicCardsBody, /plugin-topic-icon-entry" type="button" data-plugin-topic-open-app/);
-assert.match(topicCardsBody, /data-plugin-topic-toggle/);
-assert.match(topicCardsBody, /data-plugin-claimed-topic-open/);
+assert.doesNotMatch(topicCardsBody, /data-plugin-topic-toggle/);
+assert.doesNotMatch(topicCardsBody, /data-plugin-claimed-topic-open/);
 assert.match(topicCardsBody, /plugin-topic-list/);
-assert.match(topicCardsBody, /plugin-topic-row-chevron/);
+assert.match(topicCardsBody, /plugin-topic-row-chevron-placeholder/);
 assert.match(pluginTopicsUi, /function pluginTopicRecentMessageEntries/);
 assert.match(pluginTopicsUi, /function pluginTopicMessagePreviewText/);
+assert.match(pluginTopicsUi, /function topicReceiptSummaryTitleFromText/);
+assert.match(pluginTopicsUi, /function topicReceiptSummaryTitleFromGroup/);
+assert.match(pluginTopicsUi, /group\?\.lastReceiptTitle/);
+assert.ok(
+  functionBody(pluginTopicsUi, "topicReceiptSummaryTitleFromGroup").indexOf("group?.lastReceiptTitle")
+    < functionBody(pluginTopicsUi, "topicReceiptSummaryTitleFromGroup").indexOf("const messages = Array.isArray"),
+  "topic row summaries must prefer persisted receipt metadata over stale cached messages",
+);
+assert.match(pluginTopicsUi, /function pluginTopicGroupForDef/);
+assert.match(pluginTopicsUi, /const group = pluginTopicGroupForDef\(def, options\.thread \|\| state\.currentThread\);/);
+assert.match(pluginTopicsUi, /homeai-note-title/);
+assert.match(pluginTopicsUi, /homeai-note\\b/);
+assert.match(pluginTopicsUi, /const receiptTitle = topicReceiptSummaryTitleFromMessage\(message, \{ max \}\);/);
+assert.match(pluginTopicsUi, /pluginTopicRecentMessageEntries\(def, options\.thread \|\| state\.currentThread, 1, \{ max: 120 \}\)/);
+assert.match(topicCardsBody, /plugin-topic-separator/);
+assert.match(pluginTopicsUi, /String\(message\?\.role \|\| ""\) === "assistant"/);
+assert.doesNotMatch(pluginTopicsUi, /message\?\.role \|\| ""\) !== "system"/);
+assert.doesNotMatch(pluginTopicsUi, /const user = messages\.find/);
 assert.match(childEntriesBody, /pluginTopicRecentMessageEntries\(def, options\.thread \|\| state\.currentThread, 2\)/);
-assert.match(topicCardsBody, /plugin-topic-child-meta/);
+assert.doesNotMatch(topicCardsBody, /plugin-topic-child-list/);
+assert.doesNotMatch(topicCardsBody, /plugin-topic-child-meta/);
 assert.match(topicCardsBody, /<span class="plugin-topic-title">\$\{escapeHtml\(def\.label\)\}<\/span>/);
 assert.doesNotMatch(topicCardsBody, /plugin-topic-title">\$\{escapeHtml\(`\$\{def\.label\}\\u8bdd\\u9898`\)\}/);
 assert.doesNotMatch(rowMetaBody, /\\u9ed8\\u8ba4\\u8bdd\\u9898/);
-assert.match(rowMetaBody, /\\u6682\\u65e0\\u6700\\u8fd1\\u5185\\u5bb9/);
-assert.match(topicCardsBody, /readExpandedPluginTopics\(\)/);
+assert.doesNotMatch(rowMetaBody, /\\u6700\\u8fd1/);
+assert.match(rowMetaBody, /\\u6682\\u65e0\\u56de\\u6267\\u6982\\u8981/);
+assert.doesNotMatch(topicCardsBody, /readExpandedPluginTopics\(\)/);
+assert.match(pluginTopicsUi, /function pluginTopicDirectoryClaimHidesRoot\(claim = null\) \{[\s\S]*?return false;/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_EXPANDED_STORAGE_KEY = "hermesPluginTopicExpanded";/);
 assert.match(pluginTopicsUi, /function pluginTopicExpandedStorageKey\(workspaceId = pluginTopicUsageWorkspaceId\(\)\)/);
 assert.match(pluginTopicsUi, /function setPluginTopicExpanded\(pluginId, expanded\)/);
@@ -152,6 +173,14 @@ assert.match(directoryTopicsUi, /const routeId = String\(route\.projectId \|\| r
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-association-label/);
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-subtitle/);
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-chip-badge/);
+assert.match(directoryTopicsUi, /const baseTitle = String\(group\?\.title \|\| ""\)\.trim\(\);/);
+assert.match(directoryTopicsUi, /topicReceiptSummaryTitleFromGroup\(group, \{ max: 120 \}\)/);
+assert.match(directoryTopicsUi, /function directoryTopicDisplayParts\(group\)/);
+assert.match(directoryTopicsUi, /const title = baseTitle \|\| receiptTitle \|\| "\\u6682\\u65e0\\u56de\\u6267\\u6982\\u8981";/);
+assert.match(directoryTopicsUi, /const summary = baseTitle && receiptTitle && receiptTitle !== baseTitle \? receiptTitle : "";/);
+assert.match(directoryTopicsUi, /fullTitle: summary \? `\$\{title\}\\uFF5C\$\{summary\}` : title,/);
+assert.match(directoryTopicsUi, /directory-topic-chip-copy\$\{display\.summary \? " has-summary" : ""\}/);
+assert.match(directoryTopicsUi, /directory-topic-chip-summary/);
 
 assert.match(stylesCss, /\.capability-quick-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
 assert.match(stylesCss, /\.capability-action-source \{[\s\S]*?display: none;/);
@@ -167,17 +196,40 @@ assert.match(stylesCss, /\.app\.task-list-mode \.conversation,[\s\S]*?\.app\.cap
 assert.match(stylesCss, /\.app\.task-list-mode,[\s\S]*?\.app\.capability-mode \{[\s\S]*?padding-bottom: 0;/);
 assert.match(stylesCss, /\.plugin-topic-list \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);[\s\S]*?gap: 2px;/);
 assert.match(stylesCss, /\.plugin-topic-card \{[\s\S]*?border-bottom: 1px solid var\(--ui-hairline\);[\s\S]*?box-shadow: none;/);
-assert.match(stylesCss, /\.plugin-topic-card-main,[\s\S]*?\.plugin-topic-card-main-row \{[\s\S]*?grid-template-columns: 34px minmax\(0, 1fr\) 16px;/);
+assert.match(stylesCss, /\.plugin-topic-card-main,[\s\S]*?\.plugin-topic-card-main-row \{[\s\S]*?grid-template-columns: 56px minmax\(0, 1fr\) 16px;/);
+assert.match(stylesCss, /\.plugin-topic-icon-entry \{[\s\S]*?width: 56px;/);
 assert.match(stylesCss, /\.plugin-topic-row-body \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);/);
-assert.match(stylesCss, /\.plugin-topic-text \{[\s\S]*?display: flex;[\s\S]*?align-items: baseline;/);
+assert.match(stylesCss, /\.plugin-topic-text \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: max-content 1px minmax\(0, 1fr\);[\s\S]*?align-items: center;/);
+assert.match(stylesCss, /\.plugin-topic-separator \{[\s\S]*?width: 1px;[\s\S]*?align-self: stretch;[\s\S]*?background: color-mix/);
+assert.match(stylesCss, /\.plugin-topic-subtitle \{[\s\S]*?white-space: normal;/);
 assert.match(stylesCss, /\.directory-topic-text \{[\s\S]*?display: flex;[\s\S]*?align-items: baseline;/);
+assert.match(stylesCss, /\.directory-topic-chip \{[\s\S]*?justify-items: start;[\s\S]*?text-align: left;/);
+assert.match(stylesCss, /\.directory-topic-chip-title \{[\s\S]*?color: var\(--ink\);/);
+assert.match(stylesCss, /\.directory-topic-chip-summary \{[\s\S]*?color: var\(--muted\);/);
 assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-row-chevron::before \{[\s\S]*?transform: rotate\(-45deg\);/);
 assert.match(stylesCss, /\.plugin-topic-child-list \{[\s\S]*?margin-left: 52px;[\s\S]*?padding: 0 0 7px 9px;/);
 assert.match(stylesCss, /@media \(max-width: 760px\) \{[\s\S]*?\.plugin-topic-child-list \{[\s\S]*?margin-left: 24px;[\s\S]*?padding: 0 0 7px 9px;/);
 assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-child-list \{[\s\S]*?display: none;/);
-assert.match(stylesCss, /\.directory-topic-root-entry \{[\s\S]*?grid-template-columns: 46px minmax\(0, 1fr\) 16px;/);
+assert.match(stylesCss, /\.directory-topic-root-entry \{[\s\S]*?grid-template-columns: 44px minmax\(0, 1fr\) 16px;/);
 assert.match(stylesCss, /\.directory-topic-root-icon-entry,[\s\S]*?\.directory-topic-root-toggle,[\s\S]*?\.directory-topic-root-chevron-button \{[\s\S]*?min-height: 48px;/);
 assert.match(stylesCss, /\.directory-topic-launcher\.root-collapsed \.directory-topic-grid \{[\s\S]*?display: none;/);
+
+{
+  const sandbox = {
+    compactDisplayText: (value, max) => String(value || "").slice(0, max),
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(`${pluginTopicsUi}
+globalThis.__topicReceiptSummaryTitleFromGroup = topicReceiptSummaryTitleFromGroup;`, sandbox);
+  assert.equal(
+    sandbox.__topicReceiptSummaryTitleFromGroup({
+      lastReceiptTitle: "最新回执概要",
+      messages: [{ role: "assistant", content: "上一条旧回执" }],
+    }, { max: 120 }),
+    "最新回执概要",
+    "persisted receipt metadata must override stale assistant message summaries",
+  );
+}
 
 function createPluginTopicHarness(options = {}) {
   const storage = new Map();
@@ -664,8 +716,8 @@ function directoryCardCollapsed(html, key) {
     },
   ];
   const collections = harness.collections(groups);
-  assert.deepEqual(JSON.parse(JSON.stringify(harness.claimed(collections).flatMap((item) => item.groups.map((group) => group.id)))), ["health-history"]);
-  assert.deepEqual(JSON.parse(JSON.stringify(harness.visible(collections).flatMap((item) => item.groups.map((group) => group.id)))), ["family-docs"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(harness.claimed(collections).flatMap((item) => item.groups.map((group) => group.id)))), []);
+  assert.deepEqual(JSON.parse(JSON.stringify(harness.visible(collections).flatMap((item) => item.groups.map((group) => group.id)).sort())), ["family-docs", "health-history"]);
 }
 
 {

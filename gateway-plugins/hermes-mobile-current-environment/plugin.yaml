@@ -1,0 +1,7 @@
+name: hermes-mobile-current-environment
+version: 1.0.0
+description: "Home AI current device environment context lookup for Gateway runs."
+author: Hermes Mobile
+kind: standalone
+provides_tools:
+  - current_environment

@@ -13,6 +13,7 @@ const EXPECTED_PLUGIN_IDS = [
   "growth",
   "health",
   "note",
+  "music",
   "wardrobe",
 ];
 
@@ -53,5 +54,9 @@ for (const plugin of plugins) {
 const codex = plugins.find((plugin) => plugin.id === "codex-mobile-web");
 assert.equal(codex.publicDefault, false);
 assert.equal(codex.special, true);
+
+const music = plugins.find((plugin) => plugin.id === "music");
+assert.equal(music.publicDefault, false);
+assert.equal(music.special, true);
 
 console.log("public plugin source manifest tests passed");

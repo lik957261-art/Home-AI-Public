@@ -329,15 +329,57 @@ function createRuntimeStateNormalizationService(options = {}) {
   function normalizeTaskGroupMeta(value) {
     const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
     const out = {};
+    const own = (object, property) => Object.prototype.hasOwnProperty.call(object, property);
+    const snakeName = (name) => name.replace(/[A-Z]/g, (char) => `_${char.toLowerCase()}`);
+    const metaValue = (meta, name) => {
+      const snake = snakeName(name);
+      if (own(meta, name)) return meta[name];
+      if (own(meta, snake)) return meta[snake];
+      return undefined;
+    };
+    const metaString = (meta, name, max = 0) => {
+      const rawValue = metaValue(meta, name);
+      const text = rawValue == null ? "" : String(rawValue).trim();
+      return max > 0 ? text.slice(0, max) : text;
+    };
+    const metaNumber = (meta, name) => {
+      const rawValue = metaValue(meta, name);
+      const number = Number(rawValue);
+      return Number.isFinite(number) ? number : null;
+    };
+    const metaBoolean = (meta, name) => {
+      const rawValue = metaValue(meta, name);
+      if (rawValue === true) return true;
+      if (rawValue === false || rawValue == null) return false;
+      return /^(1|true|yes|on)$/i.test(String(rawValue).trim());
+    };
     for (const [rawKey, rawMeta] of Object.entries(source)) {
       const key = sanitizeTaskGroupId(rawKey);
       if (!key || !rawMeta || typeof rawMeta !== "object" || Array.isArray(rawMeta)) continue;
       const title = sanitizeTaskTitle(rawMeta.title || rawMeta.name || "");
-      if (!title) continue;
+      const lastReceiptTitle = String(rawMeta.lastReceiptTitle || rawMeta.last_receipt_title || "").replace(/\s+/g, " ").trim().slice(0, 500);
+      const lastUserPromptTitle = String(rawMeta.lastUserPromptTitle || rawMeta.last_user_prompt_title || "").replace(/\s+/g, " ").trim().slice(0, 500);
+      const pluginTopic = Boolean(rawMeta.pluginTopic || rawMeta.plugin_topic || key.startsWith("plugin:"));
+      const lastMessageId = String(rawMeta.lastMessageId || rawMeta.last_message_id || "").trim().slice(0, 160);
+      if (!title && !lastReceiptTitle && !lastUserPromptTitle && !pluginTopic && !rawMeta.directoryRoute) continue;
       out[key] = {
         title,
         updatedAt: String(rawMeta.updatedAt || rawMeta.renamedAt || nowIso()),
       };
+      if (pluginTopic) out[key].pluginTopic = true;
+      if (lastReceiptTitle) out[key].lastReceiptTitle = lastReceiptTitle;
+      if (lastUserPromptTitle) out[key].lastUserPromptTitle = lastUserPromptTitle;
+      if (lastMessageId) out[key].lastMessageId = lastMessageId;
+      if (rawMeta.createdAt || rawMeta.created_at) out[key].createdAt = String(rawMeta.createdAt || rawMeta.created_at || "");
+      for (const name of ["directoryRouteKey", "ownerWorkspaceId", "workspaceId", "lastReceiptAt", "lastUserPromptAt", "purpose"]) {
+        const rawValue = metaString(rawMeta, name);
+        if (rawValue) out[key][name] = rawValue;
+      }
+      const messageCount = metaNumber(rawMeta, "messageCount");
+      if (messageCount !== null) out[key].messageCount = Math.max(0, messageCount || 0);
+      const sortOrder = metaNumber(rawMeta, "sortOrder");
+      if (sortOrder !== null) out[key].sortOrder = sortOrder || 0;
+      if (metaBoolean(rawMeta, "isDefault")) out[key].isDefault = true;
       if (rawMeta.sharedTopic) out[key].sharedTopic = true;
       for (const name of ["kanbanCaseId", "kanbanCaseMode", "kanbanCaseOwnerWorkspaceId", "sharedDirectoryPath", "caseDirectoryPath"]) {
         const rawValue = String(rawMeta[name] || "").trim();

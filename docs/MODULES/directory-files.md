@@ -138,6 +138,34 @@ Product rules:
   owner/effective workspace identity. A reused directory display name or
   project id, such as two workspaces each exposing `健康`, is not enough to
   merge topic collections.
+- Directory-bound topic discovery must use a durable directory-topic index,
+  not a full replay of the single-window message history. The mobile topic root
+  loads directory collections and only a bounded recent topic page for each
+  visible directory. Older topics are fetched by one-directory pagination, and
+  concrete topic messages are fetched only after opening that topic.
+- Directory-topic index repair must keep SQLite and `data/state.json`
+  task-group metadata synchronized. Startup can import a state snapshot into
+  SQLite, so a SQLite-only repair is not durable enough for production.
+- Runtime-state normalization must preserve directory-topic index metadata such
+  as `directoryRouteKey`, `ownerWorkspaceId`, `workspaceId`, `lastReceiptAt`,
+  `lastUserPromptAt`, `messageCount`, `sortOrder`, `isDefault`, and `purpose`.
+  Dropping those fields during SQLite-to-`state.json` snapshot export can make
+  repaired directory-topic lists appear stale again after restart or cache
+  refresh.
+- Directory-bound topic row summaries use the same concise receipt-title rule
+  as save-to-Note: prefer `homeai-note` title metadata, then Markdown headings,
+  then the first useful receipt line. They must not fall back to the user's
+  prompt when an assistant receipt summary exists.
+- Directory-bound topic repair and list projection must use the durable
+  `messages` table when available, not only the compact `threads.raw_json`
+  snapshot. The compact thread snapshot can lag behind the final assistant
+  receipt, so the repair path must update `taskGroupMeta.lastMessageId` and
+  `lastReceiptTitle` from the latest real task-group message before syncing
+  SQLite and `data/state.json`.
+- Opening a directory-bound topic from the topic list must fetch real
+  `messageMode=tasks` messages for that `taskGroupId`. Synthetic list entries
+  such as `:last-user` and `:last-receipt` are summaries only and must not be
+  treated as proof that the final assistant receipt is loaded.
 - A plugin may claim a directory topic collection without moving files. Since
   `20260610-plugin-topic-dock-box-v687`, `claimed_by_plugin` claims with
   `hideFromDirectoryTopicRoot=true` are filtered out of the ordinary directory

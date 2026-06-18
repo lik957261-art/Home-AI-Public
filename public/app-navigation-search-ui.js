@@ -198,7 +198,8 @@ function currentTaskGroup() {
   if (!state.currentThread || !state.currentTaskGroupId) return null;
   const groups = taskListGroupsForThread(state.currentThread);
   const pluginGroups = typeof pluginTopicGroupsForTaskList === "function" ? pluginTopicGroupsForTaskList(state.currentThread) : [];
-  return groups.concat(pluginGroups).find((group) => group.id === state.currentTaskGroupId) || null;
+  const group = groups.concat(pluginGroups).find((item) => item.id === state.currentTaskGroupId) || null;
+  return typeof taskGroupWithThreadMessages === "function" ? taskGroupWithThreadMessages(state.currentThread, group) : group;
 }
 
 function taskReasoningEffort(group) {
@@ -380,7 +381,9 @@ function updateNavigationControls() {
   const growthPluginOuterBack = typeof growthPluginOuterBackActive === "function" && growthPluginOuterBackActive();
   const moiraPluginBack = typeof moiraPluginBackActive === "function" && moiraPluginBackActive();
   const moiraPluginOuterBack = typeof moiraPluginOuterBackActive === "function" && moiraPluginOuterBackActive();
-  const pluginBack = wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || codexPluginOuterBack || financePluginBack || financePluginOuterBack || emailPluginBack || emailPluginOuterBack || healthPluginBack || healthPluginOuterBack || notePluginBack || notePluginOuterBack || growthPluginBack || growthPluginOuterBack || moiraPluginBack || moiraPluginOuterBack;
+  const musicPluginBack = typeof musicPluginBackActive === "function" && musicPluginBackActive();
+  const musicPluginOuterBack = typeof musicPluginOuterBackActive === "function" && musicPluginOuterBackActive();
+  const pluginBack = wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || codexPluginOuterBack || financePluginBack || financePluginOuterBack || emailPluginBack || emailPluginOuterBack || healthPluginBack || healthPluginOuterBack || notePluginBack || notePluginOuterBack || growthPluginBack || growthPluginOuterBack || moiraPluginBack || moiraPluginOuterBack || musicPluginBack || musicPluginOuterBack;
   const mainBack = taskDetail || directoryTopicDraft || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || (!pluginContextActive && pluginBack);
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
@@ -398,6 +401,7 @@ function updateNavigationControls() {
     || state.viewMode === "note"
     || state.viewMode === "growth"
     || state.viewMode === "moira"
+    || state.viewMode === "music"
   );
   app?.classList.toggle("minimal-window-mode", minimalWindow);
   app?.classList.toggle("task-detail-mode", taskDetail);
@@ -431,8 +435,8 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  let hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomLearningMode", "bottomAutomationMode"]);
-  ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
+  let hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomLearningMode", "bottomAutomationMode"]);
+  ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {
       setBottomTabHidden(node, hiddenBottomTabs.has(id));
@@ -441,7 +445,7 @@ function updateNavigationControls() {
   });
   updateBottomNavLabel("bottomTasksMode", "");
   updateBottomNavLabel("bottomProjectsMode", "");
-  ["bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode"].forEach((id) => {
+  ["bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode"].forEach((id) => {
     updateBottomNavLabel(id, "");
   });
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();

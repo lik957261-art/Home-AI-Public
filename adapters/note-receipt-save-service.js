@@ -14,6 +14,7 @@ const MAX_NOTE_RECEIPT_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const DEFAULT_NOTE_RECEIPT_TIMEOUT_MS = 30000;
 const DEFAULT_NOTE_RECEIPT_TAG = "hermes-receipt";
 const NOTE_RECEIPT_DEDUPE_VERSION = 1;
+const MAX_NOTE_RECEIPT_QUESTION_CHARS = 4000;
 const PLUGIN_NOTE_RECEIPT_TAGS = Object.freeze({
   wardrobe: "\u8863\u6a71",
   finance: "\u8bb0\u8d26",
@@ -150,6 +151,31 @@ function stripNoteReceiptMetadataComments(text = "") {
   return String(text || "").replace(NOTE_RECEIPT_METADATA_COMMENT_RE, "").trim();
 }
 
+function boundedNoteReceiptQuestionText(text = "") {
+  const clean = stripNoteReceiptMetadataComments(text).trim();
+  if (!clean) return "";
+  const chars = Array.from(clean);
+  if (chars.length <= MAX_NOTE_RECEIPT_QUESTION_CHARS) return clean;
+  return `${chars.slice(0, MAX_NOTE_RECEIPT_QUESTION_CHARS).join("").trim()}\n\n[问题内容已截断]`;
+}
+
+function precedingUserMessageForReceipt(thread = {}, assistantMessage = {}) {
+  const messages = Array.isArray(thread?.messages) ? thread.messages : [];
+  const assistantId = stringValue(assistantMessage?.id);
+  const assistantIndex = assistantId
+    ? messages.findIndex((message) => stringValue(message?.id) === assistantId)
+    : messages.indexOf(assistantMessage);
+  const before = (assistantIndex >= 0 ? messages.slice(0, assistantIndex) : messages)
+    .filter((message) => String(message?.role || "").trim() === "user");
+  if (!before.length) return null;
+  const taskGroupId = stringValue(assistantMessage?.taskGroupId || assistantMessage?.task_group_id);
+  if (taskGroupId) {
+    const sameGroup = [...before].reverse().find((message) => stringValue(message?.taskGroupId || message?.task_group_id) === taskGroupId);
+    if (sameGroup) return sameGroup;
+  }
+  return before[before.length - 1] || null;
+}
+
 function summarizeReceiptTitleLegacy(text = "") {
   const lines = String(text || "")
     .split(/\r?\n/)
@@ -259,6 +285,7 @@ function summarizeReceiptTitle(text = "", options = {}) {
 
 function messageNoteBody(message = {}, thread = {}) {
   const content = stripNoteReceiptMetadataComments(message.content || "");
+  const question = boundedNoteReceiptQuestionText(precedingUserMessageForReceipt(thread, message)?.content || "");
   const error = message.error ? `Error: ${message.error}` : "";
   const artifactNames = Array.isArray(message.artifacts)
     ? message.artifacts
@@ -273,7 +300,9 @@ function messageNoteBody(message = {}, thread = {}) {
     thread?.title ? `会话: ${thread.title}` : "",
     message?.createdAt ? `时间: ${message.createdAt}` : "",
   ].filter(Boolean).join("\n");
-  return [content, error, attachments, meta].filter(Boolean).join("\n\n").trim();
+  const questionBlock = question ? `问题:\n${question}` : "";
+  const receiptBlock = content ? `回执:\n${content}` : "";
+  return [questionBlock, receiptBlock, error, attachments, meta].filter(Boolean).join("\n\n").trim();
 }
 
 function receiptNoteTagsWithMetadata(message = {}, thread = {}, input = {}) {
@@ -573,7 +602,7 @@ function createNoteReceiptSaveService(options = {}) {
     }
     const pluginId = receiptPluginId(message, thread, input);
     const metadata = extractNoteReceiptMetadata(message.content || "");
-    const title = summarizeReceiptTitle(body, {
+    const title = summarizeReceiptTitle(stripNoteReceiptMetadataComments(message.content || ""), {
       pluginId,
       threadTitle: thread.title,
       createdAt: message.createdAt,

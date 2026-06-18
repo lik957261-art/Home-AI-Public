@@ -4,6 +4,7 @@ const { createAccessKeyApiRoutes } = require("./access-key-api-routes");
 const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes");
 const { createMobileApiFamilyProfileComposition } = require("./mobile-api-family-profile-composition");
 const { createNativeDeviceApiRoutes } = require("./native-device-api-routes");
+const { createNativeEnvironmentContextApiRoutes } = require("./native-environment-context-api-routes");
 const { createPlatformCurrencyApiRoutes } = require("./platform-currency-api-routes");
 const { createPublicApiRoutes } = require("./public-api-routes");
 const { createPushApiRoutes } = require("./push-api-routes");
@@ -12,6 +13,7 @@ const { createRuntimeConfigApiRoutes } = require("./runtime-config-api-routes");
 const { createSystemApiRoutes } = require("./system-api-routes");
 const { createWeixinApiRoutes } = require("./weixin-api-routes");
 const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
+const { createCurrentEnvironmentContextService } = require("../adapters/current-environment-context-service");
 const { createPlatformCurrencyService } = require("../adapters/platform-currency-service");
 
 function callBootTrace(deps, label) {
@@ -23,6 +25,9 @@ function createMobileApiPlatformComposition(deps = {}) {
   const platformCurrencyService = deps.platformCurrencyService || createPlatformCurrencyService({
     nowIso: deps.nowIso,
     store: () => mobileStore,
+  });
+  const currentEnvironmentContextService = deps.currentEnvironmentContextService || createCurrentEnvironmentContextService({
+    dataDir: deps.dataDir,
   });
   const familyProfileComposition = createMobileApiFamilyProfileComposition(deps, { mobileStore });
   const { familyProfileApiRoutes } = familyProfileComposition.routes;
@@ -136,6 +141,14 @@ function createMobileApiPlatformComposition(deps = {}) {
   });
 
   const nativeDeviceApiRoutes = createNativeDeviceApiRoutes({ appRouteUrl: deps.appRouteUrl, authenticateRequest: deps.authenticateRequest, nativeNotificationService: deps.nativeNotificationService, readBody: deps.readBody, requireWorkspaceAccess: deps.requireWorkspaceAccess, sendJson: deps.sendJson, workspacePrincipal: deps.workspacePrincipal });
+  const nativeEnvironmentContextApiRoutes = createNativeEnvironmentContextApiRoutes({
+    authenticateRequest: deps.authenticateRequest,
+    currentEnvironmentContextService,
+    readBody: deps.readBody,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+    workspacePrincipal: deps.workspacePrincipal,
+  });
 
   const workspaceApiRoutes = createWorkspaceApiRoutes({
     bootTrace: deps.bootTrace,
@@ -181,6 +194,7 @@ function createMobileApiPlatformComposition(deps = {}) {
       accessKeyApiRoutes,
       familyProfileApiRoutes,
       nativeDeviceApiRoutes,
+      nativeEnvironmentContextApiRoutes,
       ownerElevationApiRoutes,
       platformCurrencyApiRoutes,
       publicApiRoutes,
@@ -196,6 +210,7 @@ function createMobileApiPlatformComposition(deps = {}) {
       familyProfileProjectionService,
       familyProfileRepository,
       familyProfileService,
+      currentEnvironmentContextService,
       platformCurrencyService,
     },
   };

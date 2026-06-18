@@ -171,19 +171,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260616-moira-rule-evidence-bundle-mcp-v1_file",
+    "session_a_group_1_20260617-email-body-readall-health-sleep-ecg-mcp-v1_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260616-moira-rule-evidence-bundle-mcp-v1_memory",
+    "session_a_group_1_20260617-email-body-readall-health-sleep-ecg-mcp-v1_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260616-moira-rule-evidence-bundle-mcp-v1_x_search",
+    "session_a_group_1_20260617-email-body-readall-health-sleep-ecg-mcp-v1_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260616-moira-rule-evidence-bundle-mcp-v1_file-vision-wardrobe",
+    "session_a_group_1_20260617-email-body-readall-health-sleep-ecg-mcp-v1_file-vision-wardrobe",
   );
 }
 
@@ -290,6 +290,40 @@ function testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream() {
   assert.match(text, /SEMANTIC_ROUTE/);
 }
 
+function testBuildHermesInstructionsIncludesEnvironmentContext() {
+  const service = createService();
+  const text = service.buildHermesInstructions(
+    { hermesSessionId: "s", singleWindow: true },
+    { allowed_toolsets: ["wardrobe", "weather"] },
+    { singleWindow: true },
+    "今天配一套衣服",
+    null,
+    {
+      singleWindowMode: "chat",
+      environmentContext: {
+        ok: true,
+        source: "homeai_native_ios",
+        purpose: "wardrobe_outfit",
+        targetAt: "2026-06-18T09:00:00+08:00",
+        location: { status: "available", place: { city: "上海市", timeZone: "Asia/Shanghai" } },
+        weather: {
+          status: "available",
+          provider: "apple_weatherkit",
+          selectedBasis: "hourly_forecast",
+          selected: { condition: "小雨", temperature: 24.6, humidity: 83 },
+        },
+      },
+    },
+  );
+
+  assert.match(text, /Home AI environment context/);
+  assert.match(text, /Purpose: wardrobe_outfit/);
+  assert.match(text, /Current device place: 上海市/);
+  assert.match(text, /temperatureC=24\.6/);
+  assert.match(text, /basis=hourly_forecast/);
+  assert.match(text, /another city, destination/);
+}
+
 function testWardrobePluginTopicContextForcesSkillMcpAndSkipsDirectoryCleaning() {
   const service = createService();
   const text = service.buildHermesInstructions(
@@ -394,6 +428,7 @@ testBuildHermesInstructionsPreservesChatAndAttachmentGuidance();
 testBuiltInNoteReceiptMetadataInstruction();
 testDirectoryRunScopeInstructionPinsPluginDataWorkspace();
 testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream();
+testBuildHermesInstructionsIncludesEnvironmentContext();
 testWardrobePluginTopicContextForcesSkillMcpAndSkipsDirectoryCleaning();
 testPluginCapabilityCatalogInstructionsSeparateActiveAndCatalogOnlyPlugins();
 

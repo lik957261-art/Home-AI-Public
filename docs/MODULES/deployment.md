@@ -367,17 +367,21 @@ The current isolated production deployment runs these launchd labels:
 - `com.hermesmobile.plugin.note`
 - `com.hermesmobile.plugin.growth`
 - `com.hermesmobile.plugin.moira`
+- `com.hermesmobile.plugin.music`
 - `com.hermesmobile.plugin.codex-mobile`
 
 For the Home AI target, the central deploy script manages both the web listener
-and the Automation cron tick service. A full Home AI deploy installs or refreshes
+the Automation cron tick service, and the root workspace provisioning helper. A
+full Home AI deploy installs or refreshes
 `/Library/LaunchDaemons/com.hermesmobile.cron.plist`, ensures
 `/Users/example/path` exists as the
 canonical Hermes CRON store, starts the dispatcher every 60 seconds with
 `scripts/hermes-mobile-cron-dispatcher.py --dispatch`, sets
-`HERMES_CRON_SCRIPT_TIMEOUT=1800` for long-running `no_agent` scripts, and
-validates both `system/com.hermesmobile.listener` and
-`system/com.hermesmobile.cron`.
+`HERMES_CRON_SCRIPT_TIMEOUT=1800` for long-running `no_agent` scripts, restarts
+`system/com.hermesmobile.workspace-system-helper` so privileged onboarding
+actions load the newly deployed executor code, and validates
+`system/com.hermesmobile.listener`, `system/com.hermesmobile.cron`, and
+`system/com.hermesmobile.workspace-system-helper`.
 After Automation cron provisioning, dispatch changes, or repeated background
 job failures, run `scripts/macos-automation-cron-audit.js` on Mac production
 with the pinned runtime and bounded JSON output. The audit is part of the
@@ -484,6 +488,17 @@ from `/Users/example/path`, binds to
 `MOIRA_HERMES_ALLOWED_WORKSPACES`. It does not create or print raw plugin keys.
 The initial production scope is Owner-only; additional workspace access requires
 an explicit Moira workspace key/binding.
+
+Music first install uses `scripts/install-music-launchd-service.js` from the
+Home AI app workspace after a central `--plugin music --sync-only` source copy.
+The script generates `com.hermesmobile.plugin.music`, runs the plugin service
+from `/Users/example/path`, binds to
+`127.0.0.1:4891`, and stores Roon/listening runtime state under the plugin
+`runtime/` directory. Music is an Owner-only special plugin, like Codex Mobile
+Web; it is not grantable to non-Owner workspaces. The installer preflights
+port `4891` and fails if that port is held by a non-production process such as
+a developer Vite server, because otherwise launchd would repeatedly restart the
+production Music service while health checks could hit the wrong process.
 
 The Hermes Mobile launchd environment uses
 `HERMES_WEB_HOST=0.0.0.0`, `HERMES_WEB_PORT=8797`,

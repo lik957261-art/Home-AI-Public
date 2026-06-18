@@ -17,6 +17,7 @@ function makeHarness(overrides = {}) {
     removed: [],
     saved: 0,
     scheduled: [],
+    topicIndex: [],
     usage: [],
   };
   const thread = {
@@ -63,6 +64,13 @@ function makeHarness(overrides = {}) {
       messageId: targetMessage.id,
       reason,
     }),
+    directoryTopicIndexService: overrides.directoryTopicIndexService || {
+      upsertThreadTopicIndex: (targetThread, input) => calls.topicIndex.push({
+        threadId: targetThread.id,
+        taskGroupId: input.taskGroupId,
+        messageId: input.message?.id || "",
+      }),
+    },
     enqueueExternalDeliveryForTerminalMessage: (targetThread, targetMessage, status) => calls.enqueued.push({
       threadId: targetThread.id,
       messageId: targetMessage.id,
@@ -190,6 +198,33 @@ function testToolsetEscalationRetryShortCircuitsTerminalCompletion() {
   assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), false);
   assert.deepEqual(calls.notified, []);
 }
+
+function testCompletedDirectoryRunUpdatesTopicIndex() {
+  const { calls, message, service, thread } = makeHarness();
+  message.taskGroupId = "task-directory";
+  thread.taskGroupMeta = {
+    "task-directory": {
+      ownerWorkspaceId: "owner",
+      directoryRoute: { projectId: "health", label: "健康", root: "/health", path: "/health", ownerWorkspaceId: "owner" },
+      directoryRouteKey: "owner|health||/health",
+    },
+  };
+
+  const result = service.markRunCompleted(completionContext(thread, message), {
+    response: {
+      output: [{ type: "message", content: [{ type: "output_text", text: "目录话题回执摘要" }] }],
+    },
+  });
+
+  assert.equal(result.action, "completed");
+  assert.deepEqual(calls.topicIndex, [{
+    threadId: "thread_1",
+    taskGroupId: "task-directory",
+    messageId: "assistant_1",
+  }]);
+}
+
+testCompletedDirectoryRunUpdatesTopicIndex();
 
 function testToolsetEscalationWithoutRetryCompletesWithDiagnostic() {
   const { calls, message, service, thread } = makeHarness();

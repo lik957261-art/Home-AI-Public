@@ -777,4 +777,35 @@ appendRunEventToCurrentThread({
 assert.strictEqual(fallbackRefreshCalls, 1);
 assert.strictEqual(fullRenderCalls, 0);
 
+fallbackRefreshCalls = 0;
+fallbackRefreshOptions = null;
+testState.currentThread = {
+  id: "thread_terminal_refresh",
+  activeRunId: "resp_terminal_refresh",
+  activeRunIds: ["resp_terminal_refresh"],
+  messages: [
+    {
+      id: "msg_current",
+      role: "assistant",
+      status: "running",
+      runId: "resp_terminal_refresh",
+      responseRunId: "resp_terminal_refresh",
+      content: "final text already streamed",
+    },
+  ],
+  events: [],
+};
+appendRunEventToCurrentThread({
+  threadId: "thread_terminal_refresh",
+  runId: "resp_terminal_refresh",
+  event: {
+    runId: "resp_terminal_refresh",
+    event: "response.completed",
+    timestamp: "2026-05-27T13:13:00.000Z",
+  },
+});
+assert.strictEqual(fallbackRefreshCalls, 1);
+assert.strictEqual(fallbackRefreshOptions?.stickToBottom, false);
+assert.strictEqual(fallbackRefreshOptions?.delayMs, 0);
+
 console.log("run progress UI behavior assertions passed");

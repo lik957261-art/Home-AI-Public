@@ -14,6 +14,7 @@ const DEFAULT_PRODUCTION_OWNER = "hermes-host:staff";
 const HOME_AI_LISTENER_LABEL = "com.hermesmobile.listener";
 const HOME_AI_BRIDGE_HOST_LABEL = "com.hermesmobile.bridge-host";
 const HOME_AI_CRON_LABEL = "com.hermesmobile.cron";
+const HOME_AI_WORKSPACE_SYSTEM_HELPER_LABEL = "com.hermesmobile.workspace-system-helper";
 const HOME_AI_NAS_BACKUP_MOUNT_LABEL = "com.hermesmobile.nas-backup-mount";
 const PRODUCTION_SERVICE_USER = "hermes-host";
 const PRODUCTION_SERVICE_GROUP = "staff";
@@ -21,6 +22,11 @@ const HOME_AI_CRON_START_INTERVAL_SECONDS = 60;
 const HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS = 1800;
 const HOME_AI_NAS_BACKUP_MOUNT_START_INTERVAL_SECONDS = 300;
 const HOME_AI_BRIDGE_HOST_PORT = 8798;
+const HOME_AI_DISASTER_BACKUP_TRANSPORT = process.env.HOMEAI_DISASTER_BACKUP_TRANSPORT || "auto";
+const HOME_AI_DISASTER_BACKUP_SSH_TARGET = process.env.HOMEAI_DISASTER_BACKUP_SSH_TARGET || "xuxinxp@192.168.10.99";
+const HOME_AI_DISASTER_BACKUP_SSH_DESTINATION = process.env.HOMEAI_DISASTER_BACKUP_SSH_DESTINATION || "/volume1/备份/HomeAI-Production-Backups/mac-production";
+const HOME_AI_DISASTER_BACKUP_SSH_OPTIONS = process.env.HOMEAI_DISASTER_BACKUP_SSH_OPTIONS
+  || "-p 2222 -i /Users/example/path";
 const HOME_AI_VOICE_INPUT_ASR_URL = "http://127.0.0.1:8002/v1/audio/transcriptions";
 const HOME_AI_VOICE_INPUT_STREAMING_URL = "http://127.0.0.1:8002/v1/audio/transcriptions/stream";
 const HOME_AI_VOICE_INPUT_ASR_BACKEND = "funasr-local";
@@ -53,6 +59,7 @@ const HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS = Object.freeze({
   health: "healthy",
   healthy: "healthy",
   moira: "moira",
+  music: "music",
   note: "note",
   wardrobe: "wardrobe",
 });
@@ -78,6 +85,7 @@ const PLUGIN_DEPLOY_ORDER = Object.freeze([
   "growth",
   "healthy",
   "moira",
+  "music",
   "note",
   "wardrobe",
 ]);
@@ -97,6 +105,7 @@ const PLUGIN_RESTART_LABELS = Object.freeze({
   growth: "com.hermesmobile.plugin.growth",
   healthy: "com.hermesmobile.plugin.health",
   moira: "com.hermesmobile.plugin.moira",
+  music: "com.hermesmobile.plugin.music",
   note: "com.hermesmobile.plugin.note",
   wardrobe: "com.hermesmobile.plugin.wardrobe",
 });
@@ -108,6 +117,7 @@ const PLUGIN_HEALTH_URLS = Object.freeze({
   growth: "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest",
   healthy: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest",
   moira: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest",
+  music: "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest",
   note: "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest",
   wardrobe: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
 });
@@ -169,8 +179,15 @@ const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
   ]),
 });
 
+const PLUGIN_PROOF_FILES = Object.freeze({
+  "codex-mobile-web": Object.freeze(["public/index.html"]),
+  email: Object.freeze(["dist/web/index.html"]),
+  growth: Object.freeze(["public/index.html"]),
+  note: Object.freeze(["public/index.html"]),
+});
+
 const DEFAULT_RESTART_LABELS = {
-  "home-ai": [HOME_AI_LISTENER_LABEL, HOME_AI_BRIDGE_HOST_LABEL, HOME_AI_CRON_LABEL],
+  "home-ai": [HOME_AI_LISTENER_LABEL, HOME_AI_BRIDGE_HOST_LABEL, HOME_AI_CRON_LABEL, HOME_AI_WORKSPACE_SYSTEM_HELPER_LABEL],
   ...Object.fromEntries(PLUGIN_DEPLOY_ORDER.map((plugin) => [`plugin:${plugin}`, [PLUGIN_RESTART_LABELS[plugin]]])),
 };
 
@@ -498,6 +515,15 @@ function extractClientVersionFromSource(source) {
 }
 
 function proofFilesForPlan(source, options) {
+  if (options.syncOnly) return [];
+  if (String(options.target || "").startsWith("plugin:")) {
+    const plugin = String(options.target || "").replace(/^plugin:/, "");
+    const files = PLUGIN_PROOF_FILES[plugin] || [];
+    for (const relPath of files) {
+      if (!fs.existsSync(path.join(source, relPath))) throw new Error(`plugin_proof_file_missing:${plugin}:${relPath}`);
+    }
+    return [...files];
+  }
   if (options.target !== "home-ai") return [];
   const candidates = options.surface === "static" ? HOME_AI_STATIC_PROOF_FILES : HOME_AI_PROOF_FILES;
   return candidates.filter((relPath) => fs.existsSync(path.join(source, relPath)));
@@ -887,6 +913,10 @@ function buildHomeAiCronLaunchdPlist(macRoot) {
     HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS,
     HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS,
     HERMES_CRON_SCRIPT_TIMEOUT: String(HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS),
+    HOMEAI_DISASTER_BACKUP_TRANSPORT: HOME_AI_DISASTER_BACKUP_TRANSPORT,
+    HOMEAI_DISASTER_BACKUP_SSH_TARGET: HOME_AI_DISASTER_BACKUP_SSH_TARGET,
+    HOMEAI_DISASTER_BACKUP_SSH_DESTINATION: HOME_AI_DISASTER_BACKUP_SSH_DESTINATION,
+    HOMEAI_DISASTER_BACKUP_SSH_OPTIONS: HOME_AI_DISASTER_BACKUP_SSH_OPTIONS,
     HERMES_ACCEPT_HOOKS: "1",
     PYTHONPATH: `${paths.runtimeOverrides}:${paths.runtimeSource}`,
   };

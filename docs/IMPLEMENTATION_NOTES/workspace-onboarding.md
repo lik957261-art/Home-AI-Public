@@ -217,13 +217,15 @@ workflow must prove:
   fall back to Owner;
 - wrong-header and wrong-workspace auth probes fail closed.
 
-The onboarding validation step is target-scoped for profile-audit failures:
-`macos-production-profile-audit.js` still audits global production metadata, but
-the onboarding executor only fails the new workspace when the audit issues
-target that workspace or one of its newly materialized Gateway profiles.
-Unrelated historical profile/plugin issues are preserved as bounded ignored
-diagnostics and must be handled by the normal production-closure backlog, not
-by failing a new family workspace that is otherwise correctly provisioned.
+The onboarding validation step is target-scoped for profile and Gateway
+toolset failures: `macos-production-profile-audit.js` and
+`macos-gateway-manifest-toolset-smoke.js` can still observe global production
+metadata, but the onboarding executor only fails the new workspace when the
+issues target that workspace or one of its newly materialized Gateway profiles.
+Unrelated historical profile/plugin/toolset issues are preserved as bounded
+ignored diagnostics and must be handled by the normal production-closure
+backlog, not by failing a new family workspace that is otherwise correctly
+provisioned.
 
 ## Owner UI Surface
 

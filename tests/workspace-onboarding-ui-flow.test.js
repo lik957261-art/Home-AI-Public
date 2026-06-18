@@ -62,6 +62,9 @@ const context = {
     }
     throw new Error(`unexpected api call: ${url}`);
   },
+  showError(err) {
+    throw err;
+  },
   async loadWorkspaces() {},
   async loadProjects() {},
   async loadAccessKeyManager() {},
@@ -83,8 +86,26 @@ vm.runInContext(source, context);
 context.renderAccessKeyManager = () => calls.push({ url: "render" });
 
 assert.strictEqual(typeof context.applyWorkspaceOnboardingFromAccessKeyManager, "function");
+assert.strictEqual(typeof context.bindWorkspaceOnboardingAction, "function");
 
 (async () => {
+  const listeners = {};
+  let activated = 0;
+  const button = {
+    disabled: false,
+    addEventListener(name, fn) {
+      listeners[name] = fn;
+    },
+  };
+  context.bindWorkspaceOnboardingAction(button, async () => { activated += 1; });
+  assert.deepStrictEqual(Object.keys(listeners).sort(), ["click", "pointerup", "touchend"]);
+  const event = { prevented: 0, preventDefault() { this.prevented += 1; } };
+  listeners.pointerup(event);
+  listeners.click(event);
+  await Promise.resolve();
+  assert.strictEqual(activated, 1);
+  assert.strictEqual(event.prevented, 2);
+
   await context.applyWorkspaceOnboardingFromAccessKeyManager();
 
   const apiCalls = calls.filter((call) => call.url.startsWith("/api/"));

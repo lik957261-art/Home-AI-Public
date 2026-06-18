@@ -85,15 +85,27 @@ Backups must allow a replacement machine to restore source, production app files
   load and every five minutes. It keeps the NAS NFS export mounted before the
   `03:30` no-agent disaster-backup CRON job runs. The CRON job itself must not
   read the sudo password file or perform sudo escalation.
-- The supported NFS write path is local staging followed by ordinary-user NFS
-  sync. `scripts/run-macos-disaster-backup-to-nas.sh` runs the builder with
-  sudo into `/Users/example/path` by default,
-  then rsyncs `staging/current` to the mounted NFS destination as the operator
-  user. This avoids Synology NFS root-squash failures from sudo writes.
-  NFS directory creation, write probing, and publish sync are bounded by
-  `HOMEAI_NAS_BACKUP_OP_TIMEOUT_SECONDS` and
-  `HOMEAI_NAS_BACKUP_RSYNC_TIMEOUT_SECONDS`; a hung or unwritable mount must
-  fail with an explicit NFS destination error instead of blocking CRON.
+- The supported publish path is local staging followed by ordinary-user sync.
+  `scripts/run-macos-disaster-backup-to-nas.sh` runs the builder with sudo into
+  `/Users/example/path` by default, then
+  publishes `staging/current`.
+  - Default transport is `HOMEAI_DISASTER_BACKUP_TRANSPORT=auto`.
+  - In `auto`, a complete `HOMEAI_DISASTER_BACKUP_SSH_TARGET` plus
+    `HOMEAI_DISASTER_BACKUP_SSH_DESTINATION` selects SSH/rsync first.
+  - Without SSH destination config, `auto` falls back to the NFS destination.
+  - `HOMEAI_DISASTER_BACKUP_TRANSPORT=ssh` requires the SSH target/destination
+    and fails closed when they are missing.
+  - `HOMEAI_DISASTER_BACKUP_TRANSPORT=nfs` keeps the historical mounted-NFS
+    behavior.
+  The NFS path avoids Synology root-squash failures from sudo writes by syncing
+  as the operator user. The SSH path avoids macOS NFS mount instability by
+  sending the same staged `current` tree over SSH/rsync with an explicit remote
+  `/usr/bin/rsync` path. NFS operations are
+  bounded by `HOMEAI_NAS_BACKUP_OP_TIMEOUT_SECONDS` and
+  `HOMEAI_NAS_BACKUP_RSYNC_TIMEOUT_SECONDS`; SSH operations are bounded by
+  `HOMEAI_BACKUP_SSH_OP_TIMEOUT_SECONDS` and
+  `HOMEAI_BACKUP_SSH_RSYNC_TIMEOUT_SECONDS`. A hung or unwritable destination
+  must fail with an explicit destination error instead of blocking CRON.
 - The production scheduled path is a Hermes CRON `no_agent` job running as
   `hermes-host`. Its script is installed at
   `/Users/example/path`
@@ -147,6 +159,8 @@ Backups must allow a replacement machine to restore source, production app files
   `scripts/mount-macos-nas-backup-destination.sh`
 - NAS publish wrapper:
   `scripts/run-macos-disaster-backup-to-nas.sh`
+- SSH publish wrapper mode:
+  `HOMEAI_DISASTER_BACKUP_TRANSPORT=ssh HOMEAI_DISASTER_BACKUP_SSH_TARGET=<host> HOMEAI_DISASTER_BACKUP_SSH_DESTINATION=<remote-path> scripts/run-macos-disaster-backup-to-nas.sh`
 - Focused Mac harness:
   `node tests/macos-disaster-backup-script.test.js`
 - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\create-hermes-mobile-disaster-backup.ps1 -CheckOnly`

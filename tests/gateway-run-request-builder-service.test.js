@@ -67,6 +67,7 @@ function createBuilder(overrides = {}) {
       actorWorkspaceId: buildOptions.actorWorkspaceId,
       targetWorkspaceId: buildOptions.targetWorkspaceId,
       dataWorkspaceId: buildOptions.dataWorkspaceId,
+      environmentContext: buildOptions.environmentContext,
       pluginTopicContext: buildOptions.pluginTopicContext,
       pluginCapabilityContext: buildOptions.pluginCapabilityContext,
       requiredSkillPreloads: buildOptions.requiredSkillPreloads,
@@ -149,6 +150,12 @@ function testBuildRunRequestAddsPluginRequirementsAndRouting() {
     reasoning_effort: "medium",
     instructions: "extra instruction",
     access_policy_context: { allowed_toolsets: ["http"] },
+    environmentContext: {
+      ok: true,
+      source: "homeai_native_ios",
+      purpose: "wardrobe_outfit",
+      weather: { status: "available", selected: { temperatureC: 25 } },
+    },
   });
 
   assert.equal(request.actorWorkspaceId, "owner");
@@ -170,6 +177,9 @@ function testBuildRunRequestAddsPluginRequirementsAndRouting() {
   assert.equal(request.body.reasoning_effort, "medium");
   assert.match(request.body.instructions, /Latest-message override/);
   assert.match(request.body.instructions, /extra instruction/);
+  assert.equal(JSON.parse(request.body.instructions.split("\n\n")[0]).environmentContext.source, "homeai_native_ios");
+  assert.equal(request.body.access_policy_context.environmentContext, undefined);
+  assert.equal(request.body.environmentContext, undefined);
   assert.deepEqual(request.gatewayRouting.requiredToolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.deepEqual(request.gatewayRouting.requiredSkills, ["productivity/wardrobe-style-operations"]);
   assert.equal(request.gatewayRouting.skillWorkspaceId, "owner");

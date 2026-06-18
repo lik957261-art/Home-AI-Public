@@ -55,6 +55,7 @@ PATH_PATTERNS = [
     re.compile(r"(?i)[a-z]:\\Users\\[^\\]+\\[^\s]+"),
     re.compile(r"/mnt/[a-z]/Users/[^/]+/[^\s]+"),
     re.compile(r"/home/[^/]+/[^\s]+"),
+    re.compile(r"/tmp/[^\s]+"),
     re.compile(r"/(?:private/)?var/[^\s]+"),
 ]
 

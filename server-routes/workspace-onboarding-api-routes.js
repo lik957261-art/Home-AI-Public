@@ -47,6 +47,7 @@ function statusCodeForResult(result = {}, routeId = "") {
   if (result.ok) return routeId === "workspace-onboarding-apply" ? 201 : 200;
   if (result.status === "blocked") return 503;
   if (result.status === "invalid") return 400;
+  if (result.status === "provisioning_failed" || result.status === "manual_required") return 200;
   return 500;
 }
 

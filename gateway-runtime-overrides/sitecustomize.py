@@ -14,6 +14,7 @@ import threading
 import importlib
 import contextvars
 import errno
+import grp
 import inspect
 import shutil
 import tempfile
@@ -139,6 +140,28 @@ def _write_runtime_event_marker(event: str) -> None:
         logger.debug("Hermes Mobile failed to write runtime event marker", exc_info=True)
 
 
+def _repair_shared_codex_auth_permissions(target: Any) -> None:
+    try:
+        target_str = str(target)
+        real_path = os.path.realpath(target_str) if os.path.islink(target_str) else target_str
+        basename = os.path.basename(real_path)
+        parent = os.path.basename(os.path.dirname(real_path))
+        if parent != "shared-auth" or basename not in {"auth.json", "auth.lock"}:
+            return
+        try:
+            gid = grp.getgrnam("hermes-workers").gr_gid
+            os.chown(real_path, -1, gid)
+        except Exception:
+            pass
+        try:
+            os.chmod(real_path, 0o660)
+        except Exception:
+            pass
+        _write_runtime_event_marker("shared_codex_auth_permissions_repaired")
+    except Exception:
+        logger.debug("Hermes Mobile failed to repair shared Codex auth permissions", exc_info=True)
+
+
 def _patch_utils_atomic_replace_module(utils_module: Any) -> bool:
     global _utils_atomic_replace_patch_installed
     original = getattr(utils_module, "atomic_replace", None)
@@ -150,7 +173,9 @@ def _patch_utils_atomic_replace_module(utils_module: Any) -> bool:
 
     def patched_atomic_replace(tmp_path, target):
         try:
-            return original(tmp_path, target)
+            result = original(tmp_path, target)
+            _repair_shared_codex_auth_permissions(target)
+            return result
         except OSError as exc:
             if exc.errno != errno.EXDEV:
                 raise
@@ -181,6 +206,7 @@ def _patch_utils_atomic_replace_module(utils_module: Any) -> bool:
                     except OSError:
                         pass
                 os.replace(fallback_tmp, real_path)
+                _repair_shared_codex_auth_permissions(real_path)
                 try:
                     os.unlink(str(tmp_path))
                 except OSError:
@@ -267,10 +293,27 @@ def _patch_auth_atomic_replace_module(auth_module: Any) -> bool:
     if not callable(replacement):
         return False
     current = getattr(auth_module, "atomic_replace", None)
-    if current is replacement or _has_patch_marker(current, "utils_atomic_replace_exdev"):
+    auth_replace_patched = current is replacement or _has_patch_marker(current, "utils_atomic_replace_exdev")
+    if not auth_replace_patched:
+        setattr(auth_module, "atomic_replace", replacement)
+
+    original_save = getattr(auth_module, "_save_auth_store", None)
+    if callable(original_save) and not _has_patch_marker(original_save, "auth_save_shared_codex_permissions"):
+        def patched_save_auth_store(*args, **kwargs):
+            result = original_save(*args, **kwargs)
+            _repair_shared_codex_auth_permissions(result)
+            return result
+
+        setattr(
+            auth_module,
+            "_save_auth_store",
+            _mark_patched(patched_save_auth_store, "auth_save_shared_codex_permissions"),
+        )
+
+    current_save = getattr(auth_module, "_save_auth_store", None)
+    if auth_replace_patched and _has_patch_marker(current_save, "auth_save_shared_codex_permissions"):
         _auth_atomic_replace_patch_installed = True
         return True
-    setattr(auth_module, "atomic_replace", replacement)
     _auth_atomic_replace_patch_installed = True
     return True
 

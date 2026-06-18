@@ -7,6 +7,7 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { createBridgeCommandProvider } = require("../adapters/bridge-command-provider");
 const { createChatGptProCodexBridgeService } = require("../adapters/chatgpt-pro-codex-bridge-service");
+const { createCurrentEnvironmentContextService } = require("../adapters/current-environment-context-service");
 const { createGatewayWorkerProfileLaunchService } = require("../adapters/gateway-worker-profile-launch-service");
 
 const TOOL_ROOT = path.resolve(__dirname, "..");
@@ -27,6 +28,7 @@ const GROK_GATEWAY_START_HEALTH_POLL_MS = Number(process.env.HERMES_MOBILE_GROK_
 const STDOUT_LIMIT_BYTES = Number(process.env.HERMES_MOBILE_BRIDGE_HOST_STDOUT_LIMIT_BYTES || "50000000");
 const KEY_PATH = process.env.HERMES_MOBILE_BRIDGE_HOST_KEY_PATH || process.env.HERMES_WEB_BRIDGE_HOST_KEY_PATH || "";
 const KEY = String(process.env.HERMES_MOBILE_BRIDGE_HOST_KEY || process.env.HERMES_WEB_BRIDGE_HOST_KEY || readText(KEY_PATH)).trim();
+const currentEnvironmentContextService = createCurrentEnvironmentContextService();
 const chatGptProBridge = createChatGptProCodexBridgeService();
 const gatewayWorkerProfileLauncher = createGatewayWorkerProfileLaunchService({
   toolRoot: TOOL_ROOT,
@@ -436,6 +438,20 @@ async function handle(req, res) {
       const payload = await readBody(req);
       const result = await chatGptProBridge.generate(payload);
       sendJson(res, result.ok ? 200 : 502, result);
+    } catch (err) {
+      sendJson(res, err.status || 502, { ok: false, error: err.message || String(err) });
+    }
+    return;
+  }
+  if (req.method === "POST" && req.url === "/bridge/current-environment") {
+    if (!authorized(req)) {
+      sendJson(res, 401, { error: "Unauthorized" });
+      return;
+    }
+    try {
+      const payload = await readBody(req);
+      const result = currentEnvironmentContextService.get(payload);
+      sendJson(res, result.ok ? 200 : (result.status || 404), result);
     } catch (err) {
       sendJson(res, err.status || 502, { ok: false, error: err.message || String(err) });
     }

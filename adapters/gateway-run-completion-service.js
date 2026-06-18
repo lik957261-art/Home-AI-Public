@@ -18,6 +18,12 @@ function cleanString(value) {
   return String(value || "").trim();
 }
 
+function compactReceiptTitle(value, max = 160) {
+  const text = cleanString(value).replace(/\s+/g, " ");
+  if (!text || text.length <= max) return text;
+  return `${text.slice(0, Math.max(1, max - 1))}...`;
+}
+
 function compactFallback(value) {
   return value;
 }
@@ -90,6 +96,7 @@ function createGatewayRunCompletionService(options = {}) {
   const compactFullContent = typeof options.compactFullContent === "function" ? options.compactFullContent : compactFallback;
   const compactMessage = typeof options.compactMessage === "function" ? options.compactMessage : compactFallback;
   const compactTerminalTopicContext = typeof options.compactTerminalTopicContext === "function" ? options.compactTerminalTopicContext : (() => null);
+  const directoryTopicIndexService = options.directoryTopicIndexService || null;
   const enqueueExternalDeliveryForTerminalMessage = typeof options.enqueueExternalDeliveryForTerminalMessage === "function"
     ? options.enqueueExternalDeliveryForTerminalMessage
     : (() => {});
@@ -121,6 +128,24 @@ function createGatewayRunCompletionService(options = {}) {
     ? options.supplementGatewayUsage
     : ((usage) => usage);
   const threadSummary = typeof options.threadSummary === "function" ? options.threadSummary : compactFallback;
+
+  function updateTaskGroupReceiptMeta(thread, message, completedAt) {
+    const taskGroupId = cleanString(message?.taskGroupId);
+    if (!thread || !taskGroupId || taskGroupId === "chat" || taskGroupId === "group-chat") return;
+    if (!thread.taskGroupMeta || typeof thread.taskGroupMeta !== "object" || Array.isArray(thread.taskGroupMeta)) {
+      thread.taskGroupMeta = {};
+    }
+    const existing = thread.taskGroupMeta[taskGroupId] && typeof thread.taskGroupMeta[taskGroupId] === "object"
+      ? thread.taskGroupMeta[taskGroupId]
+      : {};
+    thread.taskGroupMeta[taskGroupId] = Object.assign({}, existing, {
+      pluginTopic: Boolean(existing.pluginTopic || taskGroupId.startsWith("plugin:")),
+      lastReceiptTitle: compactReceiptTitle(message.content || ""),
+      lastMessageId: cleanString(message.id || existing.lastMessageId),
+      updatedAt: completedAt || existing.updatedAt || nowIso(),
+      createdAt: existing.createdAt || completedAt || nowIso(),
+    });
+  }
 
   function markRunCompleted(context, event) {
     const { thread, message, runId, originalRunId, responseRunId, stream } = context;
@@ -233,6 +258,16 @@ function createGatewayRunCompletionService(options = {}) {
     message.completedAt = completedAt;
     message.updatedAt = completedAt;
     message.artifacts = registerArtifactsFromText(thread, message, visibleOutput || output);
+    if (directoryTopicIndexService && typeof directoryTopicIndexService.upsertThreadTopicIndex === "function") {
+      directoryTopicIndexService.upsertThreadTopicIndex(thread, {
+        taskGroupId: message.taskGroupId,
+        actorWorkspaceId: message.actorWorkspaceId || message.senderWorkspaceId || thread.workspaceId,
+        updatedAt: completedAt,
+        lastMessageId: message.id,
+        message,
+      });
+    }
+    updateTaskGroupReceiptMeta(thread, message, completedAt);
     enqueueExternalDeliveryForTerminalMessage(thread, message, "done");
     removeThreadActiveRun(thread, runId, "idle");
     thread.updatedAt = completedAt;

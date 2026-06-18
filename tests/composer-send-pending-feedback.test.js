@@ -101,6 +101,7 @@ async function runFailedSendRollbackTest() {
   state.currentTaskGroupId = "";
   state.auth = { isOwner: true, workspaceId: "owner" };
   state.composerComposing = false;
+  state.composerSendInFlight = false;
   state.directoryTopicDraftSendInFlight = false;
   let composerText = "send that fails";
   let lastError = "";
@@ -177,9 +178,98 @@ async function runFailedSendRollbackTest() {
   assert.strictEqual(refreshOptions?.stickToBottom, true);
   assert.strictEqual(refreshOptions?.delayMs, 500);
   assert.strictEqual(sendButton.disabled, false);
+  assert.strictEqual(state.composerSendInFlight, false);
+}
+
+async function runDuplicateSendSuppressionTest() {
+  renderCalls = 0;
+  bottomStickCalls = 0;
+  state.currentThread = { id: "thread_chat", messages: [] };
+  state.currentThreadId = "thread_chat";
+  state.viewMode = "single";
+  state.singleWindowMode = "chat";
+  state.pendingArtifacts = [];
+  state.selectedWorkspaceId = "owner";
+  state.currentTaskGroupId = "";
+  state.auth = { isOwner: true, workspaceId: "owner" };
+  state.composerComposing = false;
+  state.composerSendInFlight = false;
+  state.directoryTopicDraftSendInFlight = false;
+  let composerText = "send once";
+  let apiCalls = 0;
+  let resolveApi;
+  const apiDone = new Promise((resolve) => {
+    resolveApi = resolve;
+  });
+  const sendButton = { disabled: false };
+
+  Object.assign(context, {
+    $(id) {
+      if (id === "sendMessage") return sendButton;
+      if (id === "messageInput") return { value: composerText, style: {} };
+      return { textContent: "" };
+    },
+    getComposerText() {
+      return composerText;
+    },
+    setComposerText(value) {
+      composerText = String(value || "");
+    },
+    showError(err) {
+      throw err;
+    },
+    isChatSearchMode: () => false,
+    isComposerStopMode: () => false,
+    loadSingleWindow: async () => {},
+    composerAiMentionInfo: () => ({}),
+    composerSearchSourceBodyFields: () => null,
+    ownerElevationComposerAvailable: () => false,
+    ownerElevationActive: () => false,
+    clearOwnerElevationOnce: () => {},
+    isDraftThread: () => false,
+    materializeCurrentThread: async () => {},
+    closeGroupMentionMenu: () => {},
+    isGroupChatView: () => false,
+    selectedComposerReasoningEffort: () => "",
+    selectedComposerModel: () => "",
+    selectedComposerProvider: () => "",
+    activeQuotedReplyForSend: () => null,
+    composerRequestSizeError: () => "",
+    lockComposerSendToBottom: () => {},
+    suppressComposerAutoFocus: () => {},
+    blurComposerInput: () => {},
+    shouldOfferOwnerElevation: () => false,
+    updateComposerAction: () => {},
+    handleSendMessageResult: () => {},
+    api: async () => {
+      apiCalls += 1;
+      await apiDone;
+      return { thread: state.currentThread };
+    },
+    SINGLE_WINDOW_CHAT_TASK_GROUP_ID: "chat-default",
+    SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID: "group-chat",
+    CHAT_MESSAGE_INITIAL_LIMIT: 80,
+    TASK_MESSAGE_INITIAL_LIMIT: 80,
+  });
+
+  const first = sendMessage({ preventDefault() {} });
+  const second = sendMessage({ preventDefault() {} });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.strictEqual(apiCalls, 1);
+  assert.strictEqual(state.composerSendInFlight, true);
+  assert.strictEqual(composerText, "");
+
+  resolveApi();
+  await Promise.all([first, second]);
+
+  assert.strictEqual(apiCalls, 1);
+  assert.strictEqual(state.composerSendInFlight, false);
+  assert.strictEqual(sendButton.disabled, false);
 }
 
 runFailedSendRollbackTest()
+  .then(runDuplicateSendSuppressionTest)
   .then(() => {
     console.log("composer send pending feedback tests passed");
   })

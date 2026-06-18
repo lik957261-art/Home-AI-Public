@@ -44,10 +44,15 @@ function testWorkspaceLocalPluginBindingsBecomeToolsets() {
     workspace_id: "owner",
     access_key_file: "access-key.txt",
   }));
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-music", "access-key.txt"), "music-key\n");
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-music", "config.json"), JSON.stringify({
+    workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }));
 
   const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 0 });
 
-  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["wardrobe", "finance", "note", "health", "email", "growth", "moira"]);
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["wardrobe", "finance", "note", "health", "email", "growth", "moira", "music"]);
 }
 
 function testMoiraKeyOnlyBindingDoesNotBecomeToolset() {
@@ -56,7 +61,7 @@ function testMoiraKeyOnlyBindingDoesNotBecomeToolset() {
 
   const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 0 });
 
-  assert.deepEqual(service.toolsetsForWorkspace("owner"), []);
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["music"]);
 }
 
 function testMoiraWorkspaceBindingDoesNotLeakToOtherWorkspace() {
@@ -69,9 +74,38 @@ function testMoiraWorkspaceBindingDoesNotLeakToOtherWorkspace() {
 
   const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 0 });
 
-  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["moira"]);
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["moira", "music"]);
   assert.deepEqual(service.toolsetsForWorkspace("weixin_wuping"), []);
   assert.deepEqual(service.toolsetsForWorkspace("weixin_other"), []);
+}
+
+function testMusicOwnerOnlyBindingDoesNotLeakToOtherWorkspace() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-plugin-toolsets-music-owner-only-"));
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-music", "access-key.txt"), "music-owner-key\n");
+  writeText(path.join(dir, "drive", "users", "owner", ".hermes-music", "config.json"), JSON.stringify({
+    workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }));
+  writeText(path.join(dir, "drive", "users", "child", ".hermes-music", "access-key.txt"), "music-child-key\n");
+  writeText(path.join(dir, "drive", "users", "child", ".hermes-music", "config.json"), JSON.stringify({
+    workspace_id: "child",
+    access_key_file: "access-key.txt",
+  }));
+
+  const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 0 });
+
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["music"]);
+  assert.deepEqual(service.toolsetsForWorkspace("child"), []);
+}
+
+function testMusicOwnerSpecialToolsetDoesNotRequireWorkspaceBinding() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-plugin-toolsets-music-owner-special-"));
+  fs.mkdirSync(path.join(dir, "drive", "users", "owner"), { recursive: true });
+
+  const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 0 });
+
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["music"]);
+  assert.deepEqual(service.toolsetsForWorkspace("child"), []);
 }
 
 function testKeyOnlyFinanceBindingDoesNotBecomeToolset() {
@@ -87,20 +121,22 @@ function testCacheCanBeClearedAfterProvisioning() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-plugin-toolsets-cache-"));
   const service = createPluginAuthorizedToolsetService({ dataDir: dir, env: {}, cacheTtlMs: 60_000, nowMs: () => 1000 });
 
-  assert.deepEqual(service.toolsetsForWorkspace("owner"), []);
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["music"]);
   writeText(path.join(dir, "drive", "users", "owner", ".hermes-finance", "access-key.txt"), "finance-key\n");
   writeText(path.join(dir, "drive", "users", "owner", ".hermes-finance", "config.json"), JSON.stringify({
     workspace_id: "owner",
     access_key_file: "access-key.txt",
   }));
-  assert.deepEqual(service.toolsetsForWorkspace("owner"), []);
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["music"]);
   service.clearCache();
-  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["finance"]);
+  assert.deepEqual(service.toolsetsForWorkspace("owner"), ["finance", "music"]);
 }
 
 testWorkspaceLocalPluginBindingsBecomeToolsets();
 testMoiraKeyOnlyBindingDoesNotBecomeToolset();
 testMoiraWorkspaceBindingDoesNotLeakToOtherWorkspace();
+testMusicOwnerOnlyBindingDoesNotLeakToOtherWorkspace();
+testMusicOwnerSpecialToolsetDoesNotRequireWorkspaceBinding();
 testKeyOnlyFinanceBindingDoesNotBecomeToolset();
 testCacheCanBeClearedAfterProvisioning();
 console.log("plugin-authorized-toolset-service tests passed");

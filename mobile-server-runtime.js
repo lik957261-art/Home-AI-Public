@@ -94,6 +94,7 @@ const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provi
 const { createWeixinRuntimeCompositionService } = require("./adapters/weixin-runtime-composition-service");
 const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service"); const { createActionInboxService } = require("./adapters/action-inbox-service"); const { createDataContextService } = require("./adapters/data-context-service");
 const { createNativeNotificationService } = require("./adapters/native-notification-service");
+const { createDirectoryTopicIndexService } = require("./adapters/directory-topic-index-service");
 const { createMobileApiComposition } = require("./server-routes/mobile-api-composition");
 const { createMobileRuntimeEnvironment } = require("./adapters/mobile-runtime-environment-service");
 const runtimeEnv = createMobileRuntimeEnvironment({ toolRoot: __dirname });
@@ -370,6 +371,12 @@ const {
   pushSubscriptionScopeSignature,
 } = mobileRuntimeStateFacadeService;
 const saveState = (next = state, options = {}) => mobileRuntimeStateFacadeService.saveState(next, options);
+const directoryTopicIndexService = createDirectoryTopicIndexService({
+  comparablePath,
+  compactText,
+  normalizeTaskGroupMeta: (...args) => getRuntimeStateNormalizationService().normalizeTaskGroupMeta(...args),
+  isConversationTaskGroupId: (value) => isSingleWindowConversationTaskGroupId(value),
+});
 const runtimeStateThreadService = createRuntimeStateThreadService({
   authenticateRequest,
   authCanAccessWorkspace,
@@ -531,6 +538,7 @@ const mobileRuntimeGatewayCompositionOptionsService = createMobileRuntimeGateway
     gatewayHealthDiagnosticService,
     gatewayRunModelToolsetSelectionService,
     gatewayRunToolsetRoutingService,
+    directoryTopicIndexService,
     getRuntimeStateThreadService,
     getSemanticDirectoryAttachmentService,
     pluginCapabilityActivationService,
@@ -1273,7 +1281,7 @@ let mobileApiServices = {};
 const mobileRuntimeThreadFacadeService = createMobileRuntimeThreadFacadeService({
   actionInboxService, actionInboxTodoService: () => mobileApiServices?.actionInboxTodoService, attachUploadedArtifactsToMessage, authCanAccessWorkspace, authenticateRequest, broadcast,
   chatGroupMemberWorkspaceIds, compactMessage, compactThread, compactThreadWithMessagePage, deriveTitle,
-  detectDirectKanbanCreateRequest, detectDirectTodoCreateIntent, detectDirectTodoCreateIntentForWeb, detectTodoNaturalLanguage, directTodoCreateEnabled,
+  detectDirectKanbanCreateRequest, detectDirectTodoCreateIntent, detectDirectTodoCreateIntentForWeb, detectTodoNaturalLanguage, directoryTopicIndexService, directTodoCreateEnabled,
   findWorkspace, formatDirectTodoCreateSuccessMessage, gatewayRoutingForModelRun, dataContextService,
   getRuntimeStateNormalizationService, getRuntimeStateThreadService, getSemanticDirectoryAttachmentService, getSingleWindowThreadService,
   groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID, interpretKanbanNaturalLanguage, interpretTodoNaturalLanguage, isOwnerAuth, kanbanCardProvider,

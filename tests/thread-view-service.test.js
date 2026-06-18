@@ -137,8 +137,27 @@ function makeThread() {
     createdAt: "2026-05-14T10:00:00.000Z",
     updatedAt: "2026-05-14T10:09:00.000Z",
     taskGroupMeta: {
-      "task-a": { title: " Alpha plan ", updatedAt: "2026-05-14T10:06:00.000Z" },
+      "task-a": {
+        title: " Alpha plan ",
+        ownerWorkspaceId: "owner",
+        updatedAt: "2026-05-14T10:06:00.000Z",
+        directoryRoute: { label: "Alpha", projectId: "alpha", path: "C:\\Alpha", root: "C:\\Alpha", ownerWorkspaceId: "owner" },
+      },
       "task-b": { title: "Beta plan", updatedAt: "2026-05-14T10:08:00.000Z" },
+      "task-old-dir": {
+        title: "Old directory topic",
+        ownerWorkspaceId: "owner",
+        createdAt: "2026-05-13T10:00:00.000Z",
+        updatedAt: "2026-05-13T10:10:00.000Z",
+        lastReceiptTitle: "Old directory latest receipt",
+        lastUserPromptTitle: "Old directory first prompt",
+        directoryRoute: { label: "Archive", projectId: "archive", path: "C:\\Archive", root: "C:\\Archive", ownerWorkspaceId: "owner" },
+      },
+      "plugin:wardrobe": {
+        updatedAt: "2026-05-14T10:10:00.000Z",
+        lastReceiptTitle: "Persisted wardrobe receipt",
+        lastMessageId: "plugin-wardrobe-latest",
+      },
     },
     chatGroup: {
       enabled: true,
@@ -227,6 +246,22 @@ function makeThread() {
         createdAt: "2026-05-14T10:06:00.000Z",
         failedAt: "2026-05-14T10:08:00.000Z",
       },
+      {
+        id: "task-directory-gap-user",
+        role: "user",
+        content: "Stock analysis",
+        taskGroupId: "task-directory-gap",
+        createdAt: "2026-05-14T10:08:30.000Z",
+        directoryRoute: { label: "Alpha", projectId: "alpha", path: "C:\\Alpha", root: "C:\\Alpha", ownerWorkspaceId: "owner" },
+      },
+      {
+        id: "plugin-wardrobe-old",
+        role: "assistant",
+        content: "Old wardrobe paged receipt",
+        taskGroupId: "plugin:wardrobe",
+        updatedAt: "2026-05-14T10:09:00.000Z",
+        directoryRoute: { label: "Wardrobe Files", projectId: "wardrobe", path: "C:\\Wardrobe", root: "C:\\Wardrobe", ownerWorkspaceId: "owner" },
+      },
     ],
     events: Array.from({ length: 85 }, (_item, index) => ({ id: `event-${index}` })),
   };
@@ -243,6 +278,8 @@ function testMessagesForThreadMode(subject) {
     "task-a-assistant",
     "task-b-user",
     "task-b-assistant",
+    "task-directory-gap-user",
+    "plugin-wardrobe-old",
   ]);
   assert.deepEqual(messagesForThreadMode(thread, { mode: "chat" }).map((message) => message.id), ["chat-1"]);
   assert.deepEqual(messagesForThreadMode(thread, { mode: "chat", groupChat: true }).map((message) => message.id), ["group-1"]);
@@ -251,6 +288,8 @@ function testMessagesForThreadMode(subject) {
     "task-a-assistant",
     "task-b-user",
     "task-b-assistant",
+    "task-directory-gap-user",
+    "plugin-wardrobe-old",
   ]);
   assert.deepEqual(messagesForThreadMode(thread, { mode: "task", taskGroupId: "task-a" }).map((message) => message.id), [
     "task-a-user",
@@ -270,7 +309,7 @@ function testThreadMessagesPage(subject) {
   assert.deepEqual(page.page, {
     mode: "tasks",
     taskGroupId: "",
-    total: 4,
+    total: 6,
     limit: 2,
     loaded: 2,
     hasMoreBefore: true,
@@ -290,7 +329,7 @@ function testSearchThreadMessages(subject) {
 
   assert.deepEqual(result.messages.map((message) => message.id), ["task-a-assistant"]);
   assert.equal(result.page.search, "needle");
-  assert.equal(result.page.total, 4);
+  assert.equal(result.page.total, 6);
   assert.equal(result.page.totalMatches, 2);
   assert.equal(result.page.limit, 1);
   assert.equal(result.page.hasMoreMatches, true);
@@ -412,11 +451,18 @@ function testCompactThread(subject) {
   const compactThread = required(subject, "compactThread");
   const compactThreadWithMessagePage = required(subject, "compactThreadWithMessagePage");
   const thread = makeThread();
+  thread.messages.push({
+    id: "task-old-dir-final",
+    role: "assistant",
+    content: "这是一段很长的归档目录最终回执正文，不应作为目录话题列表显示。\n\n<!-- homeai-note\ntitle: 归档目录最终概要\n-->",
+    taskGroupId: "task-old-dir",
+    completedAt: "2026-05-14T10:12:00.000Z",
+  });
 
   const selectedMessages = thread.messages.filter((message) => message.taskGroupId === "task-a");
   const got = compactThread(thread, {
     messages: selectedMessages,
-    messagePage: { mode: "tasks", total: 4, limit: 2 },
+    messagePage: { mode: "tasks", total: 5, limit: 2 },
   });
 
   assert.equal(got.id, "thread-view");
@@ -432,7 +478,22 @@ function testCompactThread(subject) {
   assert.equal(got.chatGroup.enabled, true);
   assert.equal(got.externalIngress.source, "weixin");
   assert.deepEqual(got.messages.map((message) => message.id), ["task-a-user", "task-a-assistant"]);
-  assert.deepEqual(got.messagesPage, { mode: "tasks", total: 4, limit: 2 });
+  assert.deepEqual(got.messagesPage, { mode: "tasks", total: 5, limit: 2 });
+  assert.ok(got.taskGroups.some((group) => group.id === "task-old-dir"), "metadata-only task groups stay visible when messages are paged");
+  assert.equal(got.taskGroups.find((group) => group.id === "task-old-dir")?.lastReceiptTitle, "Old directory latest receipt");
+  assert.equal(got.taskGroups.find((group) => group.id === "task-a")?.lastReceiptTitle, "Alpha result mentions needle");
+  const wardrobeGroup = got.taskGroups.find((group) => group.id === "plugin:wardrobe");
+  assert.equal(wardrobeGroup?.pluginTopic, true);
+  assert.equal(wardrobeGroup?.directoryRoute, null);
+  assert.equal(wardrobeGroup?.lastReceiptTitle, "Persisted wardrobe receipt");
+  assert.equal(wardrobeGroup?.lastMessageId, "plugin-wardrobe-latest");
+  const archiveCollection = got.directoryTopicCollections.find((collection) => collection.label === "Archive");
+  assert.equal(archiveCollection?.groups?.[0]?.id, "task-old-dir");
+  assert.equal(archiveCollection?.groups?.[0]?.lastReceiptTitle, "归档目录最终概要");
+  assert.equal(archiveCollection?.groups?.[0]?.lastMessageId, "task-old-dir-final");
+  const alphaCollection = got.directoryTopicCollections.find((collection) => collection.label === "Alpha");
+  assert.ok(alphaCollection?.groups?.some((group) => group.id === "task-directory-gap"), "message-level directory routes fill missing index projections");
+  assert.equal(alphaCollection.groups.find((group) => group.id === "task-directory-gap")?.title, "Stock analysis");
   assert.equal(got.events.length, 80);
   assert.equal(got.events[0].id, "event-5");
   const noisy = compactThread(Object.assign({}, thread, {
@@ -445,8 +506,8 @@ function testCompactThread(subject) {
   assert.equal(noisy.events[1].preview.length < 5000, true);
 
   const paged = compactThreadWithMessagePage(makeThread(), { mode: "tasks", limit: 2 });
-  assert.deepEqual(paged.messages.map((message) => message.id), ["task-b-user", "task-b-assistant"]);
-  assert.equal(paged.messagesPage.total, 4);
+  assert.deepEqual(paged.messages.map((message) => message.id), ["task-directory-gap-user", "plugin-wardrobe-old"]);
+  assert.equal(paged.messagesPage.total, 6);
   assert.equal(paged.messagesPage.loaded, 2);
 }
 
@@ -470,6 +531,20 @@ function testTaskGroupPureHelpersWhenExported(subject) {
   assert.equal(groupFns.taskGroupStatus(taskA), "done");
   assert.equal(groupFns.taskGroupStatus(taskB), "failed");
   assert.ok(groups.findIndex((group) => group.id === "task-b") < groups.findIndex((group) => group.id === "task-a"));
+
+  const noteThread = makeThread();
+  noteThread.messages.push({
+    id: "task-note-assistant",
+    role: "assistant",
+    content: "这是一段很长的最终回执开头，不应该成为话题列表概要。\n\n<!-- homeai-note\ntitle: 目录话题最终概要\n-->",
+    taskGroupId: "task-note",
+    completedAt: "2026-05-14T10:12:00.000Z",
+    directoryRoute: { label: "Alpha", projectId: "alpha", path: "C:\\Alpha", root: "C:\\Alpha", ownerWorkspaceId: "owner" },
+  });
+  const noteGroup = groupFns.taskGroupsForThread(noteThread).find((group) => group.id === "task-note");
+  assert.equal(noteGroup?.lastReceiptTitle, "目录话题最终概要");
+  assert.equal(noteGroup?.lastMessageId, "task-note-assistant");
+  assert.equal(groupFns.taskGroupPreview(noteGroup), "目录话题最终概要");
 }
 
 function main() {

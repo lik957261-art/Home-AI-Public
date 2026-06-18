@@ -7,6 +7,7 @@ const PLUGIN_TOPIC_TOOLSETS = Object.freeze({
   health: "health",
   growth: "growth",
   moira: "moira",
+  music: "music",
 });
 const PLUGIN_TOPIC_CONTEXTS = Object.freeze({
   wardrobe: Object.freeze({

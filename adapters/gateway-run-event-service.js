@@ -60,6 +60,7 @@ function createGatewayRunEventService(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : (() => new Date().toISOString());
   const nowMs = typeof options.nowMs === "function" ? options.nowMs : (() => Date.now());
   const maxMessageChars = Math.max(1, Number(options.maxMessageChars || 12000) || 12000);
+  const finalMessageTerminalFallbackMs = Math.max(0, Number(options.finalMessageTerminalFallbackMs || 1500) || 1500);
 
   const appendBounded = typeof options.appendBounded === "function" ? options.appendBounded : defaultAppendBounded;
   const compactFullContent = typeof options.compactFullContent === "function"
@@ -103,9 +104,12 @@ function createGatewayRunEventService(options = {}) {
   const scheduleNextQueuedRunForTaskGroup = typeof options.scheduleNextQueuedRunForTaskGroup === "function"
     ? options.scheduleNextQueuedRunForTaskGroup
     : (() => {});
+  const setTimeoutFn = typeof options.setTimeout === "function" ? options.setTimeout : setTimeout;
+  const clearTimeoutFn = typeof options.clearTimeout === "function" ? options.clearTimeout : clearTimeout;
   const notifyTaskTerminal = typeof options.notifyTaskTerminal === "function"
     ? options.notifyTaskTerminal
     : ((thread, message, status) => options.webPushDeliveryService?.notifyTaskTerminal?.(thread, message, status));
+  const finalMessageTerminalFallbackTimers = new Map();
   let completionService = null;
   let deltaEventService = null;
   let outputEventService = null;
@@ -150,6 +154,57 @@ function createGatewayRunEventService(options = {}) {
       message: compactMessage(message),
       thread: threadSummary(thread),
     });
+  }
+
+  function finalMessageTerminalFallbackKey(thread, message, runId) {
+    const id = cleanString(runId || message?.runId || "");
+    if (!thread?.id || !message?.id || !id) return "";
+    return `${thread.id}:${message.id}:${id}`;
+  }
+
+  function clearFinalMessageTerminalFallback(thread, message, runId) {
+    const key = finalMessageTerminalFallbackKey(thread, message, runId);
+    if (!key) return;
+    const timer = finalMessageTerminalFallbackTimers.get(key);
+    if (timer) clearTimeoutFn(timer);
+    finalMessageTerminalFallbackTimers.delete(key);
+  }
+
+  function outputItemLooksLikeFinalMessage(event = {}) {
+    const item = event.item || event.output_item || event.outputItem || {};
+    const type = cleanString(item.type).toLowerCase();
+    const role = cleanString(item.role).toLowerCase();
+    if (type && type !== "message") return false;
+    if (role && role !== "assistant") return false;
+    return Boolean(extractCompletedOutput({ response: { output: [item] } }) || cleanString(event.text));
+  }
+
+  function scheduleFinalMessageTerminalFallback(context, event = {}) {
+    if (!finalMessageTerminalFallbackMs) return;
+    const { thread, message, runId, responseRunId, originalRunId, stream } = context;
+    if (!thread || !message) return;
+    if (!["queued", "running"].includes(cleanString(message.status))) return;
+    const visibleRunId = cleanString(responseRunId || stream?.realRunId || message.runId || runId || originalRunId);
+    const key = finalMessageTerminalFallbackKey(thread, message, visibleRunId);
+    if (!key) return;
+    clearFinalMessageTerminalFallback(thread, message, visibleRunId);
+    const timer = setTimeoutFn(() => {
+      finalMessageTerminalFallbackTimers.delete(key);
+      if (!["queued", "running"].includes(cleanString(message.status))) return;
+      const activeIds = Array.isArray(thread.activeRunIds) ? thread.activeRunIds.map(cleanString) : [];
+      const stillActive = activeIds.includes(visibleRunId) || cleanString(thread.activeRunId) === visibleRunId || cleanString(message.runId) === visibleRunId;
+      if (!stillActive) return;
+      applyHermesRunEvent({
+        event: "response.completed",
+        run_id: visibleRunId,
+        response: { id: visibleRunId },
+        output: cleanString(message.content),
+        hermes_mobile_synthetic: true,
+        hermes_mobile_final_message_fallback: true,
+      });
+    }, finalMessageTerminalFallbackMs);
+    finalMessageTerminalFallbackTimers.set(key, timer);
+    if (typeof timer?.unref === "function") timer.unref();
   }
 
   function compactTerminalTopicContext(thread, message, reason) {
@@ -215,6 +270,7 @@ function createGatewayRunEventService(options = {}) {
         compactFullContent,
         compactMessage,
         compactTerminalTopicContext,
+        directoryTopicIndexService: options.directoryTopicIndexService,
         enqueueExternalDeliveryForTerminalMessage,
         isOrdinaryToolSchemaElevationRequest,
         markRunFailed,
@@ -315,19 +371,30 @@ function createGatewayRunEventService(options = {}) {
       return getDeltaEventService().applyDelta(context, event);
     }
     if (lifecycleEvent.phase === GATEWAY_RUN_EVENT_PHASES.OUTPUT_ITEM) {
-      return getOutputEventService().recordOutputItemEvent(context, event);
+      const result = getOutputEventService().recordOutputItemEvent(context, event);
+      if (context.eventName === "response.output_item.done" && outputItemLooksLikeFinalMessage(event)) {
+        scheduleFinalMessageTerminalFallback(context, event);
+      }
+      return result;
     }
     if (lifecycleEvent.phase === GATEWAY_RUN_EVENT_PHASES.FINAL_MESSAGE_DONE) {
-      return getOutputEventService().recordFinalMessageDoneEvent(context, event);
+      const result = getOutputEventService().recordFinalMessageDoneEvent(context, event);
+      scheduleFinalMessageTerminalFallback(context, event);
+      return result;
     }
 
     addThreadEvent(thread, event);
 
-    if (lifecycleEvent.terminalStatus === "done") return getCompletionService().markRunCompleted(context, event);
+    if (lifecycleEvent.terminalStatus === "done") {
+      clearFinalMessageTerminalFallback(thread, message, runId);
+      return getCompletionService().markRunCompleted(context, event);
+    }
     if (lifecycleEvent.terminalStatus === "failed") {
+      clearFinalMessageTerminalFallback(thread, message, runId);
       return markRunFailed(thread.id, message.id, runId, gatewayRunUserFacingErrorFromEvent(event));
     }
     if (lifecycleEvent.terminalStatus === "cancelled") {
+      clearFinalMessageTerminalFallback(thread, message, runId);
       return markRunCancelled(thread.id, message.id, runId);
     }
 

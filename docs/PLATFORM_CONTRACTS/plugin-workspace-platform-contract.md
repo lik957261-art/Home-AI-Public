@@ -1,6 +1,6 @@
 # Plugin Workspace Platform Contract
 
-Contract version: `20260611-v3`.
+Contract version: `20260618-v4`.
 
 ## Purpose
 
@@ -50,7 +50,7 @@ If a plugin does not have `docs/`, use the smallest local equivalent such as
 The pointer file must include:
 
 ```text
-Home AI platform contract version: 20260611-v3
+Home AI platform contract version: 20260618-v4
 
 Canonical Home AI contract source:
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md
@@ -544,6 +544,43 @@ doc:
 | `ai_ops_evidence_ledger` | yes | Local append-only JSONL evidence path, normally under `$HOME/.homeai-qa/`, with no raw secrets or private payloads. |
 | `ios_live_debug_available` | if embedded UI | `yes` when the plugin can be debugged through the Home AI live iOS PWA server; otherwise `no` with a short reason. |
 | `ios_visual_harness_command` | if embedded UI | Checked command using `npm run ios:pwa:visual` or `scripts/ios-pwa-visual-harness.js`; include `--scenario embedded-plugin-shell --plugin-id <plugin-id>` for plugin shell validation. Keyboard/composer changes must also declare or run `--scenario embedded-plugin-keyboard-composer --plugin-id <plugin-id>` with a real thread/route id when the input only exists on a detail page. Codex Mobile side-chat input changes must use `--scenario embedded-plugin-side-chat-keyboard --plugin-id codex-mobile --plugin-thread-id <thread-id>`. |
+
+## Frontend Build Boundary
+
+Home AI's existing primary PWA shell is not a candidate for a one-shot Vite
+migration. The current `public/index.html`, `public/service-worker.js`,
+`public/styles.css`, and ordered `public/app-*.js` runtime remain the stable
+host for chat, Composer, event streaming, plugin iframe hosting, service-worker
+refresh, PWA install behavior, and the iOS native shell bridge until a separate
+architecture migration is explicitly approved.
+
+New independent frontend capabilities should use a Vite-built island by
+default when they are not tightly coupled to the existing shell boot order. This
+includes new standalone panels, training tools, admin/debug pages, isolated
+settings surfaces, and plugin-owned embedded UIs. A Vite island must:
+
+- keep business/runtime integration through Home AI APIs or a documented plugin
+  bridge instead of reaching into unrelated global shell state;
+- emit built assets into a deterministic static path that can be referenced
+  from `public/` or the plugin service entry;
+- remain compatible with the existing Home AI static deployment model,
+  including `?v=<client-version>` or fingerprinted asset URLs where applicable;
+- update `public/index.html`, `public/service-worker.js`,
+  `public/directory-viewer.html`, and `tests/task-list-ui.test.js` whenever a
+  Home AI static client-version bump is required;
+- provide focused local validation for the Vite build plus the relevant Home AI
+  harness, such as `node tests/static-cache-version-harness.test.js`,
+  `node tests/task-list-ui.test.js`, and mobile/iOS visual harnesses when the
+  feature is visible in the app shell;
+- keep PWA-only behavior unchanged when native-shell markers or plugin bridge
+  handshakes are absent.
+
+Existing shell modules may be refactored toward ES-module-compatible boundaries
+incrementally, but they must not be bundled into a Vite app merely to reduce
+file count. Any migration of chat, Composer, event streaming, plugin host,
+service-worker registration, or global navigation requires a dedicated
+implementation note, rollback plan, cache-version plan, and visual/mobile
+harness evidence before deployment.
 
 ## Required Native Client Facts
 

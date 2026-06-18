@@ -117,6 +117,7 @@ function testCompositionContract() {
     "accessKeyApiRoutes",
     "familyProfileApiRoutes",
     "nativeDeviceApiRoutes",
+    "nativeEnvironmentContextApiRoutes",
     "ownerElevationApiRoutes",
     "platformCurrencyApiRoutes",
     "publicApiRoutes",
@@ -128,6 +129,7 @@ function testCompositionContract() {
     "workspaceApiRoutes",
   ]);
   assert.deepEqual(Object.keys(composition.services).sort(), [
+    "currentEnvironmentContextService",
     "familyProfileInsightService",
     "familyProfileProjectionService",
     "familyProfileRepository",

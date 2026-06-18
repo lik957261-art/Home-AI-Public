@@ -64,6 +64,15 @@ const DEFAULT_PLUGIN_CAPABILITIES = Object.freeze([
     summary: "Inspect astrological chart records, chart evidence, forecasts, and Moira calculation outputs.",
     triggers: Object.freeze(["moira", "astrology", "chart", "\u661f\u76d8", "\u547d\u76d8", "\u8d77\u76d8", "\u5360\u661f"]),
   }),
+  Object.freeze({
+    pluginId: "music",
+    label: "Music",
+    primaryToolset: "music",
+    requiredToolsets: Object.freeze(["music"]),
+    requiredSkills: Object.freeze([]),
+    summary: "Inspect Roon listening events, favorite albums, tags, volume labels, and recommendation context.",
+    triggers: Object.freeze(["music", "roon", "favorite", "favorites", "playlist", "album", "track", "\u97f3\u4e50", "\u542c\u6b4c", "\u6536\u85cf", "\u6536\u85cf\u5939", "\u64ad\u653e\u5217\u8868", "\u4e13\u8f91", "\u6b4c\u66f2"]),
+  }),
 ]);
 
 function cleanString(value, fallback = "") {

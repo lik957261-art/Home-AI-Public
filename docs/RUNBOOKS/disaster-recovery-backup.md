@@ -28,11 +28,27 @@ eval "$(scripts/mount-macos-nas-backup-destination.sh)"
 HOMEAI_DISASTER_BACKUP_LABEL=manual-verify scripts/run-macos-disaster-backup-to-nas.sh
 ```
 
+Run the same staged backup through SSH/rsync when the NFS mount is unstable:
+
+```bash
+HOMEAI_DISASTER_BACKUP_TRANSPORT=ssh \
+HOMEAI_DISASTER_BACKUP_SSH_TARGET=<nas-ssh-alias-or-user@host> \
+HOMEAI_DISASTER_BACKUP_SSH_DESTINATION=<remote-backup-root> \
+HOMEAI_DISASTER_BACKUP_LABEL=manual-verify-ssh \
+scripts/run-macos-disaster-backup-to-nas.sh
+```
+
 Do not run the write path as `sudo node ... --destination <NFS path>`. Synology
 NFS exports may root-squash sudo writes, which can surface as rsync
 `unexpected end of file` or `mkpathat: Permission denied`. The supported write
 path is the wrapper above: sudo reads production into local staging, then the
-normal operator user syncs staging to NFS.
+normal operator user syncs staging to NFS or to the configured SSH target.
+
+The wrapper default is `HOMEAI_DISASTER_BACKUP_TRANSPORT=auto`: it prefers
+SSH/rsync when both `HOMEAI_DISASTER_BACKUP_SSH_TARGET` and
+`HOMEAI_DISASTER_BACKUP_SSH_DESTINATION` are configured, and otherwise falls
+back to the mounted NFS path. Force `nfs` only when validating the mount path
+itself.
 
 Production Automation uses a `no_agent` Hermes CRON job:
 
@@ -117,8 +133,12 @@ The backup contains secrets and account state. Do not publish it, attach it to i
 If the daily automation fails:
 
 1. Run the Mac script in `--check-only --json` mode.
-2. Verify `HOMEAI_DISASTER_BACKUP_DESTINATION` points at the mounted or
-   sync-backed NAS destination.
+2. Prefer SSH publish when available. Verify
+   `HOMEAI_DISASTER_BACKUP_SSH_TARGET` and
+   `HOMEAI_DISASTER_BACKUP_SSH_DESTINATION` are configured for the production
+   CRON environment. If they are not configured, verify
+   `HOMEAI_DISASTER_BACKUP_DESTINATION` points at the mounted or sync-backed
+   NAS destination.
    The default helper is
    `scripts/mount-macos-nas-backup-destination.sh`, which mounts
    `192.168.10.99:/volume1/备份` at
@@ -127,7 +147,8 @@ If the daily automation fails:
    account password.
 3. Run `scripts/run-macos-disaster-backup-to-nas.sh` manually if needed. It
    stages to `/Users/example/path` by default
-   and publishes `current` to the NFS destination as the normal operator user.
+   and publishes `current` through SSH when configured, otherwise to the NFS
+   destination as the normal operator user.
 4. For the production scheduled path, run the official Home AI
    Automation/Hermes CRON job manually if needed:
    `scripts/hermes-mobile-cron-dispatcher.py --run-job d1a17b9f4c02` with the

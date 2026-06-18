@@ -127,6 +127,37 @@ function testCompletionGateIsAdvisoryForMissingEvidence() {
   assert.deepEqual(result.missing, ["weather_call", "markdown_receipt", "watch_item"]);
 }
 
+function testCompletionGateAcceptsNativeEnvironmentWeatherEvidence() {
+  const result = validateWardrobeOutfitWorkflowCompletion({
+    message: {
+      runOptions: {
+        environmentContext: {
+          ok: true,
+          source: "homeai_native_ios",
+          weather: { status: "available", selected: { temperatureC: 24 } },
+        },
+        wardrobeOutfitWorkflowGate: {
+          active: true,
+          requiredSkillPath: "productivity/wardrobe-style-operations",
+          completionGate: {
+            enabled: true,
+            requireWeatherCall: true,
+            requireWardrobeMcpCall: false,
+            requireMarkdownReceipt: false,
+            requireWatchItem: false,
+          },
+        },
+      },
+    },
+    output: "\u642d\u914d\u5efa\u8bae\u3002",
+    loadedSkills: [{ path: "productivity/wardrobe-style-operations" }],
+    loadedTools: [],
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.missing, []);
+}
+
 function testCompletionGatePassesWithWeatherMcpMarkdownAndWatch() {
   const result = validateWardrobeOutfitWorkflowCompletion({
     message: {
@@ -163,6 +194,7 @@ testGateFailsWhenRequiredSkillPreloadFailed();
 testGateFailsWhenWeatherIsMissingForOutfit();
 testNonOutfitWardrobePluginDoesNotRequireWeather();
 testCompletionGateIsAdvisoryForMissingEvidence();
+testCompletionGateAcceptsNativeEnvironmentWeatherEvidence();
 testCompletionGatePassesWithWeatherMcpMarkdownAndWatch();
 
 console.log("wardrobe outfit workflow gate service tests passed");

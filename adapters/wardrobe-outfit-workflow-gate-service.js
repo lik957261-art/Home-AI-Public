@@ -1,5 +1,7 @@
 "use strict";
 
+const { environmentContextHasWeather } = require("./environment-context-service");
+
 const WARDROBE_SKILL_PATH = "productivity/wardrobe-style-operations";
 const WARDROBE_BASE_TOOLSETS = Object.freeze(["wardrobe", "vision", "file", "skills"]);
 const WARDROBE_OUTFIT_TOOLSETS = Object.freeze(["wardrobe", "vision", "file", "skills", "weather"]);
@@ -257,9 +259,11 @@ function validateWardrobeOutfitWorkflowCompletion(input = {}) {
   const output = cleanString(input.output || message.content || "");
   const loadedTools = toolNamesFromEntries(input.loadedTools || message.loadedTools || []);
   const loadedSkills = input.loadedSkills || message.loadedSkills || [];
+  const hasWeatherEvidence = loadedTools.includes("weather")
+    || environmentContextHasWeather(input.environmentContext || message.runOptions?.environmentContext || message.runOptions?.environment_context);
   const missing = [];
   if (!hasLoadedSkill(loadedSkills, gate.requiredSkillPath || WARDROBE_SKILL_PATH)) missing.push("required_skill");
-  if ((completionGate.requireWeatherCall || completionGate.recommendedWeatherCall) && !loadedTools.includes("weather")) missing.push("weather_call");
+  if ((completionGate.requireWeatherCall || completionGate.recommendedWeatherCall) && !hasWeatherEvidence) missing.push("weather_call");
   if ((completionGate.requireWardrobeMcpCall || completionGate.recommendedWardrobeMcpCall) && !loadedTools.some((name) => name.startsWith("mcp_wardrobe_"))) missing.push("wardrobe_mcp_call");
   if ((completionGate.requireMarkdownReceipt || completionGate.recommendedMarkdownReceipt) && !hasMarkdownReceipt(output)) missing.push("markdown_receipt");
   if ((completionGate.requireWatchItem || completionGate.recommendedWatchItem) && !hasWatchItem(output)) missing.push("watch_item");

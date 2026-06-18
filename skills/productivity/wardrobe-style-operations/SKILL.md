@@ -14,3 +14,6 @@ Rules:
 - Do not read, print, copy, or summarize access-key files.
 - Do not store keys, launch tokens, private image paths, or full inventory dumps in chats, logs, docs, or receipts.
 - For writes, prefer dry-run or preview first when the tool supports it, then verify through Wardrobe readback.
+- For outfit recommendations, first use Home AI `environment_context` when it is present and matches the user's current-device location and target time. Treat it as the primary local weather context.
+- If `environment_context` is unavailable, lacks weather, is stale for the requested target time, or the user asks about another city or destination, fall back to the `weather` toolset instead of inventing conditions.
+- Do not expose raw native location payloads, exact coordinates, or full forecast arrays in the visible answer or Markdown receipt.

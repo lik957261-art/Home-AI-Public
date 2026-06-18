@@ -14,6 +14,17 @@ The static client owns PWA UI, client routing, service worker cache behavior, an
 - `tests/task-list-ui.test.js`
 - focused UI tests such as `tests/app-learning-growth-ui.test.js`
 
+## Frontend Build Direction
+
+The existing primary PWA shell remains the stable ordered `public/app-*.js`
+runtime and should not be migrated to Vite in one broad change. New independent
+frontend capabilities should default to Vite-built islands when they are not
+tightly coupled to chat, Composer, event streaming, plugin iframe hosting,
+service-worker registration, or global navigation. The central rule lives in
+`docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md` under
+`Frontend Build Boundary`; Vite-built output must still obey this module's
+static version, service-worker cache, deployment, and harness rules.
+
 ## Version Rule
 
 Any client-visible static change must bump the static version consistently in:
@@ -82,6 +93,16 @@ or plugin tokens.
 Gateway plugin/schema/profile changes:
 
 - Gateway Pool restart is required
+
+## Composer Send Guard
+
+The primary `sendMessage()` path must hold a generic
+`state.composerSendInFlight` lock from just before request-body construction
+until the request finishes. Button disabling remains only a UI affordance: it
+does not protect against near-simultaneous native shell, voice, keyboard, or
+iframe-triggered activations that enter the function before DOM state updates
+settle. Surface-specific guards such as `directoryTopicDraftSendInFlight` may
+add stricter behavior, but they do not replace the generic composer lock.
 
 ## Constraints
 

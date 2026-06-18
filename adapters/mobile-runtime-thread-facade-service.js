@@ -39,6 +39,7 @@ function createMobileRuntimeThreadFacadeService(options = {}) {
         detectDirectTodoCreateIntent: options.detectDirectTodoCreateIntent,
         detectDirectTodoCreateIntentForWeb: options.detectDirectTodoCreateIntentForWeb,
         detectTodoNaturalLanguage: options.detectTodoNaturalLanguage,
+        directoryTopicIndexService: options.directoryTopicIndexService,
         directTodoCreateEnabled: options.directTodoCreateEnabled,
         findThreadForRequest: (...args) => options.getRuntimeStateThreadService().findThreadForRequest(...args),
         findWorkspace: options.findWorkspace,

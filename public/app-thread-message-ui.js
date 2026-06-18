@@ -72,7 +72,12 @@ async function openProjectTask(sourceThreadId, taskGroupId) {
   state.viewMode = "tasks";
   localStorage.setItem("hermesWebViewMode", state.viewMode);
   state.currentThreadId = sourceThreadId;
-  const result = await api(`/api/threads/${encodeURIComponent(sourceThreadId)}`);
+  const params = new URLSearchParams({
+    messageMode: "tasks",
+    taskGroupId,
+    messageLimit: String(typeof TASK_MESSAGE_INITIAL_LIMIT === "number" ? TASK_MESSAGE_INITIAL_LIMIT : 80),
+  });
+  const result = await api(`/api/threads/${encodeURIComponent(sourceThreadId)}?${params.toString()}`);
   state.currentThread = mergeCurrentThread(result.thread);
   state.currentTaskGroupId = taskGroupId;
   state.threads = [summarizeThread(state.currentThread)];

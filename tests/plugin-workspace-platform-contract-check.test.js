@@ -116,7 +116,7 @@ function makeFixture() {
   const repo = path.join(root, "Agent");
   write(path.join(repo, "docs", "IMPLEMENTATION_NOTES", "plugin-workspace-contract-rollout-status.md"), [
     "# Plugin Workspace Contract Rollout Status",
-    "Finance Wardrobe Note Email Health Growth Moira Codex Mobile Web Home AI Native iOS Shell",
+    "Finance Wardrobe Note Email Health Growth Moira Music Codex Mobile Web Home AI Native iOS Shell",
     "plugin-workspace-platform-contract.md",
     "plugin-mobile-ui-visual-contract.md",
     "docs/HOME_AI_PLATFORM_CONTRACT.md",
@@ -178,7 +178,7 @@ function testFixturePasses() {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.ok, true);
-  assert.deepEqual(parsed.checkedPlugins, ["finance", "wardrobe", "note", "email", "health", "growth", "moira", "codex-mobile"]);
+  assert.deepEqual(parsed.checkedPlugins, ["finance", "wardrobe", "note", "email", "health", "growth", "moira", "music", "codex-mobile"]);
   assert.deepEqual(parsed.checkedNativeClients, ["home-ai-native-ios"]);
   assert.deepEqual(parsed.checkedTargets, PLATFORM_TARGETS.map((target) => target.id));
   assert.deepEqual(parsed.excludedPlugins, []);

@@ -53,22 +53,39 @@ topics in one visible place.
   and plugin/MCP data calls. This is deterministic from bound directory/project
   metadata and is not a natural-language selector.
 
-## Suggested Data Model
+## Durable Data Model
 
-The first implementation can be SQLite-backed or use the existing Hermes
-Mobile state store, but the behavior should follow this shape:
+Directory-bound topics must not be reconstructed by scanning the global
+single-window message list on every login or topic-root render. Message history
+will grow without a practical upper bound, and a root page that depends on
+global replay will eventually become slow, incomplete under pagination, or
+memory-heavy.
+
+Use a durable directory-topic index as the source of truth for topic discovery.
+The raw `threads` and `messages` records remain the canonical chat transcript,
+but they are not the list index.
+
+The index can start as a JSON field in the existing thread/state store for
+compatibility, then migrate to a SQLite table. The service contract should
+already follow the table shape below so the storage backend can change without
+rewriting UI or routing code:
 
 ```json
 {
   "id": "directory-topic:<workspaceId>:<directoryRoute>:<topicId>",
   "workspaceId": "<effective workspace>",
-  "directoryRoute": "<server-normalized route>",
+  "directoryRouteKey": "<stable normalized route key>",
+  "directoryRoute": "<server-normalized route snapshot>",
   "topicThreadId": "<thread id>",
   "taskGroupId": "directory:<stable id or route hash>:<topic slug>",
   "title": "Planning",
   "purpose": "planning",
   "isDefault": false,
   "sortOrder": 20,
+  "lastMessageId": "<latest visible message id>",
+  "lastReceiptTitle": "<bounded assistant receipt title>",
+  "lastUserPromptTitle": "<bounded user prompt title>",
+  "messageCount": 42,
   "contextPolicy": {
     "mode": "cleaned_selected",
     "maxFiles": 8,
@@ -86,6 +103,105 @@ Uniqueness rules:
 - `(workspaceId, directoryRoute, isDefault=true)` must allow at most one row.
 - `directoryRoute` must be a normalized route from the directory boundary
   service, not a raw filesystem path supplied by the client.
+- `directoryRouteKey` is computed from effective workspace id, project id,
+  subproject id, and normalized route root/path. Display labels are not unique.
+- `lastReceiptTitle`, `lastUserPromptTitle`, and `messageCount` are summary
+  fields for list rendering only. They are updated incrementally when a
+  directory-bound message or receipt changes.
+- Discovery index rows are only for user-visible directory topics. Fixed
+  conversation groups, plugin task groups such as `plugin:*`, and Kanban/case
+  task groups such as `case_*` must stay out of the directory-topic index.
+
+### Storage Evolution
+
+Phase 1 can use `thread.taskGroupMeta[taskGroupId]` as the compatibility index
+only when it stores all required fields:
+
+- `ownerWorkspaceId`;
+- normalized `directoryRoute`;
+- `directoryRouteKey`;
+- explicit/manual `title`;
+- `createdAt` and `updatedAt`;
+- bounded `lastReceiptTitle` / `lastUserPromptTitle`;
+- `messageCount`.
+
+Phase 1 must include a bounded backfill/repair job that reads existing message
+history once and writes missing index fields. The request path must not redo
+that full scan.
+
+Phase 2 should introduce a first-class SQLite table, for example
+`directory_topic_bindings`, with the same fields. Writes should be idempotent
+upserts keyed by `(workspace_id, directory_route_key, task_group_id)`.
+
+Phase 3 may split summaries into `directory_topic_activity` if receipt
+generation, audit, or search needs richer metadata.
+
+## Loading And Pagination Contract
+
+The topic root has two independent loading scopes:
+
+1. Directory collection scope.
+2. Topic list scope inside one directory collection.
+
+The root page should load only directory collections and a bounded number of
+recent topic rows for each visible/expanded directory. It must not load all
+topics or all messages.
+
+Default behavior:
+
+- Load directory collections for the selected workspace, sorted by latest
+  directory-topic activity.
+- For the first visible directory collections, include at most the most recent
+  `N` topics per directory, for example 5 or 10.
+- Collapsed directories may include only count, latest summary, and default
+  topic metadata.
+- Expanding one directory calls a directory-scoped list API to fetch that
+  directory's topic page.
+- Pulling upward or tapping "load earlier" inside one directory fetches the
+  previous topic page for that directory only.
+- Opening a concrete topic fetches that topic's message page, for example the
+  latest 60 or 300 task messages for that task group only.
+- Audit/search can use a separate server-side query path with explicit limits,
+  cursors, and timeout/error reporting. It must not reuse the mobile root list
+  payload as an audit dataset.
+
+Suggested API shape:
+
+```text
+GET /api/directory-topics?workspaceId=<id>&limitDirectories=20&topicsPerDirectory=5
+GET /api/directory-topics/:routeKey/topics?cursor=<cursor>&limit=20
+GET /api/threads/:threadId?messageMode=tasks&taskGroupId=<id>&messageLimit=300
+```
+
+The first route returns directory collections and recent bounded topic
+summaries. The second route pages one directory's topics. The third route loads
+the concrete conversation messages only after the user opens a topic.
+
+Response projection:
+
+```json
+{
+  "collections": [{
+    "key": "<directoryRouteKey>",
+    "workspaceId": "owner",
+    "route": {},
+    "label": "健康健身",
+    "topicCount": 12,
+    "hasMoreTopics": true,
+    "nextCursor": "<opaque cursor>",
+    "defaultTopic": {},
+    "topics": [{
+      "taskGroupId": "directory:...",
+      "title": "睡眠日志分析",
+      "lastReceiptTitle": "睡眠趋势与恢复建议",
+      "updatedAt": "ISO-8601"
+    }]
+  }]
+}
+```
+
+The frontend must treat this projection as an index. It should not infer index
+completeness from the currently loaded `thread.messages` page.
 
 ## UI Design
 
@@ -162,6 +278,12 @@ Owner initiated the run.
 
 Add focused services before wiring UI routes:
 
+- `adapters/directory-topic-index-service.js`
+  - compute stable directory route keys;
+  - upsert directory-topic index rows when directory-bound messages are
+    created, renamed, completed, deleted, or migrated;
+  - list directory collections with per-directory topic pagination;
+  - avoid request-time full-history scans.
 - `adapters/directory-topic-binding-service.js`
   - create/list/update/delete directory-topic bindings;
   - enforce one default topic per directory;
@@ -173,15 +295,39 @@ Add focused services before wiring UI routes:
   - resolve actor workspace versus directory target workspace for Gateway runs;
   - keep directory-bound plugin/MCP calls on the target workspace.
 - `server-routes/directory-topic-api-routes.js`
-  - expose list/open/create/default-selection APIs;
+  - expose collection list, one-directory topic pagination, open/create,
+    rename, delete/unbind, and default-selection APIs;
   - delegate business logic to services.
 - Frontend:
-  - render directory topic collection cards;
+  - render directory topic collection cards from the directory-topic index
+    projection, not from the global task message list;
+  - fetch earlier topics only for the expanded directory;
+  - fetch a concrete task-group message page only when opening that topic;
   - open directory/default topic/topic chooser through explicit icon actions;
   - preserve mobile navigation and back behavior.
 
 Do not add this policy directly to `server.js` or a large frontend controller
 without service/test coverage.
+
+## Migration And Repair
+
+Existing deployments may have directory-bound topics whose route metadata is
+stored only on messages. Add a one-shot repair script and an idempotent startup
+diagnostic:
+
+- scan existing single-window threads in bounded batches;
+- find task groups with message-level `directoryRoute`;
+- compute `directoryRouteKey`;
+- write missing `taskGroupMeta` / index rows;
+- preserve existing manual titles from rename metadata;
+- derive bounded `lastReceiptTitle` and `lastUserPromptTitle` from existing
+  messages;
+- report counts, skipped invalid routes, and unresolved workspace ownership;
+- never print raw message bodies in logs.
+
+The repair script is allowed to scan historical messages because it is an
+operator/migration job. Normal login, topic-root rendering, and foreground
+refresh must not do so.
 
 ## Harness Requirements
 
@@ -194,6 +340,11 @@ Required focused coverage:
 - one directory can bind multiple topics;
 - one directory can have at most one default topic;
 - default topic can be changed without deleting other topics;
+- directory-topic root list is built from the durable index rather than from
+  the current thread message page;
+- topic list pagination is scoped to one directory route and does not fetch
+  unrelated directory topics;
+- opening an old topic loads that task group's message page on demand;
 - opening a directory uses directory ACL;
 - opening a topic uses the selected topic id, not a stale or unrelated topic;
 - Owner viewing a non-Owner workspace resolves the target workspace directory
@@ -208,6 +359,7 @@ Required focused coverage:
 
 Likely focused checks:
 
+- `node tests\directory-topic-index-service.test.js`
 - `node tests\directory-topic-binding-service.test.js`
 - `node tests\directory-topic-context-service.test.js`
 - `node tests\directory-topic-api-routes.test.js`

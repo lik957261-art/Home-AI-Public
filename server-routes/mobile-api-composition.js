@@ -23,7 +23,9 @@ function createMobileApiComposition(deps = {}) {
   const {
     accessKeyApiRoutes,
     familyProfileApiRoutes,
-    nativeDeviceApiRoutes, ownerElevationApiRoutes,
+    nativeDeviceApiRoutes,
+    nativeEnvironmentContextApiRoutes,
+    ownerElevationApiRoutes,
     platformCurrencyApiRoutes,
     publicApiRoutes,
     pushApiRoutes,
@@ -38,6 +40,7 @@ function createMobileApiComposition(deps = {}) {
     familyProfileProjectionService,
     familyProfileRepository,
     familyProfileService,
+    currentEnvironmentContextService,
     platformCurrencyService,
   } = platformComposition.services;
 
@@ -310,6 +313,7 @@ function createMobileApiComposition(deps = {}) {
     learningProgramApiRoutes,
     noteReceiptApiRoutes,
     nativeDeviceApiRoutes,
+    nativeEnvironmentContextApiRoutes,
     ownerElevationApiRoutes,
     publicApiRoutes,
     pushApiRoutes,
@@ -336,6 +340,7 @@ function createMobileApiComposition(deps = {}) {
     services: {
       actionInboxService,
       actionInboxTodoService,
+      currentEnvironmentContextService,
       familyProfileInsightService,
       familyProfileProjectionService,
       familyProfileRepository,

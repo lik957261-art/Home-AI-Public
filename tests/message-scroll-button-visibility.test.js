@@ -24,14 +24,14 @@ assert.match(
 
 assert.match(
   appMessageActionsUiJs,
-  /const shouldFloatStart = shouldShow && canReturnToStart && !footerVisible;/,
-  "the start arrow should float only when the reply start has passed and the footer is not already visible"
+  /const shouldFloatStart = false;/,
+  "the start arrow must stay in the Usage footer strip and never duplicate as a top-left floating control"
 );
 
 assert.match(
   appMessageActionsUiJs,
   /button\.classList\.toggle\("floating", shouldFloat\);[\s\S]*?positionFloatingMessageScrollButton\(button, shouldFloat, articleRect, conversationRect\);/,
-  "the same start arrow should be restored as a floating control for visible historical long messages"
+  "the shared arrow cleanup path must still restore inline styles when older DOM had floating state"
 );
 
 assert.match(
@@ -90,8 +90,8 @@ assert.match(
 
 assert.match(
   appMessageActionsUiJs,
-  /const footerVisible = messageScrollFooterVisible\(articleRect, conversationRect\);[\s\S]*?const shouldFloatStart = shouldShow && canReturnToStart && !footerVisible;/,
-  "the footer up arrow must stay beside Usage when the reply footer is already visible"
+  /const footerVisible = messageScrollFooterVisible\(articleRect, conversationRect\);[\s\S]*?const shouldFloatStart = false;/,
+  "the footer up arrow must stay beside Usage instead of floating to the page corner"
 );
 
 assert.match(
@@ -103,7 +103,7 @@ assert.match(
 assert.match(
   appMessageActionsUiJs,
   /button\.style\.setProperty\("position", "fixed"\);[\s\S]*?button\.style\.setProperty\("left", `\$\{Math\.round\(left\)\}px`\);[\s\S]*?button\.style\.setProperty\("top", `\$\{Math\.round\(top\)\}px`\);[\s\S]*?button\.style\.setProperty\("z-index", "38"\);/,
-  "floating long-message start arrows must be positioned outside the footer flow"
+  "legacy floating style cleanup must remain available for DOM nodes rendered by older static assets"
 );
 
 assert.match(
@@ -183,6 +183,6 @@ context.messageScrollHarness.scheduleMessageScrollButtonVisibility(detachedArtic
 assert.strictEqual(typeof queuedFrame, "function");
 queuedFrame();
 assert.strictEqual(liveButtonHidden, false, "detached queued message nodes must fall back to the live conversation and reveal one-screen-overflow long-reply arrows");
-assert.strictEqual(liveButtonFloating, false, "the reply-end up arrow must remain inline beside the footer controls when the reply footer is visible");
+assert.strictEqual(liveButtonFloating, false, "the reply-end up arrow must remain inline beside the footer controls");
 
 console.log("message scroll button visibility harness passed");

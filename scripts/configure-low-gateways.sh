@@ -48,6 +48,8 @@ web_plugin_source="${HERMES_MOBILE_WEB_PLUGIN_SOURCE:-$mobile_app_root/gateway-p
 web_plugin_target="$worker_home_dir/plugins/hermes-mobile-web"
 http_plugin_source="${HERMES_MOBILE_HTTP_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-http}"
 http_plugin_target="$worker_home_dir/plugins/hermes-mobile-http"
+current_environment_plugin_source="${HERMES_MOBILE_CURRENT_ENVIRONMENT_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-current-environment}"
+current_environment_plugin_target="$worker_home_dir/plugins/hermes-mobile-current-environment"
 docx_plugin_source="${HERMES_MOBILE_DOCX_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-docx}"
 docx_plugin_target="$worker_home_dir/plugins/hermes-mobile-docx"
 audio_plugin_source="${HERMES_MOBILE_AUDIO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-audio}"
@@ -78,6 +80,17 @@ moira_mcp_command="${HERMES_MOBILE_MOIRA_MCP_COMMAND:-node}"
 moira_mcp_path="${HERMES_MOBILE_MOIRA_MCP_PATH:-$gateway_worker_root/moira-mcp/scripts/moira-mcp-stdio.mjs}"
 email_mcp_python="${HERMES_MOBILE_EMAIL_MCP_PYTHON:-/opt/hermes-gateway-runtime/venv/bin/python}"
 email_mcp_path="${HERMES_MOBILE_EMAIL_MCP_PATH:-$gateway_worker_root/email-mcp/scripts/email-mcp-wrapper.py}"
+music_mcp_command="${HERMES_MOBILE_MUSIC_MCP_COMMAND:-node}"
+if [[ "$gateway_worker_root" == /mnt/* ]]; then
+  default_music_mcp_path="$gateway_worker_root/music-mcp/src/mcp-stdio.js"
+  default_music_sqlite_path="$gateway_worker_root/music-mcp/runtime/music.sqlite"
+else
+  gateway_runtime_root="$(dirname "$gateway_worker_root")"
+  default_music_mcp_path="$gateway_runtime_root/plugins/music/src/mcp-stdio.js"
+  default_music_sqlite_path="$gateway_runtime_root/plugins/music/runtime/music.sqlite"
+fi
+music_mcp_path="${HERMES_MOBILE_MUSIC_MCP_PATH:-$default_music_mcp_path}"
+music_sqlite_path="${HERMES_MOBILE_MUSIC_SQLITE_PATH:-$default_music_sqlite_path}"
 detect_windows_host_gateway() {
   ip route 2>/dev/null | awk '/^default[[:space:]]/ { print $3; exit }'
 }
@@ -117,6 +130,7 @@ growth_user_drive_root="${HERMES_MOBILE_GROWTH_USER_DRIVE_ROOT:-/mnt/c/ProgramDa
 owner_growth_workspace_override="${HERMES_MOBILE_OWNER_GROWTH_WORKSPACE:-}"
 wuping_growth_workspace_override="${HERMES_MOBILE_WUPING_GROWTH_WORKSPACE:-}"
 moira_user_drive_root="${HERMES_MOBILE_MOIRA_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
+music_user_drive_root="${HERMES_MOBILE_MUSIC_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 email_user_drive_root="${HERMES_MOBILE_EMAIL_USER_DRIVE_ROOT:-/mnt/c/ProgramData/HermesMobile/data/drive/users}"
 owner_email_workspace_override="${HERMES_MOBILE_OWNER_EMAIL_WORKSPACE:-}"
 wuping_email_workspace_override="${HERMES_MOBILE_WUPING_EMAIL_WORKSPACE:-}"
@@ -580,6 +594,26 @@ if not any(isinstance(item, dict) and str(item.get("name") or "").startswith("mo
 PY
 }
 
+find_first_music_workspace_root() {
+  local workspace_id="${1:-}"
+  local drive_root="${2:-$music_user_drive_root}"
+  python3 - "$workspace_id" "$drive_root" <<'PY' 2>/dev/null || true
+from pathlib import Path
+import sys
+workspace_id = (sys.argv[1] or "").strip()
+drive_root = Path(sys.argv[2])
+if not workspace_id:
+    raise SystemExit(0)
+user_root = drive_root / workspace_id
+if not user_root.exists():
+    raise SystemExit(0)
+config = user_root / ".hermes-music" / "config.json"
+key = user_root / ".hermes-music" / "access-key.txt"
+if config.exists() and key.exists():
+    print(str(user_root))
+PY
+}
+
 find_first_email_workspace_root() {
   local workspace_id="${1:-}"
   local drive_root="${2:-$email_user_drive_root}"
@@ -611,6 +645,10 @@ wuping_health_workspace="${wuping_health_workspace_override:-$(find_first_health
 owner_growth_workspace="${owner_growth_workspace_override:-$(find_first_growth_workspace_root owner)}"
 wuping_growth_workspace="${wuping_growth_workspace_override:-$(find_first_growth_workspace_root weixin_wuping)}"
 owner_moira_workspace="$(find_first_moira_workspace_root owner)"
+owner_music_workspace="$(find_first_music_workspace_root owner)"
+if [ -z "$owner_music_workspace" ] && [ -d "$music_user_drive_root/owner" ]; then
+  owner_music_workspace="$music_user_drive_root/owner"
+fi
 owner_email_workspace="${owner_email_workspace_override:-$(find_first_email_workspace_root owner)}"
 wuping_email_workspace="${wuping_email_workspace_override:-$(find_first_email_workspace_root weixin_wuping)}"
 
@@ -1044,6 +1082,7 @@ missing_auth_profiles=()
 weather_plugin_enabled=0
 web_plugin_enabled=0
 http_plugin_enabled=0
+current_environment_plugin_enabled=0
 docx_plugin_enabled=0
 audio_plugin_enabled=0
 image_plugin_enabled=0
@@ -1075,6 +1114,15 @@ if [ -f "$http_plugin_source/plugin.yaml" ] && [ -f "$http_plugin_source/__init_
   http_plugin_enabled=1
 else
   echo "HTTP plugin source not found: $http_plugin_source" >&2
+fi
+
+if [ -f "$current_environment_plugin_source/plugin.yaml" ] && [ -f "$current_environment_plugin_source/__init__.py" ]; then
+  rm -rf "$current_environment_plugin_target"
+  cp -a "$current_environment_plugin_source" "$current_environment_plugin_target"
+  chown -R "$worker_user:$worker_user" "$current_environment_plugin_target"
+  current_environment_plugin_enabled=1
+else
+  echo "Current environment plugin source not found: $current_environment_plugin_source" >&2
 fi
 
 if [ -f "$docx_plugin_source/plugin.yaml" ] && [ -f "$docx_plugin_source/__init__.py" ]; then
@@ -1131,6 +1179,8 @@ weather_toolset_block=""
 weather_api_toolset_block=""
 http_toolset_block=""
 http_api_toolset_block=""
+current_environment_toolset_block=""
+current_environment_api_toolset_block=""
 cronjob_mobile_toolset_block=""
 cronjob_mobile_api_toolset_block=""
 plugin_enabled_lines=""
@@ -1146,6 +1196,11 @@ if [ "$http_plugin_enabled" = "1" ]; then
   http_toolset_block="  - http"
   http_api_toolset_block="    - http"
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-http"$'\n'
+fi
+if [ "$current_environment_plugin_enabled" = "1" ]; then
+  current_environment_toolset_block="  - current_environment"
+  current_environment_api_toolset_block="    - current_environment"
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-current-environment"$'\n'
 fi
 if [ "$docx_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-docx"$'\n'
@@ -1172,6 +1227,7 @@ if ! render_gateway_template_yaml "$worker_home_dir/config.yaml" \
   --value "weather_plugin_enabled=$weather_plugin_enabled" \
   --value "web_plugin_enabled=$web_plugin_enabled" \
   --value "http_plugin_enabled=$http_plugin_enabled" \
+  --value "current_environment_plugin_enabled=$current_environment_plugin_enabled" \
   --value "docx_plugin_enabled=$docx_plugin_enabled" \
   --value "audio_plugin_enabled=$audio_plugin_enabled" \
   --value "image_plugin_enabled=$image_plugin_enabled" \
@@ -1201,6 +1257,7 @@ toolsets:
   - clarify
 ${weather_toolset_block}
 ${http_toolset_block}
+${current_environment_toolset_block}
 ${cronjob_mobile_toolset_block}
 platform_toolsets:
   api_server:
@@ -1223,6 +1280,7 @@ platform_toolsets:
     - clarify
 ${weather_api_toolset_block}
 ${http_api_toolset_block}
+${current_environment_api_toolset_block}
 ${cronjob_mobile_api_toolset_block}
 agent:
   max_turns: 60
@@ -1279,6 +1337,12 @@ while IFS=$'\t' read -r profile port; do
     cp -a "$http_plugin_target" "$profile_dir/plugins/hermes-mobile-http"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-http"
   fi
+  if [ "$current_environment_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-current-environment"
+    cp -a "$current_environment_plugin_target" "$profile_dir/plugins/hermes-mobile-current-environment"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-current-environment"
+  fi
   if [ "$docx_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
     rm -rf "$profile_dir/plugins/hermes-mobile-docx"
@@ -1307,6 +1371,8 @@ while IFS=$'\t' read -r profile port; do
   weather_api_toolset_block=""
   http_toolset_block=""
   http_api_toolset_block=""
+  current_environment_toolset_block=""
+  current_environment_api_toolset_block=""
   cronjob_mobile_toolset_block=""
   cronjob_mobile_api_toolset_block=""
   plugin_enabled_lines=""
@@ -1322,6 +1388,11 @@ while IFS=$'\t' read -r profile port; do
     http_toolset_block="  - http"
     http_api_toolset_block="    - http"
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-http"$'\n'
+  fi
+  if [ "$current_environment_plugin_enabled" = "1" ]; then
+    current_environment_toolset_block="  - current_environment"
+    current_environment_api_toolset_block="    - current_environment"
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-current-environment"$'\n'
   fi
   if [ "$docx_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-docx"$'\n'
@@ -1356,6 +1427,8 @@ ${plugin_enabled_lines%$'\n'}"
   growth_api_toolset_block=""
   moira_toolset_block=""
   moira_api_toolset_block=""
+  music_toolset_block=""
+  music_api_toolset_block=""
   email_toolset_block=""
   email_api_toolset_block=""
   mcp_server_lines=""
@@ -1551,6 +1624,24 @@ ${plugin_enabled_lines%$'\n'}"
   elif [ -n "$profile_moira_workspace" ] && [ -f "$moira_mcp_path" ]; then
     echo "[WARN] Skipping moira MCP for $profile: schema probe failed for configured workspace"
   fi
+  profile_music_workspace=""
+  if is_owner_connector_profile "$profile"; then
+    profile_music_workspace="$owner_music_workspace"
+  fi
+  if [ -n "$profile_music_workspace" ] && [ -f "$music_mcp_path" ]; then
+    music_toolset_block="  - music"
+    music_api_toolset_block="    - music"
+    mcp_server_lines="${mcp_server_lines}  music:
+    command: $music_mcp_command
+    args:
+      - $music_mcp_path
+    env:
+      HERMES_HOME: $profile_link
+      HERMES_PROFILE: $profile
+      MUSIC_SQLITE_PATH: $music_sqlite_path
+    startup_timeout: 60
+    connect_timeout: 60"$'\n'
+  fi
   profile_email_workspace=""
   if is_owner_connector_profile "$profile"; then
     profile_email_workspace="$owner_email_workspace"
@@ -1628,6 +1719,7 @@ ${mcp_server_lines%$'\n'}"
     --value "weather_plugin_enabled=$weather_plugin_enabled" \
     --value "web_plugin_enabled=$web_plugin_enabled" \
     --value "http_plugin_enabled=$http_plugin_enabled" \
+    --value "current_environment_plugin_enabled=$current_environment_plugin_enabled" \
     --value "docx_plugin_enabled=$docx_plugin_enabled" \
     --value "audio_plugin_enabled=$audio_plugin_enabled" \
     --value "image_plugin_enabled=$image_plugin_enabled" \
@@ -1660,6 +1752,11 @@ ${mcp_server_lines%$'\n'}"
     --value "moira_mcp_path=$moira_mcp_path" \
     --value "moira_workspace=$profile_moira_workspace" \
     --value "moira_mcp_api_base_url=$moira_mcp_api_base_url" \
+    --value "music_enabled=${music_toolset_block:+1}" \
+    --value "music_mcp_command=$music_mcp_command" \
+    --value "music_mcp_path=$music_mcp_path" \
+    --value "music_workspace=$profile_music_workspace" \
+    --value "music_sqlite_path=$music_sqlite_path" \
     --value "email_enabled=${email_toolset_block:+1}" \
     --value "email_mcp_python=$email_mcp_python" \
     --value "email_mcp_path=$email_mcp_path" \
@@ -1692,6 +1789,7 @@ toolsets:
   - clarify
 ${weather_toolset_block}
 ${http_toolset_block}
+${current_environment_toolset_block}
 ${cronjob_mobile_toolset_block}
 ${wardrobe_toolset_block}
 ${finance_toolset_block}
@@ -1699,6 +1797,7 @@ ${note_toolset_block}
 ${health_toolset_block}
 ${growth_toolset_block}
 ${moira_toolset_block}
+${music_toolset_block}
 ${email_toolset_block}
 ${outlook_toolset_block}
 platform_toolsets:
@@ -1722,6 +1821,7 @@ platform_toolsets:
     - clarify
 ${weather_api_toolset_block}
 ${http_api_toolset_block}
+${current_environment_api_toolset_block}
 ${cronjob_mobile_api_toolset_block}
 ${wardrobe_api_toolset_block}
 ${finance_api_toolset_block}
@@ -1729,6 +1829,7 @@ ${note_api_toolset_block}
 ${health_api_toolset_block}
 ${growth_api_toolset_block}
 ${moira_api_toolset_block}
+${music_api_toolset_block}
 ${email_api_toolset_block}
 ${outlook_api_toolset_block}
 agent:

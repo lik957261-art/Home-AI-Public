@@ -6,13 +6,22 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const repoRoot = path.resolve(__dirname, "..");
+const scheduledTimers = [];
 const context = {
   console,
+  window: {
+    clearTimeout: () => {},
+    setTimeout: (fn, delay) => {
+      scheduledTimers.push({ fn, delay });
+      return scheduledTimers.length;
+    },
+  },
   state: {
     viewMode: "single",
     singleWindowMode: "task",
     currentTaskGroupId: "task_a",
     currentThread: null,
+    threads: [],
   },
   MESSAGE_TIMESTAMP_FIELDS: ["createdAt", "updatedAt", "startedAt", "completedAt", "failedAt", "completedAt"],
   SINGLE_WINDOW_CHAT_TASK_GROUP_ID: "chat",
@@ -25,6 +34,9 @@ const context = {
     taskListGroupsForThread: () => [],
   },
   isGroupChatView: () => false,
+  isSingleWindowConversationTaskGroupId: (value) => value === "chat" || value === "group-chat",
+  activeThreadRunIds: (thread) => thread?.activeRunIds || (thread?.activeRunId ? [thread.activeRunId] : []),
+  currentSearchText: () => "",
   messageTimelineTimestamp: (message) => message.updatedAt || message.createdAt || "",
   $: () => null,
   currentTaskThreadIsSharedTopicThread: () => false,
@@ -33,6 +45,8 @@ const context = {
   showError: () => {},
   renderThreads: () => {},
   renderCurrentThread: () => {},
+  updateComposerAction: () => {},
+  renderComposerContext: () => {},
   setComposerEnabled: () => {},
   startupPerfMark: () => {},
   summarizeThread: (thread) => ({
@@ -62,6 +76,39 @@ vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-task-groups-ui.js"), "utf8"), context);
 vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-thread-state-ui.js"), "utf8"), context);
 vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-events-composer-ui.js"), "utf8"), context);
+
+assert.deepEqual(context.taskGroupMessagesForThread({
+  messages: [
+    {
+      id: "receipt_user_latest",
+      role: "user",
+      status: "done",
+      taskGroupId: "plugin:wardrobe",
+      content: "重试",
+      createdAt: "2026-06-18T02:40:30.000Z",
+      updatedAt: "2026-06-18T02:40:30.000Z",
+    },
+    {
+      id: "receipt_assistant_latest",
+      role: "assistant",
+      status: "done",
+      taskGroupId: "plugin:wardrobe",
+      content: "重试结果",
+      createdAt: "2026-06-18T02:41:15.980Z",
+      updatedAt: "2026-06-18T02:41:15.980Z",
+    },
+  ],
+}, "plugin:wardrobe", [
+  {
+    id: "old_group_message",
+    role: "user",
+    status: "done",
+    taskGroupId: "plugin:wardrobe",
+    content: "older fallback",
+    createdAt: "2026-06-11T07:39:42.925Z",
+    updatedAt: "2026-06-11T07:39:42.925Z",
+  },
+]).map((message) => message.id), ["receipt_user_latest", "receipt_assistant_latest"]);
 
 context.state.currentThread = {
   id: "thread_1",
@@ -110,6 +157,46 @@ const idleIncoming = {
 
 const cleaned = context.mergeCurrentThread(idleIncoming);
 assert.deepEqual(cleaned.messages.map((message) => message.id), ["user_1"]);
+
+context.state.currentThread = {
+  id: "thread_summary",
+  status: "running",
+  activeRunIds: ["run_summary"],
+  messagesPage: { mode: "tasks", taskGroupId: "task_a", newestMessageId: "assistant_summary" },
+  messages: [
+    {
+      id: "user_summary",
+      role: "user",
+      status: "done",
+      taskGroupId: "task_a",
+      content: "summary prompt",
+      createdAt: "2026-05-31T15:58:00.000Z",
+      updatedAt: "2026-05-31T15:58:00.000Z",
+    },
+    {
+      id: "assistant_summary",
+      role: "assistant",
+      status: "running",
+      runId: "run_summary",
+      taskGroupId: "task_a",
+      content: "",
+      createdAt: "2026-05-31T15:58:01.000Z",
+      updatedAt: "2026-05-31T15:58:01.000Z",
+    },
+  ],
+};
+
+const summaryOnlyIncoming = {
+  id: "thread_summary",
+  status: "idle",
+  activeRunId: "",
+  activeRunIds: [],
+  updatedAt: "2026-05-31T15:59:00.000Z",
+};
+
+const summaryMerged = context.mergeCurrentThread(summaryOnlyIncoming);
+assert.deepEqual(summaryMerged.messages.map((message) => message.id), ["user_summary", "assistant_summary"]);
+assert.equal(summaryMerged.messagesPage.taskGroupId, "task_a");
 
 context.state.currentThread = {
   id: "thread_1",
@@ -347,6 +434,57 @@ context.upsertMessage({
   updatedAt: "2026-06-01T07:42:04.000Z",
 });
 assert.deepEqual(Array.from(context.state.currentThread.messages.map((message) => message.id)), ["real_user_event", "real_assistant_event"]);
+
+const timerCountBeforeTerminalSummary = scheduledTimers.length;
+context.state.viewMode = "tasks";
+context.state.singleWindowMode = "task";
+context.state.currentTaskGroupId = "plugin:wardrobe";
+context.state.currentThreadId = "thread_terminal_summary";
+context.state.currentThread = {
+  id: "thread_terminal_summary",
+  singleWindow: true,
+  workspaceId: "owner",
+  status: "running",
+  activeRunIds: ["run_terminal"],
+  updatedAt: "2026-06-18T02:40:33.212Z",
+  messages: [
+    {
+      id: "terminal_user",
+      role: "user",
+      status: "done",
+      taskGroupId: "plugin:wardrobe",
+      content: "重试",
+      createdAt: "2026-06-18T02:40:30.000Z",
+      updatedAt: "2026-06-18T02:40:30.000Z",
+    },
+    {
+      id: "terminal_running",
+      role: "assistant",
+      status: "running",
+      runId: "run_terminal",
+      taskGroupId: "plugin:wardrobe",
+      content: "",
+      createdAt: "2026-06-18T02:40:33.212Z",
+      updatedAt: "2026-06-18T02:40:33.212Z",
+    },
+  ],
+};
+context.applyEvent({
+  type: "thread.updated",
+  thread: {
+    id: "thread_terminal_summary",
+    singleWindow: true,
+    workspaceId: "owner",
+    status: "idle",
+    activeRunId: "",
+    activeRunIds: [],
+    updatedAt: "2026-06-18T02:41:15.980Z",
+  },
+});
+assert.equal(scheduledTimers.length, timerCountBeforeTerminalSummary + 1);
+assert.equal(scheduledTimers[scheduledTimers.length - 1].delay, 180);
+assert.equal(context.state.currentThread.status, "idle");
+assert.deepEqual(context.state.currentThread.messages.map((message) => message.id), ["terminal_user", "terminal_running"]);
 
 let renderedThreadId = "";
 let renderedStickToBottom = null;

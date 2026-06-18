@@ -15,6 +15,7 @@ assert.match(appJs, /workspaceOnboardingLoading: false/);
 assert.match(appJs, /workspaceOnboardingError: ""/);
 assert.match(appJs, /workspaceOnboardingDraft: null/);
 assert.match(appJs, /workspaceOnboardingRun: null/);
+assert.match(appJs, /workspaceOnboardingPendingAction: ""/);
 
 assert.match(accessKeyManagerUi, /WORKSPACE_ONBOARDING_PLUGIN_OPTIONS/);
 for (const pluginId of ["wardrobe", "health", "finance", "email", "note", "growth"]) {
@@ -23,6 +24,12 @@ for (const pluginId of ["wardrobe", "health", "finance", "email", "note", "growt
 
 assert.match(accessKeyManagerUi, /data-workspace-onboarding-plan/);
 assert.match(accessKeyManagerUi, /data-workspace-onboarding-apply/);
+assert.match(accessKeyManagerUi, /bindWorkspaceOnboardingAction/);
+assert.match(accessKeyManagerUi, /button\.addEventListener\("pointerup", activate\)/);
+assert.match(accessKeyManagerUi, /button\.addEventListener\("touchend", activate\)/);
+assert.match(accessKeyManagerUi, /button\.addEventListener\("click", activate\)/);
+assert.match(accessKeyManagerUi, /预览中\.\.\./);
+assert.match(accessKeyManagerUi, /开通中\.\.\./);
 assert.match(accessKeyManagerUi, /\/api\/workspace-onboarding\/plan/);
 assert.match(accessKeyManagerUi, /\/api\/workspace-onboarding\/apply/);
 assert.match(accessKeyManagerUi, /runSmokes: true/);

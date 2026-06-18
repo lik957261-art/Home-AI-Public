@@ -258,6 +258,11 @@ schema. Long message smokes must use bounded synthetic or metadata-only content
 and must not dump full private email bodies into logs, docs, handoff, or the
 AI Ops evidence ledger.
 
+The Email Gateway wrapper must request the narrow launch capability
+`full_content` for this tool. It must not request broad Email admin rights just
+to read a user-selected full body; account visibility, purpose, pagination, and
+audit remain enforced by the Email plugin service.
+
 ## Failure Classification
 
 - Service schema missing local tool:

@@ -66,6 +66,9 @@ function makeRoutes(overrides = {}) {
         if (input.workspaceId === "blocked") {
           return { ok: false, status: "blocked", error: "system_provisioning_executor_unavailable", steps: [] };
         }
+        if (input.workspaceId === "failed") {
+          return { ok: false, status: "provisioning_failed", error: "", steps: [{ id: "workspace.record", status: "failed", error: "EACCES" }] };
+        }
         return { ok: true, status: "active", workspaceId: input.workspaceId, steps: [] };
       },
     },
@@ -117,6 +120,11 @@ async function testApplyStatusCodes() {
   const blocked = await request(routes, "POST", "/api/workspace-onboarding/apply", { workspaceId: "owner", principalId: "owner" }, {}, { workspaceId: "blocked" });
   assert.equal(blocked.res.statusCode, 503);
   assert.equal(blocked.body.error, "system_provisioning_executor_unavailable");
+
+  const failed = await request(routes, "POST", "/api/workspace-onboarding/apply", { workspaceId: "owner", principalId: "owner" }, {}, { workspaceId: "failed" });
+  assert.equal(failed.res.statusCode, 200);
+  assert.equal(failed.body.status, "provisioning_failed");
+  assert.equal(failed.body.steps[0].error, "EACCES");
 }
 
 async function testDependencyValidation() {

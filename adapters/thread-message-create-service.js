@@ -6,6 +6,8 @@ const {
   resolveGatewayModelRoute: defaultResolveGatewayModelRoute,
 } = require("./gateway-model-routing-service");
 const { gatewayRunUserFacingError } = require("./gateway-run-error-message-service");
+const { createDirectoryTopicIndexService } = require("./directory-topic-index-service");
+const { normalizeEnvironmentContext } = require("./environment-context-service");
 const { normalizeNotificationChannel } = require("./notification-channel-service");
 const { resolveSearchSourceForMessage: defaultResolveSearchSourceForMessage } = require("./search-source-routing-service");
 
@@ -141,6 +143,13 @@ function createThreadMessageCreateService(options = {}) {
   const sanitizeTaskGroupId = maybeCall(options.sanitizeTaskGroupId, defaultSanitizeTaskGroupId);
   const saveState = maybeCall(options.saveState, () => {});
   const semanticTaskDirectoryAttachment = maybeCall(options.semanticTaskDirectoryAttachment, () => null);
+  const directoryTopicIndexService = options.directoryTopicIndexService || createDirectoryTopicIndexService({
+    normalizeTaskGroupMeta,
+    isConversationTaskGroupId(value) {
+      const id = cleanString(value);
+      return id === groupChatTaskGroupId || id === singleWindowChatTaskGroupId(id);
+    },
+  });
   const senderInfoForWorkspace = maybeCall(options.senderInfoForWorkspace, (workspaceId) => ({
     senderWorkspaceId: cleanString(workspaceId, "owner"),
     senderPrincipalId: cleanString(workspaceId, "owner"),
@@ -179,6 +188,13 @@ function createThreadMessageCreateService(options = {}) {
           || clientContext.notificationChannel
           || clientContext.notification_channel,
       ),
+      environmentContext: normalizeEnvironmentContext(
+        source.environmentContext
+          || source.environment_context
+          || clientContext.environmentContext
+          || clientContext.environment_context
+          || null,
+      ),
     };
   }
 
@@ -203,9 +219,16 @@ function createThreadMessageCreateService(options = {}) {
     return { ok: true, replyToMessageId, quotedMessage };
   }
 
+  function normalizeRequestedTaskGroupId(value) {
+    const raw = cleanString(value);
+    const pluginMatch = raw.match(/^plugin:([a-z0-9_-]+)$/i);
+    if (pluginMatch) return `plugin:${pluginMatch[1].toLowerCase()}`;
+    return raw ? sanitizeTaskGroupId(raw) : "";
+  }
+
   function resolveTaskGroup(thread, body, singleWindowMode, quotedMessage, auth = {}) {
-    const bodyTaskGroupId = body.taskGroupId ? sanitizeTaskGroupId(body.taskGroupId) : "";
-    const quotedTaskGroupId = quotedMessage?.taskGroupId ? sanitizeTaskGroupId(quotedMessage.taskGroupId) : "";
+    const bodyTaskGroupId = body.taskGroupId ? normalizeRequestedTaskGroupId(body.taskGroupId) : "";
+    const quotedTaskGroupId = quotedMessage?.taskGroupId ? normalizeRequestedTaskGroupId(quotedMessage.taskGroupId) : "";
     if (bodyTaskGroupId && quotedTaskGroupId && bodyTaskGroupId !== quotedTaskGroupId) {
       return errorResult(400, "Quoted message does not belong to the requested task group");
     }
@@ -478,6 +501,7 @@ function createThreadMessageCreateService(options = {}) {
       runOptions.provider = modelRoute.provider || cleanString(body.provider || body.modelProvider || body.model_provider).toLowerCase();
     }
     if (body.reasoning && typeof body.reasoning === "object") runOptions.reasoning = body.reasoning;
+    if (context.environmentContext) runOptions.environmentContext = context.environmentContext;
     const accessPolicyContext = mergeAccessPolicyContexts(
       body.access_policy_context && typeof body.access_policy_context === "object" ? body.access_policy_context : null,
       searchSource.accessPolicyContext,
@@ -592,6 +616,7 @@ function createThreadMessageCreateService(options = {}) {
       quotedMessage: quoted.quotedMessage,
       reasoningEffort,
       notificationChannel: normalized.notificationChannel,
+      environmentContext: normalized.environmentContext,
       searchSource,
       singleWindowMode: normalized.singleWindowMode,
       taskGroupId: taskGroup.taskGroupId,
@@ -625,6 +650,7 @@ function createThreadMessageCreateService(options = {}) {
       gatewayRouting: routing.gatewayRouting,
       reasoningEffort,
       notificationChannel: normalized.notificationChannel,
+      environmentContext: normalized.environmentContext,
       searchSource,
       directoryAttachment,
       userMessage: messages.userMessage,
@@ -656,6 +682,7 @@ function createThreadMessageCreateService(options = {}) {
       searchSource,
       singleWindowMode: normalized.singleWindowMode,
       text: normalized.text,
+      environmentContext: normalized.environmentContext,
     });
     messages.assistantMessage.runOptions = run.runOptions;
 
@@ -694,6 +721,36 @@ function createThreadMessageCreateService(options = {}) {
     return thread.messages;
   }
 
+  function updateTaskGroupMetaIndex(thread, plan) {
+    const taskGroupId = cleanString(plan?.taskGroupId || "");
+    if (!thread?.singleWindow || !taskGroupId) return;
+    if (taskGroupId === groupChatTaskGroupId || taskGroupId === singleWindowChatTaskGroupId(taskGroupId)) return;
+    const directoryRoute = plan.directoryAttachment || plan.userMessage?.directoryRoute || null;
+    const createdAt = plan.createdAt || nowIso();
+    const pluginTopic = taskGroupId.startsWith("plugin:");
+    if (directoryRoute && !pluginTopic) {
+      directoryTopicIndexService.upsertThreadTopicIndex(thread, {
+        taskGroupId,
+        directoryRoute,
+        actorWorkspaceId: plan.actorWorkspaceId || thread.workspaceId,
+        createdAt,
+        updatedAt: createdAt,
+        message: plan.userMessage,
+        lastMessageId: plan.userMessage?.id || "",
+      });
+      return;
+    }
+    thread.taskGroupMeta = normalizeTaskGroupMeta(thread.taskGroupMeta);
+    const existing = thread.taskGroupMeta[taskGroupId] || {};
+    thread.taskGroupMeta[taskGroupId] = Object.assign({}, existing, {
+      pluginTopic: Boolean(existing.pluginTopic || pluginTopic),
+      lastUserPromptTitle: cleanString(plan.userMessage?.content || "").replace(/\s+/g, " ").slice(0, 160),
+      lastMessageId: cleanString(plan.userMessage?.id || existing.lastMessageId),
+      updatedAt: createdAt,
+      createdAt: existing.createdAt || createdAt,
+    });
+  }
+
   function broadcastThreadUpdated(thread) {
     broadcast({ type: "thread.updated", threadId: thread.id, thread: threadSummary(thread) });
   }
@@ -729,6 +786,7 @@ function createThreadMessageCreateService(options = {}) {
 
   function commitPlainMessage(thread, plan) {
     applyTitleUpdate(thread, plan);
+    updateTaskGroupMetaIndex(thread, plan);
     ensureMessageArray(thread).push(plan.userMessage);
     thread.status = (thread.activeRunIds || []).length ? "running" : "idle";
     thread.updatedAt = plan.createdAt;
@@ -767,6 +825,7 @@ function createThreadMessageCreateService(options = {}) {
 
   async function commitRunMessageAndDispatch(thread, plan) {
     applyTitleUpdate(thread, plan);
+    updateTaskGroupMetaIndex(thread, plan);
     ensureMessageArray(thread).push(plan.userMessage, plan.assistantMessage);
     thread.status = plan.queueBehindActiveChatRun && (thread.activeRunIds || []).length ? "running" : "queued";
     thread.updatedAt = plan.createdAt;

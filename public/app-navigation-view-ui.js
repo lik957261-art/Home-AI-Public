@@ -6,16 +6,17 @@ function openTaskList() {
   const reloadTaskWindow = currentTaskThreadIsSharedTopicThread();
   const restoreScrollTop = typeof taskListReturnScrollTop === "function" ? taskListReturnScrollTop() : 0;
   state.currentTaskGroupId = "";
+  if (restoreTaskListThreadFromCache({ stickToBottom: false, restoreScrollTop })) {
+    scheduleTaskListWindowRefresh();
+    return;
+  }
   if (reloadTaskWindow) {
-    if (restoreTaskListThreadFromCache({ stickToBottom: false, restoreScrollTop })) {
-      scheduleTaskListWindowRefresh();
-      return;
-    }
     loadSingleWindow({ groupChat: false, weixinChat: false, preserveTaskListScroll: true }).catch(showError);
     return;
   }
   renderThreads();
   renderCurrentThread({ stickToBottom: false, restoreScrollTop });
+  scheduleTaskListWindowRefresh();
 }
 
 function openTodoList() {

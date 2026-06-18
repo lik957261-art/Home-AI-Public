@@ -1,6 +1,7 @@
 "use strict";
 
 const { explicitSearchContext } = require("./gateway-run-search-budget-service");
+const { formatEnvironmentContextInstructions } = require("./environment-context-service");
 
 const DEFAULT_TOOL_SCHEMA_EPOCH = "20260617-email-body-readall-health-sleep-ecg-mcp-v1";
 
@@ -424,6 +425,7 @@ function createGatewayRunInstructionService(options = {}) {
       currentToolSchemaOverrideInstructions(policy, Object.assign({ latestText }, buildOptions)),
       pluginTopicContextInstructions(buildOptions),
       pluginCapabilityCatalogInstructions(buildOptions),
+      formatEnvironmentContextInstructions(buildOptions.environmentContext),
       requiredSkillPreloadInstructions(buildOptions),
       noteReceiptMetadataInstructions(),
       "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",

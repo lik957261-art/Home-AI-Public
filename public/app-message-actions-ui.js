@@ -900,7 +900,7 @@ function updateMessageScrollButtonVisibility(root) {
     if (shouldShow) article.dataset.messageScrollButtonVisible = "1";
     else delete article.dataset.messageScrollButtonVisible;
     const footerVisible = messageScrollFooterVisible(articleRect, conversationRect);
-    const shouldFloatStart = shouldShow && canReturnToStart && !footerVisible;
+    const shouldFloatStart = false;
     article.querySelectorAll(".message-scroll-button").forEach((button) => {
       const isStartButton = String(button.dataset.scrollPosition || "start") !== "end";
       const shouldFloat = Boolean(isStartButton && shouldFloatStart);

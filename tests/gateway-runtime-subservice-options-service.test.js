@@ -22,6 +22,7 @@ function makeDeps(overrides = {}) {
     compactFullContent: () => "full",
     compactMessage: () => "message",
     dedupe: (items) => items,
+    directoryTopicIndexService: { id: "directory-topic-index" },
     effectiveProjectForThread: () => "project",
     ensureGroupChatSharedArtifactCopies: () => "copies",
     enqueueExternalDeliveryForTerminalMessage: () => "delivery",
@@ -146,6 +147,7 @@ function testEventOptionsMapGatewayEventDepsAndControllers() {
   assert.equal(options.notifyTaskTerminal, deps.notifyTaskTerminal);
   assert.equal(options.registerArtifactsFromText, deps.registerArtifactsFromText);
   assert.equal(options.topicContextCompactionService, deps.topicContextCompactionService);
+  assert.equal(options.directoryTopicIndexService, deps.directoryTopicIndexService);
 }
 
 testQueueOptionsMapRuntimeDepsAndController();

@@ -6,6 +6,17 @@ const {
   createMobileRuntimeBasicHelperService,
 } = require("../adapters/mobile-runtime-basic-helper-service");
 
+const fixtureNow = new Date("2026-06-07T01:02:03.000Z");
+const fixtureTaskStamp = [
+  fixtureNow.getFullYear(),
+  String(fixtureNow.getMonth() + 1).padStart(2, "0"),
+  String(fixtureNow.getDate()).padStart(2, "0"),
+  "_",
+  String(fixtureNow.getHours()).padStart(2, "0"),
+  String(fixtureNow.getMinutes()).padStart(2, "0"),
+  String(fixtureNow.getSeconds()).padStart(2, "0"),
+].join("");
+
 const helper = createMobileRuntimeBasicHelperService({
   crypto: {
     createHash() {
@@ -28,7 +39,7 @@ const helper = createMobileRuntimeBasicHelperService({
   normalizeStringList(value) {
     return Array.isArray(value) ? value : String(value || "").split(",");
   },
-  nowDate: () => new Date("2026-06-07T01:02:03.000Z"),
+  nowDate: () => fixtureNow,
   nowMs: () => 123456789,
 });
 
@@ -37,7 +48,7 @@ assert.deepEqual(helper.dedupe([" a ", "b", "a", "", null, " b "]), ["a", "b"]);
 assert.equal(helper.isUncPath("\\\\server\\share"), true);
 assert.equal(helper.isUncPath("C:\\\\Users"), false);
 assert.equal(helper.makeId("msg"), "msg_21i3v9_deadbeef");
-assert.equal(helper.makePublicTaskId("task"), "task_20260607_090203_cafe01");
+assert.equal(helper.makePublicTaskId("task"), `task_${fixtureTaskStamp}_cafe01`);
 assert.equal(helper.nowIso(), "2026-06-07T01:02:03.000Z");
 assert.deepEqual(helper.normalizeOwnerElevationDurations("60,15,15,241,0,5.7"), [6, 15, 60]);
 assert.deepEqual(helper.normalizeOwnerElevationDurations("bad"), [5, 15, 30, 60]);
