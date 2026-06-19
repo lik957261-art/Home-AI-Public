@@ -1574,6 +1574,17 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   `mcp_music_music_get_recommendation_context`; the double `music` reflects
   the `music` MCP server id plus plugin tool names such as
   `music.get_favorites`.
+  Music cover writes may accept `image_url` on the existing cover replacement
+  plan/apply tools; this is a Music-owned cover import boundary that validates
+  allowlisted cover hosts, redirects, size, content type, and image bytes before
+  writing through the existing cover cache backup/audit path. It is not a
+  general-purpose model download permission and should not be implemented by
+  widening the generic `http_request` allowlist. On macOS, the selected Owner
+  Gateway worker user `hm-owner` must be able to write the Music plugin runtime
+  cover directories `cover-cache`, `cover-plan-cache`, and `cover-backups`;
+  central Music deploys repair those ACLs. Missing write or
+  `add_subdirectory` permission surfaces as `EACCES` when the MCP attempts to
+  create plan-cache or backup directories during cover plan/apply.
   A visible Music plugin UI or healthy `/api/hermes-plugins/music/manifest`
   route does not by itself prove model-side Music MCP registration.
 - The generator script in the source repo is the durable source of truth. Do not rely on one-off edits to live `telemetry/profiles/<profile>/config.yaml`: a later Gateway Pool reconfigure/restart rewrites those files from `scripts/configure-low-gateways.sh` and will silently drop Wardrobe MCP registration if the source script no longer contains the wardrobe block.

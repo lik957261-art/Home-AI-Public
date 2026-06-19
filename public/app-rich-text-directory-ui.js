@@ -104,6 +104,50 @@ function renderInlineMarkdownImage(alt, src, title = "") {
   return `<img class="hermes-markdown-image" src="${escapeMarkdownAttribute(safeSrc)}" alt="${escapeMarkdownAttribute(alt)}"${titleAttr} loading="lazy" decoding="async">`;
 }
 
+const INLINE_IMAGE_URL_PATTERN = /(^|[\s:：])((?:https?:\/\/|\/(?!\/))[^\s<>"'`]+)/gi;
+const INLINE_IMAGE_EXTENSION_PATTERN = /\.(?:png|jpe?g|webp|gif|avif)$/i;
+const INLINE_IMAGE_MIME_PATTERN = /^image\/(?:png|jpe?g|webp|gif|avif)$/i;
+const INLINE_IMAGE_TRAILING_PUNCTUATION_PATTERN = /[)\]},.，。！？!?:;；：、]+$/;
+
+function splitInlineImageUrlCandidate(value) {
+  const raw = String(value || "");
+  const match = raw.match(INLINE_IMAGE_TRAILING_PUNCTUATION_PATTERN);
+  if (!match) return { url: raw, trailing: "" };
+  return {
+    url: raw.slice(0, -match[0].length),
+    trailing: match[0],
+  };
+}
+
+function inlineImageUrlLooksRenderable(value) {
+  const safeSrc = sanitizeInlineMarkdownImageSrc(value);
+  if (safeSrc === "#") return false;
+  try {
+    const base = typeof location !== "undefined" && location?.origin ? location.origin : "http://localhost";
+    const parsed = new URL(safeSrc, base);
+    if (!["http:", "https:"].includes(parsed.protocol)) return false;
+    if (INLINE_IMAGE_EXTENSION_PATTERN.test(parsed.pathname || "")) return true;
+    const mime = parsed.searchParams.get("mime") || parsed.searchParams.get("contentType") || "";
+    if (INLINE_IMAGE_MIME_PATTERN.test(mime)) return true;
+    const named = parsed.searchParams.get("name") || parsed.searchParams.get("filename") || parsed.searchParams.get("file") || "";
+    return INLINE_IMAGE_EXTENSION_PATTERN.test(named);
+  } catch (_error) {
+    return false;
+  }
+}
+
+function renderBareInlineImageUrls(value, imageTokens) {
+  return String(value || "").replace(INLINE_IMAGE_URL_PATTERN, (match, prefix, rawUrl) => {
+    const candidate = splitInlineImageUrlCandidate(rawUrl);
+    if (!candidate.url || !inlineImageUrlLooksRenderable(candidate.url)) return match;
+    const imageHtml = renderInlineMarkdownImage("", candidate.url);
+    if (!imageHtml) return match;
+    const token = `\u0000IMAGE${imageTokens.length}\u0000`;
+    imageTokens.push(imageHtml);
+    return `${prefix}${token}${candidate.trailing}`;
+  });
+}
+
 function renderInlineMarkdown(value) {
   const codeTokens = [];
   const imageTokens = [];
@@ -119,6 +163,7 @@ function renderInlineMarkdown(value) {
     imageTokens.push(imageHtml);
     return token;
   });
+  text = renderBareInlineImageUrls(text, imageTokens);
   text = escapeHtml(text)
     .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
     .replace(/__([^_\n]+)__/g, "<strong>$1</strong>")

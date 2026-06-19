@@ -9,6 +9,7 @@ ChatGPT Pro bridge lets Owner-approved Hermes Mobile runs call the logged-in Cha
 - `adapters/chatgpt-pro-codex-bridge-service.js`
 - `scripts/bridge-host.js`
 - `gateway-plugins/hermes-mobile-chatgpt-pro/__init__.py`
+- `scripts/deploy-macos-production.js`
 - `scripts/start-gateway-pool.ps1`
 - `adapters/owner-elevation-routing-service.js`
 - `adapters/gateway-run-start-service.js`
@@ -20,13 +21,35 @@ ChatGPT Pro bridge lets Owner-approved Hermes Mobile runs call the logged-in Cha
 - Bridge endpoint: `POST /bridge/chatgpt-pro`
 - Gateway tool: `chatgpt_pro_generate`
 - Dedicated Codex Mobile thread name: `ChatGPT Pro`
-- State file: `C:\ProgramData\HermesMobile\data\chatgpt-pro-bridge-state.json`
-- Default temp output directory: `C:\ProgramData\HermesMobile\data\tmp\chatgpt-pro`
+- Current Mac production state file:
+  `/Users/example/path`
+- Current Mac production Codex Mobile workspace:
+  `/Users/example/path`
+- Current Mac production temp output directory:
+  `/Users/example/path`
+- Current Mac production Codex Mobile access key file:
+  `/Users/example/path`. The file must remain readable
+  by the `hermes-host` bridge-host service user through a narrow ACL; do not
+  copy or print its raw contents.
+- Legacy Windows-compatible defaults remain:
+  `C:\ProgramData\HermesMobile\data\chatgpt-pro-bridge-state.json`,
+  `C:\ProgramData\HermesMobile\data\tmp\chatgpt-pro`, and
+  `%USERPROFILE%\Documents\Agent`.
 - Default Codex Mobile `permissionMode`: `auto`. This maps to a workspace-write
   sandbox with request-time approval behavior in Codex Mobile instead of
   silently forcing full/danger access. Emergency full access must be explicit
   through `HERMES_MOBILE_CHATGPT_PRO_CODEX_PERMISSION_MODE=full` and should be
   paired with Owner maintenance/elevation review.
+
+The Mac bridge-host LaunchDaemon must set these variables explicitly:
+
+- `HERMES_MOBILE_CHATGPT_PRO_WORKSPACE`
+- `HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_URL`
+- `HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE`
+- `HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR`
+
+The `HERMES_WEB_CHATGPT_PRO_*` aliases are accepted for compatibility, but the
+Mac production deploy script writes both names to avoid route/runtime drift.
 
 ## Timeouts
 

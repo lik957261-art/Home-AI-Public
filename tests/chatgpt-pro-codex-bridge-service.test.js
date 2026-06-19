@@ -8,6 +8,7 @@ const {
   buildCodexPrompt,
   createChatGptProCodexBridgeService,
   defaultOutputDir,
+  defaultWorkspace,
   extractFinalAssistantText,
   isActiveThread,
 } = require("../adapters/chatgpt-pro-codex-bridge-service");
@@ -159,6 +160,42 @@ async function testPermissionModeCanBeExplicitlyOverridden() {
   assert.equal(body.permissionMode, "full");
 }
 
+async function testMacEnvironmentDefaultsAreUsedForCodexMobileRequest() {
+  const calls = [];
+  const fakeFetch = async (url, options = {}) => {
+    calls.push({ url, options });
+    if (url.endsWith("/api/threads/new-message")) {
+      return { ok: true, text: async () => JSON.stringify({ threadId: "thread_1" }) };
+    }
+    if (url.endsWith("/api/threads/thread_1/name")) {
+      return { ok: true, text: async () => JSON.stringify({ ok: true }) };
+    }
+    if (url.endsWith("/api/threads/thread_1")) {
+      return { ok: true, text: async () => JSON.stringify({ thread: { status: { type: "completed" }, turns: [] } }) };
+    }
+    throw new Error(`Unexpected URL ${url}`);
+  };
+  const service = createChatGptProCodexBridgeService({
+    env: {
+      HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_URL: "http://codex-web.local",
+      HERMES_WEB_CHATGPT_PRO_WORKSPACE: "/Users/example/path",
+      HERMES_WEB_CHATGPT_PRO_OUTPUT_DIR: "/Users/example/path",
+    },
+    fetch: fakeFetch,
+    key: "test-key",
+    pollIntervalMs: 1,
+    timeoutMs: 1000,
+    statePath: path.join(fs.mkdtempSync(path.join(os.tmpdir(), "chatgpt-pro-mac-")), "state.json"),
+  });
+  await service.generate({ prompt: "Generate text" });
+  const newMessageCall = calls.find((call) => call.url.endsWith("/api/threads/new-message"));
+  assert.ok(newMessageCall);
+  assert.match(newMessageCall.url, /^http:\/\/codex-web\.local\//);
+  const body = JSON.parse(newMessageCall.options.body);
+  assert.equal(body.cwd, "/Users/example/path");
+  assert.match(body.text, /\/Users\/xuxin\/\.codex-mobile-web\/outputs\/chatgpt-pro/);
+}
+
 function testDefaultOutputDirStaysOutsideWorkspace() {
   assert.equal(
     defaultOutputDir({ HERMES_MOBILE_DATA_DIR: "C:\\ProgramData\\HermesMobile\\data" }),
@@ -167,6 +204,21 @@ function testDefaultOutputDirStaysOutsideWorkspace() {
   assert.equal(
     defaultOutputDir({ HERMES_MOBILE_DATA_DIR: "/var/lib/hermes-mobile/data" }),
     "/var/lib/hermes-mobile/data/tmp/chatgpt-pro",
+  );
+}
+
+function testDefaultWorkspaceIsPlatformAware() {
+  assert.equal(
+    defaultWorkspace({}, "win32"),
+    "C:\\Users\\xuxin\\Documents\\Agent",
+  );
+  assert.equal(
+    defaultWorkspace({}, "darwin"),
+    "/Users/example/path",
+  );
+  assert.equal(
+    defaultWorkspace({ HERMES_MOBILE_DEV_ROOT: "/Users/example/path" }, "darwin"),
+    "/Users/example/path",
   );
 }
 
@@ -189,7 +241,9 @@ async function main() {
   await testReusesPersistedNamedCodexMobileThread();
   testPromptKeepsChatGptProBoundary();
   await testPermissionModeCanBeExplicitlyOverridden();
+  await testMacEnvironmentDefaultsAreUsedForCodexMobileRequest();
   testDefaultOutputDirStaysOutsideWorkspace();
+  testDefaultWorkspaceIsPlatformAware();
   testThreadStatusAndExtraction();
   console.log("chatgpt-pro-codex-bridge-service tests passed");
 }

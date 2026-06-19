@@ -190,6 +190,15 @@ assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer-context-
 assert.match(appComposerContextJs, /function mobileBottomCssPx\(name, fallback = 0\)/);
 assert.match(appComposerContextJs, /function captureClientLayoutDiagnostic\(reason = "layout"\)/);
 assert.match(appComposerContextJs, /fetch\("\/api\/client-layout-diagnostics"/);
+assert.match(appComposerContextJs, /const CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MAX_PER_SESSION = 8/);
+assert.match(appComposerContextJs, /const CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MIN_INTERVAL_MS = 30000/);
+assert.match(appComposerContextJs, /function clientLayoutDiagnosticsVerboseEnabled\(\)/);
+assert.match(appComposerContextJs, /params\.get\("layoutDebug"\) === "1"/);
+assert.match(appComposerContextJs, /localStorage\.getItem\("hermesClientLayoutDiagnostics"\) === "1"/);
+assert.match(appComposerContextJs, /function clientLayoutDiagnosticShouldSend\(reason = "layout"\)/);
+assert.match(appComposerContextJs, /state\.clientLayoutDiagnosticSentCount = sent \+ 1/);
+assert.match(appComposerContextJs, /if \(!clientLayoutDiagnosticShouldSend\(reason\)\) return null;/);
+assert.match(appComposerContextJs, /function scheduleClientLayoutDiagnostics\(reason = "layout", delays = \[0, 240, 900, 1800\]\) \{[\s\S]*?if \(!clientLayoutDiagnosticBudgetAvailable\(\)\) return;/);
 assert.match(appComposerContextJs, /function clientLayoutDiagnosticViewportUnits\(\)/);
 assert.match(appComposerContextJs, /function clientLayoutDiagnosticSafeAreaProbe\(\)/);
 assert.match(appComposerContextJs, /function clientLayoutDiagnosticChrome\(app, main, bottomNav\)/);

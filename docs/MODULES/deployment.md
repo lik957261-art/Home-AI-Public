@@ -501,6 +501,14 @@ Web; it is not grantable to non-Owner workspaces. The installer preflights
 port `4891` and fails if that port is held by a non-production process such as
 a developer Vite server, because otherwise launchd would repeatedly restart the
 production Music service while health checks could hit the wrong process.
+Music Gateway MCP cover-management writes also use plugin-owned runtime
+directories. The central macOS deploy script repairs the Owner-only ACL for
+`hm-owner` after a Music deploy by creating and granting access to
+`runtime/cover-cache`, `runtime/cover-plan-cache`, and
+`runtime/cover-backups`, plus write access to `music.sqlite` sidecar files when
+they exist. This repair must remain in the central deploy flow rather than as a
+manual production mutation, otherwise URL cover plans can fail with `EACCES`
+when the MCP tries to create plan-cache or backup directories.
 
 The Hermes Mobile launchd environment uses
 `HERMES_WEB_HOST=0.0.0.0`, `HERMES_WEB_PORT=8797`,
@@ -1348,8 +1356,31 @@ launcher first before searching code:
   ChatGPT Pro Codex bridge. The source default is `auto`; setting `full` is an
   explicit high-trust override, not the public default.
 
-Changing these values requires a listener restart, not a Gateway Pool restart,
-unless a separate worker profile/plugin/schema file also changed.
+The Mac bridge-host LaunchDaemon also carries the ChatGPT Pro Codex Mobile
+handoff contract:
+
+- `HERMES_MOBILE_CHATGPT_PRO_WORKSPACE`:
+  `/Users/example/path` in maintained Mac production.
+- `HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_URL`:
+  `http://127.0.0.1:8787`, the single production Codex Mobile plugin service.
+- `HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE`:
+  `/Users/example/path`. The path is intentionally a
+  service-to-service key file reference; never print the key contents in logs,
+  docs, or handoffs. The `hermes-host` service user needs only read ACL access.
+- `HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR`:
+  `/Users/example/path`, so the downstream
+  Codex Mobile process running as `xuxin` can create artifacts without writing
+  into the Home AI source checkout or production data tree.
+
+The central Mac deploy script writes equivalent `HERMES_WEB_CHATGPT_PRO_*`
+aliases into the bridge-host plist for compatibility. A missing ChatGPT Pro
+workspace/key/output variable is production drift and should be repaired by the
+Mac deploy script, not by hand-editing the live plist.
+
+Changing listener-owned values in this section requires a listener restart, not
+a Gateway Pool restart, unless a separate worker profile/plugin/schema file also
+changed. Changing ChatGPT Pro bridge-host plist values requires a bridge-host
+restart.
 
 ## Secrets
 

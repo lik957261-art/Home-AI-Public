@@ -42,11 +42,22 @@ function createClientLayoutDiagnosticService(options = {}) {
   const path = options.path || {};
   const logPath = String(options.logPath || "");
   const maxEntries = Math.max(1, Math.min(500, Number(options.maxEntries || 120) || 120));
+  const maxBytes = Math.max(128 * 1024, Math.min(50 * 1024 * 1024, Number(options.maxBytes || 5 * 1024 * 1024) || 5 * 1024 * 1024));
   const mkdirSync = requireFunction(fs.mkdirSync, "fs.mkdirSync");
   const appendFileSync = requireFunction(fs.appendFileSync, "fs.appendFileSync");
   const readFileSync = requireFunction(fs.readFileSync, "fs.readFileSync");
+  const statSync = typeof fs.statSync === "function" ? fs.statSync.bind(fs) : null;
+  const writeFileSync = typeof fs.writeFileSync === "function" ? fs.writeFileSync.bind(fs) : null;
   const dirname = requireFunction(path.dirname, "path.dirname");
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
+
+  function rotateIfNeeded() {
+    if (!logPath || !statSync || !writeFileSync) return;
+    try {
+      const size = Number(statSync(logPath)?.size || 0) || 0;
+      if (size > maxBytes) writeFileSync(logPath, "", "utf8");
+    } catch (_) {}
+  }
 
   function append(payload = {}, meta = {}) {
     const entry = {
@@ -60,6 +71,7 @@ function createClientLayoutDiagnosticService(options = {}) {
     if (!logPath) return entry;
     try {
       mkdirSync(dirname(logPath), { recursive: true });
+      rotateIfNeeded();
       appendFileSync(logPath, `${JSON.stringify(entry)}\n`, "utf8");
     } catch (_) {}
     return entry;

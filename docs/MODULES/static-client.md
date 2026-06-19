@@ -223,6 +223,14 @@ add stricter behavior, but they do not replace the generic composer lock.
   `<data>/diagnostics/client-layout.jsonl`; `GET /api/client-layout-diagnostics`
   requires a valid Home AI key and returns recent sanitized entries. Do not log
   access keys, cookies, message text, thread content, or raw plugin content.
+  Production clients keep this channel sparse by default: at most eight layout
+  diagnostic sends per page session, no more than once every 30 seconds, unless
+  `layoutDebug=1`, `clientLayoutDiagnostics=1`,
+  `localStorage.hermesLayoutDebug=1`, or
+  `localStorage.hermesClientLayoutDiagnostics=1` explicitly enables verbose
+  diagnostics for a debug session. The server truncates the JSONL file when it
+  exceeds the configured bounded size so temporary layout debugging cannot
+  become an unbounded runtime log.
   The diagnostic payload may include non-secret PWA chrome state such as the
   current `apple-mobile-web-app-status-bar-style`, theme mode, root/app class
   lists, numeric safe-area probe values, and measured `100vh` / `100dvh` /

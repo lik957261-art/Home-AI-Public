@@ -6,17 +6,31 @@ Hermes Mobile shows an Owner-maintenance or ChatGPT Pro run as `terminated`, whi
 
 ## Likely Cause
 
-The maintenance watchdog replaced an Owner-maintenance Gateway worker while it was busy with a long tool call. Logs may show SIGTERM for `officialclean1` or `officialclean2`.
+The maintenance watchdog replaced an Owner-maintenance Gateway worker while it
+was busy with a long tool call, or the ChatGPT Pro bridge was missing its Mac
+Codex Mobile handoff environment and failed before the downstream Codex Mobile
+thread could complete.
 
 ## Checks
 
 1. `/api/status?detail=1`: confirm worker count and maintenance health.
-2. `C:\ProgramData\HermesMobile\gateway-worker\logs\start-gateway-pool.log`: check for owner-maintenance repair near the failure time.
-3. WSL profile logs:
-   - `/home/<owner>/.hermes/profiles/officialclean1/logs/gateway.log`
-   - `/home/<owner>/.hermes/profiles/officialclean2/logs/gateway.log`
-4. Check whether TCP port was open but `/health` was slow.
-5. Compare the SIGTERM time with `C:\ProgramData\HermesMobile\data\logs\worker-host.log`. If it aligns with listener restart and Weixin ingress startup, verify that `scripts\start-weixin-mobile-ingress-bridge.ps1` is not using a broad `gateway run --replace` matcher that can kill Gateway Pool profiles.
+2. Mac bridge-host state:
+   `launchctl print system/com.hermesmobile.bridge-host`. Confirm it includes
+   `HERMES_MOBILE_CHATGPT_PRO_WORKSPACE`,
+   `HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_URL`,
+   `HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE`, and
+   `HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR`.
+3. Mac bridge-host health: `curl -fsS http://127.0.0.1:8798/health`.
+4. Mac Codex Mobile plugin health:
+   `curl -fsS http://127.0.0.1:8787/api/v1/hermes/plugin/manifest`.
+5. Confirm the Codex Mobile key path is readable by the bridge-host service
+   user. Check ACL metadata only; do not print the key contents.
+6. Check the relevant Mac Gateway profile logs under the enabled profile's
+   production home, and compare SIGTERM timing with
+   `/Users/example/path` and listener logs.
+7. Legacy Windows/WSL fallback only, when running the old platform:
+   `C:\ProgramData\HermesMobile\gateway-worker\logs\start-gateway-pool.log`
+   and `/home/<owner>/.hermes/profiles/officialclean*/logs/gateway.log`.
 
 ## Expected Protection
 
@@ -30,5 +44,10 @@ If protection is missing, deploy the watchdog busy-grace script change and run:
 - `node tests\startup-scripts.test.js`
 - manual watchdog invocation
 - `/api/status?detail=1`
+
+If Mac ChatGPT Pro bridge variables are missing, deploy Home AI through
+`scripts/deploy-macos-production.js` so the bridge-host LaunchDaemon plist is
+reinstalled from source, then restart `system/com.hermesmobile.bridge-host` and
+repeat the health/key/workspace checks.
 
 Do not restart the full Gateway Pool unless plugin/schema/profile startup changes require it.

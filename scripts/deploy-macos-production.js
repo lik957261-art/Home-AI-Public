@@ -22,6 +22,19 @@ const HOME_AI_CRON_START_INTERVAL_SECONDS = 60;
 const HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS = 1800;
 const HOME_AI_NAS_BACKUP_MOUNT_START_INTERVAL_SECONDS = 300;
 const HOME_AI_BRIDGE_HOST_PORT = 8798;
+const HOME_AI_CHATGPT_PRO_WORKSPACE = process.env.HERMES_MOBILE_CHATGPT_PRO_WORKSPACE
+  || process.env.HERMES_WEB_CHATGPT_PRO_WORKSPACE
+  || `${DEFAULT_DEV_ROOT}/app`;
+const HOME_AI_CHATGPT_PRO_CODEX_MOBILE_URL = process.env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_URL
+  || process.env.HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_URL
+  || "http://127.0.0.1:8787";
+const HOME_AI_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE = process.env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE
+  || process.env.HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE
+  || process.env.CODEX_MOBILE_KEY_FILE
+  || "/Users/example/path";
+const HOME_AI_CHATGPT_PRO_OUTPUT_DIR = process.env.HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR
+  || process.env.HERMES_WEB_CHATGPT_PRO_OUTPUT_DIR
+  || "/Users/example/path";
 const HOME_AI_DISASTER_BACKUP_TRANSPORT = process.env.HOMEAI_DISASTER_BACKUP_TRANSPORT || "auto";
 const HOME_AI_DISASTER_BACKUP_SSH_TARGET = process.env.HOMEAI_DISASTER_BACKUP_SSH_TARGET || "xuxinxp@192.168.10.99";
 const HOME_AI_DISASTER_BACKUP_SSH_DESTINATION = process.env.HOMEAI_DISASTER_BACKUP_SSH_DESTINATION || "/volume1/备份/HomeAI-Production-Backups/mac-production";
@@ -221,6 +234,23 @@ const CODEX_MOBILE_LOG_REPAIR = Object.freeze({
   ]),
   directoryMode: "700",
   fileMode: "600",
+});
+
+const MUSIC_RUNTIME_COVER_PERMISSION_REPAIR = Object.freeze({
+  type: "music-runtime-cover-permissions",
+  plugin: "music",
+  ownerUser: "hm-owner",
+  runtimeRoot: "runtime",
+  directories: Object.freeze([
+    "cover-cache",
+    "cover-plan-cache",
+    "cover-backups",
+  ]),
+  sqliteFiles: Object.freeze([
+    "music.sqlite",
+    "music.sqlite-wal",
+    "music.sqlite-shm",
+  ]),
 });
 
 const RSYNC_EXCLUDES = [
@@ -503,6 +533,7 @@ function rsyncExcludesForTarget(options) {
 
 function postSyncRepairsForTarget(options) {
   if (options.target === "plugin:codex-mobile-web") return [CODEX_MOBILE_LOG_REPAIR];
+  if (options.target === "plugin:music") return [MUSIC_RUNTIME_COVER_PERMISSION_REPAIR];
   return [];
 }
 
@@ -1011,6 +1042,15 @@ function buildHomeAiBridgeHostLaunchdPlist(macRoot) {
     HERMES_MOBILE_BRIDGE_HOST_PORT: String(HOME_AI_BRIDGE_HOST_PORT),
     HERMES_MOBILE_BRIDGE_HOST_KEY_PATH: paths.keyPath,
     HERMES_WEB_BRIDGE_HOST_KEY_PATH: paths.keyPath,
+    HERMES_MOBILE_CHATGPT_PRO_WORKSPACE: HOME_AI_CHATGPT_PRO_WORKSPACE,
+    HERMES_WEB_CHATGPT_PRO_WORKSPACE: HOME_AI_CHATGPT_PRO_WORKSPACE,
+    HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_URL: HOME_AI_CHATGPT_PRO_CODEX_MOBILE_URL,
+    HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_URL: HOME_AI_CHATGPT_PRO_CODEX_MOBILE_URL,
+    HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE: HOME_AI_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE,
+    HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE: HOME_AI_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE,
+    CODEX_MOBILE_KEY_FILE: HOME_AI_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE,
+    HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR: HOME_AI_CHATGPT_PRO_OUTPUT_DIR,
+    HERMES_WEB_CHATGPT_PRO_OUTPUT_DIR: HOME_AI_CHATGPT_PRO_OUTPUT_DIR,
     HERMES_MOBILE_NETWORK_MODE: "direct",
     HERMES_ACCEPT_HOOKS: "1",
     PYTHONPATH: `${paths.runtimeOverrides}:${paths.runtimeSource}`,
@@ -1623,6 +1663,42 @@ function repairCodexMobileLogPermissions(plan, password) {
   };
 }
 
+function repairMusicRuntimeCoverPermissions(plan, password) {
+  const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === MUSIC_RUNTIME_COVER_PERMISSION_REPAIR.type);
+  if (!repair) return null;
+  const runtimeRoot = posixJoin(plan.productionPath, repair.runtimeRoot || "runtime");
+  const directories = [runtimeRoot].concat((repair.directories || []).map((name) => posixJoin(runtimeRoot, name)));
+  const directoryAcl = `user:${repair.ownerUser} allow list,add_file,add_subdirectory,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit`;
+  const fileAcl = `user:${repair.ownerUser} allow read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity`;
+  for (const dir of directories) {
+    runSudo("/bin/mkdir", ["-p", dir], password);
+    applyAclOnce(dir, directoryAcl, password, false);
+  }
+  let fileCount = 0;
+  for (const name of repair.sqliteFiles || []) {
+    const filePath = posixJoin(runtimeRoot, name);
+    const command = [
+      `if test -e ${shQuote(filePath)}; then`,
+      `  /bin/chmod -a ${shQuote(fileAcl)} ${shQuote(filePath)} >/dev/null 2>&1 || true`,
+      `  /bin/chmod +a ${shQuote(fileAcl)} ${shQuote(filePath)}`,
+      "  printf '1\\n'",
+      "fi",
+    ].join("\n");
+    const result = runSudo("/bin/sh", ["-c", command], password);
+    fileCount += String(result.stdout || "").split(/\r?\n/).filter(Boolean).length;
+  }
+  return {
+    type: repair.type,
+    status: 0,
+    target: plan.target,
+    runtimeRoot,
+    ownerUser: repair.ownerUser,
+    directories,
+    directoryCount: directories.length,
+    sqliteFileCount: fileCount,
+  };
+}
+
 function syncPostSyncMirrors(plan, password) {
   const mirrors = Array.isArray(plan.postSyncMirrors) ? plan.postSyncMirrors : [];
   const rows = [];
@@ -1695,6 +1771,7 @@ function executePlan(plan, options) {
   }
 
   const codexMobileLogRepair = repairCodexMobileLogPermissions(plan, password);
+  const musicRuntimeCoverPermissionRepair = repairMusicRuntimeCoverPermissions(plan, password);
   const postSyncMirrorResult = syncPostSyncMirrors(plan, password);
   const bridgeHostInstall = installHomeAiBridgeHostLaunchd(plan, password);
   const cronInstall = installHomeAiCronLaunchd(plan, password);
@@ -1727,6 +1804,7 @@ function executePlan(plan, options) {
 
   const validations = [];
   if (codexMobileLogRepair) validations.push(codexMobileLogRepair);
+  if (musicRuntimeCoverPermissionRepair) validations.push(musicRuntimeCoverPermissionRepair);
   if (postSyncMirrorResult) validations.push(postSyncMirrorResult);
   if (bridgeHostInstall) validations.push(Object.assign({ status: 0 }, bridgeHostInstall));
   if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));
@@ -1816,6 +1894,7 @@ module.exports = {
   repairHomeAiBackupArtifactAcls,
   postSyncRepairsForTarget,
   repairCodexMobileLogPermissions,
+  repairMusicRuntimeCoverPermissions,
   deployDirtyFiles,
   isDeploySurfaceIncluded,
 };

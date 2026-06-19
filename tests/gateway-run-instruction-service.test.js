@@ -171,19 +171,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260617-email-body-readall-health-sleep-ecg-mcp-v1_file",
+    "session_a_group_1_20260619-music-cover-url-import-v1_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260617-email-body-readall-health-sleep-ecg-mcp-v1_memory",
+    "session_a_group_1_20260619-music-cover-url-import-v1_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260617-email-body-readall-health-sleep-ecg-mcp-v1_x_search",
+    "session_a_group_1_20260619-music-cover-url-import-v1_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260617-email-body-readall-health-sleep-ecg-mcp-v1_file-vision-wardrobe",
+    "session_a_group_1_20260619-music-cover-url-import-v1_file-vision-wardrobe",
   );
 }
 

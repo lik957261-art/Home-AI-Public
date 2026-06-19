@@ -59,6 +59,42 @@ function testAppendAndListJsonl() {
   assert.equal(rows[0].authenticated, true);
 }
 
+function testAppendRotatesOversizedLog() {
+  const writes = new Map([["/tmp/home-ai/client-layout.jsonl", "x".repeat(160 * 1024)]]);
+  const calls = [];
+  const service = createClientLayoutDiagnosticService({
+    fs: {
+      mkdirSync() {},
+      statSync(target) {
+        return { size: (writes.get(target) || "").length };
+      },
+      writeFileSync(target, text, encoding) {
+        calls.push(["truncate", target, encoding]);
+        writes.set(target, text);
+      },
+      appendFileSync(target, text, encoding) {
+        calls.push(["append", target, encoding]);
+        writes.set(target, `${writes.get(target) || ""}${text}`);
+      },
+      readFileSync(target, encoding) {
+        assert.equal(encoding, "utf8");
+        return writes.get(target) || "";
+      },
+    },
+    path: { dirname: (value) => value.replace(/[/\\][^/\\]+$/, "") },
+    nowIso: () => "2026-06-09T00:00:00.000Z",
+    logPath: "/tmp/home-ai/client-layout.jsonl",
+    maxBytes: 200,
+  });
+
+  service.append({ event: "after_rotate" });
+  assert.equal(calls[0][0], "truncate");
+  assert.equal(calls[1][0], "append");
+  const rows = service.list();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].payload.event, "after_rotate");
+}
+
 function testDisabledLogPathDoesNotThrow() {
   const service = createClientLayoutDiagnosticService({
     fs: {
@@ -75,5 +111,6 @@ function testDisabledLogPathDoesNotThrow() {
 
 testSanitizeRedactsSecretsAndContent();
 testAppendAndListJsonl();
+testAppendRotatesOversizedLog();
 testDisabledLogPathDoesNotThrow();
 console.log("client layout diagnostic service tests passed");

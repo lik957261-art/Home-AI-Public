@@ -55,6 +55,10 @@ assert.match(script, /codex-mobile-web\.err\.log/);
 assert.match(script, /launchdReloadRequired/);
 assert.match(script, /currentStdoutPath !== files\[0\]/);
 assert.match(script, /currentStderrPath !== files\[1\]/);
+assert.match(script, /music-runtime-cover-permissions/);
+assert.match(script, /cover-plan-cache/);
+assert.match(script, /cover-backups/);
+assert.match(script, /add_subdirectory/);
 assert.match(script, /PLUGIN_RSYNC_EXCLUDES/);
 assert.match(script, /"-S", "-p", "", command/);
 assert.match(script, /"-n", command/);
@@ -153,6 +157,7 @@ assert.match(deploymentDoc, /deploy-macos-production\.js/);
 assert.match(deploymentDoc, /install-growth-launchd-service\.js/);
 assert.match(deploymentDoc, /install-moira-launchd-service\.js/);
 assert.match(deploymentDoc, /install-music-launchd-service\.js/);
+assert.match(deploymentDoc, /cover-plan-cache/);
 assert.match(productionAccess, /deploy-macos-production\.js/);
 assert.equal(packageJson.scripts["deploy:macos"], "node scripts/deploy-macos-production.js");
 
@@ -249,6 +254,14 @@ assert.match(bridgeHostPlist, /<string>8798<\/string>/);
 assert.match(bridgeHostPlist, /HERMES_MOBILE_BRIDGE_HOST_KEY_PATH/);
 assert.match(bridgeHostPlist, /bridge-host\.secret/);
 assert.match(bridgeHostPlist, /HERMES_WEB_CRON_JOBS_PATH/);
+assert.match(bridgeHostPlist, /HERMES_MOBILE_CHATGPT_PRO_WORKSPACE/);
+assert.match(bridgeHostPlist, /\/Users\/hermes-dev\/HermesMobileDev\/app/);
+assert.match(bridgeHostPlist, /HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_URL/);
+assert.match(bridgeHostPlist, /<string>http:\/\/127\.0\.0\.1:8787<\/string>/);
+assert.match(bridgeHostPlist, /HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE/);
+assert.match(bridgeHostPlist, /\/Users\/xuxin\/\.codex-mobile-web\/access_key/);
+assert.match(bridgeHostPlist, /HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR/);
+assert.match(bridgeHostPlist, /\/Users\/xuxin\/\.codex-mobile-web\/outputs\/chatgpt-pro/);
 assert.match(bridgeHostPlist, /<key>KeepAlive<\/key>\s*<true\/>/);
 
 const cronPlist = deployScript.buildHomeAiCronLaunchdPlist("/Users/example/path");
@@ -526,6 +539,25 @@ const financeRepairPlan = deployScript.postSyncRepairsForTarget({ target: "plugi
 assert.deepEqual(financeRepairPlan, []);
 const codexRepairPlan = deployScript.postSyncRepairsForTarget({ target: "plugin:codex-mobile-web" });
 assert.equal(codexRepairPlan[0].type, "codex-mobile-log-permissions");
+const musicRepairPlan = deployScript.postSyncRepairsForTarget({ target: "plugin:music" });
+assert.deepEqual(musicRepairPlan, [
+  {
+    type: "music-runtime-cover-permissions",
+    plugin: "music",
+    ownerUser: "hm-owner",
+    runtimeRoot: "runtime",
+    directories: [
+      "cover-cache",
+      "cover-plan-cache",
+      "cover-backups",
+    ],
+    sqliteFiles: [
+      "music.sqlite",
+      "music.sqlite-wal",
+      "music.sqlite-shm",
+    ],
+  },
+]);
 
 const growthPluginRun = spawnSync(process.execPath, [
   scriptPath,
@@ -637,13 +669,25 @@ assert.equal(
   allPluginPayload.plan.plans.filter((item) => item.postSyncRepairs.some((repair) => repair.type === "codex-mobile-log-permissions")).length,
   1,
 );
+assert.equal(
+  allPluginPayload.plan.plans.filter((item) => item.postSyncRepairs.some((repair) => repair.type === "music-runtime-cover-permissions")).length,
+  1,
+);
+assert.deepEqual(
+  allPluginPayload.plan.plans.find((item) => item.target === "plugin:music").postSyncRepairs[0].directories,
+  ["cover-cache", "cover-plan-cache", "cover-backups"],
+);
 assert.deepEqual(
   allPluginPayload.plan.plans.filter((item) => item.postSyncMirrors.length).map((item) => item.target),
-  ["plugin:moira"],
+  ["plugin:moira", "plugin:music"],
 );
 assert.equal(
   allPluginPayload.plan.plans.find((item) => item.target === "plugin:moira").postSyncMirrors.length,
   9,
+);
+assert.equal(
+  allPluginPayload.plan.plans.find((item) => item.target === "plugin:music").postSyncMirrors.length,
+  2,
 );
 
 const allPluginSourceOverrideRun = spawnSync(process.execPath, [

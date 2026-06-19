@@ -7701,8 +7701,8 @@ button.directory-alias-chip {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 14px;
-  background: rgba(255, 255, 252, 0.78);
-  border: 1px solid var(--line);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-hairline);
   border-radius: 16px;
 }
 
@@ -7726,10 +7726,10 @@ button.directory-alias-chip {
   flex: 0 0 auto;
   min-height: 32px;
   padding: 0 12px;
-  border: 1px solid rgba(31, 43, 51, 0.12);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--accent);
+  background: var(--ui-field-bg);
+  color: var(--ui-accent-ink);
   font-size: 13px;
   font-weight: 600;
 }
@@ -7756,8 +7756,8 @@ button.directory-alias-chip {
 
 .shared-directory-list {
   display: block;
-  background: rgba(255, 255, 252, 0.78);
-  border: 1px solid var(--line);
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-hairline);
   border-radius: 18px;
   overflow: visible;
 }
@@ -7769,7 +7769,7 @@ button.directory-alias-chip {
   align-items: center;
   gap: 12px;
   padding: 11px 12px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--ui-hairline);
 }
 
 .shared-directory-row:last-child {
@@ -7806,9 +7806,9 @@ button.directory-alias-chip {
   display: grid;
   gap: 8px;
   padding: 9px;
-  border: 1px solid rgba(31, 43, 51, 0.1);
+  border: 1px solid var(--ui-hairline);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.48);
+  background: var(--ui-control-bg);
 }
 
 .shared-directory-field {
@@ -7825,8 +7825,8 @@ button.directory-alias-chip {
   min-height: 30px;
   padding: 0 26px 0 9px;
   color: var(--ink);
-  background: rgba(255, 255, 252, 0.9);
-  border: 1px solid var(--line);
+  background: var(--ui-field-bg);
+  border: 1px solid var(--ui-hairline-strong);
   border-radius: 9px;
   font-weight: 600;
 }

@@ -37,8 +37,9 @@ assert.match(appJs, /function refreshKeyboardViewportDuringFocus\(\)/);
 assert.match(appJs, /\[0, 80, 180, 360, 700, 1100\]\.forEach\(refreshKeyboardViewportSoon\)/);
 assert.match(appJs, /refreshKeyboardViewportDuringFocus\(\)/);
 assert.match(appJs, /refreshKeyboardViewportSoon\(260\)/);
-assert.match(appJs, /bottomChatMode"\)\?\.addEventListener\("click", async \(\) => \{[\s\S]*?normalizeMobileViewportAfterViewChange\(\)/);
-assert.match(appJs, /bottomTasksMode"\)\?\.addEventListener\("click", async \(\) => \{[\s\S]*?normalizeMobileViewportAfterViewChange\(\)/);
+assert.match(appJs, /function schedulePrimaryNavigationViewLoad\(options = \{\}\) \{[\s\S]*?normalizeMobileViewportAfterViewChange\(\)/);
+assert.match(appJs, /bottomChatMode"\)\?\.addEventListener\("click", \(\) => \{[\s\S]*?schedulePrimaryNavigationViewLoad\(\{ skipTaskListWindowRefresh: true \}\)/);
+assert.match(appJs, /bottomTasksMode"\)\?\.addEventListener\("click", \(\) => \{[\s\S]*?schedulePrimaryNavigationViewLoad\(\{ skipTaskListWindowRefresh: true \}\)/);
 
 assert.match(stylesCss, /:root\.keyboard-viewport-active \.app/);
 assert.match(stylesCss, /position: fixed/);

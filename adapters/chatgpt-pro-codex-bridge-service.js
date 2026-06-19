@@ -60,11 +60,21 @@ function defaultOutputDir(env = process.env) {
   return path.join("/tmp", "hermes-mobile-chatgpt-pro");
 }
 
+function defaultWorkspace(env = process.env, platform = process.platform) {
+  const devRoot = env.HERMES_MOBILE_DEV_ROOT || env.HERMES_WEB_DEV_ROOT || "";
+  if (devRoot) return joinConfiguredPath(devRoot, "app");
+  if (platform === "win32") return "C:\\Users\\xuxin\\Documents\\Agent";
+  if (platform === "darwin") return "/Users/example/path";
+  return process.cwd();
+}
+
 function codexMobileKey(env = process.env) {
   return String(
     env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY
+      || env.HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_KEY
       || env.CODEX_MOBILE_KEY
       || readText(env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE)
+      || readText(env.HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE)
       || readText(env.CODEX_MOBILE_KEY_FILE)
       || readText(defaultCodexMobileKeyPath(env)),
   ).trim();
@@ -198,8 +208,8 @@ function createChatGptProCodexBridgeService(options = {}) {
   const env = options.env || process.env;
   const fsImpl = options.fs || fs;
   const fetchImpl = options.fetch || globalThis.fetch;
-  const baseUrl = normalizeBaseUrl(options.baseUrl || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_URL || env.CODEX_MOBILE_URL);
-  const workspace = options.workspace || env.HERMES_MOBILE_CHATGPT_PRO_WORKSPACE || "C:\\Users\\xuxin\\Documents\\Agent";
+  const baseUrl = normalizeBaseUrl(options.baseUrl || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_URL || env.HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_URL || env.CODEX_MOBILE_URL);
+  const workspace = options.workspace || env.HERMES_MOBILE_CHATGPT_PRO_WORKSPACE || env.HERMES_WEB_CHATGPT_PRO_WORKSPACE || defaultWorkspace(env);
   const threadName = options.threadName || env.HERMES_MOBILE_CHATGPT_PRO_THREAD_NAME || DEFAULT_THREAD_NAME;
   const statePath = options.statePath || env.HERMES_MOBILE_CHATGPT_PRO_STATE_PATH || env.HERMES_WEB_CHATGPT_PRO_STATE_PATH || defaultStatePath(env);
   const outputDir = options.outputDir || env.HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR || env.HERMES_WEB_CHATGPT_PRO_OUTPUT_DIR || defaultOutputDir(env);
@@ -378,6 +388,7 @@ module.exports = {
   createChatGptProCodexBridgeService,
   defaultOutputDir,
   defaultStatePath,
+  defaultWorkspace,
   extractFinalAssistantText,
   isActiveThread,
 };

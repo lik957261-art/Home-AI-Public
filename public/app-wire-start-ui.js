@@ -45,6 +45,9 @@ function wireBottomNavigationInteractionGuard() {
 }
 
 function cancelScheduledSelectedViewLoad() {
+  const frame = Number(state.scheduledSelectedViewLoadFrame || 0) || 0;
+  if (frame && typeof window.cancelAnimationFrame === "function") window.cancelAnimationFrame(frame);
+  state.scheduledSelectedViewLoadFrame = 0;
   const timer = Number(state.scheduledSelectedViewLoadTimer || 0) || 0;
   if (timer) window.clearTimeout(timer);
   state.scheduledSelectedViewLoadTimer = 0;
@@ -52,12 +55,33 @@ function cancelScheduledSelectedViewLoad() {
 
 function scheduleSelectedViewLoad(options = {}) {
   if (typeof cancelScheduledSelectedViewLoad === "function") cancelScheduledSelectedViewLoad();
+  const loadOptions = Object.assign({}, options);
+  const afterPaint = Boolean(loadOptions.afterPaint);
+  delete loadOptions.afterPaint;
   const run = () => {
     state.scheduledSelectedViewLoadTimer = 0;
     if (typeof loadSelectedView !== "function") return;
-    loadSelectedView(options).catch(showError);
+    loadSelectedView(loadOptions).catch(showError);
   };
+  if (afterPaint && typeof window.requestAnimationFrame === "function") {
+    state.scheduledSelectedViewLoadFrame = window.requestAnimationFrame(() => {
+      state.scheduledSelectedViewLoadFrame = 0;
+      state.scheduledSelectedViewLoadTimer = window.setTimeout(run, 0);
+    });
+    return;
+  }
   state.scheduledSelectedViewLoadTimer = window.setTimeout(run, 0);
+}
+
+function applyPrimaryNavigationViewShell() {
+  if (typeof applyViewMode === "function") applyViewMode();
+  if (typeof scheduleGlobalPluginDockRefresh === "function") scheduleGlobalPluginDockRefresh("primary_navigation");
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+}
+
+function schedulePrimaryNavigationViewLoad(options = {}) {
+  applyPrimaryNavigationViewShell();
+  scheduleSelectedViewLoad(Object.assign({ afterPaint: true }, options));
 }
 
 function openPinnedPluginBottomTab(viewMode, rememberReturnRoute = null) {
@@ -219,7 +243,7 @@ function wireUi() {
     await loadThreads();
     renderCurrentThread({ stickToBottom: true });
   });
-  $("taskManagementMode")?.addEventListener("click", async () => {
+  $("taskManagementMode")?.addEventListener("click", () => {
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
@@ -227,10 +251,10 @@ function wireUi() {
       state.viewMode = "tasks";
       localStorage.setItem("hermesWebViewMode", state.viewMode);
       state.currentTaskGroupId = "";
-      await loadSelectedView({ skipTaskListWindowRefresh: true });
+      schedulePrimaryNavigationViewLoad({ skipTaskListWindowRefresh: true });
     }
   });
-  $("chatManagementMode")?.addEventListener("click", async () => {
+  $("chatManagementMode")?.addEventListener("click", () => {
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
@@ -240,7 +264,7 @@ function wireUi() {
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     localStorage.setItem("hermesWebWeixinChatOpen", "0");
     state.currentTaskGroupId = "";
-    await loadSelectedView({ skipTaskListWindowRefresh: true });
+    schedulePrimaryNavigationViewLoad({ skipTaskListWindowRefresh: true });
   });
   $("inboxManagementMode")?.addEventListener("click", async () => {
     preparePrimaryNavigationChange();
@@ -252,7 +276,7 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
-  $("bottomTasksMode")?.addEventListener("click", async () => {
+  $("bottomTasksMode")?.addEventListener("click", () => {
     if (typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive()) {
       if (typeof closeDirectoryTopicDraft === "function") closeDirectoryTopicDraft();
       return;
@@ -263,9 +287,9 @@ function wireUi() {
     state.viewMode = "tasks";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
-    await loadSelectedView({ skipTaskListWindowRefresh: true });
+    schedulePrimaryNavigationViewLoad({ skipTaskListWindowRefresh: true });
   });
-  $("bottomChatMode")?.addEventListener("click", async () => {
+  $("bottomChatMode")?.addEventListener("click", () => {
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
@@ -275,7 +299,7 @@ function wireUi() {
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     localStorage.setItem("hermesWebWeixinChatOpen", "0");
     state.currentTaskGroupId = "";
-    await loadSelectedView();
+    schedulePrimaryNavigationViewLoad();
   });
   $("bottomInboxMode")?.addEventListener("click", async () => {
     preparePrimaryNavigationChange();
@@ -287,7 +311,7 @@ function wireUi() {
     state.currentThreadId = "";
     await loadSelectedView();
   });
-  $("singleMode").addEventListener("click", async () => {
+  $("singleMode").addEventListener("click", () => {
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
@@ -295,9 +319,9 @@ function wireUi() {
     setSingleWindowMode("chat");
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
-    await loadSelectedView();
+    schedulePrimaryNavigationViewLoad();
   });
-  $("singleTaskMode")?.addEventListener("click", async () => {
+  $("singleTaskMode")?.addEventListener("click", () => {
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
@@ -305,16 +329,16 @@ function wireUi() {
     setSingleWindowMode("task");
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
-    await loadSelectedView();
+    schedulePrimaryNavigationViewLoad();
   });
-  $("tasksMode").addEventListener("click", async () => {
+  $("tasksMode").addEventListener("click", () => {
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "tasks";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
-    await loadSelectedView({ skipTaskListWindowRefresh: true });
+    schedulePrimaryNavigationViewLoad({ skipTaskListWindowRefresh: true });
   });
   $("projectsMode").addEventListener("click", async () => {
     preparePrimaryNavigationChange();

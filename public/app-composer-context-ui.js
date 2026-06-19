@@ -546,8 +546,43 @@ function captureClientLayoutDiagnostic(reason = "layout") {
   };
 }
 
+const CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MAX_PER_SESSION = 8;
+const CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MIN_INTERVAL_MS = 30000;
+
+function clientLayoutDiagnosticsVerboseEnabled() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    return params.get("layoutDebug") === "1"
+      || params.get("clientLayoutDiagnostics") === "1"
+      || localStorage.getItem("hermesLayoutDebug") === "1"
+      || localStorage.getItem("hermesClientLayoutDiagnostics") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function clientLayoutDiagnosticBudgetAvailable() {
+  if (clientLayoutDiagnosticsVerboseEnabled()) return true;
+  const sent = Number(state.clientLayoutDiagnosticSentCount || 0) || 0;
+  return sent < CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MAX_PER_SESSION;
+}
+
+function clientLayoutDiagnosticShouldSend(reason = "layout") {
+  if (clientLayoutDiagnosticsVerboseEnabled()) return true;
+  const sent = Number(state.clientLayoutDiagnosticSentCount || 0) || 0;
+  if (sent >= CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MAX_PER_SESSION) return false;
+  const now = Date.now();
+  const lastAt = Number(state.clientLayoutDiagnosticLastSentAt || 0) || 0;
+  if (lastAt && now - lastAt < CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MIN_INTERVAL_MS) return false;
+  state.clientLayoutDiagnosticSentCount = sent + 1;
+  state.clientLayoutDiagnosticLastSentAt = now;
+  state.clientLayoutDiagnosticLastReason = String(reason || "layout").slice(0, 80);
+  return true;
+}
+
 function sendClientLayoutDiagnostic(reason = "layout") {
   try {
+    if (!clientLayoutDiagnosticShouldSend(reason)) return null;
     const payload = captureClientLayoutDiagnostic(reason);
     const headers = {
       "Content-Type": "application/json",
@@ -568,6 +603,7 @@ function sendClientLayoutDiagnostic(reason = "layout") {
 }
 
 function scheduleClientLayoutDiagnostics(reason = "layout", delays = [0, 240, 900, 1800]) {
+  if (!clientLayoutDiagnosticBudgetAvailable()) return;
   const uniqueDelays = [...new Set((delays || []).map((delay) => Math.max(0, Number(delay || 0) || 0)))];
   uniqueDelays.forEach((delay) => {
     window.setTimeout(() => {
@@ -795,7 +831,9 @@ function settleMobileBottomNavReservation(reason = "layout", delays = [0, 40, 12
             at: Date.now(),
             metrics: window.__hermesMobileBottomLayoutMetrics || null,
           };
-          if (delay === 0 || delay >= 240) sendClientLayoutDiagnostic(`settle:${reason}:${delay}`);
+          if ((delay === 0 || delay >= 240) && clientLayoutDiagnosticBudgetAvailable()) {
+            sendClientLayoutDiagnostic(`settle:${reason}:${delay}`);
+          }
         });
       });
     }, delay);
