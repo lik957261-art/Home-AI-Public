@@ -93,6 +93,36 @@ function makeFixture() {
 
 {
   const fixture = makeFixture();
+  const canonicalManifest = path.join(fixture.root, "data", "gateway-pool-manifest-mac.json");
+  const transientManifestBackup = path.join(fixture.root, "data", "gateway-pool-manifest-mac.json.before-current-environment-20260618T042138Z.bak");
+  writeFile(canonicalManifest, "{}\n");
+  writeFile(transientManifestBackup, "{}\n");
+  fs.chmodSync(transientManifestBackup, 0o000);
+  try {
+    const result = backup.runBackup({
+      root: fixture.root,
+      destination: fixture.dest,
+      operatorHome: fixture.operatorHome,
+      receiptDir: path.join(fixture.root, "data", "backups", "disaster-recovery-receipts"),
+      label: "unit",
+      checkOnly: false,
+      json: true,
+      includeOperatorState: true,
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", "gateway-pool-manifest-mac.json")), true);
+    assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", path.basename(transientManifestBackup))), false);
+    const manifest = JSON.parse(fs.readFileSync(path.join(result.currentRoot, "DISASTER-RECOVERY-MANIFEST.json"), "utf8"));
+    const skipped = manifest.steps.find((step) => step.name === `production-data-file:${path.basename(transientManifestBackup)}`);
+    assert.equal(skipped.reason, "transient-production-data-backup");
+  } finally {
+    fs.chmodSync(transientManifestBackup, 0o600);
+  }
+}
+
+{
+  const fixture = makeFixture();
   const result = backup.runBackup({
     root: fixture.root,
     destination: fixture.dest,
@@ -186,8 +216,10 @@ function makeFixture() {
   assert.match(runSource, /ssh_destination_write_unavailable/);
   assert.match(runSource, /ssh_destination_rsync_failed/);
   assert.match(runSource, /--rsync-path=\/usr\/bin\/rsync/);
-  assert.match(runSource, /rsync -rlpt --delete --links --safe-links --inplace[\s\S]*-e "ssh -o BatchMode=yes -o ConnectTimeout=15 \$SSH_OPTIONS"/);
-  assert.match(runSource, /rsync -rlpt --delete --links --safe-links --inplace/);
+  assert.match(runSource, /HOMEAI_DISASTER_BACKUP_RSYNC_ATTEMPTS:-3/);
+  assert.match(runSource, /rsync_with_retries "\$SSH_RSYNC_TIMEOUT_SECONDS" \/usr\/bin\/rsync -rlpt --delete --links --safe-links[\s\S]*-e "ssh -o BatchMode=yes -o ConnectTimeout=15 \$SSH_OPTIONS"/);
+  assert.match(runSource, /rsync_with_retries "\$NFS_RSYNC_TIMEOUT_SECONDS" \/usr\/bin\/rsync -rlpt --delete --links --safe-links/);
+  assert.doesNotMatch(runSource, /rsync -rlpt --delete --links --safe-links --inplace/);
   assert.doesNotMatch(runSource, /expect|NAS_SSH|ssh -p|mount_smbfs|NAS_SMB/i);
   assert.match(cronSource, /HOMEAI_DISASTER_BACKUP_USE_SUDO=0/);
   assert.match(cronSource, /HOMEAI_DISASTER_BACKUP_TRANSPORT:-auto/);

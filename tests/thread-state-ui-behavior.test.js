@@ -536,4 +536,91 @@ assert.equal(composerEnabled, true);
 assert.equal(context.state.threads.length, 1);
 assert.equal(context.state.threads[0].id, "private-chat-thread");
 
+context.state.viewMode = "tasks";
+context.state.singleWindowMode = "task";
+context.state.selectedWorkspaceId = "owner";
+context.state.currentTaskGroupId = "plugin:music";
+context.state.currentThreadId = "music-thread";
+context.state.currentThread = {
+  id: "music-thread",
+  singleWindow: true,
+  workspaceId: "owner",
+  status: "running",
+  activeRunIds: ["run-music"],
+  updatedAt: "2026-06-18T12:00:01.000Z",
+  messagesPage: { mode: "tasks", taskGroupId: "plugin:music", total: 1 },
+  taskGroupMeta: {
+    "plugin:music": {
+      pluginTopic: true,
+      updatedAt: "2026-06-18T12:00:01.000Z",
+      lastUserPromptTitle: "分析收藏夹",
+    },
+  },
+  messages: [
+    {
+      id: "music-user",
+      role: "user",
+      status: "done",
+      taskGroupId: "plugin:music",
+      content: "分析收藏夹",
+      createdAt: "2026-06-18T12:00:00.000Z",
+      updatedAt: "2026-06-18T12:00:00.000Z",
+    },
+  ],
+};
+context.state.taskListThread = {
+  id: "music-thread",
+  singleWindow: true,
+  workspaceId: "owner",
+  status: "running",
+  activeRunIds: ["run-music"],
+  updatedAt: "2026-06-18T12:00:01.000Z",
+  messagesPage: { mode: "tasks", taskGroupId: "", total: 1 },
+  taskGroupMeta: {
+    "plugin:music": {
+      pluginTopic: true,
+      updatedAt: "2026-06-18T12:00:01.000Z",
+      lastUserPromptTitle: "分析收藏夹",
+    },
+  },
+  messages: [
+    {
+      id: "music-user",
+      role: "user",
+      status: "done",
+      taskGroupId: "plugin:music",
+      content: "分析收藏夹",
+      createdAt: "2026-06-18T12:00:00.000Z",
+      updatedAt: "2026-06-18T12:00:00.000Z",
+    },
+  ],
+};
+context.state.taskListThreadId = "music-thread";
+context.applyEvent({
+  type: "message.updated",
+  threadId: "music-thread",
+  thread: {
+    id: "music-thread",
+    singleWindow: true,
+    workspaceId: "owner",
+    status: "idle",
+    activeRunId: "",
+    activeRunIds: [],
+    updatedAt: "2026-06-18T12:00:15.000Z",
+  },
+  message: {
+    id: "music-assistant",
+    role: "assistant",
+    status: "done",
+    taskGroupId: "plugin:music",
+    content: "### 收藏夹取向\n偏好爵士和人声录音。",
+    createdAt: "2026-06-18T12:00:15.000Z",
+    updatedAt: "2026-06-18T12:00:15.000Z",
+    completedAt: "2026-06-18T12:00:15.000Z",
+  },
+});
+assert.equal(context.state.taskListThread.status, "idle");
+assert.equal(context.state.taskListThread.messagesPage.taskGroupId, "");
+assert.ok(context.state.taskListThread.messages.some((message) => message.id === "music-assistant"));
+
 console.log("thread-state-ui-behavior tests passed");

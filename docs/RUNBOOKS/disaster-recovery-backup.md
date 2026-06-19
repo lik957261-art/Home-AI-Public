@@ -162,3 +162,31 @@ the official Hermes CRON store.
 
 Keep the no-agent script under the configured cron timeout or split slow work
 into smaller bounded scripts.
+
+## Root-Level Rollback Artifacts
+
+The Mac backup script treats direct production `data/*.bak` files as transient
+local repair/deploy rollback artifacts. It records them as skipped and continues
+backing up the canonical source file. For example, a root-owned
+`data/gateway-pool-manifest-mac.json.before-*.bak` must not make the scheduled
+backup partial as long as `data/gateway-pool-manifest-mac.json` is readable and
+included.
+
+If a failure still references `production-data-file:*.bak`, verify that
+production is running a deployed script containing the
+`transient-production-data-backup` skip reason before changing file ownership or
+ACLs.
+
+## Publish Rsync Verification
+
+The wrapper publishes `staging/current` to SSH or NFS with ordinary rsync
+temp-file/rename updates, not `--inplace`. If the target reports a transient
+verification failure such as `failed verification -- update retained`, the
+wrapper retries the publish up to `HOMEAI_DISASTER_BACKUP_RSYNC_ATTEMPTS`
+times. The default is `3`.
+
+If all attempts fail with `ssh_destination_rsync_failed` or
+`nfs_destination_rsync_failed`, keep the staging manifest and inspect the target
+filesystem or transport. Do not rerun the builder against production data until
+the publish destination has been checked; the staged backup may already be
+complete and only the publish step may need to be retried.

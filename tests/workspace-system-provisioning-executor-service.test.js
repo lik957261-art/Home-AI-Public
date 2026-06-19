@@ -177,6 +177,9 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
     assert.match(startScript, /HERMES_WEB_BRIDGE_HOST_URL/);
     assert.match(startScript, /HERMES_MOBILE_BRIDGE_HOST_KEY_PATH/);
     assert.match(startScript, /HERMES_WEB_BRIDGE_HOST_KEY_PATH/);
+    assert.match(startScript, /HERMES_MOBILE_ROOT="\$ROOT"/);
+    assert.match(startScript, /HERMES_MOBILE_GATEWAY_POOL_MANIFEST="\$MANIFEST"/);
+    assert.match(startScript, /HERMES_GATEWAY_POOL_MANIFEST_PATH="\$MANIFEST"/);
     assert.match(startScript, /127\.0\.0\.1:8798/);
     assert.match(startScript, /data\/secrets\/bridge-host\.secret/);
     assert.match(startScript, /\$\{ROOT\}\/data\/drive|\$ROOT\/data\/drive/);

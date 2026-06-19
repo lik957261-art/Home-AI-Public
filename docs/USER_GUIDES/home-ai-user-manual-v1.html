@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>Home AI 使用说明书</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 18mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: #17212a;
+      background: #ffffff;
+      font-family: "Hiragino Sans GB", "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", Arial, sans-serif;
+      font-size: 13px;
+      line-height: 1.62;
+    }
+
+    .cover {
+      min-height: 230mm;
+      display: grid;
+      align-content: center;
+      gap: 18px;
+      page-break-after: always;
+    }
+
+    .brand {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border-radius: 16px;
+      color: #ffffff;
+      background: #2f6f66;
+      font-size: 23px;
+      font-weight: 760;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      color: #111a20;
+      line-height: 1.25;
+      page-break-after: avoid;
+    }
+
+    h1 {
+      font-size: 34px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin-top: 22px;
+      padding-top: 12px;
+      border-top: 1px solid #dde5e3;
+      font-size: 21px;
+    }
+
+    h3 {
+      margin-top: 15px;
+      font-size: 15px;
+    }
+
+    p {
+      margin: 7px 0;
+    }
+
+    .subtitle {
+      max-width: 500px;
+      color: #4d5d62;
+      font-size: 16px;
+      line-height: 1.7;
+    }
+
+    .meta {
+      color: #607077;
+      font-size: 12px;
+    }
+
+    .section {
+      page-break-inside: avoid;
+    }
+
+    .lead {
+      color: #41535a;
+      font-size: 14px;
+    }
+
+    .note {
+      margin: 10px 0;
+      padding: 9px 11px;
+      border-left: 4px solid #6b858c;
+      background: #f4f8f6;
+      color: #26373d;
+    }
+
+    .warning {
+      border-left-color: #b1843a;
+      background: #fbf7ed;
+    }
+
+    ul,
+    ol {
+      margin: 7px 0 9px 18px;
+      padding: 0;
+    }
+
+    li {
+      margin: 4px 0;
+      padding-left: 2px;
+    }
+
+    strong {
+      color: #0f171b;
+      font-weight: 720;
+    }
+
+    code {
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: #eef3f2;
+      color: #233941;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 10px 0;
+    }
+
+    .card {
+      min-height: 68px;
+      padding: 10px 11px;
+      border: 1px solid #dde5e3;
+      border-radius: 8px;
+      background: #fbfcfb;
+      page-break-inside: avoid;
+    }
+
+    .card-title {
+      margin-bottom: 4px;
+      color: #122126;
+      font-weight: 760;
+    }
+
+    .card p {
+      margin: 0;
+      color: #4f6066;
+      font-size: 12px;
+      line-height: 1.52;
+    }
+
+    .steps {
+      counter-reset: step;
+      margin-left: 0;
+      list-style: none;
+    }
+
+    .steps li {
+      position: relative;
+      min-height: 28px;
+      margin: 7px 0;
+      padding-left: 34px;
+    }
+
+    .steps li::before {
+      counter-increment: step;
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 22px;
+      height: 22px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #ffffff;
+      background: #2f6f66;
+      font-size: 12px;
+      font-weight: 740;
+      line-height: 1;
+    }
+
+    .toc {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border: 1px solid #dde5e3;
+      border-radius: 8px;
+      background: #fbfcfb;
+    }
+
+    .toc ol {
+      columns: 2;
+      column-gap: 28px;
+      margin-bottom: 0;
+    }
+
+    .quick-table {
+      width: 100%;
+      margin: 10px 0;
+      border-collapse: collapse;
+      page-break-inside: avoid;
+    }
+
+    .quick-table th,
+    .quick-table td {
+      padding: 8px 9px;
+      border: 1px solid #dde5e3;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .quick-table th {
+      width: 28%;
+      color: #16252b;
+      background: #f1f6f4;
+      font-weight: 740;
+    }
+
+    .footer-note {
+      margin-top: 20px;
+      padding-top: 10px;
+      border-top: 1px solid #dde5e3;
+      color: #68777d;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="brand">AI</div>
+    <div>
+      <h1>Home AI 使用说明书</h1>
+      <p class="subtitle">给新用户的简明上手指南：如何聊天、管理话题、使用插件，以及怎样让 Home AI 更准确地帮你完成事情。</p>
+    </div>
+    <p class="meta">版本：v1 草稿 · 适用于 Home AI App / PWA · 2026-06-19</p>
+    <div class="toc">
+      <strong>本说明书包含</strong>
+      <ol>
+        <li>快速开始</li>
+        <li>聊天怎么用</li>
+        <li>话题怎么用</li>
+        <li>插件怎么用</li>
+        <li>文件、目录和附件</li>
+        <li>信息、通知和审批</li>
+        <li>使用建议</li>
+        <li>常见问题</li>
+      </ol>
+    </div>
+  </section>
+
+  <main>
+    <section class="section">
+      <h2>1. 快速开始</h2>
+      <p class="lead">Home AI 是一个面向家庭和个人工作的 AI 助手。你可以直接聊天，也可以围绕一个长期事情建立“话题”，还可以打开插件处理更具体的任务。</p>
+      <ol class="steps">
+        <li><strong>登录：</strong>第一次使用时，输入管理员给你的 Home AI Access Key。请妥善保存，不要发给无关人员。</li>
+        <li><strong>确认工作区：</strong>每个用户有自己的工作区。工作区会影响你能看到的话题、文件和插件。</li>
+        <li><strong>从底部导航进入功能：</strong>常用入口是“聊天”“话题”“信息”“目录”和已开通的插件。</li>
+        <li><strong>开始提问：</strong>在输入框里写清楚你要什么，必要时上传图片或文件。</li>
+      </ol>
+
+      <table class="quick-table">
+        <tr>
+          <th>聊天</th>
+          <td>适合临时提问、日常咨询、写作、翻译、查资料、分析图片和文件。</td>
+        </tr>
+        <tr>
+          <th>话题</th>
+          <td>适合长期任务，例如一次旅行计划、一个学习项目、一段健康记录、一个家庭事项。</td>
+        </tr>
+        <tr>
+          <th>插件</th>
+          <td>适合进入专门应用，例如衣橱、记账、邮箱、健康、笔记、成长、音乐等。</td>
+        </tr>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>2. 聊天怎么用</h2>
+      <p>“聊天”是最直接的入口。把你的问题说清楚，Home AI 会根据当前工作区、可用工具、附件和上下文回答。</p>
+
+      <h3>发送一条好用的消息</h3>
+      <ul>
+        <li>说明目标：例如“帮我把这段话改得更正式”，不要只写“改一下”。</li>
+        <li>说明限制：例如“控制在 200 字以内”“给我三种方案”“用中文”。</li>
+        <li>提供资料：可以上传图片、PDF、表格、截图，或说明要参考哪个目录。</li>
+        <li>需要联网时直接说：例如“请查最新信息后回答”。</li>
+      </ul>
+
+      <h3>常用能力</h3>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">写作和整理</div>
+          <p>写邮件、改文案、生成提纲、总结会议记录、整理清单。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">图片和文件</div>
+          <p>分析截图、解释图片内容、总结 PDF、根据附件生成报告。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">搜索和核对</div>
+          <p>需要最新信息时，可以让 Home AI 搜索网络并说明来源。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">语音输入</div>
+          <p>支持语音的环境里，可以用语音说出问题，再编辑后发送。</p>
+        </div>
+      </div>
+
+      <div class="note">
+        <strong>模型状态：</strong>发送后如果看到“模型状态”或运行进度，表示 Home AI 正在调用模型、插件或工具。复杂任务可能需要更久。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>3. 话题怎么用</h2>
+      <p>话题是 Home AI 的长期上下文。一个话题会保留相关消息、附件、目录绑定和阶段性结果，适合持续推进一件事。</p>
+
+      <h3>什么时候新建话题</h3>
+      <ul>
+        <li>这是一个会持续几天或几周的任务。</li>
+        <li>你希望以后继续追问，并保留上下文。</li>
+        <li>这个任务有独立资料、文件、目录或插件。</li>
+      </ul>
+
+      <h3>基本操作</h3>
+      <ol>
+        <li>点“话题”，进入话题列表。</li>
+        <li>点“新建话题”，输入第一条消息。</li>
+        <li>需要区分任务时，给话题改一个清楚的名字，例如“6 月旅行计划”或“家庭健康记录”。</li>
+        <li>在话题内继续提问，Home AI 会优先理解这个话题里的上下文。</li>
+      </ol>
+
+      <h3>话题列表和话题流</h3>
+      <ul>
+        <li><strong>话题列表：</strong>用于查找、进入、重命名不同话题。</li>
+        <li><strong>话题流：</strong>用于连续查看某个话题里的消息过程。</li>
+        <li><strong>摘要：</strong>列表里的简短摘要只是帮助识别最近进展；手动命名的话题名会完整显示。</li>
+      </ul>
+
+      <div class="note">
+        建议一个话题只放一件主要事情。临时问题用“聊天”，长期事情用“话题”。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>4. 插件怎么用</h2>
+      <p>插件是 Home AI 里的专用应用。插件既可以有自己的界面，也可以让 Home AI 在对话中读取插件数据或调用插件能力。</p>
+
+      <h3>打开插件</h3>
+      <ul>
+        <li>已开通的插件会出现在底部导航或插件 Dock 里。</li>
+        <li>点插件图标会打开插件应用本身。</li>
+        <li>有些插件只对特定工作区开放；看不到插件通常表示当前工作区没有权限或插件尚未开通。</li>
+      </ul>
+
+      <h3>常见插件</h3>
+      <div class="grid">
+        <div class="card">
+          <div class="card-title">衣橱</div>
+          <p>管理衣物、查看照片、生成穿搭建议。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">记账</div>
+          <p>记录收支、查看账本、分析消费情况。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">邮箱</div>
+          <p>分析邮件、提取重点、整理待办和数据。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">健康</div>
+          <p>管理健康记录、生成阶段性健康总结。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">笔记</div>
+          <p>保存重要回执、沉淀资料和长期记录。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">成长</div>
+          <p>学习计划、练习任务、反馈和复盘。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">星盘</div>
+          <p>查看个人资料、星盘和择日相关参考。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">音乐</div>
+          <p>面向 Owner 的音乐资料和听音偏好分析。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">Codex</div>
+          <p>面向 Owner 的代码工作区和开发任务。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">自动化</div>
+          <p>设置定时任务，例如定期总结、提醒或数据处理。</p>
+        </div>
+      </div>
+
+      <div class="note warning">
+        <strong>权限说明：</strong>插件权限由 Owner 或管理员开通。不同工作区看到的插件可能不同。Music 和 Codex 属于 Owner-only 类型，普通工作区通常不可见。
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>5. 文件、目录和附件</h2>
+      <p>Home AI 可以结合文件回答问题。你可以上传文件，也可以从已授权的服务器目录里选择文件。</p>
+
+      <h3>上传附件</h3>
+      <ul>
+        <li>适合临时分析：截图、照片、PDF、表格、文本文件。</li>
+        <li>上传后，在消息里说明你希望 Home AI 怎么使用它，例如“总结这份 PDF 的关键结论”。</li>
+      </ul>
+
+      <h3>目录</h3>
+      <ul>
+        <li>“目录”用于查看当前工作区可访问的文件和文件夹。</li>
+        <li>你可以让 Home AI 基于某个目录工作，例如“请看这个目录里的资料，整理一份清单”。</li>
+        <li>目录绑定的话题适合长期项目，例如一批文档、一组照片、一个代码或资料目录。</li>
+      </ul>
+
+      <h3>保存重要结果</h3>
+      <ul>
+        <li>有用的回答可以保存到“笔记”。</li>
+        <li>图片、PDF、目录文件可以在消息或目录里打开预览。</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>6. 信息、通知和审批</h2>
+      <p>“信息”里会显示需要你处理的事项，例如插件请求、加入账本请求、后台任务结果或需要确认的动作。</p>
+      <ul>
+        <li>看到“同意”“拒绝”“完成”等按钮时，先读清楚来源和内容再操作。</li>
+        <li>如果开启通知，任务完成或失败时可能会收到提醒。</li>
+        <li>涉及高权限、共享目录或跨工作区的动作，Home AI 可能要求 Owner 确认。</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>7. 使用建议</h2>
+      <ul>
+        <li><strong>把目标说完整：</strong>说明你想得到什么格式、字数、范围和用途。</li>
+        <li><strong>长期事情建话题：</strong>不要把所有问题都放在同一个聊天里。</li>
+        <li><strong>需要最新信息就明说：</strong>例如“请先联网核对”。</li>
+        <li><strong>重要结论要复核：</strong>医疗、法律、财务、签约等高风险事项，不要只依赖 AI 回答。</li>
+        <li><strong>不要发送敏感密钥：</strong>不要把 Access Key、密码、验证码、银行卡信息随便发到聊天里。</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>8. 常见问题</h2>
+      <h3>我看不到某个插件怎么办？</h3>
+      <p>通常是当前工作区没有开通该插件，或该插件只允许 Owner 使用。切换工作区后再看一次；如果仍没有，请联系管理员开通。</p>
+
+      <h3>消息发出后很久没有结果怎么办？</h3>
+      <p>先看“模型状态”。如果状态仍在运行，说明任务还没完成。复杂分析、联网搜索、插件调用、文件处理都可能更慢。</p>
+
+      <h3>应该用聊天还是话题？</h3>
+      <p>一次性问题用聊天；会反复追问、需要保留资料和过程的事情用话题。</p>
+
+      <h3>Home AI 会记住所有事情吗？</h3>
+      <p>Home AI 会在当前工作区和话题内保留必要上下文，但不同工作区的数据和权限是分开的。涉及隐私的内容请谨慎发送。</p>
+
+      <h3>我可以让 Home AI 直接操作插件吗？</h3>
+      <p>可以，但前提是当前工作区有权限，而且插件已正确开通。对于敏感或高权限动作，系统可能会要求确认。</p>
+    </section>
+
+    <p class="footer-note">这是 Home AI 新用户使用说明书第一版草稿。功能入口可能因账号权限、插件开通情况和 App 版本不同而略有差异。</p>
+  </main>
+</body>
+</html>

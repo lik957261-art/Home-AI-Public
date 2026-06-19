@@ -6,6 +6,7 @@
   if (root) root.HermesMarkdownRenderer = api;
 })(typeof window !== "undefined" ? window : globalThis, function createHermesMarkdownRenderer() {
   const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
+  const SAFE_IMAGE_PROTOCOLS = new Set(["http:", "https:"]);
   const FONT_SCALE_ORDER = ["small", "standard", "large", "xlarge"];
   const FONT_SCALE_CLASS = new Map([
     ["small", "hermes-markdown-font-small"],
@@ -59,6 +60,46 @@
         ? withoutControls
         : "#";
     }
+  }
+
+  function sanitizeImageSrc(src) {
+    const raw = String(src ?? "").trim();
+    if (!raw) return "#";
+
+    const withoutControls = raw.replace(/[\u0000-\u001f\u007f\s]+/g, "");
+    const lower = withoutControls.toLowerCase();
+    if (
+      lower.startsWith("javascript:") ||
+      lower.startsWith("vbscript:") ||
+      lower.startsWith("data:") ||
+      withoutControls.startsWith("#")
+    ) {
+      return "#";
+    }
+
+    if (
+      withoutControls.startsWith("/") ||
+      withoutControls.startsWith("./") ||
+      withoutControls.startsWith("../")
+    ) {
+      return withoutControls;
+    }
+
+    try {
+      const parsed = new URL(withoutControls);
+      return SAFE_IMAGE_PROTOCOLS.has(parsed.protocol) ? withoutControls : "#";
+    } catch (_error) {
+      return /^[A-Za-z0-9._~/?#[\]@!$&'()*+,;=:%-]+$/.test(withoutControls)
+        ? withoutControls
+        : "#";
+    }
+  }
+
+  function renderMarkdownImage(alt, src, title = "") {
+    const safeSrc = sanitizeImageSrc(src);
+    if (safeSrc === "#") return "";
+    const titleAttr = title ? ` title="${escapeAttribute(title)}"` : "";
+    return `<img class="hermes-markdown-image" src="${escapeAttribute(safeSrc)}" alt="${escapeAttribute(alt)}"${titleAttr} loading="lazy" decoding="async">`;
   }
 
   function normalizeFontScale(fontScale, fallback = DEFAULT_BASE_FONT_SCALE) {
@@ -281,9 +322,18 @@
 
   function renderInline(value, options = {}) {
     const codeTokens = [];
+    const imageTokens = [];
     let text = String(value ?? "").replace(/`([^`]+)`/g, (_match, code) => {
       const token = `\u0000CODE${codeTokens.length}\u0000`;
       codeTokens.push(`<code>${escapeHtml(code)}</code>`);
+      return token;
+    });
+
+    text = text.replace(/!\[([^\]\n]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g, (match, alt, src, title = "") => {
+      const imageHtml = renderMarkdownImage(alt, src, title);
+      if (!imageHtml) return match;
+      const token = `\u0000IMAGE${imageTokens.length}\u0000`;
+      imageTokens.push(imageHtml);
       return token;
     });
 
@@ -302,6 +352,9 @@
     codeTokens.forEach((html, tokenIndex) => {
       text = text.replace(new RegExp(`\\u0000CODE${tokenIndex}\\u0000`, "g"), html);
     });
+    imageTokens.forEach((html, tokenIndex) => {
+      text = text.replace(new RegExp(`\\u0000IMAGE${tokenIndex}\\u0000`, "g"), html);
+    });
     return text;
   }
 
@@ -311,6 +364,7 @@
     markdownFontScaleClass,
     renderMarkdownDocument,
     renderMarkdownToHtml,
+    sanitizeImageSrc,
     sanitizeLinkHref,
   };
 });

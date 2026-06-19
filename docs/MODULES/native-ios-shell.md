@@ -240,8 +240,12 @@ The current Xcode shell implementation exposes
 `getCurrentLocation`. The native manager keeps an in-memory cache with a
 15-minute TTL, honors the native location permission/toggle, rounds approximate
 coordinates, and computes selected weather through WeatherKit with an Open-Meteo
-fallback. It does not push location continuously to Home AI; the Web shell must
-ask for a snapshot.
+fallback. It does not push location continuously to Home AI. When the native
+foreground warmup refreshes local environment context, it dispatches
+`homeai:native-environment-refresh`; the Web shell listens for that event and
+posts a compact snapshot to `POST /api/native/environment-context`. The Web
+shell also refreshes this snapshot when the native page becomes visible/focused
+and at a foreground 15-minute interval.
 
 Home AI Server treats the returned payload as user context, not as a durable
 location stream. Before storing it in message run options, writing a snapshot,

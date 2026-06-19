@@ -232,13 +232,28 @@ function isSqliteManagedFileName(name) {
   return /\.(sqlite|sqlite3|db)(?:$|[.-])/i.test(name);
 }
 
+function isTransientProductionDataBackupStep(step, name) {
+  return step.startsWith("production-data-file:") && /\.bak$/i.test(name);
+}
+
 function copyProductionDataFile(step, source, targetDir, options) {
-  if (isSqliteManagedFileName(path.basename(source))) {
+  const name = path.basename(source);
+  if (isSqliteManagedFileName(name)) {
     return {
       name: step,
       ok: true,
       skipped: true,
       reason: "sqlite-snapshot-managed",
+      source,
+      targetDir,
+    };
+  }
+  if (isTransientProductionDataBackupStep(step, name)) {
+    return {
+      name: step,
+      ok: true,
+      skipped: true,
+      reason: "transient-production-data-backup",
       source,
       targetDir,
     };
@@ -604,6 +619,7 @@ function runBackup(options) {
       "runtime binaries and package caches, which are recorded by version and rebuilt or backed up at lower frequency",
       "node_modules and virtualenv directories",
       "logs, temp, cache, sandboxes, run artifacts, and old local backup directories",
+      "root-level production data .bak rollback artifacts created by local repair/deploy operations",
       "live SQLite files copied as raw files; SQLite is captured through online snapshots instead",
     ],
     runtimeReference: {

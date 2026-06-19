@@ -13,7 +13,7 @@ function createdTaskGroupIdFromSendResult(result = {}, thread = state.currentThr
   return result?.taskGroupId || result?.run?.taskGroupId || latestUserTaskGroupId(thread);
 }
 
-function handleSendMessageResult(result, createsNewTask, consumedPendingDirectory) {
+function handleSendMessageResult(result, createsNewTask, consumedPendingDirectory, options = {}) {
   state.forceChatStickToBottomUntil = Date.now() + 12000;
   state.conversationViewportBottomFollowUntil = Date.now() + 5000;
   state.conversationViewportSettleUntil = Date.now() + 900;
@@ -25,7 +25,26 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
   resetComposerSearchSource();
   clearQuotedReply({ render: false });
   renderPendingArtifacts();
+  const routeSnapshot = options.routeSnapshot || null;
+  const expectedThreadId = String(options.threadId || routeSnapshot?.currentThreadId || "");
+  const routeStillCurrent = typeof currentThreadRouteMatches === "function"
+    ? currentThreadRouteMatches(routeSnapshot)
+    : true;
+  if (!routeStillCurrent || (expectedThreadId && String(state.currentThreadId || state.currentThread?.id || "") !== expectedThreadId)) {
+    if (result?.thread) {
+      if (typeof mergeTaskListThreadFromThreadUpdate === "function") mergeTaskListThreadFromThreadUpdate(result.thread);
+      if (typeof upsertThreadSummary === "function" && typeof summarizeThread === "function") {
+        upsertThreadSummary(summarizeThread(result.thread));
+      }
+    }
+    suppressComposerAutoFocus(1200);
+    blurComposerInput();
+    return;
+  }
   state.currentThread = mergeCurrentThread(result.thread);
+  if (typeof mergeTaskListThreadFromThreadUpdate === "function") {
+    mergeTaskListThreadFromThreadUpdate(state.currentThread);
+  }
   if (createsNewTask) {
     const createdTaskGroupId = createdTaskGroupIdFromSendResult(result, state.currentThread);
     if (createdTaskGroupId) {

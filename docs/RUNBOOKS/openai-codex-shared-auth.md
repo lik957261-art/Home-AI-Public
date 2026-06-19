@@ -32,8 +32,10 @@ Any one OpenAI worker may refresh that file. A normal successful
 `atomic_replace()` can replace the file as that worker and drop the shared
 `hermes-workers` group write mode or ACLs. The runtime override must repair
 `shared-auth/auth.json` and `shared-auth/auth.lock` to group
-`hermes-workers`, mode `0660`, after both the normal replace path and the
-`EXDEV` fallback path.
+`hermes-workers`, mode `0660`, and the per-OpenAI/Codex-worker macOS ACLs
+after both the normal replace path and the `EXDEV` fallback path. The ACL user
+set must be derived from `gateway-pool-manifest-mac.json` when available, not
+hard-coded to a fixed historical worker list.
 
 ## Diagnosis
 
@@ -61,7 +63,8 @@ For macOS shared-auth permission drift, run a bounded ACL repair that grants all
 OpenAI/Codex manifest `osUser` values read/write access to `auth.json` and
 `auth.lock`, then confirm every listed `hm-*` user can read and write those two
 files with `sudo -u <user> test -r/-w <file>`. Do not print the auth JSON
-contents.
+contents. If `gateway-runtime-overrides/sitecustomize.py` changes, restart the
+affected Gateway profiles so future auth refreshes load the runtime ACL repair.
 
 ## Validation
 

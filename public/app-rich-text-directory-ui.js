@@ -58,8 +58,78 @@ function renderAssistantStreamingReceiptPreview(text, aliases = "") {
   </div>`;
 }
 
+function escapeMarkdownAttribute(value) {
+  return escapeHtml(value).replace(/`/g, "&#96;");
+}
+
+function sanitizeInlineMarkdownImageSrc(src) {
+  const renderer = typeof globalThis !== "undefined" ? globalThis.HermesMarkdownRenderer : null;
+  if (renderer && typeof renderer.sanitizeImageSrc === "function") return renderer.sanitizeImageSrc(src);
+  const raw = String(src ?? "").trim();
+  if (!raw) return "#";
+  const withoutControls = raw.replace(/[\u0000-\u001f\u007f\s]+/g, "");
+  const lower = withoutControls.toLowerCase();
+  if (
+    lower.startsWith("javascript:") ||
+    lower.startsWith("vbscript:") ||
+    lower.startsWith("data:") ||
+    withoutControls.startsWith("#")
+  ) {
+    return "#";
+  }
+  if (withoutControls.startsWith("/") || withoutControls.startsWith("./") || withoutControls.startsWith("../")) {
+    return withoutControls;
+  }
+  try {
+    const UrlCtor = typeof URL === "function" ? URL : null;
+    if (!UrlCtor) {
+      if (/^https?:\/\//i.test(withoutControls)) return withoutControls;
+      return !withoutControls.includes(":") && /^[A-Za-z0-9._~/?#[\]@!$&'()*+,;=:%-]+$/.test(withoutControls)
+        ? withoutControls
+        : "#";
+    }
+    const parsed = new UrlCtor(withoutControls);
+    return ["http:", "https:"].includes(parsed.protocol) ? withoutControls : "#";
+  } catch (_error) {
+    return /^[A-Za-z0-9._~/?#[\]@!$&'()*+,;=:%-]+$/.test(withoutControls)
+      ? withoutControls
+      : "#";
+  }
+}
+
+function renderInlineMarkdownImage(alt, src, title = "") {
+  const safeSrc = sanitizeInlineMarkdownImageSrc(src);
+  if (safeSrc === "#") return "";
+  const titleAttr = title ? ` title="${escapeMarkdownAttribute(title)}"` : "";
+  return `<img class="hermes-markdown-image" src="${escapeMarkdownAttribute(safeSrc)}" alt="${escapeMarkdownAttribute(alt)}"${titleAttr} loading="lazy" decoding="async">`;
+}
+
 function renderInlineMarkdown(value) {
-  return escapeHtml(value).replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>").replace(/__([^_\n]+)__/g, "<strong>$1</strong>").replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+  const codeTokens = [];
+  const imageTokens = [];
+  let text = String(value ?? "").replace(/`([^`\n]+)`/g, (_match, code) => {
+    const token = `\u0000CODE${codeTokens.length}\u0000`;
+    codeTokens.push(`<code>${escapeHtml(code)}</code>`);
+    return token;
+  });
+  text = text.replace(/!\[([^\]\n]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)/g, (match, alt, src, title = "") => {
+    const imageHtml = renderInlineMarkdownImage(alt, src, title);
+    if (!imageHtml) return match;
+    const token = `\u0000IMAGE${imageTokens.length}\u0000`;
+    imageTokens.push(imageHtml);
+    return token;
+  });
+  text = escapeHtml(text)
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_\n]+)__/g, "<strong>$1</strong>")
+    .replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+  codeTokens.forEach((html, tokenIndex) => {
+    text = text.replace(new RegExp(`\\u0000CODE${tokenIndex}\\u0000`, "g"), html);
+  });
+  imageTokens.forEach((html, tokenIndex) => {
+    text = text.replace(new RegExp(`\\u0000IMAGE${tokenIndex}\\u0000`, "g"), html);
+  });
+  return text;
 }
 
 const ASSISTANT_RECEIPT_LABEL_PATTERN = /^(结论|关键结论|重点|重点结论|摘要|总结|结果|处理结果|状态|当前状态|已完成|完成|修复|变更|改动|修改|处理|影响|影响范围|验证|验证结果|测试|测试结果|本地验证|生产验证|部署|生产|已部署|文件|代码|路径|下一步|后续|后续步骤|建议|待办|待确认|风险|注意|限制|原因|诊断|发现|问题|说明|summary|result|status|done|completed|changed?|impact|validation|tests?|deploy(?:ed|ment)?|files?|paths?|next|todo|risk|warning|note|diagnosis|issue)\s*[：:]\s*(.*)$/i;

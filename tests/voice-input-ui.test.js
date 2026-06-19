@@ -143,7 +143,7 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /\/api\/voice-input\/commit/);
   assert.doesNotMatch(read("public/app-event-stream-ui.js"), /\/api\/voice-input\/learn-sent-text/);
   assert.doesNotMatch(read("public/app-event-stream-ui.js"), /learnVoiceInputSentText/);
-  assert.match(read("public/app-event-stream-ui.js"), /handleSendMessageResult\(result, createsNewTask, consumedPendingDirectory\);\s+if \(typeof commitPendingVoiceInputFinalText === "function"\) commitPendingVoiceInputFinalText\(text, body\);/);
+  assert.match(read("public/app-event-stream-ui.js"), /handleSendMessageResult\(result, createsNewTask, consumedPendingDirectory, \{\s+threadId: sendThreadId,\s+routeSnapshot: sendRouteSnapshot,\s+\}\);\s+if \(typeof commitPendingVoiceInputFinalText === "function"\) commitPendingVoiceInputFinalText\(text, body\);/);
   assert.match(read("public/app-event-stream-ui.js"), /if \(isComposerStopMode\(\)\) \{[\s\S]*?await interruptRun\(\);/);
   assert.match(wireStart, /if \(typeof initializeVoiceInputUi === "function"\) initializeVoiceInputUi\(\)/);
   assert.match(wireStart, /handleVoiceInputSendClick\(event\)[\s\S]*void sendMessage\(event\)/);

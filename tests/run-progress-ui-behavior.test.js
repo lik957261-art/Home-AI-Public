@@ -106,6 +106,9 @@ globalThis.runProgressTestApi = {
   appendRunEventToCurrentThread,
   scheduleRunProgressFallbackThreadRefresh,
   shouldKeepRunProgressPinnedToBottom,
+  runProgressRowAlignedScrollTarget,
+  scrollRunProgressRowsToLatest,
+  scrollActiveRunProgressRowsToLatest,
 };`, context);
 
 const {
@@ -124,6 +127,9 @@ const {
   appendRunEventToCurrentThread,
   scheduleRunProgressFallbackThreadRefresh,
   shouldKeepRunProgressPinnedToBottom,
+  runProgressRowAlignedScrollTarget,
+  scrollRunProgressRowsToLatest,
+  scrollActiveRunProgressRowsToLatest,
 } = context.runProgressTestApi;
 
 const thread = {
@@ -710,6 +716,79 @@ assert.strictEqual(fakeConversation.scrollTop, 950);
 assert.strictEqual(testState.conversationPinnedToBottom, true);
 assert.ok(testState.conversationViewportBottomFollowUntil >= Date.now());
 assert.ok(visibilityCalls >= 1);
+
+const fakeRunProgressRows = {
+  scrollHeight: 440,
+  clientHeight: 150,
+  scrollTop: 0,
+};
+const fakeRunProgressPanel = {
+  querySelector(selector) {
+    return selector === ".run-progress-rows" ? fakeRunProgressRows : null;
+  },
+};
+assert.strictEqual(scrollRunProgressRowsToLatest(fakeRunProgressPanel), true);
+assert.strictEqual(fakeRunProgressRows.scrollTop, 290);
+fakeRunProgressRows.scrollTop = 0;
+const fakeRunProgressRoot = {
+  querySelectorAll(selector) {
+    return selector === ".message.assistant.streaming-active .run-progress-panel.inline:not(.terminal)"
+      ? [fakeRunProgressPanel]
+      : [];
+  },
+};
+assert.strictEqual(scrollActiveRunProgressRowsToLatest(fakeRunProgressRoot), true);
+assert.strictEqual(fakeRunProgressRows.scrollTop, 290);
+
+let alignedRunProgressRows;
+const alignedRowsStyle = {
+  values: {},
+  removed: [],
+  setProperty(name, value) {
+    this.values[name] = value;
+    if (name === "--run-progress-follow-visible-height") {
+      alignedRunProgressRows.clientHeight = Number.parseInt(value, 10);
+    }
+  },
+  removeProperty(name) {
+    delete this.values[name];
+    this.removed.push(name);
+    if (name === "--run-progress-follow-visible-height") {
+      alignedRunProgressRows.clientHeight = alignedRunProgressRows.naturalClientHeight;
+    }
+  },
+};
+alignedRunProgressRows = {
+  scrollHeight: 391,
+  naturalClientHeight: 150,
+  clientHeight: 150,
+  offsetHeight: 150,
+  scrollTop: 0,
+  offsetTop: 0,
+  style: alignedRowsStyle,
+  querySelectorAll(selector) {
+    return selector === ".run-progress-row"
+      ? [0, 39, 79, 118, 158, 197, 236, 276, 315, 354].map((offsetTop) => ({
+          offsetTop,
+          offsetHeight: 34,
+        }))
+      : [];
+  },
+};
+const alignedTarget = runProgressRowAlignedScrollTarget(alignedRunProgressRows);
+assert.strictEqual(alignedTarget.scrollTop, 276);
+assert.strictEqual(alignedTarget.visibleHeight, 115);
+const alignedRunProgressPanel = {
+  querySelector(selector) {
+    return selector === ".run-progress-rows" ? alignedRunProgressRows : null;
+  },
+};
+assert.strictEqual(scrollRunProgressRowsToLatest(alignedRunProgressPanel), true);
+assert.strictEqual(alignedRunProgressRows.scrollTop, 276);
+assert.strictEqual(alignedRowsStyle.values["--run-progress-follow-bottom-pad"], undefined);
+assert.strictEqual(alignedRowsStyle.values["--run-progress-follow-visible-height"], "115px");
+assert.ok(alignedRowsStyle.removed.includes("--run-progress-follow-bottom-pad"));
+assert.ok(alignedRowsStyle.removed.includes("--run-progress-follow-visible-height"));
 
 fakeBody.inserted = "";
 fakeConversation.scrollHeight = 1000;

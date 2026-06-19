@@ -261,6 +261,15 @@ The first UI should be deliberately small:
 - The app action enters the existing embedded plugin host, which keeps the mobile bottom navigation visible as plugin-context navigation.
 - The topic action opens the bound topic/task group with a plugin-aware
   composer/run route.
+- Plugin topic detail updates must merge same-thread send results and terminal
+  SSE message updates back into the task-list root thread cache. Otherwise the
+  user can leave a plugin topic and see stale plugin-row receipt summaries
+  until a full app reload fetches the root task list again.
+- Topics-root plugin row subtitles must be concise receipt summaries. The row
+  renderer must clamp persisted `lastReceiptTitle`, assistant message
+  previews, and any cached fallback text to the plugin-row summary limit rather
+  than displaying long stored receipt/user-prompt titles such as 120-160
+  character metadata strings.
 - A delivery-directory action may appear in the topic menu or card overflow,
   but it must use the directory module's normal ACL and preview flow.
 - The root topic list does not provide a bottom `New topic` message composer.

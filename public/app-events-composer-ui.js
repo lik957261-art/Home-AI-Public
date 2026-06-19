@@ -15,13 +15,52 @@ function scheduleRenderCurrentThread() {
   if (state.renderScheduled) return;
   const conversation = $("conversation");
   if (!conversation) return;
+  const routeSnapshot = currentThreadRouteSnapshot();
   state.shouldStickToBottom = shouldForceChatStickToBottom() || isNearBottom();
   state.preservedBottomOffset = conversation.scrollHeight - conversation.scrollTop;
   state.renderScheduled = true;
   requestAnimationFrame(() => {
     state.renderScheduled = false;
+    if (!currentThreadRouteMatches(routeSnapshot)) return;
     renderCurrentThread({ stickToBottom: state.shouldStickToBottom });
   });
+}
+
+function currentThreadRouteSnapshot() {
+  return {
+    viewMode: String(state.viewMode || ""),
+    singleWindowMode: String(state.singleWindowMode || ""),
+    currentTaskGroupId: String(state.currentTaskGroupId || ""),
+    selectedWorkspaceId: String(state.selectedWorkspaceId || ""),
+    currentThreadId: String(state.currentThreadId || state.currentThread?.id || ""),
+    primaryNavigationSeq: Number(state.primaryNavigationSeq || 0) || 0,
+  };
+}
+
+function currentThreadRouteMatches(snapshot = null) {
+  if (!snapshot || typeof snapshot !== "object") return true;
+  if (String(state.viewMode || "") !== String(snapshot.viewMode || "")) return false;
+  if (String(state.singleWindowMode || "") !== String(snapshot.singleWindowMode || "")) return false;
+  if (String(state.currentTaskGroupId || "") !== String(snapshot.currentTaskGroupId || "")) return false;
+  if (String(state.selectedWorkspaceId || "") !== String(snapshot.selectedWorkspaceId || "")) return false;
+  if ((Number(state.primaryNavigationSeq || 0) || 0) !== (Number(snapshot.primaryNavigationSeq || 0) || 0)) return false;
+  const currentThreadId = String(state.currentThreadId || state.currentThread?.id || "");
+  const snapshotThreadId = String(snapshot.currentThreadId || "");
+  if (snapshotThreadId && currentThreadId && currentThreadId !== snapshotThreadId) return false;
+  return true;
+}
+
+function cancelCurrentThreadNavigationRefreshes() {
+  window.clearTimeout(state.currentThreadRefreshTimer);
+  state.currentThreadRefreshTimer = 0;
+  state.currentThreadRefreshPending = false;
+  state.currentThreadRefreshPendingOptions = null;
+  state.currentThreadRefreshSeq = (Number(state.currentThreadRefreshSeq || 0) || 0) + 1;
+  window.clearTimeout(state.topicRootListRefreshTimer);
+  state.topicRootListRefreshTimer = 0;
+  if (typeof clearRunProgressFallbackThreadRefresh === "function") {
+    clearRunProgressFallbackThreadRefresh();
+  }
 }
 
 function isCurrentTopicRootListView() {
@@ -33,8 +72,10 @@ function scheduleTopicRootListRefresh(delayMs = 140) {
   window.clearTimeout(state.topicRootListRefreshTimer);
   const conversation = $("conversation");
   const restoreScrollTop = conversation?.scrollTop || 0;
+  const routeSnapshot = currentThreadRouteSnapshot();
   state.topicRootListRefreshTimer = window.setTimeout(() => {
     state.topicRootListRefreshTimer = 0;
+    if (!currentThreadRouteMatches(routeSnapshot)) return;
     if (!isCurrentTopicRootListView()) return;
     renderCurrentThread({ stickToBottom: false, restoreScrollTop });
   }, Math.max(0, Number(delayMs) || 0));
@@ -47,20 +88,32 @@ function renderStreamingMessageContent(message) {
   const body = article?.querySelector?.(".message-body");
   const content = body?.querySelector?.(".text-content");
   if (!article || !body || !content || message.revokedAt) return false;
-  const shouldStick = shouldForceChatStickToBottom() || isNearBottom();
+  const conversation = $("conversation");
+  const shouldStick = typeof shouldKeepRunProgressPinnedToBottom === "function"
+    ? shouldKeepRunProgressPinnedToBottom(conversation)
+    : shouldForceChatStickToBottom() || isNearBottom();
+  const scrollMetrics = typeof runProgressScrollMetrics === "function"
+    ? runProgressScrollMetrics(conversation)
+    : null;
   const messageStatus = String(message.status || "");
   const active = ["queued", "running"].includes(messageStatus);
   try {
     article.classList.toggle("streaming-active", active);
     content.outerHTML = renderText(message.content || "", message);
+    if (typeof updateRunProgressPromptReserveClass === "function") {
+      updateRunProgressPromptReserveClass(article, state.currentThread, message);
+    }
   } catch (err) {
     console.warn("renderStreamingMessageContent failed", err);
     content.className = "text-content plain-text";
     content.textContent = String(message.content || "");
   }
   if (shouldStick) {
-    const conversation = $("conversation");
-    conversation.scrollTop = conversation.scrollHeight;
+    if (typeof stickRunProgressToConversationBottom === "function") {
+      stickRunProgressToConversationBottom(conversation, shouldStick, scrollMetrics);
+    } else if (conversation) {
+      conversation.scrollTop = conversation.scrollHeight;
+    }
     state.conversationPinnedToBottom = true;
     if (isSingleWindowChatView()) scheduleConversationBottomStick();
   } else {
@@ -222,13 +275,20 @@ function shouldRefreshCurrentThreadForSummary(summary) {
 }
 
 async function refreshCurrentThreadFromServer(options = {}) {
-  const threadId = state.currentThreadId || state.currentThread?.id || "";
-  if (!threadId || !["single", "tasks"].includes(state.viewMode)) return;
+  const routeSnapshot = options.routeSnapshot || currentThreadRouteSnapshot();
+  const refreshSeq = Number.isFinite(Number(options.refreshSeq))
+    ? Number(options.refreshSeq)
+    : (Number(state.currentThreadRefreshSeq || 0) || 0);
+  const threadId = String(routeSnapshot.currentThreadId || state.currentThreadId || state.currentThread?.id || "");
+  if (!threadId || !["single", "tasks"].includes(String(routeSnapshot.viewMode || state.viewMode || ""))) return;
+  if (refreshSeq !== (Number(state.currentThreadRefreshSeq || 0) || 0) || !currentThreadRouteMatches(routeSnapshot)) return;
   if (state.currentThreadRefreshInFlight) {
     state.currentThreadRefreshPending = true;
+    state.currentThreadRefreshPendingOptions = Object.assign({}, options, { routeSnapshot, refreshSeq });
     return;
   }
   state.currentThreadRefreshInFlight = true;
+  state.currentThreadRefreshInFlightSeq = refreshSeq;
   state.currentThreadRefreshPending = false;
   const stickToBottom = Object.prototype.hasOwnProperty.call(options, "stickToBottom")
     ? Boolean(options.stickToBottom || shouldForceChatStickToBottom())
@@ -246,6 +306,7 @@ async function refreshCurrentThreadFromServer(options = {}) {
       params = `?${query}`;
     }
     const result = await api(`/api/threads/${encodeURIComponent(threadId)}${params}`);
+    if (refreshSeq !== (Number(state.currentThreadRefreshSeq || 0) || 0) || !currentThreadRouteMatches(routeSnapshot)) return;
     if ((state.currentThreadId || state.currentThread?.id || "") !== threadId) return;
     state.currentThread = mergeCurrentThread(result.thread);
     state.currentThreadId = state.currentThread?.id || threadId;
@@ -254,10 +315,15 @@ async function refreshCurrentThreadFromServer(options = {}) {
   } catch (err) {
     if (options.reportError) showError(err);
   } finally {
-    state.currentThreadRefreshInFlight = false;
-    if (state.currentThreadRefreshPending) {
-      state.currentThreadRefreshPending = false;
-      requestCurrentThreadRefresh(Object.assign({}, options, { delayMs: 180 }));
+    if (state.currentThreadRefreshInFlightSeq === refreshSeq) {
+      state.currentThreadRefreshInFlight = false;
+      state.currentThreadRefreshInFlightSeq = 0;
+      if (state.currentThreadRefreshPending) {
+        const pendingOptions = state.currentThreadRefreshPendingOptions || options;
+        state.currentThreadRefreshPending = false;
+        state.currentThreadRefreshPendingOptions = null;
+        requestCurrentThreadRefresh(Object.assign({}, pendingOptions, { delayMs: 180 }));
+      }
     }
   }
 }
@@ -266,9 +332,14 @@ function requestCurrentThreadRefresh(options = {}) {
   if (!state.currentThreadId || !["single", "tasks"].includes(state.viewMode)) return;
   window.clearTimeout(state.currentThreadRefreshTimer);
   const delayMs = Math.max(0, Number(options.delayMs || 120));
+  const routeSnapshot = options.routeSnapshot || currentThreadRouteSnapshot();
+  const refreshSeq = Number.isFinite(Number(options.refreshSeq))
+    ? Number(options.refreshSeq)
+    : (Number(state.currentThreadRefreshSeq || 0) || 0);
   state.currentThreadRefreshTimer = window.setTimeout(() => {
     state.currentThreadRefreshTimer = 0;
-    refreshCurrentThreadFromServer(options).catch(() => {});
+    if (refreshSeq !== (Number(state.currentThreadRefreshSeq || 0) || 0) || !currentThreadRouteMatches(routeSnapshot)) return;
+    refreshCurrentThreadFromServer(Object.assign({}, options, { routeSnapshot, refreshSeq })).catch(() => {});
   }, delayMs);
 }
 
@@ -315,6 +386,9 @@ function applyEvent(payload) {
     const terminalSummaryRefresh = wasRunning && !summaryHasRunningState;
     const shouldRefreshForSummary = shouldRefreshCurrentThreadForSummary(payload.thread);
     state.currentThread = mergeCurrentThread(payload.thread);
+    if (typeof mergeTaskListThreadFromThreadUpdate === "function") {
+      mergeTaskListThreadFromThreadUpdate(state.currentThread);
+    }
     if (shouldRefreshForSummary || terminalSummaryRefresh) {
       requestCurrentThreadRefresh({
         stickToBottom: terminalSummaryRefresh && (Boolean(state.currentTaskGroupId) || (state.viewMode === "single" && state.singleWindowMode === "chat")),
@@ -354,18 +428,21 @@ function applyEvent(payload) {
   if (payload.message) upsertCachedChatScopeMessage(payload.threadId, payload.message, payload.thread);
   if (payload.message && state.currentThread && payload.threadId === state.currentThread.id) {
     upsertMessage(payload.message);
+    if (payload.thread) {
+      state.currentThread.status = payload.thread.status;
+      state.currentThread.activeRunId = payload.thread.activeRunId;
+      state.currentThread.activeRunIds = payload.thread.activeRunIds || [];
+      state.currentThread.updatedAt = payload.thread.updatedAt;
+    }
+    if (typeof mergeTaskListThreadFromThreadUpdate === "function") {
+      mergeTaskListThreadFromThreadUpdate(state.currentThread);
+    }
     scheduleTopicRootListRefresh(120);
     if (
       payload.message.role === "assistant"
       && ["done", "failed", "cancelled"].includes(String(payload.message.status || ""))
     ) {
       requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 260 });
-    }
-    if (payload.thread) {
-      state.currentThread.status = payload.thread.status;
-      state.currentThread.activeRunId = payload.thread.activeRunId;
-      state.currentThread.activeRunIds = payload.thread.activeRunIds || [];
-      state.currentThread.updatedAt = payload.thread.updatedAt;
     }
   }
 }

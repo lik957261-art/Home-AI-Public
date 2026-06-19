@@ -1,6 +1,10 @@
 "use strict";
 
 const COMPOSER_SEND_TIMEOUT_MS = 30000;
+const NATIVE_ENVIRONMENT_SNAPSHOT_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+let nativeEnvironmentSnapshotRefreshInFlight = null;
+let nativeEnvironmentSnapshotLastUploadedAt = 0;
+let nativeEnvironmentSnapshotAutoRefreshInstalled = false;
 
 function currentClientNotificationChannel() {
   try {
@@ -95,32 +99,98 @@ async function requestNativeEnvironmentContextForSend(body = {}, text = "") {
   }
 }
 
-async function refreshNativeEnvironmentSnapshotForSend() {
+function nativeEnvironmentSnapshotWorkspaceId() {
+  try {
+    return state?.selectedWorkspaceId || "owner";
+  } catch (_) {
+    return "owner";
+  }
+}
+
+async function refreshNativeEnvironmentSnapshotForSend(options = {}) {
   if (!nativeEnvironmentContextBridgeAvailable()) return null;
+  const forceUpload = options.forceUpload === true || options.force === true;
+  const now = Date.now();
+  if (!forceUpload && nativeEnvironmentSnapshotLastUploadedAt > 0
+    && now - nativeEnvironmentSnapshotLastUploadedAt < NATIVE_ENVIRONMENT_SNAPSHOT_REFRESH_INTERVAL_MS) {
+    return null;
+  }
+  if (nativeEnvironmentSnapshotRefreshInFlight) return nativeEnvironmentSnapshotRefreshInFlight;
   const bridgePromise = window.HomeAINativeEnvironment.getContext({
-    forceRefresh: false,
+    forceRefresh: options.forceRefresh === true,
     precise: false,
-    purpose: "model_tool_snapshot",
+    purpose: options.purpose || "model_tool_snapshot",
   });
   const timeoutPromise = new Promise((resolve) => {
     setTimeout(() => resolve(null), 1200);
   });
-  try {
+  nativeEnvironmentSnapshotRefreshInFlight = (async () => {
     const context = await Promise.race([bridgePromise, timeoutPromise]);
     if (!context || typeof context !== "object") return null;
     const body = {
-      workspaceId: state.selectedWorkspaceId,
+      workspaceId: nativeEnvironmentSnapshotWorkspaceId(),
       deviceId: "native-ios-current",
-      environmentContext: Object.assign({}, context, { purpose: context.purpose || "model_tool_snapshot" }),
+      environmentContext: Object.assign({}, context, { purpose: context.purpose || options.purpose || "model_tool_snapshot" }),
     };
     await api("/api/native/environment-context", {
       method: "POST",
       body: JSON.stringify(body),
       timeoutMs: 2500,
     });
+    nativeEnvironmentSnapshotLastUploadedAt = Date.now();
     return context;
+  })();
+  try {
+    return await nativeEnvironmentSnapshotRefreshInFlight;
   } catch (_) {
     return null;
+  } finally {
+    nativeEnvironmentSnapshotRefreshInFlight = null;
+  }
+}
+
+function scheduleNativeEnvironmentSnapshotRefresh(reason = "scheduled", options = {}) {
+  setTimeout(() => {
+    refreshNativeEnvironmentSnapshotForSend(Object.assign({
+      reason,
+      forceRefresh: false,
+      forceUpload: false,
+      purpose: "model_tool_snapshot",
+    }, options)).catch(() => {});
+  }, 0);
+}
+
+function installNativeEnvironmentSnapshotAutoRefresh() {
+  if (nativeEnvironmentSnapshotAutoRefreshInstalled) return;
+  nativeEnvironmentSnapshotAutoRefreshInstalled = true;
+  window.addEventListener("homeai:native-environment-refresh", (event) => {
+    scheduleNativeEnvironmentSnapshotRefresh("native_event", {
+      forceRefresh: false,
+      forceUpload: true,
+      purpose: event?.detail?.purpose || "model_tool_snapshot",
+    });
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      scheduleNativeEnvironmentSnapshotRefresh("visible");
+    }
+  });
+  window.addEventListener("focus", () => {
+    scheduleNativeEnvironmentSnapshotRefresh("focus");
+  });
+  window.setInterval(() => {
+    if (document.visibilityState === "visible") {
+      scheduleNativeEnvironmentSnapshotRefresh("foreground_interval");
+    }
+  }, NATIVE_ENVIRONMENT_SNAPSHOT_REFRESH_INTERVAL_MS);
+  scheduleNativeEnvironmentSnapshotRefresh("script_loaded", { forceUpload: true });
+}
+
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  try {
+    installNativeEnvironmentSnapshotAutoRefresh();
+  } catch (_) {
+    // Ignore native environment snapshot refresh setup failures on non-native clients.
   }
 }
 
@@ -232,7 +302,11 @@ async function sendMessage(event) {
   let createsNewTask = false;
   let consumedPendingDirectory = false;
   let optimisticSend = null;
+  let sendThreadId = "";
+  let sendRouteSnapshot = null;
   try {
+    sendThreadId = state.currentThreadId || state.currentThread?.id || "";
+    sendRouteSnapshot = typeof currentThreadRouteSnapshot === "function" ? currentThreadRouteSnapshot() : null;
     const body = {
       text,
       artifacts: state.pendingArtifacts,
@@ -316,18 +390,25 @@ async function sendMessage(event) {
     blurComposerInput();
     lockComposerSendToBottom();
     optimisticSend = appendOptimisticSendMessages(body, text);
-    const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
+    const result = await api(`/api/threads/${encodeURIComponent(sendThreadId)}/messages`, {
       method: "POST",
       body: serializedBody,
       timeoutMs: COMPOSER_SEND_TIMEOUT_MS,
     });
     clearOptimisticSendMessages(optimisticSend, { render: false });
-    handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
+    handleSendMessageResult(result, createsNewTask, consumedPendingDirectory, {
+      threadId: sendThreadId,
+      routeSnapshot: sendRouteSnapshot,
+    });
     if (typeof commitPendingVoiceInputFinalText === "function") commitPendingVoiceInputFinalText(text, body);
   } catch (err) {
     const clearedOptimisticSend = clearOptimisticSendMessages(optimisticSend, { render: true });
-    if (clearedOptimisticSend && typeof requestCurrentThreadRefresh === "function") {
-      requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 500 });
+    if (
+      clearedOptimisticSend
+      && typeof requestCurrentThreadRefresh === "function"
+      && (typeof currentThreadRouteMatches !== "function" || currentThreadRouteMatches(sendRouteSnapshot))
+    ) {
+      requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 500, routeSnapshot: sendRouteSnapshot });
     }
     if (shouldOfferOwnerElevation(err) && requestBody) {
       const prompt = ownerElevationConfirmMessage(err);
@@ -356,11 +437,14 @@ async function sendMessage(event) {
           const serializedElevatedBody = JSON.stringify(elevatedBody);
           const elevatedSizeError = composerRequestSizeError(elevatedBody.text || "", serializedElevatedBody);
           if (elevatedSizeError) throw new Error(elevatedSizeError);
-          const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages`, {
+          const result = await api(`/api/threads/${encodeURIComponent(sendThreadId)}/messages`, {
             method: "POST",
             body: serializedElevatedBody,
           });
-          handleSendMessageResult(result, createsNewTask, consumedPendingDirectory);
+          handleSendMessageResult(result, createsNewTask, consumedPendingDirectory, {
+            threadId: sendThreadId,
+            routeSnapshot: sendRouteSnapshot,
+          });
           if (typeof commitPendingVoiceInputFinalText === "function") commitPendingVoiceInputFinalText(elevatedBody.text || "", elevatedBody);
           return;
         } catch (elevatedErr) {

@@ -377,6 +377,45 @@ function sampleMoiraManifest() {
   };
 }
 
+function sampleMusicManifest() {
+  return {
+    id: "music",
+    title: "音乐",
+    kind: "embedded_app",
+    version: "0.1.0",
+    entry: {
+      type: "web",
+      url: "http://127.0.0.1:4891/?embed=hermes",
+      frame_policy: "allow_configured_hermes_origins",
+    },
+    mcp: {
+      server: "music-mcp",
+      toolset: "music",
+      required_tools: [
+        "music.get_favorites",
+        "music.get_taste_profile",
+        "music.get_recommendation_context",
+      ],
+    },
+    program_api: {
+      base_url: "http://127.0.0.1:4891",
+      plugin_manifest: "/api/v1/hermes/plugin/manifest",
+      workspace_registration: "/api/v1/hermes/plugin/workspaces",
+      plugin_launch: "/api/v1/hermes/plugin/launch",
+      sync_schema_version: 1,
+    },
+    owner_binding: {
+      strategy: "workspace_generated_access_key",
+      config_file: ".hermes-music/config.json",
+      access_key_file: ".hermes-music/access-key.txt",
+      raw_key_returned_by_music: false,
+    },
+    permissions: {
+      owner_token_scopes: ["music:read", "music:plan", "library:read"],
+    },
+  };
+}
+
 function testNormalizeManifest() {
   const manifest = normalizeManifest(sampleManifest(), {
     id: "wardrobe",
@@ -684,6 +723,53 @@ async function testMusicPluginCannotBeGrantedToNonOwner() {
   assert.deepEqual(service.list({ workspaceId: "weixin_wuping" }), []);
   assert.equal(service.listInstalled().find((item) => item.id === "music").allowWorkspaceGrant, false);
   assert.equal(service.listInstalled().find((item) => item.id === "music").riskLevel, "owner-critical");
+}
+
+async function testMusicOwnerManifestUsesKeylessDirectEntry() {
+  const calls = [];
+  const service = createHermesPluginService({
+    plugins: [{ id: "music", manifestUrl: "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest" }],
+    fetch(url) {
+      calls.push(url);
+      if (url === "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(sampleMusicManifest()),
+        });
+      }
+      throw new Error(`music owner direct-entry manifest must not call ${url}`);
+    },
+  });
+  const manifest = await service.manifest({
+    id: "music",
+    workspaceId: "owner",
+    appearance: { theme: "dark", fontSize: "large" },
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(manifest.entry.url, "/api/hermes-plugins/music/proxy/?embed=hermes&pluginTheme=dark&pluginFontSize=large&workspaceId=owner");
+  assert.equal(manifest.embed.sameOriginProxy, true);
+  assert.equal(manifest.embed.requiresSignedToken, false);
+  assert.equal(manifest.embed.tokenStatus, "owner_only_direct_entry");
+  assert.deepEqual(manifest.embed.appearance, { theme: "dark", fontSize: "large" });
+  assert.deepEqual(calls, ["http://127.0.0.1:4891/api/v1/hermes/plugin/manifest"]);
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"/i);
+}
+
+function testMusicProxyDoesNotUseWorkspaceBearer() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-music-proxy-auth-"));
+  const keyPath = path.join(dir, "drive", "users", "owner", ".hermes-music", "access-key.txt");
+  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+  fs.writeFileSync(keyPath, "stale-music-key\n", "utf8");
+  const service = createHermesPluginService({
+    dataDir: dir,
+    plugins: [{ id: "music", manifestUrl: "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest" }],
+    fetch() {
+      throw new Error("proxy authorization should not fetch plugin manifests");
+    },
+  });
+  assert.equal(service.pluginProxyAuthorizationHeader({ id: "music", workspaceId: "owner" }), "");
 }
 
 async function testFrameAncestorsBlockedReturnsUnavailable() {
@@ -2848,6 +2934,8 @@ async function run() {
   await testExplicitPluginWorkspaceAuthorizationAllowsNonOwner();
   await testCodexPluginCannotBeGrantedToNonOwner();
   await testMusicPluginCannotBeGrantedToNonOwner();
+  await testMusicOwnerManifestUsesKeylessDirectEntry();
+  testMusicProxyDoesNotUseWorkspaceBearer();
   await testFrameAncestorsBlockedReturnsUnavailable();
   await testDefaultLocalManifestUrls();
   testInstalledPluginListReflectsWorkspaceKeyBindings();

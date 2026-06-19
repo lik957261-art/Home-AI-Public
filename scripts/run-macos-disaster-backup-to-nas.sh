@@ -20,6 +20,7 @@ NFS_OP_TIMEOUT_SECONDS="${HOMEAI_NAS_BACKUP_OP_TIMEOUT_SECONDS:-30}"
 NFS_RSYNC_TIMEOUT_SECONDS="${HOMEAI_NAS_BACKUP_RSYNC_TIMEOUT_SECONDS:-1800}"
 SSH_OP_TIMEOUT_SECONDS="${HOMEAI_BACKUP_SSH_OP_TIMEOUT_SECONDS:-30}"
 SSH_RSYNC_TIMEOUT_SECONDS="${HOMEAI_BACKUP_SSH_RSYNC_TIMEOUT_SECONDS:-1800}"
+RSYNC_ATTEMPTS="${HOMEAI_DISASTER_BACKUP_RSYNC_ATTEMPTS:-3}"
 
 usage() {
   cat <<'USAGE'
@@ -38,6 +39,7 @@ Environment:
   HOMEAI_DISASTER_BACKUP_SSH_TARGET    SSH target/alias for ssh transport.
   HOMEAI_DISASTER_BACKUP_SSH_DESTINATION Remote backup root for ssh transport.
   HOMEAI_DISASTER_BACKUP_SSH_OPTIONS   Optional ssh options, such as "-i <key>".
+  HOMEAI_DISASTER_BACKUP_RSYNC_ATTEMPTS Publish rsync attempts. Default: 3.
 
 This wrapper avoids NFS root-squash failures by splitting privileges:
 1. sudo reads Mac production and writes a complete local staging backup.
@@ -111,6 +113,26 @@ run_with_timeout() {
     elapsed=$((elapsed + 1))
   done
   wait "$child_pid"
+}
+
+rsync_with_retries() {
+  local timeout_seconds="$1"
+  shift
+  local attempt=1
+  local status=0
+  while [[ "$attempt" -le "$RSYNC_ATTEMPTS" ]]; do
+    if run_with_timeout "$timeout_seconds" "$@"; then
+      return 0
+    fi
+    status=$?
+    if [[ "$attempt" -ge "$RSYNC_ATTEMPTS" ]]; then
+      return "$status"
+    fi
+    echo "homeai_disaster_backup_rsync_retry:${attempt}/${RSYNC_ATTEMPTS}:status=${status}" >&2
+    sleep "$attempt"
+    attempt=$((attempt + 1))
+  done
+  return "$status"
 }
 
 nfs_write_probe() {
@@ -203,7 +225,7 @@ publish_current_to_nfs() {
     echo "nfs_destination_current_unavailable:${DESTINATION%/}/current" >&2
     exit 78
   fi
-  if ! run_with_timeout "$NFS_RSYNC_TIMEOUT_SECONDS" /usr/bin/rsync -rlpt --delete --links --safe-links --inplace \
+  if ! rsync_with_retries "$NFS_RSYNC_TIMEOUT_SECONDS" /usr/bin/rsync -rlpt --delete --links --safe-links \
     "${STAGING%/}/current/" \
     "${DESTINATION%/}/current/"; then
     echo "nfs_destination_rsync_failed:${DESTINATION%/}/current" >&2
@@ -226,7 +248,7 @@ publish_current_to_ssh() {
   fi
   update_manifest_destination "${STAGING%/}/current/DISASTER-RECOVERY-MANIFEST.json" "${SSH_TARGET}:${remote_root}" "local-staging-to-ssh"
   # shellcheck disable=SC2086
-  if ! run_with_timeout "$SSH_RSYNC_TIMEOUT_SECONDS" /usr/bin/rsync -rlpt --delete --links --safe-links --inplace \
+  if ! rsync_with_retries "$SSH_RSYNC_TIMEOUT_SECONDS" /usr/bin/rsync -rlpt --delete --links --safe-links \
     --rsync-path=/usr/bin/rsync \
     -e "ssh -o BatchMode=yes -o ConnectTimeout=15 $SSH_OPTIONS" \
     "${STAGING%/}/current/" \

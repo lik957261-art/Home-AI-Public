@@ -71,6 +71,9 @@ assert.match(script, /home-ai-cron-launchd-install/);
 assert.match(script, /home-ai-nas-backup-mount-launchd-install/);
 assert.match(script, /home-ai-cron-profile-aliases/);
 assert.match(script, /home-ai-cron-builtin-skills/);
+assert.match(script, /home-ai-cron-runtime-scripts/);
+assert.match(script, /homeai-disaster-backup-cron\.sh/);
+assert.match(script, /data", "hermes-home", "scripts/);
 assert.match(script, /home-ai-backup-artifact-acl-repair/);
 assert.match(script, /HOME_AI_BACKUP_ARTIFACT_READ_ACL/);
 assert.match(script, /data", "artifacts/);
@@ -688,7 +691,7 @@ assert.equal(
 
 assert.equal(
   deployScript.shouldRepairCodexSharedAuthPermissions(staticPayload.plan),
-  false,
+  true,
 );
 
 const invalidSyncOnlyRun = spawnSync(process.execPath, [

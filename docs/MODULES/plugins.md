@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-06-15.
+Last updated: 2026-06-18.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -62,6 +62,19 @@ AI Ops ledger as
 `0.2.344` has direct service readback for client version, PWA cache, MCP schema,
 and parallel PICK/择日 plus 择月 evidence dispatch. Installed-PWA and real-device
 safe-area evidence remain separate acceptance gates when Moira UI changes.
+
+Music is an Owner-only special embedded plugin, not a workspace-grantable
+business plugin. Home AI may expose the Music app and Music MCP only to Owner
+workspaces. Even if the Music plugin manifest declares `program_api.plugin_launch`
+or an `.hermes-music/access-key.txt` owner binding for compatibility with the
+generic plugin contract, Home AI must not require that workspace-local key for
+Owner launch. Owner Music app launch uses the normalized direct entry through
+the same-origin `/api/hermes-plugins/music/proxy/...` route, and the proxy must
+not attach a workspace `Authorization: Bearer ...` header to Music upstream
+requests. Non-Owner workspaces must still see Music as unavailable and must not
+receive a workspace grant. The model-side Music MCP follows the Gateway Pool
+Owner-only rule in `docs/MODULES/gateway-pool.md`: it reads the plugin-owned
+SQLite ledger and does not use a model-provided workspace override.
 
 The embedded UI layout contract is tracked separately in
 `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must

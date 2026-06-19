@@ -123,8 +123,11 @@ assert.match(pluginTopicsUi, /function pluginTopicGroupForDef/);
 assert.match(pluginTopicsUi, /const group = pluginTopicGroupForDef\(def, options\.thread \|\| state\.currentThread\);/);
 assert.match(pluginTopicsUi, /homeai-note-title/);
 assert.match(pluginTopicsUi, /homeai-note\\b/);
-assert.match(pluginTopicsUi, /const receiptTitle = topicReceiptSummaryTitleFromMessage\(message, \{ max \}\);/);
-assert.match(pluginTopicsUi, /pluginTopicRecentMessageEntries\(def, options\.thread \|\| state\.currentThread, 1, \{ max: 120 \}\)/);
+assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_ROW_SUMMARY_MAX = 64;/);
+assert.match(pluginTopicsUi, /function pluginTopicCompactRowSummary/);
+assert.match(pluginTopicsUi, /const receiptTitle = topicReceiptSummaryTitleFromMessage\(message, \{ max, allowFirstLine: false \}\);/);
+assert.match(pluginTopicsUi, /topicReceiptSummaryTitleFromGroup\(group, \{ max: PLUGIN_TOPIC_ROW_SUMMARY_MAX, allowBodyFallback: false \}\)/);
+assert.match(pluginTopicsUi, /pluginTopicRecentMessageEntries\(def, options\.thread \|\| state\.currentThread, 1, \{ max: PLUGIN_TOPIC_ROW_SUMMARY_MAX \}\)/);
 assert.match(topicCardsBody, /plugin-topic-separator/);
 assert.match(pluginTopicsUi, /String\(message\?\.role \|\| ""\) === "assistant"/);
 assert.doesNotMatch(pluginTopicsUi, /message\?\.role \|\| ""\) !== "system"/);
@@ -205,7 +208,11 @@ assert.match(stylesCss, /\.plugin-topic-subtitle \{[\s\S]*?white-space: normal;/
 assert.match(stylesCss, /\.directory-topic-text \{[\s\S]*?display: flex;[\s\S]*?align-items: baseline;/);
 assert.match(stylesCss, /\.directory-topic-chip \{[\s\S]*?justify-items: start;[\s\S]*?text-align: left;/);
 assert.match(stylesCss, /\.directory-topic-chip-title \{[\s\S]*?color: var\(--ink\);/);
+assert.match(stylesCss, /\.directory-topic-chip \{[\s\S]*?overflow: visible;/);
+assert.match(stylesCss, /\.directory-topic-chip-copy \{[\s\S]*?flex-wrap: wrap;[\s\S]*?overflow: visible;/);
+assert.match(stylesCss, /\.directory-topic-chip-title \{[\s\S]*?white-space: normal;[\s\S]*?overflow-wrap: anywhere;/);
 assert.match(stylesCss, /\.directory-topic-chip-summary \{[\s\S]*?color: var\(--muted\);/);
+assert.doesNotMatch(stylesCss, /\.directory-topic-chip-copy\.has-summary \.directory-topic-chip-title \{[\s\S]*?max-width: 46%;/);
 assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-row-chevron::before \{[\s\S]*?transform: rotate\(-45deg\);/);
 assert.match(stylesCss, /\.plugin-topic-child-list \{[\s\S]*?margin-left: 52px;[\s\S]*?padding: 0 0 7px 9px;/);
 assert.match(stylesCss, /@media \(max-width: 760px\) \{[\s\S]*?\.plugin-topic-child-list \{[\s\S]*?margin-left: 24px;[\s\S]*?padding: 0 0 7px 9px;/);
@@ -229,6 +236,64 @@ globalThis.__topicReceiptSummaryTitleFromGroup = topicReceiptSummaryTitleFromGro
     "最新回执概要",
     "persisted receipt metadata must override stale assistant message summaries",
   );
+}
+
+{
+  const longReceipt = "这是一个异常长的插件回执摘要，过去可能会把完整回执的一大段内容直接塞进插件话题列表，导致某个插件话题摘要接近一百六十字并挤压列表布局。";
+  const sandbox = {
+    state: {
+      currentThread: {
+        id: "thread_owner",
+        messages: [],
+      },
+    },
+    compactDisplayText: (value, max) => String(value || "").replace(/\s+/g, " ").trim().slice(0, max),
+    cleanDisplayText: (value) => String(value || "").replace(/\s+/g, " ").trim(),
+    taskGroupsForThread: () => [{
+      id: "plugin:music",
+      lastReceiptTitle: longReceipt,
+      messages: [{ role: "assistant", content: longReceipt }],
+    }],
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(`${pluginTopicsUi}
+globalThis.__pluginTopicRowMeta = pluginTopicRowMeta;
+globalThis.__pluginTopicDefById = pluginTopicDefById;`, sandbox);
+  const summary = sandbox.__pluginTopicRowMeta(sandbox.__pluginTopicDefById("music"));
+  assert.equal(summary, "暂无回执概要", "plugin topic row summary must not expose body-like persisted receipts");
+}
+
+{
+  const sandbox = {
+    state: {
+      currentThread: {
+        id: "thread_owner",
+        messages: [
+          {
+            id: "music-receipt",
+            role: "assistant",
+            taskGroupId: "plugin:music",
+            content: "# Roon 收藏夹分析\n\n我刚看了你的收藏列表，下面是详细说明。",
+            updatedAt: "2026-06-18T13:00:00.000Z",
+          },
+        ],
+      },
+    },
+    compactDisplayText: (value, max) => String(value || "").replace(/\s+/g, " ").trim().slice(0, max),
+    cleanDisplayText: (value) => String(value || "").replace(/\s+/g, " ").trim(),
+    taskGroupsForThread: () => [{
+      id: "plugin:music",
+      lastReceiptTitle: "",
+      messages: [],
+    }],
+    formatTime: () => "13:00",
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(`${pluginTopicsUi}
+globalThis.__pluginTopicRowMeta = pluginTopicRowMeta;
+globalThis.__pluginTopicDefById = pluginTopicDefById;`, sandbox);
+  const summary = sandbox.__pluginTopicRowMeta(sandbox.__pluginTopicDefById("music"));
+  assert.equal(summary, "Roon 收藏夹分析", "plugin topic row summary may use a Markdown heading title");
 }
 
 function createPluginTopicHarness(options = {}) {
@@ -512,6 +577,7 @@ function createDirectoryTopicHarness() {
     taskShortTitle: (group) => group.title || "",
     taskTitle: (group) => group.title || "",
     taskGroupOwnerWorkspaceId: (group) => group.ownerWorkspaceId || group.messages?.[0]?.senderWorkspaceId || "",
+    topicReceiptSummaryTitleFromGroup: (group) => group.lastReceiptTitle || "",
   };
   vm.createContext(sandbox);
   vm.runInContext(`${directoryTopicsUi}
@@ -627,6 +693,31 @@ function directoryCardCollapsed(html, key) {
 
   harness.setCollapsed("dir-4", false);
   assert.equal(directoryCardCollapsed(harness.render(collections), "dir-4"), false);
+}
+
+{
+  const harness = createDirectoryTopicHarness();
+  const manualTitle = "Stephen 2026 年体检复盘和指标跟踪";
+  const groups = [
+    {
+      id: "manual-directory-topic",
+      title: manualTitle,
+      lastReceiptTitle: "最近一次体检报告重点",
+      ownerWorkspaceId: "owner",
+      updatedAt: "2026-06-18T12:00:00.000Z",
+      directoryRoute: {
+        projectId: "health",
+        label: "健康",
+        root: "/data/drive/users/owner/健康",
+        path: "/data/drive/users/owner/健康",
+      },
+    },
+  ];
+  const html = harness.render(harness.collections(groups));
+
+  assert.match(html, new RegExp(`<span class="directory-topic-chip-title">${manualTitle}</span>`));
+  assert.match(html, /class="directory-topic-chip-copy has-summary"/);
+  assert.match(html, /<span class="directory-topic-chip-summary">最近一次体检报告重点<\/span>/);
 }
 
 {

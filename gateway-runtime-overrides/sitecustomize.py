@@ -16,7 +16,10 @@ import contextvars
 import errno
 import grp
 import inspect
+import json
+import pwd
 import shutil
+import subprocess
 import tempfile
 from typing import Any, Iterable
 
@@ -140,23 +143,181 @@ def _write_runtime_event_marker(event: str) -> None:
         logger.debug("Hermes Mobile failed to write runtime event marker", exc_info=True)
 
 
+def _safe_acl_user(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if any(ch not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-" for ch in text):
+        return ""
+    return text
+
+
+def _unique_acl_users(values: Iterable[Any]) -> list[str]:
+    users: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        user = _safe_acl_user(value)
+        if not user or user in seen:
+            continue
+        seen.add(user)
+        users.append(user)
+    return users
+
+
+def _unique_strings(values: Iterable[Any]) -> list[str]:
+    rows: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        rows.append(text)
+    return rows
+
+
+def _split_acl_user_env(value: str) -> list[str]:
+    return [item.strip() for item in str(value or "").replace(";", ",").replace("\n", ",").split(",") if item.strip()]
+
+
+def _mac_root_from_shared_auth_root(shared_root: str) -> str:
+    root = os.getenv("HERMES_MOBILE_ROOT") or os.getenv("HERMES_WEB_ROOT") or ""
+    if root:
+        return root
+    current = os.path.abspath(shared_root)
+    for _ in range(4):
+        current = os.path.dirname(current)
+    return current
+
+
+def _shared_codex_auth_manifest_paths(shared_root: str) -> list[str]:
+    mac_root = _mac_root_from_shared_auth_root(shared_root)
+    candidates = [
+        os.getenv("HERMES_MOBILE_GATEWAY_POOL_MANIFEST"),
+        os.getenv("HERMES_WEB_GATEWAY_POOL_MANIFEST"),
+        os.getenv("HERMES_GATEWAY_POOL_MANIFEST_PATH"),
+        os.path.join(mac_root, "data", "gateway-pool-manifest-mac.json") if mac_root else "",
+    ]
+    return [path for path in _unique_strings(candidates) if os.path.isabs(path)]
+
+
+def _shared_codex_auth_acl_users(shared_root: str) -> list[str]:
+    users: list[str] = []
+    for name in ("HERMES_MOBILE_CODEX_SHARED_AUTH_USERS", "HERMES_MOBILE_OPENAI_CODEX_OS_USERS"):
+        users.extend(_split_acl_user_env(os.getenv(name, "")))
+    try:
+        users.extend(grp.getgrnam("hermes-workers").gr_mem)
+    except Exception:
+        pass
+    try:
+        users.append(pwd.getpwuid(os.getuid()).pw_name)
+    except Exception:
+        pass
+    for manifest_path in _shared_codex_auth_manifest_paths(shared_root):
+        try:
+            with open(manifest_path, encoding="utf-8-sig") as handle:
+                manifest = json.load(handle)
+        except Exception:
+            continue
+        for worker in manifest.get("workers") or []:
+            if not isinstance(worker, dict):
+                continue
+            provider = str(worker.get("provider") or "openai-codex").strip()
+            if provider != "openai-codex":
+                continue
+            users.append(worker.get("osUser") or worker.get("os_user") or "")
+    return _unique_acl_users(users)
+
+
+def _path_acl_contains(path: str, user: str, required_permissions: Iterable[str] = ()) -> bool:
+    if sys.platform != "darwin":
+        return True
+    try:
+        result = subprocess.run(
+            ["/bin/ls", "-led", path],
+            text=True,
+            capture_output=True,
+            timeout=2,
+            check=False,
+        )
+    except Exception:
+        return False
+    required = [str(item or "").strip() for item in required_permissions if str(item or "").strip()]
+    for line in (result.stdout or "").splitlines():
+        if f"user:{user} " not in line and f"user:{user}\t" not in line:
+            continue
+        if all(permission in line for permission in required):
+            return True
+    return False
+
+
+def _chmod_add_acl(path: str, acl: str, user: str, required_permissions: Iterable[str] = ()) -> None:
+    if sys.platform != "darwin" or not path or not os.path.exists(path):
+        return
+    if _path_acl_contains(path, user, required_permissions):
+        return
+    try:
+        subprocess.run(
+            ["/bin/chmod", "+a", acl, path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+            check=False,
+        )
+    except Exception:
+        pass
+
+
 def _repair_shared_codex_auth_permissions(target: Any) -> None:
     try:
         target_str = str(target)
         real_path = os.path.realpath(target_str) if os.path.islink(target_str) else target_str
         basename = os.path.basename(real_path)
-        parent = os.path.basename(os.path.dirname(real_path))
+        shared_root = os.path.dirname(real_path)
+        parent = os.path.basename(shared_root)
         if parent != "shared-auth" or basename not in {"auth.json", "auth.lock"}:
             return
         try:
             gid = grp.getgrnam("hermes-workers").gr_gid
+            os.chown(shared_root, -1, gid)
             os.chown(real_path, -1, gid)
+        except Exception:
+            pass
+        try:
+            os.chmod(shared_root, 0o770)
         except Exception:
             pass
         try:
             os.chmod(real_path, 0o660)
         except Exception:
             pass
+        users = _shared_codex_auth_acl_users(shared_root)
+        for user in users:
+            _chmod_add_acl(
+                shared_root,
+                f"user:{user} allow list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit",
+                user,
+                ("list", "add_file", "search", "file_inherit", "directory_inherit"),
+            )
+            for name in ("auth.json", "auth.lock"):
+                file_path = os.path.join(shared_root, name)
+                if not os.path.exists(file_path):
+                    continue
+                try:
+                    gid = grp.getgrnam("hermes-workers").gr_gid
+                    os.chown(file_path, -1, gid)
+                except Exception:
+                    pass
+                try:
+                    os.chmod(file_path, 0o660)
+                except Exception:
+                    pass
+                _chmod_add_acl(
+                    file_path,
+                    f"user:{user} allow read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity",
+                    user,
+                    ("read", "write", "append"),
+                )
         _write_runtime_event_marker("shared_codex_auth_permissions_repaired")
     except Exception:
         logger.debug("Hermes Mobile failed to repair shared Codex auth permissions", exc_info=True)

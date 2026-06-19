@@ -1,6 +1,6 @@
 # Module: Plugin Topics
 
-Last updated: 2026-06-11.
+Last updated: 2026-06-18.
 
 ## Responsibility
 
@@ -189,12 +189,15 @@ or raw plugin credentials.
   chevron, and a 48px row height. The left edge is reserved for root icons, not
   tree expanders. Directory-bound parent rows below the Directory root entry are
   the tree-level rows and use only the left chevron plus title/meta text.
-- Plugin topic rows and directory-bound topic rows render their summary
-  metadata inline after the title, not as a second line, so the Topics root
-  stays dense and scan-friendly.
+- Plugin topic rows render their summary metadata inline after the title, not
+  as a second line, so the Topics root stays dense and scan-friendly.
 - Directory-bound child topic chips must stay left-aligned. Render the
   persisted topic title and receipt summary as separate text elements so the
   title can use primary text color while the summary uses secondary text color.
+  The persisted directory-bound topic title is manually named by the user and
+  is the primary locator for that topic, so it must be fully visible and may
+  wrap across lines. Receipt summary metadata must not shrink, truncate, or
+  otherwise compete with the topic title; it is secondary context.
 - Plugin topic rows and directory-bound child topic rows must show the same
   concise receipt-summary title used by the save-to-Note flow:
   prefer the hidden `homeai-note` title metadata, then a Markdown heading, then
@@ -202,6 +205,11 @@ or raw plugin credentials.
   question/prompt as the row title. When no assistant receipt summary is
   available, show an empty-state title instead of falling back to a raw
   directory path, a generic default-topic label, or a stale short task title.
+- Plugin topic root rows must not expose body-like assistant receipts as row
+  summaries. Long first-person or explanatory persisted task titles are detail
+  content, not root-index metadata; strict row projection may use hidden
+  metadata, Markdown headings, or short title-like values, and must otherwise
+  render the `暂无回执概要` empty state until the server projection converges.
 - Plugin topic detail must render concrete conversation messages from
   `thread.messages` filtered by the active `taskGroupId`. Derived
   `taskGroups[].messages` entries are list/metadata projections and can be
@@ -222,6 +230,11 @@ or raw plugin credentials.
   directory-topic collection render must preserve the user's live scroll
   position; background convergence must not pull the Topics root back to the
   top while the user is reading lower rows.
+- Composer-send results, run-progress fallback refreshes, and topic-root
+  background refreshes must be bound to the route snapshot that scheduled them.
+  If the user changes the primary bottom tab or leaves the active plugin topic
+  before the async work returns, the completion may update summary caches but
+  must not repaint the previous topic page over the newly selected surface.
 - The earlier Capability Entry Hub described in
   `docs/IMPLEMENTATION_NOTES/capability-entry-hub.md` is superseded. Topics
   root is conversation first: plugin conversation shortcuts, ordinary

@@ -123,6 +123,19 @@ const PLUGIN_HEALTH_URLS = Object.freeze({
 });
 
 const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
+  music: Object.freeze([
+    Object.freeze({
+      kind: "directory",
+      source: "src",
+      target: "gateway-worker/music-mcp/src",
+      mode: "755",
+    }),
+    Object.freeze({
+      source: "package.json",
+      target: "gateway-worker/music-mcp/package.json",
+      mode: "755",
+    }),
+  ]),
   moira: Object.freeze([
     Object.freeze({
       source: "scripts/moira-mcp-stdio.mjs",
@@ -221,6 +234,7 @@ const RSYNC_EXCLUDES = [
   "node_modules/",
   ".venv/",
   "logs/",
+  "mounts/",
   "tmp/",
   "temp/",
   ".DS_Store",
@@ -1274,8 +1288,32 @@ function installHomeAiCronBuiltinSkills(plan, password) {
   };
 }
 
+function installHomeAiCronRuntimeScripts(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const sourceScript = posixJoin(plan.productionPath, "scripts", "homeai-disaster-backup-cron.sh");
+  const targetRoot = posixJoin(plan.macRoot, "data", "hermes-home", "scripts");
+  const targetScript = posixJoin(targetRoot, "homeai-disaster-backup-cron.sh");
+  runSudo("/bin/mkdir", ["-p", targetRoot], password);
+  runSudo("/usr/bin/install", [
+    "-m",
+    "750",
+    "-o",
+    PRODUCTION_SERVICE_USER,
+    "-g",
+    PRODUCTION_SERVICE_GROUP,
+    sourceScript,
+    targetScript,
+  ], password);
+  return {
+    type: "home-ai-cron-runtime-scripts",
+    sourceScript,
+    targetRoot,
+    installed: ["homeai-disaster-backup-cron.sh"],
+  };
+}
+
 function shouldRepairCodexSharedAuthPermissions(plan = {}) {
-  return Boolean(plan && plan.surface !== "static" && !plan.syncOnly);
+  return Boolean(plan && !plan.syncOnly);
 }
 
 function repairCodexSharedAuthPermissions(plan, password) {
@@ -1664,6 +1702,7 @@ function executePlan(plan, options) {
   const listenerVoiceInputEnv = installHomeAiListenerVoiceInputEnv(plan, password);
   const cronProfileAliases = installHomeAiCronProfileAliases(plan, password);
   const cronBuiltinSkills = installHomeAiCronBuiltinSkills(plan, password);
+  const cronRuntimeScripts = installHomeAiCronRuntimeScripts(plan, password);
   const backupArtifactAclRepair = repairHomeAiBackupArtifactAcls(plan, password);
   const codexSharedAuthRepair = repairCodexSharedAuthPermissions(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
@@ -1695,6 +1734,7 @@ function executePlan(plan, options) {
   if (listenerVoiceInputEnv) validations.push(Object.assign({ status: 0 }, listenerVoiceInputEnv));
   if (cronProfileAliases) validations.push(Object.assign({ status: 0 }, cronProfileAliases));
   if (cronBuiltinSkills) validations.push(Object.assign({ status: 0 }, cronBuiltinSkills));
+  if (cronRuntimeScripts) validations.push(Object.assign({ status: 0 }, cronRuntimeScripts));
   if (backupArtifactAclRepair) validations.push(backupArtifactAclRepair);
   if (codexSharedAuthRepair) validations.push(codexSharedAuthRepair);
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);

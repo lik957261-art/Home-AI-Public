@@ -20,6 +20,14 @@ const options = parseArgs([
   "/tmp/Hermes Mobile/data/secrets/gateway-workers/hm-owner-openai-1.key",
   "--gateway-authoring-protocol",
   "responses",
+  "--gateway-authoring-model",
+  "gpt-5.5",
+  "--gateway-authoring-reasoning-effort",
+  "xhigh",
+  "--gateway-planner-model",
+  "gpt-5.5",
+  "--gateway-planner-reasoning-effort",
+  "xhigh",
   "--gateway-evaluation-endpoint",
   "http://127.0.0.1:18751/v1/responses",
   "--gateway-evaluation-access-token-path",
@@ -42,6 +50,10 @@ assert.equal(installPlan.ownerAccessKeyPath, "/tmp/Hermes Mobile/data/secrets/ow
 assert.equal(installPlan.gatewayAuthoringEndpoint, "http://127.0.0.1:18751/v1/responses");
 assert.equal(installPlan.gatewayAuthoringAccessTokenPath, "/tmp/Hermes Mobile/data/secrets/gateway-workers/hm-owner-openai-1.key");
 assert.equal(installPlan.gatewayAuthoringProtocol, "responses");
+assert.equal(installPlan.gatewayAuthoringModel, "gpt-5.5");
+assert.equal(installPlan.gatewayAuthoringReasoningEffort, "xhigh");
+assert.equal(installPlan.gatewayPlannerModel, "gpt-5.5");
+assert.equal(installPlan.gatewayPlannerReasoningEffort, "xhigh");
 assert.equal(installPlan.gatewayEvaluationEndpoint, "http://127.0.0.1:18751/v1/responses");
 assert.equal(installPlan.gatewayEvaluationAccessTokenPath, "/tmp/Hermes Mobile/data/secrets/gateway-workers/hm-owner-openai-1.key");
 assert.equal(installPlan.gatewayEvaluationProtocol, "responses");
@@ -62,6 +74,10 @@ assert.match(plist, /<key>GROWTH_GATEWAY_AUTHORING_ENDPOINT<\/key>\s*<string>htt
 assert.match(plist, /<key>GROWTH_GATEWAY_AUTHORING_ACCESS_TOKEN_PATH<\/key>/);
 assert.match(plist, /gateway-workers\/hm-owner-openai-1\.key/);
 assert.match(plist, /<key>GROWTH_GATEWAY_AUTHORING_PROTOCOL<\/key>\s*<string>responses<\/string>/);
+assert.match(plist, /<key>GROWTH_GATEWAY_AUTHORING_MODEL<\/key>\s*<string>gpt-5\.5<\/string>/);
+assert.match(plist, /<key>GROWTH_GATEWAY_AUTHORING_REASONING_EFFORT<\/key>\s*<string>xhigh<\/string>/);
+assert.match(plist, /<key>GROWTH_GATEWAY_PLANNER_MODEL<\/key>\s*<string>gpt-5\.5<\/string>/);
+assert.match(plist, /<key>GROWTH_GATEWAY_PLANNER_REASONING_EFFORT<\/key>\s*<string>xhigh<\/string>/);
 assert.match(plist, /<key>GROWTH_GATEWAY_EVALUATION_ENDPOINT<\/key>\s*<string>http:\/\/127\.0\.0\.1:18751\/v1\/responses<\/string>/);
 assert.match(plist, /<key>GROWTH_GATEWAY_EVALUATION_ACCESS_TOKEN_PATH<\/key>/);
 assert.match(plist, /<key>GROWTH_GATEWAY_EVALUATION_PROTOCOL<\/key>\s*<string>responses<\/string>/);

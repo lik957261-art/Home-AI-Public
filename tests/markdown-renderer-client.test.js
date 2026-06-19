@@ -8,7 +8,7 @@ function testClientMatchesSharedServerCoreOutput() {
   const markdown = [
     "# Title",
     "",
-    "Paragraph with **bold**, `code`, and [link](https://example.com).",
+    'Paragraph with **bold**, `code`, [link](https://example.com), and ![Cover](https://example.com/cover.jpg "Album").',
     "",
     "| Name | Count |",
     "| --- | ---: |",
@@ -28,7 +28,7 @@ function testClientMatchesSharedServerCoreOutput() {
 }
 
 function testClientBrowserAndFileViewerOptions() {
-  const html = clientRenderer.renderMarkdownDocument("- [x] Done\n\n[bad](javascript:alert(1))", {
+  const html = clientRenderer.renderMarkdownDocument("- [x] Done\n\n[bad](javascript:alert(1))\n\n![Cover](/api/music/cover.jpg)", {
     fontScale: "large",
     taskListCompatibility: true,
   });
@@ -38,6 +38,7 @@ function testClientBrowserAndFileViewerOptions() {
   assert.equal(html.includes('target="_blank"'), false);
   assert.equal(html.includes('<a href="#">bad</a>'), true);
   assert.equal(html.includes("javascript:"), false);
+  assert.equal(html.includes('<img class="hermes-markdown-image" src="/api/music/cover.jpg" alt="Cover" loading="lazy" decoding="async">'), true);
 }
 
 function testExports() {
@@ -46,9 +47,11 @@ function testExports() {
   assert.equal(typeof clientRenderer.markdownFontScaleClass, "function");
   assert.equal(typeof clientRenderer.renderMarkdownDocument, "function");
   assert.equal(typeof clientRenderer.renderMarkdownToHtml, "function");
+  assert.equal(typeof clientRenderer.sanitizeImageSrc, "function");
   assert.equal(typeof clientRenderer.sanitizeLinkHref, "function");
   assert.equal(clientRenderer.markdownFontScaleForBase("standard"), "standard");
   assert.equal(clientRenderer.markdownFontScaleForBase("large"), "large");
+  assert.equal(clientRenderer.sanitizeImageSrc("data:image/png;base64,aaaa"), "#");
   assert.equal(clientRenderer.sanitizeLinkHref("data:text/html,x"), "#");
 }
 

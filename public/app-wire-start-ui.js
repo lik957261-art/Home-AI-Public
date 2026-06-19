@@ -1,7 +1,9 @@
 "use strict";
 
 function preparePrimaryNavigationChange() {
+  state.primaryNavigationSeq = (Number(state.primaryNavigationSeq || 0) || 0) + 1;
   if (typeof cancelScheduledSelectedViewLoad === "function") cancelScheduledSelectedViewLoad();
+  if (typeof cancelCurrentThreadNavigationRefreshes === "function") cancelCurrentThreadNavigationRefreshes();
   if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
   if (typeof closeTopMoreMenu === "function") closeTopMoreMenu();
   if (typeof closeTaskCardMenus === "function") closeTaskCardMenus();

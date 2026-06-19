@@ -1084,6 +1084,10 @@ function pluginLaunchWorkspaceId(pluginId, workspaceId, options = {}) {
   return requested;
 }
 
+function pluginUsesOwnerOnlyDirectEntry(pluginId, workspaceId) {
+  return stringValue(pluginId) === "music" && stringValue(workspaceId || "owner") === "owner";
+}
+
 function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
   const workspaceId = stringValue(input.workspaceId || "owner");
   if (!workspaceId || workspaceId === "owner") return null;
@@ -1319,6 +1323,27 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
   const workspaceId = stringValue(input.workspaceId || "owner");
   const pluginId = stringValue(manifest.id || input.id || "wardrobe");
   const launchWorkspaceId = pluginLaunchWorkspaceId(pluginId, workspaceId, options);
+  if (pluginUsesOwnerOnlyDirectEntry(pluginId, launchWorkspaceId)) {
+    const appearance = normalizePluginAppearance(input);
+    const entryUrl = addPluginAppearanceToEntryUrl(manifest.entry?.url || "", appearance);
+    return Object.assign({}, manifest, {
+      entry: Object.assign({}, manifest.entry, entryUrl ? {
+        url: entryUrl,
+        origin: originOf(entryUrl),
+      } : {}),
+      embed: Object.assign({}, manifest.embed, entryUrl ? {
+        url: entryUrl,
+        requiresSignedToken: false,
+        tokenStatus: "owner_only_direct_entry",
+        appearance: Object.keys(appearance).length ? appearance : undefined,
+      } : {
+        requiresSignedToken: false,
+        tokenStatus: "owner_only_direct_entry",
+        appearance: Object.keys(appearance).length ? appearance : undefined,
+      }),
+      appearance: Object.keys(appearance).length ? appearance : undefined,
+    });
+  }
   const keyPath = findPluginAccessKeyPath(pluginId, Object.assign({}, input, { workspaceId: launchWorkspaceId }), options);
   if (!keyPath) {
     return Object.assign({}, manifest, {
@@ -2139,7 +2164,7 @@ function createHermesPluginService(options = {}) {
 
   function pluginProxyAuthorizationHeader(input = {}) {
     const id = stringValue(input.id || input.pluginId);
-    if (!id || id === "finance") return "";
+    if (!id || id === "finance" || id === "music") return "";
     const workspaceId = stringValue(input.workspaceId || "owner") || "owner";
     const keyPath = findPluginAccessKeyPath(id, { workspaceId }, launchOptions);
     if (!keyPath) return "";

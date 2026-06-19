@@ -375,7 +375,9 @@ the Automation cron tick service, and the root workspace provisioning helper. A
 full Home AI deploy installs or refreshes
 `/Library/LaunchDaemons/com.hermesmobile.cron.plist`, ensures
 `/Users/example/path` exists as the
-canonical Hermes CRON store, starts the dispatcher every 60 seconds with
+canonical Hermes CRON store, installs runtime no-agent scripts such as
+`/Users/example/path`
+from the deployed app source, starts the dispatcher every 60 seconds with
 `scripts/hermes-mobile-cron-dispatcher.py --dispatch`, sets
 `HERMES_CRON_SCRIPT_TIMEOUT=1800` for long-running `no_agent` scripts, restarts
 `system/com.hermesmobile.workspace-system-helper` so privileged onboarding

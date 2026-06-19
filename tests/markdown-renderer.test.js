@@ -7,6 +7,7 @@ const {
   renderMarkdownToHtml,
   renderWeixinMarkdownForwardHtml,
   markdownFontScaleForBase,
+  sanitizeImageSrc,
   sanitizeLinkHref,
 } = require("../adapters/markdown-renderer");
 
@@ -30,6 +31,28 @@ function testLinkSanitize() {
   assert.equal(html.includes('<a href="https://example.com">safe</a>'), true);
   assert.equal(html.includes('<a href="#">bad</a>'), true);
   assert.equal(html.includes("javascript:"), false);
+}
+
+function testMarkdownImages() {
+  assert.equal(sanitizeImageSrc("javascript:alert(1)"), "#");
+  assert.equal(sanitizeImageSrc("data:image/png;base64,aaaa"), "#");
+  assert.equal(sanitizeImageSrc("https://example.com/cover.jpg"), "https://example.com/cover.jpg");
+  assert.equal(sanitizeImageSrc("/api/music/cover.jpg"), "/api/music/cover.jpg");
+  assert.equal(sanitizeImageSrc("covers/album.jpg"), "covers/album.jpg");
+
+  const html = renderMarkdownToHtml([
+    'Cover: ![Cover <A>](https://example.com/cover.jpg "Album")',
+    "",
+    "Unsafe: ![Bad](javascript:alert(1))",
+    "",
+    "`![Code](https://example.com/code.jpg)`",
+  ].join("\n"));
+  assert.equal(html.includes('class="hermes-markdown-image"'), true);
+  assert.equal(html.includes('src="https://example.com/cover.jpg"'), true);
+  assert.equal(html.includes('alt="Cover &lt;A&gt;"'), true);
+  assert.equal(html.includes('title="Album"'), true);
+  assert.equal(html.includes('src="javascript:'), false);
+  assert.equal(html.includes('<code>![Code](https://example.com/code.jpg)</code>'), true);
 }
 
 function testTable() {
@@ -127,6 +150,7 @@ function testWeixinForwardHtmlWrapper() {
 
 testHtmlEscape();
 testLinkSanitize();
+testMarkdownImages();
 testTable();
 testTaskList();
 testCodeFence();

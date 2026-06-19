@@ -27,6 +27,9 @@ function parseArgs(argv) {
     gatewayAuthoringAccessTokenPath: argValue(argv, "--gateway-authoring-access-token-path", process.env.GROWTH_GATEWAY_AUTHORING_ACCESS_TOKEN_PATH || ""),
     gatewayAuthoringProtocol: argValue(argv, "--gateway-authoring-protocol", process.env.GROWTH_GATEWAY_AUTHORING_PROTOCOL || ""),
     gatewayAuthoringModel: argValue(argv, "--gateway-authoring-model", process.env.GROWTH_GATEWAY_AUTHORING_MODEL || ""),
+    gatewayAuthoringReasoningEffort: argValue(argv, "--gateway-authoring-reasoning-effort", process.env.GROWTH_GATEWAY_AUTHORING_REASONING_EFFORT || ""),
+    gatewayPlannerModel: argValue(argv, "--gateway-planner-model", process.env.GROWTH_GATEWAY_PLANNER_MODEL || ""),
+    gatewayPlannerReasoningEffort: argValue(argv, "--gateway-planner-reasoning-effort", process.env.GROWTH_GATEWAY_PLANNER_REASONING_EFFORT || ""),
     gatewayEvaluationEndpoint: argValue(argv, "--gateway-evaluation-endpoint", process.env.GROWTH_GATEWAY_EVALUATION_ENDPOINT || ""),
     gatewayEvaluationAccessTokenPath: argValue(argv, "--gateway-evaluation-access-token-path", process.env.GROWTH_GATEWAY_EVALUATION_ACCESS_TOKEN_PATH || ""),
     gatewayEvaluationProtocol: argValue(argv, "--gateway-evaluation-protocol", process.env.GROWTH_GATEWAY_EVALUATION_PROTOCOL || ""),
@@ -70,6 +73,9 @@ function plistFor(options = {}) {
   if (options.gatewayAuthoringAccessTokenPath) env.GROWTH_GATEWAY_AUTHORING_ACCESS_TOKEN_PATH = options.gatewayAuthoringAccessTokenPath;
   if (options.gatewayAuthoringProtocol) env.GROWTH_GATEWAY_AUTHORING_PROTOCOL = options.gatewayAuthoringProtocol;
   if (options.gatewayAuthoringModel) env.GROWTH_GATEWAY_AUTHORING_MODEL = options.gatewayAuthoringModel;
+  if (options.gatewayAuthoringReasoningEffort) env.GROWTH_GATEWAY_AUTHORING_REASONING_EFFORT = options.gatewayAuthoringReasoningEffort;
+  if (options.gatewayPlannerModel) env.GROWTH_GATEWAY_PLANNER_MODEL = options.gatewayPlannerModel;
+  if (options.gatewayPlannerReasoningEffort) env.GROWTH_GATEWAY_PLANNER_REASONING_EFFORT = options.gatewayPlannerReasoningEffort;
   if (options.gatewayEvaluationEndpoint) env.GROWTH_GATEWAY_EVALUATION_ENDPOINT = options.gatewayEvaluationEndpoint;
   if (options.gatewayEvaluationAccessTokenPath) env.GROWTH_GATEWAY_EVALUATION_ACCESS_TOKEN_PATH = options.gatewayEvaluationAccessTokenPath;
   if (options.gatewayEvaluationProtocol) env.GROWTH_GATEWAY_EVALUATION_PROTOCOL = options.gatewayEvaluationProtocol;
@@ -163,6 +169,9 @@ function plan(options = {}) {
     gatewayAuthoringAccessTokenPath: options.gatewayAuthoringAccessTokenPath || "",
     gatewayAuthoringProtocol: options.gatewayAuthoringProtocol || "",
     gatewayAuthoringModel: options.gatewayAuthoringModel || "",
+    gatewayAuthoringReasoningEffort: options.gatewayAuthoringReasoningEffort || "",
+    gatewayPlannerModel: options.gatewayPlannerModel || "",
+    gatewayPlannerReasoningEffort: options.gatewayPlannerReasoningEffort || "",
     gatewayEvaluationEndpoint: options.gatewayEvaluationEndpoint || "",
     gatewayEvaluationAccessTokenPath: options.gatewayEvaluationAccessTokenPath || "",
     gatewayEvaluationProtocol: options.gatewayEvaluationProtocol || "",

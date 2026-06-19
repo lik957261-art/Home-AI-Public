@@ -1,6 +1,6 @@
 # Home AI Frontend State Map
 
-Last updated: 2026-06-11.
+Last updated: 2026-06-18.
 
 Use this file to locate the responsible frontend files before debugging a screenshot or mobile UI report.
 
@@ -129,13 +129,37 @@ the change is part of a dedicated infrastructure rename.
   - After `run.model_output_started` / `run.final_message_started`, and when no
     later tool operation has started, the inline run-progress panel should use
     compact display so streamed assistant text remains visible.
+    Compact display may tighten spacing, but it must not reduce the panel's
+    outer minimum height while the assistant message is active. Elapsed-time and
+    row time columns must use stable widths so the per-second ticker does not
+    reflow the message body or page. Active inline run-progress panels must
+    keep a bounded maximum height so the preceding user prompt remains visible;
+    status rows may scroll inside the panel after that cap instead of expanding
+    the whole assistant card. The internal status-row scroller must follow the
+    newest rows while the assistant is active; a capped panel must never strand
+    the user on the earliest run events, including after an initial full
+    thread render before any incremental run-progress update arrives. Follow
+    targets should align to complete status-row boundaries so the top visible
+    row is not clipped by the panel border when the mathematical bottom offset
+    lands in the middle of a row, but should prefer the nearest previous
+    full-row group and shrink the internal row viewport to that group's content
+    height instead of adding large bottom padding that leaves the visible
+    status area mostly empty. If the
+    preceding user prompt is long, the panel should shrink to the minimum
+    useful height budget. On phone-width
+    viewports, rows should keep status and elapsed time aligned on the first
+    line and place event previews on a second line so narrow screens do not
+    collapse into unreadable four-column truncation.
   - Active assistant messages must render streaming deltas as a bounded receipt
     preview, not as an ever-growing full transcript. The preview belongs inside
     the assistant message, keeps only the recent tail, clamps to a fixed line
     count with hidden overflow, and shares the active message height budget with
     the inline run-progress panel so their combined visible area stays within
-    one conversation viewport. The full assistant receipt is rendered only after
-    the message reaches a terminal state.
+    one conversation viewport. Once the preview is visible, it must reserve the
+    fixed line-count height and disable scroll anchoring around the active
+    assistant message; streamed text tail updates must not move the inline
+    run-progress panel. The full assistant receipt is rendered only after the
+    message reaches a terminal state.
   - If the active assistant message has not received user-visible text deltas
     yet, safe run events such as model-stream start and output-start may project
     a bounded streaming receipt preview into the same assistant message. This is
@@ -216,6 +240,19 @@ the change is part of a dedicated infrastructure rename.
   a bounded thread refresh. A local optimistic `queued` placeholder must never
   remain as the source of a visible `Home AI - queued` message or bottom
   `queued` badge when the server has no corresponding active assistant message.
+- Composer send completion, event-stream thread refresh, run-progress fallback
+  refresh, and topic-root background refresh must remain bound to the route
+  snapshot that scheduled the work. If the user changes bottom tabs or exits a
+  plugin-topic detail while the assistant run is still active, stale async
+  completions may update cached thread summaries but must not repaint the old
+  topic surface over the newly selected tab.
+- Assistant message rich text is rendered by
+  `public/app-rich-text-directory-ui.js`. Assistant receipts support safe
+  Markdown image syntax (`![alt](src)`) for `http`/`https`, same-origin, and
+  relative image sources, and render images with `.hermes-markdown-image` so
+  they stay within the message bubble. `public/markdown-renderer-client.js` and
+  `adapters/markdown-renderer.js` keep the same image sanitizer for Markdown
+  previews, exports, and server-side readable HTML.
 - Thread refresh/merge must not preserve a locally running message once the
   incoming thread summary has no active run. Pending messages outside a paged
   response may be kept only while the incoming thread still reports an active

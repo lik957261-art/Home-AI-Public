@@ -3094,9 +3094,11 @@ button {
 }
 
 .run-progress-panel {
+  --run-progress-time-col: 6.5em;
   position: sticky;
   top: 0;
   z-index: 8;
+  box-sizing: border-box;
   width: min(920px, 100%);
   max-width: 100%;
   min-height: 96px;
@@ -3137,28 +3139,58 @@ button {
   contain: layout paint;
 }
 
+.message.assistant.streaming-active {
+  overflow-anchor: none;
+}
+
 .message.assistant.streaming-active .message-body {
-  max-height: min(calc(var(--app-viewport-height, 100dvh) - 128px), 680px);
-  overflow: hidden;
+  max-height: none;
+  overflow: visible;
+  overflow-anchor: none;
 }
 
 .message.assistant.streaming-active .run-progress-panel.inline {
-  max-height: min(36dvh, 272px);
-  min-height: 0;
+  max-height: min(30dvh, 252px);
+  min-height: 96px;
   padding-bottom: 12px;
   overflow: hidden;
 }
 
 .message.assistant.streaming-active .run-progress-panel.inline .run-progress-rows {
-  max-height: min(25dvh, 182px);
+  max-height: min(22dvh, 170px, var(--run-progress-follow-visible-height, 170px));
   padding-bottom: 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.message.assistant.streaming-active.run-progress-preserve-prompt .run-progress-panel.inline {
+  max-height: 118px;
+}
+
+.message.assistant.streaming-active.run-progress-preserve-prompt .run-progress-panel.inline .run-progress-rows {
+  max-height: 32px;
+}
+
+.message.assistant.streaming-active.run-progress-preserve-prompt .run-progress-row {
+  min-height: 28px;
+  align-items: center;
+}
+
+.message.assistant.streaming-active.run-progress-preserve-prompt .run-progress-row .run-progress-main {
   overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.message.assistant.streaming-active.run-progress-preserve-prompt .run-progress-row .run-progress-preview {
+  display: none;
 }
 
 .run-progress-panel.compact-after-output {
   margin-top: 8px;
   margin-bottom: 6px;
-  min-height: 74px;
+  min-height: 96px;
   padding: 7px 10px;
 }
 
@@ -3172,6 +3204,23 @@ button {
   color: #1f6f62;
   font-size: 12px;
   font-weight: 600;
+}
+
+.run-progress-head > span {
+  min-width: 0;
+}
+
+.run-progress-head > span:first-child {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.run-progress-head > span:last-child {
+  flex: 0 0 var(--run-progress-time-col);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 :root[data-theme="dark"] .run-progress-head {
@@ -3190,6 +3239,7 @@ button {
 
 .run-progress-rows {
   display: grid;
+  align-content: start;
   gap: 5px;
   min-height: 26px;
 }
@@ -3202,7 +3252,7 @@ button {
   min-width: 0;
   min-height: 18px;
   display: grid;
-  grid-template-columns: 10px minmax(0, auto) auto minmax(0, 1fr);
+  grid-template-columns: 10px minmax(0, 1fr) var(--run-progress-time-col) minmax(0, 1.15fr);
   align-items: center;
   gap: 7px;
   font-size: 12px;
@@ -3265,6 +3315,11 @@ button {
 }
 
 .run-progress-time {
+  min-width: 0;
+  text-align: right;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: #65716f;
   font-variant-numeric: tabular-nums;
 }
@@ -3550,11 +3605,18 @@ button {
   display: none;
 }
 
+.streaming-receipt {
+  overflow-anchor: none;
+}
+
 .assistant-streaming-receipt {
   display: grid;
   gap: 6px;
+  box-sizing: border-box;
   max-height: min(28dvh, 190px);
   overflow: hidden;
+  overflow-anchor: none;
+  contain: layout paint;
   padding: 8px 10px;
   color: var(--ink);
   background: rgba(74, 103, 112, 0.055);
@@ -3571,6 +3633,8 @@ button {
 
 .assistant-streaming-receipt-text {
   display: -webkit-box;
+  height: calc(1.48em * 6);
+  min-height: calc(1.48em * 6);
   max-height: calc(1.48em * 6);
   overflow: hidden;
   -webkit-box-orient: vertical;
@@ -3840,6 +3904,27 @@ button {
   font-weight: 600;
 }
 
+.hermes-markdown-image {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: min(56dvh, 520px);
+  height: auto;
+  margin: 4px 0;
+  border-radius: 8px;
+  background: var(--ui-surface-muted);
+  object-fit: contain;
+}
+
+.message-prose .hermes-markdown-image {
+  justify-self: start;
+  max-width: min(100%, 420px);
+}
+
+.task-markdown-preview-doc .hermes-markdown-image {
+  max-height: none;
+}
+
 :root[data-theme="dark"] .message-prose h2,
 :root[data-theme="dark"] .message-prose h3,
 :root[data-theme="dark"] .message-prose h4,
@@ -4008,19 +4093,76 @@ button {
   }
 
   .message.assistant.streaming-active .message-body {
-    max-height: min(calc(var(--app-viewport-height, 100dvh) - 112px), 620px);
+    max-height: none;
   }
 
   .message.assistant.streaming-active .run-progress-panel.inline {
-    max-height: min(34dvh, 252px);
+    max-height: min(28dvh, 236px);
   }
 
   .message.assistant.streaming-active .run-progress-panel.inline .run-progress-rows {
-    max-height: min(25dvh, 178px);
+    max-height: min(18dvh, 150px, var(--run-progress-follow-visible-height, 150px));
+  }
+
+  .message.assistant.streaming-active.run-progress-preserve-prompt .run-progress-panel.inline {
+    max-height: 112px;
+  }
+
+  .message.assistant.streaming-active.run-progress-preserve-prompt .run-progress-panel.inline .run-progress-rows {
+    max-height: 32px;
+  }
+
+  .message.assistant.streaming-active.run-progress-preserve-prompt .run-progress-row {
+    grid-template-areas: "dot main time";
+  }
+
+  .run-progress-panel {
+    --run-progress-time-col: 5.8em;
+  }
+
+  .run-progress-row {
+    min-height: 28px;
+    grid-template-columns: 10px minmax(0, 1fr) var(--run-progress-time-col);
+    grid-template-areas:
+      "dot main time"
+      "dot preview preview";
+    align-items: start;
+    column-gap: 7px;
+    row-gap: 2px;
+  }
+
+  .run-progress-row.run-progress-operation {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .run-progress-row .run-progress-dot {
+    grid-area: dot;
+    margin-top: 5px;
+  }
+
+  .run-progress-row .run-progress-main {
+    grid-area: main;
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+  }
+
+  .run-progress-row .run-progress-time {
+    grid-area: time;
+  }
+
+  .run-progress-row .run-progress-preview {
+    grid-area: preview;
+    display: -webkit-box;
+    overflow: hidden;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
 
   .assistant-streaming-receipt {
-    max-height: min(24dvh, 170px);
+    max-height: min(26dvh, 184px);
   }
 
   .message-prose {
@@ -7148,21 +7290,21 @@ button.directory-alias-chip {
 .directory-topic-chip {
   width: 100%;
   max-width: 100%;
-  min-height: 30px;
+  min-height: 34px;
   display: grid;
   grid-template-columns: 14px minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   justify-items: start;
   gap: 5px;
-  padding: 0 7px;
+  padding: 6px 7px;
   color: var(--ink);
   background: transparent;
   border: 0;
   border-radius: 7px;
   font-size: 12px;
-  line-height: 1;
+  line-height: 1.25;
   text-align: left;
-  overflow: hidden;
+  overflow: visible;
   touch-action: pan-y;
 }
 
@@ -7182,29 +7324,28 @@ button.directory-alias-chip {
   max-width: 100%;
   justify-self: stretch;
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 3px;
+  row-gap: 2px;
   text-align: left;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .directory-topic-chip-title,
 .directory-topic-chip-summary {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .directory-topic-chip-title {
-  flex: 1 1 auto;
+  flex: 0 1 100%;
   color: var(--ink);
   font-weight: 760;
-}
-
-.directory-topic-chip-copy.has-summary .directory-topic-chip-title {
-  flex: 0 1 auto;
-  max-width: 46%;
+  line-height: 1.25;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .directory-topic-chip-divider {
@@ -7215,8 +7356,12 @@ button.directory-alias-chip {
 
 .directory-topic-chip-summary {
   flex: 1 1 auto;
+  max-width: 100%;
   color: var(--muted);
   font-weight: 640;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .directory-topic-chip-badge {

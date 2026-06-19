@@ -110,10 +110,13 @@ function renderMessage(message) {
     && ["queued", "running"].includes(String(message.status || ""))
     ? " streaming-active"
     : "";
+  const preservePromptClass = activeAssistantClass && typeof runProgressPromptPreserveClassForMessage === "function"
+    ? runProgressPromptPreserveClassForMessage(state.currentThread, message)
+    : "";
   const body = revoked ? `<div class="message-revoked-text">${escapeHtml(GROUP_MESSAGE_REVOKED_TEXT)}</div>` : renderText(message.content || "", message);
   const runProgress = !revoked ? renderMessageRunProgress(state.currentThread, message) : "";
   const scrollEligibleAttr = messageScrollEligibleByContent(message) ? ` data-message-scroll-eligible="1"` : "";
-  return `<article class="message ${escapeHtml(message.role || "assistant")}${searchClass}${activeAssistantClass}${revoked ? " revoked" : ""}" data-message-id="${escapeHtml(message.id || "")}"${scrollEligibleAttr}>
+  return `<article class="message ${escapeHtml(message.role || "assistant")}${searchClass}${activeAssistantClass}${preservePromptClass}${revoked ? " revoked" : ""}" data-message-id="${escapeHtml(message.id || "")}"${scrollEligibleAttr}>
     <div class="message-head">
       <div class="message-head-main-wrap">
         <span class="message-head-main">${escapeHtml(roleLabel)}${escapeHtml(kindLabel)}${escapeHtml(status)}</span>

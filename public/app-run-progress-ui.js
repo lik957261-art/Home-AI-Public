@@ -7,6 +7,9 @@ const RUN_PROGRESS_FINAL_MESSAGE_REFRESH_MS = 1800;
 const RUN_PROGRESS_START_EVENT_REVEAL_MS = 1000;
 const RUN_PROGRESS_MAX_VISIBLE_EVENTS = 12;
 const RUN_PROGRESS_TERMINAL_STATUSES = new Set(["done", "failed", "cancelled"]);
+const RUN_PROGRESS_LONG_PROMPT_CHAR_THRESHOLD = 140;
+const RUN_PROGRESS_LONG_PROMPT_LINE_THRESHOLD = 4;
+const RUN_PROGRESS_LONG_PROMPT_HEIGHT_PX = 132;
 const RUN_PROGRESS_TERMINAL_EVENTS = new Set([
   "response.completed",
   "run.completed",
@@ -806,6 +809,94 @@ function updateExistingRunProgressPanel(existing, html) {
   return true;
 }
 
+function runProgressElementBoundsWithinRows(rows, row) {
+  const rowsRect = rows?.getBoundingClientRect?.();
+  const rowRect = row?.getBoundingClientRect?.();
+  const currentScrollTop = Number(rows?.scrollTop || 0);
+  if (
+    rowsRect &&
+    rowRect &&
+    Number.isFinite(rowsRect.top) &&
+    Number.isFinite(rowRect.top) &&
+    Number.isFinite(rowRect.bottom)
+  ) {
+    const top = Math.max(0, rowRect.top - rowsRect.top + currentScrollTop);
+    return {
+      top,
+      bottom: Math.max(top, rowRect.bottom - rowsRect.top + currentScrollTop),
+    };
+  }
+  const rowTop = Number(row?.offsetTop || 0);
+  const rowsTop = Number(rows?.offsetTop || 0);
+  const height = Math.max(0, Number(row?.offsetHeight || 0));
+  if (Number.isFinite(rowTop) && Number.isFinite(rowsTop) && height > 0) {
+    const top = Math.max(0, rowTop - rowsTop);
+    return { top, bottom: top + height };
+  }
+  return { top: 0, bottom: 0 };
+}
+
+function runProgressRowAlignedScrollTarget(rows) {
+  const scrollHeight = Math.max(0, Number(rows?.scrollHeight || 0));
+  const clientHeight = Math.max(0, Number(rows?.clientHeight || 0));
+  const maxTop = Math.max(0, scrollHeight - clientHeight);
+  if (!maxTop) return { scrollTop: 0, visibleHeight: 0 };
+  const rowElements = Array.from(rows?.querySelectorAll?.(".run-progress-row") || []);
+  const rowBounds = rowElements
+    .map((row) => runProgressElementBoundsWithinRows(rows, row))
+    .filter((bounds) => Number.isFinite(bounds.top) && Number.isFinite(bounds.bottom))
+    .sort((a, b) => a.top - b.top);
+  if (!rowBounds.length) return { scrollTop: maxTop, visibleHeight: clientHeight };
+  const fitted = rowBounds.find((bounds) => (
+    scrollHeight - bounds.top <= clientHeight + 0.5
+  ));
+  const fallback = [...rowBounds].reverse().find((bounds) => bounds.top <= maxTop + 0.5);
+  const targetTop = fitted?.top ?? fallback?.top ?? maxTop;
+  const scrollTop = Math.max(0, Math.floor(targetTop));
+  const visibleHeight = Math.min(clientHeight, Math.max(0, scrollHeight - scrollTop));
+  return { scrollTop, visibleHeight };
+}
+
+function scrollRunProgressRowsToLatest(panel) {
+  const rows = panel?.querySelector?.(".run-progress-rows");
+  if (!rows) return false;
+  let target = null;
+  const follow = () => {
+    rows.style?.removeProperty?.("--run-progress-follow-bottom-pad");
+    rows.style?.removeProperty?.("--run-progress-follow-visible-height");
+    rows.scrollTop = 0;
+    if (typeof rows.offsetHeight === "number") void rows.offsetHeight;
+    target = target || runProgressRowAlignedScrollTarget(rows);
+    const clientHeight = Math.max(0, Number(rows.clientHeight || 0));
+    if (target.visibleHeight > 0 && target.visibleHeight < clientHeight - 1) {
+      rows.style?.setProperty?.("--run-progress-follow-visible-height", `${Math.ceil(target.visibleHeight)}px`);
+      if (typeof rows.offsetHeight === "number") void rows.offsetHeight;
+    }
+    rows.scrollTop = target.scrollTop;
+  };
+  follow();
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => {
+      follow();
+      requestAnimationFrame(follow);
+    });
+  }
+  if (typeof window !== "undefined" && typeof window.setTimeout === "function") {
+    window.setTimeout(follow, 80);
+  }
+  return true;
+}
+
+function scrollActiveRunProgressRowsToLatest(root = document) {
+  const panels = root?.querySelectorAll?.(".message.assistant.streaming-active .run-progress-panel.inline:not(.terminal)");
+  if (!panels?.length) return false;
+  let scrolled = false;
+  panels.forEach((panel) => {
+    scrolled = scrollRunProgressRowsToLatest(panel) || scrolled;
+  });
+  return scrolled;
+}
+
 function messageForRunProgress(thread, runId) {
   const id = normalizeRunProgressId(runId);
   if (!thread || !id) return null;
@@ -850,6 +941,61 @@ function runProgressScrollMetrics(conversation) {
   };
 }
 
+function runProgressPromptLooksLongText(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return false;
+  const lines = text.split(/\n/).filter((line) => line.trim());
+  return text.length >= RUN_PROGRESS_LONG_PROMPT_CHAR_THRESHOLD
+    || lines.length >= RUN_PROGRESS_LONG_PROMPT_LINE_THRESHOLD;
+}
+
+function previousUserMessageForRunProgress(thread, message = {}) {
+  const messages = Array.isArray(thread?.messages) ? thread.messages : [];
+  const index = messages.findIndex((item) => item?.id && item.id === message?.id);
+  if (index <= 0) return null;
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const candidate = messages[cursor];
+    if (candidate?.role === "user") return candidate;
+    if (candidate?.role === "assistant") break;
+  }
+  return null;
+}
+
+function runProgressPromptPreserveClassForMessage(thread, message = {}) {
+  if (message?.role !== "assistant" || !messageStatusIsActive(message)) return "";
+  const previousUser = previousUserMessageForRunProgress(thread, message);
+  return runProgressPromptLooksLongText(previousUser?.content || "") ? " run-progress-preserve-prompt" : "";
+}
+
+function previousUserArticleForRunProgress(article) {
+  let node = article?.previousElementSibling || null;
+  while (node) {
+    if (node.matches?.(".message.user")) return node;
+    if (node.matches?.(".message.assistant")) return null;
+    node = node.previousElementSibling;
+  }
+  return null;
+}
+
+function updateRunProgressPromptReserveClass(article, thread, message = {}) {
+  if (!article?.classList) return false;
+  if (message?.role !== "assistant" || !messageStatusIsActive(message)) {
+    article.classList.remove("run-progress-preserve-prompt");
+    return false;
+  }
+  const previousUser = previousUserMessageForRunProgress(thread, message);
+  const previousArticle = previousUserArticleForRunProgress(article);
+  const body = previousArticle?.querySelector?.(".message-body");
+  const measuredHeight = Math.max(
+    Number(body?.scrollHeight || 0),
+    Number(body?.getBoundingClientRect?.().height || 0)
+  );
+  const preserve = runProgressPromptLooksLongText(previousUser?.content || "")
+    || measuredHeight >= RUN_PROGRESS_LONG_PROMPT_HEIGHT_PX;
+  article.classList.toggle("run-progress-preserve-prompt", preserve);
+  return preserve;
+}
+
 function stickRunProgressToConversationBottom(conversation, shouldStick, beforeMetrics = null) {
   if (!conversation || !shouldStick) return;
   const before = beforeMetrics || runProgressScrollMetrics(conversation);
@@ -879,7 +1025,10 @@ function stickRunProgressToConversationBottom(conversation, shouldStick, beforeM
     }
   };
   stick();
-  requestAnimationFrame(stick);
+  requestAnimationFrame(() => {
+    stick();
+    requestAnimationFrame(stick);
+  });
 }
 
 function renderMessageRunProgressInPlace(thread, message = {}, options = {}) {
@@ -894,6 +1043,7 @@ function renderMessageRunProgressInPlace(thread, message = {}, options = {}) {
   const html = renderMessageRunProgress(thread, message, options);
   if (!html) {
     existing?.remove?.();
+    article.classList.remove("run-progress-preserve-prompt");
     syncRunProgressTicker(conversation);
     stickRunProgressToConversationBottom(conversation, shouldStick, scrollMetrics);
     return true;
@@ -905,6 +1055,8 @@ function renderMessageRunProgressInPlace(thread, message = {}, options = {}) {
     if (content) content.insertAdjacentHTML("afterend", html);
     else body.insertAdjacentHTML("afterbegin", html);
   }
+  updateRunProgressPromptReserveClass(article, thread, message);
+  scrollRunProgressRowsToLatest(body.querySelector(".run-progress-panel.inline:not(.terminal)"));
   syncRunProgressTicker(conversation);
   stickRunProgressToConversationBottom(conversation, shouldStick, scrollMetrics);
   scheduleMessageScrollButtonVisibility(article);
@@ -922,9 +1074,11 @@ function scheduleRunProgressRenderForRun(runId) {
   state.runProgressRenderScheduled.add(key);
   const lastAt = state.runProgressRenderLastAt.get(key) || 0;
   const delay = Math.max(0, RUN_PROGRESS_RENDER_THROTTLE_MS - (Date.now() - lastAt));
+  const routeSnapshot = typeof currentThreadRouteSnapshot === "function" ? currentThreadRouteSnapshot() : null;
   const render = () => requestAnimationFrame(() => {
     state.runProgressRenderScheduled.delete(key);
     state.runProgressRenderLastAt.set(key, Date.now());
+    if (typeof currentThreadRouteMatches === "function" && !currentThreadRouteMatches(routeSnapshot)) return;
     if (state.currentThread?.id !== thread?.id) return;
     if (!renderMessageRunProgressInPlace(thread, message, { extraRunIds: [id] })) scheduleRenderCurrentThread();
   });
@@ -947,12 +1101,14 @@ function scheduleRunProgressFallbackThreadRefresh(threadId = "") {
   if (!id || !state.currentThread || id !== state.currentThread.id) return false;
   if (state.runProgressFallbackRefreshTimer) return true;
   state.runProgressFallbackRefreshThreadId = id;
+  const routeSnapshot = typeof currentThreadRouteSnapshot === "function" ? currentThreadRouteSnapshot() : null;
   state.runProgressFallbackRefreshTimer = window.setTimeout(() => {
     state.runProgressFallbackRefreshTimer = 0;
     state.runProgressFallbackRefreshThreadId = "";
+    if (typeof currentThreadRouteMatches === "function" && !currentThreadRouteMatches(routeSnapshot)) return;
     if (!state.currentThread || state.currentThread.id !== id) return;
     if (typeof requestCurrentThreadRefresh === "function") {
-      requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 0 });
+      requestCurrentThreadRefresh({ stickToBottom: false, delayMs: 0, routeSnapshot });
     } else if (typeof scheduleRenderCurrentThread === "function") {
       scheduleRenderCurrentThread();
     }
@@ -985,6 +1141,7 @@ function syncRunProgressTicker(root = document) {
     return;
   }
   updateRunProgressTicker(root);
+  scrollActiveRunProgressRowsToLatest(root);
   if (state.runProgressTicker) return;
   state.runProgressTicker = window.setInterval(() => {
     const conversation = $("conversation");
@@ -994,5 +1151,6 @@ function syncRunProgressTicker(root = document) {
       return;
     }
     updateRunProgressTicker(conversation);
+    scrollActiveRunProgressRowsToLatest(conversation);
   }, 1000);
 }

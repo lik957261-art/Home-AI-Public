@@ -227,6 +227,7 @@ const PLUGIN_TOPIC_BINDINGS_API_PATH = "/api/plugin-topic-bindings";
 const PLUGIN_TOPIC_USAGE_SYNC_DELAY_MS = 450;
 const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;
 const PLUGIN_TOPIC_BINDINGS_LOAD_TTL_MS = 30000;
+const PLUGIN_TOPIC_ROW_SUMMARY_MAX = 64;
 const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
 const GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY = "hermesGlobalPluginDockExpanded";
@@ -321,9 +322,10 @@ function topicReceiptSummaryTitleFromText(text = "", options = {}) {
   const heading = clean.split(/\r?\n/)
     .map((line) => String(line || "").trim().match(/^#{1,4}\s+(.+)$/))
     .find(Boolean)?.[1] || "";
-  const candidate = cleanTopicReceiptTitleLine(heading)
-    || clean.split(/\r?\n/).map(cleanTopicReceiptTitleLine).find(Boolean)
-    || "";
+  const headingTitle = cleanTopicReceiptTitleLine(heading);
+  if (headingTitle) return compactTopicReceiptSummary(headingTitle, limit);
+  if (options.allowFirstLine === false) return "";
+  const candidate = clean.split(/\r?\n/).map(cleanTopicReceiptTitleLine).find(Boolean) || "";
   return compactTopicReceiptSummary(candidate, limit);
 }
 
@@ -338,12 +340,38 @@ function topicReceiptSummaryTitleFromMessage(message = {}, options = {}) {
   return topicReceiptSummaryTitleFromText(value, options);
 }
 
+function topicReceiptTitleLooksLikeBody(value = "") {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return false;
+  const cjkCount = Array.from(text).filter((char) => /[\u3400-\u9fff\uf900-\ufaff]/.test(char)).length;
+  if (text.length > 96 || cjkCount > 42) return true;
+  if ((text.length > 42 || cjkCount > 24) && /[，,。；;：:！!?？]/.test(text)) return true;
+  if (/^(我|我们|当前|目前|这张|这个|这些|如果|下面|按你|按您的|刚才|刚看|顺便|整体|总体)/.test(text) && (text.length > 28 || cjkCount > 18)) return true;
+  if (/(我会|我刚|如果.*加载|下面这些|专辑列表|优先推荐|顺便说一句|看起来|其实已经)/.test(text)) return true;
+  return false;
+}
+
+function topicReceiptSummaryTitleFromPersisted(value = "", options = {}) {
+  const limit = options.max || 34;
+  const structured = topicReceiptSummaryTitleFromText(value, Object.assign({}, options, { allowFirstLine: false }));
+  if (structured) return structured;
+  const clean = cleanTopicReceiptTitleLine(stripTopicReceiptMetadataComments(value));
+  if (!clean || topicReceiptTitleLooksLikeBody(clean)) return "";
+  return compactTopicReceiptSummary(clean, limit);
+}
+
 function topicReceiptSummaryTitleFromGroup(group = {}, options = {}) {
-  const groupReceiptTitle = topicReceiptSummaryTitleFromText(group?.lastReceiptTitle || group?.last_receipt_title || "", options);
+  const allowBodyFallback = options.allowBodyFallback !== false;
+  const groupRawTitle = group?.lastReceiptTitle || group?.last_receipt_title || "";
+  const groupReceiptTitle = allowBodyFallback
+    ? topicReceiptSummaryTitleFromText(groupRawTitle, options)
+    : topicReceiptSummaryTitleFromPersisted(groupRawTitle, options);
   if (groupReceiptTitle) return groupReceiptTitle;
   const messages = Array.isArray(group?.messages) ? group.messages : [];
   const assistant = [...messages].reverse().find((message) => message?.role === "assistant" && (message.content || message.summary || message.title));
-  const assistantTitle = assistant ? topicReceiptSummaryTitleFromMessage(assistant, options) : "";
+  const assistantTitle = assistant ? topicReceiptSummaryTitleFromMessage(assistant, Object.assign({}, options, {
+    allowFirstLine: allowBodyFallback,
+  })) : "";
   if (assistantTitle) return assistantTitle;
   return "";
 }
@@ -2229,28 +2257,20 @@ function pluginTopicMessageTimestamp(message = {}) {
   return String(message?.updatedAt || message?.createdAt || "");
 }
 
+function pluginTopicCompactRowSummary(value = "", max = PLUGIN_TOPIC_ROW_SUMMARY_MAX) {
+  const limit = Math.max(24, Number(max) || PLUGIN_TOPIC_ROW_SUMMARY_MAX);
+  let text = String(value || "");
+  if (typeof cleanDisplayText === "function") text = cleanDisplayText(text);
+  if (typeof compactDisplayText === "function") text = compactDisplayText(text, limit);
+  else text = text.replace(/\s+/g, " ").trim();
+  if (text.length <= limit) return text;
+  return text.slice(0, limit).trim();
+}
+
 function pluginTopicMessagePreviewText(message = {}, max = 48) {
-  const receiptTitle = topicReceiptSummaryTitleFromMessage(message, { max });
-  if (receiptTitle) return receiptTitle;
-  const value = message?.content || message?.text || message?.summary || message?.title || "";
-  let raw = "";
-  if (Array.isArray(value)) {
-    raw = value.map((item) => (typeof item === "string" ? item : (item?.text || item?.content || ""))).filter(Boolean).join(" ");
-  } else if (value && typeof value === "object") {
-    raw = value.text || value.content || value.summary || "";
-    if (!raw) {
-      try {
-        raw = JSON.stringify(value);
-      } catch (_) {
-        raw = "";
-      }
-    }
-  } else {
-    raw = String(value || "");
-  }
-  if (typeof cleanDisplayText === "function") raw = cleanDisplayText(raw);
-  if (typeof compactDisplayText === "function") return compactDisplayText(raw, max);
-  return raw.replace(/\s+/g, " ").trim().slice(0, max);
+  const receiptTitle = topicReceiptSummaryTitleFromMessage(message, { max, allowFirstLine: false });
+  if (receiptTitle) return pluginTopicCompactRowSummary(receiptTitle, max);
+  return "";
 }
 
 function pluginTopicRecentMessageEntries(def, thread = state.currentThread, limit = 2, options = {}) {
@@ -2314,10 +2334,10 @@ function pluginTopicCollectionUpdatedAt(collections = []) {
 function pluginTopicRowMeta(def, options = {}) {
   if (!def || def.builtinKind) return "";
   const group = pluginTopicGroupForDef(def, options.thread || state.currentThread);
-  const groupTitle = group ? topicReceiptSummaryTitleFromGroup(group, { max: 120 }) : "";
-  if (groupTitle) return groupTitle;
-  const entry = pluginTopicRecentMessageEntries(def, options.thread || state.currentThread, 1, { max: 120 })[0];
-  return entry?.title || "\u6682\u65e0\u56de\u6267\u6982\u8981";
+  const groupTitle = group ? topicReceiptSummaryTitleFromGroup(group, { max: PLUGIN_TOPIC_ROW_SUMMARY_MAX, allowBodyFallback: false }) : "";
+  if (groupTitle) return pluginTopicCompactRowSummary(groupTitle, PLUGIN_TOPIC_ROW_SUMMARY_MAX);
+  const entry = pluginTopicRecentMessageEntries(def, options.thread || state.currentThread, 1, { max: PLUGIN_TOPIC_ROW_SUMMARY_MAX })[0];
+  return entry?.title ? pluginTopicCompactRowSummary(entry.title, PLUGIN_TOPIC_ROW_SUMMARY_MAX) : "\u6682\u65e0\u56de\u6267\u6982\u8981";
 }
 
 function pluginTopicExpandedStorageKey(workspaceId = pluginTopicUsageWorkspaceId()) {

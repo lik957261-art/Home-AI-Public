@@ -104,8 +104,11 @@ Backups must allow a replacement machine to restore source, production app files
   bounded by `HOMEAI_NAS_BACKUP_OP_TIMEOUT_SECONDS` and
   `HOMEAI_NAS_BACKUP_RSYNC_TIMEOUT_SECONDS`; SSH operations are bounded by
   `HOMEAI_BACKUP_SSH_OP_TIMEOUT_SECONDS` and
-  `HOMEAI_BACKUP_SSH_RSYNC_TIMEOUT_SECONDS`. A hung or unwritable destination
-  must fail with an explicit destination error instead of blocking CRON.
+  `HOMEAI_BACKUP_SSH_RSYNC_TIMEOUT_SECONDS`. Publish rsync uses ordinary
+  temp-file/rename updates rather than `--inplace`, and retries are bounded by
+  `HOMEAI_DISASTER_BACKUP_RSYNC_ATTEMPTS` with default `3`. A hung or
+  unwritable destination must fail with an explicit destination error instead
+  of blocking CRON.
 - The production scheduled path is a Hermes CRON `no_agent` job running as
   `hermes-host`. Its script is installed at
   `/Users/example/path`
@@ -129,6 +132,11 @@ Backups must allow a replacement machine to restore source, production app files
   `.codegraph/`, Codex `logs_*.sqlite*`, and SQLite `*-wal` / `*-shm` sidecar
   files that are not the durable restore target and can change while rsync is
   reading them.
+- Daily backup skips root-level production `data/*.bak` files created by local
+  repair/deploy rollback operations. Canonical files such as
+  `data/gateway-pool-manifest-mac.json` are still backed up; transient
+  `.bak` files are recorded as skipped so an unreadable root-owned rollback
+  artifact cannot make the scheduled disaster backup partial.
 - Hermes Agent custom user Skills stores are mandatory backup coverage. The
   authoritative production store is `data/skill-profiles/*/skills`; the
   operator-side Hermes Agent store, such as `/Users/example/path` and

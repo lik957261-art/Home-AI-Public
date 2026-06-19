@@ -347,7 +347,18 @@ npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --
 
 ```bash
 node scripts/install-growth-launchd-service.js --json
-node scripts/install-growth-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+node scripts/install-growth-launchd-service.js --execute --bootstrap \
+  --gateway-authoring-endpoint http://127.0.0.1:18751/v1/responses \
+  --gateway-authoring-access-token-path <gateway-worker-token-file> \
+  --gateway-authoring-protocol responses \
+  --gateway-authoring-model gpt-5.5 \
+  --gateway-authoring-reasoning-effort xhigh \
+  --gateway-planner-model gpt-5.5 \
+  --gateway-planner-reasoning-effort xhigh \
+  --gateway-evaluation-endpoint http://127.0.0.1:18751/v1/responses \
+  --gateway-evaluation-access-token-path <gateway-worker-token-file> \
+  --gateway-evaluation-protocol responses \
+  --password-file <private-local-password-file> --json
 ```
 
 That installer uses the same sudo/password-file boundary. It may create the

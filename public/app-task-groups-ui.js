@@ -89,6 +89,45 @@ function rememberTaskListThread(thread = state.currentThread) {
   state.taskListThreadId = thread.id;
 }
 
+function mergeTaskListThreadFromThreadUpdate(incomingThread = null) {
+  if (!incomingThread?.id || !incomingThread.singleWindow) return false;
+  const cached = state.taskListThread;
+  if (!cached?.id || cached.id !== incomingThread.id || !cached.singleWindow) return false;
+  const incomingMessages = Array.isArray(incomingThread.messages) ? incomingThread.messages : [];
+  const existingMessages = Array.isArray(cached.messages) ? cached.messages : [];
+  const byId = new Map(existingMessages.map((message) => [message.id, message]));
+  for (const message of incomingMessages) {
+    if (!message?.id) continue;
+    const merged = typeof mergeServerMessage === "function"
+      ? mergeServerMessage(byId.get(message.id), message)
+      : Object.assign({}, byId.get(message.id) || {}, message);
+    byId.set(message.id, merged);
+  }
+  const mergedMessages = typeof sortedThreadMessages === "function"
+    ? sortedThreadMessages([...byId.values()])
+    : [...byId.values()];
+  const existingTaskGroups = Array.isArray(cached.taskGroups) ? cached.taskGroups : [];
+  const incomingTaskGroups = Array.isArray(incomingThread.taskGroups) ? incomingThread.taskGroups : [];
+  const taskGroupsById = new Map(existingTaskGroups.map((group) => [String(group?.id || ""), group]).filter(([id]) => id));
+  for (const group of incomingTaskGroups) {
+    const id = String(group?.id || "").trim();
+    if (!id) continue;
+    taskGroupsById.set(id, Object.assign({}, taskGroupsById.get(id) || {}, group));
+  }
+  const next = Object.assign({}, cached, incomingThread, {
+    messages: mergedMessages,
+    messagesPage: cached.messagesPage,
+    taskGroupMeta: Object.assign({}, cached.taskGroupMeta || {}, incomingThread.taskGroupMeta || {}),
+  });
+  if (taskGroupsById.size) next.taskGroups = [...taskGroupsById.values()];
+  if (!Array.isArray(incomingThread.directoryTopicCollections) && Array.isArray(cached.directoryTopicCollections)) {
+    next.directoryTopicCollections = cached.directoryTopicCollections;
+  }
+  state.taskListThread = next;
+  state.taskListThreadId = next.id;
+  return true;
+}
+
 function rememberTaskListScrollPosition() {
   if (state.viewMode !== "tasks" || state.currentTaskGroupId) return;
   const conversation = $("conversation");

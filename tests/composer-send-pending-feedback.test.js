@@ -6,7 +6,10 @@ const path = require("path");
 const vm = require("vm");
 
 const repoRoot = path.resolve(__dirname, "..");
-const source = fs.readFileSync(path.join(repoRoot, "public", "app-event-stream-ui.js"), "utf8");
+const source = [
+  fs.readFileSync(path.join(repoRoot, "public", "app-composer-send-ui.js"), "utf8"),
+  fs.readFileSync(path.join(repoRoot, "public", "app-event-stream-ui.js"), "utf8"),
+].join("\n");
 
 let renderCalls = 0;
 let bottomStickCalls = 0;
@@ -49,6 +52,7 @@ globalThis.pendingSendTestApi = {
   appendOptimisticSendMessages,
   clearOptimisticSendMessages,
   optimisticSendShouldAppendAssistant,
+  handleSendMessageResult,
   sendMessage,
   COMPOSER_SEND_TIMEOUT_MS,
 };`, context);
@@ -57,6 +61,7 @@ const {
   appendOptimisticSendMessages,
   clearOptimisticSendMessages,
   optimisticSendShouldAppendAssistant,
+  handleSendMessageResult,
   sendMessage,
   COMPOSER_SEND_TIMEOUT_MS,
 } = context.pendingSendTestApi;
@@ -268,8 +273,81 @@ async function runDuplicateSendSuppressionTest() {
   assert.strictEqual(sendButton.disabled, false);
 }
 
+async function runSendResultDoesNotStealNavigationTest() {
+  renderCalls = 0;
+  bottomStickCalls = 0;
+  state.currentThread = { id: "thread_chat", messages: [] };
+  state.currentThreadId = "thread_chat";
+  state.viewMode = "single";
+  state.singleWindowMode = "chat";
+  state.selectedWorkspaceId = "owner";
+  state.currentTaskGroupId = "";
+  state.primaryNavigationSeq = 2;
+  state.pendingArtifacts = [{ id: "artifact-cleared" }];
+  let mergedTaskListThreadId = "";
+  let summaryThreadId = "";
+  let blurCalls = 0;
+  let suppressMs = 0;
+  Object.assign(context, {
+    currentThreadRouteMatches(snapshot) {
+      return Boolean(snapshot)
+        && String(state.viewMode || "") === String(snapshot.viewMode || "")
+        && String(state.singleWindowMode || "") === String(snapshot.singleWindowMode || "")
+        && String(state.currentTaskGroupId || "") === String(snapshot.currentTaskGroupId || "")
+        && String(state.currentThreadId || state.currentThread?.id || "") === String(snapshot.currentThreadId || "")
+        && Number(state.primaryNavigationSeq || 0) === Number(snapshot.primaryNavigationSeq || 0);
+    },
+    resetComposerSearchSource() {},
+    clearQuotedReply() {},
+    renderPendingArtifacts() {},
+    mergeTaskListThreadFromThreadUpdate(thread) {
+      mergedTaskListThreadId = thread?.id || "";
+      return true;
+    },
+    summarizeThread(thread) {
+      return { id: thread.id };
+    },
+    upsertThreadSummary(summary) {
+      summaryThreadId = summary?.id || "";
+    },
+    suppressComposerAutoFocus(ms) {
+      suppressMs = ms;
+    },
+    blurComposerInput() {
+      blurCalls += 1;
+    },
+  });
+
+  handleSendMessageResult({
+    thread: {
+      id: "thread_tasks",
+      singleWindow: true,
+      messages: [{ id: "assistant_music", role: "assistant", taskGroupId: "plugin:music", content: "done" }],
+    },
+  }, false, false, {
+    threadId: "thread_tasks",
+    routeSnapshot: {
+      viewMode: "tasks",
+      singleWindowMode: "task",
+      currentTaskGroupId: "plugin:music",
+      selectedWorkspaceId: "owner",
+      currentThreadId: "thread_tasks",
+      primaryNavigationSeq: 1,
+    },
+  });
+
+  assert.strictEqual(state.currentThreadId, "thread_chat");
+  assert.strictEqual(state.currentThread.id, "thread_chat");
+  assert.strictEqual(mergedTaskListThreadId, "thread_tasks");
+  assert.strictEqual(summaryThreadId, "thread_tasks");
+  assert.strictEqual(renderCalls, 0, "stale task send result must not repaint the current chat tab");
+  assert.strictEqual(blurCalls, 1);
+  assert.strictEqual(suppressMs, 1200);
+}
+
 runFailedSendRollbackTest()
   .then(runDuplicateSendSuppressionTest)
+  .then(runSendResultDoesNotStealNavigationTest)
   .then(() => {
     console.log("composer send pending feedback tests passed");
   })

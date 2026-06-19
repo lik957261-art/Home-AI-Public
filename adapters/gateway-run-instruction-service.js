@@ -3,7 +3,7 @@
 const { explicitSearchContext } = require("./gateway-run-search-budget-service");
 const { formatEnvironmentContextInstructions } = require("./environment-context-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260617-email-body-readall-health-sleep-ecg-mcp-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260619-music-multi-output-volume-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -114,6 +114,53 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_moira_get_rule_migration_status",
         "mcp_moira_get_rule_commentary_readiness",
         "mcp_moira_get_functional_coverage_status",
+      ],
+      music: [
+        "mcp_music_music_search_library",
+        "mcp_music_music_get_now_playing",
+        "mcp_music_music_roon_status",
+        "mcp_music_music_roon_listening_summary",
+        "mcp_music_music_get_taste_profile",
+        "mcp_music_music_get_recommendation_context",
+        "mcp_music_music_get_favorites",
+        "mcp_music_music_get_album_tags",
+        "mcp_music_music_get_album_volume_tag",
+        "mcp_music_music_local_library_overview",
+        "mcp_music_music_local_albums",
+        "mcp_music_music_local_album_detail",
+        "mcp_music_music_management_capabilities",
+        "mcp_music_music_tags_list",
+        "mcp_music_music_tag_create",
+        "mcp_music_music_album_tags_apply",
+        "mcp_music_music_album_tags_remove",
+        "mcp_music_music_ai_tag_suggestions",
+        "mcp_music_music_album_find_duplicates",
+        "mcp_music_music_album_merge_plan",
+        "mcp_music_music_album_mark_deleted",
+        "mcp_music_music_album_restore",
+        "mcp_music_music_album_set_primary_version",
+        "mcp_music_music_album_cover_status",
+        "mcp_music_music_cover_batch_plan",
+        "mcp_music_music_album_cover_replace_plan",
+        "mcp_music_music_album_cover_replace_apply",
+        "mcp_music_music_album_cover_restore",
+        "mcp_music_music_playlist_generate_plan",
+        "mcp_music_music_loudness_status",
+        "mcp_music_music_map_device_volume",
+        "mcp_music_music_loudness_analyze_missing",
+        "mcp_music_music_tracks_query_by_format",
+        "mcp_music_music_tracks_query_by_loudness",
+        "mcp_music_music_playback_zones",
+        "mcp_music_music_now_playing",
+        "mcp_music_music_playback_control",
+        "mcp_music_music_set_volume",
+        "mcp_music_music_volume_policy_preview",
+        "mcp_music_music_play_tracks_with_volume_policy",
+        "mcp_music_music_playback_volume_offset_set",
+        "mcp_music_music_browse_action_on_zone",
+        "mcp_music_music_play_album_on_zone",
+        "mcp_music_music_play_track_on_zone",
+        "mcp_music_music_play_playlist_on_zone",
       ],
       email: [
         "mcp_email_list_accounts",
@@ -294,6 +341,15 @@ function createGatewayRunInstructionService(options = {}) {
         "When starting a broad Moira chart analysis, prefer `mcp_moira_get_analysis_evidence_bundle` first when present; it returns the bounded chart, annual/current, aspect, transit, eclipse and optional PICK/month evidence sections without generating a final fortune narrative. For rule-focused analysis, use `mcp_moira_get_rule_evidence_bundle` to get bounded full/current/PICK readiness, verdict bridges and open migration boundaries. Use `mcp_moira_get_interpretation_context` when only routing/completeness guidance is needed.",
         "Moira PICK/择日吉凶 verdicts are not authoritative unless the returned evidence explicitly includes promoted rule commentary. Treat status-only PICK/month evidence as calculation facts, not as a complete auspicious/inauspicious judgment.",
         "Do not pass `workspace_id` or `workspaceId` to Moira MCP calls. The Gateway profile is already bound to one Moira workspace/key; if the callable schema lacks `mcp_moira_*` while `Enabled toolsets` includes `moira`, report a Gateway schema mismatch instead of inventing astrology evidence."
+      );
+    }
+    if (policyHasToolset(policy, "music")) {
+      lines.push(
+        "Current tool schema override: the `music` toolset is enabled for this run. Callable function names normally begin with `mcp_music_music_`, including `mcp_music_music_local_library_overview`, `mcp_music_music_local_albums`, `mcp_music_music_local_album_detail`, `mcp_music_music_get_album_volume_tag`, `mcp_music_music_management_capabilities`, `mcp_music_music_tags_list`, `mcp_music_music_album_find_duplicates`, `mcp_music_music_album_cover_replace_plan`, `mcp_music_music_album_cover_replace_apply`, `mcp_music_music_album_cover_restore`, `mcp_music_music_playlist_generate_plan`, `mcp_music_music_loudness_status`, `mcp_music_music_map_device_volume`, `mcp_music_music_now_playing`, `mcp_music_music_playback_zones`, `mcp_music_music_playback_control`, `mcp_music_music_set_volume`, `mcp_music_music_volume_policy_preview`, `mcp_music_music_play_tracks_with_volume_policy`, `mcp_music_music_playback_volume_offset_set`, `mcp_music_music_play_album_on_zone`, `mcp_music_music_play_track_on_zone`, `mcp_music_music_play_playlist_on_zone`, `mcp_music_music_get_taste_profile`, `mcp_music_music_get_recommendation_context`, `mcp_music_music_roon_listening_summary`, and `mcp_music_music_get_favorites`.",
+        "Use Music MCP as the source of truth for local album statistics, sampled loudness and waveform status, Roon-observed listening summaries, favorites cache, album tags, duplicate-album plans, playlist plans, and volume-tag recommendation context.",
+        "Music MCP is Owner-only and reads the shared Music SQLite database through the selected Gateway profile. Do not pass a workspace override, and do not infer local catalog counts, volume tags, favorites, tags, duplicate state, playlist plans, or loudness status from the visible plugin UI alone.",
+        "For Music management writes, prefer dry-run plan tools first. Soft-delete means metadata states such as hidden, duplicate, deprecated, or tombstoned; physical file deletion is not implemented. Cover search and candidate selection belong to the agent; Music MCP only writes an explicitly selected local image/base64 into the cover cache with backup/rollback. Playback control requires explicit confirmation/safety limits. For grouped Roon zones with multiple Devialet outputs, pass `output_ids` or a matching `output_name_contains` so Music applies volume to every selected output. For Music-managed volume-policy playback, AI may provide playlist items and an overall offset only; Music computes per-track absolute volume from album manual/predicted volume tags.",
+        "If `Enabled toolsets` includes `music` but the current callable schema still lacks `mcp_music_music_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of inventing music-library facts."
       );
     }
     return lines.join("\n");

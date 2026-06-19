@@ -22,9 +22,11 @@ assert.match(eventStreamUi, /general_environment/);
 assert.match(eventStreamUi, /function requestNativeEnvironmentContextForSend\(body = \{\}, text = ""\)/);
 assert.match(eventStreamUi, /window\.HomeAINativeEnvironment\.getContext\(request\)/);
 assert.match(eventStreamUi, /setTimeout\(\(\) => resolve\(null\), 1200\)/);
-assert.match(eventStreamUi, /function refreshNativeEnvironmentSnapshotForSend\(\)/);
+assert.match(eventStreamUi, /function refreshNativeEnvironmentSnapshotForSend\(options = \{\}\)/);
 assert.match(eventStreamUi, /\/api\/native\/environment-context/);
 assert.match(eventStreamUi, /model_tool_snapshot/);
+assert.match(eventStreamUi, /homeai:native-environment-refresh/);
+assert.match(eventStreamUi, /installNativeEnvironmentSnapshotAutoRefresh\(\)/);
 assert.match(eventStreamUi, /await refreshNativeEnvironmentSnapshotForSend\(\)/);
 assert.match(eventStreamUi, /if \(environmentContext\) body\.environmentContext = environmentContext/);
 

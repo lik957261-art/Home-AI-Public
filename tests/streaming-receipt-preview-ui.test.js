@@ -68,6 +68,15 @@ const doneHtml = context.renderText("结论：已经完成", {
 assert.doesNotMatch(doneHtml, /data-streaming-receipt="1"/);
 assert.match(doneHtml, /assistant-receipt-callout/);
 
+const imageHtml = context.renderText("这张封面是这个：\n\n![Album Cover](/api/v1/music/local/covers/album.jpg)", {
+  id: "assistant-image",
+  role: "assistant",
+  status: "done",
+});
+assert.match(imageHtml, /<img class="hermes-markdown-image" src="\/api\/v1\/music\/local\/covers\/album\.jpg" alt="Album Cover" loading="lazy" decoding="async">/);
+assert.doesNotMatch(imageHtml, /!\[Album Cover\]/);
+assert.doesNotMatch(imageHtml, /src="javascript:/);
+
 const emptyRunningHtml = context.renderText("", {
   id: "assistant-empty",
   role: "assistant",
