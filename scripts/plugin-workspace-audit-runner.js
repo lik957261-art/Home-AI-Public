@@ -771,6 +771,8 @@ function upsertInbox(job, audit, report, options = {}) {
       auditRunId: `${clean(job.id, 80) || "job"}:${report.fileName}`,
       severity: audit.topSeverity,
       findingCount: audit.findingCount,
+      auditMode: audit.mode,
+      triggerMode: clean(job.triggerMode || job.trigger_mode || job.audit?.triggerMode || job.audit?.trigger_mode || "scheduled", 80) || "scheduled",
       title: audit.findingCount ? `${audit.pluginTitle || audit.pluginId} audit needs review` : `${audit.pluginTitle || audit.pluginId} audit completed`,
       summary: audit.findingCount
         ? `${audit.findingCount} finding(s), top severity ${audit.topSeverity}.`
@@ -778,6 +780,8 @@ function upsertInbox(job, audit, report, options = {}) {
       sourceRef: {
         automationId: clean(job.id, 80),
         jobId: clean(job.id, 80),
+        auditMode: audit.mode,
+        triggerMode: clean(job.triggerMode || job.trigger_mode || job.audit?.triggerMode || job.audit?.trigger_mode || "scheduled", 80) || "scheduled",
         reportUrl: `/api/automations/output?jobId=${encodeURIComponent(clean(job.id, 80))}&file=${encodeURIComponent(report.fileName)}`,
         latestDeliverable: {
           name: report.fileName,

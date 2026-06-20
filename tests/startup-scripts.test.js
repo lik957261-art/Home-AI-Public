@@ -1159,6 +1159,8 @@ assert.match(gatewayToolSchemaSmoke, /spawnSync\("bash", \[tempScript\]/);
 assert.match(gatewayToolSchemaSmoke, /--allow-mcp-log-evidence/);
 assert.match(gatewayToolSchemaSmoke, /only has runtime-log MCP evidence/);
 assert.match(gatewayToolSchemaSmoke, /Registration logs are not enough/);
+assert.match(gatewayToolSchemaSmoke, /function workerApiKey/);
+assert.match(gatewayToolSchemaSmoke, /apiKeyFile \|\| worker\.api_key_file \|\| worker\.apiKeyPath \|\| worker\.api_key_path/);
 assert.match(gatewayToolSchemaSmoke, /HERMES_AGENT_SCHEMA_PROBE_JSON_START/);
 assert.match(gatewayToolSchemaSmoke, /AIAgent/);
 assert.match(gatewayToolSchemaSmoke, /HERMES_HOME/);

@@ -61,6 +61,14 @@ gesture scenario plus the Finance plugin drawer action gesture scenario. This
 job is for cross-surface interaction regressions and should stay bounded; broad
 per-plugin layout checks remain in the plugin-specific visual jobs.
 
+Low-signal scheduled visual audit completions are not user-facing deliveries.
+When a `homeai_visual_*` job completes successfully, the Automation Web Push
+projection updates the push mark and leaves the evidence in Automation/audit
+history without creating an Inbox row or Web Push notification. Failed visual
+audit rows remain high-signal and use a stable `automation-audit:<workspaceId>:<jobId>:error`
+dedupe key so the current list shows one actionable item per failing scenario
+instead of one row per run.
+
 Video evidence is optional. By default the runner stores screenshots and JSON
 reports only. Set `HOMEAI_VISUAL_AUDIT_RECORD_VIDEO=1` for a job environment to
 also record an iOS Simulator video with

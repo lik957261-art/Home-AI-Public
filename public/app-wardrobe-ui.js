@@ -474,9 +474,9 @@ function renderWardrobePluginUnavailable(manifest = currentWardrobePluginManifes
 
 function renderWardrobePluginFrame(manifest, entryUrl = String(manifest?.entry?.url || "")) {
   return `
-    <div class="wardrobe-plugin-shell is-loading">
+    <div class="wardrobe-plugin-shell embedded-plugin-shell is-loading" data-plugin-id="wardrobe">
       <iframe
-        class="wardrobe-plugin-frame"
+        class="wardrobe-plugin-frame embedded-plugin-frame active"
         title="${escapeHtml(manifest.title || "\u8863\u6a71")}"
         src="${escapeHtml(entryUrl)}"
         loading="eager"

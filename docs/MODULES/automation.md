@@ -271,6 +271,14 @@ safe deep links. Full diffs, raw executor logs, prompts, secrets, launch tokens,
 provider tokens, push endpoints, and private local paths must not be copied into
 Automation rows, Inbox rows, Web Push payloads, or docs.
 
+Scheduled audit projection must be quiet by default. Clean scheduled visual
+audit completions are background maintenance results: they should update
+Automation history and push marks but must not create Web Push notifications or
+ordinary current Inbox rows. Scheduled plugin audit Inbox rows should use a
+stable dedupe key by workspace, plugin, audit mode, and item type so repeated
+runs update one triage pointer. Manual audits and high-signal failures remain
+user-visible.
+
 Read-only enforcement is part of the Automation contract for this job class.
 The first implementation should allow only source inspection and metadata
 commands. Arbitrary tests are out of scope for version 1 because many test

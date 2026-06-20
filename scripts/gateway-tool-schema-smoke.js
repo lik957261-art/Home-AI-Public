@@ -147,6 +147,21 @@ function toolParameters(tool = {}) {
   return tool?.function?.parameters || tool?.parameters || tool?.input_schema || tool?.inputSchema || {};
 }
 
+function readSecretFile(filePath) {
+  const text = String(filePath || "").trim();
+  if (!text) return "";
+  try {
+    return fs.readFileSync(text, "utf8").trim();
+  } catch (_) {
+    return "";
+  }
+}
+
+function workerApiKey(worker = {}) {
+  return String(worker.api_key || worker.apiKey || "").trim()
+    || readSecretFile(worker.apiKeyFile || worker.api_key_file || worker.apiKeyPath || worker.api_key_path);
+}
+
 function validateToolDefinitions(worker, toolDefinitions, requiredTools, forbiddenTools, requiredDescriptionChecks, requiredPropertyChecks, evidence) {
   const tools = toolNamesFromDefinitions(toolDefinitions);
   const missing = requiredTools.filter((tool) => !tools.includes(tool));
@@ -348,6 +363,7 @@ async function smokeWorker(worker, requiredTools, forbiddenTools, requiredDescri
   const apiBase = String(worker.url || worker.gatewayUrl || worker.apiBase || `http://127.0.0.1:${port}`).replace(/\/+$/, "");
   const startedAt = Date.now();
   const requiresMcpEvidence = hasMcpToolRequirement(requiredTools);
+  const apiKey = workerApiKey(worker);
   const agentSchema = (options.schemaOnly || options.requireAgentSchema || (requiresMcpEvidence && !options.allowMcpRuntimeLogEvidence))
     ? runAgentSchemaProbe(worker, options)
     : null;
@@ -376,7 +392,7 @@ async function smokeWorker(worker, requiredTools, forbiddenTools, requiredDescri
     method: "POST",
     headers: Object.assign(
       { "Content-Type": "application/json" },
-      worker.api_key || worker.apiKey ? { Authorization: `Bearer ${worker.api_key || worker.apiKey}` } : {},
+      apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
     ),
     body: JSON.stringify({
       input: `Tool schema smoke marker ${marker}. Reply exactly OK.`,

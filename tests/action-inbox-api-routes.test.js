@@ -275,6 +275,7 @@ async function testListAndCreate() {
     excludedItemTypes: ["todo"],
     search: "review",
     includeDone: false,
+    includeSystemAudit: false,
     limit: 5,
   }]);
   assert.equal(listed.body.items.length, 1);

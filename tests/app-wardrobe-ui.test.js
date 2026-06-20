@@ -71,7 +71,7 @@ assert.match(wardrobeUi, /loadWardrobePluginManifest\(\{ force: true \}\)/);
 assert.match(wardrobeUi, /if \(!state\.wardrobePluginChecked \|\| !wardrobePluginManifestMatchesLaunchContext\(\)\) \{/);
 assert.match(wardrobeUi, /if \(state\.wardrobePluginShellNode\) discardWardrobePluginShell\(\)/);
 assert.doesNotMatch(wardrobeUi, /Loading Wardrobe plugin/);
-assert.match(wardrobeUi, /class="wardrobe-plugin-shell is-loading"/);
+assert.match(wardrobeUi, /class="wardrobe-plugin-shell embedded-plugin-shell is-loading" data-plugin-id="wardrobe"/);
 assert.match(wardrobeUi, /closest\("\.wardrobe-plugin-shell"\)\?\.classList\.remove\("is-loading"\)/);
 assert.match(wardrobeUi, /type: "hermes\.plugin\.back"/);
 assert.match(wardrobeUi, /if \(state\.wardrobePluginOpenRoute\) state\.wardrobePluginCanGoBack = true;/);
@@ -80,7 +80,7 @@ assert.match(wardrobeUi, /Number\(state\.wardrobePluginNavigationLastAt \|\| 0\)
 assert.match(wardrobeUi, /function renderWardrobePluginSecurityNotice\(manifest\)/);
 assert.match(wardrobeUi, /function renderWardrobePluginUnavailable\(manifest = currentWardrobePluginManifest\(\)\)/);
 assert.match(wardrobeUi, /data-wardrobe-plugin-refresh/);
-assert.match(wardrobeUi, /class="wardrobe-plugin-frame"/);
+assert.match(wardrobeUi, /class="wardrobe-plugin-frame embedded-plugin-frame active"/);
 assert.match(wardrobeUi, /sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-modals"/);
 assert.match(wardrobeUi, /\\u8863\\u6a71\\u63d2\\u4ef6\\u5165\\u53e3\\u8fd8\\u6ca1\\u6709\\u5141\\u8bb8\\u5f53\\u524d Home AI/);
 

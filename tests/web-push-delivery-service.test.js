@@ -673,6 +673,92 @@ function testAutomationDeliveryInboxKeepsDirectDeliverableReference() {
   });
 }
 
+function testCompletedVisualAuditDoesNotCreateInboxOrPush() {
+  withTempDir((root) => {
+    const runAt = new Date().toISOString();
+    const inboxCalls = [];
+    const automationProvider = {
+      async listJobs() {
+        return {
+          ok: true,
+          jobs: [{
+            id: "homeai_visual_music",
+            ownerPrincipalId: "owner",
+            lastRunAt: runAt,
+            lastStatus: "success",
+            outputDocuments: [{
+              name: "visual-music.md",
+              url: "/api/automations/output?jobId=homeai_visual_music&file=visual-music.md",
+              size: 12,
+              updatedAt: runAt,
+            }],
+          }],
+        };
+      },
+    };
+    const { calls, service, state } = createHarness(root, {
+      automationProvider,
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: "ainb_visual_music", workspaceId: input.workspaceId } };
+          },
+        },
+      },
+    });
+    state.pushSubscriptions.push({ subscription: { endpoint: "owner-endpoint" }, principalIds: ["owner"], workspaceIds: ["owner"] });
+    return service.runAutomationWebPushTick().then((result) => {
+      assert.equal(result.deliveries.length, 0);
+      assert.equal(calls.sends.length, 0);
+      assert.equal(inboxCalls.length, 0);
+      assert.equal(result.initialized[0].skipped, "background_audit_completed");
+      assert.equal(Boolean(state.automationPushMarks.homeai_visual_music), true);
+    });
+  });
+}
+
+function testFailedVisualAuditUsesStableInboxDedupe() {
+  withTempDir((root) => {
+    const runAt = new Date().toISOString();
+    const inboxCalls = [];
+    const automationProvider = {
+      async listJobs() {
+        return {
+          ok: true,
+          jobs: [{
+            id: "homeai_visual_finance",
+            ownerPrincipalId: "owner",
+            lastRunAt: runAt,
+            lastStatus: "error",
+            lastError: "visual assertion failed",
+            outputDocuments: [],
+          }],
+        };
+      },
+    };
+    const { service, state } = createHarness(root, {
+      automationProvider,
+      serviceOptions: {
+        actionInboxService: {
+          upsertSourceItem(input) {
+            inboxCalls.push(input);
+            return { ok: true, item: { id: "ainb_visual_finance", workspaceId: input.workspaceId } };
+          },
+        },
+      },
+    });
+    state.pushSubscriptions.push({ subscription: { endpoint: "owner-endpoint" }, principalIds: ["owner"], workspaceIds: ["owner"] });
+    return service.runAutomationWebPushTick().then((result) => {
+      assert.equal(result.deliveries.length, 1);
+      assert.equal(inboxCalls.length, 1);
+      assert.equal(inboxCalls[0].itemType, "error");
+      assert.equal(inboxCalls[0].sourceRef.kind, "visual_polish_audit_run");
+      assert.equal(inboxCalls[0].dedupeKey, "automation-audit:owner:homeai_visual_finance:error");
+    });
+  });
+}
+
 function testScheduledTodoAutomationCreatesTodoInboxItemWithoutDeliverable() {
   withTempDir((root) => {
     const runAt = new Date().toISOString();
@@ -1247,6 +1333,8 @@ Promise.resolve()
   .then(testAutomationTickSendsFailedRunWithoutDeliverableToInbox)
   .then(testFailedAutomationDoesNotAlternateDeliverableAndEmptyPush)
   .then(testAutomationDeliveryInboxKeepsDirectDeliverableReference)
+  .then(testCompletedVisualAuditDoesNotCreateInboxOrPush)
+  .then(testFailedVisualAuditUsesStableInboxDedupe)
   .then(testScheduledTodoAutomationCreatesTodoInboxItemWithoutDeliverable)
   .then(testScheduledTodoAutomationDoesNotAlternateDeliverableAndEmptyPush)
   .then(testAutomationTickInitializesOldFailedRunWithoutDeliverable)

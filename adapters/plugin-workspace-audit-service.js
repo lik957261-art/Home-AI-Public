@@ -34,7 +34,7 @@ function compactList(value, maxItems = 20, maxText = 120) {
 function safeAuditSourceRef(input = {}) {
   const source = objectValue(input);
   const out = {};
-  for (const key of ["reportUrl", "report_url", "automationId", "automation_id", "jobId", "job_id", "latestDocumentName", "latest_document_name", "route"]) {
+  for (const key of ["reportUrl", "report_url", "automationId", "automation_id", "jobId", "job_id", "latestDocumentName", "latest_document_name", "triggerMode", "trigger_mode", "auditMode", "audit_mode", "route"]) {
     if (source[key] == null) continue;
     if (key === "route" && typeof source[key] === "object" && !Array.isArray(source[key])) {
       out.route = {
@@ -414,10 +414,14 @@ function createPluginWorkspaceAuditService(options = {}) {
     const itemType = failed ? "error" : (input.itemType === "info" ? "info" : "review");
     const severity = clean(input.severity || "normal", 40) || "normal";
     const findingCount = Math.max(0, Number(input.findingCount || input.finding_count || 0) || 0);
+    const auditMode = clean(input.auditMode || input.audit_mode || input.sourceRef?.auditMode || input.sourceRef?.audit_mode || "alignment", 80) || "alignment";
+    const triggerMode = clean(input.triggerMode || input.trigger_mode || input.sourceRef?.triggerMode || input.sourceRef?.trigger_mode || "", 80);
     const sourceRef = Object.assign({}, safeAuditSourceRef(input.sourceRef || input.source_ref), {
       kind: AUDIT_KIND,
       pluginId,
       auditRunId,
+      auditMode,
+      triggerMode,
       severity,
       findingCount,
     });
@@ -431,7 +435,7 @@ function createPluginWorkspaceAuditService(options = {}) {
       summary: compactText(input.summary || input.error || "", 800),
       sourceRef,
       deepLink: clean(input.deepLink || input.deep_link, 600),
-      dedupeKey: clean(input.dedupeKey || input.dedupe_key || `plugin-audit:${workspaceId}:${pluginId}:${auditRunId || "latest"}`, 240),
+      dedupeKey: clean(input.dedupeKey || input.dedupe_key || `plugin-audit:${workspaceId}:${pluginId}:${auditMode}:${itemType}`, 240),
     });
   }
 

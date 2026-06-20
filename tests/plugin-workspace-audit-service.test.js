@@ -158,7 +158,9 @@ function testAuditInboxProjectionIsSummaryOnly() {
   assert.equal(calls[0].sourceRef.kind, "plugin_workspace_audit");
   assert.equal(calls[0].sourceRef.pluginId, "codex-mobile");
   assert.equal(calls[0].sourceRef.auditRunId, "run-1");
+  assert.equal(calls[0].sourceRef.auditMode, "alignment");
   assert.equal(calls[0].sourceRef.findingCount, 2);
+  assert.equal(calls[0].dedupeKey, "plugin-audit:owner:codex-mobile:alignment:review");
   assert.equal(calls[0].sourceRef.latestDeliverable.name, "run.md");
   assert.equal(calls[0].sourceRef.latestDeliverable.url, "/api/automations/output?jobId=job-1&file=run.md");
   assert.equal(calls[0].sourceRef.latestDocumentName, "run.md");

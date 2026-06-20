@@ -137,6 +137,65 @@ function testDefaultListHidesOrdinaryChatReceipts() {
   }
 }
 
+function testDefaultListHidesLowSignalScheduledAuditRows() {
+  const h = makeHarness();
+  try {
+    const auditInfo = h.service.upsertSourceItem({
+      id: "audit-info",
+      workspaceId: "owner",
+      sourceType: "automation",
+      sourceId: "homeai_visual_music",
+      itemType: "delivery",
+      title: "Music visual audit completed",
+      summary: "No user action required.",
+      sourceRef: {
+        kind: "visual_polish_audit_run",
+        triggerMode: "scheduled",
+        severity: "info",
+      },
+      dedupeKey: "automation-audit:owner:homeai_visual_music:delivery",
+    });
+    const auditError = h.service.upsertSourceItem({
+      id: "audit-error",
+      workspaceId: "owner",
+      sourceType: "automation",
+      sourceId: "homeai_visual_finance",
+      itemType: "error",
+      title: "Finance visual audit failed",
+      summary: "Needs attention.",
+      sourceRef: {
+        kind: "visual_polish_audit_run",
+        triggerMode: "scheduled",
+        severity: "high",
+      },
+      dedupeKey: "automation-audit:owner:homeai_visual_finance:error",
+    });
+    const manualAudit = h.service.upsertSourceItem({
+      id: "manual-audit-review",
+      workspaceId: "owner",
+      sourceType: "automation",
+      sourceId: "manual-audit-1",
+      itemType: "review",
+      title: "Manual audit review",
+      sourceRef: {
+        kind: "plugin_workspace_audit",
+        triggerMode: "manual",
+        severity: "normal",
+      },
+      dedupeKey: "plugin-audit:owner:codex:alignment:review",
+    });
+    const listed = h.service.listItems({ workspaceId: "owner" });
+    assert.deepEqual(listed.items.map((item) => item.id), [manualAudit.item.id, auditError.item.id]);
+    assert.equal(listed.counts.bySourceType.automation, 2);
+    const explicitAutomation = h.service.listItems({ workspaceId: "owner", sourceType: "automation" });
+    assert.deepEqual(new Set(explicitAutomation.items.map((item) => item.id)), new Set([auditInfo.item.id, auditError.item.id, manualAudit.item.id]));
+    const includeSystemAudit = h.service.listItems({ workspaceId: "owner", includeSystemAudit: true });
+    assert.deepEqual(new Set(includeSystemAudit.items.map((item) => item.id)), new Set([auditInfo.item.id, auditError.item.id, manualAudit.item.id]));
+  } finally {
+    cleanup(h);
+  }
+}
+
 function testDefaultListSortsNewestItemsFirst() {
   const h = makeHarness();
   try {
@@ -192,5 +251,6 @@ function testDefaultListSortsNewestItemsFirst() {
 testManualItemLifecycle();
 testSourceDedupeAndTerminalProtection();
 testDefaultListHidesOrdinaryChatReceipts();
+testDefaultListHidesLowSignalScheduledAuditRows();
 testDefaultListSortsNewestItemsFirst();
 console.log("action-inbox-service tests passed");

@@ -674,7 +674,8 @@ function renderPendingRunProgressPanel(message = {}) {
       </div>`;
     }).join("")
     : renderRunProgressWaitingRow(startMs);
-  return `<aside class="run-progress-panel inline pending-run-id" aria-live="polite">
+  const progressKey = runProgressMessageKey(state.currentThread, message) || String(message.id || "");
+  return `<aside class="run-progress-panel inline pending-run-id" aria-live="polite" data-run-progress-key="${escapeHtml(progressKey)}">
     <div class="run-progress-head">
       <span>\u8fd0\u884c\u4e2d</span>
       <span data-run-progress-elapsed="${escapeHtml(String(startMs))}">${escapeHtml(runProgressDurationLabel(startMs))}</span>
@@ -702,6 +703,10 @@ function renderLocalRunProgressRows(message = {}, startMs = Date.now()) {
 function renderRunProgressPanel(thread, runIds, options = {}) {
   const ids = (runIds || []).filter(Boolean);
   if (!ids.length) return "";
+  const progressKey = [
+    normalizeRunProgressId(thread?.id),
+    ...(ids || []).map(normalizeRunProgressId),
+  ].filter(Boolean).join(":");
   const allEvents = runProgressEvents(thread, ids);
   const startMs = runProgressStartMs(thread, ids, allEvents);
   const compactAfterOutput = !options.terminal && shouldCompactRunProgressAfterOutput(allEvents);
@@ -733,7 +738,7 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
     ? runProgressDurationLabel(startMs, options.terminalMs || Date.now())
     : runProgressDurationLabel(startMs);
   const elapsedAttr = options.terminal ? "" : ` data-run-progress-elapsed="${escapeHtml(String(startMs))}"`;
-  return `<aside class="run-progress-panel${options.inline ? " inline" : ""}${options.terminal ? " terminal" : ""}${compactAfterOutput ? " compact-after-output" : ""}" aria-live="polite">
+  return `<aside class="run-progress-panel${options.inline ? " inline" : ""}${options.terminal ? " terminal" : ""}${compactAfterOutput ? " compact-after-output" : ""}" aria-live="polite" data-run-progress-key="${escapeHtml(progressKey)}">
     <div class="run-progress-head">
       <span>${options.terminal ? "\u8fd0\u884c\u8bb0\u5f55" : "\u8fd0\u884c\u4e2d"}</span>
       <span${elapsedAttr}>${escapeHtml(elapsedLabel)}</span>
@@ -796,6 +801,8 @@ function updateExistingRunProgressPanel(existing, html) {
   if (!next) return false;
   existing.className = next.className;
   existing.setAttribute("aria-live", next.getAttribute("aria-live") || "polite");
+  const nextKey = next.getAttribute("data-run-progress-key") || "";
+  if (nextKey) existing.setAttribute("data-run-progress-key", nextKey);
   const existingHead = existing.querySelector(".run-progress-head");
   const nextHead = next.querySelector(".run-progress-head");
   if (existingHead && nextHead && existingHead.innerHTML !== nextHead.innerHTML) {
@@ -860,14 +867,23 @@ function runProgressRowAlignedScrollTarget(rows) {
 function scrollRunProgressRowsToLatest(panel) {
   const rows = panel?.querySelector?.(".run-progress-rows");
   if (!rows) return false;
+  if (!state.runProgressStableVisibleHeights) state.runProgressStableVisibleHeights = new Map();
   let target = null;
   const follow = () => {
+    const progressKey = String(panel?.dataset?.runProgressKey || "").trim();
     rows.style?.removeProperty?.("--run-progress-follow-bottom-pad");
     rows.style?.removeProperty?.("--run-progress-follow-visible-height");
+    rows.style?.removeProperty?.("--run-progress-follow-stable-height");
     rows.scrollTop = 0;
     if (typeof rows.offsetHeight === "number") void rows.offsetHeight;
     target = target || runProgressRowAlignedScrollTarget(rows);
     const clientHeight = Math.max(0, Number(rows.clientHeight || 0));
+    const previousStable = progressKey ? Math.max(0, Number(state.runProgressStableVisibleHeights.get(progressKey) || 0)) : 0;
+    const stableVisibleHeight = Math.min(clientHeight || 0, Math.max(previousStable, Math.ceil(target.visibleHeight || 0)));
+    if (progressKey && stableVisibleHeight > previousStable) {
+      state.runProgressStableVisibleHeights.set(progressKey, stableVisibleHeight);
+    }
+    if (stableVisibleHeight > 0) rows.style?.setProperty?.("--run-progress-follow-stable-height", `${Math.ceil(stableVisibleHeight)}px`);
     if (target.visibleHeight > 0 && target.visibleHeight < clientHeight - 1) {
       rows.style?.setProperty?.("--run-progress-follow-visible-height", `${Math.ceil(target.visibleHeight)}px`);
       if (typeof rows.offsetHeight === "number") void rows.offsetHeight;

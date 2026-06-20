@@ -45,6 +45,18 @@ function numeric(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function isVisualAuditAutomationJob(jobOrId = {}) {
+  const jobId = typeof jobOrId === "string" ? jobOrId : String(jobOrId?.id || jobOrId?.jobId || "");
+  const normalized = String(jobId || "").trim().toLowerCase();
+  return normalized.startsWith("homeai_visual_") || normalized.startsWith("visual_audit_");
+}
+
+function isLowSignalScheduledAuditEvent(event = {}) {
+  if (!isVisualAuditAutomationJob(event.jobId)) return false;
+  const messageType = String(event.payload?.data?.messageType || "").toLowerCase();
+  return messageType === "automation_completed";
+}
+
 function getProvider(value) {
   return typeof value === "function" ? value() : value;
 }
@@ -540,6 +552,14 @@ function createWebPushDeliveryService(options = {}) {
       if (existing === signature) continue;
       const event = automationPushEventForJob(job, latestDoc, signature);
       if (!event) continue;
+      if (isLowSignalScheduledAuditEvent(event)) {
+        initialized.push({ jobId, principalId, signature, skipped: "background_audit_completed" });
+        if (!opts.dryRun) {
+          setAutomationPushMark(job, signature, latestDoc);
+          marksChanged = true;
+        }
+        continue;
+      }
       if (!existing && !opts.includeInitial && !isRecentInitialAutomationEvent(job, latestDoc)) {
         initialized.push({ jobId, principalId, signature });
         if (!opts.dryRun) {
@@ -560,7 +580,7 @@ function createWebPushDeliveryService(options = {}) {
         assigneeWorkspaceId: event.workspaceId,
         sourceType: "automation",
         sourceId: event.jobId,
-        sourceRef: {
+        sourceRef: Object.assign({}, isVisualAuditAutomationJob(event.jobId) ? { kind: "visual_polish_audit_run" } : {}, {
           automationId: event.jobId,
           signature: event.signature,
           automationTitle: String(event.payload?.data?.automationTitle || event.payload?.title || "").trim(),
@@ -568,7 +588,7 @@ function createWebPushDeliveryService(options = {}) {
           latestDeliverable: automationDeliverableSourceRef(event.latestDoc),
           scheduledTodo: Boolean(event.scheduledTodo),
           schedule: String(event.payload?.data?.schedule || "").trim(),
-        },
+        }),
         itemType: /failed/i.test(String(event.payload?.data?.messageType || "")) ? "error" : (event.scheduledTodo ? "todo" : "delivery"),
         status: "open",
         priority: /failed/i.test(String(event.payload?.data?.messageType || "")) ? "high" : (event.scheduledTodo ? "high" : "normal"),
@@ -576,7 +596,9 @@ function createWebPushDeliveryService(options = {}) {
         summary: event.payload?.body || "",
         actionLabel: "\u67e5\u770b",
         deepLink: originalUrl,
-        dedupeKey: `automation:${event.jobId}:${event.signature}`,
+        dedupeKey: isVisualAuditAutomationJob(event.jobId)
+          ? `automation-audit:${event.workspaceId}:${event.jobId}:${/failed/i.test(String(event.payload?.data?.messageType || "")) ? "error" : "delivery"}`
+          : `automation:${event.jobId}:${event.signature}`,
       });
       if (inboxItem?.id && event.payload?.data) {
         const automationUrl = automationDetailRouteUrl({

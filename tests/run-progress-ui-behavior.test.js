@@ -779,6 +779,7 @@ const alignedTarget = runProgressRowAlignedScrollTarget(alignedRunProgressRows);
 assert.strictEqual(alignedTarget.scrollTop, 276);
 assert.strictEqual(alignedTarget.visibleHeight, 115);
 const alignedRunProgressPanel = {
+  dataset: { runProgressKey: "thread_current:resp_current" },
   querySelector(selector) {
     return selector === ".run-progress-rows" ? alignedRunProgressRows : null;
   },
@@ -787,8 +788,24 @@ assert.strictEqual(scrollRunProgressRowsToLatest(alignedRunProgressPanel), true)
 assert.strictEqual(alignedRunProgressRows.scrollTop, 276);
 assert.strictEqual(alignedRowsStyle.values["--run-progress-follow-bottom-pad"], undefined);
 assert.strictEqual(alignedRowsStyle.values["--run-progress-follow-visible-height"], "115px");
+assert.strictEqual(alignedRowsStyle.values["--run-progress-follow-stable-height"], "115px");
+assert.strictEqual(testState.runProgressStableVisibleHeights.get("thread_current:resp_current"), 115);
 assert.ok(alignedRowsStyle.removed.includes("--run-progress-follow-bottom-pad"));
 assert.ok(alignedRowsStyle.removed.includes("--run-progress-follow-visible-height"));
+
+alignedRunProgressRows.querySelectorAll = (selector) => selector === ".run-progress-row"
+  ? [0, 39, 79].map((offsetTop) => ({
+      offsetTop,
+      offsetHeight: 34,
+    }))
+  : [];
+alignedRunProgressRows.scrollHeight = 118;
+alignedRunProgressRows.clientHeight = 150;
+alignedRunProgressRows.naturalClientHeight = 150;
+alignedRunProgressRows.scrollTop = 0;
+assert.strictEqual(scrollRunProgressRowsToLatest(alignedRunProgressPanel), true);
+assert.strictEqual(alignedRowsStyle.values["--run-progress-follow-stable-height"], "115px");
+assert.strictEqual(testState.runProgressStableVisibleHeights.get("thread_current:resp_current"), 115);
 
 fakeBody.inserted = "";
 fakeConversation.scrollHeight = 1000;

@@ -89,7 +89,7 @@ try {
   const musicOptions = parseArgs(["--config-file", configFile, "--job-key", "music", "--run-id", "unit-run", "--output-root", tempRoot]);
   assert.equal(musicOptions.sourceThreadId, "source-home-ai-thread");
   assert.equal(musicOptions.appUrl, "http://127.0.0.1:8797/?source=pwa");
-  assert.equal(musicOptions.expectedClientVersion, "20260620-visual-debug-agent-v883");
+  assert.equal(musicOptions.expectedClientVersion, "20260620-run-progress-stable-height-v887");
   assert.equal(musicOptions.scope, "plugin");
   assert.deepEqual(musicOptions.pluginIds, ["music"]);
   assert.equal(musicOptions.targetThreads.music, "music-thread");
@@ -123,7 +123,7 @@ try {
   assert.match(appUrl, /^http:\/\/127\.0\.0\.1:8797\//);
   assert.match(appUrl, /resetClient=1/);
   assert.match(appUrl, /hard=1/);
-  assert.match(appUrl, /targetVersion=20260620-visual-debug-agent-v883/);
+  assert.match(appUrl, /targetVersion=20260620-run-progress-stable-height-v887/);
   assert.ok(args.includes("--lock-file"));
   assert.ok(args.some((item) => item.includes("visual-polish-audit-runner-test-") && item.endsWith(".lock")));
 } finally {

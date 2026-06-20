@@ -3223,6 +3223,7 @@ button {
 
 .message.assistant.streaming-active .run-progress-panel.inline .run-progress-rows {
   max-height: min(22dvh, 170px, var(--run-progress-follow-visible-height, 170px));
+  min-height: min(22dvh, 170px, var(--run-progress-follow-stable-height, 26px));
   padding-bottom: 2px;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -4192,6 +4193,7 @@ button {
 
   .message.assistant.streaming-active .run-progress-panel.inline .run-progress-rows {
     max-height: min(18dvh, 150px, var(--run-progress-follow-visible-height, 150px));
+    min-height: min(18dvh, 150px, var(--run-progress-follow-stable-height, 26px));
   }
 
   .message.assistant.streaming-active.run-progress-preserve-prompt .run-progress-panel.inline {

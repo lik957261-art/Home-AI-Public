@@ -108,6 +108,55 @@ function actionInboxIsTerminalForSort(item = {}) {
   return ["done", "dismissed", "archived"].includes(normalizeStatus(item.status, "open"));
 }
 
+function itemSourceRef(item = {}) {
+  return objectValue(item.sourceRef || item.source_ref);
+}
+
+function isAuditAutomationItem(item = {}) {
+  const sourceType = clean(item.sourceType || item.source_type, 80).toLowerCase();
+  if (sourceType !== "automation") return false;
+  const sourceRef = itemSourceRef(item);
+  const kind = clean(sourceRef.kind || sourceRef.auditKind || sourceRef.audit_kind, 120).toLowerCase();
+  if (["plugin_workspace_audit", "visual_polish_audit_run", "visual_audit", "system_health_audit"].includes(kind)) return true;
+  const sourceId = clean(item.sourceId || item.source_id || sourceRef.automationId || sourceRef.jobId, 160).toLowerCase();
+  return sourceId.startsWith("homeai_visual_") || sourceId.startsWith("visual_audit_");
+}
+
+function isManualAuditItem(item = {}) {
+  const sourceRef = itemSourceRef(item);
+  const trigger = clean(sourceRef.triggerMode || sourceRef.trigger_mode || sourceRef.trigger || "", 80).toLowerCase();
+  return ["manual", "one_shot", "one-shot", "user"].includes(trigger);
+}
+
+function isHighSignalAuditItem(item = {}) {
+  const itemType = clean(item.itemType || item.item_type, 80).toLowerCase();
+  const priority = normalizePriority(item.priority);
+  const sourceRef = itemSourceRef(item);
+  const severity = clean(sourceRef.severity || item.severity || "", 40).toLowerCase();
+  if (itemType === "error") return true;
+  if (["urgent", "high"].includes(priority)) return true;
+  return ["critical", "high", "urgent"].includes(severity);
+}
+
+function actionInboxItemVisibleByDefault(item = {}) {
+  if (!isAuditAutomationItem(item)) return true;
+  if (isManualAuditItem(item)) return true;
+  return isHighSignalAuditItem(item);
+}
+
+function actionInboxFilteredCounts(items = []) {
+  const counts = { byStatus: {}, bySourceType: {}, byItemType: {} };
+  for (const item of items) {
+    const status = normalizeStatus(item.status, "open");
+    const sourceType = clean(item.sourceType || item.source_type, 80) || "unknown";
+    const itemType = clean(item.itemType || item.item_type, 80) || "unknown";
+    counts.byStatus[status] = (counts.byStatus[status] || 0) + 1;
+    counts.bySourceType[sourceType] = (counts.bySourceType[sourceType] || 0) + 1;
+    counts.byItemType[itemType] = (counts.byItemType[itemType] || 0) + 1;
+  }
+  return counts;
+}
+
 function createActionInboxService(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : defaultNowIso;
   const makeId = typeof options.makeId === "function" ? options.makeId : defaultMakeId;
@@ -141,12 +190,14 @@ function createActionInboxService(options = {}) {
     const store = requireStore();
     const workspaceId = clean(input.workspaceId || input.workspace_id || "owner", 120) || "owner";
     const sourceType = clean(input.sourceType || input.source_type, 80);
+    const includeSystemAudit = Boolean(input.includeSystemAudit || input.include_system_audit);
     const excludedSourceTypes = sourceType ? [] : defaultHiddenSourceTypes;
     const itemType = clean(input.itemType || input.item_type, 80);
     const excludedItemTypes = Array.isArray(input.excludedItemTypes || input.excluded_item_types)
       ? (input.excludedItemTypes || input.excluded_item_types).map((item) => clean(item, 80)).filter(Boolean)
       : [];
-    const items = sortActionInboxItems(store.listActionInboxItems({
+    const limit = Math.max(1, Math.min(500, Number(input.limit || 100) || 100));
+    const rawItems = sortActionInboxItems(store.listActionInboxItems({
       workspaceId,
       status: clean(input.status || input.filterStatus, 40),
       sourceType,
@@ -155,12 +206,15 @@ function createActionInboxService(options = {}) {
       excludedItemTypes: itemType ? [] : excludedItemTypes,
       search: clean(input.search, 200),
       includeDone: Boolean(input.includeDone || input.include_done),
-      limit: Math.max(1, Math.min(500, Number(input.limit || 100) || 100)),
+      limit: includeSystemAudit || sourceType ? limit : 500,
     }));
-    const counts = typeof store.actionInboxCounts === "function" ? store.actionInboxCounts(workspaceId, {
+    const items = (includeSystemAudit || sourceType ? rawItems : rawItems.filter(actionInboxItemVisibleByDefault)).slice(0, limit);
+    const counts = includeSystemAudit || sourceType
+      ? (typeof store.actionInboxCounts === "function" ? store.actionInboxCounts(workspaceId, {
       excludedSourceTypes,
       excludedItemTypes: itemType ? [] : excludedItemTypes,
-    }) : { byStatus: {}, bySourceType: {}, byItemType: {} };
+    }) : { byStatus: {}, bySourceType: {}, byItemType: {} })
+      : actionInboxFilteredCounts(items);
     return { ok: true, items, counts, source: { name: "action_inbox", storage: "sqlite" } };
   }
 
@@ -324,6 +378,7 @@ function createActionInboxService(options = {}) {
 }
 
 module.exports = {
+  actionInboxItemVisibleByDefault,
   createActionInboxService,
   normalizeActionInboxPriority: normalizePriority,
   normalizeActionInboxStatus: normalizeStatus,

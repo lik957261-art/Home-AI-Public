@@ -203,6 +203,14 @@ audit should upsert an `itemType=error` row with a bounded failure summary. A
 clean audit may create an `itemType=info` row only when the user has explicitly
 enabled clean-run receipts.
 
+Scheduled audit rows are background system-maintenance signals, not ordinary
+current work. The default Inbox `当前` projection must hide low-signal scheduled
+audit rows such as clean visual-audit deliveries, `info` receipts, and
+normal-priority scheduled audit reviews. Manual audit runs and high-signal
+scheduled audit rows (`error`, high/urgent priority, or high/critical severity)
+remain visible. Explicit Automation/source queries or `includeSystemAudit=1`
+may still show the full audit projection for troubleshooting.
+
 Audit Inbox rows are triage pointers, not report storage. They must not copy
 full report bodies, raw diffs, raw executor logs, raw model output, prompts,
 tokens, launch keys, push endpoints, private plugin data, or local filesystem
@@ -219,6 +227,11 @@ report; it must not duplicate the full report body.
 Host-side audit projection is provided by `pluginWorkspaceAuditService` and
 uses `actionInboxService.upsertSourceItem`. Projection callers must pass only
 summary fields, safe report/deep-link references, severity, and finding count.
+The default dedupe key for plugin audit Inbox rows is stable by workspace,
+plugin, audit mode, and item type; it must not include the per-run report file
+or audit run id unless a caller explicitly needs separate rows. This keeps
+scheduled audits updating the same triage pointer instead of flooding the
+current list.
 When the plugin workspace audit runner executes from CRON, it may upsert this
 summary item directly through the runtime SQLite store if a configured database
 path is available. If no database path is configured, the run still succeeds and
