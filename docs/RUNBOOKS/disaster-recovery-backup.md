@@ -43,6 +43,10 @@ NFS exports may root-squash sudo writes, which can surface as rsync
 `unexpected end of file` or `mkpathat: Permission denied`. The supported write
 path is the wrapper above: sudo reads production into local staging, then the
 normal operator user syncs staging to NFS or to the configured SSH target.
+After a successful publish, local `staging/current` is deleted by default
+because the restore artifact now lives on NAS/SSH storage. Set
+`HOMEAI_DISASTER_BACKUP_KEEP_STAGING=1` only for a bounded manual diagnostic
+run. If a publish fails, staging is left in place for inspection.
 
 The wrapper default is `HOMEAI_DISASTER_BACKUP_TRANSPORT=auto`: it prefers
 SSH/rsync when both `HOMEAI_DISASTER_BACKUP_SSH_TARGET` and

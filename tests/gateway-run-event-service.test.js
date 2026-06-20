@@ -247,6 +247,31 @@ function testCompletedRunUpdatesTaskGroupReceiptMeta() {
   assert.equal(thread.taskGroupMeta["plugin:wardrobe"].lastMessageId, "assistant_1");
 }
 
+function testCompletedRunRejectsFragmentTaskGroupReceiptMeta() {
+  const { message, service, thread } = makeHarness();
+  message.taskGroupId = "plugin:music";
+  thread.taskGroupMeta = {
+    "plugin:music": {
+      title: "Music",
+      lastReceiptTitle: "previous receipt",
+      updatedAt: "2026-05-15T00:00:00.000Z",
+    },
+  };
+
+  const result = service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      output: [{ type: "message", content: [{ type: "output_text", text: "感。" }] }],
+    },
+  });
+
+  assert.equal(result.action, "completed");
+  assert.equal(thread.taskGroupMeta["plugin:music"].lastReceiptTitle, "");
+  assert.equal(thread.taskGroupMeta["plugin:music"].pluginTopic, true);
+}
+
 function testDuplicateCompletedEventDoesNotNotifyTwice() {
   const { calls, service } = makeHarness();
   const first = service.applyHermesRunEvent({
@@ -1134,6 +1159,7 @@ testDeltaUpdatesMessageAndThread();
 testStreamingDeltaSavesAreCoalesced();
 testCompletedRunMutatesTerminalStateAndSchedulesQueue();
 testCompletedRunUpdatesTaskGroupReceiptMeta();
+testCompletedRunRejectsFragmentTaskGroupReceiptMeta();
 testDuplicateCompletedEventDoesNotNotifyTwice();
 testCompletedRunPersistsLoadedSkillReferences();
 testOutputItemSkillPersistsBeforeCompletionAndSurvivesEventTrim();

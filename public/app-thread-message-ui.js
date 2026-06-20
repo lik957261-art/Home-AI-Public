@@ -94,17 +94,27 @@ function configureComposer(options = {}) {
   const searchMode = isChatSearchMode();
   const hidden = taskListRoot || Boolean(options.hidden);
   const composer = $("composer");
+  const shellLocked = Boolean(options.shellLocked) && !hidden && !searchMode;
+  const visuallyEnabled = enabled || shellLocked || searchMode;
+  if (composer && Boolean(hidden) && !searchMode) {
+    composer.hidden = true;
+    composer.setAttribute("aria-hidden", "true");
+  }
   if (composer) {
-    composer.hidden = Boolean(hidden) && !searchMode;
-    composer.setAttribute("aria-hidden", composer.hidden ? "true" : "false");
+    composer.classList.toggle("composer-shell-locked", shellLocked);
+    composer.setAttribute("aria-busy", shellLocked ? "true" : "false");
   }
   if (!enabled && typeof clearKeyboardViewportMetrics === "function") clearKeyboardViewportMetrics();
-  setComposerEditorEnabled(enabled || searchMode);
+  setComposerEditorEnabled(visuallyEnabled);
   setComposerPlaceholder(searchMode ? "搜索聊天" : composerPlaceholder(options.placeholder || "Message Home AI..."));
-  $("attachFile").disabled = searchMode ? false : !enabled;
-  $("sendMessage").disabled = searchMode ? !currentChatSearchDraft() : !enabled;
+  $("attachFile").disabled = searchMode ? false : !visuallyEnabled;
+  $("sendMessage").disabled = searchMode ? !currentChatSearchDraft() : !visuallyEnabled;
   updateComposerAction();
   renderQuotedReply();
+  if (composer && !(Boolean(hidden) && !searchMode)) {
+    composer.hidden = false;
+    composer.setAttribute("aria-hidden", "false");
+  }
 }
 
 function setComposerEnabled(enabled) {

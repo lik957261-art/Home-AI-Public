@@ -43,38 +43,6 @@ High-value entry points:
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
-## 2026-06-19 Public Update
-
-This update refreshes the public tree from source commit `4206929a`. It includes
-the latest mobile shell, plugin runtime, and public-safe deployment hardening.
-
-Highlights:
-
-- Makes Chat and Topics bottom-tab navigation paint the destination shell before
-  heavier thread/view loading, reducing the risk of WebView stalls during rapid
-  plugin-topic navigation.
-- Throttles mobile layout diagnostics by default and bounds the server-side
-  client layout diagnostic log so debug instrumentation cannot grow into
-  unbounded runtime files.
-- Renders bare image-looking URLs as inline images in rich text while preserving
-  ordinary URLs, code spans, and Markdown image syntax.
-- Adds deploy-time Music cover runtime permission repair for Owner-only cover
-  plan/apply caches and backups.
-- Refreshes ChatGPT Pro bridge, shared-directory dark-mode contrast, run
-  progress panel, and Music tool schema contracts from the current source tree.
-- Keeps public export privacy checks current by replacing machine-specific
-  Windows user paths with environment-based examples.
-
-Validation for this public update:
-
-- `npm test`
-- `npm run productization:check`
-- `npm run privacy:scan`
-- `git diff --check`
-- clean public export privacy scan
-- production authenticated navigation smoke from the source deployment before
-  export
-
 ## 1.0.3 Public Release
 
 This release refreshes the public tree from the current Home AI source and

@@ -16,12 +16,25 @@ const HOME_AI_BRIDGE_HOST_LABEL = "com.hermesmobile.bridge-host";
 const HOME_AI_CRON_LABEL = "com.hermesmobile.cron";
 const HOME_AI_WORKSPACE_SYSTEM_HELPER_LABEL = "com.hermesmobile.workspace-system-helper";
 const HOME_AI_NAS_BACKUP_MOUNT_LABEL = "com.hermesmobile.nas-backup-mount";
+const HOME_AI_VISUAL_DEBUG_LABEL = "com.hermesmobile.visual-debug";
 const PRODUCTION_SERVICE_USER = "hermes-host";
 const PRODUCTION_SERVICE_GROUP = "staff";
+const HOME_AI_VISUAL_DEBUG_USER = process.env.HOMEAI_VISUAL_DEBUG_USER || "xuxin";
+const HOME_AI_VISUAL_DEBUG_PORT = Number(process.env.HOMEAI_VISUAL_DEBUG_PORT || 19073) || 19073;
+const HOME_AI_VISUAL_DEBUG_APPIUM_PORT = Number(process.env.HOMEAI_VISUAL_DEBUG_APPIUM_PORT || 4723) || 4723;
+const HOME_AI_VISUAL_DEBUG_WDA_PORT = Number(process.env.HOMEAI_VISUAL_DEBUG_WDA_PORT || 8101) || 8101;
+const HOME_AI_VISUAL_DEBUG_MJPEG_PORT = Number(process.env.HOMEAI_VISUAL_DEBUG_MJPEG_PORT || 9100) || 9100;
+const HOME_AI_VISUAL_DEBUG_APP_URL = process.env.HOMEAI_VISUAL_DEBUG_APP_URL || "http://127.0.0.1:8797/?source=pwa";
+const HOME_AI_VISUAL_ANALYSIS_PROFILE = process.env.HOMEAI_VISUAL_ANALYSIS_PROFILE || "hm-owner-openai-xhigh";
+const HOME_AI_VISUAL_ANALYSIS_SOURCE_PROFILE = process.env.HOMEAI_VISUAL_ANALYSIS_SOURCE_PROFILE || "hm-owner-openai-1";
+const HOME_AI_VISUAL_ANALYSIS_MODEL = process.env.HOMEAI_VISUAL_ANALYSIS_MODEL || "gpt-5.5";
+const HOME_AI_VISUAL_ANALYSIS_PROVIDER = process.env.HOMEAI_VISUAL_ANALYSIS_PROVIDER || "openai-codex";
+const HOME_AI_VISUAL_ANALYSIS_REASONING_EFFORT = process.env.HOMEAI_VISUAL_ANALYSIS_REASONING_EFFORT || "xhigh";
 const HOME_AI_CRON_START_INTERVAL_SECONDS = 60;
 const HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS = 1800;
 const HOME_AI_NAS_BACKUP_MOUNT_START_INTERVAL_SECONDS = 300;
 const HOME_AI_BRIDGE_HOST_PORT = 8798;
+const DEPLOY_BACKUP_RETENTION_DAYS = 3;
 const HOME_AI_CHATGPT_PRO_WORKSPACE = process.env.HERMES_MOBILE_CHATGPT_PRO_WORKSPACE
   || process.env.HERMES_WEB_CHATGPT_PRO_WORKSPACE
   || `${DEFAULT_DEV_ROOT}/app`;
@@ -63,6 +76,9 @@ const HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME = process.env.HERMES_MOBILE_PLUG
 const HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS = process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS
   || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS
   || "600000";
+const HOME_AI_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE = process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE
+  || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE
+  || "";
 const HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS = Object.freeze({
   "codex-mobile": "codex-mobile-web",
   "codex-mobile-web": "codex-mobile-web",
@@ -338,6 +354,7 @@ function parseArgs(argv) {
     validationRetries: 12,
     validationDelayMs: 2000,
     syncOnly: false,
+    deployBackupRetentionDays: DEPLOY_BACKUP_RETENTION_DAYS,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -357,6 +374,7 @@ function parseArgs(argv) {
     else if (arg === "--timestamp") out.timestamp = argv[++index] || "";
     else if (arg === "--validation-retries") out.validationRetries = Number(argv[++index] || out.validationRetries);
     else if (arg === "--validation-delay-ms") out.validationDelayMs = Number(argv[++index] || out.validationDelayMs);
+    else if (arg === "--deploy-backup-retention-days") out.deployBackupRetentionDays = Number(argv[++index] || out.deployBackupRetentionDays);
     else if (arg === "--sync-only") out.syncOnly = true;
     else if (arg === "--execute") out.execute = true;
     else if (arg === "--json") out.json = true;
@@ -378,6 +396,7 @@ function parseArgs(argv) {
         "  --surface full|static       Static Home AI sync copies only public/",
         "  --allow-dirty               Permit deploy-relevant dirty source files",
         "  --health-url <url>          Optional plugin health/version URL",
+        "  --deploy-backup-retention-days <days>  Prune deploy backups older than this many days; default 3",
         "  --base <url>                Home AI production base for status smoke",
         "  --reason <slug>             Backup name slug",
         "  --validation-retries <n>    Retries for listener/health validation, default 12",
@@ -896,6 +915,53 @@ function buildHomeAiCronProfileAliasPlan(macRoot, manifest = null) {
   };
 }
 
+function setTopLevelYamlScalar(text, blockName, key, value) {
+  const cleanBlock = String(blockName || "").trim();
+  const cleanKey = String(key || "").trim();
+  if (!cleanBlock || !cleanKey) return String(text || "");
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  let blockStart = -1;
+  for (let index = 0; index < lines.length; index += 1) {
+    if (lines[index] === `${cleanBlock}:`) {
+      blockStart = index;
+      break;
+    }
+  }
+  if (blockStart < 0) {
+    const prefix = lines.length && lines[lines.length - 1] === "" ? [] : [""];
+    return [...lines, ...prefix, `${cleanBlock}:`, `  ${cleanKey}: ${value}`].join("\n");
+  }
+  let blockEnd = lines.length;
+  for (let index = blockStart + 1; index < lines.length; index += 1) {
+    if (/^[A-Za-z0-9_-]+:\s*$/.test(lines[index])) {
+      blockEnd = index;
+      break;
+    }
+  }
+  const keyPattern = new RegExp(`^  ${cleanKey.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}:\\s*`);
+  for (let index = blockStart + 1; index < blockEnd; index += 1) {
+    if (keyPattern.test(lines[index])) {
+      lines[index] = `  ${cleanKey}: ${value}`;
+      return lines.join("\n");
+    }
+  }
+  lines.splice(blockEnd, 0, `  ${cleanKey}: ${value}`);
+  return lines.join("\n");
+}
+
+function buildHomeAiVisualAnalysisProfileConfig(sourceConfig, options = {}) {
+  let text = String(sourceConfig || "");
+  text = setTopLevelYamlScalar(text, "model", "default", options.model || HOME_AI_VISUAL_ANALYSIS_MODEL);
+  text = setTopLevelYamlScalar(text, "model", "provider", options.provider || HOME_AI_VISUAL_ANALYSIS_PROVIDER);
+  text = setTopLevelYamlScalar(text, "agent", "reasoning_effort", options.reasoningEffort || HOME_AI_VISUAL_ANALYSIS_REASONING_EFFORT);
+  return text.trimEnd() + "\n";
+}
+
+function findCronProfileSourceDir(manifest, profile, macRoot = DEFAULT_MAC_ROOT) {
+  const rows = cronProfileAliasRowsFromManifest(manifest || {}, macRoot);
+  return rows.find((row) => row.profile === profile)?.sourceDir || "";
+}
+
 function homeAiBridgeHostPaths(macRoot) {
   const root = normalizePath(macRoot || DEFAULT_MAC_ROOT);
   const appRoot = posixJoin(root, "app");
@@ -935,6 +1001,27 @@ function homeAiNasBackupMountPaths(macRoot) {
   };
 }
 
+function homeAiVisualDebugPaths(macRoot, user = HOME_AI_VISUAL_DEBUG_USER) {
+  const root = normalizePath(macRoot || DEFAULT_MAC_ROOT);
+  const appRoot = posixJoin(root, "app");
+  const home = `/Users/${user}`;
+  const qaRoot = posixJoin(home, ".homeai-qa");
+  return {
+    root,
+    appRoot,
+    node: posixJoin(root, PINNED_NODE),
+    script: posixJoin(appRoot, "scripts", "ios-pwa-live-debug-server.js"),
+    user,
+    home,
+    qaRoot,
+    appiumStartScript: posixJoin(qaRoot, "scripts", "macos-ios-appium-start.sh"),
+    logsRoot: posixJoin(qaRoot, "logs"),
+    stdoutLog: posixJoin(qaRoot, "logs", "homeai-visual-debug.out.log"),
+    stderrLog: posixJoin(qaRoot, "logs", "homeai-visual-debug.err.log"),
+    plistPath: posixJoin(home, "Library", "LaunchAgents", `${HOME_AI_VISUAL_DEBUG_LABEL}.plist`),
+  };
+}
+
 function buildHomeAiCronLaunchdPlist(macRoot) {
   const paths = homeAiCronPaths(macRoot);
   const env = {
@@ -957,6 +1044,10 @@ function buildHomeAiCronLaunchdPlist(macRoot) {
     HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME,
     HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS,
     HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS,
+    HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE: HOME_AI_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE || posixJoin(paths.root, "data", "plugin-workspace-audit-task-cards.json"),
+    HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE: HOME_AI_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE || posixJoin(paths.root, "data", "plugin-workspace-audit-task-cards.json"),
+    CODEX_MOBILE_BASE_URL: "http://127.0.0.1:8787",
+    CODEX_MOBILE_KEY_FILE: posixJoin(paths.root, "data", "secrets", "codex-mobile-access-key.secret"),
     HERMES_CRON_SCRIPT_TIMEOUT: String(HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS),
     HOMEAI_DISASTER_BACKUP_TRANSPORT: HOME_AI_DISASTER_BACKUP_TRANSPORT,
     HOMEAI_DISASTER_BACKUP_SSH_TARGET: HOME_AI_DISASTER_BACKUP_SSH_TARGET,
@@ -1019,6 +1110,63 @@ function buildHomeAiNasBackupMountLaunchdPlist(macRoot) {
   <true/>
   <key>StartInterval</key>
   <integer>${HOME_AI_NAS_BACKUP_MOUNT_START_INTERVAL_SECONDS}</integer>
+  <key>StandardOutPath</key>
+  <string>${xmlEscape(paths.stdoutLog)}</string>
+  <key>StandardErrorPath</key>
+  <string>${xmlEscape(paths.stderrLog)}</string>
+</dict>
+</plist>
+`;
+}
+
+function buildHomeAiVisualDebugLaunchAgentPlist(macRoot, user = HOME_AI_VISUAL_DEBUG_USER) {
+  const paths = homeAiVisualDebugPaths(macRoot, user);
+  const env = {
+    HOME: paths.home,
+    PATH: `${paths.qaRoot}/node-current/bin:${paths.qaRoot}/appium-global/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin`,
+    HERMES_MOBILE_ROOT: paths.root,
+    HOMEAI_IOS_DEBUG_LANE_OWNER: "homeai-visual-polish-cron",
+    HOMEAI_VISUAL_DEBUG_APP_URL: HOME_AI_VISUAL_DEBUG_APP_URL,
+    APPIUM_PORT: String(HOME_AI_VISUAL_DEBUG_APPIUM_PORT),
+  };
+  const envRows = Object.entries(env)
+    .map(([key, value]) => `    <key>${xmlEscape(key)}</key>\n    <string>${xmlEscape(value)}</string>`)
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${xmlEscape(HOME_AI_VISUAL_DEBUG_LABEL)}</string>
+  <key>WorkingDirectory</key>
+  <string>${xmlEscape(paths.appRoot)}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${xmlEscape(paths.node)}</string>
+    <string>${xmlEscape(paths.script)}</string>
+    <string>--host</string>
+    <string>127.0.0.1</string>
+    <string>--port</string>
+    <string>${HOME_AI_VISUAL_DEBUG_PORT}</string>
+    <string>--appium-url</string>
+    <string>http://127.0.0.1:${HOME_AI_VISUAL_DEBUG_APPIUM_PORT}</string>
+    <string>--wda-local-port</string>
+    <string>${HOME_AI_VISUAL_DEBUG_WDA_PORT}</string>
+    <string>--mjpeg-server-port</string>
+    <string>${HOME_AI_VISUAL_DEBUG_MJPEG_PORT}</string>
+    <string>--app-url</string>
+    <string>${xmlEscape(HOME_AI_VISUAL_DEBUG_APP_URL)}</string>
+    <string>--appium-start-script</string>
+    <string>${xmlEscape(paths.appiumStartScript)}</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+${envRows}
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
   <key>StandardOutPath</key>
   <string>${xmlEscape(paths.stdoutLog)}</string>
   <key>StandardErrorPath</key>
@@ -1108,6 +1256,35 @@ function runSudo(command, args, password, input) {
   return result;
 }
 
+function pruneDeployBackups(plan, options, password) {
+  const retentionDays = Number(options.deployBackupRetentionDays);
+  if (!Number.isFinite(retentionDays) || retentionDays < 0) {
+    throw new Error(`deploy_backup_retention_days_invalid:${options.deployBackupRetentionDays}`);
+  }
+  const backupRoot = posixJoin(options.macRoot, "backups", "deploy");
+  if (!plan.backupPath.startsWith(`${backupRoot}/`)) {
+    throw new Error(`deploy_backup_path_outside_root:${plan.backupPath}`);
+  }
+  const script = [
+    "set -eu",
+    `root=${shQuote(backupRoot)}`,
+    `current=${shQuote(plan.backupPath)}`,
+    `days=${Math.floor(retentionDays)}`,
+    "test -d \"$root\" || exit 0",
+    "find \"$root\" -mindepth 1 -maxdepth 1 -type d -mtime +\"$days\" ! -path \"$current\" -print -exec rm -rf {} +",
+  ].join("\n");
+  const result = runSudo("/bin/sh", ["-c", script], password);
+  const pruned = String(result.stdout || "").trim().split(/\r?\n/).filter(Boolean);
+  return {
+    type: "deploy-backup-retention-prune",
+    status: 0,
+    retentionDays: Math.floor(retentionDays),
+    root: backupRoot,
+    prunedCount: pruned.length,
+    pruned: pruned.slice(0, 80),
+  };
+}
+
 function installRootOwnedTextFile(targetPath, text, password, mode = "644", owner = "root:wheel") {
   const tempPath = path.join(os.tmpdir(), `home-ai-deploy-${process.pid}-${crypto.randomUUID()}.tmp`);
   fs.writeFileSync(tempPath, text, { encoding: "utf8", mode: 0o600 });
@@ -1164,6 +1341,10 @@ function installHomeAiListenerVoiceInputEnv(plan, password) {
     HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME,
     HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS,
     HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS,
+    HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE: HOME_AI_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE || posixJoin(plan.macRoot, "data", "plugin-workspace-audit-task-cards.json"),
+    HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE: HOME_AI_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE || posixJoin(plan.macRoot, "data", "plugin-workspace-audit-task-cards.json"),
+    CODEX_MOBILE_BASE_URL: "http://127.0.0.1:8787",
+    CODEX_MOBILE_KEY_FILE: posixJoin(plan.macRoot, "data", "secrets", "codex-mobile-access-key.secret"),
     HERMES_MOBILE_VOICE_INPUT_ENABLED: "1",
     HERMES_MOBILE_VOICE_INPUT_ASR_BACKEND: HOME_AI_VOICE_INPUT_ASR_BACKEND,
     HERMES_MOBILE_VOICE_INPUT_ASR_PROTOCOL: HOME_AI_VOICE_INPUT_ASR_PROTOCOL,
@@ -1284,6 +1465,70 @@ function installHomeAiCronProfileAliases(plan, password) {
   };
 }
 
+function installHomeAiVisualAnalysisProfile(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const profile = safeProfileId(HOME_AI_VISUAL_ANALYSIS_PROFILE);
+  const sourceProfile = safeProfileId(HOME_AI_VISUAL_ANALYSIS_SOURCE_PROFILE);
+  if (!profile || !sourceProfile || profile === sourceProfile) return null;
+  const manifest = readGatewayManifestForCronProfiles(gatewayPoolManifestPath(plan.macRoot), password);
+  const sourceDir = findCronProfileSourceDir(manifest, sourceProfile, plan.macRoot)
+    || `/Users/example/path`;
+  const targetDir = posixJoin(path.posix.dirname(sourceDir), profile);
+  const aliasPath = posixJoin(homeAiCronPaths(plan.macRoot).hermesHome, "profiles", profile);
+  const owner = "hm-owner:staff";
+  const serviceOwner = `${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`;
+
+  runSudo("/bin/test", ["-d", sourceDir], password);
+  runSudo("/bin/mkdir", ["-p", targetDir], password);
+  const linkScript = [
+    "set -eu",
+    `src=${shQuote(sourceDir)}`,
+    `dst=${shQuote(targetDir)}`,
+    'for item in "$src"/* "$src"/.[!.]* "$src"/..?*; do',
+    '  test -e "$item" || continue',
+    '  name="${item##*/}"',
+    '  case "$name" in .|..|config.yaml) continue ;; esac',
+    '  target="$dst/$name"',
+    '  if test -L "$target" && test "$(/bin/readlink "$target")" = "$item"; then continue; fi',
+    '  /bin/rm -rf "$target"',
+    '  /bin/ln -s "$item" "$target"',
+    "done",
+  ].join("\n");
+  runSudo("/bin/sh", ["-c", linkScript], password);
+
+  const sourceConfig = String(runSudo("/bin/cat", [posixJoin(sourceDir, "config.yaml")], password).stdout || "");
+  const config = buildHomeAiVisualAnalysisProfileConfig(sourceConfig);
+  installRootOwnedTextFile(posixJoin(targetDir, "config.yaml"), config, password, "600", owner);
+  runSudo("/usr/sbin/chown", ["-h", owner, targetDir], password);
+  applyAclOnce(targetDir, HOME_AI_CRON_PROFILE_READ_ACL, password, true);
+  for (const ancestor of profileSourceAncestorDirs(targetDir)) {
+    applyAclOnce(ancestor, HOME_AI_CRON_PROFILE_TRAVERSE_ACL, password, false);
+  }
+  for (const bindingDir of cronProfilePluginBindingDirs(sourceDir)) {
+    applyAclIfExists(bindingDir, HOME_AI_CRON_PROFILE_READ_ACL, password, true);
+  }
+
+  const aliasCommand = [
+    `if test -e ${shQuote(aliasPath)} || test -L ${shQuote(aliasPath)}; then`,
+    `  if test -L ${shQuote(aliasPath)}; then /bin/rm -f ${shQuote(aliasPath)}; else echo ${shQuote(`cron_profile_alias_conflict:${profile}`)} >&2; exit 47; fi`,
+    "fi",
+    `/bin/ln -s ${shQuote(targetDir)} ${shQuote(aliasPath)}`,
+    `/usr/sbin/chown -h ${shQuote(serviceOwner)} ${shQuote(aliasPath)}`,
+  ].join("\n");
+  runSudo("/bin/sh", ["-c", aliasCommand], password);
+  return {
+    type: "home-ai-visual-analysis-profile",
+    profile,
+    sourceProfile,
+    sourceDir,
+    targetDir,
+    aliasPath,
+    model: HOME_AI_VISUAL_ANALYSIS_MODEL,
+    provider: HOME_AI_VISUAL_ANALYSIS_PROVIDER,
+    reasoningEffort: HOME_AI_VISUAL_ANALYSIS_REASONING_EFFORT,
+  };
+}
+
 function installHomeAiCronBuiltinSkills(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const sourceRoot = posixJoin(plan.productionPath, "skills", "productivity");
@@ -1331,8 +1576,17 @@ function installHomeAiCronBuiltinSkills(plan, password) {
 function installHomeAiCronRuntimeScripts(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const sourceScript = posixJoin(plan.productionPath, "scripts", "homeai-disaster-backup-cron.sh");
+  const sourceVisualScript = posixJoin(plan.productionPath, "scripts", "homeai-visual-polish-audit-cron.sh");
   const targetRoot = posixJoin(plan.macRoot, "data", "hermes-home", "scripts");
   const targetScript = posixJoin(targetRoot, "homeai-disaster-backup-cron.sh");
+  const visualScripts = [
+    "homeai-visual-polish-host.sh",
+    "homeai-visual-polish-music.sh",
+    "homeai-visual-polish-finance.sh",
+    "homeai-visual-polish-wardrobe.sh",
+    "homeai-visual-polish-global.sh",
+    "homeai-visual-polish-core.sh",
+  ];
   runSudo("/bin/mkdir", ["-p", targetRoot], password);
   runSudo("/usr/bin/install", [
     "-m",
@@ -1344,11 +1598,198 @@ function installHomeAiCronRuntimeScripts(plan, password) {
     sourceScript,
     targetScript,
   ], password);
+  for (const name of visualScripts) {
+    runSudo("/usr/bin/install", [
+      "-m",
+      "750",
+      "-o",
+      PRODUCTION_SERVICE_USER,
+      "-g",
+      PRODUCTION_SERVICE_GROUP,
+      sourceVisualScript,
+      posixJoin(targetRoot, name),
+    ], password);
+  }
   return {
     type: "home-ai-cron-runtime-scripts",
     sourceScript,
     targetRoot,
-    installed: ["homeai-disaster-backup-cron.sh"],
+    installed: ["homeai-disaster-backup-cron.sh", ...visualScripts],
+  };
+}
+
+function installHomeAiVisualPolishCronJobs(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const jobsPath = posixJoin(plan.macRoot, "data", "hermes-home", "cron", "jobs.json");
+  const jobs = [
+    {
+      id: "homeai_visual_host",
+      name: "Home AI 视觉核验 - Host 交互",
+      script: "homeai-visual-polish-host.sh",
+      schedule: "15 */2 * * *",
+      firstDelayMinutes: 8,
+    },
+    {
+      id: "homeai_visual_music",
+      name: "Home AI 视觉核验 - Music 插件",
+      script: "homeai-visual-polish-music.sh",
+      schedule: "35 */3 * * *",
+      firstDelayMinutes: 16,
+    },
+    {
+      id: "homeai_visual_finance",
+      name: "Home AI 视觉核验 - Finance 插件",
+      script: "homeai-visual-polish-finance.sh",
+      schedule: "55 */4 * * *",
+      firstDelayMinutes: 24,
+    },
+    {
+      id: "homeai_visual_wardrobe",
+      name: "Home AI 视觉核验 - Wardrobe 插件",
+      script: "homeai-visual-polish-wardrobe.sh",
+      schedule: "25 */4 * * *",
+      firstDelayMinutes: 32,
+    },
+    {
+      id: "homeai_visual_global_interactions",
+      name: "Home AI 视觉核验 - 全局交互综合",
+      script: "homeai-visual-polish-global.sh",
+      schedule: "5 */6 * * *",
+      firstDelayMinutes: 36,
+    },
+    {
+      id: "homeai_visual_core",
+      name: "Home AI 视觉核验 - Core 插件",
+      script: "homeai-visual-polish-core.sh",
+      schedule: "45 2 * * *",
+      firstDelayMinutes: 40,
+    },
+    {
+      id: "homeai_visual_analysis_xhigh",
+      name: "Home AI 视觉核验 - 高推理分析",
+      schedule: "20 */6 * * *",
+      firstDelayMinutes: 48,
+      profile: HOME_AI_VISUAL_ANALYSIS_PROFILE,
+      model: HOME_AI_VISUAL_ANALYSIS_MODEL,
+      provider: HOME_AI_VISUAL_ANALYSIS_PROVIDER,
+      enabledToolsets: ["file", "vision", "video"],
+      prompt: [
+        "你是 Home AI 视觉核验高推理分析任务，运行在 Home AI 官方 Automation/CRON 内。",
+        "读取 /Users/example/path 下最近 24 小时或最近 5 次视觉核验摘要、report.json、summary.md 和可用截图/视频证据。",
+        "用高推理模型区分真实 UI/交互回归、测试环境问题、旧客户端缓存问题、目标线程自引用跳过，以及插件自身失败。",
+        "输出简洁中文 Markdown：总体结论、真实失败、证据路径、建议负责面、下一步修复卡片内容要点。",
+        "不要启动 Codex CLI，不要修改文件，不要部署，不要打印 secrets、token、完整日志或大段原始 report。",
+      ].join("\\n"),
+    },
+  ];
+  const script = `
+const fs = require("fs");
+const path = ${JSON.stringify(jobsPath)};
+const jobsToUpsert = ${JSON.stringify(jobs)};
+const now = Date.now();
+const doc = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf8")) : { jobs: [] };
+if (!Array.isArray(doc.jobs)) doc.jobs = [];
+function nextRun(minutes) {
+  return new Date(now + minutes * 60000).toISOString();
+}
+for (const item of jobsToUpsert) {
+  const existing = doc.jobs.find((job) => job && job.id === item.id);
+  const base = existing || {};
+  const isScriptJob = Boolean(item.script);
+  const job = Object.assign({}, base, {
+    id: item.id,
+    name: item.name,
+    prompt: item.prompt || "Home AI visual verification no_agent script job. Only captures UI/interaction evidence and sends visual repair task cards through Codex Mobile.",
+    skills: item.skills || [],
+    skill: null,
+    model: item.model || null,
+    provider: item.provider || null,
+    base_url: null,
+    script: item.script || null,
+    no_agent: isScriptJob,
+    profile: item.profile || null,
+    owner_principal_id: "owner",
+    access_policy_context: null,
+    context_from: null,
+    schedule: { kind: "cron", expr: item.schedule, display: item.schedule },
+    schedule_display: item.schedule,
+    repeat: base.repeat && typeof base.repeat === "object" ? base.repeat : { times: null, completed: 0 },
+    enabled: true,
+    state: "scheduled",
+    paused_at: null,
+    paused_reason: null,
+    created_at: base.created_at || new Date(now).toISOString(),
+    next_run_at: base.next_run_at || nextRun(item.firstDelayMinutes),
+    last_run_at: base.last_run_at || null,
+    last_status: base.last_status || null,
+    last_error: base.last_error || null,
+    last_delivery_error: base.last_delivery_error || null,
+    deliver: "local",
+    origin: null,
+    enabled_toolsets: item.enabledToolsets || [],
+    workdir: null,
+    updated_at: new Date(now).toISOString(),
+  });
+  const index = doc.jobs.findIndex((entry) => entry && entry.id === item.id);
+  if (index >= 0) doc.jobs[index] = job;
+  else doc.jobs.push(job);
+}
+fs.mkdirSync(require("path").dirname(path), { recursive: true });
+const tmp = path + ".tmp";
+fs.writeFileSync(tmp, JSON.stringify(doc, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+fs.renameSync(tmp, path);
+fs.chmodSync(path, 0o600);
+`;
+  runSudo(node, ["-e", script], password);
+  runSudo("/usr/sbin/chown", [`${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, jobsPath], password);
+  runSudo("/bin/chmod", ["600", jobsPath], password);
+  return {
+    type: "home-ai-visual-polish-cron-jobs",
+    jobs: jobs.map((item) => ({
+      id: item.id,
+      script: item.script || null,
+      profile: item.profile || null,
+      model: item.model || null,
+      schedule: item.schedule,
+    })),
+  };
+}
+
+function installHomeAiVisualPolishTaskCardConfig(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const configPath = posixJoin(plan.macRoot, "data", "visual-polish-task-cards.json");
+  const defaultJobs = {
+    "global-interactions": {
+      scope: "all",
+      pluginIds: ["finance"],
+      scenarios: ["global-plugin-dock-gesture-stability", "plugin-drawer-action-gestures"],
+    },
+  };
+  const script = `
+const fs = require("fs");
+const configPath = ${JSON.stringify(configPath)};
+const defaultJobs = ${JSON.stringify(defaultJobs)};
+const doc = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, "utf8")) : {};
+if (!doc || typeof doc !== "object" || Array.isArray(doc)) throw new Error("visual_polish_config_must_be_object");
+if (!doc.jobs || typeof doc.jobs !== "object" || Array.isArray(doc.jobs)) doc.jobs = {};
+for (const [key, value] of Object.entries(defaultJobs)) {
+  doc.jobs[key] = Object.assign({}, value, doc.jobs[key] && typeof doc.jobs[key] === "object" && !Array.isArray(doc.jobs[key]) ? doc.jobs[key] : {});
+}
+fs.mkdirSync(require("path").dirname(configPath), { recursive: true });
+const tmp = configPath + ".tmp";
+fs.writeFileSync(tmp, JSON.stringify(doc, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+fs.renameSync(tmp, configPath);
+fs.chmodSync(configPath, 0o600);
+`;
+  runSudo(node, ["-e", script], password);
+  runSudo("/usr/sbin/chown", [`${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, configPath], password);
+  runSudo("/bin/chmod", ["600", configPath], password);
+  return {
+    type: "home-ai-visual-polish-task-card-config",
+    configPath,
+    jobs: Object.keys(defaultJobs),
   };
 }
 
@@ -1396,6 +1837,43 @@ printf '{"ok":true,"skipped":false,"userCount":%s}\\n' "$count"
     target: plan.target,
     status: result.status,
     stdout: String(result.stdout || "").slice(0, 400),
+  };
+}
+
+function installHomeAiVisualDebugLaunchAgent(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const paths = homeAiVisualDebugPaths(plan.macRoot);
+  const plist = buildHomeAiVisualDebugLaunchAgentPlist(plan.macRoot);
+  const owner = `${paths.user}:${PRODUCTION_SERVICE_GROUP}`;
+
+  runSudo("/bin/mkdir", ["-p", path.posix.dirname(paths.plistPath), paths.logsRoot], password);
+  runSudo("/usr/sbin/chown", ["-R", owner, path.posix.dirname(paths.plistPath), paths.logsRoot], password);
+  installRootOwnedTextFile(paths.plistPath, plist, password, "644", owner);
+  runSudo("/usr/bin/plutil", ["-lint", paths.plistPath], password);
+
+  const userIdResult = runSudo("/usr/bin/id", ["-u", paths.user], password);
+  const userId = String(userIdResult.stdout || "").trim();
+  const launchResult = runSudo("/bin/bash", ["-lc", [
+    "set +e",
+    `uid=${shQuote(userId)}`,
+    `plist=${shQuote(paths.plistPath)}`,
+    `label=${shQuote(HOME_AI_VISUAL_DEBUG_LABEL)}`,
+    `/bin/launchctl bootout "gui/$uid" "$plist" >/dev/null 2>&1`,
+    `/bin/launchctl bootstrap "gui/$uid" "$plist" >/dev/null 2>&1`,
+    "bootstrap_status=$?",
+    `/bin/launchctl kickstart -k "gui/$uid/$label" >/dev/null 2>&1`,
+    "kickstart_status=$?",
+    `printf '{"bootstrapStatus":%s,"kickstartStatus":%s}\\n' "$bootstrap_status" "$kickstart_status"`,
+    "exit 0",
+  ].join("\n")], password);
+  return {
+    type: "home-ai-visual-debug-launch-agent-install",
+    label: HOME_AI_VISUAL_DEBUG_LABEL,
+    user: paths.user,
+    userId,
+    plistPath: paths.plistPath,
+    port: HOME_AI_VISUAL_DEBUG_PORT,
+    stdout: String(launchResult.stdout || "").trim().slice(0, 400),
   };
 }
 
@@ -1778,11 +2256,16 @@ function executePlan(plan, options) {
   const nasBackupMountInstall = installHomeAiNasBackupMountLaunchd(plan, password);
   const listenerVoiceInputEnv = installHomeAiListenerVoiceInputEnv(plan, password);
   const cronProfileAliases = installHomeAiCronProfileAliases(plan, password);
+  const visualAnalysisProfile = installHomeAiVisualAnalysisProfile(plan, password);
   const cronBuiltinSkills = installHomeAiCronBuiltinSkills(plan, password);
   const cronRuntimeScripts = installHomeAiCronRuntimeScripts(plan, password);
+  const visualPolishTaskCardConfig = installHomeAiVisualPolishTaskCardConfig(plan, password);
+  const visualPolishCronJobs = installHomeAiVisualPolishCronJobs(plan, password);
+  const visualDebugLaunchAgent = installHomeAiVisualDebugLaunchAgent(plan, password);
   const backupArtifactAclRepair = repairHomeAiBackupArtifactAcls(plan, password);
   const codexSharedAuthRepair = repairCodexSharedAuthPermissions(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
+  const deployBackupPrune = pruneDeployBackups(plan, options, password);
 
   const reloadedLabels = new Set();
   if (codexMobileLogRepair && codexMobileLogRepair.launchdReloadRequired && codexMobileLogRepair.launchdLabel && codexMobileLogRepair.launchdPlistPath) {
@@ -1811,11 +2294,16 @@ function executePlan(plan, options) {
   if (nasBackupMountInstall) validations.push(Object.assign({ status: 0 }, nasBackupMountInstall));
   if (listenerVoiceInputEnv) validations.push(Object.assign({ status: 0 }, listenerVoiceInputEnv));
   if (cronProfileAliases) validations.push(Object.assign({ status: 0 }, cronProfileAliases));
+  if (visualAnalysisProfile) validations.push(Object.assign({ status: 0 }, visualAnalysisProfile));
   if (cronBuiltinSkills) validations.push(Object.assign({ status: 0 }, cronBuiltinSkills));
   if (cronRuntimeScripts) validations.push(Object.assign({ status: 0 }, cronRuntimeScripts));
+  if (visualPolishTaskCardConfig) validations.push(Object.assign({ status: 0 }, visualPolishTaskCardConfig));
+  if (visualPolishCronJobs) validations.push(Object.assign({ status: 0 }, visualPolishCronJobs));
+  if (visualDebugLaunchAgent) validations.push(Object.assign({ status: 0 }, visualDebugLaunchAgent));
   if (backupArtifactAclRepair) validations.push(backupArtifactAclRepair);
   if (codexSharedAuthRepair) validations.push(codexSharedAuthRepair);
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
+  if (deployBackupPrune) validations.push(deployBackupPrune);
   for (const check of plan.validation) {
     if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));
     else if (check.type === "codex-auth-profile-audit") validations.push(runCodexAuthProfileAuditValidation(check, password));
@@ -1875,6 +2363,7 @@ module.exports = {
   DEFAULT_DEV_ROOT,
   DEFAULT_MAC_ROOT,
   BACKUP_RSYNC_EXCLUDES,
+  DEPLOY_BACKUP_RETENTION_DAYS,
   PLUGIN_TARGETS,
   PLUGIN_DEPLOY_ORDER,
   RSYNC_EXCLUDES,
@@ -1889,9 +2378,11 @@ module.exports = {
   buildHomeAiCronLaunchdPlist,
   buildHomeAiNasBackupMountLaunchdPlist,
   cronProfileAliasRowsFromManifest,
+  buildHomeAiVisualAnalysisProfileConfig,
   buildRsyncArgs,
   shouldRepairCodexSharedAuthPermissions,
   repairHomeAiBackupArtifactAcls,
+  pruneDeployBackups,
   postSyncRepairsForTarget,
   repairCodexMobileLogPermissions,
   repairMusicRuntimeCoverPermissions,

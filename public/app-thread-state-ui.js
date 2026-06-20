@@ -106,7 +106,7 @@ function mergeCurrentThread(incomingThread) {
 function currentSingleWindowMessageMode() {
   return state.viewMode === "single" && state.singleWindowMode === "chat"
     ? "chat"
-    : (state.viewMode === "tasks" || state.singleWindowMode === "task" ? "tasks" : "");
+    : (state.viewMode === "tasks" || (state.viewMode === "single" && state.singleWindowMode === "task") ? "tasks" : "");
 }
 
 function singleWindowRequestStillCurrent(request = {}) {
@@ -142,6 +142,305 @@ function cachedSingleWindowThreadForRequest(request = {}) {
   return cached;
 }
 
+function mainConversationSurfaceCache() {
+  if (!state.mainConversationSurfaceCache || typeof state.mainConversationSurfaceCache !== "object") {
+    state.mainConversationSurfaceCache = {};
+  }
+  return state.mainConversationSurfaceCache;
+}
+
+function singleWindowSurfaceCacheKeyForRequest(request = {}) {
+  const workspaceId = String(request.workspaceId || state.selectedWorkspaceId || "owner").trim() || "owner";
+  const messageMode = String(request.messageMode || "").trim();
+  if (messageMode === "chat") {
+    const chatScope = request.weixinChat ? "weixin" : request.groupChat ? "group" : "private";
+    return `single:${workspaceId}:chat:${chatScope}`;
+  }
+  if (messageMode === "tasks" && !String(request.taskGroupId || "").trim()) {
+    return `single:${workspaceId}:tasks:root`;
+  }
+  return "";
+}
+
+function currentMainConversationSurfaceCacheKey() {
+  const workspaceId = String(state.selectedWorkspaceId || "owner").trim() || "owner";
+  if (state.viewMode === "single" && state.singleWindowMode === "chat") {
+    const chatScope = state.weixinChatOpen ? "weixin" : state.groupChatOpen ? "group" : "private";
+    return `single:${workspaceId}:chat:${chatScope}`;
+  }
+  if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
+    if (typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive()) return "";
+    return `single:${workspaceId}:tasks:root`;
+  }
+  return "";
+}
+
+function threadForSurfaceRequest(request = {}) {
+  const messageMode = String(request.messageMode || "").trim();
+  if (messageMode === "chat") return cachedSingleWindowThreadForRequest(request);
+  if (messageMode === "tasks" && !String(request.taskGroupId || "").trim() && typeof taskListThreadCacheEligible === "function") {
+    return taskListThreadCacheEligible(state.taskListThread) ? state.taskListThread : null;
+  }
+  return null;
+}
+
+function stableConversationSignatureHash(value = "") {
+  const text = String(value || "");
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash.toString(36);
+}
+
+function stableConversationJsonHash(value) {
+  if (value === undefined || value === null) return "";
+  try {
+    return stableConversationSignatureHash(JSON.stringify(value));
+  } catch {
+    return stableConversationSignatureHash(String(value || ""));
+  }
+}
+
+function chatMessageRenderSignature(message = {}) {
+  const artifacts = Array.isArray(message.artifacts)
+    ? message.artifacts.map((artifact) => [
+      artifact?.id || "",
+      artifact?.name || "",
+      artifact?.path || "",
+      artifact?.url || "",
+      artifact?.mime || "",
+      artifact?.size || "",
+    ].join(",")).join(";")
+    : "";
+  const loadedSkills = Array.isArray(message.loadedSkills)
+    ? message.loadedSkills.map((skill) => [
+      skill?.id || "",
+      skill?.path || "",
+      skill?.name || "",
+      skill?.label || "",
+      skill?.status || "",
+    ].join(",")).join(";")
+    : "";
+  const runIds = [
+    message.originalRunId,
+    message.responseRunId,
+    message.runId,
+    message.taskId,
+  ].map((value) => String(value || "").trim()).filter(Boolean).join(",");
+  return [
+    message?.id || "",
+    message?.role || "",
+    message?.status || "",
+    message?.taskGroupId || "",
+    message?.messageKind || "",
+    message?.senderWorkspaceId || "",
+    message?.actorWorkspaceId || "",
+    message?.senderLabel || "",
+    message?.revokedAt || "",
+    typeof messageDisplayTimestamp === "function" ? messageDisplayTimestamp(message) : "",
+    stableConversationSignatureHash(message?.content || ""),
+    stableConversationSignatureHash(message?.error || ""),
+    stableConversationSignatureHash(artifacts),
+    stableConversationSignatureHash(loadedSkills),
+    stableConversationJsonHash(message?.usage),
+    stableConversationJsonHash(message?.externalDelivery),
+    stableConversationJsonHash(message?.localRunProgressEvents),
+    runIds,
+    message?.model || "",
+    message?.modelProvider || "",
+  ].join(":");
+}
+
+function taskListRootRenderSignature(thread = state.currentThread) {
+  if (!thread?.id) return "";
+  const sourceGroups = typeof taskListGroupsForThread === "function"
+    ? taskListGroupsForThread(thread)
+    : (thread.taskGroups || []);
+  const sharedGroups = typeof sharedCaseTopicGroupsForTaskList === "function"
+    ? sharedCaseTopicGroupsForTaskList(thread)
+    : [];
+  const pluginGroups = typeof pluginTopicGroupsForTaskList === "function"
+    ? pluginTopicGroupsForTaskList(thread)
+    : [];
+  const groups = sourceGroups
+    .filter((group) => (typeof topicGroupVisibleInTaskList === "function" ? topicGroupVisibleInTaskList(group) : true))
+    .concat(sharedGroups)
+    .concat(pluginGroups)
+    .filter((group) => (typeof taskMatchesDirectoryFilter === "function" ? taskMatchesDirectoryFilter(group) : true));
+  const directorySourceGroups = groups.filter((group) => !(typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic));
+  const rawCollections = Array.isArray(thread.directoryTopicCollections)
+    ? thread.directoryTopicCollections
+    : (typeof directoryTopicCollectionsForGroups === "function" ? directoryTopicCollectionsForGroups(directorySourceGroups) : []);
+  const visibleCollections = typeof pluginTopicFilterDirectoryTopicCollectionsForRoot === "function"
+    ? pluginTopicFilterDirectoryTopicCollectionsForRoot(rawCollections)
+    : rawCollections;
+  const directoryGroupIds = typeof directoryTopicCollectionGroupIds === "function"
+    ? directoryTopicCollectionGroupIds(rawCollections)
+    : new Set();
+  const visibleGroups = groups.filter((group) => {
+    if (typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic) return false;
+    return !directoryGroupIds.has(group.id);
+  });
+  return stableConversationJsonHash({
+    threadId: thread.id,
+    search: typeof currentSearchText === "function" ? currentSearchText().toLowerCase() : "",
+    filter: state.taskDirectoryFilter || null,
+    pluginCards: pluginGroups.map((group) => [
+      group?.id || "",
+      group?.pluginId || "",
+      group?.title || "",
+      group?.summary || "",
+      group?.updatedAt || "",
+      stableConversationJsonHash(group?.directoryRoute || null),
+    ]),
+    directoryCollections: visibleCollections.map((collection) => [
+      collection?.key || "",
+      collection?.label || "",
+      collection?.updatedAt || "",
+      stableConversationJsonHash(collection?.route || null),
+      (collection?.groups || []).map((group) => [
+        group?.id || "",
+        group?.title || "",
+        group?.summary || "",
+        group?.status || "",
+        group?.updatedAt || "",
+      ]),
+    ]),
+    visibleGroups: visibleGroups.map((group) => [
+      group?.id || "",
+      group?.title || "",
+      group?.summary || "",
+      group?.status || "",
+      group?.updatedAt || "",
+      group?.pluginTopic ? "plugin" : "",
+      group?.sharedTopic ? "shared" : "",
+      group?.sourceThreadId || "",
+    ]),
+  });
+}
+
+function mainConversationSurfaceThreadSignature(key = "", thread = state.currentThread) {
+  if (!key || !thread?.id) return "";
+  const page = thread.messagesPage || {};
+  const chatSurface = key.includes(":chat:");
+  const taskRootSurface = key.includes(":tasks:root");
+  const messages = (thread.messages || []).map((message) => (
+    chatSurface
+      ? chatMessageRenderSignature(message)
+      : [
+        message?.id || "",
+        message?.status || "",
+        message?.updatedAt || "",
+        message?.completedAt || "",
+        message?.revokedAt || "",
+        String(message?.content || "").length,
+        Array.isArray(message?.artifacts) ? message.artifacts.length : 0,
+        Array.isArray(message?.localRunProgressEvents) ? message.localRunProgressEvents.length : 0,
+      ].join(":")
+  )).join("|");
+  const events = chatSurface && Array.isArray(thread.events)
+    ? stableConversationJsonHash(thread.events.map((event) => [
+      event?.runId || "",
+      event?.event || event?.type || "",
+      event?.status || "",
+      event?.timestamp || "",
+      event?.tool || event?.functionName || "",
+      event?.error || "",
+      event?.preview || "",
+    ]))
+    : "";
+  const groups = key.includes(":tasks:root")
+    ? taskListRootRenderSignature(thread)
+    : "";
+  const collections = taskRootSurface && Array.isArray(thread.directoryTopicCollections)
+    ? thread.directoryTopicCollections.map((collection) => [
+      collection?.key || "",
+      collection?.updatedAt || "",
+      (collection?.groups || []).map((group) => group?.id || "").join(","),
+    ].join(":")).sort().join("|")
+    : "";
+  return [
+    thread.id,
+    page.mode || "",
+    page.total || "",
+    page.taskGroupId || "",
+    page.oldestMessageId || "",
+    page.hasMoreBefore === false ? "no-more-before" : "",
+    messages,
+    events,
+    groups,
+    collections,
+  ].join("||");
+}
+
+function mainConversationSurfaceRequestForCurrentView() {
+  const messageMode = currentSingleWindowMessageMode();
+  if (!(messageMode === "chat" || (messageMode === "tasks" && !state.currentTaskGroupId))) return null;
+  const weixinChat = Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.weixinChatOpen);
+  const groupChat = weixinChat ? false : Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.groupChatOpen);
+  return {
+    seq: state.singleWindowRequestSeq,
+    workspaceId: String(state.selectedWorkspaceId || ""),
+    viewMode: String(state.viewMode || ""),
+    singleWindowMode: String(state.singleWindowMode || ""),
+    taskGroupId: String(state.currentTaskGroupId || ""),
+    messageMode,
+    weixinChat,
+    groupChat,
+  };
+}
+
+function parkCurrentMainConversationSurfaceForNavigation() {
+  state.pendingMainConversationSurfacePark = null;
+  return false;
+}
+
+function commitPendingMainConversationSurfacePark() {
+  state.pendingMainConversationSurfacePark = null;
+  return false;
+}
+
+function applyRestoredMainConversationSurfaceChrome(request = {}, thread = null, cacheEntry = null) {
+  if (request.messageMode === "tasks") {
+    $("threadTitle").textContent = "话题列表";
+    $("threadMeta").textContent = "";
+    $("interruptRun").disabled = !activeThreadRunIds(thread).length;
+    if (typeof configureComposer === "function") {
+      configureComposer({ enabled: false, hidden: true, placeholder: "Open a topic to reply" });
+    }
+    if (typeof renderPluginAppLauncher === "function" && typeof setTopicPluginDock === "function") {
+      setTopicPluginDock(renderPluginAppLauncher());
+    }
+  } else {
+    $("threadTitle").textContent = request.groupChat ? "群聊" : "";
+    $("threadMeta").textContent = "";
+    $("interruptRun").disabled = !activeChatRunIds(thread).length;
+    if (typeof renderChatScopeHeader === "function") renderChatScopeHeader(thread);
+    if (typeof configureComposer === "function") configureComposer({ enabled: true, placeholder: "Message Home AI..." });
+  }
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  if (cacheEntry && typeof ensureVerticalScrollAffordance === "function") ensureVerticalScrollAffordance($("conversation"));
+  if (typeof scheduleMessageScrollButtonVisibility === "function") scheduleMessageScrollButtonVisibility($("conversation"));
+}
+
+function restoreMainConversationSurfaceForRequest(request = {}, options = {}) {
+  state.pendingMainConversationSurfacePark = null;
+  state.mainConversationSurfaceActiveKey = "";
+  state.mainConversationSurfaceRestoredKey = "";
+  state.mainConversationSurfaceRestoredSignature = "";
+  return false;
+}
+
+function restoreMainConversationSurfaceForCurrentViewShell(options = {}) {
+  return false;
+}
+
+function retainRestoredMainConversationSurfaceIfFresh(options = {}) {
+  return false;
+}
+
 function renderCachedSingleWindowThreadForRequest(request = {}, options = {}) {
   if (!singleWindowRequestStillCurrent(request)) return false;
   const cached = cachedSingleWindowThreadForRequest(request);
@@ -159,6 +458,87 @@ function renderCachedSingleWindowThreadForRequest(request = {}, options = {}) {
     totalMessages: cached.messagesPage?.total || 0,
   });
   return true;
+}
+
+function renderCachedSingleWindowThreadForCurrentViewShell(options = {}) {
+  if (!(state.viewMode === "single" && state.singleWindowMode === "chat")) return false;
+  const request = {
+    seq: state.singleWindowRequestSeq,
+    workspaceId: String(state.selectedWorkspaceId || ""),
+    viewMode: String(state.viewMode || ""),
+    singleWindowMode: String(state.singleWindowMode || ""),
+    taskGroupId: "",
+    messageMode: "chat",
+    weixinChat: Boolean(state.weixinChatOpen),
+    groupChat: state.weixinChatOpen ? false : Boolean(state.groupChatOpen),
+  };
+  return renderCachedSingleWindowThreadForRequest(request, options);
+}
+
+function renderSingleWindowChatPendingShell(options = {}) {
+  if (!(state.viewMode === "single" && state.singleWindowMode === "chat")) return false;
+  const conversation = $("conversation");
+  if (!conversation) return false;
+  renderThreads();
+  $("threadTitle").textContent = "";
+  $("threadMeta").textContent = "";
+  $("interruptRun").disabled = true;
+  if (typeof renderChatScopeHeader === "function") renderChatScopeHeader(null);
+  if (typeof configureComposer === "function") {
+    configureComposer({ enabled: false, shellLocked: true, placeholder: "Message Home AI..." });
+  }
+  conversation.innerHTML = `<div class="empty-state">正在载入聊天...</div>`;
+  conversation.scrollTop = 0;
+  state.conversationPinnedToBottom = true;
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  if (typeof ensureVerticalScrollAffordance === "function") ensureVerticalScrollAffordance(conversation);
+  if (typeof scheduleMessageScrollButtonVisibility === "function") scheduleMessageScrollButtonVisibility(conversation);
+  startupPerfMark("single-window-chat-pending-shell", {
+    reason: String(options.reason || "no-cache").slice(0, 80),
+  });
+  if (typeof scheduleSingleWindowChatPendingRecovery === "function") {
+    scheduleSingleWindowChatPendingRecovery(options.reason || "pending-shell");
+  }
+  return true;
+}
+
+function clearSingleWindowChatPendingRecovery() {
+  const timer = Number(state.singleWindowChatPendingRecoveryTimer || 0) || 0;
+  if (timer) window.clearTimeout(timer);
+  state.singleWindowChatPendingRecoveryTimer = 0;
+}
+
+function singleWindowChatPendingShellVisible() {
+  if (!(state.viewMode === "single" && state.singleWindowMode === "chat")) return false;
+  const conversation = $("conversation");
+  if (!conversation) return false;
+  if (conversation.querySelector("[data-message-id]")) return false;
+  return /正在载入聊天/.test(String(conversation.textContent || ""));
+}
+
+function scheduleSingleWindowChatPendingRecovery(reason = "pending-shell", delayMs = 2200) {
+  clearSingleWindowChatPendingRecovery();
+  state.singleWindowChatPendingRecoveryTimer = window.setTimeout(() => {
+    state.singleWindowChatPendingRecoveryTimer = 0;
+    if (!singleWindowChatPendingShellVisible()) return;
+    const attempts = Number(state.singleWindowChatPendingRecoveryAttempts || 0) || 0;
+    if (attempts >= 2) {
+      startupPerfMark("single-window-chat-pending-recovery-give-up", {
+        reason: String(reason || "").slice(0, 80),
+      });
+      return;
+    }
+    if (Number(state.singleWindowLoadInFlightSeq || 0)) {
+      scheduleSingleWindowChatPendingRecovery("request-in-flight", 1600);
+      return;
+    }
+    state.singleWindowChatPendingRecoveryAttempts = attempts + 1;
+    startupPerfMark("single-window-chat-pending-recovery", {
+      reason: String(reason || "").slice(0, 80),
+      attempt: state.singleWindowChatPendingRecoveryAttempts,
+    });
+    loadSingleWindow({ skipSingleWindowCache: true, pendingRecovery: true }).catch(showError);
+  }, Math.max(800, Number(delayMs) || 2200));
 }
 
 async function loadSingleWindow(options = {}) {
@@ -187,6 +567,13 @@ async function loadSingleWindow(options = {}) {
   if (!options.skipSingleWindowCache) {
     renderCachedSingleWindowThreadForRequest(request, options);
   }
+  const refreshSurfaceKey = typeof singleWindowSurfaceCacheKeyForRequest === "function"
+    ? singleWindowSurfaceCacheKeyForRequest(request)
+    : "";
+  const beforeRefreshSignature = refreshSurfaceKey && typeof mainConversationSurfaceThreadSignature === "function"
+    ? mainConversationSurfaceThreadSignature(refreshSurfaceKey, state.currentThread)
+    : "";
+  state.singleWindowLoadInFlightSeq = request.seq;
   const result = await startupPerfStep("single-window-api", () => api("/api/single-window", {
     method: "POST",
     body: JSON.stringify({
@@ -198,8 +585,15 @@ async function loadSingleWindow(options = {}) {
       messageLimit: messageMode === "tasks" ? TASK_MESSAGE_INITIAL_LIMIT : CHAT_MESSAGE_INITIAL_LIMIT,
     }),
     timeoutMs: 12000,
-  }));
-  if (!singleWindowRequestStillCurrent(request)) return;
+  })).finally(() => {
+    if (state.singleWindowLoadInFlightSeq === request.seq) state.singleWindowLoadInFlightSeq = 0;
+  });
+  if (!singleWindowRequestStillCurrent(request)) {
+    if (singleWindowChatPendingShellVisible()) scheduleSingleWindowChatPendingRecovery("stale-request", 900);
+    return;
+  }
+  clearSingleWindowChatPendingRecovery();
+  state.singleWindowChatPendingRecoveryAttempts = 0;
   startupPerfMark("single-window-payload", {
     messages: Array.isArray(result.thread?.messages) ? result.thread.messages.length : 0,
     totalMessages: result.thread?.messagesPage?.total || 0,
@@ -237,6 +631,18 @@ async function loadSingleWindow(options = {}) {
   state.threads = [summarizeThread(state.currentThread)];
   if (state.viewMode !== "tasks") state.currentTaskGroupId = "";
   if (messageMode === "tasks") rememberTaskListThread(state.currentThread);
+  const afterRefreshSignature = refreshSurfaceKey && typeof mainConversationSurfaceThreadSignature === "function"
+    ? mainConversationSurfaceThreadSignature(refreshSurfaceKey, state.currentThread)
+    : "";
+  const skipUnchangedChatRender = messageMode === "chat"
+    && beforeRefreshSignature
+    && beforeRefreshSignature === afterRefreshSignature
+    && $("conversation")?.querySelector("[data-message-id]");
+  const skipUnchangedTaskRender = messageMode === "tasks"
+    && !state.currentTaskGroupId
+    && beforeRefreshSignature
+    && beforeRefreshSignature === afterRefreshSignature
+    && $("conversation")?.querySelector(".directory-topic-launcher, [data-open-task], .empty-state");
   const restoreTaskListScrollTop = options.preserveTaskListScroll
     && messageMode === "tasks"
     && !state.currentTaskGroupId
@@ -246,14 +652,28 @@ async function loadSingleWindow(options = {}) {
         : $("conversation")?.scrollTop || 0
     )
     : null;
-  renderThreads();
-  await startupPerfStep("render-current-thread", () => {
-    renderCurrentThread({
-      stickToBottom: restoreTaskListScrollTop === null,
-      restoreScrollTop: restoreTaskListScrollTop,
+  state.mainConversationSurfaceRestoredKey = "";
+  state.mainConversationSurfaceRestoredSignature = "";
+  if (skipUnchangedChatRender || skipUnchangedTaskRender) {
+    startupPerfMark(skipUnchangedTaskRender ? "single-window-task-refresh-render-skip" : "single-window-refresh-render-skip", {
+      messages: Array.isArray(state.currentThread?.messages) ? state.currentThread.messages.length : 0,
+      totalMessages: state.currentThread?.messagesPage?.total || 0,
+      taskGroups: Array.isArray(state.currentThread?.taskGroups) ? state.currentThread.taskGroups.length : 0,
     });
-    return Promise.resolve();
-  });
+    if (typeof applyRestoredMainConversationSurfaceChrome === "function") {
+      applyRestoredMainConversationSurfaceChrome(request, state.currentThread);
+    }
+    if (typeof scheduleConversationViewportRefresh === "function") scheduleConversationViewportRefresh($("conversation"));
+  } else {
+    renderThreads();
+    await startupPerfStep("render-current-thread", () => {
+      renderCurrentThread({
+        stickToBottom: restoreTaskListScrollTop === null,
+        restoreScrollTop: restoreTaskListScrollTop,
+      });
+      return Promise.resolve();
+    });
+  }
   setComposerEnabled(true);
 }
 

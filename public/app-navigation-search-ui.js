@@ -436,17 +436,28 @@ function updateNavigationControls() {
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
   let hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomLearningMode", "bottomAutomationMode"]);
+  const pinnedBottomTabButtonIds = new Set();
+  if (
+    typeof pinnedPluginBottomTabIds === "function"
+    && typeof pluginTopicDefById === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+  ) {
+    pinnedPluginBottomTabIds().forEach((pluginId) => {
+      const buttonId = pluginTopicBottomButtonId(pluginTopicDefById(pluginId));
+      if (buttonId) pinnedBottomTabButtonIds.add(buttonId);
+    });
+  }
   ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {
-      setBottomTabHidden(node, hiddenBottomTabs.has(id));
+      setBottomTabHidden(node, hiddenBottomTabs.has(id) && !pinnedBottomTabButtonIds.has(id));
       node.disabled = false;
     }
   });
   updateBottomNavLabel("bottomTasksMode", "");
   updateBottomNavLabel("bottomProjectsMode", "");
   ["bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode"].forEach((id) => {
-    updateBottomNavLabel(id, "");
+    if (!pinnedBottomTabButtonIds.has(id)) updateBottomNavLabel(id, "");
   });
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
   if (typeof updateCodexPluginNavigationAvailability === "function") updateCodexPluginNavigationAvailability();

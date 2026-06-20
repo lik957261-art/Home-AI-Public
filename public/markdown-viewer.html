@@ -24,9 +24,9 @@
       --line: #d8dee4;
       --code: #f6f8fa;
       --link: #0969da;
-      --viewer-font-family: "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", serif;
+      --viewer-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
       --hermes-markdown-font-family: var(--viewer-font-family);
-      --viewer-markdown-font-scale: 1.18;
+      --viewer-markdown-font-scale: 1;
     }
 
     html[data-effective-theme="dark"] {
@@ -71,8 +71,8 @@
     .markdown-preview {
       max-width: 900px;
       margin: 0 auto;
-      font-size: calc(18px * var(--viewer-markdown-font-scale));
-      line-height: 1.72;
+      font-size: calc(16px * var(--viewer-markdown-font-scale));
+      line-height: 1.62;
       overflow-wrap: anywhere;
     }
 
@@ -82,14 +82,14 @@
       margin: 0 auto;
       color: var(--ink);
       font-family: var(--hermes-markdown-font-family);
-      line-height: 1.72;
+      line-height: 1.62;
     }
 
     .markdown-preview h1,
     .markdown-preview h2,
     .markdown-preview h3,
     .markdown-preview h4 {
-      margin: 1.35em 0 0.62em;
+      margin: 1.15em 0 0.55em;
       color: var(--ink);
       line-height: 1.25;
       letter-spacing: 0;
@@ -100,17 +100,17 @@
       margin-top: 0.25em;
       padding-bottom: 0.3em;
       border-bottom: 1px solid var(--line);
-      font-size: 1.72em;
+      font-size: 1.42em;
     }
 
     .markdown-preview h2 {
       padding-bottom: 0.3em;
       border-bottom: 1px solid var(--line);
-      font-size: 1.36em;
+      font-size: 1.2em;
     }
 
     .markdown-preview h3 {
-      font-size: 1.12em;
+      font-size: 1.06em;
     }
 
     .markdown-preview h4 {
@@ -370,7 +370,7 @@
         ? markdownRenderer.renderMarkdownDocument
         : ((value) => `<pre>${String(value || "").replace(/[&<>]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[ch]))}</pre>`);
       previewEl.innerHTML = render(text, {
-        fontScale: "large",
+        fontScale: "normal",
         taskListCompatibility: true,
       });
       previewEl.hidden = false;

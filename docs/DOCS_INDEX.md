@@ -36,6 +36,8 @@ remaining gap as an explicit follow-up.
   `docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md`
 - Plugin mobile UI and visual harness contract:
   `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
+- Host-led visual polish controller:
+  `docs/IMPLEMENTATION_NOTES/visual-polish-controller.md`
 - Mac development-to-production deployment contract:
   `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`
 - Frontend tab/state map: `docs/FRONTEND_STATE_MAP.md`

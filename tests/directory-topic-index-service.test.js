@@ -139,6 +139,24 @@ const service = createDirectoryTopicIndexService({
 
 {
   const thread = {
+    id: "thread-fragment-title",
+    workspaceId: "owner",
+    taskGroupMeta: {},
+    messages: [{
+      id: "m-fragment-title",
+      role: "assistant",
+      content: "感。",
+      taskGroupId: "music",
+      completedAt: "2026-06-18T03:35:00.000Z",
+      directoryRoute: { projectId: "music", label: "音乐", root: "/music", path: "/music", ownerWorkspaceId: "owner" },
+    }],
+  };
+  service.repairThreadIndexFromMessages(thread);
+  assert.equal(thread.taskGroupMeta.music?.lastReceiptTitle || "", "");
+}
+
+{
+  const thread = {
     id: "thread-4",
     workspaceId: "owner",
     taskGroupMeta: {},

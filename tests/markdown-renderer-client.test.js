@@ -52,6 +52,7 @@ function testExports() {
   assert.equal(clientRenderer.markdownFontScaleForBase("standard"), "standard");
   assert.equal(clientRenderer.markdownFontScaleForBase("large"), "large");
   assert.equal(clientRenderer.sanitizeImageSrc("data:image/png;base64,aaaa"), "#");
+  assert.equal(clientRenderer.sanitizeImageSrc("http1280x1280.jpg"), "#");
   assert.equal(clientRenderer.sanitizeLinkHref("data:text/html,x"), "#");
 }
 

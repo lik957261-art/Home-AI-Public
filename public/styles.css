@@ -1514,7 +1514,8 @@ button {
 .health-mode .conversation,
 .note-mode .conversation,
 .growth-plugin-mode .conversation,
-.moira-mode .conversation {
+.moira-mode .conversation,
+.music-mode .conversation {
   padding: 0;
   overflow: hidden;
   background: var(--ui-page);
@@ -1530,6 +1531,67 @@ button {
 
 .embedded-plugin-host.active {
   display: grid;
+}
+
+.app.codex-mode #financePluginHost,
+.app.codex-mode #emailPluginHost,
+.app.codex-mode #healthPluginHost,
+.app.codex-mode #notePluginHost,
+.app.codex-mode #growthPluginHost,
+.app.codex-mode #moiraPluginHost,
+.app.codex-mode #musicPluginHost,
+.app.finance-mode #codexPluginHost,
+.app.finance-mode #emailPluginHost,
+.app.finance-mode #healthPluginHost,
+.app.finance-mode #notePluginHost,
+.app.finance-mode #growthPluginHost,
+.app.finance-mode #moiraPluginHost,
+.app.finance-mode #musicPluginHost,
+.app.email-mode #codexPluginHost,
+.app.email-mode #financePluginHost,
+.app.email-mode #healthPluginHost,
+.app.email-mode #notePluginHost,
+.app.email-mode #growthPluginHost,
+.app.email-mode #moiraPluginHost,
+.app.email-mode #musicPluginHost,
+.app.health-mode #codexPluginHost,
+.app.health-mode #financePluginHost,
+.app.health-mode #emailPluginHost,
+.app.health-mode #notePluginHost,
+.app.health-mode #growthPluginHost,
+.app.health-mode #moiraPluginHost,
+.app.health-mode #musicPluginHost,
+.app.note-mode #codexPluginHost,
+.app.note-mode #financePluginHost,
+.app.note-mode #emailPluginHost,
+.app.note-mode #healthPluginHost,
+.app.note-mode #growthPluginHost,
+.app.note-mode #moiraPluginHost,
+.app.note-mode #musicPluginHost,
+.app.growth-plugin-mode #codexPluginHost,
+.app.growth-plugin-mode #financePluginHost,
+.app.growth-plugin-mode #emailPluginHost,
+.app.growth-plugin-mode #healthPluginHost,
+.app.growth-plugin-mode #notePluginHost,
+.app.growth-plugin-mode #moiraPluginHost,
+.app.growth-plugin-mode #musicPluginHost,
+.app.moira-mode #codexPluginHost,
+.app.moira-mode #financePluginHost,
+.app.moira-mode #emailPluginHost,
+.app.moira-mode #healthPluginHost,
+.app.moira-mode #notePluginHost,
+.app.moira-mode #growthPluginHost,
+.app.moira-mode #musicPluginHost,
+.app.music-mode #codexPluginHost,
+.app.music-mode #financePluginHost,
+.app.music-mode #emailPluginHost,
+.app.music-mode #healthPluginHost,
+.app.music-mode #notePluginHost,
+.app.music-mode #growthPluginHost,
+.app.music-mode #moiraPluginHost {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .embedded-plugin-host-active .main {
@@ -2348,6 +2410,7 @@ button {
 .note-mode .composer,
 .growth-plugin-mode .composer,
 .moira-mode .composer,
+.music-mode .composer,
 .codex-mode .composer {
   display: none;
 }
@@ -2534,6 +2597,7 @@ button {
   font-weight: 600;
   line-height: 1.4;
   text-align: center;
+  pointer-events: none;
 }
 
 .push-toast.actionable {
@@ -2542,6 +2606,7 @@ button {
   justify-content: center;
   gap: 8px;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .push-toast-action {
@@ -3919,6 +3984,31 @@ button {
 .message-prose .hermes-markdown-image {
   justify-self: start;
   max-width: min(100%, 420px);
+}
+
+.message-prose .hermes-markdown-image[data-hermes-inline-image-state="pending"],
+.message-prose .hermes-markdown-image[data-hermes-inline-image-state="loading"] {
+  width: min(100%, 420px);
+  height: 64px;
+  min-height: 64px;
+  max-height: 64px;
+  border: 1px solid var(--ui-hairline);
+  object-fit: none;
+}
+
+.hermes-markdown-image-fallback {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  margin: 4px 0;
+  border: 1px solid var(--ui-hairline);
+  border-radius: 8px;
+  background: var(--ui-surface-muted);
+  color: var(--ui-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
 }
 
 .task-markdown-preview-doc .hermes-markdown-image {
@@ -6250,6 +6340,17 @@ button.directory-alias-chip {
 
 .plugin-app-reorder-mode .plugin-app-card {
   cursor: grab;
+  touch-action: none;
+}
+
+.plugin-app-reorder-mode .plugin-app-card[data-plugin-topic-sort-id] {
+  background: color-mix(in srgb, var(--ui-accent-soft) 58%, transparent);
+  box-shadow: inset 0 0 0 1px var(--ui-hairline-strong);
+}
+
+.plugin-app-reorder-mode .plugin-app-card-reorder-selected {
+  background: var(--ui-accent-soft);
+  box-shadow: inset 0 0 0 2px var(--ui-accent);
 }
 
 .plugin-app-strip::-webkit-scrollbar {
@@ -16822,6 +16923,10 @@ body.task-markdown-preview-open {
   backdrop-filter: blur(14px);
 }
 
+.composer.composer-shell-locked {
+  pointer-events: none;
+}
+
 .composer-source-toggle {
   display: inline-flex;
   align-items: center;
@@ -18199,7 +18304,17 @@ body.voice-input-press-active #sendMessage {
   }
 
   .bottom-nav .bottom-tab {
+    position: relative;
     transform: translateY(calc(-1 * var(--mobile-bottom-nav-visual-lift)));
+  }
+
+  .bottom-nav #bottomChatMode::before {
+    content: "";
+    position: absolute;
+    left: calc(-1 * max(18px, env(safe-area-inset-left)));
+    right: 0;
+    top: -8px;
+    bottom: -8px;
   }
 
   .bottom-nav.bottom-nav-count-1 {

@@ -10,6 +10,7 @@ const { createPluginWorkspaceAuditService } = require("../adapters/plugin-worksp
 
 const MAX_COMMAND_BYTES = 80_000;
 const MAX_CODEX_BYTES = 5_000_000;
+const DEFAULT_CODEX_TASK_CARD_SCRIPT = "/Users/example/path";
 
 function clean(value, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
@@ -237,6 +238,229 @@ function codexAuditConfig() {
       || 600_000,
   ) || 600_000);
   return { enabled, command, model, codexHome, timeoutMs };
+}
+
+function listFromEnv(nameA, nameB) {
+  const raw = clean(process.env[nameA] || process.env[nameB] || "", 4000);
+  return raw
+    .split(/[,\n;，；]+/u)
+    .map((item) => clean(item, 300))
+    .filter(Boolean);
+}
+
+function readTaskCardConfigFile() {
+  const configured = clean(
+    process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE
+      || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE
+      || "",
+    2000,
+  );
+  const fallback = process.env.HERMES_MOBILE_ROOT
+    ? path.join(process.env.HERMES_MOBILE_ROOT, "data", "plugin-workspace-audit-task-cards.json")
+    : "";
+  const filePath = configured || fallback;
+  if (!filePath) return {};
+  try {
+    if (!fs.existsSync(filePath)) return {};
+    const parsed = JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch (err) {
+    return { __error: clean(err?.message || err, 300), __file: filePath };
+  }
+}
+
+function listFromConfig(value) {
+  if (Array.isArray(value)) return value.map((item) => clean(item, 300)).filter(Boolean).slice(0, 12);
+  return String(value || "")
+    .split(/[,\n;，；]+/u)
+    .map((item) => clean(item, 300))
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
+function taskCardConfig(pluginId = "") {
+  const pluginEnvKey = String(pluginId || "").toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  const fileConfig = readTaskCardConfigFile();
+  const plugins = fileConfig.plugins && typeof fileConfig.plugins === "object" && !Array.isArray(fileConfig.plugins)
+    ? fileConfig.plugins
+    : {};
+  const pluginFileConfig = plugins[pluginId] && typeof plugins[pluginId] === "object" && !Array.isArray(plugins[pluginId])
+    ? plugins[pluginId]
+    : {};
+  const sourceThreadId = clean(
+    process.env[`HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_${pluginEnvKey}_TASK_CARD_SOURCE_THREAD_ID`]
+      || process.env[`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_${pluginEnvKey}_TASK_CARD_SOURCE_THREAD_ID`]
+      || process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_SOURCE_THREAD_ID
+      || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_SOURCE_THREAD_ID
+      || pluginFileConfig.sourceThreadId
+      || pluginFileConfig.source_thread_id
+      || fileConfig.sourceThreadId
+      || fileConfig.source_thread_id
+      || "",
+    300,
+  );
+  const pluginTargets = listFromEnv(
+    `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_${pluginEnvKey}_TASK_CARD_TARGET_THREADS`,
+    `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_${pluginEnvKey}_TASK_CARD_TARGET_THREADS`,
+  );
+  const defaultTargets = listFromEnv(
+    "HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_TARGET_THREADS",
+    "HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_TARGET_THREADS",
+  );
+  const pluginFileTargets = listFromConfig(pluginFileConfig.targetThreadIds || pluginFileConfig.target_thread_ids || pluginFileConfig.targetThreads || pluginFileConfig.target_threads);
+  const defaultFileTargets = listFromConfig(fileConfig.targetThreadIds || fileConfig.target_thread_ids || fileConfig.targetThreads || fileConfig.target_threads);
+  const enabled = envFlag("HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_ENABLED")
+    || envFlag("HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_ENABLED")
+    || Boolean(pluginFileConfig.enabled || fileConfig.enabled)
+    || Boolean(sourceThreadId && (pluginTargets.length || defaultTargets.length || pluginFileTargets.length || defaultFileTargets.length));
+  const script = clean(
+    process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_SCRIPT
+      || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_SCRIPT
+      || DEFAULT_CODEX_TASK_CARD_SCRIPT,
+    2000,
+  );
+  const pending = envFlag("HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_PENDING")
+    || envFlag("HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_PENDING");
+  return {
+    enabled,
+    sourceThreadId,
+    targetThreadIds: pluginTargets.length ? pluginTargets : defaultTargets.length ? defaultTargets : pluginFileTargets.length ? pluginFileTargets : defaultFileTargets,
+    script,
+    pending,
+    configError: fileConfig.__error || "",
+  };
+}
+
+function taskCardTitle(audit = {}) {
+  return `[Plugin Audit] ${audit.pluginTitle || audit.pluginId} ${audit.mode || "alignment"}`;
+}
+
+function taskCardIdempotency(job, audit = {}) {
+  return [
+    "plugin-workspace-audit",
+    clean(audit.pluginId, 80) || "plugin",
+    clean(audit.mode, 40) || "alignment",
+    clean(job.id, 80) || "job",
+    clean(audit.head, 80) || "unknown",
+  ].join(":");
+}
+
+function buildAuditTaskCardRequest(job, audit = {}, report = {}) {
+  const title = taskCardTitle(audit);
+  const issueLines = audit.findings
+    .filter((item) => item.severity !== "info")
+    .slice(0, 8)
+    .map((item) => `- ${item.severity.toUpperCase()}: ${item.title}`);
+  const body = [
+    "## Scope",
+    "",
+    `Plugin: ${audit.pluginTitle || audit.pluginId}`,
+    `Audit mode: ${audit.mode}`,
+    `Target workspace: ${audit.targetWorkspaceId || "owner"}`,
+    `Workspace path ref: ${audit.pathRef}`,
+    `Source revision: ${audit.head || "unknown"}`,
+    `Report file: ${report.fileName || "not-written-yet"}`,
+    "",
+    "## Deterministic Audit Summary",
+    "",
+    `Top severity: ${audit.topSeverity}`,
+    `Finding count: ${audit.findingCount}`,
+    issueLines.length ? issueLines.join("\n") : "- No deterministic non-info findings.",
+    "",
+    "## Required Workflow",
+    "",
+    "- Use the target plugin thread/workspace and Home AI platform docs.",
+    "- Do not rely on a separate Home AI cron-spawned Codex process.",
+    "- Keep profile, auth, thread state, and app-server/mux ownership inside Codex Mobile.",
+    "- Start with read-only inspection. If a repair is needed, keep changes scoped to the plugin-owned surface or explicitly hand Home AI host issues back to the host thread.",
+    "- Do not print secrets, access keys, tokens, push endpoints, private database paths, or long raw logs.",
+    "",
+    "## Acceptance",
+    "",
+    "- Reply with findings first, ordered by severity.",
+    "- Include file/line references where available.",
+    "- State whether a follow-up repair is needed or no issue was found.",
+  ].join("\n");
+  return {
+    sourceThreadId: "",
+    targetThreadIds: [],
+    title,
+    summary: `${audit.pluginTitle || audit.pluginId} plugin workspace audit follow-up`,
+    body,
+    idempotencyKey: taskCardIdempotency(job, audit),
+    requestId: taskCardIdempotency(job, audit),
+    workflowMode: "autonomous",
+    workflowId: "home-ai-plugin-workspace-audit",
+    pending: false,
+    autoApprove: true,
+  };
+}
+
+function maybeSendAuditTaskCard(job, audit = {}, report = {}) {
+  const request = buildAuditTaskCardRequest(job, audit, report);
+  const config = taskCardConfig(audit.pluginId);
+  const taskCard = {
+    enabled: config.enabled,
+    ok: true,
+    status: "draft",
+    request,
+  };
+  if (config.configError) {
+    taskCard.ok = false;
+    taskCard.status = "config_error";
+    taskCard.message = `跨线程 task-card 配置文件无效: ${config.configError}`;
+    return taskCard;
+  }
+  if (!config.enabled) {
+    taskCard.status = "not_configured";
+    taskCard.message = "跨线程 task-card 未配置 sourceThreadId/targetThreadIds，已仅生成草稿。";
+    return taskCard;
+  }
+  if (!config.sourceThreadId || !config.targetThreadIds.length) {
+    taskCard.ok = false;
+    taskCard.status = "missing_thread_mapping";
+    taskCard.message = "跨线程 task-card 需要明确 sourceThreadId 和 targetThreadIds，避免多 profile/多线程串线。";
+    return taskCard;
+  }
+  const sendRequest = Object.assign({}, request, {
+    sourceThreadId: config.sourceThreadId,
+    targetThreadIds: config.targetThreadIds,
+    pending: Boolean(config.pending),
+    autoApprove: !config.pending,
+  });
+  const tempFile = path.join(os.tmpdir(), `home-ai-plugin-audit-card-${process.pid}-${Date.now()}.json`);
+  fs.writeFileSync(tempFile, `${JSON.stringify(sendRequest, null, 2)}\n`, "utf8");
+  const taskCardEnv = Object.assign({}, process.env);
+  if (!taskCardEnv.CODEX_MOBILE_BASE_URL) taskCardEnv.CODEX_MOBILE_BASE_URL = "http://127.0.0.1:8787";
+  if (!taskCardEnv.CODEX_MOBILE_KEY_FILE) {
+    taskCardEnv.CODEX_MOBILE_KEY_FILE = taskCardEnv.HERMES_MOBILE_CODEX_PLUGIN_ACCESS_KEY_PATH
+      || taskCardEnv.HERMES_WEB_CODEX_PLUGIN_ACCESS_KEY_PATH
+      || (taskCardEnv.HERMES_MOBILE_ROOT ? path.join(taskCardEnv.HERMES_MOBILE_ROOT, "data", "secrets", "codex-mobile-access-key.secret") : "");
+  }
+  try {
+    const result = spawnSync(process.execPath, [config.script, "--json-file", tempFile], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 30_000,
+      maxBuffer: MAX_COMMAND_BYTES,
+      env: taskCardEnv,
+    });
+    let response = {};
+    try {
+      response = JSON.parse(result.stdout || "{}");
+    } catch (_) {
+      response = { raw: clean(result.stdout, 4000) };
+    }
+    taskCard.request = sendRequest;
+    taskCard.status = result.status === 0 && response.ok !== false ? "sent" : "failed";
+    taskCard.ok = taskCard.status === "sent";
+    taskCard.response = response;
+    taskCard.error = taskCard.ok ? "" : clean(result.stderr || result.stdout, 4000);
+    return taskCard;
+  } finally {
+    fs.rmSync(tempFile, { force: true });
+  }
 }
 
 function buildCodexPrompt(job, audit) {
@@ -498,18 +722,32 @@ function renderReport(job, audit) {
     "- runner 只使用有边界的元数据和源码检查命令。",
     "- 未编辑文件、运行迁移、安装包、提交、推送、部署、重启服务或读取 secret 文件内容。",
     "- 报告有意省略目标工作区绝对路径，只显示配置的路径引用。",
+    "",
+    "## 跨线程任务卡",
+    "",
+    `- 状态: ${audit.taskCard?.status || "not_configured"}`,
+    audit.taskCard?.message ? `- 说明: ${audit.taskCard.message}` : "",
+    audit.taskCard?.request?.title ? `- 标题: ${audit.taskCard.request.title}` : "",
+    audit.taskCard?.request?.targetThreadIds?.length ? `- 目标线程数: ${audit.taskCard.request.targetThreadIds.length}` : "",
+    audit.taskCard?.error ? "### 发送诊断" : "",
+    audit.taskCard?.error ? "```text\n" + audit.taskCard.error.replace(/```/g, "'''") + "\n```" : "",
   ].join("\n");
 }
 
-function writeReport(job, audit, markdown, options = {}) {
+function auditReportTarget(job, audit, options = {}) {
   const jobId = safeSlug(job.id || "job", "job");
   const root = path.join(outputRoot(options), jobId);
-  fs.mkdirSync(root, { recursive: true });
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
   const fileName = `plugin-workspace-audit-${safeSlug(audit.pluginId, "plugin")}-${stamp}.md`;
   const reportPath = path.join(root, fileName);
+  return { root, reportPath, fileName };
+}
+
+function writeReport(reportTarget, markdown) {
+  const reportPath = reportTarget.reportPath;
+  fs.mkdirSync(path.dirname(reportPath), { recursive: true });
   fs.writeFileSync(reportPath, markdown, { encoding: "utf8", mode: 0o600 });
-  return { reportPath, fileName };
+  return { reportPath, fileName: reportTarget.fileName };
 }
 
 function dbPathFromEnv() {
@@ -559,8 +797,11 @@ function main() {
   const options = parseArgs(process.argv.slice(2));
   const job = readJob(options.jobFile);
   const audit = buildAudit(job);
+  const reportTarget = auditReportTarget(job, audit, options);
+  const report = { reportPath: reportTarget.reportPath, fileName: reportTarget.fileName };
+  audit.taskCard = maybeSendAuditTaskCard(job, audit, report);
   const markdown = renderReport(job, audit);
-  const report = writeReport(job, audit, markdown, options);
+  writeReport(reportTarget, markdown);
   const inbox = upsertInbox(job, audit, report, options);
   const finalOutput = [
     markdown,

@@ -12,6 +12,7 @@ const {
   parseToolsetEscalationRequest,
   toolsetEscalationMessage,
 } = require("./gateway-run-toolset-escalation-service");
+const { receiptSummaryTitleFromText } = require("./directory-topic-index-service");
 const { validateWardrobeOutfitWorkflowCompletion } = require("./wardrobe-outfit-workflow-gate-service");
 
 function cleanString(value) {
@@ -19,7 +20,7 @@ function cleanString(value) {
 }
 
 function compactReceiptTitle(value, max = 160) {
-  const text = cleanString(value).replace(/\s+/g, " ");
+  const text = receiptSummaryTitleFromText(value, { max });
   if (!text || text.length <= max) return text;
   return `${text.slice(0, Math.max(1, max - 1))}...`;
 }

@@ -37,6 +37,16 @@ function createNotificationChannelService(options = {}) {
     ? options.sendNativeNotification
     : (async () => null);
 
+  function successfulNativeWorkspaceIds(nativeResults = []) {
+    const ids = new Set();
+    for (const result of Array.isArray(nativeResults) ? nativeResults : []) {
+      if (!result || Number(result.sent || 0) <= 0) continue;
+      const workspaceId = String(result.workspaceId || result.workspace_id || "").trim();
+      if (workspaceId) ids.add(workspaceId);
+    }
+    return [...ids];
+  }
+
   async function sendNotification(payload = {}, sendOptions = {}) {
     const channel = payloadNotificationChannel(payload, sendOptions, "both");
     if (channel === "web_push") return sendWebPushNotification(payload, sendOptions);
@@ -52,8 +62,11 @@ function createNotificationChannelService(options = {}) {
         native: nativeResults || [],
       };
     }
-    const webResult = await sendWebPushNotification(payload, sendOptions);
     const nativeResults = await sendNativeNotification(payload, sendOptions);
+    const suppressIosWebPushWorkspaceIds = successfulNativeWorkspaceIds(nativeResults);
+    const webResult = await sendWebPushNotification(payload, suppressIosWebPushWorkspaceIds.length
+      ? Object.assign({}, sendOptions, { suppressIosWebPushWorkspaceIds })
+      : sendOptions);
     return nativeResults ? Object.assign({}, webResult, { native: nativeResults }) : webResult;
   }
 

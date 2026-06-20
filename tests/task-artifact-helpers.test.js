@@ -68,6 +68,14 @@ const helpers = require("../public/app-task-artifact-helpers.js");
 }
 
 {
+  assert.equal(
+    helpers.receiptSummaryTitleFromText("感。", 96),
+    "",
+    "receipt summary extraction must reject one-character fragments",
+  );
+}
+
+{
   const thread = {
     workspaceId: "owner",
     taskGroupMeta: {

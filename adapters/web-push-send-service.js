@@ -20,6 +20,26 @@ function defaultMakeId(prefix = "id") {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function stringList(value) {
+  return Array.isArray(value)
+    ? value.map((item) => String(item || "").trim()).filter(Boolean)
+    : (value ? [String(value).trim()].filter(Boolean) : []);
+}
+
+function pushSubscriptionLooksLikeIphone(item = {}) {
+  const values = [
+    item.deviceLabel,
+    item.device_label,
+    item.platform,
+    item.userAgent,
+    item.user_agent,
+    item.clientContext?.platform,
+    item.clientContext?.deviceLabel,
+    item.clientContext?.userAgent,
+  ].map((value) => String(value || "").toLowerCase());
+  return values.some((value) => value.includes("iphone"));
+}
+
 function createWebPushSendService(options = {}) {
   const webpush = options.webpush;
   const state = typeof options.state === "function" ? options.state : (() => options.state || {});
@@ -69,6 +89,7 @@ function createWebPushSendService(options = {}) {
   async function sendPushNotification(payload, opts = {}) {
     if (!webPushConfig()) return { enabled: false, attempted: 0, sent: 0, failed: 0, removed: 0 };
     const targetPrincipals = normalizeStringList(opts.principalIds || opts.principalId || []);
+    const suppressIosWebPushWorkspaceIds = new Set(normalizeStringList(opts.suppressIosWebPushWorkspaceIds || []));
     const store = currentState();
     const subscriptions = (store.pushSubscriptions || []).filter((item) => {
       if (!item || item.disabledAt || !item.subscription?.endpoint) return false;
@@ -82,6 +103,16 @@ function createWebPushSendService(options = {}) {
     const now = nowIso();
     const body = JSON.stringify(payload);
     for (const item of subscriptions) {
+      const workspaceIds = stringList(item.workspaceIds || item.workspaceId || item.workspace_id);
+      if (
+        suppressIosWebPushWorkspaceIds.size
+        && pushSubscriptionLooksLikeIphone(item)
+        && workspaceIds.some((workspaceId) => suppressIosWebPushWorkspaceIds.has(workspaceId))
+      ) {
+        item.lastError = "skipped_native_ios_apns_preferred";
+        item.updatedAt = now;
+        continue;
+      }
       const skipReason = pushSubscriptionSkipReason(item);
       if (skipReason) {
         item.lastError = skipReason;

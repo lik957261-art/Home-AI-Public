@@ -193,7 +193,11 @@ Delivery channel selection is explicit:
   devices.
 - `notificationChannel=both` is reserved for background events that do not have
   a foreground client source, such as scheduled Automation, Todo/reminder, and
-  durable review notifications.
+  durable review notifications. For this channel, Home AI attempts APNs first.
+  If APNs successfully sends to a workspace, same-workspace iPhone PWA Web Push
+  subscriptions are skipped for that event to avoid duplicate phone
+  notifications. Desktop/Mac Web Push subscriptions are not suppressed, and Web
+  Push remains the fallback when APNs has no successful delivery.
 
 Interactive chat/task terminal receipts must preserve the sending client
 source. Messages submitted from the PWA set `notificationChannel=web_push`;

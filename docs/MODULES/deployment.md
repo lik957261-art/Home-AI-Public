@@ -377,13 +377,35 @@ full Home AI deploy installs or refreshes
 `/Users/example/path` exists as the
 canonical Hermes CRON store, installs runtime no-agent scripts such as
 `/Users/example/path`
-from the deployed app source, starts the dispatcher every 60 seconds with
+and the `homeai-visual-polish-*.sh` scheduled visual-audit wrappers from the
+deployed app source, starts the dispatcher every 60 seconds with
 `scripts/hermes-mobile-cron-dispatcher.py --dispatch`, sets
 `HERMES_CRON_SCRIPT_TIMEOUT=1800` for long-running `no_agent` scripts, restarts
 `system/com.hermesmobile.workspace-system-helper` so privileged onboarding
 actions load the newly deployed executor code, and validates
 `system/com.hermesmobile.listener`, `system/com.hermesmobile.cron`, and
 `system/com.hermesmobile.workspace-system-helper`.
+The visual-audit wrappers read
+`/Users/example/path`, run the
+shared iOS PWA visual harness, and send failures as Codex Mobile task cards;
+they do not launch Codex CLI directly.
+The deploy path also materializes the dedicated `hm-owner-openai-xhigh` CRON
+profile from the Owner OpenAI profile with `gpt-5.5` and
+`agent.reasoning_effort: xhigh`, then installs the agent-backed
+`homeai_visual_analysis_xhigh` Automation job. This keeps high-reasoning visual
+triage inside Home AI Automation while leaving visual evidence capture jobs as
+bounded `no_agent` scripts.
+The same deploy path installs the desktop-user LaunchAgent
+`com.hermesmobile.visual-debug`, which keeps
+`scripts/ios-pwa-live-debug-server.js` available on `127.0.0.1:19073` for those
+scheduled checks. Simulator/Appium/WebDriverAgent ownership stays in the
+desktop user's GUI session instead of the `hermes-host` CRON service account.
+The LaunchAgent default app URL is the Home AI listener
+`http://127.0.0.1:8797/?source=pwa`, overridable with
+`HOMEAI_VISUAL_DEBUG_APP_URL`. Scheduled visual audits pass their own
+`HOMEAI_VISUAL_AUDIT_APP_URL` when needed, clear static browser caches, and
+verify the deployed `public/index.html` client version so stale Safari/PWA
+pages do not produce false Dock/layout failures.
 After Automation cron provisioning, dispatch changes, or repeated background
 job failures, run `scripts/macos-automation-cron-audit.js` on Mac production
 with the pinned runtime and bounded JSON output. The audit is part of the
@@ -572,13 +594,17 @@ environment. The central Mac deploy script sets
 `<macRoot>/plugins`. The map is configuration only: the runtime still validates
 plugin registry visibility, absolute existing directories, read-only mode, and
 protected-path rejection before creating a `plugin_workspace_audit` job.
-Codex-assisted review is off by default for productized installs. Operators may
-enable it by setting `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1`
-and `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND=<codex-command>` before
-running the deploy script; the script mirrors the `HERMES_WEB_*` aliases into
-the listener launchd environment. The runner still invokes Codex with
-`--sandbox read-only` and keeps the deterministic audit report available when
-the optional Codex phase is disabled.
+Local Codex CLI review is disabled by default for Mac production deployments.
+The deploy script writes `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=0`
+and leaves `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME` empty, so the
+`hermes-host` CRON service does not create a second Codex profile/mux context.
+Model-backed follow-up should use Codex Mobile cross-thread task cards. The
+deploy script sets
+`HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` /
+`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` to
+`<macRoot>/data/plugin-workspace-audit-task-cards.json`; that production data
+file may map a source thread and plugin-specific target threads, for example a
+Music audit target, without committing private thread ids to source.
 
 Mac workspace Gateway start scripts must execute the official runtime through
 the production venv Python (`$ROOT/runtime/hermes-agent-official/venv/bin/python

@@ -114,6 +114,38 @@ async function testSendFiltersSkipsFailuresAndRecordsDelivery() {
   assert.equal(calls.saves, 1);
 }
 
+async function testBothChannelSkipsIphoneWebPushWhenNativeSucceeded() {
+  const { calls, service, state } = createHarness();
+  state.pushSubscriptions.push(
+    pushSubscription("endpoint-iphone", ["owner"], {
+      deviceLabel: "iPhone",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X)",
+      workspaceIds: ["owner"],
+    }),
+    pushSubscription("endpoint-mac", ["owner"], {
+      deviceLabel: "MacIntel",
+      platform: "MacIntel",
+      workspaceIds: ["owner"],
+    }),
+    pushSubscription("endpoint-child-iphone", ["child"], {
+      deviceLabel: "iPhone",
+      workspaceIds: ["child"],
+    }),
+  );
+  const result = await service.sendPushNotification({
+    title: "Background event",
+    data: { workspaceId: "owner" },
+  }, {
+    principalId: "owner",
+    suppressIosWebPushWorkspaceIds: ["owner"],
+  });
+  assert.deepEqual(result, { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0, skipped: 1 });
+  assert.equal(calls.sends.length, 1);
+  assert.equal(calls.sends[0].subscription.endpoint, "endpoint-mac");
+  assert.equal(state.pushSubscriptions[0].lastError, "skipped_native_ios_apns_preferred");
+  assert.equal(state.pushSubscriptions[1].lastSuccessAt, "2026-06-08T00:00:00.000Z");
+}
+
 function testRemoveAndDisabledConfig() {
   const { calls, service, state } = createHarness({
     serviceOptions: { webPushConfig: () => null },
@@ -136,6 +168,7 @@ function testRemoveAndDisabledConfig() {
 
 testStatusAndActivePrincipals();
 testSendFiltersSkipsFailuresAndRecordsDelivery()
+  .then(testBothChannelSkipsIphoneWebPushWhenNativeSucceeded)
   .then(testRemoveAndDisabledConfig)
   .then(() => {
     console.log("web-push-send-service tests passed");

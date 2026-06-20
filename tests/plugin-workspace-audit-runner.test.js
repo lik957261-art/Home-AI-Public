@@ -49,6 +49,9 @@ function main() {
   const dbPath = path.join(tempRoot, "data", "hermes-mobile.sqlite3");
   const fakeCodexLog = path.join(tempRoot, "fake-codex-call.json");
   const fakeCodex = path.join(tempRoot, "fake-codex.js");
+  const fakeTaskCardLog = path.join(tempRoot, "fake-task-card-call.json");
+  const fakeTaskCard = path.join(tempRoot, "fake-task-card.js");
+  const taskCardConfig = path.join(tempRoot, "task-card-config.json");
   fs.writeFileSync(fakeCodex, [
     "#!/usr/bin/env node",
     "const fs = require('node:fs');",
@@ -60,6 +63,24 @@ function main() {
     "console.log('transcript output should not be preferred over final message');",
   ].join("\n") + "\n");
   fs.chmodSync(fakeCodex, 0o755);
+  fs.writeFileSync(fakeTaskCard, [
+    "#!/usr/bin/env node",
+    "const fs = require('node:fs');",
+    "const index = process.argv.indexOf('--json-file');",
+    "const file = index >= 0 ? process.argv[index + 1] : '';",
+    "const request = JSON.parse(fs.readFileSync(file, 'utf8'));",
+    "fs.writeFileSync(process.env.FAKE_TASK_CARD_LOG, JSON.stringify({ request, cwd: process.cwd(), keyFile: process.env.CODEX_MOBILE_KEY_FILE || '' }, null, 2));",
+    "console.log(JSON.stringify({ ok: true, card: { id: 'card-1' } }));",
+  ].join("\n") + "\n");
+  fs.chmodSync(fakeTaskCard, 0o755);
+  fs.writeFileSync(taskCardConfig, JSON.stringify({
+    sourceThreadId: "source-thread",
+    plugins: {
+      "codex-mobile": {
+        targetThreadIds: ["target-thread"],
+      },
+    },
+  }, null, 2));
   const job = {
     id: "audit_job_1",
     kind: "plugin_workspace_audit",
@@ -94,7 +115,12 @@ function main() {
       HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED: "1",
       HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND: fakeCodex,
       HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: "30000",
+      HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE: taskCardConfig,
+      HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_SCRIPT: fakeTaskCard,
+      HERMES_MOBILE_ROOT: "/Users/example/path",
+      CODEX_MOBILE_KEY_FILE: "",
       FAKE_CODEX_LOG: fakeCodexLog,
+      FAKE_TASK_CARD_LOG: fakeTaskCardLog,
     }),
     encoding: "utf8",
     maxBuffer: 5 * 1024 * 1024,
@@ -110,6 +136,8 @@ function main() {
   assert.match(payload.output, /文档与实现抽样文件/);
   assert.match(payload.output, /docs\/PRODUCT_REQUIREMENTS\.md/);
   assert.match(payload.output, /index\.js:1 MEDIUM - 来自只读审计的模拟问题/);
+  assert.match(payload.output, /跨线程任务卡/);
+  assert.match(payload.output, /状态: sent/);
   assert.equal(payload.output.includes(workspace), false, "report must not expose target workspace absolute path");
   assert.equal(fs.existsSync(payload.reportPath), true);
   assert.equal(path.dirname(payload.reportPath), path.join(outputRoot, "audit_job_1"));
@@ -124,6 +152,13 @@ function main() {
   assert.equal(fakeCall.argv.includes("--cd"), true);
   assert.match(fakeCall.argv.join("\n"), /不要编辑文件/);
   assert.match(fakeCall.argv.join("\n"), /目标一致性审计/);
+  const fakeCardCall = JSON.parse(fs.readFileSync(fakeTaskCardLog, "utf8"));
+  assert.equal(fakeCardCall.request.sourceThreadId, "source-thread");
+  assert.deepEqual(fakeCardCall.request.targetThreadIds, ["target-thread"]);
+  assert.equal(fakeCardCall.request.workflowId, "home-ai-plugin-workspace-audit");
+  assert.equal(fakeCardCall.request.autoApprove, true);
+  assert.equal(fakeCardCall.keyFile, "/Users/example/path");
+  assert.match(fakeCardCall.request.body, /Keep profile, auth, thread state, and app-server\/mux ownership inside Codex Mobile/);
 
   const store = createMobileSqliteStore({ dbPath });
   try {

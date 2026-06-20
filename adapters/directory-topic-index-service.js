@@ -87,11 +87,16 @@ function cleanReceiptTitleLine(line = "") {
   return text;
 }
 
+function receiptTitleLooksLikeFragment(value = "") {
+  const text = String(value || "").replace(/[^\p{L}\p{N}]+/gu, "").trim();
+  return text.length > 0 && text.length < 3;
+}
+
 function receiptSummaryTitleFromText(text = "", options = {}) {
   const compactText = typeof options.compactText === "function" ? options.compactText : defaultCompactText;
   const max = Math.max(8, Number(options.max || 96) || 96);
   const metadataTitle = receiptTitleMetadata(text, max, compactText);
-  if (metadataTitle) return metadataTitle;
+  if (metadataTitle && !receiptTitleLooksLikeFragment(metadataTitle)) return metadataTitle;
   const clean = stripReceiptMetadataComments(text);
   const heading = clean.split(/\r?\n/)
     .map((line) => String(line || "").trim().match(/^#{1,4}\s+(.+)$/))
@@ -99,6 +104,7 @@ function receiptSummaryTitleFromText(text = "", options = {}) {
   const candidate = cleanReceiptTitleLine(heading)
     || clean.split(/\r?\n/).map(cleanReceiptTitleLine).find(Boolean)
     || "";
+  if (receiptTitleLooksLikeFragment(candidate)) return "";
   return compactText(candidate, max);
 }
 

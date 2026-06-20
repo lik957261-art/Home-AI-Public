@@ -91,6 +91,7 @@ function applyViewMode() {
   $("bottomGrowthMode")?.classList.toggle("active", growth);
   $("bottomMoiraMode")?.classList.toggle("active", moira);
   $("bottomMusicMode")?.classList.toggle("active", music);
+  if (typeof syncEmbeddedPluginHostGlobalClasses === "function") syncEmbeddedPluginHostGlobalClasses();
   $("taskModeControls")?.classList.add("hidden");
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
@@ -140,6 +141,9 @@ async function loadSelectedView(options = {}) {
   }
   if (state.viewMode !== "moira" && typeof parkMoiraPluginShell === "function") {
     parkMoiraPluginShell();
+  }
+  if (state.viewMode !== "music" && typeof parkMusicPluginShell === "function") {
+    parkMusicPluginShell();
   }
   const directoryTopicDraft = typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive();
   if (state.viewMode !== "projects" && !directoryTopicDraft) state.directoryReturnRoute = null;

@@ -11,7 +11,10 @@ const context = {
   console,
   state: {
     expandedLongMessageIds: new Set(),
+    selectedWorkspaceId: "owner",
   },
+  URL,
+  location: { origin: "http://127.0.0.1:8797" },
   extractDirectoryAliases(text) {
     return { text: String(text || ""), aliases: [] };
   },
@@ -73,7 +76,9 @@ const imageHtml = context.renderText("这张封面是这个：\n\n![Album Cover]
   role: "assistant",
   status: "done",
 });
-assert.match(imageHtml, /<img class="hermes-markdown-image" src="\/api\/v1\/music\/local\/covers\/album\.jpg" alt="Album Cover" loading="lazy" decoding="async">/);
+assert.match(imageHtml, /<img class="hermes-markdown-image" src="data:image\/svg\+xml/);
+assert.match(imageHtml, /data-hermes-inline-image-src="\/api\/hermes-plugins\/music\/proxy\/api\/v1\/music\/local\/covers\/album\.jpg\?workspaceId=owner"/);
+assert.match(imageHtml, /data-hermes-inline-image-state="pending"/);
 assert.doesNotMatch(imageHtml, /!\[Album Cover\]/);
 assert.doesNotMatch(imageHtml, /src="javascript:/);
 

@@ -62,6 +62,10 @@ function escapeMarkdownAttribute(value) {
   return escapeHtml(value).replace(/`/g, "&#96;");
 }
 
+const HERMES_INLINE_IMAGE_PLACEHOLDER_SRC = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1' height='1'%3E%3C/svg%3E";
+const HERMES_INLINE_IMAGE_OBJECT_URL_CACHE_LIMIT = 48;
+const inlineMarkdownImageObjectUrlCache = new Map();
+
 function sanitizeInlineMarkdownImageSrc(src) {
   const renderer = typeof globalThis !== "undefined" ? globalThis.HermesMarkdownRenderer : null;
   if (renderer && typeof renderer.sanitizeImageSrc === "function") return renderer.sanitizeImageSrc(src);
@@ -84,24 +88,82 @@ function sanitizeInlineMarkdownImageSrc(src) {
     const UrlCtor = typeof URL === "function" ? URL : null;
     if (!UrlCtor) {
       if (/^https?:\/\//i.test(withoutControls)) return withoutControls;
-      return !withoutControls.includes(":") && /^[A-Za-z0-9._~/?#[\]@!$&'()*+,;=:%-]+$/.test(withoutControls)
-        ? withoutControls
-        : "#";
+      return "#";
     }
     const parsed = new UrlCtor(withoutControls);
     return ["http:", "https:"].includes(parsed.protocol) ? withoutControls : "#";
   } catch (_error) {
-    return /^[A-Za-z0-9._~/?#[\]@!$&'()*+,;=:%-]+$/.test(withoutControls)
-      ? withoutControls
-      : "#";
+    return "#";
+  }
+}
+
+function inlineMarkdownImageBaseOrigin() {
+  return typeof location !== "undefined" && location?.origin ? location.origin : "http://localhost";
+}
+
+function inlineMarkdownImageWorkspaceId() {
+  const fromState = typeof state !== "undefined" && state
+    ? (state.selectedWorkspaceId || state.auth?.workspaceId || "")
+    : "";
+  if (fromState) return String(fromState);
+  try {
+    if (typeof localStorage !== "undefined") return localStorage.getItem("hermesWebWorkspace") || "owner";
+  } catch (_error) {}
+  return "owner";
+}
+
+function normalizePluginInlineMarkdownImageSrc(parsed, sameOrigin) {
+  if (!sameOrigin || !parsed.pathname.startsWith("/api/v1/music/")) return "";
+  const proxy = new URL(`/api/hermes-plugins/music/proxy${parsed.pathname}`, inlineMarkdownImageBaseOrigin());
+  parsed.searchParams.forEach((value, key) => {
+    proxy.searchParams.append(key, value);
+  });
+  if (!proxy.searchParams.get("workspaceId") && !proxy.searchParams.get("workspace_id")) {
+    proxy.searchParams.set("workspaceId", inlineMarkdownImageWorkspaceId());
+  }
+  proxy.hash = parsed.hash;
+  return `${proxy.pathname}${proxy.search}${proxy.hash}`;
+}
+
+function normalizeInlineMarkdownImageSrc(src) {
+  const safeSrc = sanitizeInlineMarkdownImageSrc(src);
+  if (safeSrc === "#") return "#";
+  try {
+    const parsed = new URL(safeSrc, inlineMarkdownImageBaseOrigin());
+    if (!["http:", "https:"].includes(parsed.protocol)) return "#";
+    const sameOrigin = typeof location !== "undefined" && location?.origin && parsed.origin === location.origin;
+    const pluginSrc = normalizePluginInlineMarkdownImageSrc(parsed, sameOrigin);
+    if (pluginSrc) return pluginSrc;
+    if (sameOrigin && parsed.pathname === "/api/files/preview") {
+      parsed.pathname = "/api/files";
+    }
+    return sameOrigin ? `${parsed.pathname}${parsed.search}${parsed.hash}` : parsed.href;
+  } catch (_error) {
+    return safeSrc;
+  }
+}
+
+function inlineMarkdownImageRequiresAuthenticatedFetch(src) {
+  try {
+    const origin = inlineMarkdownImageBaseOrigin();
+    const parsed = new URL(src, origin);
+    if (typeof location === "undefined" || !location?.origin || parsed.origin !== location.origin) return false;
+    return parsed.pathname.startsWith("/api/");
+  } catch (_error) {
+    return false;
   }
 }
 
 function renderInlineMarkdownImage(alt, src, title = "") {
-  const safeSrc = sanitizeInlineMarkdownImageSrc(src);
+  const safeSrc = normalizeInlineMarkdownImageSrc(src);
   if (safeSrc === "#") return "";
+  const authenticatedFetch = inlineMarkdownImageRequiresAuthenticatedFetch(safeSrc);
   const titleAttr = title ? ` title="${escapeMarkdownAttribute(title)}"` : "";
-  return `<img class="hermes-markdown-image" src="${escapeMarkdownAttribute(safeSrc)}" alt="${escapeMarkdownAttribute(alt)}"${titleAttr} loading="lazy" decoding="async">`;
+  const authAttrs = authenticatedFetch
+    ? ` data-hermes-inline-image-src="${escapeMarkdownAttribute(safeSrc)}" data-hermes-inline-image-state="pending"`
+    : "";
+  const displaySrc = authenticatedFetch ? HERMES_INLINE_IMAGE_PLACEHOLDER_SRC : safeSrc;
+  return `<img class="hermes-markdown-image" src="${escapeMarkdownAttribute(displaySrc)}" alt="${escapeMarkdownAttribute(alt)}"${titleAttr} loading="lazy" decoding="async"${authAttrs}>`;
 }
 
 const INLINE_IMAGE_URL_PATTERN = /(^|[\s:：])((?:https?:\/\/|\/(?!\/))[^\s<>"'`]+)/gi;
@@ -120,20 +182,112 @@ function splitInlineImageUrlCandidate(value) {
 }
 
 function inlineImageUrlLooksRenderable(value) {
-  const safeSrc = sanitizeInlineMarkdownImageSrc(value);
+  const safeSrc = normalizeInlineMarkdownImageSrc(value);
   if (safeSrc === "#") return false;
   try {
-    const base = typeof location !== "undefined" && location?.origin ? location.origin : "http://localhost";
-    const parsed = new URL(safeSrc, base);
+    const parsed = new URL(safeSrc, inlineMarkdownImageBaseOrigin());
     if (!["http:", "https:"].includes(parsed.protocol)) return false;
     if (INLINE_IMAGE_EXTENSION_PATTERN.test(parsed.pathname || "")) return true;
     const mime = parsed.searchParams.get("mime") || parsed.searchParams.get("contentType") || "";
     if (INLINE_IMAGE_MIME_PATTERN.test(mime)) return true;
-    const named = parsed.searchParams.get("name") || parsed.searchParams.get("filename") || parsed.searchParams.get("file") || "";
+    const named = parsed.searchParams.get("name")
+      || parsed.searchParams.get("filename")
+      || parsed.searchParams.get("file")
+      || parsed.searchParams.get("path")
+      || "";
     return INLINE_IMAGE_EXTENSION_PATTERN.test(named);
   } catch (_error) {
     return false;
   }
+}
+
+function trimInlineMarkdownImageObjectUrlCache() {
+  while (inlineMarkdownImageObjectUrlCache.size > HERMES_INLINE_IMAGE_OBJECT_URL_CACHE_LIMIT) {
+    const firstKey = inlineMarkdownImageObjectUrlCache.keys().next().value;
+    const cached = inlineMarkdownImageObjectUrlCache.get(firstKey);
+    if (cached?.objectUrl && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function") {
+      try { URL.revokeObjectURL(cached.objectUrl); } catch (_error) {}
+    }
+    inlineMarkdownImageObjectUrlCache.delete(firstKey);
+  }
+}
+
+async function fetchInlineMarkdownImageObjectUrl(src) {
+  const headers = {};
+  const key = typeof localStorage !== "undefined" ? localStorage.getItem("hermesWebKey") || "" : "";
+  if (key) headers["X-Hermes-Web-Key"] = key;
+  const response = await fetch(src, {
+    credentials: "same-origin",
+    headers,
+  });
+  if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+  const contentType = String(response.headers?.get?.("Content-Type") || "").split(";")[0].trim();
+  if (contentType && !INLINE_IMAGE_MIME_PATTERN.test(contentType)) {
+    throw new Error(`unexpected_image_content_type:${contentType}`);
+  }
+  const blob = await response.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  inlineMarkdownImageObjectUrlCache.set(src, { objectUrl });
+  trimInlineMarkdownImageObjectUrlCache();
+  return objectUrl;
+}
+
+function replaceInlineMarkdownImageWithFallback(img, src) {
+  img.dataset.hermesInlineImageState = "failed";
+  const link = document.createElement("a");
+  link.className = "hermes-markdown-image-fallback";
+  link.href = src;
+  link.target = "_self";
+  link.textContent = "打开图片";
+  img.replaceWith(link);
+}
+
+function hydrateInlineMarkdownImages(root = document) {
+  const nodes = Array.from(root?.querySelectorAll?.("img.hermes-markdown-image[data-hermes-inline-image-src]") || []);
+  if (!nodes.length) return 0;
+  nodes.forEach((img) => {
+    const src = String(img.dataset.hermesInlineImageSrc || "").trim();
+    if (!src || img.dataset.hermesInlineImageState === "loaded") return;
+    const cached = inlineMarkdownImageObjectUrlCache.get(src);
+    if (cached?.objectUrl) {
+      img.src = cached.objectUrl;
+      img.dataset.hermesInlineImageState = "loaded";
+      return;
+    }
+    if (cached?.promise) {
+      cached.promise
+        .then((objectUrl) => {
+          if (img.isConnected && img.dataset.hermesInlineImageSrc === src) {
+            img.src = objectUrl;
+            img.dataset.hermesInlineImageState = "loaded";
+          }
+        })
+        .catch(() => {
+          if (img.isConnected && img.dataset.hermesInlineImageSrc === src) replaceInlineMarkdownImageWithFallback(img, src);
+        });
+      return;
+    }
+    if (typeof fetch !== "function" || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+      img.src = src;
+      img.dataset.hermesInlineImageState = "direct";
+      return;
+    }
+    img.dataset.hermesInlineImageState = "loading";
+    const promise = fetchInlineMarkdownImageObjectUrl(src);
+    inlineMarkdownImageObjectUrlCache.set(src, { promise });
+    promise
+      .then((objectUrl) => {
+        if (img.isConnected && img.dataset.hermesInlineImageSrc === src) {
+          img.src = objectUrl;
+          img.dataset.hermesInlineImageState = "loaded";
+        }
+      })
+      .catch(() => {
+        inlineMarkdownImageObjectUrlCache.delete(src);
+        if (img.isConnected && img.dataset.hermesInlineImageSrc === src) replaceInlineMarkdownImageWithFallback(img, src);
+      });
+  });
+  return nodes.length;
 }
 
 function renderBareInlineImageUrls(value, imageTokens) {

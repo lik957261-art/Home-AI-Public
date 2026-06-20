@@ -38,7 +38,8 @@ function testMarkdownImages() {
   assert.equal(sanitizeImageSrc("data:image/png;base64,aaaa"), "#");
   assert.equal(sanitizeImageSrc("https://example.com/cover.jpg"), "https://example.com/cover.jpg");
   assert.equal(sanitizeImageSrc("/api/music/cover.jpg"), "/api/music/cover.jpg");
-  assert.equal(sanitizeImageSrc("covers/album.jpg"), "covers/album.jpg");
+  assert.equal(sanitizeImageSrc("covers/album.jpg"), "#");
+  assert.equal(sanitizeImageSrc("http1280x1280.jpg"), "#");
 
   const html = renderMarkdownToHtml([
     'Cover: ![Cover <A>](https://example.com/cover.jpg "Album")',

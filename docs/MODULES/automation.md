@@ -201,6 +201,31 @@ an origin target, or declares a Skill that the CRON Skill store cannot resolve.
 Script/no-agent jobs such as disaster backup are exempt from the profile
 requirement, but their own run failures remain visible in Automation status.
 
+Home AI visual polish uses two official CRON layers. Evidence capture jobs are
+`no_agent` script jobs: they run `scripts/visual-polish-audit-runner.js`
+through installed wrapper scripts under `$HERMES_HOME/scripts`, execute the
+shared iOS PWA visual harness, and deliver failures through Codex Mobile
+cross-thread task cards. They must not start Codex CLI directly or create a
+separate app-server/mux context. Analysis is a separate agent-backed Home AI
+Automation job, `homeai_visual_analysis_xhigh`, bound to the dedicated
+`hm-owner-openai-xhigh` profile with `gpt-5.5` and
+`agent.reasoning_effort: xhigh`; this is where high-reasoning triage happens.
+The CRON runner depends on the Mac desktop-user LaunchAgent
+`com.hermesmobile.visual-debug` for `http://127.0.0.1:19073/`; it must not try
+to own Simulator/Appium sessions from the `hermes-host` service account.
+Before a visual scenario runs, the harness clears Cache Storage, unregisters
+Service Workers through the live debug server, reopens the target app URL, and
+waits for the expected deployed client version with no old-client update banner.
+Version mismatch, hidden/zero-size app, screenshot-too-small, missing `appUrl`,
+and lane/debug-server setup failures are classified as `failureKind=environment`
+and are skipped by the task-card controller instead of being sent as Home AI or
+plugin UI regressions.
+The maintained visual job set includes host, Music, Finance, Wardrobe, Core,
+`homeai_visual_global_interactions`, and `homeai_visual_analysis_xhigh`. The
+global interaction job is bounded to the host global Dock gesture scenario plus
+the Finance plugin drawer action gesture scenario so it catches cross-surface
+interaction regressions without duplicating every plugin-specific visual audit.
+
 On macOS production, the `com.hermesmobile.cron` LaunchDaemon runs as the
 service user `hermes-host`. The central deploy script must therefore install
 both the CRON profile alias and read/search ACLs for workspace-local plugin
@@ -279,16 +304,23 @@ existing Automation output preview path, and marks the canonical CRON run
 success/failure through `mark_job_run()`. It does not use the model proxy, does
 not enable toolsets, and does not execute user-provided scripts.
 
-The runner may add a Codex read-only review section when the deployment
-explicitly enables it with
-`HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1` or
-`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1`. The command is configured
-with `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND` /
-`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND` and is invoked as
-`codex exec --sandbox read-only --cd <target> --ephemeral`. Public installs
-must remain functional with this flag disabled; missing Codex CLI/auth should
-produce a bounded diagnostic instead of granting write access or blocking
-ordinary deterministic audit reports.
+The runner may add a local Codex read-only review section only when a deployment
+explicitly enables `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1` or
+`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1`. Mac production keeps this
+local CLI path disabled by default. Home AI must not launch a separate Codex
+process with an independent `CODEX_HOME` for normal plugin audit work, because
+Codex Mobile owns the active profile, visible thread state, and shared
+app-server/mux endpoint.
+
+The maintained model-backed follow-up path is a Codex Mobile cross-thread task
+card. The runner writes a bounded task-card draft into the audit report. When
+`HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` /
+`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` points to a JSON
+mapping with an explicit `sourceThreadId` and plugin `targetThreadIds`, the
+runner calls Codex Mobile's `create-thread-task-card.js` wrapper. That wrapper
+uses `POST /api/threads/:sourceThreadId/task-cards`, so execution remains under
+Codex Mobile's thread, profile, and mux ownership. If the mapping is missing,
+the audit still succeeds with a draft-only task-card section.
 
 Audit target paths are configuration, not user input. Deployments may configure
 targets with `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS` /

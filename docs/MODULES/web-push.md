@@ -15,8 +15,13 @@ Channel selection is explicit. PWA-originated interactive messages set
 only. Native-shell-originated interactive messages set
 `notificationChannel=native_ios_apns`, and their terminal receipts must stay
 APNs only. Background events without a foreground sender may use
-`notificationChannel=both`. The PWA settings test endpoint `/api/push/test` is
-Web Push only; native APNs testing is handled by
+`notificationChannel=both`. For `both`, Home AI sends native APNs first; when
+APNs successfully reaches a workspace, same-workspace iPhone PWA Web Push
+subscriptions are skipped for that event so a phone with both the native app and
+installed PWA does not receive duplicate system notifications. Mac/desktop Web
+Push subscriptions still receive the event, and Web Push remains the fallback
+when APNs has no successful delivery. The PWA settings test endpoint
+`/api/push/test` is Web Push only; native APNs testing is handled by
 `/api/native/devices/test-notification`.
 
 ## Core Files

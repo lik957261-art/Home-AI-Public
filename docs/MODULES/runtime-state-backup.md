@@ -109,6 +109,10 @@ Backups must allow a replacement machine to restore source, production app files
   `HOMEAI_DISASTER_BACKUP_RSYNC_ATTEMPTS` with default `3`. A hung or
   unwritable destination must fail with an explicit destination error instead
   of blocking CRON.
+  Local disaster-backup staging is an intermediate workspace only. After a
+  successful NAS/SSH publish, the wrapper removes `staging/current` by default;
+  set `HOMEAI_DISASTER_BACKUP_KEEP_STAGING=1` only for a bounded manual
+  diagnostic run. Failed publishes keep staging for inspection.
 - The production scheduled path is a Hermes CRON `no_agent` job running as
   `hermes-host`. Its script is installed at
   `/Users/example/path`

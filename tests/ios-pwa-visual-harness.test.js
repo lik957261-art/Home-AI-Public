@@ -25,6 +25,7 @@ const {
   assertDirectoryDarkStatus,
   assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,
+  assertEmbeddedPluginSwitchStability,
   assertGlobalPluginDockGestureStability,
   assertVoiceStopHoldGesture,
   assertPluginDrawerActionGestures,
@@ -41,6 +42,9 @@ assert.ok(SCENARIOS["directory-dark-status"]);
 assert.ok(SCENARIOS["dark-admin-surfaces"]);
 assert.ok(SCENARIOS["dark-growth-surfaces"]);
 assert.ok(SCENARIOS["embedded-plugin-shell"]);
+assert.ok(SCENARIOS["embedded-plugin-switch-stability"]);
+assert.ok(SCENARIOS["embedded-plugin-switch-stability"].afterPrepareScript);
+assert.equal(SCENARIOS["embedded-plugin-switch-stability"].afterPrepareArgs()[0], "codex-mobile");
 assert.ok(SCENARIOS["embedded-plugin-keyboard-composer"]);
 assert.ok(SCENARIOS["embedded-plugin-side-chat-keyboard"]);
 assert.ok(SCENARIOS["plugin-topic-dock-return-stability"]);
@@ -85,12 +89,22 @@ assert.match(script, /directory-dark-status/);
 assert.match(script, /dark-admin-surfaces/);
 assert.match(script, /dark-growth-surfaces/);
 assert.match(script, /embedded-plugin-shell/);
+assert.match(script, /embedded-plugin-switch-stability/);
+assert.match(script, /label: "after-prepare"/);
+assert.doesNotMatch(SCENARIOS["embedded-plugin-switch-stability"].prepareScript, /setTimeout/);
 assert.match(script, /embedded-plugin-keyboard-composer/);
 assert.match(script, /embedded-plugin-side-chat-keyboard/);
 assert.match(script, /plugin-topic-dock-return-stability/);
 assert.match(script, /global-plugin-dock-gesture-stability/);
 assert.match(script, /plugin-drawer-action-gestures/);
 assert.match(script, /voice-stop-hold-gesture/);
+assert.match(script, /staticCacheClear/);
+assert.match(script, /pre-open-cache-clear/);
+assert.match(script, /function waitForClientFreshness\(options = \{\}\)/);
+assert.match(script, /client-freshness-cache-clear/);
+assert.match(script, /client_freshness_ready/);
+assert.match(script, /app_visible_for_visual_assertions/);
+assert.match(script, /failureKind = "environment"/);
 assert.match(script, /PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT/);
 assert.match(script, /GLOBAL_PLUGIN_DOCK_GESTURE_STABILITY_SCRIPT/);
 assert.match(script, /PLUGIN_DRAWER_ACTION_GESTURES_PREPARE_SCRIPT/);
@@ -173,6 +187,7 @@ assert.match(script, /ios_visual_harness_lock_timeout/);
 assert.match(script, /report\.lease/);
 assert.match(script, /--expected-client-version/);
 assert.match(script, /screenshot_meets_min_bytes/);
+assert.match(script, /Number\(sample\.navBottom\) > 0/);
 assert.doesNotMatch(script, /owner-web-key\.secret|HOMEAI_MAC_SUDO_PASSWORD_FILE|X-Hermes-Web-Key/i);
 
 const directoryPass = assertDirectoryDarkStatus({
@@ -303,6 +318,33 @@ const embeddedFail = assertEmbeddedPluginShell({
 assert.equal(embeddedFail.ok, false);
 assert.ok(embeddedFail.assertions.some((item) => item.name === "plugin_frame_has_no_horizontal_overflow" && !item.pass));
 
+const embeddedSwitchPass = assertEmbeddedPluginSwitchStability({
+  fromPluginId: "music",
+  toPluginId: "codex-mobile",
+  viewMode: "codex",
+  fromHost: { active: false, visible: false },
+  toHost: { active: true, visible: true },
+  activeShells: ["codex-mobile"],
+  conversation: { visible: false },
+  composer: { visible: false },
+});
+assert.equal(embeddedSwitchPass.ok, true);
+
+const embeddedSwitchFail = assertEmbeddedPluginSwitchStability({
+  fromPluginId: "music",
+  toPluginId: "codex-mobile",
+  viewMode: "codex",
+  fromHost: { active: true, visible: true },
+  toHost: { active: true, visible: true },
+  activeShells: ["music", "codex-mobile"],
+  conversation: { visible: true },
+  composer: { visible: true },
+});
+assert.equal(embeddedSwitchFail.ok, false);
+assert.ok(embeddedSwitchFail.assertions.some((item) => item.name === "source_plugin_host_not_visible" && !item.pass));
+assert.ok(embeddedSwitchFail.assertions.some((item) => item.name === "no_source_shell_visible_after_plugin_switch" && !item.pass));
+assert.ok(embeddedSwitchFail.assertions.some((item) => item.name === "conversation_hidden_after_plugin_switch" && !item.pass));
+
 const dockReturnPass = assertPluginTopicDockReturnStability({
   pluginId: "finance",
   samples: [
@@ -405,6 +447,8 @@ const drawerActionGesturePass = assertPluginDrawerActionGestures({
       quickCard: { tap: { absoluteX: 30, absoluteY: 760 }, menuOpen: false },
       pluginCard: { tap: { absoluteX: 90, absoluteY: 760 }, menuOpen: false },
       actionButton: { tap: { absoluteX: 80, absoluteY: 680 } },
+      pluginOrder: ["finance", "wardrobe", "health"],
+      dragPlan: { startAbsoluteX: 90, startAbsoluteY: 760, endAbsoluteX: 148, endAbsoluteY: 760 },
       stripSwipe: { startAbsoluteX: 300, startAbsoluteY: 760, endAbsoluteX: 180, endAbsoluteY: 760 },
       bottomNav: { bottom: 826, width: 390, height: 58 },
     },
@@ -422,6 +466,25 @@ const drawerActionGesturePass = assertPluginDrawerActionGestures({
       dock: { expanded: true },
       pluginCard: { menuOpen: true },
       pluginMenu: { visible: true },
+      reorderButton: { tap: { absoluteX: 92, absoluteY: 640 } },
+      bottomNav: { bottom: 826, width: 390, height: 58 },
+    },
+    {
+      phase: "after-plugin-reorder-mode",
+      state: { viewMode: "tasks" },
+      dock: { expanded: true },
+      reorderMode: true,
+      pluginOrder: ["finance", "wardrobe", "health"],
+      dragPlan: { startAbsoluteX: 90, startAbsoluteY: 760, endAbsoluteX: 148, endAbsoluteY: 760 },
+      toast: { hidden: false, pointerEvents: "none" },
+      bottomNav: { bottom: 826, width: 390, height: 58 },
+    },
+    {
+      phase: "after-plugin-reorder-drag",
+      state: { viewMode: "tasks" },
+      dock: { expanded: true },
+      pluginOrder: ["wardrobe", "finance", "health"],
+      toast: { hidden: true, pointerEvents: "none" },
       bottomNav: { bottom: 826, width: 390, height: 58 },
     },
     {
@@ -600,29 +663,38 @@ assert.ok(sideChatKeyboardFail.assertions.some((item) => item.name === "plugin_s
 
 const commonPass = assertCommonHarness({
   metrics: { clientVersion: "v1" },
+  clientFreshness: {
+    ready: true,
+    last: { appHidden: false, appRect: { width: 390, height: 844 }, href: "http://127.0.0.1:8797/" },
+  },
   screenshot: { bytes: 8192, path: "/tmp/screenshot.png" },
   mobileBottomStability: {
     samples: [
-      { navLaidOut: true, navBottom: 12, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 0 },
-      { navLaidOut: true, navBottom: 12, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 0 },
-      { navLaidOut: true, navBottom: 12, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 0 },
+      { navLaidOut: true, navBottom: 12, navRect: { width: 390, height: 48 }, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 0 },
+      { navLaidOut: true, navBottom: 12, navRect: { width: 390, height: 48 }, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 0 },
+      { navLaidOut: true, navBottom: 12, navRect: { width: 390, height: 48 }, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 0 },
     ],
   },
-}, { expectedClientVersion: "v1", minScreenshotBytes: 4096 });
-assert.deepEqual(commonPass.map((item) => item.pass), [true, true, true, true]);
+}, { expectedClientVersion: "v1", appUrl: "http://127.0.0.1:8797/", minScreenshotBytes: 4096 });
+assert.deepEqual(commonPass.map((item) => item.pass), [true, true, true, true, true, true, true]);
 
 const commonFail = assertCommonHarness({
   metrics: { clientVersion: "old" },
+  clientFreshness: {
+    ready: false,
+    last: { appHidden: true, appRect: { width: 0, height: 0 }, href: "about:blank" },
+  },
   screenshot: { bytes: 12, path: "/tmp/screenshot.png" },
   mobileBottomStability: {
     samples: [
-      { navLaidOut: true, navBottom: 12, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 12 },
-      { navLaidOut: true, navBottom: 0, comfortInset: 12, navBottomGapRaw: 0, navBottomUnderflowRaw: 0 },
-      { navLaidOut: true, navBottom: 12, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 12 },
+      { navLaidOut: true, navBottom: 12, navRect: { width: 390, height: 48 }, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 12 },
+      { navLaidOut: true, navBottom: 0, navRect: { width: 390, height: 48 }, comfortInset: 12, navBottomGapRaw: 0, navBottomUnderflowRaw: 0 },
+      { navLaidOut: true, navBottom: 12, navRect: { width: 390, height: 48 }, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 12 },
+      { navLaidOut: true, navBottom: 12, navRect: { width: 390, height: 48 }, comfortInset: 12, navBottomGapRaw: 12, navBottomUnderflowRaw: 12 },
     ],
   },
 }, { expectedClientVersion: "new", minScreenshotBytes: 4096 });
-assert.deepEqual(commonFail.map((item) => item.pass), [false, false, false, false]);
+assert.deepEqual(commonFail.map((item) => item.pass), [false, false, false, false, false, true, false]);
 
 for (const doc of [runbook, mobileContract, platformContract, testMatrix, rolloutStatus]) {
   assert.match(doc, /npm run ios:pwa:visual/);

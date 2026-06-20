@@ -228,6 +228,9 @@ function mergeChatScopeThread(existingThread, incomingThread) {
 
 function rememberChatScopeThread(thread) {
   if (!thread?.singleWindow) return;
+  const pageMode = String(thread.messagesPage?.mode || "").trim();
+  if (pageMode && pageMode !== "chat") return;
+  if (!pageMode && Array.isArray(thread.taskGroups) && thread.taskGroups.length) return;
   if (isThreadWeixinChat(thread)) {
     state.weixinChatThread = mergeChatScopeThread(state.weixinChatThread, thread);
     state.weixinChatThreadId = state.weixinChatThread?.id || thread.id || "";

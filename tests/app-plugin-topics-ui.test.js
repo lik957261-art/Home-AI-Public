@@ -112,6 +112,7 @@ assert.match(topicCardsBody, /plugin-topic-row-chevron-placeholder/);
 assert.match(pluginTopicsUi, /function pluginTopicRecentMessageEntries/);
 assert.match(pluginTopicsUi, /function pluginTopicMessagePreviewText/);
 assert.match(pluginTopicsUi, /function topicReceiptSummaryTitleFromText/);
+assert.match(pluginTopicsUi, /function topicReceiptTitleLooksLikeFragment/);
 assert.match(pluginTopicsUi, /function topicReceiptSummaryTitleFromGroup/);
 assert.match(pluginTopicsUi, /group\?\.lastReceiptTitle/);
 assert.ok(
@@ -261,6 +262,30 @@ globalThis.__pluginTopicRowMeta = pluginTopicRowMeta;
 globalThis.__pluginTopicDefById = pluginTopicDefById;`, sandbox);
   const summary = sandbox.__pluginTopicRowMeta(sandbox.__pluginTopicDefById("music"));
   assert.equal(summary, "暂无回执概要", "plugin topic row summary must not expose body-like persisted receipts");
+}
+
+{
+  const sandbox = {
+    state: {
+      currentThread: {
+        id: "thread_owner",
+        messages: [],
+      },
+    },
+    compactDisplayText: (value, max) => String(value || "").replace(/\s+/g, " ").trim().slice(0, max),
+    cleanDisplayText: (value) => String(value || "").replace(/\s+/g, " ").trim(),
+    taskGroupsForThread: () => [{
+      id: "plugin:music",
+      lastReceiptTitle: "感。",
+      messages: [{ role: "assistant", content: "感。", updatedAt: "2026-06-18T13:00:00.000Z" }],
+    }],
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(`${pluginTopicsUi}
+globalThis.__pluginTopicRowMeta = pluginTopicRowMeta;
+globalThis.__pluginTopicDefById = pluginTopicDefById;`, sandbox);
+  const summary = sandbox.__pluginTopicRowMeta(sandbox.__pluginTopicDefById("music"));
+  assert.equal(summary, "暂无回执概要", "plugin topic row summary must hide fragment receipt metadata");
 }
 
 {
@@ -679,8 +704,8 @@ function directoryCardCollapsed(html, key) {
   assert.match(initial, /class="directory-topic-root-icon-entry"[\s\S]*?data-directory-topic-open-root/);
   assert.match(initial, /class="directory-topic-root-toggle"[\s\S]*?data-directory-topic-root-toggle/);
   assert.equal(directoryCardCollapsed(initial, "dir-1"), false);
-  assert.equal(directoryCardCollapsed(initial, "dir-2"), false);
-  assert.equal(directoryCardCollapsed(initial, "dir-3"), false);
+  assert.equal(directoryCardCollapsed(initial, "dir-2"), true);
+  assert.equal(directoryCardCollapsed(initial, "dir-3"), true);
   assert.equal(directoryCardCollapsed(initial, "dir-4"), true);
 
   harness.setRootCollapsed(true);

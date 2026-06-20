@@ -362,6 +362,16 @@ function wireSidebarSwipe() {
   const overlay = $("sidebarOverlay");
   if (!sidebar || !edge) return;
 
+  const bottomNavigationOwnsTouch = (event) => {
+    const nav = $("bottomNav");
+    if (!nav || nav.hidden || event.touches.length !== 1) return false;
+    if (event.target?.closest?.("#bottomNav")) return true;
+    const rect = nav.getBoundingClientRect?.();
+    if (!rect) return false;
+    const point = event.touches[0];
+    return point.clientY >= rect.top - 8 && point.clientY <= rect.bottom + 8;
+  };
+
   const startSwipe = (mode, event) => {
     if (!isMobileLayout() || event.touches.length !== 1) return;
     if (mode === "close" && !sidebar.classList.contains("open")) return;
@@ -461,6 +471,7 @@ function wireSidebarSwipe() {
 
   const startEdgeSwipe = (event) => {
     if (!isMobileLayout() || event.touches.length !== 1) return;
+    if (bottomNavigationOwnsTouch(event)) return;
     if (typeof globalPluginDockOwnsTouchTarget === "function" && globalPluginDockOwnsTouchTarget(event.target)) return;
     if (edge.classList.contains("disabled")) return;
     if (event.touches[0].clientX > EDGE_SWIPE_HIT_PX) return;
@@ -497,6 +508,15 @@ function wireRightSwipeGuard() {
   const interactiveSelector = ".sidebar, .directory-shell, input, select, textarea, [contenteditable='true']";
   const messageSelectionSwipeBlockSelector = ".message[data-message-id], .assistant-receipt, .text-content";
   const taskListScrollSelector = ".task-list-mode .conversation, .task-list-mode .thread-list";
+  const bottomNavigationOwnsTouch = (event) => {
+    const nav = $("bottomNav");
+    if (!nav || nav.hidden || event.touches.length !== 1) return false;
+    if (event.target?.closest?.("#bottomNav")) return true;
+    const rect = nav.getBoundingClientRect?.();
+    if (!rect) return false;
+    const point = event.touches[0];
+    return point.clientY >= rect.top - 8 && point.clientY <= rect.bottom + 8;
+  };
   const clear = () => {
     touch = null;
   };
@@ -505,6 +525,7 @@ function wireRightSwipeGuard() {
       !isMobileLayout()
       || event.touches.length !== 1
       || event.target?.closest?.(interactiveSelector)
+      || bottomNavigationOwnsTouch(event)
       || event.target?.closest?.(messageSelectionSwipeBlockSelector)
       || (typeof globalPluginDockOwnsTouchTarget === "function" && globalPluginDockOwnsTouchTarget(event.target))
     ) {

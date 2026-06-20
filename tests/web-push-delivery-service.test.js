@@ -287,6 +287,59 @@ function testNotificationChannelSelectionSeparatesWebAndNative() {
   });
 }
 
+function testBothChannelPrefersNativeOverIphoneWebPush() {
+  return withTempDir((root) => {
+    const nativeCalls = [];
+    const { calls, service, state } = createHarness(root, {
+      serviceOptions: {
+        nativeNotificationService: {
+          async sendToWorkspace(payload) {
+            nativeCalls.push(payload);
+            return { ok: true, attempted: 1, sent: 1, failed: 0, results: [] };
+          },
+        },
+      },
+    });
+    service.savePushSubscription({
+      endpoint: "endpoint-child-iphone",
+      keys: { p256dh: "p", auth: "a" },
+    }, {
+      workspaceId: "child",
+      principalId: "child-principal",
+      deviceLabel: "iPhone",
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X)",
+      clientContext: { displayMode: "standalone", standalone: true, origin: "https://prod.example.test" },
+    });
+    service.savePushSubscription({
+      endpoint: "endpoint-child-mac",
+      keys: { p256dh: "p", auth: "a" },
+    }, {
+      workspaceId: "child",
+      principalId: "child-principal",
+      deviceLabel: "MacIntel",
+      userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_5)",
+      clientContext: { displayMode: "standalone", standalone: true, origin: "https://prod.example.test" },
+    });
+
+    return service.sendPushNotification({
+      title: "Background event",
+      data: { workspaceId: "child" },
+    }, {
+      principalId: "child-principal",
+      notificationChannel: "both",
+    }).then((result) => {
+      assert.equal(result.attempted, 1);
+      assert.equal(result.sent, 1);
+      assert.equal(result.skipped, 1);
+      assert.equal(result.native[0].workspaceId, "child");
+      assert.equal(nativeCalls.length, 1);
+      assert.equal(calls.sends.length, 1);
+      assert.equal(calls.sends[0].subscription.endpoint, "endpoint-child-mac");
+      assert.equal(state.pushSubscriptions[0].lastError, "skipped_native_ios_apns_preferred");
+    });
+  });
+}
+
 function testIosBrowserSubscriptionsAreRejectedAndSkipped() {
   withTempDir((root) => {
     const { calls, service, state } = createHarness(root);
@@ -1186,6 +1239,7 @@ Promise.resolve()
   .then(testDeploymentOriginFiltersCopiedSubscriptions)
   .then(testNativeNotificationChannelReceivesWorkspaceEvents)
   .then(testNotificationChannelSelectionSeparatesWebAndNative)
+  .then(testBothChannelPrefersNativeOverIphoneWebPush)
   .then(testIosBrowserSubscriptionsAreRejectedAndSkipped)
   .then(testReceiptMarksTodoWithoutCountingAttempt)
   .then(testTodoTickReconcilesAndDeliversPendingEvents)

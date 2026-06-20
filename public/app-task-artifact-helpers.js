@@ -72,9 +72,14 @@
     return text;
   }
 
+  function receiptTitleLooksLikeFragment(value = "") {
+    const text = String(value || "").replace(/[^\p{L}\p{N}]+/gu, "").trim();
+    return text.length > 0 && text.length < 3;
+  }
+
   function receiptSummaryTitleFromText(text = "", max = 96) {
     const metadataTitle = receiptTitleMetadata(text, max);
-    if (metadataTitle) return metadataTitle;
+    if (metadataTitle && !receiptTitleLooksLikeFragment(metadataTitle)) return metadataTitle;
     const clean = stripReceiptMetadataComments(text);
     const heading = clean.split(/\r?\n/)
       .map((line) => String(line || "").trim().match(/^#{1,4}\s+(.+)$/))
@@ -82,6 +87,7 @@
     const candidate = cleanReceiptTitleLine(heading)
       || clean.split(/\r?\n/).map(cleanReceiptTitleLine).find(Boolean)
       || "";
+    if (receiptTitleLooksLikeFragment(candidate)) return "";
     return compactDisplayText(candidate, max);
   }
 

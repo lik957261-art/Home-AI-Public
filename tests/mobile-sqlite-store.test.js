@@ -82,6 +82,14 @@ function makeJsonDataDir() {
         endpoint: "https://push.example.invalid/token",
         createdAt: "2026-05-07T00:00:00.000Z",
       },
+      {
+        id: "push_disabled_at",
+        workspaceId: "owner",
+        principalIds: ["owner"],
+        endpoint: "https://push.example.invalid/disabled",
+        disabledAt: "2026-05-07T00:02:00.000Z",
+        createdAt: "2026-05-07T00:00:00.000Z",
+      },
     ],
     pushReceipts: [
       {
@@ -201,7 +209,7 @@ function testImportAndIntegrity() {
   assert.equal(report.counts.threads, 1);
   assert.equal(report.counts.messages, 2);
   assert.equal(report.counts.artifacts, 1);
-  assert.equal(report.counts.push_subscriptions, 1);
+  assert.equal(report.counts.push_subscriptions, 2);
   assert.equal(report.counts.push_receipts, 1);
   assert.equal(report.counts.push_deliveries, 1);
   assert.equal(report.counts.shared_directories, 1);
@@ -409,7 +417,8 @@ function testRuntimeStateRoundTrip() {
   assert.equal(exported.threads[0].messages.length, 2);
   assert.equal(exported.threads[0].messages[1].id, "msg_assistant");
   assert.equal(exported.artifacts.length, 1);
-  assert.equal(exported.pushSubscriptions.length, 1);
+  assert.equal(exported.pushSubscriptions.length, 2);
+  assert.equal(exported.pushSubscriptions.find((item) => item.id === "push_disabled_at")?.disabledAt, "2026-05-07T00:02:00.000Z");
   assert.equal(exported.pushReceipts.length, 1);
   assert.equal(exported.pushDeliveries.length, 1);
 

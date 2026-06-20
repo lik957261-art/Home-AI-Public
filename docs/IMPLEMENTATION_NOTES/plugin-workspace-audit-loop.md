@@ -366,17 +366,19 @@ calls `scripts/plugin-workspace-audit-runner.js`. The runner:
 - upserts a summary-only Action Inbox review/error item when a configured
   runtime SQLite path is available through `HERMES_WEB_DB_PATH`,
   `HERMES_MOBILE_DB_PATH`, or the data-dir default.
-- optionally runs a model-assisted Codex read-only review after the
-  deterministic scan when
+- may send a model-backed follow-up through Codex Mobile cross-thread task
+  cards when
+  `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` or
+  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` points to a JSON
+  mapping with an explicit `sourceThreadId` and plugin `targetThreadIds`.
+  The runner calls Codex Mobile's `create-thread-task-card.js` wrapper and does
+  not directly start Codex for the normal production path, so active profile,
+  visible thread state, and shared app-server/mux ownership remain centralized
+  in Codex Mobile.
+- still has an explicit local-debug Codex CLI path gated by
   `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1` or
-  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1`. The configured command
-  defaults to `codex` and may be overridden with
-  `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND` /
-  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND`. The runner invokes
-  `codex exec --sandbox read-only --cd <target> --ephemeral`, redacts the
-  target absolute path from captured output, appends the bounded review to the
-  Markdown report, and records a high-severity finding if the explicitly
-  enabled Codex phase fails.
+  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1`. Mac production keeps
+  that path disabled by default.
 - delivers user-facing audit reports in Simplified Chinese while preserving
   source paths, function names, variable names, config keys, commands, and
   error codes in their original form.
@@ -389,8 +391,8 @@ calls `scripts/plugin-workspace-audit-runner.js`. The runner:
 - Add nightly batch alignment audit for idle plugin workspaces only.
 - Add cross-plugin dependency checks, such as host contract drift.
 - Add richer task-card suggestions with user confirmation.
-- Add Codex Mobile bridge execution as an alternative to local CLI execution
-  where service-user auth should be delegated to the embedded Codex plugin.
+- Expand Codex Mobile task-card routing with plugin-specific approval policy,
+  retries, and report-to-card correlation UI.
 
 ## Long-Term
 

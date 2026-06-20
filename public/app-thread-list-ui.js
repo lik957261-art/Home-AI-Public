@@ -107,6 +107,77 @@ function wireChatScopeHeader(root) {
   });
 }
 
+function chatConversationRenderSignature(messages = [], historyPager = "") {
+  const searchKey = [
+    state.chatSearchOpen ? "1" : "0",
+    currentChatSearchQuery(),
+    String(state.chatSearchIndex || 0),
+    (state.chatSearchMatches || []).join(","),
+  ].join("|");
+  const messageKey = messages.map((message) => JSON.stringify({
+    id: message?.id || "",
+    role: message?.role || "",
+    status: message?.status || "",
+    content: message?.content || "",
+    error: message?.error || "",
+    usage: message?.usage || null,
+    artifacts: message?.artifacts || [],
+    revokedAt: message?.revokedAt || "",
+    updatedAt: message?.updatedAt || "",
+    taskGroupId: message?.taskGroupId || "",
+    externalDelivery: message?.externalDelivery || null,
+    skills: message?.skills || message?.skillCalls || null,
+    runProgress: message?.runProgress || message?.progress || null,
+  })).join("\n");
+  return JSON.stringify({
+    scope: activeChatScope(),
+    threadId: state.currentThreadId || "",
+    pager: historyPager || "",
+    search: searchKey,
+    messages: messageKey,
+  });
+}
+
+function chatMessagesAlreadyRendered(conversation, signature) {
+  return Boolean(
+    isSingleWindowChatView()
+    && conversation
+    && signature
+    && conversation.dataset.chatRenderSignature === signature
+    && conversation.querySelector("[data-message-id], .chat-history-pager, .empty-state")
+  );
+}
+
+function wireRenderedChatConversation(conversation) {
+  if (typeof hydrateInlineMarkdownImages === "function") hydrateInlineMarkdownImages(conversation);
+  wireChatHistoryPager(conversation);
+  wireTaskDocumentLinks(conversation);
+  wireDirectoryProjectLinks(conversation);
+  wireQuoteButtons(conversation);
+  wireMessageRevokeButtons(conversation);
+  wireMessageScrollButtons(conversation);
+  wireMessageReplyActionButtons(conversation);
+  wireArtifactWeixinButtons(conversation);
+  wireSkillLinks(conversation);
+  wireUsagePanels(conversation);
+  wireMessageSkillPanels(conversation);
+  wireRunProgressHistoryPanels(conversation);
+  wireLongMessageButtons(conversation);
+  wireChatSearchControls(conversation);
+  syncRunProgressTicker(conversation);
+  ensureVerticalScrollAffordance(conversation);
+  scheduleMessageScrollButtonVisibility(conversation);
+  scheduleMessageScrollButtonVisibilitySettle(conversation, [120, 360, 900, 1600]);
+}
+
+function refreshRenderedChatConversationVisuals(conversation) {
+  if (typeof hydrateInlineMarkdownImages === "function") hydrateInlineMarkdownImages(conversation);
+  syncRunProgressTicker(conversation);
+  ensureVerticalScrollAffordance(conversation);
+  scheduleMessageScrollButtonVisibility(conversation);
+  scheduleMessageScrollButtonVisibilitySettle(conversation, [120, 360, 900, 1600]);
+}
+
 function renderCurrentThread(options = {}) {
   try {
     renderCurrentThreadUnsafe(options);
@@ -123,6 +194,7 @@ function renderCurrentThread(options = {}) {
 
 function renderCurrentThreadUnsafe(options = {}) {
   renderChatScopeHeader(null);
+  if (typeof commitPendingMainConversationSurfacePark === "function") commitPendingMainConversationSurfacePark();
   if (isSkillDetailView()) {
     renderSkillDetailPanel();
     return;
@@ -145,6 +217,7 @@ function renderCurrentThreadUnsafe(options = {}) {
   }
   const thread = state.currentThread;
   const conversation = $("conversation");
+  if (thread && typeof retainRestoredMainConversationSurfaceIfFresh === "function" && retainRestoredMainConversationSurfaceIfFresh(options)) return;
   const forceChatBottom = shouldForceChatStickToBottom();
   const stickToBottom = Boolean(options.stickToBottom || forceChatBottom);
   let bottomOffset = state.preservedBottomOffset;
@@ -157,6 +230,7 @@ function renderCurrentThreadUnsafe(options = {}) {
     $("threadMeta").textContent = "";
     $("interruptRun").disabled = true;
     configureComposer({ enabled: false, placeholder: "Message Home AI..." });
+    delete conversation.dataset.chatRenderSignature;
     conversation.innerHTML = `<div class="empty-state">Create a thread to start a zero-context Home AI task.</div>`;
     updateNavigationControls();
     ensureVerticalScrollAffordance(conversation);
@@ -218,25 +292,25 @@ function renderCurrentThreadUnsafe(options = {}) {
     scheduleConversationViewportRefresh(conversation);
     return;
   }
+  const chatRenderSignature = isSingleWindowChatView()
+    ? chatConversationRenderSignature(displayMessages, historyPager)
+    : "";
+  if (chatMessagesAlreadyRendered(conversation, chatRenderSignature)) {
+    refreshRenderedChatConversationVisuals(conversation);
+    if (stickToBottom) {
+      conversation.scrollTop = conversation.scrollHeight;
+      state.conversationPinnedToBottom = true;
+      scheduleConversationBottomStick();
+    } else {
+      state.conversationPinnedToBottom = isNearBottom();
+    }
+    if (isSingleWindowChatView()) scheduleConversationViewportRefresh(conversation);
+    return;
+  }
   conversation.innerHTML = `${historyPager}${displayMessages.map(renderMessage).join("") || `<div class="empty-state">${transientChatGap ? "Refreshing messages..." : "No messages yet."}</div>`}`;
-  wireChatHistoryPager(conversation);
-  wireTaskDocumentLinks(conversation);
-  wireDirectoryProjectLinks(conversation);
-  wireQuoteButtons(conversation);
-  wireMessageRevokeButtons(conversation);
-  wireMessageScrollButtons(conversation);
-  wireMessageReplyActionButtons(conversation);
-  wireArtifactWeixinButtons(conversation);
-  wireSkillLinks(conversation);
-  wireUsagePanels(conversation);
-  wireMessageSkillPanels(conversation);
-  wireRunProgressHistoryPanels(conversation);
-  wireLongMessageButtons(conversation);
-  wireChatSearchControls(conversation);
-  syncRunProgressTicker(conversation);
-  ensureVerticalScrollAffordance(conversation);
-  scheduleMessageScrollButtonVisibility(conversation);
-  scheduleMessageScrollButtonVisibilitySettle(conversation, [120, 360, 900, 1600]);
+  if (chatRenderSignature) conversation.dataset.chatRenderSignature = chatRenderSignature;
+  else delete conversation.dataset.chatRenderSignature;
+  wireRenderedChatConversation(conversation);
   if (consumeChatRouteScrollTarget(displayMessages)) {
     if (isSingleWindowChatView()) scheduleConversationViewportRefresh(conversation);
   } else if (state.chatSearchScrollPending) {
@@ -369,19 +443,20 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     const indexedDirectoryTopicCollections = Array.isArray(thread.directoryTopicCollections)
       ? thread.directoryTopicCollections
       : null;
+    const directoryTopicSourceGroups = groups.filter((group) => !(typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic));
+    const computedDirectoryTopicCollections = !indexedDirectoryTopicCollections && typeof directoryTopicCollectionsForGroups === "function"
+      ? directoryTopicCollectionsForGroups(directoryTopicSourceGroups)
+      : null;
     const directoryTopicSignature = directoryTopicRenderSignature(thread.id, groups, indexedDirectoryTopicCollections);
     const directoryTopicCollectionsReady = options.directoryTopicCollectionsReady === true
       || Boolean(indexedDirectoryTopicCollections)
+      || Boolean(computedDirectoryTopicCollections)
       || state.directoryTopicCollectionsReadySignature === directoryTopicSignature;
     if (directoryTopicCollectionsReady) {
       state.directoryTopicCollectionsReadySignature = directoryTopicSignature;
       state.directoryTopicRenderPendingSignature = "";
     }
-    const rawDirectoryTopicCollections = indexedDirectoryTopicCollections || (
-      directoryTopicCollectionsReady && typeof directoryTopicCollectionsForGroups === "function"
-        ? directoryTopicCollectionsForGroups(groups.filter((group) => !(typeof isPluginTopicTaskGroup === "function" ? isPluginTopicTaskGroup(group) : group.pluginTopic)))
-        : []
-    );
+    const rawDirectoryTopicCollections = indexedDirectoryTopicCollections || computedDirectoryTopicCollections || [];
     const claimedDirectoryTopicCollections = typeof pluginTopicClaimedDirectoryTopicCollections === "function"
       ? pluginTopicClaimedDirectoryTopicCollections(rawDirectoryTopicCollections)
       : [];
@@ -468,6 +543,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
     conversation.innerHTML = `${selectedMessages.map(renderMessage).join("") || `<div class="empty-state">No task messages yet.</div>`}`;
     renderTaskDetailToolbar(selected);
   }
+  if (typeof hydrateInlineMarkdownImages === "function") hydrateInlineMarkdownImages(conversation);
   wireTaskDocumentLinks(conversation);
   wireDirectoryProjectLinks(conversation);
   wireSkillLinks(conversation);

@@ -18,7 +18,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     wdaLocalPort: 8101,
     mjpegServerPort: 9100,
     mjpegUrl: "",
-    appUrl: "https://wardrobe-xuxin.synology.me:8555/?source=pwa",
+    appUrl: process.env.HOMEAI_VISUAL_DEBUG_APP_URL || "http://127.0.0.1:8797/?source=pwa",
     screenshotCacheMs: 350,
     appiumTimeoutMs: 15000,
     mjpegConnectTimeoutMs: 2500,
@@ -1030,22 +1030,35 @@ async function performAction(body = {}) {
   if (type === "clearStaticCaches") {
     return executeAsync(`
       var done = arguments[arguments.length - 1];
-      try {
-        var cacheApi = window.caches;
-        if (!cacheApi || typeof cacheApi.keys !== "function") {
-          done({ deleted: [], unavailable: true });
-          return;
+      var deleted = [];
+      var unregistered = [];
+      var errors = [];
+      (async function () {
+        try {
+          var cacheApi = window.caches;
+          if (cacheApi && typeof cacheApi.keys === "function") {
+            var keys = await cacheApi.keys();
+            await Promise.all(keys.map(function (key) { return cacheApi.delete(key); }));
+            deleted = keys;
+          }
+        } catch (err) {
+          errors.push("cache:" + String((err && err.message) || err || "cache_clear_failed"));
         }
-        cacheApi.keys().then(function (keys) {
-          return Promise.all(keys.map(function (key) { return cacheApi.delete(key); })).then(function () {
-            done({ deleted: keys });
-          });
-        }).catch(function (err) {
-          done({ deleted: [], error: String((err && err.message) || err || "cache_clear_failed") });
-        });
-      } catch (err) {
-        done({ deleted: [], error: String((err && err.message) || err || "cache_clear_failed") });
-      }
+        try {
+          if (navigator.serviceWorker && typeof navigator.serviceWorker.getRegistrations === "function") {
+            var registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map(function (registration) {
+              unregistered.push(registration.scope || "");
+              return registration.unregister();
+            }));
+          }
+        } catch (err) {
+          errors.push("service_worker:" + String((err && err.message) || err || "service_worker_unregister_failed"));
+        }
+        done({ deleted: deleted, unregistered: unregistered, errors: errors });
+      })().catch(function (err) {
+        done({ deleted: deleted, unregistered: unregistered, errors: [String((err && err.message) || err || "cache_clear_failed")] });
+      });
     `);
   }
   throw new Error(`unknown_action:${type}`);

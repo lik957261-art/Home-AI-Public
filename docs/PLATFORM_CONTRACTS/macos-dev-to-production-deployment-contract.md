@@ -127,6 +127,13 @@ exclude local tooling metadata such as `.git`, `.codex`, `.codegraph`, and
 `.agent-context`, but it must still back up production-owned plugin `data/`,
 `runtime/`, and `.venv/` directories before the source sync excludes those
 paths from replacement.
+Mac production deploy backups under
+`/Users/example/path` are rollback points, not
+long-term archives. The central deploy script must prune deploy backups older
+than three days after a successful deployment, while preserving the current
+deployment backup. If an operator needs to retain an older rollback point, move
+or copy it to an explicit archive location outside `backups/deploy` before it
+ages out.
 After sync, the central deploy script must restore the production target owner.
 The default owner is `hermes-host:staff`; the Codex Mobile plugin uses
 `xuxin:staff` because its production launchd service runs as `xuxin`.

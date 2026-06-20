@@ -104,7 +104,7 @@ function directoryTopicDisplayTitle(group) {
 const DIRECTORY_TOPIC_COLLAPSED_STORAGE_KEY = "hermesDirectoryTopicCollapsed";
 const DIRECTORY_TOPIC_EXPANDED_STORAGE_KEY = "hermesDirectoryTopicExpanded";
 const DIRECTORY_TOPIC_ROOT_COLLAPSED_STORAGE_KEY = "hermesDirectoryTopicRootCollapsed";
-const DIRECTORY_TOPIC_DEFAULT_EXPANDED_LIMIT = 3;
+const DIRECTORY_TOPIC_DEFAULT_EXPANDED_LIMIT = 1;
 
 function readDirectoryTopicStorageSet(storageKey) {
   try {

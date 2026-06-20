@@ -918,7 +918,7 @@ function createMobileSqliteStore(options = {}) {
       stableJson(row.localConfig || null),
       stableJson(row),
       normalizeIso(row.createdAt),
-      normalizeIso(row.updatedAt || row.createdAt),
+      normalizeIso(row.disabledAt || row.disabled_at || row.updatedAt || row.createdAt),
     );
   }
 
@@ -1147,7 +1147,7 @@ function createMobileSqliteStore(options = {}) {
       stableJson(row.principalIds || row.principal_ids || []),
       stableJson(row.workspaceIds || row.workspace_ids || []),
       endpoint ? crypto.createHash("sha256").update(endpoint).digest("hex") : "",
-      row.disabled ? 1 : 0,
+      row.disabled || row.disabledAt || row.disabled_at ? 1 : 0,
       normalizeIso(row.lastSuccessAt || row.last_success_at),
       normalizeIso(row.lastFailureAt || row.last_failure_at),
       stableJson(row),

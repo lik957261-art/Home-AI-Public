@@ -73,11 +73,26 @@ function scheduleTopicRootListRefresh(delayMs = 140) {
   const conversation = $("conversation");
   const restoreScrollTop = conversation?.scrollTop || 0;
   const routeSnapshot = currentThreadRouteSnapshot();
+  const beforeSignature = typeof taskListRootRenderSignature === "function"
+    ? taskListRootRenderSignature(state.currentThread)
+    : "";
   state.topicRootListRefreshTimer = window.setTimeout(() => {
     state.topicRootListRefreshTimer = 0;
     if (!currentThreadRouteMatches(routeSnapshot)) return;
     if (!isCurrentTopicRootListView()) return;
-    renderCurrentThread({ stickToBottom: false, restoreScrollTop });
+    const afterSignature = typeof taskListRootRenderSignature === "function"
+      ? taskListRootRenderSignature(state.currentThread)
+      : "";
+    if (beforeSignature && beforeSignature === afterSignature && $("conversation")?.querySelector(".directory-topic-launcher, [data-open-task], .empty-state")) {
+      if (typeof rememberTaskListScrollPosition === "function") rememberTaskListScrollPosition();
+      if (typeof scheduleConversationViewportRefresh === "function") scheduleConversationViewportRefresh($("conversation"));
+      return;
+    }
+    const liveScrollTop = $("conversation")?.scrollTop || 0;
+    const restoreAtRefreshTop = Math.abs(liveScrollTop - restoreScrollTop) > 1
+      ? liveScrollTop
+      : restoreScrollTop;
+    renderCurrentThread({ stickToBottom: false, restoreScrollTop: restoreAtRefreshTop });
   }, Math.max(0, Number(delayMs) || 0));
 }
 
@@ -100,6 +115,7 @@ function renderStreamingMessageContent(message) {
   try {
     article.classList.toggle("streaming-active", active);
     content.outerHTML = renderText(message.content || "", message);
+    if (typeof hydrateInlineMarkdownImages === "function") hydrateInlineMarkdownImages(article);
     if (typeof updateRunProgressPromptReserveClass === "function") {
       updateRunProgressPromptReserveClass(article, state.currentThread, message);
     }
@@ -293,6 +309,10 @@ async function refreshCurrentThreadFromServer(options = {}) {
   const stickToBottom = Object.prototype.hasOwnProperty.call(options, "stickToBottom")
     ? Boolean(options.stickToBottom || shouldForceChatStickToBottom())
     : (shouldForceChatStickToBottom() || isNearBottom());
+  const beforeTaskRootSignature = isCurrentTopicRootListView() && typeof taskListRootRenderSignature === "function"
+    ? taskListRootRenderSignature(state.currentThread)
+    : "";
+  const beforeTaskRootScrollTop = beforeTaskRootSignature ? ($("conversation")?.scrollTop || 0) : 0;
   try {
     let params = "";
     if (isSingleWindowChatView()) {
@@ -311,6 +331,23 @@ async function refreshCurrentThreadFromServer(options = {}) {
     state.currentThread = mergeCurrentThread(result.thread);
     state.currentThreadId = state.currentThread?.id || threadId;
     upsertThreadSummary(summarizeThread(state.currentThread));
+    const afterTaskRootSignature = beforeTaskRootSignature && typeof taskListRootRenderSignature === "function"
+      ? taskListRootRenderSignature(state.currentThread)
+      : "";
+    if (
+      beforeTaskRootSignature
+      && beforeTaskRootSignature === afterTaskRootSignature
+      && $("conversation")?.querySelector(".directory-topic-launcher, [data-open-task], .empty-state")
+    ) {
+      if (typeof rememberTaskListThread === "function") rememberTaskListThread(state.currentThread);
+      if (typeof rememberTaskListScrollPosition === "function") rememberTaskListScrollPosition();
+      const conversation = $("conversation");
+      if (conversation && beforeTaskRootScrollTop > 0 && conversation.scrollTop < beforeTaskRootScrollTop) {
+        conversation.scrollTop = Math.min(beforeTaskRootScrollTop, Math.max(0, conversation.scrollHeight - conversation.clientHeight));
+      }
+      if (typeof scheduleConversationViewportRefresh === "function") scheduleConversationViewportRefresh(conversation);
+      return;
+    }
     renderCurrentThread({ stickToBottom });
   } catch (err) {
     if (options.reportError) showError(err);
@@ -381,6 +418,10 @@ function applyEvent(payload) {
   }
   if (payload.thread) upsertThreadSummary(payload.thread);
   if (payload.type === "thread.updated" && state.currentThread && payload.thread?.id === state.currentThread.id) {
+    const beforeTaskRootSignature = isCurrentTopicRootListView() && typeof taskListRootRenderSignature === "function"
+      ? taskListRootRenderSignature(state.currentThread)
+      : "";
+    const beforeTaskRootScrollTop = beforeTaskRootSignature ? ($("conversation")?.scrollTop || 0) : 0;
     const summaryHasRunningState = summaryHasActiveRun(payload.thread);
     const wasRunning = currentThreadHasPendingMessages(state.currentThread) || summaryHasRunningState;
     const terminalSummaryRefresh = wasRunning && !summaryHasRunningState;
@@ -389,6 +430,14 @@ function applyEvent(payload) {
     if (typeof mergeTaskListThreadFromThreadUpdate === "function") {
       mergeTaskListThreadFromThreadUpdate(state.currentThread);
     }
+    const afterTaskRootSignature = beforeTaskRootSignature && typeof taskListRootRenderSignature === "function"
+      ? taskListRootRenderSignature(state.currentThread)
+      : "";
+    const topicRootUnchanged = Boolean(
+      beforeTaskRootSignature
+      && beforeTaskRootSignature === afterTaskRootSignature
+      && $("conversation")?.querySelector(".directory-topic-launcher, [data-open-task], .empty-state")
+    );
     if (shouldRefreshForSummary || terminalSummaryRefresh) {
       requestCurrentThreadRefresh({
         stickToBottom: terminalSummaryRefresh && (Boolean(state.currentTaskGroupId) || (state.viewMode === "single" && state.singleWindowMode === "chat")),
@@ -399,6 +448,15 @@ function applyEvent(payload) {
       updateComposerAction();
       renderComposerContext();
       scheduleTopicRootListRefresh(120);
+      return;
+    }
+    if (topicRootUnchanged) {
+      const conversation = $("conversation");
+      if (conversation && beforeTaskRootScrollTop > 0 && conversation.scrollTop < beforeTaskRootScrollTop) {
+        conversation.scrollTop = Math.min(beforeTaskRootScrollTop, Math.max(0, conversation.scrollHeight - conversation.clientHeight));
+      }
+      if (typeof rememberTaskListScrollPosition === "function") rememberTaskListScrollPosition();
+      if (typeof scheduleConversationViewportRefresh === "function") scheduleConversationViewportRefresh(conversation);
       return;
     }
     renderCurrentThread({ stickToBottom: false });

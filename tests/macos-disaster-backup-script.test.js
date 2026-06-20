@@ -217,6 +217,9 @@ function makeFixture() {
   assert.match(runSource, /ssh_destination_rsync_failed/);
   assert.match(runSource, /--rsync-path=\/usr\/bin\/rsync/);
   assert.match(runSource, /HOMEAI_DISASTER_BACKUP_RSYNC_ATTEMPTS:-3/);
+  assert.match(runSource, /HOMEAI_DISASTER_BACKUP_KEEP_STAGING:-0/);
+  assert.match(runSource, /cleanup_staging_current/);
+  assert.match(runSource, /sudo_cmd rm -rf "\$\{STAGING%\/\}\/current"/);
   assert.match(runSource, /rsync_with_retries "\$SSH_RSYNC_TIMEOUT_SECONDS" \/usr\/bin\/rsync -rlpt --delete --links --safe-links[\s\S]*-e "ssh -o BatchMode=yes -o ConnectTimeout=15 \$SSH_OPTIONS"/);
   assert.match(runSource, /rsync_with_retries "\$NFS_RSYNC_TIMEOUT_SECONDS" \/usr\/bin\/rsync -rlpt --delete --links --safe-links/);
   assert.doesNotMatch(runSource, /rsync -rlpt --delete --links --safe-links --inplace/);

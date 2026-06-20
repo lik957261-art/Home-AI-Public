@@ -264,6 +264,16 @@ function embeddedPluginNavigationAvailable(def) {
   return available;
 }
 
+function embeddedPluginBottomButtonShouldStayVisible(def) {
+  if (!def?.bottomButtonId) return false;
+  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
+    && typeof pluginTopicBottomButtonId === "function"
+    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  const keepPinnedBottomButton = typeof pluginBottomTabPinned === "function"
+    && pluginBottomTabPinned(def.id);
+  return Boolean(keepPluginContextButton || keepPinnedBottomButton);
+}
+
 function embeddedPluginUsesLaunchToken(manifest) {
   const entryUrl = String(manifest?.entry?.url || "");
   return manifest?.embed?.tokenStatus === "launch_token_issued" || /[?&](?:launch|codexPluginLaunch)=/.test(entryUrl);
@@ -1103,16 +1113,59 @@ function embeddedPluginHost(def) {
   return host;
 }
 
+function embeddedPluginHostNode(def) {
+  return def?.hostId ? $(def.hostId) : null;
+}
+
+function embeddedPluginHostIsActive(def) {
+  const host = embeddedPluginHostNode(def);
+  return Boolean(host && !host.hidden && host.classList.contains("active"));
+}
+
+function hideOtherEmbeddedPluginHosts(activeDef) {
+  const app = $("app");
+  Object.values(EMBEDDED_PLUGIN_DEFS || {}).forEach((def) => {
+    if (!def || def.id === activeDef?.id) return;
+    const host = embeddedPluginHostNode(def);
+    if (host) {
+      host.hidden = true;
+      host.setAttribute("aria-hidden", "true");
+      host.classList.remove("active");
+    }
+    app?.classList.remove(`${def.viewMode}-plugin-host-active`);
+  });
+}
+
+function syncEmbeddedPluginHostGlobalClasses() {
+  const app = $("app");
+  Object.values(EMBEDDED_PLUGIN_DEFS || {}).forEach((def) => {
+    if (!def || def.viewMode === state.viewMode) return;
+    const host = embeddedPluginHostNode(def);
+    if (host) {
+      host.hidden = true;
+      host.setAttribute("aria-hidden", "true");
+      host.classList.remove("active");
+    }
+    app?.classList.remove(`${def.viewMode}-plugin-host-active`);
+  });
+  const activeDefs = Object.values(EMBEDDED_PLUGIN_DEFS || {}).filter(embeddedPluginHostIsActive);
+  const anyActive = activeDefs.length > 0;
+  const codexActive = activeDefs.some((def) => def.id === "codex-mobile");
+  document.documentElement?.classList?.toggle("embedded-plugin-shell-active", anyActive);
+  document.documentElement?.classList?.toggle("codex-plugin-shell-active", codexActive);
+  app?.classList.toggle("embedded-plugin-host-active", anyActive);
+}
+
 function setEmbeddedPluginHostVisible(def, visible) {
+  visible = Boolean(visible && state.viewMode === def.viewMode);
+  if (visible) hideOtherEmbeddedPluginHosts(def);
   const host = embeddedPluginHost(def);
   if (typeof clearKeyboardViewportMetrics === "function" && visible) clearKeyboardViewportMetrics();
   host.hidden = !visible;
   host.setAttribute("aria-hidden", visible ? "false" : "true");
   host.classList.toggle("active", visible);
-  document.documentElement?.classList?.toggle("embedded-plugin-shell-active", visible);
-  document.documentElement?.classList?.toggle("codex-plugin-shell-active", visible && def.id === "codex-mobile");
   $("app")?.classList.toggle(`${def.viewMode}-plugin-host-active`, visible);
-  $("app")?.classList.toggle("embedded-plugin-host-active", visible);
+  syncEmbeddedPluginHostGlobalClasses();
   if (typeof settleMobileBottomNavReservation === "function") settleMobileBottomNavReservation(visible ? "plugin_host_visible" : "plugin_host_hidden", [0, 80, 240]);
   if (typeof refreshKeyboardViewportSoon === "function") [0, 80, 180, 360].forEach(refreshKeyboardViewportSoon);
   if (typeof scheduleClientLayoutDiagnostics === "function") scheduleClientLayoutDiagnostics(visible ? "plugin_host_visible" : "plugin_host_hidden", [0, 300, 1200]);
@@ -1389,6 +1442,10 @@ function bindEmbeddedPluginControls(def) {
 }
 
 function renderEmbeddedPluginView(def) {
+  if (!def || state.viewMode !== def.viewMode) {
+    if (def) setEmbeddedPluginHostVisible(def, false);
+    return;
+  }
   ensureEmbeddedPluginNavigationBridge(def);
   state.currentThread = null;
   state.currentThreadId = "";
@@ -1478,18 +1535,26 @@ function renderEmbeddedPluginView(def) {
   ensureVerticalScrollAffordance();
 }
 
+function renderEmbeddedPluginViewForViewMode(viewMode = state.viewMode) {
+  const def = embeddedPluginDefByView(viewMode);
+  syncEmbeddedPluginHostGlobalClasses();
+  if (!def) return false;
+  renderEmbeddedPluginView(def);
+  syncEmbeddedPluginHostGlobalClasses();
+  return true;
+}
+
 function updateCodexPluginNavigationAvailability() {
-  const button = $("bottomCodexMode");
+  const def = EMBEDDED_PLUGIN_DEFS["codex-mobile"];
+  const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
   const available = codexPluginNavigationAvailable();
-  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
-    && typeof pluginTopicBottomButtonId === "function"
-    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === "bottomCodexMode";
+  const keepBottomButton = embeddedPluginBottomButtonShouldStayVisible(def);
   if (button) {
-    button.hidden = !keepPluginContextButton;
-    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+    button.hidden = !keepBottomButton;
+    button.setAttribute("aria-hidden", keepBottomButton ? "false" : "true");
   }
-  nav?.classList.remove("codex-visible");
+  nav?.classList.remove(def.navVisibleClass);
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("codex-mobile", available);
   if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
   return available;
@@ -1545,12 +1610,10 @@ function updateFinancePluginNavigationAvailability() {
   const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
   const available = embeddedPluginNavigationAvailable(def);
-  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
-    && typeof pluginTopicBottomButtonId === "function"
-    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  const keepBottomButton = embeddedPluginBottomButtonShouldStayVisible(def);
   if (button) {
-    button.hidden = !keepPluginContextButton;
-    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+    button.hidden = !keepBottomButton;
+    button.setAttribute("aria-hidden", keepBottomButton ? "false" : "true");
   }
   nav?.classList.remove(def.navVisibleClass);
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("finance", available);
@@ -1602,12 +1665,10 @@ function updateEmailPluginNavigationAvailability() {
   const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
   const available = embeddedPluginNavigationAvailable(def);
-  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
-    && typeof pluginTopicBottomButtonId === "function"
-    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  const keepBottomButton = embeddedPluginBottomButtonShouldStayVisible(def);
   if (button) {
-    button.hidden = !keepPluginContextButton;
-    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+    button.hidden = !keepBottomButton;
+    button.setAttribute("aria-hidden", keepBottomButton ? "false" : "true");
   }
   nav?.classList.remove(def.navVisibleClass);
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("email", available);
@@ -1659,12 +1720,10 @@ function updateHealthPluginNavigationAvailability() {
   const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
   const available = embeddedPluginNavigationAvailable(def);
-  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
-    && typeof pluginTopicBottomButtonId === "function"
-    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  const keepBottomButton = embeddedPluginBottomButtonShouldStayVisible(def);
   if (button) {
-    button.hidden = !keepPluginContextButton;
-    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+    button.hidden = !keepBottomButton;
+    button.setAttribute("aria-hidden", keepBottomButton ? "false" : "true");
   }
   nav?.classList.remove(def.navVisibleClass);
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("health", available);
@@ -1716,12 +1775,10 @@ function updateNotePluginNavigationAvailability() {
   const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
   const available = embeddedPluginNavigationAvailable(def);
-  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
-    && typeof pluginTopicBottomButtonId === "function"
-    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  const keepBottomButton = embeddedPluginBottomButtonShouldStayVisible(def);
   if (button) {
-    button.hidden = !keepPluginContextButton;
-    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+    button.hidden = !keepBottomButton;
+    button.setAttribute("aria-hidden", keepBottomButton ? "false" : "true");
   }
   nav?.classList.remove(def.navVisibleClass);
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("note", available);
@@ -1787,12 +1844,10 @@ function updateGrowthPluginNavigationAvailability() {
   const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
   const available = embeddedPluginNavigationAvailable(def);
-  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
-    && typeof pluginTopicBottomButtonId === "function"
-    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  const keepBottomButton = embeddedPluginBottomButtonShouldStayVisible(def);
   if (button) {
-    button.hidden = !keepPluginContextButton;
-    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+    button.hidden = !keepBottomButton;
+    button.setAttribute("aria-hidden", keepBottomButton ? "false" : "true");
   }
   nav?.classList.remove(def.navVisibleClass);
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("growth", available);
@@ -1844,12 +1899,10 @@ function updateMoiraPluginNavigationAvailability() {
   const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
   const available = embeddedPluginNavigationAvailable(def);
-  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
-    && typeof pluginTopicBottomButtonId === "function"
-    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  const keepBottomButton = embeddedPluginBottomButtonShouldStayVisible(def);
   if (button) {
-    button.hidden = !keepPluginContextButton;
-    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+    button.hidden = !keepBottomButton;
+    button.setAttribute("aria-hidden", keepBottomButton ? "false" : "true");
   }
   nav?.classList.remove(def.navVisibleClass);
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("moira", available);
@@ -1901,12 +1954,10 @@ function updateMusicPluginNavigationAvailability() {
   const button = $(def.bottomButtonId);
   const nav = $("bottomNav");
   const available = embeddedPluginNavigationAvailable(def);
-  const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
-    && typeof pluginTopicBottomButtonId === "function"
-    && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === def.bottomButtonId;
+  const keepBottomButton = embeddedPluginBottomButtonShouldStayVisible(def);
   if (button) {
-    button.hidden = !keepPluginContextButton;
-    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+    button.hidden = !keepBottomButton;
+    button.setAttribute("aria-hidden", keepBottomButton ? "false" : "true");
   }
   nav?.classList.remove(def.navVisibleClass);
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("music", available);

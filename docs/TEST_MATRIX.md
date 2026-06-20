@@ -2371,6 +2371,7 @@ Current checker commands:
 - `node tests\plugin-workspace-platform-contract-check.test.js`
 - `node scripts\plugin-workspace-platform-contract-check.js --json`
 - `node tests\ios-pwa-visual-harness.test.js`
+- `node tests\visual-polish-audit-runner.test.js`
 - `npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id <plugin-id> --debug-url http://127.0.0.1:19073/`
 - for embedded keyboard/composer/input-obstruction changes:
   `npm run ios:pwa:visual -- --scenario embedded-plugin-keyboard-composer --plugin-id <plugin-id> [--plugin-thread-id <thread-or-route-id>] --debug-url http://127.0.0.1:19073/`

@@ -21,6 +21,7 @@ NFS_RSYNC_TIMEOUT_SECONDS="${HOMEAI_NAS_BACKUP_RSYNC_TIMEOUT_SECONDS:-1800}"
 SSH_OP_TIMEOUT_SECONDS="${HOMEAI_BACKUP_SSH_OP_TIMEOUT_SECONDS:-30}"
 SSH_RSYNC_TIMEOUT_SECONDS="${HOMEAI_BACKUP_SSH_RSYNC_TIMEOUT_SECONDS:-1800}"
 RSYNC_ATTEMPTS="${HOMEAI_DISASTER_BACKUP_RSYNC_ATTEMPTS:-3}"
+KEEP_STAGING="${HOMEAI_DISASTER_BACKUP_KEEP_STAGING:-0}"
 
 usage() {
   cat <<'USAGE'
@@ -40,6 +41,7 @@ Environment:
   HOMEAI_DISASTER_BACKUP_SSH_DESTINATION Remote backup root for ssh transport.
   HOMEAI_DISASTER_BACKUP_SSH_OPTIONS   Optional ssh options, such as "-i <key>".
   HOMEAI_DISASTER_BACKUP_RSYNC_ATTEMPTS Publish rsync attempts. Default: 3.
+  HOMEAI_DISASTER_BACKUP_KEEP_STAGING Keep local staging/current after success when set to 1.
 
 This wrapper avoids NFS root-squash failures by splitting privileges:
 1. sudo reads Mac production and writes a complete local staging backup.
@@ -133,6 +135,15 @@ rsync_with_retries() {
     attempt=$((attempt + 1))
   done
   return "$status"
+}
+
+cleanup_staging_current() {
+  if [[ "$KEEP_STAGING" == "1" ]]; then
+    return 0
+  fi
+  if [[ -d "${STAGING%/}/current" ]]; then
+    sudo_cmd rm -rf "${STAGING%/}/current"
+  fi
 }
 
 nfs_write_probe() {
@@ -279,3 +290,5 @@ if [[ "$TRANSPORT" == "ssh" ]]; then
 else
   publish_current_to_nfs
 fi
+
+cleanup_staging_current

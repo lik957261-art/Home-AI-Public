@@ -114,6 +114,56 @@ add stricter behavior, but they do not replace the generic composer lock.
   expose different values. Native tab bars remain stable because the bar height
   is fixed and the safe area is handled as background or internal spacing, not
   as a layout-height multiplier.
+- Primary navigation transitions must not publish an intermediate bottom-nav
+  state that hides pinned plugin tabs. `updateNavigationControls()` should keep
+  `pinnedPluginBottomTabIds()` visible while recomputing hidden tabs, and
+  plugin availability refreshers must treat pinned bottom buttons as retained
+  chrome, not only plugin-context buttons. Chat navigation also pre-applies the
+  Composer shell before the deferred `loadSelectedView()` pass so the input
+  frame does not disappear during the first transition frame. That Composer
+  pre-shell must configure the attach button, editor, action button, labels, and
+  disabled/locked state before revealing the Composer element, so the plus
+  button and input frame appear as one unit rather than in separate visible
+  refresh steps. If a same-workspace single-window chat thread is already
+  available in the data-level chat cache, the chat navigation shell should
+  render that cached thread in the same frame before scheduling the network
+  refresh. This keeps old topic-list content from being displayed inside the
+  chat chrome while still avoiding `#conversation` DOM parking/restoration.
+  If that cache is unavailable, the navigation shell must still replace the
+  previous surface with a compact Chat pending shell in the same frame; showing
+  the Composer while leaving old topic cards above it is not allowed. The Chat
+  pending shell must have a bounded recovery watchdog: if a cold-start or stale
+  `/api/single-window` response leaves `正在载入聊天...` visible without rendered
+  messages, the client should retry the single-window load after the original
+  request is no longer in flight instead of requiring a tab switch.
+  When the follow-up `/api/single-window` response has the same visible chat
+  render signature as the cached shell, the client should update lightweight
+  chrome only and skip replacing `#conversation.innerHTML`; raw `updatedAt`
+  drift alone is not enough to repaint the whole message list. Chat messages
+  that contain rendered images rely on this rule: no-op chat refreshes must
+  preserve existing `<img>` nodes so protected or proxied image hydration does
+  not recreate visible image surfaces and trigger full-page flashing.
+- Returning from any bottom plugin or capability entry to the Topics root must
+  go through the primary navigation topic-root helper. That path must hide
+  active embedded/plugin host layers, clear temporary plugin context state, and
+  render the cached topic root shell before the deferred selected-view refresh.
+  Direct `loadSelectedView()` calls from bottom plugin/capability handlers are
+  not allowed because stale plugin host classes can keep covering the topic
+  list.
+- Bottom plugin tab transitions must render the plugin navigation shell in the
+  same frame as the view-mode change. The shell should clear `#conversation`
+  and show the plugin host/loading surface before `loadSelectedView()` performs
+  manifest or iframe work; old topic cards must not remain visible while a
+  plugin page such as Finance is loading. This first-frame clearing rule only
+  applies when entering a plugin from a non-plugin surface. Plugin-to-plugin
+  switches must not run that clearing shell; otherwise the old plugin host and
+  target plugin render create a visible double transition.
+- Main `#conversation` DOM node parking/restoration is disabled. The attempted
+  Chat/Topics root DOM cache could restore stale DOM into another primary tab
+  after rapid navigation. Primary navigation may keep stable outer chrome, but
+  each primary surface must render its own conversation content through the
+  normal selected-view path until a dedicated lifecycle model and visual harness
+  cover rapid multi-tab switching.
 - If the mobile bottom navigation is visually lowered with
   `--mobile-bottom-nav-visual-drop`, any Dock or fixed surface above it must use
   the runtime measured visible top offset, not the full bottom-nav height. This
@@ -327,6 +377,30 @@ add stricter behavior, but they do not replace the generic composer lock.
   tab-switch timing, and stale cached surface warnings. It accepts Access Keys
   only through `--access-key-path` or `HERMES_NAV_FLOW_ACCESS_KEY_PATH` and must
   not print the key or raw key path.
+- The Topics root must render directory-bound topic collections in the first
+  task-list paint when `directoryTopicCollectionsForGroups()` is available.
+  Deferring the directory launcher insertion to a later animation frame causes
+  visible lower-page movement on accounts with many directory-bound topics; the
+  deferred render path is only a compatibility fallback for missing helpers.
+- Mobile left-edge swipe guards must not own touches inside the bottom
+  navigation strip. The bottom-left Chat tab is an app-level target and edge
+  taps in that strip should reach the button rather than being consumed by the
+  back/sidebar swipe recognizer.
+- Primary navigation into the Topics root should render an eligible cached
+  task-list thread inside `applyPrimaryNavigationViewShell()` before the
+  deferred selected-view load. When the navigation explicitly skips task-list
+  refresh, the deferred load should not re-render the same cached task list on
+  the next frame. This keeps Chat -> Topics transitions from showing a stale
+  Chat frame or a repeated lower-page replacement.
+- The Topics root must preserve user scroll during background/SSE/API refreshes.
+  While the user scrolls the task-list root, keep `state.taskListScrollTop`
+  current. If a scheduled topic-root refresh or `/api/threads` refresh leaves
+  the visible `taskListRootRenderSignature()` unchanged, skip
+  `renderCurrentThread()` and only refresh viewport affordances; repeated
+  no-op events must not reset the directory-topic list to the top.
+- Directory-bound topic groups default to expanding only the most recently
+  updated directory; older directories remain collapsed unless the user
+  explicitly expands them.
 - For mobile and tablet layout work, run at least the default phone portrait
   viewport and one explicit wider viewport with `--viewport <width>x<height>`.
   Use `--mobile` or `--desktop` only when the target shell mode needs to be
@@ -381,6 +455,25 @@ add stricter behavior, but they do not replace the generic composer lock.
   show a fixed-line streaming receipt preview with hidden overflow and keep the
   inline run-progress panel bounded in the same message body. After the assistant
   reaches a terminal state, the normal full Markdown/receipt renderer takes over.
+- Assistant Markdown may render image-looking bare URLs inline, but protected
+  same-origin `/api/*` images must be loaded through an authenticated client
+  fetch and converted to a blob object URL before display. `/api/files/preview`
+  is a JSON/text preview endpoint and must be normalized to `/api/files` before
+  becoming an image source. Failed protected image loads should degrade to a
+  same-window image link, not leave a broken `<img>` that is recreated on every
+  thread refresh. The hydration pass must run after both normal chat renders and
+  task/plugin-topic detail renders. Pending/loading placeholders should stay as
+  short stable rows, not image-aspect placeholders that can create large blank
+  blocks while the authenticated fetch is still pending.
+- Markdown image sources must be absolute `http(s)` URLs or explicit paths that
+  start with `/`, `./`, or `../`. Bare relative filenames such as
+  `http1280x1280.jpg` are not stable in chat/topic messages and should remain
+  text instead of being resolved against the Home AI origin.
+- Music plugin receipts can include plugin-internal cover URLs under
+  `/api/v1/music/...`. When such URLs appear in Home AI chat/topic Markdown,
+  the static client must rewrite them to the Music same-origin proxy
+  `/api/hermes-plugins/music/proxy/api/v1/music/...` with the effective
+  workspace id before authenticated image hydration.
 - Save-to-Note success feedback must remain a local Hermes route action. If the
   Note API returns a saved note id, the toast should be clickable/keyboard
   actionable and open the Note plugin with that id in the plugin route payload.

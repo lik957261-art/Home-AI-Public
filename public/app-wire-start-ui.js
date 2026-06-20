@@ -2,6 +2,7 @@
 
 function preparePrimaryNavigationChange() {
   state.primaryNavigationSeq = (Number(state.primaryNavigationSeq || 0) || 0) + 1;
+  if (typeof parkCurrentMainConversationSurfaceForNavigation === "function") parkCurrentMainConversationSurfaceForNavigation();
   if (typeof cancelScheduledSelectedViewLoad === "function") cancelScheduledSelectedViewLoad();
   if (typeof cancelCurrentThreadNavigationRefreshes === "function") cancelCurrentThreadNavigationRefreshes();
   if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
@@ -75,16 +76,39 @@ function scheduleSelectedViewLoad(options = {}) {
 
 function applyPrimaryNavigationViewShell() {
   if (typeof applyViewMode === "function") applyViewMode();
+  let restoredMainSurface = false;
+  if (typeof restoreMainConversationSurfaceForCurrentViewShell === "function") {
+    restoredMainSurface = restoreMainConversationSurfaceForCurrentViewShell();
+  }
+  let renderedCachedTaskList = false;
+  if (!restoredMainSurface && state.viewMode === "tasks" && !state.currentTaskGroupId && typeof restoreTaskListThreadFromCache === "function") {
+    const restoreScrollTop = typeof taskListReturnScrollTop === "function" ? taskListReturnScrollTop() : 0;
+    renderedCachedTaskList = restoreTaskListThreadFromCache({ stickToBottom: false, restoreScrollTop });
+  }
+  let renderedCachedSingleWindow = false;
+  if (!restoredMainSurface && state.viewMode === "single" && state.singleWindowMode === "chat" && typeof renderCachedSingleWindowThreadForCurrentViewShell === "function") {
+    renderedCachedSingleWindow = renderCachedSingleWindowThreadForCurrentViewShell({ stickToBottom: true });
+  }
+  if (!restoredMainSurface && !renderedCachedSingleWindow && state.viewMode === "single" && state.singleWindowMode === "chat" && typeof configureComposer === "function") {
+    if (typeof renderSingleWindowChatPendingShell === "function") {
+      renderSingleWindowChatPendingShell({ reason: "primary_navigation_no_cache" });
+    } else {
+      configureComposer({ enabled: false, shellLocked: true });
+    }
+  }
   if (typeof scheduleGlobalPluginDockRefresh === "function") scheduleGlobalPluginDockRefresh("primary_navigation");
   if (typeof updateNavigationControls === "function") updateNavigationControls();
+  return { renderedCachedTaskList };
 }
 
 function schedulePrimaryNavigationViewLoad(options = {}) {
-  applyPrimaryNavigationViewShell();
+  const shell = applyPrimaryNavigationViewShell() || {};
+  if (shell.renderedCachedTaskList && options.skipTaskListWindowRefresh) return;
   scheduleSelectedViewLoad(Object.assign({ afterPaint: true }, options));
 }
 
 function openPinnedPluginBottomTab(viewMode, rememberReturnRoute = null) {
+  const fromViewMode = state.viewMode;
   clearQuotedReply({ render: false });
   if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
   if (typeof rememberReturnRoute === "function") rememberReturnRoute();
@@ -94,8 +118,57 @@ function openPinnedPluginBottomTab(viewMode, rememberReturnRoute = null) {
   state.currentThread = null;
   state.currentThreadId = "";
   if (typeof applyViewMode === "function") applyViewMode();
+  if (typeof renderPinnedPluginNavigationShell === "function") renderPinnedPluginNavigationShell(viewMode, { fromViewMode });
   if (typeof updateNavigationControls === "function") updateNavigationControls();
   scheduleSelectedViewLoad();
+}
+
+function pinnedPluginViewMode(value = "") {
+  const mode = String(value || "");
+  if (mode === "wardrobe") return true;
+  return Object.values(typeof EMBEDDED_PLUGIN_DEFS === "object" ? EMBEDDED_PLUGIN_DEFS : {})
+    .some((item) => item?.viewMode === mode);
+}
+
+function renderPinnedPluginNavigationShell(viewMode = state.viewMode, options = {}) {
+  const mode = String(viewMode || "");
+  const def = Object.values(typeof EMBEDDED_PLUGIN_DEFS === "object" ? EMBEDDED_PLUGIN_DEFS : {})
+    .find((item) => item?.viewMode === mode) || null;
+  const fromPlugin = pinnedPluginViewMode(options.fromViewMode);
+  if (fromPlugin) return;
+  const title = def?.title || (mode === "wardrobe" ? "衣橱" : "");
+  const list = $("threadList");
+  if (list) list.innerHTML = title ? `<div class="empty-state small">${escapeHtml(title)} 插件</div>` : "";
+  if ($("threadTitle")) $("threadTitle").textContent = title;
+  if ($("threadMeta")) $("threadMeta").textContent = "";
+  if ($("interruptRun")) $("interruptRun").disabled = true;
+  if (typeof configureComposer === "function") configureComposer({ enabled: false, hidden: true, placeholder: title ? `${title} 插件` : "插件" });
+  const conversation = $("conversation");
+  if (conversation) {
+    conversation.innerHTML = "";
+    conversation.scrollTop = 0;
+  }
+  if (mode === "wardrobe" && typeof showWardrobePluginLoadingSurface === "function") {
+    showWardrobePluginLoadingSurface();
+  } else if (def && typeof showEmbeddedPluginLoadingSurface === "function") {
+    showEmbeddedPluginLoadingSurface(def);
+  }
+  if (typeof ensureVerticalScrollAffordance === "function") ensureVerticalScrollAffordance(conversation);
+}
+
+function openTopicRootFromPrimaryNavigation(options = {}) {
+  if (typeof hideActivePluginHostsForPluginTopicNavigation === "function") hideActivePluginHostsForPluginTopicNavigation();
+  clearQuotedReply({ render: false });
+  if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
+  if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
+  state.viewMode = "tasks";
+  localStorage.setItem("hermesWebViewMode", state.viewMode);
+  state.currentTaskGroupId = "";
+  if (options.clearCurrentThread) {
+    state.currentThread = null;
+    state.currentThreadId = "";
+  }
+  schedulePrimaryNavigationViewLoad({ skipTaskListWindowRefresh: true });
 }
 
 function wireUi() {
@@ -282,12 +355,7 @@ function wireUi() {
       return;
     }
     preparePrimaryNavigationChange();
-    clearQuotedReply({ render: false });
-    if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
-    state.viewMode = "tasks";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    schedulePrimaryNavigationViewLoad({ skipTaskListWindowRefresh: true });
+    openTopicRootFromPrimaryNavigation();
   });
   $("bottomChatMode")?.addEventListener("click", () => {
     preparePrimaryNavigationChange();
@@ -392,27 +460,13 @@ function wireUi() {
   });
   $("learningMode")?.addEventListener("click", () => openPinnedPluginBottomTab("growth", typeof rememberGrowthPluginReturnRoute === "function" ? rememberGrowthPluginReturnRoute : null));
   $("bottomLearningMode")?.addEventListener("click", () => openPinnedPluginBottomTab("growth", typeof rememberGrowthPluginReturnRoute === "function" ? rememberGrowthPluginReturnRoute : null));
-  $("todosMode").addEventListener("click", async () => {
+  $("todosMode").addEventListener("click", () => {
     preparePrimaryNavigationChange();
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    state.viewMode = "tasks";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView({ skipTaskListWindowRefresh: true });
+    openTopicRootFromPrimaryNavigation({ clearCurrentThread: true });
   });
-  $("bottomTodosMode")?.addEventListener("click", async () => {
+  $("bottomTodosMode")?.addEventListener("click", () => {
     preparePrimaryNavigationChange();
-    clearQuotedReply({ render: false });
-    if (typeof discardDirectoryTopicDraftState === "function") discardDirectoryTopicDraftState();
-    state.viewMode = "tasks";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-    state.currentTaskGroupId = "";
-    state.currentThread = null;
-    state.currentThreadId = "";
-    await loadSelectedView({ skipTaskListWindowRefresh: true });
+    openTopicRootFromPrimaryNavigation({ clearCurrentThread: true });
   });
   $("bottomWardrobeMode")?.addEventListener("click", () => openPinnedPluginBottomTab("wardrobe", typeof rememberWardrobePluginReturnRoute === "function" ? rememberWardrobePluginReturnRoute : null));
   $("bottomCodexMode")?.addEventListener("click", () => openPinnedPluginBottomTab("codex", typeof rememberCodexPluginReturnRoute === "function" ? rememberCodexPluginReturnRoute : null));
@@ -670,6 +724,7 @@ function wireUi() {
   });
   $("conversation")?.addEventListener("scroll", (event) => {
     handleConversationScrollState(event);
+    if (typeof rememberTaskListScrollPosition === "function") rememberTaskListScrollPosition();
     if (typeof scheduleAppRouteSnapshot === "function") scheduleAppRouteSnapshot("scroll", 500);
   }, { passive: true });
   navigator.virtualKeyboard?.addEventListener("geometrychange", handleViewportLayoutChange);

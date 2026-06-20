@@ -67,16 +67,45 @@ assert.match(script, /kickstart/);
 assert.match(script, /HOME_AI_BRIDGE_HOST_LABEL/);
 assert.match(script, /HOME_AI_CRON_LABEL/);
 assert.match(script, /HOME_AI_NAS_BACKUP_MOUNT_LABEL/);
+assert.match(script, /HOME_AI_VISUAL_DEBUG_LABEL/);
 assert.match(script, /buildHomeAiBridgeHostLaunchdPlist/);
 assert.match(script, /buildHomeAiCronLaunchdPlist/);
 assert.match(script, /buildHomeAiNasBackupMountLaunchdPlist/);
+assert.match(script, /buildHomeAiVisualDebugLaunchAgentPlist/);
 assert.match(script, /home-ai-bridge-host-launchd-install/);
 assert.match(script, /home-ai-cron-launchd-install/);
 assert.match(script, /home-ai-nas-backup-mount-launchd-install/);
+assert.match(script, /home-ai-visual-debug-launch-agent-install/);
 assert.match(script, /home-ai-cron-profile-aliases/);
 assert.match(script, /home-ai-cron-builtin-skills/);
 assert.match(script, /home-ai-cron-runtime-scripts/);
 assert.match(script, /homeai-disaster-backup-cron\.sh/);
+assert.match(script, /homeai-visual-polish-audit-cron\.sh/);
+assert.match(script, /homeai-visual-polish-host\.sh/);
+assert.match(script, /homeai-visual-polish-music\.sh/);
+assert.match(script, /homeai-visual-polish-global\.sh/);
+assert.match(script, /home-ai-visual-polish-cron-jobs/);
+assert.match(script, /home-ai-visual-polish-task-card-config/);
+assert.match(script, /installHomeAiVisualPolishCronJobs/);
+assert.match(script, /installHomeAiVisualPolishTaskCardConfig/);
+assert.match(script, /homeai_visual_host/);
+assert.match(script, /homeai_visual_music/);
+assert.match(script, /homeai_visual_global_interactions/);
+assert.match(script, /homeai_visual_core/);
+assert.match(script, /homeai_visual_analysis_xhigh/);
+assert.match(script, /hm-owner-openai-xhigh/);
+assert.match(script, /HOMEAI_VISUAL_ANALYSIS_REASONING_EFFORT \|\| "xhigh"/);
+assert.match(script, /no_agent: isScriptJob/);
+assert.match(script, /enabledToolsets: \["file", "vision", "video"\]/);
+assert.match(script, /global-interactions/);
+assert.match(script, /plugin-drawer-action-gestures/);
+assert.match(script, /chown", \[`\$\{PRODUCTION_SERVICE_USER\}:\$\{PRODUCTION_SERVICE_GROUP\}`, jobsPath\]/);
+assert.match(script, /HOMEAI_VISUAL_DEBUG_USER/);
+assert.match(script, /HOMEAI_VISUAL_DEBUG_APP_URL/);
+assert.match(script, /HOME_AI_VISUAL_DEBUG_APP_URL/);
+assert.match(script, /ios-pwa-live-debug-server\.js/);
+assert.match(script, /<string>--app-url<\/string>/);
+assert.match(script, /gui\/\$uid\/\$label/);
 assert.match(script, /data", "hermes-home", "scripts/);
 assert.match(script, /home-ai-backup-artifact-acl-repair/);
 assert.match(script, /HOME_AI_BACKUP_ARTIFACT_READ_ACL/);
@@ -106,6 +135,10 @@ assert.match(script, /plugin_execute_requires_restart_label_or_health_url/);
 assert.match(script, /sync_only_requires_plugin_target/);
 assert.match(script, /validationRetries: 12/);
 assert.match(script, /validationDelayMs: 2000/);
+assert.match(script, /DEPLOY_BACKUP_RETENTION_DAYS = 3/);
+assert.match(script, /--deploy-backup-retention-days/);
+assert.match(script, /deploy-backup-retention-prune/);
+assert.match(script, /find \\"\$root\\" -mindepth 1 -maxdepth 1 -type d -mtime \+\\"\$days\\" ! -path \\"\$current\\"/);
 assert.match(script, /function shouldRetryValidation/);
 assert.match(script, /home-ai-status-smoke/);
 assert.match(script, /health-url/);
@@ -174,6 +207,7 @@ assert.match(contract, /selected Gateway callable-schema/);
 assert.match(contract, /must not bypass it with a plugin-private\s+production write path/);
 assert.match(contract, /\.codegraph/);
 assert.match(contract, /must not reuse the source sync exclude list/);
+assert.match(contract, /prune deploy backups older\s+than three days/);
 
 assert.match(pluginWorkspaceContract, /macos-dev-to-production-deployment-contract\.md/);
 assert.match(pluginWorkspaceContract, /Plugin threads must read that file before production deploys/);
@@ -272,6 +306,12 @@ assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/runtime\/hermes-age
 assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/app\/scripts\/hermes-mobile-cron-dispatcher\.py/);
 assert.match(cronPlist, /HERMES_WEB_CRON_JOBS_PATH/);
 assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/data\/hermes-home\/cron\/jobs\.json/);
+assert.match(cronPlist, /<key>HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED<\/key>\s*<string>0<\/string>/);
+assert.match(cronPlist, /<key>HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND<\/key>\s*<string>codex<\/string>/);
+assert.match(cronPlist, /<key>HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME<\/key>\s*<string><\/string>/);
+assert.match(cronPlist, /<key>HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE<\/key>\s*<string>\/Users\/hermes-host\/HermesMobile\/data\/plugin-workspace-audit-task-cards\.json<\/string>/);
+assert.match(cronPlist, /<key>CODEX_MOBILE_BASE_URL<\/key>\s*<string>http:\/\/127\.0\.0\.1:8787<\/string>/);
+assert.match(cronPlist, /<key>CODEX_MOBILE_KEY_FILE<\/key>\s*<string>\/Users\/hermes-host\/HermesMobile\/data\/secrets\/codex-mobile-access-key\.secret<\/string>/);
 assert.match(cronPlist, /<key>HERMES_CRON_SCRIPT_TIMEOUT<\/key>\s*<string>1800<\/string>/);
 assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_TRANSPORT<\/key>\s*<string>auto<\/string>/);
 assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_SSH_TARGET<\/key>\s*<string>xuxinxp@192\.168\.10\.99<\/string>/);
@@ -332,6 +372,16 @@ assert.ok(cronAliasPlan.aliases[0].ancestorDirs.includes("/Users/example/path"))
 assert.equal(cronAliasPlan.aliases[0].workspaceRoot, "/Users/example/path");
 assert.ok(cronAliasPlan.aliases[0].pluginBindingDirs.includes("/Users/example/path"));
 assert.ok(cronAliasPlan.aliases[0].pluginBindingDirs.includes("/Users/example/path"));
+
+const xhighConfig = deployScript.buildHomeAiVisualAnalysisProfileConfig(`model:
+  default: gpt-5.5
+  provider: openai-codex
+agent:
+  max_turns: 60
+  reasoning_effort: medium
+`);
+assert.match(xhighConfig, /model:\n  default: gpt-5\.5\n  provider: openai-codex/);
+assert.match(xhighConfig, /agent:\n  max_turns: 60\n  reasoning_effort: xhigh/);
 
 const fixtureDevRoot = fs.mkdtempSync(path.join(os.tmpdir(), "home-ai-deploy-fixtures-"));
 function createPluginFixture(pluginId, files = {}) {

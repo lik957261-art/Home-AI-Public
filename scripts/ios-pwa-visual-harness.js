@@ -107,7 +107,7 @@ function printHelp() {
     "Options:",
     "  --debug-url <url>      Live debug server URL. Default: http://127.0.0.1:19073/",
     "  --app-url <url>        Optional app URL to open through the live debug server before the scenario.",
-    "  --scenario <name>      directory-dark-status, dark-admin-surfaces, dark-growth-surfaces, embedded-plugin-shell, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, global-plugin-dock-gesture-stability, plugin-drawer-action-gestures, or voice-stop-hold-gesture.",
+    "  --scenario <name>      directory-dark-status, dark-admin-surfaces, dark-growth-surfaces, embedded-plugin-shell, embedded-plugin-switch-stability, embedded-plugin-keyboard-composer, embedded-plugin-side-chat-keyboard, plugin-topic-dock-return-stability, global-plugin-dock-gesture-stability, plugin-drawer-action-gestures, or voice-stop-hold-gesture.",
     "  --plugin-id <id>       Required by embedded plugin scenarios.",
     "  --plugin-action-id <id> Optional action id for plugin-drawer-action-gestures. Defaults to finance:record.",
     "  --plugin-thread-id <id> Optional thread id for embedded plugin keyboard scenarios.",
@@ -483,6 +483,78 @@ const EMBEDDED_PLUGIN_MEASURE_SCRIPT = `
       src: frame?.getAttribute("src") ? "[present]" : "",
       rect: rect(frame),
     }
+  };
+`;
+
+const EMBEDDED_PLUGIN_SWITCH_PREPARE_SCRIPT = `
+  const fromPluginId = String(arguments[0] || "music").trim();
+  const theme = String(arguments[1] || "dark").trim() || "dark";
+  try { localStorage.setItem("hermesWebTheme", theme); } catch (_) {}
+  const appState = typeof state !== "undefined" && state && typeof state === "object"
+    ? state
+    : (window.state && typeof window.state === "object" ? window.state : null);
+  if (appState) appState.themeMode = theme;
+  if (typeof applyThemePreference === "function") applyThemePreference(theme);
+  else document.documentElement.setAttribute("data-theme", theme);
+  if (typeof openPluginTopicApp !== "function") {
+    return { ok: false, scenario: "embedded-plugin-switch-stability", error: "openPluginTopicApp_missing" };
+  }
+  openPluginTopicApp(fromPluginId, { recordUsage: false });
+  return { ok: true, scenario: "embedded-plugin-switch-stability", fromPluginId };
+`;
+
+const EMBEDDED_PLUGIN_SWITCH_TARGET_SCRIPT = `
+  const toPluginId = String(arguments[0] || "codex-mobile").trim();
+  if (typeof openPluginTopicApp !== "function") {
+    return { ok: false, scenario: "embedded-plugin-switch-stability", error: "openPluginTopicApp_missing" };
+  }
+  openPluginTopicApp(toPluginId, { recordUsage: false });
+  return { ok: true, scenario: "embedded-plugin-switch-stability", toPluginId };
+`;
+
+const EMBEDDED_PLUGIN_SWITCH_MEASURE_SCRIPT = `
+  const fromPluginId = String(arguments[0] || "music").trim();
+  const toPluginId = String(arguments[1] || "codex-mobile").trim();
+  const rect = (node) => {
+    if (!node) return null;
+    const r = node.getBoundingClientRect();
+    return { top: Math.round(r.top), right: Math.round(r.right), bottom: Math.round(r.bottom), left: Math.round(r.left), width: Math.round(r.width), height: Math.round(r.height) };
+  };
+  const visible = (node) => {
+    if (!node || node.hidden || node.getAttribute("aria-hidden") === "true") return false;
+    const box = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return style.display !== "none" && style.visibility !== "hidden" && box.width > 1 && box.height > 1;
+  };
+  const hostFor = (pluginId) => {
+    const def = typeof EMBEDDED_PLUGIN_DEFS === "object" ? EMBEDDED_PLUGIN_DEFS[pluginId] : null;
+    return def?.hostId ? document.getElementById(def.hostId) : null;
+  };
+  const shellFor = (pluginId) => Array.from(document.querySelectorAll(".embedded-plugin-shell"))
+    .find((node) => node?.dataset?.pluginId === pluginId) || null;
+  const activeShells = Array.from(document.querySelectorAll(".embedded-plugin-host.active .embedded-plugin-shell"))
+    .filter((node) => visible(node?.closest?.(".embedded-plugin-host")))
+    .map((node) => node?.dataset?.pluginId || "")
+    .filter(Boolean);
+  const conversation = document.getElementById("conversation");
+  const composer = document.querySelector(".composer");
+  const app = document.getElementById("app");
+  return {
+    scenario: "embedded-plugin-switch-stability",
+    fromPluginId,
+    toPluginId,
+    clientVersion: document.documentElement.getAttribute("data-client-version") || "",
+    theme: document.documentElement.getAttribute("data-theme") || "",
+    viewMode: typeof state === "object" ? state.viewMode || "" : "",
+    appClass: app?.className || "",
+    fromHost: { exists: Boolean(hostFor(fromPluginId)), active: Boolean(hostFor(fromPluginId)?.classList?.contains("active")), visible: visible(hostFor(fromPluginId)), rect: rect(hostFor(fromPluginId)) },
+    toHost: { exists: Boolean(hostFor(toPluginId)), active: Boolean(hostFor(toPluginId)?.classList?.contains("active")), visible: visible(hostFor(toPluginId)), rect: rect(hostFor(toPluginId)) },
+    fromShell: { exists: Boolean(shellFor(fromPluginId)), active: Boolean(shellFor(fromPluginId)?.closest?.(".embedded-plugin-host.active")), rect: rect(shellFor(fromPluginId)) },
+    toShell: { exists: Boolean(shellFor(toPluginId)), active: Boolean(shellFor(toPluginId)?.closest?.(".embedded-plugin-host.active")), rect: rect(shellFor(toPluginId)) },
+    activeShells,
+    conversation: { visible: visible(conversation), rect: rect(conversation), text: String(conversation?.textContent || "").slice(0, 160) },
+    composer: { visible: visible(composer), rect: rect(composer) },
+    bottomNav: { rect: rect(document.getElementById("bottomNav")) },
   };
 `;
 
@@ -962,7 +1034,20 @@ const PLUGIN_DRAWER_ACTION_GESTURES_PREPARE_SCRIPT = `
   const quickMenu = dock?.querySelector?.("[data-plugin-drawer-action-menu]") || null;
   if (strip) strip.scrollLeft = 0;
   let pluginCard = dock?.querySelector?.("[data-plugin-topic-open-app='" + CSS.escape(def.id) + "']") || null;
+  const pluginMenu = dock?.querySelector?.("[data-plugin-topic-action-menu='" + CSS.escape(def.id) + "']") || null;
   let actionButton = action ? quickMenu?.querySelector?.(actionSelector(def.id, action.id)) : null;
+  const sortableCards = [...(strip?.querySelectorAll?.("[data-plugin-topic-sort-id]") || [])];
+  const pluginIndex = sortableCards.indexOf(pluginCard);
+  const dragTarget = pluginIndex >= 0
+    ? (sortableCards[pluginIndex + 1] || sortableCards[pluginIndex - 1] || null)
+    : null;
+  const dragAfter = Boolean(dragTarget && sortableCards.indexOf(dragTarget) > pluginIndex);
+  const dragTargetBox = rect(dragTarget);
+  const pluginBox = rect(pluginCard);
+  const dragEndX = dragTargetBox
+    ? Math.round(dragAfter ? dragTargetBox.right - 12 : dragTargetBox.left + 12)
+    : 0;
+  const dragEndY = dragTargetBox ? Math.round(dragTargetBox.top + dragTargetBox.height / 2) : 0;
   if (!actionButton) {
     actionButton = quickMenu?.querySelector?.("[data-plugin-topic-action-plugin][data-plugin-topic-action-id]") || null;
     if (actionButton && typeof pluginTopicActionById === "function") {
@@ -980,9 +1065,9 @@ const PLUGIN_DRAWER_ACTION_GESTURES_PREPARE_SCRIPT = `
   const swipeStartX = stripBox ? Math.round(Math.min(stripBox.right - 20, stripBox.left + Math.max(56, stripBox.width * 0.72))) : 0;
   const swipeEndX = stripBox ? Math.round(Math.max(stripBox.left + 20, swipeStartX - Math.max(72, stripBox.width * 0.36))) : 0;
   return JSON.parse(JSON.stringify({
-    ok: Boolean(dock && strip && quickCard && quickMenu && pluginCard && actionButton && action),
+    ok: Boolean(dock && strip && quickCard && quickMenu && pluginCard && pluginMenu && dragTarget && actionButton && action),
     scenario: "plugin-drawer-action-gestures",
-    error: (!dock && "dock_missing") || (!strip && "strip_missing") || (!quickCard && "quick_card_missing") || (!quickMenu && "quick_menu_missing") || (!pluginCard && "plugin_card_missing") || (!actionButton && "quick_action_missing") || (!action && "action_missing") || "",
+    error: (!dock && "dock_missing") || (!strip && "strip_missing") || (!quickCard && "quick_card_missing") || (!quickMenu && "quick_menu_missing") || (!pluginCard && "plugin_card_missing") || (!pluginMenu && "plugin_menu_missing") || (!dragTarget && "drag_target_missing") || (!actionButton && "quick_action_missing") || (!action && "action_missing") || "",
     requestedPluginId,
     requestedActionId,
     pluginId: def.id,
@@ -1010,7 +1095,20 @@ const PLUGIN_DRAWER_ACTION_GESTURES_PREPARE_SCRIPT = `
       clientWidth: Math.round(strip?.clientWidth || 0),
     },
     quickCard: { rect: rect(quickCard), tap: tap(quickCard), menuOpen: visible(quickMenu) },
-    pluginCard: { rect: rect(pluginCard), tap: tap(pluginCard), menuOpen: Boolean(pluginCard?.classList?.contains("menu-open")) },
+    pluginCard: { rect: pluginBox, tap: tap(pluginCard), menuOpen: Boolean(pluginCard?.classList?.contains("menu-open")) },
+    pluginOrder: sortableCards.map((card) => card.dataset.pluginTopicSortId || "").filter(Boolean),
+    reorderButton: { rect: null, tap: null },
+    dragTarget: dragTarget ? {
+      pluginId: dragTarget.dataset.pluginTopicSortId || "",
+      rect: dragTargetBox,
+      after: dragAfter,
+    } : null,
+    dragPlan: (pluginBox && dragTargetBox) ? {
+      startAbsoluteX: Math.round(pluginBox.left + pluginBox.width / 2),
+      startAbsoluteY: Math.round(pluginBox.top + pluginBox.height / 2),
+      endAbsoluteX: dragEndX,
+      endAbsoluteY: dragEndY,
+    } : null,
     actionButton: { rect: rect(actionButton), tap: tap(actionButton) },
     stripSwipe: stripBox ? {
       startAbsoluteX: swipeStartX,
@@ -1056,7 +1154,22 @@ const PLUGIN_DRAWER_ACTION_GESTURES_MEASURE_SCRIPT = `
   const quickMenu = dock?.querySelector?.("[data-plugin-drawer-action-menu]") || null;
   const pluginCard = dock?.querySelector?.("[data-plugin-topic-open-app='" + CSS.escape(pluginId) + "']") || null;
   const pluginMenu = dock?.querySelector?.("[data-plugin-topic-action-menu='" + CSS.escape(pluginId) + "']") || null;
+  const reorderButton = pluginMenu?.querySelector?.("[data-plugin-topic-reorder='" + CSS.escape(pluginId) + "']") || null;
   const actionButton = dock?.querySelector?.("[data-plugin-topic-action-plugin='" + CSS.escape(pluginId) + "'][data-plugin-topic-action-id='" + CSS.escape(actionId) + "']") || null;
+  const sortableCards = [...(strip?.querySelectorAll?.("[data-plugin-topic-sort-id]") || [])];
+  const pluginIndex = sortableCards.indexOf(pluginCard);
+  const dragTarget = pluginIndex >= 0
+    ? (sortableCards[pluginIndex + 1] || sortableCards[pluginIndex - 1] || null)
+    : null;
+  const dragAfter = Boolean(dragTarget && sortableCards.indexOf(dragTarget) > pluginIndex);
+  const dragTargetBox = rect(dragTarget);
+  const pluginBox = rect(pluginCard);
+  const dragEndX = dragTargetBox
+    ? Math.round(dragAfter ? dragTargetBox.right - 12 : dragTargetBox.left + 12)
+    : 0;
+  const dragEndY = dragTargetBox ? Math.round(dragTargetBox.top + dragTargetBox.height / 2) : 0;
+  const toast = document.getElementById("pushToast");
+  const toastStyle = toast ? getComputedStyle(toast) : null;
   const appState = typeof state !== "undefined" && state && typeof state === "object"
     ? state
     : (window.state && typeof window.state === "object" ? window.state : null);
@@ -1100,8 +1213,28 @@ const PLUGIN_DRAWER_ACTION_GESTURES_MEASURE_SCRIPT = `
     },
     quickCard: { exists: Boolean(quickCard), rect: rect(quickCard), tap: tap(quickCard), menuOpen: Boolean(quickCard?.classList?.contains("menu-open")) },
     quickMenu: { exists: Boolean(quickMenu), visible: visible(quickMenu), hidden: quickMenu ? Boolean(quickMenu.hidden) : null, rect: rect(quickMenu) },
-    pluginCard: { exists: Boolean(pluginCard), rect: rect(pluginCard), tap: tap(pluginCard), menuOpen: Boolean(pluginCard?.classList?.contains("menu-open")) },
+    pluginCard: { exists: Boolean(pluginCard), rect: pluginBox, tap: tap(pluginCard), menuOpen: Boolean(pluginCard?.classList?.contains("menu-open")) },
     pluginMenu: { exists: Boolean(pluginMenu), visible: visible(pluginMenu), hidden: pluginMenu ? Boolean(pluginMenu.hidden) : null, rect: rect(pluginMenu) },
+    pluginOrder: sortableCards.map((card) => card.dataset.pluginTopicSortId || "").filter(Boolean),
+    reorderMode: Boolean(strip?.classList?.contains("plugin-app-reorder-mode")),
+    reorderButton: { exists: Boolean(reorderButton), rect: rect(reorderButton), tap: tap(reorderButton) },
+    dragTarget: dragTarget ? {
+      pluginId: dragTarget.dataset.pluginTopicSortId || "",
+      rect: dragTargetBox,
+      after: dragAfter,
+    } : null,
+    dragPlan: (pluginBox && dragTargetBox) ? {
+      startAbsoluteX: Math.round(pluginBox.left + pluginBox.width / 2),
+      startAbsoluteY: Math.round(pluginBox.top + pluginBox.height / 2),
+      endAbsoluteX: dragEndX,
+      endAbsoluteY: dragEndY,
+    } : null,
+    toast: {
+      exists: Boolean(toast),
+      hidden: Boolean(toast?.classList?.contains("hidden")),
+      pointerEvents: toastStyle?.pointerEvents || "",
+      rect: rect(toast),
+    },
     actionButton: { exists: Boolean(actionButton), rect: rect(actionButton), tap: tap(actionButton) },
     stripSwipe: stripBox ? {
       startAbsoluteX: swipeStartX,
@@ -1890,6 +2023,105 @@ function assertion(name, pass, details = {}) {
   return { name, pass: Boolean(pass), details };
 }
 
+const ENVIRONMENT_ASSERTION_NAMES = new Set([
+  "app_url_provided_for_client_version_check",
+  "client_freshness_ready",
+  "client_version_matches_expected",
+  "screenshot_meets_min_bytes",
+  "app_visible_for_visual_assertions",
+]);
+
+function rectHasArea(rect) {
+  return Boolean(rect && Number(rect.width || 0) > 0 && Number(rect.height || 0) > 0);
+}
+
+async function waitForClientFreshness(options = {}) {
+  const expectedClientVersion = String(options.expectedClientVersion || "").trim();
+  const appUrl = String(options.appUrl || "").trim();
+  if (!expectedClientVersion) return { ready: true, skipped: "no_expected_client_version" };
+  if (!appUrl) {
+    return {
+      ready: false,
+      reason: "app_url_required_for_client_version_check",
+      expectedClientVersion,
+      attempts: 0,
+    };
+  }
+  let last = null;
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    last = await postAction(options, {
+      type: "js",
+      label: `client-freshness-${attempt}`,
+      script: `
+        const rectOf = (node) => {
+          if (!node) return null;
+          const rect = node.getBoundingClientRect();
+          return {
+            top: Math.round(rect.top),
+            right: Math.round(rect.right),
+            bottom: Math.round(rect.bottom),
+            left: Math.round(rect.left),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          };
+        };
+        const app = document.getElementById("app");
+        const text = document.body?.innerText || "";
+        const updateBannerVisible = /客户端已更新|client\\s+updated|更新到\\s*v?20\\d{6}/i.test(text);
+        return {
+          href: location.href,
+          readyState: document.readyState,
+          clientVersion: document.documentElement.getAttribute("data-client-version") || "",
+          expectedClientVersion: arguments[0] || "",
+          updateBannerVisible,
+          appHidden: Boolean(app?.classList?.contains("hidden")),
+          appRect: rectOf(app),
+        };
+      `,
+      args: [expectedClientVersion],
+    }).catch((err) => ({ error: String(err?.message || err).slice(0, 300) }));
+    const ready = Boolean(
+      last
+      && !last.error
+      && last.readyState === "complete"
+      && last.clientVersion === expectedClientVersion
+      && !last.updateBannerVisible
+      && !last.appHidden
+      && rectHasArea(last.appRect),
+    );
+    if (ready) return { ready: true, attempts: attempt, last };
+    await postAction(options, { type: "clearStaticCaches", label: `client-freshness-cache-clear-${attempt}` }).catch(() => null);
+    await postAction(options, { type: "open", label: `client-freshness-reopen-${attempt}`, url: appUrl }).catch(() => null);
+    await sleep(Math.max(450, Math.min(1800, Number(options.openWaitMs || 1200))));
+  }
+  return {
+    ready: false,
+    reason: "client_freshness_not_ready",
+    attempts: 4,
+    last,
+  };
+}
+
+function annotateFailureKind(report = {}) {
+  const failedNames = (Array.isArray(report.assertions) ? report.assertions : [])
+    .filter((item) => item && item.pass === false)
+    .map((item) => String(item.name || ""));
+  const environmentNames = failedNames.filter((name) => ENVIRONMENT_ASSERTION_NAMES.has(name));
+  const error = String(report.error || "");
+  if (
+    environmentNames.length
+    || /visual_debug_server_unavailable|debug_lane_lease|ios_visual_harness_lock_timeout|app_url_required|client_freshness|screenshot_failed|webview_context_missing/i.test(error)
+  ) {
+    report.failureKind = "environment";
+    report.environmentFailure = {
+      assertionNames: environmentNames,
+      error: error.slice(0, 300),
+      clientFreshness: report.clientFreshness || null,
+    };
+  }
+  return report;
+}
+
 function assertVoiceStopHoldGesture(metrics = {}) {
   const harness = metrics.harness || {};
   const voice = metrics.voice || {};
@@ -1983,6 +2215,33 @@ function assertEmbeddedPluginShell(metrics = {}) {
     assertion("plugin_frame_exists", Boolean(metrics.frame?.exists), { frame: metrics.frame || null }),
     assertion("plugin_frame_has_meaningful_size", meaningfulFrame, { frame }),
     assertion("plugin_frame_has_no_horizontal_overflow", noHorizontalOverflow, { frame, viewportWidth }),
+  ];
+  return { ok: assertions.every((item) => item.pass), assertions };
+}
+
+function assertEmbeddedPluginSwitchStability(metrics = {}) {
+  const activeShells = Array.isArray(metrics.activeShells) ? metrics.activeShells : [];
+  const assertions = [
+    assertion("plugin_switch_reaches_target_view", metrics.viewMode === "codex", {
+      viewMode: metrics.viewMode || "",
+      appClass: metrics.appClass || "",
+    }),
+    assertion("target_plugin_host_active", Boolean(metrics.toHost?.active && metrics.toHost?.visible), {
+      toHost: metrics.toHost || null,
+    }),
+    assertion("source_plugin_host_not_visible", !metrics.fromHost?.visible, {
+      fromHost: metrics.fromHost || null,
+    }),
+    assertion("no_source_shell_visible_after_plugin_switch", activeShells.every((pluginId) => pluginId === metrics.toPluginId), {
+      activeShells,
+      toPluginId: metrics.toPluginId || "",
+    }),
+    assertion("conversation_hidden_after_plugin_switch", metrics.conversation?.visible === false, {
+      conversation: metrics.conversation || null,
+    }),
+    assertion("composer_hidden_after_plugin_switch", metrics.composer?.visible === false, {
+      composer: metrics.composer || null,
+    }),
   ];
   return { ok: assertions.every((item) => item.pass), assertions };
 }
@@ -2134,11 +2393,18 @@ function assertPluginDrawerActionGestures(metrics = {}) {
   const prepared = byPhase.get("prepared") || samples[0] || {};
   const afterQuickTap = byPhase.get("after-quick-tap") || {};
   const afterLongPress = byPhase.get("after-plugin-long-press") || {};
+  const afterReorderMode = byPhase.get("after-plugin-reorder-mode") || {};
+  const afterReorderDrag = byPhase.get("after-plugin-reorder-drag") || {};
   const afterStripSwipe = byPhase.get("after-strip-horizontal-swipe") || {};
   const afterAction = byPhase.get("after-action-tap") || metrics;
   const actionRoute = afterAction.route || metrics.route || null;
   const expectedViewMode = String(metrics.expectedViewMode || prepared.expectedViewMode || metrics.pluginId || "").trim();
   const expectedRoute = String(metrics.expectedPluginRoute || prepared.expectedPluginRoute || metrics.actionId || "").trim();
+  const preparedOrder = Array.isArray(prepared.pluginOrder) ? prepared.pluginOrder : [];
+  const afterReorderOrder = Array.isArray(afterReorderDrag.pluginOrder) ? afterReorderDrag.pluginOrder : [];
+  const reorderChangedOrder = preparedOrder.length > 1
+    && afterReorderOrder.length === preparedOrder.length
+    && afterReorderOrder.join("|") !== preparedOrder.join("|");
   const preActionNavRects = samples
     .filter((sample) => [
       "prepared",
@@ -2162,6 +2428,23 @@ function assertPluginDrawerActionGestures(metrics = {}) {
     }),
     assertion("plugin_icon_native_long_press_opens_menu", Boolean(afterLongPress.pluginMenu?.visible && afterLongPress.pluginCard?.menuOpen), {
       afterLongPress,
+    }),
+    assertion("plugin_reorder_button_available", Boolean(afterLongPress.reorderButton?.tap), {
+      afterLongPress,
+    }),
+    assertion("plugin_reorder_mode_arms_drag", Boolean(afterReorderMode.reorderMode && afterReorderMode.dragPlan), {
+      afterReorderMode,
+    }),
+    assertion("plugin_reorder_drag_changes_order", Boolean(reorderChangedOrder), {
+      beforeOrder: preparedOrder,
+      afterOrder: afterReorderOrder,
+      afterReorderDrag,
+    }),
+    assertion("plugin_reorder_toast_does_not_block_controls", Boolean(afterReorderMode.toast?.pointerEvents === "none"), {
+      toast: afterReorderMode.toast || null,
+    }),
+    assertion("plugin_reorder_toast_auto_hides_quickly", Boolean(afterReorderDrag.toast?.hidden === true), {
+      toast: afterReorderDrag.toast || null,
     }),
     assertion("strip_horizontal_swipe_keeps_drawer_surface", Boolean(
       afterStripSwipe.state?.viewMode === prepared.state?.viewMode
@@ -2264,6 +2547,14 @@ function assertCommonHarness(report = {}, options = {}) {
   const assertions = [];
   const expectedClientVersion = String(options.expectedClientVersion || "").trim();
   if (expectedClientVersion) {
+    assertions.push(assertion("app_url_provided_for_client_version_check", Boolean(String(options.appUrl || "").trim()), {
+      expectedClientVersion,
+      appUrl: boundedUrl(options.appUrl || ""),
+    }));
+    assertions.push(assertion("client_freshness_ready", Boolean(report.clientFreshness?.ready), {
+      expectedClientVersion,
+      clientFreshness: report.clientFreshness || null,
+    }));
     assertions.push(assertion("client_version_matches_expected", report.metrics?.clientVersion === expectedClientVersion, {
       expectedClientVersion,
       actualClientVersion: report.metrics?.clientVersion || "",
@@ -2277,8 +2568,21 @@ function assertCommonHarness(report = {}, options = {}) {
       path: report.screenshot?.path || "",
     }));
   }
+  if (report.clientFreshness?.last) {
+    assertions.push(assertion("app_visible_for_visual_assertions", Boolean(!report.clientFreshness.last.appHidden && rectHasArea(report.clientFreshness.last.appRect)), {
+      appHidden: Boolean(report.clientFreshness.last.appHidden),
+      appRect: report.clientFreshness.last.appRect || null,
+      href: boundedUrl(report.clientFreshness.last.href || ""),
+    }));
+  }
   const bottomSamples = Array.isArray(report.mobileBottomStability?.samples)
-    ? report.mobileBottomStability.samples.filter((sample) => sample && sample.navLaidOut !== false && Number.isFinite(Number(sample.navBottom)))
+    ? report.mobileBottomStability.samples.filter((sample) => (
+      sample
+      && sample.navLaidOut !== false
+      && Number.isFinite(Number(sample.navBottom))
+      && Number(sample.navBottom) > 0
+      && rectHasArea(sample.navRect)
+    ))
     : [];
   if (bottomSamples.length >= 3) {
     const navBottoms = bottomSamples.map((sample) => Number(sample.navBottom));
@@ -2288,6 +2592,11 @@ function assertCommonHarness(report = {}, options = {}) {
       navBottoms,
       minNavBottom,
       maxNavBottom,
+      ignoredSamples: Array.isArray(report.mobileBottomStability?.samples)
+        ? report.mobileBottomStability.samples
+          .filter((sample) => !sample || sample.navLaidOut === false || !Number.isFinite(Number(sample.navBottom)) || Number(sample.navBottom) <= 0 || !rectHasArea(sample.navRect))
+          .slice(0, 5)
+        : [],
     }));
     const selfCancelSamples = bottomSamples.filter((sample) => (
       Number(sample.comfortInset || 0) > 0
@@ -2546,6 +2855,17 @@ const SCENARIOS = Object.freeze({
     measureArgs: (options) => [options.pluginId],
     assert: assertEmbeddedPluginShell,
   }),
+  "embedded-plugin-switch-stability": Object.freeze({
+    description: "Switch from Music to Codex and assert the old plugin, conversation, and composer are hidden.",
+    prepareScript: EMBEDDED_PLUGIN_SWITCH_PREPARE_SCRIPT,
+    prepareArgs: (options) => [options.pluginId || "music", options.theme || "dark"],
+    afterPrepareDelayMs: 160,
+    afterPrepareScript: EMBEDDED_PLUGIN_SWITCH_TARGET_SCRIPT,
+    afterPrepareArgs: () => ["codex-mobile"],
+    measureScript: EMBEDDED_PLUGIN_SWITCH_MEASURE_SCRIPT,
+    measureArgs: (options) => [options.pluginId || "music", "codex-mobile"],
+    assert: assertEmbeddedPluginSwitchStability,
+  }),
   "plugin-topic-dock-return-stability": Object.freeze({
     description: "Return from a plugin-bound topic detail to the topic list and assert the topic Dock has no intermediate jump.",
     prepareScript: PLUGIN_TOPIC_DOCK_RETURN_STABILITY_SCRIPT,
@@ -2675,19 +2995,6 @@ async function runPluginDrawerActionGestureSequence(options = {}, report = {}) {
   const initialSwipe = ready.stripSwipe || prepared.stripSwipe;
   if (!quickTap || !pluginTap || !initialSwipe) return failWithPrepared();
 
-  await rememberStep("native-tap-quick-card", {
-    type: "tap",
-    coordinateSpace: "web",
-    x: quickTap.x,
-    y: quickTap.y,
-    absoluteX: quickTap.absoluteX,
-    absoluteY: quickTap.absoluteY,
-  });
-  await sleep(420);
-  await rememberMeasure("after-quick-tap");
-  await closePluginDrawerActionMenus(options, "close-after-quick-tap");
-  await sleep(180);
-
   const beforeLongPress = await rememberMeasure("before-plugin-long-press");
   const longPressTap = beforeLongPress.pluginCard?.tap || pluginTap;
   await rememberStep("native-long-press-plugin-card", {
@@ -2700,8 +3007,49 @@ async function runPluginDrawerActionGestureSequence(options = {}, report = {}) {
     holdMs: 680,
   });
   await sleep(520);
-  await rememberMeasure("after-plugin-long-press");
+  const afterLongPress = await rememberMeasure("after-plugin-long-press");
+  const reorderTap = afterLongPress.reorderButton?.tap;
+  if (reorderTap) {
+    await rememberStep("native-tap-plugin-reorder", {
+      type: "tap",
+      coordinateSpace: "web",
+      x: reorderTap.x,
+      y: reorderTap.y,
+      absoluteX: reorderTap.absoluteX,
+      absoluteY: reorderTap.absoluteY,
+    });
+    await sleep(260);
+    const reorderReady = await rememberMeasure("after-plugin-reorder-mode");
+    const dragPlan = reorderReady.dragPlan || prepared.dragPlan;
+    if (dragPlan) {
+      await rememberStep("native-drag-plugin-card-reorder", {
+        type: "swipe",
+        coordinateSpace: "web",
+        startAbsoluteX: dragPlan.startAbsoluteX,
+        startAbsoluteY: dragPlan.startAbsoluteY,
+        endAbsoluteX: dragPlan.endAbsoluteX,
+        endAbsoluteY: dragPlan.endAbsoluteY,
+        holdMs: 180,
+        durationMs: 360,
+      });
+      await sleep(1450);
+      await rememberMeasure("after-plugin-reorder-drag");
+    }
+  }
   await closePluginDrawerActionMenus(options, "close-after-plugin-long-press");
+  await sleep(180);
+
+  await rememberStep("native-tap-quick-card", {
+    type: "tap",
+    coordinateSpace: "web",
+    x: quickTap.x,
+    y: quickTap.y,
+    absoluteX: quickTap.absoluteX,
+    absoluteY: quickTap.absoluteY,
+  });
+  await sleep(420);
+  await rememberMeasure("after-quick-tap");
+  await closePluginDrawerActionMenus(options, "close-after-quick-tap");
   await sleep(180);
 
   const preSwipe = await measurePluginDrawerActionGesture(options, "before-strip-horizontal-swipe", prepared);
@@ -2847,6 +3195,8 @@ async function runHarness(options) {
     startedAt: new Date().toISOString(),
     stream: null,
     deepState: null,
+    staticCacheClear: null,
+    clientFreshness: null,
     prepare: null,
     focus: null,
     metrics: null,
@@ -2875,9 +3225,12 @@ async function runHarness(options) {
     };
     report.stream = await getJson(options, "/api/stream-info");
     if (options.appUrl) {
+      report.staticCacheClear = await postAction(options, { type: "clearStaticCaches", label: "pre-open-cache-clear" })
+        .catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300) }));
       await postAction(options, { type: "open", label: "open-app-url", url: options.appUrl });
       await sleep(options.openWaitMs);
     }
+    report.clientFreshness = await waitForClientFreshness(options);
     report.deepState = await getJson(options, `/api/deep-state?leaseToken=${encodeURIComponent(options.leaseToken || "")}`).catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300) }));
     report.mobileBottomStability = await sampleMobileBottomStability(options).catch((err) => ({ ok: false, error: String(err.message || err).slice(0, 300), samples: [] }));
     report.prepare = await postAction(options, {
@@ -2886,6 +3239,15 @@ async function runHarness(options) {
       script: scenario.prepareScript,
       args: scenario.prepareArgs(options),
     });
+    if (scenario.afterPrepareScript) {
+      await sleep(Number(scenario.afterPrepareDelayMs || 0));
+      report.afterPrepare = await postAction(options, {
+        type: "js",
+        label: "after-prepare",
+        script: scenario.afterPrepareScript,
+        args: scenario.afterPrepareArgs(options),
+      });
+    }
     await sleep(options.waitMs);
     report.embeddedPluginReady = await waitForEmbeddedPluginShellReady(options);
     if (typeof scenario.nativeRun === "function") {
@@ -2927,6 +3289,7 @@ async function runHarness(options) {
     report.assertions = [...asserted.assertions, ...commonAssertions];
     report.ok = report.assertions.every((item) => item.pass);
     report.finishedAt = new Date().toISOString();
+    annotateFailureKind(report);
     return report;
   } finally {
     if (lease) await lease.release();
@@ -3113,6 +3476,7 @@ module.exports = {
   assertDirectoryDarkStatus,
   assertEmbeddedPluginKeyboardComposer,
   assertEmbeddedPluginShell,
+  assertEmbeddedPluginSwitchStability,
   assertGlobalPluginDockGestureStability,
   assertPluginDrawerActionGestures,
   assertPluginTopicDockReturnStability,

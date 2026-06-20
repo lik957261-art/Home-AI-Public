@@ -39,13 +39,14 @@ function createWebPushNativeChannelService(options = {}) {
     const nativeData = Object.assign({}, data, { channel: "native_ios_apns" });
     for (const workspaceId of workspaceIds) {
       try {
-        nativeResults.push(await native.sendToWorkspace({
+        const result = await native.sendToWorkspace({
           workspaceId,
           title: payload.title || data.title || "Home AI",
           body: payload.body || data.body || "",
           deepLink: data.url || payload.deepLink || payload.url || appRouteUrl({ source: "pwa", nativeShell: "ios", workspaceId }),
           data: nativeData,
-        }));
+        });
+        nativeResults.push(Object.assign({ workspaceId }, result || {}));
       } catch (err) {
         logger.warn?.(`Native notification bridge failed: ${compactText(err?.message || err, 240)}`);
         nativeResults.push({ ok: false, channel: "native_ios_apns", attempted: 0, sent: 0, failed: 0, error: "native_notification_failed" });

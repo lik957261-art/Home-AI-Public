@@ -89,9 +89,7 @@
       const parsed = new URL(withoutControls);
       return SAFE_IMAGE_PROTOCOLS.has(parsed.protocol) ? withoutControls : "#";
     } catch (_error) {
-      return /^[A-Za-z0-9._~/?#[\]@!$&'()*+,;=:%-]+$/.test(withoutControls)
-        ? withoutControls
-        : "#";
+      return "#";
     }
   }
 

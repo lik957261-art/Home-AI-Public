@@ -125,9 +125,12 @@ function updateWardrobeNavigationAvailability() {
   const keepPluginContextButton = typeof pluginTopicDefForViewMode === "function"
     && typeof pluginTopicBottomButtonId === "function"
     && pluginTopicBottomButtonId(pluginTopicDefForViewMode(state.viewMode)) === "bottomWardrobeMode";
+  const keepPinnedBottomButton = typeof pluginBottomTabPinned === "function"
+    && pluginBottomTabPinned("wardrobe");
+  const keepBottomButton = keepPluginContextButton || keepPinnedBottomButton;
   if (button) {
-    button.hidden = !keepPluginContextButton;
-    button.setAttribute("aria-hidden", keepPluginContextButton ? "false" : "true");
+    button.hidden = !keepBottomButton;
+    button.setAttribute("aria-hidden", keepBottomButton ? "false" : "true");
   }
   nav?.classList.remove("wardrobe-visible");
   if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("wardrobe", available);
