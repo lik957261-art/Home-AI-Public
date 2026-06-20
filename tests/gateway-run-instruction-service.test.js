@@ -49,6 +49,10 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /mcp_music_music_hifi_profile_update/);
   assert.match(summary, /mcp_music_music_track_quality_analyze/);
   assert.match(summary, /mcp_music_music_album_quality_analyze/);
+  assert.match(summary, /mcp_music_music_collection_items/);
+  assert.match(summary, /mcp_music_music_tidal_auth_status/);
+  assert.match(summary, /mcp_music_music_resolve_roon_item/);
+  assert.match(summary, /mcp_music_music_tracks_query_by_quality/);
   assert.match(summary, /email -> mcp_email_list_accounts, mcp_email_list_mailboxes, mcp_email_search_messages, mcp_email_get_message, mcp_email_get_message_body, mcp_email_get_digest, mcp_email_list_attachments, mcp_email_get_attachment_content, mcp_email_sync_account, mcp_email_apply_mail_action, mcp_email_delete_local_by_search, mcp_email_apply_mail_action_bulk/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
@@ -130,6 +134,11 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /`mcp_music_music_hifi_profile_update`/);
   assert.match(text, /`mcp_music_music_track_quality_analyze`/);
   assert.match(text, /`mcp_music_music_album_quality_analyze`/);
+  assert.match(text, /`mcp_music_music_collection_items`/);
+  assert.match(text, /`mcp_music_music_tidal_auth_status`/);
+  assert.match(text, /`mcp_music_music_roon_browse`/);
+  assert.match(text, /`mcp_music_music_resolve_roon_item`/);
+  assert.match(text, /`mcp_music_music_tracks_query_by_quality`/);
   assert.match(text, /HIFI equipment recommendation context/);
 }
 
@@ -182,19 +191,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260620-music-audio-quality-v1_file",
+    "session_a_group_1_20260620-music-browse-tools-v1_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260620-music-audio-quality-v1_memory",
+    "session_a_group_1_20260620-music-browse-tools-v1_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260620-music-audio-quality-v1_x_search",
+    "session_a_group_1_20260620-music-browse-tools-v1_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260620-music-audio-quality-v1_file-vision-wardrobe",
+    "session_a_group_1_20260620-music-browse-tools-v1_file-vision-wardrobe",
   );
 }
 

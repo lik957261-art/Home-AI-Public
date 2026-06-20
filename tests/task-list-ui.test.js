@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260620-run-progress-stable-height-v887";
+const CLIENT_VERSION = "20260620-directory-icon-align-v889";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -221,8 +221,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260620-run-progress-stable-height-v887" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260620-run-progress-stable-height-v887"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260620-directory-icon-align-v889" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260620-directory-icon-align-v889"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -1314,7 +1314,7 @@ assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt
 assert.match(gatewayRunInstructionServiceJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `chatgpt_image_erase`/);
 assert.match(gatewayRunInstructionServiceJs, /DEFAULT_TOOL_SCHEMA_EPOCH/);
-assert.match(gatewayRunInstructionServiceJs, /20260620-music-audio-quality-v1/);
+assert.match(gatewayRunInstructionServiceJs, /20260620-music-browse-tools-v1/);
 assert.match(gatewayRunInstructionServiceJs, /allowed direct cover `image_url`/);
 assert.match(gatewayRunInstructionServiceJs, /Do not use generic `http_request` to download cover art for Music writes/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT[\s\S]*\|\| "0"/);
@@ -2880,14 +2880,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260620-run-progress-stable-height-v887/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260620-run-progress-stable-height-v887/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260620-run-progress-stable-height-v887/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260620-run-progress-stable-height-v887/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260620-run-progress-stable-height-v887/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260620-run-progress-stable-height-v887/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260620-run-progress-stable-height-v887/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260620-run-progress-stable-height-v887/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260620-directory-icon-align-v889/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260620-directory-icon-align-v889/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260620-directory-icon-align-v889/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260620-directory-icon-align-v889/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260620-directory-icon-align-v889/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260620-directory-icon-align-v889/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260620-directory-icon-align-v889/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260620-directory-icon-align-v889/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);
@@ -3387,10 +3387,11 @@ assert.match(appJs, /openDirectoryProjectRoute\(\s*button\.dataset\.projectId,/)
 assert.match(appJs, /async function ensureDirectoryThread\(\) \{[\s\S]*?const routeThreadId = String\(state\.directoryReturnRoute\?\.currentThreadId \|\| state\.directoryReturnRoute\?\.currentThread\?\.id \|\| ""\)\.trim\(\);[\s\S]*?if \(routeThreadId\) return routeThreadId;/);
 assert.match(stylesCss, /\.directory-topic-launcher \{/);
 assert.match(stylesCss, /\.directory-topic-launcher\.directory-topic-associated \{[\s\S]*?border-top: 1px dashed rgba\(95, 139, 148, 0\.24\);/);
-assert.match(stylesCss, /\.directory-topic-root-entry \{[\s\S]*?min-height: 62px;[\s\S]*?grid-template-columns: 44px minmax\(0, 1fr\) 16px;/);
+assert.match(stylesCss, /\.directory-topic-root-entry \{[\s\S]*?min-height: 62px;[\s\S]*?grid-template-columns: 56px minmax\(0, 1fr\) 16px;/);
 assert.match(stylesCss, /\.directory-topic-root-icon-entry,[\s\S]*?\.directory-topic-root-toggle,[\s\S]*?\.directory-topic-root-chevron-button \{[\s\S]*?min-height: 48px;/);
 assert.match(stylesCss, /\.directory-topic-launcher\.root-collapsed \.directory-topic-grid \{[\s\S]*?display: none;/);
-assert.match(stylesCss, /\.directory-topic-root-icon\.plugin-topic-app-icon\.directory \{[\s\S]*?width: 36px;[\s\S]*?height: 36px;[\s\S]*?background: linear-gradient/);
+assert.match(stylesCss, /\.directory-topic-root-icon-entry \{[\s\S]*?width: 56px;[\s\S]*?place-items: center;/);
+assert.match(stylesCss, /\.directory-topic-root-icon\.plugin-topic-app-icon\.directory \{[\s\S]*?width: 32px;[\s\S]*?height: 32px;[\s\S]*?--directory-folder-body-width: 26px;[\s\S]*?border-radius: 9px;[\s\S]*?background: linear-gradient/);
 assert.match(stylesCss, /\.directory-topic-grid \{[\s\S]*?grid-template-columns: repeat\(auto-fit, minmax\(220px, 1fr\)\)/);
 assert.match(stylesCss, /\.directory-topic-grid \{[\s\S]*?gap: 2px;/);
 assert.match(stylesCss, /\.directory-topic-card \{[\s\S]*?background: transparent;[\s\S]*?border: 0;[\s\S]*?box-shadow: none;[\s\S]*?border-bottom: 1px solid var\(--ui-hairline\);/);

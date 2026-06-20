@@ -406,8 +406,10 @@ function embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appeara
   const maxAgeMs = Number(record?.manifestMaxAgeMs || 60000);
   const freshEnough = !embeddedPluginUsesLaunchToken(record?.manifest)
     || (fetchedAt > 0 && Date.now() - fetchedAt < maxAgeMs);
+  const manifestUsable = record?.manifest?.ok !== false && record?.manifest?.available !== false;
   return Boolean(
     record?.checked
+    && manifestUsable
     && record?.manifest?.workspaceId === workspaceId
     && record?.manifestAppearanceKey === appearanceKey
     && freshEnough

@@ -11,6 +11,12 @@ const source = fs.readFileSync(path.join(repoRoot, "public", "app-embedded-plugi
 function createClassList() {
   const values = new Set();
   return {
+    add(name) {
+      values.add(name);
+    },
+    remove(name) {
+      values.delete(name);
+    },
     toggle(name, enabled) {
       if (enabled) values.add(name);
       else values.delete(name);
@@ -245,6 +251,28 @@ function testLaunchManifestExpiresForTokenPlugins() {
   );
 }
 
+function testFailedManifestIsNotReused() {
+  const harness = createHarness("music", "http://127.0.0.1:4891");
+  const record = harness.sandbox.embeddedPluginRecord("music");
+  Object.assign(record, {
+    checked: true,
+    manifestAppearanceKey: "light/default",
+    manifestFetchedAt: Date.now(),
+    manifest: {
+      workspaceId: "owner",
+      ok: false,
+      available: false,
+      code: "plugin_manifest_timeout",
+      entry: { url: "http://127.0.0.1:4891/?embed=hermes" },
+    },
+  });
+
+  assert.equal(
+    harness.sandbox.embeddedPluginManifestMatchesLaunchContext(record, "owner", "light/default"),
+    false,
+  );
+}
+
 function testCodexResidentFrameSurvivesExpiredLaunchManifest() {
   const harness = createHarness();
   const shell = harness.makeShell("https://codex.example.test/?embed=hermes");
@@ -446,6 +474,7 @@ function testLaunchHealthRefreshUsesCooldown() {
 
 testRefreshIgnoresWrongOrigin();
 testLaunchManifestExpiresForTokenPlugins();
+testFailedManifestIsNotReused();
 testCodexResidentFrameSurvivesExpiredLaunchManifest();
 testStandardResidentFrameSurvivesExpiredLaunchManifest();
 testFreshManifestEntryRebuildsNavigatedShell();
