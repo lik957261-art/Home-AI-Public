@@ -43,36 +43,6 @@ High-value entry points:
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
-## 2026-06-21 Public Update
-
-This update refreshes the public tree from source commit
-`65deef537c86e81f69177b931f201634b565d40d`.
-
-Highlights:
-
-- Adds `guidedPlan.operatorSteps` to the macOS guided install JSON report.
-  After the automatic guided phases run, the report now includes the remaining
-  service-user, ACL, first-start preflight, and smoke-test commands with their
-  sudo gates, required evidence, and risk boundaries.
-- Keeps the guided installer non-privileged by default: macOS user creation,
-  ACL mutation, LaunchDaemon installation/loading, provider credentials, and
-  live runtime closure still require explicit operator action.
-- Retains the v903 Android WebView plugin-exit fix and Android native shell
-  update manifest `0.4.16` / `versionCode=20` from the previous public sync.
-
-Validation for this public update:
-
-- `node tests/install-macos-production.test.js`
-- guided temporary install execution with operator step readback
-- `node tests/macos-install-operator-closure-checklist.test.js`
-- `node tests/macos-install-verification-classification.test.js`
-- `node tests/public-install-preflight.test.js`
-- `node scripts/macos-install-operator-closure-checklist.js --json`
-- `node scripts/public-install-preflight.js --source-only --json`
-- `npm run privacy:scan`
-- `node scripts/productization-acceptance-matrix.js --verify-docs`
-- public export privacy scan
-
 ## 1.0.3 Public Release
 
 This release refreshes the public tree from the current Home AI source and
@@ -104,6 +74,48 @@ Validation for this public release:
 - `git diff --check`
 - public export privacy scan
 - focused production smoke evidence from the source deployment before export
+
+## 2026-06-21 Public Update
+
+This update refreshes the public tree from source commit `e819489f4ad3`, with
+the exact source commit also recorded in `.public-export-report.json`.
+
+Highlights:
+
+- Bumps the static client cache version to
+  `20260621-android-cache-refresh-v904` so Android WebView clients do not stay
+  pinned to the previous v903 static bundle.
+- Includes the v903 Android navigation fix that hides active embedded plugin
+  iframe hosts before deferred primary-view loading when leaving Music or other
+  plugin surfaces.
+- Publishes the Android native shell update manifest and debug APK metadata for
+  `0.4.16` / `versionCode=20`.
+- Expands the guided macOS installer so safe non-privileged phases can run in
+  one guided pass while privileged and live-runtime phases remain explicit
+  operator steps.
+- Records the current anti-drift deployment closure in public-safe docs and
+  keeps private runtime state, credentials, uploads, logs, and handoff files out
+  of the public tree.
+
+Validation for this public update:
+
+- `node tests/install-macos-production.test.js`
+- `node scripts/public-install-preflight.js --source-only --json`
+- `node scripts/macos-install-verification-classification.js --json`
+- `node tests/macos-fresh-install-rehearsal.test.js`
+- `node tests/macos-install-operator-closure-checklist.test.js`
+- `node --check public/app-wire-start-ui.js`
+- `node --check public/app-plugin-topics-ui.js`
+- `node --check public/app-api-client.js`
+- `node --check public/service-worker.js`
+- `node tests/task-list-ui.test.js`
+- `node tests/static-cache-version-harness.test.js`
+- `node tests/app-api-client.test.js`
+- `node tests/thread-state-ui-behavior.test.js`
+- `node tests/same-window-navigation-harness.test.js`
+- `node tests/mobile-bottom-region-layout.test.js`
+- public export privacy scan
+- production static deploy smoke from the source deployment before export
 
 ## 2026-06-17 Public Update
 
