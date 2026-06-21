@@ -66,12 +66,34 @@ file path, but private key contents must never be printed or copied:
 If the shared aliases are missing in a future Windows workspace, the fix belongs
 in the user's Windows SSH config, not in each plugin project.
 
-## Sudo Access
+## Privileged Access Model
 
-Some production checks require `sudo` because live services run under
-`hermes-host`, `hm-*` workspace users, and system LaunchDaemons.
+Some install, deploy, and repair checks require privileged macOS operations
+because live services run under `hermes-host`, `hm-*` workspace users, and
+system LaunchDaemons.
 
-Allowed current pattern:
+Product rule:
+
+- runtime Home AI services must not hold, read, or depend on a stored Mac login
+  password;
+- routine runtime repair must use preinstalled LaunchDaemons, restricted helper
+  tools, filesystem ACLs, or narrow sudoers rules installed during a privileged
+  bootstrap step;
+- a password file is allowed only as a private development/operator automation
+  compatibility path, not as a required production deployment mechanism;
+- public installers and runbooks must guide the operator through an interactive
+  `sudo`/administrator approval step instead of asking them to write their Mac
+  password into a durable file.
+
+Allowed bootstrap pattern:
+
+- obtain administrator approval interactively during install or upgrade;
+- install root-owned LaunchDaemon plists, ACLs, and narrowly scoped sudoers
+  rules;
+- validate sudoers files with `visudo -cf` before installing them;
+- validate that post-bootstrap runtime actions work without reading a password.
+
+Temporary development/operator automation pattern:
 
 - obtain the sudo password from the user's private local password store;
 - pass it through stdin or a bounded `--password-file` option;
@@ -87,9 +109,10 @@ ssh homeai-mac "sudo -n true"
 ```
 
 If passwordless sudo is not configured and `sudo -n true` fails, use a script or
-command wrapper that feeds the password through stdin. Do not embed the password
-in the command line. Command lines can be captured by process lists, shell
-history, logs, or terminal transcripts.
+command wrapper that feeds the password through stdin only for the explicit
+operator action being performed. Do not embed the password in the command line.
+Command lines can be captured by process lists, shell history, logs, or terminal
+transcripts.
 
 Example safe shape:
 
@@ -98,16 +121,30 @@ Get-Content -Raw $env:HOMEAI_MAC_SUDO_PASSWORD_FILE |
   ssh homeai-mac "sudo -S /Users/example/path /Users/example/path --json"
 ```
 
-The environment variable name is the durable interface:
+The environment variable name is the compatibility interface for private
+operator automation:
 
 ```text
 HOMEAI_MAC_SUDO_PASSWORD_FILE
 ```
 
 The password file path is user-local secret storage. It may be provided by the
-operator at runtime; it should not be copied into plugin repositories. Scripts
-should accept `--password-file` where a non-interactive Windows-to-Mac flow is
-required.
+operator at runtime; it must not be copied into plugin repositories, shared
+context, public docs, screenshots, or handoffs. Scripts may accept
+`--password-file` where a non-interactive developer flow is required, but a
+fresh deployment must remain possible without creating such a file.
+
+When a fix repeatedly needs privileged access after installation, close the gap
+by productizing one of these mechanisms:
+
+- a root-owned LaunchDaemon that performs the bounded operation;
+- a restricted sudoers entry for one validated command shape;
+- a signed/native privileged helper with a narrow API;
+- corrected file ownership or ACLs that remove the privileged requirement.
+
+Do not solve recurring production drift by requiring Home AI, Codex, Gateway
+workers, plugin services, or app-server code to read a Mac administrator
+password.
 
 ## Long-Lived SSH Channel
 

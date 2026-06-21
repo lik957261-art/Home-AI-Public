@@ -45,6 +45,9 @@ Mac Studio
   Hermes workspaces, but each workspace must use its own key/config identity.
 - Support both direct network mode and proxy network mode.
 - Keep deployment repeatable, restartable, auditable, and reversible.
+- Require administrator approval only for bounded install/upgrade phases; after
+  bootstrap, routine runtime repair must not depend on a stored Mac login
+  password.
 
 ## Non-Goals
 
@@ -56,8 +59,30 @@ Mac Studio
 - Do not copy `.agent-context`, `.codegraph`, local scratch uploads, raw
   secrets, browser profiles, OAuth cookies, or long logs into the production
   package.
+- Do not make a Mac administrator password file a production prerequisite or a
+  runtime dependency.
 - Do not claim full macOS production readiness until first-start preflight and
   workspace-isolation harnesses pass on the actual Mac.
+
+## Privileged Bootstrap Contract
+
+The macOS production installer may ask the operator for administrator approval
+during explicit install or upgrade phases. That approval may install
+LaunchDaemons, set root-owned files, repair ACLs, and create narrow sudoers
+rules for bounded Home AI operations.
+
+After bootstrap, Home AI runtime components must not read or store a Mac login
+password. Repeated privileged needs are product defects until they are converted
+into one of these durable mechanisms:
+
+- root-owned LaunchDaemon actions with fixed labels and arguments;
+- restricted sudoers entries for validated command shapes;
+- a native privileged helper with a narrow API;
+- corrected ownership or ACL layout that removes the privileged requirement.
+
+Private `--password-file` usage remains acceptable for local developer
+automation and emergency operator repair, but it is not part of the public
+deployment contract and must not be required for a fresh install.
 
 ## Host Layout
 

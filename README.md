@@ -43,6 +43,37 @@ High-value entry points:
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
+## 2026-06-21 Public Update
+
+This update refreshes the public tree from source commit
+`2616462239bec75059d2ff9955acd47eac7f86b2`.
+
+Highlights:
+
+- Publishes static client `20260621-android-chat-timeout-v902`, including a
+  Promise-level API timeout so Android WebView requests cannot leave chat entry
+  stuck behind an in-flight fetch that never settles.
+- Publishes Android native shell `0.4.15` / `versionCode=19` as the Android
+  update manifest carrier for the v902 Web client.
+- Allows macOS Gateway idle retirement through a restricted Gateway-only
+  `launchctl` sudoers rule instead of a broad privileged shell.
+- Repairs stale plugin-provisioning drift only when audit evidence proves the
+  current binding and required Skill bundle are complete.
+- Clarifies the macOS privileged bootstrap contract: public installs may require
+  interactive administrator approval for bounded install/upgrade phases, but
+  runtime Home AI services must not depend on a stored Mac login password file.
+
+Validation for this public update:
+
+- `node tests/app-api-client.test.js`
+- `node tests/task-list-ui.test.js`
+- `node tests/static-cache-version-harness.test.js`
+- `node tests/thread-state-ui-behavior.test.js`
+- macOS Gateway launcher/deploy/drift reconcile harnesses
+- Android update manifest SHA/size verification
+- no-restart production static smoke
+- public export privacy scan
+
 ## 1.0.3 Public Release
 
 This release refreshes the public tree from the current Home AI source and
@@ -74,37 +105,6 @@ Validation for this public release:
 - `git diff --check`
 - public export privacy scan
 - focused production smoke evidence from the source deployment before export
-
-## 2026-06-21 Public Update
-
-This update refreshes the public tree from the current Home AI source after the
-Android WebView chat-entry timeout and macOS Gateway idle-retirement fixes. The
-exact source commit is recorded in `.public-export-report.json`.
-
-Highlights:
-
-- Adds a lightweight chat pending shell and Promise-level API timeout when the
-  single-window chat cache misses, reducing blank or frozen-feeling transitions
-  on cold Android WebView chat entry.
-- Bumps the static PWA client version to
-  `20260621-android-chat-timeout-v902` so installed clients fetch the updated
-  API-client and chat-state scripts.
-- Publishes Android native shell `0.4.15` / `versionCode=19` as a refresh
-  carrier for the v902 Android WebView chat timeout recovery.
-- Hardens macOS Gateway hybrid scheduling so on-demand workers can be retired
-  after the configured idle TTL through a restricted Gateway-only launchctl
-  sudoers rule.
-- Extends production drift reconcile so stale plugin provisioning status can be
-  repaired only when the audit proves local plugin binding and required Skill
-  evidence are complete.
-
-Validation for this public update:
-
-- focused API-client, thread-state, task-list, static cache, Gateway launcher,
-  deploy, and production drift reconcile tests
-- Android update manifest SHA/size verification
-- production no-restart deploy smoke from the source deployment before export
-- public export privacy scan
 
 ## 2026-06-17 Public Update
 
