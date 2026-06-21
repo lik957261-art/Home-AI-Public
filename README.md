@@ -77,8 +77,8 @@ Validation for this public release:
 
 ## 2026-06-21 Public Update
 
-This update refreshes the public tree from source commit `e819489f4ad3`, with
-the exact source commit also recorded in `.public-export-report.json`.
+This update refreshes the public tree from the current Home AI source. The
+exact source commit is recorded in `.public-export-report.json`.
 
 Highlights:
 
@@ -93,6 +93,8 @@ Highlights:
 - Expands the guided macOS installer so safe non-privileged phases can run in
   one guided pass while privileged and live-runtime phases remain explicit
   operator steps.
+- Bounds local disaster-backup receipts to a default three-day retention window
+  while keeping the recoverable backup as the remote NAS/SSH `current` tree.
 - Records the current anti-drift deployment closure in public-safe docs and
   keeps private runtime state, credentials, uploads, logs, and handoff files out
   of the public tree.
@@ -114,6 +116,7 @@ Validation for this public update:
 - `node tests/thread-state-ui-behavior.test.js`
 - `node tests/same-window-navigation-harness.test.js`
 - `node tests/mobile-bottom-region-layout.test.js`
+- `node tests/macos-disaster-backup-script.test.js`
 - public export privacy scan
 - production static deploy smoke from the source deployment before export
 

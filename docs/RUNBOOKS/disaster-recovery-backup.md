@@ -46,7 +46,10 @@ normal operator user syncs staging to NFS or to the configured SSH target.
 After a successful publish, local `staging/current` is deleted by default
 because the restore artifact now lives on NAS/SSH storage. Set
 `HOMEAI_DISASTER_BACKUP_KEEP_STAGING=1` only for a bounded manual diagnostic
-run. If a publish fails, staging is left in place for inspection.
+run. If a publish fails, staging is left in place for inspection. Local disaster
+backup receipts default to three-day retention via
+`HOMEAI_DISASTER_BACKUP_RECEIPT_RETENTION_DAYS=3`; do not treat receipts as a
+long-term archive because the recoverable backup is the remote `current` tree.
 
 The wrapper default is `HOMEAI_DISASTER_BACKUP_TRANSPORT=auto`: it prefers
 SSH/rsync when both `HOMEAI_DISASTER_BACKUP_SSH_TARGET` and

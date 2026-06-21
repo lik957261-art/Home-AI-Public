@@ -112,7 +112,11 @@ Backups must allow a replacement machine to restore source, production app files
   Local disaster-backup staging is an intermediate workspace only. After a
   successful NAS/SSH publish, the wrapper removes `staging/current` by default;
   set `HOMEAI_DISASTER_BACKUP_KEEP_STAGING=1` only for a bounded manual
-  diagnostic run. Failed publishes keep staging for inspection.
+  diagnostic run. Failed publishes keep staging for inspection. Local disaster
+  backup receipts are operational evidence only and default to a three-day
+  retention window through `HOMEAI_DISASTER_BACKUP_RECEIPT_RETENTION_DAYS=3`;
+  the restore artifact is the NAS/SSH `current` tree, not an accumulating local
+  receipt archive.
 - The production scheduled path is a Hermes CRON `no_agent` job running as
   `hermes-host`. Its script is installed at
   `/Users/example/path`

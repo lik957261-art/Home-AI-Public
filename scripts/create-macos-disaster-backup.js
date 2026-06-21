@@ -63,6 +63,7 @@ function parseArgs(argv) {
     destination: process.env.HOMEAI_DISASTER_BACKUP_DESTINATION || "",
     operatorHome: process.env.HOMEAI_DISASTER_BACKUP_OPERATOR_HOME || DEFAULT_OPERATOR_HOME,
     receiptDir: process.env.HOMEAI_DISASTER_BACKUP_RECEIPT_DIR || "",
+    receiptRetentionDays: process.env.HOMEAI_DISASTER_BACKUP_RECEIPT_RETENTION_DAYS || "3",
     label: process.env.HOMEAI_DISASTER_BACKUP_LABEL || "daily",
     checkOnly: false,
     json: false,
@@ -75,6 +76,7 @@ function parseArgs(argv) {
     else if (arg === "--destination") args.destination = requireValue(argv, ++i, arg);
     else if (arg === "--operator-home") args.operatorHome = requireValue(argv, ++i, arg);
     else if (arg === "--receipt-dir") args.receiptDir = requireValue(argv, ++i, arg);
+    else if (arg === "--receipt-retention-days") args.receiptRetentionDays = requireValue(argv, ++i, arg);
     else if (arg === "--label") args.label = requireValue(argv, ++i, arg);
     else if (arg === "--check-only" || arg === "--dry-run") args.checkOnly = true;
     else if (arg === "--json") args.json = true;
@@ -93,6 +95,7 @@ function parseArgs(argv) {
   if (args.operatorHome) args.operatorHome = path.resolve(args.operatorHome);
   if (!args.receiptDir) args.receiptDir = path.join(args.root, "data", "backups", "disaster-recovery-receipts");
   else args.receiptDir = path.resolve(args.receiptDir);
+  args.receiptRetentionDays = parseRetentionDays(args.receiptRetentionDays);
   args.label = sanitizeLabel(args.label);
   return args;
 }
@@ -116,6 +119,7 @@ function printUsage() {
     "  --operator-home <path> Operator home for Codex/Hermes Agent custom stores. Default: /Users/example/path",
     "  --skip-operator-state  Skip operator-home Codex/Hermes Agent state coverage.",
     "  --receipt-dir <path>   Receipt directory. Default: <root>/data/backups/disaster-recovery-receipts",
+    "  --receipt-retention-days <days> Local receipt retention. Default: 3",
     "  --label <name>         Label used in the backup id. Default: daily",
     "  --check-only           Build and validate the plan without writing.",
     "  --json                 Print JSON result only.",
@@ -124,6 +128,14 @@ function printUsage() {
 
 function sanitizeLabel(input) {
   return String(input || "daily").replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^-+|-+$/g, "") || "daily";
+}
+
+function parseRetentionDays(input) {
+  const value = Number.parseInt(String(input ?? "3"), 10);
+  if (!Number.isFinite(value) || value < 1) {
+    throw new Error(`Invalid receipt retention days: ${input}`);
+  }
+  return value;
 }
 
 function timestamp() {
@@ -572,6 +584,31 @@ function writeText(file, text, options) {
   if (!options.checkOnly) fs.writeFileSync(file, text, "utf8");
 }
 
+function pruneDisasterRecoveryReceipts(receiptDir, retentionDays, options = {}) {
+  if (options.checkOnly) return { pruned: 0, retained: 0 };
+  if (!receiptDir || !fs.existsSync(receiptDir)) return { pruned: 0, retained: 0 };
+
+  const now = Number.isFinite(options.nowMs) ? options.nowMs : Date.now();
+  const cutoffMs = now - retentionDays * 24 * 60 * 60 * 1000;
+  let pruned = 0;
+  let retained = 0;
+
+  for (const entry of fs.readdirSync(receiptDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    if (!/^disaster-recovery-receipt-.+\.md$/.test(entry.name)) continue;
+    const file = path.join(receiptDir, entry.name);
+    const stat = fs.statSync(file);
+    if (stat.mtimeMs < cutoffMs) {
+      fs.rmSync(file, { force: true });
+      pruned += 1;
+    } else {
+      retained += 1;
+    }
+  }
+
+  return { pruned, retained };
+}
+
 function runBackup(options) {
   if (!options.destination) {
     throw new Error("Missing --destination or HOMEAI_DISASTER_BACKUP_DESTINATION for NAS disaster backup root");
@@ -639,6 +676,8 @@ function runBackup(options) {
   writeJson(manifestPath, manifest, options);
   writeText(readmePath, restoreReadme(), options);
   writeText(receiptPath, receiptText(manifest), options);
+  const receiptRetentionDays = Number.isFinite(options.receiptRetentionDays) ? options.receiptRetentionDays : 3;
+  const receiptPrune = pruneDisasterRecoveryReceipts(options.receiptDir, receiptRetentionDays, options);
 
   return {
     ok: failures.length === 0,
@@ -649,6 +688,8 @@ function runBackup(options) {
     currentRoot,
     manifestPath,
     receiptPath,
+    receiptRetentionDays,
+    prunedReceiptCount: receiptPrune.pruned,
     stepCount: results.length,
     failureCount: failures.length,
     sqliteFileCount: sqliteFiles.length,
@@ -721,5 +762,6 @@ module.exports = {
   buildSteps,
   collectSoulFiles,
   discoverSqliteFiles,
+  pruneDisasterRecoveryReceipts,
   runBackup,
 };

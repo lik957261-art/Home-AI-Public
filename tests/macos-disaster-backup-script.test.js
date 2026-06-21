@@ -93,6 +93,13 @@ function makeFixture() {
 
 {
   const fixture = makeFixture();
+  const receiptDir = path.join(fixture.root, "data", "backups", "disaster-recovery-receipts");
+  const oldReceipt = path.join(receiptDir, "disaster-recovery-receipt-old.md");
+  const recentReceipt = path.join(receiptDir, "disaster-recovery-receipt-recent.md");
+  writeFile(oldReceipt, "old\n");
+  writeFile(recentReceipt, "recent\n");
+  const oldDate = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
+  fs.utimesSync(oldReceipt, oldDate, oldDate);
   const canonicalManifest = path.join(fixture.root, "data", "gateway-pool-manifest-mac.json");
   const transientManifestBackup = path.join(fixture.root, "data", "gateway-pool-manifest-mac.json.before-current-environment-20260618T042138Z.bak");
   writeFile(canonicalManifest, "{}\n");
@@ -103,7 +110,7 @@ function makeFixture() {
       root: fixture.root,
       destination: fixture.dest,
       operatorHome: fixture.operatorHome,
-      receiptDir: path.join(fixture.root, "data", "backups", "disaster-recovery-receipts"),
+      receiptDir,
       label: "unit",
       checkOnly: false,
       json: true,
@@ -113,6 +120,11 @@ function makeFixture() {
     assert.equal(result.ok, true);
     assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", "gateway-pool-manifest-mac.json")), true);
     assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", path.basename(transientManifestBackup))), false);
+    assert.equal(result.receiptRetentionDays, 3);
+    assert.equal(result.prunedReceiptCount, 1);
+    assert.equal(fs.existsSync(oldReceipt), false);
+    assert.equal(fs.existsSync(recentReceipt), true);
+    assert.equal(fs.existsSync(result.receiptPath), true);
     const manifest = JSON.parse(fs.readFileSync(path.join(result.currentRoot, "DISASTER-RECOVERY-MANIFEST.json"), "utf8"));
     const skipped = manifest.steps.find((step) => step.name === `production-data-file:${path.basename(transientManifestBackup)}`);
     assert.equal(skipped.reason, "transient-production-data-backup");
@@ -177,6 +189,9 @@ function makeFixture() {
   assert.match(source, /"logs_\*\.sqlite\*"/);
   assert.match(source, /"\*\.sqlite-wal"/);
   assert.match(source, /HOMEAI_DISASTER_BACKUP_DESTINATION/);
+  assert.match(source, /HOMEAI_DISASTER_BACKUP_RECEIPT_RETENTION_DAYS/);
+  assert.match(source, /--receipt-retention-days/);
+  assert.match(source, /pruneDisasterRecoveryReceipts/);
   assert.match(source, /runtime.*not copied by this daily backup/s);
   assert.doesNotMatch(source, /create-hermes-mobile-disaster-backup\.ps1/);
   assert.match(mountSource, /192\.168\.10\.99/);
