@@ -77,24 +77,27 @@ Validation for this public release:
 
 ## 2026-06-21 Public Update
 
-This update publishes the latest source-side productization and mobile shell
-stability work after the private source tree reached commit
-`34f971c8ac39f4a986ae0de8a581883c871e8487`.
+This update refreshes the public tree from source commit `e6d2dd5b327a` after
+the plugin-topic navigation hotfix and includes the earlier 2026-06-21
+source-side productization/mobile shell work.
 
 Highlights:
 
+- Enters plugin-bound topic chats immediately from the cached Home AI topic
+  shell instead of waiting for the `/api/single-window` refresh.
+- Runs the plugin-topic convergence refresh in the background and applies the
+  result only when the user is still on the same plugin topic.
+- Bumps the static client version to `20260621-plugin-topic-async-v899` so
+  installed clients fetch the updated plugin-topic script.
 - Adds explicit productization coverage for Codex Mobile macOS listener
   recovery so the recovery entrypoint stays Owner-only, documented, and tested.
-- Makes plugin-topic chat entry render immediately from the root task-list
-  cache when the target plugin topic is already known, reducing visible waits
-  while a plugin-topic conversation is still running.
+- Keeps plugin-topic chat entry able to render immediately from the root
+  task-list cache when the target plugin topic is already known.
 - Routes Android/Web back handling through active artifact/file preview overlays
   before falling back to primary-page bounce behavior.
 - Refreshes the Android public update manifest source artifact to
   `0.4.14` / `versionCode=18`, with APK SHA-256
   `e5fe293d9f92f4f1df7d9d84aacedb296652c5954be0870d9dbba79ad4136960`.
-- Keeps production deployment, runtime restart, and private workspace state out
-  of the public export; this is a source publication only.
 
 Validation for this public update:
 
@@ -102,8 +105,10 @@ Validation for this public update:
 - `node scripts/productization-check.js`
 - `npm run privacy:scan`
 - `git diff --check`
-- `node scripts/privacy-scan.js --root workspace/public-export/Home-AI-Public-20260621-v898 --all-files`
-- `node tests/public-export.test.js`
+- focused plugin-topic and embedded-plugin navigation tests
+- static cache version harness
+- public export privacy scan
+- production static deploy smoke from the source deployment before export
 
 ## 2026-06-17 Public Update
 

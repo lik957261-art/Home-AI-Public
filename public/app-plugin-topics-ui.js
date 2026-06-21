@@ -2732,6 +2732,37 @@ function renderPluginTopicChatImmediateShell(def) {
   return false;
 }
 
+function refreshPluginTopicChatAfterImmediateEntry(def, options = {}) {
+  if (!def || def.builtinKind) return;
+  const pluginId = def.id;
+  const groupId = pluginTopicGroupId(pluginId);
+  const entrySeq = Number(state.primaryNavigationSeq || 0) || 0;
+  const deferViewModeApplyUntilLoaded = Boolean(options.deferViewModeApplyUntilLoaded);
+  loadSingleWindow()
+    .then(() => {
+      const stillCurrent = (
+        state.viewMode === "tasks"
+        && state.currentTaskGroupId === groupId
+        && state.pluginContextNavPluginId === pluginId
+        && (Number(state.primaryNavigationSeq || 0) || 0) === entrySeq
+      );
+      if (!stillCurrent) return;
+      if (deferViewModeApplyUntilLoaded && typeof applyViewMode === "function") applyViewMode();
+      if (typeof scheduleConversationBottomStick === "function") scheduleConversationBottomStick();
+      if (typeof isMobileLayout === "function" && isMobileLayout() && typeof closeSidebar === "function") closeSidebar();
+      if (typeof focusComposerSoon === "function") focusComposerSoon();
+    })
+    .catch((err) => {
+      const stillCurrent = (
+        state.viewMode === "tasks"
+        && state.currentTaskGroupId === groupId
+        && state.pluginContextNavPluginId === pluginId
+        && (Number(state.primaryNavigationSeq || 0) || 0) === entrySeq
+      );
+      if (stillCurrent && typeof showError === "function") showError(err);
+    });
+}
+
 async function openPluginTopicChat(pluginId, options = {}) {
   const def = pluginTopicDefById(pluginId);
   if (!def || !pluginTopicNavigationAvailable(def)) return;
@@ -2757,9 +2788,7 @@ async function openPluginTopicChat(pluginId, options = {}) {
   if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
   if (!deferViewModeApplyUntilLoaded && typeof applyViewMode === "function") applyViewMode();
   renderPluginTopicChatImmediateShell(def);
-  await loadSingleWindow();
-  if (deferViewModeApplyUntilLoaded && typeof applyViewMode === "function") applyViewMode();
-  if (typeof scheduleConversationBottomStick === "function") scheduleConversationBottomStick();
+  refreshPluginTopicChatAfterImmediateEntry(def, { deferViewModeApplyUntilLoaded });
   ensurePluginTopicDirectory(def)
     .then((directory) => {
       if (state.viewMode === "tasks" && state.currentTaskGroupId === pluginTopicGroupId(def.id)) {

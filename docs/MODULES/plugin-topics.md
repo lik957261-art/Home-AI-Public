@@ -42,6 +42,10 @@ or raw plugin credentials.
   choose a cache only when the target `plugin:<pluginId>` group is present and
   workspace-compatible, then let the normal `/api/single-window` refresh
   converge newer messages and run state.
+- The `/api/single-window` convergence refresh for plugin-topic chat entry runs
+  after the immediate shell has rendered and must not be awaited by the click
+  navigation path. Refresh completion must re-check that the user is still on
+  the same plugin topic before applying composer, scroll, or sidebar effects.
 - Plugin topic detail is a secondary page. It must hide the bottom app
   navigation and use the standard top back/right-swipe route to return, while
   keeping the normal message composer visible for the topic chat.

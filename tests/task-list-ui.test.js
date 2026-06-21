@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260621-android-preview-back-v898";
+const CLIENT_VERSION = "20260621-plugin-topic-async-v899";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -221,8 +221,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260621-android-preview-back-v898" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260621-android-preview-back-v898"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260621-plugin-topic-async-v899" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260621-plugin-topic-async-v899"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesAndroidBackGuard/);
 assert.match(indexHtml, /hermesAndroidBackBase/);
 assert.match(indexHtml, /guard\.releaseToApp = function/);
@@ -2894,14 +2894,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260621-android-preview-back-v898/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260621-android-preview-back-v898/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260621-android-preview-back-v898/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260621-android-preview-back-v898/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260621-android-preview-back-v898/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260621-android-preview-back-v898/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260621-android-preview-back-v898/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260621-android-preview-back-v898/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260621-plugin-topic-async-v899/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260621-plugin-topic-async-v899/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260621-plugin-topic-async-v899/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260621-plugin-topic-async-v899/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260621-plugin-topic-async-v899/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260621-plugin-topic-async-v899/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260621-plugin-topic-async-v899/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260621-plugin-topic-async-v899/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);
@@ -3123,8 +3123,9 @@ assert.match(appJs, /function pluginTopicImmediateThreadForDef\(def\)[\s\S]*?con
 assert.match(appJs, /function pluginTopicImmediateThreadHasGroup\(thread, groupId = ""\)[\s\S]*?taskGroupsForThread\(thread\)[\s\S]*?message\?\.taskGroupId/);
 assert.match(appJs, /function renderPluginTopicChatImmediateShell\(def\)/);
 assert.match(appJs, /function renderPluginTopicChatImmediateShell\(def\)[\s\S]*?const thread = pluginTopicImmediateThreadForDef\(def\)[\s\S]*?state\.currentThread = thread[\s\S]*?renderCurrentThread\(\{ stickToBottom: true \}\)/);
-assert.match(appJs, /function openPluginTopicChat\(pluginId, options = \{\}\)[\s\S]*?state\.forceChatStickToBottomUntil = Date\.now\(\) \+ 12000[\s\S]*?renderPluginTopicChatImmediateShell\(def\);[\s\S]*?await loadSingleWindow\(\)[\s\S]*?scheduleConversationBottomStick\(\)/);
-assert.match(appJs, /if \(!deferViewModeApplyUntilLoaded && typeof applyViewMode === "function"\) applyViewMode\(\);[\s\S]*?renderPluginTopicChatImmediateShell\(def\);[\s\S]*?await loadSingleWindow\(\);[\s\S]*?if \(deferViewModeApplyUntilLoaded && typeof applyViewMode === "function"\) applyViewMode\(\);/);
+assert.match(appJs, /function refreshPluginTopicChatAfterImmediateEntry\(def, options = \{\}\)[\s\S]*?const entrySeq = Number\(state\.primaryNavigationSeq \|\| 0\) \|\| 0;[\s\S]*?loadSingleWindow\(\)[\s\S]*?state\.pluginContextNavPluginId === pluginId[\s\S]*?state\.primaryNavigationSeq/);
+assert.match(appJs, /function openPluginTopicChat\(pluginId, options = \{\}\)[\s\S]*?state\.forceChatStickToBottomUntil = Date\.now\(\) \+ 12000[\s\S]*?renderPluginTopicChatImmediateShell\(def\);[\s\S]*?refreshPluginTopicChatAfterImmediateEntry\(def, \{ deferViewModeApplyUntilLoaded \}\);[\s\S]*?ensurePluginTopicDirectory\(def\)/);
+assert.doesNotMatch((appJs.match(/async function openPluginTopicChat\(pluginId, options = \{\}\)[\s\S]*?async function openPluginTopicDelivery\(pluginId\)/) || [""])[0], /await loadSingleWindow\(\)/);
 assert.match(appJs, /async function openBuiltInDirectoryPlugin\(\)/);
 assert.match(appJs, /directoryPluginContextActive: false/);
 assert.match(appJs, /function preparePrimaryNavigationChange\(\) \{[\s\S]*?state\.directoryPluginContextActive = false;/);

@@ -214,7 +214,7 @@ attachment/source menus, bottom navigation, or the bottom exclusion band must
 not rearm the Android history guard. This prevents WebView back-swipe handling
 from interfering with the input-adjacent attach button.
 
-Static client `20260621-android-preview-back-v898` additionally treats active
+Static client `20260621-plugin-topic-async-v899` additionally treats active
 artifact/file preview overlays as secondary Web back targets. Native Back closes
 the preview through the Web preview controller instead of consuming the event as
 a primary-page bounce.
