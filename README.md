@@ -77,12 +77,18 @@ Validation for this public release:
 
 ## 2026-06-21 Public Update
 
-This update refreshes the public tree from source commit `e6d2dd5b327a` after
-the plugin-topic navigation hotfix and includes the earlier 2026-06-21
-source-side productization/mobile shell work.
+This update refreshes the public tree from source commit `0fe5bcf253f` after
+the Web Push VAPID permission drift repair and includes the earlier 2026-06-21
+plugin-topic/mobile shell work.
 
 Highlights:
 
+- Adds a Home AI deploy post-sync repair that resets existing
+  `data/web-push-vapid.json` files to the service owner and mode `0600`
+  without reading or regenerating key material.
+- Keeps the Web Push production audit able to detect VAPID permission drift and
+  active external subscriptions without sending notifications or printing raw
+  endpoints.
 - Enters plugin-bound topic chats immediately from the cached Home AI topic
   shell instead of waiting for the `/api/single-window` refresh.
 - Runs the plugin-topic convergence refresh in the background and applies the
@@ -91,24 +97,17 @@ Highlights:
   installed clients fetch the updated plugin-topic script.
 - Adds explicit productization coverage for Codex Mobile macOS listener
   recovery so the recovery entrypoint stays Owner-only, documented, and tested.
-- Keeps plugin-topic chat entry able to render immediately from the root
-  task-list cache when the target plugin topic is already known.
 - Routes Android/Web back handling through active artifact/file preview overlays
   before falling back to primary-page bounce behavior.
-- Refreshes the Android public update manifest source artifact to
-  `0.4.14` / `versionCode=18`, with APK SHA-256
-  `e5fe293d9f92f4f1df7d9d84aacedb296652c5954be0870d9dbba79ad4136960`.
 
 Validation for this public update:
 
-- `npm test`
 - `node scripts/productization-check.js`
 - `npm run privacy:scan`
 - `git diff --check`
-- focused plugin-topic and embedded-plugin navigation tests
-- static cache version harness
+- focused Web Push, deploy-script, plugin-topic, and embedded-plugin tests
 - public export privacy scan
-- production static deploy smoke from the source deployment before export
+- production Web Push audit from the source deployment before export
 
 ## 2026-06-17 Public Update
 

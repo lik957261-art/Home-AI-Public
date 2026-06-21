@@ -278,6 +278,13 @@ const MUSIC_RUNTIME_COVER_PERMISSION_REPAIR = Object.freeze({
   ]),
 });
 
+const WEB_PUSH_VAPID_PERMISSION_REPAIR = Object.freeze({
+  type: "web-push-vapid-permissions",
+  relativePath: "data/web-push-vapid.json",
+  owner: `${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`,
+  fileMode: "600",
+});
+
 const RSYNC_EXCLUDES = [
   ".git",
   ".git/",
@@ -563,7 +570,7 @@ function rsyncExcludesForTarget(options) {
 }
 
 function postSyncRepairsForTarget(options) {
-  if (options.target === "home-ai") return [CODEX_MOBILE_LOG_REPAIR];
+  if (options.target === "home-ai") return [CODEX_MOBILE_LOG_REPAIR, WEB_PUSH_VAPID_PERMISSION_REPAIR];
   if (options.target === "plugin:codex-mobile-web") return [CODEX_MOBILE_LOG_REPAIR];
   if (options.target === "plugin:music") return [MUSIC_RUNTIME_COVER_PERMISSION_REPAIR];
   return [];
@@ -2385,6 +2392,30 @@ function repairMusicRuntimeCoverPermissions(plan, password) {
   };
 }
 
+function repairWebPushVapidPermissions(plan, password) {
+  const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === WEB_PUSH_VAPID_PERMISSION_REPAIR.type);
+  if (!repair) return null;
+  const filePath = posixJoin(plan.macRoot, repair.relativePath);
+  const command = [
+    `if test ! -e ${shQuote(filePath)}; then`,
+    "  printf '{\"ok\":true,\"skipped\":true,\"reason\":\"web_push_vapid_missing\"}\\n'",
+    "  exit 0",
+    "fi",
+    `/usr/sbin/chown ${shQuote(repair.owner)} ${shQuote(filePath)}`,
+    `/bin/chmod ${shQuote(repair.fileMode)} ${shQuote(filePath)}`,
+    "printf '{\"ok\":true,\"skipped\":false}\\n'",
+  ].join("\n");
+  const result = runSudo("/bin/sh", ["-c", command], password);
+  return {
+    type: repair.type,
+    status: result.status,
+    path: `<root>/${repair.relativePath}`,
+    owner: repair.owner,
+    fileMode: repair.fileMode,
+    stdout: String(result.stdout || "").slice(0, 240),
+  };
+}
+
 function syncPostSyncMirrors(plan, password) {
   const mirrors = Array.isArray(plan.postSyncMirrors) ? plan.postSyncMirrors : [];
   const rows = [];
@@ -2458,6 +2489,7 @@ function executePlan(plan, options) {
 
   const codexMobileLogRepair = repairCodexMobileLogPermissions(plan, password);
   const musicRuntimeCoverPermissionRepair = repairMusicRuntimeCoverPermissions(plan, password);
+  const webPushVapidPermissionRepair = repairWebPushVapidPermissions(plan, password);
   const postSyncMirrorResult = syncPostSyncMirrors(plan, password);
   const bridgeHostInstall = installHomeAiBridgeHostLaunchd(plan, password);
   const cronInstall = installHomeAiCronLaunchd(plan, password);
@@ -2498,6 +2530,7 @@ function executePlan(plan, options) {
   const validations = [];
   if (codexMobileLogRepair) validations.push(codexMobileLogRepair);
   if (musicRuntimeCoverPermissionRepair) validations.push(musicRuntimeCoverPermissionRepair);
+  if (webPushVapidPermissionRepair) validations.push(webPushVapidPermissionRepair);
   if (postSyncMirrorResult) validations.push(postSyncMirrorResult);
   if (bridgeHostInstall) validations.push(Object.assign({ status: 0 }, bridgeHostInstall));
   if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));

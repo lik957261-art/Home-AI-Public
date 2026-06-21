@@ -126,6 +126,11 @@ when APNs has no successful delivery. The PWA settings test endpoint
   endpoints or sending a notification. After a user re-registers from the
   external origin, run it with `--require-public-origin` and
   `--require-active-external-subscription`.
+- Mac production deploys include a bounded post-sync repair for
+  `<mac-root>/data/web-push-vapid.json`: when the file exists, the deploy script
+  resets it to the Home AI service owner and mode `0600` without reading or
+  regenerating the key material. This prevents VAPID permission drift from
+  surviving ordinary deploys.
 
 ## Validation
 
