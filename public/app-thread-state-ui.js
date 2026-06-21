@@ -564,8 +564,14 @@ async function loadSingleWindow(options = {}) {
   request.weixinChat = weixinChat;
   request.groupChat = groupChat;
   const messageMode = request.messageMode;
+  let renderedCachedSingleWindow = false;
   if (!options.skipSingleWindowCache) {
-    renderCachedSingleWindowThreadForRequest(request, options);
+    renderedCachedSingleWindow = renderCachedSingleWindowThreadForRequest(request, options);
+  }
+  if (messageMode === "chat" && !renderedCachedSingleWindow) {
+    renderSingleWindowChatPendingShell({
+      reason: options.reason || (options.pendingRecovery ? "pending_recovery" : "chat_cache_miss"),
+    });
   }
   const refreshSurfaceKey = typeof singleWindowSurfaceCacheKeyForRequest === "function"
     ? singleWindowSurfaceCacheKeyForRequest(request)

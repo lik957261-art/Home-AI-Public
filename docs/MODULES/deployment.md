@@ -779,7 +779,13 @@ worker, but loaded does not mean always running. Only profiles in the required
 warm baseline may use `RunAtLoad=true` and `KeepAlive=true`. Every other
 on-demand worker plist must keep both values false or absent; otherwise
 `launchctl kill` from the idle reaper is immediately undone by launchd and the
-60-minute cooldown is ineffective. The audit guard is
+configured idle TTL is ineffective. Because the listener runs as
+`hermes-host`, the deploy script must also maintain
+`/etc/sudoers.d/homeai-gateway-launchctl`, which permits only
+`/bin/launchctl kickstart` and `kill SIGTERM` for
+`system/com.hermesmobile.gateway.*`. Without that restricted sudoers rule,
+launchd rejects idle retirement with `Operation not permitted` and the workers
+remain reusable no matter how short the cooldown is. The audit guard is
 `node tests\macos-production-profile-audit.test.js` and the production audit
 issue names are `launchd_run_at_load_unexpected:<profile>` and
 `launchd_keepalive_unexpected:<profile>`.

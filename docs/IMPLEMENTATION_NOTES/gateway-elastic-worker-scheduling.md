@@ -170,6 +170,13 @@ production manifest, validate launchd labels, and reject
 This keeps ordinary Owner cold starts, DeepSeek/Grok provider starts, and
 Owner maintenance starts on the same tested launch path instead of relying on
 manual `launchctl kickstart` commands.
+When the Mac launcher is invoked by the unprivileged listener user, it must use
+`sudo -n` for the system launchd `kickstart` and `kill SIGTERM` operations. The
+matching production sudoers rule is intentionally narrow: only
+`system/com.hermesmobile.gateway.*` launchctl start/retire commands are
+allowed. If that rule is missing, the scheduler can mark workers idle and set
+the one-minute deadline, but launchd rejects the actual retire request and the
+workers remain reusable indefinitely.
 
 After the profile startup script exits successfully, the scheduler must still
 poll `/health` for a short bounded window before declaring the user run failed.

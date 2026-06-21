@@ -11,8 +11,10 @@ const {
   openAiCodexManifestUsers,
   parseArgs,
   pluginLocalBindingRepairPlan,
+  pluginProvisioningStatusRepairPlan,
   reconcileCodexSharedAuthPermissions,
   reconcilePluginLocalBindings,
+  reconcilePluginProvisioningStatuses,
   reconcileMusicRuntimeCoverPermissions,
   reconcileUntrackedGatewayLaunchd,
   runReconcile,
@@ -26,6 +28,7 @@ assert.match(script, /launchctl", \["bootout", "system", plistPath\]/);
 assert.match(script, /production-drift-audit", "quarantine"/);
 assert.match(script, /codex-shared-auth-permissions/);
 assert.match(script, /music-runtime-cover-permissions/);
+assert.match(script, /plugin-provisioning-status/);
 assert.match(script, /plugin-local-binding/);
 assert.match(script, /createGrowthPluginProvisioningService/);
 assert.match(script, /createMoiraPluginProvisioningService/);
@@ -104,6 +107,27 @@ const auditWithPluginBindingDrift = {
   },
 };
 
+const auditWithPluginProvisioningStatusDrift = {
+  issues: [
+    "plugin_provisioning_not_active:weixin_test_1:wardrobe:provisioning_failed",
+    "plugin_provisioning_not_active:weixin_missing:wardrobe:provisioning_failed",
+  ],
+  pluginAuthorizations: [
+    { workspaceId: "weixin_test_1", pluginId: "wardrobe", status: "authorized", provisioningStatus: "provisioning_failed", enabled: true },
+    { workspaceId: "weixin_missing", pluginId: "wardrobe", status: "authorized", provisioningStatus: "provisioning_failed", enabled: true },
+  ],
+  byWorkspace: {
+    weixin_test_1: {
+      localPluginBindings: [{ pluginId: "wardrobe", complete: true }],
+      requiredPluginSkills: [{ pluginId: "wardrobe", complete: true, listenerCanReadSkillFile: true }],
+    },
+    weixin_missing: {
+      localPluginBindings: [{ pluginId: "wardrobe", complete: false }],
+      requiredPluginSkills: [{ pluginId: "wardrobe", complete: true, listenerCanReadSkillFile: true }],
+    },
+  },
+};
+
 const pluginRepairPlan = pluginLocalBindingRepairPlan(auditWithPluginBindingDrift, {
   root: "/Users/example/path",
   plugins: [
@@ -118,6 +142,12 @@ assert.deepEqual(pluginRepairPlan.map((row) => `${row.workspaceId}:${row.pluginI
   "legacy:unknown:false:plan",
 ]);
 assert.equal(JSON.stringify(pluginRepairPlan).includes("access-key-value"), false);
+
+const provisioningStatusPlan = pluginProvisioningStatusRepairPlan(auditWithPluginProvisioningStatusDrift, { execute: true });
+assert.deepEqual(provisioningStatusPlan.map((row) => `${row.workspaceId}:${row.pluginId}:${row.action}:${row.ok}`), [
+  "weixin_test_1:wardrobe:activate:true",
+  "weixin_missing:wardrobe:plan:false",
+]);
 
 const tempRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "homeai-drift-reconcile-"));
 fs.mkdirSync(path.join(tempRoot, "data"), { recursive: true });
@@ -197,6 +227,23 @@ assert.equal(JSON.stringify(musicCoverPlan).includes("image_base64"), false);
     "moira:weixin_wuping:active",
   ]);
   assert.equal(JSON.stringify(rows).includes("access-key-value"), false);
+
+  const provisioningUpdates = [];
+  const provisioningRows = await reconcilePluginProvisioningStatuses(auditWithPluginProvisioningStatusDrift, {
+    execute: true,
+    authorizationService: {
+      updateProvisioningStatus(input) {
+        provisioningUpdates.push(input);
+        return { ok: true };
+      },
+    },
+  });
+  assert.equal(provisioningRows.length, 2);
+  assert.equal(provisioningRows.find((row) => row.workspaceId === "weixin_test_1").ok, true);
+  assert.equal(provisioningRows.find((row) => row.workspaceId === "weixin_missing").ok, false);
+  assert.deepEqual(provisioningUpdates.map((item) => `${item.pluginId}:${item.workspaceId}:${item.provisioningStatus}`), [
+    "wardrobe:weixin_test_1:active",
+  ]);
 
   const report = await runReconcile({
     root: tempRoot,

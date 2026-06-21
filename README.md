@@ -78,27 +78,28 @@ Validation for this public release:
 ## 2026-06-21 Public Update
 
 This update refreshes the public tree from the current Home AI source after the
-plugin-topic mobile entry hotfix. The exact source commit is recorded in
-`.public-export-report.json`.
+Android chat-entry stability and macOS Gateway idle-retirement fixes. The exact
+source commit is recorded in `.public-export-report.json`.
 
 Highlights:
 
-- Defers cached plugin-topic message rendering until after the first detail
-  shell frame, so tapping into a plugin topic with an active running
-  conversation does not synchronously render long run-progress or receipt DOM
-  before navigation completes.
-- Keeps the background `/api/single-window` convergence refresh guarded by the
-  selected plugin id, task group, and primary-navigation sequence.
+- Adds a lightweight chat pending shell when the single-window chat cache misses,
+  reducing blank or frozen-feeling transitions on cold Android chat entry.
 - Bumps the static PWA client version to
-  `20260621-plugin-topic-deferred-v900` so installed clients fetch the updated
-  plugin-topic script.
+  `20260621-android-chat-freeze-v901` so installed clients fetch the updated
+  chat-state script.
+- Hardens macOS Gateway hybrid scheduling so on-demand workers can be retired
+  after the configured idle TTL through a restricted Gateway-only launchctl
+  sudoers rule.
+- Extends production drift reconcile so stale plugin provisioning status can be
+  repaired only when the audit proves local plugin binding and required Skill
+  evidence are complete.
 
 Validation for this public update:
 
-- focused plugin-topic and thread-state UI tests
-- static cache version harness
-- iOS PWA live-debug and visual harness tests
-- architecture-code-test harness map guard
+- focused thread-state, task-list, static cache, Gateway launcher, deploy, and
+  production drift reconcile tests
+- production no-restart deploy smoke from the source deployment before export
 - public export privacy scan
 
 ## 2026-06-17 Public Update

@@ -427,6 +427,14 @@ worker must keep those values false or absent so `launchctl kill` can actually
 leave the process stopped after idle retirement. The Mac profile audit reports
 violations as `launchd_run_at_load_unexpected:<profile>` and
 `launchd_keepalive_unexpected:<profile>`.
+Because the listener runs as `hermes-host` while worker services live in the
+system launchd domain, Mac production must also install the restricted
+`/etc/sudoers.d/homeai-gateway-launchctl` rule. That rule allows only
+`/bin/launchctl kickstart` and `kill SIGTERM` for
+`system/com.hermesmobile.gateway.*`. Without it, the one-minute idle TTL is
+scheduled but launchd rejects the retire command with `Operation not permitted`,
+and the next status poll rediscovers the same still-running workers as reusable
+idle workers.
 
 Mac named workspace profiles such as `hm-owner-openai-1` and
 `hm-wuping-openai-1` must be treated as normal materialized low-permission

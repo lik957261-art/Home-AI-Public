@@ -285,6 +285,20 @@ const WEB_PUSH_VAPID_PERMISSION_REPAIR = Object.freeze({
   fileMode: "600",
 });
 
+const GATEWAY_LAUNCHCTL_SUDOERS_REPAIR = Object.freeze({
+  type: "gateway-launchctl-sudoers",
+  sudoersPath: "/etc/sudoers.d/homeai-gateway-launchctl",
+  ownerUser: PRODUCTION_SERVICE_USER,
+});
+
+const GATEWAY_MACOS_LAUNCHER_REPAIR = Object.freeze({
+  type: "gateway-macos-launcher",
+  sourceRelativePath: "app/scripts/macos-launch-gateway-profile.sh",
+  targetRelativePath: "gateway-worker/macos-launch-gateway-profile.sh",
+  owner: "root:hermes-workers",
+  fileMode: "755",
+});
+
 const RSYNC_EXCLUDES = [
   ".git",
   ".git/",
@@ -570,7 +584,7 @@ function rsyncExcludesForTarget(options) {
 }
 
 function postSyncRepairsForTarget(options) {
-  if (options.target === "home-ai") return [CODEX_MOBILE_LOG_REPAIR, WEB_PUSH_VAPID_PERMISSION_REPAIR];
+  if (options.target === "home-ai") return [CODEX_MOBILE_LOG_REPAIR, WEB_PUSH_VAPID_PERMISSION_REPAIR, GATEWAY_LAUNCHCTL_SUDOERS_REPAIR, GATEWAY_MACOS_LAUNCHER_REPAIR];
   if (options.target === "plugin:codex-mobile-web") return [CODEX_MOBILE_LOG_REPAIR];
   if (options.target === "plugin:music") return [MUSIC_RUNTIME_COVER_PERMISSION_REPAIR];
   return [];
@@ -2416,6 +2430,61 @@ function repairWebPushVapidPermissions(plan, password) {
   };
 }
 
+function installGatewayLaunchctlSudoers(plan, password) {
+  const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === GATEWAY_LAUNCHCTL_SUDOERS_REPAIR.type);
+  if (!repair) return null;
+  const content = [
+    "# Home AI Gateway elastic worker launcher.",
+    "# Allows the unprivileged listener user to start and retire only Home AI Gateway LaunchDaemons.",
+    `${repair.ownerUser} ALL=(root) NOPASSWD: /bin/launchctl kickstart system/com.hermesmobile.gateway.*, /bin/launchctl kickstart -k system/com.hermesmobile.gateway.*, /bin/launchctl kill SIGTERM system/com.hermesmobile.gateway.*`,
+    "",
+  ].join("\n");
+  const command = [
+    "set -euo pipefail",
+    "tmp=\"$(/usr/bin/mktemp /tmp/homeai-gateway-launchctl-sudoers.XXXXXX)\"",
+    "cleanup() { /bin/rm -f \"$tmp\"; }",
+    "trap cleanup EXIT",
+    "/bin/cat > \"$tmp\" <<'HOMEAI_GATEWAY_LAUNCHCTL_SUDOERS'",
+    content.trimEnd(),
+    "HOMEAI_GATEWAY_LAUNCHCTL_SUDOERS",
+    "/usr/sbin/visudo -cf \"$tmp\" >/dev/null",
+    `/usr/bin/install -o root -g wheel -m 0440 "$tmp" ${shQuote(repair.sudoersPath)}`,
+    "printf '{\"ok\":true}\\n'",
+  ].join("\n");
+  const result = runSudo("/bin/bash", ["-c", command], password);
+  return {
+    type: repair.type,
+    status: result.status,
+    path: repair.sudoersPath,
+    ownerUser: repair.ownerUser,
+    stdout: String(result.stdout || "").slice(0, 240),
+  };
+}
+
+function installGatewayMacosLauncher(plan, password) {
+  const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === GATEWAY_MACOS_LAUNCHER_REPAIR.type);
+  if (!repair) return null;
+  const sourcePath = posixJoin(plan.macRoot, repair.sourceRelativePath);
+  const targetPath = posixJoin(plan.macRoot, repair.targetRelativePath);
+  const command = [
+    "set -euo pipefail",
+    `test -f ${shQuote(sourcePath)}`,
+    `/bin/mkdir -p ${shQuote(path.posix.dirname(targetPath))}`,
+    `/usr/bin/install -o ${shQuote(repair.owner.split(":")[0])} -g ${shQuote(repair.owner.split(":")[1] || "wheel")} -m ${shQuote(repair.fileMode)} ${shQuote(sourcePath)} ${shQuote(targetPath)}`,
+    "printf '{\"ok\":true}\\n'",
+  ].join("\n");
+  const result = runSudo("/bin/bash", ["-c", command], password);
+  return {
+    type: repair.type,
+    status: result.status,
+    source: `<root>/${repair.sourceRelativePath}`,
+    target: `<root>/${repair.targetRelativePath}`,
+    owner: repair.owner,
+    fileMode: repair.fileMode,
+    stdout: String(result.stdout || "").slice(0, 240),
+  };
+}
+
 function syncPostSyncMirrors(plan, password) {
   const mirrors = Array.isArray(plan.postSyncMirrors) ? plan.postSyncMirrors : [];
   const rows = [];
@@ -2506,6 +2575,8 @@ function executePlan(plan, options) {
   const backupArtifactAclRepair = repairHomeAiBackupArtifactAcls(plan, password);
   const codexSharedAuthRepair = repairCodexSharedAuthPermissions(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
+  const gatewayLaunchctlSudoers = installGatewayLaunchctlSudoers(plan, password);
+  const gatewayMacosLauncher = installGatewayMacosLauncher(plan, password);
   const productionDriftReconcile = reconcileHomeAiProductionDrift(plan, password);
   const deployBackupPrune = pruneDeployBackups(plan, options, password);
 
@@ -2547,6 +2618,8 @@ function executePlan(plan, options) {
   if (backupArtifactAclRepair) validations.push(backupArtifactAclRepair);
   if (codexSharedAuthRepair) validations.push(codexSharedAuthRepair);
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
+  if (gatewayLaunchctlSudoers) validations.push(gatewayLaunchctlSudoers);
+  if (gatewayMacosLauncher) validations.push(gatewayMacosLauncher);
   if (productionDriftReconcile) validations.push(productionDriftReconcile);
   if (deployBackupPrune) validations.push(deployBackupPrune);
   for (const check of plan.validation) {

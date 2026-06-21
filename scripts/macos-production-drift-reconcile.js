@@ -283,10 +283,47 @@ function enabledPluginAuthorizationRow(audit = {}, workspaceId = "", pluginId = 
   )) || null;
 }
 
+function pluginProvisioningIssueParts(issue = "") {
+  const match = String(issue || "").match(/^plugin_provisioning_not_active:([^:]+):([^:]+):([^:]+)$/);
+  if (!match) return null;
+  return { workspaceId: match[1], pluginId: match[2], provisioningStatus: match[3] };
+}
+
 function pluginManifestUrl(pluginId = "", options = {}) {
   const plugin = (options.plugins || configuredPlugins({ env: options.env || process.env }))
     .find((item) => item.id === pluginId);
   return plugin?.manifestUrl || "";
+}
+
+function requiredPluginSkillsComplete(audit = {}, workspaceId = "", pluginId = "") {
+  const skills = audit.byWorkspace?.[workspaceId]?.requiredPluginSkills || [];
+  const relevant = skills.filter((item) => item.pluginId === pluginId);
+  return relevant.length === 0 || relevant.every((item) => item.complete && item.listenerCanReadSkillFile !== false);
+}
+
+function pluginProvisioningStatusRepairPlan(audit = {}, options = {}) {
+  const rows = [];
+  for (const issue of audit.issues || []) {
+    const parts = pluginProvisioningIssueParts(issue);
+    if (!parts) continue;
+    const { workspaceId, pluginId, provisioningStatus } = parts;
+    const authorization = enabledPluginAuthorizationRow(audit, workspaceId, pluginId);
+    const localBindingComplete = pluginBindingComplete(audit, workspaceId, pluginId);
+    const requiredSkillsComplete = requiredPluginSkillsComplete(audit, workspaceId, pluginId);
+    const repairable = Boolean(authorization && localBindingComplete && requiredSkillsComplete);
+    rows.push({
+      type: "plugin-provisioning-status",
+      workspaceId,
+      pluginId,
+      provisioningStatus,
+      localBindingComplete,
+      requiredSkillsComplete,
+      action: options.execute && repairable ? "activate" : "plan",
+      ok: !options.execute || repairable,
+      error: repairable ? "" : "plugin_provisioning_status_evidence_incomplete",
+    });
+  }
+  return rows;
 }
 
 function pluginLocalBindingRepairPlan(audit = {}, options = {}) {
@@ -383,6 +420,35 @@ async function reconcilePluginLocalBindings(audit, options = {}) {
   return rows;
 }
 
+async function reconcilePluginProvisioningStatuses(audit, options = {}) {
+  const execute = Boolean(options.execute);
+  const rows = pluginProvisioningStatusRepairPlan(audit, options);
+  if (!execute) return rows;
+  const root = path.resolve(options.root || "/Users/example/path");
+  const dataDir = path.join(root, "data");
+  const authorizationService = options.authorizationService || createHermesPluginAuthorizationService({
+    dataDir,
+    env: options.env || process.env,
+  });
+  for (const row of rows) {
+    if (row.action !== "activate") {
+      row.ok = false;
+      continue;
+    }
+    const result = authorizationService.updateProvisioningStatus({
+      pluginId: row.pluginId,
+      workspaceId: row.workspaceId,
+      actor: "macos-production-drift-reconcile",
+      provisioningStatus: "active",
+      provisioningError: "",
+    });
+    row.ok = Boolean(result?.ok);
+    row.provisioningStatus = row.ok ? "active" : row.provisioningStatus;
+    row.error = row.ok ? "" : String(result?.error || "plugin_provisioning_status_repair_failed").replace(/\s+/g, " ").slice(0, 160);
+  }
+  return rows;
+}
+
 async function runReconcile(options = {}) {
   const auditBuilder = typeof options.buildAudit === "function" ? options.buildAudit : buildAudit;
   const audit = auditBuilder({
@@ -395,11 +461,13 @@ async function runReconcile(options = {}) {
     ...reconcileCodexSharedAuthPermissions(audit, options),
     ...reconcileMusicRuntimeCoverPermissions(audit, options),
     ...await reconcilePluginLocalBindings(audit, options),
+    ...await reconcilePluginProvisioningStatuses(audit, options),
   ];
   return {
     ok: rows.every((row) => {
       if (row.type === "untracked-gateway-launchd") return row.moveStatus == null || row.moveStatus === 0;
       if (row.type === "plugin-local-binding") return row.ok !== false;
+      if (row.type === "plugin-provisioning-status") return row.ok !== false;
       if (row.type === "codex-shared-auth-permissions") return row.ok !== false;
       if (row.type === "music-runtime-cover-permissions") return row.ok !== false;
       return true;
@@ -430,9 +498,12 @@ module.exports = {
   openAiCodexManifestUsers,
   pluginLocalBindingIssueParts,
   pluginLocalBindingRepairPlan,
+  pluginProvisioningIssueParts,
+  pluginProvisioningStatusRepairPlan,
   parseArgs,
   reconcileCodexSharedAuthPermissions,
   reconcilePluginLocalBindings,
+  reconcilePluginProvisioningStatuses,
   reconcileMusicRuntimeCoverPermissions,
   reconcileUntrackedGatewayLaunchd,
   runReconcile,

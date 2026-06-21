@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260621-plugin-topic-deferred-v900";
+const CLIENT_VERSION = "20260621-android-chat-freeze-v901";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -221,8 +221,8 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260621-plugin-topic-deferred-v900" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260621-plugin-topic-deferred-v900"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260621-android-chat-freeze-v901" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260621-android-chat-freeze-v901"><\/noscript>/);
 assert.match(indexHtml, /window\.__hermesAndroidBackGuard/);
 assert.match(indexHtml, /hermesAndroidBackBase/);
 assert.match(indexHtml, /guard\.releaseToApp = function/);
@@ -817,6 +817,9 @@ for (const file of appShellFiles) {
   assert.ok(indexHtml.includes(`/${file}?v=${CLIENT_VERSION}`), `${file} is missing from index.html`);
   assert.ok(serviceWorkerJs.includes(`/${file}?v=${CLIENT_VERSION}`), `${file} is missing from service worker shell cache`);
 }
+assert.match(serviceWorkerJs, /const HERMES_INSTALL_CORE_URLS = \[/);
+assert.match(serviceWorkerJs, /Promise\.allSettled\(HERMES_INSTALL_CORE_URLS\.map\(\(url\) => cacheShellUrl\(cache, url\)\)\)/);
+assert.doesNotMatch(serviceWorkerJs, /Promise\.allSettled\(HERMES_APP_SHELL_URLS\.map/);
 let previousScriptOffset = -1;
 for (const file of appShellFiles) {
   const scriptOffset = indexHtml.indexOf(`/${file}?v=${CLIENT_VERSION}`);
@@ -878,7 +881,9 @@ assert.match(appJs, /if \(routeThreadId\) state\.currentThreadId = routeThreadId
 assert.match(appJs, /setRouteScrollTarget\(taskGroupId \|\| \(groupChatRequested \? "group-chat" : "chat"\), messageId\)/);
 assert.match(appJs, /await loadSelectedView\(\{ forceTaskListReload: true, skipSingleWindowCache: true \}\)/);
 assert.match(appJs, /skipSingleWindowCache: Boolean\(options\.skipSingleWindowCache \|\| state\.routeScrollMessageId\)/);
-assert.match(appJs, /if \(!options\.skipSingleWindowCache\) \{[\s\S]*?renderCachedSingleWindowThreadForRequest\(request, options\);[\s\S]*?\}/);
+assert.match(appJs, /let renderedCachedSingleWindow = false;/);
+assert.match(appJs, /if \(!options\.skipSingleWindowCache\) \{[\s\S]*?renderedCachedSingleWindow = renderCachedSingleWindowThreadForRequest\(request, options\);[\s\S]*?\}/);
+assert.match(appJs, /if \(messageMode === "chat" && !renderedCachedSingleWindow\) \{[\s\S]*?renderSingleWindowChatPendingShell\(\{[\s\S]*?chat_cache_miss/);
 assert.doesNotMatch(appJs, /restoreMainConversationSurfaceForRequest\(request, options\);/);
 assert.match(appJs, /function refreshPendingCurrentThreadOnForeground\(\)/);
 assert.match(appJs, /state\.foregroundPendingThreadRefreshAfter = now \+ 2500/);
@@ -1995,7 +2000,7 @@ assert.match(appJs, /if \(skipUnchangedChatRender \|\| skipUnchangedTaskRender\)
 assert.match(appJs, /state\.singleWindowRequestSeq = request\.seq/);
 assert.match(appJs, /state\.singleWindowLoadInFlightSeq = request\.seq;[\s\S]*?startupPerfStep\("single-window-api"/);
 assert.match(appJs, /\.finally\(\(\) => \{[\s\S]*?state\.singleWindowLoadInFlightSeq === request\.seq[\s\S]*?state\.singleWindowLoadInFlightSeq = 0;/);
-assert.match(appJs, /if \(!options\.skipSingleWindowCache\) \{[\s\S]*?renderCachedSingleWindowThreadForRequest\(request, options\);[\s\S]*?\}/);
+assert.match(appJs, /if \(!options\.skipSingleWindowCache\) \{[\s\S]*?renderedCachedSingleWindow = renderCachedSingleWindowThreadForRequest\(request, options\);[\s\S]*?\}/);
 assert.match(appJs, /if \(!singleWindowRequestStillCurrent\(request\)\) \{[\s\S]*?singleWindowChatPendingShellVisible\(\)[\s\S]*?scheduleSingleWindowChatPendingRecovery\("stale-request", 900\);[\s\S]*?return;/);
 assert.match(appJs, /clearSingleWindowChatPendingRecovery\(\);[\s\S]*?state\.singleWindowChatPendingRecoveryAttempts = 0;[\s\S]*?startupPerfMark\("single-window-payload"/);
 assert.match(appJs, /timeoutMs: 12000/);
@@ -2894,14 +2899,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260621-plugin-topic-deferred-v900/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260621-plugin-topic-deferred-v900/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260621-plugin-topic-deferred-v900/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260621-plugin-topic-deferred-v900/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260621-plugin-topic-deferred-v900/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260621-plugin-topic-deferred-v900/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260621-plugin-topic-deferred-v900/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260621-plugin-topic-deferred-v900/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260621-android-chat-freeze-v901/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260621-android-chat-freeze-v901/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260621-android-chat-freeze-v901/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260621-android-chat-freeze-v901/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260621-android-chat-freeze-v901/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260621-android-chat-freeze-v901/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260621-android-chat-freeze-v901/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260621-android-chat-freeze-v901/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);

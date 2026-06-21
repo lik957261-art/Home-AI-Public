@@ -82,6 +82,7 @@ done
 
 /usr/bin/python3 - "$MANIFEST" "$ACTION" "$TARGETS" "$OWNER_MAINTENANCE_ONLY" "$NO_STOP_EXISTING" <<'PY'
 import json
+import os
 import re
 import socket
 import subprocess
@@ -95,6 +96,7 @@ owner_maintenance_only = sys.argv[4] == "1"
 no_stop_existing = sys.argv[5] == "1"
 safe_target = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 safe_label = re.compile(r"^com\.hermesmobile\.gateway\.[A-Za-z0-9_.-]+$")
+sudo_prefix = [] if os.geteuid() == 0 else ["/usr/bin/sudo", "-n"]
 
 if action not in {"start", "stop"}:
     print("unsupported Gateway profile launch action", file=sys.stderr)
@@ -146,12 +148,12 @@ for target in targets:
         print(f"Gateway profile is not owner-maintenance: {profile}", file=sys.stderr)
         raise SystemExit(3)
     if action == "start":
-        cmd = ["/bin/launchctl", "kickstart"]
+        cmd = sudo_prefix + ["/bin/launchctl", "kickstart"]
         if not no_stop_existing:
             cmd.append("-k")
         cmd.append(f"system/{label}")
     else:
-        cmd = ["/bin/launchctl", "kill", "SIGTERM", f"system/{label}"]
+        cmd = sudo_prefix + ["/bin/launchctl", "kill", "SIGTERM", f"system/{label}"]
     result = subprocess.run(cmd, text=True, capture_output=True)
     if action == "stop" and result.returncode != 0:
         if not port_is_listening(port):
