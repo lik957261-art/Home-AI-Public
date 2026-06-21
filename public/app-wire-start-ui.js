@@ -2,6 +2,7 @@
 
 function preparePrimaryNavigationChange() {
   state.primaryNavigationSeq = (Number(state.primaryNavigationSeq || 0) || 0) + 1;
+  if (typeof hideActivePluginHostsForPrimaryNavigation === "function") hideActivePluginHostsForPrimaryNavigation();
   if (typeof parkCurrentMainConversationSurfaceForNavigation === "function") parkCurrentMainConversationSurfaceForNavigation();
   if (typeof cancelScheduledSelectedViewLoad === "function") cancelScheduledSelectedViewLoad();
   if (typeof cancelCurrentThreadNavigationRefreshes === "function") cancelCurrentThreadNavigationRefreshes();

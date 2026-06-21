@@ -128,6 +128,9 @@ function testGuidedDryRunJsonPlan() {
   assert.equal(parsed.guided, true);
   assert.deepEqual(parsed.guidedPlan.autoPhaseIds, [
     "create-directory-layout",
+    "install-hermes-mobile",
+    "install-official-hermes-runtime",
+    "install-dependencies",
     "configure-owner",
     "configure-gateway-profiles",
     "install-gateway-launchd-services",
@@ -138,9 +141,6 @@ function testGuidedDryRunJsonPlan() {
     "print-access-info",
   ]);
   assert.deepEqual(parsed.guidedPlan.operatorPhaseIds, [
-    "install-hermes-mobile",
-    "install-official-hermes-runtime",
-    "install-dependencies",
     "create-service-users",
     "configure-workspace-isolation",
     "repair-gateway-worker-acl",
@@ -156,12 +156,28 @@ function testGuidedDryRunJsonPlan() {
 
 function testGuidedExecuteRunsAutomaticPhasesOnly() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-guided-"));
+  const fakeNpm = path.join(root, "fake-npm");
+  fs.writeFileSync(fakeNpm, `#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "10.0.0"
+  exit 0
+fi
+if [ "$1" = "ci" ]; then
+  mkdir -p node_modules/@homeai-guided
+  echo "installed"
+  exit 0
+fi
+echo "unexpected npm args: $*" >&2
+exit 64
+`, { mode: 0o755 });
   try {
     const output = run([
       "--execute",
       "--guided",
       "--root",
       root,
+      "--npm-command",
+      fakeNpm,
       "--json",
     ]);
     const parsed = JSON.parse(output);
@@ -173,15 +189,19 @@ function testGuidedExecuteRunsAutomaticPhasesOnly() {
     assert.equal(parsed.guidedPlan.executedCount, parsed.guidedPlan.autoPhaseIds.length);
     assert.equal(parsed.guidedPlan.failedPhase, "");
     assert.equal(parsed.guidedPlan.reports.length, parsed.guidedPlan.autoPhaseIds.length);
+    assert.deepEqual(parsed.guidedPlan.reports.map((report) => report.phase), parsed.guidedPlan.autoPhaseIds);
     assert.deepEqual(
-      parsed.phases.filter((phase) => phase.status === "executed").map((phase) => phase.id),
-      parsed.guidedPlan.autoPhaseIds,
+      parsed.phases.filter((phase) => phase.status === "executed").map((phase) => phase.id).sort(),
+      [...parsed.guidedPlan.autoPhaseIds].sort(),
     );
     assert.deepEqual(
       parsed.phases.filter((phase) => phase.status === "operator-required").map((phase) => phase.id).sort(),
       [...parsed.guidedPlan.operatorPhaseIds].sort(),
     );
     assert.ok(fs.existsSync(path.join(root, "data", "secrets", "owner-web-key.secret")));
+    assert.ok(fs.existsSync(path.join(root, "app", "package.json")));
+    assert.ok(fs.existsSync(path.join(root, "runtime", "node-current", "bin", "node")));
+    assert.ok(fs.existsSync(path.join(root, "app", "node_modules", "@homeai-guided")));
     assert.ok(fs.existsSync(path.join(root, "data", "gateway-pool-manifest-mac.json")));
     assert.ok(fs.existsSync(path.join(root, "data", "launchd-services-plan.json")));
     assert.doesNotMatch(JSON.stringify(parsed), /owner-key\n|secret-value/);

@@ -150,9 +150,9 @@ Current source checks:
 - Android debug build: `source scripts/android-env.sh && gradle --no-daemon assembleDebug`
 - Android debug APK:
   `/Users/example/path`
-- Current source public debug APK version: `0.4.15`, `versionCode=19`
+- Current source public debug APK version: `0.4.16`, `versionCode=20`
 - Current public debug APK SHA-256:
-  `e5fe293d9f92f4f1df7d9d84aacedb296652c5954be0870d9dbba79ad4136960`
+  `9f23019528cac42c04a48775d51071d6694145235eef33a07ef96c2b91409341`
 - Android update manifest:
   `https://wardrobe-xuxin.synology.me:8555/android/android-update.json` through
   the Home AI HTTPS mapping
@@ -218,3 +218,8 @@ Static client `20260621-plugin-topic-async-v899` additionally treats active
 artifact/file preview overlays as secondary Web back targets. Native Back closes
 the preview through the Web preview controller instead of consuming the event as
 a primary-page bounce.
+
+Static client `20260621-android-plugin-exit-v903` clears active embedded plugin
+host state at the start of primary Home AI navigation. This prevents stale Music
+or other plugin iframe hosts from remaining visible while the selected-view load
+is deferred after rapid bottom-tab or plugin-context navigation.

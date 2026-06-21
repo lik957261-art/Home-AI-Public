@@ -1,8 +1,8 @@
 {
-  "versionCode": 19,
-  "versionName": "0.4.15",
+  "versionCode": 20,
+  "versionName": "0.4.16",
   "apkUrl": "https://wardrobe-xuxin.synology.me:8555/android/HomeAI-Android-native-shell-debug-20260621.apk",
-  "sha256": "d37146c4c0f4bf9ce8110deba8b1c5b4fad45e7dd084d572aa8f7280cad5425f",
-  "size": 3310655,
-  "notes": "Home AI Android native shell v0.4.15: refresh carrier for Web client v902 Android WebView chat timeout recovery; keeps v0.4.14 native behavior, status bar handling, WebView file picker forwarding, and foreground update checks."
+  "sha256": "9f23019528cac42c04a48775d51071d6694145235eef33a07ef96c2b91409341",
+  "size": 3310659,
+  "notes": "Home AI Android native shell v0.4.16: refresh carrier for Web client v903 Android WebView plugin-exit navigation recovery; keeps v0.4.15 native behavior, status bar handling, WebView file picker forwarding, and foreground update checks."
 }

@@ -59,6 +59,9 @@ PHASES=(
 
 GUIDED_AUTO_PHASES=(
   "create-directory-layout"
+  "install-hermes-mobile"
+  "install-official-hermes-runtime"
+  "install-dependencies"
   "configure-owner"
   "configure-gateway-profiles"
   "install-gateway-launchd-services"
@@ -70,9 +73,6 @@ GUIDED_AUTO_PHASES=(
 )
 
 GUIDED_OPERATOR_PHASES=(
-  "install-hermes-mobile"
-  "install-official-hermes-runtime"
-  "install-dependencies"
   "create-service-users"
   "configure-workspace-isolation"
   "repair-gateway-worker-acl"

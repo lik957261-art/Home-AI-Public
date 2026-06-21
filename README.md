@@ -46,25 +46,24 @@ High-value entry points:
 ## 2026-06-21 Public Update
 
 This update refreshes the public tree from source commit
-`035adef60995b5d8f3d8ddc0e2204c6abd336bcb`.
+`61a242eab4863e593d98703b11537ffe398286fe`.
 
 Highlights:
 
-- Adds `bash scripts/install-macos-production.sh --execute --guided --json` as
-  the first guided macOS fresh-install entrypoint.
-- Guided mode automatically runs the non-privileged install skeleton phases:
-  directory layout, Owner key file, Gateway profile skeleton, launchd staging
-  plans, CRON scaffold, plugin source plan, and workspace plugin provisioning
-  plan.
-- Guided mode still reports privileged, external-input, and live-runtime phases
-  separately instead of creating macOS users, applying ACLs, installing
-  `/Library/LaunchDaemons`, copying provider credentials, or starting services
-  without explicit operator gates.
-- Keeps the v902 Android WebView chat timeout client and Android native shell
-  `0.4.15` update manifest from the previous 2026-06-21 public sync.
-- Preserves the macOS privileged bootstrap contract: public installs may use
-  interactive administrator approval during bounded install/upgrade phases, but
-  runtime Home AI services must not depend on a stored Mac login password file.
+- Expands `bash scripts/install-macos-production.sh --execute --guided --json`
+  so a fresh macOS install now runs the non-privileged source copy, Node runtime
+  pinning, production dependency install, Owner key setup, Gateway skeleton,
+  launchd staging, CRON scaffold, plugin source/provisioning plan, and access
+  info phases in one guided command.
+- Keeps macOS user creation, ACL mutation, `/Library/LaunchDaemons` install,
+  provider credentials, service start, first-start preflight, and live smoke
+  tests behind explicit operator or sudo gates.
+- Publishes static client `20260621-android-plugin-exit-v903`, which clears
+  stale embedded plugin host state before primary Home AI navigation so rapid
+  exits from Music or another plugin do not leave an old iframe covering the
+  target tab.
+- Publishes Android native shell update manifest `0.4.16` / `versionCode=20`
+  as the refresh carrier for the v903 Web client.
 
 Validation for this public update:
 
@@ -74,9 +73,15 @@ Validation for this public update:
 - `node tests/macos-install-phase-coverage-audit.test.js`
 - `node tests/macos-install-verification-classification.test.js`
 - `node tests/macos-install-operator-closure-checklist.test.js`
-- `node scripts/public-install-preflight.js --source-only --json`
-- `node scripts/macos-fresh-install-rehearsal.js --json`
-- `node scripts/macos-install-verification-classification.js --json`
+- `node tests/task-list-ui.test.js`
+- `node tests/static-cache-version-harness.test.js`
+- `node tests/app-api-client.test.js`
+- `node tests/thread-state-ui-behavior.test.js`
+- `node tests/same-window-navigation-harness.test.js`
+- `node tests/mobile-bottom-region-layout.test.js`
+- Android v0.4.16 APK manifest SHA/size verification
+- no-restart production static smoke for client v903
+- HTTPS Android manifest/APK SHA readback
 - public export privacy scan
 
 ## 1.0.3 Public Release

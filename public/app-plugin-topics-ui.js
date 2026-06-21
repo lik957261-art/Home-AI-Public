@@ -479,14 +479,36 @@ function hideActivePluginHostsForPluginTopicNavigation(targetPluginId = "") {
   }
   const app = $("app");
   app?.classList.remove("wardrobe-plugin-host-active", "embedded-plugin-host-active");
-  ["codex", "finance", "email", "health", "note", "moira", "music"].forEach((id) => {
-    const def = typeof embeddedPluginDefByView === "function" ? embeddedPluginDefByView(id) : null;
-    if (def?.id !== keepId) app?.classList.remove(`${id}-plugin-host-active`);
-  });
+  if (typeof EMBEDDED_PLUGIN_DEFS === "object") {
+    Object.values(EMBEDDED_PLUGIN_DEFS || {}).forEach((def) => {
+      if (def?.id !== keepId && def?.viewMode) app?.classList.remove(`${def.viewMode}-plugin-host-active`);
+    });
+  }
+}
+
+function hideActivePluginHostsForPrimaryNavigation() {
+  hideActivePluginHostsForPluginTopicNavigation();
+  if (typeof EMBEDDED_PLUGIN_DEFS === "object") {
+    Object.values(EMBEDDED_PLUGIN_DEFS || {}).forEach((def) => {
+      if (!def?.id) return;
+      const record = typeof embeddedPluginRecord === "function" ? embeddedPluginRecord(def.id) : null;
+      if (!record) return;
+      record.loading = false;
+      if (record.viewportMessageTimer) {
+        window.clearTimeout(record.viewportMessageTimer);
+        record.viewportMessageTimer = 0;
+      }
+      record.lastViewportPayloadSignature = "";
+      record.lastViewportPayloadSnapshot = null;
+    });
+  }
+  document.documentElement?.classList?.remove("embedded-plugin-shell-active", "codex-plugin-shell-active");
+  const app = $("app");
+  app?.classList.remove("embedded-plugin-host-active", "wardrobe-plugin-host-active");
 }
 
 function exitPluginContextToTopicHome() {
-  hideActivePluginHostsForPluginTopicNavigation();
+  hideActivePluginHostsForPrimaryNavigation();
   if (typeof closeBottomPluginMenu === "function") closeBottomPluginMenu();
   clearQuotedReply({ render: false });
   state.scrollFeedback = null;

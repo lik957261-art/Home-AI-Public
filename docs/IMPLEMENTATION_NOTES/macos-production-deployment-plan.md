@@ -362,15 +362,16 @@ guided steps:
 Current implementation status: `scripts/install-macos-production.sh` is a
 dry-run, machine-readable phase plan by default. `--execute` requires either
 `--phase` or `--guided`. Guided execution runs the non-privileged automatic
-phases that create the install skeleton and bounded plan files, then reports
-the remaining operator, sudo, external-input, and live-runtime closure commands.
-The implemented phases cover dependency install, service-user audit and
-optional creation, source copy into an empty app root, runtime pinning, Owner
-key setup, workspace isolation scaffold/ACL gate, Gateway profile skeletons,
-Gateway launchd staging/apply, Gateway worker ACL repair, CRON scaffold, plugin
-source plan/clone, first-run plugin provisioning plan, core/plugin launchd
-staging/apply, first-start preflight, aggregate closure smoke, and access-info
-printing. Existing production updates should continue to use
+fresh-install phases: directory layout, source copy into an empty app root,
+runtime pinning, production dependency install, Owner key setup, Gateway
+profile skeletons, launchd staging plans, CRON scaffold, plugin source plan,
+first-run plugin provisioning plan, and access-info printing. It then reports
+the remaining operator, sudo, and live-runtime closure commands. The
+implemented phases also cover service-user audit and optional creation,
+workspace isolation scaffold/ACL gate, Gateway launchd apply, Gateway worker
+ACL repair, plugin source clone, core/plugin launchd apply, first-start
+preflight, and aggregate closure smoke. Existing production updates should
+continue to use
 `scripts/deploy-macos-production.js`.
 The `run-first-start-preflight` phase points at
 `scripts/macos-first-start-preflight.js --root <root> --network-mode <direct|proxy> --json`.
