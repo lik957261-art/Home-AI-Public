@@ -326,6 +326,12 @@ Target top-level installer:
 bash ./scripts/install-macos-production.sh --json
 ```
 
+Fresh-install guided entrypoint:
+
+```bash
+bash ./scripts/install-macos-production.sh --execute --guided --root /Users/example/path --json
+```
+
 The installer should be idempotent and phase-based:
 
 ```text
@@ -354,14 +360,17 @@ must not pretend to automate external interactive authorization. These remain
 guided steps:
 
 Current implementation status: `scripts/install-macos-production.sh` is a
-dry-run, machine-readable phase plan by default. `--execute` requires
-`--phase`. The implemented phases cover dependency install, service-user audit
-and optional creation, source copy into an empty app root, runtime pinning,
-Owner key setup, workspace isolation scaffold/ACL gate, Gateway profile
-skeletons, Gateway launchd staging/apply, Gateway worker ACL repair,
-CRON scaffold, plugin source plan/clone, first-run plugin provisioning plan,
-core/plugin launchd staging/apply, first-start preflight, aggregate closure
-smoke, and access-info printing. Existing production updates should continue to use
+dry-run, machine-readable phase plan by default. `--execute` requires either
+`--phase` or `--guided`. Guided execution runs the non-privileged automatic
+phases that create the install skeleton and bounded plan files, then reports
+the remaining operator, sudo, external-input, and live-runtime closure commands.
+The implemented phases cover dependency install, service-user audit and
+optional creation, source copy into an empty app root, runtime pinning, Owner
+key setup, workspace isolation scaffold/ACL gate, Gateway profile skeletons,
+Gateway launchd staging/apply, Gateway worker ACL repair, CRON scaffold, plugin
+source plan/clone, first-run plugin provisioning plan, core/plugin launchd
+staging/apply, first-start preflight, aggregate closure smoke, and access-info
+printing. Existing production updates should continue to use
 `scripts/deploy-macos-production.js`.
 The `run-first-start-preflight` phase points at
 `scripts/macos-first-start-preflight.js --root <root> --network-mode <direct|proxy> --json`.

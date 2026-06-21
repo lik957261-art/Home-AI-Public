@@ -55,6 +55,20 @@ The macOS installer entrypoint is:
 bash scripts/install-macos-production.sh --json
 ```
 
+For a fresh macOS install, the guided entrypoint is:
+
+```bash
+bash scripts/install-macos-production.sh --execute --guided --root /Users/example/path --json
+```
+
+Guided mode executes only the non-privileged automatic phases that create the
+install directory layout, Owner key file, Gateway manifest/profile skeleton,
+CRON scaffold, plugin source/provisioning plans, and launchd staging plans. It
+then reports the remaining operator phases with exact commands. It does not
+create macOS users, apply ACLs, install files under `/Library/LaunchDaemons`,
+install dependencies, copy provider credentials, start services, or run live
+smoke tests without the explicit phase gates below.
+
 Before treating a source checkout as fresh-install ready, run the source-only
 rehearsal:
 
@@ -90,9 +104,10 @@ inputs, and risk boundaries. A public install is not closed by source-only
 rehearsal until the operator closure items have been performed or explicitly
 deferred with evidence.
 
-It is currently a dry-run, phase-based plan by default. It does not create
-users, install launchd services, or write secrets until each privileged phase
-has an idempotent implementation and rollback test.
+It is currently a dry-run, phase-based plan by default. `--execute --guided`
+runs the safe automatic install skeleton phases in one command, but it still
+does not create users, install launchd services, or write provider/plugin
+secrets until each privileged or external-input phase is explicitly closed.
 The `create-service-users` phase is executable but conservative: by default it
 audits the required macOS service users and fails closed if any are missing.
 It creates missing users only when run as root with

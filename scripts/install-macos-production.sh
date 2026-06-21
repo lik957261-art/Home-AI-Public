@@ -24,12 +24,17 @@ LAUNCHCTL_COMMAND="${HOMEAI_LAUNCHCTL:-/bin/launchctl}"
 MODE="dry-run"
 OUTPUT="text"
 PHASE_FILTER=""
+GUIDED="false"
 NETWORK_MODE=""
 BASE_URL="http://127.0.0.1:8797"
 EXECUTED_PHASE=""
 EXECUTED_PHASE_OK="null"
 EXECUTED_PHASE_ISSUE_CODES=""
 EXECUTION_REPORT_JSON="null"
+GUIDED_EXECUTED_PHASES=""
+GUIDED_EXECUTED_COUNT="0"
+GUIDED_FAILED_PHASE=""
+GUIDED_REPORTS_JSON="[]"
 
 PHASES=(
   "system-preflight"
@@ -52,21 +57,51 @@ PHASES=(
   "print-access-info"
 )
 
+GUIDED_AUTO_PHASES=(
+  "create-directory-layout"
+  "configure-owner"
+  "configure-gateway-profiles"
+  "install-gateway-launchd-services"
+  "configure-cron"
+  "configure-plugins"
+  "plan-plugin-workspace-provisioning"
+  "install-launchd-services"
+  "print-access-info"
+)
+
+GUIDED_OPERATOR_PHASES=(
+  "install-hermes-mobile"
+  "install-official-hermes-runtime"
+  "install-dependencies"
+  "create-service-users"
+  "configure-workspace-isolation"
+  "repair-gateway-worker-acl"
+  "run-first-start-preflight"
+  "run-smoke-tests"
+)
+
 usage() {
   cat <<'USAGE'
-Usage: scripts/install-macos-production.sh [--dry-run|--execute] [--json] [--root <path>] [--app-source <path>] [--node-command <path>] [--npm-command <path>] [--service-users <csv>] [--owner-key-file <path>] [--workspace-map <csv>] [--gateway-openai-workers <n>] [--gateway-deepseek-workers <n>] [--gateway-owner-grok-workers <n>] [--gateway-owner-maintenance-openai-workers <n>] [--gateway-owner-maintenance-deepseek-workers <n>] [--plugin-source-mode plan|clone] [--cron-network-mode direct|proxy] [--phase <id>] [--network-mode direct|proxy] [--base <url>]
+Usage: scripts/install-macos-production.sh [--dry-run|--execute] [--guided] [--json] [--root <path>] [--app-source <path>] [--node-command <path>] [--npm-command <path>] [--service-users <csv>] [--owner-key-file <path>] [--workspace-map <csv>] [--gateway-openai-workers <n>] [--gateway-deepseek-workers <n>] [--gateway-owner-grok-workers <n>] [--gateway-owner-maintenance-openai-workers <n>] [--gateway-owner-maintenance-deepseek-workers <n>] [--plugin-source-mode plan|clone] [--cron-network-mode direct|proxy] [--phase <id>] [--network-mode direct|proxy] [--base <url>]
 
 Plans the phase-based Home AI macOS production installation.
 
 Default mode is --dry-run. It runs source-level public install preflight and
 prints the full installation phase plan without mutating the host.
 
---execute without --phase is intentionally fail-closed. Only read-only phases
-and idempotent low-risk phases are currently executable: system-preflight,
-install-dependencies, create-service-users, create-directory-layout, install-hermes-mobile,
-install-official-hermes-runtime, run-first-start-preflight, and
-run-smoke-tests, and print-access-info. Use the central deploy script for
-existing production updates.
+--execute without --phase is intentionally fail-closed unless --guided is also
+present. Only read-only phases and idempotent low-risk phases are currently
+executable: system-preflight, install-dependencies, create-service-users,
+create-directory-layout, install-hermes-mobile, install-official-hermes-runtime,
+run-first-start-preflight, run-smoke-tests, and print-access-info. Use the
+central deploy script for existing production updates.
+
+--guided prints a one-command guided install report. With --execute, it runs
+only non-privileged automatic phases that create the install skeleton and
+bounded plan files, then reports the remaining operator, sudo, and live-runtime
+closure commands. It does not create macOS users, apply ACLs, install
+LaunchDaemons under /Library/LaunchDaemons, install provider credentials, or
+start production services without the explicit phase gates listed below.
 
 The create-service-users phase audits the required macOS service users by
 default. To let it create missing users, run as root and set
@@ -196,6 +231,33 @@ phase_exists() {
 
 phase_selected() {
   [[ -z "$PHASE_FILTER" || "$PHASE_FILTER" == "$1" ]]
+}
+
+array_contains() {
+  local needle="$1"
+  shift
+  for item in "$@"; do
+    [[ "$item" == "$needle" ]] && return 0
+  done
+  return 1
+}
+
+phase_guided_auto() {
+  array_contains "$1" "${GUIDED_AUTO_PHASES[@]}"
+}
+
+phase_guided_operator() {
+  array_contains "$1" "${GUIDED_OPERATOR_PHASES[@]}"
+}
+
+guided_phase_executed() {
+  [[ ",$GUIDED_EXECUTED_PHASES," == *",$1,"* ]]
+}
+
+json_array() {
+  node - "$@" <<'NODE'
+console.log(JSON.stringify(process.argv.slice(2)));
+NODE
 }
 
 phase_executable() {
@@ -3462,6 +3524,10 @@ while [[ $# -gt 0 ]]; do
       MODE="execute"
       shift
       ;;
+    --guided)
+      GUIDED="true"
+      shift
+      ;;
     --json)
       OUTPUT="json"
       shift
@@ -3566,6 +3632,11 @@ if [[ -n "$PHASE_FILTER" ]] && ! phase_exists "$PHASE_FILTER"; then
   exit 2
 fi
 
+if [[ "$GUIDED" == "true" && -n "$PHASE_FILTER" ]]; then
+  echo "--guided cannot be combined with --phase" >&2
+  exit 2
+fi
+
 PREFLIGHT_JSON="$(node "$APP_SOURCE/scripts/public-install-preflight.js" --repo-root "$APP_SOURCE" --source-only --json)"
 PREFLIGHT_OK="$(printf '%s' "$PREFLIGHT_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => console.log(JSON.parse(s).ok ? "true" : "false"));')"
 
@@ -3577,7 +3648,61 @@ if [[ "$PREFLIGHT_OK" != "true" ]]; then
   ISSUE_CODE="source_preflight_failed"
   ISSUE_DETAIL="public install source preflight failed"
 elif [[ "$MODE" == "execute" ]]; then
-  if [[ -z "$PHASE_FILTER" ]]; then
+  if [[ "$GUIDED" == "true" ]]; then
+    GUIDED_REPORTS_FILE="$(mktemp)"
+    trap 'rm -f "$GUIDED_REPORTS_FILE"' EXIT
+    for guided_phase in "${GUIDED_AUTO_PHASES[@]}"; do
+      EXECUTED_PHASE="$guided_phase"
+      set +e
+      EXECUTION_JSON="$(run_phase "$guided_phase" 2>/dev/null)"
+      EXECUTION_STATUS=$?
+      set -e
+      PHASE_OK="$(printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { try { const p = JSON.parse(s); console.log(p.ok ? "true" : "false"); } catch { console.log("false"); } });')"
+      if [[ "$EXECUTION_STATUS" -eq 0 && "$PHASE_OK" == "true" ]]; then
+        GUIDED_EXECUTED_COUNT="$((GUIDED_EXECUTED_COUNT + 1))"
+        if [[ -z "$GUIDED_EXECUTED_PHASES" ]]; then
+          GUIDED_EXECUTED_PHASES="$guided_phase"
+        else
+          GUIDED_EXECUTED_PHASES="$GUIDED_EXECUTED_PHASES,$guided_phase"
+        fi
+        printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { process.stdout.write(JSON.stringify(JSON.parse(s))); });' >> "$GUIDED_REPORTS_FILE"
+        printf '\n' >> "$GUIDED_REPORTS_FILE"
+      else
+        GUIDED_FAILED_PHASE="$guided_phase"
+        EXECUTED_PHASE_OK="false"
+        EXECUTED_PHASE_ISSUE_CODES="$(printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { try { const p = JSON.parse(s); console.log((p.issues || []).map((item) => item.code).filter(Boolean).join(",")); } catch { console.log("phase_output_not_json"); } });')"
+        EXECUTION_REPORT_JSON="$(printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { try { JSON.parse(s); process.stdout.write(s.trim() || "null"); } catch { process.stdout.write("null"); } });')"
+        OK="false"
+        ISSUE_CODE="guided_phase_execution_failed"
+        ISSUE_DETAIL="$guided_phase failed"
+        break
+      fi
+    done
+    if [[ -z "$GUIDED_FAILED_PHASE" ]]; then
+      EXECUTED_PHASE="guided"
+      EXECUTED_PHASE_OK="true"
+      EXECUTED_PHASE_ISSUE_CODES=""
+      EXECUTION_REPORT_JSON="null"
+    fi
+    GUIDED_REPORTS_JSON="$(node - "$GUIDED_REPORTS_FILE" <<'NODE'
+const fs = require("node:fs");
+const file = process.argv[2];
+const reports = [];
+if (file && fs.existsSync(file)) {
+  for (const line of fs.readFileSync(file, "utf8").split(/\n+/)) {
+    const text = line.trim();
+    if (!text) continue;
+    try {
+      reports.push(JSON.parse(text));
+    } catch {
+      reports.push({ ok: false, issues: [{ code: "guided_report_not_json" }] });
+    }
+  }
+}
+process.stdout.write(JSON.stringify(reports));
+NODE
+)"
+  elif [[ -z "$PHASE_FILTER" ]]; then
     OK="false"
     ISSUE_CODE="execute_phase_required"
     ISSUE_DETAIL="execute requires --phase; full privileged install execution is not enabled"
@@ -3612,6 +3737,7 @@ if [[ "$OUTPUT" == "json" ]]; then
     printf '  "ok": %s,\n' "$OK"
     printf '  "schemaVersion": 1,\n'
     printf '  "mode": %s,\n' "$(printf '%s' "$MODE" | json_escape)"
+    printf '  "guided": %s,\n' "$GUIDED"
     printf '  "root": %s,\n' "$(printf '%s' "$ROOT" | json_escape)"
     printf '  "appSource": %s,\n' "$(printf '%s' "$APP_SOURCE" | json_escape)"
     printf '  "nodeCommand": %s,\n' "$(printf '%s' "$NODE_COMMAND" | json_escape)"
@@ -3638,7 +3764,19 @@ if [[ "$OUTPUT" == "json" ]]; then
       [[ "$index" == "$((${#PHASES[@]} - 1))" ]] && comma=""
       command="$(phase_command "$phase")"
       status="planned"
-      if [[ "$MODE" == "execute" ]] && phase_selected "$phase"; then
+      if [[ "$GUIDED" == "true" ]]; then
+        if guided_phase_executed "$phase"; then
+          status="executed"
+        elif [[ "$GUIDED_FAILED_PHASE" == "$phase" ]]; then
+          status="failed"
+        elif phase_guided_auto "$phase"; then
+          status="guided-auto"
+        elif phase_guided_operator "$phase"; then
+          status="operator-required"
+        else
+          status="source-check"
+        fi
+      elif [[ "$MODE" == "execute" ]] && phase_selected "$phase"; then
         if [[ "$EXECUTED_PHASE" == "$phase" && "$EXECUTED_PHASE_OK" == "true" ]]; then
           status="executed"
         elif [[ "$EXECUTED_PHASE" == "$phase" ]]; then
@@ -3652,6 +3790,7 @@ if [[ "$OUTPUT" == "json" ]]; then
       printf '    {"order": %s, "id": %s, "status": %s, "selected": %s, "command": %s}%s\n' "$((index + 1))" "$(printf '%s' "$phase" | json_escape)" "$(printf '%s' "$status" | json_escape)" "$(phase_selected "$phase" && printf true || printf false)" "$(printf '%s' "$command" | json_escape)" "$comma"
     done
     printf '  ],\n'
+    printf '  "guidedPlan": {"autoPhaseIds": %s, "operatorPhaseIds": %s, "executedCount": %s, "failedPhase": %s, "reports": %s},\n' "$(json_array "${GUIDED_AUTO_PHASES[@]}")" "$(json_array "${GUIDED_OPERATOR_PHASES[@]}")" "$GUIDED_EXECUTED_COUNT" "$(printf '%s' "$GUIDED_FAILED_PHASE" | json_escape)" "$GUIDED_REPORTS_JSON"
     printf '  "execution": {"phase": %s, "ok": %s, "issueCodes": [' "$(printf '%s' "$EXECUTED_PHASE" | json_escape)" "$EXECUTED_PHASE_OK"
     if [[ -n "$EXECUTED_PHASE_ISSUE_CODES" ]]; then
       IFS=',' read -r -a issue_codes <<< "$EXECUTED_PHASE_ISSUE_CODES"
@@ -3671,6 +3810,7 @@ if [[ "$OUTPUT" == "json" ]]; then
 else
   echo "Home AI macOS production install plan"
   echo "mode: $MODE"
+  echo "guided: $GUIDED"
   echo "root: $ROOT"
   echo "appSource: $APP_SOURCE"
   [[ -n "$PHASE_FILTER" ]] && echo "phase: $PHASE_FILTER"
@@ -3680,6 +3820,16 @@ else
   for index in "${!PHASES[@]}"; do
     printf '%02d. %s\n' "$((index + 1))" "${PHASES[$index]}"
   done
+  if [[ "$GUIDED" == "true" ]]; then
+    echo "guided automatic phases:"
+    for phase in "${GUIDED_AUTO_PHASES[@]}"; do
+      echo "- $phase"
+    done
+    echo "guided operator phases:"
+    for phase in "${GUIDED_OPERATOR_PHASES[@]}"; do
+      echo "- $phase"
+    done
+  fi
   if [[ -n "$ISSUE_CODE" ]]; then
     echo "issue: $ISSUE_CODE - $ISSUE_DETAIL"
   fi

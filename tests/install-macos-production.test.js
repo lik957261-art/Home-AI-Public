@@ -120,6 +120,76 @@ function testDryRunJsonPlan() {
   assert.match(accessInfo.command, /--base http:\/\/127\.0\.0\.1:8797/);
 }
 
+function testGuidedDryRunJsonPlan() {
+  const output = run(["--guided", "--json"]);
+  const parsed = JSON.parse(output);
+  assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
+  assert.equal(parsed.mode, "dry-run");
+  assert.equal(parsed.guided, true);
+  assert.deepEqual(parsed.guidedPlan.autoPhaseIds, [
+    "create-directory-layout",
+    "configure-owner",
+    "configure-gateway-profiles",
+    "install-gateway-launchd-services",
+    "configure-cron",
+    "configure-plugins",
+    "plan-plugin-workspace-provisioning",
+    "install-launchd-services",
+    "print-access-info",
+  ]);
+  assert.deepEqual(parsed.guidedPlan.operatorPhaseIds, [
+    "install-hermes-mobile",
+    "install-official-hermes-runtime",
+    "install-dependencies",
+    "create-service-users",
+    "configure-workspace-isolation",
+    "repair-gateway-worker-acl",
+    "run-first-start-preflight",
+    "run-smoke-tests",
+  ]);
+  assert.equal(parsed.guidedPlan.executedCount, 0);
+  assert.equal(parsed.guidedPlan.failedPhase, "");
+  assert.deepEqual(parsed.guidedPlan.reports, []);
+  assert.equal(parsed.phases.find((phase) => phase.id === "configure-owner").status, "guided-auto");
+  assert.equal(parsed.phases.find((phase) => phase.id === "create-service-users").status, "operator-required");
+}
+
+function testGuidedExecuteRunsAutomaticPhasesOnly() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-guided-"));
+  try {
+    const output = run([
+      "--execute",
+      "--guided",
+      "--root",
+      root,
+      "--json",
+    ]);
+    const parsed = JSON.parse(output);
+    assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
+    assert.equal(parsed.mode, "execute");
+    assert.equal(parsed.guided, true);
+    assert.equal(parsed.execution.phase, "guided");
+    assert.equal(parsed.execution.ok, true);
+    assert.equal(parsed.guidedPlan.executedCount, parsed.guidedPlan.autoPhaseIds.length);
+    assert.equal(parsed.guidedPlan.failedPhase, "");
+    assert.equal(parsed.guidedPlan.reports.length, parsed.guidedPlan.autoPhaseIds.length);
+    assert.deepEqual(
+      parsed.phases.filter((phase) => phase.status === "executed").map((phase) => phase.id),
+      parsed.guidedPlan.autoPhaseIds,
+    );
+    assert.deepEqual(
+      parsed.phases.filter((phase) => phase.status === "operator-required").map((phase) => phase.id).sort(),
+      [...parsed.guidedPlan.operatorPhaseIds].sort(),
+    );
+    assert.ok(fs.existsSync(path.join(root, "data", "secrets", "owner-web-key.secret")));
+    assert.ok(fs.existsSync(path.join(root, "data", "gateway-pool-manifest-mac.json")));
+    assert.ok(fs.existsSync(path.join(root, "data", "launchd-services-plan.json")));
+    assert.doesNotMatch(JSON.stringify(parsed), /owner-key\n|secret-value/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
 function testExecuteFailsClosed() {
   const result = spawnSync("bash", [SCRIPT, "--execute", "--json"], {
     cwd: REPO_ROOT,
@@ -1526,12 +1596,16 @@ function testExecuteReadOnlyAccessInfoPhase() {
 function testHelpDocumentsDryRunDefault() {
   const output = run(["--help"]);
   assert.match(output, /Default mode is --dry-run/);
+  assert.match(output, /--guided/);
+  assert.match(output, /one-command guided install report/);
   assert.match(output, /print-access-info/);
   assert.match(output, /central deploy script/);
 }
 
 testScriptExistsAndIsSafeByDefault();
 testDryRunJsonPlan();
+testGuidedDryRunJsonPlan();
+testGuidedExecuteRunsAutomaticPhasesOnly();
 testExecuteFailsClosed();
 testExecuteServiceUserPhasePassesWithExistingUsers();
 testExecuteServiceUserPhaseFailsClosedForMissingUsers();

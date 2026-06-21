@@ -46,32 +46,37 @@ High-value entry points:
 ## 2026-06-21 Public Update
 
 This update refreshes the public tree from source commit
-`2616462239bec75059d2ff9955acd47eac7f86b2`.
+`035adef60995b5d8f3d8ddc0e2204c6abd336bcb`.
 
 Highlights:
 
-- Publishes static client `20260621-android-chat-timeout-v902`, including a
-  Promise-level API timeout so Android WebView requests cannot leave chat entry
-  stuck behind an in-flight fetch that never settles.
-- Publishes Android native shell `0.4.15` / `versionCode=19` as the Android
-  update manifest carrier for the v902 Web client.
-- Allows macOS Gateway idle retirement through a restricted Gateway-only
-  `launchctl` sudoers rule instead of a broad privileged shell.
-- Repairs stale plugin-provisioning drift only when audit evidence proves the
-  current binding and required Skill bundle are complete.
-- Clarifies the macOS privileged bootstrap contract: public installs may require
-  interactive administrator approval for bounded install/upgrade phases, but
+- Adds `bash scripts/install-macos-production.sh --execute --guided --json` as
+  the first guided macOS fresh-install entrypoint.
+- Guided mode automatically runs the non-privileged install skeleton phases:
+  directory layout, Owner key file, Gateway profile skeleton, launchd staging
+  plans, CRON scaffold, plugin source plan, and workspace plugin provisioning
+  plan.
+- Guided mode still reports privileged, external-input, and live-runtime phases
+  separately instead of creating macOS users, applying ACLs, installing
+  `/Library/LaunchDaemons`, copying provider credentials, or starting services
+  without explicit operator gates.
+- Keeps the v902 Android WebView chat timeout client and Android native shell
+  `0.4.15` update manifest from the previous 2026-06-21 public sync.
+- Preserves the macOS privileged bootstrap contract: public installs may use
+  interactive administrator approval during bounded install/upgrade phases, but
   runtime Home AI services must not depend on a stored Mac login password file.
 
 Validation for this public update:
 
-- `node tests/app-api-client.test.js`
-- `node tests/task-list-ui.test.js`
-- `node tests/static-cache-version-harness.test.js`
-- `node tests/thread-state-ui-behavior.test.js`
-- macOS Gateway launcher/deploy/drift reconcile harnesses
-- Android update manifest SHA/size verification
-- no-restart production static smoke
+- `node tests/install-macos-production.test.js`
+- `node tests/public-install-preflight.test.js`
+- `node tests/macos-fresh-install-rehearsal.test.js`
+- `node tests/macos-install-phase-coverage-audit.test.js`
+- `node tests/macos-install-verification-classification.test.js`
+- `node tests/macos-install-operator-closure-checklist.test.js`
+- `node scripts/public-install-preflight.js --source-only --json`
+- `node scripts/macos-fresh-install-rehearsal.js --json`
+- `node scripts/macos-install-verification-classification.js --json`
 - public export privacy scan
 
 ## 1.0.3 Public Release
