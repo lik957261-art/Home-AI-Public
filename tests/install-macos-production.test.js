@@ -147,6 +147,19 @@ function testGuidedDryRunJsonPlan() {
     "run-first-start-preflight",
     "run-smoke-tests",
   ]);
+  assert.deepEqual(parsed.guidedPlan.operatorSteps.map((step) => step.id), parsed.guidedPlan.operatorPhaseIds);
+  const serviceUsersStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "create-service-users");
+  assert.equal(serviceUsersStep.requiresSudo, true);
+  assert.equal(serviceUsersStep.gate, "HOMEAI_INSTALL_ALLOW_USER_CREATE=1");
+  assert.ok(serviceUsersStep.commands.some((command) => command.startsWith("sudo HOMEAI_INSTALL_ALLOW_USER_CREATE=1")));
+  assert.ok(serviceUsersStep.evidenceRequired.includes("all required macOS service users exist"));
+  const workspaceAclStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-workspace-isolation");
+  assert.equal(workspaceAclStep.requiresSudo, true);
+  assert.equal(workspaceAclStep.gate, "HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1");
+  assert.ok(workspaceAclStep.commands.some((command) => command.includes("--workspace-map")));
+  const firstStartStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "run-first-start-preflight");
+  assert.equal(firstStartStep.requiresSudo, false);
+  assert.ok(firstStartStep.commands.some((command) => command.includes("--network-mode direct")));
   assert.equal(parsed.guidedPlan.executedCount, 0);
   assert.equal(parsed.guidedPlan.failedPhase, "");
   assert.deepEqual(parsed.guidedPlan.reports, []);
@@ -187,6 +200,7 @@ exit 64
     assert.equal(parsed.execution.phase, "guided");
     assert.equal(parsed.execution.ok, true);
     assert.equal(parsed.guidedPlan.executedCount, parsed.guidedPlan.autoPhaseIds.length);
+    assert.deepEqual(parsed.guidedPlan.operatorSteps.map((step) => step.id), parsed.guidedPlan.operatorPhaseIds);
     assert.equal(parsed.guidedPlan.failedPhase, "");
     assert.equal(parsed.guidedPlan.reports.length, parsed.guidedPlan.autoPhaseIds.length);
     assert.deepEqual(parsed.guidedPlan.reports.map((report) => report.phase), parsed.guidedPlan.autoPhaseIds);

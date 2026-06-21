@@ -69,7 +69,8 @@ source/provisioning plans, and launchd staging plans. It then reports the
 remaining operator phases with exact commands. It does not create macOS users,
 apply ACLs, install files under `/Library/LaunchDaemons`, copy provider
 credentials, start services, or run live smoke tests without the explicit phase
-gates below.
+gates below. The guided JSON report includes `guidedPlan.operatorSteps`, which
+lists each remaining command, sudo gate, required evidence, and risk boundary.
 
 Before treating a source checkout as fresh-install ready, run the source-only
 rehearsal:
@@ -105,6 +106,11 @@ This checklist turns every `external_input`, `privileged_apply`, and
 inputs, and risk boundaries. A public install is not closed by source-only
 rehearsal until the operator closure items have been performed or explicitly
 deferred with evidence.
+
+For guided installs, prefer the machine-readable
+`guidedPlan.operatorSteps` emitted by `--execute --guided` for the next commands
+against the selected root. The separate checklist remains the source-level audit
+that verifies every phase has an operator closure definition.
 
 It is currently a dry-run, phase-based plan by default. `--execute --guided`
 runs the safe automatic fresh-install phases in one command, but it still does

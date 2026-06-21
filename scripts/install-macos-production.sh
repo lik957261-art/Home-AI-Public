@@ -260,6 +260,89 @@ console.log(JSON.stringify(process.argv.slice(2)));
 NODE
 }
 
+guided_operator_steps_json() {
+  node - "$ROOT" "$APP_SOURCE" "$SERVICE_USERS" "$WORKSPACE_MAP" "$BASE_URL" <<'NODE'
+const [root, appSource, serviceUsers, workspaceMap, baseUrl] = process.argv.slice(2);
+const installer = `bash ${appSource}/scripts/install-macos-production.sh`;
+const steps = [
+  {
+    id: "create-service-users",
+    title: "Audit and create macOS service users",
+    requiresSudo: true,
+    gate: "HOMEAI_INSTALL_ALLOW_USER_CREATE=1",
+    commands: [
+      `${installer} --execute --phase create-service-users --root ${root} --service-users ${serviceUsers} --json`,
+      `sudo HOMEAI_INSTALL_ALLOW_USER_CREATE=1 ${installer} --execute --phase create-service-users --root ${root} --service-users ${serviceUsers} --json`,
+    ],
+    evidenceRequired: [
+      "phase JSON ok=true",
+      "all required macOS service users exist",
+      "no conflicting user records were modified",
+    ],
+    riskBoundary: "Audits by default; user creation requires explicit administrator approval.",
+  },
+  {
+    id: "configure-workspace-isolation",
+    title: "Apply workspace ownership and ACL isolation",
+    requiresSudo: true,
+    gate: "HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1",
+    commands: [
+      `${installer} --execute --phase configure-workspace-isolation --root ${root} --workspace-map ${workspaceMap} --json`,
+      `sudo HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 ${installer} --execute --phase configure-workspace-isolation --root ${root} --workspace-map ${workspaceMap} --json`,
+    ],
+    evidenceRequired: [
+      "workspace data roots exist",
+      "ACL/ownership repair report has no issues",
+    ],
+    riskBoundary: "Scaffold is non-privileged; ownership/ACL mutation requires explicit sudo gate.",
+  },
+  {
+    id: "repair-gateway-worker-acl",
+    title: "Apply Gateway worker ACL repairs",
+    requiresSudo: true,
+    gate: "HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1",
+    commands: [
+      `${installer} --execute --phase repair-gateway-worker-acl --root ${root} --json`,
+      `sudo HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 ${installer} --execute --phase repair-gateway-worker-acl --root ${root} --json`,
+    ],
+    evidenceRequired: [
+      "data/gateway-worker-acl-plan.json reviewed",
+      "applied ACL report has no issues",
+    ],
+    riskBoundary: "Writes an ACL plan by default; filesystem mutation requires explicit sudo gate.",
+  },
+  {
+    id: "run-first-start-preflight",
+    title: "Run first-start runtime preflight",
+    requiresSudo: false,
+    gate: "",
+    commands: [
+      `${installer} --execute --phase run-first-start-preflight --root ${root} --network-mode direct --base ${baseUrl} --json`,
+    ],
+    evidenceRequired: [
+      "first-start preflight ok=true for the selected network mode",
+    ],
+    riskBoundary: "Read-only runtime readiness check before first service use.",
+  },
+  {
+    id: "run-smoke-tests",
+    title: "Run aggregate production smoke tests",
+    requiresSudo: false,
+    gate: "",
+    commands: [
+      `${installer} --execute --phase run-smoke-tests --root ${root} --base ${baseUrl} --json`,
+    ],
+    evidenceRequired: [
+      "production closure validation ok=true",
+      "listener and supporting runtime services reachable",
+    ],
+    riskBoundary: "Validates live services; does not repair production state.",
+  },
+];
+process.stdout.write(JSON.stringify(steps));
+NODE
+}
+
 phase_executable() {
   case "$1" in
     system-preflight|install-dependencies|create-service-users|create-directory-layout|install-hermes-mobile|install-official-hermes-runtime|configure-owner|configure-workspace-isolation|configure-gateway-profiles|install-gateway-launchd-services|repair-gateway-worker-acl|configure-cron|configure-plugins|plan-plugin-workspace-provisioning|install-launchd-services|run-first-start-preflight|run-smoke-tests|print-access-info)
@@ -3790,7 +3873,7 @@ if [[ "$OUTPUT" == "json" ]]; then
       printf '    {"order": %s, "id": %s, "status": %s, "selected": %s, "command": %s}%s\n' "$((index + 1))" "$(printf '%s' "$phase" | json_escape)" "$(printf '%s' "$status" | json_escape)" "$(phase_selected "$phase" && printf true || printf false)" "$(printf '%s' "$command" | json_escape)" "$comma"
     done
     printf '  ],\n'
-    printf '  "guidedPlan": {"autoPhaseIds": %s, "operatorPhaseIds": %s, "executedCount": %s, "failedPhase": %s, "reports": %s},\n' "$(json_array "${GUIDED_AUTO_PHASES[@]}")" "$(json_array "${GUIDED_OPERATOR_PHASES[@]}")" "$GUIDED_EXECUTED_COUNT" "$(printf '%s' "$GUIDED_FAILED_PHASE" | json_escape)" "$GUIDED_REPORTS_JSON"
+    printf '  "guidedPlan": {"autoPhaseIds": %s, "operatorPhaseIds": %s, "operatorSteps": %s, "executedCount": %s, "failedPhase": %s, "reports": %s},\n' "$(json_array "${GUIDED_AUTO_PHASES[@]}")" "$(json_array "${GUIDED_OPERATOR_PHASES[@]}")" "$(guided_operator_steps_json)" "$GUIDED_EXECUTED_COUNT" "$(printf '%s' "$GUIDED_FAILED_PHASE" | json_escape)" "$GUIDED_REPORTS_JSON"
     printf '  "execution": {"phase": %s, "ok": %s, "issueCodes": [' "$(printf '%s' "$EXECUTED_PHASE" | json_escape)" "$EXECUTED_PHASE_OK"
     if [[ -n "$EXECUTED_PHASE_ISSUE_CODES" ]]; then
       IFS=',' read -r -a issue_codes <<< "$EXECUTED_PHASE_ISSUE_CODES"
