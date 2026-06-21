@@ -386,6 +386,50 @@ async function testPluginProxyDeniesUnauthorizedWorkspacePlugin() {
   assert.equal(parseBody(res).error, "plugin_workspace_not_authorized");
 }
 
+async function testCodexProxyIgnoresPluginQueryKeyForHomeAuth() {
+  const fetchCalls = [];
+  const { routes } = makeRoutes({
+    authenticateRequest(req) {
+      const parsed = new URL(req.url || "/", "http://localhost");
+      const key = parsed.searchParams.get("key") || "";
+      const cookie = String(req.headers?.cookie || "");
+      if (key === "home-owner-key") return { workspaceId: "owner", isOwner: true, source: "query" };
+      if (cookie.includes("hermes_web_key=home-owner-key")) return { workspaceId: "owner", isOwner: true, source: "cookie" };
+      return { workspaceId: "", isOwner: false };
+    },
+    requireWorkspaceAccess(req, res, workspaceId) {
+      if (!req.auth?.isOwner) {
+        sendJson(res, 403, { error: "Workspace access is not allowed" });
+        return "";
+      }
+      return workspaceId || "owner";
+    },
+    fetch(url, options = {}) {
+      fetchCalls.push({ url, options });
+      assert.equal(
+        url,
+        "http://127.0.0.1:8787/api/uploads/file?path=%2Ftmp%2Fphoto.jpg&key=cps_plugin_session&workspaceId=owner",
+      );
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "image/jpeg" : "" },
+        arrayBuffer: () => Promise.resolve(Uint8Array.from([0xff, 0xd8, 0xff]).buffer),
+      });
+    },
+  });
+  const req = makeRequest("GET");
+  req.headers.cookie = "hermes_web_key=home-owner-key";
+  req.url = "/api/hermes-plugins/codex-mobile/proxy/api/uploads/file?path=%2Ftmp%2Fphoto.jpg&key=cps_plugin_session&workspaceId=owner";
+  const res = makeResponse();
+  const result = await routes.handle(req, res, makeUrl(req.url));
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(req.auth.source, "cookie");
+  assert.equal(fetchCalls.length, 1);
+}
+
 async function testPluginProxyForwardsOwnerOnlyActorContext() {
   const { routes } = makeRoutes({
     hermesPluginService: {
@@ -582,6 +626,38 @@ async function testCodexProxyRewritesHtmlAndUsesUpstream() {
   assert.match(res.body, /href="\/api\/hermes-plugins\/codex-mobile\/proxy\/styles\.css\?workspaceId=owner"/);
   assert.match(res.body, /src="\/api\/hermes-plugins\/codex-mobile\/proxy\/app\.js\?workspaceId=owner"/);
   assert.equal(fetchCalls[0].options.headers["x-hermes-plugin-workspace-id"], "owner");
+}
+
+async function testCodexProxyDoesNotInjectWorkspaceIdIntoJavascriptPathConstants() {
+  const { routes } = makeRoutes({
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:8787/app.js?workspaceId=owner");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/javascript; charset=utf-8" : "" },
+        text: () => Promise.resolve([
+          'if (parsed.pathname.startsWith("/api/")) return true;',
+          'if (parsed.pathname === "/api/uploads/file") return "upload";',
+          'return authenticatedApiContentUrl(`/api/uploads/file?${params.toString()}`);',
+        ].join("\n")),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/app.js?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /parsed\.pathname\.startsWith\("\/api\/hermes-plugins\/codex-mobile\/proxy\/api\/"\)/);
+  assert.match(res.body, /parsed\.pathname === "\/api\/hermes-plugins\/codex-mobile\/proxy\/api\/uploads\/file"/);
+  assert.match(res.body, /`\/api\/hermes-plugins\/codex-mobile\/proxy\/api\/uploads\/file\?\$\{params\.toString\(\)\}`/);
+  assert.equal(res.body.includes("?workspaceId=owner"), false);
+  assert.equal(res.body.includes("/api/?workspaceId=owner"), false);
 }
 
 async function testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp() {
@@ -807,6 +883,220 @@ async function testFinanceProxyNamespacesSessionCookieAndRedirectForWorkspace() 
   ]);
 }
 
+async function testPluginProxyPreservesExternalOAuthRedirectLocation() {
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "music", manifestUrl: "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "music" });
+      },
+      pluginManifestUrl(id) {
+        return id === "music" ? "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest" : "";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:4891/api/v1/music/tidal/oauth/authorize?workspaceId=owner");
+      assert.equal(options.redirect, "manual");
+      return Promise.resolve({
+        ok: true,
+        status: 302,
+        headers: {
+          get(name) {
+            const lower = name.toLowerCase();
+            if (lower === "content-type") return "text/plain";
+            if (lower === "location") return "https://login.tidal.com/authorize?state=redacted";
+            return "";
+          },
+          getSetCookie() {
+            return [];
+          },
+        },
+        text: () => Promise.resolve(""),
+        arrayBuffer: () => Promise.resolve(Buffer.from("")),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/music/proxy/api/v1/music/tidal/oauth/authorize?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 302);
+  assert.equal(res.headers.Location, "https://login.tidal.com/authorize?state=redacted");
+}
+
+function makeMusicProxyDeps(overrides = {}) {
+  return makeRoutes(Object.assign({
+    hermesPluginService: {
+      list() {
+        return [{ id: "music", manifestUrl: "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "music" });
+      },
+      pluginManifestUrl(id) {
+        return id === "music" ? "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest" : "";
+      },
+      pluginProxyAuthorizationHeader(input) {
+        assert.deepEqual(input, { pluginId: "music", workspaceId: "owner" });
+        return "Bearer music-workspace-secret";
+      },
+    },
+  }, overrides));
+}
+
+async function testMusicTidalOAuthCallbackBypassesWorkspaceGate() {
+  const access = [];
+  const fetchCalls = [];
+  const { routes } = makeMusicProxyDeps({
+    requireWorkspaceAccess(_req, _res, workspaceId) {
+      access.push(workspaceId);
+      throw new Error("public callback must not require workspace access");
+    },
+    fetch(url, options = {}) {
+      fetchCalls.push({ url, options });
+      assert.equal(
+        url,
+        "http://127.0.0.1:4891/api/v1/music/tidal/oauth/callback/?code=dummy-code&state=dummy-state",
+      );
+      assert.equal(options.method, "GET");
+      assert.equal(options.redirect, "manual");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      assert.equal(options.headers.Authorization, "Bearer music-workspace-secret");
+      assert.equal(Object.prototype.hasOwnProperty.call(options.headers, "cookie"), false);
+      return Promise.resolve({
+        ok: false,
+        status: 400,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: false, error: "state_mismatch" })),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/music/proxy/api/v1/music/tidal/oauth/callback/?code=dummy-code&state=dummy-state"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(access, []);
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(parseBody(res).error, "state_mismatch");
+}
+
+async function testMusicTidalOAuthCallbackWithErrorBypassesWorkspaceGate() {
+  const access = [];
+  const { routes } = makeMusicProxyDeps({
+    requireWorkspaceAccess(_req, _res, workspaceId) {
+      access.push(workspaceId);
+      throw new Error("public callback error must not require workspace access");
+    },
+    fetch(url, options = {}) {
+      assert.equal(
+        url,
+        "http://127.0.0.1:4891/api/v1/music/tidal/oauth/callback/?error=access_denied&state=dummy-state",
+      );
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: false,
+        status: 400,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: false, error: "access_denied" })),
+      });
+    },
+  });
+  const res = makeResponse();
+  await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/music/proxy/api/v1/music/tidal/oauth/callback/?error=access_denied&state=dummy-state"),
+  );
+  assert.equal(res.statusCode, 400);
+  assert.deepEqual(access, []);
+  assert.equal(parseBody(res).error, "access_denied");
+}
+
+async function testMusicTidalOAuthCallbackExceptionIsNarrow() {
+  const cases = [
+    {
+      name: "missing-state",
+      method: "GET",
+      url: "/api/hermes-plugins/music/proxy/api/v1/music/tidal/oauth/callback/?code=dummy-code",
+      access: "owner",
+    },
+    {
+      name: "missing-code-or-error",
+      method: "GET",
+      url: "/api/hermes-plugins/music/proxy/api/v1/music/tidal/oauth/callback/?state=dummy-state",
+      access: "owner",
+    },
+    {
+      name: "non-get",
+      method: "POST",
+      url: "/api/hermes-plugins/music/proxy/api/v1/music/tidal/oauth/callback/?code=dummy-code&state=dummy-state",
+      access: "owner",
+    },
+    {
+      name: "non-callback-path",
+      method: "GET",
+      url: "/api/hermes-plugins/music/proxy/api/v1/music/tidal/oauth/authorize?code=dummy-code&state=dummy-state",
+      access: "owner",
+    },
+    {
+      name: "non-music",
+      method: "GET",
+      url: "/api/hermes-plugins/finance/proxy/api/v1/music/tidal/oauth/callback/?code=dummy-code&state=dummy-state",
+      access: "owner",
+      pluginId: "finance",
+      manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest",
+    },
+  ];
+  for (const item of cases) {
+    const access = [];
+    const fetchCalls = [];
+    const pluginId = item.pluginId || "music";
+    const manifestUrl = item.manifestUrl || "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest";
+    const { routes } = makeRoutes({
+      requireWorkspaceAccess(req, res, workspaceId) {
+        access.push(workspaceId);
+        sendJson(res, 403, { error: "Workspace access is not allowed", case: item.name });
+        return "";
+      },
+      hermesPluginService: {
+        list() {
+          return [{ id: pluginId, manifestUrl }];
+        },
+        manifest() {
+          return Promise.resolve({ ok: true, available: true, id: pluginId });
+        },
+        pluginManifestUrl(id) {
+          return id === pluginId ? manifestUrl : "";
+        },
+      },
+      fetch() {
+        fetchCalls.push(item.name);
+        throw new Error(`narrow exception failed for ${item.name}`);
+      },
+    });
+    const res = makeResponse();
+    const result = await routes.handle(
+      makeRequest(item.method),
+      res,
+      makeUrl(item.url),
+    );
+    assert.equal(result.handled, true, item.name);
+    assert.equal(res.statusCode, 403, item.name);
+    assert.deepEqual(access, [item.access], item.name);
+    assert.deepEqual(fetchCalls, [], item.name);
+    assert.equal(parseBody(res).error, "Workspace access is not allowed", item.name);
+  }
+}
+
 async function testFinanceProxyRewritesFinanceApiJsonUrls() {
   const { routes } = makeRoutes({
     fetch(url, options = {}) {
@@ -983,8 +1273,9 @@ async function testFinanceProxyRewritesBrowserApiCallsWithWorkspaceId() {
   );
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
-  assert.match(res.body, /fetch\('\/api\/hermes-plugins\/finance\/proxy\/api\/finance\/overview\?workspaceId=weixin_wuping'\)/);
-  assert.match(res.body, /fetch\(`\/api\/hermes-plugins\/finance\/proxy\/api\/finance\/transactions\?limit=5&workspaceId=weixin_wuping`\)/);
+  assert.match(res.body, /fetch\('\/api\/hermes-plugins\/finance\/proxy\/api\/finance\/overview'\)/);
+  assert.match(res.body, /fetch\(`\/api\/hermes-plugins\/finance\/proxy\/api\/finance\/transactions\?limit=5`\)/);
+  assert.equal(res.body.includes("workspaceId=weixin_wuping"), false);
 }
 
 async function testFinanceProxyRejectsAmbiguousWorkspaceCookiesWithoutWorkspaceHint() {
@@ -1585,16 +1876,22 @@ async function run() {
   await testWorkspaceBlockStopsRoute();
   await testPluginProxyRequiresWorkspaceAccessBeforeFetch();
   await testPluginProxyDeniesUnauthorizedWorkspacePlugin();
+  await testCodexProxyIgnoresPluginQueryKeyForHomeAuth();
   await testPluginProxyForwardsOwnerOnlyActorContext();
   await testGrowthProxyAttachesServerSideWorkspaceBearerForWrites();
   await testHealthProxyAttachesServerSideWorkspaceBearerForReads();
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
+  await testCodexProxyDoesNotInjectWorkspaceIdIntoJavascriptPathConstants();
   await testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp();
   await testCodexProxyStreamsEventSource();
   await testCodexProxyPreservesLaunchCookieAndRedirect();
   await testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin();
   await testFinanceProxyNamespacesSessionCookieAndRedirectForWorkspace();
+  await testPluginProxyPreservesExternalOAuthRedirectLocation();
+  await testMusicTidalOAuthCallbackBypassesWorkspaceGate();
+  await testMusicTidalOAuthCallbackWithErrorBypassesWorkspaceGate();
+  await testMusicTidalOAuthCallbackExceptionIsNarrow();
   await testFinanceProxyRewritesFinanceApiJsonUrls();
   await testNoteProxyRewritesAttachmentJsonUrls();
   await testFinanceProxyForwardsOnlyCurrentWorkspaceSessionCookie();

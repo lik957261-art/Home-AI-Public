@@ -59,6 +59,8 @@ const STANDARD_TOOLSETS = [
   "web",
   "search",
   "x_search",
+  "http",
+  "weather",
   "browser",
   "file",
   "vision",
@@ -73,12 +75,16 @@ const STANDARD_TOOLSETS = [
   "memory",
   "session_search",
   "clarify",
+  "current_environment",
+  "cronjob_mobile",
 ];
 
 const GROK_TOOLSETS = [
   "web",
   "search",
   "x_search",
+  "http",
+  "weather",
   "browser",
   "file",
   "vision",
@@ -94,6 +100,8 @@ const GROK_TOOLSETS = [
   "memory",
   "session_search",
   "clarify",
+  "current_environment",
+  "cronjob_mobile",
 ];
 
 function standardPluginNames(values = {}) {
@@ -399,7 +407,8 @@ function renderBaseConfigYaml(values = {}) {
 function renderProfileConfigYaml(values = {}) {
   const profile = valueMapValue(values, "profile");
   const port = valueMapValue(values, "port");
-  const isDeepSeek = /^deepseekgw\d+$/i.test(profile);
+  const provider = valueMapValue(values, "provider").toLowerCase();
+  const isDeepSeek = provider === "deepseek" || /^deepseekgw\d+$/i.test(profile) || /^hm-[a-z0-9-]+-deepseek-\d+$/i.test(profile);
   const lines = [
     "model:",
     `  default: ${isDeepSeek ? "deepseek-chat" : "gpt-5.5"}`,

@@ -20,8 +20,10 @@ const {
   classifySeverity,
   ingestReports,
   isEnvironmentFailureReport,
+  ownerForPluginId,
   parseArgs,
   redact,
+  runtimePluginId,
   sendCards,
   visualCommand,
 } = require("../scripts/visual-polish-controller");
@@ -42,6 +44,9 @@ const args = parseArgs(["plan", "--all-default-plugins", "--plugin-id", "music",
 assert.equal(args.mode, "plan");
 assert.ok(args.pluginIds.includes("music"));
 assert.ok(DEFAULT_PLUGINS.includes("finance"));
+assert.ok(DEFAULT_PLUGINS.includes("health"));
+assert.equal(runtimePluginId("healthy"), "health");
+assert.equal(ownerForPluginId("health"), "healthy");
 
 const plan = buildPlan({ pluginIds: ["music"], debugUrl: "http://127.0.0.1:19073/" });
 assert.equal(plan.ok, true);
@@ -53,6 +58,14 @@ assert.deepEqual(
   visualCommand({ scenario: "embedded-plugin-shell", pluginId: "music", debugUrl: "http://127.0.0.1:19073/" }).slice(0, 7),
   ["npm", "run", "ios:pwa:visual", "--", "--scenario", "embedded-plugin-shell", "--plugin-id"],
 );
+
+const healthPlan = buildPlan({ pluginIds: ["healthy"], debugUrl: "http://127.0.0.1:19073/" });
+assert.ok(healthPlan.scenarios.some((item) => {
+  return item.owner === "healthy"
+    && item.scenario === "embedded-plugin-shell"
+    && item.pluginId === "health"
+    && item.command.includes("--plugin-id health");
+}));
 
 const pluginReport = {
   ok: false,
@@ -77,6 +90,17 @@ assert.equal(pluginCard.request.targetThreadId, "Music Plugin Thread");
 assert.equal(pluginCard.request.autoApprove, true);
 assert.ok(pluginCard.body.includes("embedded-plugin-shell"));
 assert.ok(!JSON.stringify(pluginCard).includes("secret-value"));
+
+const healthPluginReport = Object.assign({}, pluginReport, { pluginId: "health" });
+assert.equal(classifyOwner(healthPluginReport), "healthy");
+const healthPluginCard = buildCardFromReport(healthPluginReport, {
+  sourceThreadId: "source-thread",
+  targetThreads: { healthy: "Healthy Plugin Thread" },
+});
+assert.equal(healthPluginCard.owner, "healthy");
+assert.equal(healthPluginCard.pluginId, "health");
+assert.deepEqual(healthPluginCard.request.targetThreadIds, ["Healthy Plugin Thread"]);
+assert.ok(healthPluginCard.body.includes("--plugin-id health"));
 
 const hostReport = {
   ok: false,

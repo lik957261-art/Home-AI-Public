@@ -220,7 +220,7 @@ function checkDebugServer(debugUrl, timeoutMs = 3000) {
 function scopePlugins(options) {
   if (options.scope === "host") return [];
   if (options.pluginIds.length) return options.pluginIds;
-  if (options.scope === "plugin") return ["music", "finance", "wardrobe", "healthy", "growth", "note", "email", "codex-mobile"];
+  if (options.scope === "plugin") return ["music", "finance", "wardrobe", "health", "growth", "note", "email", "codex-mobile"];
   if (options.scope === "all") return DEFAULT_PLUGINS;
   return options.pluginIds;
 }

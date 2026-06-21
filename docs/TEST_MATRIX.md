@@ -22,8 +22,35 @@ behavior, or productization rules must run:
 
 ```bash
 node scripts/engineering-governance-check.js --json
+node scripts/public-install-preflight.js --source-only --json
+node scripts/plugin-provisioning-coverage-audit.js
+node scripts/macos-install-phase-coverage-audit.js
+node scripts/macos-fresh-install-rehearsal.js
+node scripts/macos-first-start-preflight.js --source-only --json
+node scripts/macos-install-verification-classification.js
+node scripts/macos-install-operator-closure-checklist.js
+node scripts/grok-xai-oauth-closure-checklist.js
+node scripts/windows-dev-services-boundary-checklist.js
+node scripts/macos-workspace-file-broker-boundary-checklist.js
+node tests/codex-mobile-recovery-service.test.js
+node tests/codex-mobile-recovery-api-routes.test.js
+node scripts/macos-web-push-production-audit.js --source-check --json
+node scripts/macos-web-push-production-audit.js --root <mac-root> --public-origin <external-origin> --require-public-origin --require-active-external-subscription --json
 node scripts/production-self-diagnostics.js
+node scripts/production-self-diagnostics-coverage-audit.js
 node scripts/productization-acceptance-matrix.js --verify-docs
+node tests/public-install-preflight.test.js
+node tests/install-macos-production.test.js
+node tests/macos-first-start-preflight.test.js
+node tests/macos-install-verification-classification.test.js
+node tests/macos-install-operator-closure-checklist.test.js
+node tests/grok-xai-oauth-closure-checklist.test.js
+node tests/windows-dev-services-boundary-checklist.test.js
+node tests/macos-workspace-file-broker-boundary-checklist.test.js
+node tests/macos-web-push-production-audit.test.js
+node tests/codex-mobile-recovery-service.test.js
+node tests/codex-mobile-recovery-api-routes.test.js
+node tests/plugin-provisioning-coverage-audit.test.js
 node tests/engineering-governance-check.test.js
 node tests/production-self-diagnostics.test.js
 node tests/productization-acceptance-matrix.test.js
@@ -32,12 +59,36 @@ node tests/productization-acceptance-matrix.test.js
 The gate enforces three repository-level requirements:
 
 - CI-enforced constraints remain connected through `npm run productization:check`;
+- public install metadata remains checked by `public-install-preflight.js`;
 - production self-diagnostics remain documented and discoverable;
 - the Productization Acceptance Matrix in
   `docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md` remains part of
   the test and documentation routing.
 
-`node scripts/production-self-diagnostics.js --markdown` prints the maintained
+`node scripts/public-install-preflight.js --markdown` prints the maintained
+public install preflight report for the current host. `node
+scripts/install-macos-production.sh --json` prints the phase-based macOS
+installer plan, and `--execute --phase <id>` is limited to read-only phases
+until privileged phases have rollback tests. `node
+scripts/macos-install-phase-coverage-audit.js` verifies that installer phase
+definitions, command generation, execution dispatch, executable allowlist,
+docs, and install tests stay synchronized. `node
+scripts/macos-fresh-install-rehearsal.js` executes the source-only no-sudo
+fresh-install staging phases in a temporary root and verifies the key install
+artifacts are written. `node
+scripts/macos-install-verification-classification.js` classifies every macOS
+install phase as `source_check`, `source_rehearsed`, `external_input`,
+`privileged_apply`, or `live_runtime`, proving which phases are already covered
+by source-only rehearsal and which still require operator input, sudo apply, or
+live production checks. `node
+scripts/macos-install-operator-closure-checklist.js` turns those non-source-only
+classes into bounded operator closure commands, required evidence, operator
+inputs, and risk boundaries. `node
+scripts/production-self-diagnostics-coverage-audit.js` verifies that the
+production diagnostic inventory stays synchronized across script entries,
+source harnesses linked to diagnostic script names or ids, bounded command
+templates with deployment-specific paths parameterized, and durable docs. `node
+scripts/production-self-diagnostics.js --markdown` prints the maintained
 production diagnostic checklist with command templates. `node
 scripts/productization-acceptance-matrix.js --markdown` prints the acceptance
 matrix template for implementation notes, pull requests, or handoffs.
@@ -47,6 +98,32 @@ behavior, public fresh install, public update, migration/restore,
 backup/rollback, permission boundaries, UI/PWA cache behavior, and production
 self-diagnostic coverage. Mark non-applicable dimensions explicitly instead of
 silently omitting them.
+
+The Productization Acceptance Matrix dimensions are:
+
+- `owner-workspace`: Owner workspace behavior;
+- `non-owner-workspace`: Non-Owner workspace behavior;
+- `public-fresh-install`: Public fresh install behavior;
+- `public-update`: Public update behavior;
+- `migration-restore`: Migration or restore behavior;
+- `backup-rollback`: Backup and rollback path;
+- `permission-boundary`: Permission boundary;
+- `ui-pwa-cache`: UI, PWA, and cache behavior;
+- `production-self-diagnostic`: Production self-diagnostic coverage.
+
+Accepted `production-self-diagnostic` evidence ids are:
+`status-smoke`, `profile-audit`, `grok-xai-oauth-metadata`,
+`grok-xai-oauth-closure`, `windows-dev-services-boundary`,
+`workspace-file-broker-boundary`, `deployment-drift-gate`,
+`first-start-preflight`, `macos-install-phase-coverage`,
+`macos-fresh-install-rehearsal`,
+`macos-install-verification-classification`,
+`macos-install-operator-closure`,
+`production-self-diagnostics-coverage`, `production-drift-reconcile`,
+`production-drift-watchdog`, `web-push-production-audit`,
+`worker-filesystem-access`, `gateway-manifest-toolset`, `plugin-directory`,
+`bound-directory-preview`, `automation-cron`, `plugin-workspace-audit`,
+`plugin-provisioning-coverage`, and `production-closure`.
 
 ## AI Operations Control Plane Gate
 
@@ -105,6 +182,8 @@ cold-restart behavior, run:
 
 ```bash
 node tests/plugin-launch-recovery-service.test.js
+node tests/codex-mobile-recovery-service.test.js
+node tests/codex-mobile-recovery-api-routes.test.js
 node tests/hermes-plugin-service.test.js
 node tests/hermes-plugin-api-routes.test.js
 node tests/macos-production-deploy-script.test.js
@@ -317,9 +396,15 @@ ports `8001`, `8797`, and `8798` are Windows-owned, the file-backed
 `production-status-smoke.js` passes with `X-Hermes-Web-Key`, the Weixin native
 bridge `-CheckOnly` passes, and Whisper `/health` reports
 `large-v3-turbo` on `cpu` / `int8`.
+When Mac is the selected production host, restored Windows scheduled tasks are
+development launchers only; run
+`node scripts\windows-dev-services-boundary-checklist.js` when a handoff or
+incident review needs to prove they were not used as Mac production rollback
+evidence.
 Mac production user/profile migration changes must run
-`node tests\macos-production-profile-audit.test.js` locally and the production
-profile audit on the Mac with the pinned runtime. The production audit must
+`node tests\macos-production-profile-audit.test.js` and
+`node tests\macos-production-drift-reconcile.test.js` locally, then the
+production profile audit on the Mac with the pinned runtime. The production audit must
 return `ok=true`, empty `issues`, no blocking `warnings`, active workspace keys
 for registered retained users, required plugin Skill bundles, shared Response
 baseline presence, and profile `skills`/`memories` links whose realpath points
@@ -337,6 +422,23 @@ manifest, per-worker API-server key file, and provider key files; any
 `worker_manifest_unreadable`, `worker_api_key_file_missing`,
 `worker_api_key_unreadable`, or `worker_provider_key_unreadable` issue is a
 cold-start blocker. It must
+also compare the live profile `config.yaml` provider/model to the manifest and
+template contract. Any `profile_config_provider_missing`,
+`profile_config_provider_mismatch`, `profile_config_model_missing`, or
+`profile_config_model_mismatch` issue is a provider-routing blocker. Home AI
+deploy plans must include a focused `home-ai-production-drift-audit` gate that
+fails on any non-empty production audit `issues` array. Warnings remain
+advisory unless the audit promotes them into issues.
+Home AI full deploys must also run the bounded
+`macos-production-drift-reconcile.js` step before that gate; it may only unload
+and quarantine untracked Gateway LaunchDaemon plists, not mutate auth stores,
+provider configs, ACLs, plugin bindings, or user data.
+Home AI full deploys must also install the periodic
+`com.hermesmobile.production-drift-audit` LaunchDaemon and
+`homeai-production-drift-audit-watchdog.sh`; the watchdog must emit bounded
+non-secret `latest.json` / `summary.md` drift summaries and must not mutate
+profile configs, auth stores, or ACLs.
+It must
 also reject `RunAtLoad=true` or `KeepAlive=true` on any worker that is not part
 of the required warm baseline, because that launchd policy defeats Gateway idle
 cooldown. It must also prove Mac Gateway usage telemetry is wired: every
@@ -547,6 +649,34 @@ right-swipe back behavior, bottom navigation, composer placement, fixed panels,
 PWA refresh, and plugin iframe/tab transitions. Because the device renders as
 black/white or grayscale, color, saturation, and brand-icon color decisions must
 still be checked with Playwright/Chrome or a normal color phone.
+Android browser/PWA edge-back checks are only best-effort fallback coverage.
+Repeated system/right-edge Back gestures on primary pages must not exit to the
+Android launcher and must not reload the Home AI workspace, but final acceptance
+for that invariant requires the native Android shell Back/Predictive Back
+callback path documented in `docs/MODULES/native-android-shell.md`. Page
+secondary surfaces should still navigate inward through the existing
+`backSwipeTarget()` contract when the native shell forwards a bounded Web back
+request. Cold-start source coverage must prove the early `index.html` Android
+back guard is installed before the app bundle and that the app-level guard
+adopts it without creating a new route load.
+Do not run this Android shell work from the iOS Xcode workspace
+`/Users/example/path AI`; that path is only the native iOS shell. Android
+shell implementation uses the native Android workspace
+`/Users/example/path`.
+Focused source check:
+`node tests\music-plugin-back-swipe-harness.test.js`.
+Android shell source/build checks:
+`cd /Users/example/path && node scripts/android-shell-contract-check.js`
+and
+`cd /Users/example/path && source scripts/android-env.sh && gradle --no-daemon assembleDebug`.
+Real-device Back smoke:
+`cd /Users/example/path && ANDROID_SERIAL=<serial> HOMEAI_ANDROID_URL=http://<host>:8797 scripts/android-device-back-smoke.sh`.
+The 2026-06-21 production validation on device `e0cd9d2b` additionally logged
+into owner production at `http://192.168.10.110:8797/`, confirmed client version
+`20260621-native-back-bridge-v895`, opened a real topic detail page, sent one
+Android system Back event, and verified the shell stayed in
+`app.homeai.android/.MainActivity` while the Web layer returned to the root
+Topics surface.
 
 Android Access Key setup for smoke must not use `adb input text` for Access Key
 entry. Access Keys may include characters that ADB text injection or the active
@@ -1008,6 +1138,15 @@ validation should use `/opt/hermes-gateway-runtime/bin/hermes auth list` with
 `HOME=/home/hermes` and `HERMES_HOME=/home/hermes/.hermes`, then
 `C:\ProgramData\HermesMobile\gateway-worker\check-worker-codex-auth.ps1`, with
 no raw tokens or refresh tokens printed.
+On macOS, Codex Mobile launchd generation must also prove that active-profile
+`CODEX_HOME` is used instead of the Desktop/default `.codex` home; focused
+checks include `node tests\plugin-launchd-service-installers.test.js`,
+`node tests\install-macos-production.test.js`, and
+`node tests\macos-production-deploy-script.test.js`. One-time shared-auth
+token import from the active Codex Home is covered by
+`node tests\sync-openai-codex-shared-auth-from-codex-home.test.js`; live
+closure still requires a bounded Gateway OpenAI/Codex smoke because ACL audits
+cannot prove refresh-token freshness.
 
 Gateway elastic worker scheduling is an H1 workflow. The source harness must
 cover Owner OpenAI/Codex `minWarm=1` / `maxWorkers=4`, Owner DeepSeek
@@ -2192,17 +2331,17 @@ The guard test is:
 | Public reverse-proxy security | `node tests\auth-provider.test.js`, `node tests\mobile-http-runtime-service.test.js`, `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\api-route-inventory.test.js`, `node tests\architecture-refactor-boundary.test.js`, `npm.cmd run security:invariants`, `npm.cmd run privacy:scan`, production smoke: `/api/public-config` headers, query-string key denial, header-authenticated `/api/status?detail=1`, anonymous plugin proxy denial, and Windows firewall state |
 | Gateway run lifecycle | `node tests\plugin-capability-probe-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-error-message-service.test.js`, `node tests\gateway-run-start-child-service-registry-service.test.js`, `node tests\gateway-run-start-preparation-service.test.js`, `node tests\gateway-run-start-execution-phase-service.test.js`, `node tests\gateway-run-start-stream-handoff-service.test.js`, `node tests\gateway-run-start-target-phase-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-completion-service.test.js`, `node tests\gateway-run-delta-event-service.test.js`, `node tests\gateway-run-output-event-service.test.js`, `node tests\gateway-run-response-created-service.test.js`, `node tests\gateway-run-streaming-save-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-evidence-service.test.js`, `node tests\gateway-run-toolset-escalation-service.test.js`, `node tests\gateway-run-toolset-escalation-retry-service.test.js`, `node tests\gateway-run-stream-completion-service.test.js`, `node tests\gateway-run-stream-close-recovery-service.test.js`, `node tests\gateway-run-stream-event-service.test.js`, `node tests\gateway-run-stream-failure-service.test.js`, `node tests\gateway-run-stream-first-event-service.test.js`, `node tests\gateway-run-stream-liveness-service.test.js`, `node tests\gateway-run-stream-liveness-timer-service.test.js`, `node tests\gateway-run-stream-registry-service.test.js`, `node tests\gateway-run-stream-state-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-stream-stop-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js` for lifecycle phase/source-event contract coverage, `node tests\runtime-config-worker-policy-contract-service.test.js` for runtime worker policy save/public/launcher parity, `node tests\gateway-run-queue-projection-service.test.js`, `node tests\gateway-run-terminal-state-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js`, `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\streaming-receipt-preview-ui.test.js` |
 | Chat context/compaction | `node tests\conversation-history-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\chat-data-context-selector-service.test.js`, `node tests\topic-context-compaction-service.test.js`, `node tests\mobile-runtime-thread-view-facade-service.test.js`, `node tests\thread-message-create-service.test.js`, `node tests\thread-view-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\mobile-sqlite-store.test.js` |
-| Gateway Pool/scripts | `node tests\mobile-runtime-environment-service.test.js`, `node tests\mobile-runtime-gateway-environment-service.test.js`, `node tests\mobile-runtime-gateway-status-service.test.js`, `node tests\mobile-runtime-path-candidate-environment-service.test.js`, `node tests\mobile-runtime-state-path-environment-service.test.js`, `node tests\mobile-runtime-kanban-environment-service.test.js`, `node tests\gateway-elastic-worker-scheduler.test.js`, `node tests\gateway-pool-provider.test.js`, `node tests\gateway-profile-template-sync.test.js`, `node tests\gateway-profile-template-builder.test.js`, `node tests\gateway-profile-replica-model-harness.test.js`, `node tests\plugin-capability-probe-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\macos-production-profile-audit.test.js`, `node tests\macos-gateway-start-script-bridge-env-repair.test.js`, `node tests\macos-file-plugin-docx-root-smoke.test.js`, `node tests\gateway-pool-production-smoke-harness.test.js`, `node tests\macos-production-closure-validation-harness.test.js`, `node tests\macos-plugin-directory-production-smoke-harness.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node tests\macos-directory-path-migration-repair.test.js`, `node tests\macos-bound-directory-preview-smoke-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |
+| Gateway Pool/scripts | `node tests\mobile-runtime-environment-service.test.js`, `node tests\mobile-runtime-gateway-environment-service.test.js`, `node tests\mobile-runtime-gateway-status-service.test.js`, `node tests\mobile-runtime-path-candidate-environment-service.test.js`, `node tests\mobile-runtime-state-path-environment-service.test.js`, `node tests\mobile-runtime-kanban-environment-service.test.js`, `node tests\gateway-elastic-worker-scheduler.test.js`, `node tests\gateway-pool-provider.test.js`, `node tests\gateway-profile-template-sync.test.js`, `node tests\gateway-profile-template-builder.test.js`, `node tests\gateway-profile-replica-model-harness.test.js`, `node tests\plugin-capability-probe-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\macos-production-profile-audit.test.js`, `node tests\macos-production-drift-reconcile.test.js`, `node tests\macos-gateway-start-script-bridge-env-repair.test.js`, `node tests\macos-file-plugin-docx-root-smoke.test.js`, `node tests\gateway-pool-production-smoke-harness.test.js`, `node tests\macos-production-closure-validation-harness.test.js`, `node tests\macos-plugin-directory-production-smoke-harness.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node tests\macos-directory-path-migration-repair.test.js`, `node tests\macos-bound-directory-preview-smoke-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js` |
 | Gateway MCP callable schema | `python -m py_compile gateway-runtime-overrides\sitecustomize.py gateway-runtime-overrides\model_tools.py`, `node scripts\probe-lowgw1-wardrobe-mcp.js`, `node tests\no-window-command-harness.test.js` |
 | ChatGPT Pro | `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\owner-elevation-routing-service.test.js`, `node tests\thread-message-create-service.test.js` |
-| Grok/model routing | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\grok-auth-metadata-smoke-harness.test.js`; script syntax: `bash -n scripts/macos-grok-xai-reauth.sh`; production xAI OAuth triage: `node scripts\grok-auth-metadata-smoke.js --profile-auth-file <file> --shared-auth-file <file> --require-access-token --json`. On Mac production, use `bash scripts/macos-grok-xai-reauth.sh` for the manual-paste OAuth repair, then rerun metadata smoke and finally `node scripts\gateway-pool-production-smoke.js --key-file <file> --model grok-4.3 --provider xai-oauth --expected-profile grokgw1` only after metadata shows an xAI access token is present. |
+| Grok/model routing | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\grok-auth-metadata-smoke-harness.test.js`, `node tests\grok-xai-oauth-closure-checklist.test.js`; script syntax: `bash -n scripts/macos-grok-xai-reauth.sh`; production xAI OAuth triage: `node scripts\grok-auth-metadata-smoke.js --profile-auth-file <file> --shared-auth-file <file> --require-access-token --json`. On Mac production, use `bash scripts/macos-grok-xai-reauth.sh` for the manual-paste OAuth repair, then generate `node scripts\grok-xai-oauth-closure-checklist.js --markdown`, rerun metadata smoke, and finally `node scripts\gateway-pool-production-smoke.js --key-file <file> --model grok-4.3 --provider xai-oauth --expected-profile grokgw1` only after metadata shows an xAI access token is present. |
 | Direct provider keys / Gateway Pool distro | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-pool-provider.test.js`, `node tests\gateway-status-projection.test.js`, `node tests\thread-message-create-service.test.js`, `node tests\startup-scripts.test.js`, production smoke: `/api/status?detail=1`, all low/owner-maintenance Gateway health ports, provider-tier status matrix, workspace-dedicated DeepSeek profile routing including Owner-only `deepseekgw99`, and process-environment evidence that target workers received the expected provider key without logging the raw key |
 | Web Push | `node tests\web-push-automation-projection-service.test.js`, `node tests\web-push-vapid-service.test.js`, `node tests\web-push-delivery-normalization-service.test.js`, `node tests\web-push-send-service.test.js`, `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js`. Terminal task receipt pushes must prove `taskGroupId`/`messageId` are preserved through the service worker click router, notification clicks force a selected-view reload with single-window cache bypass, foreground pushes refresh only the matching open topic detail or root topic list, and a user on another function page is not auto-navigated until they click the system notification. |
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js`, `node tests\playwright-visual-smoke-harness.test.js`, `node scripts\playwright-visual-smoke.js`. Host-owned mobile bottom chrome changes must also prove runtime measured bottom-stack CSS variables, adjacent Dock/bottom-nav rects, no clipping, no overlap on the target production origin, and for global Dock handle changes `npm run ios:pwa:visual -- --scenario global-plugin-dock-gesture-stability`. |
 | Host voice input | Current focused checks: `node tests\voice-input-service.test.js`, `node tests\voice-input-asr-provider.test.js`, `node tests\voice-input-correction-service.test.js`, `node tests\voice-input-api-routes.test.js`, `node tests\voice-input-ui.test.js`, `node tests\architecture-refactor-boundary.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\macos-production-deploy-script.test.js`, `node tests\local-asr-service-installer.test.js`, `node tests\task-list-ui.test.js`, `node tests\static-cache-version-harness.test.js`, and `node scripts\privacy-scan.js`. Local browser smoke should verify Home AI native composer long-press, streaming partial text in the active native composer when FunASR streaming is configured, final text replacing provisional text without duplication, whole-clip fallback when streaming fails, Kanban/todo creation, Automation create/edit, todo comment/revision, Growth teaching quick-check insertion, missing-ASR visible disabled state, no native text selection/callout, no ordinary-submit side effect, and no page errors. Real-device/PWA closure still needs `npm run ios:pwa:visual -- --scenario voice-input-overlay-composer --debug-url http://127.0.0.1:19073/` and, after embedded Codex adopts the bridge, `npm run ios:pwa:visual -- --scenario voice-input-overlay-plugin-composer --plugin-id codex-mobile --plugin-thread-id <thread-id> --debug-url http://127.0.0.1:19073/`. Harness must prove host-owned microphone permission/overlay, send-button tap-vs-long-press behavior, permission prompt release-cancel, release-to-transcribe, no native text selection/callout, silent close for too-short recordings, missing-ASR disabled state, conservative correction learning after final send, wrong-origin/stale-session rejection, no keyboard simulation, host draft auto-insertion into every registered native composer, streaming HTTP chunk routes, and protocol-based draft insertion into active plugin composers. Native-shell voice work must additionally prove the shell does not show a separate transcript editor as the primary input surface, composition sessions reject stale/out-of-order partials, provisional text patches only the active Composer range, final text replaces the provisional range without duplication, and user edits inside the provisional range are not overwritten. |
 | Native iOS shell | `node tests\plugin-workspace-platform-contract-check.test.js`, `node scripts\plugin-workspace-platform-contract-check.js --target home-ai-native-ios --json`, `node tests\architecture-code-test-harness-map.test.js`, and from `/Users/example/path AI`: `xcodebuild -project 'Home AI.xcodeproj' -scheme 'Home AI' -destination 'generic/platform=iOS Simulator' build`. Native APNs server-side changes also run the Native Notifications checks above. Native voice-input bridge changes also run the Host Voice Input checks plus the Xcode build. System share/receive changes must prove authenticated workspace/thread/directory/plugin target validation and no plugin credential storage in the native shell. WebView stability bridge changes must prove bounded native-to-Web health/layout events without moving product UI ownership into native code. Any native-shell compatibility change must also prove the standalone PWA/browser path without `nativeShell=ios` keeps the existing UI, navigation, composer, plugin, and permission behavior. Apple Watch and Bluetooth/BLE remain deferred and require a new product requirement plus focused validation plan before any implementation work. |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-todo-service.test.js`, `node tests\action-inbox-todo-skill-doc.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js`. Plugin workspace audit projection must prove summary-only `review`/`error` items with `sourceRef.kind=plugin_workspace_audit`, safe deep links, dedupe by audit run/source references, and no full report bodies, raw diffs, executor logs, prompts, secrets, tokens, push endpoints, or private filesystem paths in Inbox records. |
-| Embedded plugin host / Wardrobe, Codex, Finance, Email, Health, Note, Growth, and Moira plugin tabs | `node tests\hermes-plugin-authorization-service.test.js`, `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-viewport-stability.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node scripts\macos-wardrobe-binding-production-smoke.js` on Mac production after Wardrobe binding repairs, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\health-plugin-provisioning-service.test.js` when Health behavior changes, `node tests\note-plugin-provisioning-service.test.js` when Note behavior changes, `node tests\growth-plugin-provisioning-service.test.js` when Growth pluginization behavior changes, `node tests\moira-plugin-provisioning-service.test.js` when Moira provisioning behavior changes, `node tests\mcp-tool-upgrade-closure-harness.test.js` and `node scripts\mcp-tool-upgrade-closure-smoke.js` when plugin MCP tools change, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. Moira development host insertion must additionally run `npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id moira --debug-url http://127.0.0.1:19073/ --app-url "http://<mac-lan-ip>:8899/?view=moira&pluginRoute=new_chart&pluginContextNavPluginId=moira" --expected-client-version 20260612-plugin-system-nav-v717` and record the artifact/evidence id in the Moira pointer doc. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. Plugin-manager projection must also prove Owner records can be persisted, Owner workspace-local key/config discovery is reflected as already enabled, and failed Owner provisioning remains a retryable diagnostic instead of reverting to a plain unopened button. |
+| Embedded plugin host / Wardrobe, Codex, Finance, Email, Health, Note, Growth, and Moira plugin tabs | `node tests\hermes-plugin-authorization-service.test.js`, `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\codex-mobile-recovery-service.test.js`, `node tests\codex-mobile-recovery-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-viewport-stability.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node scripts\macos-wardrobe-binding-production-smoke.js` on Mac production after Wardrobe binding repairs, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\health-plugin-provisioning-service.test.js` when Health behavior changes, `node tests\note-plugin-provisioning-service.test.js` when Note behavior changes, `node tests\growth-plugin-provisioning-service.test.js` when Growth pluginization behavior changes, `node tests\moira-plugin-provisioning-service.test.js` when Moira provisioning behavior changes, `node tests\mcp-tool-upgrade-closure-harness.test.js` and `node scripts\mcp-tool-upgrade-closure-smoke.js` when plugin MCP tools change, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. Codex Mobile host recovery must prove `401` and healthy listeners do not execute the restart script, while listener-missing or stopped-LaunchDaemon states can list homes, dry-run, and execute a selected profile through Owner-only routes. Moira development host insertion must additionally run `npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id moira --debug-url http://127.0.0.1:19073/ --app-url "http://<mac-lan-ip>:8899/?view=moira&pluginRoute=new_chart&pluginContextNavPluginId=moira" --expected-client-version 20260612-plugin-system-nav-v717` and record the artifact/evidence id in the Moira pointer doc. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. Plugin-manager projection must also prove Owner records can be persisted, Owner workspace-local key/config discovery is reflected as already enabled, and failed Owner provisioning remains a retryable diagnostic instead of reverting to a plain unopened button. |
 | Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\app-plugin-topics-ui.test.js`, `node tests\static-cache-version-harness.test.js`, and `node tests\playwright-visual-smoke-harness.test.js`. Service/runtime phases: `node tests\plugin-topic-usage-service.test.js`, `node tests\plugin-topic-usage-api-routes.test.js`, `node tests\plugin-capability-probe-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-instruction-service.test.js`, `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app launch from the global bottom Dock, the built-in Directory icon in that Dock, the Dock `常用` quick-action card, touch long-press/context quick-action menus including explicit `换位` drag-reorder mode, bounded move controls, and `pluginDrawerMenuGesture=touch-longpress`, global Dock handle mistouch/open/close gesture stability through `global-plugin-dock-gesture-stability`, native quick-action/menu/strip/action-route gesture proof through `plugin-drawer-action-gestures`, including Chat bottom-tab and top-level plugin App surfaces, usage-backed frequent quick actions with no trailing source badges, same-action repeated usage promotion such as `wardrobe:style` moving ahead by count/recency, immediate Dock/menu redraw after local usage writes, a six-entry quick-action cap in the `常用` menu, runtime measured bottom-stack placement for the collapsed and expanded Dock states, primary bottom nav, and plugin pages where primary bottom nav remains visible, and the absence of mid-page plugin desktop icons. Usage-backed quick actions plus manual Dock/drawer `pluginOrder` and pinned bottom-tab order must be server-persisted through `/api/plugin-topic-usage` per workspace; localStorage is only a first-paint/offline cache and client reset must preserve that cache. Cold-start tests must prove server preferences preserve known plugin ids such as `codex-mobile` while manifest availability is still loading, then restore pinned bottom tabs and drawer order as soon as the plugin becomes available without another server round trip. The standalone Capability page is retired: Dock `常用` carries quick actions, the root Topics page carries plugin conversation shortcuts, Directory-bound topic collections, and ordinary topic cards, and daily app launch stays in the global bottom Dock. The same harness must cover the Directory capability with no generic mini-button stack, bottom Dock icons without nested framed panels, six visible Dock entry slots before horizontal scrolling, host primary bottom navigation with Chat, Inbox, and Topics plus optional workspace-scoped pinned plugin tabs up to six total, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, plugin-topic detail toolbars showing only the active directory chip with no plugin-topic dropdown, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, preventing plugin topic detail loads from overwriting the task-list root cache, prioritizing plugin-context home before ordinary task-detail back for plugin topic details, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving ordinary system bottom navigation on plugin app pages while retaining plugin-context state for back/route restoration, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
 | Directory-bound topic collections | Planned: `node tests\directory-topic-binding-service.test.js`, `node tests\directory-topic-context-service.test.js`, `node tests\directory-topic-api-routes.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\context-assembly-service.test.js`, and `node tests\task-list-ui.test.js`; current frontend projection is also covered by `node tests\app-plugin-topics-ui.test.js`, `node tests\directory-plugin-navigation-ui.test.js`, `node tests\directory-run-scope-service.test.js`, `node tests\gateway-run-request-builder-service.test.js`, and `node tests\gateway-run-instruction-service.test.js`. Harness must cover multiple topics per directory, one default topic per directory, default-topic reassignment without deleting secondary topics, explicit open-directory/open-default-topic/open-topic-picker actions, workspace isolation, cleaned/selected/bounded directory context, target-workspace Gateway/MCP scope for directory-bound runs, and exclusion of fixed plugin topics from directory collections. Frontend harness must also prove the topic list can render its first frame before directory-topic aggregation runs, that directory collections are visually attached below the Capability Entry Hub quick-action area, that only the first three most recently updated directory collections default expanded while older collections default collapsed, that manual collapse/expand overrides persist in device-local storage, that the directory header keeps the folder icon on the left with bound topic chips below, that background aggregation/API refresh preserves the user's current topic-list scroll position, that deferred directory-topic rendering waits while scroll/swipe gestures are active, that built-in Directory plugin back returns from route-root to the Directory root listing before restoring the outer route, and that task-list vertical pan is not captured by sidebar right-swipe handling, because directory route extraction may scan many existing messages on large accounts. |
 | Directory/files/artifacts | `node tests\mobile-api-directory-composition.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-delete-ui.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js`, `node tests\artifact-text-registration-service.test.js`, `node tests\mobile-runtime-artifact-facade-service.test.js`, `node tests\document-preview-device-policy.test.js`, `node tests\macos-directory-path-migration-repair.test.js` and `node tests\macos-bound-directory-preview-smoke-harness.test.js` after Windows/WSL-to-Mac data migration; production chip closure uses `scripts\macos-bound-directory-preview-smoke.js --all-workspaces --simulate-ui-route --json`. Word/PDF preview viewport policy must prove small phone widths keep the embedded Hermes viewer, wide tablet/foldable PDF uses same-window original URL, and wide Word/DOCX stays inside the Home AI viewer instead of downloading. |

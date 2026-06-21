@@ -141,6 +141,11 @@ Plugins own:
 `plugin-drawer-action-gestures` defaults to Home AI ownership unless the failed
 assertion is explicitly about plugin iframe content.
 
+Plugin runtime ids and Codex task-card owners are not always identical. The
+Health plugin runtime id is `health`, while the plugin workspace/thread owner is
+`healthy`. Visual harness commands must use `--plugin-id health`; controller
+task cards for Health-owned iframe issues must still target owner `healthy`.
+
 ## Privacy And Audit Rules
 
 The controller redacts token-like query parameters and bearer strings before

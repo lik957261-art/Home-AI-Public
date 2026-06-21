@@ -1,0 +1,8 @@
+{
+  "versionCode": 18,
+  "versionName": "0.4.14",
+  "apkUrl": "https://wardrobe-xuxin.synology.me:8555/android/HomeAI-Android-native-shell-debug-20260621.apk",
+  "sha256": "e5fe293d9f92f4f1df7d9d84aacedb296652c5954be0870d9dbba79ad4136960",
+  "size": 3310655,
+  "notes": "Home AI Android native shell v0.4.14: refresh carrier for Web client v898 artifact preview Back handling; keeps v0.4.13 status bar, WebView file picker forwarding, and foreground update checks."
+}

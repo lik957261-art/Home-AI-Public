@@ -1387,7 +1387,7 @@ function renderEmbeddedPluginFrame(def, manifest, entryUrl = embeddedPluginEntry
         src="${escapeHtml(entryUrl)}"
         loading="eager"
         referrerpolicy="no-referrer"
-        sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-modals"
+        sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"
       ></iframe>
     </div>`;
 }

@@ -31,6 +31,17 @@ or raw plugin credentials.
 - The bound topic chat action enters the fixed `plugin:<pluginId>` topic before
   refreshing the plugin file directory. Directory creation is supporting
   context work and must not block topic entry.
+- Entering a fixed plugin topic chat must render an immediate Hermes-owned
+  detail shell from the already loaded single-window thread when available,
+  then merge the `/api/single-window` refresh result. A running plugin-topic
+  conversation or slow refresh must not leave the user on the previous topic
+  root/app surface for several seconds.
+- The immediate plugin-topic detail shell may use the root task-list thread
+  cache (`state.taskListThread`) when the current visible surface is a plugin
+  app or another route that has already cleared `state.currentThread`. It must
+  choose a cache only when the target `plugin:<pluginId>` group is present and
+  workspace-compatible, then let the normal `/api/single-window` refresh
+  converge newer messages and run state.
 - Plugin topic detail is a secondary page. It must hide the bottom app
   navigation and use the standard top back/right-swipe route to return, while
   keeping the normal message composer visible for the topic chat.

@@ -14,6 +14,7 @@ Hermes Mobile should select the correct profile; it should not assume that passi
 - `gateway-plugins/hermes-mobile-web/__init__.py`
 - `scripts/bridge-host.js`
 - `scripts/grok-auth-metadata-smoke.js`
+- `scripts/grok-xai-oauth-closure-checklist.js`
 - `scripts/hermes-mobile-cron-dispatcher.py`
 - `scripts/start-gateway-pool.ps1`
 - `scripts/start-low-gateways.sh`
@@ -104,6 +105,12 @@ If `scripts/hermes-mobile-cron-dispatcher.py` changes, restart the cron sidecar.
   `credential_pool.xai-oauth` entries, including the array shape written by
   current `hermes auth add xai-oauth` flows. The script must not print auth
   paths or token values.
+- Use `scripts/grok-xai-oauth-closure-checklist.js --markdown` as the
+  operator handoff after any manual xAI OAuth re-authentication. It ties the
+  bounded metadata smoke, profile/provider configuration audit, live
+  `gateway-pool-production-smoke.js --provider xai-oauth --expected-profile
+  grokgw1`, and optional Automation `x_search` proxy proof into one checklist.
+  The checklist is read-only and does not inspect token files or execute OAuth.
 - On macOS production, `scripts/macos-grok-xai-reauth.sh` is the bounded
   operator entrypoint for re-authenticating the `grokgw1` xAI OAuth profile.
   It uses Hermes' `auth add xai-oauth --type oauth --manual-paste` flow under
@@ -122,8 +129,13 @@ If `scripts/hermes-mobile-cron-dispatcher.py` changes, restart the cron sidecar.
 ## Validation
 
 - Check `/api/status?detail=1` for worker health and selected profiles.
+- Generate `node scripts\grok-xai-oauth-closure-checklist.js --markdown` for
+  the current operator closure commands before accepting a manual OAuth repair.
 - Run `node scripts\grok-auth-metadata-smoke.js --profile-auth-file <file> --shared-auth-file <file> --require-access-token --json` before changing routing when logs say xAI OAuth is missing token state.
-- For live smoke, use a short authenticated Grok request through Hermes Mobile or the relevant live Gateway endpoint.
+- For live smoke, use
+  `node scripts\gateway-pool-production-smoke.js --key-file <file> --model
+  grok-4.3 --provider xai-oauth --expected-profile grokgw1` or an equivalent
+  short authenticated Grok request through Hermes Mobile.
 - For Automation/Cron `x_search`, validate through a cron/Automation path or a controlled plugin call that uses the bridge-host proxy prefix, not only ordinary `@Grok`.
 - In hybrid mode, validate the cold proxy path too: stop or leave `grokgw1`
   configured, trigger the bridge-host proxy, and confirm bridge-host starts

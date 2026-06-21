@@ -161,6 +161,28 @@ function createHermesPluginApiRoutes(deps = {}) {
     return typeof deps.authenticateRequest === "function" ? deps.authenticateRequest(req) : null;
   }
 
+  function requestAuthForProxy(req, url) {
+    if (typeof deps.authenticateRequest !== "function") return null;
+    const originalUrl = String(req?.url || `${url?.pathname || ""}${url?.search || ""}`);
+    let proxyAuthReq = req;
+    try {
+      const parsed = new URL(originalUrl || `${url?.pathname || ""}${url?.search || ""}`, "http://localhost");
+      if (parsed.searchParams.has("key")) {
+        parsed.searchParams.delete("key");
+        proxyAuthReq = Object.assign({}, req, {
+          auth: null,
+          headers: req?.headers || {},
+          url: `${parsed.pathname}${parsed.search}${parsed.hash}`,
+        });
+      }
+    } catch (_) {
+      // Fall back to normal request auth.
+    }
+    const auth = deps.authenticateRequest(proxyAuthReq);
+    if (auth && req) req.auth = auth;
+    return auth;
+  }
+
   function ownerAuthorized(auth) {
     return typeof deps.isOwnerAuth === "function" ? deps.isOwnerAuth(auth) : false;
   }
@@ -290,6 +312,18 @@ function createHermesPluginApiRoutes(deps = {}) {
   function requestedProxyPluginId(url) {
     const match = String(url?.pathname || "").match(/^\/api\/hermes-plugins\/([^/]+)\/proxy(?:\/|$)/);
     return match ? decodeURIComponent(match[1]) : "";
+  }
+
+  function isPublicMusicTidalOAuthCallback(req, url, pluginId = "") {
+    if (pluginId !== "music") return false;
+    if (String(req?.method || "GET").toUpperCase() !== "GET") return false;
+    const pathname = String(url?.pathname || "").replace(/\/+$/, "");
+    if (!pathname.endsWith("/api/v1/music/tidal/oauth/callback")) return false;
+    const params = pluginProxySearchParams(url);
+    const state = String(params.get("state") || "").trim();
+    const code = String(params.get("code") || "").trim();
+    const error = String(params.get("error") || "").trim();
+    return Boolean(state && (code || error));
   }
 
   function pluginProxyPrefix(pluginId) {
@@ -530,7 +564,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     return withProxyWorkspaceId(`${pluginProxyPrefix(pluginId)}${normalizedPath}`, workspaceId);
   }
 
-  function pluginProxyTextResourcePath(pluginId = "", resourcePath = "", workspaceId = "") {
+  function pluginProxyTextResourcePath(pluginId = "", resourcePath = "", workspaceId = "", options = {}) {
     const path = String(resourcePath || "");
     const templateIndex = path.indexOf("${");
     if (templateIndex < 0) return pluginProxyResourcePath(pluginId, path, workspaceId);
@@ -538,6 +572,27 @@ function createHermesPluginApiRoutes(deps = {}) {
     const dynamicPart = path.slice(templateIndex);
     const normalizedStatic = staticPart.startsWith("/") ? staticPart : `/${staticPart}`;
     return `${pluginProxyPrefix(pluginId)}${normalizedStatic}${dynamicPart}`;
+  }
+
+  function pluginProxyScriptResourcePath(pluginId = "", resourcePath = "") {
+    const path = String(resourcePath || "");
+    const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+    return `${pluginProxyPrefix(pluginId)}${normalizedPath}`;
+  }
+
+  function pluginProxyQuotedApiResourcePath(pluginId = "", resourcePath = "", workspaceId = "", options = {}) {
+    if (options && options.script === true) {
+      const path = String(resourcePath || "");
+      const templateIndex = path.indexOf("${");
+      if (templateIndex >= 0) {
+        const staticPart = path.slice(0, templateIndex);
+        const dynamicPart = path.slice(templateIndex);
+        const normalizedStatic = staticPart.startsWith("/") ? staticPart : `/${staticPart}`;
+        return `${pluginProxyPrefix(pluginId)}${normalizedStatic}${dynamicPart}`;
+      }
+      return pluginProxyScriptResourcePath(pluginId, path);
+    }
+    return pluginProxyTextResourcePath(pluginId, resourcePath, workspaceId);
   }
 
   function proxyRequestHasLaunchToken(url) {
@@ -557,7 +612,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
-  function rewritePluginProxyText(text = "", pluginId = "", upstreamBase = "", workspaceId = "") {
+  function rewritePluginProxyText(text = "", pluginId = "", upstreamBase = "", workspaceId = "", options = {}) {
     const prefix = pluginProxyPrefix(pluginId);
     let out = String(text);
     const upstreamOrigin = (() => {
@@ -569,7 +624,9 @@ function createHermesPluginApiRoutes(deps = {}) {
     })();
     if (upstreamOrigin) {
       out = out.replace(new RegExp(`${escapeRegExp(upstreamOrigin)}(/[^\\s"'\\\`<>)]*)`, "g"), (_match, resourcePath) => (
-        pluginProxyResourcePath(pluginId, resourcePath, workspaceId)
+        options.script === true
+          ? pluginProxyScriptResourcePath(pluginId, resourcePath)
+          : pluginProxyResourcePath(pluginId, resourcePath, workspaceId)
       ));
     }
     return out
@@ -583,7 +640,7 @@ function createHermesPluginApiRoutes(deps = {}) {
         `url(${quote}${pluginProxyResourcePath(pluginId, `/${resourcePath}`, workspaceId)}${quote}`
       ))
       .replace(/(["'`])\/api\/(?!hermes-plugins\/[^/]+\/proxy\/)([^"'`\s]*)/g, (_match, quote, resourcePath) => (
-        `${quote}${pluginProxyTextResourcePath(pluginId, `/api/${resourcePath}`, workspaceId)}`
+        `${quote}${pluginProxyQuotedApiResourcePath(pluginId, `/api/${resourcePath}`, workspaceId, options)}`
       ))
       .replace(/(["'`])\/manifest\.json([^"'`\s)]*)/g, (_match, quote, suffix) => (
         `${quote}${pluginProxyResourcePath(pluginId, `/manifest.json${suffix || ""}`, workspaceId)}`
@@ -746,15 +803,20 @@ function createHermesPluginApiRoutes(deps = {}) {
       deps.sendJson(res, 404, { ok: false, error: "plugin_proxy_not_found" });
       return;
     }
-    const auth = requestAuth(req);
-    const workspaceRequest = requestedProxyWorkspace(req, url, auth, pluginId);
+    const auth = requestAuthForProxy(req, url);
+    const publicOAuthCallback = isPublicMusicTidalOAuthCallback(req, url, pluginId);
+    const workspaceRequest = publicOAuthCallback
+      ? { workspaceId: "owner", ambiguous: false }
+      : requestedProxyWorkspace(req, url, auth, pluginId);
     if (workspaceRequest.ambiguous) {
       deps.sendJson(res, 400, { ok: false, error: "plugin_proxy_workspace_ambiguous" });
       return;
     }
-    const workspaceId = deps.requireWorkspaceAccess(req, res, workspaceRequest.workspaceId);
+    const workspaceId = publicOAuthCallback
+      ? "owner"
+      : deps.requireWorkspaceAccess(req, res, workspaceRequest.workspaceId);
     if (!workspaceId) return;
-    if (!pluginProxyWorkspaceAuthorized(pluginId, workspaceId, auth)) {
+    if (!publicOAuthCallback && !pluginProxyWorkspaceAuthorized(pluginId, workspaceId, auth)) {
       deps.sendJson(res, 403, { ok: false, error: "plugin_workspace_not_authorized" });
       return;
     }
@@ -813,12 +875,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (setCookies.length) outHeaders["Set-Cookie"] = setCookies;
     const location = responseHeader(upstream, "location");
     if (location) {
-      try {
-        const target = new URL(location, pluginProxyUpstreamBase(pluginId));
-        outHeaders.Location = withProxyWorkspaceId(`${pluginProxyPrefix(pluginId)}${target.pathname}${target.search}`, workspaceId);
-      } catch (_) {
-        outHeaders.Location = location;
-      }
+      outHeaders.Location = rewritePluginProxyLocationHeader(location, pluginId, workspaceId);
     }
     if (/application\/json/i.test(contentType || "")) {
       const text = await upstream.text();
@@ -833,7 +890,8 @@ function createHermesPluginApiRoutes(deps = {}) {
     }
     if (/text\/html|javascript|ecmascript|text\/css/i.test(contentType || "")) {
       const text = await upstream.text();
-      let rewritten = rewritePluginProxyText(text, pluginId, upstreamBase, workspaceId);
+      const isScript = /javascript|ecmascript/i.test(contentType || "");
+      let rewritten = rewritePluginProxyText(text, pluginId, upstreamBase, workspaceId, { script: isScript });
       if (/text\/css/i.test(contentType || "")) rewritten = rewritePluginProxyCssText(rewritten, pluginId);
       res.writeHead(upstream.status || 200, outHeaders);
       res.end(rewritten);
@@ -887,6 +945,20 @@ function createHermesPluginApiRoutes(deps = {}) {
       Object.assign({ workspaceId }, manifest),
       cleanupCookies.length ? { "Set-Cookie": cleanupCookies } : {},
     );
+  }
+
+  function rewritePluginProxyLocationHeader(location = "", pluginId = "", workspaceId = "") {
+    const rawLocation = String(location || "");
+    const upstreamBase = pluginProxyUpstreamBase(pluginId);
+    if (!rawLocation || !upstreamBase) return rawLocation;
+    try {
+      const upstream = new URL(upstreamBase);
+      const target = new URL(rawLocation, upstream);
+      if (target.origin !== upstream.origin) return rawLocation;
+      return withProxyWorkspaceId(`${pluginProxyPrefix(pluginId)}${target.pathname}${target.search}${target.hash}`, workspaceId);
+    } catch (_) {
+      return rawLocation;
+    }
   }
 
   async function handleAdminList(req, res) {

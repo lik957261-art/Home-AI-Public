@@ -39,6 +39,9 @@ assert.match(script, /worker_manifest_unreadable/);
 assert.match(script, /worker_api_key_file_missing/);
 assert.match(script, /worker_api_key_unreadable/);
 assert.match(script, /worker_provider_key_unreadable/);
+assert.match(script, /profile_config_provider_mismatch/);
+assert.match(script, /profile_config_model_mismatch/);
+assert.match(script, /profileConfigProbe/);
 assert.match(script, /file_plugin_root_env_missing/);
 assert.match(script, /file_plugin_root_missing/);
 assert.match(script, /file_plugin_root_list_delimiter_unsupported/);
@@ -60,6 +63,7 @@ assert.match(script, /telemetryResponsePathCount/);
 assert.match(script, /deepseek_user_worker_missing/);
 assert.match(script, /plugin_binding_missing/);
 assert.match(script, /plugin_local_binding_incomplete/);
+assert.match(script, /plugin_provisioning_not_active/);
 assert.match(script, /plugin_required_skill_incomplete/);
 assert.match(script, /plugin_required_skill_unreadable/);
 assert.match(script, /requiredWorkspaceSkillPlugins/);
@@ -137,13 +141,30 @@ try {
         skillWorkspaceIds: ["weixin_wuping"],
         apiKeyFile: wupingApiKeyFile,
       },
+      {
+        profile: "grokgw1",
+        provider: "xai-oauth",
+        securityLevel: "user",
+        port: 18763,
+        launchdLabel: "com.hermesmobile.gateway.hm-fixture-owner.grok.1",
+        allowedWorkspaceIds: ["owner"],
+        skillWorkspaceIds: ["owner"],
+        apiKeyFile: ownerApiKeyFile,
+      },
     ],
   });
   writeJson(path.join(data, "workspaces.json"), { workspaces: [] });
   writeJson(path.join(data, "access-keys.json"), { workspaceKeys: { weixin_wuping: { createdAt: "now" } } });
   writeJson(path.join(data, "plugin-workspace-authorizations.json"), {
-    plugins: { wardrobe: { records: { weixin_wuping: { status: "active", provisioningStatus: "ok" } } } },
+    plugins: {
+      growth: { records: { weixin_wuping: { status: "active", provisioningStatus: "pending" } } },
+      wardrobe: { records: { weixin_wuping: { status: "active", provisioningStatus: "ok" } } },
+    },
   });
+  const wupingGrowthBinding = path.join(data, "drive", "users", "weixin_wuping", ".hermes-growth");
+  fs.mkdirSync(wupingGrowthBinding, { recursive: true });
+  fs.writeFileSync(path.join(wupingGrowthBinding, "config.json"), "{\"ok\":true}\n", "utf8");
+  fs.writeFileSync(path.join(wupingGrowthBinding, "access-key.txt"), "fixture-growth-key\n", "utf8");
   writeJson(path.join(data, "config", "access-control", "weixin-routing-map.json"), {
     routes: [{ principal_id: "weixin_wuping" }],
   });
@@ -166,6 +187,8 @@ try {
   assert.ok(audit.issues.includes("memory_root_missing:weixin_wuping"));
   assert.ok(audit.issues.includes("deepseek_user_worker_missing:weixin_wuping"));
   assert.ok(audit.issues.includes("plugin_local_binding_incomplete:weixin_wuping:wardrobe"));
+  assert.ok(!audit.issues.includes("plugin_local_binding_incomplete:weixin_wuping:growth"));
+  assert.ok(audit.issues.includes("plugin_provisioning_not_active:weixin_wuping:growth:pending"));
   assert.ok(audit.issues.includes("plugin_required_skill_incomplete:owner:wardrobe:productivity/wardrobe-style-operations"));
   assert.ok(audit.issues.includes("plugin_required_skill_incomplete:weixin_wuping:wardrobe:productivity/wardrobe-style-operations"));
   assert.ok(audit.issues.includes("file_plugin_start_script_missing:hm-wuping-openai-1"));
@@ -195,6 +218,7 @@ try {
   materializeProfile("hm-owner-openai-1", "owner-full");
   materializeProfile("deepseekgw1", "owner-full");
   materializeProfile("hm-wuping-openai-1", "weixin_wuping");
+  materializeProfile("grokgw1", "owner-full");
   const profileAccessReadyAudit = buildAudit({
     root: tempRoot,
     expectedWorkspaces: [],
@@ -381,6 +405,40 @@ try {
   assert.ok(codexAuthDriftAudit.issues.includes("codex_auth_json_unwritable:hm-owner-openai-1"));
   assert.ok(codexAuthDriftAudit.issues.includes("codex_auth_lock_target_unexpected:hm-owner-openai-1"));
   assert.ok(codexAuthDriftAudit.issues.includes("codex_auth_lock_unwritable:hm-owner-openai-1"));
+  const profileConfigDriftAudit = buildAudit({
+    root: tempRoot,
+    expectedWorkspaces: [],
+    expectedPlugins: [],
+    requiredWorkspacePlugins: {},
+    requiredSharedSkills: [],
+    checkTelemetry: false,
+    profileDirForWorker: (_worker, profile) => path.join(profileFixtureRoot, profile),
+    workerDirectoryWriteProbe: () => true,
+    workerFileAccessProbe: () => true,
+    startScriptProbe: () => ({ exists: true, text: [
+      'FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifacts"',
+      'HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+      'HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+      'HERMES_MOBILE_IMAGE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+      'HERMES_MOBILE_VIDEO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+      'HERMES_MOBILE_HTTP_FILE_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+      'HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="$ROOT/data/drive/users"',
+      'HERMES_MOBILE_HTTP_SAVE_ROOT="$ROOT/data/artifacts/http-request"',
+      'HERMES_MOBILE_VIDEO_OUTPUT_ROOT="$ROOT/data/artifacts/grok-videos"',
+      'HERMES_MOBILE_BRIDGE_HOST_URL="http://127.0.0.1:8798"',
+      'HERMES_WEB_BRIDGE_HOST_URL="http://127.0.0.1:8798"',
+      'HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$ROOT/data/secrets/bridge-host.secret"',
+      'HERMES_WEB_BRIDGE_HOST_KEY_PATH="$ROOT/data/secrets/bridge-host.secret"',
+    ].join("\n") }),
+    profileConfigProbe: ({ profile, worker }) => profile === "grokgw1"
+      ? { exists: true, provider: "openai-codex", model: "gpt-5.5" }
+      : { exists: true, provider: worker.provider || "openai-codex", model: worker.provider === "deepseek" ? "deepseek-chat" : "gpt-5.5" },
+  });
+  assert.ok(profileConfigDriftAudit.issues.includes("profile_config_provider_mismatch:grokgw1:openai-codex:xai-oauth"));
+  assert.ok(profileConfigDriftAudit.issues.includes("profile_config_model_mismatch:grokgw1:gpt-5.5:grok-4.3"));
+  const grokProfileCheck = profileConfigDriftAudit.profileChecks.find((item) => item.profile === "grokgw1");
+  assert.equal(grokProfileCheck.profileConfig.expectedProvider, "xai-oauth");
+  assert.equal(grokProfileCheck.profileConfig.expectedModel, "grok-4.3");
   const installedLaunchdAudit = buildAudit({
     root: tempRoot,
     expectedWorkspaces: [],

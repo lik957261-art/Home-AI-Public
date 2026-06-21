@@ -452,6 +452,21 @@ right-swipe/back handling. A stale domain can make a thread/detail page report
 the wrong back state and cause iOS right-swipe to exit the Hermes host instead
 of returning to the plugin list.
 
+Embedded plugin iframes allow user-initiated popups so provider OAuth and
+external account-link flows can open outside the sandbox. The host sandbox must
+include `allow-popups allow-popups-to-escape-sandbox` together with the normal
+script/form/download/modal permissions. Plugins must still use explicit
+owner-clicked links, `noopener`/`noreferrer`, and bounded callback URLs; they
+must not use background popups or unrestricted top-level replacement for
+third-party login.
+
+When a same-origin plugin proxy receives an upstream `302`, the host may rewrite
+only redirects that resolve to the configured plugin upstream origin. External
+OAuth/provider `Location` values must be returned unchanged. Rewriting
+`https://login.<provider>/...` into
+`/api/hermes-plugins/<plugin-id>/proxy/...` traps the browser in the plugin
+proxy and breaks account linking.
+
 External HTTPS plugin deployments are allowed only as explicit deployment
 overrides. They must be documented as external entries, must pass frame-ancestor
 and browser-facing HTTPS checks, and must not replace the standard inserted

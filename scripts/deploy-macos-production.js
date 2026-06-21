@@ -5,6 +5,7 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const { resolveCodexMobileProfileRuntime } = require("./codex-mobile-profile-runtime");
 
 const DEFAULT_DEV_ROOT = "/Users/example/path";
 const DEFAULT_MAC_ROOT = "/Users/example/path";
@@ -16,6 +17,7 @@ const HOME_AI_BRIDGE_HOST_LABEL = "com.hermesmobile.bridge-host";
 const HOME_AI_CRON_LABEL = "com.hermesmobile.cron";
 const HOME_AI_WORKSPACE_SYSTEM_HELPER_LABEL = "com.hermesmobile.workspace-system-helper";
 const HOME_AI_NAS_BACKUP_MOUNT_LABEL = "com.hermesmobile.nas-backup-mount";
+const HOME_AI_PRODUCTION_DRIFT_AUDIT_LABEL = "com.hermesmobile.production-drift-audit";
 const HOME_AI_VISUAL_DEBUG_LABEL = "com.hermesmobile.visual-debug";
 const PRODUCTION_SERVICE_USER = "hermes-host";
 const PRODUCTION_SERVICE_GROUP = "staff";
@@ -33,6 +35,7 @@ const HOME_AI_VISUAL_ANALYSIS_REASONING_EFFORT = process.env.HOMEAI_VISUAL_ANALY
 const HOME_AI_CRON_START_INTERVAL_SECONDS = 60;
 const HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS = 1800;
 const HOME_AI_NAS_BACKUP_MOUNT_START_INTERVAL_SECONDS = 300;
+const HOME_AI_PRODUCTION_DRIFT_AUDIT_START_INTERVAL_SECONDS = 900;
 const HOME_AI_BRIDGE_HOST_PORT = 8798;
 const DEPLOY_BACKUP_RETENTION_DAYS = 3;
 const HOME_AI_CHATGPT_PRO_WORKSPACE = process.env.HERMES_MOBILE_CHATGPT_PRO_WORKSPACE
@@ -222,7 +225,11 @@ const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
 });
 
 const PLUGIN_PROOF_FILES = Object.freeze({
-  "codex-mobile-web": Object.freeze(["public/index.html"]),
+  "codex-mobile-web": Object.freeze([
+    "public/index.html",
+    "codex-app-server-mux.js",
+    "scripts/create-thread-task-card.js",
+  ]),
   email: Object.freeze(["dist/web/index.html"]),
   growth: Object.freeze(["public/index.html"]),
   note: Object.freeze(["public/index.html"]),
@@ -244,6 +251,8 @@ const CODEX_MOBILE_LOG_REPAIR = Object.freeze({
   launchdLabel: "com.hermesmobile.plugin.codex-mobile",
   launchdPlistPath: "/Library/LaunchDaemons/com.hermesmobile.plugin.codex-mobile.plist",
   runtimeLogRoot: "/Users/example/path",
+  runtimeRoot: "/Users/example/path",
+  profileFile: "/Users/example/path",
   logFiles: Object.freeze([
     "codex-mobile-web.out.log",
     "codex-mobile-web.err.log",
@@ -323,6 +332,9 @@ const HOME_AI_PROOF_FILES = [
   "scripts/plugin-workspace-audit-runner.js",
   "scripts/production-status-smoke.js",
   "scripts/macos-gateway-start-script-bridge-env-repair.js",
+  "scripts/macos-production-profile-audit.js",
+  "scripts/macos-production-drift-reconcile.js",
+  "scripts/homeai-production-drift-audit-watchdog.sh",
 ];
 
 const HOME_AI_STATIC_PROOF_FILES = [
@@ -551,6 +563,7 @@ function rsyncExcludesForTarget(options) {
 }
 
 function postSyncRepairsForTarget(options) {
+  if (options.target === "home-ai") return [CODEX_MOBILE_LOG_REPAIR];
   if (options.target === "plugin:codex-mobile-web") return [CODEX_MOBILE_LOG_REPAIR];
   if (options.target === "plugin:music") return [MUSIC_RUNTIME_COVER_PERMISSION_REPAIR];
   return [];
@@ -654,6 +667,20 @@ function buildPlan(options) {
         "--strict-config",
         "--json",
       ],
+    });
+    validation.push({
+      type: "home-ai-production-drift-audit",
+      command: [
+        posixJoin(options.macRoot, PINNED_NODE),
+        posixJoin(target, "scripts", "macos-production-profile-audit.js"),
+        "--root",
+        normalizePath(options.macRoot),
+        "--expected-workspaces",
+        "owner",
+        "--json",
+        "--no-strict",
+      ],
+      failOnAnyIssue: true,
     });
   }
   if (proofFiles.length) {
@@ -1001,6 +1028,21 @@ function homeAiNasBackupMountPaths(macRoot) {
   };
 }
 
+function homeAiProductionDriftAuditPaths(macRoot) {
+  const root = normalizePath(macRoot || DEFAULT_MAC_ROOT);
+  const appRoot = posixJoin(root, "app");
+  const logsRoot = posixJoin(root, "logs");
+  return {
+    root,
+    appRoot,
+    script: posixJoin(root, "data", "hermes-home", "scripts", "homeai-production-drift-audit-watchdog.sh"),
+    outputDir: posixJoin(root, "data", "production-drift-audit"),
+    stdoutLog: posixJoin(logsRoot, "production-drift-audit.out.log"),
+    stderrLog: posixJoin(logsRoot, "production-drift-audit.err.log"),
+    plistPath: `/Library/LaunchDaemons/${HOME_AI_PRODUCTION_DRIFT_AUDIT_LABEL}.plist`,
+  };
+}
+
 function homeAiVisualDebugPaths(macRoot, user = HOME_AI_VISUAL_DEBUG_USER) {
   const root = normalizePath(macRoot || DEFAULT_MAC_ROOT);
   const appRoot = posixJoin(root, "app");
@@ -1110,6 +1152,47 @@ function buildHomeAiNasBackupMountLaunchdPlist(macRoot) {
   <true/>
   <key>StartInterval</key>
   <integer>${HOME_AI_NAS_BACKUP_MOUNT_START_INTERVAL_SECONDS}</integer>
+  <key>StandardOutPath</key>
+  <string>${xmlEscape(paths.stdoutLog)}</string>
+  <key>StandardErrorPath</key>
+  <string>${xmlEscape(paths.stderrLog)}</string>
+</dict>
+</plist>
+`;
+}
+
+function buildHomeAiProductionDriftAuditLaunchdPlist(macRoot) {
+  const paths = homeAiProductionDriftAuditPaths(macRoot);
+  const env = {
+    HERMES_MOBILE_ROOT: paths.root,
+    HERMES_MOBILE_APP_DIR: paths.appRoot,
+    HOMEAI_PRODUCTION_DRIFT_AUDIT_OUTPUT_DIR: paths.outputDir,
+    HOMEAI_PRODUCTION_DRIFT_AUDIT_EXPECTED_WORKSPACES: "owner",
+    HOMEAI_PRODUCTION_DRIFT_AUTO_REPAIR: "1",
+  };
+  const envRows = Object.entries(env)
+    .map(([key, value]) => `    <key>${xmlEscape(key)}</key>\n    <string>${xmlEscape(value)}</string>`)
+    .join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>${xmlEscape(HOME_AI_PRODUCTION_DRIFT_AUDIT_LABEL)}</string>
+  <key>WorkingDirectory</key>
+  <string>${xmlEscape(paths.appRoot)}</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${xmlEscape(paths.script)}</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+${envRows}
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>${HOME_AI_PRODUCTION_DRIFT_AUDIT_START_INTERVAL_SECONDS}</integer>
   <key>StandardOutPath</key>
   <string>${xmlEscape(paths.stdoutLog)}</string>
   <key>StandardErrorPath</key>
@@ -1323,6 +1406,23 @@ function plistBuddySetEnv(plistPath, key, value, password) {
   ], password);
 }
 
+function plistBuddyReadEnv(plistPath, key, password) {
+  try {
+    const result = runSudo("/usr/libexec/PlistBuddy", ["-c", `Print :EnvironmentVariables:${key}`, plistPath], password);
+    return String(result.stdout || "").trim();
+  } catch (_err) {
+    return "";
+  }
+}
+
+function plistBuddySetEnvIfChanged(plistPath, key, value, password) {
+  const current = plistBuddyReadEnv(plistPath, key, password);
+  const next = String(value || "");
+  if (current === next) return false;
+  plistBuddySetEnv(plistPath, key, next, password);
+  return true;
+}
+
 function installHomeAiListenerVoiceInputEnv(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const plistPath = `/Library/LaunchDaemons/${HOME_AI_LISTENER_LABEL}.plist`;
@@ -1405,22 +1505,34 @@ function readGatewayManifestForCronProfiles(manifestPath, password) {
 }
 
 function applyAclOnce(targetPath, acl, password, recursive = false) {
-  const flags = recursive ? "-R " : "";
-  const command = [
-    `/bin/chmod ${flags}-a ${shQuote(acl)} ${shQuote(targetPath)} >/dev/null 2>&1 || true`,
-    `/bin/chmod ${flags}+a ${shQuote(acl)} ${shQuote(targetPath)}`,
-  ].join("\n");
+  const command = recursive
+    ? [
+      `test -e ${shQuote(targetPath)} || exit 0`,
+      `/usr/bin/find -P ${shQuote(targetPath)} -mindepth 0 ! -type l -exec /bin/chmod -a ${shQuote(acl)} {} + >/dev/null 2>&1 || true`,
+      `/usr/bin/find -P ${shQuote(targetPath)} -mindepth 0 ! -type l -exec /bin/chmod +a ${shQuote(acl)} {} +`,
+    ].join("\n")
+    : [
+      `test -e ${shQuote(targetPath)} || exit 0`,
+      `/bin/chmod -a ${shQuote(acl)} ${shQuote(targetPath)} >/dev/null 2>&1 || true`,
+      `/bin/chmod +a ${shQuote(acl)} ${shQuote(targetPath)}`,
+    ].join("\n");
   runSudo("/bin/sh", ["-c", command], password);
 }
 
 function applyAclIfExists(targetPath, acl, password, recursive = false) {
-  const flags = recursive ? "-R " : "";
-  const command = [
-    `if test -e ${shQuote(targetPath)}; then`,
-    `  /bin/chmod ${flags}-a ${shQuote(acl)} ${shQuote(targetPath)} >/dev/null 2>&1 || true`,
-    `  /bin/chmod ${flags}+a ${shQuote(acl)} ${shQuote(targetPath)}`,
-    "fi",
-  ].join("\n");
+  const command = recursive
+    ? [
+      `if test -e ${shQuote(targetPath)}; then`,
+      `  /usr/bin/find -P ${shQuote(targetPath)} -mindepth 0 ! -type l -exec /bin/chmod -a ${shQuote(acl)} {} + >/dev/null 2>&1 || true`,
+      `  /usr/bin/find -P ${shQuote(targetPath)} -mindepth 0 ! -type l -exec /bin/chmod +a ${shQuote(acl)} {} +`,
+      "fi",
+    ].join("\n")
+    : [
+      `if test -e ${shQuote(targetPath)}; then`,
+      `  /bin/chmod -a ${shQuote(acl)} ${shQuote(targetPath)} >/dev/null 2>&1 || true`,
+      `  /bin/chmod +a ${shQuote(acl)} ${shQuote(targetPath)}`,
+      "fi",
+    ].join("\n");
   runSudo("/bin/sh", ["-c", command], password);
 }
 
@@ -1577,8 +1689,10 @@ function installHomeAiCronRuntimeScripts(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const sourceScript = posixJoin(plan.productionPath, "scripts", "homeai-disaster-backup-cron.sh");
   const sourceVisualScript = posixJoin(plan.productionPath, "scripts", "homeai-visual-polish-audit-cron.sh");
+  const sourceDriftAuditScript = posixJoin(plan.productionPath, "scripts", "homeai-production-drift-audit-watchdog.sh");
   const targetRoot = posixJoin(plan.macRoot, "data", "hermes-home", "scripts");
   const targetScript = posixJoin(targetRoot, "homeai-disaster-backup-cron.sh");
+  const targetDriftAuditScript = posixJoin(targetRoot, "homeai-production-drift-audit-watchdog.sh");
   const visualScripts = [
     "homeai-visual-polish-host.sh",
     "homeai-visual-polish-music.sh",
@@ -1598,6 +1712,16 @@ function installHomeAiCronRuntimeScripts(plan, password) {
     sourceScript,
     targetScript,
   ], password);
+  runSudo("/usr/bin/install", [
+    "-m",
+    "750",
+    "-o",
+    PRODUCTION_SERVICE_USER,
+    "-g",
+    PRODUCTION_SERVICE_GROUP,
+    sourceDriftAuditScript,
+    targetDriftAuditScript,
+  ], password);
   for (const name of visualScripts) {
     runSudo("/usr/bin/install", [
       "-m",
@@ -1614,7 +1738,7 @@ function installHomeAiCronRuntimeScripts(plan, password) {
     type: "home-ai-cron-runtime-scripts",
     sourceScript,
     targetRoot,
-    installed: ["homeai-disaster-backup-cron.sh", ...visualScripts],
+    installed: ["homeai-disaster-backup-cron.sh", "homeai-production-drift-audit-watchdog.sh", ...visualScripts],
   };
 }
 
@@ -1953,6 +2077,32 @@ function installHomeAiNasBackupMountLaunchd(plan, password) {
   };
 }
 
+function installHomeAiProductionDriftAuditLaunchd(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const paths = homeAiProductionDriftAuditPaths(plan.macRoot);
+  const plist = buildHomeAiProductionDriftAuditLaunchdPlist(plan.macRoot);
+
+  runSudo("/bin/mkdir", ["-p", paths.outputDir, path.posix.dirname(paths.stdoutLog)], password);
+  runSudo("/usr/sbin/chown", [`${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, paths.outputDir], password);
+  runSudo("/bin/chmod", ["750", paths.outputDir], password);
+  runSudo("/usr/bin/touch", [paths.stdoutLog, paths.stderrLog], password);
+  runSudo("/usr/sbin/chown", ["root:wheel", paths.stdoutLog, paths.stderrLog], password);
+  runSudo("/bin/chmod", ["640", paths.stdoutLog, paths.stderrLog], password);
+  runSudo("/bin/chmod", ["755", paths.script], password);
+  installRootOwnedTextFile(paths.plistPath, plist, password, "644", "root:wheel");
+  runSudo("/usr/bin/plutil", ["-lint", paths.plistPath], password);
+  runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(paths.plistPath)} >/dev/null 2>&1 || true`], password);
+  runSudo("/bin/launchctl", ["bootstrap", "system", paths.plistPath], password);
+  runSudo("/bin/launchctl", ["kickstart", "-k", `system/${HOME_AI_PRODUCTION_DRIFT_AUDIT_LABEL}`], password);
+  return {
+    type: "home-ai-production-drift-audit-launchd-install",
+    label: HOME_AI_PRODUCTION_DRIFT_AUDIT_LABEL,
+    plistPath: paths.plistPath,
+    startIntervalSeconds: HOME_AI_PRODUCTION_DRIFT_AUDIT_START_INTERVAL_SECONDS,
+    outputDir: paths.outputDir,
+  };
+}
+
 function repairHomeAiBackupArtifactAcls(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const artifactsRoot = posixJoin(plan.macRoot, "data", "artifacts");
@@ -1994,6 +2144,18 @@ function repairGatewayStartScriptBridgeEnv(plan, password) {
   };
 }
 
+function reconcileHomeAiProductionDrift(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface !== "full") return null;
+  const node = path.join(plan.macRoot, PINNED_NODE);
+  const script = path.join(plan.productionPath, "scripts", "macos-production-drift-reconcile.js");
+  const result = runSudo(node, [script, "--root", plan.macRoot, "--execute", "--json"], password);
+  return {
+    type: "home-ai-production-drift-reconcile",
+    status: result.status,
+    stdout: String(result.stdout || "").slice(0, 1600),
+  };
+}
+
 function sleepMs(ms) {
   if (!ms) return;
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -2024,21 +2186,32 @@ function runValidation(check, password, options) {
   throw lastError;
 }
 
-function runCodexAuthProfileAuditValidation(check, password) {
+function validationIssuePrefixes(check, fallbackPrefix = "") {
+  const prefixes = Array.isArray(check.failOnIssuePrefixes)
+    ? check.failOnIssuePrefixes
+    : (check.failOnIssuePrefix ? [check.failOnIssuePrefix] : []);
+  return prefixes.map((item) => String(item || "").trim()).filter(Boolean).concat(
+    prefixes.length ? [] : (fallbackPrefix ? [fallbackPrefix] : []),
+  );
+}
+
+function runIssuePrefixAuditValidation(check, password, fallbackPrefix = "") {
   const [command, ...args] = check.command;
   const result = runSudo(command, args, password);
   let audit = null;
   try {
     audit = JSON.parse(result.stdout || "{}");
   } catch (_err) {
-    throw new Error("codex_auth_profile_audit_json_invalid");
+    throw new Error(`${check.type}_json_invalid`);
   }
   const issues = Array.isArray(audit.issues) ? audit.issues.map((item) => String(item || "")).filter(Boolean) : [];
-  const prefix = String(check.failOnIssuePrefix || CODEX_AUTH_AUDIT_ISSUE_PREFIX);
-  const codexIssues = issues.filter((item) => item.startsWith(prefix));
-  if (codexIssues.length) {
-    const err = new Error(`codex_auth_profile_audit_failed:${codexIssues.slice(0, 20).join(",")}`);
-    err.stderr = `codexAuthIssues=${codexIssues.length}`;
+  const prefixes = validationIssuePrefixes(check, fallbackPrefix);
+  const blockingIssues = check.failOnAnyIssue
+    ? issues
+    : issues.filter((item) => prefixes.some((prefix) => item.startsWith(prefix)));
+  if (blockingIssues.length) {
+    const err = new Error(`${check.type}_failed:${blockingIssues.slice(0, 20).join(",")}`);
+    err.stderr = `blockingIssues=${blockingIssues.length}`;
     throw err;
   }
   return {
@@ -2046,7 +2219,9 @@ function runCodexAuthProfileAuditValidation(check, password) {
     status: result.status,
     auditOk: Boolean(audit.ok),
     issueCount: issues.length,
-    codexIssueCount: 0,
+    blockingIssueCount: 0,
+    failOnAnyIssue: Boolean(check.failOnAnyIssue),
+    failOnIssuePrefixes: prefixes,
   };
 }
 
@@ -2125,6 +2300,34 @@ function repairCodexMobileLogPermissions(plan, password) {
     runSudo("/bin/chmod", ["644", repair.launchdPlistPath], password);
     runSudo("/usr/bin/plutil", ["-lint", repair.launchdPlistPath], password);
   }
+  let codexRuntime = null;
+  const envUpdated = [];
+  if (repair.launchdPlistPath) {
+    codexRuntime = resolveCodexMobileProfileRuntime({
+      serviceUser: repair.serviceUser,
+      runtimeRoot: repair.runtimeRoot,
+      profileFile: repair.profileFile,
+    });
+    if (plistBuddySetEnvIfChanged(repair.launchdPlistPath, "CODEX_HOME", codexRuntime.codexHome, password)) {
+      envUpdated.push("CODEX_HOME");
+    }
+    if (plistBuddySetEnvIfChanged(repair.launchdPlistPath, "CODEX_MOBILE_PROFILE_FILE", codexRuntime.profileFile, password)) {
+      envUpdated.push("CODEX_MOBILE_PROFILE_FILE");
+    }
+    const existingMuxEndpoint = plistBuddyReadEnv(repair.launchdPlistPath, "CODEX_MOBILE_MUX_ENDPOINT_FILE", password);
+    const existingRequireShared = plistBuddyReadEnv(repair.launchdPlistPath, "CODEX_MOBILE_REQUIRE_SHARED_APP_SERVER", password);
+    if (existingMuxEndpoint || existingRequireShared === "1") {
+      if (plistBuddySetEnvIfChanged(repair.launchdPlistPath, "CODEX_MOBILE_MUX_ENDPOINT_FILE", codexRuntime.muxEndpointFile, password)) {
+        envUpdated.push("CODEX_MOBILE_MUX_ENDPOINT_FILE");
+      }
+    }
+    if (envUpdated.length) {
+      launchdReloadRequired = true;
+      runSudo("/usr/sbin/chown", ["root:wheel", repair.launchdPlistPath], password);
+      runSudo("/bin/chmod", ["644", repair.launchdPlistPath], password);
+      runSudo("/usr/bin/plutil", ["-lint", repair.launchdPlistPath], password);
+    }
+  }
   return {
     type: repair.type,
     status: 0,
@@ -2137,6 +2340,11 @@ function repairCodexMobileLogPermissions(plan, password) {
     launchdPlistPath: repair.launchdPlistPath,
     stdoutPath: files[0] || "",
     stderrPath: files[1] || "",
+    codexHome: codexRuntime?.codexHome || "",
+    codexHomeSource: codexRuntime?.source || "",
+    codexProfileActiveId: codexRuntime?.activeProfileId || "",
+    codexProfileFile: codexRuntime?.profileFile || "",
+    envUpdated,
     launchdReloadRequired,
   };
 }
@@ -2259,12 +2467,14 @@ function executePlan(plan, options) {
   const visualAnalysisProfile = installHomeAiVisualAnalysisProfile(plan, password);
   const cronBuiltinSkills = installHomeAiCronBuiltinSkills(plan, password);
   const cronRuntimeScripts = installHomeAiCronRuntimeScripts(plan, password);
+  const productionDriftAuditInstall = installHomeAiProductionDriftAuditLaunchd(plan, password);
   const visualPolishTaskCardConfig = installHomeAiVisualPolishTaskCardConfig(plan, password);
   const visualPolishCronJobs = installHomeAiVisualPolishCronJobs(plan, password);
   const visualDebugLaunchAgent = installHomeAiVisualDebugLaunchAgent(plan, password);
   const backupArtifactAclRepair = repairHomeAiBackupArtifactAcls(plan, password);
   const codexSharedAuthRepair = repairCodexSharedAuthPermissions(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
+  const productionDriftReconcile = reconcileHomeAiProductionDrift(plan, password);
   const deployBackupPrune = pruneDeployBackups(plan, options, password);
 
   const reloadedLabels = new Set();
@@ -2292,6 +2502,7 @@ function executePlan(plan, options) {
   if (bridgeHostInstall) validations.push(Object.assign({ status: 0 }, bridgeHostInstall));
   if (cronInstall) validations.push(Object.assign({ status: 0 }, cronInstall));
   if (nasBackupMountInstall) validations.push(Object.assign({ status: 0 }, nasBackupMountInstall));
+  if (productionDriftAuditInstall) validations.push(Object.assign({ status: 0 }, productionDriftAuditInstall));
   if (listenerVoiceInputEnv) validations.push(Object.assign({ status: 0 }, listenerVoiceInputEnv));
   if (cronProfileAliases) validations.push(Object.assign({ status: 0 }, cronProfileAliases));
   if (visualAnalysisProfile) validations.push(Object.assign({ status: 0 }, visualAnalysisProfile));
@@ -2303,10 +2514,12 @@ function executePlan(plan, options) {
   if (backupArtifactAclRepair) validations.push(backupArtifactAclRepair);
   if (codexSharedAuthRepair) validations.push(codexSharedAuthRepair);
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
+  if (productionDriftReconcile) validations.push(productionDriftReconcile);
   if (deployBackupPrune) validations.push(deployBackupPrune);
   for (const check of plan.validation) {
     if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));
-    else if (check.type === "codex-auth-profile-audit") validations.push(runCodexAuthProfileAuditValidation(check, password));
+    else if (check.type === "codex-auth-profile-audit") validations.push(runIssuePrefixAuditValidation(check, password, CODEX_AUTH_AUDIT_ISSUE_PREFIX));
+    else if (check.type === "home-ai-production-drift-audit") validations.push(runIssuePrefixAuditValidation(check, password));
     else validations.push(runValidation(check, password, options));
   }
   return validations;
@@ -2377,6 +2590,7 @@ module.exports = {
   buildHomeAiBridgeHostLaunchdPlist,
   buildHomeAiCronLaunchdPlist,
   buildHomeAiNasBackupMountLaunchdPlist,
+  buildHomeAiProductionDriftAuditLaunchdPlist,
   cronProfileAliasRowsFromManifest,
   buildHomeAiVisualAnalysisProfileConfig,
   buildRsyncArgs,

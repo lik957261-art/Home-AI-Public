@@ -536,6 +536,9 @@ function wireRightSwipeGuard() {
     const previewUi = window.TaskDocumentPreviewUi || {};
     const previewOpen = Boolean(previewUi.hasArtifactPreviewOverlay?.());
     const target = previewOpen ? "artifact-preview" : backSwipeTarget();
+    const primaryBackBounce = !previewOpen
+      && typeof androidPrimaryBackBounceTarget === "function"
+      && androidPrimaryBackBounceTarget(target);
     touch = {
       startX: point.clientX,
       startY: point.clientY,
@@ -544,9 +547,10 @@ function wireRightSwipeGuard() {
       blocked: point.clientX <= EDGE_SWIPE_HIT_PX,
       accepted: false,
       target,
+      primaryBackBounce,
       surface: previewOpen
         ? previewUi.previewBackSwipeSurface?.()
-        : (target ? backSwipeSurface(target) : document.querySelector(".main")),
+        : (primaryBackBounce ? null : (target ? backSwipeSurface(target) : document.querySelector(".main"))),
     };
     if (touch.blocked) event.preventDefault();
   }, { passive: false, capture: true });
@@ -564,7 +568,11 @@ function wireRightSwipeGuard() {
     const elapsed = Math.max(1, performance.now() - (touch.startedAt || performance.now()));
     const velocity = dx / elapsed;
     touch.accepted = dx > 58 || velocity > 0.55;
-    if (touch.surface) applyBackSwipeDrag(touch, dx);
+    if (touch.primaryBackBounce && typeof showAndroidBackBounceIndicator === "function") {
+      showAndroidBackBounceIndicator(Math.min(1, dx / 72));
+    } else if (touch.surface) {
+      applyBackSwipeDrag(touch, dx);
+    }
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation?.();
@@ -573,6 +581,12 @@ function wireRightSwipeGuard() {
     const current = touch;
     clear();
     if (!current?.blocked || !isMobileLayout()) return;
+    if (current.primaryBackBounce) {
+      if (typeof showAndroidBackBounceIndicator === "function") {
+        showAndroidBackBounceIndicator(Math.min(1, Math.max(0.3, ((current.lastX || current.startX) - current.startX) / 72)), { settling: true });
+      }
+      return;
+    }
     if (current.surface) {
       current.surface.classList.remove("page-back-dragging");
       current.surface.classList.add("page-back-settling");

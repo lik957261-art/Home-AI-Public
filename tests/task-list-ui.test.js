@@ -6,7 +6,7 @@ const path = require("path");
 const { appSplitModuleFiles, readAppShellSource } = require("./app-shell-test-helper");
 
 const repoRoot = path.resolve(__dirname, "..");
-const CLIENT_VERSION = "20260620-directory-icon-align-v889";
+const CLIENT_VERSION = "20260621-android-preview-back-v898";
 const appJs = [
   readAppShellSource(repoRoot),
   fs.readFileSync(path.join(repoRoot, "public", "app-learning-growth-reflection-ui.js"), "utf8"),
@@ -221,8 +221,12 @@ assert.match(indexHtml, /id="bootSplashMeta"/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \{[\s\S]*?place-content: center;/);
 assert.match(indexHtml, /@media \(max-width: 1099px\), \(pointer: coarse\) and \(max-width: 1366px\) \{[\s\S]*?\.boot-splash \{[\s\S]*?place-content: start center;[\s\S]*?padding: max\(132px, calc\(env\(safe-area-inset-top\) \+ 76px\)\) 24px max\(48px, calc\(env\(safe-area-inset-bottom\) \+ 28px\)\);/);
 assert.match(indexHtml, /id="hermesInitialThemeStyle"[\s\S]*?\.boot-splash \.hidden \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260620-directory-icon-align-v889" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
-assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260620-directory-icon-align-v889"><\/noscript>/);
+assert.match(indexHtml, /<link rel="preload" href="\/styles\.css\?v=20260621-android-preview-back-v898" as="style" onload="this\.onload=null;this\.rel='stylesheet'">/);
+assert.match(indexHtml, /<noscript><link rel="stylesheet" href="\/styles\.css\?v=20260621-android-preview-back-v898"><\/noscript>/);
+assert.match(indexHtml, /window\.__hermesAndroidBackGuard/);
+assert.match(indexHtml, /hermesAndroidBackBase/);
+assert.match(indexHtml, /guard\.releaseToApp = function/);
+assert.match(indexHtml, /window\.addEventListener\("popstate"[\s\S]*?ensureGuardDepth\(\);[\s\S]*?stopImmediatePropagation/);
 assert.match(indexHtml, /window\.__hermesBootCompleted/);
 assert.match(indexHtml, /boot_timeout/);
 assert.match(indexHtml, /hermesBootSoftReload:/);
@@ -520,7 +524,9 @@ assert.match(appJs, /const historyActive = isPreviewHistoryActive\(\);[\s\S]*?gl
 assert.match(appJs, /event\?\.stopImmediatePropagation\?\.\(\);[\s\S]*?event\?\.stopPropagation\?\.\(\);[\s\S]*?\}, \{ capture: true \}\);/);
 assert.match(appJs, /function closeActivePreviewFromUser\(\)/);
 assert.match(appJs, /const previewOpen = Boolean\(previewUi\.hasArtifactPreviewOverlay\?\.\(\)\)/);
+assert.match(appJs, /function backSwipeTarget\(\) \{[\s\S]*?const previewUi = window\.TaskDocumentPreviewUi \|\| \{\};[\s\S]*?const previewOpen = Boolean\(previewUi\.hasArtifactPreviewOverlay\?\.\(\)\);[\s\S]*?if \(previewOpen\) return "artifact-preview";/);
 assert.match(appJs, /current\.target === "artifact-preview"/);
+assert.match(appJs, /if \(target === "artifact-preview"\) window\.TaskDocumentPreviewUi\?\.closeActivePreviewFromUser\?\.\(\);/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h1/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h1 \{[\s\S]*?font-size: 24px;/);
 assert.match(stylesCss, /\.task-markdown-preview-doc h2 \{[\s\S]*?font-size: 22px;/);
@@ -1314,7 +1320,9 @@ assert.match(gatewayRunInstructionServiceJs, /`chatgpt_image_edit`, and `chatgpt
 assert.match(gatewayRunInstructionServiceJs, /For existing-image retouching, object removal, background cleanup, P image requests, or erase\/inpainting requests/);
 assert.match(gatewayRunInstructionServiceJs, /prefer `chatgpt_image_edit` or `chatgpt_image_erase`/);
 assert.match(gatewayRunInstructionServiceJs, /DEFAULT_TOOL_SCHEMA_EPOCH/);
-assert.match(gatewayRunInstructionServiceJs, /20260620-music-browse-tools-v1/);
+assert.match(gatewayRunInstructionServiceJs, /20260620-music-demo-plan-v1/);
+assert.match(gatewayRunInstructionServiceJs, /mcp_music_music_demo_save_plan/);
+assert.match(gatewayRunInstructionServiceJs, /mcp_music_music_demo_advance_to_track/);
 assert.match(gatewayRunInstructionServiceJs, /allowed direct cover `image_url`/);
 assert.match(gatewayRunInstructionServiceJs, /Do not use generic `http_request` to download cover art for Music writes/);
 assert.match(mobileRuntimeGatewayEnvironmentServiceJs, /HERMES_MOBILE_GATEWAY_MODEL_PERMISSION_PREFLIGHT[\s\S]*\|\| "0"/);
@@ -2682,12 +2690,18 @@ assert.match(appJs, /const pluginContextTarget = pluginContextBackTarget\(\);[\s
 assert.match(appJs, /if \(!pluginContextBack && typeof wardrobePluginOuterBackActive === "function" && wardrobePluginOuterBackActive\(\)\) return "wardrobe-plugin-outer"/);
 assert.match(appJs, /if \(!pluginContextBack && typeof financePluginOuterBackActive === "function" && financePluginOuterBackActive\(\)\) return "finance-plugin-outer"/);
 const financePluginBackIndex = appJs.indexOf('return "finance-plugin"');
+const musicPluginBackIndex = appJs.indexOf('return "music-plugin"');
 const pluginContextHomeIndex = appJs.indexOf('if (pluginContextTarget) return pluginContextTarget;');
 assert.ok(financePluginBackIndex > -1);
+assert.ok(musicPluginBackIndex > -1);
 assert.ok(pluginContextHomeIndex > -1);
 assert.ok(
   financePluginBackIndex < pluginContextHomeIndex,
   "plugin iframe back must run before plugin-context host exit",
+);
+assert.ok(
+  musicPluginBackIndex < pluginContextHomeIndex,
+  "Music iframe back must run before plugin-context host exit",
 );
 assert.match(appJs, /target === "plugin-context-home"[\s\S]*exitPluginContextToTopicHome\(\)/);
 assert.match(appJs, /function exitPluginContextToTopicHome\(\)/);
@@ -2880,14 +2894,14 @@ assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomTasksMode \{[\s
 assert.doesNotMatch(stylesCss, /\.plugin-context-nav-mode #bottomProjectsMode \{[\s\S]*?order: 3 !important;/);
 assert.doesNotMatch(stylesCss, /\.main-back-visible\.plugin-context-nav-mode \.bottom-nav \{[\s\S]*?display: grid;/);
 assert.match(stylesCss, /\.sidebar\.open ~ \.bottom-nav \{[\s\S]*?display: none !important;/);
-assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260620-directory-icon-align-v889/);
-assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260620-directory-icon-align-v889/);
-assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260620-directory-icon-align-v889/);
-assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260620-directory-icon-align-v889/);
-assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260620-directory-icon-align-v889/);
-assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260620-directory-icon-align-v889/);
-assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260620-directory-icon-align-v889/);
-assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260620-directory-icon-align-v889/);
+assert.match(indexHtml, /app-plugin-topics-ui\.js\?v=20260621-android-preview-back-v898/);
+assert.match(serviceWorkerJs, /\/app-plugin-topics-ui\.js\?v=20260621-android-preview-back-v898/);
+assert.match(indexHtml, /app-directory-topics-ui\.js\?v=20260621-android-preview-back-v898/);
+assert.match(serviceWorkerJs, /\/app-directory-topics-ui\.js\?v=20260621-android-preview-back-v898/);
+assert.match(indexHtml, /app-voice-input-ui\.js\?v=20260621-android-preview-back-v898/);
+assert.match(serviceWorkerJs, /\/app-voice-input-ui\.js\?v=20260621-android-preview-back-v898/);
+assert.match(indexHtml, /app-voice-learning-ui\.js\?v=20260621-android-preview-back-v898/);
+assert.match(serviceWorkerJs, /\/app-voice-learning-ui\.js\?v=20260621-android-preview-back-v898/);
 assert.match(voiceInputUiJs, /comparison:\s*typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)/);
 assert.match(voiceLearningUiJs, /function voiceLearningComparisonHtml/);
 assert.match(stylesCss, /\.voice-learning-asr-row-selected/);
@@ -3105,8 +3119,12 @@ assert.match(appJs, /function openPluginTopicChat\(pluginId, options = \{\}\)[\s
 assert.match(appJs, /function openPluginTopicDelivery\(pluginId\)[\s\S]*?hideActivePluginHostsForPluginTopicNavigation\(\)/);
 assert.match(appJs, /function openPluginTopicChat\(pluginId, options = \{\}\)[\s\S]*?const deferViewModeApplyUntilLoaded = Boolean\(options\.deferViewModeApplyUntilLoaded\)/);
 assert.match(appJs, /function openPluginTopicChat\(pluginId, options = \{\}\)[\s\S]*?preparePrimaryNavigationChange\(\)/);
-assert.match(appJs, /function openPluginTopicChat\(pluginId, options = \{\}\)[\s\S]*?state\.forceChatStickToBottomUntil = Date\.now\(\) \+ 12000[\s\S]*?await loadSingleWindow\(\)[\s\S]*?scheduleConversationBottomStick\(\)/);
-assert.match(appJs, /if \(!deferViewModeApplyUntilLoaded && typeof applyViewMode === "function"\) applyViewMode\(\);[\s\S]*?await loadSingleWindow\(\);[\s\S]*?if \(deferViewModeApplyUntilLoaded && typeof applyViewMode === "function"\) applyViewMode\(\);/);
+assert.match(appJs, /function pluginTopicImmediateThreadForDef\(def\)[\s\S]*?const candidates = \[state\.currentThread, state\.taskListThread\]/);
+assert.match(appJs, /function pluginTopicImmediateThreadHasGroup\(thread, groupId = ""\)[\s\S]*?taskGroupsForThread\(thread\)[\s\S]*?message\?\.taskGroupId/);
+assert.match(appJs, /function renderPluginTopicChatImmediateShell\(def\)/);
+assert.match(appJs, /function renderPluginTopicChatImmediateShell\(def\)[\s\S]*?const thread = pluginTopicImmediateThreadForDef\(def\)[\s\S]*?state\.currentThread = thread[\s\S]*?renderCurrentThread\(\{ stickToBottom: true \}\)/);
+assert.match(appJs, /function openPluginTopicChat\(pluginId, options = \{\}\)[\s\S]*?state\.forceChatStickToBottomUntil = Date\.now\(\) \+ 12000[\s\S]*?renderPluginTopicChatImmediateShell\(def\);[\s\S]*?await loadSingleWindow\(\)[\s\S]*?scheduleConversationBottomStick\(\)/);
+assert.match(appJs, /if \(!deferViewModeApplyUntilLoaded && typeof applyViewMode === "function"\) applyViewMode\(\);[\s\S]*?renderPluginTopicChatImmediateShell\(def\);[\s\S]*?await loadSingleWindow\(\);[\s\S]*?if \(deferViewModeApplyUntilLoaded && typeof applyViewMode === "function"\) applyViewMode\(\);/);
 assert.match(appJs, /async function openBuiltInDirectoryPlugin\(\)/);
 assert.match(appJs, /directoryPluginContextActive: false/);
 assert.match(appJs, /function preparePrimaryNavigationChange\(\) \{[\s\S]*?state\.directoryPluginContextActive = false;/);
@@ -3557,13 +3575,14 @@ assert.doesNotMatch(pdfViewerHtml, /viewerChrome/);
 assert.doesNotMatch(pdfViewerHtml, /embeddedViewer/);
 assert.doesNotMatch(pdfViewerHtml, /native-browser-chrome/);
 assert.match(stylesCss, /\.composer \{[\s\S]*?padding: 8px 13px calc\(8px \+ env\(safe-area-inset-bottom\)\)/);
-assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer \{[\s\S]*?grid-template-columns: 36px minmax\(0, 1fr\) 48px;[\s\S]*?padding: 5px max\(10px, env\(safe-area-inset-right\)\) 5px max\(8px, env\(safe-area-inset-left\)\)/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer \{[\s\S]*?grid-template-columns: 44px minmax\(0, 1fr\) 48px;[\s\S]*?padding: 5px max\(10px, env\(safe-area-inset-right\)\) 5px max\(8px, env\(safe-area-inset-left\)\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.main-back-visible \.composer \{[\s\S]*?padding-bottom: calc\(12px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.global-plugin-dock-mode\.global-plugin-dock-collapsed-mode:not\(\.main-back-visible\):not\(\.plugin-context-nav-mode\) \.composer \{[\s\S]*?transform: translateY\(-6px\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.global-plugin-dock-mode\.global-plugin-dock-expanded-mode:not\(\.main-back-visible\):not\(\.plugin-context-nav-mode\) \.composer \{[\s\S]*?transform: translateY\(calc\(-1 \* var\(--topic-plugin-dock-height\) - 6px\)\);/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer button \{[\s\S]*?min-height: 32px;[\s\S]*?padding: 0 11px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?\.composer-editor \{[\s\S]*?min-height: 32px;[\s\S]*?padding: 6px 9px;[\s\S]*?font-size: 15px;/);
-assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?#attachFile \{[\s\S]*?width: 36px;[\s\S]*?min-width: 36px;[\s\S]*?min-height: 36px;[\s\S]*?font-size: 19px;/);
+assert.match(stylesCss, /#attachFile \{[\s\S]*?width: 44px;[\s\S]*?min-width: 44px;[\s\S]*?min-height: 44px;[\s\S]*?touch-action: manipulation;/);
+assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?#attachFile \{[\s\S]*?width: 44px;[\s\S]*?min-width: 44px;[\s\S]*?min-height: 44px;[\s\S]*?font-size: 19px;/);
 assert.match(stylesCss, /@media \(max-width: 1099px\)[\s\S]*?#sendMessage \{[\s\S]*?min-width: 48px;[\s\S]*?min-height: 33px;[\s\S]*?padding: 0 6px;[\s\S]*?font-size: 13px;/);
 assert.doesNotMatch(stylesCss, /@media \(max-width: 1099px\) and \(orientation: landscape\)[\s\S]*?\.composer \{[\s\S]*?grid-template-columns: 36px minmax\(0, 1fr\) auto;[\s\S]*?calc\(7px \+ env\(safe-area-inset-bottom\)\)/);
 assert.match(appJs, /COMPOSER_MAX_TEXT_CHARS = 240000/);

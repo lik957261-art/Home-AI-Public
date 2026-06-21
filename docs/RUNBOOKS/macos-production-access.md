@@ -259,6 +259,20 @@ Do not extend that exception to `/Users/example/path` or to
 other production plugin source roots unless a service has a specific run-user
 need and the exception is recorded.
 
+If the single production Codex Mobile service is not listening on `8787`, use
+the host recovery script instead of starting a second runtime:
+
+```bash
+/Users/example/path --list-homes --json
+/Users/example/path --profile-id previous --dry-run --json
+/Users/example/path --profile-id previous --json
+```
+
+Home AI exposes the same guarded flow through Owner-only
+`/api/codex-mobile/recovery/*` routes. This recovery is for listener-missing or
+LaunchDaemon-stopped incidents only. Do not use it for `401` responses, normal
+thread failures, frontend refresh issues, or projection bugs.
+
 Mac development workspaces used by the single production Codex Mobile service
 are registered in `/Users/example/path`.
 Use canonical real paths under `/Users/example/path` as the

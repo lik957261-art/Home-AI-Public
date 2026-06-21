@@ -366,6 +366,8 @@ function compactPluginDirectory(pluginDirectory) {
       base: row.base || "",
       projectCount: Number(row.projectCount || 0),
       hasThread: Boolean(row.hasThread),
+      skipped: Boolean(row.skipped),
+      skipReason: row.skipReason || "",
       rootCreate: row.rootCreate || null,
       preview: row.preview || null,
       pluginCreates: row.pluginCreates || [],
@@ -589,7 +591,7 @@ async function runClosure(options) {
     && runtimePython.ok
     && acl.ok
     && acl.failedCount === 0
-    && (!pluginDirectory || (pluginDirectory.ok && pluginDirectory.rows.every((row) => row.ok)))
+    && (!pluginDirectory || (pluginDirectory.ok && pluginDirectory.rows.every((row) => row.ok || row.skipped)))
     && (!boundDirectory || (boundDirectory.path.ok && boundDirectory.uiRoute.ok))
     && (!wardrobeBinding || (wardrobeBinding.ok && wardrobeBinding.bindings.every((row) => row.ok) && wardrobeBinding.workspaces.every((row) => row.ok)))
     && schemas.every((row) => row.ok)

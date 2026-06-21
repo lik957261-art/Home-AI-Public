@@ -408,4 +408,16 @@ the change is part of a dedicated infrastructure rename.
   must not overwrite the task-list root cache.
 - A primary module can also be opened as a secondary surface when launched from another page-level overflow menu. Example: opening the Automation list from the Inbox overflow records `automationReturnRoute="inbox"`; the Automation list then uses the top-left shell back button and right-swipe back to return to Inbox. Bottom navigation into the same module remains a primary page and clears the return route.
 - Mobile OS status bar visibility, safe-area, bottom nav, keyboard viewport, and back/right-swipe behavior must be tested when changing shell/navigation code.
+- Android installed PWA/browser shells cannot use browser history as final
+  acceptance for launcher-exit prevention. The Web client keeps a best-effort
+  Android-only `history.pushState` guard: `index.html` installs a cold-start
+  guard before the main client bundle loads, and the app-level guard adopts
+  that depth before taking over. The guard is replenished synchronously on
+  `popstate`, `pageshow`, focus, visibility restore, and the first user
+  interaction after resume. Production-quality primary-page Back/Predictive
+  Back behavior belongs to the Android native shell, which must consume root
+  Back events without reloading the workspace or finishing the Activity.
+  Secondary Web surfaces still resolve through `backSwipeTarget()` and
+  `performBackSwipeAction()` when the native shell forwards a bounded back
+  request.
 - After the composer sends a message in Chat or a task detail, the conversation must stay pinned to the newest run/status area through the immediate server response, inline run-progress growth, and follow-up viewport refreshes. Refresh/render helpers should extend the bottom-follow window and avoid restoring stale bottom offsets during this send/run-start interval.

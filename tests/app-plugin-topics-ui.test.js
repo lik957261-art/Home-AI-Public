@@ -218,8 +218,10 @@ assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-row-chevr
 assert.match(stylesCss, /\.plugin-topic-child-list \{[\s\S]*?margin-left: 52px;[\s\S]*?padding: 0 0 7px 9px;/);
 assert.match(stylesCss, /@media \(max-width: 760px\) \{[\s\S]*?\.plugin-topic-child-list \{[\s\S]*?margin-left: 24px;[\s\S]*?padding: 0 0 7px 9px;/);
 assert.match(stylesCss, /\.plugin-topic-card\.collapsed \.plugin-topic-child-list \{[\s\S]*?display: none;/);
-assert.match(stylesCss, /\.directory-topic-root-entry \{[\s\S]*?grid-template-columns: 44px minmax\(0, 1fr\) 16px;/);
+assert.match(stylesCss, /\.directory-topic-root-entry \{[\s\S]*?grid-template-columns: 56px minmax\(0, 1fr\) 16px;/);
 assert.match(stylesCss, /\.directory-topic-root-icon-entry,[\s\S]*?\.directory-topic-root-toggle,[\s\S]*?\.directory-topic-root-chevron-button \{[\s\S]*?min-height: 48px;/);
+assert.match(stylesCss, /\.directory-topic-root-icon-entry \{[\s\S]*?width: 56px;[\s\S]*?place-items: center;/);
+assert.match(stylesCss, /\.directory-topic-root-icon\.plugin-topic-app-icon\.directory \{[\s\S]*?width: 32px;[\s\S]*?height: 32px;[\s\S]*?--directory-folder-body-width: 26px;[\s\S]*?border-radius: 9px;[\s\S]*?background: linear-gradient/);
 assert.match(stylesCss, /\.directory-topic-launcher\.root-collapsed \.directory-topic-grid \{[\s\S]*?display: none;/);
 
 {

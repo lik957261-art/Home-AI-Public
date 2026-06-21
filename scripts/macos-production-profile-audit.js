@@ -153,6 +153,66 @@ function readJson(file) {
   }
 }
 
+function readText(file) {
+  try {
+    return fs.readFileSync(file, "utf8");
+  } catch (_) {
+    return "";
+  }
+}
+
+function yamlScalar(text, key) {
+  const pattern = new RegExp(`^\\s*${escapeRegExp(key)}\\s*:\\s*([^#\\n]+?)\\s*$`, "m");
+  const match = String(text || "").match(pattern);
+  if (!match) return "";
+  return match[1].trim().replace(/^['"]|['"]$/g, "");
+}
+
+function expectedModelForWorker(worker = {}) {
+  const configured = String(worker.modelDefault || worker.defaultModel || worker.model || worker.model_default || "").trim();
+  if (configured) return configured;
+  const provider = String(worker.provider || "openai-codex").trim();
+  if (provider === "xai-oauth") return "grok-4.3";
+  if (provider === "deepseek") return "deepseek-chat";
+  return "";
+}
+
+function profileConfigStatus(worker = {}, profileDir = "", root = "", options = {}) {
+  const profile = String(worker.profile || worker.name || "").trim();
+  const configPath = String(worker.configPath || worker.config_path || path.join(profileDir, "config.yaml"));
+  const expectedProvider = String(worker.provider || "openai-codex").trim();
+  const expectedModel = expectedModelForWorker(worker);
+  if (typeof options.profileConfigProbe === "function") {
+    const probe = options.profileConfigProbe({ worker, profile, profileDir, configPath, root }) || {};
+    const provider = String(probe.provider || "").trim();
+    const model = String(probe.model || "").trim();
+    const existsValue = probe.exists == null ? Boolean(provider || model) : Boolean(probe.exists);
+    return {
+      path: compactPath(configPath, root),
+      exists: existsValue,
+      provider,
+      model,
+      expectedProvider,
+      expectedModel,
+      providerMatchesManifest: Boolean(provider && provider === expectedProvider),
+      modelMatchesExpected: expectedModel ? model === expectedModel : true,
+    };
+  }
+  const text = readText(configPath);
+  const provider = yamlScalar(text, "provider");
+  const model = yamlScalar(text, "default");
+  return {
+    path: compactPath(configPath, root),
+    exists: Boolean(text),
+    provider,
+    model,
+    expectedProvider,
+    expectedModel,
+    providerMatchesManifest: Boolean(provider && provider === expectedProvider),
+    modelMatchesExpected: expectedModel ? model === expectedModel : true,
+  };
+}
+
 function exists(file) {
   try {
     return fs.existsSync(file);
@@ -714,6 +774,13 @@ function pluginRows(pluginAuth = {}) {
   return rows.sort((a, b) => `${a.workspaceId}:${a.pluginId}`.localeCompare(`${b.workspaceId}:${b.pluginId}`));
 }
 
+function pluginProvisioningNotActiveStatus(value) {
+  const status = String(value || "").trim();
+  return ["pending", "provisioning_failed", "failed", "not_started", "manual_required"].includes(status)
+    ? status
+    : "";
+}
+
 function pluginBindingStatus(dataDir, workspaceId, pluginId) {
   const dir = path.join(dataDir, "drive", "users", workspaceId, `.hermes-${pluginId}`);
   const configPresent = exists(path.join(dir, "config.json"));
@@ -810,7 +877,13 @@ function buildAudit(options) {
     const memoryRoot = path.join(skillProfilesRoot, profileId, "memories");
     const workspaceWorkers = workers.filter((worker) => workerWorkspaceIds(worker).includes(workspaceId));
     const authPlugins = plugins.filter((row) => row.workspaceId === workspaceId && row.enabled);
-    const localPluginBindings = options.expectedPlugins.map((pluginId) => pluginBindingStatus(dataDir, workspaceId, pluginId));
+    const pluginIdsToCheck = [...new Set([
+      ...options.expectedPlugins,
+      ...authPlugins.map((row) => row.pluginId),
+      ...((options.requiredWorkspacePlugins || {})[workspaceId] || []),
+      ...((options.requiredWorkspaceSkillPlugins || {})[workspaceId] || []),
+    ])].sort();
+    const localPluginBindings = pluginIdsToCheck.map((pluginId) => pluginBindingStatus(dataDir, workspaceId, pluginId));
     const localPluginIds = localPluginBindings.filter((binding) => binding.complete).map((binding) => binding.pluginId);
     const workspacePluginIds = [...new Set([
       ...authPlugins.map((row) => row.pluginId),
@@ -852,6 +925,10 @@ function buildAudit(options) {
     for (const pluginId of summary.authPluginIds) {
       const localBinding = localPluginBindings.find((binding) => binding.pluginId === pluginId);
       if (!localBinding?.complete) issue(`plugin_local_binding_incomplete:${workspaceId}:${pluginId}`);
+    }
+    for (const row of authPlugins) {
+      const status = pluginProvisioningNotActiveStatus(row.provisioningStatus);
+      if (status) issue(`plugin_provisioning_not_active:${workspaceId}:${row.pluginId}:${status}`);
     }
 
     const skillPluginsToCheck = new Set([
@@ -910,7 +987,8 @@ function buildAudit(options) {
         workerCanWrite: exists(soulPath) ? userCanAccessFile(soulPath, osUser, "write", options) : false,
       },
     };
-    const configExists = exists(path.join(profileDir, "config.yaml"));
+    const profileConfig = profileConfigStatus(worker, profileDir, root, options);
+    const configExists = profileConfig.exists;
     const launchd = launchdServiceStatus(worker, options);
     const telemetry = options.checkTelemetry === false ? null : telemetryStatus(worker, root, options);
     const filePluginRoots = filePluginRootStatus(worker, profile, osUser, root, options);
@@ -927,6 +1005,7 @@ function buildAudit(options) {
       requiredWarm,
       profileDir: compactPath(profileDir, root),
       configExists,
+      profileConfig,
       skills,
       memories,
       profileAccess,
@@ -939,6 +1018,14 @@ function buildAudit(options) {
     };
     profileChecks.push(check);
     if (!configExists) issue(`profile_config_missing:${profile}`);
+    if (configExists && !profileConfig.provider) issue(`profile_config_provider_missing:${profile}`);
+    if (profileConfig.provider && !profileConfig.providerMatchesManifest) {
+      issue(`profile_config_provider_mismatch:${profile}:${profileConfig.provider}:${profileConfig.expectedProvider}`);
+    }
+    if (profileConfig.expectedModel && profileConfig.model && !profileConfig.modelMatchesExpected) {
+      issue(`profile_config_model_mismatch:${profile}:${profileConfig.model}:${profileConfig.expectedModel}`);
+    }
+    if (profileConfig.expectedModel && configExists && !profileConfig.model) issue(`profile_config_model_missing:${profile}`);
     if (!skills.exists) issue(`profile_skills_missing:${profile}`);
     if (!memories.exists) issue(`profile_memories_missing:${profile}`);
     if (skills.exists && !profileAccess.skillsCanWriteTemp) issue(`profile_skills_temp_write_failed:${profile}`);

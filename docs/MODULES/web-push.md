@@ -119,11 +119,20 @@ when APNs has no successful delivery. The PWA settings test endpoint
   This prevents a NAS production notification from opening a Windows/local app
   service worker, and prevents one result from producing duplicate external
   pushes across two deployments.
+- Mac production closure should verify migrated Web Push state with
+  `scripts/macos-web-push-production-audit.js`. The audit is read-only: it
+  checks VAPID metadata, the configured external origin, active subscription
+  origin/PWA metadata, and recent delivery summaries without printing raw
+  endpoints or sending a notification. After a user re-registers from the
+  external origin, run it with `--require-public-origin` and
+  `--require-active-external-subscription`.
 
 ## Validation
 
 - `node --check public\service-worker.js`
 - `node --check public\app-pwa-settings-push-ui.js`
+- `node scripts\macos-web-push-production-audit.js --root <mac-root> --public-origin <external-origin> --require-public-origin --require-active-external-subscription --json`
+- `node tests\macos-web-push-production-audit.test.js`
 - `node tests\web-push-automation-projection-service.test.js`
 - `node tests\web-push-vapid-service.test.js`
 - `node tests\web-push-delivery-normalization-service.test.js`

@@ -47,6 +47,7 @@ function createMobileApiComposition(deps = {}) {
   const pluginComposition = createMobileApiPluginComposition(deps);
   const {
     actionInboxApiRoutes,
+    codexMobileRecoveryApiRoutes,
     hermesPluginApiRoutes,
     pluginTopicApiRoutes,
     pluginTopicContextApiRoutes,
@@ -54,6 +55,7 @@ function createMobileApiComposition(deps = {}) {
   } = pluginComposition.routes;
   const {
     actionInboxService, actionInboxTodoService,
+    codexMobileRecoveryService,
     financeLedgerJoinApprovalService,
     hermesPluginNotificationService,
     hermesPluginService,
@@ -296,6 +298,7 @@ function createMobileApiComposition(deps = {}) {
     dataContextApiRoutes,
     familyProfileApiRoutes,
     fileArtifactApiRoutes,
+    codexMobileRecoveryApiRoutes,
     hermesPluginApiRoutes,
     pluginTopicApiRoutes,
     pluginTopicContextApiRoutes,
@@ -340,6 +343,7 @@ function createMobileApiComposition(deps = {}) {
     services: {
       actionInboxService,
       actionInboxTodoService,
+      codexMobileRecoveryService,
       currentEnvironmentContextService,
       familyProfileInsightService,
       familyProfileProjectionService,
@@ -376,6 +380,7 @@ function createMobileApiComposition(deps = {}) {
       directoryShareApiRoutes,
       familyProfileApiRoutes,
       fileArtifactApiRoutes,
+      codexMobileRecoveryApiRoutes,
       hermesPluginApiRoutes,
       pluginTopicApiRoutes,
       pluginTopicContextApiRoutes,

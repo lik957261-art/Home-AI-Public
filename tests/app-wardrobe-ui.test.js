@@ -81,7 +81,7 @@ assert.match(wardrobeUi, /function renderWardrobePluginSecurityNotice\(manifest\
 assert.match(wardrobeUi, /function renderWardrobePluginUnavailable\(manifest = currentWardrobePluginManifest\(\)\)/);
 assert.match(wardrobeUi, /data-wardrobe-plugin-refresh/);
 assert.match(wardrobeUi, /class="wardrobe-plugin-frame embedded-plugin-frame active"/);
-assert.match(wardrobeUi, /sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-modals"/);
+assert.match(wardrobeUi, /sandbox="allow-same-origin allow-scripts allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox"/);
 assert.match(wardrobeUi, /\\u8863\\u6a71\\u63d2\\u4ef6\\u5165\\u53e3\\u8fd8\\u6ca1\\u6709\\u5141\\u8bb8\\u5f53\\u524d Home AI/);
 
 assert.doesNotMatch(wardrobeUi, /target="_blank"/);

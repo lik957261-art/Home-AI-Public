@@ -2680,6 +2680,58 @@ async function openPluginTopicApp(pluginId, options = {}) {
   else loadSelectedView().catch(showError);
 }
 
+function pluginTopicImmediateThreadHasGroup(thread, groupId = "") {
+  const id = String(groupId || "").trim();
+  if (!thread?.id || !thread.singleWindow || !id) return false;
+  const groups = typeof taskGroupsForThread === "function" ? taskGroupsForThread(thread) : (thread.taskGroups || []);
+  if ((groups || []).some((group) => String(group?.id || "") === id)) return true;
+  return (thread.messages || []).some((message) => String(message?.taskGroupId || "") === id);
+}
+
+function pluginTopicImmediateThreadWorkspaceMatches(thread) {
+  if (!thread?.id) return false;
+  const workspaceId = String(state.selectedWorkspaceId || "").trim();
+  if (!workspaceId) return true;
+  if (String(thread.workspaceId || "") === workspaceId) return true;
+  return typeof threadGroupMemberIds === "function" && threadGroupMemberIds(thread).includes(workspaceId);
+}
+
+function pluginTopicImmediateThreadForDef(def) {
+  const groupId = pluginTopicGroupId(def?.id);
+  const candidates = [state.currentThread, state.taskListThread];
+  for (const thread of candidates) {
+    if (!pluginTopicImmediateThreadWorkspaceMatches(thread)) continue;
+    if (pluginTopicImmediateThreadHasGroup(thread, groupId)) return thread;
+  }
+  return null;
+}
+
+function renderPluginTopicChatImmediateShell(def) {
+  if (!def || def.builtinKind) return false;
+  const conversation = $("conversation");
+  const thread = pluginTopicImmediateThreadForDef(def);
+  if (thread?.id && thread.singleWindow) {
+    state.currentThread = thread;
+    state.currentThreadId = thread.id;
+    if (typeof summarizeThread === "function") state.threads = [summarizeThread(thread)];
+    if (typeof renderThreads === "function") renderThreads();
+    if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: true });
+    if (typeof setComposerEnabled === "function") setComposerEnabled(true);
+    if (typeof updateNavigationControls === "function") updateNavigationControls();
+    return true;
+  }
+  if (conversation) {
+    conversation.innerHTML = `<div class="empty-state small">\u6b63\u5728\u8f7d\u5165${escapeHtml(def.label || "\u63d2\u4ef6")}\u8bdd\u9898...</div>`;
+    conversation.scrollTop = 0;
+  }
+  if ($("threadTitle")) $("threadTitle").textContent = `${def.label || "\u63d2\u4ef6"}\u8bdd\u9898`;
+  if ($("threadMeta")) $("threadMeta").textContent = "";
+  if ($("interruptRun")) $("interruptRun").disabled = true;
+  if (typeof configureComposer === "function") configureComposer({ enabled: false, shellLocked: true, placeholder: "Message Home AI..." });
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  return false;
+}
+
 async function openPluginTopicChat(pluginId, options = {}) {
   const def = pluginTopicDefById(pluginId);
   if (!def || !pluginTopicNavigationAvailable(def)) return;
@@ -2704,6 +2756,7 @@ async function openPluginTopicChat(pluginId, options = {}) {
   state.conversationPinnedToBottom = true;
   if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
   if (!deferViewModeApplyUntilLoaded && typeof applyViewMode === "function") applyViewMode();
+  renderPluginTopicChatImmediateShell(def);
   await loadSingleWindow();
   if (deferViewModeApplyUntilLoaded && typeof applyViewMode === "function") applyViewMode();
   if (typeof scheduleConversationBottomStick === "function") scheduleConversationBottomStick();

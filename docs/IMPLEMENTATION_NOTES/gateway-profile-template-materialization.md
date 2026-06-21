@@ -143,6 +143,19 @@ Phase 6 completes the production high-permission profile coverage:
   Skill Store link even when configure is skipped, and Owner maintenance startup
   backs up/replaces wrong `skills` paths before launch. This keeps official
   Hermes Skill create/update behavior anchored to the workspace Skill Store
+
+Mac fresh-install scaffold:
+
+- `scripts/install-macos-production.sh --execute --phase
+  configure-gateway-profiles` now consumes the same template builder for
+  fresh macOS installs.
+- The default macOS skeleton materializes ordinary OpenAI/Codex workers,
+  ordinary DeepSeek workers, Owner Grok, Owner OpenAI maintenance, and Owner
+  DeepSeek maintenance profiles into `data/gateway-pool-manifest-mac.json`.
+- The phase creates only Mobile-to-Gateway API key files and non-secret
+  profile `config.yaml` files. It records provider auth as not copied; OAuth
+  stores, browser credentials, and provider API keys remain explicit
+  provider-specific setup inputs.
   rather than to a single warm Gateway slot.
 
 The maintained local Windows production sync for Phase 6 backed up the prior

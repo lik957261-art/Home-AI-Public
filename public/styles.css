@@ -2391,6 +2391,38 @@ button {
   box-shadow: none;
 }
 
+.android-back-bounce-indicator {
+  position: fixed;
+  left: max(8px, env(safe-area-inset-left));
+  top: 50%;
+  z-index: 1202;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--ui-text);
+  background: color-mix(in srgb, var(--ui-card-surface) 86%, transparent);
+  border: 1px solid var(--ui-hairline);
+  box-shadow: 0 8px 18px rgba(16, 18, 20, 0.14);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(calc(-16px + (18px * var(--android-back-bounce-progress, 0))), -50%, 0) scale(0.92);
+  transition: opacity 120ms ease, transform 160ms cubic-bezier(0.18, 0.9, 0.22, 1);
+}
+
+.android-back-bounce-indicator.active {
+  opacity: calc(0.28 + (0.72 * var(--android-back-bounce-progress, 1)));
+  transform: translate3d(calc(2px + (10px * var(--android-back-bounce-progress, 1))), -50%, 0) scale(1);
+}
+
+.android-back-bounce-indicator.settling {
+  transition-duration: 180ms;
+}
+
 .todo-mode .main,
 .inbox-mode .main,
 .automation-mode .main,
@@ -17252,9 +17284,9 @@ body.task-markdown-preview-open {
 #attachFile {
   grid-column: 1;
   order: 0;
-  width: 38px;
-  min-width: 38px;
-  min-height: 38px;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0;
   border-radius: 10px;
   font-size: 21px;
@@ -19039,7 +19071,7 @@ body.voice-input-press-active #sendMessage {
   }
 
   .composer {
-    grid-template-columns: 36px minmax(0, 1fr) 48px;
+    grid-template-columns: 44px minmax(0, 1fr) 48px;
     padding: 5px max(10px, env(safe-area-inset-right)) 5px max(8px, env(safe-area-inset-left));
     gap: 6px;
   }
@@ -19115,9 +19147,9 @@ body.voice-input-press-active #sendMessage {
   }
 
   #attachFile {
-    width: 36px;
-    min-width: 36px;
-    min-height: 36px;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
     font-size: 19px;
   }
 

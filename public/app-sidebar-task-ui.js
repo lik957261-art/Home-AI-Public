@@ -111,6 +111,9 @@ function closeDirectoryTopicDraft() {
 }
 
 function backSwipeTarget() {
+  const previewUi = window.TaskDocumentPreviewUi || {};
+  const previewOpen = Boolean(previewUi.hasArtifactPreviewOverlay?.());
+  if (previewOpen) return "artifact-preview";
   const pluginContextBack = pluginContextBackNavigationActive();
   const pluginContextTarget = pluginContextBackTarget();
   if (isSkillDetailView()) return "skill";
@@ -140,6 +143,8 @@ function backSwipeTarget() {
   if (!pluginContextBack && typeof growthPluginOuterBackActive === "function" && growthPluginOuterBackActive()) return "growth-plugin-outer";
   if (typeof moiraPluginBackActive === "function" && moiraPluginBackActive()) return "moira-plugin";
   if (!pluginContextBack && typeof moiraPluginOuterBackActive === "function" && moiraPluginOuterBackActive()) return "moira-plugin-outer";
+  if (typeof musicPluginBackActive === "function" && musicPluginBackActive()) return "music-plugin";
+  if (!pluginContextBack && typeof musicPluginOuterBackActive === "function" && musicPluginOuterBackActive()) return "music-plugin-outer";
   if (isDirectoryTopicDraftActive()) return "directory-topic-draft";
   if (pluginContextTarget) return pluginContextTarget;
   if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) return "automation-secondary";
@@ -189,7 +194,8 @@ function applyBackSwipeDrag(swipe, dx) {
 }
 
 function performBackSwipeAction(target) {
-  if (target === "skill") closeSkillDetail();
+  if (target === "artifact-preview") window.TaskDocumentPreviewUi?.closeActivePreviewFromUser?.();
+  else if (target === "skill") closeSkillDetail();
   else if (target === "task") openTaskList();
   else if (target === "todo" || target === "todo-create") openTodoList();
   else if (target === "directory-topic-draft") closeDirectoryTopicDraft();
@@ -210,10 +216,60 @@ function performBackSwipeAction(target) {
   else if (target === "growth-plugin-outer" && typeof restoreGrowthPluginReturnRoute === "function") restoreGrowthPluginReturnRoute();
   else if (target === "moira-plugin" && typeof sendMoiraPluginBackOrReturn === "function") sendMoiraPluginBackOrReturn();
   else if (target === "moira-plugin-outer" && typeof restoreMoiraPluginReturnRoute === "function") restoreMoiraPluginReturnRoute();
+  else if (target === "music-plugin" && typeof sendMusicPluginBackOrReturn === "function") sendMusicPluginBackOrReturn();
+  else if (target === "music-plugin-outer" && typeof restoreMusicPluginReturnRoute === "function") restoreMusicPluginReturnRoute();
   else if (target === "plugin-context-home" && typeof exitPluginContextToTopicHome === "function") exitPluginContextToTopicHome();
   else if (target === "automation") openAutomationList();
   else if (target === "automation-secondary") closeAutomationSecondarySurface();
   else if (target === "action-inbox" || target === "action-inbox-create") openActionInboxOverview();
+}
+
+function homeAINativeBackPrimaryBounceTarget(target = backSwipeTarget()) {
+  if (!androidPrimaryBackBounceTarget(target)) return false;
+  const app = $("app");
+  if (app?.classList?.contains?.("main-back-visible")) return false;
+  return true;
+}
+
+function homeAINativeBackQuery() {
+  const target = backSwipeTarget();
+  return {
+    target: String(target || ""),
+    hasTarget: Boolean(target),
+    primaryBounce: homeAINativeBackPrimaryBounceTarget(target),
+  };
+}
+
+function homeAINativeBackPerform(target) {
+  const normalizedTarget = String(target || backSwipeTarget() || "");
+  if (!normalizedTarget) {
+    showAndroidBackBounceIndicator(1, { settling: true });
+    return false;
+  }
+  if (homeAINativeBackPrimaryBounceTarget(normalizedTarget)) {
+    showAndroidBackBounceIndicator(1, { settling: true });
+    return true;
+  }
+  if (typeof closeGlobalPluginDockForNavigation === "function") closeGlobalPluginDockForNavigation({ reason: "native_back" });
+  performBackSwipeAction(normalizedTarget);
+  clearActiveBackNavigationSurfaces();
+  return true;
+}
+
+function homeAINativeBackPrimaryBounce() {
+  showAndroidBackBounceIndicator(1, { settling: true });
+  return true;
+}
+
+function installHomeAINativeBackBridge() {
+  const existingHomeAI = window.HomeAI && typeof window.HomeAI === "object" ? window.HomeAI : {};
+  const nativeBack = {
+    query: homeAINativeBackQuery,
+    perform: homeAINativeBackPerform,
+    primaryBounce: homeAINativeBackPrimaryBounce,
+  };
+  window.HomeAI = Object.assign(existingHomeAI, { nativeBack });
+  window.HomeAINativeBack = nativeBack;
 }
 
 async function handleInAppBackNavigation(options = {}) {
@@ -234,38 +290,152 @@ async function handleInAppBackNavigation(options = {}) {
   }
 }
 
-function pushBackNavigationGuard() {
+function androidBackExitGuardDepth() {
   try {
-    window.history.pushState({ hermesWebBackGuard: true }, "", window.location.href);
+    const ua = String(navigator?.userAgent || "");
+    return /\bAndroid\b/i.test(ua) ? 24 : 1;
+  } catch (_) {
+    return 1;
+  }
+}
+
+function androidBackExitGuardActive() {
+  return androidBackExitGuardDepth() > 1;
+}
+
+function syncAndroidBackExitGuardFromEarlyBootstrap() {
+  if (!androidBackExitGuardActive()) return;
+  try {
+    const guard = window.__hermesAndroidBackGuard || null;
+    if (!guard) return;
+    const depth = Math.max(0, Number(guard.depth || 0) || 0);
+    if (depth > Number(state.backNavigationGuardDepth || 0)) {
+      state.backNavigationGuardDepth = depth;
+      state.backNavigationGuardArmed = true;
+    }
+    if (typeof guard.releaseToApp === "function") guard.releaseToApp();
+    else guard.appBound = true;
+  } catch (_) {}
+}
+
+function androidPrimaryBackBounceTarget(target = backSwipeTarget()) {
+  if (!androidBackExitGuardActive()) return false;
+  if (!target) return true;
+  return false;
+}
+
+function showAndroidBackBounceIndicator(progress = 1, options = {}) {
+  if (!androidBackExitGuardActive()) return;
+  let indicator = document.querySelector?.(".android-back-bounce-indicator") || null;
+  if (!indicator && document.createElement && document.body?.appendChild) {
+    indicator = document.createElement("div");
+    indicator.className = "android-back-bounce-indicator";
+    indicator.setAttribute("aria-hidden", "true");
+    indicator.textContent = "‹";
+    document.body.appendChild(indicator);
+  }
+  if (!indicator) return;
+  const clamped = clamp01(progress);
+  indicator.classList.toggle("settling", Boolean(options.settling));
+  indicator.classList.add("active");
+  indicator.style.setProperty("--android-back-bounce-progress", String(clamped));
+  window.clearTimeout?.(state.androidBackBounceTimer);
+  state.androidBackBounceTimer = window.setTimeout?.(() => {
+    indicator.classList.remove("active", "settling");
+    indicator.style.removeProperty("--android-back-bounce-progress");
+  }, options.settling ? 190 : 360);
+}
+
+function pushBackNavigationGuard() {
+  const targetDepth = androidBackExitGuardDepth();
+  const currentDepth = Math.max(0, Number(state.backNavigationGuardDepth || 0));
+  const pushes = Math.max(0, targetDepth - currentDepth);
+  try {
+    if (!pushes) {
+      state.backNavigationGuardArmed = true;
+      return;
+    }
+    for (let index = 0; index < pushes; index += 1) {
+      window.history.pushState({ hermesWebBackGuard: true, hermesWebBackGuardDepth: index + 1 }, "", window.location.href);
+    }
+    state.backNavigationGuardDepth = currentDepth + pushes;
     state.backNavigationGuardArmed = true;
   } catch (_) {
     state.backNavigationGuardArmed = false;
   }
 }
 
+function rearmAndroidBackExitGuard() {
+  if (!androidBackExitGuardActive()) return;
+  pushBackNavigationGuard();
+}
+
+function androidBackExitGuardBottomExclusionPx() {
+  const viewportHeight = Number(window.visualViewport?.height || window.innerHeight || document.documentElement?.clientHeight || 0) || 0;
+  if (!viewportHeight) return 140;
+  return Math.round(Math.min(180, Math.max(108, viewportHeight * 0.24)));
+}
+
+function androidBackExitGuardEventInBottomExclusion(event) {
+  const viewportHeight = Number(window.visualViewport?.height || window.innerHeight || document.documentElement?.clientHeight || 0) || 0;
+  if (!viewportHeight) return false;
+  const touch = event?.touches?.[0] || event?.changedTouches?.[0] || null;
+  const clientY = Number(touch?.clientY ?? event?.clientY);
+  if (!Number.isFinite(clientY)) return false;
+  return clientY >= viewportHeight - androidBackExitGuardBottomExclusionPx();
+}
+
+function androidBackExitGuardShouldIgnoreActivation(event) {
+  const target = event?.target || null;
+  if (target?.closest?.(
+    "#composer, .composer, #attachFile, #attachFileMenu, #sendMessage, #messageInput, " +
+    ".mobile-bottom-nav, .plugin-context-bottom-nav, .composer-source-menu, .group-mention-menu"
+  )) {
+    return true;
+  }
+  return androidBackExitGuardEventInBottomExclusion(event);
+}
+
+function wireAndroidBackExitGuardRearmTriggers() {
+  if (!androidBackExitGuardActive() || state.androidBackExitGuardRearmBound) return;
+  state.androidBackExitGuardRearmBound = true;
+  window.addEventListener("pageshow", rearmAndroidBackExitGuard);
+  window.addEventListener("focus", rearmAndroidBackExitGuard);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") rearmAndroidBackExitGuard();
+  });
+  const rearmFromUserActivation = (event) => {
+    if (androidBackExitGuardShouldIgnoreActivation(event)) return;
+    rearmAndroidBackExitGuard();
+  };
+  document.addEventListener("pointerdown", rearmFromUserActivation, { capture: true, passive: true });
+  document.addEventListener("touchstart", rearmFromUserActivation, { capture: true, passive: true });
+}
+
 function wireBackNavigationGuard() {
   if (state.backNavigationGuardBound) return;
   state.backNavigationGuardBound = true;
+  installHomeAINativeBackBridge();
   try {
+    syncAndroidBackExitGuardFromEarlyBootstrap();
     const currentState = Object.assign({}, window.history.state || {}, { hermesWebBase: true });
     window.history.replaceState(currentState, "", window.location.href);
     pushBackNavigationGuard();
   } catch (_) {
     state.backNavigationGuardArmed = false;
   }
+  wireAndroidBackExitGuardRearmTriggers();
   window.addEventListener("popstate", () => {
+    state.backNavigationGuardDepth = Math.max(0, Number(state.backNavigationGuardDepth || 1) - 1);
+    pushBackNavigationGuard();
+    if (androidPrimaryBackBounceTarget()) {
+      showAndroidBackBounceIndicator(1, { settling: true });
+      return;
+    }
     if (state.handlingBackNavigation) return;
     state.handlingBackNavigation = true;
     handleInAppBackNavigation({ animateEntry: true })
-      .then((handled) => {
-        if (handled) {
-          pushBackNavigationGuard();
-        } else {
-          pushBackNavigationGuard();
-        }
-      })
       .catch((err) => {
-        pushBackNavigationGuard();
         showError(err);
       })
       .finally(() => {

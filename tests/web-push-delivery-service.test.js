@@ -854,15 +854,18 @@ function testScheduledTodoAutomationDoesNotAlternateDeliverableAndEmptyPush() {
         assert.equal(first.deliveries.length, 1);
         assert.equal(inboxCalls.length, 1);
         assert.equal(inboxCalls[0].itemType, "todo");
-        assert.equal(inboxCalls[0].sourceRef.latestDeliverable.name, "daily.md");
+        assert.equal(inboxCalls[0].sourceRef.latestDeliverable, null);
+        assert.equal(inboxCalls[0].sourceRef.latestDocumentName, "");
+        assert.doesNotMatch(inboxCalls[0].summary, /\u4ea4\u4ed8\u6587\u4ef6|daily\.md/);
         assert.equal(calls.sends.length, 1);
+        assert.doesNotMatch(calls.sends[0].payload.body, /\u4ea4\u4ed8\u6587\u4ef6|daily\.md/);
         return service.runAutomationWebPushTick();
       })
       .then((second) => {
         assert.equal(second.deliveries.length, 0);
         assert.equal(inboxCalls.length, 1);
         assert.equal(calls.sends.length, 1);
-        assert.match(state.automationPushMarks["scheduled-delivery-job"].signature, /daily\.md/);
+        assert.doesNotMatch(state.automationPushMarks["scheduled-delivery-job"].signature, /daily\.md/);
       });
   });
 }

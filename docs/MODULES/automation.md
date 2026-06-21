@@ -75,6 +75,10 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
   `waiting` items with `availableAt`; recurring rules should create one Inbox
   Todo occurrence per trigger and leave recurrence editing, pause/resume, and
   failure diagnostics in Automation.
+- Reminder-style Automation runs are Todo notifications, not document
+  deliveries. If the underlying CRON run emits a Markdown output file, the
+  push/Inbox projection must still show the reminder text and Todo actions
+  without promoting that Markdown file as the primary deliverable.
 - Plugin workspace audit plans are Automation-backed jobs. The explicit
   creation surface may use a Skill-guided model to draft schedule and scope, but
   ordinary chat must not run an audit-intent preflight before every message.

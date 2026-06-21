@@ -46,7 +46,9 @@ It validates:
 - Mac worker filesystem ACL checks pass, including cross-workspace deny checks.
 - Workspace catalog paths resolve to the Mac live drive, and all active
   workspaces can create and preview the standard plugin delivery directories
-  under `插件/<plugin title>`.
+  under `插件/<plugin title>`. Temporary `codex-disposable-*` workspaces may be
+  reported as skipped when they do not expose an allowed writable directory
+  boundary; ordinary user workspaces must still pass.
 - Directory-bound topics pass all-workspace preview in both path-only and
   `--simulate-ui-route` modes. This catches Windows/WSL-to-Mac metadata drift,
   rootless Mac drive paths, stale project/subproject ids, and shared-directory

@@ -260,7 +260,7 @@ function createWebPushAutomationProjectionService(options = {}) {
     const title = failed ? "\u81ea\u52a8\u5316\u4efb\u52a1\u5931\u8d25" : (scheduledTodo ? automationTitle : "\u81ea\u52a8\u5316\u4efb\u52a1\u5b8c\u6210");
     const body = compactText([
       automationTitle,
-      latestDoc ? `\u4ea4\u4ed8\u6587\u4ef6: ${latestDoc.name}` : "",
+      !scheduledTodo && latestDoc ? `\u4ea4\u4ed8\u6587\u4ef6: ${latestDoc.name}` : "",
       failed ? `\u9519\u8bef: ${automationFailureSummary(job)}` : "",
     ].filter(Boolean).join("\n"), 220);
     const automationUrl = automationDetailRouteUrl({ workspaceId, automationId: jobId });

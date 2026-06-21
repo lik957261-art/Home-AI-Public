@@ -75,6 +75,36 @@ Validation for this public release:
 - public export privacy scan
 - focused production smoke evidence from the source deployment before export
 
+## 2026-06-21 Public Update
+
+This update publishes the latest source-side productization and mobile shell
+stability work after the private source tree reached commit
+`34f971c8ac39f4a986ae0de8a581883c871e8487`.
+
+Highlights:
+
+- Adds explicit productization coverage for Codex Mobile macOS listener
+  recovery so the recovery entrypoint stays Owner-only, documented, and tested.
+- Makes plugin-topic chat entry render immediately from the root task-list
+  cache when the target plugin topic is already known, reducing visible waits
+  while a plugin-topic conversation is still running.
+- Routes Android/Web back handling through active artifact/file preview overlays
+  before falling back to primary-page bounce behavior.
+- Refreshes the Android public update manifest source artifact to
+  `0.4.14` / `versionCode=18`, with APK SHA-256
+  `e5fe293d9f92f4f1df7d9d84aacedb296652c5954be0870d9dbba79ad4136960`.
+- Keeps production deployment, runtime restart, and private workspace state out
+  of the public export; this is a source publication only.
+
+Validation for this public update:
+
+- `npm test`
+- `node scripts/productization-check.js`
+- `npm run privacy:scan`
+- `git diff --check`
+- `node scripts/privacy-scan.js --root workspace/public-export/Home-AI-Public-20260621-v898 --all-files`
+- `node tests/public-export.test.js`
+
 ## 2026-06-17 Public Update
 
 This update refreshes the public tree after the current mobile Home AI shell

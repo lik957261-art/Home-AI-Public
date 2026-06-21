@@ -126,9 +126,9 @@ This file records durable product rules that implementation must preserve.
   workspace resolver is configured, the feature must be disabled with a bounded
   diagnostic instead of silently running with a local fallback.
 
-## Native iOS Shell Product Boundary
+## Native Shell Product Boundary
 
-- The Home AI native iOS shell is a system-capability bridge, not a second
+- The Home AI native shell is a system-capability bridge, not a second
   product UI, not an embedded business plugin, and not a plugin credential
   holder. The Home AI Web/PWA surface remains the source of truth for product
   UI, workspace policy, plugin routing, Gateway/MCP use, and server APIs.
@@ -142,6 +142,13 @@ This file records durable product rules that implementation must preserve.
   voice-input capture, system share/receive flows, and WebView stability
   bridges. Each native capability must enter Home AI through explicit server
   APIs or bounded native-to-Web bridge messages.
+- Android primary-page system Back/Predictive Back cannot be treated as solved
+  by browser `history.pushState` guards. On Android, the production-quality
+  behavior must be implemented in the native shell: root/primary pages consume
+  the system back gesture and show only native micro-feedback, while secondary
+  Web surfaces may receive a bounded native-to-Web back message. The PWA guard
+  is only a best-effort browser fallback and must not be the final acceptance
+  criterion for preventing accidental exit to the Android launcher.
 - Apple Watch and Bluetooth/BLE are deferred extension points, not current or
   near-term roadmap items. They require a separate product requirement and
   validation plan before implementation.

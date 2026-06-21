@@ -57,7 +57,19 @@ remaining gap as an explicit follow-up.
 - Engineering governance gates:
   `docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md`,
   `scripts/engineering-governance-check.js`,
+  `scripts/public-install-preflight.js`,
+  `scripts/plugin-provisioning-coverage-audit.js`,
+  `scripts/install-macos-production.sh`,
+  `scripts/macos-install-phase-coverage-audit.js`,
+  `scripts/macos-fresh-install-rehearsal.js`,
+  `scripts/macos-install-verification-classification.js`,
+  `scripts/macos-install-operator-closure-checklist.js`,
+  `scripts/grok-xai-oauth-closure-checklist.js`,
+  `scripts/windows-dev-services-boundary-checklist.js`,
+  `scripts/macos-workspace-file-broker-boundary-checklist.js`,
+  `scripts/macos-first-start-preflight.js`,
   `scripts/production-self-diagnostics.js`,
+  `scripts/production-self-diagnostics-coverage-audit.js`,
   `scripts/productization-acceptance-matrix.js`,
   `tests/engineering-governance-check.test.js`
 - Original layered topic-context design: `docs/TOPIC_CONTEXT_LAYERED_COMPACTION_IMPLEMENTATION.zh-CN.md`
@@ -84,7 +96,9 @@ remaining gap as an explicit follow-up.
   `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`
 - Directory, files, previews, and shared roots: `docs/MODULES/directory-files.md`
 - Native iOS shell: `docs/MODULES/native-ios-shell.md`
-- Web Push delivery and deep links: `docs/MODULES/web-push.md`
+- Native Android shell: `docs/MODULES/native-android-shell.md`
+- Web Push delivery and deep links: `docs/MODULES/web-push.md`,
+  `scripts/macos-web-push-production-audit.js`
 - Native iOS/APNs notifications: `docs/MODULES/native-notifications.md`
 - Weixin/iLink ingress and delivery: `docs/MODULES/weixin-ingress.md`
 - Grok/xAI Gateway profile routing: `docs/MODULES/grok-gateway.md`

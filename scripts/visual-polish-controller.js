@@ -15,12 +15,18 @@ const DEFAULT_PLUGINS = [
   "music",
   "wardrobe",
   "note",
-  "healthy",
+  "health",
   "growth",
   "moira",
   "email",
   "codex-mobile",
 ];
+const PLUGIN_ID_ALIASES = Object.freeze({
+  healthy: "health",
+});
+const PLUGIN_OWNER_ALIASES = Object.freeze({
+  health: "healthy",
+});
 const HOST_SCENARIOS = [
   "directory-dark-status",
   "dark-admin-surfaces",
@@ -62,6 +68,16 @@ function cleanString(value, max = 500) {
 
 function unique(values) {
   return [...new Set(values.map((item) => cleanString(item, 120)).filter(Boolean))];
+}
+
+function runtimePluginId(pluginId) {
+  const id = cleanString(pluginId, 120);
+  return PLUGIN_ID_ALIASES[id] || id;
+}
+
+function ownerForPluginId(pluginId) {
+  const runtimeId = runtimePluginId(pluginId);
+  return PLUGIN_OWNER_ALIASES[runtimeId] || runtimeId;
 }
 
 function parseOwnerTarget(value) {
@@ -191,10 +207,12 @@ function buildPlan(options = {}) {
       command: shellQuote(visualCommand({ scenario, debugUrl })),
     });
   }
-  for (const pluginId of pluginIds) {
+  for (const rawPluginId of pluginIds) {
+    const pluginId = runtimePluginId(rawPluginId);
+    const pluginOwner = ownerForPluginId(pluginId);
     for (const scenario of PLUGIN_SCENARIOS) {
       scenarios.push({
-        owner: scenario === "plugin-drawer-action-gestures" ? "home-ai" : pluginId,
+        owner: scenario === "plugin-drawer-action-gestures" ? "home-ai" : pluginOwner,
         scenario,
         pluginId,
         command: shellQuote(visualCommand({ scenario, pluginId, debugUrl })),
@@ -252,8 +270,8 @@ function classifyOwner(report = {}) {
   }).toLowerCase();
   if (!pluginId) return "home-ai";
   if (/bottom|dock|nav|route|apphidden|client_version|screenshot|lease|auth|session|global_plugin/.test(haystack)) return "home-ai";
-  if (/plugin-drawer-action-gestures/.test(scenario)) return /iframe|embedded|plugin content|plugin_content/.test(haystack) ? pluginId : "home-ai";
-  if (/^embedded-plugin-/.test(scenario)) return pluginId;
+  if (/plugin-drawer-action-gestures/.test(scenario)) return /iframe|embedded|plugin content|plugin_content/.test(haystack) ? ownerForPluginId(pluginId) : "home-ai";
+  if (/^embedded-plugin-/.test(scenario)) return ownerForPluginId(pluginId);
   return "home-ai";
 }
 
@@ -563,8 +581,10 @@ module.exports = {
   classifySeverity,
   ingestReports,
   isEnvironmentFailureReport,
+  ownerForPluginId,
   parseArgs,
   redact,
+  runtimePluginId,
   sendCards,
   visualCommand,
 };

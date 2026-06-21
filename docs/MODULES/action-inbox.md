@@ -126,6 +126,10 @@ Periodic or complex recurring Todos are not stored as independent Inbox
 schedules. They are Automation-backed rules that create one Inbox Todo
 occurrence per trigger. Completing an occurrence does not delete or pause the
 Automation rule.
+Automation-backed Todo reminder occurrences should render as Todo rows with
+Todo actions. They may retain `automationId` in `sourceRef` for rule
+traceability, but generated Markdown run outputs must not be shown as the
+primary reminder deliverable.
 
 Legacy Todo/Kanban is not a product-compatible Todo surface for ordinary user
 Todos. New user-created Todos must enter Action Inbox Todo. The legacy

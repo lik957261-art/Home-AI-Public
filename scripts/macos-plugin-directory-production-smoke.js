@@ -131,6 +131,20 @@ function workspaceBasePath(workspace, projects) {
   return String(workspace?.defaultWorkspace || projects.find((item) => item.id === "general")?.root || "").trim();
 }
 
+function isEphemeralWorkspace(workspace) {
+  const workspaceId = String(workspace?.id || "");
+  const label = String(workspace?.label || "");
+  return /^codex-disposable-[A-Za-z0-9_-]+$/.test(workspaceId)
+    || /^Codex Disposable\b/i.test(label);
+}
+
+function hasUnavailableDirectoryBoundary(row) {
+  const notAllowed = "Directory not found or not allowed";
+  const rootUnavailable = row.rootCreate?.status === 404 && row.rootCreate?.error === notAllowed;
+  const previewUnavailable = row.preview?.status === 404 && row.preview?.error === notAllowed;
+  return Boolean(rootUnavailable && previewUnavailable);
+}
+
 async function run(options) {
   const key = readAccessKey(options.accessKeyFile);
   const headers = { [AUTH_HEADER]: key };
@@ -165,6 +179,8 @@ async function run(options) {
       rootCreate: null,
       pluginCreates: [],
       preview: null,
+      skipped: false,
+      skipReason: "",
       ok: false,
     };
 
@@ -217,11 +233,15 @@ async function run(options) {
       && row.preview?.status === 200
       && row.preview.names.length === PLUGIN_FOLDERS.length
     );
+    if (!row.ok && isEphemeralWorkspace(workspace) && hasUnavailableDirectoryBoundary(row)) {
+      row.skipped = true;
+      row.skipReason = "ephemeral_workspace_directory_boundary_unavailable";
+    }
     rows.push(row);
   }
 
   return {
-    ok: Boolean(workspacesResult.ok) && rows.length > 0 && rows.every((row) => row.ok),
+    ok: Boolean(workspacesResult.ok) && rows.length > 0 && rows.every((row) => row.ok || row.skipped),
     authHeader: AUTH_HEADER,
     workspaceCount: rows.length,
     pluginFolders: [...PLUGIN_FOLDERS],
@@ -249,6 +269,9 @@ module.exports = {
   PLUGIN_FOLDERS,
   compactError,
   compactPath,
+  hasUnavailableDirectoryBoundary,
+  isEphemeralWorkspace,
   parseArgs,
   run,
+  workspaceBasePath,
 };

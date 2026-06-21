@@ -3,12 +3,14 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { createActionInboxApiRoutes } = require("./action-inbox-api-routes");
+const { createCodexMobileRecoveryApiRoutes } = require("./codex-mobile-recovery-api-routes");
 const { createHermesPluginApiRoutes } = require("./hermes-plugin-api-routes");
 const { createPluginTopicApiRoutes } = require("./plugin-topic-api-routes");
 const { createPluginTopicContextApiRoutes } = require("./plugin-topic-context-api-routes");
 const { createPluginTopicUsageApiRoutes } = require("./plugin-topic-usage-api-routes");
 const { createActionInboxService } = require("../adapters/action-inbox-service");
 const { createActionInboxTodoService } = require("../adapters/action-inbox-todo-service");
+const { createCodexMobileRecoveryService } = require("../adapters/codex-mobile-recovery-service");
 const { createFinanceLedgerJoinApprovalService } = require("../adapters/finance-ledger-join-approval-service");
 const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
 const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
@@ -105,6 +107,10 @@ function createMobileApiPluginComposition(deps = {}) {
     readJsonStore: deps.readJsonStore,
     writeJsonStore: deps.writeJsonStore,
   });
+  const codexMobileRecoveryService = deps.codexMobileRecoveryService || createCodexMobileRecoveryService({
+    appRoot: deps.repoRoot || process.cwd(),
+    env: deps.env || process.env,
+  });
 
   const hermesPluginApiRoutes = createHermesPluginApiRoutes({
     authenticateRequest: deps.authenticateRequest,
@@ -119,6 +125,14 @@ function createMobileApiPluginComposition(deps = {}) {
     auditPluginManifestRequest: (event) => appendPluginManifestAudit(deps, event),
   });
   callBootTrace(deps, "hermes plugin api routes ready");
+
+  const codexMobileRecoveryApiRoutes = createCodexMobileRecoveryApiRoutes({
+    codexMobileRecoveryService,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "codex mobile recovery api routes ready");
 
   const pluginTopicUsageApiRoutes = createPluginTopicUsageApiRoutes({
     pluginTopicUsageService,
@@ -164,6 +178,7 @@ function createMobileApiPluginComposition(deps = {}) {
   return {
     routes: {
       actionInboxApiRoutes,
+      codexMobileRecoveryApiRoutes,
       hermesPluginApiRoutes,
       pluginTopicApiRoutes,
       pluginTopicContextApiRoutes,
@@ -172,6 +187,7 @@ function createMobileApiPluginComposition(deps = {}) {
     services: {
       actionInboxService,
       actionInboxTodoService,
+      codexMobileRecoveryService,
       financeLedgerJoinApprovalService,
       hermesPluginNotificationService,
       hermesPluginService,

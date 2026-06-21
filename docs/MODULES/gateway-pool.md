@@ -367,6 +367,12 @@ currently present in `gateway-pool-manifest-mac.json`. Historical workspace
 LaunchDaemons can survive manifest rewrites; if one points at a development
 root or lacks the bridge env, it is still a production blocker because an
 on-demand worker can start from that stale script.
+Home AI full deploys run the checked
+`scripts/macos-production-drift-reconcile.js` before the production drift gate.
+That reconcile path is allowed to unload and quarantine untracked Gateway
+LaunchDaemon plist files after safety-checking the plist path prefix. It must
+not delete the referenced profile directory or start script; those remain
+rollback and forensic material until a later explicit cleanup.
 
 Mac workspace provisioning must also repair each workspace worker's manifest
 API-server key binding. The worker row must point at a workspace-owned
@@ -399,6 +405,14 @@ The Mac production profile audit reports these drift states with
 `codex_auth_lock_unreadable`, or `codex_auth_lock_unwritable`. The central
 macOS deploy script runs that focused audit after non-`--sync-only` plugin
 deployments and fails on `codex_auth_*` issues.
+The same audit also compares each enabled manifest worker's declared provider
+and expected model to the live `config.yaml` in the materialized profile. It
+reports `profile_config_provider_missing`,
+`profile_config_provider_mismatch`, `profile_config_model_missing`, or
+`profile_config_model_mismatch` when the live profile no longer matches the
+manifest/template contract. Home AI deploys fail on these `profile_config_*`
+issues so a dedicated worker such as `grokgw1` cannot silently drift from
+`xai-oauth/grok-4.3` to a generic `openai-codex` config.
 Provisioning must also rewrite stale replica metadata copied from a template:
 `id`, `replicaId`, and `profileAlias` must equal the worker `profile`, and
 `profileTemplateKey` / `poolKey` must equal the target workspace/provider

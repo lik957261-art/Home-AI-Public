@@ -38,6 +38,8 @@ const {
   PLUGIN_FOLDERS,
   compactError,
   compactPath,
+  hasUnavailableDirectoryBoundary,
+  isEphemeralWorkspace,
   parseArgs,
 } = require("../scripts/macos-plugin-directory-production-smoke");
 
@@ -47,6 +49,22 @@ assert.equal(parsed.base, "http://127.0.0.1:8797");
 assert.ok(parsed.accessKeyFile.endsWith("/data/secrets/owner-web-key.secret"));
 assert.equal(AUTH_HEADER, "X-Hermes-Web-Key");
 assert.deepEqual(PLUGIN_FOLDERS, ["衣橱", "记账", "邮箱", "健康", "笔记"]);
+assert.equal(isEphemeralWorkspace({ id: "codex-disposable-20260608a", label: "Codex Disposable 20260608A" }), true);
+assert.equal(isEphemeralWorkspace({ id: "owner", label: "徐欣" }), false);
+assert.equal(
+  hasUnavailableDirectoryBoundary({
+    rootCreate: { status: 404, error: "Directory not found or not allowed" },
+    preview: { status: 404, error: "Directory not found or not allowed" },
+  }),
+  true,
+);
+assert.equal(
+  hasUnavailableDirectoryBoundary({
+    rootCreate: { status: 404, error: "Directory not found or not allowed" },
+    preview: { status: 200, error: "" },
+  }),
+  false,
+);
 
 assert.equal(
   compactPath("/Users/example/path", parsed.root),

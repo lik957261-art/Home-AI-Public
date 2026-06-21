@@ -576,6 +576,29 @@ short delay. Public deployments without permission to restart system
 LaunchDaemons degrade to a bounded `recovery` diagnostic instead of blocking
 Home AI startup or exposing secrets.
 
+Codex Mobile also has a dedicated Owner-only host recovery API because its
+macOS LaunchDaemon can need profile-store and plist repair, not just a generic
+`launchctl kickstart`. Home AI exposes:
+
+- `GET /api/codex-mobile/recovery/status`
+- `GET /api/codex-mobile/recovery/homes`
+- `POST /api/codex-mobile/recovery/plan`
+- `POST /api/codex-mobile/recovery/restore`
+
+These routes call the production Codex Mobile host script
+`../plugins/codex-mobile-web/restart-codex-mobile-host-macos.sh` relative to
+the Home AI app root, unless overridden by
+`HOMEAI_CODEX_MOBILE_RECOVERY_SCRIPT`,
+`HERMES_MOBILE_CODEX_MOBILE_RECOVERY_SCRIPT`, or
+`HERMES_WEB_CODEX_MOBILE_RECOVERY_SCRIPT`. The restore route is blocked unless
+`/api/public-config` is unreachable by transport and either the `8787` listener
+is missing or `system/com.hermesmobile.plugin.codex-mobile` is stopped or
+unloaded. It must not run for HTTP `401`, ordinary thread/message failures,
+frontend cache refreshes, or plugin iframe projection bugs. The normal UI flow
+is list homes, dry-run the selected `profileId`, then execute restore after
+explicit Owner confirmation. Explicit `codexHome` path restore remains disabled
+unless `HOMEAI_CODEX_MOBILE_RECOVERY_ALLOW_CODEX_HOME=1` is set.
+
 When Hermes serves a plugin through the same-origin proxy, the browser is
 framing the Hermes proxy URL rather than the upstream plugin origin. Upstream
 `frame-ancestors` diagnostics must not make the normalized manifest unavailable
@@ -604,6 +627,16 @@ that hint through `requireWorkspaceAccess`. It must also verify that the plugin
 is visible to that effective workspace before fetching from the upstream. Public
 unauthenticated requests to `/api/hermes-plugins/<plugin-id>/proxy/...` must
 not expose plugin HTML or API data.
+
+The only maintained public proxy exception is the Music TIDAL OAuth callback:
+`GET /api/hermes-plugins/music/proxy/api/v1/music/tidal/oauth/callback/`.
+It is allowed without a Hermes workspace cookie only when the query contains a
+non-empty `state` and either `code` or `error`. Hermes then forwards it as
+workspace `owner` to the Music upstream so an external Safari/Chrome OAuth
+return can complete. Missing `state`, missing `code`/`error`, non-GET methods,
+other Music paths, and all other plugin proxy paths must continue through the
+ordinary workspace access check. Logs, docs, tests, and handoffs must not print
+OAuth codes, state values, tokens, client ids, secrets, or full authorize URLs.
 
 For proxied non-GET plugin API requests, the browser must not provide a plugin
 workspace key. The proxy drops incoming `Authorization` and, for plugins that
@@ -683,20 +716,32 @@ plugin rule: Wardrobe, Finance, Codex Mobile, and future same-origin plugins
 must not show Owner content merely because the browser already has an Owner
 plugin session.
 
+Proxy redirect handling must distinguish plugin-internal redirects from
+external provider redirects. A `Location` header that resolves to the plugin
+upstream origin is rewritten back under
+`/api/hermes-plugins/<plugin-id>/proxy/...` with the effective `workspaceId`.
+A `Location` header for any other origin, such as a provider OAuth login page,
+must be preserved unchanged so the browser can leave the iframe/proxy boundary
+instead of entering a same-origin redirect loop.
+
 All proxy-rewritten plugin resource and API URLs should carry the effective
-`workspaceId` when the URL is a static string, including URLs rewritten inside
-plugin HTML, JavaScript, CSS, and structured JSON. JavaScript template strings
-with runtime query fragments such as ``/api/threads${params}`` or
-``/api/auth/status?_ts=${Date.now()}`` must have only their static path prefix
-rewritten to `/api/hermes-plugins/<plugin-id>/proxy/...`; the proxy must not
-inject `workspaceId` inside the template expression or concatenate it without a
-delimiter. Those dynamic requests resolve workspace through the same-origin
-referrer or the workspace-scoped plugin session cookie. Browser requests that
-arrive without a direct workspace hint, without a referrer workspace hint, and
-with multiple workspace-scoped cookies for the same plugin must fail closed as
-an ambiguous plugin workspace instead of falling back to the Owner workspace.
-This protects Owner-account workspace switching when an embedded plugin
-frontend suppresses or omits `Referer`.
+`workspaceId` when the URL is a static browser resource string in plugin HTML,
+CSS, and structured JSON. JavaScript API strings are different: the proxy should
+rewrite only the static path prefix to
+`/api/hermes-plugins/<plugin-id>/proxy/...` and must not inject
+`workspaceId` into the string literal. This applies both to ordinary API strings
+and to template strings with runtime query fragments such as
+``/api/threads${params}`` or
+``/api/auth/status?_ts=${Date.now()}``. Injecting query text into JavaScript
+route constants can corrupt browser-side `URL.pathname` checks, for example
+Codex Mobile Web image routes such as `/api/uploads/file`. Those script
+requests resolve workspace through the same-origin referrer or the
+workspace-scoped plugin session cookie. Browser requests that arrive without a
+direct workspace hint, without a referrer workspace hint, and with multiple
+workspace-scoped cookies for the same plugin must fail closed as an ambiguous
+plugin workspace instead of falling back to the Owner workspace. This protects
+Owner-account workspace switching when an embedded plugin frontend suppresses or
+omits `Referer`.
 
 When the Hermes workspace selector changes, the host must discard all embedded
 plugin iframes, cached manifests, launch freshness state, and plugin list state
@@ -1126,11 +1171,18 @@ Provisioning states are generic across plugins:
   diagnostic.
 
 Only plugins with a registered Hermes-side provisioning service may enter
-`pending` from plugin-manager grant. This currently applies to Finance,
-Wardrobe, Email, Health, and Note. Manual or externally bound plugins that do not have
-a Hermes provisioner use `manual_required` until an effective workspace key is
+`pending` from plugin-manager grant. The public default host-provisioned set is
+currently Email, Finance, Growth, Health, Note, and Wardrobe. Moira is also
+host-provisioned when installed locally, but it is not part of the public plugin
+source manifest. Manual or externally bound plugins that do not have a Hermes
+provisioner use `manual_required` until an effective workspace key is
 discovered or the launch path returns its own bounded diagnostic. Codex Mobile
-remains Owner-only and is not grantable through this contract.
+and Music are marked special in the public plugin source manifest and are not
+ordinary public-default grant/provisioning targets. Codex Mobile remains
+Owner-only and is not grantable through this contract. The source guard
+`scripts/plugin-provisioning-coverage-audit.js` checks this mapping against the
+public plugin source manifest, provisioning adapters/tests, and
+`hermes-plugin-service` wiring.
 
 The plugin manager's open/closed status must reflect the same effective
 workspace availability used by the launch path. For workspace-private plugins,

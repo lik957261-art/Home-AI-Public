@@ -264,6 +264,8 @@ const pluginDirectory = compactPluginDirectory({
     base: "$DRIVE/users/owner/Hermes-徐欣",
     projectCount: 2,
     hasThread: true,
+    skipped: false,
+    skipReason: "",
     rootCreate: { status: 409, ok: true },
     preview: { status: 200, names: ["衣橱"] },
     pluginCreates: [{ folder: "衣橱", status: 409, ok: true }],
@@ -271,6 +273,7 @@ const pluginDirectory = compactPluginDirectory({
 });
 assert.equal(pluginDirectory.workspaceCount, 1);
 assert.equal(pluginDirectory.rows[0].base, "$DRIVE/users/owner/Hermes-徐欣");
+assert.equal(pluginDirectory.rows[0].skipped, false);
 
 const boundDirectory = compactBoundDirectory({
   ok: true,

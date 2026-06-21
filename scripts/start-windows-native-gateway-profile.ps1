@@ -233,7 +233,10 @@ function Ensure-NativeProfile {
     Ensure-DirectoryLinkOrCopy -Source (Join-Path $sourceRoot $dir) -Target (Join-Path $nativeProfile $dir)
   }
   foreach ($file in @(".env", ".skills_prompt_snapshot.json", "channel_directory.json", "context_length_cache.yaml", "google_client_secret.json", "google_token.json", "models_dev_cache.json", "SOUL.md", "state.db", "response_store.db")) {
-    Ensure-FileLinkOrCopy -Source (Join-Path $sourceRoot $file) -Target (Join-Path $nativeProfile $file)
+    $sourceFile = Join-Path $sourceRoot $file
+    if (Test-Path -LiteralPath $sourceFile) {
+      Ensure-FileLinkOrCopy -Source $sourceFile -Target (Join-Path $nativeProfile $file)
+    }
   }
   Ensure-NativeAuthFiles -Profile $Profile -NativeProfile $nativeProfile
   New-Item -ItemType Directory -Force -Path (Join-Path $nativeProfile "logs") | Out-Null

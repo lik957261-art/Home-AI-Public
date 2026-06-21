@@ -37,6 +37,7 @@ assert.match(runnerText, /new URL\("\/api\/lease", debugUrl\)/);
 assert.match(runnerText, /Cards skipped:/);
 assert.doesNotMatch(runnerText, /\/api\/status/);
 assert.match(runnerText, /"--lock-file"/);
+assert.match(runnerText, /\["music", "finance", "wardrobe", "health", "growth", "note", "email", "codex-mobile"\]/);
 assert.doesNotMatch(runnerText, /owner-web-key|api-server-key|Authorization.*Bearer.*process\.env/i);
 
 assert.match(cronScriptText, /\*host\*\) JOB_KEY="host"/);
@@ -89,7 +90,7 @@ try {
   const musicOptions = parseArgs(["--config-file", configFile, "--job-key", "music", "--run-id", "unit-run", "--output-root", tempRoot]);
   assert.equal(musicOptions.sourceThreadId, "source-home-ai-thread");
   assert.equal(musicOptions.appUrl, "http://127.0.0.1:8797/?source=pwa");
-  assert.equal(musicOptions.expectedClientVersion, "20260620-directory-icon-align-v889");
+  assert.equal(musicOptions.expectedClientVersion, "20260621-android-preview-back-v898");
   assert.equal(musicOptions.scope, "plugin");
   assert.deepEqual(musicOptions.pluginIds, ["music"]);
   assert.equal(musicOptions.targetThreads.music, "music-thread");
@@ -123,7 +124,7 @@ try {
   assert.match(appUrl, /^http:\/\/127\.0\.0\.1:8797\//);
   assert.match(appUrl, /resetClient=1/);
   assert.match(appUrl, /hard=1/);
-  assert.match(appUrl, /targetVersion=20260620-directory-icon-align-v889/);
+  assert.match(appUrl, /targetVersion=20260621-android-preview-back-v898/);
   assert.ok(args.includes("--lock-file"));
   assert.ok(args.some((item) => item.includes("visual-polish-audit-runner-test-") && item.endsWith(".lock")));
 } finally {

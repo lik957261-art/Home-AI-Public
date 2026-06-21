@@ -298,7 +298,7 @@ In proxy mode, model-backed CRON jobs must fail before official
 Target top-level installer:
 
 ```bash
-sudo ./scripts/install-macos-production.sh
+bash ./scripts/install-macos-production.sh --json
 ```
 
 The installer should be idempotent and phase-based:
@@ -313,17 +313,41 @@ The installer should be idempotent and phase-based:
 7. configure-owner
 8. configure-workspace-isolation
 9. configure-gateway-profiles
-10. configure-cron
-11. configure-plugins
-12. install-launchd-services
-13. run-first-start-preflight
-14. run-smoke-tests
-15. print-access-info
+10. install-gateway-launchd-services
+11. repair-gateway-worker-acl
+12. configure-cron
+13. configure-plugins
+14. plan-plugin-workspace-provisioning
+15. install-launchd-services
+16. run-first-start-preflight
+17. run-smoke-tests
+18. print-access-info
 ```
 
 The installer may automate system-level work after administrator approval, but
 must not pretend to automate external interactive authorization. These remain
 guided steps:
+
+Current implementation status: `scripts/install-macos-production.sh` is a
+dry-run, machine-readable phase plan by default. `--execute` requires
+`--phase`. The implemented phases cover dependency install, service-user audit
+and optional creation, source copy into an empty app root, runtime pinning,
+Owner key setup, workspace isolation scaffold/ACL gate, Gateway profile
+skeletons, Gateway launchd staging/apply, Gateway worker ACL repair,
+CRON scaffold, plugin source plan/clone, first-run plugin provisioning plan,
+core/plugin launchd staging/apply, first-start preflight, aggregate closure
+smoke, and access-info printing. Existing production updates should continue to use
+`scripts/deploy-macos-production.js`.
+The `run-first-start-preflight` phase points at
+`scripts/macos-first-start-preflight.js --root <root> --network-mode <direct|proxy> --json`.
+The `run-smoke-tests` phase points at the live app
+`scripts/macos-production-closure-validation.js --root <root> --base <url>
+--json` and wraps its bounded output as an installer report.
+Codex Mobile LaunchDaemon generation is profile-aware: when the operator's
+`codex-profiles.json` exists, generated `CODEX_HOME` and any shared-Mux
+endpoint must follow that active profile instead of the desktop/default
+`.codex` home. Existing production deploys also repair this plist drift before
+declaring the deployment healthy.
 
 - Codex/ChatGPT/Hermes official login.
 - Gmail/Hotmail/Google/Outlook/other OAuth authorization.
@@ -423,6 +447,12 @@ docs or handoffs.
 ## First-Start Preflight
 
 The Mac first-start preflight must fail closed if any of these are false:
+
+Run it with:
+
+```bash
+node scripts/macos-first-start-preflight.js --root /Users/example/path --network-mode direct --json
+```
 
 - `hermes-host` listener can start and report `/api/status?detail=1`.
 - effective network mode is explicit: `direct` or `proxy`.

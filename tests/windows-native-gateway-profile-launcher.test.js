@@ -16,6 +16,7 @@ assert.match(source, /\[Alias\("stop-replicas"\)\]/, "launcher should accept own
 assert.match(source, /native-runtime/, "launcher should use the isolated Windows native runtime root");
 assert.match(source, /Convert-ProfileConfigText/, "launcher should convert WSL profile config into Windows-native config");
 assert.match(source, /Ensure-NativeAuthFiles/, "launcher should materialize native auth files without WSL reparse links");
+assert.match(source, /if \(Test-Path -LiteralPath \$sourceFile\) \{[\s\S]*?Ensure-FileLinkOrCopy -Source \$sourceFile/, "launcher should skip optional profile files that are absent");
 assert.doesNotMatch(source, /"auth\.json", "auth\.lock"/, "launcher must not hardlink WSL auth reparse points into native profiles");
 assert.match(source, /\/mnt\/c\/ProgramData\/HermesMobile\/gateway-worker/, "launcher should rewrite WSL worker paths");
 assert.match(source, /\/opt\/hermes-gateway-runtime\/venv\/bin\/python/, "launcher should rewrite WSL runtime Python paths");

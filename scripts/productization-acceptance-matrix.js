@@ -3,7 +3,12 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
+const {
+  BASELINE_DIAGNOSTICS,
+} = require("./production-self-diagnostics");
+
 const REPO_ROOT = path.resolve(__dirname, "..");
+const PRODUCTION_DIAGNOSTIC_IDS = BASELINE_DIAGNOSTICS.map((entry) => entry.id);
 
 const MATRIX_DIMENSIONS = [
   {
@@ -50,8 +55,14 @@ const MATRIX_DIMENSIONS = [
     id: "production-self-diagnostic",
     label: "Production self-diagnostic coverage",
     evidence: "existing diagnostic id from production-self-diagnostics or new bounded diagnostic",
+    acceptedEvidenceIds: PRODUCTION_DIAGNOSTIC_IDS,
   },
 ];
+
+function readDocText(doc) {
+  const docPath = path.isAbsolute(doc) ? doc : path.join(REPO_ROOT, doc);
+  return fs.readFileSync(docPath, "utf8");
+}
 
 function buildMatrix() {
   return {
@@ -78,19 +89,32 @@ function renderMarkdown(matrix = buildMatrix()) {
   return `${lines.join("\n")}\n`;
 }
 
-function verifyDocs() {
-  const docs = [
+function verifyDocs(options = {}) {
+  const docs = Array.isArray(options.docs) ? options.docs : [
     "docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md",
     "docs/TEST_MATRIX.md",
   ];
   const issues = [];
   for (const doc of docs) {
-    const text = fs.readFileSync(path.join(REPO_ROOT, doc), "utf8");
+    const text = readDocText(doc);
     for (const dimension of MATRIX_DIMENSIONS) {
-      const firstToken = dimension.label.split(" ")[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(firstToken, "i");
-      if (!pattern.test(text)) {
-        issues.push({ code: "matrix_dimension_missing_from_doc", doc, id: dimension.id });
+      if (!text.includes(dimension.id)) {
+        issues.push({ code: "matrix_dimension_id_missing_from_doc", doc, id: dimension.id });
+      }
+      if (!text.includes(dimension.label)) {
+        issues.push({ code: "matrix_dimension_label_missing_from_doc", doc, id: dimension.id, label: dimension.label });
+      }
+      if (dimension.id === "production-self-diagnostic") {
+        for (const diagnosticId of PRODUCTION_DIAGNOSTIC_IDS) {
+          if (!text.includes(diagnosticId)) {
+            issues.push({
+              code: "matrix_production_diagnostic_id_missing_from_doc",
+              doc,
+              id: dimension.id,
+              diagnosticId,
+            });
+          }
+        }
       }
     }
   }
@@ -99,6 +123,7 @@ function verifyDocs() {
     schemaVersion: 1,
     checkedDocs: docs,
     dimensionCount: MATRIX_DIMENSIONS.length,
+    productionDiagnosticIdCount: PRODUCTION_DIAGNOSTIC_IDS.length,
     issues,
   };
 }
@@ -121,6 +146,7 @@ if (require.main === module) {
 
 module.exports = {
   MATRIX_DIMENSIONS,
+  PRODUCTION_DIAGNOSTIC_IDS,
   buildMatrix,
   renderMarkdown,
   verifyDocs,

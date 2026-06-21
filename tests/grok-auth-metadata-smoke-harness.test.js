@@ -12,6 +12,7 @@ function read(relativePath) {
 }
 
 const script = read("scripts/grok-auth-metadata-smoke.js");
+const closureChecklist = read("scripts/grok-xai-oauth-closure-checklist.js");
 const macosReauthScript = read("scripts/macos-grok-xai-reauth.sh");
 const macosReauthCommand = read("scripts/macos-grok-xai-reauth.command");
 const grokDoc = read("docs/MODULES/grok-gateway.md");
@@ -33,6 +34,13 @@ assert.doesNotMatch(script, /console\.error\(.*sharedAuthFile/);
 assert.doesNotMatch(script, /access_token[\"']?\s*:/);
 assert.doesNotMatch(script, /refresh_token[\"']?\s*:/);
 
+assert.match(closureChecklist, /grok-auth-metadata-smoke\.js/);
+assert.match(closureChecklist, /gateway-pool-production-smoke\.js/);
+assert.match(closureChecklist, /--provider xai-oauth/);
+assert.match(closureChecklist, /--expected-profile grokgw1/);
+assert.doesNotMatch(closureChecklist, /access_token[\"']?\s*:/);
+assert.doesNotMatch(closureChecklist, /refresh_token[\"']?\s*:/);
+
 assert.match(macosReauthScript, /auth add xai-oauth/);
 assert.match(macosReauthScript, /--manual-paste/);
 assert.match(macosReauthScript, /HERMES_HOME="\$PROFILE_HOME"/);
@@ -52,17 +60,21 @@ assert.doesNotMatch(macosReauthCommand, /access_token[\"']?\s*:/);
 assert.doesNotMatch(macosReauthCommand, /refresh_token[\"']?\s*:/);
 
 assert.match(grokDoc, /grok-auth-metadata-smoke\.js/);
+assert.match(grokDoc, /grok-xai-oauth-closure-checklist\.js/);
 assert.match(grokDoc, /macos-grok-xai-reauth\.sh/);
 assert.match(grokDoc, /HomeAI-Grok-XAI-Reauth\.command/);
 assert.match(grokDoc, /HERMES_GROK_GATEWAY_SHARED_AUTH_PATH/);
 assert.match(grokDoc, /grok_xai_oauth_access_token_missing/);
 assert.match(grokRunbook, /grok-auth-metadata-smoke\.js/);
+assert.match(grokRunbook, /grok-xai-oauth-closure-checklist\.js/);
 assert.match(grokRunbook, /macos-grok-xai-reauth\.sh/);
 assert.match(grokRunbook, /HomeAI-Grok-XAI-Reauth\.command/);
 assert.match(grokRunbook, /HERMES_GROK_GATEWAY_SHARED_AUTH_PATH/);
 assert.match(grokRunbook, /profile-local and shared auth stores/);
 assert.match(testMatrix, /grok-auth-metadata-smoke-harness\.test\.js/);
+assert.match(testMatrix, /grok-xai-oauth-closure-checklist\.test\.js/);
 assert.match(testMatrix, /grok-auth-metadata-smoke\.js/);
+assert.match(testMatrix, /grok-xai-oauth-closure-checklist\.js/);
 assert.match(testMatrix, /macos-grok-xai-reauth\.sh/);
 assert.match(architectureMap, /scripts\/grok-auth-metadata-smoke\.js/);
 assert.match(architectureMap, /scripts\/macos-grok-xai-reauth\.sh/);

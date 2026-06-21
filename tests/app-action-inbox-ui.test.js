@@ -367,26 +367,21 @@ const scheduledTodoDelivery = {
   itemType: "todo",
   status: "open",
   title: "\u5f85\u529e\u63d0\u9192",
-  summary: "Daily discussion report\n\u4ea4\u4ed8\u6587\u4ef6: report.md",
+  summary: "Daily discussion report",
   sourceRef: {
     automationId: "auto-job-scheduled",
     scheduledTodo: true,
     automationTitle: "Daily discussion report",
-    latestDeliverable: {
-      name: "report.md",
-      url: "/api/automations/deliverable?jobId=auto-job-scheduled&run=run.md&index=0",
-      mime: "text/markdown",
-    },
   },
   workspaceId: "owner",
 };
 const scheduledTodoHtml = ui.renderActionInboxItem(scheduledTodoDelivery);
 assert.equal(ui.actionInboxDisplayTitle(scheduledTodoDelivery), "Daily discussion report");
-assert.equal(ui.actionInboxPrimaryDeliverable(scheduledTodoDelivery).name, "report.md");
+assert.equal(ui.actionInboxPrimaryDeliverable(scheduledTodoDelivery), null);
 assert.match(scheduledTodoHtml, /<button class="action-inbox-item-main" type="button" data-action-inbox-open-source-id="ainb-auto-scheduled">/);
-assert.match(scheduledTodoHtml, /data-action-inbox-open-deliverable-id="ainb-auto-scheduled"/);
-assert.match(scheduledTodoHtml, /class="action-inbox-deliverable-chip automation-doc-preview compact doc-markdown"/);
-assert.match(scheduledTodoHtml, />report\.md<\/span>/);
+assert.doesNotMatch(scheduledTodoHtml, /data-action-inbox-open-deliverable-id="ainb-auto-scheduled"/);
+assert.doesNotMatch(scheduledTodoHtml, /class="action-inbox-deliverable-chip automation-doc-preview compact doc-markdown"/);
+assert.doesNotMatch(scheduledTodoHtml, />report\.md<\/span>/);
 assert.match(scheduledTodoHtml, /data-action-inbox-actions-id="ainb-auto-scheduled"/);
 assert.deepEqual(ui.actionInboxActionMenuItems(scheduledTodoDelivery).map((action) => action.label), ["\u5b8c\u6210", "\u7a0d\u540e", "\u5220\u9664"]);
 

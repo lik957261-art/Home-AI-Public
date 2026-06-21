@@ -545,25 +545,26 @@ function createWebPushDeliveryService(options = {}) {
       if (!latestDoc && !failed && !scheduledTodo) continue;
       const existingSameRun = existingMark && typeof existingMark === "object"
         && String(existingMark.lastRunAt || "").trim() === String(job?.lastRunAt || "").trim();
-      if (scheduledTodo && !latestDoc && !failed && existingSameRun) continue;
-      const signature = automationPushSignature(job, latestDoc);
+      if (scheduledTodo && !failed && existingSameRun) continue;
+      const eventDoc = scheduledTodo ? null : latestDoc;
+      const signature = automationPushSignature(job, eventDoc);
       if (!signature) continue;
       const existing = automationPushMarkSignature(existingMark);
       if (existing === signature) continue;
-      const event = automationPushEventForJob(job, latestDoc, signature);
+      const event = automationPushEventForJob(job, eventDoc, signature);
       if (!event) continue;
       if (isLowSignalScheduledAuditEvent(event)) {
         initialized.push({ jobId, principalId, signature, skipped: "background_audit_completed" });
         if (!opts.dryRun) {
-          setAutomationPushMark(job, signature, latestDoc);
+          setAutomationPushMark(job, signature, eventDoc);
           marksChanged = true;
         }
         continue;
       }
-      if (!existing && !opts.includeInitial && !isRecentInitialAutomationEvent(job, latestDoc)) {
+      if (!existing && !opts.includeInitial && !isRecentInitialAutomationEvent(job, eventDoc)) {
         initialized.push({ jobId, principalId, signature });
         if (!opts.dryRun) {
-          setAutomationPushMark(job, signature, latestDoc);
+          setAutomationPushMark(job, signature, eventDoc);
           marksChanged = true;
         }
         continue;

@@ -1204,7 +1204,7 @@ const listWorkspaceAccessKeyStatuses = (...args) => mobileRuntimeWorkspaceFacade
 const rotateWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateWorkspaceAccessKey(...args);
 const revokeWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.revokeWorkspaceAccessKey(...args);
 const rotateGlobalAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateGlobalAccessKey(...args);
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260620-music-browse-tools-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260620-music-demo-plan-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
   normalizeSingleWindowMode,

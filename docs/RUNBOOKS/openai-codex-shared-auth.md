@@ -50,7 +50,26 @@ hard-coded to a fixed historical worker list.
 
 ## Repair
 
-For a one-time repair, copy only the current local Codex token block from the operator's private Codex auth store into the shared low Gateway auth store, preserving the existing JSON shape and credential pool. Back up the shared auth file first and never print token values.
+For a one-time repair, copy only the current local Codex token block from the
+operator's private Codex auth store into the shared low Gateway auth store,
+preserving the existing JSON shape and credential pool. On macOS use:
+
+```sh
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
+  --profile-file /Users/example/path \
+  --execute --json
+```
+
+The script resolves the active Codex Mobile profile, reads that Codex Home's
+Codex CLI-format `auth.json`, writes only the OpenAI/Codex token block into
+Hermes shared-auth format, backs up the old shared-auth file, and prints only
+bounded metadata. Do not symlink Gateway shared-auth directly to Codex CLI
+`auth.json`: refresh tokens are single-use, and continuous sharing with Codex
+CLI, VS Code, or Desktop clients can recreate the
+`refresh_token_reused`/`already consumed by another client` failure class.
+Back up the shared auth file first and never print token values.
 
 For a durable repair, ensure the production runtime override is synced to:
 
