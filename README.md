@@ -78,16 +78,19 @@ Validation for this public release:
 ## 2026-06-21 Public Update
 
 This update refreshes the public tree from the current Home AI source after the
-Android chat-entry stability and macOS Gateway idle-retirement fixes. The exact
-source commit is recorded in `.public-export-report.json`.
+Android WebView chat-entry timeout and macOS Gateway idle-retirement fixes. The
+exact source commit is recorded in `.public-export-report.json`.
 
 Highlights:
 
-- Adds a lightweight chat pending shell when the single-window chat cache misses,
-  reducing blank or frozen-feeling transitions on cold Android chat entry.
+- Adds a lightweight chat pending shell and Promise-level API timeout when the
+  single-window chat cache misses, reducing blank or frozen-feeling transitions
+  on cold Android WebView chat entry.
 - Bumps the static PWA client version to
-  `20260621-android-chat-freeze-v901` so installed clients fetch the updated
-  chat-state script.
+  `20260621-android-chat-timeout-v902` so installed clients fetch the updated
+  API-client and chat-state scripts.
+- Publishes Android native shell `0.4.15` / `versionCode=19` as a refresh
+  carrier for the v902 Android WebView chat timeout recovery.
 - Hardens macOS Gateway hybrid scheduling so on-demand workers can be retired
   after the configured idle TTL through a restricted Gateway-only launchctl
   sudoers rule.
@@ -97,8 +100,9 @@ Highlights:
 
 Validation for this public update:
 
-- focused thread-state, task-list, static cache, Gateway launcher, deploy, and
-  production drift reconcile tests
+- focused API-client, thread-state, task-list, static cache, Gateway launcher,
+  deploy, and production drift reconcile tests
+- Android update manifest SHA/size verification
 - production no-restart deploy smoke from the source deployment before export
 - public export privacy scan
 

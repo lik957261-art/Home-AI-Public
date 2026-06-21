@@ -128,6 +128,20 @@ function response({
     },
   );
 
+  const stuckFetchApi = createApiClient({
+    fetchImpl: (_url, options) => {
+      assert.equal(Object.prototype.hasOwnProperty.call(options, "timeoutMs"), false);
+      return new Promise(() => {});
+    },
+  });
+  await assert.rejects(
+    () => stuckFetchApi("/api/stuck", { timeoutMs: 1 }),
+    (err) => {
+      assert.equal(err.code, "request_timeout");
+      return true;
+    },
+  );
+
   const fallbackVersions = [];
   handleClientVersionFromResponse(response({
     headers: { "X-Hermes-Web-Version": "server-c" },

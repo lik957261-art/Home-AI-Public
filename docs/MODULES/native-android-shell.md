@@ -150,7 +150,7 @@ Current source checks:
 - Android debug build: `source scripts/android-env.sh && gradle --no-daemon assembleDebug`
 - Android debug APK:
   `/Users/example/path`
-- Current source public debug APK version: `0.4.14`, `versionCode=18`
+- Current source public debug APK version: `0.4.15`, `versionCode=19`
 - Current public debug APK SHA-256:
   `e5fe293d9f92f4f1df7d9d84aacedb296652c5954be0870d9dbba79ad4136960`
 - Android update manifest:

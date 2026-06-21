@@ -90,16 +90,33 @@
       }
       delete fetchOptions.timeoutMs;
       let timeoutId = 0;
+      let timedOut = false;
+      let timeoutPromise = null;
+      let controller = null;
       if (timeoutMs && !fetchOptions.signal && typeof AbortController === "function") {
-        const controller = new AbortController();
+        controller = new AbortController();
         fetchOptions.signal = controller.signal;
-        timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      }
+      if (timeoutMs) {
+        timeoutPromise = new Promise((_, reject) => {
+          timeoutId = setTimeout(() => {
+            timedOut = true;
+            if (controller) controller.abort();
+            const timeoutError = new Error("Request timed out");
+            timeoutError.code = "request_timeout";
+            reject(timeoutError);
+          }, timeoutMs);
+        });
       }
       let response = null;
       try {
-        response = await fetchImpl(path, fetchOptions);
+        const fetchPromise = fetchImpl(path, fetchOptions);
+        response = timeoutPromise ? await Promise.race([fetchPromise, timeoutPromise]) : await fetchPromise;
       } catch (err) {
-        if (err?.name === "AbortError") {
+        if (err?.code === "request_timeout") {
+          throw err;
+        }
+        if (err?.name === "AbortError" || timedOut) {
           const timeoutError = new Error("Request timed out");
           timeoutError.code = "request_timeout";
           throw timeoutError;

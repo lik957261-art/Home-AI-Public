@@ -135,7 +135,10 @@ add stricter behavior, but they do not replace the generic composer lock.
   pending shell must have a bounded recovery watchdog: if a cold-start or stale
   `/api/single-window` response leaves `正在载入聊天...` visible without rendered
   messages, the client should retry the single-window load after the original
-  request is no longer in flight instead of requiring a tab switch.
+  request is no longer in flight instead of requiring a tab switch. API request
+  timeouts must not rely only on `AbortController`; the client-side API wrapper
+  must also reject from a Promise-level timeout so Android WebView cannot keep a
+  hung fetch marked as in-flight forever.
   When the follow-up `/api/single-window` response has the same visible chat
   render signature as the cached shell, the client should update lightweight
   chrome only and skip replacing `#conversation.innerHTML`; raw `updatedAt`
