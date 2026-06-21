@@ -2706,29 +2706,65 @@ function pluginTopicImmediateThreadForDef(def) {
   return null;
 }
 
-function renderPluginTopicChatImmediateShell(def) {
-  if (!def || def.builtinKind) return false;
+function pluginTopicChatEntryStillCurrent(pluginId, groupId, entrySeq) {
+  return (
+    state.viewMode === "tasks"
+    && state.currentTaskGroupId === groupId
+    && state.pluginContextNavPluginId === pluginId
+    && (Number(state.primaryNavigationSeq || 0) || 0) === entrySeq
+  );
+}
+
+function renderPluginTopicChatPendingShell(def, options = {}) {
   const conversation = $("conversation");
-  const thread = pluginTopicImmediateThreadForDef(def);
-  if (thread?.id && thread.singleWindow) {
-    state.currentThread = thread;
-    state.currentThreadId = thread.id;
-    if (typeof summarizeThread === "function") state.threads = [summarizeThread(thread)];
-    if (typeof renderThreads === "function") renderThreads();
-    if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: true });
-    if (typeof setComposerEnabled === "function") setComposerEnabled(true);
-    if (typeof updateNavigationControls === "function") updateNavigationControls();
-    return true;
-  }
+  const cached = Boolean(options.cached);
   if (conversation) {
-    conversation.innerHTML = `<div class="empty-state small">\u6b63\u5728\u8f7d\u5165${escapeHtml(def.label || "\u63d2\u4ef6")}\u8bdd\u9898...</div>`;
+    conversation.innerHTML = `<div class="empty-state small">${escapeHtml(cached ? "\u6b63\u5728\u6253\u5f00\u8bdd\u9898..." : `\u6b63\u5728\u8f7d\u5165${def.label || "\u63d2\u4ef6"}\u8bdd\u9898...`)}</div>`;
     conversation.scrollTop = 0;
   }
   if ($("threadTitle")) $("threadTitle").textContent = `${def.label || "\u63d2\u4ef6"}\u8bdd\u9898`;
   if ($("threadMeta")) $("threadMeta").textContent = "";
   if ($("interruptRun")) $("interruptRun").disabled = true;
-  if (typeof configureComposer === "function") configureComposer({ enabled: false, shellLocked: true, placeholder: "Message Home AI..." });
+  if (typeof configureComposer === "function") {
+    if (cached) configureComposer({ enabled: true, placeholder: "Reply in this task..." });
+    else configureComposer({ enabled: false, shellLocked: true, placeholder: "Message Home AI..." });
+  }
   if (typeof updateNavigationControls === "function") updateNavigationControls();
+}
+
+function schedulePluginTopicCachedMessageRender(def, thread, entrySeq) {
+  if (!def || !thread?.id) return;
+  const pluginId = def.id;
+  const groupId = pluginTopicGroupId(pluginId);
+  const renderSeq = (Number(state.pluginTopicCachedMessageRenderSeq || 0) || 0) + 1;
+  state.pluginTopicCachedMessageRenderSeq = renderSeq;
+  const run = () => {
+    if (state.pluginTopicCachedMessageRenderSeq !== renderSeq) return;
+    if (!pluginTopicChatEntryStillCurrent(pluginId, groupId, entrySeq)) return;
+    if (String(state.currentThread?.id || "") !== String(thread.id || "")) return;
+    if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: true });
+    if (typeof setComposerEnabled === "function") setComposerEnabled(true);
+    if (typeof updateNavigationControls === "function") updateNavigationControls();
+  };
+  const schedule = window.requestAnimationFrame || ((callback) => window.setTimeout(callback, 16));
+  schedule(() => window.setTimeout(run, 0));
+}
+
+function renderPluginTopicChatImmediateShell(def) {
+  if (!def || def.builtinKind) return false;
+  const thread = pluginTopicImmediateThreadForDef(def);
+  const entrySeq = Number(state.primaryNavigationSeq || 0) || 0;
+  if (thread?.id && thread.singleWindow) {
+    state.currentThread = thread;
+    state.currentThreadId = thread.id;
+    if (typeof summarizeThread === "function") state.threads = [summarizeThread(thread)];
+    if (typeof renderThreads === "function") renderThreads();
+    renderPluginTopicChatPendingShell(def, { cached: true });
+    schedulePluginTopicCachedMessageRender(def, thread, entrySeq);
+    if (typeof setComposerEnabled === "function") setComposerEnabled(true);
+    return true;
+  }
+  renderPluginTopicChatPendingShell(def, { cached: false });
   return false;
 }
 
@@ -2740,26 +2776,14 @@ function refreshPluginTopicChatAfterImmediateEntry(def, options = {}) {
   const deferViewModeApplyUntilLoaded = Boolean(options.deferViewModeApplyUntilLoaded);
   loadSingleWindow()
     .then(() => {
-      const stillCurrent = (
-        state.viewMode === "tasks"
-        && state.currentTaskGroupId === groupId
-        && state.pluginContextNavPluginId === pluginId
-        && (Number(state.primaryNavigationSeq || 0) || 0) === entrySeq
-      );
-      if (!stillCurrent) return;
+      if (!pluginTopicChatEntryStillCurrent(pluginId, groupId, entrySeq)) return;
       if (deferViewModeApplyUntilLoaded && typeof applyViewMode === "function") applyViewMode();
       if (typeof scheduleConversationBottomStick === "function") scheduleConversationBottomStick();
       if (typeof isMobileLayout === "function" && isMobileLayout() && typeof closeSidebar === "function") closeSidebar();
       if (typeof focusComposerSoon === "function") focusComposerSoon();
     })
     .catch((err) => {
-      const stillCurrent = (
-        state.viewMode === "tasks"
-        && state.currentTaskGroupId === groupId
-        && state.pluginContextNavPluginId === pluginId
-        && (Number(state.primaryNavigationSeq || 0) || 0) === entrySeq
-      );
-      if (stillCurrent && typeof showError === "function") showError(err);
+      if (pluginTopicChatEntryStillCurrent(pluginId, groupId, entrySeq) && typeof showError === "function") showError(err);
     });
 }
 

@@ -77,37 +77,29 @@ Validation for this public release:
 
 ## 2026-06-21 Public Update
 
-This update refreshes the public tree from source commit `0fe5bcf253f` after
-the Web Push VAPID permission drift repair and includes the earlier 2026-06-21
-plugin-topic/mobile shell work.
+This update refreshes the public tree from the current Home AI source after the
+plugin-topic mobile entry hotfix. The exact source commit is recorded in
+`.public-export-report.json`.
 
 Highlights:
 
-- Adds a Home AI deploy post-sync repair that resets existing
-  `data/web-push-vapid.json` files to the service owner and mode `0600`
-  without reading or regenerating key material.
-- Keeps the Web Push production audit able to detect VAPID permission drift and
-  active external subscriptions without sending notifications or printing raw
-  endpoints.
-- Enters plugin-bound topic chats immediately from the cached Home AI topic
-  shell instead of waiting for the `/api/single-window` refresh.
-- Runs the plugin-topic convergence refresh in the background and applies the
-  result only when the user is still on the same plugin topic.
-- Bumps the static client version to `20260621-plugin-topic-async-v899` so
-  installed clients fetch the updated plugin-topic script.
-- Adds explicit productization coverage for Codex Mobile macOS listener
-  recovery so the recovery entrypoint stays Owner-only, documented, and tested.
-- Routes Android/Web back handling through active artifact/file preview overlays
-  before falling back to primary-page bounce behavior.
+- Defers cached plugin-topic message rendering until after the first detail
+  shell frame, so tapping into a plugin topic with an active running
+  conversation does not synchronously render long run-progress or receipt DOM
+  before navigation completes.
+- Keeps the background `/api/single-window` convergence refresh guarded by the
+  selected plugin id, task group, and primary-navigation sequence.
+- Bumps the static PWA client version to
+  `20260621-plugin-topic-deferred-v900` so installed clients fetch the updated
+  plugin-topic script.
 
 Validation for this public update:
 
-- `node scripts/productization-check.js`
-- `npm run privacy:scan`
-- `git diff --check`
-- focused Web Push, deploy-script, plugin-topic, and embedded-plugin tests
+- focused plugin-topic and thread-state UI tests
+- static cache version harness
+- iOS PWA live-debug and visual harness tests
+- architecture-code-test harness map guard
 - public export privacy scan
-- production Web Push audit from the source deployment before export
 
 ## 2026-06-17 Public Update
 

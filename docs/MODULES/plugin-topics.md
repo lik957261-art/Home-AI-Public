@@ -46,6 +46,12 @@ or raw plugin credentials.
   after the immediate shell has rendered and must not be awaited by the click
   navigation path. Refresh completion must re-check that the user is still on
   the same plugin topic before applying composer, scroll, or sidebar effects.
+- When the immediate shell has a cached thread for the target plugin topic, the
+  click path may bind that thread and enable the Composer, but it must not
+  synchronously render the cached message list. Cached message rendering should
+  be deferred to the next frame with the same route/sequence guard, because
+  running plugin-topic conversations can contain long run-progress and receipt
+  DOM that would otherwise block entry for seconds.
 - Plugin topic detail is a secondary page. It must hide the bottom app
   navigation and use the standard top back/right-swipe route to return, while
   keeping the normal message composer visible for the topic chat.
