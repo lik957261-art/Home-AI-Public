@@ -141,9 +141,14 @@ Codex Mobile deployments must also keep launchd stdout/stderr in the service
 user's runtime root: `/Users/example/path`. The deploy script
 must ensure the two log files are `xuxin:staff` mode `600`, set
 `com.hermesmobile.plugin.codex-mobile` `StandardOutPath` / `StandardErrorPath`
-to those runtime logs, and reload the LaunchDaemon. Otherwise launchd can fail
-before Node starts with `EX_CONFIG` if it opens a shared log path whose owner has
-drifted back to `hermes-host`.
+to those runtime logs, and align Codex Mobile plist environment with the active
+Codex Mobile profile. A no-restart Home AI deploy may perform that bounded
+plist repair but must not reload the Codex Mobile LaunchDaemon unless
+`com.hermesmobile.plugin.codex-mobile` is explicitly present in the deploy
+plan's restart labels. Otherwise launchd can fail before Node starts with
+`EX_CONFIG` if it opens a shared log path whose owner has drifted back to
+`hermes-host`, while an unrelated Home AI no-restart deploy can avoid
+disconnecting active Codex Mobile sessions.
 
 ## Restart Rules
 

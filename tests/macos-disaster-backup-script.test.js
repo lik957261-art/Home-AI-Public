@@ -76,6 +76,10 @@ function makeFixture() {
   writeFile(path.join(root, "data", "skill-profiles", "weixin_wuping", "skills", "health", "SKILL.md"), "health skill\n");
   writeFile(path.join(root, "data", "skill-profiles", "weixin_wuping", "memories", "summary.md"), "memory\n");
   writeFile(path.join(root, "data", "hermes-home", "SOUL.md"), "home soul\n");
+  writeFile(path.join(root, "data", "production-drift-audit", "latest.json"), "{}\n");
+  writeFile(path.join(root, "data", "music", "library", "index.json"), "{}\n");
+  writeFile(path.join(root, "data", "music", "audio-mounts", "Music", "album", "track.flac"), "audio\n");
+  writeFile(path.join(root, "data", "music", "audio-mounts", "Music", "album", "Thumbs.db"), "not sqlite\n");
   writeFile(path.join(root, "gateway-worker", "telemetry", "profiles", "hm-owner-openai-1", "SOUL.md"), "gateway soul\n");
   writeFile(path.join(root, "plugins", "finance", "server.js"), "finance\n");
   writeFile(path.join(root, "plugins", "finance", "data", "receipt.txt"), "receipt\n");
@@ -88,6 +92,9 @@ function makeFixture() {
   writeFile(path.join(operatorHome, ".hermes", "profiles", "officialclean1", "skills", "custom", "SKILL.md"), "profile skill\n");
   writeFile(path.join(operatorHome, ".hermes", "profiles", "officialclean1", "memories", "m.md"), "profile memory\n");
   writeFile(path.join(operatorHome, ".codex", "skills", "codex-skill", "SKILL.md"), "codex skill\n");
+  writeFile(path.join(operatorHome, ".codex-mobile-web", "codex-profiles.json"), "{}\n");
+  writeFile(path.join(operatorHome, ".codex-mobile-web", "chrome-pro-bridge", "Default", "Cache", "blob.bin"), "cache\n");
+  writeFile(path.join(operatorHome, ".codex-mobile-web", "thread-detail-projections", "projection.json"), "{}\n");
   return { dir, root, dest, operatorHome };
 }
 
@@ -120,6 +127,12 @@ function makeFixture() {
     assert.equal(result.ok, true);
     assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", "gateway-pool-manifest-mac.json")), true);
     assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", path.basename(transientManifestBackup))), false);
+    assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", "production-drift-audit", "latest.json")), false);
+    assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", "music", "library", "index.json")), true);
+    assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", "music", "audio-mounts", "Music", "album", "track.flac")), false);
+    assert.equal(fs.existsSync(path.join(result.currentRoot, "operator-home", path.basename(fixture.operatorHome), ".codex-mobile-web", "codex-profiles.json")), true);
+    assert.equal(fs.existsSync(path.join(result.currentRoot, "operator-home", path.basename(fixture.operatorHome), ".codex-mobile-web", "chrome-pro-bridge", "Default", "Cache", "blob.bin")), false);
+    assert.equal(fs.existsSync(path.join(result.currentRoot, "operator-home", path.basename(fixture.operatorHome), ".codex-mobile-web", "thread-detail-projections", "projection.json")), false);
     assert.equal(result.receiptRetentionDays, 3);
     assert.equal(result.prunedReceiptCount, 1);
     assert.equal(fs.existsSync(oldReceipt), false);
@@ -192,6 +205,11 @@ function makeFixture() {
   assert.match(source, /HOMEAI_DISASTER_BACKUP_RECEIPT_RETENTION_DAYS/);
   assert.match(source, /--receipt-retention-days/);
   assert.match(source, /pruneDisasterRecoveryReceipts/);
+  assert.match(source, /PRODUCTION_DATA_EXCLUDES/);
+  assert.match(source, /"audio-mounts\/"/);
+  assert.match(source, /"chrome-pro-bridge\/"/);
+  assert.match(source, /production-drift-audit/);
+  assert.match(source, /thumbs\.db/);
   assert.match(source, /runtime.*not copied by this daily backup/s);
   assert.doesNotMatch(source, /create-hermes-mobile-disaster-backup\.ps1/);
   assert.match(mountSource, /192\.168\.10\.99/);

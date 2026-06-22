@@ -253,6 +253,10 @@ const CODEX_MOBILE_LOG_REPAIR = Object.freeze({
   runtimeLogRoot: "/Users/example/path",
   runtimeRoot: "/Users/example/path",
   profileFile: "/Users/example/path",
+  muxMode: "persistent-owned-shared",
+  requireSharedAppServer: "1",
+  persistOwnedMux: "1",
+  disableOwnedMux: "0",
   logFiles: Object.freeze([
     "codex-mobile-web.out.log",
     "codex-mobile-web.err.log",
@@ -2335,12 +2339,17 @@ function repairCodexMobileLogPermissions(plan, password) {
     if (plistBuddySetEnvIfChanged(repair.launchdPlistPath, "CODEX_MOBILE_PROFILE_FILE", codexRuntime.profileFile, password)) {
       envUpdated.push("CODEX_MOBILE_PROFILE_FILE");
     }
-    const existingMuxEndpoint = plistBuddyReadEnv(repair.launchdPlistPath, "CODEX_MOBILE_MUX_ENDPOINT_FILE", password);
-    const existingRequireShared = plistBuddyReadEnv(repair.launchdPlistPath, "CODEX_MOBILE_REQUIRE_SHARED_APP_SERVER", password);
-    if (existingMuxEndpoint || existingRequireShared === "1") {
-      if (plistBuddySetEnvIfChanged(repair.launchdPlistPath, "CODEX_MOBILE_MUX_ENDPOINT_FILE", codexRuntime.muxEndpointFile, password)) {
-        envUpdated.push("CODEX_MOBILE_MUX_ENDPOINT_FILE");
-      }
+    if (plistBuddySetEnvIfChanged(repair.launchdPlistPath, "CODEX_MOBILE_MUX_ENDPOINT_FILE", codexRuntime.muxEndpointFile, password)) {
+      envUpdated.push("CODEX_MOBILE_MUX_ENDPOINT_FILE");
+    }
+    if (plistBuddySetEnvIfChanged(repair.launchdPlistPath, "CODEX_MOBILE_REQUIRE_SHARED_APP_SERVER", repair.requireSharedAppServer || "1", password)) {
+      envUpdated.push("CODEX_MOBILE_REQUIRE_SHARED_APP_SERVER");
+    }
+    if (plistBuddySetEnvIfChanged(repair.launchdPlistPath, "CODEX_MOBILE_PERSIST_OWNED_MUX", repair.persistOwnedMux || "1", password)) {
+      envUpdated.push("CODEX_MOBILE_PERSIST_OWNED_MUX");
+    }
+    if (plistBuddySetEnvIfChanged(repair.launchdPlistPath, "CODEX_MOBILE_DISABLE_OWNED_MUX", repair.disableOwnedMux || "0", password)) {
+      envUpdated.push("CODEX_MOBILE_DISABLE_OWNED_MUX");
     }
     if (envUpdated.length) {
       launchdReloadRequired = true;
@@ -2581,7 +2590,13 @@ function executePlan(plan, options) {
   const deployBackupPrune = pruneDeployBackups(plan, options, password);
 
   const reloadedLabels = new Set();
-  if (codexMobileLogRepair && codexMobileLogRepair.launchdReloadRequired && codexMobileLogRepair.launchdLabel && codexMobileLogRepair.launchdPlistPath) {
+  if (
+    codexMobileLogRepair
+    && codexMobileLogRepair.launchdReloadRequired
+    && codexMobileLogRepair.launchdLabel
+    && codexMobileLogRepair.launchdPlistPath
+    && plan.restartLabels.includes(codexMobileLogRepair.launchdLabel)
+  ) {
     runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(codexMobileLogRepair.launchdPlistPath)} >/dev/null 2>&1 || true`], password);
     runSudo("/bin/launchctl", ["bootstrap", "system", codexMobileLogRepair.launchdPlistPath], password);
     reloadedLabels.add(codexMobileLogRepair.launchdLabel);

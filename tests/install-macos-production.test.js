@@ -1301,7 +1301,8 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
   assert.match(codexPlist, /<key>CODEX_HOME<\/key>\s*<string>\/Users\/xuxin\/\.codex-homes\/previous<\/string>/);
   assert.match(codexPlist, /<key>CODEX_MOBILE_PROFILE_FILE<\/key>/);
   assert.match(codexPlist, /<key>CODEX_MOBILE_REQUIRE_SHARED_APP_SERVER<\/key>\s*<string>1<\/string>/);
-  assert.match(codexPlist, /<key>CODEX_MOBILE_DISABLE_OWNED_MUX<\/key>\s*<string>1<\/string>/);
+  assert.match(codexPlist, /<key>CODEX_MOBILE_PERSIST_OWNED_MUX<\/key>\s*<string>1<\/string>/);
+  assert.match(codexPlist, /<key>CODEX_MOBILE_DISABLE_OWNED_MUX<\/key>\s*<string>0<\/string>/);
   assert.match(codexPlist, /\/Users\/xuxin\/\.codex-homes\/previous\/app-server-mux\/endpoint\.json/);
   const driftAuditPlist = fs.readFileSync(path.join(stagingDir, "com.hermesmobile.production-drift-audit.plist"), "utf8");
   assert.match(driftAuditPlist, /<key>HOMEAI_PRODUCTION_DRIFT_AUTO_REPAIR<\/key>\s*<string>1<\/string>/);

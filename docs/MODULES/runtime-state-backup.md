@@ -132,6 +132,10 @@ Backups must allow a replacement machine to restore source, production app files
   Gateway worker/profile state, launchd plists, workspace Skill stores,
   workspace Memory stores, per-user/profile Soul files, and selected operator
   Codex/Hermes Agent state when readable.
+- The disaster backup must not traverse heavyweight or externally mounted
+  runtime trees. In particular, Music audio mounts/Roon backup mirrors and
+  Codex Mobile Chrome/browser cache trees are excluded; Music metadata and
+  bounded Codex Mobile profile/config state remain eligible for backup.
 - Mac production deploy repairs read/traverse ACLs for `hermes-host` under
   `data/artifacts` so generated plugin artifacts such as Wardrobe thumbnails
   remain readable by the scheduled backup even when a plugin worker created

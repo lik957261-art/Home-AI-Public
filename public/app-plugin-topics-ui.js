@@ -494,7 +494,7 @@ function hideActivePluginHostsForPrimaryNavigation() {
       const record = typeof embeddedPluginRecord === "function" ? embeddedPluginRecord(def.id) : null;
       if (!record) return;
       record.loading = false;
-      if (record.viewportMessageTimer) {
+      if (record.viewportMessageTimer && typeof window !== "undefined") {
         window.clearTimeout(record.viewportMessageTimer);
         record.viewportMessageTimer = 0;
       }
@@ -502,7 +502,9 @@ function hideActivePluginHostsForPrimaryNavigation() {
       record.lastViewportPayloadSnapshot = null;
     });
   }
-  document.documentElement?.classList?.remove("embedded-plugin-shell-active", "codex-plugin-shell-active");
+  if (typeof document !== "undefined") {
+    document.documentElement?.classList?.remove("embedded-plugin-shell-active", "codex-plugin-shell-active");
+  }
   const app = $("app");
   app?.classList.remove("embedded-plugin-host-active", "wardrobe-plugin-host-active");
 }

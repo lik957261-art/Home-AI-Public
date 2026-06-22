@@ -6,8 +6,11 @@ const { execFile } = require("node:child_process");
 
 const DEFAULT_COOLDOWN_MS = 120000;
 const DEFAULT_COMMAND_TIMEOUT_MS = 10000;
+const DEFAULT_CODEX_MOBILE_COMMAND_TIMEOUT_MS = 60000;
 const DEFAULT_RETRY_DELAY_MS = 1200;
 const SAFE_LAUNCHD_LABEL_PREFIX = "com.hermesmobile.plugin.";
+const CODEX_MOBILE_LAUNCHD_LABEL = "com.hermesmobile.plugin.codex-mobile";
+const CODEX_MOBILE_PLUGIN_IDS = new Set(["codex-mobile", "codex-mobile-web"]);
 
 function stringValue(value) {
   return String(value || "").trim();
@@ -80,6 +83,25 @@ function readPluginSources(filePath = "") {
   } catch (_) {
     return [];
   }
+}
+
+function defaultCodexMobileRecoveryScriptPath(appRoot = process.cwd()) {
+  return path.resolve(appRoot, "..", "plugins", "codex-mobile-web", "restart-codex-mobile-host-macos.sh");
+}
+
+function isCodexMobileRecoveryTarget(pluginId = "", launchdLabel = "") {
+  const id = stringValue(pluginId);
+  const label = stringValue(launchdLabel);
+  return CODEX_MOBILE_PLUGIN_IDS.has(id) || label === CODEX_MOBILE_LAUNCHD_LABEL;
+}
+
+function resolveCodexMobileRecoveryScriptPath(options = {}, env = process.env || {}) {
+  return path.resolve(stringValue(
+    options.codexMobileRecoveryScriptPath
+    || env.HOMEAI_CODEX_MOBILE_RECOVERY_SCRIPT
+    || env.HERMES_MOBILE_CODEX_MOBILE_RECOVERY_SCRIPT
+    || env.HERMES_WEB_CODEX_MOBILE_RECOVERY_SCRIPT,
+  ) || defaultCodexMobileRecoveryScriptPath(options.appRoot || process.cwd()));
 }
 
 function resolvePluginLaunchdLabel(input = {}, options = {}) {
@@ -197,12 +219,22 @@ function createPluginLaunchRecoveryService(options = {}) {
     }
     lastAttemptByLabel.set(label, now);
 
+    const codexMobileScript = !command && isCodexMobileRecoveryTarget(pluginId, label)
+      ? resolveCodexMobileRecoveryScriptPath(options, env)
+      : "";
+    const useCodexMobileScript = Boolean(codexMobileScript && fs.existsSync(codexMobileScript));
     const args = command
       ? ["--plugin-id", pluginId, "--launchd-label", label, "--manifest-url", manifestUrl, "--reason", stringValue(failure.code)]
-      : ["kickstart", "-k", `system/${label}`];
-    const executable = command || launchctlPath;
-    const method = command ? "command" : "launchctl";
-    const result = await execFilePromise(executable, args, { timeout: commandTimeoutMs }, execFileImpl);
+      : (useCodexMobileScript ? ["--json"] : ["kickstart", "-k", `system/${label}`]);
+    const executable = command || (useCodexMobileScript ? codexMobileScript : launchctlPath);
+    const method = command ? "command" : (useCodexMobileScript ? "codex_mobile_host_script" : "launchctl");
+    const timeout = useCodexMobileScript
+      ? numberFromEnv(env.HOMEAI_CODEX_MOBILE_RECOVERY_RESTORE_TIMEOUT_MS, DEFAULT_CODEX_MOBILE_COMMAND_TIMEOUT_MS)
+      : commandTimeoutMs;
+    const execOptions = useCodexMobileScript
+      ? { timeout, cwd: path.dirname(codexMobileScript), maxBuffer: 1024 * 1024 }
+      : { timeout };
+    const result = await execFilePromise(executable, args, execOptions, execFileImpl);
     return Object.assign(base, {
       attempted: true,
       restarted: result.ok,
@@ -224,11 +256,15 @@ function createPluginLaunchRecoveryService(options = {}) {
 module.exports = {
   DEFAULT_COOLDOWN_MS,
   DEFAULT_COMMAND_TIMEOUT_MS,
+  DEFAULT_CODEX_MOBILE_COMMAND_TIMEOUT_MS,
   DEFAULT_RETRY_DELAY_MS,
+  CODEX_MOBILE_LAUNCHD_LABEL,
   SAFE_LAUNCHD_LABEL_PREFIX,
   createPluginLaunchRecoveryService,
+  defaultCodexMobileRecoveryScriptPath,
   isLocalOrPrivateManifestUrl,
   isSafeLaunchdLabel,
+  isCodexMobileRecoveryTarget,
   recoverableManifestFailure,
   resolvePluginLaunchdLabel,
 };

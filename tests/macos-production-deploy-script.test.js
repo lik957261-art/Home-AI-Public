@@ -190,6 +190,7 @@ assert.match(script, /\.codegraph\//);
 assert.match(script, /node_modules\//);
 assert.match(script, /\.venv\//);
 assert.match(script, /deploy_source_dirty_requires_allow_dirty/);
+assert.match(script, /plan\.restartLabels\.includes\(codexMobileLogRepair\.launchdLabel\)/);
 assert.match(script, /production-file-hashes/);
 assert.match(script, /--expected-version/);
 assert.match(script, /HOME_AI_STATIC_SYNC_ROOTS/);
@@ -621,6 +622,10 @@ assert.deepEqual(codexPluginPayload.plan.postSyncRepairs, [
     runtimeLogRoot: "/Users/example/path",
     runtimeRoot: "/Users/example/path",
     profileFile: "/Users/example/path",
+    muxMode: "persistent-owned-shared",
+    requireSharedAppServer: "1",
+    persistOwnedMux: "1",
+    disableOwnedMux: "0",
     logFiles: [
       "codex-mobile-web.out.log",
       "codex-mobile-web.err.log",
@@ -662,6 +667,10 @@ assert.equal(homeAiRepairPlan[1].fileMode, "600");
 const codexRepairPlan = deployScript.postSyncRepairsForTarget({ target: "plugin:codex-mobile-web" });
 assert.equal(codexRepairPlan[0].type, "codex-mobile-log-permissions");
 assert.equal(codexRepairPlan[0].runtimeRoot, "/Users/example/path");
+assert.equal(codexRepairPlan[0].muxMode, "persistent-owned-shared");
+assert.equal(codexRepairPlan[0].requireSharedAppServer, "1");
+assert.equal(codexRepairPlan[0].persistOwnedMux, "1");
+assert.equal(codexRepairPlan[0].disableOwnedMux, "0");
 const musicRepairPlan = deployScript.postSyncRepairsForTarget({ target: "plugin:music" });
 assert.deepEqual(musicRepairPlan, [
   {

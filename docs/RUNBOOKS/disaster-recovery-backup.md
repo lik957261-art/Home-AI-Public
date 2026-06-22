@@ -57,6 +57,12 @@ SSH/rsync when both `HOMEAI_DISASTER_BACKUP_SSH_TARGET` and
 back to the mounted NFS path. Force `nfs` only when validating the mount path
 itself.
 
+The backup intentionally excludes heavyweight or externally mounted runtime
+trees. Music metadata can be backed up, but `data/music/audio-mounts` and Roon
+backup mirrors are excluded because the recoverable audio library lives outside
+Home AI source/runtime state. Codex Mobile profile/config state can be backed
+up, but browser/Chrome cache trees such as `chrome-pro-bridge` are excluded.
+
 Production Automation uses a `no_agent` Hermes CRON job:
 
 - job id: `d1a17b9f4c02`

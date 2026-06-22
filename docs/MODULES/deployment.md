@@ -165,10 +165,14 @@ stdout/stderr under `/Users/example/path`, updates the
 `/Users/example/path`. If the existing plist is
 already pinned to a shared Mux endpoint, the repair rewrites that endpoint to
 the same active Codex Home. The repair runs for both `home-ai` deploys and
-`plugin:codex-mobile-web` deploys, then reloads that LaunchDaemon only when the
-plist changed. This prevents launchd `EX_CONFIG` failures and prevents a stale
-desktop-default `/Users/example/path` environment from drifting away from the
-Codex Mobile active profile.
+`plugin:codex-mobile-web` deploys. A deployment with `--restart none` must not
+reload the Codex Mobile LaunchDaemon just because this bounded plist repair
+changed environment values; Codex Mobile is reloaded only when the deploy plan
+explicitly includes `com.hermesmobile.plugin.codex-mobile` in its restart
+labels. This prevents launchd `EX_CONFIG` failures, avoids avoidable active
+Codex Mobile disconnects during no-restart Home AI deploys, and prevents a
+stale desktop-default `/Users/example/path` environment from drifting away from
+the Codex Mobile active profile.
 
 Key decisions:
 

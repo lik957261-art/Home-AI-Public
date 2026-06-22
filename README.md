@@ -75,6 +75,48 @@ Validation for this public release:
 - public export privacy scan
 - focused production smoke evidence from the source deployment before export
 
+## 2026-06-22 Public Update
+
+This update refreshes the public tree from the current Home AI source. The
+exact source commit is recorded in `.public-export-report.json`.
+
+Highlights:
+
+- Adds a Codex Mobile embedded-plugin recovery fallback that uses the dedicated
+  macOS host recovery script for Codex Mobile launch/proxy failures when that
+  script is available, without hard-coding a Codex profile.
+- Preserves generic launch recovery behavior for other plugins and keeps
+  explicit generic recovery commands authoritative when configured.
+- Clarifies that no-restart Home AI deployments may repair Codex Mobile plist
+  permissions or env values but must not reload Codex Mobile unless its launchd
+  label is explicitly included in the deployment plan.
+- Bumps the static client cache version to `20260622-codex-recovery-v905` and
+  hardens plugin-topic host cleanup in browserless/static harness contexts.
+- Carries forward disaster-backup runtime cleanup and deploy-backup retention
+  behavior so transient backup files and old local deploy backups do not drift
+  into long-lived production state.
+
+Validation for this public update:
+
+- `node --check adapters/plugin-launch-recovery-service.js`
+- `node tests/plugin-launch-recovery-service.test.js`
+- `node tests/codex-mobile-recovery-service.test.js`
+- `node tests/codex-mobile-recovery-api-routes.test.js`
+- `node tests/mobile-api-dispatcher.test.js`
+- `node tests/architecture-code-test-harness-map.test.js`
+- `node tests/architecture-refactor-boundary.test.js`
+- `node tests/static-cache-version-harness.test.js`
+- `node tests/task-list-ui.test.js`
+- `node tests/app-plugin-topics-ui.test.js`
+- `node tests/app-embedded-plugin-ui.test.js`
+- `node tests/visual-polish-audit-runner.test.js`
+- `npm test -- --runInBand`
+- `npm run productization:check`
+- `git diff --check`
+- public export privacy scan
+- production deploy smoke and Codex Mobile 8787 health checks from the source
+  deployment before export
+
 ## 2026-06-21 Public Update
 
 This update refreshes the public tree from the current Home AI source. The

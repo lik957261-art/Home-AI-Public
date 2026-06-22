@@ -57,6 +57,26 @@ const SQLITE_EXCLUDES = [
   "*.db-wal",
 ];
 
+const PRODUCTION_DATA_EXCLUDES = [
+  ...SQLITE_EXCLUDES,
+  "audio-mounts/",
+  "audio-mounts/**",
+  "roon-backups/",
+  "roon-backups/**",
+  "music/audio-mounts/",
+  "music/audio-mounts/**",
+  "music/roon-backups/",
+  "music/roon-backups/**",
+  "disaster-recovery-staging/",
+  "disaster-recovery-staging/**",
+  "disaster-recovery-receipts/",
+  "disaster-recovery-receipts/**",
+  "backups/disaster-recovery-staging/",
+  "backups/disaster-recovery-staging/**",
+  "backups/disaster-recovery-receipts/",
+  "backups/disaster-recovery-receipts/**",
+];
+
 function parseArgs(argv) {
   const args = {
     root: process.env.HOMEAI_PRODUCTION_ROOT || DEFAULT_ROOT,
@@ -241,6 +261,7 @@ function listDirectoryEntries(root) {
 }
 
 function isSqliteManagedFileName(name) {
+  if (name.toLowerCase() === "thumbs.db") return false;
   return /\.(sqlite|sqlite3|db)(?:$|[.-])/i.test(name);
 }
 
@@ -335,8 +356,14 @@ function appendProductionDataSteps(steps, dataRoot, targetRoot, options) {
     if (entry.isDirectory() && shouldSkipWalkDir(entry.name)) continue;
     const source = path.join(dataRoot, entry.name);
     if (entry.isDirectory()) {
+      if (entry.name === "music") {
+        steps.push(namedStep(`production-data:${entry.name}`, () => rsyncDirectory(`production-data:${entry.name}`, source, path.join(targetRoot, entry.name), options, PRODUCTION_DATA_EXCLUDES)));
+        continue;
+      }
       if (entry.name === "drive") {
         appendSplitDirectorySteps(steps, source, path.join(targetRoot, entry.name), `production-data:${entry.name}`, options, SQLITE_EXCLUDES, 4);
+      } else if (entry.name === "backups") {
+        steps.push(namedStep(`production-data:${entry.name}`, () => rsyncDirectory(`production-data:${entry.name}`, source, path.join(targetRoot, entry.name), options, PRODUCTION_DATA_EXCLUDES)));
       } else {
         steps.push(namedStep(`production-data:${entry.name}`, () => rsyncDirectory(`production-data:${entry.name}`, source, path.join(targetRoot, entry.name), options, SQLITE_EXCLUDES)));
       }
@@ -360,6 +387,7 @@ function walkFiles(root, visitor, options = {}) {
     if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
       if (shouldSkipWalkDir(entry.name)) continue;
+      if (typeof options.shouldSkipDir === "function" && options.shouldSkipDir(full, entry.name)) continue;
       walkFiles(full, visitor, options);
     } else if (entry.isFile()) {
       visitor(full);
@@ -384,6 +412,7 @@ function shouldSkipWalkDir(name) {
     "sqlite-backups",
     "preupdate-backups",
     ".deploy-backups",
+    "production-drift-audit",
     "node_modules",
     "hermes-agent",
     ".venv",
@@ -396,9 +425,22 @@ function discoverSqliteFiles(root) {
   if (!pathExists(root)) return files;
   walkFiles(root, (file) => {
     if (!SQLITE_EXT_RE.test(file)) return;
+    if (!isSqliteManagedFileName(path.basename(file))) return;
     files.push(file);
+  }, {
+    shouldSkipDir: (dir) => shouldSkipBackupScanDir(dir),
   });
   return files.sort();
+}
+
+function shouldSkipBackupScanDir(dir) {
+  const parts = dir.split(path.sep);
+  if (parts.includes("audio-mounts")) return true;
+  if (parts.includes("production-drift-audit")) return true;
+  if (parts.includes("disaster-recovery-staging")) return true;
+  if (parts.includes("disaster-recovery-receipts")) return true;
+  if (parts.includes("chrome-pro-bridge")) return true;
+  return false;
 }
 
 function sqliteSnapshot(step, source, target, options) {
@@ -547,6 +589,14 @@ function buildSteps(options, backupId) {
       "logs_*.sqlite*",
     ])));
     steps.push(namedStep("operator-codex-mobile-state", () => rsyncDirectory("operator-codex-mobile-state", path.join(operatorHome, ".codex-mobile-web"), path.join(currentRoot, "operator-home", path.basename(operatorHome), ".codex-mobile-web"), options, [
+      "chrome-pro-bridge/",
+      "chrome-pro-bridge/**",
+      "chrome-user-data/",
+      "chrome-user-data/**",
+      "playwright/",
+      "playwright/**",
+      "browser-profile/",
+      "browser-profile/**",
       "uploads/",
       "generated-images/",
       "thread-detail-projections/",

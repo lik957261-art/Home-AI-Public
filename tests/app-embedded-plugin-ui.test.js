@@ -379,8 +379,9 @@ assert.doesNotMatch(navigationSearchUi, /document\.querySelectorAll\("\.bottom-t
 assert.doesNotMatch(navigationSearchUi, /pluginContextBottomTabs\.forEach\(\(id\) => \{/);
 assert.match(pluginTopicsUi, /function hideActivePluginHostsForPluginTopicNavigation\(targetPluginId = ""\)/);
 assert.match(pluginTopicsUi, /setWardrobePluginHostVisible\(false\)/);
+assert.match(pluginTopicsUi, /Object\.values\(EMBEDDED_PLUGIN_DEFS \|\| \{\}\)\.forEach\(\(def\) => \{/);
 assert.match(pluginTopicsUi, /if \(def\?\.id !== keepId\) setEmbeddedPluginHostVisible\(def, false\)/);
-assert.match(pluginTopicsUi, /\["codex", "finance", "email", "health", "note", "moira", "music"\]\.forEach/);
+assert.match(pluginTopicsUi, /if \(def\?\.id !== keepId && def\?\.viewMode\) app\?\.classList\.remove\(`\$\{def\.viewMode\}-plugin-host-active`\)/);
 assert.match(pluginTopicsUi, /openPluginTopicChat\(pluginId, options = \{\}\)[\s\S]*?hideActivePluginHostsForPluginTopicNavigation\(\)/);
 assert.match(pluginTopicsUi, /openPluginTopicDelivery\(pluginId\)[\s\S]*?hideActivePluginHostsForPluginTopicNavigation\(\)/);
 assert.match(sidebarTaskUi, /sendCodexPluginBackOrReturn\(\)/);

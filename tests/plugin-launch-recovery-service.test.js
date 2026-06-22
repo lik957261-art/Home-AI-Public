@@ -1,14 +1,25 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const {
   createPluginLaunchRecoveryService,
+  defaultCodexMobileRecoveryScriptPath,
   isLocalOrPrivateManifestUrl,
   isSafeLaunchdLabel,
+  isCodexMobileRecoveryTarget,
   recoverableManifestFailure,
   resolvePluginLaunchdLabel,
 } = require("../adapters/plugin-launch-recovery-service");
+
+function tempRecoveryScript() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-plugin-launch-recovery-"));
+  const script = path.join(dir, "restart-codex-mobile-host-macos.sh");
+  fs.writeFileSync(script, "#!/bin/sh\n", { mode: 0o755 });
+  return script;
+}
 
 function testManifestUrlClassification() {
   assert.equal(isLocalOrPrivateManifestUrl("http://127.0.0.1:8787/api/v1/hermes/plugin/manifest"), true);
@@ -44,6 +55,17 @@ function testResolveLaunchdLabelFromPluginSources() {
   });
   assert.equal(label, "com.hermesmobile.plugin.codex-mobile");
   assert.equal(resolvePluginLaunchdLabel({ pluginId: "note" }, { pluginSources: [] }), "com.hermesmobile.plugin.note");
+}
+
+function testCodexMobileTargetDetection() {
+  assert.equal(isCodexMobileRecoveryTarget("codex-mobile", ""), true);
+  assert.equal(isCodexMobileRecoveryTarget("codex-mobile-web", ""), true);
+  assert.equal(isCodexMobileRecoveryTarget("other", "com.hermesmobile.plugin.codex-mobile"), true);
+  assert.equal(isCodexMobileRecoveryTarget("note", "com.hermesmobile.plugin.note"), false);
+  assert.equal(
+    defaultCodexMobileRecoveryScriptPath("/Users/example/path"),
+    "/Users/example/path",
+  );
 }
 
 async function testRecoveryUsesConfiguredCommand() {
@@ -106,6 +128,65 @@ async function testRecoveryFallsBackToLaunchctlAndCooldown() {
   assert.equal(calls.length, 1);
 }
 
+async function testCodexMobileRecoveryUsesDedicatedHostScript() {
+  const script = tempRecoveryScript();
+  const calls = [];
+  const service = createPluginLaunchRecoveryService({
+    enabled: true,
+    platform: "darwin",
+    pluginSources: [],
+    cooldownMs: 0,
+    retryDelayMs: 0,
+    codexMobileRecoveryScriptPath: script,
+    env: {
+      HOMEAI_CODEX_MOBILE_RECOVERY_RESTORE_TIMEOUT_MS: "65000",
+    },
+    execFile(command, args, options, callback) {
+      calls.push({ command, args, options });
+      callback(null, JSON.stringify({ ok: true }), "");
+    },
+  });
+  const result = await service.recover({
+    pluginId: "codex-mobile",
+    manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest",
+    failure: { code: "plugin_manifest_fetch_failed", status: 0 },
+  });
+  assert.equal(result.attempted, true);
+  assert.equal(result.restarted, true);
+  assert.equal(result.method, "codex_mobile_host_script");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, script);
+  assert.deepEqual(calls[0].args, ["--json"]);
+  assert.equal(calls[0].options.cwd, path.dirname(script));
+  assert.equal(calls[0].options.timeout, 65000);
+}
+
+async function testCodexMobileRecoveryFallsBackToLaunchctlWhenScriptMissing() {
+  const calls = [];
+  const service = createPluginLaunchRecoveryService({
+    enabled: true,
+    platform: "darwin",
+    pluginSources: [],
+    cooldownMs: 0,
+    retryDelayMs: 0,
+    codexMobileRecoveryScriptPath: path.join(os.tmpdir(), "missing-codex-mobile-recovery.sh"),
+    launchctlPath: "/bin/launchctl",
+    execFile(command, args, options, callback) {
+      calls.push({ command, args, options });
+      callback(null, "", "");
+    },
+  });
+  const result = await service.recover({
+    pluginId: "codex-mobile",
+    manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest",
+    failure: { code: "plugin_manifest_error" },
+  });
+  assert.equal(result.attempted, true);
+  assert.equal(result.method, "launchctl");
+  assert.equal(calls[0].command, "/bin/launchctl");
+  assert.deepEqual(calls[0].args, ["kickstart", "-k", "system/com.hermesmobile.plugin.codex-mobile"]);
+}
+
 async function testRecoverySkipsExternalManifest() {
   const service = createPluginLaunchRecoveryService({
     enabled: true,
@@ -129,8 +210,11 @@ async function run() {
   testRecoverableFailures();
   testLaunchdLabelSafety();
   testResolveLaunchdLabelFromPluginSources();
+  testCodexMobileTargetDetection();
   await testRecoveryUsesConfiguredCommand();
   await testRecoveryFallsBackToLaunchctlAndCooldown();
+  await testCodexMobileRecoveryUsesDedicatedHostScript();
+  await testCodexMobileRecoveryFallsBackToLaunchctlWhenScriptMissing();
   await testRecoverySkipsExternalManifest();
   assert.ok(path.basename(__filename).endsWith(".test.js"));
 }
