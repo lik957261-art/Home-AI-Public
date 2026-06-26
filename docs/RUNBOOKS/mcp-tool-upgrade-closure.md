@@ -50,9 +50,104 @@ Every MCP tool upgrade must verify these layers in order:
      same transaction id.
    - If a tool accepts a local file path, the live smoke must pass the file path
      field such as `file_path` or `upload_path`, not a model-invented
-     `data_url` that wraps the path string. A response such as
-     `attachment_data_url_invalid` means the callable schema or instruction
-     layer is still wrong for path-based attachment uploads.
+   `data_url` that wraps the path string. A response such as
+   `attachment_data_url_invalid` means the callable schema or instruction
+   layer is still wrong for path-based attachment uploads.
+
+## Cross-Workspace Ownership And Task Cards
+
+Plugin workspaces and Home AI share one deployed platform, but they do not share
+source ownership. A plugin Codex thread must not patch, test, deploy, commit,
+or otherwise mutate Home AI source files unless the current thread workspace is
+the Home AI app repository. In particular, plugin threads must not edit:
+
+- `adapters/gateway-run-instruction-service.js`
+- `mobile-server-runtime.js`
+- Gateway profile/materialization code
+- central Home AI tests
+- central Home AI docs or handoff files
+
+Plugin-side responsibility for an MCP schema change:
+
+- update and deploy the plugin service and plugin-local MCP wrapper;
+- prove the plugin service schema endpoint exposes the local tool names and any
+  required properties;
+- prove plugin-local stdio MCP, if present, exposes the same local tools;
+- update plugin-local manifest `mcp.required_tools` and plugin docs;
+- run the read-only service/source closure command from this runbook when the
+  Home AI workspace is available, or prepare the task-card evidence below.
+
+Home AI-side responsibility for an MCP schema change:
+
+- update Mobile callable hints and `currentToolSchemaOverrideInstructions`;
+- bump the shared schema epoch in `mobile-server-runtime.js` and the
+  instruction-service default `toolSchemaEpoch`;
+- update central tests and docs;
+- run `scripts/mcp-tool-upgrade-closure-smoke.js` with the service schema URL,
+  expected local tools, expected Gateway callable names, new epoch, and the
+  selected production-capable Gateway profile;
+- restart or refresh stale Gateway workers when needed;
+- deploy Home AI when production behavior changes.
+
+If the plugin thread cannot mutate Home AI, it must send a Codex Mobile
+cross-thread task card to the Home AI app thread. The card should use this
+bounded template:
+
+````markdown
+# Home AI MCP callable schema sync for <plugin id>
+
+## Boundary
+
+This card is for the Home AI app workspace. The plugin service schema has
+changed, but the plugin workspace must not edit Home AI source files directly.
+
+## Plugin evidence
+
+- Plugin id / toolset: `<plugin id>` / `<toolset>`
+- Plugin workspace: `<path>`
+- Production service URL: `<loopback schema URL>`
+- Service schema result: `ok=<true|false>`, `tool_count=<count>`
+- Local tool names added/changed:
+  - `<local_tool_name>`
+- Expected Gateway callable names:
+  - `mcp_<server>_<tool>`
+- Required properties, if any:
+  - `<local_tool>:<property>` -> `mcp_<server>_<tool>:<property>`
+- Plugin-local stdio MCP evidence, if applicable: `tool_count=<count>`
+- Plugin manifest `mcp.required_tools` status: `<updated|unchanged|not applicable>`
+
+## Requested Home AI work
+
+1. Update `adapters/gateway-run-instruction-service.js` callable hints and
+   `currentToolSchemaOverrideInstructions()` for `<toolset>`.
+2. Bump the Mobile schema epoch in both `mobile-server-runtime.js` and the
+   instruction-service default to `<proposed epoch>`.
+3. Update central tests and docs.
+4. Run service/source closure:
+
+```sh
+node scripts/mcp-tool-upgrade-closure-smoke.js \
+  --skip-gateway \
+  --service-schema-url <schema URL> \
+  --require-service-tool <local tool> \
+  --gateway-tool <mcp callable> \
+  --epoch <proposed epoch>
+```
+
+5. Run selected Gateway profile closure with the production manifest/profile,
+   not only the plugin service schema.
+6. Restart or refresh stale Gateway workers if needed.
+7. Deploy Home AI if production behavior changes.
+
+## Privacy
+
+Do not print raw access keys, cookies, OAuth tokens, Gateway profile secrets,
+private catalog rows, private user payloads, or long logs.
+````
+
+The Home AI target thread must report the failure layer if closure fails:
+service schema, instruction hints, epoch, selected worker stale schema,
+manifest/profile wiring, or live run evidence.
 
 ## Harness
 
@@ -262,6 +357,29 @@ The Email Gateway wrapper must request the narrow launch capability
 `full_content` for this tool. It must not request broad Email admin rights just
 to read a user-selected full body; account visibility, purpose, pagination, and
 audit remain enforced by the Email plugin service.
+
+## Music Demo Narration MCP Pattern
+
+The 2026-06-23 Music demo narration upgrade adds and requires these callable
+names when the `music` toolset is enabled:
+
+- `mcp_music_music_demo_rebind_plan`
+- `mcp_music_music_demo_generate_narrations`
+- `mcp_music_music_demo_prepare_narrations_for_playback`
+- `mcp_music_music_demo_narration_job_status`
+- `mcp_music_music_demo_attach_narrations`
+- `mcp_music_music_demo_stage_narrations_for_roon`
+- `mcp_music_music_demo_map_narrations_from_roon`
+- `mcp_music_music_demo_cleanup_narrations`
+
+The Mobile schema epoch for this callable set is
+`20260623-music-demo-narration-cleanup-v1`. Before production exposure, prove
+the Music service schema, selected Gateway profile callable schema, Mobile
+instruction hints, and selected worker schema all include the Music demo
+narration and cleanup callables. A Music service `/api/v1/music/mcp/schemas`
+pass alone is incomplete: if Mobile still uses an older epoch or instruction
+hint set, a live Music topic can report that `music` is enabled while the
+current callable schema lacks `mcp_music_music_demo_cleanup_narrations`.
 
 ## Failure Classification
 

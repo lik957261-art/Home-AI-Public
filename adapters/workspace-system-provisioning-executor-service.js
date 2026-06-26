@@ -12,12 +12,15 @@ const DEFAULT_OWNER_USER = "hm-owner";
 const DEFAULT_WORKER_GROUP = "hermes-workers";
 const FILE_PLUGIN_ROOT_ENVS = Object.freeze([
   "HERMES_MOBILE_DOCX_ALLOWED_ROOTS",
+  "HERMES_MOBILE_PDF_ALLOWED_ROOTS",
   "HERMES_MOBILE_AUDIO_ALLOWED_ROOTS",
+  "HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS",
   "HERMES_MOBILE_IMAGE_ALLOWED_ROOTS",
   "HERMES_MOBILE_VIDEO_ALLOWED_ROOTS",
   "HERMES_MOBILE_HTTP_FILE_ROOTS",
 ]);
 const FILE_PLUGIN_SINGLE_ROOT_ENVS = Object.freeze({
+  HERMES_MOBILE_PDF_OUTPUT_ROOTS: "${ROOT}/data/artifacts",
   HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS: "${ROOT}/data/drive/users",
   HERMES_MOBILE_HTTP_SAVE_ROOT: "${ROOT}/data/artifacts/http-request",
   HERMES_MOBILE_VIDEO_OUTPUT_ROOT: "${ROOT}/data/artifacts/grok-videos",
@@ -30,7 +33,9 @@ const STANDARD_PROFILE_PLUGINS = Object.freeze([
   "http",
   "current_environment",
   "docx",
+  "pdf",
   "audio",
+  "archive",
   "image",
   "cronjob",
 ]);
@@ -96,6 +101,20 @@ const GATEWAY_MCP_WORKER_ASSETS = Object.freeze([
       {
         source: ["plugins", "music", "package.json"],
         target: ["gateway-worker", "music-mcp", "package.json"],
+      },
+    ],
+  },
+  {
+    id: "music-dependencies",
+    files: [
+      {
+        source: ["plugins", "music", "package-lock.json"],
+        target: ["gateway-worker", "music-mcp", "package-lock.json"],
+      },
+      {
+        kind: "directory",
+        source: ["plugins", "music", "node_modules"],
+        target: ["gateway-worker", "music-mcp", "node_modules"],
       },
     ],
   },
@@ -284,6 +303,10 @@ function providerFamily(worker = {}) {
   if (provider.includes("deepseek") || profile.startsWith("deepseek")) return "deepseek";
   if (provider.includes("grok") || provider.includes("xai") || profile.startsWith("grok")) return "grok";
   return "openai";
+}
+
+function gatewayConfigKindForWorker(worker = {}) {
+  return providerFamily(worker) === "grok" ? "grok" : "profile";
 }
 
 function profilePluginName(id) {
@@ -960,7 +983,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
     });
     const configFile = path.posix.join(dir, "config.yaml");
     const configYaml = renderGatewayConfigYaml({
-      configKind: "profile",
+      configKind: gatewayConfigKindForWorker(worker),
       values: Object.assign({
         profile,
         port: String(worker.port || ""),

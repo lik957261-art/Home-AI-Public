@@ -258,6 +258,8 @@ function makeFixture() {
   assert.doesNotMatch(runSource, /rsync -rlpt --delete --links --safe-links --inplace/);
   assert.doesNotMatch(runSource, /expect|NAS_SSH|ssh -p|mount_smbfs|NAS_SMB/i);
   assert.match(cronSource, /HOMEAI_DISASTER_BACKUP_USE_SUDO=0/);
+  assert.match(cronSource, /HOMEAI_DISASTER_BACKUP_KEEP_STAGING=1/);
+  assert.match(cronSource, /rm -rf "\$\{STAGING%\/\}\/current"/);
   assert.match(cronSource, /HOMEAI_DISASTER_BACKUP_TRANSPORT:-auto/);
   assert.match(cronSource, /\[\[ "\$TRANSPORT" == "nfs" \]\] && ! mount/);
   assert.match(cronSource, /manifest="\$\{STAGING%\/\}\/current\/DISASTER-RECOVERY-MANIFEST\.json"/);

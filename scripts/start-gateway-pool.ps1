@@ -720,7 +720,9 @@ plugins:
     - hermes-mobile-web
     - hermes-mobile-http
     - hermes-mobile-docx
+    - hermes-mobile-pdf
     - hermes-mobile-audio
+    - hermes-mobile-archive
     - hermes-mobile-image
     - hermes-mobile-cronjob
     - hermes-mobile-chatgpt-pro
@@ -828,7 +830,9 @@ function Install-OwnerMaintenanceChatGptProPlugin {
     "hermes-mobile-web",
     "hermes-mobile-http",
     "hermes-mobile-docx",
+    "hermes-mobile-pdf",
     "hermes-mobile-audio",
+    "hermes-mobile-archive",
     "hermes-mobile-image",
     "hermes-mobile-cronjob",
     "hermes-mobile-chatgpt-pro"

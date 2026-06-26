@@ -42,6 +42,15 @@ function extractCompletedOutput(event = {}) {
   return chunks.join("\n\n").trim();
 }
 
+function completedOutputLooksLikeGatewayFailure(output) {
+  const text = cleanString(output).replace(/\s+/g, " ");
+  if (!text) return false;
+  return /^API call failed after \d+ retr(?:y|ies)\b/i.test(text)
+    || /^Gateway stream aborted before completion\b/i.test(text)
+    || /^Hermes Gateway did not create a run within \d+ seconds\b/i.test(text)
+    || /^Hermes Gateway no longer reports run \S+ after \d+ seconds\b/i.test(text);
+}
+
 function usageWithRunMetadata(usage, event = {}, message = {}) {
   const next = Object.assign({}, usage || {});
   const runOptions = message?.runOptions && typeof message.runOptions === "object" ? message.runOptions : {};
@@ -155,6 +164,11 @@ function createGatewayRunCompletionService(options = {}) {
     }
     clearStreamingSaveTimer();
     const output = extractCompletedOutput(event) || String(message.content || "");
+    if (completedOutputLooksLikeGatewayFailure(output)) {
+      const err = new Error(output);
+      err.code = "gateway_completed_with_failure_output";
+      return markRunFailed(thread.id, message.id, responseRunId || message.runId || runId, err);
+    }
     const toolsetEscalationRequest = parseToolsetEscalationRequest(output, message) || message.pendingToolsetEscalationRequest || null;
     const approvalRequest = modelPermissionApprovalRequest(output, message);
     const validApprovalRequest = isOrdinaryToolSchemaElevationRequest(approvalRequest, output, message) ? null : approvalRequest;
@@ -286,6 +300,7 @@ function createGatewayRunCompletionService(options = {}) {
 }
 
 module.exports = {
+  completedOutputLooksLikeGatewayFailure,
   createGatewayRunCompletionService,
   extractCompletedOutput,
   usageWithRunMetadata,

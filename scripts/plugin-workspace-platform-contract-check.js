@@ -5,7 +5,9 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const CONTRACT_VERSION = "20260618-v4";
+const CONTRACT_VERSION = "20260623-v5";
+const LEGACY_CONTRACT_VERSIONS = ["20260618-v4"];
+const SUPPORTED_CONTRACT_VERSIONS = [CONTRACT_VERSION, ...LEGACY_CONTRACT_VERSIONS];
 
 const REQUIRED_CENTRAL_DOCS = [
   "plugin-workspace-platform-contract.md",
@@ -18,8 +20,13 @@ const REQUIRED_CENTRAL_DOCS = [
   "reference-memory-graph-harness-plan.md",
 ];
 
+const REQUIRED_FALLBACK_GOVERNANCE_DOCS = [
+  "root-cause-architecture-contract.md",
+  "fallback-governance-contract.md",
+  "fallback-registry.md",
+];
+
 const REQUIRED_POINTER_TEXT = [
-  `Home AI platform contract version: \`${CONTRACT_VERSION}\``,
   "`plugin_id`",
   "`workspace_path_windows`",
   "`production_source_path_macos`",
@@ -44,7 +51,6 @@ const REQUIRED_POINTER_TEXT = [
 ];
 
 const REQUIRED_NATIVE_POINTER_TEXT = [
-  `Home AI platform contract version: \`${CONTRACT_VERSION}\``,
   "`client_id`",
   "`repository_path_macos`",
   "`xcode_project`",
@@ -301,6 +307,33 @@ function includesAll(text, needles) {
   return needles.filter((needle) => !String(text || "").includes(needle));
 }
 
+function pointerContractVersion(text) {
+  const source = String(text || "");
+  return SUPPORTED_CONTRACT_VERSIONS.find((version) => (
+    source.includes(`Home AI platform contract version: \`${version}\``)
+    || source.includes(`Home AI platform contract version: ${version}`)
+  )) || "";
+}
+
+function requiredCentralDocsForPointer(text) {
+  const version = pointerContractVersion(text);
+  if (version === CONTRACT_VERSION) {
+    return [...REQUIRED_CENTRAL_DOCS, ...REQUIRED_FALLBACK_GOVERNANCE_DOCS];
+  }
+  return REQUIRED_CENTRAL_DOCS;
+}
+
+function checkPointerContractVersion(text, result) {
+  const version = pointerContractVersion(text);
+  if (!version) {
+    result.issues.push(`pointer_missing_supported_contract_version:${SUPPORTED_CONTRACT_VERSIONS.join("|")}`);
+    return;
+  }
+  if (version !== CONTRACT_VERSION) {
+    result.warnings.push(`pointer_contract_version_legacy:${version}`);
+  }
+}
+
 function forbiddenSecretMatches(text) {
   const patterns = [
     /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
@@ -392,10 +425,11 @@ function checkPointer(plugin, options) {
     return result;
   }
   const text = readText(pointerPath);
+  checkPointerContractVersion(text, result);
   for (const missing of includesAll(text, REQUIRED_POINTER_TEXT)) {
     result.issues.push(`pointer_missing_text:${missing}`);
   }
-  for (const missing of includesAll(text, REQUIRED_CENTRAL_DOCS)) {
+  for (const missing of includesAll(text, requiredCentralDocsForPointer(text))) {
     result.issues.push(`pointer_missing_central_doc:${missing}`);
   }
   if (!text.includes(`| \`plugin_id\` | \`${plugin.id}\` |`)) {
@@ -431,7 +465,7 @@ function checkPointer(plugin, options) {
   result.issues.push(...checkPointerRuntimeUrls(plugin, text));
   if (exists(handoffPath)) {
     const handoff = readText(handoffPath);
-    result.handoffPointer = handoff.includes("Home AI Platform Contract Pointer") && handoff.includes(CONTRACT_VERSION);
+    result.handoffPointer = handoff.includes("Home AI Platform Contract Pointer") && Boolean(pointerContractVersion(handoff));
   }
   if (!result.handoffPointer) result.warnings.push("handoff_pointer_missing");
   return result;
@@ -456,10 +490,11 @@ function checkNativeClientPointer(client, options) {
     return result;
   }
   const text = readText(pointerPath);
+  checkPointerContractVersion(text, result);
   for (const missing of includesAll(text, REQUIRED_NATIVE_POINTER_TEXT)) {
     result.issues.push(`pointer_missing_text:${missing}`);
   }
-  for (const missing of includesAll(text, REQUIRED_CENTRAL_DOCS)) {
+  for (const missing of includesAll(text, requiredCentralDocsForPointer(text))) {
     result.issues.push(`pointer_missing_central_doc:${missing}`);
   }
   for (const requiredDoc of ["native-ios-shell.md", "native-notifications.md", "voice-input-plugin.md"]) {
@@ -512,7 +547,7 @@ function checkNativeClientPointer(client, options) {
   }
   if (exists(handoffPath)) {
     const handoff = readText(handoffPath);
-    result.handoffPointer = handoff.includes("Home AI Platform Contract Pointer") && handoff.includes(CONTRACT_VERSION);
+    result.handoffPointer = handoff.includes("Home AI Platform Contract Pointer") && Boolean(pointerContractVersion(handoff));
   }
   if (!result.handoffPointer) result.warnings.push("handoff_pointer_missing");
   return result;
@@ -595,8 +630,13 @@ function checkCentralDocs(options, targets) {
   for (const required of [
     "plugin-workspace-platform-contract.md",
     "plugin-mobile-ui-visual-contract.md",
+    "root-cause-architecture-contract.md",
+    "fallback-governance-contract.md",
+    "fallback-registry.md",
     "plugin-workspace-platform-contract-check.js",
     "plugin-workspace-platform-contract-check.test.js",
+    "fallback-governance-check.js",
+    "fallback-governance-check.test.js",
     "ios-pwa-visual-harness.js",
     "ios-pwa-visual-harness.test.js",
     "ai-ops-control-plane.js",

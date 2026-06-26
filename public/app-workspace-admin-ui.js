@@ -14,7 +14,7 @@ async function loadWorkspaces() {
   }
   else if (!state.workspaces.some((item) => item.id === state.selectedWorkspaceId)) state.selectedWorkspaceId = state.workspaces[0]?.id || "";
   if (state.selectedWorkspaceId) localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
-  if (!state.auth?.isOwner) { state.accessKeyManagerOpen = state.runtimeConfigOpen = state.pluginAdminOpen = false; document.querySelectorAll("#accessKeyOverlay,#runtimeConfigOverlay,#pluginAdminOverlay,#ownerElevationApprovalOverlay").forEach((node) => { node.classList.add("hidden"); node.innerHTML = ""; }); }
+  if (!state.auth?.isOwner) { state.accessKeyManagerOpen = state.runtimeConfigOpen = state.pluginAdminOpen = false; document.querySelectorAll("#accessKeyOverlay,#accessKeyConfirmOverlay,#runtimeConfigOverlay,#pluginAdminOverlay,#ownerElevationApprovalOverlay").forEach((node) => { node.classList.add("hidden"); node.innerHTML = ""; }); }
   const select = $("workspaceSelect");
   select.innerHTML = state.workspaces.map((ws) => `<option value="${escapeHtml(ws.id)}">${escapeHtml(ws.label || ws.id)}</option>`).join("");
   select.value = state.selectedWorkspaceId;
@@ -492,7 +492,15 @@ async function reloadWebPushRuntimeConfig() {
 
 async function generateWebPushVapidFromRuntimeConfig() {
   const exists = Boolean(state.runtimeConfig?.webPushVapidExists);
-  if (exists && !window.confirm("重新生成 VAPID 会让已有浏览器推送订阅失效，需要用户重新启用通知。继续？")) return;
+  if (exists) {
+    const confirmed = await openAppConfirmDialog({
+      title: "重新生成 VAPID",
+      message: "重新生成 VAPID 会让已有浏览器推送订阅失效，需要用户重新启用通知。继续？",
+      confirmLabel: "继续",
+      danger: true,
+    });
+    if (!confirmed) return;
+  }
   state.runtimeConfigLoading = true;
   state.runtimeConfigError = "";
   renderRuntimeConfigManager();

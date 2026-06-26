@@ -47,11 +47,12 @@ On the Mac:
 bash "$HOME/.homeai-qa/scripts/macos-ios-appium-start.sh"
 ```
 
-The server binds to `127.0.0.1`, uses `--log-level warn`, starts in the
-background, ignores terminal `SIGHUP`/`SIGINT`, and replaces stale Appium
-sessions. Do not run Appium with verbose or info logging when a future script
-might type an Access Key, because verbose WebDriver logs can include request
-bodies.
+The server binds to `127.0.0.1`, uses `--log-level warn`, and is supervised by
+a per-user LaunchAgent such as `com.hermesmobile.appium-4723`. The script
+replaces the lane's stale Appium job and rejects transient startup where
+`/status` responds once but the process exits before a second check. Do not run
+Appium with verbose or info logging when a future script might type an Access
+Key, because verbose WebDriver logs can include request bodies.
 
 If the live visual harness reports `appium_timeout`, `/contexts` timeout,
 `webview_context_missing`, `Unexpected EOF`, `socket hang up`, or
@@ -79,9 +80,9 @@ Recovery order:
 5. Only if Appium reset fails while WDA `8101` is also unhealthy should the
    WDA runner or Simulator lane be restarted.
 
-The Appium start script intentionally starts the background server with
-terminal `SIGHUP`/`SIGINT` ignored. This prevents terminal close or Ctrl-C in a
-live-debug terminal from killing Appium while leaving WDA alive, which
+The Appium start script intentionally uses LaunchAgent supervision instead of a
+one-shot shell background child. This prevents terminal close, Ctrl-C, or
+one-off command cleanup from killing Appium while leaving WDA alive, which
 otherwise causes later harness runs to fail at the WebView attach layer.
 Plugin teams should not copy the underlying Appium command; call the central
 script so future recovery changes apply to all plugin lanes.
@@ -157,6 +158,20 @@ fix needs artifact paths, before/after screenshots, and bounded source files.
 Use the deterministic visual harness when the live debug loop has reproduced a
 mobile/PWA issue and the fix needs a bounded pass/fail artifact:
 
+Before running a plugin scenario, run the bounded toolchain preflight:
+
+```bash
+npm run ios:pwa:visual -- \
+  --debug-url http://127.0.0.1:19073/ \
+  --preflight-only \
+  --json
+```
+
+The preflight checks only shared toolchain layers: live debug `/api/stream-info`,
+Appium `/status`, and WDA `/status`. If it returns `failureLayer=live_debug`,
+`appium`, or `wda`, classify the result as a Home AI visual-toolchain failure
+and follow the recovery order above before filing a plugin UI regression.
+
 ```bash
 npm run ios:pwa:visual -- \
   --scenario directory-dark-status \
@@ -191,6 +206,10 @@ npm run ios:pwa:visual -- \
   --plugin-id finance \
   --debug-url http://127.0.0.1:19073/
 ```
+
+The embedded plugin shell scenario applies a 70-second minimum request timeout
+internally because a cold Appium/WebKit attach can exceed the generic 15-second
+harness default even when live debug, Appium, and WDA are healthy.
 
 The embedded-plugin-shell scenario waits for the plugin shell and iframe to
 exist before measuring. If the Home AI PWA session is not authenticated, the

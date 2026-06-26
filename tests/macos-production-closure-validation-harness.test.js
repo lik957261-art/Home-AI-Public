@@ -25,6 +25,7 @@ assert.match(script, /macos-worker-filesystem-access-harness\.js/);
 assert.match(script, /macos-plugin-directory-production-smoke\.js/);
 assert.match(script, /macos-bound-directory-preview-smoke\.js/);
 assert.match(script, /macos-wardrobe-binding-production-smoke\.js/);
+assert.match(script, /macos-automation-cron-audit\.js/);
 assert.match(script, /gateway-tool-schema-smoke\.js/);
 assert.match(script, /gateway-pool-production-smoke\.js/);
 assert.match(script, /weixin-ingress-production-smoke\.js/);
@@ -40,7 +41,12 @@ assert.match(script, /mobile_web_search/);
 assert.match(script, /mobile_web_extract/);
 assert.match(script, /chatgpt_image_edit/);
 assert.match(script, /docx_extract_text/);
+assert.match(script, /office_extract_text/);
+assert.match(script, /pdf_extract_text/);
+assert.match(script, /pdf_render_pages/);
 assert.match(script, /audio_transcribe/);
+assert.match(script, /archive_list/);
+assert.match(script, /archive_extract_safe/);
 assert.match(script, /mcp_wardrobe_wardrobe_write_history/);
 assert.match(script, /mcp_email_search_messages/);
 assert.match(script, /deepseekgw1/);
@@ -62,6 +68,9 @@ assert.match(script, /skipBoundDirectory/);
 assert.match(script, /compactBoundDirectory/);
 assert.match(script, /skipWardrobeBinding/);
 assert.match(script, /compactWardrobeBinding/);
+assert.match(script, /skipAutomationCron/);
+assert.match(script, /compactAutomationCron/);
+assert.match(script, /--strict-status/);
 assert.doesNotMatch(script, /console\.log\(.*ownerKeyFile/);
 assert.doesNotMatch(script, /console\.log\(.*ingressKeyFile/);
 assert.doesNotMatch(script, /console\.error\(.*ownerKeyFile/);
@@ -84,6 +93,7 @@ assert.match(runbook, /runtime Python/i);
 assert.match(runbook, /plugin delivery directories/);
 assert.match(runbook, /Directory-bound topics/i);
 assert.match(runbook, /Wardrobe binding/);
+assert.match(runbook, /Automation cron/);
 assert.match(runbook, /Do not paste OAuth callback URLs/);
 
 assert.match(docsIndex, /Mac production closure validation/);
@@ -102,6 +112,7 @@ assert.match(architectureMap, /tests\/macos-production-closure-validation-harnes
 
 const {
   compactAcl,
+  compactAutomationCron,
   compactBoundDirectory,
   compactGatewaySmoke,
   compactProfileAudit,
@@ -317,6 +328,19 @@ const wardrobeBinding = compactWardrobeBinding({
 });
 assert.equal(wardrobeBinding.bindingCount, 1);
 assert.equal(wardrobeBinding.workspaces[0].bootstrap.itemCount, 39);
+
+const automationCron = compactAutomationCron({
+  ok: false,
+  jobCount: 15,
+  skillCount: 4,
+  sourceIssueCount: 0,
+  configIssueCount: 0,
+  statusIssueCount: 2,
+  statusIssues: ["backup:last_status_error", "reminder:last_status_error"],
+});
+assert.equal(automationCron.jobCount, 15);
+assert.equal(automationCron.statusIssueCount, 2);
+assert.deepEqual(automationCron.statusIssues, ["backup:last_status_error", "reminder:last_status_error"]);
 
 const sanitized = sanitize("/Users/example/path secret.abcdefghijklmnopqrstuvwxyz", parsed);
 assert.doesNotMatch(sanitized, /owner-web-key\.secret/);

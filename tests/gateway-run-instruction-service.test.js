@@ -36,7 +36,7 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /Principal: owner/);
   assert.match(summary, /Allowed roots: C:\/workspace; D:\/shared/);
   assert.match(summary, /http -> http_request/);
-  assert.match(summary, /file -> read_file, write_file, patch, search_files, docx_extract_text, audio_transcribe/);
+  assert.match(summary, /file -> read_file, write_file, patch, search_files, docx_extract_text, office_extract_text, pdf_extract_text, pdf_render_pages, audio_transcribe, archive_list, archive_extract_safe/);
   assert.match(summary, /image_gen -> image_generate, chatgpt_image_edit, chatgpt_image_erase, image_edit, image_erase/);
   assert.match(summary, /x_search -> x_search/);
   assert.match(summary, /cronjob -> cronjob_mobile, http_request, cronjob/);
@@ -53,12 +53,23 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /mcp_music_music_tidal_auth_status/);
   assert.match(summary, /mcp_music_music_resolve_roon_item/);
   assert.match(summary, /mcp_music_music_tracks_query_by_quality/);
+  assert.match(summary, /mcp_music_music_demo_rebind_plan/);
+  assert.match(summary, /mcp_music_music_demo_generate_narrations/);
+  assert.match(summary, /mcp_music_music_demo_prepare_narrations_for_playback/);
+  assert.match(summary, /mcp_music_music_demo_narration_job_status/);
+  assert.match(summary, /mcp_music_music_demo_attach_narrations/);
+  assert.match(summary, /mcp_music_music_demo_stage_narrations_for_roon/);
+  assert.match(summary, /mcp_music_music_demo_map_narrations_from_roon/);
+  assert.match(summary, /mcp_music_music_demo_cleanup_narrations/);
   assert.match(summary, /email -> mcp_email_list_accounts, mcp_email_list_mailboxes, mcp_email_search_messages, mcp_email_get_message, mcp_email_get_message_body, mcp_email_get_digest, mcp_email_list_attachments, mcp_email_get_attachment_content, mcp_email_sync_account, mcp_email_apply_mail_action, mcp_email_delete_local_by_search, mcp_email_apply_mail_action_bulk/);
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
   assert.match(summary, /http_request\.multipart_files/);
   assert.match(summary, /For Word DOCX text extraction, use `docx_extract_text`/);
+  assert.match(summary, /For PowerPoint PPTX\/PPTM and Excel XLSX\/XLSM text extraction, use `office_extract_text`/);
+  assert.match(summary, /For PDF reports, use `pdf_extract_text` first/);
   assert.match(summary, /For MP3\/M4A\/WAV\/AAC\/OGG\/OPUS\/AMR\/FLAC voice notes/);
+  assert.match(summary, /For ZIP archives inside allowed roots, use `archive_list`/);
   assert.match(summary, /use `cronjob_mobile` when available/);
   assert.match(summary, /hermes-mobile:\/\/cron/);
   assert.match(summary, /Allowed Skills: productivity\/wardrobe-style-operations/);
@@ -77,7 +88,11 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /`file_body` or `multipart_files`/);
   assert.match(text, /never claim upload success after sending only a local path string/);
   assert.match(text, /Word DOCX text extraction is available as `docx_extract_text`/);
+  assert.match(text, /PowerPoint PPTX\/PPTM and Excel XLSX\/XLSM text extraction is available as `office_extract_text`/);
+  assert.match(text, /PDF text extraction and page rendering are available as `pdf_extract_text` \/ `pdf_render_pages`/);
   assert.match(text, /audio transcription.*`audio_transcribe`/);
+  assert.match(text, /ZIP listing\/safe extraction is available as `archive_list` \/ `archive_extract_safe`/);
+  assert.match(text, /For \.zip files, use `archive_list` first/);
   assert.match(text, /Prefer callable function names `mobile_web_search` and `mobile_web_extract`/);
   assert.match(text, /Run Web-search budget: use at most 12 total Web search calls/);
   assert.match(text, /Do not start a 13th Web search call/);
@@ -139,6 +154,15 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /`mcp_music_music_roon_browse`/);
   assert.match(text, /`mcp_music_music_resolve_roon_item`/);
   assert.match(text, /`mcp_music_music_tracks_query_by_quality`/);
+  assert.match(text, /`mcp_music_music_demo_rebind_plan`/);
+  assert.match(text, /`mcp_music_music_demo_generate_narrations`/);
+  assert.match(text, /`mcp_music_music_demo_prepare_narrations_for_playback`/);
+  assert.match(text, /`mcp_music_music_demo_narration_job_status`/);
+  assert.match(text, /`mcp_music_music_demo_attach_narrations`/);
+  assert.match(text, /`mcp_music_music_demo_stage_narrations_for_roon`/);
+  assert.match(text, /`mcp_music_music_demo_map_narrations_from_roon`/);
+  assert.match(text, /`mcp_music_music_demo_cleanup_narrations`/);
+  assert.match(text, /Music HiFi demo narration/);
   assert.match(text, /HIFI equipment recommendation context/);
 }
 
@@ -191,19 +215,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260620-music-demo-plan-v1_file",
+    "session_a_group_1_20260624-document-file-tools-v1_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260620-music-demo-plan-v1_memory",
+    "session_a_group_1_20260624-document-file-tools-v1_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260620-music-demo-plan-v1_x_search",
+    "session_a_group_1_20260624-document-file-tools-v1_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260620-music-demo-plan-v1_file-vision-wardrobe",
+    "session_a_group_1_20260624-document-file-tools-v1_file-vision-wardrobe",
   );
 }
 
@@ -262,6 +286,25 @@ function testBuiltInNoteReceiptMetadataInstruction() {
   assert.match(text, /For every final assistant reply/);
   assert.match(text, /<!-- homeai-note/);
   assert.match(text, /Do not include secrets, access keys, private paths/);
+}
+
+function testPluginConversationActionBridgeInstructionPreventsFakeCardIds() {
+  const service = createService();
+  const direct = service.pluginConversationActionBridgeInstructions();
+  assert.match(direct, /repair-request truth rule/);
+  assert.match(direct, /homeai-plugin-conversation-action/);
+  assert.match(direct, /Do not invent `t_\*`, `ainb_\*`, or `ttc_\*` ids/);
+
+  const text = service.buildHermesInstructions(
+    { hermesSessionId: "s" },
+    { allowed_toolsets: ["health"] },
+    { root: "C:/workspace" },
+    "让健康插件增加俯卧撑动作",
+  );
+  assert.match(text, /homeai-plugin-conversation-action/);
+  assert.match(text, /Visible prose may say that a repair request has been prepared/);
+  assert.match(text, /must not claim successful submission/);
+  assert.match(text, /raw health records/);
 }
 
 function testDirectoryRunScopeInstructionPinsPluginDataWorkspace() {
@@ -445,8 +488,9 @@ testWebSearchBudgetInstructionCanBeDisabled();
 testChineseCurrentPriceRequestUsesExplicitSearchInstruction();
 testGatewayConversationIdEpochForSchemaSensitiveToolsets();
 testBuildHermesInstructionsPreservesChatAndAttachmentGuidance();
-testBuiltInNoteReceiptMetadataInstruction();
-testDirectoryRunScopeInstructionPinsPluginDataWorkspace();
+  testBuiltInNoteReceiptMetadataInstruction();
+  testPluginConversationActionBridgeInstructionPreventsFakeCardIds();
+  testDirectoryRunScopeInstructionPinsPluginDataWorkspace();
 testBuildHermesInstructionsIncludesSemanticRoutingForTaskStream();
 testBuildHermesInstructionsIncludesEnvironmentContext();
 testWardrobePluginTopicContextForcesSkillMcpAndSkipsDirectoryCleaning();

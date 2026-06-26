@@ -10,6 +10,7 @@ Every pull request and push must keep `.github/workflows/ci.yml` wired to
 repository gate and must continue to run these checks in this order:
 
 - `node scripts/engineering-governance-check.js`;
+- `node scripts/fallback-governance-check.js --json`;
 - `node scripts/public-install-preflight.js --source-only --json`;
 - `node scripts/plugin-provisioning-coverage-audit.js`;
 - `node scripts/macos-install-phase-coverage-audit.js`;
@@ -32,10 +33,34 @@ repository gate and must continue to run these checks in this order:
 - `git diff --check` and `git diff --cached --check`.
 
 The governance check is intentionally small and static. It verifies that the
-release gate, production self-diagnostic scripts, and productization acceptance
-matrix remain documented and discoverable. If a future change replaces a gate,
-the replacement must update this note, `docs/TEST_MATRIX.md`, and
-`scripts/engineering-governance-check.js` in the same commit.
+release gate, fallback governance check, production self-diagnostic scripts,
+and productization acceptance matrix remain documented and discoverable. If a
+future change replaces a gate, the replacement must update this note,
+`docs/TEST_MATRIX.md`, and `scripts/engineering-governance-check.js` in the
+same commit.
+
+`scripts/fallback-governance-check.js` is the executable guard for the
+root-cause and fallback governance contracts. The productization gate runs it
+in default mode to prove that the contract, fallback registry, docs index, test
+matrix, architecture map, and AI Operations Control Plane intake remain wired.
+Task-specific AI Ops plans can add `--changed-file` arguments so newly added
+high-risk fallback code is either removed or linked to an explicit registry
+entry.
+
+`docs/PLATFORM_CONTRACTS/audit-thread-governance-contract.md` defines the
+dedicated Home AI audit thread model. The engineering governance check pins the
+contract, Docs Index entry, AGENTS audit-thread exception, and Automation/Cron
+boundary that scheduled jobs may create audit request cards but must not run
+deep host or plugin audits directly.
+
+The same gate also pins the audit report depth requirement. Dedicated audit
+threads must include both a contract lane for explicit platform/module/security
+violations and an architecture lane for root-cause and complexity risks such as
+unclear domain contracts, duplicated state derivation, hidden fallback chains,
+weak executable tests, oversized entrypoints, or dev/prod topology drift. A
+read-only audit is incomplete if it only reports narrow contract violations
+while ignoring the architecture that can keep generating the same class of
+defects.
 
 ## Public Install Preflight
 
@@ -204,9 +229,14 @@ The maintained baseline diagnostics are:
 - `scripts/macos-web-push-production-audit.js`;
 - `scripts/macos-worker-filesystem-access-harness.js`;
 - `scripts/macos-gateway-manifest-toolset-smoke.js`;
+- `scripts/gateway-tool-schema-smoke.js` for document/file tools callable
+  schema (`docx_extract_text`, `office_extract_text`, `pdf_extract_text`,
+  `pdf_render_pages`, `audio_transcribe`, `archive_list`,
+  `archive_extract_safe`);
 - `scripts/macos-plugin-directory-production-smoke.js`;
 - `scripts/macos-bound-directory-preview-smoke.js`;
 - `scripts/macos-automation-cron-audit.js`;
+- `scripts/macos-automation-cron-launchd-smoke.js`;
 - `scripts/plugin-workspace-audit-runner.js`;
 - `scripts/plugin-provisioning-coverage-audit.js`;
 - `scripts/macos-production-closure-validation.js`.
@@ -339,9 +369,11 @@ The accepted production self-diagnostic evidence ids are:
 - `web-push-production-audit`;
 - `worker-filesystem-access`;
 - `gateway-manifest-toolset`;
+- `gateway-document-file-tools-schema`;
 - `plugin-directory`;
 - `bound-directory-preview`;
 - `automation-cron`;
+- `automation-cron-launchd`;
 - `plugin-workspace-audit`;
 - `plugin-provisioning-coverage`;
 - `production-closure`.
@@ -370,6 +402,7 @@ diagnostics, public release behavior, or this document:
 
 ```bash
 node scripts/engineering-governance-check.js --json
+node scripts/fallback-governance-check.js --json
 node tests/public-install-preflight.test.js
 node tests/install-macos-production.test.js
 node tests/macos-install-phase-coverage-audit.test.js
@@ -383,6 +416,7 @@ node tests/windows-dev-services-boundary-checklist.test.js
 node tests/macos-workspace-file-broker-boundary-checklist.test.js
 node tests/macos-web-push-production-audit.test.js
 node tests/engineering-governance-check.test.js
+node tests/fallback-governance-check.test.js
 node tests/production-self-diagnostics.test.js
 node tests/production-self-diagnostics-coverage-audit.test.js
 node scripts/productization-acceptance-matrix.js --verify-docs

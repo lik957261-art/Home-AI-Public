@@ -190,6 +190,19 @@ function testBuildRunRequestAddsPluginRequirementsAndRouting() {
   assert.deepEqual(request.toolsetRouting, { mode: "plugin", reason: "required_plugin_toolsets" });
 }
 
+function testLatestUserHttpLinkRemainsFullInput() {
+  const { service } = createBuilder();
+  const fullUrl = "https://example.test/path/to/resource?alpha=1&beta=two#section";
+  const request = service.buildRunRequest(
+    baseThread(),
+    baseUser({ content: `请打开并分析这个链接：${fullUrl}` }),
+    { id: "assistant_1" },
+    {},
+  );
+  assert.equal(request.body.input, `请打开并分析这个链接：${fullUrl}`);
+  assert.match(request.body.instructions, new RegExp(fullUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+}
+
 function testPluginTopicDoesNotAuthorizeMissingWorkspaceToolset() {
   const { calls, service } = createBuilder();
   const request = service.buildRunRequest(
@@ -316,6 +329,7 @@ function testBuildGroupChatRunContextMergesDeliveryRoots() {
 
 testWorkspaceHelpersStayStable();
 testBuildRunRequestAddsPluginRequirementsAndRouting();
+testLatestUserHttpLinkRemainsFullInput();
 testPluginTopicDoesNotAuthorizeMissingWorkspaceToolset();
 testMoiraPluginTopicRequiresMoiraToolsetWhenAuthorized();
 testDirectoryBoundRunUsesTargetWorkspaceForGatewayAndPolicy();

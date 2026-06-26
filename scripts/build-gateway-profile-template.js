@@ -111,7 +111,9 @@ function standardPluginNames(values = {}) {
   if (boolValue(values.http_plugin_enabled)) out.push("hermes-mobile-http");
   if (boolValue(values.current_environment_plugin_enabled)) out.push("hermes-mobile-current-environment");
   if (boolValue(values.docx_plugin_enabled)) out.push("hermes-mobile-docx");
+  if (boolValue(values.pdf_plugin_enabled)) out.push("hermes-mobile-pdf");
   if (boolValue(values.audio_plugin_enabled)) out.push("hermes-mobile-audio");
+  if (boolValue(values.archive_plugin_enabled)) out.push("hermes-mobile-archive");
   if (boolValue(values.image_plugin_enabled)) out.push("hermes-mobile-image");
   if (boolValue(values.cronjob_plugin_enabled)) out.push("hermes-mobile-cronjob");
   return out;

@@ -70,6 +70,7 @@ function createMobileApiPlatformComposition(deps = {}) {
     clientVersionInfo: deps.clientVersionInfo,
     compactText: deps.compactText,
     display: deps.display,
+    gatewayWorkerPolicyContract: deps.gatewayWorkerPolicyContract,
     getHermesStatus: deps.getHermesStatus,
     includeStatusCatalog: deps.includeStatusCatalog,
     isOwnerAuth: deps.isOwnerAuth,

@@ -30,6 +30,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     expectedClientVersion: "",
     minScreenshotBytes: 4096,
     noLock: false,
+    preflightOnly: false,
     json: false,
     list: false,
   };
@@ -57,6 +58,7 @@ function parseArgs(argv = process.argv.slice(2)) {
     else if (item === "--expected-client-version") out.expectedClientVersion = next();
     else if (item === "--min-screenshot-bytes") out.minScreenshotBytes = readNonNegativeInt(next(), out.minScreenshotBytes);
     else if (item === "--no-lock") out.noLock = true;
+    else if (item === "--preflight-only") out.preflightOnly = true;
     else if (item === "--json") out.json = true;
     else if (item === "--list") out.list = true;
     else if (item === "--help") {
@@ -126,6 +128,7 @@ function printHelp() {
     "  --lock-timeout-ms <ms> Wait for lane lock. Default: 60000.",
     "  --lock-stale-ms <ms>   Remove stale lane locks. Default: 300000.",
     "  --no-lock              Disable only the filesystem lock on an isolated Simulator/debug server; server lease is still required.",
+    "  --preflight-only       Check live-debug, Appium, and WDA health without running a visual scenario.",
     "  --json                 Print bounded JSON.",
     "  --list                 List available scenarios.",
   ].join("\n"));
@@ -217,6 +220,125 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function compactError(error) {
+  return String(error?.message || error || "unknown").slice(0, 300);
+}
+
+function statusUrlFor(baseUrl) {
+  const parsed = new URL(String(baseUrl || ""));
+  parsed.pathname = "/status";
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.href;
+}
+
+function localPortUrl(options = {}, port = 0, pathname = "/status") {
+  const debug = new URL(normalizeBaseUrl(options.debugUrl || DEFAULT_DEBUG_URL));
+  debug.port = String(port || debug.port || 80);
+  debug.pathname = pathname;
+  debug.search = "";
+  debug.hash = "";
+  return debug.href;
+}
+
+async function probeStatus(url, timeoutMs) {
+  try {
+    const response = await fetchWithTimeout(url, {}, timeoutMs);
+    let json = null;
+    try {
+      json = await response.json();
+    } catch (error) {
+      json = { parseError: compactError(error) };
+    }
+    return {
+      ok: response.ok,
+      status: response.status,
+      ready: Boolean(json?.value?.ready || json?.value?.state === "success" || json?.ready),
+      error: response.ok ? "" : String(json?.value?.message || json?.error || json?.parseError || response.statusText || "status_failed").slice(0, 160),
+    };
+  } catch (error) {
+    return { ok: false, status: 0, ready: false, error: compactError(error) };
+  }
+}
+
+function boundedStreamInfo(stream = {}) {
+  return {
+    preferred: stream.preferred || "",
+    ready: Boolean(stream.ready),
+    lastError: String(stream.lastError || "").slice(0, 160),
+    lane: stream.lane ? {
+      port: stream.lane.port || 0,
+      udid: stream.lane.udid || "",
+      deviceName: stream.lane.deviceName || "",
+      appiumUrl: boundedUrl(stream.lane.appiumUrl || ""),
+      wdaLocalPort: stream.lane.wdaLocalPort || 0,
+      mjpegServerPort: stream.lane.mjpegServerPort || 0,
+    } : null,
+  };
+}
+
+async function probeVisualHarnessToolchain(options = {}) {
+  const timeoutMs = Math.max(700, Math.min(3500, Number(options.timeoutMs || 15000) || 15000));
+  const result = {
+    ok: false,
+    debugUrl: boundedUrl(options.debugUrl || DEFAULT_DEBUG_URL),
+    failureLayer: "",
+    error: "",
+    liveDebug: { ok: false, error: "" },
+    appium: { ok: null, url: "", error: "" },
+    wda: { ok: null, url: "", error: "" },
+    stream: null,
+  };
+
+  try {
+    const stream = await getJson(Object.assign({}, options, { timeoutMs }), "/api/stream-info");
+    result.liveDebug = { ok: true, error: "" };
+    result.stream = boundedStreamInfo(stream);
+  } catch (error) {
+    result.failureLayer = "live_debug";
+    result.error = "ios_visual_live_debug_unavailable";
+    result.liveDebug = { ok: false, error: compactError(error) };
+    return result;
+  }
+
+  const appiumUrl = result.stream?.lane?.appiumUrl || "";
+  if (appiumUrl) {
+    const url = statusUrlFor(appiumUrl);
+    const status = await probeStatus(url, timeoutMs);
+    result.appium = {
+      ok: Boolean(status.ok),
+      url: boundedUrl(url),
+      status: status.status,
+      ready: status.ready,
+      error: status.error,
+    };
+  } else {
+    result.appium = { ok: false, url: "", error: "appium_url_missing" };
+  }
+
+  const wdaPort = Number(result.stream?.lane?.wdaLocalPort || 0) || 8101;
+  const wdaUrl = localPortUrl(options, wdaPort, "/status");
+  const wda = await probeStatus(wdaUrl, timeoutMs);
+  result.wda = {
+    ok: Boolean(wda.ok),
+    url: boundedUrl(wdaUrl),
+    status: wda.status,
+    ready: wda.ready,
+    error: wda.error,
+  };
+
+  if (!result.appium.ok) {
+    result.failureLayer = "appium";
+    result.error = "ios_visual_appium_unavailable";
+  } else if (!result.wda.ok) {
+    result.failureLayer = "wda";
+    result.error = "ios_visual_wda_unavailable";
+  } else {
+    result.ok = true;
+  }
+  return result;
 }
 
 async function getJson(options, pathname) {
@@ -440,13 +562,26 @@ const EMBEDDED_PLUGIN_PREPARE_SCRIPT = `
     return { ok: false, pluginId, openedBy: "", error: "codex_render_missing" };
   }
   if (pluginId && typeof openPluginTopicApp === "function") {
+    const expectedViewMode = (typeof EMBEDDED_PLUGIN_DEFS === "object" && EMBEDDED_PLUGIN_DEFS[pluginId]?.viewMode) || pluginId;
+    const meaningfulRect = (node) => {
+      if (!node || node.hidden || node.getAttribute("aria-hidden") === "true") return false;
+      const box = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return style.display !== "none" && style.visibility !== "hidden" && box.width >= 240 && box.height >= 300;
+    };
     const existingShell = Array.from(document.querySelectorAll(".embedded-plugin-shell"))
       .find((node) => node?.dataset?.pluginId === pluginId) || null;
-    if (existingShell && !existingShell.hidden) {
-      return { ok: true, pluginId, openedBy: "existingPluginShell", promise: false };
+    const existingShellIsActive = Boolean(
+      existingShell
+        && appState?.viewMode === expectedViewMode
+        && existingShell.closest(".embedded-plugin-host.active")
+        && meaningfulRect(existingShell)
+    );
+    if (existingShellIsActive) {
+      return { ok: true, pluginId, openedBy: "existingPluginShell", promise: false, expectedViewMode };
     }
     const result = openPluginTopicApp(pluginId, { recordUsage: false });
-    return { ok: true, pluginId, openedBy: "openPluginTopicApp", promise: Boolean(result && typeof result.then === "function") };
+    return { ok: true, pluginId, openedBy: "openPluginTopicApp", promise: Boolean(result && typeof result.then === "function"), expectedViewMode };
   }
   return { ok: Boolean(pluginId), pluginId, openedBy: "", error: pluginId ? "openPluginTopicApp_missing" : "plugin_id_missing" };
 `;
@@ -2849,6 +2984,7 @@ const SCENARIOS = Object.freeze({
   }),
   "embedded-plugin-shell": Object.freeze({
     description: "Open an embedded plugin through Home AI and assert iframe shell bounds.",
+    minTimeoutMs: 70000,
     prepareScript: EMBEDDED_PLUGIN_PREPARE_SCRIPT,
     prepareArgs: (options) => [options.pluginId, options.theme || "dark"],
     measureScript: EMBEDDED_PLUGIN_MEASURE_SCRIPT,
@@ -3186,6 +3322,9 @@ async function runHarness(options) {
   const scenario = SCENARIOS[options.scenario];
   if (!scenario) throw new Error(`unknown_scenario:${options.scenario}`);
   if (/^embedded-plugin-/.test(options.scenario || "") && !options.pluginId) throw new Error("plugin_id_required");
+  if (scenario.minTimeoutMs) {
+    options.timeoutMs = Math.max(Number(options.timeoutMs || 0) || 0, Number(scenario.minTimeoutMs || 0) || 0);
+  }
   const report = {
     ok: false,
     scenario: options.scenario,
@@ -3195,6 +3334,7 @@ async function runHarness(options) {
     startedAt: new Date().toISOString(),
     stream: null,
     deepState: null,
+    preflight: null,
     staticCacheClear: null,
     clientFreshness: null,
     prepare: null,
@@ -3215,6 +3355,14 @@ async function runHarness(options) {
   };
   let lease = null;
   try {
+    report.preflight = await probeVisualHarnessToolchain(options);
+    if (!report.preflight.ok) {
+      report.error = report.preflight.error;
+      report.failureLayer = report.preflight.failureLayer;
+      report.failureKind = "environment";
+      report.finishedAt = new Date().toISOString();
+      return report;
+    }
     lease = await acquireDebugLaneLease(options);
     report.lease = {
       acquired: lease.acquired,
@@ -3391,6 +3539,18 @@ async function waitForEmbeddedPluginShellReady(options = {}) {
             ? state
             : (window.state && typeof window.state === "object" ? window.state : null);
           const app = document.getElementById("app");
+          const expectedViewMode = (typeof EMBEDDED_PLUGIN_DEFS === "object" && EMBEDDED_PLUGIN_DEFS[pluginId]?.viewMode) || pluginId;
+          const rect = (node) => {
+            if (!node) return null;
+            const box = node.getBoundingClientRect();
+            return { width: Math.round(box.width), height: Math.round(box.height) };
+          };
+          const meaningful = (node) => {
+            if (!node || node.hidden || node.getAttribute("aria-hidden") === "true") return false;
+            const box = node.getBoundingClientRect();
+            const style = getComputedStyle(node);
+            return style.display !== "none" && style.visibility !== "hidden" && box.width >= 240 && box.height >= 300;
+          };
           const shell = Array.from(document.querySelectorAll(".embedded-plugin-shell, .wardrobe-plugin-shell"))
             .find((node) => node?.dataset?.pluginId === pluginId || (pluginId === "wardrobe" && node.classList.contains("wardrobe-plugin-shell"))) || null;
           const frame = shell?.querySelector(".embedded-plugin-frame, .wardrobe-plugin-frame") || null;
@@ -3401,14 +3561,15 @@ async function waitForEmbeddedPluginShellReady(options = {}) {
             authenticated: Boolean(appState?.auth),
             appHidden: Boolean(app?.classList?.contains("hidden")),
             appClass: app?.className || "",
+            expectedViewMode,
             viewMode: appState?.viewMode || "",
             workspaceId: appState?.selectedWorkspaceId || "",
-            shell: { exists: Boolean(shell), hidden: Boolean(shell?.hidden) },
-            frame: { exists: Boolean(frame), hasSrc: Boolean(frame?.getAttribute?.("src")) },
+            shell: { exists: Boolean(shell), hidden: Boolean(shell?.hidden), active: Boolean(shell?.closest?.(".embedded-plugin-host.active")), meaningful: meaningful(shell), rect: rect(shell) },
+            frame: { exists: Boolean(frame), hasSrc: Boolean(frame?.getAttribute?.("src")), meaningful: meaningful(frame), rect: rect(frame) },
           };
         `,
       });
-      if (last?.shell?.exists && last?.frame?.exists) {
+      if (last?.viewMode === last?.expectedViewMode && last?.shell?.exists && last?.shell?.active && last?.shell?.meaningful && last?.frame?.exists && last?.frame?.meaningful) {
         return { ready: true, attempts, elapsedMs: Date.now() - startedAt, last };
       }
     } catch (err) {
@@ -3452,6 +3613,12 @@ async function main() {
     console.log(JSON.stringify({ ok: true, scenarios: listScenarios() }, null, 2));
     return;
   }
+  if (options.preflightOnly) {
+    const report = await probeVisualHarnessToolchain(options);
+    printReport(report, options.json);
+    if (!report.ok) process.exitCode = 1;
+    return;
+  }
   const report = await runHarness(options);
   printReport(report, options.json);
   if (!report.ok) process.exitCode = 1;
@@ -3483,6 +3650,7 @@ module.exports = {
   assertVoiceStopHoldGesture,
   defaultLockPath,
   parseArgs,
+  probeVisualHarnessToolchain,
   runHarness,
   sampleMobileBottomStability,
   waitForEmbeddedPluginShellReady,

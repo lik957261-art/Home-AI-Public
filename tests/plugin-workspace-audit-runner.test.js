@@ -94,7 +94,7 @@ function main() {
       targetWorkspaceId: "owner",
       workspacePathRef: "test-registry",
       workspacePath: workspace,
-      auditMode: "alignment",
+      auditMode: "product_reality",
       executor: "codex_readonly",
       readonly: true,
     },
@@ -132,12 +132,13 @@ function main() {
   assert.equal(payload.summary.findingCount >= 1, true);
   assert.match(payload.output, /MEDIA:/);
   assert.match(payload.output, /Codex 只读审计/);
-  assert.match(payload.output, /插件工作区目标一致性审计/);
-  assert.match(payload.output, /文档与实现抽样文件/);
+  assert.match(payload.output, /插件工作区产品现实一致性审计/);
+  assert.match(payload.output, /文档、架构与实现抽样文件/);
   assert.match(payload.output, /docs\/PRODUCT_REQUIREMENTS\.md/);
   assert.match(payload.output, /index\.js:1 MEDIUM - 来自只读审计的模拟问题/);
   assert.match(payload.output, /跨线程任务卡/);
   assert.match(payload.output, /状态: sent/);
+  assert.match(payload.output, /回卡要求: required/);
   assert.equal(payload.output.includes(workspace), false, "report must not expose target workspace absolute path");
   assert.equal(fs.existsSync(payload.reportPath), true);
   assert.equal(path.dirname(payload.reportPath), path.join(outputRoot, "audit_job_1"));
@@ -151,7 +152,14 @@ function main() {
   assert.equal(fakeCall.argv.includes("--output-last-message"), true);
   assert.equal(fakeCall.argv.includes("--cd"), true);
   assert.match(fakeCall.argv.join("\n"), /不要编辑文件/);
-  assert.match(fakeCall.argv.join("\n"), /目标一致性审计/);
+  assert.match(fakeCall.argv.join("\n"), /产品现实一致性审计/);
+  assert.match(fakeCall.argv.join("\n"), /X High/);
+  assert.match(fakeCall.argv.join("\n"), /deep-product-reality-audit-contract\.md/);
+  assert.match(fakeCall.argv.join("\n"), /Core Journey Matrix/);
+  assert.match(fakeCall.argv.join("\n"), /design_gap/);
+  assert.match(fakeCall.argv.join("\n"), /surface_product_reality/);
+  assert.match(fakeCall.argv.join("\n"), /不要找到一两个方便的小问题就结束/);
+  assert.match(fakeCall.argv.join("\n"), /Return Card Required/);
   const fakeCardCall = JSON.parse(fs.readFileSync(fakeTaskCardLog, "utf8"));
   assert.equal(fakeCardCall.request.sourceThreadId, "source-thread");
   assert.deepEqual(fakeCardCall.request.targetThreadIds, ["target-thread"]);
@@ -159,6 +167,8 @@ function main() {
   assert.equal(fakeCardCall.request.autoApprove, true);
   assert.equal(fakeCardCall.keyFile, "/Users/example/path");
   assert.match(fakeCardCall.request.body, /Keep profile, auth, thread state, and app-server\/mux ownership inside Codex Mobile/);
+  assert.match(fakeCardCall.request.body, /Product Reality finding/);
+  assert.match(fakeCardCall.request.body, /Return Card Required/);
 
   const store = createMobileSqliteStore({ dbPath });
   try {

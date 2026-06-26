@@ -170,6 +170,9 @@ function createSystemApiRoutes(deps = {}) {
     bootTrace("request api/status after reasoning");
     status.concurrency = deps.publicConcurrencyForAuth(auth);
     status.ownerElevation = deps.publicOwnerElevationStatus(auth);
+    if (deps.isOwnerAuth(auth) && typeof deps.gatewayWorkerPolicyContract === "function") {
+      status.gatewayWorkerPolicyContract = deps.gatewayWorkerPolicyContract();
+    }
     status.clientVersion = deps.clientVersionInfo(requestHeader(req, "x-hermes-web-client-version"));
     bootTrace("request api/status before send");
     deps.sendJson(res, 200, status);

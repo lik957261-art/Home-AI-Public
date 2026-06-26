@@ -115,6 +115,8 @@ function createHarness(pluginId = "codex-mobile", origin = "https://codex.exampl
     state: {
       viewMode: viewModeByPlugin[pluginId] || "codex",
       selectedWorkspaceId: "owner",
+      themeMode: "light",
+      fontSize: "default",
       embeddedPlugins: {},
     },
     window: {
@@ -210,6 +212,7 @@ function createHarness(pluginId = "codex-mobile", origin = "https://codex.exampl
       };
       record.manifestAppearanceKey = "light/default";
       record.manifestFetchedAt = 1000;
+      record.manifestMaxAgeMs = 60000;
       record.checked = true;
       record.manifestFreshForFrame = true;
       record.shellNode = shell;

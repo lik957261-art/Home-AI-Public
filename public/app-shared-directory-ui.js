@@ -139,7 +139,12 @@ function renderDirectoryView() {
 }
 
 async function createDirectoryFolder() {
-  const name = window.prompt("新建目录名称");
+  const name = await openAppPromptDialog({
+    title: "新建目录",
+    inputLabel: "目录名称",
+    placeholder: "新建目录名称",
+    confirmLabel: "创建",
+  });
   if (!name || !name.trim()) return;
   const basePath = directoryCreateBasePath();
   if (!basePath) throw new Error("No directory is selected.");
@@ -281,7 +286,12 @@ async function renameDirectoryEntry(button) {
   const oldName = button.dataset.renameDirectoryName || "item";
   const type = button.dataset.renameDirectoryType || "file";
   const label = type === "directory" ? "目录" : "文件";
-  const nextName = window.prompt(`新的${label}名称`, oldName);
+  const nextName = await openAppPromptDialog({
+    title: `重命名${label}`,
+    inputLabel: `新的${label}名称`,
+    defaultValue: oldName,
+    confirmLabel: "保存",
+  });
   if (!nextName || !nextName.trim()) return;
   const name = nextName.trim();
   if (name === oldName) return;
@@ -366,7 +376,12 @@ async function shareRootDirectoryProject(button) {
   const project = state.projects.find((item) => item.id === projectId);
   if (!project?.root || !isShareableRootProject(project)) return;
   const name = directoryRootProjectLabel(project);
-  if (!window.confirm(`共享目录“${name}”？共享后所有工作区都能看到这个目录。`)) return;
+  const confirmed = await openAppConfirmDialog({
+    title: "共享目录",
+    message: `共享目录“${name}”？共享后所有工作区都能看到这个目录。`,
+    confirmLabel: "共享",
+  });
+  if (!confirmed) return;
   const threadId = await ensureDirectoryThread();
   await api("/api/directories/share", {
     method: "POST",
@@ -434,7 +449,13 @@ async function startTaskFromDirectoryPath(button) {
 async function unshareDirectory(button) {
   const id = button?.dataset?.unshareDirectoryId || "";
   if (!id) return;
-  if (!window.confirm("取消共享这个目录？其他工作区将不再看到它。")) return;
+  const confirmed = await openAppConfirmDialog({
+    title: "取消共享",
+    message: "取消共享这个目录？其他工作区将不再看到它。",
+    confirmLabel: "取消共享",
+    danger: true,
+  });
+  if (!confirmed) return;
   await api("/api/directories/unshare", {
     method: "POST",
     body: JSON.stringify({ workspaceId: state.selectedWorkspaceId, id }),

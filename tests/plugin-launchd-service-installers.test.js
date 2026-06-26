@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -75,6 +76,20 @@ const cases = [
     ],
   },
   {
+    modulePath: "../scripts/install-movie-launchd-service",
+    label: "com.hermesmobile.plugin.movie",
+    pluginRoot: "/tmp/Hermes Mobile/plugins/movie",
+    script: "src/server.js",
+    portKey: "PORT",
+    port: "4195",
+    extra: [
+      /<key>MOVIE_PORT<\/key>\s*<string>4195<\/string>/,
+      /<key>MOVIE_DATA_DIR<\/key>/,
+      /plugins\/movie\/data/,
+      /<key>MOVIE_PUBLIC_BASE_URL<\/key>\s*<string>http:\/\/127\.0\.0\.1:4195<\/string>/,
+    ],
+  },
+  {
     modulePath: "../scripts/install-note-launchd-service",
     label: "com.hermesmobile.plugin.note",
     pluginRoot: "/tmp/Hermes Mobile/plugins/note",
@@ -134,6 +149,28 @@ for (const item of cases) {
   assert.doesNotMatch(plist, /PASSWORD<\/key>\s*<string>[^/<][^<]*<\/string>/);
   assert.doesNotMatch(plist, /TOKEN<\/key>\s*<string>[^/<][^<]*<\/string>/);
   for (const pattern of item.extra) assert.match(plist, pattern);
+}
+
+{
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-finance-launchd-"));
+  const financeDir = path.join(root, "data", "drive", "users", "owner", ".hermes-finance");
+  fs.mkdirSync(financeDir, { recursive: true });
+  fs.writeFileSync(path.join(financeDir, "config.json"), JSON.stringify({
+    schema_version: 1,
+    workspace_id: "owner",
+    hermes_workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }, null, 2));
+  fs.writeFileSync(path.join(financeDir, "access-key.txt"), "finance-secret\n", { mode: 0o600 });
+  const installer = require("../scripts/install-finance-launchd-service");
+  const options = installer.parseArgs(["--mac-root", root, "--launch-daemons-dir", path.join(root, "launchd"), "--json"]);
+  const plist = installer.plistFor(options);
+  const expectedHash = `sha256:${crypto.createHash("sha256").update("owner:finance-secret").digest("hex")}`;
+  assert.match(plist, /<key>FINANCE_HERMES_WORKSPACE_KEY_HASHES_JSON<\/key>/);
+  assert.match(plist, new RegExp(expectedHash));
+  assert.match(plist, /<key>FINANCE_HERMES_ALLOWED_WORKSPACES<\/key>\s*<string>owner<\/string>/);
+  assert.doesNotMatch(plist, /finance-secret/);
+  assert.deepEqual(installer.financeWorkspaceKeyHashInfo(root).workspaceIds, ["owner"]);
 }
 
 console.log("plugin launchd service installer tests passed");

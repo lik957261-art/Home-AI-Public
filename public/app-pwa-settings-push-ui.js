@@ -255,9 +255,7 @@ function requireHermesAppWindowForNavigation() {
   try {
     showPushToast(message, "error");
   } catch (_) {}
-  try {
-    window.alert(message);
-  } catch (_) {}
+  openAppMessageDialog?.({ title: "请从 Home AI 应用打开", message }).catch?.(() => {});
   return false;
 }
 

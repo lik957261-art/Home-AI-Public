@@ -48,7 +48,7 @@ async function testBuildsReadonlyAuditDraftForConfiguredPlugin() {
   }
 }
 
-async function testBuildsAlignmentManualAuditAndRequestsRun() {
+async function testBuildsProductRealityManualAuditAndRequestsRun() {
   const dir = tempDir();
   const calls = [];
   try {
@@ -63,14 +63,17 @@ async function testBuildsAlignmentManualAuditAndRequestsRun() {
       resolveAutomationCronProfile() {
         return "hm-owner-openai-1";
       },
-      automationProvider: {
-        createJob(payload) {
-          calls.push({ type: "create", payload });
-          return Promise.resolve({ ok: true, job: { id: "audit-manual-1" }, source: { name: "hermes_cron" } });
-        },
-        mutateJob(payload) {
-          calls.push({ type: "mutate", payload });
-          return Promise.resolve({ ok: true, job: { id: payload.jobId, state: "scheduled" }, source: { name: "hermes_cron", runMode: "next_tick" } });
+      auditRequestCardService: {
+        sendTaskCard(payload) {
+          calls.push({ type: "task-card", payload });
+          return Promise.resolve({
+            ok: true,
+            sourceThreadId: "home-ai-current",
+            targetThreadId: "plugin-audit-current",
+            cardIds: ["ttc_audit_1"],
+            targetThread: { title: "Plugin Workspace Audit", cwd: "/Users/example/path" },
+            result: { ok: true, cardCount: 1 },
+          });
         },
       },
     });
@@ -81,15 +84,89 @@ async function testBuildsAlignmentManualAuditAndRequestsRun() {
       instructions: "Check product goals.",
     });
     assert.equal(result.ok, true);
-    assert.equal(result.audit.auditMode, "alignment");
+    assert.equal(result.audit.auditMode, "product_reality");
     assert.equal(result.audit.triggerMode, "manual");
-    assert.match(result.draft.prompt, /design-goal alignment/);
-    assert.equal(calls[0].type, "create");
-    assert.equal(calls[0].payload.job.schedule, "1m");
-    assert.equal(calls[0].payload.job.repeat, 1);
-    assert.equal(calls[1].type, "mutate");
-    assert.equal(calls[1].payload.action, "run");
-    assert.equal(calls[1].payload.jobId, "audit-manual-1");
+    assert.equal(result.draft.profile, "hm-owner-openai-xhigh");
+    assert.match(result.draft.prompt, /product reality alignment/);
+    assert.match(result.draft.prompt, /agent\.reasoning_effort=xhigh/);
+    assert.match(result.draft.prompt, /delivery\.reasoningEffort=xhigh/);
+    assert.match(result.draft.prompt, /injectionRuntime\.reasoningEffort=xhigh/);
+    assert.match(result.draft.prompt, /deep-product-reality-audit-contract\.md/);
+    assert.match(result.draft.prompt, /Product Thesis and Core Journey Matrix/);
+    assert.match(result.draft.prompt, /Challenge the design itself/);
+    assert.match(result.draft.prompt, /surface_product_reality/);
+    assert.match(result.draft.prompt, /Do not stop after one or two convenient small findings/);
+    assert.match(result.draft.prompt, /Return Card Required/);
+    assert.match(result.draft.prompt, /closure verification/);
+    assert.equal(result.requestCard.targetThreadId, "plugin-audit-current");
+    assert.deepEqual(result.requestCard.cardIds, ["ttc_audit_1"]);
+    assert.equal(result.source.name, "codex_mobile_task_card");
+    assert.equal(result.source.dispatch, "central_audit_thread");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].type, "task-card");
+    assert.equal(calls[0].payload.targetThreadTitle, "Plugin Workspace Audit");
+    assert.equal(calls[0].payload.reasoningEffort, "xhigh");
+    assert.match(calls[0].payload.body, /Home AI is only the request trigger/);
+    assert.match(calls[0].payload.body, /central `Plugin Workspace Audit` thread only/);
+    assert.match(calls[0].payload.body, /Required reasoning effort: `xhigh`/);
+    assert.match(calls[0].payload.body, /delivery\.reasoningEffort=xhigh/);
+    assert.match(calls[0].payload.body, /injectionRuntime\.reasoningEffort=xhigh/);
+    assert.match(calls[0].payload.body, /hm-owner-openai-xhigh/);
+    assert.match(calls[0].payload.body, /Domain\/State Contract Review/);
+    assert.match(calls[0].payload.body, /Design Critique/);
+    assert.match(calls[0].payload.body, /Deployment-only plugin residuals belong to the plugin implementation thread/);
+    assert.match(calls[0].payload.body, /deploy:macos -- --plugin <plugin-id>/);
+    assert.match(calls[0].payload.body, /Return Card Required/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function testBuildsHomeAiPlatformAuditAndRequestsPlatformThread() {
+  const dir = tempDir();
+  const calls = [];
+  try {
+    const service = createPluginWorkspaceAuditService({
+      auditTargets: { "home-ai": { path: dir, pathRef: "test-home-ai-registry" } },
+      nowIso: () => "2026-06-26T00:00:00.000Z",
+      auditRequestCardService: {
+        sendTaskCard(payload) {
+          calls.push({ type: "task-card", payload });
+          return Promise.resolve({
+            ok: true,
+            sourceThreadId: "home-ai-current",
+            targetThreadId: "platform-audit-current",
+            cardIds: ["ttc_platform_audit_1"],
+            targetThread: { title: "Home AI Platform Audit", cwd: "/Users/example/path" },
+            result: { ok: true, cardCount: 1 },
+          });
+        },
+      },
+    });
+    const result = await service.triggerManualAudit({
+      workspaceId: "owner",
+      ownerPrincipalId: "principal-owner",
+      pluginId: "home-ai",
+      instructions: "Audit host Action Inbox routing.",
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.audit.pluginId, "home-ai");
+    assert.equal(result.audit.pluginTitle, "Home AI 宿主");
+    assert.equal(result.audit.targetKind, "platform");
+    assert.equal(result.audit.targetThreadTitle, "Home AI Platform Audit");
+    assert.equal(result.audit.workspacePathRef, "test-home-ai-registry");
+    assert.equal(result.requestCard.targetThreadId, "platform-audit-current");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].payload.auditKind, "platform");
+    assert.equal(calls[0].payload.targetThreadTitle, "Home AI Platform Audit");
+    assert.equal(calls[0].payload.reasoningEffort, "xhigh");
+    assert.match(calls[0].payload.body, /central `Home AI Platform Audit` thread only/);
+    assert.doesNotMatch(calls[0].payload.body, /central `Plugin Workspace Audit` thread only/);
+    assert.match(calls[0].payload.body, /target_kind: platform/);
+    assert.match(calls[0].payload.body, /platform_title: Home AI/);
+    assert.match(result.draft.prompt, /Home AI host\/platform workspace/);
+    assert.match(result.draft.prompt, /audit-thread-governance-contract\.md/);
+    assert.match(result.draft.prompt, /Do not use `\.agent-context\/HANDOFF\.md`/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -158,9 +235,9 @@ function testAuditInboxProjectionIsSummaryOnly() {
   assert.equal(calls[0].sourceRef.kind, "plugin_workspace_audit");
   assert.equal(calls[0].sourceRef.pluginId, "codex-mobile");
   assert.equal(calls[0].sourceRef.auditRunId, "run-1");
-  assert.equal(calls[0].sourceRef.auditMode, "alignment");
+  assert.equal(calls[0].sourceRef.auditMode, "product_reality");
   assert.equal(calls[0].sourceRef.findingCount, 2);
-  assert.equal(calls[0].dedupeKey, "plugin-audit:owner:codex-mobile:alignment:review");
+  assert.equal(calls[0].dedupeKey, "plugin-audit:owner:codex-mobile:product_reality:review");
   assert.equal(calls[0].sourceRef.latestDeliverable.name, "run.md");
   assert.equal(calls[0].sourceRef.latestDeliverable.url, "/api/automations/output?jobId=job-1&file=run.md");
   assert.equal(calls[0].sourceRef.latestDocumentName, "run.md");
@@ -170,7 +247,8 @@ function testAuditInboxProjectionIsSummaryOnly() {
 
 (async () => {
   await testBuildsReadonlyAuditDraftForConfiguredPlugin();
-  await testBuildsAlignmentManualAuditAndRequestsRun();
+  await testBuildsProductRealityManualAuditAndRequestsRun();
+  await testBuildsHomeAiPlatformAuditAndRequestsPlatformThread();
   await testRejectsUnconfiguredTargetAndNonReadonlyMode();
   testAuditInboxProjectionIsSummaryOnly();
   console.log("plugin-workspace-audit-service tests passed");

@@ -18,6 +18,8 @@ assert.match(script, /maintenanceMode = true/);
 assert.match(script, /messageBody\.model = options\.model/);
 assert.match(script, /messageBody\.provider = options\.provider/);
 assert.match(script, /headers\["X-Hermes-Web-Key"\]/);
+assert.match(script, /Gateway Pool has no configured workers for production smoke/);
+assert.doesNotMatch(script, /healthy enough for production smoke/);
 assert.match(script, /crypto\.randomBytes\(4\)\.toString\("hex"\)/);
 assert.doesNotMatch(script, /X-Hermes-Access-Key/);
 assert.doesNotMatch(script, /console\.log\(\s*options\.key/);

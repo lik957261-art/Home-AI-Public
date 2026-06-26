@@ -9,6 +9,19 @@ const REQUIRED_ASSIGNMENTS = Object.freeze([
   '  HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH" \\',
   '  HERMES_WEB_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH" \\',
 ]);
+const REQUIRED_FILE_ROOT_EXPORTS = Object.freeze([
+  'export HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+  'export HERMES_MOBILE_PDF_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+  'export HERMES_MOBILE_PDF_OUTPUT_ROOTS="$ROOT/data/artifacts"',
+  'export HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+  'export HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+  'export HERMES_MOBILE_IMAGE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+  'export HERMES_MOBILE_VIDEO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+  'export HERMES_MOBILE_HTTP_FILE_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+  'export HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="$ROOT/data/drive/users"',
+  'export HERMES_MOBILE_HTTP_SAVE_ROOT="$ROOT/data/artifacts/http-request"',
+  'export HERMES_MOBILE_VIDEO_OUTPUT_ROOT="$ROOT/data/artifacts/grok-videos"',
+]);
 
 function parseArgs(argv) {
   const out = {
@@ -88,13 +101,49 @@ function ensureBridgeDefinitions(text, root) {
   return next;
 }
 
+function envNameFromExport(line) {
+  return String(line || "").trim().replace(/^export\s+/, "").split("=")[0];
+}
+
+function replaceOrAppendExport(text, line) {
+  const name = envNameFromExport(line);
+  const pattern = new RegExp(`^\\s*(?:export\\s+)?${escapeRegExp(name)}=.*$`, "m");
+  if (pattern.test(text)) {
+    const next = text.replace(pattern, line);
+    return { text: next, changed: next !== text };
+  }
+  const next = insertBeforeExecEnv(text, line);
+  return { text: next, changed: true };
+}
+
+function ensureFileRootDefinitions(text, root) {
+  let next = String(text || "");
+  let changed = false;
+  if (!/^\s*ROOT=/m.test(next)) {
+    next = insertBeforeExecEnv(next, `ROOT="${root}"`);
+    changed = true;
+  }
+  if (!/^\s*FILE_PLUGIN_ALLOWED_ROOTS=/m.test(next)) {
+    next = insertBeforeExecEnv(next, 'FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifacts"');
+    changed = true;
+  }
+  for (const line of REQUIRED_FILE_ROOT_EXPORTS) {
+    const patched = replaceOrAppendExport(next, line);
+    next = patched.text;
+    changed = changed || patched.changed;
+  }
+  return { text: next, changed };
+}
+
 function ensureBridgeAssignments(text, root) {
-  let next = ensureBridgeDefinitions(text, root);
+  const fileRoots = ensureFileRootDefinitions(text, root);
+  let next = ensureBridgeDefinitions(fileRoots.text, root);
+  let changed = fileRoots.changed || next !== fileRoots.text;
   const missing = REQUIRED_ASSIGNMENTS.filter((line) => {
     const name = line.trim().split("=")[0];
     return !hasEnvAssignment(next, name);
   });
-  if (!missing.length) return { text: next, changed: next !== text };
+  if (!missing.length) return { text: next, changed: changed || next !== text };
   const block = missing.join("\n");
   if (/^\s*PYTHONPATH=/m.test(next)) {
     next = next.replace(/^(\s*PYTHONPATH=)/m, `${block}\n$1`);
@@ -129,12 +178,50 @@ function installedGatewayStartScripts(launchDaemonsDir) {
     });
 }
 
+function gatewayWorkspaceStartScripts(usersRoot) {
+  let users = [];
+  try {
+    users = fs.readdirSync(usersRoot, { withFileTypes: true });
+  } catch (_) {
+    return [];
+  }
+  const rows = [];
+  for (const user of users) {
+    if (!user.isDirectory() || user.name.startsWith(".")) continue;
+    const gatewayDir = path.join(usersRoot, user.name, "HermesWorkspace", ".hermes-gateway");
+    let entries = [];
+    try {
+      entries = fs.readdirSync(gatewayDir, { withFileTypes: true });
+    } catch (_) {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isFile() || !/^start-.+\.sh$/i.test(entry.name)) continue;
+      rows.push({
+        label: `workspace-start-script:${user.name}:${entry.name}`,
+        plistPath: "",
+        startScriptPath: path.join(gatewayDir, entry.name),
+      });
+    }
+  }
+  return rows.sort((a, b) => a.startScriptPath.localeCompare(b.startScriptPath));
+}
+
 function repairGatewayStartScripts(options = {}) {
   const root = path.resolve(options.root || "/Users/example/path");
   const launchDaemonsDir = options.launchDaemonsDir || "/Library/LaunchDaemons";
+  const usersRoot = options.usersRoot || path.dirname(path.dirname(root));
   const execute = options.execute === true;
   const rows = [];
-  for (const item of installedGatewayStartScripts(launchDaemonsDir)) {
+  const seen = new Set();
+  const candidates = installedGatewayStartScripts(launchDaemonsDir).concat(gatewayWorkspaceStartScripts(usersRoot))
+    .filter((item) => {
+      const key = String(item.startScriptPath || "");
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  for (const item of candidates) {
     const row = Object.assign({ exists: false, changed: false, written: false, error: "" }, item);
     if (!item.startScriptPath) {
       row.error = "start_script_path_missing";
@@ -185,5 +272,7 @@ if (require.main === module) {
 
 module.exports = {
   ensureBridgeAssignments,
+  ensureFileRootDefinitions,
+  gatewayWorkspaceStartScripts,
   repairGatewayStartScripts,
 };

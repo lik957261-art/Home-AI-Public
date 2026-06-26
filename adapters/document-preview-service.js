@@ -30,6 +30,71 @@ function xmlDecode(value) {
     .replace(/&amp;/g, "&");
 }
 
+function normalizeExtractedText(value) {
+  return String(value || "")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function extractParagraphText(paragraph) {
+  let text = "";
+  const tokenPattern = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*\/>|<w:br\b[^>]*\/>|<w:cr\b[^>]*\/>/g;
+  let tokenMatch;
+  while ((tokenMatch = tokenPattern.exec(paragraph))) {
+    const token = tokenMatch[0];
+    if (/^<w:tab\b/.test(token)) text += "\t";
+    else if (/^<w:t\b/.test(token)) text += xmlDecode(tokenMatch[1] || "");
+    else text += "\n";
+  }
+  return normalizeExtractedText(text);
+}
+
+function markdownTableCell(value) {
+  return String(value || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\n+/g, "<br>")
+    .trim();
+}
+
+function docxTableToMarkdown(tableXml) {
+  const rows = [];
+  const rowPattern = /<w:tr\b[\s\S]*?<\/w:tr>/g;
+  let rowMatch;
+  while ((rowMatch = rowPattern.exec(tableXml))) {
+    const rowXml = rowMatch[0];
+    const cells = [];
+    const cellPattern = /<w:tc\b[\s\S]*?<\/w:tc>/g;
+    let cellMatch;
+    while ((cellMatch = cellPattern.exec(rowXml))) {
+      const cellXml = cellMatch[0];
+      const paragraphs = [];
+      const paragraphPattern = /<w:p\b[\s\S]*?<\/w:p>/g;
+      let paragraphMatch;
+      while ((paragraphMatch = paragraphPattern.exec(cellXml))) {
+        const text = extractParagraphText(paragraphMatch[0]);
+        if (text) paragraphs.push(text);
+      }
+      cells.push(markdownTableCell(paragraphs.join("\n")));
+    }
+    if (cells.some(Boolean)) rows.push(cells);
+  }
+  const width = Math.max(0, ...rows.map((row) => row.length));
+  if (!rows.length || width < 2) {
+    return rows.flat().filter(Boolean).join("\n");
+  }
+  const normalized = rows.map((row) => Array.from({ length: width }, (_, index) => row[index] || ""));
+  const header = normalized[0].map((cell, index) => cell || `Column ${index + 1}`);
+  const separator = header.map(() => "---");
+  const bodyRows = normalized.slice(1);
+  return [
+    `| ${header.join(" | ")} |`,
+    `| ${separator.join(" | ")} |`,
+    ...bodyRows.map((row) => `| ${row.join(" | ")} |`),
+  ].join("\n");
+}
+
 function findZipEntry(buffer, entryName, options = {}) {
   const inflateRawSync = options.inflateRawSync || zlib.inflateRawSync;
   const minEocdOffset = Math.max(0, buffer.length - 0xffff - 22);
@@ -77,24 +142,17 @@ function extractDocxTextFromBuffer(buffer, options = {}) {
   if (!xmlBuffer) throw new Error("DOCX document body not found");
   const xml = xmlBuffer.toString("utf8");
   const body = xml.match(/<w:body[\s\S]*?<\/w:body>/)?.[0] || xml;
-  const paragraphs = [];
-  const paragraphPattern = /<w:p\b[\s\S]*?<\/w:p>/g;
-  let paragraphMatch;
-  while ((paragraphMatch = paragraphPattern.exec(body))) {
-    const paragraph = paragraphMatch[0];
-    let text = "";
-    const tokenPattern = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>|<w:tab\b[^>]*\/>|<w:br\b[^>]*\/>|<w:cr\b[^>]*\/>/g;
-    let tokenMatch;
-    while ((tokenMatch = tokenPattern.exec(paragraph))) {
-      const token = tokenMatch[0];
-      if (token.startsWith("<w:t")) text += xmlDecode(tokenMatch[1] || "");
-      else if (token.startsWith("<w:tab")) text += "\t";
-      else text += "\n";
-    }
-    text = text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-    if (text) paragraphs.push(text);
+  const blocks = [];
+  const blockPattern = /<w:tbl\b[\s\S]*?<\/w:tbl>|<w:p\b[\s\S]*?<\/w:p>/g;
+  let blockMatch;
+  while ((blockMatch = blockPattern.exec(body))) {
+    const block = blockMatch[0];
+    const text = /^<w:tbl\b/.test(block)
+      ? docxTableToMarkdown(block)
+      : extractParagraphText(block);
+    if (text) blocks.push(text);
   }
-  return truncateText(paragraphs.join("\n\n").trim(), options.maxPreviewChars);
+  return truncateText(blocks.join("\n\n").trim(), options.maxPreviewChars);
 }
 
 function createDocumentPreviewService(options = {}) {

@@ -170,6 +170,9 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
 
     const startScript = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/start-lowgw31.sh`, "utf8");
     assert.match(startScript, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
+    assert.match(startScript, /HERMES_MOBILE_PDF_ALLOWED_ROOTS/);
+    assert.match(startScript, /HERMES_MOBILE_PDF_OUTPUT_ROOTS/);
+    assert.match(startScript, /HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS/);
     assert.match(startScript, /HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS/);
     assert.match(startScript, /HERMES_MOBILE_HTTP_SAVE_ROOT/);
     assert.match(startScript, /HERMES_MOBILE_VIDEO_OUTPUT_ROOT/);
@@ -235,7 +238,7 @@ async function testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases()
       },
       gateway: {
         manifestPath: `${root}/data/gateway-pool-manifest-mac.json`,
-        profiles: ["hm-owner-openai-1", "legacy-alias"],
+        profiles: ["hm-owner-openai-1", "legacy-alias", "grokgw1"],
       },
     };
     writeJson(context.gateway.manifestPath, {
@@ -260,12 +263,24 @@ async function testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases()
           skillProfile: "workspace:xuyan",
           osUser: "hm-owner",
         },
+        {
+          profile: "grokgw1",
+          provider: "xai-oauth",
+          port: 18763,
+          enabled: true,
+          allowedWorkspaceIds: ["owner"],
+          skillWorkspaceIds: ["owner"],
+          skillProfile: "owner-full",
+        },
       ],
     });
     fs.mkdirSync(`${root}/plugins/music/src`, { recursive: true });
     fs.writeFileSync(`${root}/plugins/music/src/mcp-stdio.js`, "import './music-service.js';\n", "utf8");
     fs.writeFileSync(`${root}/plugins/music/src/music-service.js`, "export {};\n", "utf8");
     fs.writeFileSync(`${root}/plugins/music/package.json`, "{\"type\":\"module\"}\n", "utf8");
+    fs.writeFileSync(`${root}/plugins/music/package-lock.json`, "{\"lockfileVersion\":3}\n", "utf8");
+    fs.mkdirSync(`${root}/plugins/music/node_modules/ffmpeg-static`, { recursive: true });
+    fs.writeFileSync(`${root}/plugins/music/node_modules/ffmpeg-static/package.json`, "{\"name\":\"ffmpeg-static\"}\n", "utf8");
     const service = createWorkspaceSystemProvisioningExecutorService({
       forceEnabled: true,
       fs,
@@ -280,9 +295,11 @@ async function testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases()
     const result = await service.runStep("ensure_launchd_services", context);
 
     assert.equal(result.ok, true);
-    assert.deepEqual(result.syncedGatewayMcpAssets, ["music"]);
+    assert.deepEqual(result.syncedGatewayMcpAssets, ["music", "music-dependencies"]);
     assert.equal(fs.existsSync(`${root}/gateway-worker/music-mcp/src/mcp-stdio.js`), true);
     assert.equal(fs.existsSync(`${root}/gateway-worker/music-mcp/package.json`), true);
+    assert.equal(fs.existsSync(`${root}/gateway-worker/music-mcp/package-lock.json`), true);
+    assert.equal(fs.existsSync(`${root}/gateway-worker/music-mcp/node_modules/ffmpeg-static/package.json`), true);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/skills`), `${root}/data/skill-profiles/owner-full/skills`);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/memories`), `${root}/data/skill-profiles/owner-full/memories`);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/legacy-alias/skills`), `${root}/data/skill-profiles/user-981731fe/skills`);
@@ -291,6 +308,9 @@ async function testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases()
     assert.match(ownerConfig, /  - music/);
     assert.match(ownerConfig, /mcp_servers:\n[\s\S]*  music:/);
     assert.match(ownerConfig, /MUSIC_SQLITE_PATH: .*\/plugins\/music\/runtime\/music\.sqlite/);
+    const grokConfig = fs.readFileSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/grokgw1/config.yaml`, "utf8");
+    assert.match(grokConfig, /model:\n  default: grok-4\.3\n  provider: xai-oauth/);
+    assert.doesNotMatch(grokConfig, /provider: openai-codex/);
     const updatedManifest = JSON.parse(fs.readFileSync(context.gateway.manifestPath, "utf8"));
     assert.ok(updatedManifest.workers[0].toolsets.includes("music"));
     assert.ok(updatedManifest.workers[0].mcpServers.includes("music"));

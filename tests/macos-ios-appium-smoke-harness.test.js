@@ -8,10 +8,15 @@ const root = path.resolve(__dirname, "..");
 const startScript = fs.readFileSync(path.join(root, "scripts", "macos-ios-appium-start.sh"), "utf8");
 const smokeScript = fs.readFileSync(path.join(root, "scripts", "macos-ios-appium-smoke.js"), "utf8");
 
-assert.match(startScript, /--address "\$\{ADDRESS\}"/, "Appium start script must bind to the configured local address");
+assert.match(startScript, /<string>--address<\/string>[\s\S]*?<string>\$\(xml_escape "\$\{ADDRESS\}"\)<\/string>/, "Appium start script must bind to the configured local address");
 assert.match(startScript, /APPIUM_ADDRESS:-127\.0\.0\.1/, "Appium server must default to localhost");
-assert.match(startScript, /--log-level warn/, "Appium server must avoid verbose request-body logging");
-assert.match(startScript, /trap "" INT/, "Appium background server should not die when the live debug terminal receives Ctrl-C");
+assert.match(startScript, /<string>--log-level<\/string>[\s\S]*?<string>warn<\/string>/, "Appium server must avoid verbose request-body logging");
+assert.match(startScript, /LABEL="com\.hermesmobile\.appium-\$\{PORT\}"/, "Appium start script must use a stable LaunchAgent label");
+assert.match(startScript, /Library\/LaunchAgents/, "Appium start script must install a user LaunchAgent");
+assert.match(startScript, /launchctl bootstrap/, "Appium start script must bootstrap the LaunchAgent");
+assert.match(startScript, /launchctl kickstart -k/, "Appium start script must kickstart the LaunchAgent");
+assert.match(startScript, /appium_pid_alive/, "Appium start script must prove the started process remains alive");
+assert.match(startScript, /appium_status_unstable/, "Appium start script must reject transient status-only startup");
 assert.doesNotMatch(startScript, /Access Key|ACCESS_KEY|X-Hermes-Web-Key|hermesWebKey|key-file/i, "start script must not handle secrets");
 
 assert.match(smokeScript, /browserName:\s*"Safari"/, "iOS smoke must drive Safari through Appium");

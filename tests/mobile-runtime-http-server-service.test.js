@@ -91,6 +91,34 @@ function createService(overrides = {}) {
   assert.equal(streamedFailureResponse.sent, undefined);
   assert.match(streamedFailure.errors[0], /stream abort/);
 
+  const auditReadonly = createService({
+    authProvider: {
+      authenticateRequest(req) {
+        return req.headers?.["x-hermes-web-key"] === "audit-key"
+          ? { ok: true, isOwner: true, role: "owner", keySource: "audit_owner_readonly", auditReadOnly: true }
+          : { ok: false, role: "anonymous" };
+      },
+      isAuditReadOnlyAuth: (auth) => Boolean(auth?.auditReadOnly),
+      ownerKeySource: () => "file",
+      requestAccessKey: (req) => req.headers?.["x-hermes-web-key"] || "",
+    },
+  });
+  const auditDeniedResponse = {};
+  await auditReadonly.service.requestHandler(
+    { method: "POST", url: "/api/access-keys/workspace", headers: { "x-hermes-web-key": "audit-key" } },
+    auditDeniedResponse,
+  );
+  assert.equal(auditDeniedResponse.sent.status, 403);
+  assert.equal(auditDeniedResponse.sent.data.error, "audit_readonly_key_write_denied");
+  assert.equal(auditDeniedResponse.dispatched, undefined);
+
+  const auditReadResponse = {};
+  await auditReadonly.service.requestHandler(
+    { method: "GET", url: "/api/hermes-plugins/music/manifest", headers: { "x-hermes-web-key": "audit-key" } },
+    auditReadResponse,
+  );
+  assert.equal(auditReadResponse.dispatched, true);
+
   const shutdownFixture = createService();
   let aborted = false;
   shutdownFixture.activeStreams.set("run_1", { controller: { abort: () => { aborted = true; } } });

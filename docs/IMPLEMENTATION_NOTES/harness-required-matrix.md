@@ -517,6 +517,7 @@ Primary docs:
 
 - `docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md`
 - `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
+- `docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md`
 - `docs/IMPLEMENTATION_NOTES/plugin-workspace-contract-rollout-plan.md`
 - `docs/RUNBOOKS/macos-production-access.md`
 - `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`
@@ -1966,12 +1967,13 @@ Required contract dimensions:
   normalize Finance's compact manifest shape: string `entry`, top-level
   `launch`, top-level `toolsets`, `mcpServer`, `permissions`, and `embedding`
     event names. Harness coverage must assert Owner default visibility, non-Owner
-    denial without explicit authorization, Owner-only fallback to the configured
-  `HERMES_WEB_AUTH_KEY_PATH` when no Finance-specific key path exists, Finance
-  launch body fields `workspace_id`, `workspace_key`, and `role`, optional
-  `user_key` only when a separate workspace-user key is present, no
-  `Authorization: Bearer <workspace-key>` header on Finance launch, no raw key
-  leakage in the normalized manifest, and route wiring for
+    denial without explicit authorization, Finance launch key resolution from
+  Finance-specific env paths or the workspace-local `.hermes-finance` key only
+  (never `HERMES_WEB_AUTH_KEY_PATH`), Finance launch body fields `workspace_id`,
+  `workspace_key`, and `role`, optional `user_key` only when a separate
+  workspace-user key is present, no `Authorization: Bearer <workspace-key>`
+  header on Finance launch, no raw key leakage in the normalized manifest, and
+  route wiring for
   `finance.plugin.navigation`,
   `finance.plugin.back_result`, and `finance.plugin.refresh_required`. Finance
   launch-auth regression coverage must prove `tokenStatus=launch_token_issued`,
@@ -2175,6 +2177,11 @@ Required contract dimensions:
   browser-window handoff, iframe state preservation across tab switches, and
   installed-PWA smoke. Hermes Mobile cannot prove plugin-owned route behavior
   by testing only the host shell.
+- Host and plugin UI must not use browser-native `alert`, `confirm`, `prompt`,
+  or ordinary `beforeunload` page prompts. Use in-app dialogs, sheets, toasts,
+  forms, or status rows, and run `node tests/no-browser-native-dialogs.test.js`
+  for host static UI or platform-contract changes. Plugin-owned standalone UI
+  must carry equivalent local coverage before release.
 - The native Wardrobe MCP dashboard fallback is retired. Reintroducing it, or
   adding another local fallback dashboard, is a new H2/H1 design decision and
   requires explicit product approval plus route/service/frontend harness

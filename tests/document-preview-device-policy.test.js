@@ -137,9 +137,25 @@ function wordLink() {
   };
 }
 
+function presentationLink() {
+  return {
+    href: "http://127.0.0.1:8797/file-viewer.html?src=%2Fapi%2Ffiles%3FartifactId%3Dartifact_pptx&name=deck.pptx&mime=application%2Fvnd.openxmlformats-officedocument.presentationml.presentation",
+    dataset: {
+      artifactName: "deck.pptx",
+      artifactMime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      artifactSize: "4096",
+    },
+    getAttribute(name) {
+      return name === "href" ? this.href : "";
+    },
+  };
+}
+
 {
   const { context } = createHarness({ width: 390, height: 844, coarsePointer: true });
   assert.equal(context.TaskDocumentPreviewUi.shouldUseWideNativeDocumentPreview(pdfLink()), false);
+  assert.equal(context.TaskDocumentPreviewUi.shouldUseWideNativeDocumentPreview(wordLink()), false);
+  assert.equal(context.TaskDocumentPreviewUi.shouldUseWideNativeDocumentPreview(presentationLink()), false);
 }
 
 {
@@ -149,12 +165,17 @@ function wordLink() {
   assert.equal(context.TaskDocumentPreviewUi.documentNativeUrlFromLink(link), "/api/files?artifactId=artifact_pdf");
   assert.equal(context.TaskDocumentPreviewUi.openDocumentPreviewOverlay(link), true);
   assert.deepEqual(assigned, ["/api/files?artifactId=artifact_pdf"]);
-  assert.equal(context.TaskDocumentPreviewUi.shouldUseWideNativeDocumentPreview(wordLink()), false);
+  assert.equal(context.TaskDocumentPreviewUi.shouldUseWideNativeDocumentPreview(wordLink()), true);
+  assert.equal(context.TaskDocumentPreviewUi.documentNativeUrlFromLink(wordLink()), "/api/files?artifactId=artifact_docx");
+  assert.equal(context.TaskDocumentPreviewUi.shouldUseWideNativeDocumentPreview(presentationLink()), true);
+  assert.equal(context.TaskDocumentPreviewUi.documentNativeUrlFromLink(presentationLink()), "/api/files?artifactId=artifact_pptx");
 }
 
 {
   const { context } = createHarness({ width: 1366, height: 1024, coarsePointer: false });
   assert.equal(context.TaskDocumentPreviewUi.shouldUseWideNativeDocumentPreview(pdfLink()), true);
+  assert.equal(context.TaskDocumentPreviewUi.shouldUseWideNativeDocumentPreview(wordLink()), true);
+  assert.equal(context.TaskDocumentPreviewUi.shouldUseWideNativeDocumentPreview(presentationLink()), true);
   assert.equal(context.TaskDocumentPreviewUi.shouldUseWideNativeDocumentPreview(textLink()), false);
 }
 

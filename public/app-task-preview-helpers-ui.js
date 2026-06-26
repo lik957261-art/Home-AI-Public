@@ -108,7 +108,7 @@
 
   async function fetchPreviewBlob(url) {
     const sourceUrl = previewShareUrl(url);
-    if (!sourceUrl) throw new Error("没有可保存的图片地址");
+    if (!sourceUrl) throw new Error("没有可打开的文件地址");
     const headers = {};
     const key = global.localStorage?.getItem("hermesWebKey") || "";
     if (key) headers["X-Hermes-Web-Key"] = key;

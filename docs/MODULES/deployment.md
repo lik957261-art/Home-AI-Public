@@ -156,6 +156,13 @@ Backup rsync uses a narrower exclude list for local tooling metadata such as
 `.git`, `.codex`, `.codegraph`, and `.agent-context`; it must not omit
 production-owned plugin `data/`, `runtime/`, or `.venv/` directories from the
 pre-deploy backup.
+Mac deploy backups are rollback points, not an accumulating archive. The
+central deploy script applies one retention rule to Home AI and every plugin:
+under `/Users/example/path`, each target keeps only
+the most recent three UTC calendar days, and each target/day keeps only the
+latest backup. The backup created by the current deployment is always kept.
+Older backups that must survive this pruning belong in an explicit archive
+outside `backups/deploy`.
 Codex Mobile Web is a special plugin target because its LaunchDaemon runs as
 `xuxin` while most production roots are owned by `hermes-host`. The central
 deploy script now includes a Codex-only post-sync repair that keeps the service
@@ -353,7 +360,8 @@ service root.
   app shell by default and passes it as `--expected-version` to every checked
   `production-status-smoke.js` invocation. Operators may pass
   `--expected-version <version>` only for an explicitly reviewed app path.
-  It composes the checked status, profile audit, ACL, native MCP schema,
+  It composes the checked status, profile audit, ACL, native MCP/schema smoke
+  for profile-local document/file tools and plugin MCP schema,
   plugin delivery-directory, all-workspace directory-bound topic previews,
   Wardrobe binding/proxy content, DeepSeek user/maintenance, Weixin heartbeat,
   Owner/OpenAI concurrent product-route, and final-status smokes. Passing output must have top-level
@@ -442,6 +450,7 @@ The current isolated production deployment runs these launchd labels:
 - `com.hermesmobile.plugin.note`
 - `com.hermesmobile.plugin.growth`
 - `com.hermesmobile.plugin.moira`
+- `com.hermesmobile.plugin.movie`
 - `com.hermesmobile.plugin.music`
 - `com.hermesmobile.plugin.codex-mobile`
 
@@ -452,8 +461,8 @@ full Home AI deploy installs or refreshes
 `/Users/example/path` exists as the
 canonical Hermes CRON store, installs runtime no-agent scripts such as
 `/Users/example/path`
-and the `homeai-visual-polish-*.sh` scheduled visual-audit wrappers from the
-deployed app source, starts the dispatcher every 60 seconds with
+and the `homeai-visual-polish-*.sh` visual-audit wrappers from the deployed app
+source, starts the dispatcher every 60 seconds with
 `scripts/hermes-mobile-cron-dispatcher.py --dispatch`, sets
 `HERMES_CRON_SCRIPT_TIMEOUT=1800` for long-running `no_agent` scripts, restarts
 `system/com.hermesmobile.workspace-system-helper` so privileged onboarding
@@ -466,10 +475,12 @@ shared iOS PWA visual harness, and send failures as Codex Mobile task cards;
 they do not launch Codex CLI directly.
 The deploy path also materializes the dedicated `hm-owner-openai-xhigh` CRON
 profile from the Owner OpenAI profile with `gpt-5.5` and
-`agent.reasoning_effort: xhigh`, then installs the agent-backed
-`homeai_visual_analysis_xhigh` Automation job. This keeps high-reasoning visual
-triage inside Home AI Automation while leaving visual evidence capture jobs as
-bounded `no_agent` scripts.
+`agent.reasoning_effort: xhigh`. Visual verification Automation jobs are not
+installed by default; the deploy script removes existing `homeai_visual_*`
+jobs unless `HOMEAI_INSTALL_VISUAL_POLISH_CRON_JOBS=1` is set for an explicit
+opt-in deployment. This keeps visual evidence capture and high-reasoning triage
+available as a manual/opt-in controller path without reintroducing scheduled
+verification jobs during ordinary deploys.
 The same deploy path installs the desktop-user LaunchAgent
 `com.hermesmobile.visual-debug`, which keeps
 `scripts/ios-pwa-live-debug-server.js` available on `127.0.0.1:19073` for those
@@ -483,16 +494,38 @@ verify the deployed `public/index.html` client version so stale Safari/PWA
 pages do not produce false Dock/layout failures.
 After Automation cron provisioning, dispatch changes, or repeated background
 job failures, run `scripts/macos-automation-cron-audit.js` on Mac production
-with the pinned runtime and bounded JSON output. The audit is part of the
-production self-diagnostic baseline and must not print raw keys, prompts,
-full job bodies, or private task output.
+with the pinned runtime and bounded JSON output. Production deploy and closure
+paths use `--strict-config --strict-source --strict-status`, so unreadable CRON
+job/Skill stores and enabled jobs whose latest status is `error`, `failed`, or
+`failure` are blockers instead of empty successful audits. Deploy-time
+validation also passes `--status-since <deploy-start-iso>` so a hotfix is blocked
+by CRON failures created during or after that deploy, not by older already-known
+job failures from before the deploy. Full closure and standalone cron audits may
+omit `--status-since` to report all historical enabled-job failures. The audit
+is part of the production self-diagnostic baseline and must not print raw keys,
+prompts, full job bodies, or private task output.
+Run `scripts/macos-automation-cron-launchd-smoke.js` when validating the
+scheduled path itself. It checks the installed `com.hermesmobile.cron`
+LaunchDaemon uses the expected dispatcher, `PYTHONPATH`, CRON store/output
+paths, long-script timeout, backup transport environment, and data-side
+`homeai-disaster-backup-cron.sh` copy. This is the checked evidence for the
+3:30 scheduled path; a foreground `--run-job` is not sufficient by itself.
 
 The central deploy script can plan or execute all known plugin service roots
 with `npm run --silent deploy:macos -- --plugin all --json`. The all-plugin
 target expands to Codex Mobile Web, Email, Finance, Growth, Healthy/Health,
-Moira, Note, and Wardrobe, with one restart label and one loopback manifest
-smoke per plugin. The user-facing `health` alias resolves to the historical
-`healthy` source and production directory.
+Moira, Movie, Music, Note, and Wardrobe, with one restart label and one
+loopback manifest smoke per plugin. The user-facing `health` alias resolves to
+the historical `healthy` source and production directory.
+
+Movie is an Owner-only embedded app plugin under the same central deployment
+contract. Its standard source is `/Users/example/path`,
+its production target is `/Users/example/path`, its
+LaunchDaemon label is `com.hermesmobile.plugin.movie`, and its loopback
+manifest smoke is
+`http://127.0.0.1:4195/api/v1/hermes/plugin/manifest`. Movie deployments must
+exclude `data/` and prove `public/index.html`; Home AI must not copy Movie
+device, NAS, or projector credentials into host source or docs.
 
 Public setup source locations are declared in
 `config/public-plugin-sources.json`. The manifest maps the public Home AI repo
@@ -607,16 +640,36 @@ from `/Users/example/path`, binds to
 The initial production scope is Owner-only; additional workspace access requires
 an explicit Moira workspace key/binding.
 
+Movie first install uses `scripts/install-movie-launchd-service.js` from the
+Home AI app workspace after a central `--plugin movie --sync-only` source copy.
+The script generates `com.hermesmobile.plugin.movie`, runs the plugin service
+from `/Users/example/path`, binds to
+`127.0.0.1:4195`, runs `src/server.js`, and points `MOVIE_DATA_DIR` at
+`/Users/example/path`. It does not create,
+store, or print Movie device, NAS, or projector credentials. The installer
+preflights port `4195` and fails if that port is held by a non-production
+process such as a development Movie server, because otherwise Home AI and the
+deploy script could read a healthy manifest from the wrong service.
+
 Music first install uses `scripts/install-music-launchd-service.js` from the
 Home AI app workspace after a central `--plugin music --sync-only` source copy.
 The script generates `com.hermesmobile.plugin.music`, runs the plugin service
 from `/Users/example/path`, binds to
-`127.0.0.1:4891`, and stores Roon/listening runtime state under the plugin
-`runtime/` directory. Music is an Owner-only special plugin, like Codex Mobile
-Web; it is not grantable to non-Owner workspaces. The installer preflights
-port `4891` and fails if that port is held by a non-production process such as
-a developer Vite server, because otherwise launchd would repeatedly restart the
-production Music service while health checks could hit the wrong process.
+`127.0.0.1:4891`, starts the Roon-first service entry
+`src/roon-first-server.js`, and stores Roon/listening runtime state under the
+plugin `runtime/` directory. The legacy implementation remains available in
+the plugin source as `src/server.js` / `npm run service:legacy`, but production
+registration and the existing Home AI Music port belong to the Roon-first
+service. Music is an Owner-only special plugin, like Codex Mobile Web; it is not
+grantable to non-Owner workspaces. The installer preflights port `4891` and
+allows replacement of an existing production-owned legacy Music process during
+bootstrap, but still fails if that port is held by a non-production process such
+as a developer Vite server, because otherwise launchd would repeatedly restart
+the production Music service while health checks could hit the wrong process.
+The Music plist includes bounded runtime paths for Roon state, listening
+ledger, local audio staging, and the private SMB direct config file. Private
+audio path remaps are injected through `MUSIC_AUDIO_PATH_REMAPS` or
+`--audio-path-remaps`; they must not be committed to Home AI source or docs.
 Music Gateway MCP cover-management writes also use plugin-owned runtime
 directories. The central macOS deploy script repairs the Owner-only ACL for
 `hm-owner` after a Music deploy by creating and granting access to
@@ -680,29 +733,38 @@ Mac production also explicitly sets
 window for Mac cold-start validation: a cold worker can become healthy after
 the default window, which otherwise creates a user-visible failed task while
 the worker becomes reusable moments later.
+The production status smoke must also fail when `/api/status?detail=1` reports
+`gatewayWorkerPolicyContract.ok=false`. This contract compares saved
+`runtime-config.json` worker overrides, Owner-visible runtime projection, and
+the actual listener/profile-launcher elastic environment. A mismatch such as
+`launcher_worker_env_mismatch:HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM` means a
+saved warm-worker policy will not be honored by the launchd/prestart layer, so
+deploy/readback is not closed even if the Gateway pool later reports healthy.
 
-Home AI plugin workspace audit creation also depends on listener launchd
-environment. The central Mac deploy script sets
-`HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS` and
-`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS` to a JSON target map under
-`<macRoot>/plugins`. The map is configuration only: the runtime still validates
-plugin registry visibility, absolute existing directories, read-only mode, and
-protected-path rejection before creating a `plugin_workspace_audit` job.
-Local Codex CLI review is disabled by default for Mac production deployments.
-The deploy script writes `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=0`
-and leaves `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME` empty, so the
-`hermes-host` CRON service does not create a second Codex profile/mux context.
-Model-backed follow-up should use Codex Mobile cross-thread task cards. The
-deploy script sets
-`HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` /
-`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` to
-`<macRoot>/data/plugin-workspace-audit-task-cards.json`; that production data
-file may map a source thread and plugin-specific target threads, for example a
-Music audit target, without committing private thread ids to source.
-`scripts/production-self-diagnostics.js` includes
-`scripts/plugin-workspace-audit-runner.js` as a maintained diagnostic item, so
-production review can confirm the runner and source harness are present before
-relying on scheduled audit cards.
+Home AI plugin workspace audit requests depend on listener launchd environment.
+The central Mac deploy script sets `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS`
+and `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS` to a JSON target map under
+`<macRoot>/plugins`, plus the special `home-ai` target mapped to
+`<macRoot>/app`. The map is configuration only: the runtime validates the
+controlled target id, absolute existing directories, read-only mode, and
+protected-path rejection before sending an audit request card. Plugin targets
+also validate plugin registry visibility.
+
+Home AI must not store Codex audit thread ids in deployment config. The
+request-card path dynamically discovers the current Home AI source thread and
+central audit thread through Codex Mobile's thread API, then sends exactly one
+card to `Plugin Workspace Audit` for plugin audits or `Home AI Platform Audit`
+for the `home-ai` host audit target. The audit thread owns workspace fan-out,
+implementation return-card tracking, closure verification, and final return to
+Home AI.
+
+Local Codex CLI review and the legacy `plugin_workspace_audit` runner are not
+the maintained Product Reality audit path for Mac production. If retained for
+diagnostics, they must stay disabled by default, read-only, bounded, and clearly
+labeled as local diagnostic tooling rather than the canonical audit workflow.
+`scripts/production-self-diagnostics.js` may still confirm diagnostic harnesses
+exist, but production audit closure relies on Codex Mobile task-card delivery to
+the central audit thread.
 It also includes `scripts/macos-first-start-preflight.js`, making the fresh
 install/recovery readiness gate visible in the same production diagnostic
 inventory used for deployment closure.
@@ -809,18 +871,25 @@ post-install chmod/chown fixes when workers fail with unreadable manifest or
 key files.
 
 Mac Gateway start scripts must also inject the live file-plugin roots for every
-profile-local file tool. `docx_extract_text`, `audio_transcribe`,
-`chatgpt_image_edit`, `chatgpt_image_erase`, `video_gen`, and scoped
+profile-local file tool. `docx_extract_text`, `office_extract_text`,
+`pdf_extract_text`, `pdf_render_pages`, `audio_transcribe`,
+`archive_list`, `archive_extract_safe`, `chatgpt_image_edit`,
+`chatgpt_image_erase`, `video_gen`, and scoped
 `http_request` file upload helpers do not consume the per-run
 `access_policy_context.allowed_roots` directly; they read environment variables
 such as `HERMES_MOBILE_DOCX_ALLOWED_ROOTS`,
-`HERMES_MOBILE_AUDIO_ALLOWED_ROOTS`, `HERMES_MOBILE_IMAGE_ALLOWED_ROOTS`,
-`HERMES_MOBILE_VIDEO_ALLOWED_ROOTS`, and `HERMES_MOBILE_HTTP_FILE_ROOTS`.
+`HERMES_MOBILE_PDF_ALLOWED_ROOTS`, `HERMES_MOBILE_PDF_OUTPUT_ROOTS`,
+`HERMES_MOBILE_AUDIO_ALLOWED_ROOTS`,
+`HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS`,
+`HERMES_MOBILE_IMAGE_ALLOWED_ROOTS`, `HERMES_MOBILE_VIDEO_ALLOWED_ROOTS`, and
+`HERMES_MOBILE_HTTP_FILE_ROOTS`.
 Those variables must point at the Mac live `data/drive`, `data/uploads`, and
 `data/artifacts` roots, using comma, semicolon, or newline separators rather
-than PATH-style colon separators. Otherwise Markdown reads and image analysis can work
-while DOCX extraction fails with `file_path_outside_allowed_roots`, because the
-DOCX plugin has fallen back to the Windows/WSL default roots. The profile audit
+than PATH-style colon separators. Otherwise Markdown reads and image analysis
+can work while DOCX, PDF, Office, audio, archive, or upload tools silently
+disappear from the real callable schema or fail with
+`file_path_outside_allowed_roots` because a plugin fell back to Windows/WSL
+default roots. The profile audit
 reports this as `file_plugin_root_env_missing:<profile>:<env>` or
 `file_plugin_root_missing:<profile>:<env>:<root>`. Colon-separated live roots
 are reported as `file_plugin_root_list_delimiter_unsupported:<profile>`.
@@ -839,15 +908,23 @@ block production closure. The default Mac bridge-host URL is
 profile-local cron jobs.
 The audit also scans installed gateway LaunchDaemons outside the current
 manifest and reports `installed_gateway_launchd_untracked:<label>`,
+`installed_gateway_start_script_path_mismatch:<label>`,
 `installed_gateway_start_script_root_mismatch:<label>`, and
 `installed_gateway_mobile_bridge_env_missing:<label>:<env>` when stale
-workspace services still point at a development root or lack bridge env.
+workspace services still point at the wrong worker start script, a development
+root, or lack bridge env.
 Full Home AI Mac deploys run
 `scripts/macos-gateway-start-script-bridge-env-repair.js --execute` after the
 app sync and before service restart. That repair is idempotent and patches
-installed gateway start scripts that compute the bridge URL/key path but forgot
-to pass `HERMES_MOBILE_BRIDGE_HOST_*` and `HERMES_WEB_BRIDGE_HOST_*` through the
-final `exec env`.
+installed gateway start scripts, plus profile/workspace start scripts under
+`/Users/*/HermesWorkspace/.hermes-gateway/start-*.sh`, that are missing
+file-plugin roots for DOCX, PDF, archive, audio, image, video, and scoped HTTP
+helpers. It also corrects legacy
+`HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="$ROOT/data/secrets"` start scripts to the
+current `"$ROOT/data/drive/users"` contract, and patches scripts that compute
+the bridge URL/key path but forgot to pass
+`HERMES_MOBILE_BRIDGE_HOST_*` and `HERMES_WEB_BRIDGE_HOST_*` through the final
+`exec env`.
 After repairing those env roots, run the live DOCX smoke as a second gate:
 `sudo /Users/example/path /Users/example/path --root /Users/example/path --profiles hm-wuping-openai-1 --json`.
 The smoke generates a temporary DOCX under the live uploads root and imports the
@@ -1533,6 +1610,12 @@ confirms that the wrong-header probe using `X-Hermes-Access-Key` is rejected.
 Its JSON output includes only bounded metadata, including the non-secret
 `authHeader` and `wrongAuthHeader` names, so a reviewer can see which transport
 header was actually exercised without exposing key material.
+It does not by itself prove Gateway callable schema health. Document/file
+cleaning closure must also run `gateway-tool-schema-smoke.js` or the aggregate
+`macos-production-closure-validation.js` and verify `docx_extract_text`,
+`office_extract_text`, `pdf_extract_text`, `pdf_render_pages`,
+`audio_transcribe`, `archive_list`, and `archive_extract_safe` in the selected
+production profile schema.
 Do not replace it with a one-off inline Node/Python status script unless the
 new script is added to source and covered by a harness.
 - Mac production profile audit after deployment or profile repair:

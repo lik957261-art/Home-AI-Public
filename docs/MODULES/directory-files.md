@@ -211,6 +211,12 @@ Current frontend projection:
 - Static v643 keeps Directory loading/empty status cards theme-bound during
   navigation refreshes, so dark-mode parent-directory returns do not flash a
   hard-coded pale status surface.
+- Static v933 groups child directory topic collections under their configured
+  root directory in the topic root. For example, `Fanfan / Study Plan`,
+  `Fanfan / Health`, and `Fanfan / Python` remain distinct route-bound topic
+  collections internally, but render as one `Fanfan` parent row with
+  subdirectory sections. This is a frontend projection only; it does not merge
+  directory route keys, ACLs, context selection, or topic-open targets.
 - Until a service-owned explicit default topic exists, the card opens the most
   recently updated topic in that directory as the temporary default.
 - Changing persistence, context assembly, or workspace binding resolution must
@@ -258,16 +264,34 @@ instructions.
   bytes (`Uint8Array` data passed to PDF.js), not by handing PDF.js a secondary
   `blob:` URL fetch with credentials. This keeps PDF preview aligned with the
   same-origin ACL/download path used by the other viewers.
-- PDF task and directory preview links are device-shape aware at the
-  shared `public/app-task-preview-ui.js` entrypoint. Coarse-pointer phone
-  widths up to `540px` keep the embedded Hermes preview overlay. Wide
-  tablet/foldable/desktop widths (`>=768px`, or coarse-pointer `>=720px` with
-  enough height) open the resolved original same-origin file URL in the same
-  window so the platform can use a native PDF preview. Word/DOCX remains inside
-  the Home AI `file-viewer.html` preview path on all viewport sizes because
-  mobile browsers commonly treat raw DOCX URLs as downloads rather than inline
-  previews.
+- PDF, Word/DOCX, and PowerPoint/PPTX task and directory preview links are
+  device-shape aware at the shared `public/app-task-preview-ui.js` entrypoint.
+  Coarse-pointer phone widths up to `540px` keep the embedded Hermes preview
+  overlay. Wide tablet/foldable/desktop widths (`>=768px`, or coarse-pointer
+  `>=720px` with enough height) open the resolved original same-origin file URL
+  in the same window so the platform can use native/original document preview.
 - Image preview must expose a same-window `保存到相册` action in both the full `file-viewer.html` shell and the in-app image overlay. The action should prefer system file share with the image blob and fall back to same-window download/long-press guidance; it must not open a separate browser window.
+- PDF, Word/DOCX, and PowerPoint/PPTX mobile preview surfaces must expose a
+  single preview-mode switch rather than a separate external-open action. In
+  the mobile/adapted preview the switch is labelled `原始格式显示` and navigates to
+  the already-authorized original same-origin file URL. Wide screens default to
+  original format. This must not introduce a separate unauthenticated
+  native-file path or bypass the Directory/file ACL boundary.
+- DOCX mobile/adapted preview is produced by the central document preview
+  service as bounded Markdown structure extracted from the document XML. It
+  must preserve extracted tab stops, convert basic DOCX tables into Markdown
+  tables for the mobile table/card renderer, and show the content on a light
+  Office-style paper canvas so dark app themes do not make black document text
+  unreadable. Full Word layout fidelity, including complex table geometry,
+  remains the responsibility of the original/native preview path reached
+  through `原始格式显示`.
+- ZIP archive handling for low-permission Gateway runs is provided by the
+  profile-local `hermes-mobile-archive` file plugin. `archive_list` may list
+  in-scope ZIP entries and `archive_extract_safe` may extract only inside the
+  current allowed roots. It must fail closed on path traversal, absolute paths,
+  symlinks, encrypted entries, unsupported compression methods, overwrite
+  attempts, and configured size/count limits. This is not shell, terminal,
+  package-manager access, or a bypass around the Directory/file ACL boundary.
 - Automation deliverables must be verified as outputs of the requested automation job or its authorized delivery path.
 - Group-chat artifacts are visible to a member only when the artifact is attached to a visible group-chat message in a group the member belongs to.
 
@@ -280,6 +304,8 @@ instructions.
   `pdf-viewer.html`; the harness must verify at least one rendered PDF canvas,
   not only that the iframe/viewer shell opened.
 - Run focused directory/share/file-artifact tests when touching these route modules.
+- Run `node tests\hermes-mobile-archive-plugin.test.js` when changing the
+  profile-local archive file tool.
 - Run `node tests\thread-read-upload-api-routes.test.js` and
   `node tests\server-file-attachment-ui.test.js` when changing Composer
   server-file attachment behavior.

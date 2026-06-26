@@ -9,6 +9,22 @@ function defaultCompactText(value, maxChars) {
   return text.slice(0, limit);
 }
 
+function httpLinksFromText(value) {
+  const text = String(value || "");
+  const links = [];
+  const seen = new Set();
+  const pattern = /https?:\/\/[^\s<>"'`]+/gi;
+  for (const match of text.matchAll(pattern)) {
+    const link = String(match[0] || "")
+      .replace(/[)\]}.,;:!?，。；：！？、]+$/u, "")
+      .trim();
+    if (!link || seen.has(link)) continue;
+    seen.add(link);
+    links.push(link);
+  }
+  return links;
+}
+
 function createConversationHistoryService(options = {}) {
   const policyHasToolset = typeof options.policyHasToolset === "function"
     ? options.policyHasToolset
@@ -30,7 +46,7 @@ function createConversationHistoryService(options = {}) {
     if (!content.trim()) return false;
     return (
       /not available|unavailable|missing|no callable|no\s+.*tool|cannot call|can't call|unable to call|not exposed/i.test(content)
-      || /\u6ca1\u6709|\u4ecd\u6ca1\u6709|\u672a\u770b\u5230|\u770b\u4e0d\u5230|\u672a\u6302\u8f7d|\u6ca1\u6302\u8f7d|\u7f3a\u5c11|\u4e0d\u53ef\u7528|\u65e0\u6cd5\u8c03\u7528|\u4e0d\u80fd\u8c03\u7528|\u4e0d\u80fd\u6267\u884c/.test(content)
+      || /\u6ca1\u6709|\u4ecd\u6ca1\u6709|\u672a\u770b\u5230|\u770b\u4e0d\u5230|\u672a\u6302\u8f7d|\u6ca1\u6302\u8f7d|\u7f3a\u5c11|\u4e0d\u53ef\u7528|\u65e0\u6cd5\u8c03\u7528|\u4e0d\u80fd\u8c03\u7528|\u4e0d\u80fd\u6267\u884c|\u65e0\u6cd5\u5904\u7406|\u4e0d\u80fd\u5904\u7406|\u5fc5\u987b\u5bfc\u51fa|\u9700\u8981\u5bfc\u51fa/.test(content)
     );
   }
 
@@ -58,11 +74,35 @@ function createConversationHistoryService(options = {}) {
     return isToolUnavailableClaimText(content);
   }
 
+  function isStaleOfficeToolAvailabilityClaim(text) {
+    const content = String(text || "");
+    if (!content.trim()) return false;
+    const mentionsOfficeTool = /office_extract_text|PPTX|PPTM|PowerPoint|presentation\s*(?:tool|function|parser|extract|document)|XLSX|XLSM|Excel|spreadsheet\s*(?:tool|function|parser|extract|document)|\u5e7b\u706f\u7247|\u6f14\u793a\u6587\u7a3f|\u8868\u683c|\u7535\u5b50\u8868\u683c|\u89e3\u6790\s*(?:PPT|PPTX|Excel|XLSX)/i.test(content);
+    if (!mentionsOfficeTool) return false;
+    return isToolUnavailableClaimText(content);
+  }
+
+  function isStalePdfToolAvailabilityClaim(text) {
+    const content = String(text || "");
+    if (!content.trim()) return false;
+    const mentionsPdfTool = /pdf_extract_text|pdf_render_pages|\bPDF\b|PDF\s*(?:tool|function|parser|extract|render|OCR|container)|application\/pdf|scanned\s*PDF|image\s*PDF|PDF\s*\u5bb9\u5668|PDF\s*\u89e3\u6790|PDF\s*\u63d0\u53d6|PDF\s*\u6e32\u67d3|PDF\s*\u8f6c\s*(?:\u56fe\u7247|\u9875\u56fe)|\u626b\u63cf\s*PDF/i.test(content);
+    if (!mentionsPdfTool) return false;
+    return isToolUnavailableClaimText(content);
+  }
+
   function isStaleAudioToolAvailabilityClaim(text) {
     const content = String(text || "");
     if (!content.trim()) return false;
     const mentionsAudioTool = /audio_transcribe|audio\s*(?:tool|function|transcrib|transcription|ASR)|voice\s*(?:note|memo|recording)|Whisper|faster[-_ ]?whisper|speech[-_ ]?to[-_ ]?text|mp3|m4a|wav|aac|ogg|opus|amr|flac|video_analyze.*(?:mp3|audio)|(?:mp3|audio).*video_analyze|\u97f3\u9891|\u5f55\u97f3|\u8bed\u97f3|\u8f6c\u5199|\u542c\u5199|\u97f3\u9891\u8f6c\u6587\u5b57|\u590d\u8ff0\u5f55\u97f3/i.test(content);
     if (!mentionsAudioTool) return false;
+    return isToolUnavailableClaimText(content);
+  }
+
+  function isStaleArchiveToolAvailabilityClaim(text) {
+    const content = String(text || "");
+    if (!content.trim()) return false;
+    const mentionsArchiveTool = /archive_list|archive_extract_safe|zip\s*(?:tool|function|extract|extraction|unzip|archive)|unzip|zipfile|compressed\s*(?:archive|file)|archive\s*(?:tool|function)|\u89e3\u538b|\u538b\u7f29\u5305|\u538b\u7f29\u6587\u4ef6|\u89e3\u5305\s*(?:zip|ZIP)|ZIP\s*\u6587\u4ef6|zip\s*\u89e3\u538b/i.test(content);
+    if (!mentionsArchiveTool) return false;
     return isToolUnavailableClaimText(content);
   }
 
@@ -91,13 +131,56 @@ function createConversationHistoryService(options = {}) {
         "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
         "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `docx_extract_text`, DOCX extraction, or Word parser availability.",
       ].join(" ");
+    } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStaleOfficeToolAvailabilityClaim(content)) {
+      content = [
+        "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
+        "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `office_extract_text`, PowerPoint extraction, Excel extraction, or Office parser availability.",
+      ].join(" ");
+    } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStalePdfToolAvailabilityClaim(content)) {
+      content = [
+        "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
+        "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `pdf_extract_text`, `pdf_render_pages`, PDF extraction, PDF rendering, or PDF OCR availability.",
+      ].join(" ");
     } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStaleAudioToolAvailabilityClaim(content)) {
       content = [
         "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
         "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `audio_transcribe`, MP3/audio transcription, or video_analyze-as-audio-workaround availability.",
       ].join(" ");
+    } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStaleArchiveToolAvailabilityClaim(content)) {
+      content = [
+        "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
+        "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `archive_list`, `archive_extract_safe`, ZIP listing, or ZIP extraction availability.",
+      ].join(" ");
     }
     return content;
+  }
+
+  function preserveHttpLinksInCompactedUserContent(originalContent, compactedContent, maxChars) {
+    const limit = Math.max(1, Number(maxChars || maxApiTextChars) || maxApiTextChars);
+    const compacted = String(compactedContent || "");
+    const missingLinks = httpLinksFromText(originalContent)
+      .filter((link) => !compacted.includes(link));
+    if (!missingLinks.length) return compacted;
+    const marker = "[Full HTTP links preserved from omitted user message]\n";
+    const preserved = [];
+    let used = marker.length + 2;
+    for (const link of missingLinks) {
+      if (link.length + marker.length + 1 > limit) continue;
+      const separator = preserved.length ? 1 : 0;
+      if (used + link.length + separator > limit) break;
+      preserved.push(link);
+      used += link.length + separator;
+    }
+    if (!preserved.length) return compacted;
+    const prefix = `${marker}${preserved.join("\n")}\n\n`;
+    const remaining = Math.max(0, limit - prefix.length);
+    return `${prefix}${remaining ? compacted.slice(-remaining) : ""}`;
+  }
+
+  function compactHistoryMessageContent(msg, originalContent, candidateContent, maxChars) {
+    const compacted = compactText(candidateContent, maxChars);
+    if (msg?.role !== "user") return compacted;
+    return preserveHttpLinksInCompactedUserContent(originalContent, compacted, maxChars);
   }
 
   function compactConversationHistory(messages, maxMessages, maxChars, policy = {}) {
@@ -112,6 +195,7 @@ function createConversationHistoryService(options = {}) {
       if (msg.role === "user" && msg.senderLabel) {
         content = `${msg.senderLabel}: ${content}`;
       }
+      const originalContent = content;
       if (content.length > remainingChars) {
         const marker = "[Earlier chat content omitted]\n";
         const allowed = Math.max(0, remainingChars - marker.length);
@@ -119,7 +203,7 @@ function createConversationHistoryService(options = {}) {
       }
       result.push({
         role: msg.role,
-        content: compactText(content, Math.min(maxApiTextChars, chatContextMaxChars)),
+        content: compactHistoryMessageContent(msg, originalContent, content, Math.min(maxApiTextChars, chatContextMaxChars)),
       });
       remainingChars -= content.length;
     }
@@ -139,10 +223,13 @@ function createConversationHistoryService(options = {}) {
     if (thread?.singleWindow && isSingleWindowConversationTaskGroupId(latest?.taskGroupId)) {
       return compactConversationHistory(messages, chatContextMaxMessages, chatContextMaxChars, policy);
     }
-    return messages.slice(-maxHistoryMessages).map((msg) => ({
-      role: msg.role,
-      content: compactText(conversationHistoryContentForMessage(msg, policy), maxApiTextChars),
-    }));
+    return messages.slice(-maxHistoryMessages).map((msg) => {
+      const content = conversationHistoryContentForMessage(msg, policy);
+      return {
+        role: msg.role,
+        content: compactHistoryMessageContent(msg, content, content, maxApiTextChars),
+      };
+    });
   }
 
   const contextAssemblyService = createContextAssemblyService({
@@ -171,12 +258,16 @@ function createConversationHistoryService(options = {}) {
     isStaleHttpToolAvailabilityClaim,
     isStaleImageToolAvailabilityClaim,
     isStaleDocxToolAvailabilityClaim,
+    isStaleOfficeToolAvailabilityClaim,
+    isStalePdfToolAvailabilityClaim,
     isStaleAudioToolAvailabilityClaim,
+    isStaleArchiveToolAvailabilityClaim,
     stripDirectoryAliasLinesForChatHistory,
     conversationHistoryContentForMessage,
     compactConversationHistory,
     legacyBuildConversationHistory,
     buildConversationHistory,
+    httpLinksFromText,
     contextAssemblyDebug: contextAssemblyService.lastAssemblyDebug,
     deriveTitle,
   });

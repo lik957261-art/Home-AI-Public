@@ -10,6 +10,7 @@ const runnerPath = path.join(repoRoot, "scripts", "visual-polish-audit-runner.js
 const runnerText = fs.readFileSync(runnerPath, "utf8");
 const cronScriptText = fs.readFileSync(path.join(repoRoot, "scripts", "homeai-visual-polish-audit-cron.sh"), "utf8");
 const deployScriptText = fs.readFileSync(path.join(repoRoot, "scripts", "deploy-macos-production.js"), "utf8");
+const currentClientVersion = (fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8").match(/data-client-version="([^"]+)"/) || [])[1] || "";
 const implementationNote = fs.readFileSync(
   path.join(repoRoot, "docs", "IMPLEMENTATION_NOTES", "visual-polish-controller.md"),
   "utf8",
@@ -50,6 +51,7 @@ assert.match(cronScriptText, /visual-polish-task-cards\.json/);
 
 assert.match(deployScriptText, /installHomeAiVisualPolishCronJobs/);
 assert.match(deployScriptText, /home-ai-visual-polish-cron-jobs/);
+assert.match(deployScriptText, /HOMEAI_INSTALL_VISUAL_POLISH_CRON_JOBS/);
 assert.match(deployScriptText, /homeai-visual-polish-host\.sh/);
 assert.match(deployScriptText, /homeai-visual-polish-music\.sh/);
 assert.match(deployScriptText, /homeai-visual-polish-finance\.sh/);
@@ -90,7 +92,7 @@ try {
   const musicOptions = parseArgs(["--config-file", configFile, "--job-key", "music", "--run-id", "unit-run", "--output-root", tempRoot]);
   assert.equal(musicOptions.sourceThreadId, "source-home-ai-thread");
   assert.equal(musicOptions.appUrl, "http://127.0.0.1:8797/?source=pwa");
-  assert.equal(musicOptions.expectedClientVersion, "20260622-codex-recovery-v905");
+  assert.equal(musicOptions.expectedClientVersion, currentClientVersion);
   assert.equal(musicOptions.scope, "plugin");
   assert.deepEqual(musicOptions.pluginIds, ["music"]);
   assert.equal(musicOptions.targetThreads.music, "music-thread");
@@ -124,7 +126,7 @@ try {
   assert.match(appUrl, /^http:\/\/127\.0\.0\.1:8797\//);
   assert.match(appUrl, /resetClient=1/);
   assert.match(appUrl, /hard=1/);
-  assert.match(appUrl, /targetVersion=20260622-codex-recovery-v905/);
+  assert.match(appUrl, new RegExp(`targetVersion=${currentClientVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
   assert.ok(args.includes("--lock-file"));
   assert.ok(args.some((item) => item.includes("visual-polish-audit-runner-test-") && item.endsWith(".lock")));
 } finally {

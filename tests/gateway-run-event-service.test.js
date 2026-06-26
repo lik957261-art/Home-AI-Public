@@ -221,6 +221,33 @@ function testCompletedRunMutatesTerminalStateAndSchedulesQueue() {
   assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), true);
 }
 
+function testCompletedRunWithGatewayFailureTextFailsRun() {
+  const { calls, message, service, thread } = makeHarness();
+  message.content = "API call failed after 3 retries. Connection error.";
+
+  const result = service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: {
+      id: "public_run",
+      output: [{
+        type: "message",
+        content: [{ type: "output_text", text: "API call failed after 3 retries. Connection error." }],
+      }],
+    },
+  });
+
+  assert.equal(result.action, "failed");
+  assert.equal(message.status, "failed");
+  assert.match(message.error, /API call failed after 3 retries/);
+  assert.equal(message.completedAt || "", "");
+  assert.equal(message.failedAt, "2026-05-15T01:02:03.000Z");
+  assert.deepEqual(thread.activeRunIds, []);
+  assert.equal(thread.status, "failed");
+  assert.deepEqual(calls.enqueued, [{ threadId: "thread_1", messageId: "assistant_1", status: "failed" }]);
+  assert.equal(calls.broadcasts.some((payload) => payload.type === "run.failed"), true);
+}
+
 function testCompletedRunUpdatesTaskGroupReceiptMeta() {
   const { message, service, thread } = makeHarness();
   message.taskGroupId = "plugin:wardrobe";
@@ -1158,6 +1185,7 @@ testResponseCreatedAliasesRunAndBroadcasts();
 testDeltaUpdatesMessageAndThread();
 testStreamingDeltaSavesAreCoalesced();
 testCompletedRunMutatesTerminalStateAndSchedulesQueue();
+testCompletedRunWithGatewayFailureTextFailsRun();
 testCompletedRunUpdatesTaskGroupReceiptMeta();
 testCompletedRunRejectsFragmentTaskGroupReceiptMeta();
 testDuplicateCompletedEventDoesNotNotifyTwice();

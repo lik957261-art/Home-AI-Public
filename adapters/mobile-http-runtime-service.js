@@ -11,6 +11,7 @@ const DEFAULT_CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'self'",
   "frame-src 'self' https:",
   "img-src 'self' data: blob: https:",
+  "media-src 'self' data: blob:",
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
   "script-src 'self' 'unsafe-inline'",

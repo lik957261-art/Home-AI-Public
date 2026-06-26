@@ -336,7 +336,7 @@ async function sendMessage(event) {
         body.messageLimit = CHAT_MESSAGE_INITIAL_LIMIT;
       } else if (state.currentTaskGroupId) {
         body.taskGroupId = state.currentTaskGroupId;
-        body.messageLimit = TASK_MESSAGE_INITIAL_LIMIT;
+        body.messageLimit = typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30;
       }
       if (isGroupChatView()) body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
     }
@@ -355,7 +355,7 @@ async function sendMessage(event) {
       if (sharedTopicGroup) {
         body.singleWindowMode = "chat";
         body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
-        body.messageLimit = TASK_MESSAGE_INITIAL_LIMIT;
+        body.messageLimit = typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30;
       }
     }
     const reasoningEffort = selectedComposerReasoningEffort(text);
@@ -401,6 +401,7 @@ async function sendMessage(event) {
       routeSnapshot: sendRouteSnapshot,
     });
     if (typeof commitPendingVoiceInputFinalText === "function") commitPendingVoiceInputFinalText(text, body);
+    clearComposerAfterSuccessfulSend(originalText);
   } catch (err) {
     const clearedOptimisticSend = clearOptimisticSendMessages(optimisticSend, { render: true });
     if (
@@ -446,6 +447,7 @@ async function sendMessage(event) {
             routeSnapshot: sendRouteSnapshot,
           });
           if (typeof commitPendingVoiceInputFinalText === "function") commitPendingVoiceInputFinalText(elevatedBody.text || "", elevatedBody);
+          clearComposerAfterSuccessfulSend(elevatedBody.text || originalText);
           return;
         } catch (elevatedErr) {
           setComposerText(originalText);

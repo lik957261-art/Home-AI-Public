@@ -30,6 +30,86 @@ function directoryTopicRouteLabel(route) {
   return route?.label || route?.projectId || "";
 }
 
+function directoryTopicDisplayPathParts(label = "") {
+  return String(label || "").split(/\s*\/\s*/).map((part) => part.trim()).filter(Boolean);
+}
+
+function directoryTopicRouteRootProject(route = {}) {
+  const projectId = String(route?.projectId || route?.id || "").trim();
+  if (!projectId || typeof state === "undefined" || !Array.isArray(state.projects)) return null;
+  return state.projects.find((item) => String(item?.id || "") === projectId) || null;
+}
+
+function directoryTopicRouteRootInfo(collection) {
+  const route = collection?.route || {};
+  const ownerKey = directoryTopicOwnerWorkspaceKey(collection?.defaultGroup, route);
+  const projectId = String(route.projectId || route.id || "").trim();
+  const project = directoryTopicRouteRootProject(route);
+  const displayLabel = collection?.label || directoryTopicRouteLabel(route);
+  const displayParts = directoryTopicDisplayPathParts(displayLabel);
+  const projectLabel = project
+    ? (typeof projectDisplayLabel === "function" ? projectDisplayLabel(project) : (project.label || project.id || ""))
+    : "";
+  const rootLabel = projectLabel || displayParts[0] || displayLabel || "\u76ee\u5f55";
+  const child = project && route.subprojectId
+    ? (project.children || []).find((item) => String(item?.id || "") === String(route.subprojectId || ""))
+    : null;
+  const childLabel = child
+    ? (child.label || child.id || "")
+    : (displayParts.length > 1 ? displayParts.slice(1).join(" / ") : "");
+  const rootPath = project?.root || (!childLabel ? (route.root || route.path || "") : "");
+  const comparableRoot = typeof comparableDirectoryPath === "function"
+    ? comparableDirectoryPath(rootPath || rootLabel)
+    : String(rootPath || rootLabel).trim().replaceAll("\\", "/").toLowerCase();
+  const rootKey = projectId
+    ? [ownerKey, projectId, "", comparableRoot].join("|")
+    : (childLabel ? [ownerKey, "label", rootLabel.toLowerCase()].join("|") : (collection?.key || ""));
+  return {
+    key: rootKey || collection?.key || "",
+    label: rootLabel,
+    childLabel,
+    isChild: Boolean(childLabel || route.subprojectId),
+  };
+}
+
+function directoryTopicRootBucketsForCollections(collections = []) {
+  const buckets = new Map();
+  for (const collection of collections || []) {
+    if (!collection?.defaultGroup || !collection.groups?.length) continue;
+    const root = directoryTopicRouteRootInfo(collection);
+    const key = root.key || collection.key || "";
+    if (!key) continue;
+    if (!buckets.has(key)) {
+      buckets.set(key, {
+        key,
+        label: root.label || collection.label || "\u76ee\u5f55",
+        collections: [],
+        topicCount: 0,
+        defaultGroup: null,
+        updatedAt: "",
+      });
+    }
+    const bucket = buckets.get(key);
+    const topics = collection.groups || [];
+    bucket.collections.push(Object.assign({}, collection, { rootInfo: root }));
+    bucket.topicCount += topics.length;
+    if (!bucket.defaultGroup || directoryTopicUpdatedValue(collection.defaultGroup) >= directoryTopicUpdatedValue(bucket.defaultGroup)) {
+      bucket.defaultGroup = collection.defaultGroup;
+      bucket.updatedAt = collection.updatedAt || bucket.updatedAt || "";
+    }
+  }
+  return [...buckets.values()]
+    .map((bucket) => Object.assign(bucket, {
+      collections: bucket.collections.sort((a, b) => {
+        const aRoot = a.rootInfo || {};
+        const bRoot = b.rootInfo || {};
+        if (aRoot.isChild !== bRoot.isChild) return aRoot.isChild ? 1 : -1;
+        return String(aRoot.childLabel || a.label || "").localeCompare(String(bRoot.childLabel || b.label || ""), "zh-Hans-CN");
+      }),
+    }))
+    .sort((a, b) => directoryTopicUpdatedValue(b.defaultGroup) - directoryTopicUpdatedValue(a.defaultGroup));
+}
+
 function directoryTopicPrimaryRoute(group) {
   if (!group || group.pluginTopic || group.sharedTopic || group.sourceThreadId) return null;
   if (typeof isPluginTopicTaskGroup === "function" && isPluginTopicTaskGroup(group)) return null;
@@ -193,6 +273,7 @@ function setDirectoryTopicCollapsed(key, collapsed) {
 
 function renderDirectoryTopicCards(collections = [], options = {}) {
   const visible = (collections || []).filter((collection) => collection?.defaultGroup && collection.groups?.length);
+  const rootBuckets = directoryTopicRootBucketsForCollections(visible);
   const associated = options.associatedWithDirectoryPlugin === true;
   const collapsedDirectories = readCollapsedDirectoryTopics();
   const expandedDirectories = readExpandedDirectoryTopics();
@@ -207,7 +288,7 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
       <button class="directory-topic-root-toggle" type="button" ${rootToggleAttrs}>
         <span class="directory-topic-text">
           <span class="directory-topic-title">\u76ee\u5f55</span>
-          <span class="directory-topic-meta">${escapeHtml(`${visible.length} \u4e2a\u5b50\u76ee\u5f55\u3000${topicCount} \u4e2a\u8bdd\u9898`)}</span>
+          <span class="directory-topic-meta">${escapeHtml(`${rootBuckets.length} \u4e2a\u76ee\u5f55\u3000${topicCount} \u4e2a\u8bdd\u9898`)}</span>
         </span>
       </button>
       <button class="directory-topic-root-chevron-button" type="button" ${rootToggleAttrs}>
@@ -215,33 +296,43 @@ function renderDirectoryTopicCards(collections = [], options = {}) {
       </button>
     </div>
     <div class="directory-topic-grid">
-      ${visible.map((collection, index) => {
-        const defaultGroup = collection.defaultGroup;
-        const topics = collection.groups || [];
-        const collapsed = directoryTopicIsCollapsed(collection, index, collapsedDirectories, expandedDirectories);
-        return `<article class="directory-topic-card${collapsed ? " collapsed" : ""}" data-directory-topic-card="${escapeHtml(collection.key)}">
+      ${rootBuckets.map((bucket, index) => {
+        const collapsed = directoryTopicIsCollapsed(bucket, index, collapsedDirectories, expandedDirectories);
+        return `<article class="directory-topic-card${collapsed ? " collapsed" : ""}" data-directory-topic-card="${escapeHtml(bucket.key)}">
           <div class="directory-topic-card-main-row">
-            <button class="directory-topic-card-main directory-topic-directory-main" type="button" data-directory-topic-toggle="${escapeHtml(collection.key)}" aria-expanded="${collapsed ? "false" : "true"}" aria-label="${escapeHtml(`${collapsed ? "\u5c55\u5f00" : "\u6536\u8d77"}${collection.label}\u8bdd\u9898`)}">
+            <button class="directory-topic-card-main directory-topic-directory-main" type="button" data-directory-topic-toggle="${escapeHtml(bucket.key)}" aria-expanded="${collapsed ? "false" : "true"}" aria-label="${escapeHtml(`${collapsed ? "\u5c55\u5f00" : "\u6536\u8d77"}${bucket.label}\u8bdd\u9898`)}">
             <span class="directory-topic-chevron" aria-hidden="true"></span>
             <span class="directory-topic-text">
-              <span class="directory-topic-title">${escapeHtml(collection.label || "\u76ee\u5f55")}</span>
-              <span class="directory-topic-meta">${escapeHtml(`${topics.length} \u4e2a\u8bdd\u9898\u3000${formatTime(collection.updatedAt)}`)}</span>
+              <span class="directory-topic-title">${escapeHtml(bucket.label || "\u76ee\u5f55")}</span>
+              <span class="directory-topic-meta">${escapeHtml(`${bucket.collections.length} \u4e2a\u5b50\u76ee\u5f55\u3000${bucket.topicCount} \u4e2a\u8bdd\u9898\u3000${formatTime(bucket.updatedAt)}`)}</span>
             </span>
             </button>
           </div>
-          <div class="directory-topic-bound-list" aria-label="${escapeHtml(`${collection.label}\u7684\u8bdd\u9898`)}">
-            ${topics.map((group) => {
-              const display = directoryTopicDisplayParts(group);
-              const copyClass = `directory-topic-chip-copy${display.summary ? " has-summary" : ""}`;
-              const summaryHtml = display.summary
-                ? `<span class="directory-topic-chip-divider" aria-hidden="true">\uFF5C</span><span class="directory-topic-chip-summary">${escapeHtml(display.summary)}</span>`
-                : "";
-              return `<button class="directory-topic-chip${group.id === defaultGroup.id ? " default" : ""}" type="button" data-directory-topic-open-topic="${escapeHtml(group.id)}" title="${escapeHtml(display.fullTitle || display.title || "")}">
-                <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
-                <span class="${copyClass}">
-                  <span class="directory-topic-chip-title">${escapeHtml(display.title || "\u8bdd\u9898")}</span>${summaryHtml}
-                </span>
-              </button>`;
+          <div class="directory-topic-bound-list" aria-label="${escapeHtml(`${bucket.label}\u7684\u8bdd\u9898`)}">
+            ${bucket.collections.map((collection) => {
+              const defaultGroup = collection.defaultGroup;
+              const topics = collection.groups || [];
+              const rootInfo = collection.rootInfo || {};
+              const childLabel = rootInfo.childLabel || collection.label || bucket.label || "\u76ee\u5f55";
+              const showChildLabel = bucket.collections.length > 1 || rootInfo.isChild;
+              return `<div class="directory-topic-subdirectory" data-directory-topic-subdirectory="${escapeHtml(collection.key)}">
+                ${showChildLabel ? `<div class="directory-topic-subdirectory-label"><span>${escapeHtml(childLabel)}</span><span>${escapeHtml(`${topics.length} \u4e2a\u8bdd\u9898`)}</span></div>` : ""}
+                <div class="directory-topic-subdirectory-topic-list">
+                  ${topics.map((group) => {
+                    const display = directoryTopicDisplayParts(group);
+                    const copyClass = `directory-topic-chip-copy${display.summary ? " has-summary" : ""}`;
+                    const summaryHtml = display.summary
+                      ? `<span class="directory-topic-chip-divider" aria-hidden="true">\uFF5C</span><span class="directory-topic-chip-summary">${escapeHtml(display.summary)}</span>`
+                      : "";
+                    return `<button class="directory-topic-chip${group.id === defaultGroup.id ? " default" : ""}" type="button" data-directory-topic-open-topic="${escapeHtml(group.id)}" title="${escapeHtml(display.fullTitle || display.title || "")}">
+                      <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
+                      <span class="${copyClass}">
+                        <span class="directory-topic-chip-title">${escapeHtml(display.title || "\u8bdd\u9898")}</span>${summaryHtml}
+                      </span>
+                    </button>`;
+                  }).join("")}
+                </div>
+              </div>`;
             }).join("")}
           </div>
         </article>`;

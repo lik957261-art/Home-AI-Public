@@ -136,9 +136,11 @@ stored`, check the affected `openai-codex` profile directory under the workspace
 worker home. `auth.json` and `auth.lock` must be symlinks to
 `/Users/example/path`.
 This is separate from the manifest API-server key. If the run instead reports
-`Permission denied: .../auth.lock`, the symlink exists but the shared auth
-directory or lock/auth files are missing write ACLs for the worker. Re-run
-workspace Gateway provisioning after fixing the shared-auth source so the
+`Permission denied: .../auth.lock` or
+`Permission denied: .../auth.json.tmp.<suffix>`, the symlink exists but the
+shared auth directory, lock/auth files, or profile directory temporary-file ACLs
+are missing for the process user. Re-run workspace Gateway provisioning or the
+bounded production drift reconcile after fixing the shared-auth source so the
 profile links and ACLs are refreshed.
 The production profile audit now checks this directly. `codex_auth_*` issues
 are deployment blockers, and `scripts/deploy-macos-production.js` runs that
@@ -169,12 +171,15 @@ Pass criteria also include no
 check must use the listener user, not root-only file access.
 It must also include no `file_plugin_root_env_missing:<profile>:<env>` and no
 `file_plugin_root_missing:<profile>:<env>:<root>` issue. These issues mean a
-profile-local tool such as `docx_extract_text` is still using Windows/WSL
+profile-local file tool such as `docx_extract_text`, `office_extract_text`,
+`pdf_extract_text`, `pdf_render_pages`, `archive_extract_safe`, or
+`audio_transcribe` is still using Windows/WSL
 default roots instead of Mac live roots. The root list must use comma,
 semicolon, or newline separators; `file_plugin_root_list_delimiter_unsupported`
 means a PATH-style colon-separated list was used and must be repaired. In that
-state a run can read Markdown or analyze uploaded images but fail Word/DOCX
-extraction with `file_path_outside_allowed_roots`.
+state a run can read Markdown or analyze uploaded images but fail Word/DOCX,
+PowerPoint, Excel, PDF, audio, or ZIP extraction with
+`file_path_outside_allowed_roots`.
 It must also include no `mobile_bridge_env_missing:<profile>:<env>`,
 `mobile_bridge_host_url_default_missing:<profile>`, or
 `mobile_bridge_key_path_missing:<profile>:data/secrets/bridge-host.secret`

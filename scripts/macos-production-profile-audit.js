@@ -25,7 +25,19 @@ const FILE_PLUGIN_ROOT_ENV = Object.freeze([
     roots: ["data/drive", "data/uploads", "data/artifacts"],
   },
   {
+    name: "HERMES_MOBILE_PDF_ALLOWED_ROOTS",
+    roots: ["data/drive", "data/uploads", "data/artifacts"],
+  },
+  {
+    name: "HERMES_MOBILE_PDF_OUTPUT_ROOTS",
+    roots: ["data/artifacts"],
+  },
+  {
     name: "HERMES_MOBILE_AUDIO_ALLOWED_ROOTS",
+    roots: ["data/drive", "data/uploads", "data/artifacts"],
+  },
+  {
+    name: "HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS",
     roots: ["data/drive", "data/uploads", "data/artifacts"],
   },
   {
@@ -323,15 +335,31 @@ function compactPath(value, root) {
   return String(value || "").replaceAll(root, "<root>");
 }
 
-function gatewayStartScriptPath(profile, osUser) {
+function profileDirFromWorkerConfig(worker = {}) {
+  const configPath = String(worker.configPath || worker.config_path || "").trim();
+  if (!configPath || path.basename(configPath) !== "config.yaml") return "";
+  return path.dirname(configPath);
+}
+
+function gatewayDirForProfileDir(profileDir = "") {
+  const text = String(profileDir || "").trim();
+  if (!text) return "";
+  return path.dirname(path.dirname(text));
+}
+
+function gatewayStartScriptPath(profile, osUser, worker = {}) {
   const safeProfile = String(profile || "").trim();
   const safeUser = String(osUser || "").trim();
-  if (!safeProfile || !safeUser) return "";
+  if (!safeProfile) return "";
+  const configProfileDir = profileDirFromWorkerConfig(worker);
+  const configGatewayDir = gatewayDirForProfileDir(configProfileDir);
+  if (configGatewayDir) return path.join(configGatewayDir, `start-${safeProfile}.sh`);
+  if (!safeUser) return "";
   return path.join("/Users", safeUser, "HermesWorkspace", ".hermes-gateway", `start-${safeProfile}.sh`);
 }
 
 function readStartScriptText(worker = {}, profile = "", osUser = "", options = {}) {
-  const scriptPath = gatewayStartScriptPath(profile, osUser);
+  const scriptPath = gatewayStartScriptPath(profile, osUser, worker);
   if (!scriptPath) return { path: "", exists: false, text: "" };
   if (typeof options.startScriptProbe === "function") {
     const probe = options.startScriptProbe(scriptPath, worker) || {};
@@ -396,7 +424,7 @@ function filePluginRootStatus(worker = {}, profile = "", osUser = "", root = "",
   return {
     startScriptPath: compactPath(script.path, root),
     startScriptExists: script.exists,
-    unsupportedColonRootList: /\b(?:FILE_PLUGIN_ALLOWED_ROOTS|HERMES_MOBILE_(?:DOCX|AUDIO|IMAGE|VIDEO)_ALLOWED_ROOTS|HERMES_MOBILE_HTTP_FILE_ROOTS)=[^\n]*data\/drive:[^\n]*data\/uploads/.test(
+    unsupportedColonRootList: /\b(?:FILE_PLUGIN_ALLOWED_ROOTS|HERMES_MOBILE_(?:DOCX|AUDIO|ARCHIVE|IMAGE|VIDEO)_ALLOWED_ROOTS|HERMES_MOBILE_HTTP_FILE_ROOTS)=[^\n]*data\/drive:[^\n]*data\/uploads/.test(
       String(script.text || "").replaceAll("\\", "/"),
     ),
     env,
@@ -718,6 +746,8 @@ function profileDirForWorker(worker = {}, profile = "", osUser = "", options = {
   if (typeof options.profileDirForWorker === "function") {
     return String(options.profileDirForWorker(worker, profile, osUser) || "").trim();
   }
+  const configProfileDir = profileDirFromWorkerConfig(worker);
+  if (configProfileDir) return configProfileDir;
   return osUser && profile
     ? path.join("/Users", osUser, "HermesWorkspace", ".hermes-gateway", "profiles", profile)
     : "";
@@ -860,6 +890,12 @@ function buildAudit(options) {
   const warnings = [];
   const requiredWarmProfiles = ownerRequiredWarmProfiles(workers, options);
   const manifestLaunchdLabels = new Set(workers.map((worker) => String(worker.launchdLabel || "").trim()).filter(Boolean));
+  const manifestLaunchdStartScripts = new Map(workers.map((worker) => {
+    const label = String(worker.launchdLabel || "").trim();
+    const profile = String(worker.profile || worker.name || "").trim();
+    if (!label || !profile) return null;
+    return [label, gatewayStartScriptPath(profile, osUserForWorker(worker), worker)];
+  }).filter(Boolean));
 
   function issue(code) {
     issueSet.add(code);
@@ -1125,15 +1161,22 @@ function buildAudit(options) {
       label: item.label,
       plistPath: item.plistPath,
       startScriptPath: compactPath(item.startScriptPath, root),
+      expectedStartScriptPath: compactPath(manifestLaunchdStartScripts.get(item.label) || "", root),
       startScriptExists: script.exists,
       trackedByManifest: manifestLaunchdLabels.has(item.label),
       mobileBridge,
       rootMatchesProduction: scriptText.includes(root.replaceAll("\\", "/")),
       devRootPresent: /\/Users\/hermes-dev\/HermesMobileDev/.test(scriptText),
     };
+    check.startScriptPathMatchesManifest = !check.trackedByManifest
+      || !check.expectedStartScriptPath
+      || path.resolve(item.startScriptPath || "") === path.resolve(manifestLaunchdStartScripts.get(item.label) || "");
     installedGatewayChecks.push(check);
     if (!check.trackedByManifest) issue(`installed_gateway_launchd_untracked:${item.label}`);
     if (!script.exists) issue(`installed_gateway_start_script_missing:${item.label}`);
+    if (check.trackedByManifest && !check.startScriptPathMatchesManifest) {
+      issue(`installed_gateway_start_script_path_mismatch:${item.label}`);
+    }
     if (check.devRootPresent || (script.exists && !check.rootMatchesProduction)) {
       issue(`installed_gateway_start_script_root_mismatch:${item.label}`);
     }

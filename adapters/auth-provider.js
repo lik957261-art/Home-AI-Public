@@ -4,6 +4,8 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 
+const OWNER_AUTH_ID = "owner";
+
 function timingSafeEquals(a, b) {
   const left = Buffer.from(String(a || ""), "utf8");
   const right = Buffer.from(String(b || ""), "utf8");
@@ -56,6 +58,13 @@ function createAuthProvider(options = {}) {
   const authKeyPath = () => path.resolve(String(typeof options.authKeyPath === "function" ? options.authKeyPath() : options.authKeyPath));
   const accessKeysPath = () => path.resolve(String(typeof options.accessKeysPath === "function" ? options.accessKeysPath() : options.accessKeysPath));
   const envKey = () => String(typeof options.envKey === "function" ? options.envKey() : (options.envKey || "")).trim();
+  const auditOwnerReadonlyEnvKey = () => String(typeof options.auditOwnerReadonlyKey === "function" ? options.auditOwnerReadonlyKey() : (options.auditOwnerReadonlyKey || "")).trim();
+  const auditOwnerReadonlyKeyPath = () => {
+    const value = typeof options.auditOwnerReadonlyKeyPath === "function"
+      ? options.auditOwnerReadonlyKeyPath()
+      : options.auditOwnerReadonlyKeyPath;
+    return value ? path.resolve(String(value)) : "";
+  };
   const allowMemoryKey = () => Boolean(typeof options.allowMemoryKey === "function" ? options.allowMemoryKey() : options.allowMemoryKey);
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
   const ensureDataDir = typeof options.ensureDataDir === "function" ? options.ensureDataDir : () => {};
@@ -99,6 +108,36 @@ function createAuthProvider(options = {}) {
 
   function ownerKeySource() {
     return ownerKeyState?.source || "unknown";
+  }
+
+  function loadAuditOwnerReadonlyKeyState() {
+    const direct = auditOwnerReadonlyEnvKey();
+    if (direct) return { keys: [direct], source: "env" };
+    const keyPath = auditOwnerReadonlyKeyPath();
+    if (!keyPath) return { keys: [], source: "unconfigured" };
+    try {
+      const keys = fs.readFileSync(keyPath, "utf8")
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("#"));
+      return { keys: [...new Set(keys)], source: keys.length ? "file" : "unconfigured" };
+    } catch (_) {
+      return { keys: [], source: "unconfigured" };
+    }
+  }
+
+  function auditOwnerReadonlyKeySource() {
+    return loadAuditOwnerReadonlyKeyState().source;
+  }
+
+  function auditOwnerReadonlyKeyDisplayPath() {
+    const keyPath = auditOwnerReadonlyKeyPath();
+    return keyPath ? path.basename(keyPath) : "";
+  }
+
+  function isAuditOwnerReadonlyKey(key) {
+    if (!key) return false;
+    return loadAuditOwnerReadonlyKeyState().keys.some((candidate) => timingSafeEquals(key, candidate));
   }
 
   function authKeyDisplayPath() {
@@ -168,6 +207,18 @@ function createAuthProvider(options = {}) {
       req.auth = { ok: true, role: "owner", workspaceId: "owner", principalId: "owner", isOwner: true, keySource: ownerKeySource() || "global" };
       return req.auth;
     }
+    if (isAuditOwnerReadonlyKey(key)) {
+      req.auth = {
+        ok: true,
+        role: "owner",
+        workspaceId: OWNER_AUTH_ID,
+        principalId: "audit-owner-readonly",
+        isOwner: true,
+        keySource: "audit_owner_readonly",
+        auditReadOnly: true,
+      };
+      return req.auth;
+    }
     const hash = keyHash(key);
     const store = loadAccessKeyStore();
     for (const [workspaceId, record] of Object.entries(store.workspaceKeys || {})) {
@@ -192,6 +243,10 @@ function createAuthProvider(options = {}) {
 
   function isOwnerAuth(auth) {
     return disableAuth() || Boolean(auth?.isOwner || auth?.role === "owner");
+  }
+
+  function isAuditReadOnlyAuth(auth) {
+    return Boolean(auth?.ok && (auth.auditReadOnly || auth.keySource === "audit_owner_readonly"));
   }
 
   function authCanAccessWorkspace(auth, workspaceId) {
@@ -339,12 +394,15 @@ function createAuthProvider(options = {}) {
 
   return {
     authCanAccessWorkspace,
+    auditOwnerReadonlyKeyDisplayPath,
+    auditOwnerReadonlyKeySource,
     authenticateRequest,
     createInitialOwnerKey,
     currentGlobalAuthKey,
     deleteWorkspaceAccessKey,
     generateWebAccessKey,
     isOwnerAuth,
+    isAuditReadOnlyAuth,
     keyHash,
     listWorkspaceAccessKeyStatuses,
     loadAccessKeyStore,

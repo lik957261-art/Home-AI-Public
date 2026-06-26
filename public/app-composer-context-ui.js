@@ -24,9 +24,13 @@ function activeTaskRunIds() {
 
 function activeComposerRunIds() {
   if (isTaskDetailView()) return activeTaskRunIds();
-  if (isSingleWindowChatView()) return activeChatRunIds();
-  if (isSingleWindowView()) return activeThreadRunIds();
-  return [];
+  return composerStatusMessages()
+    .filter((message) => (
+      message?.role === "assistant"
+      && ["queued", "running"].includes(String(message.status || ""))
+    ))
+    .map((message) => message.runId)
+    .filter(Boolean);
 }
 
 function composerWorkspaceLabel() {
@@ -180,8 +184,6 @@ function composerRunCounts() {
     if (message?.status === "running") counts.running += 1;
     if (message?.status === "queued") counts.queued += 1;
   });
-  const activeFallback = activeComposerRunIds().length;
-  if (!counts.running && activeFallback) counts.running = activeFallback;
   return counts;
 }
 

@@ -1,6 +1,6 @@
 # Home AI Frontend State Map
 
-Last updated: 2026-06-18.
+Last updated: 2026-06-23.
 
 Use this file to locate the responsible frontend files before debugging a screenshot or mobile UI report.
 
@@ -16,11 +16,14 @@ the change is part of a dedicated infrastructure rename.
   `app-route-snapshot-ui.js` owns saved route/scroll snapshot persistence and
   reload restore; `app-platform-ui.js` owns route application and platform
   bootstrap glue.
-- Desktop sidebar navigation is the wide-screen counterpart to the mobile
-  primary tabs. Its permanent primary row is `聊天 / 信息 / 话题`; Directory and
-  plugin apps are reached through the same permission-filtered launcher model
-  as the mobile global Dock. The standalone `能力` primary tab is retired:
-  frequent actions live under the Dock/sidebar `常用` launcher entry and
+- Primary navigation uses the same single-column shell at every viewport width.
+  Wide screens must not switch to a permanent left sidebar or split layout.
+  The primary switching labels stay in the bottom navigation, matching portrait
+  behavior. The sidebar remains an overlay navigation surface opened on demand,
+  not a wide-screen counterpart to the bottom tabs.
+  Directory and plugin apps are reached through the same permission-filtered
+  launcher model as the global Dock. The standalone `能力` primary tab is
+  retired: frequent actions live under the Dock `常用` launcher entry and
   plugin long-press/context menus. Automation is a secondary/admin surface
   reached from contextual menus rather than a primary row button. Growth is
   plugin-owned and must be opened from the plugin launcher/Dock, an optional
@@ -173,12 +176,11 @@ the change is part of a dedicated infrastructure rename.
   - Skill footer tags are evidence-based. Do not synthesize a Response Skill
     fallback when no real Skill was loaded or no `skill_view` event exists.
 - Static shell/cache: `public/index.html`, `public/service-worker.js`, `public/directory-viewer.html`
-- Mobile shell breakpoint: `public/app-chat-composer-ui.js`,
+- Single-column shell: `public/app-chat-composer-ui.js`,
   `public/app-composer-context-ui.js`, and `public/styles.css`
-  - The mobile shell applies at `max-width: 1099px` and also on coarse-pointer
-    touch tablets up to `1366px` wide. iPad-like landscape layouts therefore
-    use the same single-column shell and bottom navigation as portrait instead
-    of the desktop fixed sidebar.
+  - The mobile-first shell applies at all viewport widths. iPad-like landscape,
+    wide browser, and desktop-sized windows use the same single-column shell
+    and bottom navigation as portrait instead of a desktop fixed sidebar.
   - The old narrow-landscape compact footer variant is intentionally absent;
     landscape keeps the normal bottom-tab labels and bottom navigation height.
 
@@ -260,7 +262,19 @@ the change is part of a dedicated infrastructure rename.
 - Returning to the Single Window chat should render the cached same-workspace
   chat scope immediately when available, then refresh `/api/single-window` in
   the background. Do not leave the chat header or recent messages absent until
-  the server response returns.
+  the server response returns. The chat pending shell (`正在载入聊天...`) must
+  clear stale chat-render signatures, replay cached chat messages before retrying
+  the network, and render a bounded failure/retry state if the request fails
+  without any usable cache.
+- Plugin topic chat entry (`public/app-plugin-topics-ui.js`) uses the same
+  cached-first rule. `正在打开话题...` is only a short pending shell while the
+  cached topic thread is rendered and `/api/single-window` refreshes in the
+  background. Currentness checks should follow the actual visible route
+  (`viewMode`, topic group id, plugin context id), not a transient primary
+  navigation sequence alone, because harmless navigation cleanup can advance
+  that sequence while the user is still on the same plugin topic. The pending
+  shell must have a bounded fallback render path so tab switches cannot leave
+  the plugin topic stuck without messages.
 - Topic root lists should not show Kanban-generated case-topic groups. Kanban
   study/case evidence should be reached from Growth, Todo/Kanban, Inbox source
   links, or explicit direct routes instead of being mixed into ordinary topics.

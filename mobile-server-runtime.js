@@ -1204,7 +1204,7 @@ const listWorkspaceAccessKeyStatuses = (...args) => mobileRuntimeWorkspaceFacade
 const rotateWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateWorkspaceAccessKey(...args);
 const revokeWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.revokeWorkspaceAccessKey(...args);
 const rotateGlobalAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateGlobalAccessKey(...args);
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260620-music-demo-plan-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260623-music-demo-narration-cleanup-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
   normalizeSingleWindowMode,
@@ -1314,10 +1314,11 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: composedMobileApiSe
   },
   effectiveHermesApiBase, env: process.env, eventFanoutService, exists: (value) => fs.existsSync(value), extractDocxText, extractJsonObject, findDirectoryThreadForRequest,
   findProject, findSubproject, findWorkspace, gatewayWorkspaceProvisioningService: getGatewayWorkspaceProvisioningService(), generateWebPushVapidConfig, getAssessmentExamWorkflowService, hermesModelText,
+  gatewayWorkerPolicyContract: () => runtimeConfigProvider.workerPolicyContract({ launcherElasticConfig: GATEWAY_POOL_ELASTIC_CONFIG }),
   getDirectoryBrowserBoundaryService, getHermesStatus, getKanbanPlanCardCreationService, getRuntimeStateNormalizationService, getRuntimeStateThreadService,
   getSharedDirectoryProjectionService, getSingleWindowThreadService, getThreadMessageRunRouteService, getUrl, grantOwnerElevation,
   grantOwnerElevationOnce, consumeOwnerElevationOnce, groupAiReplyRevokedText: GROUP_AI_REPLY_REVOKED_TEXT, groupAssistantReplyForUserMessage, groupMessageRevokedText: GROUP_MESSAGE_REVOKED_TEXT, groupMessageRevoker,
-  includeStatusCatalog: STATUS_INCLUDE_CATALOG, interpretAutomationNaturalLanguage, invalidateCatalogCache, isDirectoryBrowserPathAllowedForThread, isOwnerAuth, isOwnerElevationActive,
+  includeStatusCatalog: STATUS_INCLUDE_CATALOG, interpretAutomationNaturalLanguage, interpretTodoNaturalLanguage, invalidateCatalogCache, isDirectoryBrowserPathAllowedForThread, isOwnerAuth, isOwnerElevationActive,
   isPathProtected: (value) => securityBoundaryProvider.isProtectedPath(value),
   isSingleWindowConversationTaskGroupId, joinLocalPath: (parent, name) => path.join(parent, name), kanbanCardProvider, kanbanCaseShareService, kanbanErrorResponse,
   kanbanReadingWorkflowService, kanbanSingleCardCasePayload, kanbanStudyArtifactService, learningCardGuidanceService, learningCoinService, listWorkspaceAccessKeyStatuses, loadCatalog, localWorkspaceDefaults,

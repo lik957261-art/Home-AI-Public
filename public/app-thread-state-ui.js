@@ -52,6 +52,20 @@ function mergeServerMessage(existing, incoming) {
   return merged;
 }
 
+function selectedTaskDetailGroupId() {
+  const groupId = String(state.currentTaskGroupId || "").trim();
+  if (!groupId) return "";
+  if (state.viewMode === "tasks") return groupId;
+  if (state.viewMode === "single" && state.singleWindowMode === "task") return groupId;
+  return "";
+}
+
+function isRootTaskMessagesPage(page = null) {
+  const mode = String(page?.mode || "").trim().toLowerCase();
+  if (mode !== "tasks" && mode !== "task") return false;
+  return !String(page?.taskGroupId || "").trim();
+}
+
 function mergeCurrentThread(incomingThread) {
   if (!incomingThread) return state.currentThread;
   if (!state.currentThread || state.currentThread.id !== incomingThread.id) return incomingThread;
@@ -60,6 +74,12 @@ function mergeCurrentThread(incomingThread) {
   const incomingHasMessageList = Array.isArray(incomingThread.messages);
   const incomingMessages = incomingHasMessageList ? incomingThread.messages : [];
   const existingThreadMessages = state.currentThread.messages || [];
+  if (selectedTaskDetailGroupId() && isRootTaskMessagesPage(incomingPage)) {
+    return Object.assign({}, state.currentThread, incomingThread, {
+      messages: existingThreadMessages,
+      messagesPage: existingPage,
+    });
+  }
   if (!incomingHasMessageList) {
     return Object.assign({}, state.currentThread, incomingThread, {
       messages: existingThreadMessages,
@@ -67,7 +87,10 @@ function mergeCurrentThread(incomingThread) {
     });
   }
   if (incomingPage && !incomingMessages.length && existingThreadMessages.length) {
-    const messagesPage = mergeMessagesPage(existingPage, incomingPage, chatMessagesForThread(state.currentThread));
+    const scopedMessages = typeof messagesForPageScope === "function"
+      ? messagesForPageScope(state.currentThread, incomingPage)
+      : chatMessagesForThread(state.currentThread);
+    const messagesPage = mergeMessagesPage(existingPage, incomingPage, scopedMessages);
     return Object.assign({}, state.currentThread, incomingThread, { messages: existingThreadMessages, messagesPage });
   }
   const existingMessages = new Map((state.currentThread.messages || []).map((message) => [message.id, message]));
@@ -94,9 +117,13 @@ function mergeCurrentThread(incomingThread) {
     }
   }
   const sortedMessages = sortedThreadMessages(messages);
-  const chatMessages = incomingPage?.mode === "chat" || existingPage?.mode === "chat"
-    ? sortedMessages.filter((message) => String(message?.taskGroupId || "") === String((incomingPage || existingPage)?.taskGroupId || activeChatTaskGroupId()))
-    : sortedMessages;
+  const scopedPage = incomingPage || existingPage;
+  const scopedThread = Object.assign({}, state.currentThread, incomingThread, { messages: sortedMessages });
+  const chatMessages = scopedPage && typeof messagesForPageScope === "function"
+    ? messagesForPageScope(scopedThread, scopedPage)
+    : (incomingPage?.mode === "chat" || existingPage?.mode === "chat"
+      ? sortedMessages.filter((message) => String(message?.taskGroupId || "") === String((incomingPage || existingPage)?.taskGroupId || activeChatTaskGroupId()))
+      : sortedMessages);
   const messagesPage = incomingPage || existingPage
     ? mergeMessagesPage(existingPage, incomingPage, chatMessages)
     : null;
@@ -445,7 +472,14 @@ function renderCachedSingleWindowThreadForRequest(request = {}, options = {}) {
   if (!singleWindowRequestStillCurrent(request)) return false;
   const cached = cachedSingleWindowThreadForRequest(request);
   if (!cached) return false;
-  if (state.currentThread?.id === cached.id && state.currentThreadId === cached.id) return false;
+  const conversation = $("conversation");
+  const alreadyShowingThread = Boolean(
+    state.currentThread?.id === cached.id
+    && state.currentThreadId === cached.id
+    && conversation?.dataset?.chatRenderSignature
+    && conversation?.querySelector("[data-message-id]")
+  );
+  if (alreadyShowingThread) return false;
   state.currentThread = cached;
   state.currentThreadId = cached.id;
   state.threads = [summarizeThread(cached)];
@@ -479,6 +513,9 @@ function renderSingleWindowChatPendingShell(options = {}) {
   if (!(state.viewMode === "single" && state.singleWindowMode === "chat")) return false;
   const conversation = $("conversation");
   if (!conversation) return false;
+  if (!options.pendingRecovery) {
+    state.singleWindowChatPendingRecoveryAttempts = 0;
+  }
   renderThreads();
   $("threadTitle").textContent = "";
   $("threadMeta").textContent = "";
@@ -487,6 +524,7 @@ function renderSingleWindowChatPendingShell(options = {}) {
   if (typeof configureComposer === "function") {
     configureComposer({ enabled: false, shellLocked: true, placeholder: "Message Home AI..." });
   }
+  delete conversation.dataset.chatRenderSignature;
   conversation.innerHTML = `<div class="empty-state">正在载入聊天...</div>`;
   conversation.scrollTop = 0;
   state.conversationPinnedToBottom = true;
@@ -499,6 +537,26 @@ function renderSingleWindowChatPendingShell(options = {}) {
   if (typeof scheduleSingleWindowChatPendingRecovery === "function") {
     scheduleSingleWindowChatPendingRecovery(options.reason || "pending-shell");
   }
+  return true;
+}
+
+function renderSingleWindowChatErrorShell(err = null) {
+  if (!(state.viewMode === "single" && state.singleWindowMode === "chat")) return false;
+  const conversation = $("conversation");
+  if (!conversation) return false;
+  delete conversation.dataset.chatRenderSignature;
+  const status = err?.status || err?.statusCode || err?.code || "";
+  const suffix = status ? ` (${escapeHtml(status)})` : "";
+  conversation.innerHTML = `<div class="empty-state">聊天加载失败${suffix}<br><button type="button" class="secondary" data-retry-single-window-chat>重试</button></div>`;
+  conversation.querySelector("[data-retry-single-window-chat]")?.addEventListener("click", () => {
+    loadSingleWindow({ skipSingleWindowCache: true, reason: "manual_retry" }).catch(showError);
+  });
+  if (typeof configureComposer === "function") {
+    configureComposer({ enabled: false, shellLocked: true, placeholder: "Message Home AI..." });
+  }
+  startupPerfMark("single-window-chat-error-shell", {
+    status: String(status || "").slice(0, 80),
+  });
   return true;
 }
 
@@ -521,11 +579,18 @@ function scheduleSingleWindowChatPendingRecovery(reason = "pending-shell", delay
   state.singleWindowChatPendingRecoveryTimer = window.setTimeout(() => {
     state.singleWindowChatPendingRecoveryTimer = 0;
     if (!singleWindowChatPendingShellVisible()) return;
+    if (renderCachedSingleWindowThreadForCurrentViewShell({ stickToBottom: true })) {
+      startupPerfMark("single-window-chat-pending-cache-recovery", {
+        reason: String(reason || "").slice(0, 80),
+      });
+      return;
+    }
     const attempts = Number(state.singleWindowChatPendingRecoveryAttempts || 0) || 0;
     if (attempts >= 2) {
       startupPerfMark("single-window-chat-pending-recovery-give-up", {
         reason: String(reason || "").slice(0, 80),
       });
+      renderSingleWindowChatErrorShell({ code: "recovery_timeout" });
       return;
     }
     if (Number(state.singleWindowLoadInFlightSeq || 0)) {
@@ -571,6 +636,7 @@ async function loadSingleWindow(options = {}) {
   if (messageMode === "chat" && !renderedCachedSingleWindow) {
     renderSingleWindowChatPendingShell({
       reason: options.reason || (options.pendingRecovery ? "pending_recovery" : "chat_cache_miss"),
+      pendingRecovery: Boolean(options.pendingRecovery),
     });
   }
   const refreshSurfaceKey = typeof singleWindowSurfaceCacheKeyForRequest === "function"
@@ -580,20 +646,32 @@ async function loadSingleWindow(options = {}) {
     ? mainConversationSurfaceThreadSignature(refreshSurfaceKey, state.currentThread)
     : "";
   state.singleWindowLoadInFlightSeq = request.seq;
-  const result = await startupPerfStep("single-window-api", () => api("/api/single-window", {
-    method: "POST",
-    body: JSON.stringify({
-      workspaceId: request.workspaceId,
-      groupChat,
-      weixinChat,
-      messageMode,
-      taskGroupId: messageMode === "tasks" ? request.taskGroupId : "",
-      messageLimit: messageMode === "tasks" ? TASK_MESSAGE_INITIAL_LIMIT : CHAT_MESSAGE_INITIAL_LIMIT,
-    }),
-    timeoutMs: 12000,
-  })).finally(() => {
+  let result;
+  try {
+    result = await startupPerfStep("single-window-api", () => api("/api/single-window", {
+      method: "POST",
+      body: JSON.stringify({
+        workspaceId: request.workspaceId,
+        groupChat,
+        weixinChat,
+        messageMode,
+        taskGroupId: messageMode === "tasks" ? request.taskGroupId : "",
+        messageLimit: messageMode === "tasks"
+          ? (request.taskGroupId ? taskDetailMessageInitialLimit() : TASK_MESSAGE_INITIAL_LIMIT)
+          : CHAT_MESSAGE_INITIAL_LIMIT,
+      }),
+      timeoutMs: 12000,
+    }));
+  } catch (err) {
+    if (messageMode === "chat" && singleWindowChatPendingShellVisible()) {
+      if (!renderCachedSingleWindowThreadForCurrentViewShell({ stickToBottom: true })) {
+        renderSingleWindowChatErrorShell(err);
+      }
+    }
+    throw err;
+  } finally {
     if (state.singleWindowLoadInFlightSeq === request.seq) state.singleWindowLoadInFlightSeq = 0;
-  });
+  }
   if (!singleWindowRequestStillCurrent(request)) {
     if (singleWindowChatPendingShellVisible()) scheduleSingleWindowChatPendingRecovery("stale-request", 900);
     return;

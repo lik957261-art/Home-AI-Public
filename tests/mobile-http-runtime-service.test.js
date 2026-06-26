@@ -112,6 +112,7 @@ function testSecurityHeadersAttachToJsonResponses() {
   assert.equal(res.headers["Strict-Transport-Security"], "max-age=15552000");
   assert.match(res.headers["Content-Security-Policy"], /default-src 'self'/);
   assert.match(res.headers["Content-Security-Policy"], /object-src 'none'/);
+  assert.match(res.headers["Content-Security-Policy"], /media-src 'self' data: blob:/);
 }
 
 function testSecurityHeadersCanBeAttachedBeforeRouteWriteHead() {

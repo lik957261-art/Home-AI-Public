@@ -184,6 +184,16 @@ done
 while IFS= read -r user; do
   [ -n "$user" ] || continue
   /bin/chmod +a "user:$user allow list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" "$shared" 2>/dev/null || true
+  for profile_dir in "/Users/$user/HermesWorkspace/.hermes-gateway/profiles"/*; do
+    [ -d "$profile_dir" ] || continue
+    [ -L "$profile_dir/auth.json" ] || continue
+    target="$(/bin/readlink "$profile_dir/auth.json" 2>/dev/null || true)"
+    case "$target" in
+      "$shared"/*)
+        /bin/chmod +a# 0 "user:hermes-host allow list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity" "$profile_dir" 2>/dev/null || true
+        ;;
+    esac
+  done
   for f in ${fileBlock}; do
     [ -e "$f" ] || continue
     /bin/chmod +a "user:$user allow read,write,append,readattr,writeattr,readextattr,writeextattr,readsecurity" "$f" 2>/dev/null || true

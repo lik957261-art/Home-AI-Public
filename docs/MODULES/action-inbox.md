@@ -13,10 +13,42 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
 - `自动化` becomes a background capability. Its completed/failed deliveries should enter Action Inbox instead of requiring a permanent bottom tab.
 - The Inbox top-right overflow menu is the primary mobile entry for Automation management: open the Automation list or create a new automation from Inbox without restoring Automation as a bottom tab.
 - Inbox root actions, including new manual Inbox item creation, belong in the top-right overflow menu rather than inline page buttons.
-- During Plugin Workspace Audit V1, the same Inbox overflow menu may expose a
-  temporary `新建审计` entry. The entry creates an Automation-owned
-  `plugin_workspace_audit` plan; it does not make Action Inbox the scheduler or
-  store full audit reports in Inbox rows.
+- During Audit Request V1, the same Inbox overflow menu may expose a temporary
+  audit request entry. The entry uses a controlled target selector, not a
+  free-form workspace id field. `home-ai` targets `Home AI Platform Audit`;
+  plugin targets such as `music`, `finance`, and `codex-mobile` target
+  `Plugin Workspace Audit`. The entry sends one Codex Mobile task card to the
+  selected central audit thread; it does not create an Automation plan, run the
+  audit locally, fan out to plugin implementation threads, or store full audit
+  reports in Inbox rows.
+- Autonomous Delivery Loop creates Owner start/approval items with
+  `sourceType=autonomous_delivery`. Those rows are attention projections only.
+  The loop coordinator remains responsible for execution state, task-card
+  routing, verification, and closure; Inbox must not become the execution
+  engine or a store for full private work payloads.
+  Terminal completed return cards may also create
+  `sourceType=autonomous_delivery`, `itemType=review` rows that tell Owner a
+  delivery slice is ready for verification/deploy/audit decisions. These review
+  rows are projections of the coordinator ledger, not the verification engine.
+  Implementation or repair returns that report runtime/production changes
+  without completed deployment evidence create
+  `notificationType=autonomous_delivery.deploy_readback_required` rows. Those
+  rows expose `部署读回`, optionally accept an Owner prompt, and dispatch only
+  one deployment/readback task card after Owner action.
+  Completed verification returns create a separate Owner closure review row
+  with `notificationType=autonomous_delivery.closure_required`. That row
+  exposes `完成闭环` and calls the Owner-only close API only after the case is
+  already `verified_waiting`.
+  Owner closure creates a final delivery row with
+  `notificationType=autonomous_delivery.final_report_ready`. That row exposes
+  `查看报告` and stores only bounded markdown evidence: case/slice ids,
+  statuses, short summaries, task-card ids, return-card ids, and event counts,
+  never raw task bodies, prompts, secrets, private payloads, screenshots,
+  database rows, or long logs.
+  Failed verification returns create Owner repair review rows with
+  `notificationType=autonomous_delivery.repair_required`. Those rows expose
+  `发修复卡`, optionally accept an Owner prompt, and dispatch only after Owner
+  action to the original implementation workspace.
 - Inbox detail/create screens are secondary screens. They must use the shared top-left back button and right-swipe back path; the content area should not render another back button or duplicate the top bar title.
 - Existing simple Todo behavior becomes an Action Inbox item type instead of a separate product tab.
 - Todo must appear as its own primary Inbox filter tab. The default Inbox list
@@ -61,7 +93,8 @@ Core fields:
 - `id`
 - `workspaceId`
 - `assigneeWorkspaceId`
-- `sourceType`: `manual`, `automation`, `growth`, `chat`, `directory`, `weixin`, or future module id.
+- `sourceType`: `manual`, `automation`, `growth`, `chat`, `directory`,
+  `weixin`, `autonomous_delivery`, or future module id.
 - `sourceId`
 - `sourceRef`: public-safe structured reference, such as route ids.
 - `itemType`: `todo`, `delivery`, `review`, `reflection`, `revision`, `approval`, `mention`, `error`, or `info`.
@@ -198,14 +231,13 @@ Automation output file instead of copying it into the Inbox row.
 
 Foreground push refresh should update Inbox state when automation push payloads include an Inbox item id or source reference.
 
-Plugin workspace audit runs are Automation-owned review sources. A successful
-audit with findings should upsert an Inbox `itemType=review` item with
-`sourceType=automation`, `sourceRef.kind=plugin_workspace_audit`,
-`sourceRef.pluginId`, `sourceRef.auditRunId`, severity summary, finding count,
-and safe deep links to the report, audit run, or Automation detail. A failed
-audit should upsert an `itemType=error` row with a bounded failure summary. A
-clean audit may create an `itemType=info` row only when the user has explicitly
-enabled clean-run receipts.
+Plugin workspace audit request and return-card projections are review sources.
+The manual trigger may show a sent-card receipt, and the central audit thread may
+return bounded completion/blocked status later. Inbox rows must store only
+summary metadata, target plugin id, central audit thread/card references, safe
+deep links, and bounded status. They must not store the full audit report,
+private workspace contents, raw logs, prompts, or fixed Codex thread-id mapping
+configuration.
 
 Scheduled audit rows are background system-maintenance signals, not ordinary
 current work. The default Inbox `当前` projection must hide low-signal scheduled
@@ -220,13 +252,15 @@ full report bodies, raw diffs, raw executor logs, raw model output, prompts,
 tokens, launch keys, push endpoints, private plugin data, or local filesystem
 paths. The source report and audit history remain canonical.
 
-Action Inbox may expose the first manual plugin workspace alignment audit
-surface. That surface only selects a registered plugin target, an audit mode
-defaulting to `alignment`, and optional guidance. It must call the explicit
-manual route `POST /api/automations/plugin-workspace-audits/run`, not the
-generic natural-language Automation interpreter and not an arbitrary path
-runner. The created Inbox row remains a summary pointer to the Automation
-report; it must not duplicate the full report body.
+Action Inbox may expose the first manual Product Reality audit surface. That
+surface only selects a registered target from the controlled target list, an
+audit mode defaulting to `product_reality`, and optional guidance. It must call
+the explicit manual route `POST /api/automations/plugin-workspace-audits/run`,
+not the generic natural-language Automation interpreter and not an arbitrary
+path runner. The route sends a central audit request card and must not create a
+local Automation job. The user-facing completion message should say the request
+was sent to the central audit thread, not that Home AI is executing a
+background job.
 
 Host-side audit projection is provided by `pluginWorkspaceAuditService` and
 uses `actionInboxService.upsertSourceItem`. Projection callers must pass only
@@ -316,6 +350,46 @@ marks the item `done`, rejection marks it `dismissed`. Hermes must not restore
 QR-code, invite-link, or generic direct-database joining paths for Finance
 ledger membership.
 
+Plugin conversation repair requests use `sourceType=plugin_conversation` and
+`itemType=approval`. They are created by the Home AI host conversation surface
+when a plugin-related chat identifies a bounded implementation request, such as
+a missing Health strength-catalog action. They are not plugin iframe
+notifications and they are not direct Codex dispatches.
+
+Host-side assistant replies in plugin conversation topics may create these rows
+by appending a hidden `homeai-plugin-conversation-action` JSON comment. The
+client strips that metadata from display, deduplicates recent completed
+assistant messages, and submits the request to
+`POST /api/plugin-conversation/actions`. This path must not create an ordinary
+Todo/Kanban `t_*` card or claim a repair card was submitted. A visible
+dispatchable approval row has an `ainb_*` id; a real Codex repair card exists
+only after Owner clicks `发修复卡` and receives a `ttc_*` id.
+
+The Inbox item stores only the plugin id, request id, request type, target
+thread/workspace metadata, bounded summary, suggested change, and compact
+evidence. The action sheet exposes `发修复卡`, `稍后`, and `删除`. `发修复卡`
+requires Owner auth, may collect an optional Owner prompt, and calls:
+
+```http
+POST /api/plugin-conversation/actions/:item_id/task-card
+```
+
+The dispatch endpoint appends the Owner prompt to the task card and only then
+marks the Inbox item `done`. Non-Owner workspaces may create an Owner-visible
+request through the bridge, but they cannot dispatch a task card or attach the
+Owner prompt.
+
+AI Ops diagnostic remediation rows and plugin conversation repair rows must
+show button-level dispatch state. When Owner taps `发修复卡`, the row/action
+sheet must immediately show `正在发送`, disable the active send action, and keep
+the row open if dispatch fails. Failures must leave a bounded visible error
+message and support retry. After repeated failures for the same item/action,
+the client reports a Home-AI-owned diagnostic event so the platform task-card
+dispatch path itself can be repaired. If the diagnostic case is already
+`card_sent`, the dispatch operation is idempotent: the row should be marked
+handled and must not reopen only because later diagnostic events matched the
+same case.
+
 ## Official Kanban Cutover
 
 Official Hermes Kanban is legacy for Hermes Mobile Todo after the Action Inbox migration.
@@ -346,11 +420,33 @@ Phase 1 routes:
 
 Auth mode is workspace-scoped. Owner may inspect or manage configured family/workspace projections, but ordinary workspaces should only see items assigned to or visible to that workspace.
 
+Autonomous Delivery Loop uses Action Inbox as the Owner create/attention
+surface while the coordinator ledger remains canonical. The `新建交付 Loop`
+entry posts the Owner's natural-language objective to
+`POST /api/autonomous-delivery/cases`, stores the case/slices, and creates the
+Owner start item without dispatching any task cards. Start items expose
+`开始执行` / `确认并开始` and call the coordinator's manual start route.
+Verification review items expose `开始验证`; that action creates a
+ledger-backed verification slice and sends one task card to the central audit
+thread. Deployment/readback review items expose `部署读回`; that action creates
+a ledger-backed deployment slice and sends one deployment/readback card to the
+owning workspace without performing local deployment in the Inbox UI. Repair
+review items expose `发修复卡`; that action creates a ledger-backed repair
+slice and sends one repair card back to the original implementation workspace.
+Closure review items expose `完成闭环` only after the coordinator case is
+already `verified_waiting`. None of these item types auto-dispatch cards before
+Owner action, and repeated dispatch failures use the Home AI diagnostic
+channel.
+
 ## Validation
 
 - `node tests\action-inbox-service.test.js`
 - `node tests\action-inbox-todo-service.test.js`
 - `node tests\action-inbox-api-routes.test.js`
+- `node tests\plugin-conversation-action-bridge-service.test.js`
+- `node tests\plugin-conversation-action-api-routes.test.js`
+- `node tests\autonomous-delivery-coordinator-service.test.js`
+- `node tests\autonomous-delivery-api-routes.test.js`
 - `node tests\finance-ledger-join-approval-service.test.js`
 - `node tests\mobile-sqlite-store.test.js`
 - `node tests\hermes-plugin-notification-service.test.js`

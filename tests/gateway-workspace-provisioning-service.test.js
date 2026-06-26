@@ -28,6 +28,13 @@ function createService(manifestPath) {
   });
 }
 
+function createServiceWithOptions(manifestPath, options = {}) {
+  return createGatewayWorkspaceProvisioningService(Object.assign({
+    manifestPaths: () => [manifestPath],
+    nowIso: () => "2026-05-22T12:00:00.000Z",
+  }, options));
+}
+
 function baseWorker(profile, workspaceId, port) {
   return {
     name: profile,
@@ -229,6 +236,55 @@ function testExistingWorkspaceMergesReadableConfigToolsets() {
   });
 }
 
+function testExistingWorkspaceRepairsMacProfilePathsAndWorkerKeys() {
+  withManifest({
+    enabled: true,
+    workers: [
+      Object.assign(baseWorker("lowgw41", "codex-disposable-20260608a", 18891), {
+        osUser: "hm-codex-disposable-20260608a",
+        launchdLabel: "com.hermesmobile.gateway.hm-codex-disposable-20260608a.openai.1",
+        apiKeyFile: "/prod/data/secrets/gateway-workers/hm-wuping-openai-1.key",
+        configPath: "/Users/example/path",
+        telemetryStateDbPath: "/prod/gateway-worker/telemetry/profiles/lowgw1/state.db",
+        telemetryResponseStoreDbPath: "/prod/gateway-worker/telemetry/profiles/lowgw1/response_store.db",
+      }),
+      Object.assign(deepseekWorker("deepseekgw41", "codex-disposable-20260608a", 18892), {
+        osUser: "hm-codex-disposable-20260608a",
+        launchdLabel: "com.hermesmobile.gateway.hm-codex-disposable-20260608a.deepseek.1",
+        apiKeyFile: "/prod/data/secrets/gateway-workers/deepseekgw5.key",
+        configPath: "/Users/example/path",
+        telemetryStateDbPath: "/prod/gateway-worker/telemetry/profiles/deepseekgw5/state.db",
+        telemetryResponseStoreDbPath: "/prod/gateway-worker/telemetry/profiles/deepseekgw5/response_store.db",
+      }),
+    ],
+  }, (manifestPath) => {
+    const result = createServiceWithOptions(manifestPath, {
+      workspaceOpenAiWorkerMin: 1,
+      workspaceDeepSeekWorkerMin: 1,
+    }).ensureWorkspaceGateway({
+      workspaceId: "codex-disposable-20260608a",
+      macUser: "hm-codex-disposable-20260608a",
+    });
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.provisionedWorkers, ["lowgw41", "deepseekgw41"]);
+
+    const manifest = readManifest(manifestPath);
+    const openai = manifest.workers.find((item) => item.profile === "lowgw41");
+    const deepseek = manifest.workers.find((item) => item.profile === "deepseekgw41");
+    assert.equal(openai.configPath, "/Users/example/path");
+    assert.equal(deepseek.configPath, "/Users/example/path");
+    assert.equal(path.basename(openai.apiKeyFile), "hm-codex-disposable-20260608a-openai-1.key");
+    assert.equal(path.basename(deepseek.apiKeyFile), "hm-codex-disposable-20260608a-deepseek-1.key");
+    assert.equal(fs.existsSync(openai.apiKeyFile), true);
+    assert.equal(fs.existsSync(deepseek.apiKeyFile), true);
+    assert.equal(openai.telemetryStateDbPath, "/prod/gateway-worker/telemetry/profiles/lowgw41/state.db");
+    assert.equal(openai.telemetryResponseStoreDbPath, "/prod/gateway-worker/telemetry/profiles/lowgw41/response_store.db");
+    assert.equal(deepseek.telemetryStateDbPath, "/prod/gateway-worker/telemetry/profiles/deepseekgw41/state.db");
+    assert.equal(deepseek.telemetryResponseStoreDbPath, "/prod/gateway-worker/telemetry/profiles/deepseekgw41/response_store.db");
+  });
+}
+
 function testRefreshProfileBindingMarksExistingWorkspaceProfiles() {
   withManifest({
     enabled: true,
@@ -274,6 +330,7 @@ testProvisionNewWorkspaceWorkerAppendsAfterStableGrokPort();
 testExistingWorkspaceIsIdempotent();
 testExistingWorkspaceRepairsStaleReplicaMetadata();
 testExistingWorkspaceMergesReadableConfigToolsets();
+testExistingWorkspaceRepairsMacProfilePathsAndWorkerKeys();
 testRefreshProfileBindingMarksExistingWorkspaceProfiles();
 testOwnerWorkspaceSkipped();
 

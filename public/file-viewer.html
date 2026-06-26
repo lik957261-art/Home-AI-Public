@@ -83,6 +83,7 @@
     }
 
     body.embedded-viewer .viewer-more-button,
+    body.embedded-viewer .viewer-mode-toggle-button,
     body.embedded-viewer .viewer-save-image-button,
     body.embedded-viewer .viewer-done-button {
       display: none;
@@ -174,10 +175,10 @@
       font-size: 13px;
     }
 
-    .viewer-more-button {
+    .viewer-more-button,
+    .viewer-mode-toggle-button {
       position: fixed;
       z-index: 5;
-      right: max(10px, env(safe-area-inset-right));
       top: calc(10px + env(safe-area-inset-top));
       min-width: 42px;
       min-height: 34px;
@@ -191,6 +192,18 @@
       font-size: 21px;
       font-weight: 860;
       line-height: 1;
+    }
+
+    .viewer-more-button {
+      right: max(10px, env(safe-area-inset-right));
+    }
+
+    .viewer-mode-toggle-button {
+      right: calc(max(10px, env(safe-area-inset-right)) + 52px);
+      min-width: 94px;
+      padding: 0 12px;
+      font-size: 13px;
+      font-weight: 800;
     }
 
     .viewer-done-button {
@@ -217,7 +230,8 @@
 
     html[data-effective-theme="dark"] .back,
     html[data-effective-theme="dark"] .button.secondary,
-    html[data-effective-theme="dark"] .viewer-more-button {
+    html[data-effective-theme="dark"] .viewer-more-button,
+    html[data-effective-theme="dark"] .viewer-mode-toggle-button {
       color: var(--ink);
       background: rgba(255, 255, 255, 0.12);
       border-color: var(--line);
@@ -653,6 +667,12 @@
       overflow-x: hidden;
     }
 
+    body.office-document-mode {
+      color-scheme: light;
+      color: #1f2328;
+      background: #f3f4f6;
+    }
+
     body.image-document-mode {
       min-height: 100dvh;
       overflow: hidden;
@@ -712,7 +732,8 @@
       box-shadow: none;
     }
 
-    body.image-document-mode .viewer-more-button {
+    body.image-document-mode .viewer-more-button,
+    body.image-document-mode .viewer-mode-toggle-button {
       color: rgba(255, 255, 255, 0.88);
       background: rgba(15, 23, 42, 0.42);
       border-color: rgba(255, 255, 255, 0.18);
@@ -776,6 +797,10 @@
       touch-action: pan-y;
     }
 
+    body.office-document-mode .preview-panel {
+      background: #f3f4f6;
+    }
+
     body.text-document-mode .preview-head {
       display: none;
     }
@@ -790,6 +815,21 @@
       letter-spacing: 0;
       background: var(--paper);
       touch-action: pan-y;
+    }
+
+    body.office-document-mode .preview-text {
+      max-width: 980px;
+      min-height: calc(100dvh - 32px);
+      margin: 0 auto;
+      color: #1f2328;
+      background: #fff;
+      box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
+      white-space: pre-wrap;
+      tab-size: 4;
+    }
+
+    body.office-document-mode .preview-text * {
+      color: inherit;
     }
 
     body.text-document-mode .preview-text.markdown-preview {
@@ -810,11 +850,18 @@
       body.text-document-mode .preview-text.markdown-preview {
         font-size: calc(18px * var(--viewer-markdown-font-scale));
       }
+
+      body.office-document-mode .preview-text {
+        min-height: 100dvh;
+        margin: 0;
+        box-shadow: none;
+      }
     }
   </style>
 </head>
 <body>
-  <button id="share" class="viewer-more-button" type="button" aria-label="用其他应用打开" title="用其他应用打开">...</button>
+  <button id="share" class="viewer-more-button" type="button" aria-label="更多分享" title="更多分享">...</button>
+  <button id="previewModeToggle" class="viewer-mode-toggle-button" type="button" aria-label="原始格式显示" title="原始格式显示">原始格式</button>
   <button id="saveImage" class="viewer-save-image-button" type="button">保存到相册</button>
   <button id="done" class="viewer-done-button" type="button" aria-label="Done">&#23436;&#25104;</button>
   <div id="toast" class="viewer-toast hidden" role="status" aria-live="polite"></div>
@@ -1314,8 +1361,9 @@
       renderTextPreview(body, label, options);
     }
 
-    function enableTextDocumentMode() {
+    function enableTextDocumentMode(options = {}) {
       document.body.classList.add("text-document-mode");
+      document.body.classList.toggle("office-document-mode", Boolean(options.office));
     }
 
     async function enableImageDocumentMode() {
@@ -1748,6 +1796,26 @@ window.addEventListener("load", function () {
       await shareOriginalFile();
     }
 
+    function supportsOriginalFormatPreview() {
+      return kind === "DOC" || kind === "SLIDE";
+    }
+
+    function updatePreviewModeToggle() {
+      const button = document.getElementById("previewModeToggle");
+      if (!button) return;
+      const visible = Boolean(src && supportsOriginalFormatPreview());
+      button.hidden = !visible;
+      if (!visible) return;
+      button.textContent = "原始格式";
+      button.setAttribute("aria-label", "原始格式显示");
+      button.title = "原始格式显示";
+    }
+
+    function switchPreviewMode() {
+      if (!src || !supportsOriginalFormatPreview()) return;
+      location.assign(originalUrlFor(src));
+    }
+
     const kind = kindFor(name, mime);
     document.getElementById("title").textContent = name;
     document.getElementById("icon").textContent = kind;
@@ -1764,11 +1832,13 @@ window.addEventListener("load", function () {
     document.getElementById("download").setAttribute("download", name);
     document.getElementById("download").addEventListener("click", downloadFile);
     document.getElementById("share").addEventListener("click", shareFile);
+    document.getElementById("previewModeToggle").addEventListener("click", switchPreviewMode);
     document.getElementById("saveImage").addEventListener("click", saveImageToAlbum);
     document.getElementById("forwardWeixin").addEventListener("click", () => {
       forwardFileToWeixin().catch((err) => setTransientStatus(err.message || "Weixin forwarding failed."));
     });
     if (src && !isMarkdownDocument()) window.setTimeout(() => prepareShareBlob().catch(() => {}), 500);
+    updatePreviewModeToggle();
 
     if (src && kind === "IMG") {
       enableImageDocumentMode();
@@ -1779,8 +1849,8 @@ window.addEventListener("load", function () {
     }
 
     if (src && kind === "DOC" && String(name).toLowerCase().endsWith(".docx")) {
-      enableTextDocumentMode();
-      loadTextPreview("Word preview").catch((err) => {
+      enableTextDocumentMode({ office: true });
+      loadTextPreview("Word preview", { markdown: true }).catch((err) => {
         setStatus(err.message || "Word preview failed.");
       });
     } else if (src && kind === "DOC") {

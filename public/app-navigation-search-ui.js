@@ -383,7 +383,9 @@ function updateNavigationControls() {
   const moiraPluginOuterBack = typeof moiraPluginOuterBackActive === "function" && moiraPluginOuterBackActive();
   const musicPluginBack = typeof musicPluginBackActive === "function" && musicPluginBackActive();
   const musicPluginOuterBack = typeof musicPluginOuterBackActive === "function" && musicPluginOuterBackActive();
-  const pluginBack = wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || codexPluginOuterBack || financePluginBack || financePluginOuterBack || emailPluginBack || emailPluginOuterBack || healthPluginBack || healthPluginOuterBack || notePluginBack || notePluginOuterBack || growthPluginBack || growthPluginOuterBack || moiraPluginBack || moiraPluginOuterBack || musicPluginBack || musicPluginOuterBack;
+  const moviePluginBack = typeof moviePluginBackActive === "function" && moviePluginBackActive();
+  const moviePluginOuterBack = typeof moviePluginOuterBackActive === "function" && moviePluginOuterBackActive();
+  const pluginBack = wardrobePluginBack || wardrobePluginOuterBack || codexPluginBack || codexPluginOuterBack || financePluginBack || financePluginOuterBack || emailPluginBack || emailPluginOuterBack || healthPluginBack || healthPluginOuterBack || notePluginBack || notePluginOuterBack || growthPluginBack || growthPluginOuterBack || moiraPluginBack || moiraPluginOuterBack || musicPluginBack || musicPluginOuterBack || moviePluginBack || moviePluginOuterBack;
   const mainBack = taskDetail || directoryTopicDraft || todoDetail || todoCreate || automationDetail || automationSecondary || actionInboxDetail || actionInboxCreate || skillDetail || directoryBack || learningGrowthDetail || learningGrowthSettings || (!pluginContextActive && pluginBack);
   const minimalWindow = isMinimalWindowView();
   const centeredTopTitle = (
@@ -402,6 +404,7 @@ function updateNavigationControls() {
     || state.viewMode === "growth"
     || state.viewMode === "moira"
     || state.viewMode === "music"
+    || state.viewMode === "movie"
   );
   app?.classList.toggle("minimal-window-mode", minimalWindow);
   app?.classList.toggle("task-detail-mode", taskDetail);
@@ -435,7 +438,7 @@ function updateNavigationControls() {
   }
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
-  let hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomLearningMode", "bottomAutomationMode"]);
+  let hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomMovieMode", "bottomLearningMode", "bottomAutomationMode"]);
   const pinnedBottomTabButtonIds = new Set();
   if (
     typeof pinnedPluginBottomTabIds === "function"
@@ -447,7 +450,7 @@ function updateNavigationControls() {
       if (buttonId) pinnedBottomTabButtonIds.add(buttonId);
     });
   }
-  ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
+  ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomMovieMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {
       setBottomTabHidden(node, hiddenBottomTabs.has(id) && !pinnedBottomTabButtonIds.has(id));
@@ -456,7 +459,7 @@ function updateNavigationControls() {
   });
   updateBottomNavLabel("bottomTasksMode", "");
   updateBottomNavLabel("bottomProjectsMode", "");
-  ["bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode"].forEach((id) => {
+  ["bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomMovieMode"].forEach((id) => {
     if (!pinnedBottomTabButtonIds.has(id)) updateBottomNavLabel(id, "");
   });
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
@@ -467,6 +470,7 @@ function updateNavigationControls() {
   if (typeof updateNotePluginNavigationAvailability === "function") updateNotePluginNavigationAvailability();
   if (typeof updateGrowthPluginNavigationAvailability === "function") updateGrowthPluginNavigationAvailability();
   if (typeof updateMoiraPluginNavigationAvailability === "function") updateMoiraPluginNavigationAvailability();
+  if (typeof updateMoviePluginNavigationAvailability === "function") updateMoviePluginNavigationAvailability();
   if (typeof updateSidebarPluginLauncher === "function") updateSidebarPluginLauncher();
   if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
   if (typeof syncPinnedPluginBottomTabs === "function") syncPinnedPluginBottomTabs();
@@ -525,6 +529,11 @@ function updateTopMoreControls() {
     manageAccessKeys.hidden = true;
     manageAccessKeys.disabled = true;
   }
+  const manageTtsProfiles = $("topManageTtsProfiles");
+  if (manageTtsProfiles) {
+    manageTtsProfiles.hidden = !chatView;
+    manageTtsProfiles.disabled = !chatView;
+  }
   updatePwaInstallControls();
   const newDirectoryFolder = $("topNewDirectoryFolder");
   if (newDirectoryFolder) {
@@ -573,6 +582,11 @@ function updateTopMoreControls() {
   if (newPluginAudit) {
     newPluginAudit.hidden = !inboxView;
     newPluginAudit.disabled = !inboxView;
+  }
+  const newDeliveryLoop = $("topNewDeliveryLoop");
+  if (newDeliveryLoop) {
+    newDeliveryLoop.hidden = !inboxView;
+    newDeliveryLoop.disabled = !inboxView;
   }
   const selectedInboxItem = typeof currentActionInboxItem === "function" ? currentActionInboxItem() : null;
   const selectedInboxItemLink = typeof actionInboxSourceDeepLink === "function" ? actionInboxSourceDeepLink(selectedInboxItem) : (selectedInboxItem?.deepLink || "");
@@ -693,7 +707,7 @@ function setReadingFullscreen(enabled) {
 }
 
 function chatSearchAvailable() {
-  return isSingleWindowChatView() && Boolean(state.currentThread);
+  return (isSingleWindowChatView() || isTaskDetailView()) && Boolean(state.currentThread);
 }
 
 function isChatSearchMode() {
@@ -722,6 +736,13 @@ function chatSearchContentForMessage(message) {
   ].filter(Boolean).join("\n").toLowerCase();
 }
 
+function searchableConversationMessages(thread = state.currentThread) {
+  if (isTaskDetailView() && typeof taskGroupMessagesForThread === "function") {
+    return taskGroupMessagesForThread(thread, state.currentTaskGroupId);
+  }
+  return chatMessagesForThread(thread);
+}
+
 function syncChatSearchMatches() {
   if (!chatSearchAvailable()) {
     state.chatSearchMatches = [];
@@ -736,7 +757,7 @@ function syncChatSearchMatches() {
     state.chatSearchTotalMatches = 0;
     return [];
   }
-  const matches = chatMessagesForThread(state.currentThread)
+  const matches = searchableConversationMessages(state.currentThread)
     .filter((message) => message?.id && chatSearchContentForMessage(message).includes(query))
     .map((message) => message.id);
   state.chatSearchMatches = matches;

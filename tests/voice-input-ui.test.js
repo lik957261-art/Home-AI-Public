@@ -253,6 +253,9 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(styles, /@keyframes voice-input-mic-pulse/);
   assert.match(voiceUi, /function voiceInputRenderAttachMicIndicator\(voice = ensureVoiceInputState\(\)\)/);
   assert.match(voiceUi, /voiceInputRestoreAttachMicIndicator\(\)/);
+  assert.match(voiceUi, /function voiceInputOverlayActiveStatus\(status\) \{[\s\S]*?"inserting"[\s\S]*?includes\(String\(status \|\| ""\)\);[\s\S]*?\}/);
+  assert.match(voiceUi, /function voiceInputRecordingVisible\(voice = ensureVoiceInputState\(\)\) \{[\s\S]*?return voiceInputOverlayActiveStatus\(voice\.status\);[\s\S]*?\}/);
+  assert.doesNotMatch(voiceUi, /return Boolean\(voice\.panelVisible \|\| voice\.status !== "idle"\)/);
   assert.match(voiceUi, /overlay\.hidden = !voiceInputRecordingVisible\(voice\)/);
   assert.doesNotMatch(voiceUi, /attach\.innerHTML = `<span class="voice-input-mic-indicator"/);
   assert.doesNotMatch(read("public/app-message-actions-ui.js"), /\$\("attachFile"\)\?\.classList\?\.contains\("voice-input-attach-indicator"\)/);

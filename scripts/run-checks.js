@@ -18,7 +18,9 @@ const PYTHON_COMPILE_FILES = [
   "gateway-plugins/hermes-mobile-web/__init__.py",
   "gateway-plugins/hermes-mobile-image/__init__.py",
   "gateway-plugins/hermes-mobile-docx/__init__.py",
+  "gateway-plugins/hermes-mobile-pdf/__init__.py",
   "gateway-plugins/hermes-mobile-audio/__init__.py",
+  "gateway-plugins/hermes-mobile-archive/__init__.py",
 ];
 
 const NO_WARNING_TESTS = new Set([

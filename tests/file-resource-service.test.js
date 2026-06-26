@@ -59,6 +59,7 @@ function testSafeMetadataDoesNotLeakRawPaths() {
 function testPreviewStrategyAndMime() {
   assert.equal(mimeFor("README.md"), "text/markdown; charset=utf-8");
   assert.equal(mimeFor("notes.txt"), "text/plain; charset=utf-8");
+  assert.equal(mimeFor("contract.zip"), "application/zip");
   assert.equal(mimeFor("data.unknown"), "application/octet-stream");
 
   assert.deepEqual(previewStrategyForFile({ localPath: "draft.docx" }), { kind: "docx" });

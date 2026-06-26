@@ -23,6 +23,7 @@ assert.match(indexHtml, /id="bottomFinanceMode"/);
 assert.match(indexHtml, /id="bottomEmailMode"/);
 assert.match(indexHtml, /id="bottomGrowthMode"/);
 assert.match(indexHtml, /id="bottomMoiraMode"/);
+assert.match(indexHtml, /id="bottomMovieMode"/);
 assert.match(indexHtml, /app-embedded-plugin-ui\.js\?v=/);
 
 assert.match(embeddedPluginUi, /"codex-mobile"/);
@@ -33,6 +34,8 @@ assert.match(embeddedPluginUi, /refreshRequiredEventType: "codex-mobile\.plugin\
 assert.match(embeddedPluginUi, /residentFrame: true/);
 assert.match(embeddedPluginUi, /id: "finance"/);
 assert.match(embeddedPluginUi, /viewMode: "finance"/);
+assert.match(embeddedPluginUi, /movie: Object\.freeze\(\{[\s\S]*?id: "movie"[\s\S]*?viewMode: "movie"[\s\S]*?manifestPath: "\/api\/hermes-plugins\/movie\/manifest"/);
+assert.match(embeddedPluginUi, /function renderMoviePluginView\(\) \{[\s\S]*?updateMoviePluginNavigationAvailability\(\);[\s\S]*?renderEmbeddedPluginView\(EMBEDDED_PLUGIN_DEFS\.movie\)/);
 assert.match(embeddedPluginUi, /manifestPath: "\/api\/hermes-plugins\/finance\/manifest"/);
 assert.match(embeddedPluginUi, /navigationEventType: "finance\.plugin\.navigation"/);
 assert.match(embeddedPluginUi, /backResultEventType: "finance\.plugin\.back_result"/);
@@ -93,6 +96,10 @@ assert.match(embeddedPluginUi, /discardEmbeddedPluginShell\(def\);[\s\S]*manifes
 assert.match(embeddedPluginUi, /embeddedPluginHost\(def\)\.innerHTML = ""/);
 assert.match(embeddedPluginUi, /setEmbeddedPluginHostVisible\(def, false\)/);
 assert.match(embeddedPluginUi, /function embeddedPluginUsesLaunchToken\(manifest\)/);
+assert.match(embeddedPluginUi, /function embeddedPluginRefreshesOnVersionChange\(manifest\)/);
+assert.match(embeddedPluginUi, /manifest\?\.embedding\?\.refreshOnVersionChange/);
+assert.match(embeddedPluginUi, /function embeddedPluginManifestMaxAgeMs\(def, manifest\)/);
+assert.match(embeddedPluginUi, /embeddedPluginRefreshesOnVersionChange\(manifest\) \? 5000 : 60000/);
 assert.match(embeddedPluginUi, /codexPluginLaunch/);
 assert.match(embeddedPluginUi, /function embeddedPluginHost\(def\)/);
 assert.match(embeddedPluginUi, /main\.insertBefore\(host, conversation\)/);
@@ -105,6 +112,16 @@ assert.match(embeddedPluginUi, /function refreshEmbeddedPluginFrameFromFreshMani
 assert.match(embeddedPluginUi, /function requestEmbeddedPluginHealthRefresh\(def, payload = {}\)/);
 assert.match(embeddedPluginUi, /requestEmbeddedPluginHealthRefresh\(def\)/);
 assert.match(embeddedPluginUi, /function ensureEmbeddedPluginNavigationBridge\(def\)/);
+assert.match(embeddedPluginUi, /function updateEmbeddedPluginReadyState\(def, payload = \{\}\)/);
+assert.match(embeddedPluginUi, /data\.type === "homeai-plugin-ready" && updateEmbeddedPluginReadyState\(def, data\)/);
+assert.match(embeddedPluginUi, /record\.pluginVersion = pluginVersion/);
+assert.match(embeddedPluginUi, /record\.pluginCacheKey = cacheKey/);
+assert.match(embeddedPluginUi, /pluginVersionMismatchAt = now/);
+assert.match(embeddedPluginUi, /const mismatchSignature = `\$\{manifestVersion\}\|\$\{pluginVersion\}\|\$\{cacheKey\}`/);
+assert.match(embeddedPluginUi, /record\.pluginVersionMismatchSignature !== mismatchSignature/);
+assert.match(embeddedPluginUi, /record\.pluginVersionMismatchSignature = mismatchSignature/);
+assert.match(embeddedPluginUi, /requestEmbeddedPluginRefresh\(def, \{ force: true, reason: "plugin_version_mismatch" \}\)/);
+assert.match(embeddedPluginUi, /record\.pluginVersionMismatchSignature = ""/);
 assert.match(embeddedPluginUi, /def\.navigationEventType/);
 assert.match(embeddedPluginUi, /function normalizeEmbeddedPluginVoiceInputCapability\(def, payload = \{\}\)/);
 assert.match(embeddedPluginUi, /function sendEmbeddedPluginVoiceInputAction\(action, payload = \{\}, def = embeddedPluginDefByView\(\)\)/);
@@ -175,7 +192,10 @@ assert.match(embeddedPluginUi, /state\.viewMode !== def\.viewMode[\s\S]*discardE
 assert.match(embeddedPluginUi, /refreshEmbeddedPluginFrameFromFreshManifest\(def\)/);
 assert.match(embeddedPluginUi, /const hasShell = Boolean\(currentEmbeddedPluginShell\(def\)\)/);
 assert.match(embeddedPluginUi, /const hasShell = Boolean\(currentEmbeddedPluginShell\(def\)\);[\s\S]*?if \(hasShell\) setEmbeddedPluginHostVisible\(def, true\);[\s\S]*?else showEmbeddedPluginLoadingSurface\(def\);/);
-assert.match(embeddedPluginUi, /if \(!pluginManifest && embeddedPluginResidentShellMatchesLaunchContext\(def, workspaceId, appearanceKey\)\) \{[\s\S]*?attachEmbeddedPluginShell\(def, record\.renderedEntryUrl\)/);
+assert.match(embeddedPluginUi, /function embeddedPluginResidentShellRequiresFreshManifest\(def, manifest\)/);
+assert.match(embeddedPluginUi, /def\?\.residentFrame && embeddedPluginRefreshesOnVersionChange\(manifest\)/);
+assert.match(embeddedPluginUi, /!embeddedPluginResidentShellRequiresFreshManifest\(def, record\.manifest\)[\s\S]*?embeddedPluginResidentShellMatchesLaunchContext\(def, workspaceId, appearanceKey\)/);
+assert.match(embeddedPluginUi, /attachEmbeddedPluginShell\(def, record\.renderedEntryUrl\)/);
 assert.doesNotMatch(embeddedPluginUi, /if \(!pluginManifest && embeddedPluginResidentShellMatchesLaunchContext\(def, workspaceId, appearanceKey\)\) \{[\s\S]*?embeddedPluginUsesLaunchToken\(record\.manifest\)[\s\S]*?refreshEmbeddedPluginFrameFromFreshManifest\(def\)/);
 assert.match(embeddedPluginUi, /shell\?\.querySelector\("\.embedded-plugin-frame"\) !== frame/);
 assert.match(embeddedPluginUi, /if \(shell\?\.classList && !shell\.classList\.contains\("is-loading"\)\) return;/);
@@ -338,6 +358,8 @@ assert.match(navigationSearchUi, /growthPluginBackActive\(\)/);
 assert.match(navigationSearchUi, /growthPluginOuterBackActive\(\)/);
 assert.match(navigationSearchUi, /moiraPluginBackActive\(\)/);
 assert.match(navigationSearchUi, /moiraPluginOuterBackActive\(\)/);
+assert.match(navigationSearchUi, /moviePluginBackActive\(\)/);
+assert.match(navigationSearchUi, /moviePluginOuterBackActive\(\)/);
 assert.match(navigationSearchUi, /function updateTopicPluginDockChrome\(taskList\)/);
 assert.match(navigationSearchUi, /sidebarOpen = \$\("sidebar"\)\?\.classList\.contains\("open"\)/);
 assert.match(navigationSearchUi, /pluginTopicDefForViewMode\(state\.viewMode\)/);
@@ -353,7 +375,9 @@ assert.match(navigationSearchUi, /const pluginBack = wardrobePluginBack \|\| war
 assert.match(navigationSearchUi, /codexPluginBack \|\| codexPluginOuterBack \|\| financePluginBack \|\| financePluginOuterBack \|\| emailPluginBack \|\| emailPluginOuterBack/);
 assert.match(navigationSearchUi, /growthPluginBack \|\| growthPluginOuterBack \|\| moiraPluginBack \|\| moiraPluginOuterBack/);
 assert.match(navigationSearchUi, /moiraPluginBack \|\| moiraPluginOuterBack \|\| musicPluginBack \|\| musicPluginOuterBack/);
+assert.match(navigationSearchUi, /musicPluginBack \|\| musicPluginOuterBack \|\| moviePluginBack \|\| moviePluginOuterBack/);
 assert.match(navigationSearchUi, /\|\| \(!pluginContextActive && pluginBack\);/);
+assert.match(navigationSearchUi, /state\.viewMode === "movie"/);
 assert.match(pluginTopicsUi, /const contextDef = pluginTopicDefById\(state\.pluginContextNavPluginId\)/);
 assert.match(pluginTopicsUi, /mode === "tasks" && state\.currentTaskGroupId === pluginTopicGroupId\(contextDef\.id\)/);
 assert.match(pluginTopicsUi, /if \(mode === "projects"\) return contextDef;/);
@@ -391,6 +415,7 @@ assert.match(sidebarTaskUi, /sendHealthPluginBackOrReturn\(\)/);
 assert.match(sidebarTaskUi, /sendGrowthPluginBackOrReturn\(\)/);
 assert.match(sidebarTaskUi, /sendMoiraPluginBackOrReturn\(\)/);
 assert.match(sidebarTaskUi, /sendMusicPluginBackOrReturn\(\)/);
+assert.match(sidebarTaskUi, /sendMoviePluginBackOrReturn\(\)/);
 assert.match(sidebarTaskUi, /updateTopicPluginDockChrome\(isTaskListView\(\)\)/);
 assert.match(sidebarTaskUi, /function pluginContextBackNavigationActive\(\)/);
 assert.match(sidebarTaskUi, /const pluginContextBack = pluginContextBackNavigationActive\(\)/);
@@ -419,13 +444,21 @@ assert.match(sidebarTaskUi, /moiraPluginOuterBackActive\(\)[\s\S]*return "moira-
 assert.match(sidebarTaskUi, /target === "moira-plugin-outer"[\s\S]*restoreMoiraPluginReturnRoute\(\)/);
 assert.match(sidebarTaskUi, /musicPluginOuterBackActive\(\)[\s\S]*return "music-plugin-outer"/);
 assert.match(sidebarTaskUi, /target === "music-plugin-outer"[\s\S]*restoreMusicPluginReturnRoute\(\)/);
+assert.match(sidebarTaskUi, /moviePluginOuterBackActive\(\)[\s\S]*return "movie-plugin-outer"/);
+assert.match(sidebarTaskUi, /target === "movie-plugin-outer"[\s\S]*restoreMoviePluginReturnRoute\(\)/);
 const musicPluginBackIndex = sidebarTaskUi.indexOf('return "music-plugin"');
+const moviePluginBackIndex = sidebarTaskUi.indexOf('return "movie-plugin"');
 const pluginContextBackIndex = sidebarTaskUi.indexOf('if (pluginContextTarget) return pluginContextTarget;');
 assert.ok(musicPluginBackIndex > -1);
+assert.ok(moviePluginBackIndex > -1);
 assert.ok(pluginContextBackIndex > -1);
 assert.ok(
   musicPluginBackIndex < pluginContextBackIndex,
   "Music iframe history should win before host plugin-context exit",
+);
+assert.ok(
+  moviePluginBackIndex < pluginContextBackIndex,
+  "Movie iframe history should win before host plugin-context exit",
 );
 assert.match(sidebarTaskUi, /target === "plugin-context-home"[\s\S]*exitPluginContextToTopicHome\(\)/);
 assert.match(pluginTopicsUi, /function exitPluginContextToTopicHome\(\)/);
@@ -470,7 +503,7 @@ assert.match(stylesCss, /\.embedded-plugin-frame/);
 assert.match(stylesCss, /\.embedded-plugin-shell \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.embedded-plugin-shell\.is-loading::before \{[\s\S]*?background: var\(--ui-page\);/);
 assert.match(stylesCss, /\.embedded-plugin-shell\.is-loading \.embedded-plugin-frame \{[\s\S]*?opacity: 0;/);
-assert.match(stylesCss, /\.codex-mode \.conversation,[\s\S]*?\.email-mode \.conversation,[\s\S]*?\.health-mode \.conversation,[\s\S]*?\.note-mode \.conversation,[\s\S]*?\.growth-plugin-mode \.conversation,[\s\S]*?\.moira-mode \.conversation,[\s\S]*?\.music-mode \.conversation\s*\{[\s\S]*padding: 0;/);
+assert.match(stylesCss, /\.codex-mode \.conversation,[\s\S]*?\.email-mode \.conversation,[\s\S]*?\.health-mode \.conversation,[\s\S]*?\.note-mode \.conversation,[\s\S]*?\.growth-plugin-mode \.conversation,[\s\S]*?\.moira-mode \.conversation,[\s\S]*?\.music-mode \.conversation,[\s\S]*?\.movie-mode \.conversation\s*\{[\s\S]*padding: 0;/);
 assert.match(stylesCss, /\.embedded-plugin-host-active \.conversation\s*\{[\s\S]*display: none;/);
 assert.match(stylesCss, /\.embedded-plugin-host-active \.topbar\s*\{[\s\S]*display: none !important;/);
 assert.match(stylesCss, /\.wardrobe-plugin-host-active \.topbar\s*\{[\s\S]*display: none !important;/);

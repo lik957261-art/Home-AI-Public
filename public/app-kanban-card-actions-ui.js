@@ -46,7 +46,13 @@ async function cancelTodo(todoId) {
   if (!todoId) return;
   const card = kanbanCardById(todoId);
   if (card && !kanbanCan(card, "canManage")) throw new Error("No permission to cancel this card");
-  if (!window.confirm(`取消看板卡片 ${todoId}？`)) return;
+  const confirmed = await openAppConfirmDialog({
+    title: "取消看板卡片",
+    message: `取消看板卡片 ${todoId}？`,
+    confirmLabel: "取消卡片",
+    danger: true,
+  });
+  if (!confirmed) return;
   await api(boardActionApiPath(todoId, "cancel"), {
     method: "POST",
     body: kanbanCardActionBody(todoId),
@@ -62,7 +68,12 @@ async function archiveKanbanStoryCase(caseKey) {
   const group = kanbanActiveStoryCases(state.todos).find((item) => kanbanStoryCaseKey(item) === key);
   const items = kanbanStoryCaseArchiveItems(group);
   if (!group || !items.length) throw new Error("No completed story cards can be archived.");
-  if (!window.confirm(`归档故事：${group.title || key}？`)) return;
+  const confirmed = await openAppConfirmDialog({
+    title: "归档故事",
+    message: `归档故事：${group.title || key}？`,
+    confirmLabel: "归档",
+  });
+  if (!confirmed) return;
   for (const item of items) {
     await api(boardActionApiPath(item.todo.id, "cancel"), {
       method: "POST",
@@ -85,7 +96,13 @@ async function deleteKanbanStoryCase(caseKey) {
   const items = kanbanStoryCaseDeleteItems(group);
   if (!group || !items.length) throw new Error("No deletable cards in this story.");
   const title = group.title || key;
-  if (!window.confirm(`\u5220\u9664\u6545\u4e8b\uff1a${title}\n\u5c06\u4e00\u6b21\u5220\u9664 ${items.length} \u5f20\u770b\u677f\u5361\u7247\uff0c\u4e0d\u53ef\u901a\u8fc7\u5355\u5361\u5165\u53e3\u64a4\u9500\u3002`)) return false;
+  const confirmed = await openAppConfirmDialog({
+    title: "删除故事",
+    message: `\u5220\u9664\u6545\u4e8b\uff1a${title}\n\u5c06\u4e00\u6b21\u5220\u9664 ${items.length} \u5f20\u770b\u677f\u5361\u7247\uff0c\u4e0d\u53ef\u901a\u8fc7\u5355\u5361\u5165\u53e3\u64a4\u9500\u3002`,
+    confirmLabel: "删除",
+    danger: true,
+  });
+  if (!confirmed) return false;
   let boundTopic = kanbanBoundTopicForStoryGroup(group);
   if (!boundTopic) {
     await refreshCaseTopicThreadsForWorkspace().catch(() => []);
@@ -369,7 +386,13 @@ async function withdrawLearningGrowthSubmission(todoId) {
   if (!todoId) return;
   const card = kanbanCardById(todoId);
   if (card && !kanbanCan(card, "canComment")) throw new Error("No permission to withdraw this Growth submission");
-  if (!window.confirm("\u64a4\u56de\u8fd9\u6b21\u6210\u957f\u4efb\u52a1\u63d0\u4ea4\uff0c\u5e76\u91cd\u65b0\u4f5c\u7b54\uff1f")) return;
+  const confirmed = await openAppConfirmDialog({
+    title: "撤回提交",
+    message: "\u64a4\u56de\u8fd9\u6b21\u6210\u957f\u4efb\u52a1\u63d0\u4ea4\uff0c\u5e76\u91cd\u65b0\u4f5c\u7b54\uff1f",
+    confirmLabel: "撤回",
+    danger: true,
+  });
+  if (!confirmed) return;
   await api(boardActionApiPath(todoId, "learning-growth-submission/withdraw"), {
     method: "POST",
     body: kanbanCardActionBody(todoId, { reason: "Withdraw recent Growth learning task submission." }),
@@ -444,7 +467,13 @@ async function deleteTodo(todoId) {
   const card = kanbanCardById(todoId);
   if (card && !kanbanCan(card, "canDelete")) throw new Error("No permission to delete this card");
   if (card && kanbanCardHasExplicitStoryCase(card)) throw new Error("This card belongs to a story. Delete the story from the Story view.");
-  if (!window.confirm(`删除看板卡片 ${todoId}？`)) return;
+  const confirmed = await openAppConfirmDialog({
+    title: "删除看板卡片",
+    message: `删除看板卡片 ${todoId}？`,
+    confirmLabel: "删除",
+    danger: true,
+  });
+  if (!confirmed) return;
   await api(boardActionApiPath(todoId, "delete"), {
     method: "POST",
     body: kanbanCardActionBody(todoId),

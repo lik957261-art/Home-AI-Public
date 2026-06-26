@@ -1,0 +1,352 @@
+# Audit Thread Governance Contract
+
+Contract version: `20260623-v1`.
+
+## Purpose
+
+Home AI audits must be independent from ordinary implementation threads. The
+platform uses audits to find architecture, contract, runtime, deployment,
+security, privacy, data ownership, fallback, complexity, and harness gaps before
+repair work starts.
+An audit thread must not become another implementation thread, and scheduled
+automation must not run deep audits directly.
+
+This contract applies to:
+
+- Home AI host/platform audits;
+- plugin workspace audits;
+- product reality audits;
+- scheduled audit request automation;
+- audit-to-implementation task cards;
+- audit follow-up and closure verification.
+
+## Dedicated Audit Threads
+
+Home AI uses two dedicated audit thread roles:
+
+- `Home AI Platform Audit`
+  - Audits the Home AI host workspace, platform contracts, production deploy
+    rules, Automation/Cron, Gateway/toolset boundaries, plugin host behavior,
+    security/privacy boundaries, and source-to-production drift.
+- `Plugin Workspace Audit`
+  - Audits registered plugin workspaces against Home AI platform contracts,
+    plugin manifests, MCP/schema contracts, deployment boundaries, visual
+    contracts, data ownership, fallback governance, and harness coverage.
+
+These threads must stay read-only unless the user explicitly changes the thread
+from audit mode to implementation mode. In audit mode, they must not edit files,
+write data stores, create commits, push branches, deploy, restart services,
+install packages, run migrations, or perform production mutation.
+
+## Handoff Independence Rule
+
+Dedicated audit threads must not read or rely on implementation handoffs as
+audit input.
+
+Forbidden audit inputs by default:
+
+- `.agent-context/HANDOFF.md`;
+- `.agent-context/thread-handoffs/*`;
+- `.agent-context/archive/*` handoff or compacted chat context;
+- old thread summaries, rollout summaries, or previous implementation
+  rationales;
+- source-thread hidden reasoning, one-time approvals, or UI state.
+
+This is stricter than ordinary implementation-thread startup. Audit threads are
+allowed to bypass shared handoff loading so they do not inherit the assumptions,
+recent decisions, and self-justifications of the thread being audited.
+
+Audit threads may read:
+
+- `AGENTS.md` for repository-level safety rules, except ordinary handoff
+  loading is replaced by this contract;
+- this contract;
+- `docs/DOCS_INDEX.md`;
+- relevant platform contracts, module docs, runbooks, implementation notes,
+  source files, tests, scripts, git metadata, and bounded runtime evidence;
+- production status or configuration only through approved read-only commands
+  or existing smoke/audit scripts.
+
+## Home AI Host Evidence Entry Rule
+
+Plugin runtime and Product Reality evidence must use the Home AI host entry
+path as the primary runtime path. Direct plugin loopback ports such as
+`127.0.0.1:<plugin-port>` are implementation-level evidence only; they do not
+prove the user-visible embedded path, host action routing, owner-only plugin
+visibility, same-origin proxy behavior, or Home AI permission boundary.
+
+For embedded plugin runtime checks, audit threads should first use Home AI host
+routes such as `/api/hermes-plugins/<plugin-id>/manifest` and the host plugin
+proxy/static entry path. A plugin's own local port may be sampled only as
+secondary evidence, for example to compare source/production mirror state or to
+narrow a plugin-owned route failure after the host path has been classified.
+
+Owner-only plugins, including Codex Mobile and Music where applicable, must not
+be audited by bypassing Home AI with direct plugin ports merely because ordinary
+workspace keys cannot see them. Home AI provides a separate audit owner read-only
+key for this purpose. The key authenticates as Owner for visibility only and is
+accepted through the normal `X-Hermes-Web-Key` transport, but Home AI rejects
+all non-`GET`, non-`HEAD`, and non-`OPTIONS` requests made with that key before
+dispatch. The raw key must never appear in reports, task cards, logs, docs, or
+handoffs; only the configured key-file path or the bounded key source label may
+be referenced.
+
+If the Home AI host path, audit owner read-only key, or required same-origin
+proxy is unavailable, the audit thread must report `blocked` or send a
+redirected task card to the owning Home AI platform thread. It must not silently
+fall back to plugin ports and mark the product runtime path as verified.
+
+If a user explicitly asks an audit thread to audit handoff quality itself, the
+thread may read the named handoff file as the audit target, but must label it as
+target evidence rather than context.
+
+## Audit Evidence Order
+
+An audit must start from current evidence, not inherited explanations:
+
+1. Canonical contracts and docs that own the audited area.
+2. Source code, tests, scripts, and static assets.
+3. Current git state and bounded diffs.
+4. Runtime or production read-only status, when the audit scope includes
+   production.
+5. Existing task-card replies only after findings are drafted, and only to
+   classify whether a finding is already being handled.
+
+Do not suppress a finding because an implementation thread previously described
+the behavior as intentional. The audit report should cite the current contract
+or source evidence that proves the finding.
+
+## Report Standard
+
+Audit reports must be findings-first and read like code review:
+
+- severity ordered findings;
+- concrete evidence with file/line, command, route, job id, or bounded status;
+- owning workspace and owning layer;
+- violated contract or missing invariant;
+- architecture/root-cause classification, including whether the issue is caused
+  by unclear domain contracts, duplicated state derivation, oversized
+  entrypoints, hidden fallback chains, test gaps, mixed dev/prod topology, or
+  other complexity that can keep producing future defects;
+- root-cause hypothesis or confirmed cause;
+- validation that would prove closure;
+- whether the finding should be sent to Home AI or a plugin workspace;
+- residual risk and open questions.
+
+Every non-trivial audit must include two evidence lanes:
+
+- **Contract lane**: explicit platform, module, security, privacy, deployment,
+  MCP/schema, fallback-governance, or harness violations.
+- **Architecture lane**: root-cause and complexity risks even when no current
+  contract line is violated. Examples include overloaded identity fields,
+  duplicated capability inference, local/server persistence paths sharing one
+  misleading UX contract, route/controller files accumulating business logic,
+  fallback chains that hide failure, source-string tests standing in for
+  executable behavior checks, or development and production topologies that lack
+  equivalence proof.
+
+The architecture lane is mandatory because many Home AI and plugin incidents
+come from unclear documentation and accumulated fallback patches. An audit is
+incomplete if it only reports narrow contract violations while ignoring the
+module structure that made those violations likely to recur.
+
+Product Reality Audit adds a third required framing when the audit mode is
+`product_reality`: compare product intent, architecture/domain contract, code
+implementation, real user workflow/UX state, and executable test or harness
+evidence. Findings in this lane may be valid even when no current security
+violation or exception exists. They should classify the gap as
+`product_doc_gap`, `implementation_gap`, `architecture_gap`, `ux_gap`,
+`test_gap`, `fallback_debt`, or `closure_gap`, then name the owning workspace,
+repair surface, task-card destination, and closure validation.
+
+Deep Product Reality audits must also follow
+`docs/PLATFORM_CONTRACTS/deep-product-reality-audit-contract.md`. The audit
+thread must build the product thesis and core journey matrix from target
+documents before source-first inspection, then check domain/state contracts,
+architecture boundaries, UX/failure states, and executable evidence. A pass that
+only finds manifest/action-route mismatches is `surface_product_reality`, not
+full Product Reality closure. The audit may challenge the design documents
+themselves when they are contradictory, overpromised, unsafe, or not aligned
+with Home AI ownership boundaries. Deep Product Reality audits require X High
+reasoning; if the current task-card runtime cannot provide or confirm X High,
+the audit thread must return blocked or redirected instead of producing a
+shallow medium-effort audit.
+
+Multi-plugin Deep Product Reality audits must also follow
+`docs/IMPLEMENTATION_NOTES/deep-product-reality-audit-batch-ledger.md`. The
+audit thread acts as a coordinator: it creates a per-plugin ledger, audits or
+blocks every requested target, tracks repair and closure queues separately, and
+returns a batch summary only after every target has a terminal status. A repair
+or closure loop for one plugin must not replace the remaining audit work.
+
+A multi-plugin batch return is invalid when it covers only one plugin, omits a
+requested plugin id, lacks a terminal status for any target, marks
+`closed_deep` without the required core-journey evidence, omits the bounded
+evidence digest for a `closed_deep` row, or turns into an acknowledgement loop.
+In that case the source thread should return the batch as `invalid_return` with
+the missing targets and the audit thread must resume from the ledger.
+
+The report must not include raw secrets, access keys, cookies, launch tokens,
+private provider payloads, full prompts, full logs, or full private user data.
+
+## Task-Card Routing
+
+Audit threads do not directly fix findings. They route them:
+
+- Home AI host/platform findings go to the Home AI implementation thread.
+- Plugin-owned findings go to the owning plugin workspace/thread.
+- Cross-boundary findings must name the exact owning layer and expected
+  contract before sending a card.
+
+Plugin deployment closure follows the plugin deployment ownership rule in
+`docs/MODULES/plugins.md`. If a plugin implementation thread changed only
+plugin-owned source and the shared Home AI deploy script already supports that
+plugin target, the audit thread must route deployment/readback closure back to
+the plugin implementation thread. It must not send a Home AI task card merely
+because the plugin thread needs to call `deploy:macos -- --plugin <plugin-id>`
+from the Home AI app workspace. Home AI task cards are reserved for real
+platform blockers: central deploy-script gaps, same-origin proxy or launch
+bugs, workspace binding/provisioning bugs, Gateway/toolset schema changes,
+shared policy changes, or unresolved production permission failures.
+
+Every task card must include:
+
+- bounded evidence;
+- root-cause owner and failing layer;
+- product reality finding class when the audit mode is `product_reality`;
+- architecture/root-cause classification when the finding is caused by unclear
+  contracts, duplicated inference, hidden fallback, weak tests, or boundary
+  drift;
+- required validation for closure;
+- explicit statement that local fallback or symptom suppression is not closure;
+- privacy constraints;
+- a `Return Card Required` section naming the source audit thread and requiring
+  a completion, rejection, redirect, or blocked reply.
+
+If the receiver rejects or redirects the card, the audit thread records the
+reason and either updates the ownership classification or escalates the
+contract ambiguity to Home AI.
+
+Audit threads must not send open-ended cards that can be silently consumed.
+Every audit card should remind the target thread to return a card; otherwise
+the audit source thread cannot close or verify the finding and the workflow can
+stall.
+
+Implementation return cards are part of the audit record, not optional status
+messages. A valid return card must state `completed`, `rejected`, `redirected`,
+or `blocked`; list changed files when any were changed; include focused
+validation evidence; include deploy/readback evidence when production behavior
+changed; call out residual risks; and confirm that no secrets, private payloads,
+or long logs were included. The audit thread must then perform a separate
+read-only closure verification before marking the finding closed.
+
+## No Silent Intermediate State Rule
+
+An implementation, plugin, or audit thread must not stop in an intermediate
+state without returning status to the source thread. This is required even when
+the thread has correctly identified a blocker and cannot finish the requested
+work itself.
+
+The following states are not valid silent endpoints:
+
+- code was changed but deployment is blocked;
+- deployment was skipped because another workspace owns a prerequisite;
+- validation found a platform/provisioning/toolchain blocker;
+- the thread needs credentials, permissions, launchd state, or a production
+  config value that it cannot access;
+- a finding belongs to another workspace or the ownership boundary is
+  ambiguous.
+
+In those cases, the thread must send a return card or a redirected task card
+before it ends. The card must state one of `blocked`, `redirected`, or
+`partially_completed`; name the exact owner/layer; list the changed files or
+commits that are waiting behind the blocker; describe the missing prerequisite;
+and include the minimal validation evidence needed for the receiving thread to
+continue. It must not include raw secrets, launch tokens, cookies, private
+payloads, database rows, screenshots with private data, or long logs.
+
+Leaving changed source code undeployed without an escalation card is a closure
+failure. It creates source/production drift and prevents the source audit or
+requesting thread from knowing that the workflow is not closed.
+
+## Scheduled Automation Rule
+
+Scheduled automation may create an audit request card. It must not perform deep
+Home AI or plugin audits directly, and must not write findings or task cards to
+other workspaces based on cron-local analysis.
+
+The only allowed scheduled-audit responsibilities are:
+
+- select the audit scope from a configured allowlist;
+- create a bounded request card in the correct dedicated audit thread;
+- record scheduling metadata and delivery status;
+- fail visibly if the target audit thread or card route is unavailable.
+
+The dedicated audit thread performs the actual audit and follow-up routing.
+
+## Audit Thread Discovery Rule
+
+Home AI must discover the current audit thread dynamically before sending an
+audit request card. The platform must not persist or hard-code Codex audit
+thread ids in source files, config files, deployment docs, Action Inbox state,
+or Automation jobs. Thread ids are runtime metadata owned by Codex Mobile and
+can change after continuation, compaction, visibility repair, or thread
+replacement.
+
+The maintained request path is:
+
+1. Query Codex Mobile's thread discovery API or MCP-equivalent thread listing.
+2. Resolve the current source Home AI implementation thread by workspace cwd
+   and role/title.
+3. Resolve the target audit thread by exact role/title, such as
+   `Plugin Workspace Audit` or `Home AI Platform Audit`, and workspace cwd.
+4. Send exactly one task card to that central audit thread.
+
+For plugin audits, Home AI must not fan out to plugin implementation threads.
+The `Plugin Workspace Audit` thread owns all downstream workspace repair-card
+routing, return-card tracking, closure verification, and the final return card
+to Home AI. If the central audit thread cannot be discovered, the trigger must
+fail visibly with a bounded diagnostic instead of falling back to a stale id or
+running the audit locally.
+
+## Home AI Self-Audit Rule
+
+Home AI must not treat its ordinary implementation thread as the default auditor
+for itself. The main implementation thread is allowed to implement, deploy, and
+respond to audit findings, but it is not the independent evidence-gathering
+authority for host/platform self-audits.
+
+The platform self-audit thread must evaluate Home AI from contracts, source,
+tests, and read-only production evidence without reading Home AI implementation
+handoffs. This prevents recent implementation context from biasing the audit
+toward existing decisions.
+
+## Plugin Audit Rule
+
+Plugin audits should compare plugin workspaces to Home AI contracts and to the
+plugin's own docs and runtime boundaries. The plugin audit thread must not
+deploy plugin changes for the plugin. It sends findings to the plugin thread,
+or back to Home AI when the root cause is a host contract, proxy, deploy,
+provisioning, or shared policy issue.
+
+## Closure Verification
+
+After an implementation thread reports completion, the audit thread may perform
+a read-only verification pass using the required validation from the original
+finding. Verification must not rely on the implementation handoff as proof; it
+must inspect the changed code, tests, docs, production status, or bounded smoke
+evidence directly.
+
+## Thread Seed Requirements
+
+When creating or recreating the two dedicated audit threads, seed each thread
+with:
+
+- the exact thread title;
+- this contract path;
+- a hard instruction not to read `.agent-context/HANDOFF.md` or lineage
+  handoffs as audit context;
+- the read-only/mutation prohibition;
+- the findings-first report standard;
+- the task-card routing rule;
+- the privacy constraints.

@@ -9,8 +9,61 @@ function isNearBottom(threshold = 96) {
   return conversationBottomOffset() < threshold;
 }
 
+function conversationIsAtBottom(el = $("conversation"), threshold = 24) {
+  return conversationBottomOffset(el) <= threshold;
+}
+
+function clearConversationReadAnchor() {
+  state.conversationReadAnchorMessageId = "";
+  state.conversationReadAnchorScrollTop = 0;
+  state.conversationReadAnchorSetAt = 0;
+}
+
+function conversationReadAnchorActive(conversation = $("conversation")) {
+  const id = String(state.conversationReadAnchorMessageId || "").trim();
+  if (!id || !conversation) return false;
+  if (conversationIsAtBottom(conversation)) {
+    clearConversationReadAnchor();
+    return false;
+  }
+  return true;
+}
+
+function setConversationReadAnchor(messageId = "", scrollTop = 0) {
+  const id = String(messageId || "").trim();
+  if (!id) {
+    clearConversationReadAnchor();
+    return;
+  }
+  state.conversationReadAnchorMessageId = id;
+  state.conversationReadAnchorScrollTop = Math.max(0, Number(scrollTop) || 0);
+  state.conversationReadAnchorSetAt = Date.now();
+  state.suppressChatAutoBottomUntil = Math.max(
+    Number(state.suppressChatAutoBottomUntil || 0),
+    Date.now() + 60000
+  );
+  state.conversationPinnedToBottom = false;
+  window.clearTimeout(state.conversationBottomStickTimer);
+}
+
+function restoreConversationReadAnchorScroll(conversation = $("conversation")) {
+  if (!conversationReadAnchorActive(conversation)) return false;
+  const id = String(state.conversationReadAnchorMessageId || "").trim();
+  if (id && typeof messageElementById === "function" && !messageElementById(id)) {
+    clearConversationReadAnchor();
+    return false;
+  }
+  const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
+  const targetTop = Math.max(0, Math.min(maxTop, Number(state.conversationReadAnchorScrollTop || 0) || 0));
+  conversation.scrollTop = targetTop;
+  state.conversationPinnedToBottom = false;
+  updateConversationJumpBottomButton();
+  return true;
+}
+
 function shouldForceChatStickToBottom() {
-  return isSingleWindowChatView()
+  return !conversationReadAnchorActive()
+    && isSingleWindowChatView()
     && Date.now() >= Number(state.suppressChatAutoBottomUntil || 0)
     && Date.now() < Number(state.forceChatStickToBottomUntil || 0);
 }
@@ -25,6 +78,7 @@ function shouldStickConversationOnViewportChange() {
 }
 
 function shouldFollowConversationBottomDuringViewport() {
+  if (conversationReadAnchorActive()) return false;
   return shouldForceChatStickToBottom()
     || Date.now() < Number(state.conversationViewportBottomFollowUntil || 0)
     || state.conversationPinnedToBottom
@@ -34,6 +88,7 @@ function shouldFollowConversationBottomDuringViewport() {
 function scrollConversationToBottom() {
   const conversation = $("conversation");
   if (!conversation) return;
+  clearConversationReadAnchor();
   conversation.scrollTop = conversation.scrollHeight;
   state.conversationPinnedToBottom = true;
   updateConversationJumpBottomButton();
@@ -42,6 +97,7 @@ function scrollConversationToBottom() {
 function scrollConversationToBottomSmooth() {
   const conversation = $("conversation");
   if (!conversation) return;
+  clearConversationReadAnchor();
   const top = conversation.scrollHeight;
   if (typeof conversation.scrollTo === "function") {
     conversation.scrollTo({ top, behavior: prefersReducedMotion() ? "auto" : "smooth" });
@@ -179,16 +235,58 @@ function conversationJumpBottomApplies() {
   return isTaskDetailView() || isSingleWindowChatView() || (isSingleWindowView() && state.singleWindowMode === "task");
 }
 
+function conversationJumpBottomShouldShow(conversation = $("conversation")) {
+  return Boolean(
+    conversation
+    && conversationJumpBottomApplies()
+    && conversation.scrollHeight > conversation.clientHeight + 1
+    && !conversationIsAtBottom(conversation)
+  );
+}
+
+function hideInlineMessageStartScrollButtons(conversation = $("conversation")) {
+  if (!conversation) return;
+  conversation.querySelectorAll('.message-scroll-button[data-scroll-position="start"]').forEach((button) => {
+    button.classList.toggle("hidden", true);
+    button.classList.toggle("floating", false);
+    positionFloatingMessageScrollButton(button, false);
+    button.tabIndex = -1;
+    button.setAttribute("aria-hidden", "true");
+  });
+}
+
+function setConversationJumpBottomGlyph(button, glyph) {
+  if (!button) return;
+  const target = button.querySelector?.("[data-conversation-jump-glyph]") || button.querySelector?.("span");
+  if (target) target.innerHTML = glyph;
+}
+
+function setConversationJumpButtonMode(button, mode, messageId = "") {
+  if (!button) return;
+  const startMode = mode === "message-start";
+  button.dataset.scrollMode = startMode ? "message-start" : "bottom";
+  button.dataset.scrollMessage = startMode ? String(messageId || "") : "";
+  button.setAttribute("aria-label", startMode ? "Jump to reply start" : "Jump to bottom");
+  button.setAttribute("title", startMode ? "Start" : "Bottom");
+  setConversationJumpBottomGlyph(button, startMode ? "&#8593;" : "&#8595;");
+}
+
+function conversationReplyStartTargetId(conversation = $("conversation")) {
+  if (!conversation || !conversationIsAtBottom(conversation)) return "";
+  const id = String(state.messageScrollReplyStartTargetId || "").trim();
+  if (!id) return "";
+  const target = messageElementById(id);
+  if (!target || !conversation.contains?.(target)) return "";
+  return id;
+}
+
 function updateConversationJumpBottomButton() {
   const button = $("conversationJumpBottom");
   const conversation = $("conversation");
   if (!button) return;
-  const shouldShow = Boolean(
-    conversation
-    && conversationJumpBottomApplies()
-    && conversation.scrollHeight > conversation.clientHeight + 120
-    && conversationBottomOffset(conversation) > 240
-  );
+  const showBottom = conversationJumpBottomShouldShow(conversation);
+  const shouldShow = Boolean(showBottom);
+  setConversationJumpButtonMode(button, "bottom", "");
   button.classList.toggle("hidden", !shouldShow);
   button.disabled = !shouldShow;
   button.setAttribute("aria-hidden", shouldShow ? "false" : "true");
@@ -201,12 +299,17 @@ function wireConversationJumpBottomButton() {
   button.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
+    if (button.dataset.scrollMode === "message-start" && button.dataset.scrollMessage) {
+      scrollMessageIntoView(button.dataset.scrollMessage, "start");
+      return;
+    }
     scrollConversationToBottomSmooth();
   });
 }
 
 function scheduleConversationBottomStick() {
   if (Date.now() < Number(state.suppressChatAutoBottomUntil || 0)) return;
+  if (conversationReadAnchorActive()) return;
   window.clearTimeout(state.conversationBottomStickTimer);
   state.suppressConversationPinUntil = Date.now() + 700;
   const stick = () => {
@@ -222,14 +325,22 @@ function scheduleConversationBottomStick() {
 }
 
 function handleConversationScrollState() {
-  scheduleMessageScrollButtonVisibility($("conversation"));
+  const conversation = $("conversation");
+  scheduleMessageScrollButtonVisibility(conversation);
+  if (conversation && conversationIsAtBottom(conversation)) {
+    clearConversationReadAnchor();
+  } else if (conversationReadAnchorActive(conversation)) {
+    state.conversationReadAnchorScrollTop = Math.max(0, Number(conversation.scrollTop || 0) || 0);
+    state.conversationPinnedToBottom = false;
+  }
   if (Date.now() < Number(state.conversationViewportSettleUntil || 0)) {
     updateConversationJumpBottomButton();
     return;
   }
   if (Date.now() < state.suppressConversationPinUntil) return;
-  state.conversationPinnedToBottom = isNearBottom();
+  state.conversationPinnedToBottom = conversationReadAnchorActive(conversation) ? false : isNearBottom();
   maybeLoadOlderChatMessages();
+  maybeLoadOlderTaskMessages();
   updateConversationJumpBottomButton();
 }
 
@@ -263,15 +374,57 @@ async function loadOlderChatMessages() {
   }
 }
 
+function taskDetailPageHasMoreBefore(page = state.currentThread?.messagesPage || {}) {
+  const mode = String(page.mode || "").trim().toLowerCase();
+  if (!["tasks", "task"].includes(mode)) return false;
+  if (String(page.taskGroupId || "") !== String(state.currentTaskGroupId || "")) return false;
+  if (page.hasMoreBefore === false) return false;
+  return Boolean(page.oldestMessageId || Number(page.total || 0) > taskGroupMessagesForThread(state.currentThread, state.currentTaskGroupId).length);
+}
+
+function oldestLoadedTaskMessageId(thread = state.currentThread, taskGroupId = state.currentTaskGroupId) {
+  return taskGroupMessagesForThread(thread, taskGroupId)[0]?.id || "";
+}
+
+function maybeLoadOlderTaskMessages() {
+  const conversation = $("conversation");
+  if (!conversation || !isTaskDetailView() || isChatSearchMode()) return;
+  if (state.olderTaskMessagesLoading) return;
+  if (!taskDetailPageHasMoreBefore()) return;
+  if (!oldestLoadedTaskMessageId()) return;
+  if (conversation.scrollTop > CHAT_HISTORY_LOAD_TOP_PX) return;
+  loadOlderTaskMessages().catch(showError);
+}
+
+async function loadOlderTaskMessages() {
+  if (!state.currentThreadId || !isTaskDetailView() || isChatSearchMode() || state.olderTaskMessagesLoading) return;
+  const before = oldestLoadedTaskMessageId();
+  if (!before || !taskDetailPageHasMoreBefore()) return;
+  state.olderTaskMessagesLoading = true;
+  renderCurrentThread({ stickToBottom: false });
+  try {
+    const params = taskMessagePageParams({ before, limit: taskDetailMessagePageLimit() });
+    const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/messages?${params}`);
+    mergeCurrentThreadMessages(result.messages || [], result.page || null);
+  } finally {
+    state.olderTaskMessagesLoading = false;
+    renderCurrentThread({ stickToBottom: false });
+  }
+}
+
 function handleViewportLayoutChange(event = null) {
   const type = String(event?.type || "");
   const orientationEvent = type === "orientationchange" || type === "change";
   if (!orientationEvent && nativeShellViewportLayoutChangeIsNoise()) return;
   if (orientationEvent && conversationViewportRefreshApplies()) {
     state.conversationViewportSettleUntil = Date.now() + 900;
-    state.conversationViewportBottomFollowUntil = Date.now() + 1100;
     state.conversationViewportLayerResetUntil = Date.now() + 1100;
-    state.conversationPinnedToBottom = true;
+    if (conversationReadAnchorActive()) {
+      state.conversationPinnedToBottom = false;
+    } else {
+      state.conversationViewportBottomFollowUntil = Date.now() + 1100;
+      state.conversationPinnedToBottom = true;
+    }
   }
   updateKeyboardViewportMetrics();
   updateMobileBottomNavReservation();
@@ -399,6 +552,8 @@ function scrollMessageIntoView(messageId, position = "start") {
     ? conversation.scrollTop + targetRect.bottom - conversationRect.top - conversation.clientHeight + 8
     : conversation.scrollTop + targetRect.top - conversationRect.top - 8;
   const top = Math.max(0, Math.min(maxTop, rawTop));
+  if (position === "start") setConversationReadAnchor(messageId, top);
+  else clearConversationReadAnchor();
   conversation.scrollTo({ top, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   window.setTimeout(updateConversationJumpBottomButton, prefersReducedMotion() ? 0 : 260);
 }
@@ -864,6 +1019,7 @@ function updateMessageScrollButtonVisibility(root) {
   if (!conversation || !root?.querySelectorAll) return;
   const viewportHeight = Math.max(0, conversation.clientHeight || window.innerHeight || 0);
   const conversationRect = conversation.getBoundingClientRect?.() || { top: 0, left: 0, right: 0, bottom: viewportHeight };
+  let replyStartTargetId = "";
   const articles = [
     ...(root.matches?.(".message[data-message-id]") ? [root] : []),
     ...root.querySelectorAll(".message[data-message-id]"),
@@ -899,12 +1055,19 @@ function updateMessageScrollButtonVisibility(root) {
     );
     if (shouldShow) article.dataset.messageScrollButtonVisible = "1";
     else delete article.dataset.messageScrollButtonVisible;
-    const footerVisible = messageScrollFooterVisible(articleRect, conversationRect);
-    const shouldFloatStart = false;
     article.querySelectorAll(".message-scroll-button").forEach((button) => {
       const isStartButton = String(button.dataset.scrollPosition || "start") !== "end";
-      const shouldFloat = Boolean(isStartButton && shouldFloatStart);
-      const buttonVisible = shouldShow;
+      const footerVisible = messageScrollFooterVisible(articleRect, conversationRect);
+      const atBottom = conversationIsAtBottom(conversation);
+      const startFooterVisible = Boolean(
+        isStartButton
+        && contentEligible
+        && canReturnToStart
+        && footerVisible
+      );
+      const endVisible = Boolean(!isStartButton && !atBottom && shouldShow && canJumpToEnd);
+      const buttonVisible = isStartButton ? startFooterVisible : endVisible;
+      const shouldFloat = false;
       button.classList.toggle("hidden", !buttonVisible);
       button.classList.toggle("floating", shouldFloat);
       positionFloatingMessageScrollButton(button, shouldFloat, articleRect, conversationRect);
@@ -912,6 +1075,8 @@ function updateMessageScrollButtonVisibility(root) {
       button.setAttribute("aria-hidden", buttonVisible ? "false" : "true");
     });
   });
+  state.messageScrollReplyStartTargetId = replyStartTargetId;
+  updateConversationJumpBottomButton();
 }
 
 function messageScrollVisibilityTarget(root) {
@@ -938,8 +1103,8 @@ function rememberMessageScrollVisibilityTarget(root) {
 function applyMessageScrollButtonVisibility(root) {
   const target = messageScrollVisibilityTarget(root || state.messageScrollVisibilityRoot || $("conversation"));
   if (!target) return;
-  updateMessageScrollButtonVisibility(target);
   updateConversationJumpBottomButton();
+  updateMessageScrollButtonVisibility(target);
 }
 
 function scheduleMessageScrollButtonVisibilitySettle(root, delays = [100, 280, 900, 1600]) {
@@ -973,9 +1138,10 @@ function messageScrollFooterVisible(articleRect, conversationRect) {
   const articleBottom = articleRect.bottom || 0;
   const conversationTop = conversationRect.top || 0;
   const conversationBottom = conversationRect.bottom || 0;
+  const footerSafeBottom = conversationBottom - 8;
   return Boolean(
     articleBottom >= conversationTop + 96
-    && articleBottom <= conversationBottom + 56
+    && articleBottom <= footerSafeBottom
   );
 }
 
@@ -986,35 +1152,48 @@ function positionFloatingMessageScrollButton(button, shouldFloat, articleRect, c
       "position",
       "left",
       "top",
+      "right",
+      "bottom",
       "z-index",
       "width",
       "min-width",
       "height",
+      "min-height",
+      "padding",
+      "display",
+      "place-items",
       "color",
       "background",
       "border",
       "border-radius",
       "box-shadow",
+      "font-size",
+      "font-weight",
+      "line-height",
+      "backdrop-filter",
     ].forEach((property) => button.style.removeProperty(property));
     return;
   }
-  const viewportWidth = window.visualViewport?.width || window.innerWidth || document.documentElement.clientWidth || 0;
-  const leftLimit = Math.max(8, conversationRect.left || 0);
-  const rightLimit = Math.max(leftLimit, (conversationRect.right || viewportWidth || leftLimit + 36) - 34);
-  const left = Math.max(leftLimit + 8, Math.min(rightLimit, (articleRect.left || leftLimit) + 8));
-  const top = Math.max((conversationRect.top || 0) + 10, Math.min((conversationRect.bottom || 0) - 42, (conversationRect.top || 0) + 14));
   button.style.setProperty("position", "fixed");
-  button.style.setProperty("left", `${Math.round(left)}px`);
-  button.style.setProperty("top", `${Math.round(top)}px`);
+  button.style.setProperty("right", "max(20px, env(safe-area-inset-right))");
+  button.style.setProperty("bottom", "calc(72px + env(safe-area-inset-bottom))");
   button.style.setProperty("z-index", "38");
-  button.style.setProperty("width", "24px");
-  button.style.setProperty("min-width", "24px");
-  button.style.setProperty("height", "24px");
-  button.style.setProperty("color", "rgba(31, 111, 98, 0.62)");
-  button.style.setProperty("background", "var(--ui-surface)");
-  button.style.setProperty("border", "1px solid var(--ui-hairline)");
-  button.style.setProperty("border-radius", "999px");
-  button.style.setProperty("box-shadow", "0 6px 18px rgba(38, 64, 60, 0.12)");
+  button.style.setProperty("width", "30px");
+  button.style.setProperty("min-width", "30px");
+  button.style.setProperty("height", "30px");
+  button.style.setProperty("min-height", "30px");
+  button.style.setProperty("padding", "0");
+  button.style.setProperty("display", "grid");
+  button.style.setProperty("place-items", "center");
+  button.style.setProperty("color", "rgba(49, 91, 88, 0.78)");
+  button.style.setProperty("background", "rgba(247, 250, 249, 0.86)");
+  button.style.setProperty("border", "1px solid rgba(103, 129, 127, 0.20)");
+  button.style.setProperty("border-radius", "50%");
+  button.style.setProperty("box-shadow", "0 6px 18px rgba(31, 43, 51, 0.10)");
+  button.style.setProperty("font-size", "16px");
+  button.style.setProperty("font-weight", "560");
+  button.style.setProperty("line-height", "1");
+  button.style.setProperty("backdrop-filter", "blur(12px)");
 }
 
 function scheduleMessageScrollButtonVisibility(root) {

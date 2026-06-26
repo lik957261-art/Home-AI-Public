@@ -145,6 +145,8 @@ function backSwipeTarget() {
   if (!pluginContextBack && typeof moiraPluginOuterBackActive === "function" && moiraPluginOuterBackActive()) return "moira-plugin-outer";
   if (typeof musicPluginBackActive === "function" && musicPluginBackActive()) return "music-plugin";
   if (!pluginContextBack && typeof musicPluginOuterBackActive === "function" && musicPluginOuterBackActive()) return "music-plugin-outer";
+  if (typeof moviePluginBackActive === "function" && moviePluginBackActive()) return "movie-plugin";
+  if (!pluginContextBack && typeof moviePluginOuterBackActive === "function" && moviePluginOuterBackActive()) return "movie-plugin-outer";
   if (isDirectoryTopicDraftActive()) return "directory-topic-draft";
   if (pluginContextTarget) return pluginContextTarget;
   if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) return "automation-secondary";
@@ -218,6 +220,8 @@ function performBackSwipeAction(target) {
   else if (target === "moira-plugin-outer" && typeof restoreMoiraPluginReturnRoute === "function") restoreMoiraPluginReturnRoute();
   else if (target === "music-plugin" && typeof sendMusicPluginBackOrReturn === "function") sendMusicPluginBackOrReturn();
   else if (target === "music-plugin-outer" && typeof restoreMusicPluginReturnRoute === "function") restoreMusicPluginReturnRoute();
+  else if (target === "movie-plugin" && typeof sendMoviePluginBackOrReturn === "function") sendMoviePluginBackOrReturn();
+  else if (target === "movie-plugin-outer" && typeof restoreMoviePluginReturnRoute === "function") restoreMoviePluginReturnRoute();
   else if (target === "plugin-context-home" && typeof exitPluginContextToTopicHome === "function") exitPluginContextToTopicHome();
   else if (target === "automation") openAutomationList();
   else if (target === "automation-secondary") closeAutomationSecondarySurface();
@@ -676,7 +680,14 @@ function selectTaskRenameInput(input) {
 
 function openTaskRenameDialog(currentTitle) {
   const overlay = $("taskRenameOverlay");
-  if (!overlay) return Promise.resolve(window.prompt("修改话题名", currentTitle));
+  if (!overlay) {
+    return openAppPromptDialog({
+      title: "修改话题名",
+      inputLabel: "话题名",
+      defaultValue: currentTitle,
+      confirmLabel: "保存",
+    });
+  }
   return new Promise((resolve) => {
     let settled = false;
     const finish = (value) => {
@@ -738,7 +749,7 @@ async function renameTaskGroup(taskGroupId) {
   if (nextTitle === null) return;
   const title = nextTitle.trim();
   if (!title) {
-    window.alert("话题名不能为空");
+    await openAppMessageDialog({ title: "无法保存", message: "话题名不能为空" });
     return;
   }
   const result = await api(`/api/threads/${encodeURIComponent(state.currentThreadId)}/tasks/${encodeURIComponent(taskGroupId)}`, {
@@ -878,11 +889,15 @@ async function ensureTaskGroupMessagesLoaded(taskGroupId) {
   const hasLoadedLatestAssistant = !lastMessageId
     ? loadedAssistantMessages.length > 0
     : String(loadedLatestMessage?.role || "") === "assistant";
-  if (hasAnyLoadedContent && hasLoadedLatestAssistant) return;
+  const page = state.currentThread?.messagesPage || {};
+  const hasScopedTaskPage = ["tasks", "task"].includes(String(page.mode || "").trim().toLowerCase())
+    && String(page.taskGroupId || "") === id
+    && !String(page.search || "").trim();
+  if (hasScopedTaskPage && hasAnyLoadedContent && hasLoadedLatestAssistant) return;
   const params = new URLSearchParams({
     messageMode: "tasks",
     taskGroupId: id,
-    messageLimit: String(TASK_MESSAGE_INITIAL_LIMIT),
+    messageLimit: String(typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30),
   });
   const result = await api(`/api/threads/${encodeURIComponent(state.currentThread.id)}?${params}`);
   if (result?.thread) {
@@ -900,6 +915,9 @@ function openTaskGroupFromList(taskGroupId) {
   state.pendingTaskReasoningExplicit = false;
   clearRouteScrollTarget();
   state.currentTaskGroupId = taskGroupId;
+  if (typeof taskDetailPreviewThread === "function") {
+    state.currentThread = taskDetailPreviewThread(state.currentThread, taskGroupId);
+  }
   renderThreads();
   renderCurrentThread({ stickToBottom: true });
   ensureTaskGroupMessagesLoaded(taskGroupId)
@@ -916,7 +934,7 @@ async function openSharedTaskGroupFromList(threadId, taskGroupId) {
   const params = new URLSearchParams({
     messageMode: "tasks",
     taskGroupId,
-    messageLimit: String(TASK_MESSAGE_INITIAL_LIMIT),
+    messageLimit: String(typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30),
   });
   const result = await api(`/api/threads/${encodeURIComponent(threadId)}?${params}`);
   state.pendingTaskReasoningEffort = "";

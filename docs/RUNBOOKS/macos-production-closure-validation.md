@@ -59,14 +59,32 @@ It validates:
   launches Wardrobe through `http://127.0.0.1:8765`, the same-origin proxy entry
   returns nonblank HTML, and the launched workspace exposes a positive bounded
   bootstrap `item_count`.
+- Automation cron audit verifies the canonical CRON job store and Skill store
+  are readable, strict config checks pass, and no enabled job has latest status
+  `error`, `failed`, or `failure`. A readable but failing script/no-agent job is
+  still a closure blocker until a later successful run clears the status.
 - Native Gateway schema probes expose the required MCP callables for Wuping,
   Owner, and test profiles, plus the standard profile-local base tools
   `http_request`, `weather`, `mobile_web_search`, `mobile_web_extract`,
   `image_generate`, `chatgpt_image_edit`, `chatgpt_image_erase`,
-  `docx_extract_text`, and `audio_transcribe`.
+  `docx_extract_text`, `office_extract_text`, `pdf_extract_text`,
+  `pdf_render_pages`, `audio_transcribe`, `archive_list`, and
+  `archive_extract_safe`.
+- Document-file tool closure also requires the profile-plugin schema smoke:
+  `gateway-tool-schema-smoke.js --profile <profile> --profile-plugin-schema-only
+  --profile-plugin-filter hermes-mobile-docx,hermes-mobile-pdf --require
+  docx_extract_text,office_extract_text,pdf_extract_text,pdf_render_pages`.
+  This check reads the production profile `config.yaml` and profile-local
+  `plugins/` directory without starting the model provider, so it catches
+  config/plugin drift independently from provider auth or full `AIAgent`
+  startup failures.
 - DeepSeek ordinary Owner routing uses `deepseekgw1`.
 - DeepSeek Owner maintenance routing uses `deepseekmaint1` with
   `owner_high_privilege`.
+  The DeepSeek smoke accepts the normal hybrid cold-pool baseline where workers
+  are configured but not yet healthy because `ownerMinWarm=0`; it still fails if
+  the pool is disabled, no workers are configured, the run fails, or the
+  completed run does not report the expected profile.
 - Weixin heartbeat ingress uses `X-Hermes-Mobile-Ingress-Key`, rejects
   `X-Hermes-Web-Key`, and does not create a run, thread, or message.
 - After static UI changes, `/api/client-version` reports the deployed client
@@ -130,6 +148,13 @@ With `--json`, the top-level shape is bounded metadata:
     "ok": true,
     "expectedOrigin": "http://127.0.0.1:8765",
     "bindingCount": 4
+  },
+  "automationCron": {
+    "ok": true,
+    "jobCount": 15,
+    "sourceIssueCount": 0,
+    "configIssueCount": 0,
+    "statusIssueCount": 0
   }
 }
 ```
@@ -140,8 +165,10 @@ failed runtime Python check, failed plugin delivery-directory creation/preview r
 callable, missing standard profile-local base tool, failed directory-bound topic
 preview row in either path-only or UI-route mode, Wardrobe binding row with a
 legacy origin, Wardrobe manifest launch failure, zero/negative Wardrobe
-bootstrap item count, wrong DeepSeek profile, failed Weixin route, or nonzero
-final `activeGlobal` as a production blocker for the non-Grok closure gate.
+bootstrap item count, unreadable Automation cron source, nonzero Automation
+cron config/status issue count, wrong DeepSeek profile, failed Weixin route, or
+nonzero final `activeGlobal` as a production blocker for the non-Grok closure
+gate.
 
 ## Focused Alternatives
 

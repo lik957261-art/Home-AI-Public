@@ -1,0 +1,7 @@
+name: hermes-mobile-pdf
+version: 1.0.0
+description: "Hermes Mobile scoped PDF text extraction and page rendering tool for low-permission Gateway profiles."
+author: Hermes Mobile
+kind: standalone
+provides_tools:
+  - file

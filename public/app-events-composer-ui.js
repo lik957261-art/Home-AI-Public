@@ -104,9 +104,10 @@ function renderStreamingMessageContent(message) {
   const content = body?.querySelector?.(".text-content");
   if (!article || !body || !content || message.revokedAt) return false;
   const conversation = $("conversation");
+  const readAnchorActive = typeof conversationReadAnchorActive === "function" && conversationReadAnchorActive(conversation);
   const shouldStick = typeof shouldKeepRunProgressPinnedToBottom === "function"
-    ? shouldKeepRunProgressPinnedToBottom(conversation)
-    : shouldForceChatStickToBottom() || isNearBottom();
+    ? !readAnchorActive && shouldKeepRunProgressPinnedToBottom(conversation)
+    : !readAnchorActive && (shouldForceChatStickToBottom() || isNearBottom());
   const scrollMetrics = typeof runProgressScrollMetrics === "function"
     ? runProgressScrollMetrics(conversation)
     : null;
@@ -320,7 +321,9 @@ async function refreshCurrentThreadFromServer(options = {}) {
     } else if (isTaskWindowView()) {
       const query = new URLSearchParams({
         messageMode: "tasks",
-        messageLimit: String(TASK_MESSAGE_INITIAL_LIMIT),
+        messageLimit: String(state.currentTaskGroupId
+          ? (typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30)
+          : TASK_MESSAGE_INITIAL_LIMIT),
       });
       if (state.currentTaskGroupId) query.set("taskGroupId", state.currentTaskGroupId);
       params = `?${query}`;

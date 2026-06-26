@@ -11,6 +11,7 @@ function createDeps(overrides = {}) {
     conversationHistoryContentForMessage: (...args) => (calls.push(["conversationHistoryContentForMessage", args]), "content"),
     deriveTitle: (...args) => (calls.push(["deriveTitle", args]), "title"),
     isStaleAudioToolAvailabilityClaim: (text) => /audio/i.test(text),
+    isStaleArchiveToolAvailabilityClaim: (text) => /zip|archive/i.test(text),
     isStaleDocxToolAvailabilityClaim: (text) => /docx/i.test(text),
     isStaleHttpToolAvailabilityClaim: (text) => /http/i.test(text),
     isStaleImageToolAvailabilityClaim: (text) => /image/i.test(text),
@@ -70,6 +71,11 @@ function testOrdinaryToolSchemaElevationRequest() {
     "image tool missing",
     { runOptions: { access_policy_context: { allowed_toolsets: ["file"] } } },
   ), false);
+  assert.equal(service.isOrdinaryToolSchemaElevationRequest(
+    { elevationRequired: true, elevationScope: "owner_high_privilege" },
+    "zip archive tool missing",
+    { runOptions: { access_policy_context: { allowed_toolsets: ["file"] } } },
+  ), true);
   assert.equal(service.isOrdinaryToolSchemaElevationRequest({ elevationRequired: true, elevationScope: "shell" }, "image tool missing", {}), false);
 }
 

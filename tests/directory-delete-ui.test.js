@@ -20,7 +20,8 @@ function makeContext(overrides = {}) {
       ownerElevationOnceToken: "once-token",
       directoryLoading: false,
     },
-    window: { confirm: () => true },
+    window: {},
+    openAppPromptDialog: async () => "renamed.txt",
     showPushToast: (...args) => calls.push(["toast", ...args]),
     comparableDirectoryPath: (value) => String(value || ""),
     canDeleteDirectoryRootProject: () => false,
@@ -126,12 +127,7 @@ async function testFileDeleteMissingPathShowsToastInsteadOfSilentReturn() {
 }
 
 async function testFileRenameCallsRenameApi() {
-  const { calls, context } = makeContext({
-    window: {
-      confirm: () => true,
-      prompt: () => "renamed.txt",
-    },
-  });
+  const { calls, context } = makeContext();
   context.api = async (targetPath, options) => {
     calls.push(["api", targetPath, JSON.parse(options.body)]);
     return { ok: true };

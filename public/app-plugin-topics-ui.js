@@ -199,6 +199,19 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
     ]),
   }),
   Object.freeze({
+    id: "movie",
+    viewMode: "movie",
+    label: "\u5f71\u9662",
+    subtitle: "\u5f71\u9662\u72b6\u6001\u3001\u8bbe\u5907\u548c\u9065\u63a7\u754c\u9762",
+    iconClass: "nav-plugins-icon",
+    appIconClass: "movie",
+    appIconGlyph: "\u5f71",
+    sourceBadge: "\u5f71",
+    toolset: "movie",
+    deliveryHints: ["movie", "\u5f71\u9662", "\u7535\u5f71", "\u6295\u5f71", "\u653e\u6620"],
+    actions: Object.freeze([]),
+  }),
+  Object.freeze({
     id: "directory",
     builtinKind: "directory",
     viewMode: "projects",
@@ -466,6 +479,7 @@ function pluginTopicBottomButtonId(def) {
   if (id === "growth") return "bottomGrowthMode";
   if (id === "moira") return "bottomMoiraMode";
   if (id === "music") return "bottomMusicMode";
+  if (id === "movie") return "bottomMovieMode";
   return "";
 }
 
@@ -2731,12 +2745,35 @@ function pluginTopicImmediateThreadForDef(def) {
 }
 
 function pluginTopicChatEntryStillCurrent(pluginId, groupId, entrySeq) {
+  void entrySeq;
   return (
     state.viewMode === "tasks"
     && state.currentTaskGroupId === groupId
     && state.pluginContextNavPluginId === pluginId
-    && (Number(state.primaryNavigationSeq || 0) || 0) === entrySeq
   );
+}
+
+function pluginTopicChatPendingShellVisible(pluginId, groupId) {
+  if (!pluginTopicChatEntryStillCurrent(pluginId, groupId)) return false;
+  const conversation = $("conversation");
+  if (!conversation) return false;
+  if (conversation.querySelector("[data-message-id]")) return false;
+  return /正在打开话题|正在载入.+话题/.test(String(conversation.textContent || ""));
+}
+
+function renderPluginTopicCachedThreadIfCurrent(pluginId, groupId, threadId, options = {}) {
+  if (!pluginTopicChatEntryStillCurrent(pluginId, groupId)) return false;
+  if (threadId && String(state.currentThread?.id || "") !== String(threadId || "")) return false;
+  if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: true });
+  if (typeof setComposerEnabled === "function") setComposerEnabled(true);
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+  if (typeof startupPerfMark === "function") {
+    startupPerfMark("plugin-topic-cached-thread-render", {
+      pluginId: String(pluginId || "").slice(0, 40),
+      reason: String(options.reason || "scheduled").slice(0, 40),
+    });
+  }
+  return true;
 }
 
 function renderPluginTopicChatPendingShell(def, options = {}) {
@@ -2758,20 +2795,22 @@ function renderPluginTopicChatPendingShell(def, options = {}) {
 
 function schedulePluginTopicCachedMessageRender(def, thread, entrySeq) {
   if (!def || !thread?.id) return;
+  void entrySeq;
   const pluginId = def.id;
   const groupId = pluginTopicGroupId(pluginId);
   const renderSeq = (Number(state.pluginTopicCachedMessageRenderSeq || 0) || 0) + 1;
   state.pluginTopicCachedMessageRenderSeq = renderSeq;
   const run = () => {
     if (state.pluginTopicCachedMessageRenderSeq !== renderSeq) return;
-    if (!pluginTopicChatEntryStillCurrent(pluginId, groupId, entrySeq)) return;
-    if (String(state.currentThread?.id || "") !== String(thread.id || "")) return;
-    if (typeof renderCurrentThread === "function") renderCurrentThread({ stickToBottom: true });
-    if (typeof setComposerEnabled === "function") setComposerEnabled(true);
-    if (typeof updateNavigationControls === "function") updateNavigationControls();
+    renderPluginTopicCachedThreadIfCurrent(pluginId, groupId, thread.id, { reason: "scheduled" });
   };
   const schedule = window.requestAnimationFrame || ((callback) => window.setTimeout(callback, 16));
   schedule(() => window.setTimeout(run, 0));
+  window.setTimeout(() => {
+    if (state.pluginTopicCachedMessageRenderSeq !== renderSeq) return;
+    if (!pluginTopicChatPendingShellVisible(pluginId, groupId)) return;
+    renderPluginTopicCachedThreadIfCurrent(pluginId, groupId, thread.id, { reason: "fallback" });
+  }, 900);
 }
 
 function renderPluginTopicChatImmediateShell(def) {
@@ -2779,12 +2818,14 @@ function renderPluginTopicChatImmediateShell(def) {
   const thread = pluginTopicImmediateThreadForDef(def);
   const entrySeq = Number(state.primaryNavigationSeq || 0) || 0;
   if (thread?.id && thread.singleWindow) {
-    state.currentThread = thread;
+    state.currentThread = typeof taskDetailPreviewThread === "function"
+      ? taskDetailPreviewThread(thread, pluginTopicGroupId(def.id), taskDetailMessageInitialLimit())
+      : thread;
     state.currentThreadId = thread.id;
-    if (typeof summarizeThread === "function") state.threads = [summarizeThread(thread)];
+    if (typeof summarizeThread === "function") state.threads = [summarizeThread(state.currentThread)];
     if (typeof renderThreads === "function") renderThreads();
     renderPluginTopicChatPendingShell(def, { cached: true });
-    schedulePluginTopicCachedMessageRender(def, thread, entrySeq);
+    schedulePluginTopicCachedMessageRender(def, state.currentThread, entrySeq);
     if (typeof setComposerEnabled === "function") setComposerEnabled(true);
     return true;
   }
@@ -3496,15 +3537,25 @@ function wirePluginTopicCards(root) {
     });
   });
   root?.querySelectorAll?.("[data-plugin-topic-open-topic]").forEach((button) => {
-    button.addEventListener("click", () => openPluginTopicChat(button.dataset.pluginTopicOpenTopic).catch(showError));
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openPluginTopicChat(button.dataset.pluginTopicOpenTopic).catch(showError);
+    });
   });
   root?.querySelectorAll?.(".plugin-topic-launcher [data-plugin-claimed-topic-open]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       openPluginClaimedDirectoryTopic(button.dataset.pluginClaimedTopicPlugin, button.dataset.pluginClaimedTopicOpen);
     });
   });
   root?.querySelectorAll?.("[data-plugin-topic-open-delivery]").forEach((button) => {
-    button.addEventListener("click", () => openPluginTopicDelivery(button.dataset.pluginTopicOpenDelivery).catch(showError));
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openPluginTopicDelivery(button.dataset.pluginTopicOpenDelivery).catch(showError);
+    });
   });
   wireCapabilityPluginMenus(root);
   wirePluginAppStripScrollGuard(root);

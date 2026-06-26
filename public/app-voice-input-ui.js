@@ -835,8 +835,12 @@ function ensureVoiceInputOverlay() {
   return overlay;
 }
 
+function voiceInputOverlayActiveStatus(status) {
+  return ["pending", "checking", "requesting", "preparing", "recording", "finalizing", "transcribing", "inserting"].includes(String(status || ""));
+}
+
 function voiceInputRecordingVisible(voice = ensureVoiceInputState()) {
-  return Boolean(voice.panelVisible || voice.status !== "idle");
+  return voiceInputOverlayActiveStatus(voice.status);
 }
 
 function voiceInputTerminalHideDelay(status) {

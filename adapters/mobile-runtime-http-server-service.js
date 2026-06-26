@@ -10,6 +10,7 @@ function createMobileRuntimeHttpServerService(options = {}) {
   const mobileApiDispatcher = options.mobileApiDispatcher;
   const mobileApiServices = options.mobileApiServices || {};
   const runtimeProcess = options.process || process;
+  const readonlyAuditMethods = new Set(["GET", "HEAD", "OPTIONS"]);
 
   for (const [name, value] of Object.entries({
     activeStreams,
@@ -33,6 +34,7 @@ function createMobileRuntimeHttpServerService(options = {}) {
     try {
       httpRuntimeService.attachSecurityHeaders(req, res);
       const url = options.getUrl(req);
+      if (denyAuditReadonlyMutation(req, res)) return;
       if ((await eventStreamApiRoutes.handle(req, res, url)).handled) return;
       if (url.pathname.startsWith("/api/")) {
         await mobileApiDispatcher.handle(req, res);
@@ -44,6 +46,27 @@ function createMobileRuntimeHttpServerService(options = {}) {
       if (res.headersSent || res.destroyed || res.writableEnded) return;
       options.sendJson(res, 500, { error: err.message || String(err) });
     }
+  }
+
+  function denyAuditReadonlyMutation(req, res) {
+    const method = String(req.method || "GET").toUpperCase();
+    if (readonlyAuditMethods.has(method)) return false;
+    if (!authProvider || typeof authProvider.authenticateRequest !== "function") return false;
+    const hasPresentedKey = req.auth || typeof authProvider.requestAccessKey !== "function"
+      ? true
+      : Boolean(authProvider.requestAccessKey(req));
+    if (!hasPresentedKey) return false;
+    const auth = authProvider.authenticateRequest(req);
+    const auditReadonly = typeof authProvider.isAuditReadOnlyAuth === "function"
+      ? authProvider.isAuditReadOnlyAuth(auth)
+      : Boolean(auth?.auditReadOnly || auth?.keySource === "audit_owner_readonly");
+    if (!auditReadonly) return false;
+    options.sendJson(res, 403, {
+      ok: false,
+      error: "audit_readonly_key_write_denied",
+      message: "Audit read-only key can only be used for GET, HEAD, and OPTIONS requests.",
+    });
+    return true;
   }
 
   function shutdown() {

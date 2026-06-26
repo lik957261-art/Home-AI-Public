@@ -366,7 +366,7 @@ async function handlePushButton() {
     if (unavailableReason) {
       $("connectionState").textContent = unavailableReason;
       showPushToast(unavailableReason, "error");
-      window.alert(unavailableReason);
+      await openAppMessageDialog({ title: "通知不可用", message: unavailableReason });
     } else if (Notification.permission === "granted" && state.pushSubscription) {
       await enablePushNotifications({ forceRenew: true, onProgress: setPushProgress });
       setPushProgress("正在发送测试通知");

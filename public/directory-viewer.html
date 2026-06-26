@@ -16,7 +16,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260622-codex-recovery-v905">
+  <link rel="stylesheet" href="/styles.css?v=20260626-in-app-dialog-contract-v954">
   <style>
     :root {
       --paper: #f6f0e4;
@@ -318,8 +318,8 @@
   </main>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260622-codex-recovery-v905"></script>
-  <script src="/app-task-preview-ui.js?v=20260622-codex-recovery-v905"></script>
+  <script src="/markdown-renderer-client.js?v=20260626-in-app-dialog-contract-v954"></script>
+  <script src="/app-task-preview-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const key = localStorage.getItem("hermesWebKey") || "";
@@ -508,8 +508,44 @@
       render(await loadDirectory());
     }
 
+    function openDirectoryPrompt({ title, label, defaultValue = "" } = {}) {
+      const overlay = document.createElement("div");
+      overlay.style.cssText = "position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:rgba(18,28,34,.32);padding:16px";
+      overlay.innerHTML = `<form style="width:min(360px,calc(100vw - 32px));display:grid;gap:12px;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:10px;padding:16px;box-shadow:0 18px 50px rgba(0,0,0,.18)">
+        <strong>${escapeHtml(title || "输入")}</strong>
+        <label style="display:grid;gap:6px;font-size:12px;color:#5f6b73">
+          <span>${escapeHtml(label || "名称")}</span>
+          <input data-directory-prompt-input type="text" value="${escapeHtml(defaultValue)}" style="box-sizing:border-box;width:100%;min-height:40px;border:1px solid rgba(0,0,0,.18);border-radius:8px;padding:8px 10px;font:inherit">
+        </label>
+        <div style="display:flex;justify-content:flex-end;gap:8px">
+          <button type="button" data-directory-prompt-cancel>取消</button>
+          <button type="submit">确定</button>
+        </div>
+      </form>`;
+      document.body.appendChild(overlay);
+      return new Promise((resolve) => {
+        const input = overlay.querySelector("[data-directory-prompt-input]");
+        const finish = (value) => {
+          overlay.remove();
+          resolve(value);
+        };
+        overlay.querySelector("[data-directory-prompt-cancel]")?.addEventListener("click", () => finish(null));
+        overlay.addEventListener("click", (event) => {
+          if (event.target === overlay) finish(null);
+        });
+        overlay.querySelector("form")?.addEventListener("submit", (event) => {
+          event.preventDefault();
+          finish(input?.value ?? "");
+        });
+        requestAnimationFrame(() => {
+          input?.focus?.({ preventScroll: true });
+          input?.select?.();
+        });
+      });
+    }
+
     async function createFolder() {
-      const name = window.prompt("新建目录名称");
+      const name = await openDirectoryPrompt({ title: "新建目录", label: "目录名称" });
       if (!name || !name.trim()) return;
       statusEl.hidden = false;
       statusEl.textContent = "Creating folder...";

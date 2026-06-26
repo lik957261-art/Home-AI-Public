@@ -229,6 +229,112 @@ function parseProbeJson(stdout) {
   throw new Error("agent schema probe did not return JSON");
 }
 
+function enabledPluginsFromConfig(configPath) {
+  if (!configPath || !fs.existsSync(configPath)) return [];
+  const lines = fs.readFileSync(configPath, "utf8").split(/\r?\n/);
+  const pluginsIndex = lines.findIndex((line) => /^plugins:\s*$/.test(line));
+  if (pluginsIndex < 0) return [];
+  let sectionEnd = lines.length;
+  for (let index = pluginsIndex + 1; index < lines.length; index += 1) {
+    if (/^\S.*:\s*$/.test(lines[index])) {
+      sectionEnd = index;
+      break;
+    }
+  }
+  const enabledLineIndex = lines.findIndex((line, index) => (
+    index > pluginsIndex
+    && index < sectionEnd
+    && /^\s{2}enabled:\s*/.test(line)
+  ));
+  if (enabledLineIndex < 0) return [];
+  const inline = lines[enabledLineIndex].match(/^\s{2}enabled:\s*\[(.*)\]\s*$/);
+  if (inline) {
+    return inline[1].split(",").map((item) => item.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
+  }
+  const enabled = [];
+  for (let index = enabledLineIndex + 1; index < sectionEnd; index += 1) {
+    const match = lines[index].match(/^\s{4}-\s*([A-Za-z0-9._-]+)\s*$/);
+    if (match) enabled.push(match[1]);
+    else if (/^\s{2}\S/.test(lines[index])) break;
+  }
+  return enabled;
+}
+
+function runProfilePluginSchemaProbe(worker, options) {
+  const configPath = String(worker.configPath || worker.config_path || "").trim();
+  if (!configPath) throw new Error(`worker ${worker.profile || worker.name || "unknown"} has no configPath for profile plugin schema probe`);
+  const profileDir = path.dirname(configPath);
+  const enabled = enabledPluginsFromConfig(configPath);
+  const filter = new Set(cleanList(options.profilePluginFilter || ""));
+  const selected = enabled.filter((pluginName) => !filter.size || filter.has(pluginName));
+  if (!selected.length) {
+    throw new Error(`worker ${worker.profile || worker.name || "unknown"} has no enabled profile plugins matching schema probe filter`);
+  }
+  const pluginDirs = selected.map((pluginName) => {
+    const dir = path.join(profileDir, "plugins", pluginName);
+    if (!fs.existsSync(path.join(dir, "__init__.py"))) {
+      throw new Error(`worker ${worker.profile || worker.name || "unknown"} missing profile plugin module: ${pluginName}`);
+    }
+    return { name: pluginName, dir };
+  });
+  const probe = `
+import importlib.util
+import json
+import pathlib
+import sys
+
+payload = json.loads(sys.stdin.read() or "{}")
+tools = []
+loaded = []
+
+class Context:
+    def register_tool(self, **kwargs):
+        schema = kwargs.get("schema") or {}
+        if not isinstance(schema, dict):
+            schema = {}
+        schema = dict(schema)
+        if not schema.get("name") and kwargs.get("name"):
+            schema["name"] = kwargs.get("name")
+        tools.append(schema)
+
+for item in payload.get("plugins", []):
+    name = item.get("name") or ""
+    init_path = pathlib.Path(item.get("dir") or "") / "__init__.py"
+    module_name = "homeai_profile_plugin_" + name.replace("-", "_").replace(".", "_")
+    spec = importlib.util.spec_from_file_location(module_name, init_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"plugin_spec_unavailable:{name}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    register = getattr(module, "register", None)
+    if not callable(register):
+        raise RuntimeError(f"plugin_register_missing:{name}")
+    register(Context())
+    loaded.append(name)
+
+print(json.dumps({"loaded_plugins": loaded, "tools": tools}, ensure_ascii=False))
+`;
+  const python = options.profilePluginPython || options.runtimePython || "python3";
+  const result = spawnSync(python, ["-c", probe], {
+    input: JSON.stringify({ plugins: pluginDirs }),
+    encoding: "utf8",
+    timeout: options.agentSchemaTimeoutMs,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`profile plugin schema probe failed for ${worker.profile || worker.name}: ${String(result.stderr || result.stdout || "").slice(0, 1000)}`);
+  }
+  const parsed = JSON.parse(result.stdout || "{}");
+  return {
+    evidence: "profile-plugin-schema",
+    enabledToolsets: [],
+    loadedPlugins: Array.isArray(parsed.loaded_plugins) ? parsed.loaded_plugins : [],
+    toolDefinitions: Array.isArray(parsed.tools) ? parsed.tools : [],
+  };
+}
+
 function runAgentSchemaProbe(worker, options) {
   const telemetryProfile = String(worker.telemetryProfile || worker.telemetry_profile || worker.profile || "").trim();
   if (!telemetryProfile) throw new Error(`worker ${worker.profile || worker.name || "unknown"} has no telemetry profile for agent schema probe`);
@@ -364,9 +470,31 @@ async function smokeWorker(worker, requiredTools, forbiddenTools, requiredDescri
   const startedAt = Date.now();
   const requiresMcpEvidence = hasMcpToolRequirement(requiredTools);
   const apiKey = workerApiKey(worker);
-  const agentSchema = (options.schemaOnly || options.requireAgentSchema || (requiresMcpEvidence && !options.allowMcpRuntimeLogEvidence))
-    ? runAgentSchemaProbe(worker, options)
-    : null;
+  const agentSchema = options.profilePluginSchemaOnly
+    ? runProfilePluginSchemaProbe(worker, options)
+    : (options.schemaOnly || options.requireAgentSchema || (requiresMcpEvidence && !options.allowMcpRuntimeLogEvidence))
+      ? runAgentSchemaProbe(worker, options)
+      : null;
+  if (options.profilePluginSchemaOnly) {
+    const profilePluginTools = validateToolDefinitions(
+      worker,
+      agentSchema.toolDefinitions,
+      requiredTools,
+      forbiddenTools,
+      requiredDescriptionChecks,
+      requiredPropertyChecks,
+      agentSchema.evidence,
+    );
+    return {
+      worker: worker.profile || worker.name || String(port),
+      sessionPath: "",
+      tools: profilePluginTools,
+      evidence: agentSchema.evidence,
+      agentSchemaToolCount: profilePluginTools.length,
+      agentSchemaEnabledToolsets: agentSchema.enabledToolsets,
+      loadedPlugins: agentSchema.loadedPlugins,
+    };
+  }
   if (agentSchema) {
     const agentSchemaTools = validateToolDefinitions(
       worker,
@@ -459,9 +587,12 @@ async function main() {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const targets = workerTargets(manifest);
   if (!targets.length) throw new Error("No matching Gateway worker found for schema smoke.");
+  const profilePluginSchemaOnly = hasFlag("--profile-plugin-schema-only");
   const requiredTools = cleanList(argValue(
     "--require",
-    "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_extract_text,audio_transcribe",
+    profilePluginSchemaOnly
+      ? "docx_extract_text,office_extract_text,pdf_extract_text,pdf_render_pages"
+      : "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_extract_text,office_extract_text,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe",
   ));
   const forbiddenTools = forbidToolsFromArgs();
   const requiredDescriptionChecks = cleanToolDescriptionChecks(argValue("--require-tool-description", ""));
@@ -469,6 +600,9 @@ async function main() {
   const options = {
     telemetryRoot: argValue("--telemetry-root", "C:/ProgramData/HermesMobile/gateway-worker/telemetry/profiles"),
     timeoutMs: Number(argValue("--timeout-ms", "120000")) || 120000,
+    profilePluginSchemaOnly,
+    profilePluginFilter: argValue("--profile-plugin-filter", ""),
+    profilePluginPython: argValue("--profile-plugin-python", ""),
     schemaOnly: hasFlag("--schema-only"),
     requireAgentSchema: hasFlag("--require-agent-schema"),
     allowMcpRuntimeLogEvidence: hasFlag("--allow-mcp-log-evidence"),
@@ -499,6 +633,7 @@ async function main() {
       toolCount: result.tools.length,
       agentSchemaToolCount: result.agentSchemaToolCount,
       agentSchemaEnabledToolsets: result.agentSchemaEnabledToolsets,
+      loadedPlugins: result.loadedPlugins || [],
     })),
   }, null, 2));
 }

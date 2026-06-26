@@ -121,6 +121,21 @@ const EMBEDDED_PLUGIN_DEFS = Object.freeze({
     manifestPath: "/api/hermes-plugins/music/manifest",
     residentFrame: true,
   }),
+  movie: Object.freeze({
+    id: "movie",
+    viewMode: "movie",
+    title: "\u5f71\u9662",
+    label: "\u5f71\u9662",
+    bottomButtonId: "bottomMovieMode",
+    appClass: "movie-mode",
+    hostId: "moviePluginHost",
+    navVisibleClass: "movie-visible",
+    navigationEventType: "movie.plugin.navigation",
+    backResultEventType: "movie.plugin.back_result",
+    refreshRequiredEventType: "movie.plugin.refresh_required",
+    manifestPath: "/api/hermes-plugins/movie/manifest",
+    residentFrame: true,
+  }),
 });
 
 function embeddedPluginRecord(pluginId) {
@@ -131,6 +146,7 @@ function embeddedPluginRecord(pluginId) {
       manifestAppearanceKey: "",
       manifestFetchedAt: 0,
       manifestFreshForFrame: false,
+      manifestMaxAgeMs: 0,
       frameOrigin: "",
       shellNode: null,
       canGoBack: false,
@@ -279,6 +295,21 @@ function embeddedPluginUsesLaunchToken(manifest) {
   return manifest?.embed?.tokenStatus === "launch_token_issued" || /[?&](?:launch|codexPluginLaunch)=/.test(entryUrl);
 }
 
+function embeddedPluginRefreshesOnVersionChange(manifest) {
+  return Boolean(
+    manifest?.embedding?.refreshOnVersionChange
+    || manifest?.embedding?.refresh_on_version_change
+    || manifest?.embed?.refreshOnVersionChange
+    || manifest?.embed?.refresh_on_version_change
+  );
+}
+
+function embeddedPluginManifestMaxAgeMs(def, manifest) {
+  const explicit = Number(def?.manifestMaxAgeMs);
+  if (Number.isFinite(explicit) && explicit >= 0) return explicit;
+  return embeddedPluginRefreshesOnVersionChange(manifest) ? 5000 : 60000;
+}
+
 function embeddedPluginLaunchTokenFreshForFrame(def) {
   const record = embeddedPluginRecord(def.id);
   if (!record.manifestFreshForFrame) return false;
@@ -403,9 +434,10 @@ function embeddedPluginAppearanceKey(appearance = embeddedPluginAppearanceForLau
 
 function embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appearanceKey = embeddedPluginAppearanceKey()) {
   const fetchedAt = Number(record?.manifestFetchedAt || 0);
-  const maxAgeMs = Number(record?.manifestMaxAgeMs || 60000);
-  const freshEnough = !embeddedPluginUsesLaunchToken(record?.manifest)
-    || (fetchedAt > 0 && Date.now() - fetchedAt < maxAgeMs);
+  const maxAgeMs = Number.isFinite(Number(record?.manifestMaxAgeMs)) ? Number(record.manifestMaxAgeMs) : 60000;
+  const manifestAgeFresh = fetchedAt > 0 && Date.now() - fetchedAt < maxAgeMs;
+  const freshEnough = (!embeddedPluginUsesLaunchToken(record?.manifest) && !embeddedPluginRefreshesOnVersionChange(record?.manifest))
+    || manifestAgeFresh;
   const manifestUsable = record?.manifest?.ok !== false && record?.manifest?.available !== false;
   return Boolean(
     record?.checked
@@ -431,6 +463,10 @@ function embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appea
     && renderedAppearanceKey === String(appearanceKey || "").trim()
     && embeddedPluginProxyEntryWorkspaceMatches(record.renderedEntryUrl, workspaceId)
   );
+}
+
+function embeddedPluginResidentShellRequiresFreshManifest(def, manifest) {
+  return Boolean(def?.residentFrame && embeddedPluginRefreshesOnVersionChange(manifest));
 }
 
 function updateEmbeddedPluginNavigationState(def, payload = {}) {
@@ -815,6 +851,37 @@ function handleEmbeddedPluginVoiceInputMessage(def, payload = {}) {
   return false;
 }
 
+function updateEmbeddedPluginReadyState(def, payload = {}) {
+  const pluginId = String(payload.pluginId || payload.plugin_id || "").trim();
+  if (pluginId && pluginId !== def.id) return false;
+  const record = embeddedPluginRecord(def.id);
+  const pluginVersion = String(payload.pluginVersion || payload.plugin_version || payload.version || "").trim().slice(0, 120);
+  const cacheKey = String(payload.cacheKey || payload.cache_key || "").trim().slice(0, 120);
+  const now = Date.now();
+  record.ready = true;
+  record.readyAt = now;
+  record.pluginVersion = pluginVersion;
+  record.pluginCacheKey = cacheKey;
+  record.navigationLastAt = now;
+  record.lastNoNavigationRefreshAt = 0;
+  currentEmbeddedPluginShell(def)?.classList?.remove("is-loading");
+  const manifestVersion = String(record.manifest?.version || "").trim();
+  const versionMismatch = Boolean(pluginVersion && manifestVersion && pluginVersion !== manifestVersion);
+  record.readyVersionMatchesManifest = !versionMismatch;
+  if (versionMismatch) {
+    record.pluginVersionMismatchAt = now;
+    const mismatchSignature = `${manifestVersion}|${pluginVersion}|${cacheKey}`;
+    if (record.pluginVersionMismatchSignature !== mismatchSignature) {
+      record.pluginVersionMismatchSignature = mismatchSignature;
+      requestEmbeddedPluginRefresh(def, { force: true, reason: "plugin_version_mismatch" });
+    }
+  } else {
+    record.pluginVersionMismatchSignature = "";
+  }
+  updateNavigationControls();
+  return true;
+}
+
 function ensureEmbeddedPluginNavigationBridge(def) {
   const record = embeddedPluginRecord(def.id);
   if (record.bridgeBound) return;
@@ -824,6 +891,9 @@ function ensureEmbeddedPluginNavigationBridge(def) {
     if (!data) return;
     if (!embeddedPluginMessageOriginAllowed(def, event)) return;
     if (String(data.type || "").startsWith("voice_input.") && handleEmbeddedPluginVoiceInputMessage(def, data)) {
+      return;
+    }
+    if (data.type === "homeai-plugin-ready" && updateEmbeddedPluginReadyState(def, data)) {
       return;
     }
     if (data.type === def.navigationEventType) {
@@ -1233,6 +1303,7 @@ function resetEmbeddedPluginsForWorkspaceChange() {
       manifestAppearanceKey: "",
       manifestFetchedAt: 0,
       manifestFreshForFrame: false,
+      manifestMaxAgeMs: 0,
       frameOrigin: "",
       openRoute: null,
       returnRoute: null,
@@ -1419,6 +1490,7 @@ async function loadEmbeddedPluginManifest(def, options = {}) {
     record.manifestAppearanceKey = appearanceKey;
     record.manifestFetchedAt = Date.now();
     record.manifestFreshForFrame = embeddedPluginUsesLaunchToken(record.manifest);
+    record.manifestMaxAgeMs = embeddedPluginManifestMaxAgeMs(def, record.manifest);
   } catch (err) {
     record.manifest = {
       ok: false,
@@ -1430,6 +1502,7 @@ async function loadEmbeddedPluginManifest(def, options = {}) {
     record.manifestAppearanceKey = "";
     record.manifestFetchedAt = 0;
     record.manifestFreshForFrame = false;
+    record.manifestMaxAgeMs = 0;
   } finally {
     record.checked = true;
     record.loading = false;
@@ -1465,7 +1538,10 @@ function renderEmbeddedPluginView(def) {
   const workspaceId = state.selectedWorkspaceId || "owner";
   const appearanceKey = embeddedPluginAppearanceKey();
   const pluginManifest = embeddedPluginCurrentManifest(def);
-  if (!pluginManifest && embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appearanceKey)) {
+  if (!pluginManifest
+    && !embeddedPluginResidentShellRequiresFreshManifest(def, record.manifest)
+    && embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appearanceKey)
+  ) {
     record.frameOrigin = record.frameOrigin || embeddedPluginEntryOrigin(def, record.manifest);
     if (attachEmbeddedPluginShell(def, record.renderedEntryUrl)) {
       updateNavigationControls();
@@ -1476,14 +1552,19 @@ function renderEmbeddedPluginView(def) {
   if (embeddedPluginAvailable(pluginManifest) && !embeddedPluginBlockedByPageSecurity(def, pluginManifest)) {
     const entryUrl = embeddedPluginEntryUrlForFrame(def, pluginManifest);
     record.frameOrigin = embeddedPluginEntryOrigin(def, pluginManifest);
-    const currentFrame = currentEmbeddedPluginShell(def)?.querySelector(".embedded-plugin-frame");
+    const currentShell = currentEmbeddedPluginShell(def);
+    const currentFrame = currentShell?.querySelector(".embedded-plugin-frame");
     const currentFrameUsesEntry = Boolean(currentFrame && currentFrame.getAttribute("src") === entryUrl);
     const currentShellWasRenderedForEntry = Boolean(record.renderedEntryUrl && record.renderedEntryUrl === entryUrl);
+    const currentShellUsesCurrentEntry = Boolean(currentFrameUsesEntry || currentShellWasRenderedForEntry);
     const launchFrameCanBePreserved = !embeddedPluginUsesLaunchToken(pluginManifest)
-      || embeddedPluginLaunchTokenFreshForFrame(def)
-      || (Number(record.navigationLastAt || 0) > 0 && currentShellWasRenderedForEntry)
-      || currentFrameUsesEntry;
-    if (!launchFrameCanBePreserved) {
+      || !currentShell
+      || (currentShellUsesCurrentEntry && (
+        embeddedPluginLaunchTokenFreshForFrame(def)
+        || Number(record.navigationLastAt || 0) > 0
+      ));
+    const mustReplaceStaleLaunchFrame = Boolean(currentShell && !currentShellUsesCurrentEntry);
+    if (!launchFrameCanBePreserved && !mustReplaceStaleLaunchFrame) {
       refreshEmbeddedPluginFrameFromFreshManifest(def);
       return;
     }
@@ -2004,4 +2085,59 @@ function parkMusicPluginShell() {
 function renderMusicPluginView() {
   updateMusicPluginNavigationAvailability();
   renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.music);
+}
+
+function updateMoviePluginNavigationAvailability() {
+  const def = EMBEDDED_PLUGIN_DEFS.movie;
+  const button = $(def.bottomButtonId);
+  const nav = $("bottomNav");
+  const available = embeddedPluginNavigationAvailable(def);
+  const keepBottomButton = embeddedPluginBottomButtonShouldStayVisible(def);
+  if (button) {
+    button.hidden = !keepBottomButton;
+    button.setAttribute("aria-hidden", keepBottomButton ? "false" : "true");
+  }
+  nav?.classList.remove(def.navVisibleClass);
+  if (typeof setBottomPluginMenuItemAvailability === "function") setBottomPluginMenuItemAvailability("movie", available);
+  if (typeof updateBottomPluginMenuAvailability === "function") updateBottomPluginMenuAvailability();
+  return available;
+}
+
+function moviePluginBackActive() {
+  return embeddedPluginBackActive(EMBEDDED_PLUGIN_DEFS.movie);
+}
+
+function moviePluginOuterBackActive() {
+  return embeddedPluginOuterBackActive(EMBEDDED_PLUGIN_DEFS.movie);
+}
+
+function rememberMoviePluginReturnRoute() {
+  return rememberEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.movie);
+}
+
+function setMoviePluginOpenRoute(route = {}) {
+  return setEmbeddedPluginOpenRoute(EMBEDDED_PLUGIN_DEFS.movie, route);
+}
+
+function restoreMoviePluginReturnRoute() {
+  return restoreEmbeddedPluginReturnRoute(EMBEDDED_PLUGIN_DEFS.movie);
+}
+
+function sendMoviePluginBack() {
+  return sendEmbeddedPluginBack(EMBEDDED_PLUGIN_DEFS.movie);
+}
+
+function sendMoviePluginBackOrReturn() {
+  if (sendMoviePluginBack()) return true;
+  if (typeof pluginContextBackNavigationActive === "function" && pluginContextBackNavigationActive()) return false;
+  return restoreMoviePluginReturnRoute();
+}
+
+function parkMoviePluginShell() {
+  return parkEmbeddedPluginShell(EMBEDDED_PLUGIN_DEFS.movie);
+}
+
+function renderMoviePluginView() {
+  updateMoviePluginNavigationAvailability();
+  renderEmbeddedPluginView(EMBEDDED_PLUGIN_DEFS.movie);
 }

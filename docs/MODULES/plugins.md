@@ -48,6 +48,13 @@ granted workspaces to `MOIRA_HERMES_ALLOWED_WORKSPACES_FILE`, normally
 during launch/MCP authorization checks. Static LaunchDaemon allowlists remain
 deployment seeds, not the only grant source.
 
+For embedded Moira API calls, Home AI must preserve the workspace boundary even
+when the WebView request does not carry a `workspaceId` query parameter or a
+usable `Referer`. The plugin proxy recognizes the namespaced Moira session
+cookie `moira_hermes_session` and uses its Home AI proxy namespace to recover
+the target workspace before adding the upstream `x-hermes-plugin-workspace-id`
+and server-side workspace `Authorization` header.
+
 Moira's Gateway MCP surface is read-only. The plugin-side MCP tools expose
 saved-record metadata plus compact birth-chart, annual-flow, PICK/择日, and
 择月 evidence packages; the host model owns final interpretation and must not
@@ -75,6 +82,43 @@ requests. Non-Owner workspaces must still see Music as unavailable and must not
 receive a workspace grant. The model-side Music MCP follows the Gateway Pool
 Owner-only rule in `docs/MODULES/gateway-pool.md`: it reads the plugin-owned
 SQLite ledger and does not use a model-provided workspace override.
+
+Movie / 影院 is also an Owner-only special embedded app plugin. Home AI may
+expose the Movie app only to the effective `owner` workspace and must not make
+it workspace-grantable for non-Owner users. Owner Movie app launch uses the
+same-origin `/api/hermes-plugins/movie/proxy/...` route with keyless direct
+entry, following the Music Owner-only launch shape. The proxy must not attach a
+workspace `Authorization: Bearer ...` header to Movie upstream requests, and
+Home AI must not store Movie projector, NAS, or device credentials in source,
+docs, logs, launch URLs, or model context. Movie owns theater UI, read-only
+device status adapters, and any future protected control policy. Home AI owns
+only Owner-only visibility, the embedded iframe host, the same-origin proxy,
+and launch metadata projection.
+
+Movie's first Home AI integration is app-entry-only. Even if the Movie plugin
+manifest advertises action routes such as remote, projector, or shutdown states,
+Home AI suppresses Movie host actions from drawer, dock long-press, and search
+until a separate protected-action contract and readback verification policy is
+approved. Owner opens the Movie app; device-control semantics remain inside
+Movie-owned UI and policy.
+
+Versioned embedded plugins use the same host refresh contract as Codex Mobile
+and other resident iframe plugins. A plugin that changes its shell or static
+asset version must bump its manifest `version`, include a cache key in its
+entry URL, and, when available, post `homeai-plugin-ready` with `pluginId`,
+`pluginVersion`, and `cacheKey` after the iframe has loaded. A manifest that
+declares `embedding.refreshOnVersionChange=true` or
+`navigation.refreshOnVersionChange=true` is not treated as permanently fresh:
+the host re-reads the manifest on a short bounded TTL, preserves the resolved
+versioned entry URL through the same-origin proxy, and recreates the resident
+iframe when the resolved entry URL changes. If the plugin-ready version
+disagrees with the current manifest version, the host records bounded
+diagnostic metadata and requests one refresh for that mismatch signature. This
+is a runtime plugin contract; routine Movie cache/version updates should use
+this protocol, not Codex task cards. Task cards are for repairing a broken host
+contract, deployment failure, or plugin implementation bug. The readiness
+message is not an action contract and must not make suppressed host actions
+visible.
 
 The embedded UI layout contract is tracked separately in
 `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`. Plugin projects must
@@ -139,7 +183,19 @@ and should call the Home AI shared deploy script from
 `--plugin`, `--source`, `--restart-label`, `--health-url`, MCP schema checks,
 and data readback checks. The shared script also accepts `--plugin all` for a
 bounded all-plugin deployment plan over the known service roots. A plugin-local
-deployment script may wrap the central script, but must not introduce a separate sudo, rsync, SSH, or production write-access path. Normal plugin
+deployment script may wrap the central script, but must not introduce a separate sudo, rsync, SSH, or production write-access path.
+
+Plugin-owned deploy and validation work should stay in the plugin thread. If a
+plugin has changed only its own source and can complete production closure by
+calling `deploy:macos -- --plugin <plugin-id>` plus plugin health, embedded
+launch/proxy, MCP schema, or plugin data smoke checks, it must not send a task
+card to Home AI just because the central deploy script or embedded shell is
+used. Cross-thread cards to Home AI are reserved for host/platform blockers:
+Home AI source changes, central deploy-script gaps, same-origin proxy or launch
+bugs, workspace binding/provisioning bugs, Gateway/toolset schema changes,
+shared policy changes, or unresolved production permission failures.
+
+Normal plugin
 deployments must also prove required frontend entry artifacts before closure:
 for example, Email must carry `dist/web/index.html` into production, while
 Codex Mobile Web, Growth, and Note prove their `public/index.html` entries.
@@ -676,6 +732,16 @@ type. Without this, HTTPS Hermes Mobile PWAs can load the plugin shell while
 plugin-supplied images remain broken because the browser is asked to fetch the
 HTTP/LAN upstream directly.
 
+Proxy rewrite extensions are host-owned and plugin-scoped. A plugin-specific
+resource path must be added as a central proxy profile rule for that plugin id
+or as an explicitly named plugin-id branch in `server-routes/hermes-plugin-api-routes.js`;
+it must not widen the default regex set unless the behavior is valid for every
+embedded plugin. Every new proxy rule must include tests that show the target
+plugin path is rewritten under its own
+`/api/hermes-plugins/<plugin-id>/proxy/...` prefix and that unrelated plugin
+paths are unchanged. This keeps a Codex Mobile image fix, a Finance resource
+fix, or a Wardrobe upload fix from changing another plugin's iframe behavior.
+
 Long-lived plugin streams, especially `text/event-stream` APIs such as Codex
 Mobile Web `/api/events`, must be streamed through the same-origin proxy rather
 than buffered with full-body readers. The proxy should write SSE headers to the
@@ -1100,6 +1166,19 @@ bind plus profile/MCP registration updates the authorization record to
 `provisioningStatus=active`; a key, bind, config, or MCP/profile failure keeps
 the grant record but marks
 `provisioningStatus=provisioning_failed` with a bounded error.
+
+Mac production Finance embedded launch validation uses the same
+workspace-local binding as its source of truth. Home AI's Finance launchd
+installer derives `FINANCE_HERMES_WORKSPACE_KEY_HASHES_JSON` from every active
+`data/drive/users/<workspaceId>/.hermes-finance/config.json` plus its configured
+`access-key.txt` or `workspace-key.txt`, and sets
+`FINANCE_HERMES_ALLOWED_WORKSPACES` to the discovered workspace ids. The raw
+workspace key must never be written to launchd output, task cards, docs,
+handoffs, screenshots, or logs. A plugin deploy that includes Finance's
+fail-closed embedded launch contract must refresh and reload the Finance
+launchd plist before restarting the service; runtime self-registration is not a
+valid production fallback.
+
 On Windows production, low Gateway profiles are generated inside WSL. If the
 Finance service runs on Windows, the Finance MCP API base passed to the WSL
 profile must be a WSL-reachable address such as the Windows host LAN address,
@@ -1183,6 +1262,10 @@ Owner-only and is not grantable through this contract. The source guard
 `scripts/plugin-provisioning-coverage-audit.js` checks this mapping against the
 public plugin source manifest, provisioning adapters/tests, and
 `hermes-plugin-service` wiring.
+Movie is local Owner-only embedded app configuration rather than a public
+default plugin source. It follows the same non-grantable Owner-only runtime
+semantics as Music, but does not enter the public plugin source manifest unless
+a separate public distribution package exists.
 
 The plugin manager's open/closed status must reflect the same effective
 workspace availability used by the launch path. For workspace-private plugins,
@@ -1611,6 +1694,84 @@ long logs. `detailMessage.body` is only for bounded final receipts such as
 Codex final assistant text and usage summary; cap it before submission and set
 `truncated=true` when shortened.
 
+## Plugin Conversation Repair Requests
+
+The host-side plugin conversation window is distinct from the embedded plugin
+iframe. A user may ask the conversation to help with a plugin capability gap,
+but that conversation does not have direct plugin implementation access and
+must not claim that it can call a plugin thread by itself.
+
+For repairable plugin gaps, the conversation should submit a bounded structured
+request to:
+
+```text
+POST /api/plugin-conversation/actions
+```
+
+Host-side plugin conversation UI may also ask the Home AI client to submit the
+same request by posting a same-window message:
+
+```js
+window.postMessage({
+  type: "homeai.plugin_conversation.action",
+  pluginId: "health",
+  requestType: "catalog_missing",
+  severity: "H2",
+  title: "Strength catalog missing push_up",
+  summary: "Health strength catalog lacks a push_up exercise key.",
+  suggestedChange: "Add key push_up with label 俯卧撑 and bounded aliases.",
+  acceptance: "Focused catalog tests pass and future push-up strength sessions can use the standard key.",
+  evidence: {
+    catalog: "strength_exercise",
+    missingKey: "push_up",
+    label: "俯卧撑",
+    english: "Push-up",
+    aliases: ["pushup", "push-up", "push up", "俯卧撑", "伏地挺身"]
+  }
+}, window.location.origin);
+```
+
+Host-side assistant replies in a plugin conversation may alternatively append
+one hidden Markdown HTML comment with exact JSON. The client strips this block
+from display and forwards it through the same Owner-gated bridge:
+
+```markdown
+<!-- homeai-plugin-conversation-action
+{"pluginId":"health","requestType":"catalog_missing","severity":"H2","title":"Strength catalog missing push_up","summary":"Health strength catalog lacks a push_up exercise key.","suggestedChange":"Add key push_up with label 俯卧撑 and bounded aliases.","acceptance":"Focused catalog tests pass and future push-up strength sessions can use the standard key.","evidence":{"catalog":"strength_exercise","missingKey":"push_up","label":"俯卧撑","aliases":["pushup","push-up","push up","俯卧撑","伏地挺身"]}}
+-->
+```
+
+The visible assistant reply must not say a card was submitted unless the current
+run has a real host/tool response. Do not invent ordinary `t_*` todo ids, Action
+Inbox `ainb_*` ids, or Codex task-card `ttc_*` ids. The hidden request only
+creates an Owner approval item; it does not send a task card automatically.
+
+Embedded plugin iframes may use the same `homeai.plugin_conversation.action`
+message; the host accepts it only from the currently mounted plugin frame. A
+host plugin-conversation page uses same-window delivery. Both forms create the
+same Owner approval item and neither form sends a task card automatically.
+
+Hermes resolves the canonical plugin target, creates an Owner-only Action Inbox
+approval item, and optionally sends an Owner notification. No task card is sent
+until Owner approves the Inbox item. Owner approval calls:
+
+```text
+POST /api/plugin-conversation/actions/<inbox-item-id>/task-card
+```
+
+The approval body may include `ownerPrompt`. Hermes appends that prompt to the
+task-card body under `Owner Additional Prompt`, then dispatches through the
+central Codex task-card service and marks the Inbox item completed. This allows
+Owner to add judgment, scope, or constraints at the exact dispatch boundary.
+
+The request is for implementation repair, not data entry. For example, a Health
+conversation that discovers the strength catalog lacks `push_up` may request a
+Health implementation card to add the catalog key. It must not copy raw health
+records, private workout logs, provider payloads, launch tokens, cookies, full
+conversation transcripts, screenshots, or long logs into the request. Use
+bounded summaries, suggested keys/labels, acceptance criteria, and compact
+evidence only.
+
 ## Plugin-Side Requirements
 
 Each plugin project must implement the embedded contract before Hermes Mobile
@@ -1706,6 +1867,12 @@ Mobile tests. The plugin-side harness should prove:
   be changed. For Note this means `/api/v1/app/attachments/<attachmentId>` image
   URLs in imported-note bodies and attachment metadata load through the Hermes
   same-origin proxy instead of falling back to the Hermes host root.
+  Plugin-specific resource additions must be scoped to that plugin id and
+  covered by negative tests for at least one unrelated plugin. Plugins should
+  send a Home AI task card only when the missing rule is host-owned; plugin
+  client rendering bugs, including iframe-internal image hydration, remain
+  plugin-owned unless the captured browser `src` or HTTP status proves a host
+  proxy failure.
 - Embed mode: `/?embed=hermes` hides standalone app chrome and does not show a
   username/password login after a valid launch.
 - Navigation event: entering a secondary page sends
@@ -2005,19 +2172,19 @@ in this order:
 - explicit option or `HERMES_MOBILE_FINANCE_PLUGIN_ACCESS_KEY_PATH`
 - `HERMES_MOBILE_PLUGIN_FINANCE_ACCESS_KEY_PATH`
 - `FINANCE_HERMES_PLUGIN_ACCESS_KEY_PATH`
-- for Owner only, the configured Hermes Mobile Owner key path
-  `HERMES_WEB_AUTH_KEY_PATH`
 - `.hermes-finance/access-key.txt` or `.hermes-finance/workspace-key.txt` under
   the current workspace drive root
 
 For Finance only, Hermes Mobile sends the launch body fields `workspace_id`,
 `workspace_key`, and `role` to match Finance's workspace launch contract.
 Hermes Mobile sends `user_key` only when it has a separate workspace-user key;
-it must not reuse the long-lived workspace key as `user_key`. Hermes Mobile
-must also not send the Finance workspace key in an `Authorization: Bearer ...`
-header during launch, because Finance's independent direct-login token resolver
-owns Bearer credentials. No raw key is returned in the normalized manifest,
-frontend state, iframe URL, docs, handoffs, screenshots, or logs.
+it must not reuse the long-lived workspace key as `user_key`. The Home AI Owner
+web key (`HERMES_WEB_AUTH_KEY_PATH`) is not a Finance workspace key and must not
+be used for Finance launch. Hermes Mobile must also not send the Finance
+workspace key in an `Authorization: Bearer ...` header during launch, because
+Finance's independent direct-login token resolver owns Bearer credentials. No
+raw key is returned in the normalized manifest, frontend state, iframe URL,
+docs, handoffs, screenshots, or logs.
 
 Finance launch diagnostics must separate the stages:
 

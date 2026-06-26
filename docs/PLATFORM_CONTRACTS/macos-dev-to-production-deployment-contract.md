@@ -1,6 +1,6 @@
 # macOS Development To Production Deployment Contract
 
-Last updated: 2026-06-08.
+Last updated: 2026-06-25.
 
 ## Purpose
 
@@ -44,9 +44,12 @@ finance -> /Users/example/path
 growth -> /Users/example/path
 healthy -> /Users/example/path
 moira -> /Users/example/path
+movie -> /Users/example/path
 music -> /Users/example/path
 note -> /Users/example/path
 wardrobe -> /Users/example/path
+Android APK public artifacts -> Home AI public /android/ directory served at
+  https://wardrobe-xuxin.synology.me:8555/android/
 ```
 
 Future plugins must use `/Users/example/path<plugin-id>`
@@ -70,6 +73,42 @@ that uses:
 Direct live edits such as opening `/Users/example/path` or
 `/Users/example/path<plugin>` as a normal Codex workspace,
 changing files there, and then treating that as deployment are forbidden.
+
+Plugin workspaces may call this shared deploy script directly for their own
+plugin targets. A plugin deployment remains plugin-owned when the deploy target
+is `--plugin <plugin-id>`, the source changes are plugin-local, and the
+post-deploy validation is plugin health, embedded launch/proxy, MCP schema, or
+plugin data/product smoke evidence. The plugin thread must not send a task card
+to the Home AI workspace merely because this script lives under the Home AI app
+workspace or because the smoke opens the plugin through the Home AI shell.
+
+Routine plugin deploy task cards are a routing error when the plugin can run
+the central script itself. The Home AI receiver must not execute that deploy
+for convenience, because doing so interrupts unrelated host work and makes the
+plugin closure depend on another thread's queue. It must return `redirected` or
+`blocked` with the exact plugin-owned plan/execute/readback commands and the
+specific escalation condition that would make the next card Home-AI-owned.
+Only after a platform-owned blocker is proven may Home AI accept a deployment
+card and mutate production on behalf of the plugin.
+
+Escalate to a Home AI task card only when the missing work is host/platform
+owned: Home AI source edits, deploy-script capability changes, same-origin
+proxy or launch-token bugs, workspace binding/provisioning bugs, Gateway schema
+or worker-profile changes, shared policy changes, or a production permission
+failure that cannot be resolved through the existing bounded deploy contract.
+
+If a plugin thread changes code but then discovers that deployment is blocked
+by a host/platform prerequisite, it must not end silently. It must return a
+`blocked`, `redirected`, or `partially_completed` card to the source thread and,
+when the owner is Home AI, send a Home AI task card before stopping. The card
+must name the blocking layer, list the local commits or changed files waiting
+behind the blocker, state why deploying now would be unsafe, and identify the
+validation required after the owner repairs the prerequisite. This rule applies
+to launchd provisioning, workspace key/hash binding, central deploy-script
+gaps, shared visual/debug lanes, Gateway/MCP profile state, and production
+permission failures. Source changes waiting behind such a blocker are not
+closure until the owner receives the card and either deploys safely or returns
+a bounded blocked status.
 
 ## Required Deploy Plan
 
@@ -129,11 +168,12 @@ exclude local tooling metadata such as `.git`, `.codex`, `.codegraph`, and
 paths from replacement.
 Mac production deploy backups under
 `/Users/example/path` are rollback points, not
-long-term archives. The central deploy script must prune deploy backups older
-than three days after a successful deployment, while preserving the current
-deployment backup. If an operator needs to retain an older rollback point, move
-or copy it to an explicit archive location outside `backups/deploy` before it
-ages out.
+long-term archives. The central deploy script must apply the same retention
+policy to Home AI and every plugin target: keep only the most recent three UTC
+calendar days for each target, and within each target/day keep only that day's
+latest backup. The current deployment backup is always preserved. If an
+operator needs to retain an older rollback point, move or copy it to an
+explicit archive location outside `backups/deploy` before it ages out.
 After sync, the central deploy script must restore the production target owner.
 The default owner is `hermes-host:staff`; the Codex Mobile plugin uses
 `xuxin:staff` because its production launchd service runs as `xuxin`.
@@ -149,6 +189,36 @@ plan's restart labels. Otherwise launchd can fail before Node starts with
 `EX_CONFIG` if it opens a shared log path whose owner has drifted back to
 `hermes-host`, while an unrelated Home AI no-restart deploy can avoid
 disconnecting active Codex Mobile sessions.
+
+## Android APK Release Rules
+
+Android native shell release work is not complete when the Android workspace
+only builds a local APK under `/Users/example/path`.
+Release completion requires all of the following:
+
+1. Build the Android APK.
+2. Update the local Android `dist/android-update.json` manifest.
+3. Sync both the APK file, for example
+   `dist/HomeAI-Android-native-shell-debug-20260621.apk`, and
+   `dist/android-update.json` into the Home AI public `/android/` directory
+   behind `https://wardrobe-xuxin.synology.me:8555/android/`.
+4. HTTPS-read back
+   `https://wardrobe-xuxin.synology.me:8555/android/android-update.json`.
+5. HTTPS-read back the published APK URL named by that manifest.
+6. Verify the online manifest `versionCode` is greater than the previously
+   installed/served package and that `versionName`, `size`, and `sha256` match
+   the published APK bytes.
+
+Every Android APK version bump must update the online manifest fields
+`versionCode`, `versionName`, `size`, `sha256`, and the APK URL or filename
+when the filename changes. If the online `android-update.json` still reports
+the old `versionCode`, installed Android shells will not prompt for an update
+even if `/Users/example/path` contains a newer APK.
+
+Android APK release cards should report bounded readback only: manifest URL,
+APK URL or basename, old/new `versionCode`, `versionName`, `size`, `sha256`,
+and readback status. Do not paste access keys, cookies, private paths beyond
+documented release paths, or long server logs.
 
 ## Restart Rules
 
@@ -289,8 +359,8 @@ npm run --silent deploy:macos -- --plugin all --json
 ```
 
 The `all` plugin target expands to the bounded known plugin service roots:
-Codex Mobile Web, Email, Finance, Growth, Healthy/Health, Moira, Note, and
-Wardrobe.
+Codex Mobile Web, Email, Finance, Growth, Healthy/Health, Moira, Movie, Music,
+Note, and Wardrobe.
 It uses the central script's default launchd labels and loopback manifest
 smokes. It does not accept a single `--source`, `--restart-label`, or
 `--health-url` override because those values are per plugin. Operators may use
@@ -299,12 +369,13 @@ directory remain `plugins/healthy`.
 
 Normal plugin deployments include required frontend entry proof files in the
 same production hash validation used by Home AI static deploys. Email must
-include `dist/web/index.html`; Codex Mobile Web, Growth, and Note must include
-their `public/index.html` entries. If a required proof file is missing from the
-development source, the deployment plan must fail before writing production.
-This prevents a plugin service from launching with a missing iframe entry and
-presenting a black embedded surface. The `--sync-only` first-install path keeps
-its existing source-only semantics and does not run runtime/hash validation.
+include `dist/web/index.html`; Codex Mobile Web, Growth, Movie, and Note must
+include their `public/index.html` entries. If a required proof file is missing
+from the development source, the deployment plan must fail before writing
+production. This prevents a plugin service from launching with a missing iframe
+entry and presenting a black embedded surface. The `--sync-only` first-install
+path keeps its existing source-only semantics and does not run runtime/hash
+validation.
 
 Growth first production install has one extra launchd bootstrap step because
 `com.hermesmobile.plugin.growth` does not exist until the service is installed.
@@ -362,6 +433,28 @@ Later Moira source deploys use `npm run --silent deploy:macos -- --plugin
 moira ...` with the default `com.hermesmobile.plugin.moira` restart label and
 `http://127.0.0.1:4174/api/v1/hermes/plugin/manifest` health smoke.
 
+Movie first production install follows the Owner-only embedded-app pattern. The
+source workspace is a top-level sibling under the development root, not
+`plugins/movie`, but the central deploy script still writes to the standard
+production plugin target:
+
+```bash
+npm run --silent deploy:macos -- --plugin movie --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+node scripts/install-movie-launchd-service.js --json
+node scripts/install-movie-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+```
+
+The Movie installer starts `com.hermesmobile.plugin.movie` on
+`127.0.0.1:4195` as `hermes-host`, runs `src/server.js`, stores production data
+under `/Users/example/path`, and writes logs to
+the shared production log directory. It must not write Movie device, NAS, or
+projector credentials into the plist, Home AI docs, or Home AI source. It
+preflights port `4195` and fails if the port is held by a non-production
+process, because otherwise health checks could hit a development Movie server.
+Later Movie source deploys use `npm run --silent deploy:macos -- --plugin
+movie ...` with the default `com.hermesmobile.plugin.movie` restart label and
+`http://127.0.0.1:4195/api/v1/hermes/plugin/manifest` health smoke.
+
 Music first production install follows the Owner-only special-plugin pattern.
 The source workspace may live outside the standard plugin checkout root during
 early development, but the central deploy script must still write to the
@@ -374,10 +467,18 @@ node scripts/install-music-launchd-service.js --execute --bootstrap --password-f
 ```
 
 Before bootstrap, build the Music web bundle and install production
-dependencies in the synced production plugin directory. Later Music source
-deploys use `npm run --silent deploy:macos -- --plugin music ...` with the
-default `com.hermesmobile.plugin.music` restart label and
+dependencies in the synced production plugin directory. The installed
+LaunchDaemon runs the Roon-first service entry
+`src/roon-first-server.js` on the existing Music plugin port and registration
+path. The legacy service remains available in source as `src/server.js` /
+`npm run service:legacy`, but it is not the production default. Later Music
+source deploys use `npm run --silent deploy:macos -- --plugin music ...` with
+the default `com.hermesmobile.plugin.music` restart label and
 `http://127.0.0.1:4891/api/v1/hermes/plugin/manifest` health smoke.
+The Music plist includes bounded runtime paths for Roon state, listening
+ledger, local audio staging, and the private SMB direct config file. Private
+audio path remaps are injected through `MUSIC_AUDIO_PATH_REMAPS` or
+`--audio-path-remaps`; they must not be committed to Home AI source or docs.
 
 Growth plugin-manager grants also require the Home AI listener LaunchDaemon to
 set:

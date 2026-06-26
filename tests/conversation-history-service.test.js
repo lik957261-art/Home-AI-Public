@@ -29,7 +29,10 @@ function service(options = {}) {
   assert.equal(history.isStaleHttpToolAvailabilityClaim("http_request is not available"), true);
   assert.equal(history.isStaleImageToolAvailabilityClaim("chatgpt_image_edit missing"), true);
   assert.equal(history.isStaleDocxToolAvailabilityClaim("DOCX parser unavailable"), true);
+  assert.equal(history.isStaleOfficeToolAvailabilityClaim("PPTX parser unavailable"), true);
+  assert.equal(history.isStalePdfToolAvailabilityClaim("PDF 当前不能 OCR，必须导出成图片"), true);
   assert.equal(history.isStaleAudioToolAvailabilityClaim("mp3 audio transcription unavailable"), true);
+  assert.equal(history.isStaleArchiveToolAvailabilityClaim("没有 unzip 工具，无法解压 ZIP 文件"), true);
   assert.equal(history.isStaleAudioToolAvailabilityClaim("mp3 file uploaded successfully"), false);
 }
 
@@ -41,6 +44,38 @@ function service(options = {}) {
   );
   assert.match(content, /Stale assistant tool-availability claim omitted/);
   assert.match(content, /current run policy enables the `http` toolset/);
+}
+
+{
+  const history = service();
+  const content = history.conversationHistoryContentForMessage(
+    { role: "assistant", content: "当前不能处理 PDF 容器，请先导出成 JPG 图片" },
+    { allowed_toolsets: ["file"] },
+  );
+  assert.match(content, /Stale assistant tool-availability claim omitted/);
+  assert.match(content, /pdf_extract_text/);
+  assert.match(content, /pdf_render_pages/);
+}
+
+{
+  const history = service();
+  const content = history.conversationHistoryContentForMessage(
+    { role: "assistant", content: "没有 PowerPoint parser，无法读取 PPTX" },
+    { allowed_toolsets: ["file"] },
+  );
+  assert.match(content, /Stale assistant tool-availability claim omitted/);
+  assert.match(content, /office_extract_text/);
+}
+
+{
+  const history = service();
+  const content = history.conversationHistoryContentForMessage(
+    { role: "assistant", content: "当前没有 unzip 或解压工具，不能处理这个 zip" },
+    { allowed_toolsets: ["file"] },
+  );
+  assert.match(content, /Stale assistant tool-availability claim omitted/);
+  assert.match(content, /archive_list/);
+  assert.match(content, /archive_extract_safe/);
 }
 
 {
@@ -124,6 +159,33 @@ function service(options = {}) {
   ], 2, 24, {});
   assert.equal(compact.length, 1);
   assert.match(compact[0].content, /Earlier chat content omitted|cdefghijklmnopqrstuvwxyz/);
+}
+
+{
+  const history = service({ chatContextMaxChars: 140, maxApiTextChars: 140 });
+  const fullUrl = "https://example.test/deep/path/with/query?alpha=1&beta=two#section";
+  const compact = history.compactConversationHistory([
+    { role: "user", senderLabel: "A", content: `请看这个链接 ${fullUrl} ${"x".repeat(220)} 尾部问题` },
+  ], 1, 80, {});
+  assert.equal(compact.length, 1);
+  assert.match(compact[0].content, /Full HTTP links preserved/);
+  assert.match(compact[0].content, new RegExp(fullUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+}
+
+{
+  const history = service({ maxApiTextChars: 120 });
+  const fullUrl = "http://example.test/resource/abcdef?token=visible-to-model";
+  const thread = {
+    singleWindow: false,
+    messages: [
+      { id: "m1", role: "user", content: `${"a".repeat(160)} ${fullUrl} ${"z".repeat(160)}` },
+      { id: "m2", role: "user", content: "latest" },
+    ],
+  };
+  const compact = history.buildConversationHistory(thread, "m2", {});
+  assert.equal(compact.length, 1);
+  assert.match(compact[0].content, /Full HTTP links preserved/);
+  assert.match(compact[0].content, new RegExp(fullUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 }
 
 {

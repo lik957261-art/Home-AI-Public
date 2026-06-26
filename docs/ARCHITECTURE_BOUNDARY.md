@@ -4,9 +4,17 @@ This document is a repository contract for new Hermes Mobile work.
 
 Reusable Codex skill: `$service-first-architecture`.
 
+Root-cause discipline: `docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md`.
+
 ## Service-First Rule
 
 New product behavior must be implemented as a service or provider before it is wired into `server.js`.
+
+Bug fixes and incident repairs must also follow the root-cause architecture
+contract. Prefer repairing the owning service, provider, route, schema,
+provisioning path, deploy configuration, or platform contract over adding local
+patches, broad catch-all fallbacks, or duplicated policy in entrypoints,
+clients, plugins, scripts, or Gateway glue.
 
 Default locations:
 

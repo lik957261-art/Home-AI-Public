@@ -40,12 +40,37 @@ remaining gap as an explicit follow-up.
   `docs/IMPLEMENTATION_NOTES/visual-polish-controller.md`
 - Mac development-to-production deployment contract:
   `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`
+- GitHub shared source account contract and runbook:
+  `docs/PLATFORM_CONTRACTS/github-shared-source-account-contract.md`,
+  `docs/RUNBOOKS/github-shared-source-account.md`
+- Root-cause architecture contract:
+  `docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md`
+- Fallback governance contract and registry:
+  `docs/PLATFORM_CONTRACTS/fallback-governance-contract.md`,
+  `docs/IMPLEMENTATION_NOTES/fallback-registry.md`,
+  `scripts/fallback-governance-check.js`
+- Audit thread governance contract:
+  `docs/PLATFORM_CONTRACTS/audit-thread-governance-contract.md`
+- Product Reality Audit contracts and loop:
+  `docs/PLATFORM_CONTRACTS/product-reality-audit-contract.md`,
+  `docs/PLATFORM_CONTRACTS/deep-product-reality-audit-contract.md`,
+  `docs/IMPLEMENTATION_NOTES/product-reality-audit-loop.md`,
+  `docs/IMPLEMENTATION_NOTES/deep-product-reality-audit-batch-ledger.md`,
+  `scripts/deep-product-reality-batch-ledger-validator.js`
 - Frontend tab/state map: `docs/FRONTEND_STATE_MAP.md`
 - Runtime and learning SQLite data dictionary: `docs/DATA_DICTIONARY.md`
 - Gateway Pool manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
-- AI Operations Control Plane:
+- AI Operations Control Plane and diagnostic intake:
   `docs/MODULES/ai-operations-control-plane.md`,
   `docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md`
+- Diagnostic remediation loop:
+  `docs/PLATFORM_CONTRACTS/diagnostic-remediation-loop-contract.md`
+- Autonomous Delivery Loop:
+  `docs/PLATFORM_CONTRACTS/autonomous-delivery-loop-contract.md`,
+  `docs/IMPLEMENTATION_NOTES/autonomous-delivery-loop.md`,
+  `adapters/autonomous-delivery-coordinator-service.js`,
+  `server-routes/autonomous-delivery-api-routes.js`,
+  `scripts/autonomous-delivery-loop.js`
 - Public install/deploy checklist: `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`
@@ -57,6 +82,7 @@ remaining gap as an explicit follow-up.
 - Engineering governance gates:
   `docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md`,
   `scripts/engineering-governance-check.js`,
+  `scripts/fallback-governance-check.js`,
   `scripts/public-install-preflight.js`,
   `scripts/plugin-provisioning-coverage-audit.js`,
   `scripts/install-macos-production.sh`,
@@ -71,7 +97,8 @@ remaining gap as an explicit follow-up.
   `scripts/production-self-diagnostics.js`,
   `scripts/production-self-diagnostics-coverage-audit.js`,
   `scripts/productization-acceptance-matrix.js`,
-  `tests/engineering-governance-check.test.js`
+  `tests/engineering-governance-check.test.js`,
+  `tests/fallback-governance-check.test.js`
 - Original layered topic-context design: `docs/TOPIC_CONTEXT_LAYERED_COMPACTION_IMPLEMENTATION.zh-CN.md`
 
 ## Current Priority Modules
@@ -91,6 +118,7 @@ remaining gap as an explicit follow-up.
   `docs/IMPLEMENTATION_NOTES/directory-topic-collections.md`
 - Wardrobe MCP tab and embedded plugin host: `docs/MODULES/wardrobe.md`
 - Static client/cache/deploy: `docs/MODULES/static-client.md`, `docs/MODULES/deployment.md`
+- Home AI TTS assets and local narration generation: `docs/MODULES/home-ai-tts.md`
 - Workspace auth, keys, and access policy: `docs/MODULES/workspace-auth-permissions.md`
 - Workspace onboarding orchestration:
   `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`
@@ -103,7 +131,7 @@ remaining gap as an explicit follow-up.
 - Weixin/iLink ingress and delivery: `docs/MODULES/weixin-ingress.md`
 - Grok/xAI Gateway profile routing: `docs/MODULES/grok-gateway.md`
 - Runtime state, SQLite, and disaster backup: `docs/MODULES/runtime-state-backup.md`
-- AI Operations Control Plane:
+- AI Operations Control Plane and diagnostic intake:
   `docs/MODULES/ai-operations-control-plane.md`
 - Group chat and shared messages: `docs/MODULES/group-chat.md`
 
@@ -119,6 +147,8 @@ remaining gap as an explicit follow-up.
 - Mac production closure validation: `docs/RUNBOOKS/macos-production-closure-validation.md`
 - Mac production access and sudo/SSH rules:
   `docs/RUNBOOKS/macos-production-access.md`
+- GitHub shared source account:
+  `docs/RUNBOOKS/github-shared-source-account.md`
 - Mac directory path migration repair:
   `docs/RUNBOOKS/macos-directory-path-migration-repair.md`,
   `scripts/macos-bound-directory-preview-smoke.js`,
@@ -194,7 +224,7 @@ remaining gap as an explicit follow-up.
   `docs/IMPLEMENTATION_NOTES/mobile-authenticated-navigation-flow-harness.md`
 - Runtime architecture optimization priorities:
   `docs/IMPLEMENTATION_NOTES/runtime-architecture-optimization-priorities.md`
-- AI Operations Control Plane:
+- AI Operations Control Plane and diagnostic intake:
   `docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md`
 - Service-first refactor backlog:
   `docs/IMPLEMENTATION_NOTES/service-first-refactor-backlog.md`

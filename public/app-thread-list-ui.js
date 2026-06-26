@@ -99,6 +99,29 @@ function wireChatHistoryPager(root) {
   });
 }
 
+function renderTaskHistoryPager(thread, taskGroupId = state.currentTaskGroupId) {
+  if (!isTaskDetailView() || isChatSearchMode()) return "";
+  const page = thread?.messagesPage || {};
+  const mode = String(page.mode || "").trim().toLowerCase();
+  if (!["tasks", "task"].includes(mode) || String(page.taskGroupId || "") !== String(taskGroupId || "")) return "";
+  const messages = typeof taskGroupMessagesForThread === "function"
+    ? taskGroupMessagesForThread(thread, taskGroupId)
+    : [];
+  const hasMore = page.hasMoreBefore !== false && Boolean(page.oldestMessageId || page.total > messages.length);
+  if (!hasMore && !state.olderTaskMessagesLoading) return "";
+  return `<div class="chat-history-pager">
+    <button type="button" data-load-older-task ${state.olderTaskMessagesLoading ? "disabled" : ""}>
+      ${state.olderTaskMessagesLoading ? "加载中..." : "加载更早消息"}
+    </button>
+  </div>`;
+}
+
+function wireTaskHistoryPager(root) {
+  root?.querySelector?.("[data-load-older-task]")?.addEventListener("click", () => {
+    loadOlderTaskMessages().catch(showError);
+  });
+}
+
 function wireChatScopeHeader(root) {
   root?.querySelectorAll?.("[data-chat-scope]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -218,8 +241,9 @@ function renderCurrentThreadUnsafe(options = {}) {
   const thread = state.currentThread;
   const conversation = $("conversation");
   if (thread && typeof retainRestoredMainConversationSurfaceIfFresh === "function" && retainRestoredMainConversationSurfaceIfFresh(options)) return;
-  const forceChatBottom = shouldForceChatStickToBottom();
-  const stickToBottom = Boolean(options.stickToBottom || forceChatBottom);
+  const readAnchorActive = typeof conversationReadAnchorActive === "function" && conversationReadAnchorActive(conversation);
+  const forceChatBottom = readAnchorActive ? false : shouldForceChatStickToBottom();
+  const stickToBottom = !readAnchorActive && Boolean(options.stickToBottom || forceChatBottom);
   let bottomOffset = state.preservedBottomOffset;
   if (forceChatBottom) bottomOffset = 0;
   if (!stickToBottom && conversation.scrollHeight) {
@@ -288,7 +312,7 @@ function renderCurrentThreadUnsafe(options = {}) {
       || state.currentThreadRefreshInFlight
     );
   if (keepRenderedChatMessages) {
-    requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 120 });
+    requestCurrentThreadRefresh({ stickToBottom: !readAnchorActive, delayMs: 120 });
     scheduleConversationViewportRefresh(conversation);
     return;
   }
@@ -297,7 +321,9 @@ function renderCurrentThreadUnsafe(options = {}) {
     : "";
   if (chatMessagesAlreadyRendered(conversation, chatRenderSignature)) {
     refreshRenderedChatConversationVisuals(conversation);
-    if (stickToBottom) {
+    if (readAnchorActive && typeof restoreConversationReadAnchorScroll === "function" && restoreConversationReadAnchorScroll(conversation)) {
+      state.conversationPinnedToBottom = false;
+    } else if (stickToBottom) {
       conversation.scrollTop = conversation.scrollHeight;
       state.conversationPinnedToBottom = true;
       scheduleConversationBottomStick();
@@ -316,6 +342,8 @@ function renderCurrentThreadUnsafe(options = {}) {
   } else if (state.chatSearchScrollPending) {
     state.chatSearchScrollPending = false;
     requestAnimationFrame(() => scrollToCurrentChatSearchMatch(conversation));
+  } else if (readAnchorActive && typeof restoreConversationReadAnchorScroll === "function" && restoreConversationReadAnchorScroll(conversation)) {
+    state.conversationPinnedToBottom = false;
   } else if (stickToBottom) {
     conversation.scrollTop = conversation.scrollHeight;
     state.conversationPinnedToBottom = true;
@@ -377,6 +405,7 @@ function directoryTopicRenderSignature(threadId = "", groups = [], collections =
 }
 
 function renderTaskWindow(thread, conversation, options, bottomOffset) {
+  delete conversation.dataset.chatRenderSignature;
   const pluginTopicGroups = typeof pluginTopicGroupsForTaskList === "function"
     ? pluginTopicGroupsForTaskList(thread)
     : [];
@@ -511,6 +540,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       scheduleDeferredDirectoryTopicRender(thread.id, options.restoreScrollTop, directoryTopicSignature);
     }
   } else {
+    if (isChatSearchMode()) syncChatSearchMatches();
     const selectedMessages = typeof taskGroupMessagesForThread === "function"
       ? taskGroupMessagesForThread(thread, selected.id, selected.messages || [])
       : (selected.messages || []);
@@ -540,7 +570,8 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
       scheduleConversationViewportRefresh(conversation);
       return;
     }
-    conversation.innerHTML = `${selectedMessages.map(renderMessage).join("") || `<div class="empty-state">No task messages yet.</div>`}`;
+    const taskHistoryPager = renderTaskHistoryPager(thread, selected.id);
+    conversation.innerHTML = `${taskHistoryPager}${selectedMessages.map(renderMessage).join("") || `<div class="empty-state">No task messages yet.</div>`}`;
     renderTaskDetailToolbar(selected);
   }
   if (typeof hydrateInlineMarkdownImages === "function") hydrateInlineMarkdownImages(conversation);
@@ -548,6 +579,7 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   wireDirectoryProjectLinks(conversation);
   wireSkillLinks(conversation);
   wireQuoteButtons(conversation);
+  wireTaskHistoryPager(conversation);
   wireMessageRevokeButtons(conversation);
   wireMessageScrollButtons(conversation);
   wireMessageReplyActionButtons(conversation);
@@ -565,14 +597,17 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   if (selected && consumeTaskRouteScrollTarget(selected)) {
     return;
   }
-  if (!state.currentTaskGroupId && Number.isFinite(Number(options.restoreScrollTop))) {
+  const readAnchorActive = typeof conversationReadAnchorActive === "function" && conversationReadAnchorActive(conversation);
+  if (readAnchorActive && typeof restoreConversationReadAnchorScroll === "function" && restoreConversationReadAnchorScroll(conversation)) {
+    state.conversationPinnedToBottom = false;
+  } else if (!state.currentTaskGroupId && Number.isFinite(Number(options.restoreScrollTop))) {
     const maxTop = Math.max(0, conversation.scrollHeight - conversation.clientHeight);
     conversation.scrollTop = Math.min(maxTop, Math.max(0, Number(options.restoreScrollTop) || 0));
     state.conversationPinnedToBottom = false;
-  } else if (options.stickToBottom) {
+  } else if (!readAnchorActive && options.stickToBottom) {
     conversation.scrollTop = state.currentTaskGroupId ? conversation.scrollHeight : 0;
     state.conversationPinnedToBottom = Boolean(state.currentTaskGroupId);
-  } else if (Date.now() < Number(state.forceChatStickToBottomUntil || 0) && state.currentTaskGroupId) {
+  } else if (!readAnchorActive && Date.now() < Number(state.forceChatStickToBottomUntil || 0) && state.currentTaskGroupId) {
     conversation.scrollTop = conversation.scrollHeight;
     state.conversationPinnedToBottom = true;
   } else {

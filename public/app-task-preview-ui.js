@@ -205,6 +205,9 @@
       transientPreviewStatus(root, "已转发到群", "success");
     } else if (action === "system") {
       await sharePreviewLink(sourceUrl, title);
+    } else if (action === "native-preview") {
+      const url = previewShareUrl(sourceUrl);
+      if (url) global.location.assign(url);
     } else if (action === "save-album") {
       await savePreviewImageToAlbum(input);
     } else if (action === "copy") {
@@ -369,10 +372,14 @@
 
   function shouldUseWideNativeDocumentPreview(link) {
     const kind = documentKindFromLink(link);
-    if (kind !== "pdf") return false;
+    if (!documentKindUsesWideNativePreview(kind)) return false;
     const metrics = documentPreviewViewportMetrics();
     if (metrics.coarsePointer && metrics.width <= 540) return false;
     return metrics.width >= 768 || (metrics.coarsePointer && metrics.width >= 720 && metrics.height >= 540);
+  }
+
+  function documentKindUsesWideNativePreview(kind) {
+    return kind === "pdf" || kind === "word" || kind === "presentation";
   }
 
   function documentKindFromMimeName(mimeValue, nameValue) {
@@ -686,6 +693,7 @@ window.addEventListener("load", function () {
                 <button type="button" role="menuitem" data-preview-action="weixin">分享到微信</button>
                 <button type="button" role="menuitem" data-preview-action="group">分享到群</button>
                 <button type="button" role="menuitem" data-preview-action="system">系统分享</button>
+                <button type="button" role="menuitem" data-preview-action="native-preview">原始格式显示</button>
                 <button type="button" role="menuitem" data-preview-action="copy">复制链接</button>
                 <button type="button" role="menuitem" data-preview-action="open">打开原始文件</button>
               </div>
@@ -728,6 +736,7 @@ window.addEventListener("load", function () {
     closeImagePreviewOverlay,
     closeMarkdownPreviewOverlay,
     hasArtifactPreviewOverlay,
+    documentKindUsesWideNativePreview,
     documentNativeUrlFromLink,
     isDocumentPreviewLink,
     isImagePreviewLink,

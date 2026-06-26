@@ -17,7 +17,12 @@ const MAC_BASE_SCHEMA_TOOLS = [
   "chatgpt_image_edit",
   "chatgpt_image_erase",
   "docx_extract_text",
+  "office_extract_text",
+  "pdf_extract_text",
+  "pdf_render_pages",
   "audio_transcribe",
+  "archive_list",
+  "archive_extract_safe",
 ];
 
 function parseArgs(argv) {
@@ -41,6 +46,7 @@ function parseArgs(argv) {
     skipPluginDirectory: false,
     skipBoundDirectory: false,
     skipWardrobeBinding: false,
+    skipAutomationCron: false,
     skipDeepseek: false,
     skipWeixin: false,
     skipConcurrency: false,
@@ -67,6 +73,7 @@ function parseArgs(argv) {
     else if (arg === "--skip-plugin-directory") out.skipPluginDirectory = true;
     else if (arg === "--skip-bound-directory") out.skipBoundDirectory = true;
     else if (arg === "--skip-wardrobe-binding") out.skipWardrobeBinding = true;
+    else if (arg === "--skip-automation-cron") out.skipAutomationCron = true;
     else if (arg === "--skip-deepseek") out.skipDeepseek = true;
     else if (arg === "--skip-weixin") out.skipWeixin = true;
     else if (arg === "--skip-concurrency") out.skipConcurrency = true;
@@ -85,6 +92,7 @@ function parseArgs(argv) {
         "  --skip-plugin-directory   Skip plugin delivery-directory creation and preview smoke",
         "  --skip-bound-directory    Skip all-workspace directory-topic binding preview smokes",
         "  --skip-wardrobe-binding   Skip Wardrobe manifest/binding/proxy content smoke",
+        "  --skip-automation-cron    Skip Automation cron source/config/status audit",
         "  --skip-deepseek           Skip product-route DeepSeek provider smokes",
         "  --skip-weixin             Skip Weixin ingress heartbeat smoke",
         "  --skip-concurrency        Skip two-run Owner/OpenAI concurrency smoke",
@@ -429,6 +437,23 @@ function compactWardrobeBinding(wardrobeBinding) {
   };
 }
 
+function compactAutomationCron(automationCron) {
+  return {
+    ok: Boolean(automationCron.ok),
+    jobCount: Number(automationCron.jobCount || 0),
+    skillCount: Number(automationCron.skillCount || 0),
+    sourceIssueCount: Number(automationCron.sourceIssueCount || 0),
+    configIssueCount: Number(automationCron.configIssueCount || 0),
+    statusIssueCount: Number(automationCron.statusIssueCount || 0),
+    sourceIssues: (automationCron.sourceIssues || []).map((issue) => ({
+      code: issue.code || "",
+      detail: issue.detail || "",
+    })),
+    configIssues: (automationCron.configIssues || []).slice(0, 20),
+    statusIssues: (automationCron.statusIssues || []).slice(0, 20),
+  };
+}
+
 async function runSchema(options, name, profile, telemetryRoot, requiredTools) {
   const data = await runNodeJson(`schema:${name}`, options, "gateway-tool-schema-smoke.js", [
     "--manifest", options.manifest,
@@ -513,6 +538,14 @@ async function runClosure(options) {
     "--json",
   ]));
 
+  const automationCron = options.skipAutomationCron ? null : compactAutomationCron(await runNodeJson("automation-cron", options, "macos-automation-cron-audit.js", [
+    "--root", options.root,
+    "--strict-config",
+    "--strict-source",
+    "--strict-status",
+    "--json",
+  ]));
+
   const schemas = options.skipSchema ? [] : [
     await runSchema(
       options,
@@ -594,6 +627,7 @@ async function runClosure(options) {
     && (!pluginDirectory || (pluginDirectory.ok && pluginDirectory.rows.every((row) => row.ok || row.skipped)))
     && (!boundDirectory || (boundDirectory.path.ok && boundDirectory.uiRoute.ok))
     && (!wardrobeBinding || (wardrobeBinding.ok && wardrobeBinding.bindings.every((row) => row.ok) && wardrobeBinding.workspaces.every((row) => row.ok)))
+    && (!automationCron || (automationCron.ok && automationCron.sourceIssueCount === 0 && automationCron.configIssueCount === 0 && automationCron.statusIssueCount === 0))
     && schemas.every((row) => row.ok)
     && (!deepseek || (deepseek.user.ok && deepseek.user.gatewayProfile === "deepseekgw1" && !deepseek.user.maintenance
       && deepseek.maintenance.ok && deepseek.maintenance.gatewayProfile === "deepseekmaint1" && deepseek.maintenance.maintenance))
@@ -614,6 +648,7 @@ async function runClosure(options) {
       pluginDirectory: options.skipPluginDirectory ? "skipped" : "included",
       boundDirectory: options.skipBoundDirectory ? "skipped" : "included",
       wardrobeBinding: options.skipWardrobeBinding ? "skipped" : "included",
+      automationCron: options.skipAutomationCron ? "skipped" : "included",
       deepseek: options.skipDeepseek ? "skipped" : "included",
       weixin: options.skipWeixin ? "skipped" : "included",
       ownerConcurrency: options.skipConcurrency ? "skipped" : "included",
@@ -626,6 +661,7 @@ async function runClosure(options) {
     pluginDirectory,
     boundDirectory,
     wardrobeBinding,
+    automationCron,
     schemas,
     deepseek,
     weixin,
@@ -664,6 +700,7 @@ module.exports = {
   compactWeixin,
   compactPluginDirectory,
   compactWardrobeBinding,
+  compactAutomationCron,
   isAllowedProfileAuditWarning,
   parseArgs,
   productionStatusArgs,

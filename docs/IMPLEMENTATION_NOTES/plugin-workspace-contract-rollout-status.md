@@ -1,7 +1,16 @@
 # Plugin Workspace Contract Rollout Status
 
 Last updated: 2026-06-18.
-Home AI platform contract version: `20260618-v4`.
+Home AI platform contract version: `20260623-v5`.
+
+`20260623-v5` adds the fallback governance contract
+`docs/PLATFORM_CONTRACTS/fallback-governance-contract.md`, the fallback
+registry `docs/IMPLEMENTATION_NOTES/fallback-registry.md`, and task-card
+intake/reply ownership rules. During rollout, the central checker accepts
+`20260618-v4` plugin-local pointers as legacy with warnings, while v5 pointers
+must include the fallback governance references. Plugin-local pointers should
+adopt v5 through their own workspace task flow; Home AI does not rewrite plugin
+workspaces across the boundary.
 
 ## Scope
 

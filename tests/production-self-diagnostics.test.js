@@ -15,7 +15,7 @@ const REPO_ROOT = path.resolve(__dirname, "..");
 function testReportIsComplete() {
   const report = buildReport();
   assert.equal(report.ok, true, JSON.stringify(report.issues, null, 2));
-  assert.equal(report.diagnosticCount, 24);
+  assert.equal(report.diagnosticCount, BASELINE_DIAGNOSTICS.length);
   assert.equal(new Set(report.diagnostics.map((entry) => entry.id)).size, BASELINE_DIAGNOSTICS.length);
   assert.ok(report.diagnostics.some((entry) => entry.id === "deployment-drift-gate"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "first-start-preflight"));
@@ -31,6 +31,8 @@ function testReportIsComplete() {
   assert.ok(report.diagnostics.some((entry) => entry.id === "production-drift-reconcile"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "production-drift-watchdog"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "web-push-production-audit"));
+  assert.ok(report.diagnostics.some((entry) => entry.id === "gateway-document-file-tools-schema"));
+  assert.ok(report.diagnostics.some((entry) => entry.id === "automation-cron-launchd"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "plugin-workspace-audit"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "plugin-provisioning-coverage"));
   assert.ok(report.diagnostics.every((entry) => entry.scriptExists));
@@ -68,6 +70,10 @@ function testCliJsonAndMarkdown() {
   assert.match(markdown, /macos-production-drift-reconcile\.js/);
   assert.match(markdown, /homeai-production-drift-audit-watchdog\.sh/);
   assert.match(markdown, /macos-web-push-production-audit\.js/);
+  assert.match(markdown, /gateway-tool-schema-smoke\.js/);
+  assert.match(markdown, /office_extract_text/);
+  assert.match(markdown, /pdf_extract_text/);
+  assert.match(markdown, /macos-automation-cron-launchd-smoke\.js/);
   assert.match(markdown, /plugin-workspace-audit-runner\.js/);
   assert.match(markdown, /plugin-provisioning-coverage-audit\.js/);
   assert.match(markdown, /macos-production-closure-validation\.js/);

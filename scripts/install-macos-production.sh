@@ -1272,8 +1272,10 @@ function writeProfileConfig(worker) {
         http_plugin_enabled: "true",
         current_environment_plugin_enabled: "true",
         docx_plugin_enabled: "true",
+        pdf_plugin_enabled: "true",
         image_plugin_enabled: "true",
         audio_plugin_enabled: "true",
+        archive_plugin_enabled: "true",
         cronjob_plugin_enabled: "true",
         video_plugin_enabled: worker.provider === "xai-oauth" ? "true" : "false",
         profile_link: profileDir,
@@ -1558,11 +1560,126 @@ function labelFor(worker, providerOrdinal) {
   return `com.hermesmobile.gateway.${osUser}.${providerFamily(worker)}.${providerOrdinal}`;
 }
 
+function workspaceRootForProfileDir(profileDir) {
+  return path.dirname(gatewayDirForProfileDir(profileDir));
+}
+
+function gatewayDirForProfileDir(profileDir) {
+  return path.dirname(path.dirname(profileDir));
+}
+
+function chownRecursive(target, owner) {
+  const isRoot = typeof process.getuid === "function" ? process.getuid() === 0 : false;
+  if (!isRoot) {
+    actions.push({ action: "chown-skipped-nonroot", path: rel(target), owner });
+    return;
+  }
+  const result = spawnSync("/usr/sbin/chown", ["-R", owner, target], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    issues.push({
+      code: "gateway_profile_chown_failed",
+      path: rel(target),
+      owner,
+      status: result.status,
+      outputSample: `${result.stdout || ""}\n${result.stderr || ""}`.trim().slice(-500),
+    });
+  }
+}
+
+function chmodRecursive(target, mode) {
+  const result = spawnSync("/bin/chmod", ["-R", mode, target], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    issues.push({
+      code: "gateway_profile_chmod_failed",
+      path: rel(target),
+      mode,
+      status: result.status,
+      outputSample: `${result.stdout || ""}\n${result.stderr || ""}`.trim().slice(-500),
+    });
+  }
+}
+
+function ensureConfigPluginEnabled(configPath, pluginName) {
+  let text = "";
+  try {
+    text = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf8") : "";
+  } catch (_) {
+    issues.push({ code: "gateway_profile_config_read_failed", path: rel(configPath) });
+    return false;
+  }
+  if (new RegExp(`^\\s*-\\s*${pluginName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "m").test(text)) {
+    return false;
+  }
+  const lines = text ? text.split(/\r?\n/) : [];
+  let pluginsIndex = lines.findIndex((line) => /^plugins:\s*$/.test(line));
+  if (pluginsIndex < 0) {
+    const prefix = lines.length && lines[lines.length - 1].trim() ? [""] : [];
+    lines.push(...prefix, "plugins:", "  enabled:", `    - ${pluginName}`);
+  } else {
+    let sectionEnd = lines.length;
+    for (let index = pluginsIndex + 1; index < lines.length; index += 1) {
+      if (/^\S.*:\s*$/.test(lines[index])) {
+        sectionEnd = index;
+        break;
+      }
+    }
+    let enabledIndex = -1;
+    for (let index = pluginsIndex + 1; index < sectionEnd; index += 1) {
+      if (/^\s{2}enabled:\s*(?:\[\])?\s*$/.test(lines[index])) {
+        enabledIndex = index;
+        break;
+      }
+    }
+    if (enabledIndex < 0) {
+      lines.splice(pluginsIndex + 1, 0, "  enabled:", `    - ${pluginName}`);
+    } else if (/^\s{2}enabled:\s*\[\]\s*$/.test(lines[enabledIndex])) {
+      lines.splice(enabledIndex, 1, "  enabled:", `    - ${pluginName}`);
+    } else {
+      let insertAt = enabledIndex + 1;
+      while (insertAt < sectionEnd && /^\s{4}-\s+/.test(lines[insertAt])) insertAt += 1;
+      lines.splice(insertAt, 0, `    - ${pluginName}`);
+    }
+  }
+  fs.writeFileSync(configPath, `${lines.join("\n").replace(/\n+$/, "")}\n`, "utf8");
+  fs.chmodSync(configPath, 0o600);
+  actions.push({ action: "enable-gateway-profile-plugin", path: rel(configPath), plugin: pluginName });
+  return true;
+}
+
+function syncProfilePlugin(profileDir, osUser, pluginName) {
+  const source = path.join(root, "app", "gateway-plugins", pluginName);
+  if (!fs.existsSync(path.join(source, "plugin.yaml")) || !fs.existsSync(path.join(source, "__init__.py"))) {
+    issues.push({ code: "gateway_profile_plugin_source_missing", plugin: pluginName, path: rel(source) });
+    return;
+  }
+  const pluginRoot = path.join(profileDir, "plugins");
+  ensureDir(pluginRoot, 0o700);
+  const target = path.join(pluginRoot, pluginName);
+  fs.rmSync(target, { recursive: true, force: true });
+  fs.cpSync(source, target, { recursive: true, force: true });
+  chmodRecursive(target, "u+rwX,go-rwx");
+  chownRecursive(target, `${osUser}:staff`);
+  actions.push({ action: "sync-gateway-profile-plugin", path: rel(target), plugin: pluginName });
+}
+
+function syncProfileDocumentFilePlugins(profileDir, osUser) {
+  for (const pluginName of ["hermes-mobile-docx", "hermes-mobile-pdf"]) {
+    syncProfilePlugin(profileDir, osUser, pluginName);
+    ensureConfigPluginEnabled(path.join(profileDir, "config.yaml"), pluginName);
+  }
+}
+
 function startScriptFor(worker, profileDir, startScript, manifestFile) {
   const profile = safeProfile(worker.profile || worker.name);
   const osUser = safeMacUser(worker.osUser || worker.os_user);
   const workerHome = path.join("/Users", osUser);
-  const workerWorkspaceRoot = path.join(root, "users", osUser, "HermesWorkspace");
+  const workerWorkspaceRoot = workspaceRootForProfileDir(profileDir);
   const port = Number(worker.port || 0);
   return `#!/bin/bash
 set -euo pipefail
@@ -1578,11 +1695,16 @@ FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifa
 MOBILE_BRIDGE_HOST_URL="\${HERMES_MOBILE_BRIDGE_HOST_URL:-\${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8798}}"
 MOBILE_BRIDGE_HOST_KEY_PATH="\${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-\${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/data/secrets/bridge-host.secret}}"
 export HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
+export HERMES_MOBILE_PDF_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
+export HERMES_MOBILE_PDF_OUTPUT_ROOTS="$ROOT/data/artifacts"
+export HERMES_MOBILE_NODE_MODULES="$ROOT/app/node_modules"
+export HERMES_MOBILE_APP_ROOT="$ROOT/app"
 export HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
+export HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
 export HERMES_MOBILE_IMAGE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
 export HERMES_MOBILE_VIDEO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
 export HERMES_MOBILE_HTTP_FILE_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
-export HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="$ROOT/data/secrets"
+export HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="$ROOT/data/drive/users"
 export HERMES_MOBILE_HTTP_SAVE_ROOT="$ROOT/data/artifacts/http-request"
 export HERMES_MOBILE_VIDEO_OUTPUT_ROOT="$ROOT/data/artifacts/grok-videos"
 read_worker_field() {
@@ -1736,10 +1858,11 @@ try {
     const profileDir = worker.configPath
       ? path.dirname(worker.configPath)
       : path.join(root, "users", osUser, "HermesWorkspace", ".hermes-gateway", "profiles", profile);
-    const workerGatewayDir = path.join(root, "users", osUser, "HermesWorkspace", ".hermes-gateway");
+    const workerGatewayDir = gatewayDirForProfileDir(profileDir);
     const startScript = path.join(workerGatewayDir, `start-${profile}.sh`);
     ensureDir(profileDir, 0o700);
     ensureDir(path.join(profileDir, "logs"), 0o700);
+    syncProfileDocumentFilePlugins(profileDir, osUser);
     fs.writeFileSync(startScript, startScriptFor(worker, profileDir, startScript, manifestPath), { encoding: "utf8", mode: 0o700 });
     fs.chmodSync(startScript, 0o700);
     actions.push({ action: "write-gateway-start-script", profile, path: rel(startScript), mode: "0700" });
@@ -2808,6 +2931,7 @@ const pluginInstallerScripts = Object.freeze({
   growth: "install-growth-launchd-service.js",
   health: "install-health-launchd-service.js",
   moira: "install-moira-launchd-service.js",
+  movie: "install-movie-launchd-service.js",
   music: "install-music-launchd-service.js",
   note: "install-note-launchd-service.js",
   wardrobe: "install-wardrobe-launchd-service.js",

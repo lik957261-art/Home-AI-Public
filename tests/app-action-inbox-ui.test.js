@@ -40,6 +40,13 @@ this.ActionInboxUiTest = {
   actionInboxDisplaySummary,
   actionInboxDisplayTitle,
   actionInboxActionMenuItems,
+  actionInboxIsAutonomousDeliveryStartRequest,
+  actionInboxIsAutonomousDeliveryVerificationRequest,
+  actionInboxIsAutonomousDeliveryDeploymentRequest,
+  actionInboxIsAutonomousDeliveryClosureRequest,
+  actionInboxIsAutonomousDeliveryFinalReport,
+  actionInboxIsAutonomousDeliveryRepairRequest,
+  actionInboxIsPluginConversationRepairRequest,
   actionInboxPluginLabel,
   actionInboxStatusActionLabel,
   actionInboxOpensSourceDirectly,
@@ -47,7 +54,14 @@ this.ActionInboxUiTest = {
   actionInboxSourceDeepLink,
   actionInboxTodoDueText,
   actionInboxDetailMessage,
+  actionInboxAuditTargetOptions,
+  actionInboxValidAuditTargetId,
+  actionInboxActionState,
+  setActionInboxActionState,
+  clearActionInboxActionState,
+  actionInboxTaskCardActionLabel,
   openActionInboxItemDeliverableById,
+  renderActionInboxActionFeedback,
   renderActionInboxActionSheet,
   renderActionInboxCreatePanel,
   renderActionInboxDetail,
@@ -59,10 +73,17 @@ this.ActionInboxUiTest = {
 const ui = sandbox.ActionInboxUiTest;
 
 assert.doesNotMatch(source, /actionInboxPluginAuditSchedule/);
-assert.match(source, /state\.actionInboxPluginAuditMode = state\.actionInboxPluginAuditMode \|\| "alignment"/);
+assert.match(source, /state\.actionInboxPluginAuditPluginId = actionInboxValidAuditTargetId\(state\.actionInboxPluginAuditPluginId \|\| "home-ai"\)/);
+assert.match(source, /state\.actionInboxPluginAuditMode = state\.actionInboxPluginAuditMode \|\| "product_reality"/);
 assert.match(source, /showPushToast\(message, "success"\)/);
+assert.doesNotMatch(source, /插件审计已提交，后台执行中/);
+assert.match(source, /审计请求已发送到/);
+assert.doesNotMatch(source, /invalidateAutomationListCache\(\);\s*const cardId/);
 assert.match(styles, /\.action-inbox-item-head strong \{[\s\S]*?font-weight: 760;/);
 assert.match(styles, /\.action-inbox-item-summary \{[\s\S]*?color: var\(--muted\);/);
+assert.match(styles, /\.action-inbox-action-feedback\.pending \{[\s\S]*?color: var\(--ui-accent-ink\);/);
+assert.match(styles, /\.action-inbox-action-feedback\.error \{[\s\S]*?color: var\(--ui-danger-ink\);/);
+assert.match(styles, /\.action-inbox-action-sheet-button:disabled,[\s\S]*?cursor: progress;/);
 assert.match(styles, /:root\[data-theme="dark"\] \.action-inbox-item-summary \{[\s\S]*?rgba\(226, 233, 232, 0\.72\)/);
 
 assert.equal(String(ui.actionInboxFilterQuery()), "workspaceId=owner&limit=120&excludeItemType=todo&status=open");
@@ -91,17 +112,32 @@ assert.deepEqual(ui.actionInboxItemsForActiveFilter(mixedInboxItems).map((item) 
 
 sandbox.state.actionInboxCreateOpen = true;
 sandbox.state.actionInboxCreateMode = "plugin-audit";
-sandbox.state.actionInboxPluginAuditPluginId = "codex-mobile";
-sandbox.state.actionInboxPluginAuditMode = "alignment";
+sandbox.state.actionInboxPluginAuditPluginId = "home-ai";
+sandbox.state.actionInboxPluginAuditMode = "product_reality";
 sandbox.state.actionInboxCreateDraftText = "Focus on routing.";
 const pluginAuditCreateHtml = ui.renderActionInboxCreatePanel();
 assert.match(pluginAuditCreateHtml, /data-action-inbox-create-mode="plugin-audit"/);
 assert.match(pluginAuditCreateHtml, /id="actionInboxPluginAuditPluginId"/);
-assert.match(pluginAuditCreateHtml, /value="codex-mobile"/);
+assert.match(pluginAuditCreateHtml, /<select id="actionInboxPluginAuditPluginId"/);
+assert.doesNotMatch(pluginAuditCreateHtml, /type="text" autocomplete="off" value="codex-mobile"/);
+assert.match(pluginAuditCreateHtml, /value="home-ai" selected>Home AI \u5bbf\u4e3b \u00b7 Home AI Platform Audit<\/option>/);
+assert.match(pluginAuditCreateHtml, /value="codex-mobile">Codex \u00b7 Plugin Workspace Audit<\/option>/);
 assert.doesNotMatch(pluginAuditCreateHtml, /id="actionInboxPluginAuditSchedule"/);
 assert.match(pluginAuditCreateHtml, /id="actionInboxPluginAuditMode"/);
+assert.match(pluginAuditCreateHtml, />\u4ea7\u54c1\u73b0\u5b9e\u4e00\u81f4\u6027<\/option>/);
 assert.match(pluginAuditCreateHtml, />\u76ee\u6807\u4e00\u81f4\u6027<\/option>/);
 assert.match(pluginAuditCreateHtml, />\u7acb\u5373\u5ba1\u8ba1<\/button>/);
+assert.equal(ui.actionInboxValidAuditTargetId("freeform-plugin"), "home-ai");
+assert.equal(ui.actionInboxValidAuditTargetId("music"), "music");
+assert.ok(ui.actionInboxAuditTargetOptions().some((target) => target.id === "home-ai" && target.thread === "Home AI Platform Audit"));
+sandbox.state.actionInboxCreateMode = "delivery-loop";
+sandbox.state.actionInboxCreateDraftText = "\u4fee\u590d Music \u64ad\u653e\u5931\u8d25\u5e76\u95ed\u73af\u9a8c\u8bc1";
+const deliveryLoopCreateHtml = ui.renderActionInboxCreatePanel();
+assert.match(deliveryLoopCreateHtml, /data-action-inbox-create-mode="delivery-loop"/);
+assert.match(deliveryLoopCreateHtml, />\u4ea4\u4ed8\u76ee\u6807<\/label>/);
+assert.match(deliveryLoopCreateHtml, />\u521b\u5efa\u4ea4\u4ed8 Loop<\/button>/);
+assert.match(deliveryLoopCreateHtml, /\u4fee\u590d Music \u64ad\u653e\u5931\u8d25\u5e76\u95ed\u73af\u9a8c\u8bc1/);
+assert.match(source, /\/api\/autonomous-delivery\/cases/);
 sandbox.state.actionInboxCreateOpen = false;
 sandbox.state.actionInboxCreateMode = "todo";
 
@@ -182,6 +218,295 @@ const financeJoinActionSheetHtml = ui.renderActionInboxActionSheet();
 assert.match(financeJoinActionSheetHtml, /data-action-inbox-menu-action="finance-ledger-join-approve"/);
 assert.match(financeJoinActionSheetHtml, /data-action-inbox-menu-action="finance-ledger-join-reject"/);
 sandbox.state.actionInboxActionMenuItemId = "";
+
+const diagnosticRemediationItem = {
+  id: "ainb-diag-1",
+  sourceType: "ai_ops",
+  itemType: "error",
+  status: "open",
+  title: "\u8bca\u65ad\u9700\u8981\u4fee\u590d\uff1awardrobe outfit_retry_failed",
+  summary: "wardrobe H2 diagnostic case diagcase_1",
+  sourceId: "diagcase_1",
+  sourceRef: {
+    notificationType: "ai_ops.diagnostic_remediation_candidate",
+    caseId: "diagcase_1",
+    pluginId: "wardrobe",
+    targetThreadTitle: "\u7537\u88c5\u8863\u6a71",
+  },
+};
+assert.equal(ui.actionInboxPluginLabel(diagnosticRemediationItem), "AI Ops");
+assert.deepEqual(ui.actionInboxActionMenuItems(diagnosticRemediationItem).map((action) => action.id), [
+  "diagnostic-remediation-send-card",
+  "snooze",
+  "dismiss",
+]);
+sandbox.state.actionInboxItems = [diagnosticRemediationItem];
+sandbox.state.actionInboxActionMenuItemId = "ainb-diag-1";
+const diagnosticActionSheetHtml = ui.renderActionInboxActionSheet();
+assert.match(diagnosticActionSheetHtml, /data-action-inbox-menu-action="diagnostic-remediation-send-card"/);
+assert.match(diagnosticActionSheetHtml, />\u53d1\u4fee\u590d\u5361<\/button>/);
+ui.setActionInboxActionState("ainb-diag-1", { pending: true });
+assert.deepEqual(ui.actionInboxActionState("ainb-diag-1"), { pending: true });
+assert.equal(ui.actionInboxTaskCardActionLabel(diagnosticRemediationItem), "\u6b63\u5728\u53d1\u9001...");
+assert.equal(ui.actionInboxStatusActionLabel(diagnosticRemediationItem), "\u53d1\u9001\u4e2d");
+assert.match(ui.renderActionInboxActionFeedback(diagnosticRemediationItem), /\u6b63\u5728\u53d1\u9001\u4fee\u590d\u5361/);
+const diagnosticPendingActionSheetHtml = ui.renderActionInboxActionSheet();
+assert.match(diagnosticPendingActionSheetHtml, /data-action-inbox-menu-action="diagnostic-remediation-send-card"[^>]*disabled aria-disabled="true"/);
+assert.match(diagnosticPendingActionSheetHtml, />\u6b63\u5728\u53d1\u9001\.\.\.<\/button>/);
+ui.setActionInboxActionState("ainb-diag-1", { pending: false, error: "\u7f51\u7edc\u9519\u8bef", failureCount: 3 });
+assert.equal(ui.actionInboxTaskCardActionLabel(diagnosticRemediationItem), "\u91cd\u65b0\u53d1\u9001");
+assert.equal(ui.actionInboxStatusActionLabel(diagnosticRemediationItem), "\u53d1\u9001\u5931\u8d25");
+assert.match(ui.renderActionInboxActionFeedback(diagnosticRemediationItem), /\u4fee\u590d\u5361\u53d1\u9001\u5931\u8d25/);
+assert.match(ui.renderActionInboxActionFeedback(diagnosticRemediationItem), /\u7b2c 3 \u6b21/);
+assert.match(ui.renderActionInboxActionFeedback(diagnosticRemediationItem), /\u7f51\u7edc\u9519\u8bef/);
+ui.clearActionInboxActionState("ainb-diag-1");
+sandbox.state.actionInboxActionMenuItemId = "";
+assert.match(source, /ACTION_INBOX_TASK_CARD_FAILURE_THRESHOLD = 3/);
+assert.match(source, /action_inbox_diagnostic_task_card_failed/);
+assert.match(source, /action_inbox_plugin_conversation_task_card_failed/);
+assert.match(source, /action_inbox_autonomous_delivery_start_failed/);
+assert.match(source, /action_inbox_autonomous_delivery_deployment_failed/);
+assert.match(source, /action_inbox_autonomous_delivery_repair_failed/);
+assert.match(source, /action_inbox_autonomous_delivery_close_failed/);
+assert.match(source, /reportActionInboxTaskCardDispatchFailure\(item, action, error, failureCount\)/);
+assert.match(source, /timeoutMs: 25000/);
+
+const pluginConversationRepairItem = {
+  id: "ainb-plugin-conversation-1",
+  sourceType: "plugin_conversation",
+  itemType: "approval",
+  status: "open",
+  title: "\u63d2\u4ef6\u8bf7\u6c42\u4fee\u590d\uff1aHealth catalog_gap",
+  summary: "\u5065\u5eb7\u4f1a\u8bdd\u9700\u8981\u589e\u52a0\u4fef\u5367\u6491\u52a8\u4f5c\u952e\u3002",
+  sourceId: "pcr_health_push_up",
+  sourceRef: {
+    notificationType: "plugin_conversation.repair_request",
+    requestId: "pcr_health_push_up",
+    pluginId: "health",
+    targetThreadTitle: "\u5065\u5eb7",
+  },
+};
+assert.equal(ui.actionInboxPluginLabel(pluginConversationRepairItem), "\u5065\u5eb7");
+assert.equal(ui.actionInboxIsPluginConversationRepairRequest(pluginConversationRepairItem), "pcr_health_push_up");
+assert.deepEqual(ui.actionInboxActionMenuItems(pluginConversationRepairItem).map((action) => action.id), [
+  "plugin-conversation-send-card",
+  "snooze",
+  "dismiss",
+]);
+sandbox.state.actionInboxItems = [pluginConversationRepairItem];
+sandbox.state.actionInboxActionMenuItemId = "ainb-plugin-conversation-1";
+const pluginConversationActionSheetHtml = ui.renderActionInboxActionSheet();
+assert.match(pluginConversationActionSheetHtml, /data-action-inbox-menu-action="plugin-conversation-send-card"/);
+assert.match(pluginConversationActionSheetHtml, />\u53d1\u4fee\u590d\u5361<\/button>/);
+sandbox.state.actionInboxActionMenuItemId = "";
+assert.match(source, /ownerPrompt/);
+assert.match(source, /openActionInboxOwnerPromptDialog/);
+assert.doesNotMatch(source, /window\.prompt/);
+assert.match(source, /\/api\/plugin-conversation\/actions\/\$\{encodeURIComponent\(id\)\}\/task-card/);
+
+const autonomousDeliveryStartItem = {
+  id: "ainb-delivery-loop-1",
+  sourceType: "autonomous_delivery",
+  itemType: "approval",
+  status: "open",
+  title: "\u4ea4\u4ed8 Loop \u5f85\u542f\u52a8\uff1a\u4fee\u590d Music \u64ad\u653e",
+  summary: "\u6a21\u5f0f\uff1adelivery",
+  sourceId: "delivery_1",
+  sourceRef: {
+    notificationType: "autonomous_delivery.start_required",
+    caseId: "delivery_1",
+    requiredDecisions: ["ui_product_decision"],
+  },
+};
+assert.equal(ui.actionInboxPluginLabel(autonomousDeliveryStartItem), "\u4ea4\u4ed8 Loop");
+assert.equal(ui.actionInboxIsAutonomousDeliveryStartRequest(autonomousDeliveryStartItem), "delivery_1");
+assert.deepEqual(ui.actionInboxActionMenuItems(autonomousDeliveryStartItem).map((action) => action.id), [
+  "autonomous-delivery-start",
+  "snooze",
+  "dismiss",
+]);
+sandbox.state.actionInboxItems = [autonomousDeliveryStartItem];
+sandbox.state.actionInboxActionMenuItemId = "ainb-delivery-loop-1";
+const deliveryStartActionSheetHtml = ui.renderActionInboxActionSheet();
+assert.match(deliveryStartActionSheetHtml, /data-action-inbox-menu-action="autonomous-delivery-start"/);
+assert.match(deliveryStartActionSheetHtml, />\u786e\u8ba4\u5e76\u5f00\u59cb<\/button>/);
+ui.setActionInboxActionState("ainb-delivery-loop-1", { pending: true });
+assert.equal(ui.actionInboxTaskCardActionLabel(autonomousDeliveryStartItem), "\u6b63\u5728\u542f\u52a8...");
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryStartItem), /\u6b63\u5728\u542f\u52a8\u4ea4\u4ed8 Loop/);
+ui.setActionInboxActionState("ainb-delivery-loop-1", { pending: false, error: "\u7f51\u7edc\u9519\u8bef", failureCount: 3 });
+assert.equal(ui.actionInboxTaskCardActionLabel(autonomousDeliveryStartItem), "\u91cd\u65b0\u5f00\u59cb");
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryStartItem), /\u4ea4\u4ed8 Loop \u542f\u52a8\u5931\u8d25/);
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryStartItem), /\u7b2c 3 \u6b21/);
+ui.clearActionInboxActionState("ainb-delivery-loop-1");
+sandbox.state.actionInboxActionMenuItemId = "";
+assert.match(source, /\/api\/autonomous-delivery\/cases\/\$\{encodeURIComponent\(caseId\)\}\/start/);
+
+const autonomousDeliveryReviewItem = {
+  id: "ainb-delivery-loop-review-1",
+  sourceType: "autonomous_delivery",
+  itemType: "review",
+  status: "open",
+  title: "\u4ea4\u4ed8 Loop \u5f85\u9a8c\u8bc1\uff1a\u4fee\u590d Music \u64ad\u653e",
+  summary: "\u56de\u5361\u72b6\u6001\uff1acompleted",
+  sourceId: "delivery_1:slice_1:verification",
+  sourceRef: {
+    notificationType: "autonomous_delivery.verification_required",
+    caseId: "delivery_1",
+    sliceId: "slice_1",
+    returnCardId: "ttc_return_1",
+  },
+};
+const autonomousReviewHtml = ui.renderActionInboxItem(autonomousDeliveryReviewItem);
+assert.match(autonomousReviewHtml, /\u6765\u6e90\uff1a\u4ea4\u4ed8 Loop/);
+assert.match(autonomousReviewHtml, /\u7c7b\u578b\uff1a\u5ba1\u9605/);
+assert.equal(ui.actionInboxIsAutonomousDeliveryStartRequest(autonomousDeliveryReviewItem), "");
+assert.equal(ui.actionInboxIsAutonomousDeliveryVerificationRequest(autonomousDeliveryReviewItem), "slice_1");
+assert.deepEqual(ui.actionInboxActionMenuItems(autonomousDeliveryReviewItem).map((action) => action.id), [
+  "autonomous-delivery-start-verification",
+  "snooze",
+  "dismiss",
+]);
+assert.equal(ui.actionInboxActionMenuItems(autonomousDeliveryReviewItem)[0].label, "\u5f00\u59cb\u9a8c\u8bc1");
+assert.equal(ui.actionInboxActionMenuItems(autonomousDeliveryReviewItem).some((action) => action.id === "autonomous-delivery-start"), false);
+ui.setActionInboxActionState("ainb-delivery-loop-review-1", { action: "autonomous-delivery-start-verification", pending: true });
+assert.equal(ui.actionInboxTaskCardActionLabel(autonomousDeliveryReviewItem), "\u6b63\u5728\u8bf7\u6c42...");
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryReviewItem), /\u6b63\u5728\u8bf7\u6c42\u9a8c\u8bc1/);
+ui.setActionInboxActionState("ainb-delivery-loop-review-1", { action: "autonomous-delivery-start-verification", pending: false, error: "\u7ebf\u7a0b\u4e0d\u53ef\u7528", failureCount: 3 });
+assert.equal(ui.actionInboxTaskCardActionLabel(autonomousDeliveryReviewItem), "\u91cd\u65b0\u8bf7\u6c42");
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryReviewItem), /\u9a8c\u8bc1\u5361\u53d1\u9001\u5931\u8d25/);
+ui.clearActionInboxActionState("ainb-delivery-loop-review-1");
+assert.match(source, /\/api\/autonomous-delivery\/cases\/\$\{encodeURIComponent\(caseId\)\}\/slices\/\$\{encodeURIComponent\(sliceId\)\}\/verification\/start/);
+
+const autonomousDeliveryDeploymentItem = {
+  id: "ainb-delivery-loop-deploy-1",
+  sourceType: "autonomous_delivery",
+  itemType: "review",
+  status: "open",
+  title: "\u4ea4\u4ed8 Loop \u5f85\u90e8\u7f72\u8bfb\u56de\uff1a\u4fee\u590d Music \u64ad\u653e",
+  summary: "\u8fd0\u884c\u65f6\u884c\u4e3a\u5df2\u53d8\u66f4\uff0c\u9700\u8981\u751f\u4ea7\u8bfb\u56de",
+  sourceId: "delivery_1:slice_1:deploy-readback",
+  sourceRef: {
+    notificationType: "autonomous_delivery.deploy_readback_required",
+    caseId: "delivery_1",
+    sliceId: "slice_1",
+    returnCardId: "ttc_return_1",
+    deploymentRequired: true,
+  },
+};
+assert.equal(ui.actionInboxIsAutonomousDeliveryDeploymentRequest(autonomousDeliveryDeploymentItem), "slice_1");
+assert.equal(ui.actionInboxIsAutonomousDeliveryVerificationRequest(autonomousDeliveryDeploymentItem), false);
+assert.deepEqual(ui.actionInboxActionMenuItems(autonomousDeliveryDeploymentItem).map((action) => action.id), [
+  "autonomous-delivery-start-deployment",
+  "snooze",
+  "dismiss",
+]);
+assert.equal(ui.actionInboxActionMenuItems(autonomousDeliveryDeploymentItem)[0].label, "\u90e8\u7f72\u8bfb\u56de");
+ui.setActionInboxActionState("ainb-delivery-loop-deploy-1", { action: "autonomous-delivery-start-deployment", pending: true });
+assert.equal(ui.actionInboxTaskCardActionLabel(autonomousDeliveryDeploymentItem), "\u6b63\u5728\u53d1\u9001...");
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryDeploymentItem), /\u6b63\u5728\u53d1\u9001\u90e8\u7f72\u8bfb\u56de\u5361/);
+ui.setActionInboxActionState("ainb-delivery-loop-deploy-1", { action: "autonomous-delivery-start-deployment", pending: false, error: "\u7ebf\u7a0b\u4e0d\u53ef\u7528", failureCount: 3 });
+assert.equal(ui.actionInboxTaskCardActionLabel(autonomousDeliveryDeploymentItem), "\u91cd\u65b0\u53d1\u9001");
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryDeploymentItem), /\u90e8\u7f72\u8bfb\u56de\u5361\u53d1\u9001\u5931\u8d25/);
+ui.clearActionInboxActionState("ainb-delivery-loop-deploy-1");
+assert.match(source, /\/api\/autonomous-delivery\/cases\/\$\{encodeURIComponent\(caseId\)\}\/slices\/\$\{encodeURIComponent\(sliceId\)\}\/deployment\/start/);
+assert.match(source, /confirmDeployment: true/);
+
+const autonomousDeliveryRepairItem = {
+  id: "ainb-delivery-loop-repair-1",
+  sourceType: "autonomous_delivery",
+  itemType: "review",
+  status: "open",
+  title: "\u4ea4\u4ed8 Loop \u5f85\u4fee\u590d\uff1a\u4fee\u590d Music \u64ad\u653e",
+  summary: "\u9a8c\u8bc1\u8fd4\u56de partially_completed",
+  sourceId: "delivery_1:verify_slice_1:repair",
+  sourceRef: {
+    notificationType: "autonomous_delivery.repair_required",
+    caseId: "delivery_1",
+    parentSliceId: "slice_1",
+    verificationSliceId: "verify_slice_1",
+    verificationReturnCardId: "ttc_verify_return_partial",
+  },
+};
+assert.equal(ui.actionInboxIsAutonomousDeliveryRepairRequest(autonomousDeliveryRepairItem), "verify_slice_1");
+assert.equal(ui.actionInboxIsAutonomousDeliveryVerificationRequest(autonomousDeliveryRepairItem), false);
+assert.deepEqual(ui.actionInboxActionMenuItems(autonomousDeliveryRepairItem).map((action) => action.id), [
+  "autonomous-delivery-start-repair",
+  "snooze",
+  "dismiss",
+]);
+assert.equal(ui.actionInboxActionMenuItems(autonomousDeliveryRepairItem)[0].label, "\u53d1\u4fee\u590d\u5361");
+ui.setActionInboxActionState("ainb-delivery-loop-repair-1", { action: "autonomous-delivery-start-repair", pending: true });
+assert.equal(ui.actionInboxTaskCardActionLabel(autonomousDeliveryRepairItem), "\u6b63\u5728\u53d1\u9001...");
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryRepairItem), /\u6b63\u5728\u53d1\u9001\u4fee\u590d\u5361/);
+ui.setActionInboxActionState("ainb-delivery-loop-repair-1", { action: "autonomous-delivery-start-repair", pending: false, error: "\u7ebf\u7a0b\u4e0d\u53ef\u7528", failureCount: 3 });
+assert.equal(ui.actionInboxTaskCardActionLabel(autonomousDeliveryRepairItem), "\u91cd\u65b0\u53d1\u9001");
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryRepairItem), /\u4fee\u590d\u5361\u53d1\u9001\u5931\u8d25/);
+ui.clearActionInboxActionState("ainb-delivery-loop-repair-1");
+assert.match(source, /\/api\/autonomous-delivery\/cases\/\$\{encodeURIComponent\(caseId\)\}\/slices\/\$\{encodeURIComponent\(verificationSliceId\)\}\/repair\/start/);
+
+const autonomousDeliveryClosureItem = {
+  id: "ainb-delivery-loop-close-1",
+  sourceType: "autonomous_delivery",
+  itemType: "review",
+  status: "open",
+  title: "\u4ea4\u4ed8 Loop \u5f85\u6536\u5c3e\uff1a\u4fee\u590d Music \u64ad\u653e",
+  summary: "\u9a8c\u8bc1\u5df2\u5b8c\u6210",
+  sourceId: "delivery_1:closure",
+  sourceRef: {
+    notificationType: "autonomous_delivery.closure_required",
+    caseId: "delivery_1",
+    verificationSliceId: "delivery_1_implement_note_verification",
+    verificationReturnCardId: "ttc_verify_return_1",
+  },
+};
+assert.equal(ui.actionInboxIsAutonomousDeliveryClosureRequest(autonomousDeliveryClosureItem), "delivery_1");
+assert.equal(ui.actionInboxIsAutonomousDeliveryVerificationRequest(autonomousDeliveryClosureItem), false);
+assert.deepEqual(ui.actionInboxActionMenuItems(autonomousDeliveryClosureItem).map((action) => action.id), [
+  "autonomous-delivery-close",
+  "snooze",
+  "dismiss",
+]);
+assert.equal(ui.actionInboxActionMenuItems(autonomousDeliveryClosureItem)[0].label, "\u5b8c\u6210\u95ed\u73af");
+ui.setActionInboxActionState("ainb-delivery-loop-close-1", { action: "autonomous-delivery-close", pending: true });
+assert.equal(ui.actionInboxTaskCardActionLabel(autonomousDeliveryClosureItem), "\u6b63\u5728\u6536\u5c3e...");
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryClosureItem), /\u6b63\u5728\u5b8c\u6210\u4ea4\u4ed8\u95ed\u73af/);
+ui.setActionInboxActionState("ainb-delivery-loop-close-1", { action: "autonomous-delivery-close", pending: false, error: "\u72b6\u6001\u4e0d\u53ef\u6536\u5c3e", failureCount: 3 });
+assert.equal(ui.actionInboxTaskCardActionLabel(autonomousDeliveryClosureItem), "\u91cd\u65b0\u6536\u5c3e");
+assert.match(ui.renderActionInboxActionFeedback(autonomousDeliveryClosureItem), /\u4ea4\u4ed8 Loop \u6536\u5c3e\u5931\u8d25/);
+ui.clearActionInboxActionState("ainb-delivery-loop-close-1");
+assert.match(source, /\/api\/autonomous-delivery\/cases\/\$\{encodeURIComponent\(caseId\)\}\/close/);
+
+const autonomousDeliveryFinalReportItem = {
+  id: "ainb-delivery-loop-final-1",
+  sourceType: "autonomous_delivery",
+  itemType: "delivery",
+  status: "open",
+  title: "\u4ea4\u4ed8 Loop \u6700\u7ec8\u62a5\u544a\uff1a\u4fee\u590d Music \u64ad\u653e",
+  summary: "\u4ea4\u4ed8 Loop \u5df2\u95ed\u73af",
+  sourceId: "delivery_1:final-report",
+  sourceRef: {
+    notificationType: "autonomous_delivery.final_report_ready",
+    caseId: "delivery_1",
+    detailMessage: {
+      format: "markdown",
+      body: "# Autonomous Delivery Loop Final Report\n\nStatus: completed\n",
+    },
+  },
+};
+assert.equal(ui.actionInboxIsAutonomousDeliveryFinalReport(autonomousDeliveryFinalReportItem), "delivery_1");
+assert.equal(ui.actionInboxStatusActionLabel(autonomousDeliveryFinalReportItem), "\u67e5\u770b\u62a5\u544a");
+assert.deepEqual(ui.actionInboxActionMenuItems(autonomousDeliveryFinalReportItem).map((action) => action.id), [
+  "detail",
+  "dismiss",
+]);
+assert.equal(ui.actionInboxActionMenuItems(autonomousDeliveryFinalReportItem)[0].label, "\u67e5\u770b\u62a5\u544a");
+sandbox.state.actionInboxDetail = { item: autonomousDeliveryFinalReportItem, events: [] };
+sandbox.state.selectedActionInboxItemId = "ainb-delivery-loop-final-1";
+const autonomousDeliveryFinalReportHtml = ui.renderActionInboxDetail();
+assert.match(autonomousDeliveryFinalReportHtml, /action-inbox-detail-message/);
+assert.match(autonomousDeliveryFinalReportHtml, /Autonomous Delivery Loop Final Report/);
+sandbox.state.actionInboxDetail = null;
+sandbox.state.selectedActionInboxItemId = "";
 
 assert.doesNotMatch(openTodoHtml, />\u5904\u7406<\/button>/);
 assert.match(openTodoHtml, /aria-label="状态：待处理，打开处理方式"/);

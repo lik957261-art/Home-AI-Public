@@ -110,12 +110,15 @@ function makeRoutes(overrides = {}) {
         calls.pluginAuditRun.push(payload);
         return Promise.resolve({
           ok: true,
-          job: { id: "audit-run-job", state: "scheduled" },
-          createdJob: { id: "audit-run-job" },
           draft: { kind: "plugin_workspace_audit", name: "Audit Codex" },
-          audit: { kind: "plugin_workspace_audit", pluginId: payload.pluginId, auditMode: payload.auditMode || "alignment", workspacePath: "/private/plugin", readonly: true },
-          run: { ok: true, source: { runMode: "next_tick" } },
-          source: { name: "hermes_cron", kind: "plugin_workspace_audit", triggerMode: "manual" },
+          audit: { kind: "plugin_workspace_audit", pluginId: payload.pluginId, auditMode: payload.auditMode || "product_reality", workspacePath: "/private/plugin", readonly: true },
+          requestCard: {
+            sourceThreadId: "home-ai-current",
+            targetThreadId: "plugin-audit-current",
+            cardIds: ["ttc_audit_1"],
+            targetThread: { title: "Plugin Workspace Audit" },
+          },
+          source: { name: "codex_mobile_task_card", kind: "plugin_workspace_audit", triggerMode: "manual", dispatch: "central_audit_thread" },
         });
       },
     },
@@ -427,7 +430,6 @@ async function testRunPluginWorkspaceAuditUsesExplicitRoute() {
     body: {
       workspaceId: "child",
       pluginId: "codex-mobile",
-      auditMode: "alignment",
       dryRun: false,
     },
   });
@@ -435,15 +437,62 @@ async function testRunPluginWorkspaceAuditUsesExplicitRoute() {
   assert.equal(got.body.ok, true);
   assert.equal(got.body.dryRun, false);
   assert.equal(got.body.audit.pluginId, "codex-mobile");
-  assert.equal(got.body.audit.auditMode, "alignment");
+  assert.equal(got.body.audit.auditMode, "product_reality");
   assert.equal(got.body.audit.workspacePath, undefined);
+  assert.equal(got.body.job, undefined);
+  assert.equal(got.body.createdJob, undefined);
+  assert.equal(got.body.run, undefined);
+  assert.deepEqual(got.body.requestCard.cardIds, ["ttc_audit_1"]);
+  assert.equal(got.body.source.dispatch, "central_audit_thread");
   assert.equal(calls.pluginAuditRun.length, 1);
   assert.equal(calls.pluginAuditRun[0].workspaceId, "child");
   assert.equal(calls.pluginAuditRun[0].ownerPrincipalId, "principal-child");
   assert.equal(calls.pluginAuditRun[0].dryRun, false);
   assert.deepEqual(calls.pluginAuditRun[0].accessPolicyContext, { allowed_toolsets: ["cronjob"] });
-  assert.equal(calls.cacheClear, 1);
+  assert.equal(calls.cacheClear, 0);
   assert.deepEqual(calls.interpret, []);
+}
+
+async function testRunHomeAiPlatformAuditUsesPlatformThread() {
+  const calls = [];
+  const { routes } = makeRoutes({
+    pluginWorkspaceAuditService: {
+      createAuditPlan() {
+        throw new Error("createAuditPlan should not be called");
+      },
+      triggerManualAudit(payload) {
+        calls.push(payload);
+        return Promise.resolve({
+          ok: true,
+          draft: { kind: "plugin_workspace_audit", name: "Audit Home AI" },
+          audit: { kind: "plugin_workspace_audit", pluginId: "home-ai", targetKind: "platform", auditMode: payload.auditMode || "product_reality", readonly: true },
+          requestCard: {
+            sourceThreadId: "home-ai-current",
+            targetThreadId: "platform-audit-current",
+            cardIds: ["ttc_platform_audit_1"],
+            targetThread: { title: "Home AI Platform Audit" },
+          },
+          source: { name: "codex_mobile_task_card", kind: "plugin_workspace_audit", triggerMode: "manual", dispatch: "central_audit_thread" },
+        });
+      },
+    },
+  });
+  const got = await request(routes, "POST", "/api/automations/plugin-workspace-audits/run", {
+    body: {
+      workspaceId: "owner",
+      pluginId: "home-ai",
+      auditMode: "product_reality",
+    },
+  });
+  assert.equal(got.res.statusCode, 202);
+  assert.equal(got.body.ok, true);
+  assert.equal(got.body.audit.pluginId, "home-ai");
+  assert.equal(got.body.audit.targetKind, "platform");
+  assert.equal(got.body.requestCard.targetThreadId, "platform-audit-current");
+  assert.equal(got.body.requestCard.targetThread.title, "Home AI Platform Audit");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].pluginId, "home-ai");
+  assert.equal(calls[0].ownerPrincipalId, "principal-owner");
 }
 
 async function testActionDecodesJobAndClearsCache() {
@@ -582,6 +631,7 @@ function testDependencyValidation() {
   await testCreateNormalizesOriginDeliveryWithoutTarget();
   await testCreatePluginWorkspaceAuditUsesExplicitRoute();
   await testRunPluginWorkspaceAuditUsesExplicitRoute();
+  await testRunHomeAiPlatformAuditUsesPlatformThread();
   await testActionDecodesJobAndClearsCache();
   await testPushTickOwnerOnly();
   await testAuthorizedFileRoutesUseResolvers();

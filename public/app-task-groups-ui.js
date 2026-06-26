@@ -214,6 +214,14 @@ function taskGroupMessagesForThread(thread, taskGroupId = "", fallbackMessages =
     .filter((message) => String(message?.taskGroupId || "") === id));
 }
 
+function taskDetailMessageInitialLimit() {
+  return Math.max(1, Number(typeof TASK_DETAIL_MESSAGE_INITIAL_LIMIT === "number" ? TASK_DETAIL_MESSAGE_INITIAL_LIMIT : 30) || 30);
+}
+
+function taskDetailMessagePageLimit() {
+  return Math.max(1, Number(typeof TASK_DETAIL_MESSAGE_PAGE_LIMIT === "number" ? TASK_DETAIL_MESSAGE_PAGE_LIMIT : 10) || 10);
+}
+
 function taskGroupWithThreadMessages(thread, group) {
   if (!group?.id) return group || null;
   return Object.assign({}, group, {
@@ -221,14 +229,56 @@ function taskGroupWithThreadMessages(thread, group) {
   });
 }
 
-function chatMessagePageParams(extra = {}) {
+function taskMessagePageParams(extra = {}) {
   const params = new URLSearchParams();
-  params.set("messageMode", "chat");
-  params.set("limit", String(extra.limit || CHAT_MESSAGE_PAGE_LIMIT));
-  params.set("groupChat", isGroupChatView() ? "1" : "0");
+  params.set("messageMode", "tasks");
+  params.set("taskGroupId", String(extra.taskGroupId || state.currentTaskGroupId || ""));
+  params.set("limit", String(extra.limit || taskDetailMessagePageLimit()));
   if (extra.before) params.set("before", extra.before);
   if (extra.search) params.set("search", extra.search);
   return params;
+}
+
+function chatMessagePageParams(extra = {}) {
+  const params = new URLSearchParams();
+  const mode = String(extra.mode || (typeof isTaskDetailView === "function" && isTaskDetailView() ? "tasks" : "chat")).trim().toLowerCase();
+  params.set("messageMode", mode === "tasks" || mode === "task" ? "tasks" : "chat");
+  params.set("limit", String(extra.limit || CHAT_MESSAGE_PAGE_LIMIT));
+  if (mode === "tasks" || mode === "task") {
+    params.set("taskGroupId", String(extra.taskGroupId || state.currentTaskGroupId || ""));
+  } else {
+    params.set("groupChat", isGroupChatView() ? "1" : "0");
+  }
+  if (extra.before) params.set("before", extra.before);
+  if (extra.search) params.set("search", extra.search);
+  return params;
+}
+
+function messagesForPageScope(thread, page = null) {
+  const scopedPage = page || thread?.messagesPage || {};
+  const mode = String(scopedPage.mode || "").trim().toLowerCase();
+  if (mode === "tasks" || mode === "task") {
+    return taskGroupMessagesForThread(thread, scopedPage.taskGroupId || state.currentTaskGroupId || "");
+  }
+  if (mode === "chat") return chatMessagesForThread(thread, scopedPage.taskGroupId || activeChatTaskGroupId());
+  return thread?.messages || [];
+}
+
+function taskDetailPreviewThread(thread, taskGroupId = "", limit = taskDetailMessageInitialLimit()) {
+  const id = String(taskGroupId || "").trim();
+  if (!thread?.id || !id) return thread;
+  const boundedLimit = Math.max(1, Number(limit) || taskDetailMessageInitialLimit());
+  const selectedMessages = taskGroupMessagesForThread(thread, id).slice(-boundedLimit);
+  const otherMessages = (thread.messages || []).filter((message) => String(message?.taskGroupId || "") !== id);
+  const page = thread.messagesPage || null;
+  const pageMode = String(page?.mode || "").trim().toLowerCase();
+  const scopedPage = pageMode && ["tasks", "task"].includes(pageMode) && String(page.taskGroupId || "") !== id
+    ? null
+    : page;
+  return Object.assign({}, thread, {
+    messages: sortedThreadMessages(otherMessages.concat(selectedMessages)),
+    messagesPage: scopedPage,
+  });
 }
 
 function mergeMessagesPage(existingPage = null, incomingPage = null, messages = []) {
@@ -338,7 +388,10 @@ function mergeCurrentThreadMessages(messages = [], page = null) {
   const mergedMessages = sortedThreadMessages([...current.values()]);
   state.currentThread.messages = mergedMessages;
   if (page) {
-    state.currentThread.messagesPage = mergeMessagesPage(state.currentThread.messagesPage, page, chatMessagesForThread(state.currentThread));
+    const scopedMessages = typeof messagesForPageScope === "function"
+      ? messagesForPageScope(state.currentThread, page)
+      : chatMessagesForThread(state.currentThread);
+    state.currentThread.messagesPage = mergeMessagesPage(state.currentThread.messagesPage, page, scopedMessages);
   }
 }
 

@@ -159,17 +159,19 @@ function secretLikeTrackedFiles(files = []) {
 }
 
 function modeFileSample(cwd, mode) {
-  if (mode === "alignment") {
+  if (mode === "alignment" || mode === "product_reality") {
     const tracked = gitFileList(cwd, ["ls-files"], 160);
     const source = tracked.ok ? tracked : fileSystemFileList(cwd, 220);
     const priority = [
       ".agent-context/PROJECT_CONTEXT.md",
       ".agent-context/HANDOFF.md",
+      "AGENTS.md",
       "docs/README.md",
       "docs/DOCS_INDEX.md",
       "docs/PRODUCT_REQUIREMENTS.md",
       "docs/ARCHITECTURE.md",
       "docs/ARCHITECTURE_BOUNDARY.md",
+      "docs/HOME_AI_PLATFORM_CONTRACT.md",
       "docs/TEST_MATRIX.md",
     ];
     const files = source.files || [];
@@ -331,15 +333,21 @@ function taskCardConfig(pluginId = "") {
   };
 }
 
+function auditModeLabel(mode = "") {
+  if (mode === "product_reality") return "product-reality";
+  if (mode === "alignment") return "alignment";
+  return clean(mode, 40) || "audit";
+}
+
 function taskCardTitle(audit = {}) {
-  return `[Plugin Audit] ${audit.pluginTitle || audit.pluginId} ${audit.mode || "alignment"}`;
+  return `[Plugin Audit] ${audit.pluginTitle || audit.pluginId} ${auditModeLabel(audit.mode || "product_reality")}`;
 }
 
 function taskCardIdempotency(job, audit = {}) {
   return [
     "plugin-workspace-audit",
     clean(audit.pluginId, 80) || "plugin",
-    clean(audit.mode, 40) || "alignment",
+    clean(audit.mode, 40) || "product_reality",
     clean(job.id, 80) || "job",
     clean(audit.head, 80) || "unknown",
   ].join(":");
@@ -347,6 +355,7 @@ function taskCardIdempotency(job, audit = {}) {
 
 function buildAuditTaskCardRequest(job, audit = {}, report = {}) {
   const title = taskCardTitle(audit);
+  const isProductReality = audit.mode === "product_reality";
   const issueLines = audit.findings
     .filter((item) => item.severity !== "info")
     .slice(0, 8)
@@ -372,15 +381,26 @@ function buildAuditTaskCardRequest(job, audit = {}, report = {}) {
     "- Use the target plugin thread/workspace and Home AI platform docs.",
     "- Do not rely on a separate Home AI cron-spawned Codex process.",
     "- Keep profile, auth, thread state, and app-server/mux ownership inside Codex Mobile.",
-    "- Start with read-only inspection. If a repair is needed, keep changes scoped to the plugin-owned surface or explicitly hand Home AI host issues back to the host thread.",
+    isProductReality
+      ? "- Treat this as a Product Reality finding: compare product intent, architecture contract, implementation, user workflow/UX, and executable test evidence before changing code."
+      : "",
+    "- Start with read-only inspection. If a repair is needed, keep changes scoped to the owning surface or explicitly redirect Home AI host issues back to the host thread.",
+    "- Do not add a local workaround or symptom suppression as closure. Repair the owning layer, update the durable contract when needed, and prove the user workflow invariant.",
     "- Do not print secrets, access keys, tokens, push endpoints, private database paths, or long raw logs.",
     "",
     "## Acceptance",
     "",
     "- Reply with findings first, ordered by severity.",
     "- Include file/line references where available.",
-    "- State whether a follow-up repair is needed or no issue was found.",
-  ].join("\n");
+    "- If accepted, implement the owning-layer repair, run focused tests/harnesses, and report commit/deploy/readback evidence where applicable.",
+    "- If rejected or redirected, name the owning workspace and exact contract/runbook/command the audit thread should use next.",
+    "",
+    "## Return Card Required",
+    "",
+    "- Send a return card to the source audit thread with status `completed`, `rejected`, `redirected`, or `blocked`.",
+    "- Include changed files, validation evidence, deployment/readback if any, residual risks, and privacy confirmation.",
+    "- The source audit thread cannot close this finding until it performs a separate read-only closure verification.",
+  ].filter(Boolean).join("\n");
   return {
     sourceThreadId: "",
     targetThreadIds: [],
@@ -465,8 +485,11 @@ function maybeSendAuditTaskCard(job, audit = {}, report = {}) {
 
 function buildCodexPrompt(job, audit) {
   const alignment = audit.mode === "alignment";
+  const productReality = audit.mode === "product_reality";
   return [
-    alignment ? "你正在执行 Home AI 插件工作区目标一致性审计。" : "你正在执行 Home AI 插件工作区审计。",
+    productReality
+      ? "你正在执行 Home AI 插件工作区产品现实一致性审计。"
+      : alignment ? "你正在执行 Home AI 插件工作区目标一致性审计。" : "你正在执行 Home AI 插件工作区审计。",
     "",
     "硬性约束：",
     "- 这是只读审计。不要编辑文件、创建文件、安装包、运行迁移、提交、推送、部署、重启服务或修改数据库。",
@@ -479,6 +502,39 @@ function buildCodexPrompt(job, audit) {
     "- 文件路径、函数名、变量名、错误码、命令、配置项和代码标识保持原文。",
     "",
     "审计口径：",
+    productReality
+      ? "- 必须使用 X High 推理执行 deep Product Reality 审计；如果当前 Codex 线程/运行时不能确认 X High，返回 blocked_runtime_evidence 或 redirected，不要产出浅层审计结果。"
+      : "",
+    productReality
+      ? "- 先读取 Home AI `product-reality-audit-contract.md`、`deep-product-reality-audit-contract.md` 和目标插件的产品、设计、架构、模块、测试矩阵文档，再做源码优先检查。"
+      : "",
+    productReality
+      ? "- 先建立 Product Thesis 和 Core Journey Matrix：选择 2-4 个核心用户旅程，覆盖 actor、trigger、intended completion、failure/degraded state、data/provider/workspace state、implementation evidence、test/harness evidence。"
+      : "",
+    productReality
+      ? "- 按五层一致性审计这些核心旅程：产品意图、架构/领域契约、代码实现、真实用户流程/UX 状态、可执行测试或 harness 证据。"
+      : "",
+    productReality
+      ? "- 找出文档说法、设计目标、代码行为、用户体验和测试证明之间不一致的地方；即使没有安全漏洞，也要报告实现不足、逻辑漏洞、不合理状态机和长期复杂度风险。"
+      : "",
+    productReality
+      ? "- 可以质疑设计本身：如果文档互相矛盾、过度承诺、不安全、不符合 Home AI 边界或无法维护，归类为 design_gap，而不是默认要求代码迁就文档。"
+      : "",
+    productReality
+      ? "- 每个非平凡 finding 必须归类为 surface_product_reality、journey_gap、domain_model_gap、design_gap、product_doc_gap、implementation_gap、architecture_gap、ux_gap、test_gap、evidence_gap、fallback_debt 或 closure_gap。"
+      : "",
+    productReality
+      ? "- 只检查 manifest/action route/label 的问题必须标为 surface_product_reality；除非打通核心旅程、领域状态、失败态和测试证据，否则不能算 deep Product Reality closure。"
+      : "",
+    productReality
+      ? "- 不要找到一两个方便的小问题就结束。每个目标必须列出已读产品/设计/架构文档、核心旅程选择理由、每条旅程的证据链、跳过边界和开放问题；覆盖不足时只能返回 partially_closed 或 closed_surface_only。"
+      : "",
+    productReality
+      ? "- 对每个 finding 写清楚 owning workspace/layer、为什么修复应在该层、需要发给哪个实现线程、closure validation 是什么。"
+      : "",
+    productReality
+      ? "- 审计线程不直接修复；如果需要修复，任务卡必须要求目标线程回卡，且由审计线程做独立 closure verification。"
+      : "",
     alignment
       ? "- 先读取工作区文档目标，再对照实现状态，判断目标已实现、部分实现、未实现、实现偏离文档、文档过期和缺失测试。"
       : "- 优先指出具体 bug、回归风险、安全/隐私风险、数据丢失风险和缺失测试。",
@@ -488,11 +544,12 @@ function buildCodexPrompt(job, audit) {
     alignment
       ? "- 建议任务卡只能作为后续人工确认或独立线程执行的建议，不要在本审计中修改代码。"
       : "",
+    productReality ? "- 本模式下，建议任务卡不是普通建议；高价值 finding 应生成明确 repair card 方向，并带 Return Card Required 和 closure verification 条件。" : "",
     "- 先列问题，按严重程度排序；能定位时给出文件/行号引用。",
     "- 回复保持精简。如果没有发现问题，明确说明，并列出剩余测试缺口。",
     "",
-    alignment ? "优先阅读这些目标文档（如果存在）：" : "",
-    alignment ? "- `.agent-context/PROJECT_CONTEXT.md`, `.agent-context/HANDOFF.md`, `docs/README.md`, `docs/DOCS_INDEX.md`, `docs/PRODUCT_REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/TEST_MATRIX.md`。" : "",
+    (alignment || productReality) ? "优先阅读这些目标文档（如果存在）：" : "",
+    (alignment || productReality) ? "- `AGENTS.md`, `docs/HOME_AI_PLATFORM_CONTRACT.md`, `docs/README.md`, `docs/DOCS_INDEX.md`, `docs/PRODUCT_REQUIREMENTS.md`, `docs/ARCHITECTURE.md`, `docs/ARCHITECTURE_BOUNDARY.md`, `docs/TEST_MATRIX.md`, plus feature design docs, MCP/tool requirement docs, module docs, runbooks, and harness docs relevant to the core journeys。" : "",
     "",
     `Job id: ${clean(job.id, 80) || "unknown"}`,
     `插件：${audit.pluginTitle || audit.pluginId}`,
@@ -660,6 +717,8 @@ function markdownList(items = [], fallback = "- None") {
 }
 
 function renderReport(job, audit) {
+  const isProductReality = audit.mode === "product_reality";
+  const isAlignment = audit.mode === "alignment";
   const findings = audit.findings.map((item, index) => [
     `### ${index + 1}. ${item.severity.toUpperCase()} - ${item.title}`,
     item.rationale ? `理由: ${item.rationale}` : "",
@@ -667,9 +726,11 @@ function renderReport(job, audit) {
     item.evidence.map((line) => `- \`${line.replace(/`/g, "'")}\``).join("\n"),
   ].filter(Boolean).join("\n\n")).join("\n\n");
   return [
-    audit.mode === "alignment"
-      ? `# 插件工作区目标一致性审计 - ${audit.pluginTitle || audit.pluginId}`
-      : `# 插件工作区审计 - ${audit.pluginTitle || audit.pluginId}`,
+    isProductReality
+      ? `# 插件工作区产品现实一致性审计 - ${audit.pluginTitle || audit.pluginId}`
+      : isAlignment
+        ? `# 插件工作区目标一致性审计 - ${audit.pluginTitle || audit.pluginId}`
+        : `# 插件工作区审计 - ${audit.pluginTitle || audit.pluginId}`,
     "",
     "## 摘要",
     "",
@@ -700,7 +761,7 @@ function renderReport(job, audit) {
     "",
     markdownList(audit.recentLog),
     "",
-    audit.mode === "alignment" ? "## 文档与实现抽样文件" : "## 抽样文件",
+    (isProductReality || isAlignment) ? "## 文档、架构与实现抽样文件" : "## 抽样文件",
     "",
     markdownList(audit.sampledFiles.slice(0, 80)),
     "",
@@ -729,6 +790,7 @@ function renderReport(job, audit) {
     audit.taskCard?.message ? `- 说明: ${audit.taskCard.message}` : "",
     audit.taskCard?.request?.title ? `- 标题: ${audit.taskCard.request.title}` : "",
     audit.taskCard?.request?.targetThreadIds?.length ? `- 目标线程数: ${audit.taskCard.request.targetThreadIds.length}` : "",
+    audit.taskCard?.request?.body ? "- 回卡要求: required" : "",
     audit.taskCard?.error ? "### 发送诊断" : "",
     audit.taskCard?.error ? "```text\n" + audit.taskCard.error.replace(/```/g, "'''") + "\n```" : "",
   ].join("\n");

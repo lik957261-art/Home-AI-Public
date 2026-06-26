@@ -68,6 +68,14 @@ function makeRoutes(overrides = {}) {
         gatewayPool: { enabled: true, workers: [{ id: "lowgw1", url: "http://127.0.0.1:18751", healthy: true }] },
       });
     },
+    gatewayWorkerPolicyContract() {
+      return {
+        ok: false,
+        issues: ["launcher_worker_env_mismatch:HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM"],
+        overrides: { ownerMinWarm: 1 },
+        effective: { ownerMinWarm: 1, workspaceMinWarm: 0 },
+      };
+    },
     isOwnerAuth(auth) {
       return auth?.workspaceId === "owner";
     },
@@ -221,12 +229,19 @@ async function testStatusShapeForWorkspaceAndOwner() {
   assert.deepEqual(userStatus.concurrency, { activeForWorkspace: 1 });
   assert.deepEqual(userStatus.ownerElevation, { owner: false, active: false });
   assert.equal(userStatus.clientVersion.clientVersion, "20260514-2100");
+  assert.equal(Object.hasOwn(userStatus, "gatewayWorkerPolicyContract"), false);
 
   const ownerRes = makeResponse();
   await routes.handle({ method: "GET", url: "/api/status", headers: { "x-hermes-web-key": "owner" } }, ownerRes, { pathname: "/api/status" });
   const ownerStatus = JSON.parse(ownerRes.body);
   assert.deepEqual(ownerStatus.catalog, [{ kind: "test-catalog" }]);
   assert.equal(ownerStatus.gatewayPool.workers[0].url, "http://127.0.0.1:18751");
+  assert.deepEqual(ownerStatus.gatewayWorkerPolicyContract, {
+    ok: false,
+    issues: ["launcher_worker_env_mismatch:HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM"],
+    overrides: { ownerMinWarm: 1 },
+    effective: { ownerMinWarm: 1, workspaceMinWarm: 0 },
+  });
   assert.deepEqual(deps._calls.filter((call) => call === "getHermesStatus"), ["getHermesStatus", "getHermesStatus"]);
 }
 

@@ -23,13 +23,63 @@ const MODULE_RULES = Object.freeze([
     docs: [
       "docs/MODULES/ai-operations-control-plane.md",
       "docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md",
+      "docs/PLATFORM_CONTRACTS/diagnostic-remediation-loop-contract.md",
+      "docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md",
+      "docs/PLATFORM_CONTRACTS/fallback-governance-contract.md",
+      "docs/IMPLEMENTATION_NOTES/fallback-registry.md",
       "docs/ARCHITECTURE_CODE_TEST_HARNESS_MAP.md",
       "docs/TEST_MATRIX.md",
     ],
-    boundaries: ["adapters/ai-operations-control-plane-service.js", "scripts/ai-ops-control-plane.js"],
+    boundaries: [
+      "adapters/ai-operations-control-plane-service.js",
+      "adapters/ai-ops-diagnostic-remediation-service.js",
+      "adapters/ai-ops-diagnostic-remediation-workflow-service.js",
+      "scripts/ai-ops-control-plane.js",
+    ],
     checks: [
       "node tests/ai-operations-control-plane-service.test.js",
       "node tests/ai-ops-control-plane-cli.test.js",
+      "node tests/ai-ops-diagnostic-remediation-service.test.js",
+      "node tests/ai-ops-diagnostic-remediation-workflow-service.test.js",
+      "node tests/codex-thread-task-card-service.test.js",
+      "node tests/architecture-code-test-harness-map.test.js",
+      "node tests/architecture-refactor-boundary.test.js",
+    ],
+  }),
+  Object.freeze({
+    id: "autonomous-delivery-loop",
+    title: "Autonomous Delivery Loop",
+    harnessClass: "H2",
+    keywords: [
+      /autonomous delivery/i,
+      /delivery loop/i,
+      /intent intake/i,
+      /user decision gate/i,
+      /closure loop/i,
+      /最小介入/i,
+      /闭环/i,
+    ],
+    paths: [/autonomous-delivery/i, /autonomous-delivery-loop/i],
+    docs: [
+      "docs/PLATFORM_CONTRACTS/autonomous-delivery-loop-contract.md",
+      "docs/IMPLEMENTATION_NOTES/autonomous-delivery-loop.md",
+      "docs/MODULES/action-inbox.md",
+      "docs/MODULES/ai-operations-control-plane.md",
+      "docs/IMPLEMENTATION_NOTES/product-reality-audit-loop.md",
+      "docs/ARCHITECTURE_CODE_TEST_HARNESS_MAP.md",
+    ],
+    boundaries: [
+      "adapters/autonomous-delivery-intake-service.js",
+      "adapters/autonomous-delivery-coordinator-service.js",
+      "server-routes/autonomous-delivery-api-routes.js",
+      "scripts/autonomous-delivery-loop.js",
+      "public/app-action-inbox-ui.js",
+    ],
+    checks: [
+      "node tests/autonomous-delivery-intake-service.test.js",
+      "node tests/autonomous-delivery-coordinator-service.test.js",
+      "node tests/autonomous-delivery-api-routes.test.js",
+      "node tests/app-action-inbox-ui.test.js",
       "node tests/architecture-code-test-harness-map.test.js",
       "node tests/architecture-refactor-boundary.test.js",
     ],
@@ -139,6 +189,9 @@ const MODULE_RULES = Object.freeze([
     paths: [/^docs\//, /^tests\/architecture-code-test-harness-map\.test\.js$/],
     docs: [
       "docs/DOCS_INDEX.md",
+      "docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md",
+      "docs/PLATFORM_CONTRACTS/fallback-governance-contract.md",
+      "docs/IMPLEMENTATION_NOTES/fallback-registry.md",
       "docs/ARCHITECTURE_CODE_TEST_HARNESS_MAP.md",
       "docs/IMPLEMENTATION_NOTES/harness-required-matrix.md",
       "docs/TEST_MATRIX.md",
@@ -194,6 +247,27 @@ function checkItem(command, reason, options = {}) {
   };
 }
 
+function shellQuote(value) {
+  const text = String(value || "");
+  if (/^[A-Za-z0-9_./:-]+$/.test(text)) return text;
+  return `'${text.replace(/'/g, "'\\''")}'`;
+}
+
+function fallbackGovernanceCheckCommand(changedFiles = []) {
+  const files = normalizeChangedFiles(changedFiles);
+  if (!files.length) return "node scripts/fallback-governance-check.js --json";
+  return [
+    "node scripts/fallback-governance-check.js",
+    ...files.map((file) => `--changed-file ${shellQuote(file)}`),
+    "--json",
+  ].join(" ");
+}
+
+function rootCauseGovernanceRequired(harnessClass, taskText) {
+  return HARNESS_RANK[String(harnessClass || "H3").toUpperCase()] >= HARNESS_RANK.H2
+    || /fix|bug|incident|production|deploy|repair|hotfix|regression|stuck|failed|failure|fallback|兜底|根因/i.test(String(taskText || ""));
+}
+
 function selectRequiredChecks(input = {}) {
   const changedFiles = normalizeChangedFiles(input.changedFiles);
   const taskText = String(input.taskText || input.task || "");
@@ -224,6 +298,16 @@ function selectRequiredChecks(input = {}) {
   if (visualLaneRequired) {
     checks.push(checkItem("node scripts/ai-ops-control-plane.js lane allocate --plugin-id <plugin-id> --requester <thread-id> --json", "visual-lane-allocation", { kind: "lane" }));
   }
+  const harnessClass = maxHarnessClass(rules.map((rule) => rule.harnessClass));
+  const governanceRequired = rootCauseGovernanceRequired(harnessClass, taskText);
+  if (governanceRequired) {
+    docs.push(
+      "docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md",
+      "docs/PLATFORM_CONTRACTS/fallback-governance-contract.md",
+      "docs/IMPLEMENTATION_NOTES/fallback-registry.md",
+    );
+    checks.push(checkItem(fallbackGovernanceCheckCommand(changedFiles), "fallback-governance", { kind: "governance" }));
+  }
   if (deploymentRequired || /deploy|production/i.test(taskText)) {
     deploymentRequired = true;
     checks.push(checkItem("npm run --silent deploy:macos -- --target home-ai --json", "deployment-plan", { kind: "deploy-plan" }));
@@ -232,13 +316,15 @@ function selectRequiredChecks(input = {}) {
 
   return {
     ok: true,
-    harnessClass: maxHarnessClass(rules.map((rule) => rule.harnessClass)),
+    harnessClass,
     modules: unique(modules),
     requiredDocs: unique(docs),
     allowedBoundaries: unique(boundaries),
     requiredChecks: uniqueChecks(checks),
     visualLaneRequired,
     deploymentRequired,
+    rootCauseGovernanceRequired: governanceRequired,
+    fallbackGovernanceCheckCommand: governanceRequired ? fallbackGovernanceCheckCommand(changedFiles) : "",
     changedFiles,
   };
 }
@@ -257,6 +343,7 @@ function uniqueChecks(checks) {
 function buildTaskContextPack(input = {}) {
   const taskText = String(input.taskText || input.task || "").trim();
   const plan = selectRequiredChecks(input);
+  const rootCauseGovernance = buildRootCauseGovernance(plan, taskText);
   const blockedIf = [
     "required_docs_not_read",
     "focused_checks_not_run",
@@ -264,6 +351,10 @@ function buildTaskContextPack(input = {}) {
   ];
   if (plan.visualLaneRequired) blockedIf.push("visual_lane_not_allocated");
   if (plan.deploymentRequired) blockedIf.push("production_deploy_not_verified");
+  if (rootCauseGovernance.required) {
+    blockedIf.push("root_cause_classification_missing");
+    blockedIf.push("fallback_status_unclassified");
+  }
   return {
     ok: true,
     task: taskText,
@@ -272,6 +363,7 @@ function buildTaskContextPack(input = {}) {
     requiredDocs: plan.requiredDocs,
     allowedBoundaries: plan.allowedBoundaries,
     requiredChecks: plan.requiredChecks,
+    rootCauseGovernance,
     visualLane: {
       required: plan.visualLaneRequired,
       allocatorCommand: plan.visualLaneRequired
@@ -289,6 +381,35 @@ function buildTaskContextPack(input = {}) {
       ledgerCommand: "node scripts/ai-ops-control-plane.js evidence append --kind test --status passed --summary <summary> --json",
       incidentCommand: "node scripts/ai-ops-control-plane.js incident create --symptom <symptom> --json",
     },
+  };
+}
+
+function buildRootCauseGovernance(plan = {}, taskText = "") {
+  const required = Boolean(plan.rootCauseGovernanceRequired);
+  return {
+    required,
+    classificationRequired: required ? ["mitigation", "closure"] : [],
+    requiredDiagnosisFields: required ? [
+      "user_visible_symptom",
+      "failing_layer",
+      "owning_workspace",
+      "violated_invariant",
+      "root_cause_or_hypothesis",
+      "why_fix_belongs_at_that_layer",
+      "validation_that_proves_invariant",
+    ] : [],
+    fallbackPolicy: {
+      silentFallbackAllowed: false,
+      mitigationMayBeCalledClosure: false,
+      registryPath: "docs/IMPLEMENTATION_NOTES/fallback-registry.md",
+      contractPath: "docs/PLATFORM_CONTRACTS/fallback-governance-contract.md",
+      checkCommand: plan.fallbackGovernanceCheckCommand || "node scripts/fallback-governance-check.js --json",
+      annotation: "fallback-governance:<fallback_id>",
+    },
+    completionRule: required
+      ? "Report mitigation or closure explicitly. Any new or extended fallback must be removed or registered before closure."
+      : "Use root-cause classification when a fallback or production-impacting repair is introduced.",
+    task: String(taskText || "").slice(0, 240),
   };
 }
 
@@ -553,6 +674,7 @@ module.exports = {
   allocateVisualLane,
   appendEvidenceRecord,
   buildTaskContextPack,
+  buildRootCauseGovernance,
   createIncidentCassette,
   listEvidenceRecords,
   listIncidentCassettes,

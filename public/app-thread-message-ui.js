@@ -75,7 +75,7 @@ async function openProjectTask(sourceThreadId, taskGroupId) {
   const params = new URLSearchParams({
     messageMode: "tasks",
     taskGroupId,
-    messageLimit: String(typeof TASK_MESSAGE_INITIAL_LIMIT === "number" ? TASK_MESSAGE_INITIAL_LIMIT : 80),
+    messageLimit: String(typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30),
   });
   const result = await api(`/api/threads/${encodeURIComponent(sourceThreadId)}?${params.toString()}`);
   state.currentThread = mergeCurrentThread(result.thread);

@@ -27,6 +27,8 @@ assert.match(script, /\/Library\/LaunchDaemons\/com\.hermesmobile\.gateway\./);
 assert.match(script, /launchctl", \["bootout", "system", plistPath\]/);
 assert.match(script, /production-drift-audit", "quarantine"/);
 assert.match(script, /codex-shared-auth-permissions/);
+assert.match(script, /profile_dir\/auth\.json/);
+assert.match(script, /user:hermes-host allow list,add_file,search,delete_child/);
 assert.match(script, /music-runtime-cover-permissions/);
 assert.match(script, /plugin-provisioning-status/);
 assert.match(script, /plugin-local-binding/);

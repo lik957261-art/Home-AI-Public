@@ -53,6 +53,7 @@ const DEFAULT_NOTE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4181/api/v1/hermes/pl
 const DEFAULT_GROWTH_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest";
 const DEFAULT_MOIRA_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest";
 const DEFAULT_MUSIC_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest";
+const DEFAULT_MOVIE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest";
 const DEFAULT_TIMEOUT_MS = 8000;
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
 const PLUGIN_APPEARANCE_THEMES = new Set(["system", "dark", "light"]);
@@ -118,6 +119,12 @@ function configuredMusicManifestUrl(env = process.env) {
   return stringValue(env.HERMES_MOBILE_MUSIC_PLUGIN_MANIFEST_URL)
     || stringValue(env.HERMES_MOBILE_PLUGIN_MUSIC_MANIFEST_URL)
     || DEFAULT_MUSIC_PLUGIN_MANIFEST_URL;
+}
+
+function configuredMovieManifestUrl(env = process.env) {
+  return stringValue(env.HERMES_MOBILE_MOVIE_PLUGIN_MANIFEST_URL)
+    || stringValue(env.HERMES_MOBILE_PLUGIN_MOVIE_MANIFEST_URL)
+    || DEFAULT_MOVIE_PLUGIN_MANIFEST_URL;
 }
 
 function envKeyForPlugin(pluginId, suffix) {
@@ -267,6 +274,14 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
     provisioning: { supported: false, mode: "owner_only" },
     notifications: { supported: false, routeOwner: "hermes" },
   },
+  movie: {
+    title: "影院",
+    riskLevel: "owner-critical",
+    defaultVisibility: "owner-only",
+    allowWorkspaceGrant: false,
+    provisioning: { supported: false, mode: "owner_only" },
+    notifications: { supported: false, routeOwner: "hermes" },
+  },
 });
 
 function pluginSecurityDefaults(pluginId = "") {
@@ -345,6 +360,10 @@ function configuredPlugins(options = {}) {
     {
       id: "music",
       manifestUrl: configuredMusicManifestUrl(env),
+    },
+    {
+      id: "movie",
+      manifestUrl: configuredMovieManifestUrl(env),
     },
   ];
   return plugins
@@ -487,6 +506,17 @@ function normalizePluginAppearance(input = {}) {
   if (PLUGIN_APPEARANCE_THEMES.has(theme)) out.theme = theme;
   if (PLUGIN_APPEARANCE_FONT_SIZES.has(fontSize)) out.fontSize = fontSize;
   return out;
+}
+
+function pluginLaunchRoutePayload(input = {}) {
+  return Object.fromEntries(Object.entries({
+    pluginRoute: stringValue(input.pluginRoute || input.plugin_route || input.route),
+    pluginActionId: stringValue(input.pluginActionId || input.plugin_action_id || input.actionId || input.action_id),
+    pluginItemId: stringValue(input.pluginItemId || input.plugin_item_id || input.itemId || input.item_id),
+    pluginThreadId: stringValue(input.pluginThreadId || input.plugin_thread_id || input.threadId || input.thread_id),
+    pluginTaskId: stringValue(input.pluginTaskId || input.plugin_task_id || input.taskId || input.task_id),
+    sourceTurnId: stringValue(input.sourceTurnId || input.source_turn_id || input.turnId || input.turn_id),
+  }).filter(([, value]) => value));
 }
 
 function addPluginAppearanceToEntryUrl(entryUrl = "", appearance = {}) {
@@ -641,7 +671,6 @@ function findFinanceAccessKeyPath(input = {}, options = {}) {
     stringValue(env.HERMES_MOBILE_FINANCE_PLUGIN_ACCESS_KEY_PATH),
     stringValue(env.HERMES_MOBILE_PLUGIN_FINANCE_ACCESS_KEY_PATH),
     stringValue(env.FINANCE_HERMES_PLUGIN_ACCESS_KEY_PATH),
-    workspaceId === "owner" ? stringValue(env.HERMES_WEB_AUTH_KEY_PATH) : "",
   ].filter(Boolean);
   const configured = candidates.find((candidate) => fs.existsSync(candidate));
   if (configured) return configured;
@@ -1029,7 +1058,7 @@ function growthWorkspaceLocalConfigReady(input = {}, options = {}) {
 
 function discoverPluginWorkspaceIdsFromAccessKeys(pluginId, options = {}) {
   const id = stringValue(pluginId);
-  if (id === "codex-mobile") return [];
+  if (id === "codex-mobile" || id === "movie") return [];
   const dataDir = stringValue(options.dataDir) || defaultDataDir(options.env);
   const usersRoot = path.join(dataDir, "drive", "users");
   let entries = [];
@@ -1085,7 +1114,7 @@ function pluginLaunchWorkspaceId(pluginId, workspaceId, options = {}) {
 }
 
 function pluginUsesOwnerOnlyDirectEntry(pluginId, workspaceId) {
-  return stringValue(pluginId) === "music" && stringValue(workspaceId || "owner") === "owner";
+  return ["music", "movie"].includes(stringValue(pluginId)) && stringValue(workspaceId) === "owner";
 }
 
 function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
@@ -1244,6 +1273,10 @@ function normalizeManifest(raw = {}, source = {}) {
   const rawAppearanceSync = raw.appearance_sync || raw.appearanceSync;
   const appearanceSync = rawAppearanceSync === true
     || (rawAppearanceSync && typeof rawAppearanceSync === "object" && rawAppearanceSync.supported !== false);
+  const refreshOnVersionChange = embedding.refresh_on_version_change === true
+    || embedding.refreshOnVersionChange === true
+    || navigation.refresh_on_version_change === true
+    || navigation.refreshOnVersionChange === true;
   const rawKind = stringValue(raw.kind || raw.type || "embedded_app");
   const kind = rawKind === "embedded-app" ? "embedded_app" : rawKind;
   return {
@@ -1294,6 +1327,7 @@ function normalizeManifest(raw = {}, source = {}) {
       preserveIframeState: embedding.preserve_iframe_state === true || embedding.preserveIframeState === true
         || navigation.preserve_iframe_state === true || navigation.preserveIframeState === true,
       appearanceSync,
+      refreshOnVersionChange,
     },
     ownerBinding: {
       strategy: stringValue(raw.owner_binding?.strategy),
@@ -1317,9 +1351,23 @@ function normalizeManifest(raw = {}, source = {}) {
   };
 }
 
+function applyHostManifestPolicy(manifest = {}) {
+  const id = stringValue(manifest.id);
+  if (id === "movie") {
+    return Object.assign({}, manifest, {
+      actions: [],
+      actionPolicy: {
+        hostActionsSuppressed: true,
+        reason: "owner_only_app_entry",
+      },
+    });
+  }
+  return manifest;
+}
+
 async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = {}) {
   if (input.launchPlugin !== true) return manifest;
-  if (!manifest?.available || !manifest?.programApi?.pluginLaunchPath || typeof fetchImpl !== "function") return manifest;
+  if (!manifest?.available) return manifest;
   const workspaceId = stringValue(input.workspaceId || "owner");
   const pluginId = stringValue(manifest.id || input.id || "wardrobe");
   const launchWorkspaceId = pluginLaunchWorkspaceId(pluginId, workspaceId, options);
@@ -1344,6 +1392,7 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
       appearance: Object.keys(appearance).length ? appearance : undefined,
     });
   }
+  if (!manifest?.programApi?.pluginLaunchPath || typeof fetchImpl !== "function") return manifest;
   const keyPath = findPluginAccessKeyPath(pluginId, Object.assign({}, input, { workspaceId: launchWorkspaceId }), options);
   if (!keyPath) {
     return Object.assign({}, manifest, {
@@ -1380,6 +1429,7 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
   );
   const appearance = normalizePluginAppearance(input);
   const appearancePayload = Object.keys(appearance).length ? { appearance } : {};
+  const routePayload = pluginId === "moira" ? pluginLaunchRoutePayload(input) : {};
   const wardrobeConfig = pluginId === "wardrobe"
     ? readWardrobeWorkspaceConfig({ workspaceId }, options)
     : {};
@@ -1406,7 +1456,7 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
         workspace_id: wardrobeWorkspaceId,
         hermes_workspace_id: workspaceId,
       }, appearancePayload)
-    : Object.assign({ workspace_id: launchWorkspaceId }, appearancePayload);
+    : Object.assign({ workspace_id: launchWorkspaceId }, routePayload, appearancePayload);
   try {
     const headers = {
       Accept: "application/json",
@@ -1968,12 +2018,12 @@ function createHermesPluginService(options = {}) {
         }
         const raw = await response.json();
         const hostTitle = plugin.title && plugin.title !== plugin.id ? plugin.title : "";
-        const normalized = normalizeManifest(raw, {
+        const normalized = applyHostManifestPolicy(normalizeManifest(raw, {
           id,
           title: hostTitle,
           manifestUrl: plugin.manifestUrl,
           fetchedAt: nowIso(),
-        });
+        }));
         const launchedManifest = await withPluginLaunchEntry(normalized, input, fetchImpl, launchOptions);
         const entrySchemeManifest = validateHttpsEntryScheme(launchedManifest, input);
         if (entrySchemeManifest?.embed?.sameOriginProxy) return entrySchemeManifest;
@@ -2164,7 +2214,20 @@ function createHermesPluginService(options = {}) {
 
   function pluginProxyAuthorizationHeader(input = {}) {
     const id = stringValue(input.id || input.pluginId);
-    if (!id || id === "finance" || id === "music") return "";
+    if (!id || id === "finance" || id === "music" || id === "movie") return "";
+    const explicitWorkspaceId = stringValue(input.workspaceId || input.workspace_id);
+    if (id === "health") {
+      if (!explicitWorkspaceId) return "";
+      const healthKeyPath = findPluginAccessKeyPath(id, { workspaceId: explicitWorkspaceId }, launchOptions);
+      if (!healthKeyPath) return "";
+      let healthAccessKey = "";
+      try {
+        healthAccessKey = fs.readFileSync(healthKeyPath, "utf8").trim();
+      } catch (_) {
+        healthAccessKey = "";
+      }
+      return healthAccessKey ? `Bearer ${healthAccessKey}` : "";
+    }
     const workspaceId = stringValue(input.workspaceId || "owner") || "owner";
     const keyPath = findPluginAccessKeyPath(id, { workspaceId }, launchOptions);
     if (!keyPath) return "";
@@ -2207,6 +2270,7 @@ module.exports = {
   DEFAULT_HEALTH_PLUGIN_MANIFEST_URL,
   DEFAULT_MOIRA_PLUGIN_MANIFEST_URL,
   DEFAULT_MUSIC_PLUGIN_MANIFEST_URL,
+  DEFAULT_MOVIE_PLUGIN_MANIFEST_URL,
   DEFAULT_NOTE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,

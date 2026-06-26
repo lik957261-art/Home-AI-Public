@@ -32,6 +32,7 @@ const {
   assertPluginTopicDockReturnStability,
   defaultLockPath,
   parseArgs,
+  probeVisualHarnessToolchain,
   sampleMobileBottomStability,
   waitForEmbeddedPluginShellReady,
 } = require("../scripts/ios-pwa-visual-harness");
@@ -42,6 +43,7 @@ assert.ok(SCENARIOS["directory-dark-status"]);
 assert.ok(SCENARIOS["dark-admin-surfaces"]);
 assert.ok(SCENARIOS["dark-growth-surfaces"]);
 assert.ok(SCENARIOS["embedded-plugin-shell"]);
+assert.equal(SCENARIOS["embedded-plugin-shell"].minTimeoutMs, 70000);
 assert.ok(SCENARIOS["embedded-plugin-switch-stability"]);
 assert.ok(SCENARIOS["embedded-plugin-switch-stability"].afterPrepareScript);
 assert.equal(SCENARIOS["embedded-plugin-switch-stability"].afterPrepareArgs()[0], "codex-mobile");
@@ -61,10 +63,17 @@ assert.deepEqual(parseArgs(["--keyboard-target", "side-chat"]).keyboardTarget, "
 assert.deepEqual(parseArgs(["--keyboard-wait-ms", "1200"]).keyboardWaitMs, 1200);
 assert.deepEqual(parseArgs(["--debug-url", "http://127.0.0.1:19074"]).lockFile, defaultLockPath({ debugUrl: "http://127.0.0.1:19074/" }));
 assert.deepEqual(parseArgs(["--no-lock"]).noLock, true);
+assert.deepEqual(parseArgs(["--preflight-only"]).preflightOnly, true);
 assert.deepEqual(parseArgs(["--expected-client-version", "v-test"]).expectedClientVersion, "v-test");
 assert.deepEqual(parseArgs(["--min-screenshot-bytes", "0"]).minScreenshotBytes, 0);
 
 assert.match(script, /\/api\/stream-info/);
+assert.match(script, /function probeVisualHarnessToolchain\(options = \{\}\)/);
+assert.match(script, /ios_visual_live_debug_unavailable/);
+assert.match(script, /ios_visual_appium_unavailable/);
+assert.match(script, /ios_visual_wda_unavailable/);
+assert.match(script, /options\.timeoutMs = Math\.max/);
+assert.match(script, /--preflight-only/);
 assert.match(script, /\/api\/deep-state/);
 assert.match(script, /\/api\/action/);
 assert.match(script, /\/api\/screenshot\?force=1/);
@@ -153,6 +162,13 @@ assert.match(script, /absoluteY: report\.focus\.tap\.absoluteY/);
 assert.match(script, /pluginId === "codex-mobile"[\s\S]*?appState\.viewMode = "codex"/);
 assert.match(script, /loadSelectedView:codex/);
 assert.match(script, /renderCodexPluginView/);
+assert.match(script, /expectedViewMode = \(typeof EMBEDDED_PLUGIN_DEFS === "object" && EMBEDDED_PLUGIN_DEFS\[pluginId\]\?\.viewMode\) \|\| pluginId/);
+assert.match(script, /const existingShellIsActive = Boolean\(/);
+assert.match(script, /appState\?\.viewMode === expectedViewMode/);
+assert.match(script, /existingShell\.closest\("\.embedded-plugin-host\.active"\)/);
+assert.match(script, /meaningfulRect\(existingShell\)/);
+assert.match(script, /openedBy: "openPluginTopicApp"[\s\S]*?expectedViewMode/);
+assert.match(script, /last\?\.viewMode === last\?\.expectedViewMode[\s\S]*?last\?\.shell\?\.meaningful[\s\S]*?last\?\.frame\?\.meaningful/);
 assert.match(script, /typeof win\.loadThread === "function"/);
 assert.match(script, /openedBy: canLoadThread \? "loadThread" : "openExternalThreadSelection"/);
 assert.match(script, /handleHermesPluginViewportMessage/);
@@ -710,8 +726,10 @@ assert.match(mobileContract, /--no-lock/);
 assert.match(mobileContract, /debug lane lease/i);
 assert.match(runbook, /--expected-client-version/);
 assert.match(runbook, /--no-lock/);
+assert.match(runbook, /--preflight-only/);
 assert.match(runbook, /debug_lane_locked/);
 assert.match(platformContract, /--expected-client-version/);
+assert.match(platformContract, /--preflight-only/);
 assert.match(platformContract, /debug lane lease/i);
 assert.match(testMatrix, /node tests\\ios-pwa-visual-harness\.test\.js/);
 
@@ -734,8 +752,79 @@ async function testLaneLockSerializesVisualHarnessRuns() {
   second.release();
 }
 
+async function withMockFetch(fn, run) {
+  const originalFetch = global.fetch;
+  global.fetch = fn;
+  try {
+    return await run();
+  } finally {
+    global.fetch = originalFetch;
+  }
+}
+
+function jsonResponse(body, init = {}) {
+  return new Response(JSON.stringify(body), {
+    status: init.status || 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+async function testVisualHarnessPreflightClassifiesToolchainLayers() {
+  await withMockFetch(async (url) => {
+    const href = String(url);
+    if (href.endsWith("/api/stream-info")) {
+      return jsonResponse({
+        preferred: "simctl",
+        ready: false,
+        lane: {
+          appiumUrl: "http://127.0.0.1:4723",
+          wdaLocalPort: 8101,
+          port: 19073,
+          udid: "sim-1",
+          deviceName: "HomeAI iPhone",
+        },
+      });
+    }
+    if (href === "http://127.0.0.1:4723/status") {
+      return jsonResponse({ value: { ready: true } });
+    }
+    if (href === "http://127.0.0.1:8101/status") {
+      return jsonResponse({ value: { state: "success", ready: true } });
+    }
+    throw new Error(`unexpected_fetch:${href}`);
+  }, async () => {
+    const report = await probeVisualHarnessToolchain({ debugUrl: "http://127.0.0.1:19073/", timeoutMs: 900 });
+    assert.equal(report.ok, true);
+    assert.equal(report.liveDebug.ok, true);
+    assert.equal(report.appium.ok, true);
+    assert.equal(report.wda.ok, true);
+  });
+
+  await withMockFetch(async (url) => {
+    const href = String(url);
+    if (href.endsWith("/api/stream-info")) {
+      return jsonResponse({
+        lane: { appiumUrl: "http://127.0.0.1:4723", wdaLocalPort: 8101 },
+      });
+    }
+    if (href === "http://127.0.0.1:4723/status") {
+      throw new Error("fetch failed");
+    }
+    if (href === "http://127.0.0.1:8101/status") {
+      return jsonResponse({ value: { state: "success" } });
+    }
+    throw new Error(`unexpected_fetch:${href}`);
+  }, async () => {
+    const report = await probeVisualHarnessToolchain({ debugUrl: "http://127.0.0.1:19073/", timeoutMs: 900 });
+    assert.equal(report.ok, false);
+    assert.equal(report.failureLayer, "appium");
+    assert.equal(report.error, "ios_visual_appium_unavailable");
+  });
+}
+
 async function main() {
   await testLaneLockSerializesVisualHarnessRuns();
+  await testVisualHarnessPreflightClassifiesToolchainLayers();
   console.log("iOS PWA visual harness tests passed");
 }
 

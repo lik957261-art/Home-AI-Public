@@ -24,6 +24,7 @@ const appSplitModuleFiles = Object.freeze([
   "app-pwa-push-ui.js",
   "app-workspace-admin-ui.js",
   "app-access-key-manager-ui.js",
+  "app-tts-profile-ui.js",
   "app-plugin-admin-ui.js",
   "app-share-image-ui.js",
   "app-draft-thread-ui.js",

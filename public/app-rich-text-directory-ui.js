@@ -24,6 +24,7 @@ function renderText(text, message = {}) {
 function cleanDisplayText(value) {
   return String(value || "")
     .replace(/<!--\s*homeai-note(?:-[a-z]+)?[\s\S]*?-->/gi, "")
+    .replace(/<!--\s*homeai-plugin-conversation-action\b[\s\S]*?-->/gi, "")
     .split(/\n/)
     .filter((line) => !/^\s*MEDIA:\s*/i.test(line))
     .join("\n")

@@ -10,6 +10,8 @@ const chatGptProCodexBridgeService = require("../adapters/chatgpt-pro-codex-brid
 const conversationHistoryService = require("../adapters/conversation-history-service");
 const routeRegistry = require("../adapters/api-route-registry");
 const routeInventory = require("../adapters/api-route-inventory");
+const aiOpsDiagnosticRemediationService = require("../adapters/ai-ops-diagnostic-remediation-service");
+const aiOpsDiagnosticRemediationWorkflowService = require("../adapters/ai-ops-diagnostic-remediation-workflow-service");
 const appRouteUrlService = require("../adapters/app-route-url-service");
 const automationJobFilterService = require("../adapters/automation-job-filter-service");
 const documentPreviewService = require("../adapters/document-preview-service");
@@ -312,6 +314,10 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof conversationHistoryService.createConversationHistoryService, "function");
   assert.equal(typeof routeRegistry.createApiRouteRegistry, "function");
   assert.equal(typeof routeInventory.createHermesMobileApiRouteInventory, "function");
+  assert.equal(typeof aiOpsDiagnosticRemediationService.buildDiagnosticRemediationPlan, "function");
+  assert.equal(typeof aiOpsDiagnosticRemediationService.targetForLayer, "function");
+  assert.equal(typeof aiOpsDiagnosticRemediationWorkflowService.createAiOpsDiagnosticRemediationWorkflowService, "function");
+  assert.equal(typeof aiOpsDiagnosticRemediationWorkflowService.ownerNotificationForPlan, "function");
   assert.equal(typeof appRouteUrlService.createAppRouteUrlService, "function");
   assert.equal(typeof appRouteUrlService.appRouteUrl, "function");
   assert.equal(typeof automationJobFilterService.createAutomationJobFilterService, "function");

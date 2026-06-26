@@ -199,21 +199,31 @@ profile, such as `productivity/home-ai-todo-intake`, are installed separately
 into `data/skill-profiles/shared-global/skills` through an explicit allowlist
 rather than by copying every source-controlled Skill into every profile.
 Deployment then runs
-`scripts/macos-automation-cron-audit.js --strict-config`, which fails the deploy
-when an enabled agent-backed job has no profile, uses `deliver=origin` without
-an origin target, or declares a Skill that the CRON Skill store cannot resolve.
-Script/no-agent jobs such as disaster backup are exempt from the profile
-requirement, but their own run failures remain visible in Automation status.
+`scripts/macos-automation-cron-audit.js --strict-config --strict-source
+--strict-status`, which fails the deploy when the canonical CRON job store or
+Skill store cannot be read, when an enabled agent-backed job has no profile,
+uses `deliver=origin` without an origin target, declares a Skill that the CRON
+Skill store cannot resolve, or when an enabled job's latest status is
+`error`/`failed`/`failure`. Deploy-time validation passes
+`--status-since <deploy-start-iso>` so it blocks failures created during or
+after that deploy, while standalone CRON audits without `--status-since` still
+surface all historical enabled-job failures. Script/no-agent jobs such as
+disaster backup are exempt from the profile requirement, but their own latest
+run failures remain production issues until a later successful run clears the
+status.
 
-Home AI visual polish uses two official CRON layers. Evidence capture jobs are
-`no_agent` script jobs: they run `scripts/visual-polish-audit-runner.js`
-through installed wrapper scripts under `$HERMES_HOME/scripts`, execute the
-shared iOS PWA visual harness, and deliver failures through Codex Mobile
-cross-thread task cards. They must not start Codex CLI directly or create a
-separate app-server/mux context. Analysis is a separate agent-backed Home AI
-Automation job, `homeai_visual_analysis_xhigh`, bound to the dedicated
-`hm-owner-openai-xhigh` profile with `gpt-5.5` and
+Home AI visual polish can use two official CRON layers when explicitly enabled.
+Evidence capture jobs are `no_agent` script jobs: they run
+`scripts/visual-polish-audit-runner.js` through installed wrapper scripts under
+`$HERMES_HOME/scripts`, execute the shared iOS PWA visual harness, and deliver
+failures through Codex Mobile cross-thread task cards. They must not start
+Codex CLI directly or create a separate app-server/mux context. Analysis can be
+a separate agent-backed Home AI Automation job, `homeai_visual_analysis_xhigh`,
+bound to the dedicated `hm-owner-openai-xhigh` profile with `gpt-5.5` and
 `agent.reasoning_effort: xhigh`; this is where high-reasoning triage happens.
+Scheduled visual verification jobs are disabled by default in production
+deployments. The deploy script removes existing `homeai_visual_*` jobs unless
+`HOMEAI_INSTALL_VISUAL_POLISH_CRON_JOBS=1` is set for an explicit opt-in deploy.
 The CRON runner depends on the Mac desktop-user LaunchAgent
 `com.hermesmobile.visual-debug` for `http://127.0.0.1:19073/`; it must not try
 to own Simulator/Appium sessions from the `hermes-host` service account.
@@ -224,11 +234,21 @@ Version mismatch, hidden/zero-size app, screenshot-too-small, missing `appUrl`,
 and lane/debug-server setup failures are classified as `failureKind=environment`
 and are skipped by the task-card controller instead of being sent as Home AI or
 plugin UI regressions.
-The maintained visual job set includes host, Music, Finance, Wardrobe, Core,
+The opt-in visual job set includes host, Music, Finance, Wardrobe, Core,
 `homeai_visual_global_interactions`, and `homeai_visual_analysis_xhigh`. The
 global interaction job is bounded to the host global Dock gesture scenario plus
 the Finance plugin drawer action gesture scenario so it catches cross-surface
 interaction regressions without duplicating every plugin-specific visual audit.
+
+Audit-class scheduling now follows the dedicated audit-thread governance
+contract in
+`docs/PLATFORM_CONTRACTS/audit-thread-governance-contract.md`. Scheduled
+automation may create a bounded audit request card for `Home AI Platform Audit`
+or `Plugin Workspace Audit`, but it must not run deep host/plugin audits
+directly or route findings to implementation workspaces from cron-local
+analysis. Dedicated audit threads perform evidence gathering, findings-first
+reporting, task-card routing, and closure verification. Audit threads must not
+read `.agent-context/HANDOFF.md` or lineage handoffs as audit context.
 
 On macOS production, the `com.hermesmobile.cron` LaunchDaemon runs as the
 service user `hermes-host`. The central deploy script must therefore install
@@ -256,90 +276,54 @@ delivery directory.
 directory on create/update. Unsafe workdirs are rejected instead of silently
 falling back to the app directory.
 
-Plugin workspace audit jobs are a special read-only job class. They may be
-created as scheduled plans or as manual one-shot alignment audits. They should
-be stored as `kind=plugin_workspace_audit` with structured fields such as
-`pluginId`, `targetWorkspaceId`, `workspacePathRef`, `auditMode`, `executor`,
-`readonly=true`, and `delivery`. The dispatcher must resolve
-`workspacePathRef` through Home AI's plugin registry or platform contract at run
-time, then launch a bounded audit executor with the plugin workspace as `cwd`.
-It must not accept arbitrary user-provided paths. If the plugin is not
-registered, not enabled for the target workspace, lacks a complete workspace
-binding, or no read-only executor is configured, the run should fail with a
-bounded diagnostic and upsert an Action Inbox error item.
+Plugin workspace, Home AI platform, and Product Reality audits are no longer a
+local Automation execution job class. Home AI may use an explicit route or a
+future scheduled Automation tick to request an audit, but that request must only
+send a Codex Mobile task card to the correct central audit thread. The Home AI
+app, Automation runner, CRON dispatcher, Gateway worker, and local Codex CLI
+must not perform the deep audit.
 
-Audit jobs should write human-readable reports under audit history or the
-authorized plugin delivery directory, not under the source checkout. They should
-also upsert Action Inbox `review` or `error` items with summary metadata and
-safe deep links. Full diffs, raw executor logs, prompts, secrets, launch tokens,
-provider tokens, push endpoints, and private local paths must not be copied into
-Automation rows, Inbox rows, Web Push payloads, or docs.
+The manual Product Reality route is
+`POST /api/automations/plugin-workspace-audits/run`. The route is kept under
+the Automation namespace for UI compatibility, but its semantics are request
+delivery, not job creation. It calls `pluginWorkspaceAuditService` to validate
+the controlled target id, configured target path, audit mode, and read-only
+policy. Plugin targets also validate plugin registry visibility. The route then
+dynamically discovers the current Home AI source thread and the correct central
+audit thread through Codex Mobile thread discovery. `home-ai` targets
+`Home AI Platform Audit`; plugin targets target `Plugin Workspace Audit`. It
+sends one request card to that central audit thread. It must not call the
+generic natural-language Automation interpreter, `automationProvider.createJob`,
+`automationProvider.mutateJob`, or CRON cache mutation for this manual path.
 
-Scheduled audit projection must be quiet by default. Clean scheduled visual
-audit completions are background maintenance results: they should update
-Automation history and push marks but must not create Web Push notifications or
-ordinary current Inbox rows. Scheduled plugin audit Inbox rows should use a
-stable dedupe key by workspace, plugin, audit mode, and item type so repeated
-runs update one triage pointer. Manual audits and high-signal failures remain
-user-visible.
+Home AI must not store fixed Codex audit thread ids in environment files,
+Automation rows, source, or docs. The only durable routing contract is the
+audit thread role/title, such as `Plugin Workspace Audit` or
+`Home AI Platform Audit`, plus the app workspace cwd. Thread ids are discovered
+at send time.
 
-Read-only enforcement is part of the Automation contract for this job class.
-The first implementation should allow only source inspection and metadata
-commands. Arbitrary tests are out of scope for version 1 because many test
-suites write cache/build artifacts. A future safe-test mode must use scratch
-storage and prove that the plugin workspace git state is unchanged before and
-after the run.
+For plugin audits, Home AI sends only the central plugin audit request. It must
+not send task cards directly to each plugin workspace implementation thread.
+The central `Plugin Workspace Audit` thread owns workspace fan-out, repair-card
+routing, implementation return-card tracking, closure verification, and the
+final return card back to Home AI. For host/platform audits, Home AI sends only
+one request to `Home AI Platform Audit`; the ordinary implementation thread is
+not the auditor.
 
-The explicit scheduled-plan creation route is
-`POST /api/automations/plugin-workspace-audits`.
-The route calls `pluginWorkspaceAuditService` to validate plugin visibility,
-configured target path, schedule, audit mode, and read-only policy, then creates
-the canonical Automation job through `automationProvider.createJob`. It must not
-call the generic natural-language Automation interpreter for ordinary audit plan
-creation.
-
-The first manual alignment route is
-`POST /api/automations/plugin-workspace-audits/run`. It uses the same service
-validation and target resolution, creates a canonical one-shot job with
-a CRON-compatible placeholder schedule such as `1m`, `repeat=1`,
-`auditMode=alignment` by default, and requests the existing Automation `run`
-action. Execution still happens through the normal dispatcher tick so report
-creation, run history, and Action Inbox projection remain on the same canonical
-path as scheduled jobs.
-
-At due time, the Mac/NAS dispatcher detects `kind=plugin_workspace_audit` and
-runs `scripts/plugin-workspace-audit-runner.js` instead of official
-model-backed `cron.scheduler.run_job()`. This keeps V1 deterministic and
-read-only: the runner only uses bounded Git/source-inspection commands, writes a
-Markdown report under the CRON output root, returns a `MEDIA:` line for the
-existing Automation output preview path, and marks the canonical CRON run
-success/failure through `mark_job_run()`. It does not use the model proxy, does
-not enable toolsets, and does not execute user-provided scripts.
-
-The runner may add a local Codex read-only review section only when a deployment
-explicitly enables `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1` or
-`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1`. Mac production keeps this
-local CLI path disabled by default. Home AI must not launch a separate Codex
-process with an independent `CODEX_HOME` for normal plugin audit work, because
-Codex Mobile owns the active profile, visible thread state, and shared
-app-server/mux endpoint.
-
-The maintained model-backed follow-up path is a Codex Mobile cross-thread task
-card. The runner writes a bounded task-card draft into the audit report. When
-`HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` /
-`HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` points to a JSON
-mapping with an explicit `sourceThreadId` and plugin `targetThreadIds`, the
-runner calls Codex Mobile's `create-thread-task-card.js` wrapper. That wrapper
-uses `POST /api/threads/:sourceThreadId/task-cards`, so execution remains under
-Codex Mobile's thread, profile, and mux ownership. If the mapping is missing,
-the audit still succeeds with a draft-only task-card section.
+Existing `plugin_workspace_audit` CRON runner code is legacy diagnostic
+infrastructure. It is not the maintained production path for the Product
+Reality audit loop. If used manually for investigation, it must remain
+read-only, bounded, and clearly labeled as local diagnostic output rather than
+the canonical audit workflow.
 
 Audit target paths are configuration, not user input. Deployments may configure
 targets with `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS` /
 `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS` or per-plugin
 `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_<PLUGIN_ID>_PATH` /
 `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_<PLUGIN_ID>_PATH`. Missing targets fail
-closed with `plugin_audit_target_unconfigured`.
+closed with `plugin_audit_target_unconfigured`. The target map includes the
+special controlled target `home-ai`, which resolves to the Home AI app root and
+routes to `Home AI Platform Audit` rather than `Plugin Workspace Audit`.
 
 Analysis automations that need Home AI runtime state must use host-provided
 data contexts instead of asking the model to discover or query SQLite directly.

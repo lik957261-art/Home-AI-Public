@@ -24,6 +24,7 @@ function testGovernanceCheckPasses() {
 function testProductizationRunsGovernanceCheck() {
   const source = read("scripts/productization-check.js");
   assert.match(source, /engineering-governance-check\.js/);
+  assert.match(source, /fallback-governance-check\.js[\s\S]+--json/);
   assert.match(source, /public-install-preflight\.js/);
   assert.match(source, /plugin-provisioning-coverage-audit\.js/);
   assert.match(source, /macos-install-phase-coverage-audit\.js/);
@@ -45,6 +46,7 @@ function testProductizationGateOrderIsPinned() {
   const source = read("scripts/productization-check.js");
   const labels = [
     "Engineering governance check",
+    "Fallback governance check",
     "Public install preflight source check",
     "Plugin provisioning coverage audit",
     "macOS install phase coverage audit",
@@ -76,6 +78,10 @@ function testProductizationGateOrderIsPinned() {
 
 function testGovernanceToolsAreIndexed() {
   const index = read("docs/DOCS_INDEX.md");
+  assert.match(index, /fallback-governance-contract\.md/);
+  assert.match(index, /fallback-registry\.md/);
+  assert.match(index, /fallback-governance-check\.js/);
+  assert.match(index, /audit-thread-governance-contract\.md/);
   assert.match(index, /public-install-preflight\.js/);
   assert.match(index, /plugin-provisioning-coverage-audit\.js/);
   assert.match(index, /install-macos-production\.sh/);
@@ -93,6 +99,8 @@ function testGovernanceDocContainsRequiredSections() {
   assert.match(source, /## CI-Enforced Constraints/);
   assert.match(source, /## Production Self-Diagnostics/);
   assert.match(source, /## Productization Acceptance Matrix/);
+  assert.match(source, /fallback-governance-check\.js/);
+  assert.match(source, /fallback-governance-check\.test\.js/);
   assert.match(source, /public-install-preflight\.js/);
   assert.match(source, /plugin-provisioning-coverage-audit\.js/);
   assert.match(source, /install-macos-production\.sh/);
@@ -108,6 +116,42 @@ function testGovernanceDocContainsRequiredSections() {
   assert.match(source, /productization-acceptance-matrix\.js/);
 }
 
+function testAuditThreadGovernanceIsPinned() {
+  const contract = read("docs/PLATFORM_CONTRACTS/audit-thread-governance-contract.md");
+  const rootCause = read("docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md");
+  const pluginContract = read("docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md");
+  const agents = read("AGENTS.md");
+  const automation = read("docs/MODULES/automation.md");
+  const governance = read("scripts/engineering-governance-check.js");
+  assert.match(contract, /Home AI Platform Audit/);
+  assert.match(contract, /Plugin Workspace Audit/);
+  assert.match(contract, /must not read[\s\S]+\.agent-context\/HANDOFF\.md/);
+  assert.match(contract, /Contract lane/);
+  assert.match(contract, /Architecture lane/);
+  assert.match(contract, /architecture lane is mandatory/);
+  assert.match(contract, /unclear domain contracts/);
+  assert.match(contract, /duplicated state derivation/);
+  assert.match(contract, /Return Card Required/);
+  assert.match(contract, /Every audit card should remind the target thread to return a card/);
+  assert.match(rootCause, /Return Card Required/);
+  assert.match(rootCause, /source thread cannot\s+close/);
+  assert.match(rootCause, /silently consumed/);
+  assert.match(pluginContract, /Return Card Required/);
+  assert.match(pluginContract, /Silent consumption is a contract violation/);
+  assert.match(contract, /Scheduled automation may create an audit request card/);
+  assert.match(contract, /discover the current audit thread dynamically/);
+  assert.match(contract, /must not persist or hard-code Codex audit\s+thread ids/);
+  assert.match(contract, /[Ss]end exactly one task card to that central audit thread/);
+  assert.match(contract, /must not fan out to plugin implementation threads/);
+  assert.match(agents, /Dedicated audit thread exception/);
+  assert.match(agents, /audit-thread-governance-contract\.md/);
+  assert.match(automation, /audit-thread-governance-contract\.md/);
+  assert.match(automation, /must not run deep host\/plugin audits[\s\S]+directly/);
+  assert.match(governance, /audit_thread_governance_contract_incomplete/);
+  assert.match(governance, /root_cause_contract_missing_return_card_closure/);
+  assert.match(governance, /plugin_contract_missing_return_card_closure/);
+}
+
 function testCodexMobileRecoveryGovernance() {
   const governance = read("scripts/engineering-governance-check.js");
   const pluginsDoc = read("docs/MODULES/plugins.md");
@@ -118,6 +162,8 @@ function testCodexMobileRecoveryGovernance() {
   assert.match(governance, /codex-mobile-recovery-api-routes\.js/);
   assert.match(governance, /codex-mobile-recovery-service\.test\.js/);
   assert.match(governance, /codex-mobile-recovery-api-routes\.test\.js/);
+  assert.match(governance, /fallback-governance-check\.js/);
+  assert.match(governance, /fallback-governance-check\.test\.js/);
   assert.match(pluginsDoc, /\/api\/codex-mobile\/recovery\/status/);
   assert.match(pluginsDoc, /\/api\/codex-mobile\/recovery\/restore/);
   assert.match(deploymentDoc, /Codex Mobile has a narrower macOS host recovery path/);
@@ -130,6 +176,7 @@ testProductizationRunsGovernanceCheck();
 testProductizationGateOrderIsPinned();
 testGovernanceToolsAreIndexed();
 testGovernanceDocContainsRequiredSections();
+testAuditThreadGovernanceIsPinned();
 testCodexMobileRecoveryGovernance();
 
 console.log("engineering-governance-check tests passed");

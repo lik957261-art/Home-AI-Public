@@ -16,6 +16,8 @@ function makeProvider(options = {}) {
   const provider = createAuthProvider({
     disableAuth: () => Boolean(options.disableAuth),
     envKey: () => options.envKey || "",
+    auditOwnerReadonlyKey: () => options.auditOwnerReadonlyKey || "",
+    auditOwnerReadonlyKeyPath: () => path.join(tempDir, "audit-owner-readonly.key"),
     authKeyPath: () => path.join(tempDir, "owner.key"),
     accessKeysPath: () => path.join(tempDir, "access-keys.json"),
     allowMemoryKey: () => Boolean(options.allowMemoryKey),
@@ -136,6 +138,31 @@ function testWorkspaceAuthCanCarryAccessibleWorkspaceIds() {
   assert.equal(provider.authCanAccessWorkspace(auth, "workspace_b"), true);
 }
 
+function testAuditOwnerReadonlyKeyHasOwnerVisibilityWithoutBeingGlobalOwnerKey() {
+  const { provider, tempDir } = makeProvider({ envKey: "owner-key" });
+  const auditKeyPath = path.join(tempDir, "audit-owner-readonly.key");
+  fs.writeFileSync(auditKeyPath, "audit-readonly-key\n# rotated old key\n", "utf8");
+
+  const auth = provider.authenticateRequest(reqWithKey("audit-readonly-key"));
+  assert.equal(auth.ok, true);
+  assert.equal(auth.isOwner, true);
+  assert.equal(auth.role, "owner");
+  assert.equal(auth.workspaceId, "owner");
+  assert.equal(auth.principalId, "audit-owner-readonly");
+  assert.equal(auth.keySource, "audit_owner_readonly");
+  assert.equal(auth.auditReadOnly, true);
+  assert.equal(provider.isOwnerAuth(auth), true);
+  assert.equal(provider.isAuditReadOnlyAuth(auth), true);
+  assert.equal(provider.authCanAccessWorkspace(auth, "owner"), true);
+  assert.equal(provider.authCanAccessWorkspace(auth, "workspace_a"), true);
+  assert.equal(provider.auditOwnerReadonlyKeySource(), "file");
+  assert.equal(provider.auditOwnerReadonlyKeyDisplayPath(), "audit-owner-readonly.key");
+
+  const ownerAuth = provider.authenticateRequest(reqWithKey("owner-key"));
+  assert.equal(ownerAuth.keySource, "env");
+  assert.equal(provider.isAuditReadOnlyAuth(ownerAuth), false);
+}
+
 function testQueryAccessKeyCanBeDisabled() {
   const { provider } = makeProvider({ envKey: "owner-key" });
   assert.equal(provider.authenticateRequest(reqWithQueryKey("owner-key")).ok, true);
@@ -170,6 +197,7 @@ testFirstRunOwnerSetupAndOwnerAuth();
 testWorkspaceKeyRotationAndScopedAuth();
 testWorkspaceKeyRotationDoesNotTouchPluginBindings();
 testWorkspaceAuthCanCarryAccessibleWorkspaceIds();
+testAuditOwnerReadonlyKeyHasOwnerVisibilityWithoutBeingGlobalOwnerKey();
 testQueryAccessKeyCanBeDisabled();
 testGlobalRotationEnvGuardAndDisabledAuth();
 console.log("auth-provider tests passed");

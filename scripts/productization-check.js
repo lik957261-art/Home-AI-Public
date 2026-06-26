@@ -39,6 +39,7 @@ function startupCheck() {
 
 function main() {
   run("Engineering governance check", "node", ["scripts/engineering-governance-check.js"]);
+  run("Fallback governance check", "node", ["scripts/fallback-governance-check.js", "--json"]);
   run("Public install preflight source check", "node", ["scripts/public-install-preflight.js", "--source-only", "--json"]);
   run("Plugin provisioning coverage audit", "node", ["scripts/plugin-provisioning-coverage-audit.js"]);
   run("macOS install phase coverage audit", "node", ["scripts/macos-install-phase-coverage-audit.js"]);

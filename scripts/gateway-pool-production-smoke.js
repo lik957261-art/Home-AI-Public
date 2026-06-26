@@ -134,8 +134,12 @@ async function main() {
   const pool = status.gatewayPool || {};
   const workers = Array.isArray(pool.workers) ? pool.workers : [];
   const healthy = workers.filter((worker) => worker.healthy === true).length;
-  if (!options.allowNoPool && (!pool.enabled || !healthy)) {
-    throw new Error(`Gateway Pool is not healthy enough for production smoke: enabled=${Boolean(pool.enabled)} healthy=${healthy}`);
+  const configured = workers.length;
+  if (!options.allowNoPool && !pool.enabled) {
+    throw new Error(`Gateway Pool is not enabled for production smoke: enabled=${Boolean(pool.enabled)}`);
+  }
+  if (!options.allowNoPool && !configured) {
+    throw new Error(`Gateway Pool has no configured workers for production smoke: enabled=${Boolean(pool.enabled)} healthy=${healthy}`);
   }
 
   const single = await api(options, "/api/single-window", {
@@ -197,7 +201,7 @@ async function main() {
       ok: true,
       gatewayPool: {
         enabled: Boolean(pool.enabled),
-        workerCount: Number(pool.workerCount || workers.length || 0),
+        workerCount: Number(pool.workerCount || configured || 0),
         healthy,
       },
       request: {

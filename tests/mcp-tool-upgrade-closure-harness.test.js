@@ -219,6 +219,7 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
   const script = read("scripts/mcp-tool-upgrade-closure-smoke.js");
   const gatewaySmoke = read("scripts/gateway-tool-schema-smoke.js");
   const runbook = read("docs/RUNBOOKS/mcp-tool-upgrade-closure.md");
+  const platformContract = read("docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md");
   const docsIndex = read("docs/DOCS_INDEX.md");
   const testMatrix = read("docs/TEST_MATRIX.md");
   const gatewayPool = read("docs/MODULES/gateway-pool.md");
@@ -246,6 +247,16 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
   assert.match(runbook, /Mobile instruction-service/);
   assert.match(runbook, /GATEWAY_TOOL_SCHEMA_EPOCH/);
   assert.match(runbook, /mcp_finance_add_transaction_attachment/);
+  assert.match(runbook, /Cross-Workspace Ownership And Task Cards/);
+  assert.match(runbook, /must not patch, test, deploy, commit/);
+  assert.match(runbook, /Codex Mobile[\s\S]*cross-thread task card/);
+  assert.match(runbook, /Home AI MCP callable schema sync for <plugin id>/);
+  assert.match(runbook, /mcp_music_music_demo_generate_narrations/);
+  assert.match(runbook, /mcp_music_music_demo_cleanup_narrations/);
+  assert.match(runbook, /20260623-music-demo-narration-cleanup-v1/);
+  assert.match(platformContract, /Cross-workspace ownership boundary/);
+  assert.match(platformContract, /must not inspect, edit, patch, test, deploy, or commit[\s\S]*Home AI source files/);
+  assert.match(platformContract, /Codex Mobile cross-thread task card/);
   assert.match(docsIndex, /MCP tool upgrade closure/);
   assert.match(testMatrix, /mcp-tool-upgrade-closure-harness\.test\.js/);
   assert.match(testMatrix, /mcp-tool-upgrade-closure-smoke\.js/);

@@ -1,17 +1,23 @@
 # Plugin Workspace Audit Loop
 
-Status: V1 implemented for plan creation, validation, canonical Automation
-storage, deterministic read-only report execution, summary-only Action Inbox
-projection helpers, Mac production target configuration, Simplified Chinese
-reports, and manual plugin workspace alignment audit trigger. Model-assisted
-repair loops remain a follow-up.
+Status: legacy local-runner design note. The maintained Product Reality audit
+path is now the central audit-thread request-card loop documented in
+`docs/IMPLEMENTATION_NOTES/product-reality-audit-loop.md`.
+
+The material below remains useful for understanding the older deterministic
+`plugin_workspace_audit` runner and diagnostic harnesses, but it is not the
+normal product workflow. Home AI must not run deep plugin audits locally through
+Automation/CRON for the Product Reality lane. Home AI validates the target,
+dynamically discovers the current central audit thread through Codex Mobile,
+sends one request card to `Plugin Workspace Audit`, and waits for that audit
+thread to fan out repair cards and return closure.
 
 ## Product Position
 
 Plugin workspace audit is a Home AI embedded-plugin capability, not a generic
 Codex Mobile standalone feature. The user is configuring Home AI to inspect a
 registered plugin workspace, produce an audit report, and surface follow-up
-review items in Action Inbox. The first alignment phase is manually triggered;
+review items in Action Inbox. The first Product Reality phase is manually triggered;
 nightly batch execution is intentionally deferred until report quality and task
 card quality are stable.
 
@@ -31,8 +37,9 @@ The first version should be deliberately small:
 - Inspect Home AI registered plugin workspaces manually in the first phase, and
   on a schedule in a later phase.
 - Keep audit threads separate from ordinary development and chat threads.
-- Compare plugin workspace docs, platform contracts, and implementation state
-  to detect product-goal drift before repair work starts.
+- Compare plugin workspace product intent, platform contracts, architecture,
+  implementation state, user workflow/UX, and executable evidence before
+  repair work starts.
 - Default to read-only operation with no repair, commit, push, deploy, or
   service restart.
 - Deliver concise reports through audit history, plugin delivery directories,
@@ -46,7 +53,7 @@ The first version should be deliberately small:
 - Do not add this as a Codex Mobile standalone scheduler or public default
   workflow.
 - Do not audit arbitrary local paths that are not registered plugin workspaces.
-- Do not audit the Home AI host workspace in the first alignment phase.
+- Do not audit the Home AI host workspace in the first Product Reality phase.
 - Do not auto-fix code, write files, create commits, push branches, deploy
   services, or mutate plugin databases in version 1.
 - Do not copy full diffs, raw logs, full model transcripts, secrets, launch
@@ -106,10 +113,10 @@ The first version should be deliberately small:
 
 ## Job Shape
 
-The first manual alignment trigger creates the same canonical
+The first manual Product Reality trigger creates the same canonical
 `plugin_workspace_audit` job shape and immediately requests a manual run. The
 job uses a CRON-compatible one-shot placeholder such as `schedule=1m`,
-`repeat=1`, `auditMode=alignment`, and `audit.triggerMode=manual`; the route
+`repeat=1`, `auditMode=product_reality`, and `audit.triggerMode=manual`; the route
 then immediately requests the existing Automation `run` action so execution is
 queued for the next dispatcher tick.
 
@@ -123,7 +130,7 @@ The Automation job should be structured instead of prompt-only:
   "targetWorkspaceId": "owner",
   "workspacePathRef": "plugin_registry",
   "schedule": "0 22 * * 0",
-  "auditMode": "alignment",
+  "auditMode": "product_reality",
   "executor": "codex_readonly",
   "readonly": true,
   "delivery": {
@@ -143,8 +150,9 @@ Rules:
 - `pluginId` must exist in the host plugin registry and be enabled for the
   effective workspace.
 - `readonly` must be true in version 1.
-- `auditMode` supports `alignment`, `recent_changes`, `dirty_diff`, and
-  `full_sample`. The default manual mode is `alignment`.
+- `auditMode` supports `product_reality`, `alignment`, `recent_changes`,
+  `dirty_diff`, and `full_sample`. The default manual mode is
+  `product_reality`.
 - The job may include a bounded `scope` object, such as file globs or max report
   size, but the server must validate that scope before dispatch.
 
@@ -158,15 +166,17 @@ Rules:
 3. Home AI validates plugin id, workspace access, plugin provisioning,
    workspace path, schedule, audit mode, executor availability, and read-only
    policy.
-4. For manual alignment audit, Automation creates a canonical one-shot job and
+4. For manual Product Reality audit, Automation creates a canonical one-shot job and
    immediately marks it for the next dispatcher tick. For scheduled audit,
    Automation creates or updates the canonical scheduled job.
 5. At the manual or scheduled run time, the dispatcher creates a bounded child
    process for the read-only audit runner.
 6. The executor reads Git metadata, bounded source markers, and for
-   `alignment` mode prioritizes workspace context/docs and platform contract
-   files before implementation samples. It then produces a Markdown report with
-   severity, evidence, and recommended follow-up context.
+   `product_reality` mode prioritizes workspace context/docs, platform
+   contracts, product intent, architecture, implementation, UX/workflow
+   evidence, and executable harness/test evidence before implementation
+   samples. It then produces a Markdown report with severity, evidence, finding
+   class, task-card destination, and closure validation.
 7. Home AI stores the report under the audit history or plugin delivery
    directory, with retention and access control.
 8. Home AI upserts an Action Inbox item:
@@ -236,11 +246,14 @@ Minimum report fields:
 - executor diagnostics;
 - retention metadata.
 
-For `alignment` mode the user-facing report title should be
-`插件工作区目标一致性审计 - <plugin>`, delivered in Simplified Chinese. The
-report should include implemented/partial/missing documented goals when Codex
-can determine them, document drift, platform-contract gaps, recommended task
-card drafts, and uncertainty. It must not auto-repair code.
+For `product_reality` mode the user-facing report title should be
+`插件工作区产品现实一致性审计 - <plugin>`, delivered in Simplified Chinese.
+The report should compare product intent, architecture/domain contract, code,
+real user workflow/UX state, and executable test/harness evidence. It should
+classify findings as `product_doc_gap`, `implementation_gap`,
+`architecture_gap`, `ux_gap`, `test_gap`, `fallback_debt`, or `closure_gap`;
+name the owning workspace/layer; and include task-card destination plus closure
+validation. It must not auto-repair code.
 
 Reports may be Markdown for human reading, with optional JSON front matter for
 machine projection. Long raw logs and full diffs should remain out of the
@@ -259,7 +272,7 @@ Audit Inbox items should use:
 - severity summary and finding count.
 
 The Inbox item should not duplicate the report body. It is a triage pointer.
-For manual alignment audit, `sourceType=automation` still applies because
+For manual Product Reality audit, `sourceType=automation` still applies because
 Automation owns the canonical job/run record; `sourceRef.triggerMode=manual`
 may be included by later projections.
 
@@ -278,11 +291,11 @@ may be included by later projections.
 
 ## MVP
 
-- Manually trigger a plugin workspace alignment audit from an explicit host
+- Manually trigger a plugin workspace Product Reality audit from an explicit host
   surface.
 - Create/read/update/delete scheduled audit plans from an explicit host surface.
 - Support one plugin workspace per plan.
-- Support `alignment`, `recent_changes`, and `dirty_diff`.
+- Support `product_reality`, `alignment`, `recent_changes`, and `dirty_diff`.
 - Launch a read-only executor with a fixed prompt.
 - Store a bounded report and Action Inbox review/error item.
 - Disable with a bounded diagnostic when no executor is configured.
@@ -308,13 +321,13 @@ natural-language Automation interpreter:
 }
 ```
 
-Manual alignment trigger:
+Manual Product Reality trigger:
 
 ```json
 {
   "workspaceId": "owner",
   "pluginId": "codex-mobile",
-  "auditMode": "alignment",
+  "auditMode": "product_reality",
   "instructions": "Focus on product goal drift.",
   "dryRun": true
 }
@@ -325,11 +338,11 @@ placeholder schedule such as `1m`, `repeat=1`, and immediately requests a
 `run` action. The dispatcher still owns actual execution, report creation,
 Inbox projection, and run history.
 
-Home AI resolves audit workspaces only from configured targets. Supported
-configuration forms are:
+Home AI resolves audit request targets only from configured targets and a
+controlled UI target list. Supported configuration forms are:
 
 - `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS` /
-  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS`, a JSON object keyed by plugin id;
+  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS`, a JSON object keyed by target id;
 - `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_<PLUGIN_ID>_PATH` /
   `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_<PLUGIN_ID>_PATH` for a single target.
 
@@ -338,7 +351,9 @@ If no target is configured, creation fails with
 paths.
 
 The central Mac deploy script injects a productized default target map for
-registered production plugin source roots under `<macRoot>/plugins`, including
+registered production plugin source roots under `<macRoot>/plugins`, plus
+`home-ai -> <macRoot>/app` for the Home AI host/platform self-audit. Plugin
+targets include
 `codex-mobile -> <macRoot>/plugins/codex-mobile-web`, `finance`,
 `wardrobe`, `email`, `note`, `growth`, `moira`, and `health -> healthy`.
 Installations with different roots should pass `--mac-root` or override the
@@ -366,15 +381,14 @@ calls `scripts/plugin-workspace-audit-runner.js`. The runner:
 - upserts a summary-only Action Inbox review/error item when a configured
   runtime SQLite path is available through `HERMES_WEB_DB_PATH`,
   `HERMES_MOBILE_DB_PATH`, or the data-dir default.
-- may send a model-backed follow-up through Codex Mobile cross-thread task
-  cards when
+- has a deprecated local-diagnostic task-card mapping mode. Production Product
+  Reality audit requests must not depend on
   `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` or
-  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE` points to a JSON
-  mapping with an explicit `sourceThreadId` and plugin `targetThreadIds`.
-  The runner calls Codex Mobile's `create-thread-task-card.js` wrapper and does
-  not directly start Codex for the normal production path, so active profile,
-  visible thread state, and shared app-server/mux ownership remain centralized
-  in Codex Mobile.
+  `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE`; the maintained path
+  dynamically discovers the current central audit thread through Codex Mobile
+  and sends one request card to `Plugin Workspace Audit` for plugin targets.
+  The `home-ai` controlled target sends one request card to
+  `Home AI Platform Audit` instead.
 - still has an explicit local-debug Codex CLI path gated by
   `HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1` or
   `HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED=1`. Mac production keeps
@@ -388,7 +402,7 @@ calls `scripts/plugin-workspace-audit-runner.js`. The runner:
 - Add safe scratch test mode for selected plugin-defined commands.
 - Add audit history UI inside plugin management.
 - Add recurring summary trends.
-- Add nightly batch alignment audit for idle plugin workspaces only.
+- Add nightly batch Product Reality audit for idle plugin workspaces only.
 - Add cross-plugin dependency checks, such as host contract drift.
 - Add richer task-card suggestions with user confirmation.
 - Expand Codex Mobile task-card routing with plugin-specific approval policy,

@@ -1014,6 +1014,7 @@ function updateRunProgressPromptReserveClass(article, thread, message = {}) {
 
 function stickRunProgressToConversationBottom(conversation, shouldStick, beforeMetrics = null) {
   if (!conversation || !shouldStick) return;
+  if (typeof conversationReadAnchorActive === "function" && conversationReadAnchorActive(conversation)) return;
   const before = beforeMetrics || runProgressScrollMetrics(conversation);
   if (!before) return;
   const now = Date.now();

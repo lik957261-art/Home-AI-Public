@@ -19,6 +19,10 @@ const pluginWorkspaceContract = fs.readFileSync(
   path.join(repoRoot, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"),
   "utf8",
 );
+const autonomousDeliveryLoopContract = fs.readFileSync(
+  path.join(repoRoot, "docs", "PLATFORM_CONTRACTS", "autonomous-delivery-loop-contract.md"),
+  "utf8",
+);
 const deploymentDoc = fs.readFileSync(path.join(repoRoot, "docs", "MODULES", "deployment.md"), "utf8");
 const productionAccess = fs.readFileSync(path.join(repoRoot, "docs", "RUNBOOKS", "macos-production-access.md"), "utf8");
 const pluginsDoc = fs.readFileSync(path.join(repoRoot, "docs", "MODULES", "plugins.md"), "utf8");
@@ -55,6 +59,9 @@ assert.match(script, /codex-mobile-web\.err\.log/);
 assert.match(script, /launchdReloadRequired/);
 assert.match(script, /currentStdoutPath !== files\[0\]/);
 assert.match(script, /currentStderrPath !== files\[1\]/);
+assert.match(script, /finance-launchd-workspace-key-hashes/);
+assert.match(script, /install-finance-launchd-service\.js/);
+assert.match(script, /--require-workspace-key-hashes/);
 assert.match(script, /music-runtime-cover-permissions/);
 assert.match(script, /cover-plan-cache/);
 assert.match(script, /cover-backups/);
@@ -96,6 +103,8 @@ assert.match(script, /home-ai-visual-polish-cron-jobs/);
 assert.match(script, /home-ai-visual-polish-task-card-config/);
 assert.match(script, /installHomeAiVisualPolishCronJobs/);
 assert.match(script, /installHomeAiVisualPolishTaskCardConfig/);
+assert.match(script, /HOMEAI_INSTALL_VISUAL_POLISH_CRON_JOBS/);
+assert.match(script, /installEnabled: false/);
 assert.match(script, /homeai_visual_host/);
 assert.match(script, /homeai_visual_music/);
 assert.match(script, /homeai_visual_global_interactions/);
@@ -130,6 +139,11 @@ assert.match(script, /home-ai-gateway-start-script-bridge-env-repair/);
 assert.match(script, /macos-gateway-start-script-bridge-env-repair\.js/);
 assert.match(script, /installRootOwnedTextFile/);
 assert.match(script, /HOME_AI_CRON_PROFILE_READ_ACL/);
+assert.match(script, /HOME_AI_GATEWAY_WORKER_RUNTIME_SETTING_ENVS/);
+assert.match(script, /runtimeConfigGatewayWorkerEnvRows/);
+assert.match(script, /runtime-config\.json/);
+assert.match(script, /HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM/);
+assert.match(script, /gatewayWorkerRuntimeSettingCount/);
 assert.match(script, /HOME_AI_CRON_PLUGIN_BINDING_DIR_NAMES/);
 assert.match(script, /applyAclIfExists\(bindingDir, HOME_AI_CRON_PROFILE_READ_ACL/);
 assert.match(script, /\/usr\/bin\/install/);
@@ -152,7 +166,8 @@ assert.match(script, /validationDelayMs: 2000/);
 assert.match(script, /DEPLOY_BACKUP_RETENTION_DAYS = 3/);
 assert.match(script, /--deploy-backup-retention-days/);
 assert.match(script, /deploy-backup-retention-prune/);
-assert.match(script, /find \\"\$root\\" -mindepth 1 -maxdepth 1 -type d -mtime \+\\"\$days\\" ! -path \\"\$current\\"/);
+assert.match(script, /dailyLatestPerTarget: true/);
+assert.match(script, /targetSlugs = /);
 assert.match(script, /function shouldRetryValidation/);
 assert.match(script, /home-ai-status-smoke/);
 assert.match(script, /health-url/);
@@ -188,6 +203,8 @@ assert.match(script, /AGENTS\.md/);
 assert.match(script, /\.codex\//);
 assert.match(script, /\.codegraph\//);
 assert.match(script, /node_modules\//);
+assert.match(script, /gateway-worker\/music-mcp\/node_modules/);
+assert.match(script, /gateway-worker\/music-mcp\/package-lock\.json/);
 assert.match(script, /\.venv\//);
 assert.match(script, /deploy_source_dirty_requires_allow_dirty/);
 assert.match(script, /plan\.restartLabels\.includes\(codexMobileLogRepair\.launchdLabel\)/);
@@ -198,19 +215,74 @@ assert.doesNotMatch(script, /console\.log\(.*password/i);
 assert.doesNotMatch(script, /console\.error\(.*password/i);
 assert.doesNotMatch(script, /\/usr\/bin\/tee/);
 
-for (const plugin of ["codex-mobile-web", "email", "finance", "growth", "healthy", "moira", "music", "note", "wardrobe"]) {
+for (const plugin of ["codex-mobile-web", "email", "finance", "growth", "healthy", "moira", "movie", "music", "note", "wardrobe"]) {
   assert.match(script, new RegExp(`"${plugin}"`));
   assert.match(contract, new RegExp(`${plugin} -> /Users/example/path`));
   assert.match(productionAccess, new RegExp(`${plugin} -> /Users/example/path`));
 }
 
 assert.match(deploymentDoc, /deploy-macos-production\.js/);
+assert.match(contract, /code but then discovers that deployment is blocked/);
 assert.match(deploymentDoc, /install-growth-launchd-service\.js/);
 assert.match(deploymentDoc, /install-moira-launchd-service\.js/);
 assert.match(deploymentDoc, /install-music-launchd-service\.js/);
 assert.match(deploymentDoc, /cover-plan-cache/);
 assert.match(productionAccess, /deploy-macos-production\.js/);
 assert.equal(packageJson.scripts["deploy:macos"], "node scripts/deploy-macos-production.js");
+
+assert.deepEqual(
+  deployScript.parseDeployBackupName("20260622T125745Z-plugin-music-music-verified-roon-playback"),
+  {
+    timestamp: "20260622T125745Z",
+    date: "2026-06-22",
+    targetSlug: "plugin-music",
+  },
+);
+assert.equal(
+  deployScript.parseDeployBackupName("20260622T125745Z-plugin-codex-mobile-web-runtime-log-repair").targetSlug,
+  "plugin-codex-mobile-web",
+);
+assert.deepEqual(
+  deployScript.parseDeployBackupName("20260621-144252-home-ai-android-v0412-status-force-light"),
+  {
+    timestamp: "20260621T144252Z",
+    date: "2026-06-21",
+    targetSlug: "home-ai",
+  },
+);
+{
+  const root = "/tmp/deploy";
+  const entries = [
+    "20260619T090000Z-plugin-music-old",
+    "20260620T090000Z-plugin-music-first",
+    "20260620T120000Z-plugin-music-latest",
+    "20260621T090000Z-plugin-music-only",
+    "20260622T090000Z-plugin-music-first",
+    "20260622T125745Z-plugin-music-current",
+    "20260621T090000Z-home-ai-first",
+    "20260621T120000Z-home-ai-latest",
+    "20260622T100000Z-plugin-codex-mobile-web-first",
+    "20260622T110000Z-plugin-codex-mobile-web-latest",
+    "20260621-090000-home-ai-old-format",
+  ].map((name) => ({ name, path: `${root}/${name}` }));
+  const selected = deployScript.selectDeployBackupsToPrune(
+    entries,
+    `${root}/20260622T125745Z-plugin-music-current`,
+    3,
+  );
+  assert.equal(selected.cutoffDate, "2026-06-20");
+  assert.deepEqual(selected.prune, [
+    `${root}/20260619T090000Z-plugin-music-old`,
+    `${root}/20260620T090000Z-plugin-music-first`,
+    `${root}/20260621-090000-home-ai-old-format`,
+    `${root}/20260621T090000Z-home-ai-first`,
+    `${root}/20260622T090000Z-plugin-music-first`,
+    `${root}/20260622T100000Z-plugin-codex-mobile-web-first`,
+  ]);
+  assert.match(selected.keep.join("\n"), /20260620T120000Z-plugin-music-latest/);
+  assert.match(selected.keep.join("\n"), /20260621T120000Z-home-ai-latest/);
+  assert.match(selected.keep.join("\n"), /20260622T110000Z-plugin-codex-mobile-web-latest/);
+}
 
 assert.match(contract, /Every plugin project must read this contract before any Mac production deploy/);
 assert.match(contract, /\/Users\/hermes-dev\/HermesMobileDev\/app\/docs\/PLATFORM_CONTRACTS\/macos-dev-to-production-deployment-contract\.md/);
@@ -225,12 +297,27 @@ assert.match(contract, /selected Gateway callable-schema/);
 assert.match(contract, /must not bypass it with a plugin-private\s+production write path/);
 assert.match(contract, /\.codegraph/);
 assert.match(contract, /must not reuse the source sync exclude list/);
-assert.match(contract, /prune deploy backups older\s+than three days/);
+assert.match(contract, /keep only the most recent three UTC\s+calendar days for each target/);
+assert.match(contract, /within each target\/day keep only that day's\s+latest backup/);
+assert.match(contract, /Plugin workspaces may call this shared deploy script directly for their own\s+plugin targets/);
+assert.match(contract, /must not send a task card\s+to the Home AI workspace merely because this script lives under the Home AI app\s+workspace/);
+assert.match(contract, /Routine plugin deploy task cards are a routing error/);
+assert.match(contract, /The Home AI receiver must not execute that deploy\s+for convenience/);
+assert.match(contract, /return `redirected` or\s+`blocked` with the exact plugin-owned plan\/execute\/readback commands/);
+assert.match(contract, /Escalate to a Home AI task card only when the missing work is host\/platform\s+owned/);
 
 assert.match(pluginWorkspaceContract, /macos-dev-to-production-deployment-contract\.md/);
 assert.match(pluginWorkspaceContract, /Plugin threads must read that file before production deploys/);
 assert.match(pluginWorkspaceContract, /must not replace the central deploy path with a\s+plugin-private sudo\/rsync flow/);
 assert.match(pluginWorkspaceContract, /npm run --silent deploy:macos -- --plugin <plugin-id>/);
+assert.match(pluginWorkspaceContract, /Plugin-Owned Deployment Closure And Task Cards/);
+assert.match(pluginWorkspaceContract, /the plugin thread must finish the operation itself/);
+assert.match(pluginWorkspaceContract, /Sending a cross-thread task card to Home AI for that class\s+of work interrupts the host-app work queue/);
+assert.match(pluginWorkspaceContract, /This is a hard routing boundary, not an optimization preference/);
+assert.match(pluginWorkspaceContract, /must not send Home AI a "deploy this\s+plugin" task card as a substitute for continuing its own work/);
+assert.match(pluginWorkspaceContract, /Home AI must return `redirected`\s+or `blocked` with the exact plugin-owned commands and must not deploy the\s+plugin merely because it has access to the shared script/);
+assert.match(autonomousDeliveryLoopContract, /If the owning plugin can execute\s+the central `deploy:macos -- --plugin <plugin-id>` path from its own loop/);
+assert.match(autonomousDeliveryLoopContract, /must not route a Home AI deployment card merely to run the\s+shared script/);
 assert.match(deploymentDoc, /--sync-only/);
 assert.match(deploymentDoc, /Backup rsync uses a narrower exclude list/);
 assert.match(deploymentDoc, /gateway-worker\/<plugin>-mcp/);
@@ -239,6 +326,8 @@ assert.match(productionAccess, /--sync-only/);
 
 assert.match(pluginsDoc, /Plugin Codex threads must read that central contract before production deploys/);
 assert.match(pluginsDoc, /must not introduce a separate sudo, rsync, SSH, or production\s+write-access path/);
+assert.match(pluginsDoc, /Plugin-owned deploy and validation work should stay in the plugin thread/);
+assert.match(pluginsDoc, /must not send a task\s+card to Home AI just because the central deploy script or embedded shell is\s+used/);
 assert.match(productionAccess, /Plugin workspaces should read the central deployment contract before deploys/);
 assert.match(productionAccess, /\/Users\/hermes-dev\/HermesMobileDev\/app/);
 
@@ -293,11 +382,24 @@ const statusSmoke = payload.plan.validation.find((item) => item.type === "home-a
 assert.ok(statusSmoke.command.includes("--expected-version"));
 assert.ok(payload.plan.validation.some((item) => item.type === "home-ai-status-smoke"));
 assert.ok(payload.plan.validation.some((item) => item.type === "home-ai-automation-cron-audit"));
+const cronAudit = payload.plan.validation.find((item) => item.type === "home-ai-automation-cron-audit");
+assert.ok(cronAudit.command.includes("--strict-config"));
+assert.ok(cronAudit.command.includes("--strict-source"));
+assert.ok(cronAudit.command.includes("--strict-status"));
+assert.ok(cronAudit.command.includes("--status-since"));
+assert.ok(cronAudit.command.includes("2026-06-08T00:00:00Z"));
 assert.ok(payload.plan.validation.some((item) => item.type === "codex-auth-profile-audit"));
 const driftAudit = payload.plan.validation.find((item) => item.type === "home-ai-production-drift-audit");
 assert.ok(driftAudit);
 assert.ok(driftAudit.command.some((item) => String(item).endsWith("macos-production-profile-audit.js")));
 assert.ok(driftAudit.command.includes("--no-strict"));
+assert.match(script, /HOMEAI_TTS_PROVIDER/);
+assert.match(script, /HOMEAI_TTS_COSYVOICE_PYTHON/);
+assert.match(script, /HOMEAI_TTS_COSYVOICE_MODEL_DIR/);
+assert.match(script, /HOMEAI_TTS_COSYVOICE_CACHE_DIR/);
+assert.match(script, /HOME_AI_TTS_COSYVOICE_INSTALLED/);
+assert.match(script, /Fun-CosyVoice3-0\.5B/);
+assert.match(script, /ttsCosyVoiceConfigured/);
 assert.equal(driftAudit.failOnAnyIssue, true);
 assert.equal(driftAudit.failOnIssuePrefixes, undefined);
 assert.ok(payload.plan.validation.some((item) => item.type === "launchd-print" && item.command.includes("system/com.hermesmobile.bridge-host")));
@@ -344,7 +446,7 @@ assert.match(cronPlist, /\/Users\/hermes-host\/HermesMobile\/data\/hermes-home\/
 assert.match(cronPlist, /<key>HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED<\/key>\s*<string>0<\/string>/);
 assert.match(cronPlist, /<key>HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND<\/key>\s*<string>codex<\/string>/);
 assert.match(cronPlist, /<key>HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME<\/key>\s*<string><\/string>/);
-assert.match(cronPlist, /<key>HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE<\/key>\s*<string>\/Users\/hermes-host\/HermesMobile\/data\/plugin-workspace-audit-task-cards\.json<\/string>/);
+assert.doesNotMatch(cronPlist, /PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE/);
 assert.match(cronPlist, /<key>CODEX_MOBILE_BASE_URL<\/key>\s*<string>http:\/\/127\.0\.0\.1:8787<\/string>/);
 assert.match(cronPlist, /<key>CODEX_MOBILE_KEY_FILE<\/key>\s*<string>\/Users\/hermes-host\/HermesMobile\/data\/secrets\/codex-mobile-access-key\.secret<\/string>/);
 assert.match(cronPlist, /<key>HERMES_CRON_SCRIPT_TIMEOUT<\/key>\s*<string>1800<\/string>/);
@@ -354,6 +456,7 @@ assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_SSH_DESTINATION<\/key>\s*<s
 assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_SSH_OPTIONS<\/key>\s*<string>-p 2222 -i \/Users\/hermes-host\/\.ssh\/homeai_nas_backup_ed25519<\/string>/);
 
 const pluginWorkspaceAuditTargets = JSON.parse(deployScript.buildPluginWorkspaceAuditTargetJson("/Users/example/path"));
+assert.equal(pluginWorkspaceAuditTargets["home-ai"], "/Users/example/path");
 assert.equal(pluginWorkspaceAuditTargets["codex-mobile"], "/Users/example/path");
 assert.equal(pluginWorkspaceAuditTargets.finance, "/Users/example/path");
 assert.equal(pluginWorkspaceAuditTargets.health, "/Users/example/path");
@@ -442,6 +545,10 @@ createPluginFixture("email", { "dist/web/index.html": "<html></html>\n" });
 createPluginFixture("growth", { "public/index.html": "<html></html>\n" });
 createPluginFixture("music", { "dist/web/index.html": "<html></html>\n" });
 createPluginFixture("note", { "public/index.html": "<html></html>\n" });
+const movieFixtureSource = path.join(fixtureDevRoot, "Movie");
+fs.mkdirSync(path.join(movieFixtureSource, "public"), { recursive: true });
+fs.writeFileSync(path.join(movieFixtureSource, "package.json"), "{\"name\":\"movie-fixture\"}\n");
+fs.writeFileSync(path.join(movieFixtureSource, "public", "index.html"), "<html></html>\n");
 
 const staticRun = spawnSync(process.execPath, [
   scriptPath,
@@ -589,6 +696,40 @@ assert.equal(healthAliasPayload.plan.productionPath, "/Users/example/path");
 assert.deepEqual(healthAliasPayload.plan.restartLabels, ["com.hermesmobile.plugin.health"]);
 assert.equal(healthAliasPayload.plan.healthUrl, "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest");
 
+const moviePluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "movie",
+  "--source",
+  movieFixtureSource,
+  "--dev-root",
+  fixtureDevRoot,
+  "--restart-label",
+  "com.hermesmobile.plugin.movie",
+  "--health-url",
+  "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest",
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "harness",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(moviePluginRun.status, 0, moviePluginRun.stderr);
+const moviePluginPayload = JSON.parse(moviePluginRun.stdout);
+assert.equal(moviePluginPayload.plan.target, "plugin:movie");
+assert.equal(moviePluginPayload.plan.productionPath, "/Users/example/path");
+assert.deepEqual(moviePluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.movie"]);
+assert.equal(moviePluginPayload.plan.healthUrl, "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest");
+assert.deepEqual(moviePluginPayload.plan.proofFiles, ["public/index.html"]);
+assert.ok(moviePluginPayload.plan.rsyncExcludes.includes("data/"));
+assert.ok(moviePluginPayload.plan.validation.some((item) => (
+  item.type === "production-file-hashes"
+  && item.files.includes("public/index.html")
+)));
+
 const codexPluginRun = spawnSync(process.execPath, [
   scriptPath,
   "--plugin",
@@ -657,7 +798,13 @@ assert.notEqual(wrongCodexSourceRun.status, 0);
 assert.match(wrongCodexSourceRun.stderr, /plugin_proof_file_missing:codex-mobile-web:codex-app-server-mux\.js/);
 
 const financeRepairPlan = deployScript.postSyncRepairsForTarget({ target: "plugin:finance" });
-assert.deepEqual(financeRepairPlan, []);
+assert.equal(financeRepairPlan[0].type, "finance-launchd-workspace-key-hashes");
+assert.equal(financeRepairPlan[0].launchdLabel, "com.hermesmobile.plugin.finance");
+assert.equal(financeRepairPlan[0].installerRelativePath, "scripts/install-finance-launchd-service.js");
+assert.equal(
+  deployScript.redactSensitiveOutput("FINANCE_HERMES_WORKSPACE_KEY_HASHES_JSON => {\"owner\":\"abc\"}\nnext"),
+  "FINANCE_HERMES_WORKSPACE_KEY_HASHES_JSON => [redacted]\nnext",
+);
 const homeAiRepairPlan = deployScript.postSyncRepairsForTarget({ target: "home-ai" });
 assert.equal(homeAiRepairPlan[0].type, "codex-mobile-log-permissions");
 assert.equal(homeAiRepairPlan[0].profileFile, "/Users/example/path");
@@ -773,6 +920,7 @@ const allPluginRun = spawnSync(process.execPath, [
 assert.equal(allPluginRun.status, 0, allPluginRun.stderr);
 const allPluginPayload = JSON.parse(allPluginRun.stdout);
 assert.equal(allPluginPayload.plan.target, "plugins:all");
+assert.equal(allPluginPayload.plan.sourceRoot, fixtureDevRoot);
 assert.deepEqual(allPluginPayload.plan.pluginTargets, [
   "codex-mobile-web",
   "email",
@@ -780,6 +928,7 @@ assert.deepEqual(allPluginPayload.plan.pluginTargets, [
   "growth",
   "healthy",
   "moira",
+  "movie",
   "music",
   "note",
   "wardrobe",
@@ -791,6 +940,7 @@ assert.deepEqual(allPluginPayload.plan.plans.map((item) => item.target), [
   "plugin:growth",
   "plugin:healthy",
   "plugin:moira",
+  "plugin:movie",
   "plugin:music",
   "plugin:note",
   "plugin:wardrobe",
@@ -819,7 +969,7 @@ assert.equal(
 );
 assert.equal(
   allPluginPayload.plan.plans.find((item) => item.target === "plugin:music").postSyncMirrors.length,
-  2,
+  4,
 );
 
 const allPluginSourceOverrideRun = spawnSync(process.execPath, [

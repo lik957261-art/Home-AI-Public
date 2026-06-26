@@ -28,11 +28,14 @@ sends cross-thread task cards to the configured plugin Codex Mobile threads.
 The runner does not start Codex CLI directly. Task execution remains owned by
 Codex Mobile task cards so Home AI, app-server, and mux state stay aligned with
 the selected target thread/profile. Evidence capture remains `no_agent`; the
-high-reasoning analysis step is a separate Home AI Automation job named
+high-reasoning analysis step can be a separate Home AI Automation job named
 `homeai_visual_analysis_xhigh`. That job is agent-backed, uses the dedicated
 `hm-owner-openai-xhigh` profile, and maps the requested ChatGPT 5.5 X Hi mode to
 `gpt-5.5` plus `agent.reasoning_effort: xhigh` so the analysis itself happens
 inside Home AI rather than being expressed only as a downstream card preference.
+Scheduled visual verification jobs are not installed by ordinary production
+deployments. Deployments remove existing `homeai_visual_*` jobs unless
+`HOMEAI_INSTALL_VISUAL_POLISH_CRON_JOBS=1` is set for an explicit opt-in run.
 
 On Mac production, the live debug server is installed as the desktop user's
 LaunchAgent `com.hermesmobile.visual-debug`. The scheduled CRON jobs continue

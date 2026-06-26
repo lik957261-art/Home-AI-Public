@@ -78,7 +78,12 @@ function updateSearchButton() {
 }
 
 async function openSearchPrompt() {
-  const next = window.prompt("Search", currentSearchText());
+  const next = await openAppPromptDialog({
+    title: "Search",
+    inputLabel: "Search",
+    defaultValue: currentSearchText(),
+    confirmLabel: "搜索",
+  });
   if (next == null) return;
   $("threadSearch").value = String(next || "").trim();
   updateSearchButton();

@@ -37,6 +37,8 @@ assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_ACTION_MANIFEST_LOAD_TTL_MS = 60000;/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_BINDINGS_LOAD_TTL_MS = 30000;/);
 assert.match(pluginTopicsUi, /const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1\.45;/);
+assert.match(pluginTopicsUi, /id: "movie"[\s\S]*?viewMode: "movie"[\s\S]*?label: "\\u5f71\\u9662"[\s\S]*?actions: Object\.freeze\(\[\]\)/);
+assert.match(pluginTopicsUi, /if \(id === "movie"\) return "bottomMovieMode";/);
 assert.match(pluginTopicsUi, /function pluginTopicAppQuickAction/);
 assert.match(pluginTopicsUi, /function pluginTopicCurrentManifest/);
 assert.match(pluginTopicsUi, /function pluginTopicManifestActions/);
@@ -170,9 +172,11 @@ assert.match(directoryTopicsUi, /data-directory-topic-root-toggle/);
 assert.match(directoryTopicsUi, /function directoryTopicRootCollapsedStorageKey/);
 assert.match(directoryTopicsUi, /function readDirectoryTopicRootCollapsed/);
 assert.match(directoryTopicsUi, /function setDirectoryTopicRootCollapsed/);
+assert.match(directoryTopicsUi, /function directoryTopicRootBucketsForCollections/);
+assert.match(directoryTopicsUi, /directory-topic-subdirectory-label/);
 assert.doesNotMatch(directoryTopicsUi, /<button class="directory-topic-root-entry"[\s\S]*?data-directory-topic-open-root/);
 assert.match(directoryTopicsUi, /directory-topic-root-icon/);
-assert.match(directoryTopicsUi, /visible\.length[\s\S]*?topicCount/);
+assert.match(directoryTopicsUi, /rootBuckets\.length[\s\S]*?topicCount/);
 assert.match(directoryTopicsUi, /const routeId = String\(route\.projectId \|\| route\.id \|\| ""\)\.trim\(\);/);
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-association-label/);
 assert.doesNotMatch(directoryTopicsUi, /directory-topic-subtitle/);
@@ -581,10 +585,15 @@ assert.match(menuHtml, /data-plugin-topic-move-dir="up"/, "plugin popup menu mus
   assert.match(wardrobeGroup.directoryRoute.path, /\/插件\/衣橱$/);
 }
 
-function createDirectoryTopicHarness() {
+function createDirectoryTopicHarness(options = {}) {
   const storage = new Map();
   const sandbox = {
     console,
+    state: {
+      selectedWorkspaceId: "owner",
+      auth: { workspaceId: "owner" },
+      projects: options.projects || [],
+    },
     localStorage: {
       getItem(key) {
         return storage.has(key) ? storage.get(key) : null;
@@ -604,6 +613,13 @@ function createDirectoryTopicHarness() {
     taskShortTitle: (group) => group.title || "",
     taskTitle: (group) => group.title || "",
     taskGroupOwnerWorkspaceId: (group) => group.ownerWorkspaceId || group.messages?.[0]?.senderWorkspaceId || "",
+    projectDisplayLabel: (project) => project?.label || project?.id || "",
+    directoryRouteDisplayPath: (route, fallbackLabel = "") => {
+      const project = (sandbox.state.projects || []).find((item) => item.id === route?.projectId);
+      const child = route?.subprojectId ? (project?.children || []).find((item) => item.id === route.subprojectId) : null;
+      const rootLabel = project?.label || route?.label || fallbackLabel || "";
+      return child ? `${rootLabel} / ${child.label || child.id}` : rootLabel;
+    },
     topicReceiptSummaryTitleFromGroup: (group) => group.lastReceiptTitle || "",
   };
   vm.createContext(sandbox);
@@ -611,6 +627,7 @@ function createDirectoryTopicHarness() {
 globalThis.__directoryTopicHarness = {
   render: renderDirectoryTopicCards,
   collections: directoryTopicCollectionsForGroups,
+  rootBuckets: directoryTopicRootBucketsForCollections,
   setCollapsed: setDirectoryTopicCollapsed,
   setRootCollapsed: setDirectoryTopicRootCollapsed,
 };`, sandbox);
@@ -720,6 +737,61 @@ function directoryCardCollapsed(html, key) {
 
   harness.setCollapsed("dir-4", false);
   assert.equal(directoryCardCollapsed(harness.render(collections), "dir-4"), false);
+}
+
+{
+  const harness = createDirectoryTopicHarness({
+    projects: [{
+      id: "fanfan",
+      label: "凡凡",
+      root: "/drive/凡凡",
+      children: [
+        { id: "study", label: "学业计划", root: "/drive/凡凡/学业计划" },
+        { id: "health", label: "健康", root: "/drive/凡凡/健康" },
+        { id: "python", label: "Python", root: "/drive/凡凡/Python" },
+      ],
+    }],
+  });
+  const collections = harness.collections([
+    {
+      id: "study-plan-topic",
+      title: "学业计划跟进",
+      ownerWorkspaceId: "owner",
+      updatedAt: "2026-06-25T08:00:00.000Z",
+      directoryRoute: { projectId: "fanfan", subprojectId: "study", label: "学业计划", root: "/drive/凡凡/学业计划", path: "/drive/凡凡/学业计划", ownerWorkspaceId: "owner" },
+    },
+    {
+      id: "health-topic",
+      title: "健康记录",
+      ownerWorkspaceId: "owner",
+      updatedAt: "2026-06-25T07:00:00.000Z",
+      directoryRoute: { projectId: "fanfan", subprojectId: "health", label: "健康", root: "/drive/凡凡/健康", path: "/drive/凡凡/健康", ownerWorkspaceId: "owner" },
+    },
+    {
+      id: "python-topic",
+      title: "Python 练习",
+      ownerWorkspaceId: "owner",
+      updatedAt: "2026-06-25T06:00:00.000Z",
+      directoryRoute: { projectId: "fanfan", subprojectId: "python", label: "Python", root: "/drive/凡凡/Python", path: "/drive/凡凡/Python", ownerWorkspaceId: "owner" },
+    },
+  ]);
+  const buckets = harness.rootBuckets(collections);
+  const html = harness.render(collections);
+
+  assert.equal(collections.length, 3, "directory route collections remain concrete per child directory");
+  assert.equal(buckets.length, 1, "child directory topic collections should render under one root bucket");
+  assert.equal(buckets[0].label, "凡凡");
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(buckets[0].collections.map((item) => item.rootInfo.childLabel).sort())),
+    ["Python", "健康", "学业计划"].sort(),
+  );
+  assert.match(html, /data-directory-topic-card="owner\|fanfan\|\|\/drive\/凡凡"/);
+  assert.match(html, /<span class="directory-topic-title">凡凡<\/span>/);
+  assert.match(html, /3 个子目录/);
+  assert.match(html, /<div class="directory-topic-subdirectory-label"><span>学业计划<\/span><span>1 个话题<\/span><\/div>/);
+  assert.match(html, /<div class="directory-topic-subdirectory-label"><span>健康<\/span><span>1 个话题<\/span><\/div>/);
+  assert.match(html, /<div class="directory-topic-subdirectory-label"><span>Python<\/span><span>1 个话题<\/span><\/div>/);
+  assert.equal((html.match(/data-directory-topic-card=/g) || []).length, 1, "root grouping must not flatten child directories as separate parent cards");
 }
 
 {

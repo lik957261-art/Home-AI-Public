@@ -18,6 +18,7 @@ function testDefaultDataDerivedPaths() {
   assert.equal(runtime.STATE_BACKUP_DIR, path.join(dataDir, "backups"));
   assert.equal(runtime.SHARED_DIRECTORIES_PATH, path.join(dataDir, "shared-directories.json"));
   assert.equal(runtime.ACCESS_KEYS_PATH, path.join(dataDir, "access-keys.json"));
+  assert.equal(runtime.AUDIT_OWNER_READONLY_KEY_PATH, path.join(dataDir, "secrets", "audit-owner-readonly-web-key.secret"));
   assert.equal(runtime.LOCAL_WORKSPACES_PATH, path.join(dataDir, "workspaces.json"));
   assert.equal(runtime.RUNTIME_CONFIG_PATH, path.join(dataDir, "runtime-config.json"));
   assert.equal(runtime.GROUP_DELIVERIES_DIR, path.join(dataDir, "artifacts", "group-deliveries"));
@@ -36,6 +37,7 @@ function testPathOverridesAndNormalization() {
     env: {
       HERMES_WEB_DATA_DIR: "C:\\prod\\data",
       HERMES_MOBILE_AUDIT_EVENT_LOG_PATH: "C:\\logs\\audit.jsonl",
+      HERMES_MOBILE_AUDIT_OWNER_READONLY_KEY_PATH: "C:\\keys\\audit-owner-readonly.secret",
       HERMES_MOBILE_LEARNING_COIN_STORE_PATH: "C:\\coins\\coins.json",
       HERMES_WEB_WEIXIN_INGRESS_KEY_PATH: "C:\\keys\\weixin.secret",
       HERMES_MOBILE_WEIXIN_INGRESS_DEFAULT_WORKSPACE: " weixin_wuping ",
@@ -51,6 +53,7 @@ function testPathOverridesAndNormalization() {
   });
   assert.equal(runtime.DATA_DIR, path.resolve("C:\\prod\\data"));
   assert.equal(runtime.AUDIT_EVENT_LOG_PATH, path.resolve("C:\\logs\\audit.jsonl"));
+  assert.equal(runtime.AUDIT_OWNER_READONLY_KEY_PATH, path.resolve("C:\\keys\\audit-owner-readonly.secret"));
   assert.equal(runtime.LEARNING_COIN_STORE_PATH, path.resolve("C:\\coins\\coins.json"));
   assert.deepEqual(runtime.WEIXIN_INGRESS_KEY_PATHS, [
     "C:\\keys\\weixin.secret",

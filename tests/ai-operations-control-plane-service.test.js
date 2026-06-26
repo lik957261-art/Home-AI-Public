@@ -20,8 +20,13 @@ function tempRoot() {
   assert.equal(pack.harnessClass, "H2");
   assert.ok(pack.modules.includes("Mobile Visual Debug And PWA Harness"));
   assert.ok(pack.requiredDocs.includes("docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md"));
+  assert.equal(pack.rootCauseGovernance.required, true);
+  assert.equal(pack.rootCauseGovernance.fallbackPolicy.silentFallbackAllowed, false);
+  assert.ok(pack.blockedIf.includes("root_cause_classification_missing"));
+  assert.ok(pack.blockedIf.includes("fallback_status_unclassified"));
   assert.equal(pack.visualLane.required, true);
   assert.ok(pack.requiredChecks.some((item) => item.command.includes("ios-pwa-visual-harness.test.js")));
+  assert.ok(pack.requiredChecks.some((item) => item.command.includes("fallback-governance-check.js")));
   assert.ok(pack.requiredChecks.some((item) => item.command === "node --check public/app-embedded-plugin-ui.js"));
 }
 
@@ -32,9 +37,12 @@ function tempRoot() {
   });
   assert.equal(plan.harnessClass, "H1");
   assert.equal(plan.deploymentRequired, true);
+  assert.equal(plan.rootCauseGovernanceRequired, true);
   assert.ok(plan.requiredDocs.includes("docs/MODULES/plugins.md"));
   assert.ok(plan.requiredDocs.includes("docs/MODULES/deployment.md"));
+  assert.ok(plan.requiredDocs.includes("docs/PLATFORM_CONTRACTS/fallback-governance-contract.md"));
   assert.ok(plan.requiredChecks.some((item) => item.command.includes("hermes-plugin-service.test.js")));
+  assert.ok(plan.requiredChecks.some((item) => item.command.includes("fallback-governance-check.js")));
   assert.ok(plan.requiredChecks.some((item) => item.command.includes("deploy:macos")));
 }
 
@@ -44,8 +52,32 @@ function tempRoot() {
     changedFiles: ["adapters/ai-operations-control-plane-service.js"],
   });
   assert.equal(plan.harnessClass, "H1");
+  assert.equal(plan.rootCauseGovernanceRequired, true);
   assert.ok(plan.modules.includes("AI Operations Control Plane"));
   assert.ok(plan.requiredChecks.some((item) => item.command === "node tests/ai-operations-control-plane-service.test.js"));
+  assert.ok(plan.requiredChecks.some((item) => item.command.includes("fallback-governance-check.js")));
+}
+
+{
+  const plan = service.selectRequiredChecks({
+    taskText: "Autonomous Delivery Loop intent intake",
+    changedFiles: [
+      "adapters/autonomous-delivery-intake-service.js",
+      "scripts/autonomous-delivery-loop.js",
+    ],
+  });
+  assert.equal(plan.harnessClass, "H2");
+  assert.equal(plan.rootCauseGovernanceRequired, true);
+  assert.ok(plan.modules.includes("Autonomous Delivery Loop"));
+  assert.ok(plan.requiredDocs.includes("docs/PLATFORM_CONTRACTS/autonomous-delivery-loop-contract.md"));
+  assert.ok(plan.requiredDocs.includes("docs/IMPLEMENTATION_NOTES/autonomous-delivery-loop.md"));
+  assert.ok(plan.requiredChecks.some((item) => item.command === "node tests/autonomous-delivery-intake-service.test.js"));
+  assert.ok(plan.requiredChecks.some((item) => item.command === "node tests/autonomous-delivery-coordinator-service.test.js"));
+  assert.ok(plan.requiredChecks.some((item) => item.command === "node tests/autonomous-delivery-api-routes.test.js"));
+  assert.ok(plan.requiredChecks.some((item) => item.command === "node tests/app-action-inbox-ui.test.js"));
+  assert.ok(plan.requiredChecks.some((item) => item.command === "node --check adapters/autonomous-delivery-intake-service.js"));
+  assert.ok(plan.requiredChecks.some((item) => item.command === "node --check scripts/autonomous-delivery-loop.js"));
+  assert.ok(plan.requiredChecks.some((item) => item.command.includes("fallback-governance-check.js")));
 }
 
 {

@@ -32,6 +32,7 @@ export HOMEAI_DISASTER_BACKUP_LABEL="$LABEL"
 export HOMEAI_DISASTER_BACKUP_TRANSPORT="$TRANSPORT"
 export HOMEAI_DISASTER_BACKUP_USE_SUDO=0
 export HOMEAI_DISASTER_BACKUP_OPERATOR_USER="$(id -un)"
+export HOMEAI_DISASTER_BACKUP_KEEP_STAGING=1
 
 run_output="$("${APP_DIR}/scripts/run-macos-disaster-backup-to-nas.sh" 2>&1)" || {
   echo "Home AI NAS backup failed during publish:"
@@ -66,3 +67,5 @@ console.log(`SQLite snapshots: ${manifest.sqliteFileCount}`);
 console.log(`Soul files: ${Array.isArray(manifest.soulFiles) ? manifest.soulFiles.length : 0}`);
 console.log(`Steps: ${Array.isArray(manifest.steps) ? manifest.steps.length : 0}`);
 NODE
+
+rm -rf "${STAGING%/}/current"

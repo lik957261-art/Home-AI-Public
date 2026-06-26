@@ -37,6 +37,7 @@ function parseArgs(argv) {
         "  --max-active-global <n>     Maximum allowed activeGlobal, default 0",
         "  --skip-origin-check         Do not assert /api/public-config identifies Home AI",
         "  --skip-wrong-header-check   Do not assert X-Hermes-Access-Key is rejected",
+        "  Note: document file tool closure (docx/office/pdf/audio/archive) requires gateway-tool-schema-smoke or macos-production-closure-validation",
         "  --json                      Print bounded JSON metadata",
       ].join("\n"));
       process.exit(0);
@@ -91,6 +92,14 @@ function boundedStatusPayload(result) {
       mode: body.gatewayPool.mode || "",
       workerCount: body.gatewayPool.workerCount ?? null,
     } : null,
+    gatewayWorkerPolicyContract: body.gatewayWorkerPolicyContract ? {
+      ok: Boolean(body.gatewayWorkerPolicyContract.ok),
+      issues: Array.isArray(body.gatewayWorkerPolicyContract.issues)
+        ? body.gatewayWorkerPolicyContract.issues.slice(0, 20)
+        : [],
+      overrides: body.gatewayWorkerPolicyContract.overrides || {},
+      effective: body.gatewayWorkerPolicyContract.effective || {},
+    } : null,
   };
 }
 
@@ -135,6 +144,11 @@ async function run(options) {
   const active = Number(payload.activeGlobal || 0);
   if (active > options.maxActiveGlobal) {
     const err = new Error("production_status_smoke_active_runs_present");
+    err.payload = payload;
+    throw err;
+  }
+  if (!payload.gatewayWorkerPolicyContract || !payload.gatewayWorkerPolicyContract.ok) {
+    const err = new Error("production_status_smoke_gateway_worker_policy_mismatch");
     err.payload = payload;
     throw err;
   }

@@ -64,6 +64,28 @@ const HOME_AI_VOICE_INPUT_COMPARE_BACKENDS = "whisper-large-v3-turbo,funasr-loca
 const HOME_AI_VOICE_INPUT_LANGUAGE = "zh";
 const HOME_AI_VOICE_INPUT_TASK = "transcribe";
 const HOME_AI_VOICE_INPUT_INITIAL_PROMPT = "以下是普通话语音转写，请使用简体中文，并加入合适的中文标点符号。";
+const HOME_AI_TTS_COSYVOICE_ROOT = path.join(DEFAULT_MAC_ROOT, "services", "cosyvoice");
+const HOME_AI_TTS_COSYVOICE_DEFAULT_PYTHON = path.join(HOME_AI_TTS_COSYVOICE_ROOT, ".venv", "bin", "python");
+const HOME_AI_TTS_COSYVOICE_DEFAULT_REPO_DIR = path.join(HOME_AI_TTS_COSYVOICE_ROOT, "CosyVoice");
+const HOME_AI_TTS_COSYVOICE_DEFAULT_MODEL_DIR = path.join(HOME_AI_TTS_COSYVOICE_DEFAULT_REPO_DIR, "pretrained_models", "Fun-CosyVoice3-0.5B");
+const HOME_AI_TTS_COSYVOICE_DEFAULT_CACHE_DIR = path.join(HOME_AI_TTS_COSYVOICE_ROOT, "cache");
+const HOME_AI_TTS_COSYVOICE_DEFAULT_PROMPT_AUDIO = path.join(HOME_AI_TTS_COSYVOICE_DEFAULT_REPO_DIR, "asset", "zero_shot_prompt.wav");
+const HOME_AI_TTS_COSYVOICE_DEFAULT_SCRIPT = path.join(DEFAULT_MAC_ROOT, "app", "scripts", "homeai-cosyvoice-synthesize.py");
+const HOME_AI_TTS_COSYVOICE_INSTALLED = fs.existsSync(HOME_AI_TTS_COSYVOICE_DEFAULT_PYTHON)
+  && fs.existsSync(HOME_AI_TTS_COSYVOICE_DEFAULT_MODEL_DIR)
+  && fs.existsSync(HOME_AI_TTS_COSYVOICE_DEFAULT_PROMPT_AUDIO);
+const HOME_AI_TTS_PROVIDER = process.env.HOMEAI_TTS_PROVIDER || (HOME_AI_TTS_COSYVOICE_INSTALLED ? "cosyvoice" : "macos-say");
+const HOME_AI_TTS_COSYVOICE_PYTHON = process.env.HOMEAI_TTS_COSYVOICE_PYTHON || (HOME_AI_TTS_COSYVOICE_INSTALLED ? HOME_AI_TTS_COSYVOICE_DEFAULT_PYTHON : "");
+const HOME_AI_TTS_COSYVOICE_SCRIPT = process.env.HOMEAI_TTS_COSYVOICE_SCRIPT || (HOME_AI_TTS_COSYVOICE_INSTALLED ? HOME_AI_TTS_COSYVOICE_DEFAULT_SCRIPT : "");
+const HOME_AI_TTS_COSYVOICE_REPO_DIR = process.env.HOMEAI_TTS_COSYVOICE_REPO_DIR || (HOME_AI_TTS_COSYVOICE_INSTALLED ? HOME_AI_TTS_COSYVOICE_DEFAULT_REPO_DIR : "");
+const HOME_AI_TTS_COSYVOICE_MODEL_DIR = process.env.HOMEAI_TTS_COSYVOICE_MODEL_DIR || (HOME_AI_TTS_COSYVOICE_INSTALLED ? HOME_AI_TTS_COSYVOICE_DEFAULT_MODEL_DIR : "");
+const HOME_AI_TTS_COSYVOICE_CACHE_DIR = process.env.HOMEAI_TTS_COSYVOICE_CACHE_DIR || (HOME_AI_TTS_COSYVOICE_INSTALLED ? HOME_AI_TTS_COSYVOICE_DEFAULT_CACHE_DIR : "");
+const HOME_AI_TTS_COSYVOICE_PROMPT_AUDIO = process.env.HOMEAI_TTS_COSYVOICE_PROMPT_AUDIO || (HOME_AI_TTS_COSYVOICE_INSTALLED ? HOME_AI_TTS_COSYVOICE_DEFAULT_PROMPT_AUDIO : "");
+const HOME_AI_TTS_COSYVOICE_PROMPT_TEXT = process.env.HOMEAI_TTS_COSYVOICE_PROMPT_TEXT || (HOME_AI_TTS_COSYVOICE_INSTALLED ? "You are a helpful assistant.<|endofprompt|>希望你以后能够做的比我还好呦。" : "");
+const HOME_AI_TTS_COSYVOICE_MODE = process.env.HOMEAI_TTS_COSYVOICE_MODE || (HOME_AI_TTS_COSYVOICE_INSTALLED ? "zero_shot" : "");
+const HOME_AI_TTS_COSYVOICE_INSTRUCTION = process.env.HOMEAI_TTS_COSYVOICE_INSTRUCTION || "";
+const HOME_AI_TTS_COSYVOICE_SPEAKER = process.env.HOMEAI_TTS_COSYVOICE_SPEAKER || "";
+const HOME_AI_TTS_COSYVOICE_TIMEOUT_MS = process.env.HOMEAI_TTS_COSYVOICE_TIMEOUT_MS || (HOME_AI_TTS_COSYVOICE_INSTALLED ? "240000" : "");
 const HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED = process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED
   || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED
   || "0";
@@ -79,10 +101,8 @@ const HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME = process.env.HERMES_MOBILE_PLUG
 const HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS = process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS
   || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS
   || "600000";
-const HOME_AI_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE = process.env.HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE
-  || process.env.HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE
-  || "";
 const HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS = Object.freeze({
+  "home-ai": ".",
   "codex-mobile": "codex-mobile-web",
   "codex-mobile-web": "codex-mobile-web",
   email: "email",
@@ -96,6 +116,17 @@ const HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS = Object.freeze({
   wardrobe: "wardrobe",
 });
 const HOME_AI_CRON_PROFILE_READ_ACL = `user:${PRODUCTION_SERVICE_USER} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
+const HOME_AI_GATEWAY_WORKER_RUNTIME_SETTING_ENVS = Object.freeze([
+  Object.freeze({ key: "ownerMinWarm", mobileEnv: "HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM", webEnv: "HERMES_WEB_GATEWAY_OWNER_MIN_WARM" }),
+  Object.freeze({ key: "ownerMaxWorkers", mobileEnv: "HERMES_MOBILE_GATEWAY_OWNER_MAX_WORKERS", webEnv: "HERMES_WEB_GATEWAY_OWNER_MAX_WORKERS" }),
+  Object.freeze({ key: "ownerDeepSeekMaxWorkers", mobileEnv: "HERMES_MOBILE_GATEWAY_OWNER_DEEPSEEK_MAX_WORKERS", webEnv: "HERMES_WEB_GATEWAY_OWNER_DEEPSEEK_MAX_WORKERS" }),
+  Object.freeze({ key: "ownerMaintenanceMaxWorkers", mobileEnv: "HERMES_MOBILE_GATEWAY_OWNER_MAINTENANCE_MAX_WORKERS", webEnv: "HERMES_WEB_GATEWAY_OWNER_MAINTENANCE_MAX_WORKERS" }),
+  Object.freeze({ key: "workspaceMinWarm", mobileEnv: "HERMES_MOBILE_GATEWAY_WORKSPACE_MIN_WARM", webEnv: "HERMES_WEB_GATEWAY_WORKSPACE_MIN_WARM" }),
+  Object.freeze({ key: "workspaceMaxWorkers", mobileEnv: "HERMES_MOBILE_GATEWAY_WORKSPACE_MAX_WORKERS", webEnv: "HERMES_WEB_GATEWAY_WORKSPACE_MAX_WORKERS" }),
+  Object.freeze({ key: "workspaceDeepSeekMaxWorkers", mobileEnv: "HERMES_MOBILE_GATEWAY_WORKSPACE_DEEPSEEK_MAX_WORKERS", webEnv: "HERMES_WEB_GATEWAY_WORKSPACE_DEEPSEEK_MAX_WORKERS" }),
+  Object.freeze({ key: "globalMaxWorkers", mobileEnv: "HERMES_MOBILE_GATEWAY_ELASTIC_MAX_WORKERS", webEnv: "HERMES_WEB_GATEWAY_ELASTIC_MAX_WORKERS" }),
+  Object.freeze({ key: "idleTtlMinutes", mobileEnv: "HERMES_MOBILE_GATEWAY_WORKER_IDLE_TTL_MINUTES", webEnv: "HERMES_WEB_GATEWAY_WORKER_IDLE_TTL_MINUTES" }),
+]);
 const HOME_AI_CRON_PROFILE_TRAVERSE_ACL = `user:${PRODUCTION_SERVICE_USER} allow search,readattr,readextattr,readsecurity`;
 const HOME_AI_BACKUP_ARTIFACT_READ_ACL = `user:${PRODUCTION_SERVICE_USER} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
 const HOME_AI_CRON_PLUGIN_BINDING_DIR_NAMES = Object.freeze([
@@ -117,12 +148,21 @@ const PLUGIN_DEPLOY_ORDER = Object.freeze([
   "growth",
   "healthy",
   "moira",
+  "movie",
   "music",
   "note",
   "wardrobe",
 ]);
 
 const PLUGIN_TARGETS = new Set(PLUGIN_DEPLOY_ORDER);
+const DEPLOY_BACKUP_TARGET_SLUGS = Object.freeze([
+  "home-ai",
+  ...PLUGIN_DEPLOY_ORDER.map((plugin) => `plugin-${plugin}`),
+].sort((a, b) => b.length - a.length));
+
+const PLUGIN_DEFAULT_SOURCE_DIRS = Object.freeze({
+  movie: "Movie",
+});
 
 const PLUGIN_ALIASES = Object.freeze({
   codex: "codex-mobile-web",
@@ -137,6 +177,7 @@ const PLUGIN_RESTART_LABELS = Object.freeze({
   growth: "com.hermesmobile.plugin.growth",
   healthy: "com.hermesmobile.plugin.health",
   moira: "com.hermesmobile.plugin.moira",
+  movie: "com.hermesmobile.plugin.movie",
   music: "com.hermesmobile.plugin.music",
   note: "com.hermesmobile.plugin.note",
   wardrobe: "com.hermesmobile.plugin.wardrobe",
@@ -149,6 +190,7 @@ const PLUGIN_HEALTH_URLS = Object.freeze({
   growth: "http://127.0.0.1:4881/api/v1/hermes/plugin/manifest",
   healthy: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest",
   moira: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest",
+  movie: "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest",
   music: "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest",
   note: "http://127.0.0.1:4181/api/v1/hermes/plugin/manifest",
   wardrobe: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
@@ -165,6 +207,17 @@ const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
     Object.freeze({
       source: "package.json",
       target: "gateway-worker/music-mcp/package.json",
+      mode: "755",
+    }),
+    Object.freeze({
+      source: "package-lock.json",
+      target: "gateway-worker/music-mcp/package-lock.json",
+      mode: "644",
+    }),
+    Object.freeze({
+      kind: "directory",
+      source: "node_modules",
+      target: "gateway-worker/music-mcp/node_modules",
       mode: "755",
     }),
   ]),
@@ -232,6 +285,7 @@ const PLUGIN_PROOF_FILES = Object.freeze({
   ]),
   email: Object.freeze(["dist/web/index.html"]),
   growth: Object.freeze(["public/index.html"]),
+  movie: Object.freeze(["public/index.html"]),
   note: Object.freeze(["public/index.html"]),
 });
 
@@ -280,6 +334,13 @@ const MUSIC_RUNTIME_COVER_PERMISSION_REPAIR = Object.freeze({
     "music.sqlite-wal",
     "music.sqlite-shm",
   ]),
+});
+
+const FINANCE_LAUNCHD_WORKSPACE_KEY_HASH_REPAIR = Object.freeze({
+  type: "finance-launchd-workspace-key-hashes",
+  plugin: "finance",
+  launchdLabel: "com.hermesmobile.plugin.finance",
+  installerRelativePath: "scripts/install-finance-launchd-service.js",
 });
 
 const WEB_PUSH_VAPID_PERMISSION_REPAIR = Object.freeze({
@@ -499,6 +560,12 @@ function timestamp() {
   return new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 }
 
+function timestampToIso(value) {
+  const match = String(value || "").match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/);
+  if (!match) return "";
+  return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}Z`;
+}
+
 function sourceRef(source) {
   const git = spawnSync("git", ["rev-parse", "--short=12", "HEAD"], {
     cwd: source,
@@ -567,7 +634,8 @@ function ignoredDirtyFiles(source, options) {
 function defaultSource(options) {
   if (options.target === "home-ai") return posixJoin(options.devRoot, "app");
   const plugin = options.target.replace(/^plugin:/, "");
-  return posixJoin(options.devRoot, "plugins", plugin);
+  const sourceDir = PLUGIN_DEFAULT_SOURCE_DIRS[plugin] || posixJoin("plugins", plugin);
+  return posixJoin(options.devRoot, sourceDir);
 }
 
 function productionTarget(options) {
@@ -590,6 +658,7 @@ function rsyncExcludesForTarget(options) {
 function postSyncRepairsForTarget(options) {
   if (options.target === "home-ai") return [CODEX_MOBILE_LOG_REPAIR, WEB_PUSH_VAPID_PERMISSION_REPAIR, GATEWAY_LAUNCHCTL_SUDOERS_REPAIR, GATEWAY_MACOS_LAUNCHER_REPAIR];
   if (options.target === "plugin:codex-mobile-web") return [CODEX_MOBILE_LOG_REPAIR];
+  if (options.target === "plugin:finance") return [FINANCE_LAUNCHD_WORKSPACE_KEY_HASH_REPAIR];
   if (options.target === "plugin:music") return [MUSIC_RUNTIME_COVER_PERMISSION_REPAIR];
   return [];
 }
@@ -690,6 +759,10 @@ function buildPlan(options) {
         "--root",
         normalizePath(options.macRoot),
         "--strict-config",
+        "--strict-source",
+        "--strict-status",
+        "--status-since",
+        timestampToIso(planTimestamp),
         "--json",
       ],
     });
@@ -786,7 +859,7 @@ function buildAllPluginPlan(options) {
     mode: options.execute ? "execute" : "plan",
     target: "plugins:all",
     pluginTargets: PLUGIN_DEPLOY_ORDER,
-    sourceRoot: normalizePath(posixJoin(options.devRoot, "plugins")),
+    sourceRoot: normalizePath(options.devRoot),
     productionRoot: normalizePath(posixJoin(options.macRoot, "plugins")),
     surface: options.surface,
     allowDirty: Boolean(options.allowDirty),
@@ -861,7 +934,7 @@ function buildPluginWorkspaceAuditTargetJson(macRoot) {
   const root = normalizePath(macRoot || DEFAULT_MAC_ROOT);
   const rows = {};
   for (const [pluginId, dirName] of Object.entries(HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS)) {
-    rows[pluginId] = posixJoin(root, "plugins", dirName);
+    rows[pluginId] = dirName === "." ? posixJoin(root, "app") : posixJoin(root, "plugins", dirName);
   }
   return JSON.stringify(rows);
 }
@@ -1111,8 +1184,6 @@ function buildHomeAiCronLaunchdPlist(macRoot) {
     HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME,
     HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS,
     HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS,
-    HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE: HOME_AI_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE || posixJoin(paths.root, "data", "plugin-workspace-audit-task-cards.json"),
-    HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE: HOME_AI_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE || posixJoin(paths.root, "data", "plugin-workspace-audit-task-cards.json"),
     CODEX_MOBILE_BASE_URL: "http://127.0.0.1:8787",
     CODEX_MOBILE_KEY_FILE: posixJoin(paths.root, "data", "secrets", "codex-mobile-access-key.secret"),
     HERMES_CRON_SCRIPT_TIMEOUT: String(HOME_AI_CRON_SCRIPT_TIMEOUT_SECONDS),
@@ -1346,6 +1417,15 @@ ${envRows}
 `;
 }
 
+function summarizeCommandArg(arg, index) {
+  const value = String(arg == null ? "" : arg);
+  if (value.length > 180 || value.includes("\n")) {
+    const hash = crypto.createHash("sha256").update(value).digest("hex").slice(0, 16);
+    return `[arg${index}:chars=${value.length}:sha256=${hash}]`;
+  }
+  return value;
+}
+
 function runSudo(command, args, password, input) {
   const sudoArgs = password
     ? ["-S", "-p", "", command, ...args]
@@ -1358,15 +1438,86 @@ function runSudo(command, args, password, input) {
   if (result.status !== 0) {
     const err = new Error(`sudo_command_failed:${path.basename(command)}`);
     err.status = result.status;
+    err.command = command;
+    err.args = args.map(summarizeCommandArg);
     err.stderr = String(result.stderr || "").slice(0, 1200);
     throw err;
   }
   return result;
 }
 
+function deployBackupDateFromTimestamp(timestampText = "") {
+  const match = String(timestampText || "").match(/^(\d{4})(\d{2})(\d{2})T\d{6}Z$/);
+  if (!match) return "";
+  return `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+function cutoffDeployBackupDate(anchorTimestamp = "", retentionDays = DEPLOY_BACKUP_RETENTION_DAYS) {
+  const match = String(anchorTimestamp || "").match(/^(\d{4})(\d{2})(\d{2})T\d{6}Z$/);
+  if (!match) throw new Error(`deploy_backup_timestamp_invalid:${anchorTimestamp}`);
+  const days = Math.floor(Number(retentionDays));
+  if (!Number.isFinite(days) || days < 1) throw new Error(`deploy_backup_retention_days_invalid:${retentionDays}`);
+  const anchor = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  anchor.setUTCDate(anchor.getUTCDate() - (days - 1));
+  return anchor.toISOString().slice(0, 10);
+}
+
+function parseDeployBackupName(name = "") {
+  const timestampMatch = String(name || "").match(/^(\d{8}T\d{6}Z)-(.+)$/)
+    || String(name || "").match(/^(\d{8})-(\d{6})-(.+)$/);
+  if (!timestampMatch) return null;
+  const timestampText = timestampMatch.length === 4
+    ? `${timestampMatch[1]}T${timestampMatch[2]}Z`
+    : timestampMatch[1];
+  const suffix = timestampMatch.length === 4 ? timestampMatch[3] : timestampMatch[2];
+  const targetSlug = DEPLOY_BACKUP_TARGET_SLUGS.find((slug) => suffix === slug || suffix.startsWith(`${slug}-`));
+  if (!targetSlug) return null;
+  const date = deployBackupDateFromTimestamp(timestampText);
+  if (!date) return null;
+  return {
+    timestamp: timestampText,
+    date,
+    targetSlug,
+  };
+}
+
+function selectDeployBackupsToPrune(entries = [], currentPath = "", retentionDays = DEPLOY_BACKUP_RETENTION_DAYS) {
+  const currentName = path.posix.basename(currentPath || "");
+  const currentInfo = parseDeployBackupName(currentName);
+  if (!currentInfo) throw new Error(`deploy_backup_current_name_invalid:${currentName}`);
+  const cutoffDate = cutoffDeployBackupDate(currentInfo.timestamp, retentionDays);
+  const latestByTargetDate = new Map();
+  const parsedEntries = [];
+
+  for (const entry of entries) {
+    const entryPath = String(entry?.path || "");
+    const info = parseDeployBackupName(entry?.name || path.posix.basename(entryPath));
+    if (!info) continue;
+    parsedEntries.push({ path: entryPath, info });
+    if (info.date < cutoffDate) continue;
+    const key = `${info.targetSlug}\t${info.date}`;
+    const previous = latestByTargetDate.get(key);
+    if (!previous || info.timestamp > previous.info.timestamp) {
+      latestByTargetDate.set(key, { path: entryPath, info });
+    }
+  }
+
+  const keep = new Set([currentPath]);
+  for (const entry of latestByTargetDate.values()) keep.add(entry.path);
+
+  return {
+    cutoffDate,
+    prune: parsedEntries
+      .filter((entry) => !keep.has(entry.path))
+      .map((entry) => entry.path)
+      .sort(),
+    keep: Array.from(keep).filter(Boolean).sort(),
+  };
+}
+
 function pruneDeployBackups(plan, options, password) {
   const retentionDays = Number(options.deployBackupRetentionDays);
-  if (!Number.isFinite(retentionDays) || retentionDays < 0) {
+  if (!Number.isFinite(retentionDays) || retentionDays < 1) {
     throw new Error(`deploy_backup_retention_days_invalid:${options.deployBackupRetentionDays}`);
   }
   const backupRoot = posixJoin(options.macRoot, "backups", "deploy");
@@ -1379,7 +1530,56 @@ function pruneDeployBackups(plan, options, password) {
     `current=${shQuote(plan.backupPath)}`,
     `days=${Math.floor(retentionDays)}`,
     "test -d \"$root\" || exit 0",
-    "find \"$root\" -mindepth 1 -maxdepth 1 -type d -mtime +\"$days\" ! -path \"$current\" -print -exec rm -rf {} +",
+    `${shQuote(process.execPath)} - "$root" "$current" "$days" <<'NODE'`,
+    "const fs = require('node:fs');",
+    "const path = require('node:path');",
+    "const root = process.argv[2];",
+    "const current = process.argv[3];",
+    "const days = Number(process.argv[4]);",
+    `const targetSlugs = ${JSON.stringify(DEPLOY_BACKUP_TARGET_SLUGS)};`,
+    "function parseDate(ts) {",
+    "  const m = String(ts || '').match(/^(\\d{4})(\\d{2})(\\d{2})T\\d{6}Z$/);",
+    "  return m ? `${m[1]}-${m[2]}-${m[3]}` : '';",
+    "}",
+    "function cutoffDate(ts) {",
+    "  const m = String(ts || '').match(/^(\\d{4})(\\d{2})(\\d{2})T\\d{6}Z$/);",
+    "  if (!m) throw new Error(`invalid current backup timestamp: ${ts}`);",
+    "  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));",
+    "  d.setUTCDate(d.getUTCDate() - (Math.floor(days) - 1));",
+    "  return d.toISOString().slice(0, 10);",
+    "}",
+    "function parseName(name) {",
+    "  const m = String(name || '').match(/^(\\d{8}T\\d{6}Z)-(.+)$/) || String(name || '').match(/^(\\d{8})-(\\d{6})-(.+)$/);",
+    "  if (!m) return null;",
+    "  const timestamp = m.length === 4 ? `${m[1]}T${m[2]}Z` : m[1];",
+    "  const suffix = m.length === 4 ? m[3] : m[2];",
+    "  const slug = targetSlugs.find((candidate) => suffix === candidate || suffix.startsWith(`${candidate}-`));",
+    "  const date = parseDate(timestamp);",
+    "  return slug && date ? { timestamp, targetSlug: slug, date } : null;",
+    "}",
+    "const currentInfo = parseName(path.basename(current));",
+    "if (!currentInfo) throw new Error(`invalid current backup name: ${path.basename(current)}`);",
+    "const cutoff = cutoffDate(currentInfo.timestamp);",
+    "const latest = new Map();",
+    "const parsed = [];",
+    "for (const name of fs.readdirSync(root)) {",
+    "  const full = path.join(root, name);",
+    "  if (!fs.statSync(full).isDirectory()) continue;",
+    "  const info = parseName(name);",
+    "  if (!info) continue;",
+    "  parsed.push({ full, info });",
+    "  if (info.date < cutoff) continue;",
+    "  const key = `${info.targetSlug}\\t${info.date}`;",
+    "  const prev = latest.get(key);",
+    "  if (!prev || info.timestamp > prev.info.timestamp) latest.set(key, { full, info });",
+    "}",
+    "const keep = new Set([current, ...Array.from(latest.values()).map((item) => item.full)]);",
+    "for (const item of parsed) {",
+    "  if (keep.has(item.full)) continue;",
+    "  fs.rmSync(item.full, { recursive: true, force: true });",
+    "  console.log(item.full);",
+    "}",
+    "NODE",
   ].join("\n");
   const result = runSudo("/bin/sh", ["-c", script], password);
   const pruned = String(result.stdout || "").trim().split(/\r?\n/).filter(Boolean);
@@ -1387,6 +1587,7 @@ function pruneDeployBackups(plan, options, password) {
     type: "deploy-backup-retention-prune",
     status: 0,
     retentionDays: Math.floor(retentionDays),
+    dailyLatestPerTarget: true,
     root: backupRoot,
     prunedCount: pruned.length,
     pruned: pruned.slice(0, 80),
@@ -1448,12 +1649,40 @@ function plistBuddySetEnvIfChanged(plistPath, key, value, password) {
   return true;
 }
 
+function runtimeConfigGatewayWorkerEnvRows(macRoot) {
+  const runtimeConfigPath = posixJoin(macRoot, "data", "runtime-config.json");
+  let parsed = {};
+  try {
+    parsed = JSON.parse(fs.readFileSync(runtimeConfigPath, "utf8"));
+  } catch (_err) {
+    return {};
+  }
+  const settings = parsed?.gatewayWorkerSettings || parsed?.gateway_worker_settings || {};
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return {};
+  const rows = {};
+  for (const definition of HOME_AI_GATEWAY_WORKER_RUNTIME_SETTING_ENVS) {
+    const snakeKey = definition.key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+    const raw = Object.prototype.hasOwnProperty.call(settings, definition.key)
+      ? settings[definition.key]
+      : settings[snakeKey];
+    if (raw === undefined || raw === null || raw === "") continue;
+    const number = Number(raw);
+    if (!Number.isFinite(number) || number < 0) continue;
+    const normalized = String(Math.floor(number));
+    rows[definition.mobileEnv] = normalized;
+    rows[definition.webEnv] = normalized;
+  }
+  return rows;
+}
+
 function installHomeAiListenerVoiceInputEnv(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const plistPath = `/Library/LaunchDaemons/${HOME_AI_LISTENER_LABEL}.plist`;
   runSudo("/bin/test", ["-f", plistPath], password);
   const pluginWorkspaceAuditTargets = buildPluginWorkspaceAuditTargetJson(plan.macRoot);
+  const gatewayWorkerRuntimeRows = runtimeConfigGatewayWorkerEnvRows(plan.macRoot);
   const rows = {
+    ...gatewayWorkerRuntimeRows,
     HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TARGETS: pluginWorkspaceAuditTargets,
     HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TARGETS: pluginWorkspaceAuditTargets,
     HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED,
@@ -1466,8 +1695,6 @@ function installHomeAiListenerVoiceInputEnv(plan, password) {
     HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME,
     HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS,
     HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_TIMEOUT_MS,
-    HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE: HOME_AI_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE || posixJoin(plan.macRoot, "data", "plugin-workspace-audit-task-cards.json"),
-    HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE: HOME_AI_PLUGIN_WORKSPACE_AUDIT_TASK_CARD_CONFIG_FILE || posixJoin(plan.macRoot, "data", "plugin-workspace-audit-task-cards.json"),
     CODEX_MOBILE_BASE_URL: "http://127.0.0.1:8787",
     CODEX_MOBILE_KEY_FILE: posixJoin(plan.macRoot, "data", "secrets", "codex-mobile-access-key.secret"),
     HERMES_MOBILE_VOICE_INPUT_ENABLED: "1",
@@ -1504,6 +1731,18 @@ function installHomeAiListenerVoiceInputEnv(plan, password) {
     HERMES_WEB_VOICE_INPUT_INITIAL_PROMPT: HOME_AI_VOICE_INPUT_INITIAL_PROMPT,
     HERMES_WEB_VOICE_INPUT_CONDITION_ON_PREVIOUS_TEXT: "1",
     HERMES_WEB_VOICE_INPUT_VAD_FILTER: "0",
+    HOMEAI_TTS_PROVIDER: HOME_AI_TTS_PROVIDER,
+    HOMEAI_TTS_COSYVOICE_PYTHON: HOME_AI_TTS_COSYVOICE_PYTHON,
+    HOMEAI_TTS_COSYVOICE_SCRIPT: HOME_AI_TTS_COSYVOICE_SCRIPT,
+    HOMEAI_TTS_COSYVOICE_REPO_DIR: HOME_AI_TTS_COSYVOICE_REPO_DIR,
+    HOMEAI_TTS_COSYVOICE_MODEL_DIR: HOME_AI_TTS_COSYVOICE_MODEL_DIR,
+    HOMEAI_TTS_COSYVOICE_CACHE_DIR: HOME_AI_TTS_COSYVOICE_CACHE_DIR,
+    HOMEAI_TTS_COSYVOICE_PROMPT_AUDIO: HOME_AI_TTS_COSYVOICE_PROMPT_AUDIO,
+    HOMEAI_TTS_COSYVOICE_PROMPT_TEXT: HOME_AI_TTS_COSYVOICE_PROMPT_TEXT,
+    HOMEAI_TTS_COSYVOICE_MODE: HOME_AI_TTS_COSYVOICE_MODE,
+    HOMEAI_TTS_COSYVOICE_INSTRUCTION: HOME_AI_TTS_COSYVOICE_INSTRUCTION,
+    HOMEAI_TTS_COSYVOICE_SPEAKER: HOME_AI_TTS_COSYVOICE_SPEAKER,
+    HOMEAI_TTS_COSYVOICE_TIMEOUT_MS: HOME_AI_TTS_COSYVOICE_TIMEOUT_MS,
   };
   for (const [key, value] of Object.entries(rows)) plistBuddySetEnv(plistPath, key, value, password);
   runSudo("/usr/bin/plutil", ["-lint", plistPath], password);
@@ -1514,6 +1753,9 @@ function installHomeAiListenerVoiceInputEnv(plan, password) {
     backend: HOME_AI_VOICE_INPUT_ASR_BACKEND,
     protocol: HOME_AI_VOICE_INPUT_ASR_PROTOCOL,
     url: HOME_AI_VOICE_INPUT_ASR_URL,
+    ttsProvider: HOME_AI_TTS_PROVIDER,
+    ttsCosyVoiceConfigured: Boolean(HOME_AI_TTS_COSYVOICE_PYTHON && HOME_AI_TTS_COSYVOICE_SCRIPT && HOME_AI_TTS_COSYVOICE_MODEL_DIR),
+    gatewayWorkerRuntimeSettingCount: Object.keys(gatewayWorkerRuntimeRows).length / 2,
     pluginWorkspaceAuditTargetCount: Object.keys(HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS).length,
     pluginWorkspaceAuditCodexEnabled: HOME_AI_PLUGIN_WORKSPACE_AUDIT_CODEX_ENABLED,
   };
@@ -1771,6 +2013,51 @@ function installHomeAiVisualPolishCronJobs(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const node = posixJoin(plan.macRoot, PINNED_NODE);
   const jobsPath = posixJoin(plan.macRoot, "data", "hermes-home", "cron", "jobs.json");
+  const visualJobIds = [
+    "homeai_visual_host",
+    "homeai_visual_music",
+    "homeai_visual_finance",
+    "homeai_visual_wardrobe",
+    "homeai_visual_global_interactions",
+    "homeai_visual_core",
+    "homeai_visual_analysis_xhigh",
+  ];
+  const installEnabled = /^(1|true|yes|on)$/i.test(String(process.env.HOMEAI_INSTALL_VISUAL_POLISH_CRON_JOBS || ""));
+  if (!installEnabled) {
+    const script = `
+const fs = require("fs");
+const path = ${JSON.stringify(jobsPath)};
+const visualJobIds = new Set(${JSON.stringify(visualJobIds)});
+const doc = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf8")) : { jobs: [] };
+const before = Array.isArray(doc.jobs) ? doc.jobs.length : 0;
+doc.jobs = Array.isArray(doc.jobs) ? doc.jobs.filter((job) => !visualJobIds.has(String(job && job.id || ""))) : [];
+const removed = before - doc.jobs.length;
+if (removed > 0 || !fs.existsSync(path)) {
+  fs.mkdirSync(require("path").dirname(path), { recursive: true });
+  const tmp = path + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(doc, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+  fs.renameSync(tmp, path);
+  fs.chmodSync(path, 0o600);
+}
+console.log(JSON.stringify({ ok: true, installEnabled: false, removed }));
+`;
+    const result = runSudo(node, ["-e", script], password);
+    runSudo("/usr/sbin/chown", [`${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, jobsPath], password);
+    runSudo("/bin/chmod", ["600", jobsPath], password);
+    let removed = 0;
+    try {
+      removed = Number(JSON.parse(result.stdout || "{}").removed || 0);
+    } catch (_) {
+      removed = 0;
+    }
+    return {
+      type: "home-ai-visual-polish-cron-jobs",
+      installEnabled: false,
+      skipped: true,
+      removed,
+      env: "HOMEAI_INSTALL_VISUAL_POLISH_CRON_JOBS",
+    };
+  }
   const jobs = [
     {
       id: "homeai_visual_host",
@@ -2190,6 +2477,12 @@ function shouldRetryValidation(type) {
   return type === "home-ai-status-smoke" || type === "health-url";
 }
 
+function redactSensitiveOutput(value = "") {
+  return String(value || "")
+    .replace(/((?:[A-Z0-9_]+_)?WORKSPACE_KEY_HASHES_JSON\s*=>\s*)\{[^\n]*\}/g, "$1[redacted]")
+    .replace(/(<key>(?:[A-Z0-9_]+_)?WORKSPACE_KEY_HASHES_JSON<\/key>\s*<string>)([^<]*)(<\/string>)/g, "$1[redacted]$3");
+}
+
 function runValidation(check, password, options) {
   const [command, ...args] = check.command;
   const maxAttempts = shouldRetryValidation(check.type) ? options.validationRetries : 1;
@@ -2201,7 +2494,7 @@ function runValidation(check, password, options) {
         type: check.type,
         status: result.status,
         attempt,
-        stdout: String(result.stdout || "").slice(0, 1600),
+        stdout: redactSensitiveOutput(result.stdout).slice(0, 1600),
       };
     } catch (err) {
       lastError = err;
@@ -2415,6 +2708,48 @@ function repairMusicRuntimeCoverPermissions(plan, password) {
   };
 }
 
+function installFinanceLaunchdWorkspaceKeyHashes(plan, password) {
+  const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === FINANCE_LAUNCHD_WORKSPACE_KEY_HASH_REPAIR.type);
+  if (!repair) return null;
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const installer = path.join(__dirname, path.basename(repair.installerRelativePath || "install-finance-launchd-service.js"));
+  const result = runSudo(node, [
+    installer,
+    "--mac-root",
+    plan.macRoot,
+    "--execute",
+    "--bootstrap",
+    "--require-workspace-key-hashes",
+    "--json",
+  ], password);
+  let parsed = {};
+  try {
+    parsed = JSON.parse(String(result.stdout || "{}"));
+  } catch (_err) {
+    throw new Error("finance_launchd_workspace_key_hash_install_output_invalid");
+  }
+  const workspaceIds = Array.isArray(parsed.workspaceKeyHashWorkspaceIds)
+    ? parsed.workspaceKeyHashWorkspaceIds.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 80)
+    : [];
+  const count = Number(parsed.workspaceKeyHashCount);
+  if (!Number.isFinite(count) || count < 1 || workspaceIds.length < 1) {
+    throw new Error("finance_launchd_workspace_key_hash_install_missing_hashes");
+  }
+  return {
+    type: repair.type,
+    plugin: repair.plugin || "finance",
+    status: result.status,
+    target: plan.target,
+    launchdLabel: repair.launchdLabel,
+    plistPath: parsed.plistPath || `/Library/LaunchDaemons/${repair.launchdLabel}.plist`,
+    workspaceKeyHashSource: parsed.workspaceKeyHashSource || "workspace-local-finance-config-and-key",
+    workspaceKeyHashCount: count,
+    workspaceKeyHashWorkspaceIds: workspaceIds,
+    bootstrapped: Boolean(parsed.bootstrapped),
+    kickstarted: Boolean(parsed.kickstarted),
+  };
+}
+
 function repairWebPushVapidPermissions(plan, password) {
   const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === WEB_PUSH_VAPID_PERMISSION_REPAIR.type);
   if (!repair) return null;
@@ -2567,6 +2902,7 @@ function executePlan(plan, options) {
 
   const codexMobileLogRepair = repairCodexMobileLogPermissions(plan, password);
   const musicRuntimeCoverPermissionRepair = repairMusicRuntimeCoverPermissions(plan, password);
+  const financeLaunchdWorkspaceKeyHashRepair = installFinanceLaunchdWorkspaceKeyHashes(plan, password);
   const webPushVapidPermissionRepair = repairWebPushVapidPermissions(plan, password);
   const postSyncMirrorResult = syncPostSyncMirrors(plan, password);
   const bridgeHostInstall = installHomeAiBridgeHostLaunchd(plan, password);
@@ -2607,6 +2943,13 @@ function executePlan(plan, options) {
     runSudo("/bin/launchctl", ["bootstrap", "system", plistPath], password);
     reloadedLabels.add(HOME_AI_LISTENER_LABEL);
   }
+  if (
+    financeLaunchdWorkspaceKeyHashRepair
+    && financeLaunchdWorkspaceKeyHashRepair.bootstrapped
+    && financeLaunchdWorkspaceKeyHashRepair.launchdLabel
+  ) {
+    reloadedLabels.add(financeLaunchdWorkspaceKeyHashRepair.launchdLabel);
+  }
 
   for (const label of plan.restartLabels) {
     if (reloadedLabels.has(label)) continue;
@@ -2616,6 +2959,7 @@ function executePlan(plan, options) {
   const validations = [];
   if (codexMobileLogRepair) validations.push(codexMobileLogRepair);
   if (musicRuntimeCoverPermissionRepair) validations.push(musicRuntimeCoverPermissionRepair);
+  if (financeLaunchdWorkspaceKeyHashRepair) validations.push(financeLaunchdWorkspaceKeyHashRepair);
   if (webPushVapidPermissionRepair) validations.push(webPushVapidPermissionRepair);
   if (postSyncMirrorResult) validations.push(postSyncMirrorResult);
   if (bridgeHostInstall) validations.push(Object.assign({ status: 0 }, bridgeHostInstall));
@@ -2687,6 +3031,9 @@ if (require.main === module) {
     main();
   } catch (err) {
     const payload = { ok: false, error: err?.message || String(err) };
+    if (err?.command) payload.command = err.command;
+    if (err?.args) payload.args = err.args;
+    if (err?.status != null) payload.status = err.status;
     if (err?.stderr) payload.stderr = err.stderr;
     console.error(JSON.stringify(payload, null, 2));
     process.exit(1);
@@ -2718,9 +3065,13 @@ module.exports = {
   shouldRepairCodexSharedAuthPermissions,
   repairHomeAiBackupArtifactAcls,
   pruneDeployBackups,
+  parseDeployBackupName,
+  selectDeployBackupsToPrune,
   postSyncRepairsForTarget,
   repairCodexMobileLogPermissions,
   repairMusicRuntimeCoverPermissions,
+  installFinanceLaunchdWorkspaceKeyHashes,
+  redactSensitiveOutput,
   deployDirtyFiles,
   isDeploySurfaceIncluded,
 };

@@ -79,12 +79,14 @@ const COMPOSER_MODEL_OPTIONS = Object.freeze([
   },
 ]);
 const CHAT_MESSAGE_INITIAL_LIMIT = 30;
-const CHAT_MESSAGE_PAGE_LIMIT = 40;
+const CHAT_MESSAGE_PAGE_LIMIT = 10;
 const CHAT_MESSAGE_SEARCH_LIMIT = 120;
 const CHAT_HISTORY_LOAD_TOP_PX = 220;
 const COMPOSER_MAX_TEXT_CHARS = 240000;
 const COMPOSER_MAX_BODY_BYTES = 1900000;
 const TASK_MESSAGE_INITIAL_LIMIT = 300;
+const TASK_DETAIL_MESSAGE_INITIAL_LIMIT = 30;
+const TASK_DETAIL_MESSAGE_PAGE_LIMIT = 10;
 const TODO_AUTO_REFRESH_INTERVAL_MS = 8000;
 const TODO_LIST_CACHE_MAX_AGE_MS = 30 * 60 * 1000;
 const KANBAN_TOPIC_CARD_SNAPSHOT_CACHE_MS = 60 * 1000;
@@ -574,7 +576,7 @@ const state = {
   actionInboxCreateDraftText: "",
   actionInboxCreateProgressStep: "",
   actionInboxPluginAuditPluginId: "codex-mobile",
-  actionInboxPluginAuditMode: "alignment",
+  actionInboxPluginAuditMode: "product_reality",
   learningGrowth: null,
   learningGrowthWorkspaceId: "",
   learningCoins: null,
@@ -616,6 +618,18 @@ const state = {
   generatedAccessKey: null,
   accessKeyRequiresLogin: false,
   accessKeyWorkspaceId: "",
+  ttsProfileManagerOpen: false,
+  ttsProfiles: [],
+  ttsProfilesLoading: false,
+  ttsProfilesError: "",
+  ttsProfileRecorder: null,
+  ttsProfileDraftAudio: null,
+  ttsProfileDraftLabel: "",
+  ttsProfileDraftId: "",
+  ttsProfileDraftPromptText: "",
+  ttsProfileDraftSetDefault: true,
+  ttsProfileSaving: false,
+  ttsProfileStatus: "",
   workspaceOnboardingPlan: null,
   workspaceOnboardingResult: null,
   workspaceOnboardingLoading: false,
@@ -687,6 +701,9 @@ const state = {
   conversationPinnedToBottom: true,
   suppressConversationPinUntil: 0,
   suppressChatAutoBottomUntil: 0,
+  conversationReadAnchorMessageId: "",
+  conversationReadAnchorScrollTop: 0,
+  conversationReadAnchorSetAt: 0,
   conversationBottomStickTimer: 0,
   conversationViewportRefreshTimers: [],
   conversationViewportSettleUntil: 0,
@@ -711,6 +728,7 @@ const state = {
   chatSearchScrollPending: false,
   chatSearchRefocus: false,
   olderChatMessagesLoading: false,
+  olderTaskMessagesLoading: false,
   suppressComposerFocusUntil: 0,
   suppressTransientActivationUntil: 0,
   attachFilePickerActivationAt: 0,

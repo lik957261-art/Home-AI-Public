@@ -155,14 +155,13 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
     deps.broadcast({ type: "thread.updated", thread: deps.threadSummary(thread) });
     const rawMessageMode = String(body.messageMode || body.message_mode || "").trim().toLowerCase();
     const messageMode = rawMessageMode || "chat";
+    const requestedTaskGroupId = body.taskGroupId || body.task_group_id || "";
     const wantsMessagePage = ["chat", "tasks", "task"].includes(messageMode);
     const responseThread = wantsMessagePage
       ? deps.compactThreadWithMessagePage(thread, {
         mode: messageMode,
         groupChat: Boolean(groupThread) && !weixinRequested,
-        taskGroupId: messageMode === "tasks" || messageMode === "task"
-          ? ""
-          : (body.taskGroupId || body.task_group_id || ""),
+        taskGroupId: requestedTaskGroupId,
         limit: body.messageLimit || body.message_limit || threadMessageInitialLimit,
       })
       : deps.compactThread(thread);

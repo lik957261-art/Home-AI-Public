@@ -1,6 +1,6 @@
 # Plugin Mobile UI And Visual Harness Contract
 
-Contract version: `20260611-v8`.
+Contract version: `20260626-v9`.
 
 ## Purpose
 
@@ -259,6 +259,72 @@ Voice overlay visual validation should use an installed-PWA or real-device
 harness path when microphone permission, keyboard behavior, or iframe focus is
 part of the change. Browser-mode screenshots are diagnostic only.
 
+## In-App Dialog Rule
+
+Home AI host pages, embedded plugin iframe pages, plugin standalone pages, and
+viewer pages must not use browser-native blocking dialogs for product UI.
+
+Forbidden product UI APIs:
+
+- `window.alert(...)`
+- `window.confirm(...)`
+- `window.prompt(...)`
+- unqualified `alert(...)`, `confirm(...)`, or `prompt(...)`
+- `beforeunload` / `onbeforeunload` confirmation prompts for ordinary app
+  navigation
+
+Required replacement surfaces:
+
+- an in-app modal dialog for confirmation;
+- an in-app prompt sheet or form control for text input;
+- an in-app toast/banner/status row for transient errors and success states;
+- a plugin-owned in-iframe sheet for plugin-local actions;
+- a Home AI-owned outer sheet when the action crosses the host/plugin boundary.
+
+Reason:
+
+- native iOS shells, Android WebViews, installed PWAs, and embedded iframes may
+  suppress, hide, or inconsistently render browser-native dialogs;
+- browser-native dialogs are not styleable, cannot show reliable sending/error
+  state, and are not visible in the same DOM evidence path as the rest of Home
+  AI;
+- blocking dialogs can interrupt bridge messages, postMessage flows, and Owner
+  approval dispatch without leaving an auditable UI state.
+
+Implementation requirements:
+
+- the Home AI host should use `openAppConfirmDialog`,
+  `openAppPromptDialog`, or `openAppMessageDialog` for generic host dialogs;
+- plugin workspaces may implement their own local equivalents, but they must
+  render inside the plugin DOM or use the Home AI bridge for host-owned prompts;
+- cross-thread repair, Owner approval, deployment, and diagnostic remediation
+  prompts must show an in-app pending/sending/failure state in the triggering
+  surface;
+- a missing dialog container must fail closed or show a non-blocking in-app
+  status; it must not fall back to a browser-native dialog;
+- copied diagnostic text should use Clipboard API when available and otherwise
+  show an in-app selectable text field.
+
+Allowed exceptions:
+
+- browser installation APIs such as `beforeinstallprompt` and
+  `BeforeInstallPromptEvent.prompt()` are allowed because they are browser
+  permission/install flows, not application page dialogs;
+- third-party vendored viewer libraries may contain internal dialog words or
+  APIs when they are not used as Home AI product UI, but Home AI-owned wrapper
+  code must still use in-app surfaces.
+
+Executable evidence:
+
+- `tests/no-browser-native-dialogs.test.js` scans Home AI runtime UI files for
+  forbidden product UI dialog calls, and local audits may set
+  `HOMEAI_SCAN_ADJACENT_PLUGIN_DIALOGS=1` to scan available adjacent plugin
+  source files before routing plugin-owned fixes to those plugin workspaces;
+- `tests/static-cache-version-harness.test.js` must pass when any host static
+  dialog runtime file changes;
+- plugin visual work should include a focused test or readback proving
+  confirmation/input/error states render inside the plugin or host DOM.
+
 ## Safe-Area, Keyboard, And Viewport Rules
 
 Mobile shell changes must account for:
@@ -497,6 +563,15 @@ Concurrency contract:
 Layer checks:
 
 ```bash
+npm run ios:pwa:visual -- --debug-url http://127.0.0.1:19073/ --preflight-only --json
+```
+
+The checked preflight is the preferred bounded smoke before plugin visual
+scenarios. It reports `failureLayer=live_debug`, `appium`, or `wda` and does
+not run a plugin scenario. The raw layer checks below are the manual equivalent
+when the harness itself cannot start:
+
+```bash
 curl -fsS http://127.0.0.1:4723/status
 curl -fsS http://127.0.0.1:8101/status
 lsof -nP -iTCP:19073 -sTCP:LISTEN
@@ -532,11 +607,12 @@ insufficient when Appium, WDA, or WebKit remote debugging is partially stuck.
 
 Plugin teams must not start foreground `appium server` processes from their
 own terminal sessions for shared lanes. Use the central Appium start script so
-the background Appium process ignores terminal `SIGHUP`/`SIGINT` and replaces
-stale XCUITest sessions; otherwise Ctrl-C in a live-debug terminal can kill
-Appium while WDA remains alive, leaving the lane in a half-online state that
-times out later. Plugin workspaces must call the central script instead of
-copying a local Appium command, because toolchain fixes land centrally.
+the per-user LaunchAgent replaces stale Appium jobs and rejects transient
+startup where `/status` responds once but the process exits before a second
+check. One-shot terminal background children can disappear while WDA remains
+alive, leaving the lane in a half-online state that times out later. Plugin
+workspaces must call the central script instead of copying a local Appium
+command, because toolchain fixes land centrally.
 
 When a lane appears visually alive but actions or deep state are flaky, do not
 fix plugin CSS or restart production first. Classify the layer:

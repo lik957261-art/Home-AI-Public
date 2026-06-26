@@ -12,6 +12,7 @@ const {
   DEFAULT_HEALTH_PLUGIN_MANIFEST_URL,
   DEFAULT_MOIRA_PLUGIN_MANIFEST_URL,
   DEFAULT_MUSIC_PLUGIN_MANIFEST_URL,
+  DEFAULT_MOVIE_PLUGIN_MANIFEST_URL,
   DEFAULT_NOTE_PLUGIN_MANIFEST_URL,
   DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL,
   configuredPlugins,
@@ -416,6 +417,33 @@ function sampleMusicManifest() {
   };
 }
 
+function sampleMovieManifest() {
+  return {
+    id: "movie",
+    title: "影院",
+    kind: "embedded_app",
+    version: "20260625-movie-metadata-v3",
+    entry: {
+      type: "web",
+      url: "/index.html?embed=hermes&movieVersion=20260625-movie-metadata-v3",
+      frame_policy: "allow_configured_hermes_origins",
+    },
+    embedding: {
+      refreshOnVersionChange: true,
+    },
+    program_api: {
+      base_url: "http://127.0.0.1:4195",
+      plugin_manifest: "/api/v1/hermes/plugin/manifest",
+      sync_schema_version: 1,
+    },
+    actions: [
+      { id: "start_movie", label: "开场", entry: { type: "plugin_route", pluginRoute: "remote" } },
+      { id: "shutdown", label: "关机", entry: { type: "plugin_route", pluginRoute: "remote" } },
+      { id: "projector_status", label: "投影状态", entry: { type: "plugin_route", pluginRoute: "projector" } },
+    ],
+  };
+}
+
 function testNormalizeManifest() {
   const manifest = normalizeManifest(sampleManifest(), {
     id: "wardrobe",
@@ -725,6 +753,26 @@ async function testMusicPluginCannotBeGrantedToNonOwner() {
   assert.equal(service.listInstalled().find((item) => item.id === "music").riskLevel, "owner-critical");
 }
 
+async function testMoviePluginCannotBeGrantedToNonOwner() {
+  const service = createHermesPluginService({
+    plugins: [{ id: "movie", manifestUrl: "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["weixin_wuping"] }],
+    fetch() {
+      throw new Error("movie non-owner grant must not fetch manifest");
+    },
+  });
+  const configured = configuredPlugins({
+    plugins: [{ id: "movie", manifestUrl: "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["weixin_wuping"] }],
+  })[0];
+  assert.equal(configured.allowWorkspaceGrant, false);
+  assert.deepEqual(configured.authorizedWorkspaceIds, []);
+  assert.equal((await service.grantWorkspace({ id: "movie", workspaceId: "weixin_wuping" })).error, "plugin_workspace_grant_not_allowed");
+  const manifest = await service.manifest({ id: "movie", workspaceId: "weixin_wuping" });
+  assert.equal(manifest.available, false);
+  assert.deepEqual(service.list({ workspaceId: "weixin_wuping" }), []);
+  assert.equal(service.listInstalled().find((item) => item.id === "movie").allowWorkspaceGrant, false);
+  assert.equal(service.listInstalled().find((item) => item.id === "movie").riskLevel, "owner-critical");
+}
+
 async function testMusicOwnerManifestUsesKeylessDirectEntry() {
   const calls = [];
   const service = createHermesPluginService({
@@ -757,6 +805,47 @@ async function testMusicOwnerManifestUsesKeylessDirectEntry() {
   assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"/i);
 }
 
+async function testMovieOwnerManifestUsesKeylessDirectEntry() {
+  const calls = [];
+  const service = createHermesPluginService({
+    plugins: [{ id: "movie", manifestUrl: "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest" }],
+    fetch(url) {
+      calls.push(url);
+      if (url === "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest") {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(sampleMovieManifest()),
+        });
+      }
+      throw new Error(`movie owner direct-entry manifest must not call ${url}`);
+    },
+  });
+  const manifest = await service.manifest({
+    id: "movie",
+    workspaceId: "owner",
+    appearance: { theme: "dark", fontSize: "large" },
+    launchPlugin: true,
+  });
+  assert.equal(manifest.available, true);
+  assert.equal(manifest.title, "影院");
+  assert.equal(manifest.version, "20260625-movie-metadata-v3");
+  assert.equal(manifest.embedding.refreshOnVersionChange, true);
+  assert.equal(
+    manifest.entry.url,
+    "/api/hermes-plugins/movie/proxy/index.html?embed=hermes&movieVersion=20260625-movie-metadata-v3&pluginTheme=dark&pluginFontSize=large&workspaceId=owner",
+  );
+  assert.equal(manifest.embed.url, manifest.entry.url);
+  assert.equal(manifest.embed.sameOriginProxy, true);
+  assert.equal(manifest.embed.requiresSignedToken, false);
+  assert.equal(manifest.embed.tokenStatus, "owner_only_direct_entry");
+  assert.deepEqual(manifest.embed.appearance, { theme: "dark", fontSize: "large" });
+  assert.deepEqual(manifest.actions, []);
+  assert.equal(manifest.actionPolicy.hostActionsSuppressed, true);
+  assert.deepEqual(calls, ["http://127.0.0.1:4195/api/v1/hermes/plugin/manifest"]);
+  assert.doesNotMatch(JSON.stringify(manifest), /Authorization|Bearer|"launch_token"|"workspace_key"/i);
+}
+
 function testMusicProxyDoesNotUseWorkspaceBearer() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-music-proxy-auth-"));
   const keyPath = path.join(dir, "drive", "users", "owner", ".hermes-music", "access-key.txt");
@@ -770,6 +859,43 @@ function testMusicProxyDoesNotUseWorkspaceBearer() {
     },
   });
   assert.equal(service.pluginProxyAuthorizationHeader({ id: "music", workspaceId: "owner" }), "");
+}
+
+function testMovieProxyDoesNotUseWorkspaceBearer() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-movie-proxy-auth-"));
+  const keyPath = path.join(dir, "drive", "users", "owner", ".hermes-movie", "access-key.txt");
+  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+  fs.writeFileSync(keyPath, "stale-movie-key\n", "utf8");
+  const service = createHermesPluginService({
+    dataDir: dir,
+    plugins: [{ id: "movie", manifestUrl: "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest" }],
+    fetch() {
+      throw new Error("proxy authorization should not fetch plugin manifests");
+    },
+  });
+  assert.equal(service.pluginProxyAuthorizationHeader({ id: "movie", workspaceId: "owner" }), "");
+}
+
+function testHealthProxyRequiresExplicitWorkspaceForBearer() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-health-proxy-auth-"));
+  const ownerKeyPath = path.join(dir, "drive", "users", "owner", ".hermes-health", "access-key.txt");
+  const liyushuangKeyPath = path.join(dir, "drive", "users", "liyushuang", ".hermes-health", "access-key.txt");
+  fs.mkdirSync(path.dirname(ownerKeyPath), { recursive: true });
+  fs.mkdirSync(path.dirname(liyushuangKeyPath), { recursive: true });
+  fs.writeFileSync(ownerKeyPath, "owner-health-key\n", "utf8");
+  fs.writeFileSync(liyushuangKeyPath, "liyushuang-health-key\n", "utf8");
+  const service = createHermesPluginService({
+    dataDir: dir,
+    plugins: [{ id: "health", manifestUrl: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" }],
+    fetch() {
+      throw new Error("proxy authorization should not fetch plugin manifests");
+    },
+  });
+  assert.equal(service.pluginProxyAuthorizationHeader({ id: "health" }), "");
+  assert.equal(
+    service.pluginProxyAuthorizationHeader({ id: "health", workspaceId: "liyushuang" }),
+    "Bearer liyushuang-health-key",
+  );
 }
 
 async function testFrameAncestorsBlockedReturnsUnavailable() {
@@ -827,6 +953,7 @@ async function testDefaultLocalManifestUrls() {
   assert.equal(service.list()[3].manifestUrl, DEFAULT_EMAIL_PLUGIN_MANIFEST_URL);
   assert.equal(service.list().find((item) => item.id === "moira").manifestUrl, DEFAULT_MOIRA_PLUGIN_MANIFEST_URL);
   assert.equal(service.list().find((item) => item.id === "music").manifestUrl, DEFAULT_MUSIC_PLUGIN_MANIFEST_URL);
+  assert.equal(service.list().find((item) => item.id === "movie").manifestUrl, DEFAULT_MOVIE_PLUGIN_MANIFEST_URL);
   assert.equal(service.listInstalled()[0].title, "衣橱");
   assert.equal(service.listInstalled()[1].title, "Codex");
   assert.equal(service.listInstalled()[2].title, "记账");
@@ -835,6 +962,7 @@ async function testDefaultLocalManifestUrls() {
   assert.equal(service.listInstalled()[6].title, "成长");
   assert.equal(service.listInstalled()[7].title, "星盘");
   assert.equal(service.listInstalled()[8].title, "音乐");
+  assert.equal(service.listInstalled()[9].title, "影院");
 }
 
 function testInstalledPluginListReflectsWorkspaceKeyBindings() {
@@ -1002,6 +1130,8 @@ function testInstalledPluginListReflectsWorkspaceKeyBindings() {
     source: "workspace_key",
   }].sort((left, right) => left.workspaceId.localeCompare(right.workspaceId)));
   assert.deepEqual(installed.find((item) => item.id === "codex-mobile").authorizedWorkspaceIds, []);
+  assert.deepEqual(installed.find((item) => item.id === "movie").authorizedWorkspaceIds, []);
+  assert.deepEqual(installed.find((item) => item.id === "movie").workspaceAuthorizations, []);
 }
 
 async function testHealthFreshInstallIsInstalledButNotWorkspaceActive() {
@@ -1275,10 +1405,12 @@ async function testFinanceProvisioningFailureBlocksManifest() {
 
 async function testFinanceOwnerManifestProvisionsWorkspaceLocalMcpConfig() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-owner-"));
+  const ownerWebKeyPath = path.join(dir, "owner-web-key.secret");
+  fs.writeFileSync(ownerWebKeyPath, "owner-web-auth-key\n", "utf8");
   const calls = [];
   const service = createHermesPluginService({
     dataDir: dir,
-    env: {},
+    env: { HERMES_WEB_AUTH_KEY_PATH: ownerWebKeyPath },
     plugins: [{ id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest" }],
     fetch(url, options = {}) {
       calls.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
@@ -2489,12 +2621,18 @@ async function testMoiraWupingUsesWorkspaceLaunchWhenWorkspaceBindingExists() {
     id: "moira",
     workspaceId: "weixin_wuping",
     appOrigin: "http://127.0.0.1:19073",
+    pluginRoute: "saved_records",
+    pluginItemId: "chart_cd1e23e6",
     launchPlugin: true,
   });
   assert.equal(manifest.available, true);
   const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
   assert.ok(launchCall);
-  assert.deepEqual(JSON.parse(launchCall.options.body), { workspace_id: "weixin_wuping" });
+  assert.deepEqual(JSON.parse(launchCall.options.body), {
+    workspace_id: "weixin_wuping",
+    pluginRoute: "saved_records",
+    pluginItemId: "chart_cd1e23e6",
+  });
   assert.equal(launchCall.options.headers.Authorization, "Bearer wuping-moira-key");
 }
 
@@ -2842,9 +2980,19 @@ function testFindCodexMobileAccessKeyPath() {
 }
 
 function testFindFinanceAccessKeyPath() {
+  const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-empty-"));
   assert.equal(findFinanceAccessKeyPath({ financeAccessKeyPath: __filename }), __filename);
-  assert.equal(findFinanceAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), __filename);
-  assert.equal(findFinanceAccessKeyPath({ workspaceId: "weixin_wuping" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+  assert.equal(findFinanceAccessKeyPath({ workspaceId: "owner" }, { dataDir: emptyDir, env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+  assert.equal(findFinanceAccessKeyPath({ workspaceId: "weixin_wuping" }, { dataDir: emptyDir, env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-finance-key-path-"));
+  const keyPath = path.join(dir, "drive", "users", "owner", ".hermes-finance", "access-key.txt");
+  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+  fs.writeFileSync(keyPath, "finance-workspace-key\n", "utf8");
+  assert.equal(
+    findFinanceAccessKeyPath({ workspaceId: "owner" }, { dataDir: dir, env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }),
+    keyPath,
+  );
 }
 
 function testFindEmailAccessKeyPath() {
@@ -2934,8 +3082,12 @@ async function run() {
   await testExplicitPluginWorkspaceAuthorizationAllowsNonOwner();
   await testCodexPluginCannotBeGrantedToNonOwner();
   await testMusicPluginCannotBeGrantedToNonOwner();
+  await testMoviePluginCannotBeGrantedToNonOwner();
   await testMusicOwnerManifestUsesKeylessDirectEntry();
+  await testMovieOwnerManifestUsesKeylessDirectEntry();
   testMusicProxyDoesNotUseWorkspaceBearer();
+  testMovieProxyDoesNotUseWorkspaceBearer();
+  testHealthProxyRequiresExplicitWorkspaceForBearer();
   await testFrameAncestorsBlockedReturnsUnavailable();
   await testDefaultLocalManifestUrls();
   testInstalledPluginListReflectsWorkspaceKeyBindings();

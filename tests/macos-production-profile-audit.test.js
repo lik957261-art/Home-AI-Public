@@ -53,6 +53,9 @@ assert.match(script, /installed_gateway_mobile_bridge_env_missing/);
 assert.match(script, /HERMES_MOBILE_BRIDGE_HOST_URL/);
 assert.match(script, /HERMES_MOBILE_BRIDGE_HOST_KEY_PATH/);
 assert.match(script, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
+assert.match(script, /HERMES_MOBILE_PDF_ALLOWED_ROOTS/);
+assert.match(script, /HERMES_MOBILE_PDF_OUTPUT_ROOTS/);
+assert.match(script, /HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS/);
 assert.match(script, /HERMES_MOBILE_HTTP_FILE_ROOTS/);
 assert.match(script, /launchdProbe/);
 assert.match(script, /launchdPlistProbe/);
@@ -193,6 +196,9 @@ try {
   assert.ok(audit.issues.includes("plugin_required_skill_incomplete:weixin_wuping:wardrobe:productivity/wardrobe-style-operations"));
   assert.ok(audit.issues.includes("file_plugin_start_script_missing:hm-wuping-openai-1"));
   assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_DOCX_ALLOWED_ROOTS"));
+  assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_PDF_ALLOWED_ROOTS"));
+  assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_PDF_OUTPUT_ROOTS"));
+  assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS"));
   assert.ok(audit.issues.includes("shared_skill_missing:shared/response-grounding-baseline"));
   assert.ok(audit.issues.some((item) => item.startsWith("profile_config_missing:")));
   assert.ok(audit.issues.includes("mobile_bridge_env_missing:hm-wuping-openai-1:HERMES_MOBILE_BRIDGE_HOST_URL"));
@@ -283,7 +289,10 @@ try {
       text: [
         'FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifacts"',
         'HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_PDF_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_PDF_OUTPUT_ROOTS="$ROOT/data/artifacts"',
         'HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
         'HERMES_MOBILE_IMAGE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
         'HERMES_MOBILE_VIDEO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
         'HERMES_MOBILE_HTTP_FILE_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
@@ -333,7 +342,10 @@ try {
       text: [
         'FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive:$ROOT/data/uploads:$ROOT/data/artifacts"',
         'HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_PDF_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_PDF_OUTPUT_ROOTS="$ROOT/data/artifacts"',
         'HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
         'HERMES_MOBILE_IMAGE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
         'HERMES_MOBILE_VIDEO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
         'HERMES_MOBILE_HTTP_FILE_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
@@ -418,7 +430,10 @@ try {
     startScriptProbe: () => ({ exists: true, text: [
       'FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifacts"',
       'HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+      'HERMES_MOBILE_PDF_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+      'HERMES_MOBILE_PDF_OUTPUT_ROOTS="$ROOT/data/artifacts"',
       'HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+      'HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
       'HERMES_MOBILE_IMAGE_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
       'HERMES_MOBILE_VIDEO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
       'HERMES_MOBILE_HTTP_FILE_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
@@ -462,7 +477,12 @@ try {
       {
         label: "com.hermesmobile.gateway.hm-fixture-owner.openai.1",
         plistPath: "/LaunchDaemons/com.hermesmobile.gateway.hm-fixture-owner.openai.1.plist",
-        startScriptPath: "/tmp/tracked.sh",
+        startScriptPath: "/Users/example/path",
+      },
+      {
+        label: "com.hermesmobile.gateway.hm-fixture-wuping.openai.1",
+        plistPath: "/LaunchDaemons/com.hermesmobile.gateway.hm-fixture-wuping.openai.1.plist",
+        startScriptPath: "/tmp/wrong-owned.sh",
       },
       {
         label: "com.hermesmobile.gateway.hm-weixin-stephen.openai.1",
@@ -489,6 +509,7 @@ try {
     }),
   });
   assert.ok(installedLaunchdAudit.issues.includes("installed_gateway_launchd_untracked:com.hermesmobile.gateway.hm-weixin-stephen.openai.1"));
+  assert.ok(installedLaunchdAudit.issues.includes("installed_gateway_start_script_path_mismatch:com.hermesmobile.gateway.hm-fixture-wuping.openai.1"));
   assert.ok(installedLaunchdAudit.issues.includes("installed_gateway_start_script_root_mismatch:com.hermesmobile.gateway.hm-weixin-stephen.openai.1"));
   assert.ok(installedLaunchdAudit.issues.includes("installed_gateway_mobile_bridge_env_missing:com.hermesmobile.gateway.hm-weixin-stephen.openai.1:HERMES_MOBILE_BRIDGE_HOST_URL"));
   assert.ok(!installedLaunchdAudit.issues.includes("installed_gateway_launchd_untracked:com.hermesmobile.gateway.hm-fixture-owner.openai.1"));

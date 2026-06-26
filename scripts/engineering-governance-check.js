@@ -55,10 +55,14 @@ function checkRequiredFiles(issues) {
     "docs/TEST_MATRIX.md",
     "docs/MODULES/deployment.md",
     "docs/MODULES/plugins.md",
+    "docs/PLATFORM_CONTRACTS/audit-thread-governance-contract.md",
+    "docs/PLATFORM_CONTRACTS/fallback-governance-contract.md",
+    "docs/IMPLEMENTATION_NOTES/fallback-registry.md",
     "docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md",
     "adapters/codex-mobile-recovery-service.js",
     "server-routes/codex-mobile-recovery-api-routes.js",
     "scripts/productization-check.js",
+    "scripts/fallback-governance-check.js",
     "scripts/public-install-preflight.js",
     "scripts/install-macos-production.sh",
     "scripts/macos-install-phase-coverage-audit.js",
@@ -100,6 +104,7 @@ function checkRequiredFiles(issues) {
     "tests/codex-mobile-recovery-service.test.js",
     "tests/codex-mobile-recovery-api-routes.test.js",
     "tests/plugin-provisioning-coverage-audit.test.js",
+    "tests/fallback-governance-check.test.js",
     "tests/productization-acceptance-matrix.test.js",
   ].forEach((relativePath) => requireFile(issues, relativePath));
 }
@@ -139,6 +144,13 @@ function checkCiGate(issues) {
     /engineering-governance-check\.js/,
     "productization_missing_governance_check",
     "productization-check.js must run engineering-governance-check.js",
+  );
+  requireText(
+    issues,
+    "scripts/productization-check.js",
+    /fallback-governance-check\.js[\s\S]+--json/,
+    "productization_missing_fallback_governance_check",
+    "productization-check.js must run fallback-governance-check.js --json",
   );
   requireText(
     issues,
@@ -257,6 +269,7 @@ function checkCiGate(issues) {
     "scripts/productization-check.js",
     [
       "Engineering governance check",
+      "Fallback governance check",
       "Public install preflight source check",
       "Plugin provisioning coverage audit",
       "macOS install phase coverage audit",
@@ -300,6 +313,55 @@ function checkDocs(issues) {
   );
   requireText(
     issues,
+    "docs/DOCS_INDEX.md",
+    /fallback-governance-contract\.md[\s\S]+fallback-registry\.md[\s\S]+fallback-governance-check\.js/,
+    "docs_index_missing_fallback_governance",
+    "DOCS_INDEX must point to the fallback governance contract, registry, and executable check",
+  );
+  requireText(
+    issues,
+    "docs/DOCS_INDEX.md",
+    /audit-thread-governance-contract\.md/,
+    "docs_index_missing_audit_thread_governance",
+    "DOCS_INDEX must point to the audit thread governance contract",
+  );
+  requireText(
+    issues,
+    "docs/PLATFORM_CONTRACTS/audit-thread-governance-contract.md",
+    /Home AI Platform Audit[\s\S]+Plugin Workspace Audit[\s\S]+must not read[\s\S]+\.agent-context\/HANDOFF\.md[\s\S]+Contract lane[\s\S]+Architecture lane[\s\S]+architecture lane is mandatory[\s\S]+Return Card Required[\s\S]+Scheduled automation may create an audit request card[\s\S]+discover the current audit thread dynamically[\s\S]+must not persist or hard-code Codex audit[\s\S]+[Ss]end exactly one task card to that central audit thread[\s\S]+must not fan out to plugin implementation threads/,
+    "audit_thread_governance_contract_incomplete",
+    "audit thread governance contract must define dedicated threads, handoff independence, contract and architecture lanes, return-card requirements, scheduler limits, dynamic thread discovery, and central audit-thread routing",
+  );
+  requireText(
+    issues,
+    "docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md",
+    /Return Card Required[\s\S]+source thread cannot\s+close[\s\S]+silently consumed[\s\S]+redirects, blocks, partially completes, or defers/,
+    "root_cause_contract_missing_return_card_closure",
+    "root-cause contract must require return cards for every task-card outcome",
+  );
+  requireText(
+    issues,
+    "docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md",
+    /Return Card Required[\s\S]+Every accepted or rejected cross-thread card[\s\S]+redirected, blocked, partially completed,[\s\S]+Silent consumption is a contract violation/,
+    "plugin_contract_missing_return_card_closure",
+    "plugin platform contract must require return cards and prohibit silent task-card consumption",
+  );
+  requireText(
+    issues,
+    "AGENTS.md",
+    /Dedicated audit thread exception[\s\S]+audit-thread-governance-contract\.md[\s\S]+must not read[\s\S]+\.agent-context\/HANDOFF\.md/,
+    "agents_missing_audit_thread_exception",
+    "AGENTS.md must exempt dedicated audit threads from ordinary handoff loading",
+  );
+  requireText(
+    issues,
+    "docs/MODULES/automation.md",
+    /audit-thread-governance-contract\.md[\s\S]+Scheduled\s+automation may create a bounded audit request card[\s\S]+must not run deep host\/plugin audits[\s\S]+directly/,
+    "automation_doc_missing_audit_scheduler_boundary",
+    "Automation docs must state that scheduled audits create request cards instead of running deep audits directly",
+  );
+  requireText(
+    issues,
     "docs/PRODUCT_REQUIREMENTS.md",
     /CI-enforced constraints[\s\S]+production self-diagnostics[\s\S]+productization\s+acceptance\s+matrix/i,
     "product_requirements_missing_governance_rule",
@@ -308,9 +370,9 @@ function checkDocs(issues) {
   requireText(
     issues,
     "docs/TEST_MATRIX.md",
-    /engineering-governance-check\.js[\s\S]+production-self-diagnostics\.js[\s\S]+productization-acceptance-matrix\.js[\s\S]+Productization Acceptance Matrix/i,
+    /engineering-governance-check\.js[\s\S]+fallback-governance-check\.js[\s\S]+production-self-diagnostics\.js[\s\S]+productization-acceptance-matrix\.js[\s\S]+Productization Acceptance Matrix/i,
     "test_matrix_missing_governance_gate",
-    "TEST_MATRIX must include the governance check and productization matrix",
+    "TEST_MATRIX must include the governance check, fallback governance check, and productization matrix",
   );
   requireText(
     issues,
@@ -322,9 +384,16 @@ function checkDocs(issues) {
   requireText(
     issues,
     "docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md",
-    /public-install-preflight\.js[\s\S]+macos-install-phase-coverage-audit\.js[\s\S]+macos-fresh-install-rehearsal\.js[\s\S]+macos-install-verification-classification\.js[\s\S]+macos-install-operator-closure-checklist\.js[\s\S]+production-self-diagnostics\.js[\s\S]+production-self-diagnostics-coverage-audit\.js[\s\S]+productization-acceptance-matrix\.js/,
+    /fallback-governance-check\.js[\s\S]+public-install-preflight\.js[\s\S]+macos-install-phase-coverage-audit\.js[\s\S]+macos-fresh-install-rehearsal\.js[\s\S]+macos-install-verification-classification\.js[\s\S]+macos-install-operator-closure-checklist\.js[\s\S]+production-self-diagnostics\.js[\s\S]+production-self-diagnostics-coverage-audit\.js[\s\S]+productization-acceptance-matrix\.js/,
     "governance_doc_missing_executable_tools",
-    "engineering-governance-gates.md must describe the executable governance tools including the macOS install phase audit",
+    "engineering-governance-gates.md must describe the executable governance tools including fallback governance and the macOS install phase audit",
+  );
+  requireText(
+    issues,
+    "docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md",
+    /fallback-governance-check\.js[\s\S]+fallback-governance-check\.test\.js/,
+    "governance_doc_missing_fallback_governance_local_check",
+    "engineering-governance-gates.md must include the fallback governance check and test",
   );
   requireText(
     issues,

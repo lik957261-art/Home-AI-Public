@@ -175,8 +175,13 @@ function replaceProfileInPath(value, profile) {
   const text = String(value || "");
   if (!text) return "";
   return text
-    .replace(/profiles[\\/][^\\/]+/i, `profiles\\${profile}`)
+    .replace(/profiles([\\/])[^\\/]+/i, `profiles$1${profile}`)
     .replace(/(lowgw|grokgw|deepseekgw)\d+/gi, profile);
+}
+
+function profileDirForMacWorker(path, profileHomeRoot, macUser, profile) {
+  const root = String(profileHomeRoot || "").trim() || "/Users";
+  return path.join(root, macUser, "HermesWorkspace", ".hermes-gateway", "profiles", profile);
 }
 
 function firstExistingManifestPath(fs, paths) {
@@ -202,6 +207,9 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
   const manifestPaths = typeof options.manifestPaths === "function" ? options.manifestPaths : (() => options.manifestPaths || []);
   const skillProfilesRoot = typeof options.skillProfilesRoot === "function" ? options.skillProfilesRoot : (() => options.skillProfilesRoot || "");
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : (() => new Date().toISOString());
+  const profileHomeRoot = typeof options.profileHomeRoot === "function"
+    ? options.profileHomeRoot
+    : (() => options.profileHomeRoot || "/Users");
   const lowGatewayBasePort = Number(options.lowGatewayBasePort || 18750);
   const workspaceOpenAiWorkerMin = Math.max(1, Math.floor(Number(options.workspaceOpenAiWorkerMin || 2) || 2));
   const workspaceDeepSeekWorkerMin = options.workspaceDeepSeekWorkerMin == null
@@ -289,6 +297,38 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
     delete worker.enabled_toolsets;
     delete worker.allowedToolsets;
     delete worker.allowed_toolsets;
+    return changed;
+  }
+
+  function repairWorkspaceWorkerProfilePaths(worker, inputMacUser) {
+    const profile = String(worker.profile || worker.name || "").trim();
+    const macUser = String(inputMacUser || macUserForWorker(worker) || "").trim();
+    if (!profile || !macUser) return false;
+    const expectedProfileDir = profileDirForMacWorker(path, profileHomeRoot(), macUser, profile);
+    const expectedConfigPath = path.join(expectedProfileDir, "config.yaml");
+    let changed = worker.configPath !== expectedConfigPath || worker.config_path !== undefined;
+    worker.configPath = expectedConfigPath;
+    delete worker.config_path;
+
+    const statePath = replaceProfileInPath(worker.telemetryStateDbPath || worker.telemetry_state_db_path, profile);
+    if (statePath) {
+      changed = changed || worker.telemetryStateDbPath !== statePath || worker.telemetry_state_db_path !== undefined;
+      worker.telemetryStateDbPath = statePath;
+      delete worker.telemetry_state_db_path;
+    }
+
+    const responsePath = replaceProfileInPath(
+      worker.telemetryResponseStoreDbPath || worker.telemetry_response_store_db_path,
+      profile,
+    );
+    if (responsePath) {
+      changed = changed
+        || worker.telemetryResponseStoreDbPath !== responsePath
+        || worker.telemetry_response_store_db_path !== undefined;
+      worker.telemetryResponseStoreDbPath = responsePath;
+      delete worker.telemetry_response_store_db_path;
+    }
+
     return changed;
   }
 
@@ -380,6 +420,9 @@ function createGatewayWorkspaceProvisioningService(options = {}) {
           provisionedWorkers.push(worker);
         }
         if (repairWorkspaceWorkerApiKey(manifestPath, workspaceId, worker, provider, index + 1)) {
+          provisionedWorkers.push(worker);
+        }
+        if (repairWorkspaceWorkerProfilePaths(worker, inputMacUser)) {
           provisionedWorkers.push(worker);
         }
         if (repairWorkspaceWorkerToolsets(worker)) {

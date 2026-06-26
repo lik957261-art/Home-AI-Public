@@ -286,19 +286,25 @@ function createHermesPluginApiRoutes(deps = {}) {
     const direct = normalizedSearchParams.get("workspaceId")
       || normalizedSearchParams.get("workspace_id")
       || req.headers?.["x-hermes-plugin-workspace-id"];
-    if (direct) return { workspaceId: direct, ambiguous: false };
+    if (direct) return { workspaceId: direct, ambiguous: false, source: "explicit" };
     const referrer = req.headers?.referer || req.headers?.referrer || "";
     if (referrer) {
       try {
         const referrerUrl = new URL(String(referrer), "http://localhost");
         const referrerWorkspaceId = referrerUrl.searchParams.get("workspaceId");
-        if (referrerWorkspaceId) return { workspaceId: referrerWorkspaceId, ambiguous: false };
+        if (referrerWorkspaceId) return { workspaceId: referrerWorkspaceId, ambiguous: false, source: "referrer" };
       } catch (_) {}
     }
     const cookieWorkspaceIds = scopedProxyCookieWorkspaceIds(req.headers?.cookie, pluginId);
-    if (cookieWorkspaceIds.length === 1) return { workspaceId: cookieWorkspaceIds[0], ambiguous: false };
+    if (cookieWorkspaceIds.length === 1) return { workspaceId: cookieWorkspaceIds[0], ambiguous: false, source: "session_cookie" };
     if (cookieWorkspaceIds.length > 1) return { workspaceId: "", ambiguous: true };
-    return { workspaceId: auth?.workspaceId || "owner", ambiguous: false };
+    return { workspaceId: auth?.workspaceId || requestedWorkspaceId(), ambiguous: false, source: "auth_fallback" };
+  }
+
+  function healthProxyRequiresExplicitWorkspace(req, pluginId = "") {
+    if (pluginId !== "health") return false;
+    const method = String(req?.method || "GET").toUpperCase();
+    return !["GET", "HEAD", "OPTIONS"].includes(method);
   }
 
   function pluginProxyWorkspaceAuthorized(pluginId, workspaceId, auth) {
@@ -390,6 +396,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (pluginId === "wardrobe") return ["wardrobe_session"];
     if (pluginId === "finance") return ["finance_hermes_session", "finance_session"];
     if (pluginId === "codex-mobile") return ["codex_mobile_plugin_session"];
+    if (pluginId === "moira") return ["moira_hermes_session"];
     return [];
   }
 
@@ -812,6 +819,13 @@ function createHermesPluginApiRoutes(deps = {}) {
       deps.sendJson(res, 400, { ok: false, error: "plugin_proxy_workspace_ambiguous" });
       return;
     }
+    if (
+      healthProxyRequiresExplicitWorkspace(req, pluginId)
+      && (!workspaceRequest.workspaceId || workspaceRequest.source === "auth_fallback")
+    ) {
+      deps.sendJson(res, 400, { ok: false, error: "health_proxy_workspace_required" });
+      return;
+    }
     const workspaceId = publicOAuthCallback
       ? "owner"
       : deps.requireWorkspaceAccess(req, res, workspaceRequest.workspaceId);
@@ -910,7 +924,15 @@ function createHermesPluginApiRoutes(deps = {}) {
       deps.sendJson(res, 404, { ok: false, error: "plugin_not_found" });
       return;
     }
-    const manifest = await deps.hermesPluginService.manifest({
+    const pluginLaunchRoute = Object.fromEntries(Object.entries({
+      pluginRoute: url?.searchParams?.get("pluginRoute") || url?.searchParams?.get("route") || "",
+      pluginActionId: url?.searchParams?.get("pluginActionId") || url?.searchParams?.get("actionId") || "",
+      pluginItemId: url?.searchParams?.get("pluginItemId") || url?.searchParams?.get("itemId") || "",
+      pluginThreadId: url?.searchParams?.get("pluginThreadId") || url?.searchParams?.get("threadId") || "",
+      pluginTaskId: url?.searchParams?.get("pluginTaskId") || url?.searchParams?.get("taskId") || "",
+      sourceTurnId: url?.searchParams?.get("sourceTurnId") || url?.searchParams?.get("turnId") || "",
+    }).filter(([, value]) => value));
+    const manifest = await deps.hermesPluginService.manifest(Object.assign({
       id: pluginId,
       workspaceId,
       ownerAuthorized: ownerAuthorizedForWorkspace(requestAuth(req), workspaceId),
@@ -920,7 +942,7 @@ function createHermesPluginApiRoutes(deps = {}) {
         fontSize: url?.searchParams?.get("appearanceFontSize") || "",
       },
       launchPlugin: true,
-    });
+    }, pluginLaunchRoute));
     if (typeof deps.auditPluginManifestRequest === "function") {
       deps.auditPluginManifestRequest({
         eventType: "plugin_manifest_request",

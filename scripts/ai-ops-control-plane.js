@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const controlPlane = require("../adapters/ai-operations-control-plane-service");
+const diagnosticRemediation = require("../adapters/ai-ops-diagnostic-remediation-service");
 
 function usage() {
   return [
@@ -19,6 +20,7 @@ function usage() {
     "  node scripts/ai-ops-control-plane.js evidence verify [--require-kind <kind>] [--ledger <file>] [--json]",
     "  node scripts/ai-ops-control-plane.js incident create --symptom <text> [--issue-code <code>] [--dir <dir>] [--json]",
     "  node scripts/ai-ops-control-plane.js incident list [--dir <dir>] [--json]",
+    "  node scripts/ai-ops-control-plane.js remediation plan --case-json <json|@file> [--events-json <json|@file>] [--json]",
   ].join("\n");
 }
 
@@ -55,6 +57,8 @@ function parseFlags(argv) {
     else if (arg === "--surface") out.surface = argv[++index] || "";
     else if (arg === "--client-version") out.clientVersion = argv[++index] || "";
     else if (arg === "--gateway-json") out.gateway = readJsonArg(argv[++index] || "{}");
+    else if (arg === "--case-json") out.caseRecord = readJsonArg(argv[++index] || "{}");
+    else if (arg === "--events-json") out.events = readJsonArg(argv[++index] || "[]");
     else if (arg === "--step") out.reproductionSteps.push(argv[++index] || "");
     else if (arg === "--expected-check") out.expectedChecks.push(argv[++index] || "");
     else if (arg === "--help" || arg === "-h") {
@@ -152,6 +156,17 @@ function handle(command, subcommand, options) {
     }
     if (subcommand === "list") return controlPlane.listIncidentCassettes(options);
     throw new Error("incident_subcommand_required");
+  }
+  if (command === "remediation") {
+    if (subcommand === "plan") {
+      if (!options.caseRecord) throw new Error("case_json_required");
+      return diagnosticRemediation.buildDiagnosticRemediationPlan({
+        case: options.caseRecord,
+        events: Array.isArray(options.events) ? options.events : [],
+        sourceThreadTitle: "AI Ops Diagnostic Remediation",
+      });
+    }
+    throw new Error("remediation_subcommand_required");
   }
   throw new Error(`Unknown command: ${command}`);
 }

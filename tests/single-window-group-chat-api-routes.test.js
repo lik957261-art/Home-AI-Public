@@ -373,7 +373,7 @@ async function main() {
     assert.equal(got.body.caseTopicThreads[0].id, "case-topic");
     assert.deepEqual(
       calls.compactWithPage.find((item) => item.threadId === "private-thread").options.taskGroupId,
-      "",
+      "task-detail-route",
     );
   }
 

@@ -14,6 +14,8 @@ const DEFAULT_PORT = "4891";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_ROON_CORE_HOST = "192.168.100.190";
 const DEFAULT_ROON_CORE_PORT = "9330";
+const MUSIC_SERVICE_SCRIPT = "src/roon-first-server.js";
+const LEGACY_MUSIC_SERVICE_SCRIPT = "src/server.js";
 
 function argValue(argv, name, fallback = "") {
   const index = argv.indexOf(name);
@@ -35,6 +37,9 @@ function parseArgs(argv) {
     port: argValue(argv, "--port", process.env.MUSIC_PLUGIN_PORT || DEFAULT_PORT),
     roonCoreHost: argValue(argv, "--roon-core-host", process.env.MUSIC_ROON_CORE_HOST || DEFAULT_ROON_CORE_HOST),
     roonCorePort: argValue(argv, "--roon-core-port", process.env.MUSIC_ROON_CORE_PORT || DEFAULT_ROON_CORE_PORT),
+    audioStagingDir: argValue(argv, "--audio-staging-dir", process.env.MUSIC_AUDIO_STAGING_DIR || ""),
+    smbDirectConfig: argValue(argv, "--smb-direct-config", process.env.MUSIC_SMB_DIRECT_CONFIG || ""),
+    audioPathRemaps: argValue(argv, "--audio-path-remaps", process.env.MUSIC_AUDIO_PATH_REMAPS || ""),
   };
 }
 
@@ -57,6 +62,8 @@ function plistFor(options = {}) {
   const pluginRoot = path.posix.join(macRoot, "plugins", "music");
   const logsDir = path.posix.join(macRoot, "logs");
   const runtimeDir = path.posix.join(pluginRoot, "runtime");
+  const defaultAudioStagingDir = path.posix.join(macRoot, "data", "music", "audio-staging");
+  const defaultSmbDirectConfig = path.posix.join(macRoot, "data", "music", "secrets", "smb-direct-config.json");
   const env = {
     PATH: `${path.posix.join(macRoot, "runtime", "node-current", "bin")}:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin`,
     NODE_ENV: "production",
@@ -66,9 +73,12 @@ function plistFor(options = {}) {
     MUSIC_ROON_ENABLED: roonEnabled,
     MUSIC_ROON_STATE_PATH: path.posix.join(runtimeDir, "roon-state.json"),
     MUSIC_LISTENING_DB_PATH: path.posix.join(runtimeDir, "listening-ledger.sqlite3"),
+    MUSIC_AUDIO_STAGING_DIR: String(options.audioStagingDir || defaultAudioStagingDir),
+    MUSIC_SMB_DIRECT_CONFIG: String(options.smbDirectConfig || defaultSmbDirectConfig),
   };
   if (roonCoreHost) env.MUSIC_ROON_CORE_HOST = roonCoreHost;
   if (roonCorePort) env.MUSIC_ROON_CORE_PORT = roonCorePort;
+  if (options.audioPathRemaps) env.MUSIC_AUDIO_PATH_REMAPS = String(options.audioPathRemaps);
   const envXml = Object.entries(env).map(([key, value]) => [
     "      <key>", xmlEscape(key), "</key>\n",
     "      <string>", xmlEscape(value), "</string>",
@@ -87,7 +97,7 @@ function plistFor(options = {}) {
   <array>
     <string>${xmlEscape(nodePath)}</string>
     <string>--no-warnings</string>
-    <string>src/server.js</string>
+    <string>${xmlEscape(MUSIC_SERVICE_SCRIPT)}</string>
   </array>
   <key>EnvironmentVariables</key>
   <dict>
@@ -179,8 +189,14 @@ function portListeners(port, password = "") {
 
 function allowedExistingListener(listener = {}, planInfo = {}) {
   const command = String(listener.command || "");
-  return listener.user === "hermes-host"
-    && command.includes(path.posix.join(planInfo.pluginRoot, "src", "server.js"));
+  if (listener.user !== "hermes-host") return false;
+  const allowedScripts = [
+    MUSIC_SERVICE_SCRIPT,
+    LEGACY_MUSIC_SERVICE_SCRIPT,
+    path.posix.join(planInfo.pluginRoot, MUSIC_SERVICE_SCRIPT),
+    path.posix.join(planInfo.pluginRoot, LEGACY_MUSIC_SERVICE_SCRIPT),
+  ];
+  return allowedScripts.some((script) => command.includes(script));
 }
 
 function assertMusicPortAvailable(planInfo = {}, password = "") {
@@ -230,6 +246,9 @@ function plan(options = {}) {
     roonEnabled: String(options.roonEnabled ?? "1"),
     roonCoreHost: String(options.roonCoreHost || DEFAULT_ROON_CORE_HOST),
     roonCorePort: String(options.roonCorePort || DEFAULT_ROON_CORE_PORT),
+    audioStagingDir: String(options.audioStagingDir || path.posix.join(macRoot, "data", "music", "audio-staging")),
+    smbDirectConfig: String(options.smbDirectConfig || path.posix.join(macRoot, "data", "music", "secrets", "smb-direct-config.json")),
+    audioPathRemapsConfigured: Boolean(options.audioPathRemaps),
     bootstrap: Boolean(options.bootstrap),
   };
 }
@@ -285,6 +304,8 @@ if (require.main === module) {
 
 module.exports = {
   DEFAULT_LABEL,
+  MUSIC_SERVICE_SCRIPT,
+  allowedExistingListener,
   assertMusicPortAvailable,
   parseArgs,
   parseLsofPids,

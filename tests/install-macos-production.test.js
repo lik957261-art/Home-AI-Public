@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const { execFileSync, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -22,6 +23,19 @@ function runWithEnv(args = [], env = {}) {
     encoding: "utf8",
     env: { ...process.env, ...env },
   });
+}
+
+function escapeRegex(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function writeGatewayDocumentPluginFixtures(root) {
+  for (const pluginName of ["hermes-mobile-docx", "hermes-mobile-pdf"]) {
+    const dir = path.join(root, "app", "gateway-plugins", pluginName);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "plugin.yaml"), `name: ${pluginName}\n`, "utf8");
+    fs.writeFileSync(path.join(dir, "__init__.py"), "# fixture\n", "utf8");
+  }
 }
 
 function testScriptExistsAndIsSafeByDefault() {
@@ -1167,6 +1181,8 @@ function testExecuteConfigureCronCreatesCanonicalStoreAndHelpers() {
     path.join(REPO_ROOT, "scripts", "macos-automation-cron-audit.js"),
     "--root",
     root,
+    "--app",
+    REPO_ROOT,
     "--strict-config",
     "--json",
   ], {
@@ -1228,6 +1244,15 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-launchd-"));
   const codexRuntimeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-codex-runtime-"));
   const codexProfileFile = path.join(codexRuntimeRoot, "codex-profiles.json");
+  const financeDir = path.join(root, "data", "drive", "users", "owner", ".hermes-finance");
+  fs.mkdirSync(financeDir, { recursive: true });
+  fs.writeFileSync(path.join(financeDir, "config.json"), JSON.stringify({
+    schema_version: 1,
+    workspace_id: "owner",
+    hermes_workspace_id: "owner",
+    access_key_file: "access-key.txt",
+  }, null, 2));
+  fs.writeFileSync(path.join(financeDir, "access-key.txt"), "finance-secret\n", { mode: 0o600 });
   fs.writeFileSync(codexProfileFile, JSON.stringify({
     activeProfileId: "previous",
     profiles: [
@@ -1253,8 +1278,8 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
   assert.equal(parsed.execution.report.launchdInstalled, false);
   assert.equal(parsed.execution.report.launchdLoaded, false);
   assert.equal(parsed.execution.report.operatorInstallRequired, true);
-  assert.equal(parsed.execution.report.serviceCount, 14);
-  assert.equal(parsed.execution.report.pluginServiceCount, 9);
+  assert.equal(parsed.execution.report.serviceCount, 15);
+  assert.equal(parsed.execution.report.pluginServiceCount, 10);
   const planPath = path.join(root, "data", "launchd-services-plan.json");
   const stagingDir = path.join(root, "data", "launchd-staging");
   const plan = JSON.parse(fs.readFileSync(planPath, "utf8"));
@@ -1262,7 +1287,7 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
   assert.equal(plan.launchdLoaded, false);
   assert.equal(plan.operatorInstallRequired, true);
   assert.equal(plan.coreServiceCount, 5);
-  assert.equal(plan.pluginServiceCount, 9);
+  assert.equal(plan.pluginServiceCount, 10);
   assert.deepEqual(plan.services.map((service) => service.label).sort(), [
     "com.hermesmobile.bridge-host",
     "com.hermesmobile.cron",
@@ -1273,6 +1298,7 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
     "com.hermesmobile.plugin.growth",
     "com.hermesmobile.plugin.health",
     "com.hermesmobile.plugin.moira",
+    "com.hermesmobile.plugin.movie",
     "com.hermesmobile.plugin.music",
     "com.hermesmobile.plugin.note",
     "com.hermesmobile.plugin.wardrobe",
@@ -1286,6 +1312,7 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
     "growth",
     "health",
     "moira",
+    "movie",
     "music",
     "note",
     "wardrobe",
@@ -1296,7 +1323,12 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
   assert.match(listenerPlist, /<key>KeepAlive<\/key>/);
   const musicPlist = fs.readFileSync(path.join(stagingDir, "com.hermesmobile.plugin.music.plist"), "utf8");
   assert.match(musicPlist, /<string>com\.hermesmobile\.plugin\.music<\/string>/);
-  assert.match(musicPlist, /<string>src\/server\.js<\/string>/);
+  assert.match(musicPlist, /<string>src\/roon-first-server\.js<\/string>/);
+  const financePlist = fs.readFileSync(path.join(stagingDir, "com.hermesmobile.plugin.finance.plist"), "utf8");
+  const expectedFinanceHash = `sha256:${crypto.createHash("sha256").update("owner:finance-secret").digest("hex")}`;
+  assert.match(financePlist, /<key>FINANCE_HERMES_WORKSPACE_KEY_HASHES_JSON<\/key>/);
+  assert.match(financePlist, new RegExp(expectedFinanceHash));
+  assert.doesNotMatch(financePlist, /finance-secret/);
   const codexPlist = fs.readFileSync(path.join(stagingDir, "com.hermesmobile.plugin.codex-mobile.plist"), "utf8");
   assert.match(codexPlist, /<key>CODEX_HOME<\/key>\s*<string>\/Users\/xuxin\/\.codex-homes\/previous<\/string>/);
   assert.match(codexPlist, /<key>CODEX_MOBILE_PROFILE_FILE<\/key>/);
@@ -1326,6 +1358,7 @@ exit 0
 
 function makeGatewayLaunchdRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-gateway-launchd-"));
+  writeGatewayDocumentPluginFixtures(root);
   const parsed = JSON.parse(run([
     "--execute",
     "--phase",
@@ -1379,6 +1412,10 @@ function testExecuteGatewayLaunchdServicesStagesWorkersWithoutLoading() {
   assert.match(startScript, /HERMES_MOBILE_BRIDGE_HOST_URL/);
   assert.match(startScript, /HERMES_WEB_BRIDGE_HOST_KEY_PATH/);
   assert.match(startScript, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
+  assert.match(startScript, /HERMES_MOBILE_PDF_ALLOWED_ROOTS/);
+  assert.match(startScript, /HERMES_MOBILE_PDF_OUTPUT_ROOTS/);
+  assert.match(startScript, /HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS/);
+  assert.match(startScript, /HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="\$ROOT\/data\/drive\/users"/);
   assert.match(startScript, /API_SERVER_KEY/);
   assert.doesNotMatch(startScript, /gateway-key/);
   const plist = fs.readFileSync(plan.services[0].stagedPlistPath, "utf8");
@@ -1387,6 +1424,46 @@ function testExecuteGatewayLaunchdServicesStagesWorkersWithoutLoading() {
   assert.match(plist, /<key>UserName<\/key><string>hm-owner<\/string>/);
   const phase = parsed.phases.find((item) => item.id === "install-gateway-launchd-services");
   assert.equal(phase.status, "executed");
+}
+
+function testGatewayLaunchdServicesHonorExistingExternalProfileLayout() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-gateway-external-layout-"));
+  const external = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-existing-gateway-layout-"));
+  const profileDir = path.join(external, "HermesWorkspace", ".hermes-gateway", "profiles", "hm-owner-openai-1");
+  fs.mkdirSync(profileDir, { recursive: true });
+  fs.mkdirSync(path.join(root, "data"), { recursive: true });
+  writeGatewayDocumentPluginFixtures(root);
+  fs.writeFileSync(path.join(profileDir, "config.yaml"), "plugins:\n  enabled: []\n", "utf8");
+  fs.writeFileSync(path.join(root, "data", "gateway-pool-manifest-mac.json"), JSON.stringify({
+    workers: [{
+      profile: "hm-owner-openai-1",
+      osUser: "hm-owner",
+      provider: "openai-codex",
+      port: 18751,
+      configPath: path.join(profileDir, "config.yaml"),
+      apiKey: "fixture-key",
+    }],
+  }), "utf8");
+
+  const parsed = JSON.parse(run([
+    "--execute",
+    "--phase",
+    "install-gateway-launchd-services",
+    "--root",
+    root,
+    "--json",
+  ]));
+  assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
+  const plan = JSON.parse(fs.readFileSync(path.join(root, "data", "gateway-launchd-services-plan.json"), "utf8"));
+  const startScript = plan.services[0].startScript;
+  assert.equal(startScript, path.join(external, "HermesWorkspace", ".hermes-gateway", "start-hm-owner-openai-1.sh"));
+  const startText = fs.readFileSync(startScript, "utf8");
+  assert.match(startText, new RegExp(escapeRegex(`HERMES_WORKSPACE_ROOT=${JSON.stringify(path.join(external, "HermesWorkspace"))}`)));
+  assert.match(startText, /HERMES_MOBILE_PDF_ALLOWED_ROOTS/);
+  assert.match(startText, /HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="\$ROOT\/data\/drive\/users"/);
+  assert.match(fs.readFileSync(path.join(profileDir, "config.yaml"), "utf8"), /hermes-mobile-pdf/);
+  assert.ok(fs.existsSync(path.join(profileDir, "plugins", "hermes-mobile-pdf", "plugin.yaml")));
+  assert.doesNotMatch(startScript, new RegExp(escapeRegex(path.join(root, "users"))));
 }
 
 function testExecuteGatewayLaunchdServicesCanInstallAndLoadFromCentralGate() {
@@ -1524,8 +1601,8 @@ function testExecuteLaunchdServicesCanInstallAndLoadFromCentralGate() {
   assert.equal(parsed.execution.report.launchdInstalled, true);
   assert.equal(parsed.execution.report.launchdLoaded, true);
   assert.equal(parsed.execution.report.operatorInstallRequired, false);
-  assert.equal(parsed.execution.report.serviceCount, 14);
-  assert.equal(parsed.execution.report.pluginServiceCount, 9);
+  assert.equal(parsed.execution.report.serviceCount, 15);
+  assert.equal(parsed.execution.report.pluginServiceCount, 10);
   const plan = JSON.parse(fs.readFileSync(path.join(root, "data", "launchd-services-plan.json"), "utf8"));
   assert.equal(plan.launchdInstalled, true);
   assert.equal(plan.launchdLoaded, true);
@@ -1533,10 +1610,10 @@ function testExecuteLaunchdServicesCanInstallAndLoadFromCentralGate() {
   assert.equal(plan.launchDaemonsDir, launchDaemonsDir);
   assert.ok(plan.services.every((service) => service.productionPlistPath.startsWith(launchDaemonsDir)));
   assert.ok(plan.services.every((service) => service.installStatus === "installed-and-loaded"));
-  assert.equal(fs.readdirSync(launchDaemonsDir).filter((name) => name.endsWith(".plist")).length, 14);
+  assert.equal(fs.readdirSync(launchDaemonsDir).filter((name) => name.endsWith(".plist")).length, 15);
   const calls = fs.readFileSync(fake.logPath, "utf8").trim().split(/\n+/);
-  assert.equal(calls.filter((line) => line.startsWith("load -w ")).length, 14);
-  assert.equal(calls.filter((line) => line.startsWith("unload -w ")).length, 14);
+  assert.equal(calls.filter((line) => line.startsWith("load -w ")).length, 15);
+  assert.equal(calls.filter((line) => line.startsWith("unload -w ")).length, 15);
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "install-plist"));
   assert.ok(parsed.execution.report.rollback.commands.some((command) => command.includes("unload -w")));
 }
@@ -1670,6 +1747,7 @@ testExecuteConfigureCronCreatesCanonicalStoreAndHelpers();
 testExecuteConfigureCronPreservesExistingJobsStore();
 testExecuteConfigureCronFailsClosedForInvalidNetworkMode();
 testExecuteGatewayLaunchdServicesStagesWorkersWithoutLoading();
+testGatewayLaunchdServicesHonorExistingExternalProfileLayout();
 testExecuteGatewayLaunchdServicesCanInstallAndLoadFromCentralGate();
 testExecuteGatewayWorkerAclWritesPlanWithoutApplying();
 testExecuteGatewayWorkerAclCanApplyWithFakeCommands();

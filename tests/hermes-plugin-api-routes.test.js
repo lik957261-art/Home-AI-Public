@@ -253,6 +253,28 @@ async function testWardrobeManifestRoute() {
   }]);
 }
 
+async function testMoiraManifestRouteForwardsPluginRoute() {
+  const { calls, routes } = makeRoutes();
+  const res = makeResponse();
+  const result = await routes.handle(
+    { method: "GET" },
+    res,
+    makeUrl("/api/hermes-plugins/moira/manifest?workspaceId=weixin_wuping&pluginRoute=saved_records&pluginItemId=chart_cd1e23e6"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(calls.manifest, [{
+    id: "moira",
+    workspaceId: "weixin_wuping",
+    ownerAuthorized: false,
+    appOrigin: "",
+    appearance: { theme: "", fontSize: "" },
+    launchPlugin: true,
+    pluginRoute: "saved_records",
+    pluginItemId: "chart_cd1e23e6",
+  }]);
+}
+
 async function testCodexManifestRoute() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
@@ -569,6 +591,142 @@ async function testHealthProxyAttachesServerSideWorkspaceBearerForReads() {
   assert.equal(parseBody(res).ok, true);
 }
 
+async function testHealthProxyWriteRequiresExplicitWorkspace() {
+  let authorizationCallCount = 0;
+  let fetchCallCount = 0;
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        return [{ id: "health", manifestUrl: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "health" });
+      },
+      pluginManifestUrl(id) {
+        return id === "health" ? "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" : "";
+      },
+      pluginProxyAuthorizationHeader() {
+        authorizationCallCount += 1;
+        return "Bearer owner-health-secret";
+      },
+    },
+    fetch() {
+      fetchCallCount += 1;
+      throw new Error("health write without an explicit workspace must not reach upstream");
+    },
+  });
+  const req = makeRequest("POST", [JSON.stringify({ samples: [] })]);
+  req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/health/proxy/api/v1/apple-health/sync"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 400);
+  assert.equal(parseBody(res).error, "health_proxy_workspace_required");
+  assert.equal(authorizationCallCount, 0);
+  assert.equal(fetchCallCount, 0);
+}
+
+async function testHealthProxyOwnerWriteTargetsNonOwnerWorkspaceKey() {
+  const authorizationCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list(input = {}) {
+        assert.deepEqual(input, { workspaceId: "liyushuang", ownerAuthorized: false });
+        return [{ id: "health", manifestUrl: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "health" });
+      },
+      pluginManifestUrl(id) {
+        return id === "health" ? "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" : "";
+      },
+      pluginProxyAuthorizationHeader(input) {
+        authorizationCalls.push(input);
+        return "Bearer liyushuang-health-secret";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:4877/api/v1/apple-health/sync?workspaceId=liyushuang");
+      assert.equal(options.headers.Authorization, "Bearer liyushuang-health-secret");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "liyushuang");
+      assert.equal(options.headers["x-hermes-plugin-actor-workspace-id"], "owner");
+      assert.equal(options.headers["x-hermes-plugin-actor-role"], "owner");
+      assert.equal(Object.prototype.hasOwnProperty.call(options.headers, "authorization"), false);
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: true, imported: 0 })),
+      });
+    },
+  });
+  const req = makeRequest("POST", [JSON.stringify({ samples: [] })]);
+  req.headers.authorization = "Bearer browser-supplied-value";
+  req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/health/proxy/api/v1/apple-health/sync?workspaceId=liyushuang"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(authorizationCalls, [{ pluginId: "health", workspaceId: "liyushuang" }]);
+  assert.equal(parseBody(res).ok, true);
+}
+
+async function testHealthProxyNativeSyncPreservesHeaderWorkspace() {
+  const authorizationCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list(input = {}) {
+        assert.deepEqual(input, { workspaceId: "liyushuang", ownerAuthorized: false });
+        return [{ id: "health", manifestUrl: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "health" });
+      },
+      pluginManifestUrl(id) {
+        return id === "health" ? "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" : "";
+      },
+      pluginProxyAuthorizationHeader(input) {
+        authorizationCalls.push(input);
+        return "Bearer liyushuang-health-secret";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:4877/api/v1/apple-health/sync");
+      assert.equal(options.headers.Authorization, "Bearer liyushuang-health-secret");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "liyushuang");
+      assert.equal(options.headers["x-hermes-plugin-actor-workspace-id"], "owner");
+      assert.equal(options.headers["x-hermes-plugin-actor-role"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: true, imported: 0 })),
+      });
+    },
+  });
+  const req = makeRequest("POST", [JSON.stringify({ samples: [] })]);
+  req.headers["x-hermes-plugin-workspace-id"] = "liyushuang";
+  req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/health/proxy/api/v1/apple-health/sync"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(authorizationCalls, [{ pluginId: "health", workspaceId: "liyushuang" }]);
+  assert.equal(parseBody(res).ok, true);
+}
+
 async function testPluginNotificationRoute() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
@@ -704,6 +862,55 @@ async function testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp() {
     res.headers["Content-Security-Policy"],
     /script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' 'unsafe-eval'/,
   );
+}
+
+async function testMoiraProxyInfersWorkspaceFromNamespacedSessionCookie() {
+  const sessionCookie = testProxyCookieName("moira", "weixin_wuping", "moira_hermes_session");
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list(input = {}) {
+        assert.equal(input.workspaceId, "weixin_wuping");
+        return [{ id: "moira", manifestUrl: "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "moira" });
+      },
+      pluginManifestUrl(id) {
+        assert.equal(id, "moira");
+        return "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest";
+      },
+      pluginProxyAuthorizationHeader(input) {
+        assert.equal(input.pluginId, "moira");
+        assert.equal(input.workspaceId, "weixin_wuping");
+        return "Bearer workspace-key";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:4174/api/moira/records");
+      assert.equal(options.method, "POST");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "weixin_wuping");
+      assert.equal(options.headers.cookie, "moira_hermes_session=session-value");
+      assert.equal(options.headers.Authorization, "Bearer workspace-key");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: true, record: { id: "chart_1" }, records: [] })),
+      });
+    },
+  });
+  const req = makeRequest("POST", [JSON.stringify({ record: { id: "chart_1" }, setDefault: true })]);
+  req.headers.cookie = `${sessionCookie}=session-value`;
+  req.auth = { workspaceId: "owner", isOwner: true };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/moira/proxy/api/moira/records"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.equal(parseBody(res).ok, true);
 }
 
 async function testCodexProxyStreamsEventSource() {
@@ -1869,6 +2076,7 @@ async function run() {
   await testListRoute();
   await testListRouteUsesEffectiveWorkspaceForOwnerSwitch();
   await testWardrobeManifestRoute();
+  await testMoiraManifestRouteForwardsPluginRoute();
   await testCodexManifestRoute();
   await testCodexManifestRouteDeniesNonOwnerWithoutPluginGrant();
   await testCodexManifestRouteUsesEffectiveWorkspaceForOwnerSwitch();
@@ -1880,10 +2088,14 @@ async function run() {
   await testPluginProxyForwardsOwnerOnlyActorContext();
   await testGrowthProxyAttachesServerSideWorkspaceBearerForWrites();
   await testHealthProxyAttachesServerSideWorkspaceBearerForReads();
+  await testHealthProxyWriteRequiresExplicitWorkspace();
+  await testHealthProxyOwnerWriteTargetsNonOwnerWorkspaceKey();
+  await testHealthProxyNativeSyncPreservesHeaderWorkspace();
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyDoesNotInjectWorkspaceIdIntoJavascriptPathConstants();
   await testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp();
+  await testMoiraProxyInfersWorkspaceFromNamespacedSessionCookie();
   await testCodexProxyStreamsEventSource();
   await testCodexProxyPreservesLaunchCookieAndRedirect();
   await testFinanceProxyUsesConfiguredLocalUpstreamAndForwardsOrigin();

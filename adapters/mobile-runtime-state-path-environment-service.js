@@ -11,6 +11,11 @@ function createMobileRuntimeStatePathEnvironment(options = {}) {
   const SHARED_DIRECTORIES_PATH = path.join(DATA_DIR, "shared-directories.json");
   const AUDIT_EVENT_LOG_PATH = path.resolve(env.HERMES_MOBILE_AUDIT_EVENT_LOG_PATH || env.HERMES_WEB_AUDIT_EVENT_LOG_PATH || path.join(DATA_DIR, "audit-events.jsonl"));
   const ACCESS_KEYS_PATH = path.join(DATA_DIR, "access-keys.json");
+  const AUDIT_OWNER_READONLY_KEY_PATH = path.resolve(
+    env.HERMES_MOBILE_AUDIT_OWNER_READONLY_KEY_PATH
+      || env.HERMES_WEB_AUDIT_OWNER_READONLY_KEY_PATH
+      || path.join(DATA_DIR, "secrets", "audit-owner-readonly-web-key.secret"),
+  );
   const LOCAL_WORKSPACES_PATH = path.join(DATA_DIR, "workspaces.json");
   const RUNTIME_CONFIG_PATH = path.join(DATA_DIR, "runtime-config.json");
   const LEARNING_COIN_STORE_PATH = path.resolve(env.HERMES_MOBILE_LEARNING_COIN_STORE_PATH || env.HERMES_WEB_LEARNING_COIN_STORE_PATH || path.join(DATA_DIR, "learning-coins.json"));
@@ -39,6 +44,7 @@ function createMobileRuntimeStatePathEnvironment(options = {}) {
 
   return Object.freeze({
     ACCESS_KEYS_PATH,
+    AUDIT_OWNER_READONLY_KEY_PATH,
     AUDIT_EVENT_LOG_PATH,
     AUTH_KEY_PATH,
     DATA_DIR,

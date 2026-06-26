@@ -34,8 +34,14 @@ function storeAccessKey(key) {
   } catch (_) {}
 }
 
-function logoutCurrentAccount() {
-  if (!window.confirm("\u9000\u51fa\u5f53\u524d\u8d26\u53f7\uff1f\u672c\u673a\u5c06\u6e05\u9664\u5df2\u4fdd\u5b58\u7684 Access Key\uff0c\u4e0d\u4f1a\u64a4\u9500\u670d\u52a1\u5668\u4e0a\u7684 key\u3002")) return;
+async function logoutCurrentAccount() {
+  const confirmed = await openAppConfirmDialog({
+    title: "退出账号",
+    message: "\u9000\u51fa\u5f53\u524d\u8d26\u53f7\uff1f\u672c\u673a\u5c06\u6e05\u9664\u5df2\u4fdd\u5b58\u7684 Access Key\uff0c\u4e0d\u4f1a\u64a4\u9500\u670d\u52a1\u5668\u4e0a\u7684 key\u3002",
+    confirmLabel: "退出",
+    danger: true,
+  });
+  if (!confirmed) return;
   closeTopMoreMenu?.();
   closeSidebar?.();
   state.settingsOpen = false;
@@ -408,7 +414,13 @@ async function copyNavigationDiagnostics() {
     showPushToast?.("导航诊断已复制", "success");
     return;
   }
-  window.prompt("复制导航诊断", text);
+  await openAppPromptDialog({
+    title: "复制导航诊断",
+    message: "当前壳不允许直接写入剪贴板，请手动复制下面的诊断文本。",
+    defaultValue: text,
+    multiline: true,
+    confirmLabel: "完成",
+  });
 }
 
 function hermesRouteStandaloneAppWindow() {
@@ -535,9 +547,7 @@ function showHermesAppWindowRequiredMessage() {
   try {
     if (typeof showPushToast === "function") showPushToast(message, "error");
   } catch (_) {}
-  try {
-    window.alert(message);
-  } catch (_) {}
+  openAppMessageDialog?.({ title: "请从 Home AI 应用打开", message }).catch?.(() => {});
 }
 
 function routeParamsHaveHermesOwnedDetailTarget(params) {

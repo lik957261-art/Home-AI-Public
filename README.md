@@ -75,47 +75,49 @@ Validation for this public release:
 - public export privacy scan
 - focused production smoke evidence from the source deployment before export
 
-## 2026-06-22 Public Update
+## 2026-06-26 Public Update
 
-This update refreshes the public tree from the current Home AI source. The
-exact source commit is recorded in `.public-export-report.json`.
+This update refreshes the public tree from source commit
+`0dbebeaf0d2f548feeaa34a241698785e8578392` and advances the static
+client/cache identity to `20260626-in-app-dialog-contract-v954`.
 
 Highlights:
 
-- Adds a Codex Mobile embedded-plugin recovery fallback that uses the dedicated
-  macOS host recovery script for Codex Mobile launch/proxy failures when that
-  script is available, without hard-coding a Codex profile.
-- Preserves generic launch recovery behavior for other plugins and keeps
-  explicit generic recovery commands authoritative when configured.
-- Clarifies that no-restart Home AI deployments may repair Codex Mobile plist
-  permissions or env values but must not reload Codex Mobile unless its launchd
-  label is explicitly included in the deployment plan.
-- Bumps the static client cache version to `20260622-codex-recovery-v905` and
-  hardens plugin-topic host cleanup in browserless/static harness contexts.
-- Carries forward disaster-backup runtime cleanup and deploy-backup retention
-  behavior so transient backup files and old local deploy backups do not drift
-  into long-lived production state.
+- Adds a central in-app dialog contract for Home AI and plugin workspaces:
+  product UI must use DOM-rendered dialogs, sheets, forms, toasts, or status
+  rows instead of browser-native `alert`, `confirm`, or `prompt`.
+- Adds the Home AI host dialog runtime helpers
+  `openAppConfirmDialog`, `openAppPromptDialog`, and `openAppMessageDialog`.
+- Migrates host confirmation, text-input, and message dialogs in directory,
+  Action Inbox, Kanban/card actions, push settings, workspace admin, platform,
+  learning, and thread-card surfaces to in-app UI.
+- Adds `tests/no-browser-native-dialogs.test.js` as the executable guard for
+  Home AI runtime UI and an optional adjacent-plugin audit mode for routing
+  plugin-owned follow-up work.
+- Keeps the public export privacy scan compatible with GitHub SSA safety tests
+  by avoiding literal private-key block markers in source test strings.
 
 Validation for this public update:
 
-- `node --check adapters/plugin-launch-recovery-service.js`
-- `node tests/plugin-launch-recovery-service.test.js`
-- `node tests/codex-mobile-recovery-service.test.js`
-- `node tests/codex-mobile-recovery-api-routes.test.js`
-- `node tests/mobile-api-dispatcher.test.js`
-- `node tests/architecture-code-test-harness-map.test.js`
-- `node tests/architecture-refactor-boundary.test.js`
+- `npm run check`
+- `node tests/no-browser-native-dialogs.test.js`
 - `node tests/static-cache-version-harness.test.js`
+- `node tests/architecture-code-test-harness-map.test.js`
 - `node tests/task-list-ui.test.js`
-- `node tests/app-plugin-topics-ui.test.js`
-- `node tests/app-embedded-plugin-ui.test.js`
-- `node tests/visual-polish-audit-runner.test.js`
-- `npm test -- --runInBand`
-- `npm run productization:check`
+- `node tests/app-action-inbox-ui.test.js`
+- `node tests/directory-delete-ui.test.js`
+- `node tests/github-shared-source-account-script.test.js`
+- `npm run privacy:scan`
 - `git diff --check`
 - public export privacy scan
-- production deploy smoke and Codex Mobile 8787 health checks from the source
-  deployment before export
+
+Known validation note:
+
+- `npm test` and `npm run productization:check` both reached the macOS fresh
+  install rehearsal and failed at the privileged
+  `install-gateway-launchd-services` phase in the local test root. The failure
+  is an operator/launchd application boundary, not a browser-dialog runtime
+  regression.
 
 ## 2026-06-21 Public Update
 

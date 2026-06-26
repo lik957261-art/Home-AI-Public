@@ -149,7 +149,9 @@ function testRenderProfileConfigYaml() {
         web_plugin_enabled: "1",
         http_plugin_enabled: "1",
         docx_plugin_enabled: "1",
+        pdf_plugin_enabled: "1",
         audio_plugin_enabled: "1",
+        archive_plugin_enabled: "1",
         image_plugin_enabled: "1",
         cronjob_plugin_enabled: "1",
         wardrobe_enabled: "1",
@@ -197,11 +199,13 @@ function testRenderProfileConfigYaml() {
     const capabilities = readRenderedCapabilities(root, "profile", yaml);
     assert.equal(capabilities.modelProvider, "openai-codex");
     assert.deepEqual(capabilities.plugins, [
+      "hermes-mobile-archive",
       "hermes-mobile-audio",
       "hermes-mobile-cronjob",
       "hermes-mobile-docx",
       "hermes-mobile-http",
       "hermes-mobile-image",
+      "hermes-mobile-pdf",
       "hermes-mobile-weather",
       "hermes-mobile-web",
     ]);
@@ -265,7 +269,9 @@ function testRenderMaintenanceConfigYaml() {
         web_plugin_enabled: "1",
         http_plugin_enabled: "1",
         docx_plugin_enabled: "1",
+        pdf_plugin_enabled: "1",
         audio_plugin_enabled: "1",
+        archive_plugin_enabled: "1",
         image_plugin_enabled: "1",
         cronjob_plugin_enabled: "1",
         wardrobe_enabled: "1",
@@ -316,6 +322,7 @@ function testRenderMaintenanceConfigYaml() {
     assert.deepEqual(official.mcpServers, ["email", "finance", "growth", "health", "moira", "music", "note", "wardrobe"]);
     assert.equal(official.plugins.includes("hermes-mobile-chatgpt-pro"), true);
     assert.equal(official.plugins.includes("hermes-mobile-web"), true);
+    assert.equal(official.plugins.includes("hermes-mobile-pdf"), true);
 
     const deepseekMaintenance = readRenderedCapabilities(root, "deepseekmaint", renderGatewayConfigYaml({
       configKind: "maintenance",

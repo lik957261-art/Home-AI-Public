@@ -84,6 +84,10 @@ DACL inspection.
 
 - First-run setup may show the Owner Access Key once.
 - Generated workspace Access Keys may be shown once at creation/rotation.
+- Access Key rotation, revocation, and local-workspace deletion confirmations
+  must use the app-owned dialog layer, not browser-native `alert`/`confirm`/
+  `prompt`, because native shells and embedded WebViews may block or suppress
+  browser dialogs.
 - Stored key material, API keys, OAuth tokens, VAPID private keys, push endpoints, and secret file contents must not be exposed in browser projections or docs.
 - Revoking or rotating the current account key should force clients back to login rather than silently continuing.
 - Public/reverse-proxied deployments should disable URL query Access Keys with
@@ -124,6 +128,18 @@ DACL inspection.
   `provisioning_failed` or a plugin-side token mismatch. Do not assume Home AI
   key rotation requires re-binding every plugin; that would couple unrelated
   credential domains and can break migrated plugin data.
+- Product Reality and plugin audits use a separate audit owner read-only key
+  when they need Owner-visible Home AI host surfaces. The default key file is
+  `DATA_DIR/secrets/audit-owner-readonly-web-key.secret`, overrideable with
+  `HERMES_MOBILE_AUDIT_OWNER_READONLY_KEY_PATH` or
+  `HERMES_WEB_AUDIT_OWNER_READONLY_KEY_PATH`; an environment-provided key may
+  use `HERMES_MOBILE_AUDIT_OWNER_READONLY_KEY` or
+  `HERMES_WEB_AUDIT_OWNER_READONLY_KEY`. This key is accepted only through the
+  normal `X-Hermes-Web-Key` transport and authenticates with Owner visibility
+  for read-only evidence. The HTTP runtime rejects `POST`, `PUT`, `PATCH`,
+  `DELETE`, and other write methods with `audit_readonly_key_write_denied`
+  before route dispatch. Never print or store the raw audit key in reports,
+  task cards, docs, handoffs, logs, or screenshots.
 - Local family workspace records created from the Mac `data/drive` root must
   use `data/drive/users/<workspaceId>` as their default workspace root unless
   the Owner explicitly configured a custom root. A legacy auto-derived path

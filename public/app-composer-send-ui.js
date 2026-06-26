@@ -18,6 +18,7 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
   state.conversationViewportBottomFollowUntil = Date.now() + 5000;
   state.conversationViewportSettleUntil = Date.now() + 900;
   state.suppressChatAutoBottomUntil = 0;
+  if (typeof clearConversationReadAnchor === "function") clearConversationReadAnchor();
   state.conversationPinnedToBottom = true;
   state.pendingArtifacts = [];
   if (state.viewMode === "tasks") state.pendingTaskReasoningEffort = "";
@@ -186,6 +187,17 @@ function setComposerText(text) {
   else input.textContent = text || "";
   autoSizeComposerEditor(input);
   updateComposerAction();
+}
+
+function clearComposerAfterSuccessfulSend(sentText = "") {
+  const currentText = getComposerText();
+  const normalizedCurrent = String(currentText || "").trim();
+  const normalizedSent = String(sentText || "").trim();
+  if (!normalizedCurrent || normalizedCurrent === normalizedSent) {
+    setComposerText("");
+    return true;
+  }
+  return false;
 }
 
 function composerCaretOffset() {

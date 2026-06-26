@@ -39,8 +39,7 @@ function sidebarBackToMenu() {
 }
 
 function isMobileLayout() {
-  return window.matchMedia("(max-width: 1099px)").matches
-    || window.matchMedia("(pointer: coarse) and (max-width: 1366px)").matches;
+  return true;
 }
 
 function isCurrentSingleWindowLoaded() {

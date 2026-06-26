@@ -154,7 +154,13 @@ function wireMessageRevokeButtons(root) {
       const messageId = String(button.dataset.revokeMessage || "");
       const threadId = state.currentThread?.id || "";
       if (!messageId || !threadId) return;
-      if (!window.confirm("\u64a4\u56de\u8fd9\u6761\u7fa4\u804a\u6d88\u606f\uff1f")) return;
+      const confirmed = await openAppConfirmDialog({
+        title: "撤回群聊消息",
+        message: "\u64a4\u56de\u8fd9\u6761\u7fa4\u804a\u6d88\u606f\uff1f",
+        confirmLabel: "撤回",
+        danger: true,
+      });
+      if (!confirmed) return;
       button.disabled = true;
       try {
         const result = await api(`/api/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(messageId)}/revoke`, {

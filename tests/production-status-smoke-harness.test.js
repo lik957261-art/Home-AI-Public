@@ -40,12 +40,15 @@ assert.match(script, /\[WRONG_AUTH_HEADER\]: key/);
 assert.match(script, /payload\.authHeader = AUTH_HEADER/);
 assert.match(script, /payload\.wrongAuthHeader = WRONG_AUTH_HEADER/);
 assert.match(script, /production_status_smoke_wrong_header_accepted/);
+assert.match(script, /gatewayWorkerPolicyContract/);
+assert.match(script, /production_status_smoke_gateway_worker_policy_mismatch/);
 assert.match(script, /Object\.assign\(\{\}, err\.payload, \{ ok: false, error: err\.message \}\)/);
 assert.doesNotMatch(script, /Object\.assign\(\{ ok: false, error: err\.message \}, err\.payload\)/);
 assert.match(script, /--access-key-file <file>/);
 assert.match(script, /path and contents are not printed/);
 assert.match(script, /Auth contract: send the key with X-Hermes-Web-Key only/);
 assert.match(script, /Negative check: X-Hermes-Access-Key must be rejected/);
+assert.match(script, /document file tool closure .* gateway-tool-schema-smoke or macos-production-closure-validation/);
 assert.match(script, /api\/status\?detail=1/);
 assert.doesNotMatch(script, /console\.log\(.*key/);
 assert.doesNotMatch(script, /console\.error\(.*accessKeyFile/);
@@ -79,6 +82,7 @@ assert.match(deploymentDoc, /X-Hermes-Access-Key/);
 assert.match(deploymentDoc, /wrong-header/);
 assert.match(deploymentDoc, /Do not replace it with a one-off inline Node\/Python status script/);
 assert.match(deploymentDoc, /HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=90000/);
+assert.match(deploymentDoc, /gatewayWorkerPolicyContract/);
 
 assert.match(authDoc, /X-Hermes-Web-Key/);
 assert.match(authDoc, /hermes_web_key/);
@@ -111,5 +115,6 @@ assert.match(testMatrix, /Any new production key-file\s+smoke must keep the posi
 assert.match(testMatrix, /allows `X-Hermes-Access-Key` only in the checked negative-control status smoke/);
 assert.match(testMatrix, /HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT/);
 assert.match(testMatrix, /HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS=90000/);
+assert.match(testMatrix, /production_status_smoke_gateway_worker_policy_mismatch/);
 
 console.log("production status smoke harness passed");

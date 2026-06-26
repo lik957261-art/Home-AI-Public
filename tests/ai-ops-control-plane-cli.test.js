@@ -34,6 +34,9 @@ function tempRoot() {
   ]);
   assert.equal(result.ok, true);
   assert.equal(result.harnessClass, "H2");
+  assert.equal(result.rootCauseGovernance.required, true);
+  assert.ok(result.blockedIf.includes("root_cause_classification_missing"));
+  assert.ok(result.requiredChecks.some((item) => item.command.includes("fallback-governance-check.js")));
   assert.equal(result.visualLane.required, true);
   assert.ok(result.requiredChecks.some((item) => item.command.includes("lane allocate")));
 }
@@ -47,6 +50,8 @@ function tempRoot() {
   ]);
   assert.equal(result.ok, true);
   assert.equal(result.harnessClass, "H1");
+  assert.equal(result.rootCauseGovernanceRequired, true);
+  assert.ok(result.requiredChecks.some((item) => item.command.includes("fallback-governance-check.js")));
   assert.ok(result.requiredChecks.some((item) => item.command.includes("hermes-plugin-service.test.js")));
 }
 
@@ -102,6 +107,46 @@ function tempRoot() {
   const listed = run(["incident", "list", "--dir", root, "--json"]);
   assert.equal(listed.incidents.length, 1);
   assert.equal(listed.incidents[0].issueCode, "gateway_schema_missing");
+}
+
+{
+  const root = tempRoot();
+  const caseFile = path.join(root, "case.json");
+  const eventsFile = path.join(root, "events.json");
+  fs.writeFileSync(caseFile, JSON.stringify({
+    case_id: "diagcase_cli",
+    status: "card_candidate",
+    severity: "H2",
+    event_count: 3,
+    workspace_id: "owner",
+    plugin_id: "wardrobe",
+    source_surface: "embedded-plugin",
+    diagnostic_type: "retry_exhausted",
+    category: "outfit_retry_failed",
+    route: "/?view=plugin&pluginId=wardrobe",
+    build_id: "client-test",
+    summary: "Wardrobe retry failed",
+  }));
+  fs.writeFileSync(eventsFile, JSON.stringify([
+    {
+      event_id: "diagevt_cli",
+      severity: "H2",
+      confidence: 0.8,
+      payload: { error_code: "retry_exhausted" },
+      evidence: { breadcrumbs: [{ kind: "api", code: "attempt_failed" }] },
+    },
+  ]));
+  const planned = run([
+    "remediation", "plan",
+    "--case-json", `@${caseFile}`,
+    "--events-json", `@${eventsFile}`,
+    "--json",
+  ]);
+  assert.equal(planned.ok, true);
+  assert.equal(planned.eligible, true);
+  assert.equal(planned.target.targetThreadTitle, "男装衣橱");
+  assert.equal(planned.taskCard.reasoningEffort, "xhigh");
+  assert.match(planned.taskCard.body, /AI Ops Diagnostic Remediation Task/);
 }
 
 {

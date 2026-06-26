@@ -9,6 +9,10 @@ const { createMobileApiLearningComposition } = require("./mobile-api-learning-co
 const { createMobileApiPluginComposition } = require("./mobile-api-plugin-composition");
 const { createMobileApiPlatformComposition } = require("./mobile-api-platform-composition");
 const { createMobileApiVoiceComposition } = require("./mobile-api-voice-composition");
+const { createAiOpsDiagnosticApiRoutes } = require("./ai-ops-diagnostic-api-routes");
+const { createAutonomousDeliveryApiRoutes } = require("./autonomous-delivery-api-routes");
+const { createHomeAiTtsApiRoutes } = require("./home-ai-tts-api-routes");
+const { createPluginConversationActionApiRoutes } = require("./plugin-conversation-action-api-routes");
 const { createSingleWindowGroupChatApiRoutes } = require("./single-window-group-chat-api-routes");
 const { createThreadMessageRunApiRoutes } = require("./thread-message-run-api-routes");
 const { createThreadReadUploadApiRoutes } = require("./thread-read-upload-api-routes");
@@ -16,6 +20,12 @@ const { createThreadTaskApiRoutes } = require("./thread-task-api-routes");
 const { createTodoApiRoutes } = require("./todo-api-routes");
 const { createWorkspaceOnboardingApiRoutes } = require("./workspace-onboarding-api-routes");
 const { createPluginWorkspaceAuditService } = require("../adapters/plugin-workspace-audit-service");
+const { createAiOpsDiagnosticIntakeService } = require("../adapters/ai-ops-diagnostic-intake-service");
+const { createAiOpsDiagnosticRemediationWorkflowService } = require("../adapters/ai-ops-diagnostic-remediation-workflow-service");
+const { createAutonomousDeliveryCoordinatorService } = require("../adapters/autonomous-delivery-coordinator-service");
+const { createCodexThreadTaskCardService } = require("../adapters/codex-thread-task-card-service");
+const { createHomeAiTtsService } = require("../adapters/home-ai-tts-service");
+const { createPluginConversationActionBridgeService } = require("../adapters/plugin-conversation-action-bridge-service");
 const { createWorkspaceOnboardingService } = require("../adapters/workspace-onboarding-service");
 function callBootTrace(deps, label) { if (typeof deps.bootTrace === "function") deps.bootTrace(label); }
 function createMobileApiComposition(deps = {}) {
@@ -285,9 +295,75 @@ function createMobileApiComposition(deps = {}) {
   const dataContextComposition = createMobileApiDataContextComposition(deps);
   const { routes: { dataContextApiRoutes }, services: { dataContextService } } = dataContextComposition;
   callBootTrace(deps, "data context api routes ready");
+  const homeAiTtsService = deps.homeAiTtsService || createHomeAiTtsService({
+    dataDir: deps.DATA_DIR || deps.dataDir,
+    env: deps.env || process.env,
+  });
+  const homeAiTtsApiRoutes = createHomeAiTtsApiRoutes({
+    homeAiTtsService,
+    readBody: deps.readBody,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "home ai tts api routes ready");
+  const aiOpsDiagnosticIntakeService = deps.aiOpsDiagnosticIntakeService || createAiOpsDiagnosticIntakeService({
+    dataDir: deps.DATA_DIR || deps.dataDir,
+    env: deps.env || process.env,
+  });
+  const codexThreadTaskCardService = deps.codexThreadTaskCardService || createCodexThreadTaskCardService({
+    env: deps.env || process.env,
+  });
+  const autonomousDeliveryCoordinatorService = deps.autonomousDeliveryCoordinatorService || createAutonomousDeliveryCoordinatorService({
+    actionInboxService,
+    store: deps.mobileSqliteStore,
+    taskCardService: codexThreadTaskCardService,
+  });
+  const autonomousDeliveryApiRoutes = createAutonomousDeliveryApiRoutes({
+    autonomousDeliveryCoordinatorService,
+    broadcast: deps.broadcast,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "autonomous delivery api routes ready");
+  const aiOpsDiagnosticRemediationWorkflowService = deps.aiOpsDiagnosticRemediationWorkflowService || createAiOpsDiagnosticRemediationWorkflowService({
+    actionInboxService,
+    appRouteUrl: deps.appRouteUrl,
+    diagnosticIntakeService: aiOpsDiagnosticIntakeService,
+    sendPushNotification: deps.webPushDeliveryService?.sendPushNotification,
+    taskCardService: codexThreadTaskCardService,
+  });
+  const aiOpsDiagnosticApiRoutes = createAiOpsDiagnosticApiRoutes({
+    aiOpsDiagnosticIntakeService,
+    aiOpsDiagnosticRemediationWorkflowService,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "ai ops diagnostic api routes ready");
+  const pluginConversationActionBridgeService = deps.pluginConversationActionBridgeService || createPluginConversationActionBridgeService({
+    actionInboxService,
+    appRouteUrl: deps.appRouteUrl,
+    pluginTargets: deps.pluginConversationActionTargets,
+    sendPushNotification: deps.webPushDeliveryService?.sendPushNotification,
+    taskCardService: codexThreadTaskCardService,
+  });
+  const pluginConversationActionApiRoutes = createPluginConversationActionApiRoutes({
+    broadcast: deps.broadcast,
+    pluginConversationActionBridgeService,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "plugin conversation action api routes ready");
   const mobileApiDispatcher = createMobileApiDispatcher({
     accessKeyApiRoutes,
     actionInboxApiRoutes,
+    autonomousDeliveryApiRoutes,
+    aiOpsDiagnosticApiRoutes,
     attachClientVersionHeaders: deps.attachClientVersionHeaders,
     authenticateRequest: deps.authenticateRequest,
     automationApiRoutes,
@@ -300,11 +376,13 @@ function createMobileApiComposition(deps = {}) {
     fileArtifactApiRoutes,
     codexMobileRecoveryApiRoutes,
     hermesPluginApiRoutes,
+    pluginConversationActionApiRoutes,
     pluginTopicApiRoutes,
     pluginTopicContextApiRoutes,
     pluginTopicUsageApiRoutes,
     platformCurrencyApiRoutes,
     growthPluginFacadeApiRoutes,
+    homeAiTtsApiRoutes,
     getUrl: deps.getUrl,
     kanbanCardApiRoutes,
     kanbanLearningGuidanceApiRoutes,
@@ -343,7 +421,11 @@ function createMobileApiComposition(deps = {}) {
     services: {
       actionInboxService,
       actionInboxTodoService,
+      aiOpsDiagnosticIntakeService,
+      aiOpsDiagnosticRemediationWorkflowService,
+      autonomousDeliveryCoordinatorService,
       codexMobileRecoveryService,
+      codexThreadTaskCardService,
       currentEnvironmentContextService,
       familyProfileInsightService,
       familyProfileProjectionService,
@@ -354,12 +436,14 @@ function createMobileApiComposition(deps = {}) {
       learningGrowthSubmissionService,
       platformCurrencyService,
       pluginWorkspaceAuditService,
+      pluginConversationActionBridgeService,
       learningGrowthTeachingCheckService,
       learningGrowthExperienceSignalService,
       learningGrowthStageAssessmentService,
       dataContextService,
       hermesPluginService,
       hermesPluginNotificationService,
+      homeAiTtsService,
       noteReceiptSaveService,
       pluginDirectoryContextBindingService,
       pluginTopicBindingService,
@@ -373,6 +457,8 @@ function createMobileApiComposition(deps = {}) {
     routes: {
       accessKeyApiRoutes,
       actionInboxApiRoutes,
+      autonomousDeliveryApiRoutes,
+      aiOpsDiagnosticApiRoutes,
       automationApiRoutes,
       dataContextApiRoutes,
       directoryBrowserApiRoutes,
@@ -382,11 +468,13 @@ function createMobileApiComposition(deps = {}) {
       fileArtifactApiRoutes,
       codexMobileRecoveryApiRoutes,
       hermesPluginApiRoutes,
+      pluginConversationActionApiRoutes,
       pluginTopicApiRoutes,
       pluginTopicContextApiRoutes,
       pluginTopicUsageApiRoutes,
       platformCurrencyApiRoutes,
       growthPluginFacadeApiRoutes,
+      homeAiTtsApiRoutes,
       kanbanCardApiRoutes,
       kanbanLearningGuidanceApiRoutes,
       kanbanStudyApiRoutes,

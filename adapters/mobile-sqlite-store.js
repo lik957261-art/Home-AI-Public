@@ -5,7 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const CURRENT_SCHEMA_VERSION = 7;
+const CURRENT_SCHEMA_VERSION = 8;
 
 function nowIso() {
   return new Date().toISOString();
@@ -141,6 +141,68 @@ function publicActionInboxEventFromRow(row) {
   };
 }
 
+function publicAutonomousDeliveryCaseFromRow(row) {
+  if (!row) return null;
+  const raw = parseJson(row.raw_json, {});
+  return Object.assign({}, raw && typeof raw === "object" ? raw : {}, {
+    caseId: String(row.case_id || ""),
+    workspaceId: String(row.workspace_id || ""),
+    objective: String(row.objective || ""),
+    mode: String(row.mode || ""),
+    risk: String(row.risk || ""),
+    status: String(row.status || ""),
+    requestedLowIntervention: Number(row.requested_low_intervention || 0) === 1,
+    userDecisionGate: parseJson(row.user_decision_gate_json, {}),
+    autonomyPolicy: parseJson(row.autonomy_policy_json, {}),
+    privacyBoundary: parseJson(row.privacy_boundary_json, {}),
+    sourceRef: parseJson(row.source_ref_json, {}),
+    createdAt: String(row.created_at || ""),
+    updatedAt: String(row.updated_at || ""),
+    startedAt: String(row.started_at || ""),
+    closedAt: String(row.closed_at || ""),
+  });
+}
+
+function publicAutonomousDeliverySliceFromRow(row) {
+  if (!row) return null;
+  const raw = parseJson(row.raw_json, {});
+  return Object.assign({}, raw && typeof raw === "object" ? raw : {}, {
+    sliceId: String(row.slice_id || ""),
+    caseId: String(row.case_id || ""),
+    workspaceId: String(row.workspace_id || ""),
+    sliceKey: String(row.slice_key || ""),
+    ownerLayer: String(row.owner_layer || ""),
+    targetWorkspaceId: String(row.target_workspace_id || ""),
+    targetWorkspacePath: String(row.target_workspace_path || ""),
+    status: String(row.status || ""),
+    risk: String(row.risk || ""),
+    dispatchStatus: String(row.dispatch_status || ""),
+    taskCardId: String(row.task_card_id || ""),
+    taskCard: parseJson(row.task_card_json, {}),
+    title: String(row.title || ""),
+    summary: String(row.summary || ""),
+    blockedReason: String(row.blocked_reason || ""),
+    createdAt: String(row.created_at || ""),
+    updatedAt: String(row.updated_at || ""),
+    startedAt: String(row.started_at || ""),
+    completedAt: String(row.completed_at || ""),
+  });
+}
+
+function publicAutonomousDeliveryEventFromRow(row) {
+  if (!row) return null;
+  return {
+    eventId: String(row.event_id || ""),
+    caseId: String(row.case_id || ""),
+    sliceId: String(row.slice_id || ""),
+    eventType: String(row.event_type || ""),
+    actorWorkspaceId: String(row.actor_workspace_id || ""),
+    actorPrincipalId: String(row.actor_principal_id || ""),
+    payload: parseJson(row.payload_json, {}),
+    createdAt: String(row.created_at || ""),
+  };
+}
+
 function publicNativeDeviceFromRow(row) {
   if (!row) return null;
   const raw = parseJson(row.raw_json, {});
@@ -260,6 +322,9 @@ const TABLES = [
   "voice_input_phrasebook",
   "voice_input_corrections",
   "audit_log",
+  "autonomous_delivery_events",
+  "autonomous_delivery_slices",
+  "autonomous_delivery_cases",
   "action_inbox_events",
   "action_inbox_items",
   "automation_jobs",
@@ -304,6 +369,9 @@ const TABLE_COUNT_COLUMNS = {
   topic_working_states: "topic_id",
   topic_context_refs: "ref_id",
   audit_log: "id",
+  autonomous_delivery_cases: "case_id",
+  autonomous_delivery_slices: "slice_id",
+  autonomous_delivery_events: "event_id",
   voice_input_corrections: "id",
   voice_input_phrasebook: "id",
   voice_input_audit: "id",
@@ -665,6 +733,74 @@ function createMobileSqliteStore(options = {}) {
       CREATE INDEX IF NOT EXISTS idx_action_inbox_events_type
         ON action_inbox_events(event_type, created_at);
 
+      CREATE TABLE IF NOT EXISTS autonomous_delivery_cases (
+        case_id TEXT PRIMARY KEY,
+        workspace_id TEXT NOT NULL DEFAULT '',
+        objective TEXT NOT NULL DEFAULT '',
+        mode TEXT NOT NULL DEFAULT '',
+        risk TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT '',
+        requested_low_intervention INTEGER NOT NULL DEFAULT 0,
+        user_decision_gate_json TEXT,
+        autonomy_policy_json TEXT,
+        privacy_boundary_json TEXT,
+        source_ref_json TEXT,
+        raw_json TEXT,
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT '',
+        started_at TEXT NOT NULL DEFAULT '',
+        closed_at TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_autonomous_delivery_cases_workspace_status
+        ON autonomous_delivery_cases(workspace_id, status, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_autonomous_delivery_cases_mode_risk
+        ON autonomous_delivery_cases(mode, risk, updated_at);
+
+      CREATE TABLE IF NOT EXISTS autonomous_delivery_slices (
+        slice_id TEXT PRIMARY KEY,
+        case_id TEXT NOT NULL DEFAULT '',
+        workspace_id TEXT NOT NULL DEFAULT '',
+        slice_key TEXT NOT NULL DEFAULT '',
+        owner_layer TEXT NOT NULL DEFAULT '',
+        target_workspace_id TEXT NOT NULL DEFAULT '',
+        target_workspace_path TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT '',
+        risk TEXT NOT NULL DEFAULT '',
+        dispatch_status TEXT NOT NULL DEFAULT '',
+        task_card_id TEXT NOT NULL DEFAULT '',
+        task_card_json TEXT,
+        title TEXT NOT NULL DEFAULT '',
+        summary TEXT NOT NULL DEFAULT '',
+        blocked_reason TEXT NOT NULL DEFAULT '',
+        raw_json TEXT,
+        created_at TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT '',
+        started_at TEXT NOT NULL DEFAULT '',
+        completed_at TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_autonomous_delivery_slices_case
+        ON autonomous_delivery_slices(case_id, status, updated_at);
+      CREATE INDEX IF NOT EXISTS idx_autonomous_delivery_slices_task_card
+        ON autonomous_delivery_slices(task_card_id);
+
+      CREATE TABLE IF NOT EXISTS autonomous_delivery_events (
+        event_id TEXT PRIMARY KEY,
+        case_id TEXT NOT NULL DEFAULT '',
+        slice_id TEXT NOT NULL DEFAULT '',
+        event_type TEXT NOT NULL DEFAULT '',
+        actor_workspace_id TEXT NOT NULL DEFAULT '',
+        actor_principal_id TEXT NOT NULL DEFAULT '',
+        payload_json TEXT,
+        created_at TEXT NOT NULL DEFAULT ''
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_autonomous_delivery_events_case
+        ON autonomous_delivery_events(case_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_autonomous_delivery_events_slice
+        ON autonomous_delivery_events(slice_id, created_at);
+
       CREATE TABLE IF NOT EXISTS topic_context_summaries (
         topic_id TEXT NOT NULL,
         task_group_id TEXT NOT NULL,
@@ -846,6 +982,7 @@ function createMobileSqliteStore(options = {}) {
     markMigration(5, "platform_currency");
     markMigration(6, "voice_input_learning_state");
     markMigration(7, "native_notification_devices");
+    markMigration(8, "autonomous_delivery_loop");
     setMeta("schemaVersion", CURRENT_SCHEMA_VERSION);
   }
 
@@ -2134,6 +2271,232 @@ function createMobileSqliteStore(options = {}) {
     return { byStatus, bySourceType, byItemType };
   }
 
+  function getAutonomousDeliveryCase(caseId) {
+    migrate();
+    const row = open().prepare("SELECT * FROM autonomous_delivery_cases WHERE case_id = ?").get(String(caseId || ""));
+    return publicAutonomousDeliveryCaseFromRow(row);
+  }
+
+  function upsertAutonomousDeliveryCase(input = {}) {
+    migrate();
+    const caseId = String(input.caseId || input.case_id || "").trim();
+    if (!caseId) return null;
+    const before = getAutonomousDeliveryCase(caseId);
+    const createdAt = normalizeIso(before?.createdAt || input.createdAt || input.created_at || nowIso());
+    const updatedAt = normalizeIso(input.updatedAt || input.updated_at || nowIso());
+    open().prepare(`
+      INSERT INTO autonomous_delivery_cases(case_id, workspace_id, objective, mode, risk, status,
+        requested_low_intervention, user_decision_gate_json, autonomy_policy_json, privacy_boundary_json,
+        source_ref_json, raw_json, created_at, updated_at, started_at, closed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(case_id) DO UPDATE SET
+        workspace_id = excluded.workspace_id,
+        objective = excluded.objective,
+        mode = excluded.mode,
+        risk = excluded.risk,
+        status = excluded.status,
+        requested_low_intervention = excluded.requested_low_intervention,
+        user_decision_gate_json = excluded.user_decision_gate_json,
+        autonomy_policy_json = excluded.autonomy_policy_json,
+        privacy_boundary_json = excluded.privacy_boundary_json,
+        source_ref_json = excluded.source_ref_json,
+        raw_json = excluded.raw_json,
+        updated_at = excluded.updated_at,
+        started_at = excluded.started_at,
+        closed_at = excluded.closed_at
+    `).run(
+      caseId,
+      String(input.workspaceId || input.workspace_id || before?.workspaceId || "").trim(),
+      String(input.objective || before?.objective || "").trim(),
+      String(input.mode || before?.mode || "").trim(),
+      String(input.risk || before?.risk || "").trim(),
+      String(input.status || before?.status || "").trim(),
+      Boolean(input.requestedLowIntervention ?? input.requested_low_intervention ?? before?.requestedLowIntervention) ? 1 : 0,
+      stableJson(input.userDecisionGate || input.user_decision_gate || before?.userDecisionGate || {}),
+      stableJson(input.autonomyPolicy || input.autonomy_policy || before?.autonomyPolicy || {}),
+      stableJson(input.privacyBoundary || input.privacy_boundary || before?.privacyBoundary || {}),
+      stableJson(input.sourceRef || input.source_ref || before?.sourceRef || {}),
+      stableJson(input.rawJson || input.raw_json || before || {}),
+      createdAt,
+      updatedAt,
+      normalizeIso(input.startedAt || input.started_at || before?.startedAt),
+      normalizeIso(input.closedAt || input.closed_at || before?.closedAt),
+    );
+    return getAutonomousDeliveryCase(caseId);
+  }
+
+  function listAutonomousDeliveryCases(args = {}) {
+    migrate();
+    const workspaceId = String(args.workspaceId || args.workspace_id || "").trim();
+    const status = String(args.status || "").trim();
+    const limit = Math.max(1, Math.min(300, Number(args.limit || 100)));
+    const clauses = [];
+    const values = [];
+    if (workspaceId) {
+      clauses.push("workspace_id = ?");
+      values.push(workspaceId);
+    }
+    if (status && status !== "all") {
+      clauses.push("status = ?");
+      values.push(status);
+    }
+    return open().prepare(`
+      SELECT * FROM autonomous_delivery_cases
+      ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""}
+      ORDER BY updated_at DESC, created_at DESC
+      LIMIT ?
+    `).all(...values, limit)
+      .map(publicAutonomousDeliveryCaseFromRow)
+      .filter(Boolean);
+  }
+
+  function getAutonomousDeliverySlice(sliceId) {
+    migrate();
+    const row = open().prepare("SELECT * FROM autonomous_delivery_slices WHERE slice_id = ?").get(String(sliceId || ""));
+    return publicAutonomousDeliverySliceFromRow(row);
+  }
+
+  function getAutonomousDeliverySliceByTaskCardId(taskCardId) {
+    migrate();
+    const row = open().prepare(`
+      SELECT * FROM autonomous_delivery_slices
+      WHERE task_card_id = ?
+      ORDER BY updated_at DESC, created_at DESC
+      LIMIT 1
+    `).get(String(taskCardId || "").trim());
+    return publicAutonomousDeliverySliceFromRow(row);
+  }
+
+  function upsertAutonomousDeliverySlice(input = {}) {
+    migrate();
+    const sliceId = String(input.sliceId || input.slice_id || "").trim();
+    if (!sliceId) return null;
+    const before = getAutonomousDeliverySlice(sliceId);
+    const createdAt = normalizeIso(before?.createdAt || input.createdAt || input.created_at || nowIso());
+    const updatedAt = normalizeIso(input.updatedAt || input.updated_at || nowIso());
+    open().prepare(`
+      INSERT INTO autonomous_delivery_slices(slice_id, case_id, workspace_id, slice_key, owner_layer,
+        target_workspace_id, target_workspace_path, status, risk, dispatch_status, task_card_id,
+        task_card_json, title, summary, blocked_reason, raw_json, created_at, updated_at, started_at, completed_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(slice_id) DO UPDATE SET
+        case_id = excluded.case_id,
+        workspace_id = excluded.workspace_id,
+        slice_key = excluded.slice_key,
+        owner_layer = excluded.owner_layer,
+        target_workspace_id = excluded.target_workspace_id,
+        target_workspace_path = excluded.target_workspace_path,
+        status = excluded.status,
+        risk = excluded.risk,
+        dispatch_status = excluded.dispatch_status,
+        task_card_id = excluded.task_card_id,
+        task_card_json = excluded.task_card_json,
+        title = excluded.title,
+        summary = excluded.summary,
+        blocked_reason = excluded.blocked_reason,
+        raw_json = excluded.raw_json,
+        updated_at = excluded.updated_at,
+        started_at = excluded.started_at,
+        completed_at = excluded.completed_at
+    `).run(
+      sliceId,
+      String(input.caseId || input.case_id || before?.caseId || "").trim(),
+      String(input.workspaceId || input.workspace_id || before?.workspaceId || "").trim(),
+      String(input.sliceKey || input.slice_key || before?.sliceKey || "").trim(),
+      String(input.ownerLayer || input.owner_layer || before?.ownerLayer || "").trim(),
+      String(input.targetWorkspaceId || input.target_workspace_id || before?.targetWorkspaceId || "").trim(),
+      String(input.targetWorkspacePath || input.target_workspace_path || before?.targetWorkspacePath || "").trim(),
+      String(input.status || before?.status || "pending").trim(),
+      String(input.risk || before?.risk || "medium").trim(),
+      String(input.dispatchStatus || input.dispatch_status || before?.dispatchStatus || "").trim(),
+      String(input.taskCardId || input.task_card_id || before?.taskCardId || "").trim(),
+      stableJson(input.taskCard || input.task_card || before?.taskCard || {}),
+      String(input.title || before?.title || "").trim(),
+      String(input.summary || before?.summary || "").trim(),
+      String(input.blockedReason || input.blocked_reason || before?.blockedReason || "").trim(),
+      stableJson(input.rawJson || input.raw_json || before || {}),
+      createdAt,
+      updatedAt,
+      normalizeIso(input.startedAt || input.started_at || before?.startedAt),
+      normalizeIso(input.completedAt || input.completed_at || before?.completedAt),
+    );
+    return getAutonomousDeliverySlice(sliceId);
+  }
+
+  function listAutonomousDeliverySlices(args = {}) {
+    migrate();
+    const caseId = String(args.caseId || args.case_id || "").trim();
+    const status = String(args.status || "").trim();
+    const limit = Math.max(1, Math.min(500, Number(args.limit || 200)));
+    const clauses = [];
+    const values = [];
+    if (caseId) {
+      clauses.push("case_id = ?");
+      values.push(caseId);
+    }
+    if (status && status !== "all") {
+      clauses.push("status = ?");
+      values.push(status);
+    }
+    return open().prepare(`
+      SELECT * FROM autonomous_delivery_slices
+      ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""}
+      ORDER BY created_at ASC, slice_id ASC
+      LIMIT ?
+    `).all(...values, limit)
+      .map(publicAutonomousDeliverySliceFromRow)
+      .filter(Boolean);
+  }
+
+  function addAutonomousDeliveryEvent(input = {}) {
+    migrate();
+    const caseId = String(input.caseId || input.case_id || "").trim();
+    if (!caseId) return null;
+    const createdAt = normalizeIso(input.createdAt || input.created_at || nowIso());
+    const eventId = String(input.eventId || input.event_id || "").trim() || generatedId("adlevt");
+    open().prepare(`
+      INSERT INTO autonomous_delivery_events(event_id, case_id, slice_id, event_type,
+        actor_workspace_id, actor_principal_id, payload_json, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      eventId,
+      caseId,
+      String(input.sliceId || input.slice_id || "").trim(),
+      String(input.eventType || input.event_type || "event").trim(),
+      String(input.actorWorkspaceId || input.actor_workspace_id || "").trim(),
+      String(input.actorPrincipalId || input.actor_principal_id || "").trim(),
+      stableJson(input.payload && typeof input.payload === "object" ? input.payload : {}),
+      createdAt,
+    );
+    open().prepare("UPDATE autonomous_delivery_cases SET updated_at = ? WHERE case_id = ?").run(createdAt, caseId);
+    return publicAutonomousDeliveryEventFromRow(open().prepare("SELECT * FROM autonomous_delivery_events WHERE event_id = ?").get(eventId));
+  }
+
+  function listAutonomousDeliveryEvents(args = {}) {
+    migrate();
+    const caseId = String(args.caseId || args.case_id || "").trim();
+    const sliceId = String(args.sliceId || args.slice_id || "").trim();
+    const limit = Math.max(1, Math.min(300, Number(args.limit || 50)));
+    const clauses = [];
+    const values = [];
+    if (caseId) {
+      clauses.push("case_id = ?");
+      values.push(caseId);
+    }
+    if (sliceId) {
+      clauses.push("slice_id = ?");
+      values.push(sliceId);
+    }
+    return open().prepare(`
+      SELECT * FROM autonomous_delivery_events
+      ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""}
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(...values, limit)
+      .map(publicAutonomousDeliveryEventFromRow)
+      .filter(Boolean);
+  }
+
   function getTopicContextSummary(topicId, taskGroupId) {
     const row = open().prepare("SELECT * FROM topic_context_summaries WHERE topic_id = ? AND task_group_id = ?").get(
       String(topicId || ""),
@@ -2817,6 +3180,7 @@ function createMobileSqliteStore(options = {}) {
   return {
     actionInboxCounts,
     addActionInboxEvent,
+    addAutonomousDeliveryEvent,
     audit,
     clearImportedData,
     close,
@@ -2842,6 +3206,9 @@ function createMobileSqliteStore(options = {}) {
     getAutomationJob,
     getActionInboxItem,
     getActionInboxItemByDedupe,
+    getAutonomousDeliveryCase,
+    getAutonomousDeliverySlice,
+    getAutonomousDeliverySliceByTaskCardId,
     getKanbanCaseShare,
     getNativeDevice,
     getNativeDeviceByToken,
@@ -2853,6 +3220,9 @@ function createMobileSqliteStore(options = {}) {
     listAutomationJobs,
     listActionInboxEvents,
     listActionInboxItems,
+    listAutonomousDeliveryCases,
+    listAutonomousDeliveryEvents,
+    listAutonomousDeliverySlices,
     listDueActionInboxItems,
     listKanbanCaseShares,
     listNativeDevices,
@@ -2868,6 +3238,8 @@ function createMobileSqliteStore(options = {}) {
     upsertTopicContextSummary,
     upsertTopicWorkingState,
     upsertActionInboxItem,
+    upsertAutonomousDeliveryCase,
+    upsertAutonomousDeliverySlice,
     upsertKanbanCaseShare,
     upsertNativeDevice,
     replaceTopicContextRefs,

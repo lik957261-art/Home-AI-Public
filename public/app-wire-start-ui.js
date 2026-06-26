@@ -478,6 +478,7 @@ function wireUi() {
   $("bottomGrowthMode")?.addEventListener("click", () => openPinnedPluginBottomTab("growth", typeof rememberGrowthPluginReturnRoute === "function" ? rememberGrowthPluginReturnRoute : null));
   $("bottomMoiraMode")?.addEventListener("click", () => openPinnedPluginBottomTab("moira", typeof rememberMoiraPluginReturnRoute === "function" ? rememberMoiraPluginReturnRoute : null));
   $("bottomMusicMode")?.addEventListener("click", () => openPinnedPluginBottomTab("music", typeof rememberMusicPluginReturnRoute === "function" ? rememberMusicPluginReturnRoute : null));
+  $("bottomMovieMode")?.addEventListener("click", () => openPinnedPluginBottomTab("movie", typeof rememberMoviePluginReturnRoute === "function" ? rememberMoviePluginReturnRoute : null));
   if (typeof wirePinnedPluginBottomTabUnpin === "function") {
     [
       ["bottomWardrobeMode", "wardrobe"],
@@ -489,6 +490,7 @@ function wireUi() {
       ["bottomGrowthMode", "growth"],
       ["bottomMoiraMode", "moira"],
       ["bottomMusicMode", "music"],
+      ["bottomMovieMode", "movie"],
     ].forEach(([buttonId, pluginId]) => wirePinnedPluginBottomTabUnpin($(buttonId), pluginId));
   }
   $("threadSearch").addEventListener("input", () => {
@@ -539,6 +541,10 @@ function wireUi() {
   $("topManageAccessKeys")?.addEventListener("click", () => {
     openAccessKeyManager({ workspaceId: state.selectedWorkspaceId }).catch(showError);
   });
+  $("topManageTtsProfiles")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openTtsProfileManager({ workspaceId: state.selectedWorkspaceId }).catch(showError);
+  });
   $("topNewDirectoryFolder")?.addEventListener("click", () => {
     closeTopMoreMenu();
     createDirectoryFolder().catch(showError);
@@ -586,6 +592,10 @@ function wireUi() {
   $("topNewPluginAudit")?.addEventListener("click", () => {
     closeTopMoreMenu();
     openActionInboxPluginAuditCreate();
+  });
+  $("topNewDeliveryLoop")?.addEventListener("click", () => {
+    closeTopMoreMenu();
+    openActionInboxDeliveryLoopCreate();
   });
   $("topEditAutomation")?.addEventListener("click", () => {
     openAutomationEdit();

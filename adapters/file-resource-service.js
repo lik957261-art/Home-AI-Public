@@ -30,6 +30,7 @@ const MIME_BY_EXT = Object.freeze({
   ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  ".zip": "application/zip",
 });
 
 const TEXT_PREVIEW_EXTENSIONS = Object.freeze(new Set([".txt", ".md", ".csv", ".json"]));

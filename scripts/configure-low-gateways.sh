@@ -52,8 +52,12 @@ current_environment_plugin_source="${HERMES_MOBILE_CURRENT_ENVIRONMENT_PLUGIN_SO
 current_environment_plugin_target="$worker_home_dir/plugins/hermes-mobile-current-environment"
 docx_plugin_source="${HERMES_MOBILE_DOCX_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-docx}"
 docx_plugin_target="$worker_home_dir/plugins/hermes-mobile-docx"
+pdf_plugin_source="${HERMES_MOBILE_PDF_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-pdf}"
+pdf_plugin_target="$worker_home_dir/plugins/hermes-mobile-pdf"
 audio_plugin_source="${HERMES_MOBILE_AUDIO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-audio}"
 audio_plugin_target="$worker_home_dir/plugins/hermes-mobile-audio"
+archive_plugin_source="${HERMES_MOBILE_ARCHIVE_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-archive}"
+archive_plugin_target="$worker_home_dir/plugins/hermes-mobile-archive"
 image_plugin_source="${HERMES_MOBILE_IMAGE_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-image}"
 image_plugin_target="$worker_home_dir/plugins/hermes-mobile-image"
 video_plugin_source="${HERMES_MOBILE_VIDEO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-video}"
@@ -1084,7 +1088,9 @@ web_plugin_enabled=0
 http_plugin_enabled=0
 current_environment_plugin_enabled=0
 docx_plugin_enabled=0
+pdf_plugin_enabled=0
 audio_plugin_enabled=0
+archive_plugin_enabled=0
 image_plugin_enabled=0
 video_plugin_enabled=0
 cronjob_plugin_enabled=0
@@ -1134,6 +1140,15 @@ else
   echo "DOCX plugin source not found: $docx_plugin_source" >&2
 fi
 
+if [ -f "$pdf_plugin_source/plugin.yaml" ] && [ -f "$pdf_plugin_source/__init__.py" ]; then
+  rm -rf "$pdf_plugin_target"
+  cp -a "$pdf_plugin_source" "$pdf_plugin_target"
+  chown -R "$worker_user:$worker_user" "$pdf_plugin_target"
+  pdf_plugin_enabled=1
+else
+  echo "PDF plugin source not found: $pdf_plugin_source" >&2
+fi
+
 if [ -f "$audio_plugin_source/plugin.yaml" ] && [ -f "$audio_plugin_source/__init__.py" ]; then
   rm -rf "$audio_plugin_target"
   cp -a "$audio_plugin_source" "$audio_plugin_target"
@@ -1141,6 +1156,15 @@ if [ -f "$audio_plugin_source/plugin.yaml" ] && [ -f "$audio_plugin_source/__ini
   audio_plugin_enabled=1
 else
   echo "Audio plugin source not found: $audio_plugin_source" >&2
+fi
+
+if [ -f "$archive_plugin_source/plugin.yaml" ] && [ -f "$archive_plugin_source/__init__.py" ]; then
+  rm -rf "$archive_plugin_target"
+  cp -a "$archive_plugin_source" "$archive_plugin_target"
+  chown -R "$worker_user:$worker_user" "$archive_plugin_target"
+  archive_plugin_enabled=1
+else
+  echo "Archive plugin source not found: $archive_plugin_source" >&2
 fi
 
 if [ -f "$image_plugin_source/plugin.yaml" ] && [ -f "$image_plugin_source/__init__.py" ]; then
@@ -1205,8 +1229,14 @@ fi
 if [ "$docx_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-docx"$'\n'
 fi
+if [ "$pdf_plugin_enabled" = "1" ]; then
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-pdf"$'\n'
+fi
 if [ "$audio_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-audio"$'\n'
+fi
+if [ "$archive_plugin_enabled" = "1" ]; then
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-archive"$'\n'
 fi
 if [ "$image_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
@@ -1229,7 +1259,9 @@ if ! render_gateway_template_yaml "$worker_home_dir/config.yaml" \
   --value "http_plugin_enabled=$http_plugin_enabled" \
   --value "current_environment_plugin_enabled=$current_environment_plugin_enabled" \
   --value "docx_plugin_enabled=$docx_plugin_enabled" \
+  --value "pdf_plugin_enabled=$pdf_plugin_enabled" \
   --value "audio_plugin_enabled=$audio_plugin_enabled" \
+  --value "archive_plugin_enabled=$archive_plugin_enabled" \
   --value "image_plugin_enabled=$image_plugin_enabled" \
   --value "cronjob_plugin_enabled=$cronjob_plugin_enabled"; then
 cat > "$worker_home_dir/config.yaml" <<YAML
@@ -1349,11 +1381,23 @@ while IFS=$'\t' read -r profile port; do
     cp -a "$docx_plugin_target" "$profile_dir/plugins/hermes-mobile-docx"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-docx"
   fi
+  if [ "$pdf_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-pdf"
+    cp -a "$pdf_plugin_target" "$profile_dir/plugins/hermes-mobile-pdf"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-pdf"
+  fi
   if [ "$audio_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
     rm -rf "$profile_dir/plugins/hermes-mobile-audio"
     cp -a "$audio_plugin_target" "$profile_dir/plugins/hermes-mobile-audio"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-audio"
+  fi
+  if [ "$archive_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-archive"
+    cp -a "$archive_plugin_target" "$profile_dir/plugins/hermes-mobile-archive"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-archive"
   fi
   if [ "$image_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
@@ -1397,8 +1441,14 @@ while IFS=$'\t' read -r profile port; do
   if [ "$docx_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-docx"$'\n'
   fi
+  if [ "$pdf_plugin_enabled" = "1" ]; then
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-pdf"$'\n'
+  fi
   if [ "$audio_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-audio"$'\n'
+  fi
+  if [ "$archive_plugin_enabled" = "1" ]; then
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-archive"$'\n'
   fi
   if [ "$image_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-image"$'\n'
@@ -1721,7 +1771,9 @@ ${mcp_server_lines%$'\n'}"
     --value "http_plugin_enabled=$http_plugin_enabled" \
     --value "current_environment_plugin_enabled=$current_environment_plugin_enabled" \
     --value "docx_plugin_enabled=$docx_plugin_enabled" \
+    --value "pdf_plugin_enabled=$pdf_plugin_enabled" \
     --value "audio_plugin_enabled=$audio_plugin_enabled" \
+    --value "archive_plugin_enabled=$archive_plugin_enabled" \
     --value "image_plugin_enabled=$image_plugin_enabled" \
     --value "cronjob_plugin_enabled=$cronjob_plugin_enabled" \
     --value "wardrobe_enabled=${wardrobe_toolset_block:+1}" \

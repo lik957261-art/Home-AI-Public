@@ -1,6 +1,6 @@
 # Plugin Workspace Platform Contract
 
-Contract version: `20260618-v4`.
+Contract version: `20260626-v6`.
 
 ## Purpose
 
@@ -21,7 +21,14 @@ contracts:
 - `docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md`
 - `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
 - `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`
+- `docs/PLATFORM_CONTRACTS/github-shared-source-account-contract.md`
+- `docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md`
+- `docs/PLATFORM_CONTRACTS/fallback-governance-contract.md`
+- `docs/PLATFORM_CONTRACTS/product-reality-audit-contract.md`
+- `docs/IMPLEMENTATION_NOTES/fallback-registry.md`
+- `docs/IMPLEMENTATION_NOTES/product-reality-audit-loop.md`
 - `docs/RUNBOOKS/macos-production-access.md`
+- `docs/RUNBOOKS/github-shared-source-account.md`
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md`
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
 - `docs/IMPLEMENTATION_NOTES/plugin-topic-directory-claims.md`
@@ -35,6 +42,39 @@ contracts:
 
 Plugin-local docs may add local port, path, command, and data-root facts, but
 must not redefine the platform contract.
+
+## In-App Dialog Requirement
+
+All Home AI host and plugin product UI must use in-app dialogs, sheets, toasts,
+forms, or status rows instead of browser-native blocking dialogs. This applies
+to embedded plugin iframes, plugin standalone pages, Home AI host pages, and
+viewer pages.
+
+Forbidden in product UI:
+
+- `window.alert(...)` / `alert(...)`
+- `window.confirm(...)` / `confirm(...)`
+- `window.prompt(...)` / `prompt(...)`
+- `beforeunload` or `onbeforeunload` confirmation prompts for ordinary app
+  navigation
+
+Plugins must not send task cards to Home AI just to replace local browser
+dialogs when the replacement can be implemented inside the plugin workspace.
+They should implement plugin-local in-app surfaces and validate them through
+their normal UI/harness path. Home AI owns only the shared host dialog service,
+the central contract, and host-owned plugin bridge prompts.
+
+Allowed exception: browser install/permission flows such as
+`BeforeInstallPromptEvent.prompt()` are permitted because they are platform
+capability prompts, not application page dialogs.
+
+The central executable check is `tests/no-browser-native-dialogs.test.js`.
+By default it fails on Home AI runtime UI files. Local cross-workspace audits
+can set `HOMEAI_SCAN_ADJACENT_PLUGIN_DIALOGS=1` to scan locally available
+adjacent plugin source files; any plugin findings must be repaired in the
+owning plugin thread/workspace. Plugin repositories should keep their local
+pointer docs aligned with this contract and should add an equivalent local
+check when they own standalone UI pages.
 
 ## Plugin-Local Pointer File
 
@@ -50,13 +90,20 @@ If a plugin does not have `docs/`, use the smallest local equivalent such as
 The pointer file must include:
 
 ```text
-Home AI platform contract version: 20260618-v4
+Home AI platform contract version: 20260626-v6
 
 Canonical Home AI contract source:
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md
+- <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/github-shared-source-account-contract.md
+- <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md
+- <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/fallback-governance-contract.md
+- <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/product-reality-audit-contract.md
+- <path-to-Home-AI>/docs/IMPLEMENTATION_NOTES/fallback-registry.md
+- <path-to-Home-AI>/docs/IMPLEMENTATION_NOTES/product-reality-audit-loop.md
 - <path-to-Home-AI>/docs/RUNBOOKS/macos-production-access.md
+- <path-to-Home-AI>/docs/RUNBOOKS/github-shared-source-account.md
 - <path-to-Home-AI>/docs/RUNBOOKS/mcp-tool-upgrade-closure.md
 - <path-to-Home-AI>/docs/RUNBOOKS/macos-ios-simulator-appium.md
 - <path-to-Home-AI>/docs/MODULES/ai-operations-control-plane.md
@@ -86,10 +133,46 @@ Plugin-local facts:
 - AI Operations evidence ledger path
 - iOS visual harness command
 - plugin manifest actions status
+- GitHub shared source account status
 ```
 
 The pointer file must not contain raw passwords, access keys, OAuth tokens,
 cookies, launch tokens, full private payloads, or long logs.
+
+## GitHub Shared Source Account And Plugin Push
+
+Plugin workspaces may push their own source changes to GitHub through the Home
+AI GitHub Shared Source Account when the central key is registered with the
+GitHub SSA identity and repository access has been verified. The canonical
+contract is:
+
+```text
+docs/PLATFORM_CONTRACTS/github-shared-source-account-contract.md
+```
+
+The local helper is:
+
+```bash
+node /Users/example/path status --json
+node /Users/example/path smoke --repo git@github.com-homeai-ssa:pentiumxp/<repo>.git --json
+```
+
+Plugins must not create per-plugin GitHub tokens, copy the shared private key
+into their repo, or send task cards to Home AI just to push plugin-owned
+commits. Home AI owns the shared credential contract and helper; each plugin
+owns its own commit, local validation, and push after the shared identity is
+available.
+
+When a plugin has no configured source remote, the canonical private source
+repository name is `HomeAI-<CanonicalPluginName>`, for example
+`HomeAI-Music` or `HomeAI-Movie`. Home AI may create that missing private
+repository after explicit operator/user approval, but the plugin thread still
+owns binding `origin`, running checks, committing any pointer update, and
+pushing its source through the `github.com-homeai-ssa` alias. Existing source
+repositories are not renamed during routine SSA adoption.
+
+Public installation manifests remain HTTPS-based and are not replaced by the
+SSH alias. The GitHub SSA is a private local development and push path only.
 
 ## Platform Contract Checker
 
@@ -147,6 +230,13 @@ clients use `POST /api/native/devices/register` with `X-Hermes-Web-Key`, send
 only device/app metadata plus the APNs token, and rely on Home AI to clamp
 workspace access, protect token storage, and fan out on channel
 `native_ios_apns`.
+HealthKit sync is a workspace-private native bridge. Native clients and
+same-origin plugin proxy callers must send the selected/effective workspace
+explicitly when issuing Health write requests. Home AI may use Owner
+authentication to authorize the operation, but it must not use Owner as the
+Health data workspace unless the request explicitly targets Owner. Missing or
+ambiguous Health write workspace context must fail closed before plugin key
+injection or upstream proxying.
 
 Codex Mobile Web remains special for Owner-only visibility and permission
 policy. It is not a normal workspace-grantable business plugin, but it must
@@ -179,6 +269,92 @@ tokens, launch tokens, sudo input, or private payloads. Protected plugin schema
 endpoints that correctly require a workspace id/key are reported as
 `authRequired=true`; tool-specific schema closure still belongs to
 `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`.
+
+## Plugin-Owned Deployment Closure And Task Cards
+
+Plugin workspaces own their own closure when all of the following are true:
+
+- the code, tests, data model, UI, MCP schema, or runtime behavior being changed
+  lives inside that plugin repository or its Home AI development mirror under
+  `/Users/example/path<plugin-id>`;
+- the production operation can be expressed as a normal central deploy-script
+  call such as
+  `cd /Users/example/path && npm run --silent deploy:macos -- --plugin <plugin-id> --reason <reason> --execute`;
+- validation can be completed with plugin-owned evidence, such as local tests,
+  the plugin health/version endpoint, Home AI embedded launch/proxy smoke, MCP
+  schema smoke, plugin data readback, or a reversible plugin-owned product
+  smoke;
+- the work does not require editing Home AI host source, changing platform
+  policy, changing shared deployment script behavior, repairing Home AI
+  workspace provisioning/binding logic, or modifying Gateway worker/toolset
+  selection rules.
+
+In that case the plugin thread must finish the operation itself. The fact that
+the central deploy script lives in the Home AI app workspace, or that the final
+smoke opens the plugin through the Home AI embedded shell, does not make the
+task Home-AI-owned. Sending a cross-thread task card to Home AI for that class
+of work interrupts the host-app work queue and should be treated as a routing
+error.
+
+This is a hard routing boundary, not an optimization preference. A plugin that
+has a working `deploy:macos -- --plugin <plugin-id>` plan/execute path must run
+that path from its own closure loop. It must not send Home AI a "deploy this
+plugin" task card as a substitute for continuing its own work. If Home AI
+receives such a routine plugin deploy card, Home AI must return `redirected`
+or `blocked` with the exact plugin-owned commands and must not deploy the
+plugin merely because it has access to the shared script, sudo password file,
+or embedded shell smoke.
+
+Send a task card to the Home AI workspace only when the blocking work is
+host/platform owned, including:
+
+- Home AI source edits in `app/`, `server-routes/`, `adapters/`, `public/`, or
+  shared docs/contracts;
+- a missing or broken central deploy-script capability that a plugin cannot
+  express through the existing `--plugin <plugin-id>` path;
+- host-side plugin manifest normalization, same-origin proxy, launch-token,
+  workspace binding, authorization, or provisioning bugs;
+- Gateway callable schema, worker profile, toolset activation, or MCP routing
+  bugs that require Home AI source or profile-generation changes;
+- cross-plugin/shared policy decisions that affect more than one plugin;
+- production access failures where the plugin has followed the central contract
+  but cannot obtain the required bounded evidence without a Home AI owned
+  permission or platform repair.
+
+When a card is necessary, it must name the failure layer and include bounded
+evidence plus an explicit `Return Card Required` section naming the source
+thread and expected reply shape. It must not ask Home AI to redo plugin-local
+diagnosis, re-run ordinary plugin tests, or perform a plugin deploy that the
+plugin thread can complete by calling the central script itself.
+
+Receiving a task card does not automatically make the requested work owned by
+the receiving workspace. Home AI and plugin threads must triage every incoming
+card before acting:
+
+- if the request is plugin-local and the plugin can close it with the existing
+  central deploy script, plugin tests, plugin health/version endpoint, embedded
+  launch/proxy smoke, MCP schema smoke, data readback, or visual harness, the
+  Home AI receiver must not do the work; it must send a return card with the
+  exact plugin-owned steps and escalation conditions;
+- if the request is Home AI/platform-owned, the Home AI receiver accepts the
+  card, performs the bounded implementation, deploy, repair, or validation, and
+  then sends a return card with source changes, checks, production evidence,
+  and remaining follow-up;
+- if a plugin receives a Home AI or peer-plugin card that belongs to another
+  layer, the plugin must likewise return the card with the owning workspace,
+  evidence gap, and correct contract path instead of applying a local fallback;
+- if the ownership boundary is ambiguous, the receiver should first answer with
+  the boundary question or evidence needed to classify the card, not begin a
+  broad implementation.
+
+Every accepted or rejected cross-thread card must receive a bounded reply. The
+reply must avoid raw secrets, access keys, cookies, launch tokens, OAuth tokens,
+private payloads, provider responses, and long logs. A completed-work reply must
+include the exact layer fixed plus tests, harnesses, deployment, or production
+smoke evidence sufficient for the source thread to close its user-facing task.
+The reply requirement also applies to redirected, blocked, partially completed,
+or deferred cards. Silent consumption is a contract violation because the source
+thread may remain waiting with no closure evidence.
 
 ## Moira Workspace Binding
 
@@ -444,6 +620,18 @@ plugin may return relative paths or absolute URLs in its manifest and launch
 response, but if Hermes fetched that manifest from a local/private source, the
 runtime must resolve the entry back through the same local manifest source
 before handing it to the HTTPS/PWA client.
+
+Proxy paths are already plugin-scoped by `<plugin-id>` and plugins must not
+invent alternate browser-facing proxy roots. If a plugin needs extra resource
+rewriting, Home AI must add it as a central plugin proxy profile or a
+plugin-id-scoped extension under the same prefix, with route tests proving that
+the new rule affects only the intended plugin. Plugin workspaces may report a
+missing proxy rule with bounded evidence, but they must not patch shared proxy
+rewrites for another plugin or ask for a broad regex change that rewrites all
+plugin traffic. Common rewrite rules remain the default profile; exceptions
+such as Codex Mobile upload/generated-image routes, Finance APIs, Wardrobe
+photo routes, or Note attachment routes must stay explicitly named and covered
+by tests.
 
 Plugin code running inside an iframe must derive the Hermes host origin from
 the current parent/window/referrer context for postMessage navigation state and
@@ -729,6 +917,37 @@ Minimum closure:
 - outputs contain bounded schema/tool names only, not raw credentials or user
   payloads.
 
+Cross-workspace ownership boundary:
+
+- The plugin workspace owns plugin service schema, plugin-local MCP wrapper
+  behavior, plugin-local manifest `mcp.required_tools`, and plugin-local
+  production deployment.
+- The Home AI workspace owns Mobile instruction hints, `GATEWAY_TOOL_SCHEMA_EPOCH`,
+  Gateway selected-profile callable schema closure, worker restart/refresh,
+  and Home AI production deployment.
+- A plugin Codex thread must not inspect, edit, patch, test, deploy, or commit
+  Home AI source files unless that thread is explicitly running in the Home AI
+  workspace. This includes `adapters/gateway-run-instruction-service.js`,
+  `mobile-server-runtime.js`, Gateway profile generation code, central tests,
+  and central docs.
+- If a plugin MCP schema changes and the plugin thread cannot mutate Home AI,
+  it must either run the read-only service/source part of
+  `scripts/mcp-tool-upgrade-closure-smoke.js` from the Home AI workspace when
+  that workspace is available, or send a Codex Mobile cross-thread task card to
+  the Home AI app thread using the template in
+  `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`.
+- The task card is the handoff boundary. It must include bounded evidence:
+  plugin id/toolset, service schema URL, local tool names, expected
+  `mcp_<server>_<tool>` callable names, proposed schema epoch, selected
+  Gateway profile if known, and exact service-only validation results. It must
+  not include raw plugin keys, cookies, OAuth tokens, launch tokens, private
+  catalog rows, or long logs.
+- The Home AI target thread must complete the central half: update instruction
+  hints and epoch, run focused source tests, run service schema closure, prove
+  the selected Gateway worker exposes the callable names, restart or refresh
+  stale workers if needed, deploy Home AI if production behavior changes, and
+  update Home AI handoff/docs.
+
 ## Reference Object Contract
 
 Plugins that expose objects to cross-plugin memory must follow:
@@ -793,8 +1012,14 @@ visual evidence. The required level depends on the surface:
   as plugin UI failures. `appium_timeout`, `/contexts` timeout,
   `webview_context_missing`, `Unexpected EOF`, `socket hang up`, and live-debug
   `fetch failed` mean the plugin thread must first check Appium `4723`, WDA
-  `8101`, and its live-debug server port. If Appium is down, restart it through
-  the central script:
+  `8101`, and its live-debug server port. The preferred bounded check is:
+
+  ```bash
+  npm run ios:pwa:visual -- --debug-url http://127.0.0.1:19073/ --preflight-only --json
+  ```
+
+  If this reports `failureLayer=appium`, restart Appium through the central
+  script:
 
   ```bash
   bash "$HOME/.homeai-qa/scripts/macos-ios-appium-start.sh"
@@ -808,13 +1033,13 @@ visual evidence. The required level depends on the surface:
   Appium/WebKit remote-debugging layer is partially stuck.
 
   Plugin teams must not start foreground `appium server` processes for shared
-  lanes. The central Appium start script intentionally keeps the background
-  Appium process alive across terminal Ctrl-C and uses session override
-  behavior, preventing a half-online lane in which WDA still responds but
-  Appium/WebView operations time out. If the central script is updated, plugin
-  teams must consume that script instead of copying an older Appium command.
-  The shared script is responsible for backgrounding, ignoring terminal
-  `SIGHUP`/`SIGINT`, and replacing stale XCUITest sessions.
+  lanes. The central Appium start script intentionally runs Appium through a
+  per-user LaunchAgent, replaces stale lane jobs, uses session override
+  behavior, and rejects transient startup where `/status` responds once but the
+  process exits before a second check. This prevents a half-online lane in
+  which WDA still responds but Appium/WebView operations time out. If the
+  central script is updated, plugin teams must consume that script instead of
+  copying an older Appium command.
 
 - Final bounded visual evidence should use the checked visual harness:
 

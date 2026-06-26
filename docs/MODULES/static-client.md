@@ -103,10 +103,20 @@ does not protect against near-simultaneous native shell, voice, keyboard, or
 iframe-triggered activations that enter the function before DOM state updates
 settle. Surface-specific guards such as `directoryTopicDraftSendInFlight` may
 add stricter behavior, but they do not replace the generic composer lock.
+Successful sends must also re-clear the composer after result handling when the
+current text is empty or still matches the sent text. This protects iOS/PWA and
+embedded-plugin sessions from late input/composition events that can restore the
+old value after the initial clear, while preserving a different draft the user
+typed during the in-flight request.
 
 ## Constraints
 
 - Mobile UI must preserve the OS status bar, safe areas, bottom navigation, stable action icons, and readable compact panels.
+- The Home AI host shell is mobile-first at every viewport width. Wide
+  screens, tablets in landscape, desktop browser windows, and native-shell
+  WebViews must keep the same single-column content area and bottom navigation
+  used in portrait. They must not switch to a permanent left navigation sidebar
+  or a split primary layout. The sidebar remains an on-demand overlay surface.
 - Mobile bottom navigation must keep a fixed visual container height. Do not
   add `env(safe-area-inset-bottom)` to `--mobile-bottom-nav-height` or
   `--plugin-context-bottom-nav-height`. iOS reports safe-area values per
@@ -139,6 +149,12 @@ add stricter behavior, but they do not replace the generic composer lock.
   timeouts must not rely only on `AbortController`; the client-side API wrapper
   must also reject from a Promise-level timeout so Android WebView cannot keep a
   hung fetch marked as in-flight forever.
+  The watchdog should replay the current chat-scope cache before performing a
+  network retry, and `/api/single-window` failures must replace the pending
+  shell with a bounded failure/retry state when no cached chat can be rendered.
+  Non-chat task/topic render paths must clear Chat-only render signatures so a
+  task detail with message nodes cannot be mistaken for an already rendered
+  Chat surface.
   When the follow-up `/api/single-window` response has the same visible chat
   render signature as the cached shell, the client should update lightweight
   chrome only and skip replacing `#conversation.innerHTML`; raw `updatedAt`
@@ -146,6 +162,15 @@ add stricter behavior, but they do not replace the generic composer lock.
   that contain rendered images rely on this rule: no-op chat refreshes must
   preserve existing `<img>` nodes so protected or proxied image hydration does
   not recreate visible image surfaces and trigger full-page flashing.
+- Plugin topic chat entry must render eligible cached topic messages without
+  waiting for the background `/api/single-window` refresh. The
+  `正在打开话题...` shell must not depend on an exact primary navigation sequence
+  after the route has already settled; route currentness is the visible
+  `viewMode`, plugin topic group id, and plugin context plugin id. Topic open
+  buttons should also stop click propagation so parent topic cards or cleanup
+  handlers cannot cancel the cached render path. If the shell remains visible
+  without rendered messages, a bounded fallback render should replay the cached
+  topic thread instead of requiring an app kill or another tab switch.
 - Returning from any bottom plugin or capability entry to the Topics root must
   go through the primary navigation topic-root helper. That path must hide
   active embedded/plugin host layers, clear temporary plugin context state, and
@@ -234,16 +259,24 @@ add stricter behavior, but they do not replace the generic composer lock.
   viewport because of safe-area/status chrome; using it as the primary bottom
   boundary can falsely detect bottom overflow and push the whole bottom stack
   upward by far more than the intended visual lift.
-- Touch tablets up to `1366px` wide use the same mobile shell as phone portrait:
+- All viewport widths use the same mobile shell as phone portrait:
   a single-column app, bottom navigation, and an overlay sidebar. Do not let
-  iPad-like landscape layouts fall back to the desktop fixed sidebar or hide the
-  primary bottom navigation.
+  iPad-like landscape, wide tablet, or desktop-sized browser layouts fall back
+  to a fixed left sidebar or hide the primary bottom navigation.
 - The mobile shell rule does not mean all embedded previews should be forced
-  into phone projection. PDF preview links must keep phone widths in the
-  embedded Hermes viewer but route wide tablet/foldable surfaces to same-window
-  native/original document preview when a same-origin source URL is available.
-  Word/DOCX must stay in the Home AI `file-viewer.html` preview path on wide
-  surfaces because raw DOCX URLs usually download instead of rendering inline.
+  into phone projection. PDF, Word/DOCX, and PowerPoint/PPTX preview links must
+  keep phone widths in the embedded Hermes viewer but route wide tablet/foldable
+  surfaces to same-window native/original document preview when a same-origin
+  source URL is available. The embedded/mobile viewer exposes a single preview
+  mode switch labelled `原始格式显示`; the former separate external-open action is
+  not part of the document preview contract.
+- DOCX mobile/adapted preview is a lightweight Markdown structure preview, not
+  a full Word layout renderer. It must render on an Office-style light document
+  canvas even when the app theme is dark, preserve extracted whitespace such as
+  DOCX tab stops, and convert basic DOCX tables into Markdown tables so the
+  existing mobile table/card renderer can preserve row/column relationships.
+  Keep `原始格式显示` available for the native/original layout when the document
+  has complex table geometry or fixed formatting.
 - Top-level PWA shell changes must keep time, battery, and Wi-Fi indicators
   visible on mobile; browser-shell guards and full-viewport overlays need
   explicit status-bar/safe-area checks. The installed iOS PWA shell should use
@@ -441,18 +474,28 @@ add stricter behavior, but they do not replace the generic composer lock.
   mode, active theme, font, and default-model options must use a visible
   high-contrast selected frame plus an inner outline; a subtle fill alone is not
   enough to communicate the selected option.
-- Long assistant replies must keep their per-reply start/end jump controls
-  available after streaming settles. Arrow visibility recalculation must resolve
-  the current DOM at execution time and include a delayed settle pass after final
+- Long assistant replies must keep receipt navigation available after streaming
+  settles, but the UI now has only one right-side global navigation slot:
+  `#conversationJumpBottom`. It shows the down/end arrow until the viewport is at
+  the bottom, then switches to the up/start arrow for the current long receipt.
+  The up and down arrows must never be visible at the same time, and both must
+  occupy the same right-side position aligned with the command/composer origin.
+  Legacy message-level `.message-scroll-button` controls are kept non-rendered
+  and non-displayed; do not reintroduce inline footer/start arrows beside
+  Usage/Skill/status chips. Arrow visibility recalculation must resolve the
+  current DOM at execution time and include a delayed settle pass after final
   markdown/layout replacement so a stale pre-terminal message node cannot leave
-  the footer arrow hidden. Eligibility must use the assistant message's original
+  the global slot hidden. Eligibility must use the assistant message's original
   rendered height and viewport geometry: if the rendered reply cannot fit in one
-  conversation screen, the jump control must be visible. Character-count or rich
-  render limits are only no-layout fallbacks. When the reply footer is already in
-  view, the up/start arrow must stay inline beside the Usage/Skill/status chips
-  instead of floating away to the top of the message. Once content estimation or
-  measured layout proves a reply is long, terminal Usage/Skill/run-status footer
-  refreshes must not clear that eligibility.
+  conversation screen, the global navigation slot must be available. Character
+  count or rich render limits are only no-layout fallbacks. Once content
+  estimation or measured layout proves a reply is long, terminal
+  Usage/Skill/run-status footer refreshes must not clear that eligibility.
+- Floating voice/composer overlays are live-state indicators only. They may be
+  visible while voice capture/transcription or a real assistant run is active,
+  but terminal states such as inserted/cancelled/no-speech/failed voice input or
+  a completed assistant turn must not leave a status dot floating over the
+  global receipt-navigation slot.
 - Active assistant replies must not stream the full growing answer directly into
   the visible receipt. While status is `queued` or `running`, the message should
   show a fixed-line streaming receipt preview with hidden overflow and keep the

@@ -808,11 +808,62 @@ async function applyWorkspaceOnboardingFromAccessKeyManager() {
   }
 }
 
+function openAccessKeyConfirmDialog(options = {}) {
+  const overlay = $("accessKeyConfirmOverlay");
+  if (!overlay) return Promise.resolve(false);
+  const title = String(options.title || "确认操作");
+  const message = String(options.message || "").trim();
+  const detail = String(options.detail || "").trim();
+  const confirmLabel = String(options.confirmLabel || "确认");
+  const cancelLabel = String(options.cancelLabel || "取消");
+  const danger = Boolean(options.danger);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value) => {
+      if (settled) return;
+      settled = true;
+      document.removeEventListener("keydown", onKeydown);
+      overlay.classList.add("hidden");
+      overlay.innerHTML = "";
+      resolve(Boolean(value));
+    };
+    const onKeydown = (event) => {
+      if (event.key === "Escape") finish(false);
+    };
+    overlay.innerHTML = `<section class="access-key-sheet access-key-confirm-sheet">
+      <header class="access-key-header">
+        <div>
+          <div id="accessKeyConfirmTitle" class="access-key-title">${escapeHtml(title)}</div>
+          <div class="access-key-subtitle">Access Key 操作确认</div>
+        </div>
+      </header>
+      <div class="access-key-confirm-body">${escapeHtml(message).replace(/\n/g, "<br>")}</div>
+      ${detail ? `<div class="access-key-confirm-detail">${escapeHtml(detail)}</div>` : ""}
+      <div class="access-key-confirm-actions">
+        <button class="access-key-confirm-cancel" type="button" data-access-key-confirm-cancel>${escapeHtml(cancelLabel)}</button>
+        <button class="access-key-confirm-approve${danger ? " danger" : ""}" type="button" data-access-key-confirm-approve>${escapeHtml(confirmLabel)}</button>
+      </div>
+    </section>`;
+    overlay.classList.remove("hidden");
+    overlay.querySelector("[data-access-key-confirm-approve]")?.addEventListener("click", () => finish(true));
+    overlay.querySelector("[data-access-key-confirm-cancel]")?.addEventListener("click", () => finish(false));
+    document.addEventListener("keydown", onKeydown);
+    window.requestAnimationFrame?.(() => overlay.querySelector("[data-access-key-confirm-cancel]")?.focus?.());
+  });
+}
+
 async function deleteWorkspaceFromAccessKeyManager(workspaceId) {
   const workspace = (state.workspaces || []).find((item) => item.id === workspaceId);
   if (!workspace || workspace.source !== "local-workspace") return;
   const label = workspace.label || workspace.id;
-  if (!window.confirm(`删除本地用户工作区 ${label}？该账号的 Workspace Access Key 也会撤销。历史消息不会被删除。`)) return;
+  const confirmed = await openAccessKeyConfirmDialog({
+    title: "删除本地用户工作区",
+    message: `删除本地用户工作区 ${label}？`,
+    detail: "该账号的 Workspace Access Key 也会撤销。历史消息不会被删除。",
+    confirmLabel: "删除",
+    danger: true,
+  });
+  if (!confirmed) return;
   await api(`/api/workspaces/${encodeURIComponent(workspace.id)}`, { method: "DELETE" });
   if (state.selectedWorkspaceId === workspace.id) {
     state.selectedWorkspaceId = "owner";
@@ -847,7 +898,16 @@ async function generateWorkspaceAccessKey(workspaceId) {
   const target = (state.accessKeys || []).find((item) => item.workspaceId === workspaceId);
   const label = target?.workspaceLabel || workspaceId || "workspace";
   if (!workspaceId) return;
-  if (target?.hasKey && !window.confirm(`更换 ${label} 的 Home AI Access Key？旧 key 会立即失效。`)) return;
+  if (target?.hasKey) {
+    const confirmed = await openAccessKeyConfirmDialog({
+      title: "更换 Workspace Key",
+      message: `更换 ${label} 的 Home AI Access Key？`,
+      detail: "旧 key 会立即失效，该账号需要使用新 key 重新登录。",
+      confirmLabel: "更换 Key",
+      danger: true,
+    });
+    if (!confirmed) return;
+  }
   const result = await api("/api/access-keys/workspace", {
     method: "POST",
     body: JSON.stringify({ workspaceId }),
@@ -872,7 +932,14 @@ async function revokeWorkspaceAccessKey(workspaceId) {
   const target = (state.accessKeys || []).find((item) => item.workspaceId === workspaceId);
   const label = target?.workspaceLabel || workspaceId || "workspace";
   if (!workspaceId || !target?.hasKey) return;
-  if (!window.confirm(`撤销 ${label} 的 Home AI Access Key？该账号会在下次请求时需要重新登录。`)) return;
+  const confirmed = await openAccessKeyConfirmDialog({
+    title: "撤销 Workspace Key",
+    message: `撤销 ${label} 的 Home AI Access Key？`,
+    detail: "该账号会在下次请求时需要重新登录。",
+    confirmLabel: "撤销 Key",
+    danger: true,
+  });
+  if (!confirmed) return;
   const result = await api(`/api/access-keys/workspace/${encodeURIComponent(workspaceId)}`, {
     method: "DELETE",
     body: JSON.stringify({}),
@@ -887,7 +954,14 @@ async function revokeWorkspaceAccessKey(workspaceId) {
 }
 
 async function rotateWebAccessKey() {
-  if (!window.confirm("更换 Home AI Owner Access Key？旧 Owner key 会立即失效。")) return;
+  const confirmed = await openAccessKeyConfirmDialog({
+    title: "更换 Owner Key",
+    message: "更换 Home AI Owner Access Key？",
+    detail: "旧 Owner key 会立即失效。当前设备会保存新 key，其他设备需要重新登录。",
+    confirmLabel: "更换 Key",
+    danger: true,
+  });
+  if (!confirmed) return;
   const result = await api("/api/access-keys/web", { method: "POST", body: JSON.stringify({}) });
   storeAccessKey(result.key || "");
   state.generatedAccessKey = {

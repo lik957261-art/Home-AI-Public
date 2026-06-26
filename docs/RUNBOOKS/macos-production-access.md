@@ -440,6 +440,21 @@ plist. It does not write raw plugin access keys. Initial access is Owner-only
 unless `MOIRA_HERMES_ALLOWED_WORKSPACES` is explicitly expanded and the target
 workspace has a server-side `.hermes-moira` key path.
 
+Movie first production install also uses source-only sync before its
+LaunchDaemon exists:
+
+```bash
+npm run --silent deploy:macos -- --plugin movie --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+node scripts/install-movie-launchd-service.js --json
+node scripts/install-movie-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+```
+
+The Movie installer starts `com.hermesmobile.plugin.movie` on
+`127.0.0.1:4195` as `hermes-host`, runs `src/server.js`, and keeps production
+data under `/Users/example/path`. It must not
+store Movie device, NAS, or projector credentials in Home AI source, docs,
+LaunchDaemon environment, or logs.
+
 Plugin workspaces should read the central deployment contract before deploys:
 
 ```text
@@ -488,6 +503,7 @@ finance -> /Users/example/path
 growth -> /Users/example/path
 healthy -> /Users/example/path
 moira -> /Users/example/path
+movie -> /Users/example/path
 music -> /Users/example/path
 note -> /Users/example/path
 wardrobe -> /Users/example/path

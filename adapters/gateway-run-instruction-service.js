@@ -3,7 +3,7 @@
 const { explicitSearchContext } = require("./gateway-run-search-budget-service");
 const { formatEnvironmentContextInstructions } = require("./environment-context-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260620-music-demo-plan-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260624-document-file-tools-v1";
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -58,7 +58,7 @@ function createGatewayRunInstructionService(options = {}) {
       x_search: ["x_search"],
       http: ["http_request"],
       weather: ["weather"],
-      file: ["read_file", "write_file", "patch", "search_files", "docx_extract_text", "audio_transcribe"],
+      file: ["read_file", "write_file", "patch", "search_files", "docx_extract_text", "office_extract_text", "pdf_extract_text", "pdf_render_pages", "audio_transcribe", "archive_list", "archive_extract_safe"],
       vision: ["vision_analyze"],
       image_gen: ["image_generate", "chatgpt_image_edit", "chatgpt_image_erase", "image_edit", "image_erase"],
       wardrobe: [
@@ -126,13 +126,24 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_music_music_collection_items",
         "mcp_music_music_collection_item_detail",
         "mcp_music_music_collection_add",
+        "mcp_music_music_collection_add_batch",
         "mcp_music_music_collection_remove",
+        "mcp_music_music_collection_promote_ai",
+        "mcp_music_music_collection_item_volume_calibrate",
         "mcp_music_music_tidal_auth_status",
         "mcp_music_music_tidal_search",
+        "mcp_music_music_tidal_collection_items",
+        "mcp_music_music_tidal_collection_sync",
+        "mcp_music_music_tidal_normalization_status",
+        "mcp_music_music_tidal_album_normalization_analyze",
+        "mcp_music_music_tidal_collection_normalization_analyze",
+        "mcp_music_music_tidal_track_normalization",
         "mcp_music_music_roon_browse",
         "mcp_music_music_resolve_roon_item",
+        "mcp_music_music_roon_recent_listening",
         "mcp_music_music_play_collection_item_on_zone",
         "mcp_music_music_play_collection_album_on_zone",
+        "mcp_music_music_play_local_track_on_zone",
         "mcp_music_music_demo_save_plan",
         "mcp_music_music_demo_list_plans",
         "mcp_music_music_demo_get_plan",
@@ -141,11 +152,21 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_music_music_demo_current_state",
         "mcp_music_music_demo_match_now_playing",
         "mcp_music_music_demo_advance_to_track",
+        "mcp_music_music_demo_rebind_plan",
+        "mcp_music_music_demo_generate_narrations",
+        "mcp_music_music_demo_prepare_narrations_for_playback",
+        "mcp_music_music_demo_narration_job_status",
+        "mcp_music_music_demo_attach_narrations",
+        "mcp_music_music_demo_stage_narrations_for_roon",
+        "mcp_music_music_demo_map_narrations_from_roon",
+        "mcp_music_music_demo_cleanup_narrations",
         "mcp_music_music_get_album_tags",
         "mcp_music_music_get_album_volume_tag",
         "mcp_music_music_local_library_overview",
         "mcp_music_music_local_albums",
         "mcp_music_music_local_album_detail",
+        "mcp_music_music_local_album_volume_calibrate",
+        "mcp_music_music_local_track_volume_calibrate",
         "mcp_music_music_management_capabilities",
         "mcp_music_music_hifi_profile_get",
         "mcp_music_music_hifi_profile_update",
@@ -168,6 +189,7 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_music_music_loudness_status",
         "mcp_music_music_track_quality_analyze",
         "mcp_music_music_album_quality_analyze",
+        "mcp_music_music_plan_playlist",
         "mcp_music_music_map_device_volume",
         "mcp_music_music_loudness_analyze_missing",
         "mcp_music_music_tracks_query_by_format",
@@ -177,6 +199,8 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_music_music_now_playing",
         "mcp_music_music_playback_control",
         "mcp_music_music_set_volume",
+        "mcp_music_music_boulder_status",
+        "mcp_music_music_boulder_set_master_volume",
         "mcp_music_music_volume_policy_preview",
         "mcp_music_music_play_tracks_with_volume_policy",
         "mcp_music_music_playback_volume_offset_set",
@@ -240,7 +264,10 @@ function createGatewayRunInstructionService(options = {}) {
       if (toolsets.includes("http")) lines.push("- For HTTP/API Program calls, use `http_request`; do not look for or mention a `web_request` function.");
       if (toolsets.includes("http")) lines.push("- For Program API file uploads, pass in-scope local image bytes through `http_request.file_body` or `http_request.multipart_files`; do not put local path strings or file:// URLs inside the target API JSON body.");
       if (toolsets.includes("file")) lines.push("- For Word DOCX text extraction, use `docx_extract_text` when `read_file` cannot decode the Office Open XML package directly.");
+      if (toolsets.includes("file")) lines.push("- For PowerPoint PPTX/PPTM and Excel XLSX/XLSM text extraction, use `office_extract_text` when `read_file` cannot decode the Office Open XML package directly.");
+      if (toolsets.includes("file")) lines.push("- For PDF reports, use `pdf_extract_text` first; if the PDF has no text layer or text is empty, use `pdf_render_pages` and pass the rendered page images to the vision/OCR tool. Do not ask the user to export PDF pages manually.");
       if (toolsets.includes("file")) lines.push("- For MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC voice notes or reading-retelling audio, use `audio_transcribe`; do not route audio-only files through `video_analyze` or ask the user to convert audio to video.");
+      if (toolsets.includes("file")) lines.push("- For ZIP archives inside allowed roots, use `archive_list` to inspect entries and `archive_extract_safe` to extract safely; do not ask for Owner elevation or shell merely to unzip an in-scope archive.");
       if (toolsets.includes("cronjob")) lines.push("- For Hermes Mobile automation jobs, use `cronjob_mobile` when available; if it is absent, use `http_request` with url `hermes-mobile://cron` and the automation action/job fields in `json`; raw `cronjob` may point at an empty profile-local scheduler namespace.");
     }
     if (allowedSkills.length) lines.push(`- Allowed Skills: ${allowedSkills.join(", ")}`);
@@ -280,11 +307,14 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "file")) {
       lines.push(
-        "Current tool schema override: the `file` toolset is enabled for this run. Word DOCX text extraction is available as `docx_extract_text`, and audio transcription for MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC files is available as `audio_transcribe`, when the file is inside the current allowed roots.",
+        "Current tool schema override: the `file` toolset is enabled for this run. Word DOCX text extraction is available as `docx_extract_text`; PowerPoint PPTX/PPTM and Excel XLSX/XLSM text extraction is available as `office_extract_text`; PDF text extraction and page rendering are available as `pdf_extract_text` / `pdf_render_pages`; audio transcription for MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC files is available as `audio_transcribe`; and ZIP listing/safe extraction is available as `archive_list` / `archive_extract_safe`, when the file is inside the current allowed roots.",
         "For .docx/.docm/.dotx/.dotm files, use `docx_extract_text` if `read_file` cannot decode the Office Open XML package directly.",
+        "For .pptx/.pptm/.potx/.potm/.ppsx/.ppsm/.xlsx/.xlsm/.xltx/.xltm files, use `office_extract_text` if `read_file` cannot decode the Office Open XML package directly.",
+        "For .pdf files, use `pdf_extract_text` first. If hasTextLayer is false or the extracted text is empty, use `pdf_render_pages` and then use the rendered image paths with vision/OCR. Do not tell the user to export PDF pages manually.",
         "For audio-only files such as .mp3/.m4a/.wav/.aac/.ogg/.opus/.amr/.flac, use `audio_transcribe`; `video_analyze` is for video files and should not be used as an audio transcription substitute.",
+        "For .zip files, use `archive_list` first when the contents are unknown, then `archive_extract_safe` when extraction is needed; do not ask the user to unzip the archive manually.",
         "Do not ask the user to convert an ordinary current-workspace audio file into a blank video just to work around a missing audio transcription function.",
-        "Do not request Owner elevation merely because an ordinary current-workspace DOCX extraction or audio transcription tool is missing from an older callable schema. That is a Hermes Mobile deployment/schema mismatch, not a high-privilege operation."
+        "Do not request Owner elevation merely because an ordinary current-workspace DOCX/Office/PDF extraction, ZIP extraction, or audio transcription tool is missing from an older callable schema. That is a Hermes Mobile deployment/schema mismatch, not a high-privilege operation."
       );
     }
     if (policyHasToolset(policy, "web") || policyHasToolset(policy, "search")) {
@@ -368,10 +398,11 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "music")) {
       lines.push(
-        "Current tool schema override: the `music` toolset is enabled for this run. Callable function names normally begin with `mcp_music_music_`, including `mcp_music_music_local_library_overview`, `mcp_music_music_local_albums`, `mcp_music_music_local_album_detail`, `mcp_music_music_get_album_volume_tag`, `mcp_music_music_collection_items`, `mcp_music_music_collection_item_detail`, `mcp_music_music_collection_add`, `mcp_music_music_collection_remove`, `mcp_music_music_tidal_auth_status`, `mcp_music_music_tidal_search`, `mcp_music_music_roon_browse`, `mcp_music_music_resolve_roon_item`, `mcp_music_music_play_collection_item_on_zone`, `mcp_music_music_play_collection_album_on_zone`, `mcp_music_music_demo_save_plan`, `mcp_music_music_demo_list_plans`, `mcp_music_music_demo_get_plan`, `mcp_music_music_demo_delete_plan`, `mcp_music_music_demo_set_active_plan`, `mcp_music_music_demo_current_state`, `mcp_music_music_demo_match_now_playing`, `mcp_music_music_demo_advance_to_track`, `mcp_music_music_management_capabilities`, `mcp_music_music_hifi_profile_get`, `mcp_music_music_hifi_profile_update`, `mcp_music_music_tags_list`, `mcp_music_music_album_find_duplicates`, `mcp_music_music_album_cover_replace_plan`, `mcp_music_music_album_cover_replace_apply`, `mcp_music_music_album_cover_restore`, `mcp_music_music_playlist_generate_plan`, `mcp_music_music_loudness_status`, `mcp_music_music_track_quality_analyze`, `mcp_music_music_album_quality_analyze`, `mcp_music_music_tracks_query_by_quality`, `mcp_music_music_map_device_volume`, `mcp_music_music_now_playing`, `mcp_music_music_playback_zones`, `mcp_music_music_playback_control`, `mcp_music_music_set_volume`, `mcp_music_music_volume_policy_preview`, `mcp_music_music_play_tracks_with_volume_policy`, `mcp_music_music_playback_volume_offset_set`, `mcp_music_music_play_album_on_zone`, `mcp_music_music_play_track_on_zone`, `mcp_music_music_play_playlist_on_zone`, `mcp_music_music_get_taste_profile`, `mcp_music_music_get_recommendation_context`, `mcp_music_music_roon_listening_summary`, and `mcp_music_music_get_favorites`.",
+        "Current tool schema override: the `music` toolset is enabled for this run. Callable function names normally begin with `mcp_music_music_`, including `mcp_music_music_local_library_overview`, `mcp_music_music_local_albums`, `mcp_music_music_local_album_detail`, `mcp_music_music_local_album_volume_calibrate`, `mcp_music_music_local_track_volume_calibrate`, `mcp_music_music_get_album_volume_tag`, `mcp_music_music_collection_items`, `mcp_music_music_collection_item_detail`, `mcp_music_music_collection_add`, `mcp_music_music_collection_add_batch`, `mcp_music_music_collection_remove`, `mcp_music_music_collection_promote_ai`, `mcp_music_music_collection_item_volume_calibrate`, `mcp_music_music_tidal_auth_status`, `mcp_music_music_tidal_search`, `mcp_music_music_tidal_collection_items`, `mcp_music_music_tidal_collection_sync`, `mcp_music_music_tidal_normalization_status`, `mcp_music_music_tidal_album_normalization_analyze`, `mcp_music_music_tidal_collection_normalization_analyze`, `mcp_music_music_tidal_track_normalization`, `mcp_music_music_roon_browse`, `mcp_music_music_resolve_roon_item`, `mcp_music_music_roon_recent_listening`, `mcp_music_music_play_collection_item_on_zone`, `mcp_music_music_play_collection_album_on_zone`, `mcp_music_music_play_local_track_on_zone`, `mcp_music_music_demo_save_plan`, `mcp_music_music_demo_list_plans`, `mcp_music_music_demo_get_plan`, `mcp_music_music_demo_delete_plan`, `mcp_music_music_demo_set_active_plan`, `mcp_music_music_demo_current_state`, `mcp_music_music_demo_match_now_playing`, `mcp_music_music_demo_advance_to_track`, `mcp_music_music_demo_rebind_plan`, `mcp_music_music_demo_generate_narrations`, `mcp_music_music_demo_prepare_narrations_for_playback`, `mcp_music_music_demo_narration_job_status`, `mcp_music_music_demo_attach_narrations`, `mcp_music_music_demo_stage_narrations_for_roon`, `mcp_music_music_demo_map_narrations_from_roon`, `mcp_music_music_demo_cleanup_narrations`, `mcp_music_music_management_capabilities`, `mcp_music_music_hifi_profile_get`, `mcp_music_music_hifi_profile_update`, `mcp_music_music_tags_list`, `mcp_music_music_album_find_duplicates`, `mcp_music_music_album_cover_replace_plan`, `mcp_music_music_album_cover_replace_apply`, `mcp_music_music_album_cover_restore`, `mcp_music_music_playlist_generate_plan`, `mcp_music_music_plan_playlist`, `mcp_music_music_loudness_status`, `mcp_music_music_track_quality_analyze`, `mcp_music_music_album_quality_analyze`, `mcp_music_music_tracks_query_by_quality`, `mcp_music_music_map_device_volume`, `mcp_music_music_now_playing`, `mcp_music_music_playback_zones`, `mcp_music_music_playback_control`, `mcp_music_music_set_volume`, `mcp_music_music_boulder_status`, `mcp_music_music_boulder_set_master_volume`, `mcp_music_music_volume_policy_preview`, `mcp_music_music_play_tracks_with_volume_policy`, `mcp_music_music_playback_volume_offset_set`, `mcp_music_music_play_album_on_zone`, `mcp_music_music_play_track_on_zone`, `mcp_music_music_play_playlist_on_zone`, `mcp_music_music_get_taste_profile`, `mcp_music_music_get_recommendation_context`, `mcp_music_music_roon_listening_summary`, and `mcp_music_music_get_favorites`.",
         "Use Music MCP as the source of truth for local album statistics, sampled loudness and waveform status, Roon-observed listening summaries, favorites cache, HIFI equipment recommendation context, album tags, duplicate-album plans, playlist plans, and volume-tag recommendation context.",
+        "For Music HiFi demo narration, use `mcp_music_music_demo_generate_narrations`, `mcp_music_music_demo_prepare_narrations_for_playback`, `mcp_music_music_demo_narration_job_status`, `mcp_music_music_demo_attach_narrations`, `mcp_music_music_demo_stage_narrations_for_roon`, `mcp_music_music_demo_map_narrations_from_roon`, and `mcp_music_music_demo_cleanup_narrations` when present; use `mcp_music_music_demo_rebind_plan` when a saved demo plan needs to be rebound to verified playback refs.",
         "Music MCP is Owner-only and reads the shared Music SQLite database through the selected Gateway profile. Do not pass a workspace override, and do not infer local catalog counts, volume tags, favorites, tags, duplicate state, playlist plans, or loudness status from the visible plugin UI alone.",
-        "For Music management writes, prefer dry-run plan tools first. Soft-delete means metadata states such as hidden, duplicate, deprecated, or tombstoned; physical file deletion is not implemented. Cover search and candidate selection belong to the agent; Music MCP writes an explicitly selected local image/base64 or allowed direct cover `image_url` into the cover cache with backup/rollback. If only `source_url` is available and no image bytes are provided, Music MCP treats it as the candidate image URL. Do not use generic `http_request` to download cover art for Music writes. Playback control requires explicit confirmation/safety limits. For grouped Roon zones with multiple Devialet outputs, pass `output_ids` or a matching `output_name_contains` so Music applies volume to every selected output. For Music-managed volume-policy playback, AI may provide playlist items and an overall offset only; Music computes per-track absolute volume from album manual/predicted volume tags.",
+        "For Music management writes, prefer dry-run plan tools first. Soft-delete means metadata states such as hidden, duplicate, deprecated, or tombstoned; physical file deletion is not implemented. Cover search and candidate selection belong to the agent; Music MCP writes an explicitly selected local image/base64 or allowed direct cover `image_url` into the cover cache with backup/rollback. If only `source_url` is available and no image bytes are provided, Music MCP treats it as the candidate image URL. Do not use generic `http_request` to download cover art for Music writes. Playback control requires explicit confirmation/safety limits. For grouped Roon zones with multiple Devialet outputs, pass `output_ids` or a matching `output_name_contains` so Music applies volume to every selected output. For Music-managed volume-policy playback, AI may provide playlist items and an overall offset only; Music computes per-track absolute volume from Music-owned manual tags and explicit fallback policy. Predicted tags may be displayed as predictions, but main dCS/Boulder physical-volume automation uses only Music manual local/collection tags or the safe fallback.",
         "If `Enabled toolsets` includes `music` but the current callable schema still lacks `mcp_music_music_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of inventing music-library facts."
       );
     }
@@ -486,6 +517,18 @@ function createGatewayRunInstructionService(options = {}) {
     ].join("\n");
   }
 
+  function pluginConversationActionBridgeInstructions() {
+    return [
+      "Plugin conversation repair-request truth rule: an implementation repair card is not submitted unless Home AI returns a real Action Inbox id (`ainb_*`) or Codex task-card id (`ttc_*`). Do not invent `t_*`, `ainb_*`, or `ttc_*` ids, and do not say a card was submitted from ordinary prose, a Todo/Kanban item, or `homeai-note` metadata.",
+      "When a host-side plugin conversation identifies a plugin-owned implementation gap, prepare a bounded Owner-gated repair request instead of pretending to call the plugin thread. Append one hidden Markdown HTML comment with exact JSON:",
+      "<!-- homeai-plugin-conversation-action",
+      "{\"pluginId\":\"plugin-id\",\"requestType\":\"catalog_missing\",\"severity\":\"H2\",\"title\":\"short title\",\"summary\":\"bounded problem summary\",\"suggestedChange\":\"bounded requested change\",\"acceptance\":\"focused acceptance checks\",\"evidence\":{\"catalog\":\"bounded catalog\",\"missingKey\":\"bounded_key\"}}",
+      "-->",
+      "Visible prose may say that a repair request has been prepared for Home AI Owner approval. It must not claim successful submission, dispatch, or thread delivery unless a real host/tool response with `ainb_*` or `ttc_*` is available in the current run.",
+      "Never put raw health records, private plugin records, raw conversation transcripts, provider payloads, file paths, URLs with secrets, cookies, access keys, launch tokens, screenshots, uploads, full prompts, or long logs in the hidden plugin repair request.",
+    ].join("\n");
+  }
+
   function buildHermesInstructions(thread, policy, project, latestText = "", taskDirectory = null, buildOptions = {}) {
     const singleWindowMode = normalizeSingleWindowMode(buildOptions.singleWindowMode || buildOptions.single_window_mode || "");
     const groupChatDeliveryRoot = String(buildOptions.groupChatDeliveryRoot || buildOptions.group_chat_delivery_root || "").trim();
@@ -506,6 +549,7 @@ function createGatewayRunInstructionService(options = {}) {
       pluginCapabilityCatalogInstructions(buildOptions),
       formatEnvironmentContextInstructions(buildOptions.environmentContext),
       requiredSkillPreloadInstructions(buildOptions),
+      pluginConversationActionBridgeInstructions(),
       noteReceiptMetadataInstructions(),
       "For current-account Kanban/Todo requests, use Hermes Mobile's Todo/Kanban capability in the current workspace. Do not run raw `hermes kanban` CLI commands or write directly under `~/.hermes/kanban`, because that can target a different local profile than the Mobile app.",
       "Prefer a concise final receipt in the mobile UI. If you create a user-facing artifact, include a MEDIA:<local_path> line so Hermes Mobile can render it as a link card.",
@@ -569,6 +613,7 @@ function createGatewayRunInstructionService(options = {}) {
     formatAccessPolicyInstructionSummary,
     gatewayConversationId,
     noteReceiptMetadataInstructions,
+    pluginConversationActionBridgeInstructions,
     pluginCapabilityCatalogInstructions,
     policyHasToolset,
     buildHermesInstructions,

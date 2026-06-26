@@ -55,12 +55,12 @@ const AUTOMATION_API_ROUTE_SPECS = Object.freeze([
     group: "automation",
     moduleKey: "automation",
     handlerKey: "runPluginWorkspaceAudit",
-    summary: "Create and request an immediate read-only plugin workspace alignment audit.",
+    summary: "Send a plugin workspace audit request card to the central audit thread.",
     riskLevel: "medium",
     authMode: "access-key",
     authRequired: true,
     workspaceScoped: true,
-    resourceTypes: ["automation", "plugin", "review"],
+    resourceTypes: ["plugin", "review", "task-card"],
     tags: ["automation", "plugin", "audit", "run"],
   },
   {
@@ -411,7 +411,6 @@ function createAutomationApiRoutes(deps = {}) {
         workspaceId,
         dryRun,
         ownerPrincipalId,
-        automationProvider: deps.automationProvider,
         accessPolicyContext: deps.sanitizePolicy(workspace?.policy || {}),
       }));
     } catch (err) {
@@ -427,14 +426,11 @@ function createAutomationApiRoutes(deps = {}) {
       });
       return;
     }
-    if (!dryRun) deps.clearCronListCache();
     deps.sendJson(res, dryRun ? 200 : 202, {
       ok: true,
-      job: result.job,
-      createdJob: result.createdJob,
+      requestCard: result.requestCard,
       draft: result.draft,
       audit: publicPluginWorkspaceAudit(result.audit),
-      run: result.run,
       source: result.source,
       dryRun,
     });

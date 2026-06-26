@@ -73,6 +73,26 @@ function minimalDocxXml() {
 </w:document>`;
 }
 
+function tableDocxXml() {
+  return `
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Word Layout Smoke</w:t></w:r></w:p>
+    <w:tbl>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Item</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>Amplifier</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Roon Ready</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+    <w:p><w:r><w:t>After table paragraph.</w:t></w:r></w:p>
+  </w:body>
+</w:document>`;
+}
+
 function withTempFile(name, content, fn) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-preview-"));
   const filePath = path.join(dir, name);
@@ -100,8 +120,29 @@ function testZipEntryAndDocxExtraction() {
 
   const preview = extractDocxTextFromBuffer(zip, { maxPreviewChars: 1000 });
   assert.deepEqual(preview, {
-    text: "Alpha & BetaGamma\n\nLine\nBreak",
-    totalChars: 29,
+    text: "Alpha & Beta\tGamma\n\nLine\nBreak",
+    totalChars: 30,
+    truncated: false,
+  });
+}
+
+function testDocxTableExtractionKeepsStructure() {
+  const zip = makeZip([
+    zipEntry("[Content_Types].xml", "<Types/>"),
+    zipEntry("word/document.xml", tableDocxXml()),
+  ]);
+  const preview = extractDocxTextFromBuffer(zip, { maxPreviewChars: 1000 });
+  assert.deepEqual(preview, {
+    text: [
+      "Word Layout Smoke",
+      "",
+      "| Item | Value |",
+      "| --- | --- |",
+      "| Amplifier | Roon Ready |",
+      "",
+      "After table paragraph.",
+    ].join("\n"),
+    totalChars: 100,
     truncated: false,
   });
 }
@@ -140,6 +181,7 @@ function testErrorsStayStable() {
 
 testTextHelpers();
 testZipEntryAndDocxExtraction();
+testDocxTableExtractionKeepsStructure();
 testDeflatedZipEntry();
 testServiceReadsFilesAndTruncates();
 testErrorsStayStable();

@@ -127,8 +127,16 @@
       line-height: 1;
     }
 
-    .weixin-button {
+    .mode-toggle-button {
       right: calc(max(8px, env(safe-area-inset-right)) + 52px);
+      min-width: 94px;
+      padding: 0 12px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .weixin-button {
+      right: calc(max(8px, env(safe-area-inset-right)) + 154px);
       padding: 0 10px;
       font-size: 13px;
       font-weight: 760;
@@ -192,7 +200,8 @@
 <body>
   <a id="backButton" class="back-button" href="javascript:history.back()" aria-label="Back">&#8249;</a>
   <button id="weixinButton" class="share-button weixin-button" type="button" aria-label="转发到微信" title="转发到微信">微</button>
-  <button id="shareButton" class="share-button" type="button" aria-label="用其他应用打开" title="用其他应用打开">...</button>
+  <button id="previewModeToggle" class="share-button mode-toggle-button" type="button" aria-label="原始格式显示" title="原始格式显示">原始格式</button>
+  <button id="shareButton" class="share-button" type="button" aria-label="系统分享" title="系统分享">...</button>
   <main id="pdfScroll" class="pdf-scroll">
     <div id="pages" class="pages" aria-label="PDF pages"></div>
     <div id="fallback" class="fallback hidden"></div>
@@ -277,6 +286,15 @@
       const url = sameOriginUrl(value);
       if (!url) return value || "#";
       url.searchParams.set("download", "1");
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+
+    function originalUrlFor(value) {
+      const url = sameOriginUrl(value);
+      if (!url) return value || "#";
+      if (url.pathname === "/api/files/preview") {
+        url.pathname = "/api/files";
+      }
       return `${url.pathname}${url.search}${url.hash}`;
     }
 
@@ -582,6 +600,11 @@
       }
     }
 
+    function switchPreviewMode() {
+      if (!raw) return;
+      location.assign(originalUrlFor(raw));
+    }
+
     function viewportWidth() {
       const scrollWidth = Math.floor(document.getElementById("pdfScroll")?.clientWidth || 0);
       const layoutWidth = Math.floor(document.documentElement.clientWidth || window.innerWidth || 0);
@@ -696,6 +719,7 @@
     document.getElementById("backButton").href = fallbackReturnUrl();
     document.getElementById("backButton").addEventListener("click", navigateBack);
     document.getElementById("shareButton").addEventListener("click", sharePdf);
+    document.getElementById("previewModeToggle").addEventListener("click", switchPreviewMode);
     document.getElementById("weixinButton").addEventListener("click", () => {
       forwardPdfToWeixin().catch((err) => setTransientStatus(err.message || "Weixin forwarding failed."));
     });

@@ -61,6 +61,16 @@ Ordinary sideload apps must not claim silent update support; Android requires
 user confirmation unless the app has device-owner or system installer
 privileges.
 
+Android APK release completion is defined centrally in
+`docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`.
+For this module, a release is not complete until the built APK and
+`dist/android-update.json` are both published to the Home AI public `/android/`
+directory behind `https://wardrobe-xuxin.synology.me:8555/android/`, then
+HTTPS-read back. Each APK version bump must update the public manifest
+`versionCode`, `versionName`, `size`, `sha256`, and APK file/URL. If the online
+manifest still reports the previous `versionCode`, installed shells will not
+prompt for an upgrade even when the Android workspace has a newer local APK.
+
 The Android shell also provides the same native settings gesture as the iOS
 shell: a two-finger long press for one second opens the native Home AI settings
 dialog. The dialog can check APK updates, reload the WebView, or clear WebView

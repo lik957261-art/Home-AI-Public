@@ -37,6 +37,7 @@ function createMobileRuntimeGatewayContextFacadeService(options = {}) {
       || (policyHasToolset(runPolicy, "http") && conversationHistoryService.isStaleHttpToolAvailabilityClaim(text))
       || (policyHasToolset(runPolicy, "file") && conversationHistoryService.isStaleDocxToolAvailabilityClaim(text))
       || (policyHasToolset(runPolicy, "file") && conversationHistoryService.isStaleAudioToolAvailabilityClaim(text))
+      || (policyHasToolset(runPolicy, "file") && conversationHistoryService.isStaleArchiveToolAvailabilityClaim(text))
     );
   }
 
@@ -70,6 +71,7 @@ function createMobileRuntimeGatewayContextFacadeService(options = {}) {
     gatewayTargetForRun,
     isOrdinaryToolSchemaElevationRequest,
     isStaleAudioToolAvailabilityClaim: (...args) => conversationHistoryService.isStaleAudioToolAvailabilityClaim(...args),
+    isStaleArchiveToolAvailabilityClaim: (...args) => conversationHistoryService.isStaleArchiveToolAvailabilityClaim(...args),
     isStaleDocxToolAvailabilityClaim: (...args) => conversationHistoryService.isStaleDocxToolAvailabilityClaim(...args),
     isStaleHttpToolAvailabilityClaim: (...args) => conversationHistoryService.isStaleHttpToolAvailabilityClaim(...args),
     isStaleImageToolAvailabilityClaim: (...args) => conversationHistoryService.isStaleImageToolAvailabilityClaim(...args),

@@ -261,6 +261,49 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "ai-ops-diagnostic-api-routes",
+    exportName: "createAiOpsDiagnosticApiRoutes",
+    required: false,
+    minRoutes: 6,
+    probes: [
+      { method: "POST", path: "/api/v1/home-ai/diagnostics/events", id: "ai-ops-diagnostics-events-create" },
+      { method: "GET", path: "/api/v1/home-ai/diagnostics/cases", id: "ai-ops-diagnostics-cases-list" },
+      { method: "GET", path: "/api/v1/home-ai/diagnostics/cases/diagcase_1", id: "ai-ops-diagnostics-case-read" },
+      { method: "GET", path: "/api/v1/home-ai/diagnostics/events", id: "ai-ops-diagnostics-events-list" },
+      { method: "POST", path: "/api/v1/home-ai/diagnostics/cases/diagcase_1/state", id: "ai-ops-diagnostics-case-state" },
+      { method: "POST", path: "/api/v1/home-ai/diagnostics/cases/diagcase_1/task-card", id: "ai-ops-diagnostics-case-task-card" },
+    ],
+  },
+  {
+    key: "plugin-conversation-action-api-routes",
+    exportName: "createPluginConversationActionApiRoutes",
+    required: false,
+    minRoutes: 2,
+    probes: [
+      { method: "POST", path: "/api/plugin-conversation/actions", id: "plugin-conversation-action-create" },
+      { method: "POST", path: "/api/plugin-conversation/actions/ainb-1/task-card", id: "plugin-conversation-action-task-card" },
+    ],
+  },
+  {
+    key: "autonomous-delivery-api-routes",
+    exportName: "createAutonomousDeliveryApiRoutes",
+    required: false,
+    minRoutes: 11,
+    probes: [
+      { method: "GET", path: "/api/autonomous-delivery/cases", id: "autonomous-delivery-case-list" },
+      { method: "POST", path: "/api/autonomous-delivery/cases", id: "autonomous-delivery-case-create" },
+      { method: "GET", path: "/api/autonomous-delivery/cases/delivery_1", id: "autonomous-delivery-case-detail" },
+      { method: "POST", path: "/api/autonomous-delivery/cases/delivery_1/start", id: "autonomous-delivery-case-start" },
+      { method: "POST", path: "/api/autonomous-delivery/cases/delivery_1/close", id: "autonomous-delivery-case-close" },
+      { method: "POST", path: "/api/autonomous-delivery/cases/delivery_1/slices/slice_1/return", id: "autonomous-delivery-slice-return" },
+      { method: "POST", path: "/api/autonomous-delivery/cases/delivery_1/slices/slice_1/verification/start", id: "autonomous-delivery-verification-start" },
+      { method: "POST", path: "/api/autonomous-delivery/cases/delivery_1/slices/slice_1/deployment/start", id: "autonomous-delivery-deployment-start" },
+      { method: "POST", path: "/api/autonomous-delivery/cases/delivery_1/slices/slice_1/repair/start", id: "autonomous-delivery-repair-start" },
+      { method: "POST", path: "/api/autonomous-delivery/task-cards/ttc_1/return", id: "autonomous-delivery-task-card-return" },
+      { method: "POST", path: "/api/autonomous-delivery/return-card-events", id: "autonomous-delivery-return-card-event" },
+    ],
+  },
+  {
     key: "todo-api-routes",
     exportName: "createTodoApiRoutes",
     required: false,
@@ -446,6 +489,10 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/voice-input/learn-sent-text" }).id, "voice-input-learn-sent-text");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/voice-input/corrections" }).id, "voice-input-corrections-update");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/voice-input/settings" }).id, "voice-input-settings-update");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/v1/home-ai/diagnostics/events" }).id, "ai-ops-diagnostics-events-create");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/v1/home-ai/diagnostics/cases" }).id, "ai-ops-diagnostics-cases-list");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/v1/home-ai/diagnostics/cases/diagcase_1" }).id, "ai-ops-diagnostics-case-read");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/v1/home-ai/diagnostics/cases/diagcase_1/state" }).id, "ai-ops-diagnostics-case-state");
   assert.equal(matchHermesMobileApiRoute({ method: "PATCH", path: "/api/workspaces/child-a" }).id, "workspaces-admin");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/automations/job-1/pause" }).id, "automations-action");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/kanban/cards/card-1/study-quiz" }).id, "kanban-reading-quiz");
@@ -537,6 +584,7 @@ function testGroupingProducesModuleWorkPackages() {
   assert.ok(modules.has("thread-run"));
   assert.ok(modules.has("plugin-topic-usage"));
   assert.ok(modules.has("voice-input"));
+  assert.ok(modules.has("ai-ops-diagnostics"));
   assert.ok(modules.has("directory-share"));
   assert.ok(modules.has("directory-mutation"));
   assert.deepEqual(modules.get("weixin-ingress").authModes, ["ingress"]);

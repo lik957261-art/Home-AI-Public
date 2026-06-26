@@ -131,6 +131,10 @@ This reference documents public-safe manifest fields. The example file is `examp
   `<workspaceId>|user|<provider>`. A copied `replicaId` such as
   `hm-wuping-openai-1` on an `xjz` worker makes scheduler state and launch
   requests target the wrong replica even when `allowedWorkspaceIds` is correct.
+- Workspace provisioning must also keep profile-local paths on the same slot:
+  `configPath`, `telemetryStateDbPath`, and `telemetryResponseStoreDbPath`
+  must point at the target worker profile, not the template profile that was
+  copied to create it.
 - Workspace provisioning must also keep concrete ordinary user workers on the
   standard low-permission manifest toolset surface, including `weather`.
   A personal workspace such as `xjz` may have additional plugin toolsets, but it

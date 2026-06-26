@@ -53,6 +53,7 @@ globalThis.pendingSendTestApi = {
   clearOptimisticSendMessages,
   optimisticSendShouldAppendAssistant,
   handleSendMessageResult,
+  clearComposerAfterSuccessfulSend,
   sendMessage,
   COMPOSER_SEND_TIMEOUT_MS,
 };`, context);
@@ -62,6 +63,7 @@ const {
   clearOptimisticSendMessages,
   optimisticSendShouldAppendAssistant,
   handleSendMessageResult,
+  clearComposerAfterSuccessfulSend,
   sendMessage,
   COMPOSER_SEND_TIMEOUT_MS,
 } = context.pendingSendTestApi;
@@ -273,6 +275,109 @@ async function runDuplicateSendSuppressionTest() {
   assert.strictEqual(sendButton.disabled, false);
 }
 
+async function runSuccessfulPluginTopicSendReclearsRestoredComposerTest() {
+  renderCalls = 0;
+  bottomStickCalls = 0;
+  state.currentThread = { id: "thread_music", messages: [] };
+  state.currentThreadId = "thread_music";
+  state.viewMode = "tasks";
+  state.singleWindowMode = "task";
+  state.pendingArtifacts = [];
+  state.selectedWorkspaceId = "owner";
+  state.currentTaskGroupId = "plugin:music";
+  state.auth = { isOwner: true, workspaceId: "owner" };
+  state.composerComposing = false;
+  state.composerSendInFlight = false;
+  state.directoryTopicDraftSendInFlight = false;
+  let composerText = "generate demo narration";
+  let apiRequest = null;
+  const sendButton = { disabled: false };
+
+  Object.assign(context, {
+    $(id) {
+      if (id === "sendMessage") return sendButton;
+      if (id === "messageInput") return { value: composerText, style: {} };
+      return { textContent: "" };
+    },
+    getComposerText() {
+      return composerText;
+    },
+    setComposerText(value) {
+      composerText = String(value || "");
+    },
+    showError(err) {
+      throw err;
+    },
+    isChatSearchMode: () => false,
+    isComposerStopMode: () => false,
+    composerAiMentionInfo: () => ({}),
+    composerSearchSourceBodyFields: () => null,
+    ownerElevationComposerAvailable: () => false,
+    ownerElevationActive: () => false,
+    clearOwnerElevationOnce: () => {},
+    isDraftThread: () => false,
+    materializeCurrentThread: async () => {},
+    closeGroupMentionMenu: () => {},
+    selectedSharedTopicGroup: () => null,
+    pluginTopicDefForGroupId: (groupId) => groupId === "plugin:music" ? { id: "music" } : null,
+    pluginTopicDeliveryAttachment: () => null,
+    pluginTopicInstruction: () => "Music plugin topic instruction",
+    selectedComposerReasoningEffort: () => "",
+    selectedComposerModel: () => "",
+    selectedComposerProvider: () => "",
+    refreshNativeEnvironmentSnapshotForSend: async () => {},
+    requestNativeEnvironmentContextForSend: async () => null,
+    activeQuotedReplyForSend: () => null,
+    currentClientNotificationChannel: () => "web_push",
+    composerRequestSizeError: () => "",
+    lockComposerSendToBottom: () => {},
+    suppressComposerAutoFocus: () => {},
+    blurComposerInput: () => {},
+    shouldOfferOwnerElevation: () => false,
+    updateComposerAction: () => {},
+    appendOptimisticSendMessages: () => null,
+    clearOptimisticSendMessages: () => false,
+    handleSendMessageResult: () => {
+      composerText = "generate demo narration";
+    },
+    api: async (pathValue, options = {}) => {
+      apiRequest = { pathValue, options };
+      return { thread: state.currentThread };
+    },
+    TASK_MESSAGE_INITIAL_LIMIT: 80,
+  });
+
+  await sendMessage({ preventDefault() {} });
+
+  assert.strictEqual(apiRequest.pathValue, "/api/threads/thread_music/messages");
+  const body = JSON.parse(apiRequest.options.body);
+  assert.strictEqual(body.taskGroupId, "plugin:music");
+  assert.match(body.instructions, /Music plugin topic instruction/);
+  assert.strictEqual(composerText, "");
+  assert.strictEqual(sendButton.disabled, false);
+  assert.strictEqual(state.composerSendInFlight, false);
+}
+
+async function runSuccessfulSendPreservesNewDraftTest() {
+  let composerText = "sent text";
+  Object.assign(context, {
+    getComposerText() {
+      return composerText;
+    },
+    setComposerText(value) {
+      composerText = String(value || "");
+    },
+  });
+
+  composerText = "next draft";
+  assert.strictEqual(clearComposerAfterSuccessfulSend("sent text"), false);
+  assert.strictEqual(composerText, "next draft");
+
+  composerText = "sent text";
+  assert.strictEqual(clearComposerAfterSuccessfulSend("sent text"), true);
+  assert.strictEqual(composerText, "");
+}
+
 async function runSendResultDoesNotStealNavigationTest() {
   renderCalls = 0;
   bottomStickCalls = 0;
@@ -347,6 +452,8 @@ async function runSendResultDoesNotStealNavigationTest() {
 
 runFailedSendRollbackTest()
   .then(runDuplicateSendSuppressionTest)
+  .then(runSuccessfulPluginTopicSendReclearsRestoredComposerTest)
+  .then(runSuccessfulSendPreservesNewDraftTest)
   .then(runSendResultDoesNotStealNavigationTest)
   .then(() => {
     console.log("composer send pending feedback tests passed");

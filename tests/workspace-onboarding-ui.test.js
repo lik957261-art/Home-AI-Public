@@ -5,8 +5,10 @@ const fs = require("fs");
 const path = require("path");
 
 const repoRoot = path.resolve(__dirname, "..");
+const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
 const accessKeyManagerUi = fs.readFileSync(path.join(repoRoot, "public", "app-access-key-manager-ui.js"), "utf8");
 const appJs = fs.readFileSync(path.join(repoRoot, "public", "app.js"), "utf8");
+const workspaceAdminUi = fs.readFileSync(path.join(repoRoot, "public", "app-workspace-admin-ui.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
 assert.match(appJs, /workspaceOnboardingPlan: null/);
@@ -59,6 +61,18 @@ assert.match(accessKeyManagerUi, /const oneTimeKey = result\?\.credentials\?\.ho
 assert.match(accessKeyManagerUi, /state\.workspaceOnboardingResult = redactedWorkspaceOnboardingResult\(result\)/);
 assert.match(accessKeyManagerUi, /state\.generatedAccessKey = \{[\s\S]*key: oneTimeKey/);
 assert.doesNotMatch(accessKeyManagerUi, /console\.(log|info|warn|error)\([^)]*homeAiAccessKey/);
+assert.doesNotMatch(accessKeyManagerUi, /window\.confirm/);
+assert.match(accessKeyManagerUi, /function openAccessKeyConfirmDialog\(options = \{\}\)/);
+assert.match(indexHtml, /id="accessKeyConfirmOverlay"/);
+assert.match(accessKeyManagerUi, /const overlay = \$\("accessKeyConfirmOverlay"\)/);
+assert.match(accessKeyManagerUi, /id="accessKeyConfirmTitle"/);
+assert.match(workspaceAdminUi, /#accessKeyOverlay,#accessKeyConfirmOverlay,#runtimeConfigOverlay/);
+assert.match(accessKeyManagerUi, /data-access-key-confirm-approve/);
+assert.match(accessKeyManagerUi, /data-access-key-confirm-cancel/);
+assert.match(accessKeyManagerUi, /async function rotateWebAccessKey\(\)[\s\S]*?await openAccessKeyConfirmDialog\(\{[\s\S]*?title: "更换 Owner Key"/);
+assert.match(accessKeyManagerUi, /async function generateWorkspaceAccessKey\(workspaceId\)[\s\S]*?await openAccessKeyConfirmDialog\(\{[\s\S]*?title: "更换 Workspace Key"/);
+assert.match(accessKeyManagerUi, /async function revokeWorkspaceAccessKey\(workspaceId\)[\s\S]*?await openAccessKeyConfirmDialog\(\{[\s\S]*?title: "撤销 Workspace Key"/);
+assert.match(accessKeyManagerUi, /async function deleteWorkspaceFromAccessKeyManager\(workspaceId\)[\s\S]*?await openAccessKeyConfirmDialog\(\{[\s\S]*?title: "删除本地用户工作区"/);
 
 assert.match(stylesCss, /\.workspace-onboarding-section/);
 assert.match(stylesCss, /\.workspace-onboarding-plugins/);
@@ -67,5 +81,8 @@ assert.match(stylesCss, /\.workspace-onboarding-status\.running/);
 assert.match(stylesCss, /\.workspace-onboarding-progress/);
 assert.match(stylesCss, /\.workspace-onboarding-step/);
 assert.match(stylesCss, /\.workspace-onboarding-step small/);
+assert.match(stylesCss, /\.access-key-confirm-sheet/);
+assert.match(stylesCss, /\.access-key-confirm-actions/);
+assert.match(stylesCss, /\.access-key-confirm-approve\.danger/);
 
 console.log("workspace onboarding UI harness passed");

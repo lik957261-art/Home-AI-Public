@@ -352,7 +352,7 @@ files but no scheduled business jobs. The LaunchDaemon remains a later install
 phase; after launchd is installed, run:
 
 ```bash
-node scripts/macos-automation-cron-audit.js --root /Users/example/path --strict-config --json
+node scripts/macos-automation-cron-audit.js --root /Users/example/path --strict-config --strict-source --strict-status --json
 ```
 
 Then stage the launchd service definitions:

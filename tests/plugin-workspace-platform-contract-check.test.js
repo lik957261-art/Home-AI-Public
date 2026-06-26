@@ -29,6 +29,9 @@ function pointerFor(plugin, overrides = {}) {
     "",
     "- `plugin-workspace-platform-contract.md`",
     "- `plugin-mobile-ui-visual-contract.md`",
+    "- `root-cause-architecture-contract.md`",
+    "- `fallback-governance-contract.md`",
+    "- `fallback-registry.md`",
     "- `macos-production-access.md`",
     "- `mcp-tool-upgrade-closure.md`",
     "- `macos-ios-simulator-appium.md`",
@@ -76,6 +79,9 @@ function nativePointerFor(client) {
     "",
     "- `plugin-workspace-platform-contract.md`",
     "- `plugin-mobile-ui-visual-contract.md`",
+    "- `root-cause-architecture-contract.md`",
+    "- `fallback-governance-contract.md`",
+    "- `fallback-registry.md`",
     "- `macos-production-access.md`",
     "- `mcp-tool-upgrade-closure.md`",
     "- `macos-ios-simulator-appium.md`",
@@ -119,11 +125,16 @@ function makeFixture() {
     "Finance Wardrobe Note Email Health Growth Moira Music Codex Mobile Web Home AI Native iOS Shell",
     "plugin-workspace-platform-contract.md",
     "plugin-mobile-ui-visual-contract.md",
+    "root-cause-architecture-contract.md",
+    "fallback-governance-contract.md",
+    "fallback-registry.md",
     "docs/HOME_AI_PLATFORM_CONTRACT.md",
     "Codex Mobile Web is an Owner-critical special insertion and is included in this platform contract checker.",
     "Home AI Native iOS Shell is a managed native client target.",
     "plugin-workspace-platform-contract-check.js",
     "plugin-workspace-platform-contract-check.test.js",
+    "fallback-governance-check.js",
+    "fallback-governance-check.test.js",
     "ai-ops-control-plane.js",
     "ai-ops-control-plane-cli.test.js",
     "ios-pwa-visual-harness.js",
@@ -137,9 +148,9 @@ function makeFixture() {
     "home-ai-native-ios",
     "managed_native_client",
   ].join("\n"));
-  write(path.join(repo, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "plugin-workspace-platform-contract-check.js\nnpm run ios:pwa:visual\nscripts/ios-pwa-visual-harness.js\nios_visual_harness_command\nai-ops-control-plane.js\nai_ops_control_plane_command\nai_ops_required_flow\nai_ops_evidence_ledger\nnative-ios-shell.md\nhome-ai-native-ios\nmanaged_native_client\n");
-  write(path.join(repo, "docs", "TEST_MATRIX.md"), "plugin-workspace-platform-contract-check.test.js\nnode tests\\ios-pwa-visual-harness.test.js\nai-ops-control-plane-cli.test.js\n");
-  write(path.join(repo, "docs", "DOCS_INDEX.md"), "plugin-workspace-contract-rollout-status.md\nscripts/ios-pwa-visual-harness.js\nios-pwa-visual-harness.test.js\nai-ops-control-plane.js\nnative-ios-shell.md\nhome-ai-native-ios\nmanaged_native_client\n");
+  write(path.join(repo, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "plugin-workspace-platform-contract-check.js\nfallback-governance-check.js\nfallback-governance-contract.md\nfallback-registry.md\nnpm run ios:pwa:visual\nscripts/ios-pwa-visual-harness.js\nios_visual_harness_command\nai-ops-control-plane.js\nai_ops_control_plane_command\nai_ops_required_flow\nai_ops_evidence_ledger\nnative-ios-shell.md\nhome-ai-native-ios\nmanaged_native_client\n");
+  write(path.join(repo, "docs", "TEST_MATRIX.md"), "plugin-workspace-platform-contract-check.test.js\nfallback-governance-check.test.js\nnode tests\\ios-pwa-visual-harness.test.js\nai-ops-control-plane-cli.test.js\n");
+  write(path.join(repo, "docs", "DOCS_INDEX.md"), "plugin-workspace-contract-rollout-status.md\nscripts/ios-pwa-visual-harness.js\nios-pwa-visual-harness.test.js\nai-ops-control-plane.js\nfallback-governance-check.js\nfallback-governance-contract.md\nfallback-registry.md\nnative-ios-shell.md\nhome-ai-native-ios\nmanaged_native_client\n");
   write(path.join(repo, "docs", "MODULES", "native-ios-shell.md"), "home-ai-native-ios\nmanaged_native_client\n");
   for (const plugin of PLUGINS) {
     const workspace = path.join(root, plugin.dirName);
@@ -300,6 +311,24 @@ function testNativePointerRequiresManagedClientFields() {
   assert.ok(parsed.issues.includes("home-ai-native-ios:platform_management_status_missing"));
 }
 
+function testLegacyPointerVersionIsAcceptedDuringFallbackGovernanceRollout() {
+  const fixture = makeFixture();
+  const plugin = PLUGINS[0];
+  const pointerPath = path.join(fixture.root, plugin.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  const legacyPointer = pointerFor(plugin)
+    .replace(`Home AI platform contract version: \`${CONTRACT_VERSION}\`.`, "Home AI platform contract version: `20260618-v4`.")
+    .replace(/\n- `root-cause-architecture-contract\.md`/g, "")
+    .replace(/\n- `fallback-governance-contract\.md`/g, "")
+    .replace(/\n- `fallback-registry\.md`/g, "");
+  write(pointerPath, legacyPointer);
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", plugin.id, "--json"]);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const parsed = JSON.parse(result.stdout);
+  const check = parsed.plugins.find((item) => item.plugin === plugin.id);
+  assert.equal(parsed.ok, true);
+  assert.ok(check.warnings.includes("pointer_contract_version_legacy:20260618-v4"));
+}
+
 function testRepositoryContractIsCurrentlyClosed() {
   const result = run(["--json"]);
   const parsed = JSON.parse(result.stdout);
@@ -339,6 +368,7 @@ testPointerRequiresIosVisualHarnessCommand();
 testPointerRequiresAiOpsControlPlaneFields();
 testPointerRequiresDeclaredDevRuntimePrerequisites();
 testNativePointerRequiresManagedClientFields();
+testLegacyPointerVersionIsAcceptedDuringFallbackGovernanceRollout();
 testRepositoryContractIsCurrentlyClosed();
 testScriptDoesNotHandleSecretsOrSudo();
 
