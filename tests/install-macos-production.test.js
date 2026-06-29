@@ -569,7 +569,11 @@ if [ "$1" = "-m" ] && [ "$2" = "venv" ]; then
   cat > "$dest/bin/python" <<'PY'
 #!/bin/sh
 if [ "$1" = "--version" ]; then echo "Python 3.12.4"; exit 0; fi
-if [ "$1" = "-m" ] && [ "$2" = "pip" ]; then echo "pip ok"; exit 0; fi
+if [ "$1" = "-m" ] && [ "$2" = "pip" ]; then
+  if [ "$3" = "install" ] && [ "$4" = "-e" ]; then echo "editable install must not be used" >&2; exit 43; fi
+  echo "pip ok"
+  exit 0
+fi
 if [ "$1" = "-m" ] && [ "$2" = "hermes_cli.main" ]; then echo "hermes ok"; exit 0; fi
 exit 0
 PY

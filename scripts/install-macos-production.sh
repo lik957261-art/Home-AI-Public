@@ -223,7 +223,7 @@ phase_command() {
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-hermes-mobile --root %s --app-source %s --json' "$APP_SOURCE" "$ROOT" "$APP_SOURCE"
       ;;
     install-official-hermes-runtime)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root %s --node-command %s --python-command %s --hermes-agent-source %s --hermes-agent-repository-url %s --hermes-agent-ref %s --install-hermes-agent-dependencies %s --json' "$APP_SOURCE" "$ROOT" "$NODE_COMMAND" "$PYTHON_COMMAND" "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES"
+      printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root %s --node-command %s --npm-command %s --python-command %s --hermes-agent-source %s --hermes-agent-repository-url %s --hermes-agent-ref %s --install-hermes-agent-dependencies %s --json' "$APP_SOURCE" "$ROOT" "$NODE_COMMAND" "$NPM_COMMAND" "$PYTHON_COMMAND" "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES"
       ;;
     run-smoke-tests)
       printf 'sudo %s/runtime/node-current/bin/node %s/app/scripts/macos-production-closure-validation.js --root %s --base %s --json' "$ROOT" "$ROOT" "$ROOT" "$BASE_URL"
@@ -3749,7 +3749,7 @@ try {
   }
 
   if (issues.length === 0 && installAgentDependencies) {
-    const pip = run(agentPython, ["-m", "pip", "install", "-e", agentSource], {
+    const pip = run(agentPython, ["-m", "pip", "install", agentSource], {
       cwd: agentSource,
       timeout: 1200000,
     });
