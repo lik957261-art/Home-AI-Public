@@ -77,6 +77,8 @@ function publicValidationCommands() {
     ["node", ["scripts/public-install-preflight.js", "--source-only", "--json"]],
     ["node", ["tests/public-release-closure-service.test.js"]],
     ["node", ["tests/homeai-public-release-closure-script.test.js"]],
+    ["node", ["tests/public-upgrade-rehearsal-service.test.js"]],
+    ["node", ["tests/homeai-public-upgrade-rehearsal-script.test.js"]],
     ["node", ["tests/public-plugin-sources.test.js"]],
     ["node", ["tests/public-upgrade-orchestrator-service.test.js"]],
     ["node", ["tests/homeai-public-upgrade-script.test.js"]],

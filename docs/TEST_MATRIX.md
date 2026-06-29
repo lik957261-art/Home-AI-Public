@@ -916,6 +916,13 @@ Maintainer-side public release closure must prove
 inventory checks, privacy-scanned export creation, public-source validation,
 explicit public checkout sync, explicit public commit, and explicit public push
 gating. It must reject push without a same-run public sync and commit.
+Target-side public upgrade rehearsal must prove
+`scripts/homeai-public-upgrade-rehearsal.js`,
+`npm run rehearse:public-upgrade`, public repo clone planning, source-only
+preflight, missing plugin source fail-closed behavior without
+`--clone-missing-plugins`, explicit clone-gate planning, Movie
+`operatorAuthenticated` preservation, and closure-validation presence without
+production mutation.
 The maintained public upgrade loop must additionally prove
 `scripts/homeai-public-upgrade.js`, clean fast-forward planning/execution,
 Moira/Movie source inventory, explicit clone gating for missing plugins,
@@ -924,6 +931,8 @@ dependency install gating, profile/provider audit, and closure validation.
 Focused checks:
 `node tests\public-release-closure-service.test.js`,
 `node tests\homeai-public-release-closure-script.test.js`,
+`node tests\public-upgrade-rehearsal-service.test.js`,
+`node tests\homeai-public-upgrade-rehearsal-script.test.js`,
 `node tests\public-upgrade-orchestrator-service.test.js`,
 `node tests\homeai-public-upgrade-script.test.js`,
 `node tests\public-plugin-sources.test.js`,

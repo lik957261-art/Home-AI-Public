@@ -669,6 +669,19 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
 
   The release script must not print or copy raw secrets, provider credentials,
   OAuth state, access keys, cookies, launch tokens, or private runtime data.
+- Before asking a friend/operator machine to run a mutating upgrade, run the
+  public target rehearsal against the published public repo:
+
+  ```bash
+  npm run rehearse:public-upgrade -- --json
+  npm run rehearse:public-upgrade -- --execute --json
+  ```
+
+  The rehearsal clones the public repo to a temporary root, runs source-only
+  preflight, verifies missing plugin sources fail closed without
+  `--clone-missing-plugins`, and verifies the explicit clone gate produces
+  clone/deploy/closure-validation plan actions. It must not mutate production
+  or print secrets.
 - Public deployments should keep the Home AI checkout and plugin checkouts as
   Git repositories with HTTPS public remotes.
 - The maintained source-and-runtime upgrade entrypoint is:

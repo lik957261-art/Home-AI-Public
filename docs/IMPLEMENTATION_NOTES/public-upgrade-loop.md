@@ -62,6 +62,28 @@ Default mode is plan-only. Use `--execute` only from an Owner/operator context:
 npm run upgrade:public -- --execute --reason public-upgrade --json
 ```
 
+Before asking another deployed machine to mutate production, run the published
+public-repo rehearsal from any maintainer/operator machine with network access:
+
+```bash
+npm run rehearse:public-upgrade -- --json
+npm run rehearse:public-upgrade -- --execute --json
+```
+
+The rehearsal clones the published Home AI public repository into a temporary
+root, runs source-only public preflight, then runs two target-side
+`upgrade:public` plans:
+
+- without `--clone-missing-plugins`, missing plugin source roots must fail
+  closed with bounded missing-source blockers;
+- with `--clone-missing-plugins`, the plan must expose clone/deploy actions,
+  keep Movie marked `operatorAuthenticated`, and include closure validation.
+
+The rehearsal is source/plan-only. It does not pass `--execute` to
+`upgrade:public`, does not touch `/Users/example/path`, and does
+not read or print provider keys, OAuth state, access keys, cookies, launch
+tokens, or plugin private payloads.
+
 Supported execution gates:
 
 - `--clone-missing-plugins`: clone missing plugin sources from
@@ -151,6 +173,8 @@ Run after changes to the upgrade loop:
 ```bash
 node tests/public-release-closure-service.test.js
 node tests/homeai-public-release-closure-script.test.js
+node tests/public-upgrade-rehearsal-service.test.js
+node tests/homeai-public-upgrade-rehearsal-script.test.js
 node tests/public-upgrade-orchestrator-service.test.js
 node tests/homeai-public-upgrade-script.test.js
 node tests/public-plugin-sources.test.js

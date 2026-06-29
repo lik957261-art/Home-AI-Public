@@ -22,6 +22,7 @@
     "package:runtime": "node scripts/create-runtime-package.js",
     "export:public": "node scripts/create-public-export.js",
     "release:public": "node scripts/homeai-public-release-closure.js",
+    "rehearse:public-upgrade": "node scripts/homeai-public-upgrade-rehearsal.js",
     "productization:check": "node scripts/productization-check.js",
     "public-install:preflight": "node scripts/public-install-preflight.js",
     "upgrade:public": "node scripts/homeai-public-upgrade.js",

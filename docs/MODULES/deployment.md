@@ -587,6 +587,14 @@ through explicit gates. Changed Home AI source is deployed with
 `--target home-ai`; changed or freshly cloned plugin source is deployed with the
 matching central `--plugin <id>` target; freshly cloned plugins must not remain
 clone-only partial closures.
+Target-side public upgrade rehearsal uses
+`scripts/homeai-public-upgrade-rehearsal.js`
+(`npm run rehearse:public-upgrade`). It clones the published public repo into a
+temporary root, runs source-only public preflight, proves missing plugin source
+roots fail closed without `--clone-missing-plugins`, and proves the explicit
+clone gate can produce clone/deploy/closure-validation plan actions. The
+rehearsal is source/plan-only and must not pass `--execute` into
+`upgrade:public`.
 
 The public upgrade inventory includes Moira and Movie. Moira uses the public
 `https://github.com/pentiumxp/MOIRA_chinese_astrology_public.git` repository.
