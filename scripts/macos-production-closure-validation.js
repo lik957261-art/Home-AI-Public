@@ -51,6 +51,7 @@ function parseArgs(argv) {
     skipAutomationCron: false,
     skipDeepseek: false,
     skipConcurrency: false,
+    allowProviderAuthPending: false,
     json: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
@@ -76,6 +77,7 @@ function parseArgs(argv) {
     else if (arg === "--skip-automation-cron") out.skipAutomationCron = true;
     else if (arg === "--skip-deepseek") out.skipDeepseek = true;
     else if (arg === "--skip-concurrency") out.skipConcurrency = true;
+    else if (arg === "--allow-provider-auth-pending") out.allowProviderAuthPending = true;
     else if (arg === "--json") out.json = true;
     else if (arg === "--help") {
       console.log([
@@ -93,6 +95,8 @@ function parseArgs(argv) {
         "  --skip-automation-cron    Skip Automation cron source/config/status audit",
         "  --skip-deepseek           Skip product-route DeepSeek provider smokes",
         "  --skip-concurrency        Skip two-run Owner/OpenAI concurrency smoke",
+        "  --allow-provider-auth-pending",
+        "                            Accept fresh-install missing Codex auth files and skip model-run smokes",
         "  --json                    Print bounded JSON metadata",
       ].join("\n"));
       process.exit(0);
@@ -247,12 +251,26 @@ function isAllowedProfileAuditWarning(value) {
   return /^telemetry_(state_db|response_store)_missing:/.test(String(value || ""));
 }
 
-function compactProfileAudit(profile) {
+function isProviderAuthPendingIssue(value) {
+  return /^codex_auth_(json|lock)_missing:/.test(String(value || ""));
+}
+
+function compactProfileAudit(profile, options = {}) {
+  const issues = Array.isArray(profile.issues) ? profile.issues : [];
+  const providerAuthPendingIssues = issues.filter(isProviderAuthPendingIssue);
+  const blockingIssues = issues.filter((issue) => !isProviderAuthPendingIssue(issue));
   const warnings = Array.isArray(profile.warnings) ? profile.warnings : [];
   const blockingWarnings = warnings.filter((warning) => !isAllowedProfileAuditWarning(warning));
+  const providerAuthPendingAccepted = Boolean(options.allowProviderAuthPending)
+    && issues.length > 0
+    && providerAuthPendingIssues.length === issues.length;
   return {
     ok: Boolean(profile.ok),
-    issueCount: (profile.issues || []).length,
+    acceptable: Boolean(profile.ok) || providerAuthPendingAccepted,
+    issueCount: issues.length,
+    blockingIssueCount: blockingIssues.length,
+    providerAuthPendingIssueCount: providerAuthPendingIssues.length,
+    providerAuthPendingAccepted,
     warningCount: warnings.length,
     blockingWarningCount: blockingWarnings.length,
     allowedWarningCount: warnings.length - blockingWarnings.length,
@@ -474,10 +492,13 @@ async function runClosure(options) {
   assertNoOauthProcess();
   options.expectedVersion = resolveExpectedVersion(options);
   const status = compactStatus(await runNodeJson("status", options, "production-status-smoke.js", productionStatusArgs(options)));
-  const profileAudit = compactProfileAudit(await runNodeJson("profile-audit", options, "macos-production-profile-audit.js", [
+  const profileAuditArgs = [
     "--root", options.root,
     "--json",
-  ]));
+  ];
+  if (options.allowProviderAuthPending) profileAuditArgs.push("--no-strict");
+  const profileAudit = compactProfileAudit(await runNodeJson("profile-audit", options, "macos-production-profile-audit.js", profileAuditArgs), options);
+  const providerAuthPending = Boolean(profileAudit.providerAuthPendingAccepted);
   const runtimePython = compactRuntimePython(options);
   const acl = compactAcl(await runNodeJson("acl", options, "macos-worker-filesystem-access-harness.js", [
     "--root", options.root,
@@ -520,7 +541,7 @@ async function runClosure(options) {
     "--json",
   ]));
 
-  const schemas = options.skipSchema ? [] : [
+  const schemas = (options.skipSchema || providerAuthPending) ? [] : [
     await runSchema(
       options,
       "wuping",
@@ -556,7 +577,7 @@ async function runClosure(options) {
     ),
   ];
 
-  const deepseek = options.skipDeepseek ? null : {
+  const deepseek = (options.skipDeepseek || providerAuthPending) ? null : {
     user: compactGatewaySmoke(await runNodeJson("deepseek-user", options, "gateway-pool-production-smoke.js", [
       "--base", options.base,
       "--key-file", options.ownerKeyFile,
@@ -578,7 +599,7 @@ async function runClosure(options) {
     ])),
   };
 
-  const concurrency = options.skipConcurrency ? null : await runOwnerConcurrency(options);
+  const concurrency = (options.skipConcurrency || providerAuthPending) ? null : await runOwnerConcurrency(options);
   const finalStatus = compactStatus(await runNodeJson("final-status", options, "production-status-smoke.js", productionStatusArgs(options)));
   assertNoOauthProcess();
 
@@ -586,8 +607,8 @@ async function runClosure(options) {
     && status.activeGlobal === 0
     && status.clientVersion === options.expectedVersion
     && status.wrongHeaderDenied
-    && profileAudit.ok
-    && profileAudit.issueCount === 0
+    && profileAudit.acceptable
+    && profileAudit.blockingIssueCount === 0
     && profileAudit.blockingWarningCount === 0
     && runtimePython.ok
     && acl.ok
@@ -609,13 +630,14 @@ async function runClosure(options) {
     expectedVersion: options.expectedVersion,
     scope: {
       grokXai: "deferred_manual_oauth_not_included",
-      schema: options.skipSchema ? "skipped" : "included",
+      providerAuth: providerAuthPending ? "pending_accepted" : "configured_or_not_required",
+      schema: options.skipSchema ? "skipped" : (providerAuthPending ? "skipped_provider_auth_pending" : "included"),
       pluginDirectory: options.skipPluginDirectory ? "skipped" : "included",
       boundDirectory: options.skipBoundDirectory ? "skipped" : "included",
       wardrobeBinding: options.skipWardrobeBinding ? "skipped" : "included",
       automationCron: options.skipAutomationCron ? "skipped" : "included",
-      deepseek: options.skipDeepseek ? "skipped" : "included",
-      ownerConcurrency: options.skipConcurrency ? "skipped" : "included",
+      deepseek: options.skipDeepseek ? "skipped" : (providerAuthPending ? "skipped_provider_auth_pending" : "included"),
+      ownerConcurrency: options.skipConcurrency ? "skipped" : (providerAuthPending ? "skipped_provider_auth_pending" : "included"),
     },
     oauthAuthProcess: "absent",
     status,

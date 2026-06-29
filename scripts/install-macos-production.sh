@@ -4328,6 +4328,9 @@ function compactClosure(summary = {}) {
     clientVersion: String(summary.status?.clientVersion || ""),
     finalClientVersion: String(summary.finalStatus?.clientVersion || ""),
     profileIssueCount: Number(summary.profileAudit?.issueCount || 0),
+    profileBlockingIssueCount: Number(summary.profileAudit?.blockingIssueCount || 0),
+    providerAuthPendingIssueCount: Number(summary.profileAudit?.providerAuthPendingIssueCount || 0),
+    providerAuthPendingAccepted: Boolean(summary.profileAudit?.providerAuthPendingAccepted),
     profileBlockingWarningCount: Number(summary.profileAudit?.blockingWarningCount || 0),
     aclFailedCount: Number(summary.acl?.failedCount || 0),
     pluginDirectoryOk: summary.pluginDirectory ? Boolean(summary.pluginDirectory.ok) : null,
@@ -4348,7 +4351,7 @@ try {
     issues.push({ code: "closure_node_missing", path: nodeCommand });
   }
   if (issues.length === 0) {
-    const args = [closureScript, "--root", root, "--base", base, "--json"];
+    const args = [closureScript, "--root", root, "--base", base, "--allow-provider-auth-pending", "--json"];
     const result = spawnSync(nodeCommand, args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],

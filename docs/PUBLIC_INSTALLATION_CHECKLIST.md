@@ -451,6 +451,11 @@ The same core LaunchDaemons also bind the fresh-install Gateway Pool runtime:
 profile launcher points to `<root>/app/scripts/macos-launch-gateway-profile.sh`
 with the maintained Mac cold-start timeout values. A clean install must not
 fall back to the legacy single Gateway URL at `127.0.0.1:8642`.
+The install-time `run-smoke-tests` phase accepts only fresh-install provider
+authorization gaps (`codex_auth_json_missing` / `codex_auth_lock_missing`) as a
+bounded pending setup state. It still fails on malformed links, unreadable
+auth files, or other profile-audit issues. Maintainer production closure and
+deploy validation remain strict unless this explicit install-mode flag is used.
 Before each service is loaded, the installer pre-creates its stdout/stderr log
 files and assigns them to the service user. This is required for plugins such as
 Codex Mobile that run as the interactive macOS user instead of `hermes-host`.

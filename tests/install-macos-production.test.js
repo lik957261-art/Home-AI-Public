@@ -49,6 +49,7 @@ function testScriptExistsAndIsSafeByDefault() {
   assert.match(source, /MODE="dry-run"/);
   assert.match(source, /public-install-preflight\.js/);
   assert.match(source, /execute_not_enabled/);
+  assert.match(source, /--allow-provider-auth-pending/);
   assert.doesNotMatch(source, /launchctl bootstrap/);
 }
 

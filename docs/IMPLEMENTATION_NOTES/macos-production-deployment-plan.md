@@ -453,6 +453,12 @@ both profile-launch-script aliases at
 `<root>/app/scripts/macos-launch-gateway-profile.sh`. This keeps clean installs
 from passing Owner setup while `/api/status` still checks the legacy single
 Gateway at `127.0.0.1:8642`.
+Install-time smoke runs production closure with
+`--allow-provider-auth-pending`, which accepts only missing Codex auth JSON/lock
+files as a fresh-machine pending setup state and skips model-run smokes that
+cannot pass without provider credentials. The normal maintainer production
+closure path does not use this flag and continues to fail on missing or broken
+provider auth.
 The same phase pre-creates stdout/stderr log files for every core/plugin
 LaunchDaemon and assigns each file to the service user. This keeps plugins that
 do not run as `hermes-host`, such as Codex Mobile, from failing launchd config
