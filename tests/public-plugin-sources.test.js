@@ -60,6 +60,8 @@ assert.equal(codex.special, true);
 const music = plugins.find((plugin) => plugin.id === "music");
 assert.equal(music.publicDefault, false);
 assert.equal(music.special, true);
+assert.equal(music.operatorAuthenticated, true);
+assert.equal(music.repositoryUrl, "https://github.com/pentiumxp/HomeAI-Music.git");
 
 const moira = plugins.find((plugin) => plugin.id === "moira");
 assert.equal(moira.publicDefault, false);

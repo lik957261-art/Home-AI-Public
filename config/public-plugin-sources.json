@@ -86,10 +86,11 @@
     {
       "id": "music",
       "sourceDir": "music",
-      "repositoryUrl": "https://github.com/pentiumxp/music-public.git",
+      "repositoryUrl": "https://github.com/pentiumxp/HomeAI-Music.git",
       "ref": "main",
       "publicDefault": false,
       "special": true,
+      "operatorAuthenticated": true,
       "launchdLabel": "com.hermesmobile.plugin.music",
       "manifestUrl": "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest"
     },

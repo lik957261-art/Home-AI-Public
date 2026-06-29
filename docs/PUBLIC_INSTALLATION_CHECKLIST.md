@@ -732,10 +732,10 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
   dependency files changed, Home AI/plugin deployments for changed or newly
   cloned sources, and provider/profile closure validation.
 - `config/public-plugin-sources.json` is the source inventory. It includes
-  Moira and Movie as deployable plugins. Moira uses the public
-  `MOIRA_chinese_astrology_public` repository. Movie currently requires
-  operator-authenticated repository read access and is marked
-  `operatorAuthenticated`; it is not an anonymous default public plugin.
+  Moira, Movie, and Music as deployable plugins. Moira uses the public
+  `MOIRA_chinese_astrology_public` repository. Movie and Music currently require
+  operator-authenticated repository read access and are marked
+  `operatorAuthenticated`; they are not anonymous default public plugins.
 - Hermes Agent is a deployment dependency because Gateway provider access can
   route through the official Hermes Agent runtime. Fresh install closure now
   requires `install-official-hermes-runtime` to create

@@ -331,9 +331,9 @@ npm run upgrade:public -- --execute --reason public-upgrade --json
 The loop reads `config/public-plugin-sources.json`, performs clean
 fast-forward-only source updates, deploys changed Home AI/plugin roots through
 `scripts/deploy-macos-production.js`, and runs production closure validation.
-Moira and Movie are in the deployable plugin inventory. Moira points at the
-public `MOIRA_chinese_astrology_public` repository; Movie is marked
-`operatorAuthenticated` and requires operator Git read access.
+Moira, Movie, and Music are in the deployable plugin inventory. Moira points at
+the public `MOIRA_chinese_astrology_public` repository; Movie and Music are
+marked `operatorAuthenticated` and require operator Git read access.
 
 The install and upgrade loops must also account for the official Hermes Agent
 runtime used by provider ingress. Fresh install closure now requires

@@ -611,11 +611,12 @@ install again to prove a clean reinstall path. Use `--execute-production-upgrade
 --production-root <root>` only after the sandbox smoke passes and the target
 operator has approved the production mutation.
 
-The public upgrade inventory includes Moira and Movie. Moira uses the public
+The public upgrade inventory includes Moira, Movie, and Music. Moira uses the public
 `https://github.com/pentiumxp/MOIRA_chinese_astrology_public.git` repository.
-Movie is deployable but currently marked `operatorAuthenticated` because its
-source requires read access to `https://github.com/pentiumxp/HomeAI-Movie.git`.
-It is not an anonymous default public plugin. `--clone-missing-plugins` is the
+Movie and Music are deployable but marked `operatorAuthenticated` because their
+sources require read access to `https://github.com/pentiumxp/HomeAI-Movie.git`
+and `https://github.com/pentiumxp/HomeAI-Music.git`. They are not anonymous
+default public plugins. `--clone-missing-plugins` is the
 explicit gate for cloning missing plugin sources, including operator-
 authenticated sources when the operator has configured Git credentials.
 
