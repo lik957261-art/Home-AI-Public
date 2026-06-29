@@ -242,6 +242,7 @@ sudo chown -R :staff /Users/example/path
 sudo chmod -R u+rwX,go-rwx /Users/example/path
 sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/example/path
 sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/example/path
+sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/example/path
 sudo chmod -R +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit" /Users/example/path
 sudo -u hermes-host test -r /Users/example/path
 ```

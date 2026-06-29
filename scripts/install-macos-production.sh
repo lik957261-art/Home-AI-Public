@@ -1526,6 +1526,7 @@ function applyListenerRequiredSkillAcl(skillStoreRoot, relativeSkillPath) {
   listenerRequiredSkillAclTargets.add(target);
   const searchAcl = `user:${listenerUser} allow list,search,readattr,readextattr,readsecurity`;
   const readAcl = `user:${listenerUser} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
+  applyDarwinAcl(skillStoreRoot, searchAcl, { label: "listener-required-skill-search" });
   let current = path.join(skillStoreRoot, "skills");
   applyDarwinAcl(current, searchAcl, { label: "listener-required-skill-search" });
   for (const segment of segments.slice(0, -1)) {
