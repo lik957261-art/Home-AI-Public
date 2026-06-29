@@ -30,6 +30,16 @@ const PHASE_CLOSURE = {
     operatorInput: ["supported npm command", "network/cache access for package resolution"],
     riskBoundary: "Installs production app dependencies only after the app tree exists.",
   },
+  "install-plugin-dependencies": {
+    closureType: "operator",
+    actionRequired: true,
+    commands: [
+      "bash scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root <mac-root> --npm-command <npm> --json",
+    ],
+    evidenceRequired: ["phase JSON ok=true", "public plugin production dependencies installed under <mac-root>/plugins"],
+    operatorInput: ["supported npm command", "installed plugin source roots", "network/cache access for package resolution"],
+    riskBoundary: "Installs production plugin dependencies only after plugin source roots exist.",
+  },
   "create-service-users": {
     closureType: "operator",
     actionRequired: true,
@@ -87,7 +97,7 @@ const PHASE_CLOSURE = {
     closureType: "operator",
     actionRequired: true,
     commands: [
-      "node scripts/macos-production-closure-validation.js --root <mac-root> --base http://127.0.0.1:8797 --json",
+      "bash scripts/install-macos-production.sh --execute --phase run-smoke-tests --root <mac-root> --base http://127.0.0.1:8797 --json",
     ],
     evidenceRequired: ["production closure validation ok=true", "listener and supporting runtime services reachable"],
     operatorInput: ["running production listener", "owner access key and configured provider/runtime prerequisites"],

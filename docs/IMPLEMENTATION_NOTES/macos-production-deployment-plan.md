@@ -473,10 +473,12 @@ do not run as `hermes-host`, such as Codex Mobile, from failing launchd config
 validation when their log files do not exist yet.
 The `run-first-start-preflight` phase points at
 `scripts/macos-first-start-preflight.js --root <root> --network-mode <direct|proxy> --json`.
-The `run-smoke-tests` phase points at the live app
-`scripts/macos-production-closure-validation.js --root <root> --base <url>
---allow-provider-auth-pending --skip-wardrobe-binding --json` and wraps its
-bounded output as an installer report.
+The `run-smoke-tests` guided command must call
+`scripts/install-macos-production.sh --execute --phase run-smoke-tests` instead
+of invoking closure validation directly. The phase wrapper then points at the
+live app `scripts/macos-production-closure-validation.js --root <root> --base
+<url> --allow-provider-auth-pending --skip-wardrobe-binding --json` and wraps
+its bounded output as an installer report.
 Codex Mobile LaunchDaemon generation is profile-aware: when the operator's
 `codex-profiles.json` exists, generated `CODEX_HOME` and any shared-Mux
 endpoint must follow that active profile instead of the desktop/default

@@ -22,7 +22,7 @@ function testChecklistCoversEveryInstallerPhase() {
   assert.equal(report.ok, true, JSON.stringify(report.issues, null, 2));
   assert.equal(report.phaseCount, EXPECTED_PHASES.length);
   assert.deepEqual(report.items.map((item) => item.id), EXPECTED_PHASES);
-  assert.equal(report.operatorClosureCount, 7);
+  assert.equal(report.operatorClosureCount, 8);
 }
 
 function testEveryOperatorClosurePhaseHasEvidenceAndCommands() {
@@ -58,7 +58,7 @@ function testPrivilegedGatesRemainExplicit() {
   assert.match(byId["configure-workspace-isolation"].commands.join("\n"), /HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1/);
   assert.match(byId["repair-gateway-worker-acl"].commands.join("\n"), /HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1/);
   assert.match(byId["run-first-start-preflight"].commands.join("\n"), /--network-mode direct\|proxy/);
-  assert.match(byId["run-smoke-tests"].commands.join("\n"), /macos-production-closure-validation\.js/);
+  assert.match(byId["run-smoke-tests"].commands.join("\n"), /--phase run-smoke-tests/);
 }
 
 function testCliJsonAndMarkdown() {
@@ -68,7 +68,7 @@ function testCliJsonAndMarkdown() {
   });
   const parsed = JSON.parse(output);
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
-  assert.equal(parsed.operatorClosureCount, 7);
+  assert.equal(parsed.operatorClosureCount, 8);
 
   const markdown = execFileSync("node", ["scripts/macos-install-operator-closure-checklist.js", "--markdown"], {
     cwd: REPO_ROOT,

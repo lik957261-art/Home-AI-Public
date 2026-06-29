@@ -23,7 +23,7 @@ function testReportClassifiesEveryInstallerPhase() {
   assert.equal(report.phaseCount, EXPECTED_PHASES.length);
   assert.deepEqual(report.phases.map((phase) => phase.id), EXPECTED_PHASES);
   assert.deepEqual(report.verificationClasses, VERIFICATION_CLASSES);
-  assert.equal(report.phases.length, 18);
+  assert.equal(report.phases.length, EXPECTED_PHASES.length);
   for (const verificationClass of VERIFICATION_CLASSES) {
     assert.ok(report.classCounts[verificationClass] > 0, verificationClass);
   }

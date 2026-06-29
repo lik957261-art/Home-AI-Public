@@ -87,7 +87,7 @@ function testDryRunJsonPlan() {
   assert.match(firstStart.command, /--network-mode direct/);
   assert.match(firstStart.command, /--base http:\/\/127\.0\.0\.1:8797/);
   const smokeTests = parsed.phases.find((phase) => phase.id === "run-smoke-tests");
-  assert.match(smokeTests.command, /macos-production-closure-validation\.js/);
+  assert.match(smokeTests.command, /--phase run-smoke-tests/);
   assert.match(smokeTests.command, /--root/);
   assert.match(smokeTests.command, /--base http:\/\/127\.0\.0\.1:8797/);
   assert.match(smokeTests.command, /--json/);
@@ -1429,8 +1429,11 @@ function testExecuteConfigurePluginsInstallsFromSourceBundle() {
 
 function testExecuteConfigurePluginsCloneFailsOnNonGitTarget() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-plugins-clone-conflict-"));
-  fs.mkdirSync(path.join(root, "plugins", "wardrobe"), { recursive: true });
-  fs.writeFileSync(path.join(root, "plugins", "wardrobe", "README.txt"), "not git\n");
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "config", "public-plugin-sources.json"), "utf8"));
+  const firstPlugin = manifest.plugins[0];
+  assert.ok(firstPlugin?.id, "public plugin manifest must include at least one plugin");
+  fs.mkdirSync(path.join(root, "plugins", firstPlugin.id), { recursive: true });
+  fs.writeFileSync(path.join(root, "plugins", firstPlugin.id, "README.txt"), "not git\n");
   const result = spawnSync("bash", [
     SCRIPT,
     "--execute",

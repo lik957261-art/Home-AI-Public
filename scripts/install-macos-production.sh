@@ -238,7 +238,7 @@ phase_command() {
       printf '%s bash %s/scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root %s --node-command %s --npm-command %s --python-command %s --hermes-agent-source %s --hermes-agent-repository-url %s --hermes-agent-ref %s --install-hermes-agent-dependencies %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$NODE_COMMAND" "$NPM_COMMAND" "$PYTHON_COMMAND" "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES"
       ;;
     run-smoke-tests)
-      printf '%s %s/runtime/node-current/bin/node %s/app/scripts/macos-production-closure-validation.js --root %s --base %s --json' "$(sudo_phase_prefix)" "$ROOT" "$ROOT" "$ROOT" "$BASE_URL"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase run-smoke-tests --root %s --base %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$BASE_URL"
       ;;
     print-access-info)
       printf '%s bash %s/scripts/install-macos-production.sh --execute --phase print-access-info --root %s --base %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$BASE_URL"

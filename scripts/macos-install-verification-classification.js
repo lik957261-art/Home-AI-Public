@@ -87,6 +87,11 @@ const PHASE_VERIFICATION = {
     evidence: ["scripts/macos-fresh-install-rehearsal.js"],
     reason: "Writes the public plugin source plan without cloning private state.",
   },
+  "install-plugin-dependencies": {
+    verificationClass: "external_input",
+    evidence: ["npm install/npm ci against installed public plugin roots"],
+    reason: "Requires plugin source roots, npm, and network/cache access for package resolution.",
+  },
   "plan-plugin-workspace-provisioning": {
     verificationClass: "source_rehearsed",
     evidence: ["scripts/macos-fresh-install-rehearsal.js", "scripts/macos-first-start-preflight.js"],
