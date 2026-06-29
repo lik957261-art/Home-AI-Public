@@ -397,7 +397,7 @@ const steps = [
     requiresSudo: true,
     gate: "sudo",
     commands: [`${sudoEnv} ${installer} --execute --phase install-official-hermes-runtime --root ${root} --node-command ${nodeCommand} --npm-command ${npmCommand} --python-command ${pythonCommand} --hermes-agent-source ${hermesAgentSource} --hermes-agent-repository-url ${hermesAgentRepositoryUrl} --hermes-agent-ref ${hermesAgentRef} --install-hermes-agent-dependencies ${installHermesAgentDependencies} --json`],
-    evidenceRequired: ["runtime/node-current/bin/node, npm, and npx exist", "runtime/hermes-agent-official/venv exists"],
+    evidenceRequired: ["runtime/node-current/bin/node, npm, and npx exist", "runtime/hermes-agent-official/source exists", "runtime/hermes-agent-official/venv exists"],
     riskBoundary: "Production runtime paths are service-owned; dependency refresh must run with an operator sudo boundary.",
   },
   {
@@ -3924,7 +3924,8 @@ const targetNode = path.join(runtimeBin, "node");
 const targetNpm = path.join(runtimeBin, "npm");
 const targetNpx = path.join(runtimeBin, "npx");
 const agentRoot = path.join(root, "runtime", "hermes-agent-official");
-const agentSource = requestedAgentSource ? path.resolve(requestedAgentSource) : path.join(agentRoot, "source");
+const runtimeAgentSource = path.join(agentRoot, "source");
+let agentSource = requestedAgentSource ? path.resolve(requestedAgentSource) : runtimeAgentSource;
 const agentVenv = path.join(agentRoot, "venv");
 const agentPython = path.join(agentVenv, "bin", "python");
 const issues = [];
@@ -4015,6 +4016,28 @@ function createSanitizedPythonBuildSource(sourceDirectory) {
   return { buildRoot, buildSource };
 }
 
+function syncRuntimeAgentSource(sourceDirectory) {
+  const sourceResolved = path.resolve(sourceDirectory);
+  const targetResolved = path.resolve(runtimeAgentSource);
+  if (sourceResolved === targetResolved) return;
+  fs.rmSync(targetResolved, { recursive: true, force: true });
+  fs.cpSync(sourceResolved, targetResolved, {
+    recursive: true,
+    filter(sourcePath) {
+      const base = path.basename(sourcePath);
+      if (base === ".git" || base === "__pycache__" || base.endsWith(".egg-info")) return false;
+      return true;
+    },
+  });
+  actions.push({
+    action: "hermes-agent-source-sync",
+    source: path.relative(root, sourceResolved) || sourceResolved,
+    target: path.relative(root, targetResolved) || targetResolved,
+    excluded: [".git", "__pycache__", "*.egg-info"],
+  });
+  agentSource = targetResolved;
+}
+
 try {
   const resolvedNode = resolveCommand(requestedNode);
   if (!resolvedNode || !fs.existsSync(resolvedNode)) {
@@ -4084,6 +4107,7 @@ try {
           action: fs.existsSync(path.join(agentSource, ".git")) ? "hermes-agent-source-exists" : "hermes-agent-packaged-source-exists",
           path: path.relative(root, agentSource) || agentSource,
         });
+        syncRuntimeAgentSource(agentSource);
       }
     } else {
       if (!agentRepositoryUrl) {

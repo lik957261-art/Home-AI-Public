@@ -496,9 +496,9 @@ If the requested Node/npm executables are outside `/usr/local/bin`,
 materialized.
 It creates
 `runtime/node-current/bin/node`, `npm`, and `npx` symlinks to the requested
-runtime executables, clones or reuses `runtime/hermes-agent-official/source`,
-accepts either a git checkout or a packaged Python project containing
-`pyproject.toml` / `setup.py`, creates
+runtime executables, clones or reuses a Hermes Agent source, synchronizes it to
+`runtime/hermes-agent-official/source`, accepts either a git checkout or a
+packaged Python project containing `pyproject.toml` / `setup.py`, creates
 `runtime/hermes-agent-official/venv`, and installs Hermes Agent dependencies
 from a sanitized temporary source copy with
 `<venv>/bin/python -m pip install <sanitized-source>` when

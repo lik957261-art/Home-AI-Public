@@ -854,15 +854,18 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
   assert.equal(first.execution.report.ok, true);
   const runtimeNode = path.join(root, "runtime", "node-current", "bin", "node");
   const runtimeNpm = path.join(root, "runtime", "node-current", "bin", "npm");
+  const runtimeSource = path.join(root, "runtime", "hermes-agent-official", "source");
   const runtimePython = path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python");
   assert.equal(fs.lstatSync(runtimeNode).isSymbolicLink(), true);
   assert.equal(path.resolve(path.dirname(runtimeNode), fs.readlinkSync(runtimeNode)), nodePath);
   assert.equal(fs.lstatSync(runtimeNpm).isSymbolicLink(), true);
   assert.equal(path.resolve(path.dirname(runtimeNpm), fs.readlinkSync(runtimeNpm)), npmPath);
+  assert.equal(fs.existsSync(path.join(runtimeSource, "pyproject.toml")), true);
   assert.equal(fs.existsSync(runtimePython), true);
   assert.ok(first.execution.report.actions.some((action) => action.action === "runtime-node-symlink"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "runtime-npm-symlink"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-source-exists"));
+  assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-source-sync"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-venv-create"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-build-source-create"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-dependencies-install"));
@@ -909,6 +912,8 @@ function testExecuteRuntimePhaseAcceptsPackagedAgentSource() {
   ]));
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "hermes-agent-packaged-source-exists"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "hermes-agent-source-sync"));
+  assert.equal(fs.existsSync(path.join(root, "runtime", "hermes-agent-official", "source", "pyproject.toml")), true);
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "hermes-agent-build-source-create"));
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "hermes-agent-dependencies-install"));
 }
