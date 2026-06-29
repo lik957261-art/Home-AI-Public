@@ -168,6 +168,8 @@ async function testCycleInstallRunsInstallDeleteReinstallInSandbox() {
   ]);
   assert.equal(report.steps.find((step) => step.type === "macos-install-cycle-delete").summary.removed, true);
   assert.equal(calls.filter((remote) => remote.includes("install-macos-production.sh --execute --guided")).length, 2);
+  assert.equal(calls.some((remote) => remote.includes("rehearsal-root")), true);
+  assert.equal(calls.filter((remote) => remote.includes("target-root")).length >= 2, true);
   assert.equal(calls.some((remote) => remote.includes("/Users/example/path")), false);
 }
 

@@ -142,6 +142,11 @@ report. This keeps large install plans from masking the real pass/fail state
 while preserving the full per-phase report for same-session diagnosis when
 `--keep-remote-temp` is used.
 
+The fresh-install rehearsal and the guided sandbox install use separate roots
+under the remote temp directory. Rehearsal artifacts must not pre-populate the
+install target root, because the installer intentionally refuses to overwrite a
+non-empty app target.
+
 Home AI Self-Improving Loop collects this rehearsal as the
 `public_upgrade_rehearsal` self-check signal. Production collection runs
 `homeai-public-upgrade-rehearsal.js --execute --json` by default; if the

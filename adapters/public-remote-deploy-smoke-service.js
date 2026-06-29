@@ -264,6 +264,7 @@ function remoteInstallSummaryScript(command, outputPath) {
 function buildRemoteSteps(plan = {}) {
   const appPath = `${plan.remoteRoot}/Home-AI-Public`;
   const targetRoot = `${plan.remoteRoot}/target-root`;
+  const rehearsalRoot = `${plan.remoteRoot}/rehearsal-root`;
   const nodeEnv = remoteNodeEnv(plan);
   const steps = [
     {
@@ -296,7 +297,7 @@ function buildRemoteSteps(plan = {}) {
     },
     {
       type: "macos-fresh-install-rehearsal",
-      script: `${nodeEnv}\ncd ${shellQuote(appPath)} && node scripts/macos-fresh-install-rehearsal.js --root ${shellQuote(targetRoot)} --json`,
+      script: `${nodeEnv}\ncd ${shellQuote(appPath)} && node scripts/macos-fresh-install-rehearsal.js --root ${shellQuote(rehearsalRoot)} --json`,
     },
   ];
   if (plan.cycleInstall) {
