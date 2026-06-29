@@ -1692,7 +1692,7 @@ function writeProfileConfig(worker) {
   }
   ensureProfileSoul(profileDir, worker);
   chmodRecursive(profileDir, "u+rwX,go-rwx");
-  chmodRecursive(path.join(skillRoot, "skills"), "u+rwX,g+rX,o-rwx");
+  chmodRecursive(path.join(skillRoot, "skills"), "u+rwX,go-rwx");
   chmodRecursive(path.join(skillRoot, "memories"), "u+rwX,go-rwx");
   chmodRecursive(path.join(sharedSkillRoot, "skills"), "u+rwX,g+rX,o-rwx");
   chownRecursive(workerUserRoot, `${worker.osUser}:staff`);

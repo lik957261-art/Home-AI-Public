@@ -1217,6 +1217,9 @@ function testExecuteGatewayProfilesCreatesManifestKeysAndConfigs() {
   assert.equal(fs.lstatSync(path.join(ownerProfileDir, "memories")).isSymbolicLink(), true);
   assert.equal(fs.existsSync(path.join(ownerProfileDir, "SOUL.md")), true);
   const ownerSkillDir = path.join(root, "data", "skill-profiles", "owner-full", "skills", "productivity", "wardrobe-style-operations");
+  assert.equal(fs.statSync(path.join(root, "data", "skill-profiles", "owner-full", "skills")).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(ownerSkillDir).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(path.join(ownerSkillDir, "SKILL.md")).mode & 0o777, 0o600);
   assert.equal(fs.existsSync(path.join(ownerSkillDir, "SKILL.md")), true);
   assert.equal(fs.existsSync(path.join(ownerSkillDir, "references", "wardrobe-program-api.md")), true);
   assert.equal(fs.existsSync(path.join(ownerSkillDir, "scripts", "render_wardrobe_phone_pdf.py")), true);
