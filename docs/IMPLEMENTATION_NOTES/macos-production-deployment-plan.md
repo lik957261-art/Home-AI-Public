@@ -361,6 +361,13 @@ Fresh-install guided entrypoint:
 bash ./scripts/install-macos-production.sh --execute --guided --root /Users/example/path --json
 ```
 
+The official Hermes Agent runtime phase writes service-owned runtime paths and
+must be run through an operator sudo boundary on production installs:
+
+```bash
+sudo bash ./scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root /Users/example/path --json
+```
+
 The installer should be idempotent and phase-based:
 
 ```text

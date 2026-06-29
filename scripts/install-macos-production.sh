@@ -66,7 +66,6 @@ PHASES=(
 GUIDED_AUTO_PHASES=(
   "create-directory-layout"
   "install-hermes-mobile"
-  "install-official-hermes-runtime"
   "install-dependencies"
   "configure-owner"
   "configure-gateway-profiles"
@@ -81,6 +80,7 @@ GUIDED_AUTO_PHASES=(
 
 GUIDED_OPERATOR_PHASES=(
   "create-service-users"
+  "install-official-hermes-runtime"
   "configure-workspace-isolation"
   "repair-gateway-worker-acl"
   "run-first-start-preflight"
@@ -108,8 +108,9 @@ central deploy script for existing production updates.
 only non-privileged automatic phases that create the install skeleton and
 bounded plan files, then reports the remaining operator, sudo, and live-runtime
 closure commands. It does not create macOS users, apply ACLs, install
-LaunchDaemons under /Library/LaunchDaemons, install provider credentials, or
-start production services without the explicit phase gates listed below.
+the root-owned Hermes Agent runtime, install LaunchDaemons under
+/Library/LaunchDaemons, install provider credentials, or start production
+services without the explicit phase gates listed below.
 
 The create-service-users phase audits the required macOS service users by
 default. To let it create missing users, run as root and set
@@ -157,6 +158,8 @@ The install-official-hermes-runtime phase pins the Node runtime, verifies a
 Python >=3.12 command, materializes the official Hermes Agent source under
 runtime/hermes-agent-official/source, creates runtime/hermes-agent-official/venv,
 and installs Hermes Agent dependencies when HOMEAI_INSTALL_HERMES_AGENT_DEPENDENCIES=1.
+Run this phase as root/sudo when the production runtime root is owned by the
+Home AI service user.
 
 The install-launchd-services phase stages the canonical core and public plugin
 launchd plist files and writes a launchd service plan. By default it does not
@@ -223,7 +226,7 @@ phase_command() {
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-hermes-mobile --root %s --app-source %s --json' "$APP_SOURCE" "$ROOT" "$APP_SOURCE"
       ;;
     install-official-hermes-runtime)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root %s --node-command %s --npm-command %s --python-command %s --hermes-agent-source %s --hermes-agent-repository-url %s --hermes-agent-ref %s --install-hermes-agent-dependencies %s --json' "$APP_SOURCE" "$ROOT" "$NODE_COMMAND" "$NPM_COMMAND" "$PYTHON_COMMAND" "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES"
+      printf 'sudo bash %s/scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root %s --node-command %s --npm-command %s --python-command %s --hermes-agent-source %s --hermes-agent-repository-url %s --hermes-agent-ref %s --install-hermes-agent-dependencies %s --json' "$APP_SOURCE" "$ROOT" "$NODE_COMMAND" "$NPM_COMMAND" "$PYTHON_COMMAND" "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES"
       ;;
     run-smoke-tests)
       printf 'sudo %s/runtime/node-current/bin/node %s/app/scripts/macos-production-closure-validation.js --root %s --base %s --json' "$ROOT" "$ROOT" "$ROOT" "$BASE_URL"
@@ -277,8 +280,21 @@ NODE
 }
 
 guided_operator_steps_json() {
-  node - "$ROOT" "$APP_SOURCE" "$SERVICE_USERS" "$WORKSPACE_MAP" "$BASE_URL" <<'NODE'
-const [root, appSource, serviceUsers, workspaceMap, baseUrl] = process.argv.slice(2);
+  node - "$ROOT" "$APP_SOURCE" "$SERVICE_USERS" "$WORKSPACE_MAP" "$BASE_URL" "$NODE_COMMAND" "$NPM_COMMAND" "$PYTHON_COMMAND" "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES" <<'NODE'
+const [
+  root,
+  appSource,
+  serviceUsers,
+  workspaceMap,
+  baseUrl,
+  nodeCommand,
+  npmCommand,
+  pythonCommand,
+  hermesAgentSource,
+  hermesAgentRepositoryUrl,
+  hermesAgentRef,
+  installHermesAgentDependencies,
+] = process.argv.slice(2);
 const installer = `bash ${appSource}/scripts/install-macos-production.sh`;
 const steps = [
   {
@@ -296,6 +312,21 @@ const steps = [
       "no conflicting user records were modified",
     ],
     riskBoundary: "Audits by default; user creation requires explicit administrator approval.",
+  },
+  {
+    id: "install-official-hermes-runtime",
+    title: "Install official Node and Hermes Agent runtime",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [
+      `sudo ${installer} --execute --phase install-official-hermes-runtime --root ${root} --node-command ${nodeCommand} --npm-command ${npmCommand} --python-command ${pythonCommand} --hermes-agent-source ${hermesAgentSource} --hermes-agent-repository-url ${hermesAgentRepositoryUrl} --hermes-agent-ref ${hermesAgentRef} --install-hermes-agent-dependencies ${installHermesAgentDependencies} --json`,
+    ],
+    evidenceRequired: [
+      "runtime/node-current/bin/node, npm, and npx exist",
+      "runtime/hermes-agent-official/venv exists",
+      "Hermes Agent dependencies install report has no issues",
+    ],
+    riskBoundary: "Production runtime paths are service-owned; dependency refresh must run with an operator sudo boundary.",
   },
   {
     id: "configure-workspace-isolation",

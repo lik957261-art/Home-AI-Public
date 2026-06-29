@@ -137,6 +137,7 @@ function testDryRunJsonPlan() {
   assert.match(installApp.command, /--phase install-hermes-mobile/);
   assert.match(installApp.command, /--app-source/);
   const runtime = parsed.phases.find((phase) => phase.id === "install-official-hermes-runtime");
+  assert.match(runtime.command, /^sudo bash /);
   assert.match(runtime.command, /--phase install-official-hermes-runtime/);
   assert.match(runtime.command, /--node-command/);
   assert.match(runtime.command, /--python-command/);
@@ -156,7 +157,6 @@ function testGuidedDryRunJsonPlan() {
   assert.deepEqual(parsed.guidedPlan.autoPhaseIds, [
     "create-directory-layout",
     "install-hermes-mobile",
-    "install-official-hermes-runtime",
     "install-dependencies",
     "configure-owner",
     "configure-gateway-profiles",
@@ -170,6 +170,7 @@ function testGuidedDryRunJsonPlan() {
   ]);
   assert.deepEqual(parsed.guidedPlan.operatorPhaseIds, [
     "create-service-users",
+    "install-official-hermes-runtime",
     "configure-workspace-isolation",
     "repair-gateway-worker-acl",
     "run-first-start-preflight",
@@ -181,6 +182,11 @@ function testGuidedDryRunJsonPlan() {
   assert.equal(serviceUsersStep.gate, "HOMEAI_INSTALL_ALLOW_USER_CREATE=1");
   assert.ok(serviceUsersStep.commands.some((command) => command.startsWith("sudo HOMEAI_INSTALL_ALLOW_USER_CREATE=1")));
   assert.ok(serviceUsersStep.evidenceRequired.includes("all required macOS service users exist"));
+  const runtimeStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-official-hermes-runtime");
+  assert.equal(runtimeStep.requiresSudo, true);
+  assert.equal(runtimeStep.gate, "sudo");
+  assert.ok(runtimeStep.commands.some((command) => command.startsWith("sudo bash ")));
+  assert.ok(runtimeStep.commands.some((command) => command.includes("--install-hermes-agent-dependencies")));
   const workspaceAclStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-workspace-isolation");
   assert.equal(workspaceAclStep.requiresSudo, true);
   assert.equal(workspaceAclStep.gate, "HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1");
@@ -250,8 +256,8 @@ exit 64
     );
     assert.ok(fs.existsSync(path.join(root, "data", "secrets", "owner-web-key.secret")));
     assert.ok(fs.existsSync(path.join(root, "app", "package.json")));
-    assert.ok(fs.existsSync(path.join(root, "runtime", "node-current", "bin", "node")));
-    assert.ok(fs.existsSync(path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python")));
+    assert.equal(fs.existsSync(path.join(root, "runtime", "node-current", "bin", "node")), false);
+    assert.equal(fs.existsSync(path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python")), false);
     assert.ok(fs.existsSync(path.join(root, "app", "node_modules", "@homeai-guided")));
     assert.ok(fs.existsSync(path.join(root, "data", "gateway-pool-manifest-mac.json")));
     assert.ok(fs.existsSync(path.join(root, "data", "launchd-services-plan.json")));

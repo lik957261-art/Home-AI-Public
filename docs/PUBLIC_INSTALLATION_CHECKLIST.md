@@ -412,7 +412,7 @@ Then pin the production Node runtime and materialize the official Hermes Agent
 runtime used by Gateway/provider ingress:
 
 ```bash
-bash scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime \
+sudo bash scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime \
   --root /Users/example/path \
   --node-command /path/to/node \
   --npm-command /path/to/npm \
@@ -422,7 +422,9 @@ bash scripts/install-macos-production.sh --execute --phase install-official-herm
   --json
 ```
 
-The runtime phase requires Node.js `>=22` and Python `>=3.12`. It creates
+The runtime phase requires an operator sudo boundary when the production
+runtime root is service-owned. It requires Node.js `>=22` and Python `>=3.12`.
+It creates
 `runtime/node-current/bin/node`, `npm`, and `npx` symlinks to the requested
 runtime executables, clones or reuses `runtime/hermes-agent-official/source`,
 accepts either a git checkout or a packaged Python project containing

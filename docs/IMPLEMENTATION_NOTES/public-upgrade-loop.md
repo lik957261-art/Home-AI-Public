@@ -165,7 +165,7 @@ Supported execution gates:
   runtime source;
 - `--install-dependencies`: run `npm ci --omit=dev --no-audit --no-fund` when
   source dependency files changed;
-- `--install-hermes-agent-dependencies`: run
+- `--install-hermes-agent-dependencies`: run through the operator sudo boundary
   `<hermes-agent-python> -m pip install <sanitized-hermes-agent-source-copy>`
   after an explicit Hermes Agent update;
 - `--force-deploy`: redeploy Home AI even when source did not update;
