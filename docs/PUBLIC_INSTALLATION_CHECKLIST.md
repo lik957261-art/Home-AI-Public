@@ -161,7 +161,12 @@ mode: it validates `config/public-plugin-sources.json`, creates the production
 empty plugin directories or workspace grants. With explicit
 `--plugin-source-mode clone` or `HOMEAI_INSTALL_PLUGIN_SOURCE_MODE=clone`, it
 clones missing plugin source checkouts from the public HTTPS GitHub URLs and
-fails closed if a target exists but is not a Git checkout.
+fails closed if a target exists but is not a Git checkout. With
+`--plugin-source-mode bundle` and `--plugin-source-bundle-dir <dir>`, it copies
+operator-provided plugin source directories for authenticated repositories such
+as Movie and Music. Bundle mode excludes private/runtime state such as `.git`,
+`node_modules`, `.venv`, `.agent-context`, `.codegraph`, `data`, logs, and
+`.env*` files; it still creates no workspace grants or plugin secrets.
 The `install-plugin-dependencies` phase is executable after plugin sources
 exist. It runs `npm ci --omit=dev --no-audit --no-fund` for Node plugins with a
 lockfile, `npm install --omit=dev --no-audit --no-fund` for Node plugins
@@ -339,6 +344,15 @@ source checkouts during first install, use:
 
 ```bash
 bash scripts/install-macos-production.sh --execute --phase configure-plugins --root /Users/example/path --plugin-source-mode clone --json
+```
+
+When the install includes operator-authenticated plugin repositories without
+GitHub credentials on the target host, provide a local source bundle whose
+subdirectories match each plugin `sourceDir` in
+`config/public-plugin-sources.json`:
+
+```bash
+bash scripts/install-macos-production.sh --execute --phase configure-plugins --root /Users/example/path --plugin-source-mode bundle --plugin-source-bundle-dir /path/to/homeai-plugin-source-bundle --json
 ```
 
 This phase does not create `.hermes-<plugin>` workspace key/config
@@ -790,7 +804,11 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
   Moira, Movie, and Music as deployable plugins. Moira uses the public
   `MOIRA_chinese_astrology_public` repository. Movie and Music currently require
   operator-authenticated repository read access and are marked
-  `operatorAuthenticated`; they are not anonymous default public plugins.
+  `operatorAuthenticated`; they are not anonymous default public plugins. On a
+  host without GitHub read credentials for those repositories, fresh install
+  should use `--plugin-source-mode bundle --plugin-source-bundle-dir <dir>` so
+  the operator can provide sanitized source directories without exposing tokens
+  to plugin workspaces or runtime logs.
 - Hermes Agent is a deployment dependency because Gateway provider access can
   route through the official Hermes Agent runtime. Fresh install closure now
   requires `install-official-hermes-runtime` to create

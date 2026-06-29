@@ -18,6 +18,7 @@ GATEWAY_OWNER_GROK_WORKERS="${HOMEAI_GATEWAY_OWNER_GROK_WORKERS:-1}"
 GATEWAY_OWNER_MAINTENANCE_OPENAI_WORKERS="${HOMEAI_GATEWAY_OWNER_MAINTENANCE_OPENAI_WORKERS:-2}"
 GATEWAY_OWNER_MAINTENANCE_DEEPSEEK_WORKERS="${HOMEAI_GATEWAY_OWNER_MAINTENANCE_DEEPSEEK_WORKERS:-1}"
 PLUGIN_SOURCE_MODE="${HOMEAI_INSTALL_PLUGIN_SOURCE_MODE:-plan}"
+PLUGIN_SOURCE_BUNDLE_DIR="${HOMEAI_INSTALL_PLUGIN_SOURCE_BUNDLE_DIR:-}"
 CRON_NETWORK_MODE="${HOMEAI_INSTALL_CRON_NETWORK_MODE:-direct}"
 HERMES_AGENT_SOURCE="${HOMEAI_HERMES_AGENT_SOURCE:-}"
 HERMES_AGENT_REPOSITORY_URL="${HOMEAI_HERMES_AGENT_REPOSITORY_URL:-${HERMES_MOBILE_HERMES_AGENT_REPOSITORY_URL:-https://github.com/pentiumxp/hermes-agent-public.git}}"
@@ -88,7 +89,7 @@ GUIDED_OPERATOR_PHASES=(
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/install-macos-production.sh [--dry-run|--execute] [--guided] [--json] [--root <path>] [--app-source <path>] [--node-command <path>] [--npm-command <path>] [--python-command <path>] [--service-users <csv>] [--owner-key-file <path>] [--workspace-map <csv>] [--gateway-openai-workers <n>] [--gateway-deepseek-workers <n>] [--gateway-owner-grok-workers <n>] [--gateway-owner-maintenance-openai-workers <n>] [--gateway-owner-maintenance-deepseek-workers <n>] [--plugin-source-mode plan|clone] [--cron-network-mode direct|proxy] [--hermes-agent-source <path>] [--hermes-agent-repository-url <url>] [--hermes-agent-ref <ref>] [--install-hermes-agent-dependencies 0|1] [--phase <id>] [--network-mode direct|proxy] [--base <url>]
+Usage: scripts/install-macos-production.sh [--dry-run|--execute] [--guided] [--json] [--root <path>] [--app-source <path>] [--node-command <path>] [--npm-command <path>] [--python-command <path>] [--service-users <csv>] [--owner-key-file <path>] [--workspace-map <csv>] [--gateway-openai-workers <n>] [--gateway-deepseek-workers <n>] [--gateway-owner-grok-workers <n>] [--gateway-owner-maintenance-openai-workers <n>] [--gateway-owner-maintenance-deepseek-workers <n>] [--plugin-source-mode plan|clone|bundle] [--plugin-source-bundle-dir <path>] [--cron-network-mode direct|proxy] [--hermes-agent-source <path>] [--hermes-agent-repository-url <url>] [--hermes-agent-ref <ref>] [--install-hermes-agent-dependencies 0|1] [--phase <id>] [--network-mode direct|proxy] [--base <url>]
 
 Plans the phase-based Home AI macOS production installation.
 
@@ -139,7 +140,10 @@ run as root with HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1.
 
 The configure-plugins phase reads config/public-plugin-sources.json and writes
 a bounded plugin source plan by default. Set --plugin-source-mode clone for
-explicit HTTPS public Git clone during first install.
+explicit HTTPS public Git clone during first install. Set
+--plugin-source-mode bundle with --plugin-source-bundle-dir when an operator
+provides pre-fetched plugin source directories for authenticated plugin
+repositories.
 
 The plan-plugin-workspace-provisioning phase writes a bounded first-run
 workspace plugin provisioning plan from the public plugin manifest and
@@ -202,7 +206,11 @@ phase_command() {
       printf '%s HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 bash %s/scripts/install-macos-production.sh --execute --phase repair-gateway-worker-acl --root %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT"
       ;;
     configure-plugins)
-      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase configure-plugins --root %s --plugin-source-mode %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$PLUGIN_SOURCE_MODE"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase configure-plugins --root %s --plugin-source-mode %s' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$PLUGIN_SOURCE_MODE"
+      if [[ -n "$PLUGIN_SOURCE_BUNDLE_DIR" ]]; then
+        printf ' --plugin-source-bundle-dir %s' "$PLUGIN_SOURCE_BUNDLE_DIR"
+      fi
+      printf ' --json'
       ;;
     install-plugin-dependencies)
       printf '%s bash %s/scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root %s --npm-command %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
@@ -463,12 +471,16 @@ const steps = [
   },
   {
     id: "configure-plugins",
-    title: "Create plugin source plan",
+    title: "Create or install plugin source plan",
     requiresSudo: true,
     gate: "sudo",
-    commands: [`${sudoEnv} ${installer} --execute --phase configure-plugins --root ${root} --json`],
-    evidenceRequired: ["plugin-source-plan.json exists", "no workspace grants or plugin secrets are created"],
-    riskBoundary: "Plans plugin sources only unless explicit clone mode is requested.",
+    commands: [
+      `${sudoEnv} ${installer} --execute --phase configure-plugins --root ${root} --plugin-source-mode plan --json`,
+      `${sudoEnv} ${installer} --execute --phase configure-plugins --root ${root} --plugin-source-mode clone --json`,
+      `${sudoEnv} ${installer} --execute --phase configure-plugins --root ${root} --plugin-source-mode bundle --plugin-source-bundle-dir <plugin-source-bundle-dir> --json`,
+    ],
+    evidenceRequired: ["plugin-source-plan.json exists", "plugin source directories exist when clone or bundle mode is used", "no workspace grants or plugin secrets are created"],
+    riskBoundary: "Plans plugin sources by default; clone uses public HTTPS Git, while bundle copies operator-provided source directories for authenticated plugins.",
   },
   {
     id: "install-plugin-dependencies",
@@ -2490,7 +2502,7 @@ NODE
 }
 
 run_configure_plugins_phase() {
-  node - "$ROOT" "$APP_SOURCE" "$PLUGIN_SOURCE_MODE" <<'NODE'
+  node - "$ROOT" "$APP_SOURCE" "$PLUGIN_SOURCE_MODE" "$PLUGIN_SOURCE_BUNDLE_DIR" <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
@@ -2498,6 +2510,8 @@ const { spawnSync } = require("node:child_process");
 const root = path.resolve(process.argv[2]);
 const appSource = path.resolve(process.argv[3]);
 const sourceMode = String(process.argv[4] || "plan").trim().toLowerCase();
+const sourceBundleDirInput = String(process.argv[5] || "").trim();
+const sourceBundleDir = sourceBundleDirInput ? path.resolve(sourceBundleDirInput) : "";
 const sourceManifestPath = path.join(appSource, "config", "public-plugin-sources.json");
 const pluginRoot = path.join(root, "plugins");
 const dataDir = path.join(root, "data");
@@ -2542,6 +2556,24 @@ function validPublicHttpsGitHubUrl(value) {
   return /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\.git$/i.test(String(value || "").trim());
 }
 
+function excludedBundleEntry(entry) {
+  const name = path.basename(entry);
+  return name === ".git"
+    || name === ".agent-context"
+    || name === ".codegraph"
+    || name === "node_modules"
+    || name === ".venv"
+    || name === "__pycache__"
+    || name === "logs"
+    || name === "tmp"
+    || name === "temp"
+    || name === "data"
+    || name === "backups"
+    || name === ".DS_Store"
+    || name.startsWith(".env")
+    || name.endsWith(".pyc");
+}
+
 function commandExists(command) {
   const result = spawnSync("/usr/bin/env", ["bash", "-c", `command -v ${JSON.stringify(command)}`], {
     encoding: "utf8",
@@ -2550,7 +2582,7 @@ function commandExists(command) {
   return result.status === 0 ? result.stdout.trim() : "";
 }
 
-function runGitClone(url, ref, target) {
+function runGitClone(url, ref, target, id) {
   const git = commandExists("git");
   if (!git) {
     issues.push({ code: "git_not_found_for_plugin_clone" });
@@ -2563,6 +2595,7 @@ function runGitClone(url, ref, target) {
   if (clone.status !== 0) {
     issues.push({
       code: "plugin_clone_failed",
+      id: id || "",
       target: rel(target),
       status: clone.status,
       outputSample: `${clone.stdout || ""}\n${clone.stderr || ""}`.trim().slice(-1200),
@@ -2572,8 +2605,36 @@ function runGitClone(url, ref, target) {
   actions.push({ action: "git-clone", path: rel(target), ref: ref || "main" });
 }
 
+function copyBundleSource(plugin, target) {
+  if (!sourceBundleDir) {
+    issues.push({ code: "plugin_source_bundle_dir_required", id: plugin.id });
+    return;
+  }
+  if (!fs.existsSync(sourceBundleDir) || !fs.statSync(sourceBundleDir).isDirectory()) {
+    issues.push({ code: "plugin_source_bundle_dir_missing", path: sourceBundleDir });
+    return;
+  }
+  const candidates = [plugin.sourceDir, plugin.id]
+    .filter(Boolean)
+    .map((name) => path.join(sourceBundleDir, name));
+  const source = candidates.find((candidate) => fs.existsSync(candidate) && fs.statSync(candidate).isDirectory());
+  if (!source) {
+    issues.push({ code: "plugin_source_bundle_entry_missing", id: plugin.id, sourceDir: plugin.sourceDir });
+    return;
+  }
+  fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o755 });
+  fs.cpSync(source, target, {
+    recursive: true,
+    errorOnExist: false,
+    force: true,
+    preserveTimestamps: true,
+    filter: (entry) => !excludedBundleEntry(entry),
+  });
+  actions.push({ action: "copy-plugin-source-bundle", id: plugin.id, sourceDir: plugin.sourceDir, path: rel(target) });
+}
+
 try {
-  if (!["plan", "clone"].includes(sourceMode)) {
+  if (!["plan", "clone", "bundle"].includes(sourceMode)) {
     issues.push({ code: "plugin_source_mode_invalid", mode: sourceMode });
   }
   ensureDir(dataDir, 0o750);
@@ -2609,22 +2670,28 @@ try {
       special: plugin.special === true,
       launchdLabel: plugin.launchdLabel || "",
       manifestUrl: plugin.manifestUrl || "",
+      sourceInstallMethod: plugin.operatorAuthenticated === true ? "operator-authenticated" : "public-git",
+      bundleAvailable: sourceBundleDir ? fs.existsSync(path.join(sourceBundleDir, sourceDir)) || fs.existsSync(path.join(sourceBundleDir, id)) : false,
       installed: fs.existsSync(targetDir),
     });
   }
 
-  if (issues.length === 0 && sourceMode === "clone") {
+  if (issues.length === 0 && ["clone", "bundle"].includes(sourceMode)) {
     for (const plugin of planPlugins) {
       if (fs.existsSync(plugin.targetDir)) {
         const entries = fs.readdirSync(plugin.targetDir).filter((entry) => entry !== ".DS_Store");
-        if (!fs.existsSync(path.join(plugin.targetDir, ".git"))) {
+        if (sourceMode === "clone" && !fs.existsSync(path.join(plugin.targetDir, ".git"))) {
           issues.push({ code: "plugin_target_exists_not_git_checkout", id: plugin.id, path: rel(plugin.targetDir) });
           continue;
         }
-        actions.push({ action: "checkout-exists", id: plugin.id, path: rel(plugin.targetDir), entryCount: entries.length });
+        actions.push({ action: sourceMode === "clone" ? "checkout-exists" : "source-exists", id: plugin.id, path: rel(plugin.targetDir), entryCount: entries.length });
         continue;
       }
-      runGitClone(plugin.repositoryUrl, plugin.ref, plugin.targetDir);
+      if (sourceMode === "clone") {
+        runGitClone(plugin.repositoryUrl, plugin.ref, plugin.targetDir, plugin.id);
+      } else {
+        copyBundleSource(plugin, plugin.targetDir);
+      }
     }
   }
 
@@ -2635,6 +2702,7 @@ try {
       generatedAt: new Date().toISOString(),
       mode: sourceMode,
       pluginRoot,
+      sourceBundleDir,
       workspaceGrantsCreated: false,
       note: "This plan installs or locates plugin source only; workspace-local plugin key/config is created by plugin provisioning.",
       plugins: planPlugins.map((plugin) => ({
@@ -2645,6 +2713,8 @@ try {
         targetDir: plugin.targetDir,
         publicDefault: plugin.publicDefault,
         special: plugin.special,
+        sourceInstallMethod: plugin.sourceInstallMethod,
+        bundleAvailable: plugin.bundleAvailable,
         launchdLabel: plugin.launchdLabel,
         manifestUrl: plugin.manifestUrl,
         installed: fs.existsSync(plugin.targetDir),
@@ -2679,6 +2749,7 @@ const report = {
   pluginRoot,
   planPath,
   sourceMode,
+  sourceBundleDir,
   pluginCount,
   installedCount,
   workspaceGrantsCreated: false,
@@ -4381,6 +4452,10 @@ while [[ $# -gt 0 ]]; do
       PLUGIN_SOURCE_MODE="${2:-}"
       shift 2
       ;;
+    --plugin-source-bundle-dir)
+      PLUGIN_SOURCE_BUNDLE_DIR="${2:-}"
+      shift 2
+      ;;
     --cron-network-mode)
       CRON_NETWORK_MODE="${2:-}"
       shift 2
@@ -4589,6 +4664,7 @@ if [[ "$OUTPUT" == "json" ]]; then
     printf '  "gatewayOwnerMaintenanceOpenAiWorkers": %s,\n' "$(printf '%s' "$GATEWAY_OWNER_MAINTENANCE_OPENAI_WORKERS" | json_escape)"
     printf '  "gatewayOwnerMaintenanceDeepSeekWorkers": %s,\n' "$(printf '%s' "$GATEWAY_OWNER_MAINTENANCE_DEEPSEEK_WORKERS" | json_escape)"
     printf '  "pluginSourceMode": %s,\n' "$(printf '%s' "$PLUGIN_SOURCE_MODE" | json_escape)"
+    printf '  "pluginSourceBundleDir": %s,\n' "$(printf '%s' "$PLUGIN_SOURCE_BUNDLE_DIR" | json_escape)"
     printf '  "cronNetworkMode": %s,\n' "$(printf '%s' "$CRON_NETWORK_MODE" | json_escape)"
     printf '  "hermesAgentSource": %s,\n' "$(printf '%s' "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" | json_escape)"
     printf '  "hermesAgentRepositoryUrl": %s,\n' "$(printf '%s' "$HERMES_AGENT_REPOSITORY_URL" | json_escape)"

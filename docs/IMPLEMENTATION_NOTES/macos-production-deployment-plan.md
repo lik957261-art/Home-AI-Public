@@ -422,6 +422,14 @@ CRON scaffold, plugin source clone, plugin dependency install, first-run plugin
 provisioning plan, core/plugin launchd apply, first-start preflight, and
 aggregate closure smoke. Existing production updates should continue to use
 `scripts/deploy-macos-production.js`.
+Plugin source installation supports two operator-run materialization paths:
+`--plugin-source-mode clone` clones public HTTPS GitHub repositories, while
+`--plugin-source-mode bundle --plugin-source-bundle-dir <dir>` copies
+pre-fetched sanitized plugin source directories for authenticated repositories
+such as Movie and Music. Bundle mode is the supported fresh-install path on a
+target host that lacks GitHub credentials for operator-authenticated plugin
+repositories; it excludes source-control and runtime/private state and still
+does not create plugin grants, launch tokens, or workspace-local plugin keys.
 The `run-first-start-preflight` phase points at
 `scripts/macos-first-start-preflight.js --root <root> --network-mode <direct|proxy> --json`.
 The `run-smoke-tests` phase points at the live app

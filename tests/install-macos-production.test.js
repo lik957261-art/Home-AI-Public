@@ -1354,6 +1354,52 @@ function testExecuteConfigurePluginsFailsClosedForInvalidMode() {
   assert.ok(parsed.execution.issueCodes.includes("plugin_source_mode_invalid"));
 }
 
+function testExecuteConfigurePluginsInstallsFromSourceBundle() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-plugins-bundle-"));
+  const bundle = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-plugin-bundle-"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "config", "public-plugin-sources.json"), "utf8"));
+  for (const plugin of manifest.plugins) {
+    const sourceDir = path.join(bundle, plugin.sourceDir);
+    fs.mkdirSync(path.join(sourceDir, "public"), { recursive: true });
+    fs.mkdirSync(path.join(sourceDir, ".git"), { recursive: true });
+    fs.mkdirSync(path.join(sourceDir, "node_modules", "left-pad"), { recursive: true });
+    fs.mkdirSync(path.join(sourceDir, "data"), { recursive: true });
+    fs.writeFileSync(path.join(sourceDir, "package.json"), JSON.stringify({ name: plugin.id, version: "1.0.0" }));
+    fs.writeFileSync(path.join(sourceDir, "public", "index.html"), "<!doctype html>\n");
+    fs.writeFileSync(path.join(sourceDir, ".git", "config"), "private git metadata\n");
+    fs.writeFileSync(path.join(sourceDir, "node_modules", "left-pad", "index.js"), "module.exports = '';\n");
+    fs.writeFileSync(path.join(sourceDir, "data", "private.json"), "{}\n");
+    fs.writeFileSync(path.join(sourceDir, ".env.local"), "SECRET=not-copied\n");
+  }
+  const parsed = JSON.parse(run([
+    "--execute",
+    "--phase",
+    "configure-plugins",
+    "--root",
+    root,
+    "--plugin-source-mode",
+    "bundle",
+    "--plugin-source-bundle-dir",
+    bundle,
+    "--json",
+  ]));
+  assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
+  assert.equal(parsed.execution.phase, "configure-plugins");
+  assert.equal(parsed.execution.report.sourceMode, "bundle");
+  assert.equal(parsed.execution.report.sourceBundleDir, bundle);
+  const plan = JSON.parse(fs.readFileSync(path.join(root, "data", "plugin-source-plan.json"), "utf8"));
+  assert.equal(plan.mode, "bundle");
+  assert.equal(plan.plugins.length, manifest.plugins.length);
+  assert.equal(plan.plugins.every((plugin) => plugin.installed === true), true);
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "copy-plugin-source-bundle" && action.id === "movie"));
+  const movieTarget = path.join(root, "plugins", "movie");
+  assert.equal(fs.existsSync(path.join(movieTarget, "package.json")), true);
+  assert.equal(fs.existsSync(path.join(movieTarget, ".git")), false);
+  assert.equal(fs.existsSync(path.join(movieTarget, "node_modules")), false);
+  assert.equal(fs.existsSync(path.join(movieTarget, "data")), false);
+  assert.equal(fs.existsSync(path.join(movieTarget, ".env.local")), false);
+}
+
 function testExecuteConfigurePluginsCloneFailsOnNonGitTarget() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-plugins-clone-conflict-"));
   fs.mkdirSync(path.join(root, "plugins", "wardrobe"), { recursive: true });
@@ -2075,6 +2121,7 @@ function testHelpDocumentsDryRunDefault() {
   assert.match(output, /Default mode is --dry-run/);
   assert.match(output, /--guided/);
   assert.match(output, /one-command guided install report/);
+  assert.match(output, /--plugin-source-mode plan\|clone\|bundle/);
   assert.match(output, /print-access-info/);
   assert.match(output, /central deploy script/);
 }
@@ -2110,6 +2157,7 @@ testExecuteGatewayProfilesPreservesExistingManifest();
 testExecuteGatewayProfilesFailsClosedForInlineApiKey();
 testExecuteConfigurePluginsWritesSourcePlanWithoutWorkspaceGrants();
 testExecuteConfigurePluginsFailsClosedForInvalidMode();
+testExecuteConfigurePluginsInstallsFromSourceBundle();
 testExecuteConfigurePluginsCloneFailsOnNonGitTarget();
 testExecutePluginDependenciesInstallsNodeAndPythonPlugins();
 testExecutePluginWorkspaceProvisioningPlanDoesNotCreateSecretsOrGrants();
