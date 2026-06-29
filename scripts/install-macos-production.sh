@@ -3549,6 +3549,7 @@ NODE
 run_runtime_phase() {
   node - "$ROOT" "$NODE_COMMAND" "$NPM_COMMAND" "$PYTHON_COMMAND" "$HERMES_AGENT_SOURCE" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES" <<'NODE'
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -3635,6 +3636,25 @@ function ensureSymlink(pathName, resolvedTarget, codePrefix) {
   }
   fs.symlinkSync(resolvedTarget, pathName);
   actions.push({ action: `${actionName}-symlink`, path: pathName, target: resolvedTarget });
+}
+
+function createSanitizedPythonBuildSource(sourceDirectory) {
+  const buildRoot = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-hermes-agent-build-"));
+  const buildSource = path.join(buildRoot, "source");
+  fs.cpSync(sourceDirectory, buildSource, {
+    recursive: true,
+    filter(sourcePath) {
+      const base = path.basename(sourcePath);
+      if (base === ".git" || base === "__pycache__" || base.endsWith(".egg-info")) return false;
+      return true;
+    },
+  });
+  actions.push({
+    action: "hermes-agent-build-source-create",
+    source: path.relative(root, sourceDirectory) || sourceDirectory,
+    excluded: [".git", "__pycache__", "*.egg-info"],
+  });
+  return { buildRoot, buildSource };
 }
 
 try {
@@ -3749,17 +3769,35 @@ try {
   }
 
   if (issues.length === 0 && installAgentDependencies) {
-    const pip = run(agentPython, ["-m", "pip", "install", agentSource], {
-      cwd: agentSource,
+    let buildRoot = "";
+    let buildSource = agentSource;
+    try {
+      const sanitized = createSanitizedPythonBuildSource(agentSource);
+      buildRoot = sanitized.buildRoot;
+      buildSource = sanitized.buildSource;
+    } catch (err) {
+      issues.push({
+        code: "hermes_agent_build_source_create_failed",
+        path: path.relative(root, agentSource) || agentSource,
+        detail: err && err.code ? err.code : String(err && err.message ? err.message : err),
+      });
+    }
+    const pip = issues.length === 0 ? run(agentPython, ["-m", "pip", "install", buildSource], {
+      cwd: buildSource,
       timeout: 1200000,
-    });
-    if (pip.status !== 0) {
+    }) : null;
+    if (buildRoot) {
+      try {
+        fs.rmSync(buildRoot, { recursive: true, force: true });
+      } catch {}
+    }
+    if (pip && pip.status !== 0) {
       issues.push({
         code: "hermes_agent_dependency_install_failed",
         path: path.relative(root, agentSource) || agentSource,
         detail: compactOutput(pip),
       });
-    } else {
+    } else if (pip) {
       actions.push({ action: "hermes-agent-dependencies-install", path: path.relative(root, agentSource) || agentSource });
     }
   }

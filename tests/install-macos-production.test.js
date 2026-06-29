@@ -735,6 +735,7 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
   assert.ok(first.execution.report.actions.some((action) => action.action === "runtime-npm-symlink"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-source-exists"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-venv-create"));
+  assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-build-source-create"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-dependencies-install"));
   const phase = first.phases.find((item) => item.id === "install-official-hermes-runtime");
   assert.equal(phase.status, "executed");
@@ -779,6 +780,7 @@ function testExecuteRuntimePhaseAcceptsPackagedAgentSource() {
   ]));
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "hermes-agent-packaged-source-exists"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "hermes-agent-build-source-create"));
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "hermes-agent-dependencies-install"));
 }
 

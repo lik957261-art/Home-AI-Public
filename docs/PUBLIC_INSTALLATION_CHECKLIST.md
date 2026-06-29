@@ -428,7 +428,8 @@ runtime executables, clones or reuses `runtime/hermes-agent-official/source`,
 accepts either a git checkout or a packaged Python project containing
 `pyproject.toml` / `setup.py`, creates
 `runtime/hermes-agent-official/venv`, and installs Hermes Agent dependencies
-with `<venv>/bin/python -m pip install <source>` when
+from a sanitized temporary source copy with
+`<venv>/bin/python -m pip install <sanitized-source>` when
 `--install-hermes-agent-dependencies 1` is set. It is idempotent when the
 Node/npm/npx links, Hermes Agent source, and venv already match the requested
 inputs, and it fails closed when an existing runtime link points elsewhere or
