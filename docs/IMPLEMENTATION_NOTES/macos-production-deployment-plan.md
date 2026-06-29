@@ -459,11 +459,13 @@ both profile-launch-script aliases at
 from passing Owner setup while `/api/status` still checks the legacy single
 Gateway at `127.0.0.1:8642`.
 Install-time smoke runs production closure with
-`--allow-provider-auth-pending`, which accepts only missing Codex auth JSON/lock
-files as a fresh-machine pending setup state and skips model-run smokes that
-cannot pass without provider credentials. The normal maintainer production
-closure path does not use this flag and continues to fail on missing or broken
-provider auth.
+`--allow-provider-auth-pending --skip-wardrobe-binding`, which accepts only
+missing Codex auth JSON/lock files as a fresh-machine pending setup state, skips
+model-run smokes that cannot pass without provider credentials, and skips the
+legacy non-Owner Wardrobe binding smoke until migrated workspace binding data is
+available. The normal maintainer production closure path does not use these
+flags and continues to fail on missing/broken provider auth or missing Wardrobe
+bindings.
 The same phase pre-creates stdout/stderr log files for every core/plugin
 LaunchDaemon and assigns each file to the service user. This keeps plugins that
 do not run as `hermes-host`, such as Codex Mobile, from failing launchd config
@@ -472,7 +474,8 @@ The `run-first-start-preflight` phase points at
 `scripts/macos-first-start-preflight.js --root <root> --network-mode <direct|proxy> --json`.
 The `run-smoke-tests` phase points at the live app
 `scripts/macos-production-closure-validation.js --root <root> --base <url>
---json` and wraps its bounded output as an installer report.
+--allow-provider-auth-pending --skip-wardrobe-binding --json` and wraps its
+bounded output as an installer report.
 Codex Mobile LaunchDaemon generation is profile-aware: when the operator's
 `codex-profiles.json` exists, generated `CODEX_HOME` and any shared-Mux
 endpoint must follow that active profile instead of the desktop/default

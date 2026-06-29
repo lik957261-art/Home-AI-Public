@@ -4366,7 +4366,7 @@ try {
     issues.push({ code: "closure_node_missing", path: nodeCommand });
   }
   if (issues.length === 0) {
-    const args = [closureScript, "--root", root, "--base", base, "--allow-provider-auth-pending", "--json"];
+    const args = [closureScript, "--root", root, "--base", base, "--allow-provider-auth-pending", "--skip-wardrobe-binding", "--json"];
     const result = spawnSync(nodeCommand, args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
