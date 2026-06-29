@@ -567,7 +567,7 @@ function listenerCanReadTelemetry(file, options = {}) {
   if (process.platform === "darwin") {
     const user = String(options.listenerUser || "hermes-host").trim();
     if (user) {
-      const result = spawnSync("sudo", ["-u", user, "test", "-r", value], {
+      const result = spawnSync("sudo", ["-u", user, "/bin/test", "-r", value], {
         encoding: "utf8",
         stdio: ["ignore", "ignore", "ignore"],
       });
@@ -591,7 +591,7 @@ function listenerCanReadFile(file, options = {}) {
   if (process.platform === "darwin") {
     const user = String(options.listenerUser || "hermes-host").trim();
     if (user) {
-      const result = spawnSync("sudo", ["-u", user, "test", "-r", value], {
+      const result = spawnSync("sudo", ["-u", user, "/bin/test", "-r", value], {
         encoding: "utf8",
         stdio: ["ignore", "ignore", "ignore"],
       });
@@ -616,7 +616,7 @@ function userCanAccessFile(file, user, mode = "read", options = {}) {
   }
   if (process.platform === "darwin") {
     const flag = normalizedMode === "write" ? "-w" : "-r";
-    const result = spawnSync("sudo", ["-u", safeUser, "test", flag, value], {
+    const result = spawnSync("sudo", ["-u", safeUser, "/bin/test", flag, value], {
       encoding: "utf8",
       stdio: ["ignore", "ignore", "ignore"],
     });
