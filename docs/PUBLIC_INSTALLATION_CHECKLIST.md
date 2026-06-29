@@ -437,7 +437,8 @@ audit record and marks `launchdInstalled` / `launchdLoaded` only after every
 service load succeeds.
 Before loading services, the phase repairs Home AI service-owned runtime
 ownership for paths that are created by earlier sudo phases but must be writable
-or readable by LaunchDaemons running as `hermes-host`: `logs`, plugin source
+or readable by LaunchDaemons running as `hermes-host`: the `data` root itself,
+`logs`, plugin source
 directories, generated service secrets, Hermes Home CRON state,
 `runtime/uploads`, and `tmp`.
 

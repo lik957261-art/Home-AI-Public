@@ -2027,6 +2027,7 @@ function testExecuteLaunchdServicesCanInstallAndLoadFromCentralGate() {
   assert.equal(calls.filter((line) => line.startsWith("load -w ")).length, 15);
   assert.equal(calls.filter((line) => line.startsWith("unload -w ")).length, 15);
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "install-plist"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "service-owner-repair-skipped-nonroot" && action.path === "data"));
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "service-owner-repair-skipped-nonroot" && action.path === "logs"));
   assert.ok(parsed.execution.report.rollback.commands.some((command) => command.includes("unload -w")));
 }

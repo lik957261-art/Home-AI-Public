@@ -3429,7 +3429,7 @@ function ensureDir(target, mode) {
   actions.push({ action: existed ? "chmod" : "mkdir", path: rel(target), mode: `0${mode.toString(8)}`, existed });
 }
 
-function repairServiceOwnedPath(target, owner, mode) {
+function repairServiceOwnedPath(target, owner, mode, options = {}) {
   if (!fs.existsSync(target)) return;
   if (mode) fs.chmodSync(target, mode);
   const isRoot = typeof process.getuid === "function" ? process.getuid() === 0 : false;
@@ -3437,7 +3437,8 @@ function repairServiceOwnedPath(target, owner, mode) {
     actions.push({ action: "service-owner-repair-skipped-nonroot", path: rel(target), owner });
     return;
   }
-  const result = spawnSync("/usr/sbin/chown", ["-R", owner, target], {
+  const args = options.recursive === false ? [owner, target] : ["-R", owner, target];
+  const result = spawnSync("/usr/sbin/chown", args, {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -3451,12 +3452,13 @@ function repairServiceOwnedPath(target, owner, mode) {
     });
     return;
   }
-  actions.push({ action: "service-owner-repair", path: rel(target), owner, mode: mode ? `0${mode.toString(8)}` : "" });
+  actions.push({ action: "service-owner-repair", path: rel(target), owner, mode: mode ? `0${mode.toString(8)}` : "", recursive: options.recursive !== false });
 }
 
 function repairServiceOwnership() {
   const owner = `${serviceUser}:staff`;
   const paths = [
+    { path: dataDir, mode: 0o750, recursive: false },
     { path: logsRoot, mode: 0o750 },
     { path: path.join(root, "plugins"), mode: 0o755 },
     { path: path.join(dataDir, "secrets"), mode: 0o700 },
@@ -3465,7 +3467,7 @@ function repairServiceOwnership() {
     { path: path.join(root, "runtime", "uploads"), mode: 0o750 },
     { path: path.join(root, "tmp"), mode: 0o700 },
   ];
-  for (const item of paths) repairServiceOwnedPath(item.path, owner, item.mode);
+  for (const item of paths) repairServiceOwnedPath(item.path, owner, item.mode, { recursive: item.recursive });
 }
 
 function envRows(env) {

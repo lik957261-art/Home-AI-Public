@@ -436,9 +436,9 @@ does not create plugin grants, launch tokens, or workspace-local plugin keys.
 Because guided installation runs many phases through sudo, the core
 `install-launchd-services` phase repairs Home AI service-owned runtime
 ownership before loading LaunchDaemons. The repaired paths are limited to
-service-writable/readable runtime roots (`logs`, plugin sources, service
-secrets, Hermes Home CRON state, `runtime/uploads`, and `tmp`) and do not
-rewrite workspace/Gateway profile ownership.
+service-writable/readable runtime roots (the `data` root itself, `logs`,
+plugin sources, service secrets, Hermes Home CRON state, `runtime/uploads`, and
+`tmp`) and do not recursively rewrite workspace/Gateway profile ownership.
 The `run-first-start-preflight` phase points at
 `scripts/macos-first-start-preflight.js --root <root> --network-mode <direct|proxy> --json`.
 The `run-smoke-tests` phase points at the live app
