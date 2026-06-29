@@ -146,6 +146,11 @@ in sync when changing this list: `system-preflight`,
 `install-plugin-dependencies`, `plan-plugin-workspace-provisioning`,
 `install-launchd-services`, `run-first-start-preflight`, `run-smoke-tests`,
 and `print-access-info`.
+When `configure-gateway-profiles` finds an existing
+`data/gateway-pool-manifest-mac.json`, it preserves that manifest and its
+worker key files, but it is still required to resync packaged required Skill
+bundles and reapply listener ACLs for required Owner skills. This keeps upgrade
+and repair runs from passing with stale or unreadable required Skills.
 Fresh installs must run `install-plugin-dependencies` after plugin source clone
 and before plugin LaunchDaemons are loaded. That phase installs Node plugin
 production dependencies and Python plugin requirements through the official

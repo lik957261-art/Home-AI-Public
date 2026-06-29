@@ -405,6 +405,13 @@ The installer should be idempotent and phase-based:
 19. print-access-info
 ```
 
+`configure-gateway-profiles` is a repair-safe phase on hosts that already have
+`data/gateway-pool-manifest-mac.json`: it must preserve the existing manifest
+and API key files, but still resync packaged required Skill bundles and
+reapply listener ACLs for required Owner skills. A fresh install and an
+upgrade/repair run therefore share the same required Skill readability closure
+before smoke tests.
+
 The installer may automate system-level work after administrator approval, but
 must not pretend to automate external interactive authorization. These remain
 guided steps:

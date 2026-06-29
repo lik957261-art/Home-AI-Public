@@ -1745,6 +1745,39 @@ function writeProfileConfig(worker) {
   }
 }
 
+function repairRequiredSkillStoresForWorkspaces(workspaces) {
+  const sharedSkillRoot = path.join(dataDir, "skill-profiles", "shared-global");
+  ensureDir(sharedSkillRoot, 0o750);
+  fs.chmodSync(sharedSkillRoot, 0o750);
+  actions.push({ action: "chmod", path: rel(sharedSkillRoot), mode: "0750" });
+  ensureDir(path.join(sharedSkillRoot, "skills"), 0o755);
+  for (const skill of REQUIRED_SHARED_SKILLS) syncPackagedSkill(sharedSkillRoot, skill);
+  chmodRecursive(path.join(sharedSkillRoot, "skills"), "u+rwX,g+rX,o-rwx");
+  chownRecursive(sharedSkillRoot, "hermes-host:staff");
+
+  const repairedSkillRoots = new Set();
+  for (const item of workspaces) {
+    const skillStoreId = skillStoreIdFor(item.workspaceId);
+    const skillRoot = path.join(dataDir, "skill-profiles", skillStoreId);
+    if (repairedSkillRoots.has(skillRoot)) continue;
+    repairedSkillRoots.add(skillRoot);
+    ensureDir(skillRoot, 0o750);
+    fs.chmodSync(skillRoot, 0o750);
+    actions.push({ action: "chmod", path: rel(skillRoot), mode: "0750" });
+    ensureDir(path.join(skillRoot, "skills"), 0o700);
+    ensureDir(path.join(skillRoot, "memories"), 0o700);
+    if (skillStoreId === "owner-full") {
+      for (const skill of REQUIRED_OWNER_SKILLS) syncPackagedSkill(skillRoot, skill);
+    }
+    chmodRecursive(path.join(skillRoot, "skills"), "u+rwX,go-rwx");
+    chmodRecursive(path.join(skillRoot, "memories"), "u+rwX,go-rwx");
+    chownRecursive(skillRoot, `${item.macUser}:staff`);
+    if (skillStoreId === "owner-full") {
+      for (const skill of REQUIRED_OWNER_SKILLS) applyListenerRequiredSkillAcl(skillRoot, skill);
+    }
+  }
+}
+
 try {
   const workspaces = parseWorkspaceMap(workspaceMapCsv);
   const ownerWorkspace = workspaces.find((item) => item.workspaceId === "owner") || null;
@@ -1794,6 +1827,7 @@ try {
       if (!keyFile) issues.push({ code: "gateway_manifest_worker_missing_key_file", profile: worker.profile || worker.name || "" });
       else if (fs.existsSync(keyFile) && fs.statSync(keyFile).isFile()) fs.chmodSync(keyFile, 0o600);
     }
+    if (issues.length === 0) repairRequiredSkillStoresForWorkspaces(workspaces);
     actions.push({ action: "preserve-existing-manifest", path: rel(manifestPath), workerCount: workers.length });
   } else if (issues.length === 0) {
     const workers = [];

@@ -1293,6 +1293,16 @@ function testExecuteGatewayProfilesPreservesExistingManifest() {
   assert.equal(manifest.workers.length, 1);
   assert.equal(manifest.workers[0].profile, "existing-profile");
   assert.equal(fs.statSync(keyPath).mode & 0o777, 0o600);
+  const ownerSkillDir = path.join(root, "data", "skill-profiles", "owner-full", "skills", "productivity", "wardrobe-style-operations");
+  assert.equal(fs.existsSync(path.join(ownerSkillDir, "SKILL.md")), true);
+  assert.equal(fs.existsSync(path.join(ownerSkillDir, "references", "wardrobe-program-api.md")), true);
+  assert.equal(fs.existsSync(path.join(ownerSkillDir, "scripts", "render_wardrobe_phone_pdf.py")), true);
+  assert.equal(fs.statSync(path.join(root, "data", "skill-profiles", "owner-full", "skills")).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(path.join(ownerSkillDir, "SKILL.md")).mode & 0o777, 0o600);
+  assert.equal(fs.existsSync(path.join(root, "data", "skill-profiles", "shared-global", "skills", "shared", "response-grounding-baseline", "SKILL.md")), true);
+  assert.ok(parsed.execution.report.actions.some((item) => item.action === "sync-required-skill" && item.skill === "productivity/wardrobe-style-operations"));
+  assert.ok(parsed.execution.report.actions.some((item) => item.action === "sync-required-skill" && item.skill === "shared/response-grounding-baseline"));
+  assert.ok(parsed.execution.report.actions.some((item) => item.action === "listener-required-skill-acl" && item.acl === "listener-required-skill-read"));
   assert.equal(parsed.execution.report.actions.some((item) => item.action === "preserve-existing-manifest"), true);
 }
 
