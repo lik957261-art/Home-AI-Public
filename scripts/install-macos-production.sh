@@ -1641,12 +1641,19 @@ function workerFor(options) {
 
 function writeProfileConfig(worker) {
   const profileDir = path.dirname(worker.configPath);
+  const workerUserRoot = path.join(profileHomeRoot, worker.osUser);
   const skillStoreId = skillStoreIdFor(worker.allowedWorkspaceIds[0]);
   const skillRoot = path.join(dataDir, "skill-profiles", skillStoreId);
   const sharedSkillRoot = path.join(dataDir, "skill-profiles", "shared-global");
   ensureDir(profileDir, 0o700);
+  ensureDir(skillRoot, 0o750);
+  fs.chmodSync(skillRoot, 0o750);
+  actions.push({ action: "chmod", path: rel(skillRoot), mode: "0750" });
   ensureDir(path.join(skillRoot, "skills"), 0o700);
   ensureDir(path.join(skillRoot, "memories"), 0o700);
+  ensureDir(sharedSkillRoot, 0o750);
+  fs.chmodSync(sharedSkillRoot, 0o750);
+  actions.push({ action: "chmod", path: rel(sharedSkillRoot), mode: "0750" });
   ensureDir(path.join(sharedSkillRoot, "skills"), 0o755);
   for (const skill of REQUIRED_SHARED_SKILLS) syncPackagedSkill(sharedSkillRoot, skill);
   if (skillStoreId === "owner-full") {
@@ -1688,6 +1695,7 @@ function writeProfileConfig(worker) {
   chmodRecursive(path.join(skillRoot, "skills"), "u+rwX,g+rX,o-rwx");
   chmodRecursive(path.join(skillRoot, "memories"), "u+rwX,go-rwx");
   chmodRecursive(path.join(sharedSkillRoot, "skills"), "u+rwX,g+rX,o-rwx");
+  chownRecursive(workerUserRoot, `${worker.osUser}:staff`);
   chownRecursive(profileDir, `${worker.osUser}:staff`);
   chownRecursive(skillRoot, `${worker.osUser}:staff`);
   chownRecursive(sharedSkillRoot, "hermes-host:staff");
