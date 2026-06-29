@@ -1350,6 +1350,7 @@ const { renderGatewayConfigYaml } = require(path.join(process.argv[5], "scripts"
 const root = path.resolve(process.argv[2]);
 const workspaceMapCsv = String(process.argv[3] || "");
 const openAiWorkersPerWorkspace = Number(process.argv[4] || 2);
+const appSource = path.resolve(process.argv[5]);
 const deepSeekWorkersPerWorkspace = Number(process.argv[6] || 1);
 const ownerGrokWorkers = Number(process.argv[7] || 1);
 const ownerMaintenanceOpenAiWorkers = Number(process.argv[8] || 2);
@@ -1363,6 +1364,8 @@ const issues = [];
 const actions = [];
 const createdProfiles = [];
 const createdKeyFiles = [];
+const REQUIRED_OWNER_SKILLS = Object.freeze(["productivity/wardrobe-style-operations"]);
+const REQUIRED_SHARED_SKILLS = Object.freeze(["shared/response-grounding-baseline"]);
 
 const STANDARD_TOOLSETS = [
   "web",
@@ -1449,6 +1452,93 @@ function ensureDir(target, mode) {
   fs.mkdirSync(target, { recursive: true, mode });
   fs.chmodSync(target, mode);
   actions.push({ action: existed ? "chmod" : "mkdir", path: rel(target), mode: modeString(mode), existed });
+}
+
+function run(command, args) {
+  return require("node:child_process").spawnSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+function chownRecursive(target, owner) {
+  const isRoot = typeof process.getuid === "function" ? process.getuid() === 0 : false;
+  if (!isRoot || !fs.existsSync(target)) {
+    actions.push({ action: "chown-skipped", path: rel(target), owner, reason: isRoot ? "missing" : "non-root" });
+    return;
+  }
+  const result = run("/usr/sbin/chown", ["-R", owner, target]);
+  if (result.status !== 0) {
+    issues.push({
+      code: "gateway_profile_chown_failed",
+      path: rel(target),
+      owner,
+      detail: String(result.stderr || result.stdout || `status=${result.status}`).trim().slice(-300),
+    });
+  } else {
+    actions.push({ action: "chown", path: rel(target), owner });
+  }
+}
+
+function chmodRecursive(target, mode) {
+  if (!fs.existsSync(target)) return;
+  const result = run("/bin/chmod", ["-R", mode, target]);
+  if (result.status !== 0) {
+    issues.push({
+      code: "gateway_profile_chmod_failed",
+      path: rel(target),
+      mode,
+      detail: String(result.stderr || result.stdout || `status=${result.status}`).trim().slice(-300),
+    });
+  } else {
+    actions.push({ action: "chmod-recursive", path: rel(target), mode });
+  }
+}
+
+function copyDirectoryRecursive(source, target) {
+  if (!fs.existsSync(source) || !fs.statSync(source).isDirectory()) {
+    issues.push({ code: "gateway_profile_skill_source_missing", source: path.relative(appSource, source) || source });
+    return false;
+  }
+  fs.rmSync(target, { recursive: true, force: true });
+  fs.cpSync(source, target, { recursive: true, force: true });
+  return true;
+}
+
+function syncPackagedSkill(skillStoreRoot, relativeSkillPath) {
+  const segments = String(relativeSkillPath || "").split("/").map((item) => item.trim()).filter(Boolean);
+  if (!segments.length || segments.some((segment) => segment === "." || segment === "..")) {
+    issues.push({ code: "gateway_profile_skill_path_invalid", skill: relativeSkillPath });
+    return;
+  }
+  const source = path.join(appSource, "skills", ...segments);
+  const target = path.join(skillStoreRoot, "skills", ...segments);
+  if (copyDirectoryRecursive(source, target)) {
+    actions.push({ action: "sync-required-skill", skill: segments.join("/"), path: rel(target) });
+  }
+}
+
+function ensureProfileSoul(profileDir, worker) {
+  const soulPath = path.join(profileDir, "SOUL.md");
+  if (!fs.existsSync(soulPath)) {
+    const workspaceId = (worker.allowedWorkspaceIds || [])[0] || "owner";
+    const text = [
+      "# Home AI Gateway Profile",
+      "",
+      `Profile: ${worker.profile}`,
+      `Workspace: ${workspaceId}`,
+      `Provider: ${worker.provider}`,
+      "",
+      "This file is created by the macOS production installer so the Gateway",
+      "profile has a durable, writable Soul binding before first run.",
+      "",
+    ].join("\n");
+    fs.writeFileSync(soulPath, text, { encoding: "utf8", mode: 0o600 });
+    actions.push({ action: "create-profile-soul", profile: worker.profile, path: rel(soulPath), mode: "0600" });
+  } else {
+    actions.push({ action: "profile-soul-exists", profile: worker.profile, path: rel(soulPath) });
+  }
+  fs.chmodSync(soulPath, 0o600);
 }
 
 function readManifestIfExists() {
@@ -1553,9 +1643,15 @@ function writeProfileConfig(worker) {
   const profileDir = path.dirname(worker.configPath);
   const skillStoreId = skillStoreIdFor(worker.allowedWorkspaceIds[0]);
   const skillRoot = path.join(dataDir, "skill-profiles", skillStoreId);
+  const sharedSkillRoot = path.join(dataDir, "skill-profiles", "shared-global");
   ensureDir(profileDir, 0o700);
   ensureDir(path.join(skillRoot, "skills"), 0o700);
   ensureDir(path.join(skillRoot, "memories"), 0o700);
+  ensureDir(path.join(sharedSkillRoot, "skills"), 0o755);
+  for (const skill of REQUIRED_SHARED_SKILLS) syncPackagedSkill(sharedSkillRoot, skill);
+  if (skillStoreId === "owner-full") {
+    for (const skill of REQUIRED_OWNER_SKILLS) syncPackagedSkill(skillRoot, skill);
+  }
   ensureDir(path.dirname(worker.telemetryStateDbPath), 0o700);
   ensureKeyFile(worker.apiKeyFile);
   ensureSymlink(path.join(profileDir, "skills"), path.join(skillRoot, "skills"));
@@ -1587,6 +1683,14 @@ function writeProfileConfig(worker) {
   } else {
     actions.push({ action: "config-exists", profile: worker.profile, path: rel(worker.configPath) });
   }
+  ensureProfileSoul(profileDir, worker);
+  chmodRecursive(profileDir, "u+rwX,go-rwx");
+  chmodRecursive(path.join(skillRoot, "skills"), "u+rwX,g+rX,o-rwx");
+  chmodRecursive(path.join(skillRoot, "memories"), "u+rwX,go-rwx");
+  chmodRecursive(path.join(sharedSkillRoot, "skills"), "u+rwX,g+rX,o-rwx");
+  chownRecursive(profileDir, `${worker.osUser}:staff`);
+  chownRecursive(skillRoot, `${worker.osUser}:staff`);
+  chownRecursive(sharedSkillRoot, "hermes-host:staff");
 }
 
 try {

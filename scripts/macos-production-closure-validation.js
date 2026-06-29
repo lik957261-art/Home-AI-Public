@@ -515,7 +515,9 @@ async function runClosure(options) {
     "--required-workspace-plugins", options.requiredWorkspacePlugins,
     "--json",
   ];
-  if (options.allowProviderAuthPending) profileAuditArgs.push("--no-strict");
+  if (options.allowProviderAuthPending) {
+    profileAuditArgs.push("--expected-plugins", "", "--no-strict");
+  }
   const profileAudit = compactProfileAudit(await runNodeJson("profile-audit", options, "macos-production-profile-audit.js", profileAuditArgs), options);
   let providerAuthPending = Boolean(profileAudit.providerAuthPendingAccepted);
   let providerAuthPendingSource = providerAuthPending ? "profile_audit" : "";

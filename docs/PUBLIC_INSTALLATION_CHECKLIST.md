@@ -463,6 +463,14 @@ fresh public installs do not yet contain imported non-Owner workspace binding
 data. It still fails on malformed links, unreadable auth files, or other
 profile-audit issues. Maintainer production closure and deploy validation remain
 strict unless these explicit install-mode flags are used.
+In that same fresh-install mode, profile audit does not require workspace-private
+business plugin authorization records to exist yet. The installer writes
+`data/plugin-workspace-provisioning-plan.json` for those grants, while the
+Gateway profile filesystem must already be complete: profile `skills` and
+`memories` links are writable by the worker user, `SOUL.md` exists for every
+worker profile, `owner-full` contains
+`productivity/wardrobe-style-operations`, and `shared-global` contains
+`shared/response-grounding-baseline`.
 Before each service is loaded, the installer pre-creates its stdout/stderr log
 files and assigns them to the service user. This is required for plugins such as
 Codex Mobile that run as the interactive macOS user instead of `hermes-host`.

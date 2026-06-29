@@ -529,7 +529,13 @@ resolved stores and verify the materialized profile `SOUL.md` is readable and
 writable. `profile_skills_temp_write_failed`,
 `profile_memories_temp_write_failed`, `profile_soul_missing`,
 `profile_soul_unreadable`, or `profile_soul_unwritable` are cold-start
-blockers. On macOS it must also
+blockers. Fresh public installs must also materialize the required keyless Skill
+bundles before first run: `owner-full/skills/productivity/wardrobe-style-operations`
+must contain `SKILL.md`, `references/`, and `scripts/`, and
+`shared-global/skills/shared/response-grounding-baseline` must contain
+`SKILL.md`. Fresh-install closure may suppress pending business plugin
+authorization inventory under `--allow-provider-auth-pending`, but it must not
+suppress profile filesystem or required Skill bundle failures. On macOS it must also
 prove every enabled manifest worker's system LaunchDaemon is loaded; any
 `launchd_service_not_loaded:<profile>` issue is a cold-start blocker. It must
 also prove each enabled worker's runtime users can read the live Gateway

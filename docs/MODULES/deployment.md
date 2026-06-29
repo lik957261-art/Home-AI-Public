@@ -1505,6 +1505,17 @@ sharing semantics. CRON-facing built-in Skills are copied to
 `data/skill-profiles/shared-global/skills`. Do not copy the full source
 `skills/productivity/*` tree into every workspace profile, because plugin-owned
 or operational Skills may have narrower workspace boundaries.
+Fresh public macOS installs also materialize only the profile Skills required
+for cold-start closure: `productivity/wardrobe-style-operations` is copied into
+`data/skill-profiles/owner-full/skills`, and
+`shared/response-grounding-baseline` is copied into
+`data/skill-profiles/shared-global/skills`. The installer also creates
+per-worker `SOUL.md` files and re-applies ownership after profile config writes,
+because the profile phase runs under sudo and is the last phase that touches
+those directories before Gateway LaunchDaemons are loaded. This does not mark
+workspace-private plugin business grants active; fresh-install closure with
+`--allow-provider-auth-pending` suppresses only plugin authorization inventory
+expectations while the separate provisioning plan remains pending.
 - NAS Gateway workers must start with the Hermes Mobile runtime overlay on
   `PYTHONPATH`, ahead of the NAS Hermes Agent runtime, and set
   `HERMES_MOBILE_OFFICIAL_CLEAN_PATH` to that runtime. Otherwise profile YAML

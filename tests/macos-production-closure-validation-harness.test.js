@@ -80,6 +80,7 @@ assert.match(script, /compactAutomationCron/);
 assert.match(script, /allowProviderAuthPending/);
 assert.match(script, /--allow-provider-auth-pending/);
 assert.match(script, /codex_auth_\(json\|lock\)_missing/);
+assert.match(script, /profileAuditArgs\.push\("--expected-plugins", "", "--no-strict"\)/);
 assert.match(script, /skipped_provider_auth_pending/);
 assert.match(script, /isProviderAuthRuntimeError/);
 assert.match(script, /runtime_schema_probe/);
