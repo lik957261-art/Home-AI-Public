@@ -90,6 +90,7 @@ function testDryRunJsonPlan() {
   assert.match(smokeTests.command, /--base http:\/\/127\.0\.0\.1:8797/);
   assert.match(smokeTests.command, /--json/);
   const deps = parsed.phases.find((phase) => phase.id === "install-dependencies");
+  assert.match(deps.command, /^sudo bash /);
   assert.match(deps.command, /--phase install-dependencies/);
   assert.match(deps.command, /--npm-command/);
   const serviceUsers = parsed.phases.find((phase) => phase.id === "create-service-users");
@@ -123,6 +124,7 @@ function testDryRunJsonPlan() {
   assert.match(plugins.command, /--phase configure-plugins/);
   assert.match(plugins.command, /--plugin-source-mode plan/);
   const pluginDependencies = parsed.phases.find((phase) => phase.id === "install-plugin-dependencies");
+  assert.match(pluginDependencies.command, /^sudo bash /);
   assert.match(pluginDependencies.command, /--phase install-plugin-dependencies/);
   assert.match(pluginDependencies.command, /--npm-command/);
   const pluginProvisioning = parsed.phases.find((phase) => phase.id === "plan-plugin-workspace-provisioning");
@@ -157,13 +159,11 @@ function testGuidedDryRunJsonPlan() {
   assert.deepEqual(parsed.guidedPlan.autoPhaseIds, [
     "create-directory-layout",
     "install-hermes-mobile",
-    "install-dependencies",
     "configure-owner",
     "configure-gateway-profiles",
     "install-gateway-launchd-services",
     "configure-cron",
     "configure-plugins",
-    "install-plugin-dependencies",
     "plan-plugin-workspace-provisioning",
     "install-launchd-services",
     "print-access-info",
@@ -171,6 +171,8 @@ function testGuidedDryRunJsonPlan() {
   assert.deepEqual(parsed.guidedPlan.operatorPhaseIds, [
     "create-service-users",
     "install-official-hermes-runtime",
+    "install-dependencies",
+    "install-plugin-dependencies",
     "configure-workspace-isolation",
     "repair-gateway-worker-acl",
     "run-first-start-preflight",
@@ -187,6 +189,12 @@ function testGuidedDryRunJsonPlan() {
   assert.equal(runtimeStep.gate, "sudo");
   assert.ok(runtimeStep.commands.some((command) => command.startsWith("sudo bash ")));
   assert.ok(runtimeStep.commands.some((command) => command.includes("--install-hermes-agent-dependencies")));
+  const dependencyStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-dependencies");
+  assert.equal(dependencyStep.requiresSudo, true);
+  assert.ok(dependencyStep.commands.some((command) => command.startsWith("sudo bash ")));
+  const pluginDependencyStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-plugin-dependencies");
+  assert.equal(pluginDependencyStep.requiresSudo, true);
+  assert.ok(pluginDependencyStep.commands.some((command) => command.startsWith("sudo bash ")));
   const workspaceAclStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-workspace-isolation");
   assert.equal(workspaceAclStep.requiresSudo, true);
   assert.equal(workspaceAclStep.gate, "HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1");
@@ -258,7 +266,7 @@ exit 64
     assert.ok(fs.existsSync(path.join(root, "app", "package.json")));
     assert.equal(fs.existsSync(path.join(root, "runtime", "node-current", "bin", "node")), false);
     assert.equal(fs.existsSync(path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python")), false);
-    assert.ok(fs.existsSync(path.join(root, "app", "node_modules", "@homeai-guided")));
+    assert.equal(fs.existsSync(path.join(root, "app", "node_modules", "@homeai-guided")), false);
     assert.ok(fs.existsSync(path.join(root, "data", "gateway-pool-manifest-mac.json")));
     assert.ok(fs.existsSync(path.join(root, "data", "launchd-services-plan.json")));
     assert.doesNotMatch(JSON.stringify(parsed), /owner-key\n|secret-value/);

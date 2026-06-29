@@ -163,8 +163,8 @@ Supported execution gates:
   `config/public-plugin-sources.json`;
 - `--update-hermes-agent`: allow fast-forward of the official Hermes Agent
   runtime source;
-- `--install-dependencies`: run `npm ci --omit=dev --no-audit --no-fund` when
-  source dependency files changed;
+- `--install-dependencies`: run `npm ci --omit=dev --no-audit --no-fund`
+  through the operator sudo boundary when source dependency files changed;
 - `--install-hermes-agent-dependencies`: run through the operator sudo boundary
   `<hermes-agent-python> -m pip install <sanitized-hermes-agent-source-copy>`
   after an explicit Hermes Agent update;

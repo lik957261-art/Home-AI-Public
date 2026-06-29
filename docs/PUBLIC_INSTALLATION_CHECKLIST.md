@@ -440,25 +440,27 @@ the Python / Hermes Agent inputs are missing.
 Then install production dependencies:
 
 ```bash
-bash scripts/install-macos-production.sh --execute --phase install-dependencies --root /Users/example/path --npm-command /path/to/npm --json
+sudo bash scripts/install-macos-production.sh --execute --phase install-dependencies --root /Users/example/path --npm-command /path/to/npm --json
 ```
 
-The dependency phase requires `app/package.json` and `app/package-lock.json`,
-runs `npm ci --omit=dev --no-audit --no-fund` in `root/app`, sets
-`NODE_ENV=production`, and reports only bounded metadata plus a truncated
-failure sample. It fails closed instead of falling back to `npm install` when
-the lockfile is missing.
+The dependency phase requires an operator sudo boundary when the production app
+root is service-owned. It requires `app/package.json` and
+`app/package-lock.json`, runs `npm ci --omit=dev --no-audit --no-fund` in
+`root/app`, sets `NODE_ENV=production`, and reports only bounded metadata plus
+a truncated failure sample. It fails closed instead of falling back to
+`npm install` when the lockfile is missing.
 
 Then install plugin dependencies after plugin sources have been cloned:
 
 ```bash
-bash scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root /Users/example/path --npm-command /path/to/npm --json
+sudo bash scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root /Users/example/path --npm-command /path/to/npm --json
 ```
 
-This phase uses the production plugin root and the Hermes Agent virtualenv. It
-must pass before plugin LaunchDaemons are installed or loaded; otherwise fresh
-plugin services may start without `node_modules` or Python package
-dependencies.
+This phase requires an operator sudo boundary when the production plugin roots
+are service-owned. It uses the production plugin root and the Hermes Agent
+virtualenv. It must pass before plugin LaunchDaemons are installed or loaded;
+otherwise fresh plugin services may start without `node_modules` or Python
+package dependencies.
 
 Then run first-start preflight:
 

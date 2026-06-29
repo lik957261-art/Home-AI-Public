@@ -368,6 +368,9 @@ must be run through an operator sudo boundary on production installs:
 sudo bash ./scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root /Users/example/path --json
 ```
 
+The Home AI and plugin dependency phases also write service-owned production
+roots and must use the same operator sudo boundary.
+
 The installer should be idempotent and phase-based:
 
 ```text

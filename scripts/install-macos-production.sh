@@ -66,13 +66,11 @@ PHASES=(
 GUIDED_AUTO_PHASES=(
   "create-directory-layout"
   "install-hermes-mobile"
-  "install-dependencies"
   "configure-owner"
   "configure-gateway-profiles"
   "install-gateway-launchd-services"
   "configure-cron"
   "configure-plugins"
-  "install-plugin-dependencies"
   "plan-plugin-workspace-provisioning"
   "install-launchd-services"
   "print-access-info"
@@ -81,6 +79,8 @@ GUIDED_AUTO_PHASES=(
 GUIDED_OPERATOR_PHASES=(
   "create-service-users"
   "install-official-hermes-runtime"
+  "install-dependencies"
+  "install-plugin-dependencies"
   "configure-workspace-isolation"
   "repair-gateway-worker-acl"
   "run-first-start-preflight"
@@ -161,6 +161,10 @@ and installs Hermes Agent dependencies when HOMEAI_INSTALL_HERMES_AGENT_DEPENDEN
 Run this phase as root/sudo when the production runtime root is owned by the
 Home AI service user.
 
+The install-dependencies and install-plugin-dependencies phases write
+service-owned production dependency directories. Run them as root/sudo when the
+production app or plugin roots are owned by the Home AI service user.
+
 The install-launchd-services phase stages the canonical core and public plugin
 launchd plist files and writes a launchd service plan. By default it does not
 install files under /Library/LaunchDaemons and does not load or restart
@@ -180,7 +184,7 @@ phase_command() {
       printf 'node %s/scripts/public-install-preflight.js --repo-root %s --python-command %s --json' "$APP_SOURCE" "$APP_SOURCE" "$PYTHON_COMMAND"
       ;;
     install-dependencies)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-dependencies --root %s --npm-command %s --json' "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
+      printf 'sudo bash %s/scripts/install-macos-production.sh --execute --phase install-dependencies --root %s --npm-command %s --json' "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
       ;;
     create-service-users)
       printf 'sudo HOMEAI_INSTALL_ALLOW_USER_CREATE=1 bash %s/scripts/install-macos-production.sh --execute --phase create-service-users --root %s --service-users %s --json' "$APP_SOURCE" "$ROOT" "$SERVICE_USERS"
@@ -204,7 +208,7 @@ phase_command() {
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase configure-plugins --root %s --plugin-source-mode %s --json' "$APP_SOURCE" "$ROOT" "$PLUGIN_SOURCE_MODE"
       ;;
     install-plugin-dependencies)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root %s --npm-command %s --json' "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
+      printf 'sudo bash %s/scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root %s --npm-command %s --json' "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
       ;;
     plan-plugin-workspace-provisioning)
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase plan-plugin-workspace-provisioning --root %s --workspace-map %s --json' "$APP_SOURCE" "$ROOT" "$WORKSPACE_MAP"
@@ -327,6 +331,34 @@ const steps = [
       "Hermes Agent dependencies install report has no issues",
     ],
     riskBoundary: "Production runtime paths are service-owned; dependency refresh must run with an operator sudo boundary.",
+  },
+  {
+    id: "install-dependencies",
+    title: "Install Home AI production npm dependencies",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [
+      `sudo ${installer} --execute --phase install-dependencies --root ${root} --npm-command ${npmCommand} --json`,
+    ],
+    evidenceRequired: [
+      "Home AI npm ci report has no issues",
+      "app/node_modules exists for production runtime",
+    ],
+    riskBoundary: "The production app root is service-owned; dependency install must run through the operator sudo boundary.",
+  },
+  {
+    id: "install-plugin-dependencies",
+    title: "Install public plugin production dependencies",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [
+      `sudo ${installer} --execute --phase install-plugin-dependencies --root ${root} --npm-command ${npmCommand} --json`,
+    ],
+    evidenceRequired: [
+      "plugin dependency report has no issues",
+      "all deployable public plugin sources have runtime dependencies installed or are explicitly skipped",
+    ],
+    riskBoundary: "Plugin production roots are service-owned; dependency install must run through the operator sudo boundary.",
   },
   {
     id: "configure-workspace-isolation",
