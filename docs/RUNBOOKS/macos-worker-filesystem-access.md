@@ -55,6 +55,10 @@ Pass criteria:
 - `hm-owner` can read, write, and create/delete a smoke file under live
   `data/drive`, live `data/uploads`, and the Wardrobe delivery root
   `data/drive/插件/衣橱`.
+- For ACL-granted writable roots, real create/delete smoke is authoritative.
+  macOS `test -w` can report false when a directory is writable through ACL
+  rather than POSIX owner mode, so the harness does not fail a path solely for
+  that mismatch when write smoke is enabled.
 - `hm-wuping` can read, write, and create/delete a smoke file under live
   `data/drive/users/weixin_wuping` and live `data/uploads` when those paths
   exist.

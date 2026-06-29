@@ -261,7 +261,8 @@ function main() {
         continue;
       }
       const access = testAsUser(check.user, targetPath, writeSmoke);
-      const ok = access.commandStatus === 0 && access.exists && access.readable && access.writable && access.writeSmoke;
+      const effectiveWritable = writeSmoke ? access.writeSmoke : access.writable;
+      const ok = access.commandStatus === 0 && access.exists && access.readable && effectiveWritable;
       if (!ok) failed = true;
       results.push({
         user: check.user,
@@ -272,6 +273,7 @@ function main() {
         readable: access.readable,
         writable: access.writable,
         writeSmoke: access.writeSmoke,
+        effectiveWritable,
         stderr: access.stderr,
       });
     }

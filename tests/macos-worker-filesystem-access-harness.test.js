@@ -26,6 +26,7 @@ assert.match(harness, /expectedDenied/);
 assert.match(harness, /!access\.readable && !access\.writable/);
 assert.match(harness, /sudo/);
 assert.match(harness, /write_smoke/);
+assert.match(harness, /effectiveWritable = writeSmoke \? access\.writeSmoke : access\.writable/);
 assert.match(harness, /drive-directory-owner-write/);
 assert.match(harness, /scanDriveDirectoriesMissingOwnerWrite/);
 assert.match(harness, /owner_write_missing/);
