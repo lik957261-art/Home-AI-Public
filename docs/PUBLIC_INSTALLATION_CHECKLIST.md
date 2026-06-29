@@ -63,9 +63,10 @@ bash scripts/install-macos-production.sh --execute --guided --root /Users/exampl
 
 Guided mode executes only the non-privileged automatic phases that create the
 install directory layout, copy the fresh app source into an empty app root, pin
-the Node runtime, install production npm dependencies, create the Owner key
-file, write the Gateway manifest/profile skeleton, CRON scaffold, plugin
-source/provisioning plans, and launchd staging plans. It then reports the
+the Node/npm/npx runtime links, install production app and plugin dependencies,
+create the Owner/runtime secret files, write the Gateway manifest/profile
+skeleton, CRON scaffold, plugin source/provisioning plans, and launchd staging
+plans. It then reports the
 remaining operator phases with exact commands. It does not create macOS users,
 apply ACLs, install files under `/Library/LaunchDaemons`, copy provider
 credentials, start services, or run live smoke tests without the explicit phase
@@ -125,7 +126,10 @@ The `configure-owner` phase is executable. It creates a missing Owner Web
 Access Key file at `data/secrets/owner-web-key.secret` with `0600`
 permissions, tightens an existing key file's mode when needed, and never
 prints the key contents. It fails closed if an existing key file is empty or
-not a regular file.
+not a regular file. When the Owner key is valid, the same phase also creates
+or validates the local bridge-host secret and maintained plugin registration
+key files needed for first start. These generated runtime secrets are reported
+only as bounded path/mode/length metadata and are never printed.
 The `configure-workspace-isolation` phase is executable. It creates the
 baseline workspace data roots, upload/artifact roots, and Skill/Memory store
 roots from a bounded workspace map. By default it does not apply macOS ACLs or
@@ -148,6 +152,12 @@ empty plugin directories or workspace grants. With explicit
 `--plugin-source-mode clone` or `HOMEAI_INSTALL_PLUGIN_SOURCE_MODE=clone`, it
 clones missing plugin source checkouts from the public HTTPS GitHub URLs and
 fails closed if a target exists but is not a Git checkout.
+The `install-plugin-dependencies` phase is executable after plugin sources
+exist. It runs `npm ci --omit=dev --no-audit --no-fund` for Node plugins with a
+lockfile, `npm install --omit=dev --no-audit --no-fund` for Node plugins
+without one, and installs Python plugin `requirements.txt` files through the
+Hermes Agent virtualenv. It reports only bounded plugin/action metadata and
+fails closed on dependency install errors.
 The `configure-cron` phase is executable. It creates the official Hermes CRON
 home scaffold under `data/hermes-home`, preserves any existing
 `cron/jobs.json`, creates an empty canonical `{ "jobs": [] }` store only when
@@ -172,8 +182,9 @@ The maintained phase order is audited by
 `configure-workspace-isolation`, `configure-gateway-profiles`,
 `install-gateway-launchd-services`, `repair-gateway-worker-acl`,
 `configure-cron`, `configure-plugins`,
-`plan-plugin-workspace-provisioning`, `install-launchd-services`,
-`run-first-start-preflight`, `run-smoke-tests`, and `print-access-info`.
+`install-plugin-dependencies`, `plan-plugin-workspace-provisioning`,
+`install-launchd-services`, `run-first-start-preflight`, `run-smoke-tests`,
+and `print-access-info`.
 
 ```bash
 bash scripts/install-macos-production.sh --execute --phase create-directory-layout --root /Users/example/path --json
@@ -404,6 +415,7 @@ runtime used by Gateway/provider ingress:
 bash scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime \
   --root /Users/example/path \
   --node-command /path/to/node \
+  --npm-command /path/to/npm \
   --python-command /path/to/python3.12 \
   --hermes-agent-source /path/to/hermes-agent-source \
   --install-hermes-agent-dependencies 1 \
@@ -411,15 +423,16 @@ bash scripts/install-macos-production.sh --execute --phase install-official-herm
 ```
 
 The runtime phase requires Node.js `>=22` and Python `>=3.12`. It creates
-`runtime/node-current/bin/node` as a symlink to the requested Node executable,
-clones or reuses `runtime/hermes-agent-official/source`, accepts either a git
-checkout or a packaged Python project containing `pyproject.toml` / `setup.py`,
-creates `runtime/hermes-agent-official/venv`, and installs Hermes Agent
-dependencies with `<venv>/bin/python -m pip install -e <source>` when
-`--install-hermes-agent-dependencies 1` is set. It is idempotent when the Node
-link, Hermes Agent source, and venv already match the requested inputs, and it
-fails closed when an existing runtime link points elsewhere or the Python /
-Hermes Agent inputs are missing.
+`runtime/node-current/bin/node`, `npm`, and `npx` symlinks to the requested
+runtime executables, clones or reuses `runtime/hermes-agent-official/source`,
+accepts either a git checkout or a packaged Python project containing
+`pyproject.toml` / `setup.py`, creates
+`runtime/hermes-agent-official/venv`, and installs Hermes Agent dependencies
+with `<venv>/bin/python -m pip install -e <source>` when
+`--install-hermes-agent-dependencies 1` is set. It is idempotent when the
+Node/npm/npx links, Hermes Agent source, and venv already match the requested
+inputs, and it fails closed when an existing runtime link points elsewhere or
+the Python / Hermes Agent inputs are missing.
 
 Then install production dependencies:
 
@@ -432,6 +445,17 @@ runs `npm ci --omit=dev --no-audit --no-fund` in `root/app`, sets
 `NODE_ENV=production`, and reports only bounded metadata plus a truncated
 failure sample. It fails closed instead of falling back to `npm install` when
 the lockfile is missing.
+
+Then install plugin dependencies after plugin sources have been cloned:
+
+```bash
+bash scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root /Users/example/path --npm-command /path/to/npm --json
+```
+
+This phase uses the production plugin root and the Hermes Agent virtualenv. It
+must pass before plugin LaunchDaemons are installed or loaded; otherwise fresh
+plugin services may start without `node_modules` or Python package
+dependencies.
 
 Then run first-start preflight:
 

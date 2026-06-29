@@ -19,6 +19,7 @@ const EXPECTED_PHASES = [
   "repair-gateway-worker-acl",
   "configure-cron",
   "configure-plugins",
+  "install-plugin-dependencies",
   "plan-plugin-workspace-provisioning",
   "install-launchd-services",
   "run-first-start-preflight",
@@ -126,8 +127,8 @@ function checkTestsAndDocs(issues) {
   }
   requireEachPhaseMentioned(issues, "tests/install-macos-production.test.js");
   const installTest = read("tests/install-macos-production.test.js");
-  if (!/phaseCount,\s*18/.test(installTest)) {
-    addIssue(issues, "install_test_missing_phase_count", "tests/install-macos-production.test.js must assert phaseCount 18");
+  if (!/phaseCount,\s*19/.test(installTest)) {
+    addIssue(issues, "install_test_missing_phase_count", "tests/install-macos-production.test.js must assert phaseCount 19");
   }
   for (const relativePath of REQUIRED_TESTS) {
     if (!fs.existsSync(path.join(REPO_ROOT, relativePath))) {

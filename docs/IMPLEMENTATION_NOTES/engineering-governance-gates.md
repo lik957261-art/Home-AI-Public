@@ -142,6 +142,11 @@ profile directories without exposing raw secret values in output. The
 writes `data/plugin-source-plan.json` by default without workspace grants;
 explicit `--plugin-source-mode clone` may clone missing public HTTPS plugin
 checkouts but must fail closed on conflicting non-Git targets. The
+`install-plugin-dependencies` phase installs cloned plugin production
+dependencies before plugin LaunchDaemons are loaded: Node plugins use
+production npm installs and Python plugin `requirements.txt` files are
+installed through the official Hermes Agent virtualenv. The phase reports only
+bounded plugin/action metadata and fails closed on dependency errors. The
 `plan-plugin-workspace-provisioning` phase writes
 `data/plugin-workspace-provisioning-plan.json` from the public plugin manifest,
 workspace map, current authorization store, and existing `.hermes-<plugin>`
@@ -166,8 +171,9 @@ The audited phase list is `system-preflight`, `install-dependencies`,
 `configure-workspace-isolation`, `configure-gateway-profiles`,
 `install-gateway-launchd-services`, `repair-gateway-worker-acl`,
 `configure-cron`, `configure-plugins`,
-`plan-plugin-workspace-provisioning`, `install-launchd-services`,
-`run-first-start-preflight`, `run-smoke-tests`, and `print-access-info`.
+`install-plugin-dependencies`, `plan-plugin-workspace-provisioning`,
+`install-launchd-services`, `run-first-start-preflight`, `run-smoke-tests`,
+and `print-access-info`.
 `scripts/macos-install-phase-coverage-audit.js` verifies that this phase array,
 command generator, execution dispatcher, executable allowlist, install tests,
 and durable docs remain synchronized.

@@ -17,19 +17,28 @@ const {
 } = require("./codex-mobile-profile-runtime");
 
 const DEFAULT_LABEL = "com.hermesmobile.plugin.codex-mobile";
+
+function defaultServiceUser() {
+  for (const key of ["CODEX_MOBILE_SERVICE_USER", "SUDO_USER", "USER", "LOGNAME"]) {
+    const value = String(process.env[key] || "").trim();
+    if (value && value !== "root") return value;
+  }
+  return "xuxin";
+}
+
 const SPEC = Object.freeze({
   pluginId: "codex-mobile",
   sourceDir: "codex-mobile-web",
   label: DEFAULT_LABEL,
   defaultPort: "8787",
-  serviceUser: "xuxin",
+  serviceUser: defaultServiceUser(),
 });
 
 function parseArgs(argv) {
   const parsed = baseParseArgs(argv, {
     port: process.env.CODEX_MOBILE_PORT || "8787",
     host: process.env.CODEX_MOBILE_HOST || "127.0.0.1",
-    serviceUser: process.env.CODEX_MOBILE_SERVICE_USER || "xuxin",
+    serviceUser: defaultServiceUser(),
   });
   parsed.profileFile = argValue(argv, "--profile-file", process.env.CODEX_MOBILE_PROFILE_FILE || "");
   parsed.runtimeRoot = argValue(argv, "--runtime-root", process.env.CODEX_MOBILE_RUNTIME_DIR || "");
@@ -38,7 +47,7 @@ function parseArgs(argv) {
 }
 
 function plan(options = {}) {
-  return createPlan(Object.assign({ serviceUser: "xuxin" }, options), SPEC);
+  return createPlan(Object.assign({ serviceUser: defaultServiceUser() }, options), SPEC);
 }
 
 function plistFor(options = {}) {
@@ -99,6 +108,7 @@ if (require.main === module) {
 
 module.exports = {
   DEFAULT_LABEL,
+  defaultServiceUser,
   parseArgs,
   plan,
   plistFor,

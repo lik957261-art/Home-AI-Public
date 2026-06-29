@@ -152,6 +152,40 @@ for (const item of cases) {
 }
 
 {
+  const modulePath = require.resolve("../scripts/install-codex-mobile-launchd-service");
+  const originalEnv = {
+    CODEX_MOBILE_SERVICE_USER: process.env.CODEX_MOBILE_SERVICE_USER,
+    SUDO_USER: process.env.SUDO_USER,
+    USER: process.env.USER,
+    LOGNAME: process.env.LOGNAME,
+  };
+  try {
+    delete process.env.CODEX_MOBILE_SERVICE_USER;
+    process.env.SUDO_USER = "Stephenxu";
+    process.env.USER = "root";
+    process.env.LOGNAME = "root";
+    delete require.cache[modulePath];
+    const installer = require(modulePath);
+    assert.equal(installer.defaultServiceUser(), "Stephenxu");
+    const options = installer.parseArgs([
+      "--mac-root",
+      "/tmp/Hermes Mobile",
+      "--launch-daemons-dir",
+      "/tmp/LaunchDaemons",
+      "--json",
+    ]);
+    assert.equal(options.serviceUser, "Stephenxu");
+    assert.match(installer.plistFor(options), /<key>UserName<\/key>\s*<string>Stephenxu<\/string>/);
+  } finally {
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    delete require.cache[modulePath];
+  }
+}
+
+{
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-finance-launchd-"));
   const financeDir = path.join(root, "data", "drive", "users", "owner", ".hermes-finance");
   fs.mkdirSync(financeDir, { recursive: true });

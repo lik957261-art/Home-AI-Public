@@ -58,7 +58,7 @@ function testDryRunJsonPlan() {
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
   assert.equal(parsed.mode, "dry-run");
   assert.equal(parsed.preflightOk, true);
-  assert.equal(parsed.phaseCount, 18);
+  assert.equal(parsed.phaseCount, 19);
   assert.deepEqual(parsed.phases.map((phase) => phase.id), [
     "system-preflight",
     "install-dependencies",
@@ -73,6 +73,7 @@ function testDryRunJsonPlan() {
     "repair-gateway-worker-acl",
     "configure-cron",
     "configure-plugins",
+    "install-plugin-dependencies",
     "plan-plugin-workspace-provisioning",
     "install-launchd-services",
     "run-first-start-preflight",
@@ -121,6 +122,9 @@ function testDryRunJsonPlan() {
   const plugins = parsed.phases.find((phase) => phase.id === "configure-plugins");
   assert.match(plugins.command, /--phase configure-plugins/);
   assert.match(plugins.command, /--plugin-source-mode plan/);
+  const pluginDependencies = parsed.phases.find((phase) => phase.id === "install-plugin-dependencies");
+  assert.match(pluginDependencies.command, /--phase install-plugin-dependencies/);
+  assert.match(pluginDependencies.command, /--npm-command/);
   const pluginProvisioning = parsed.phases.find((phase) => phase.id === "plan-plugin-workspace-provisioning");
   assert.match(pluginProvisioning.command, /--phase plan-plugin-workspace-provisioning/);
   assert.match(pluginProvisioning.command, /--workspace-map/);
@@ -159,6 +163,7 @@ function testGuidedDryRunJsonPlan() {
     "install-gateway-launchd-services",
     "configure-cron",
     "configure-plugins",
+    "install-plugin-dependencies",
     "plan-plugin-workspace-provisioning",
     "install-launchd-services",
     "print-access-info",
@@ -544,8 +549,12 @@ if [ "$1" = "--version" ]; then echo "11.11.0"; exit 0; fi
 if [ "$1" = "ci" ]; then
   ${fail ? "echo 'install failed' >&2; exit 42" : "mkdir -p node_modules/prod-package; echo installed; exit 0"}
 fi
+if [ "$1" = "install" ]; then
+  ${fail ? "echo 'install failed' >&2; exit 42" : "mkdir -p node_modules/prod-package; echo installed; exit 0"}
+fi
 exit 1
 `, { mode: 0o755 });
+  fs.writeFileSync(path.join(dir, "npx"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
   return npmPath;
 }
 
@@ -687,6 +696,7 @@ function testExecuteDependencyPhaseReportsNpmFailureBoundedly() {
 function testExecuteRuntimePhaseLinksNodeIdempotently() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-runtime-"));
   const nodePath = makeFakeNode();
+  const npmPath = makeFakeNpm();
   const pythonPath = makeFakePython();
   const agentSource = makeFakeAgentSource();
   const first = JSON.parse(run([
@@ -697,6 +707,8 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
     root,
     "--node-command",
     nodePath,
+    "--npm-command",
+    npmPath,
     "--python-command",
     pythonPath,
     "--hermes-agent-source",
@@ -708,11 +720,15 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
   assert.equal(first.execution.ok, true);
   assert.equal(first.execution.report.ok, true);
   const runtimeNode = path.join(root, "runtime", "node-current", "bin", "node");
+  const runtimeNpm = path.join(root, "runtime", "node-current", "bin", "npm");
   const runtimePython = path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python");
   assert.equal(fs.lstatSync(runtimeNode).isSymbolicLink(), true);
   assert.equal(path.resolve(path.dirname(runtimeNode), fs.readlinkSync(runtimeNode)), nodePath);
+  assert.equal(fs.lstatSync(runtimeNpm).isSymbolicLink(), true);
+  assert.equal(path.resolve(path.dirname(runtimeNpm), fs.readlinkSync(runtimeNpm)), npmPath);
   assert.equal(fs.existsSync(runtimePython), true);
-  assert.ok(first.execution.report.actions.some((action) => action.action === "symlink"));
+  assert.ok(first.execution.report.actions.some((action) => action.action === "runtime-node-symlink"));
+  assert.ok(first.execution.report.actions.some((action) => action.action === "runtime-npm-symlink"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-source-exists"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-venv-create"));
   assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-dependencies-install"));
@@ -727,6 +743,8 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
     root,
     "--node-command",
     nodePath,
+    "--npm-command",
+    npmPath,
     "--python-command",
     pythonPath,
     "--hermes-agent-source",
@@ -734,7 +752,8 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
     "--json",
   ]));
   assert.equal(second.ok, true, JSON.stringify(second.issues, null, 2));
-  assert.ok(second.execution.report.actions.some((action) => action.action === "already-linked"));
+  assert.ok(second.execution.report.actions.some((action) => action.action === "runtime-node-already-linked"));
+  assert.ok(second.execution.report.actions.some((action) => action.action === "runtime-npm-already-linked"));
   assert.ok(second.execution.report.actions.some((action) => action.action === "hermes-agent-venv-exists"));
 }
 
@@ -1225,6 +1244,46 @@ function testExecuteConfigurePluginsCloneFailsOnNonGitTarget() {
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.ok, false);
   assert.ok(parsed.execution.issueCodes.includes("plugin_target_exists_not_git_checkout"));
+}
+
+function testExecutePluginDependenciesInstallsNodeAndPythonPlugins() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-plugin-deps-"));
+  const pluginRoot = path.join(root, "plugins");
+  const nodePlugin = path.join(pluginRoot, "node-plugin");
+  const npmInstallPlugin = path.join(pluginRoot, "npm-install-plugin");
+  const pyPlugin = path.join(pluginRoot, "wardrobe");
+  fs.mkdirSync(nodePlugin, { recursive: true });
+  fs.mkdirSync(npmInstallPlugin, { recursive: true });
+  fs.mkdirSync(pyPlugin, { recursive: true });
+  fs.writeFileSync(path.join(nodePlugin, "package.json"), JSON.stringify({ name: "node-plugin", version: "1.0.0" }));
+  fs.writeFileSync(path.join(nodePlugin, "package-lock.json"), JSON.stringify({ lockfileVersion: 3, packages: { "": { name: "node-plugin" } } }));
+  fs.writeFileSync(path.join(npmInstallPlugin, "package.json"), JSON.stringify({ name: "npm-install-plugin", version: "1.0.0" }));
+  fs.writeFileSync(path.join(pyPlugin, "requirements.txt"), "openpyxl==3.1.5\n");
+  const agentPython = path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python");
+  fs.mkdirSync(path.dirname(agentPython), { recursive: true });
+  fs.writeFileSync(agentPython, `#!/bin/sh
+if [ "$1" = "-m" ] && [ "$2" = "pip" ]; then echo "pip ok"; exit 0; fi
+exit 0
+`, { mode: 0o755 });
+  const parsed = JSON.parse(run([
+    "--execute",
+    "--phase",
+    "install-plugin-dependencies",
+    "--root",
+    root,
+    "--npm-command",
+    makeFakeNpm(),
+    "--json",
+  ]));
+  assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
+  assert.equal(parsed.execution.phase, "install-plugin-dependencies");
+  assert.equal(parsed.execution.ok, true);
+  assert.equal(parsed.execution.report.ok, true);
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "npm-ci" && action.plugin === "node-plugin"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "npm-install" && action.plugin === "npm-install-plugin"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "pip-install" && action.plugin === "wardrobe"));
+  const phase = parsed.phases.find((item) => item.id === "install-plugin-dependencies");
+  assert.equal(phase.status, "executed");
 }
 
 function testExecutePluginWorkspaceProvisioningPlanDoesNotCreateSecretsOrGrants() {
@@ -1916,6 +1975,7 @@ testExecuteGatewayProfilesFailsClosedForInlineApiKey();
 testExecuteConfigurePluginsWritesSourcePlanWithoutWorkspaceGrants();
 testExecuteConfigurePluginsFailsClosedForInvalidMode();
 testExecuteConfigurePluginsCloneFailsOnNonGitTarget();
+testExecutePluginDependenciesInstallsNodeAndPythonPlugins();
 testExecutePluginWorkspaceProvisioningPlanDoesNotCreateSecretsOrGrants();
 testExecutePluginWorkspaceProvisioningPlanDetectsPartialGatewayBinding();
 testExecuteConfigureCronCreatesCanonicalStoreAndHelpers();

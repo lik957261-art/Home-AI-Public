@@ -377,11 +377,12 @@ The installer should be idempotent and phase-based:
 11. repair-gateway-worker-acl
 12. configure-cron
 13. configure-plugins
-14. plan-plugin-workspace-provisioning
-15. install-launchd-services
-16. run-first-start-preflight
-17. run-smoke-tests
-18. print-access-info
+14. install-plugin-dependencies
+15. plan-plugin-workspace-provisioning
+16. install-launchd-services
+17. run-first-start-preflight
+18. run-smoke-tests
+19. print-access-info
 ```
 
 The installer may automate system-level work after administrator approval, but
@@ -394,8 +395,9 @@ dry-run, machine-readable phase plan by default. `--execute` requires either
 fresh-install phases: directory layout, source copy into an empty app root,
 runtime pinning, production dependency install, Owner key setup, Gateway
 profile skeletons, launchd staging plans, CRON scaffold, plugin source plan,
-first-run plugin provisioning plan, and access-info printing. It then reports
-the remaining operator, sudo, and live-runtime closure commands. The
+plugin dependency install, first-run plugin provisioning plan, and access-info
+printing. It then reports the remaining operator, sudo, and live-runtime
+closure commands. The
 implemented phases also cover service-user audit and optional creation,
 workspace isolation scaffold/ACL gate, Gateway launchd apply, Gateway worker
 ACL repair, plugin source clone, core/plugin launchd apply, first-start

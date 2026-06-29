@@ -14,7 +14,7 @@ const REPO_ROOT = path.resolve(__dirname, "..");
 function testReportPassesAndListsEveryPhase() {
   const report = buildReport();
   assert.equal(report.ok, true, JSON.stringify(report.issues, null, 2));
-  assert.equal(report.phaseCount, 18);
+  assert.equal(report.phaseCount, EXPECTED_PHASES.length);
   assert.deepEqual(report.phases.map((phase) => phase.id), EXPECTED_PHASES);
   assert.ok(report.checkedFiles.includes("scripts/install-macos-production.sh"));
   assert.ok(report.checkedFiles.includes("docs/PUBLIC_INSTALLATION_CHECKLIST.md"));

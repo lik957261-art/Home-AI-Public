@@ -143,8 +143,14 @@ in sync when changing this list: `system-preflight`,
 `configure-workspace-isolation`, `configure-gateway-profiles`,
 `install-gateway-launchd-services`, `repair-gateway-worker-acl`,
 `configure-cron`, `configure-plugins`,
-`plan-plugin-workspace-provisioning`, `install-launchd-services`,
-`run-first-start-preflight`, `run-smoke-tests`, and `print-access-info`.
+`install-plugin-dependencies`, `plan-plugin-workspace-provisioning`,
+`install-launchd-services`, `run-first-start-preflight`, `run-smoke-tests`,
+and `print-access-info`.
+Fresh installs must run `install-plugin-dependencies` after plugin source clone
+and before plugin LaunchDaemons are loaded. That phase installs Node plugin
+production dependencies and Python plugin requirements through the official
+Hermes Agent virtualenv; it is the supported closure path for plugin services
+on a new host.
 Normal source deploys must preserve production-owned runtime dependency
 directories. The shared script excludes `.venv/`, `node_modules/`, plugin
 `data/`, and other runtime/local state from source-to-production rsync so a

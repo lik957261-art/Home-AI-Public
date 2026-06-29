@@ -55,6 +55,7 @@ PHASES=(
   "repair-gateway-worker-acl"
   "configure-cron"
   "configure-plugins"
+  "install-plugin-dependencies"
   "plan-plugin-workspace-provisioning"
   "install-launchd-services"
   "run-first-start-preflight"
@@ -72,6 +73,7 @@ GUIDED_AUTO_PHASES=(
   "install-gateway-launchd-services"
   "configure-cron"
   "configure-plugins"
+  "install-plugin-dependencies"
   "plan-plugin-workspace-provisioning"
   "install-launchd-services"
   "print-access-info"
@@ -98,6 +100,7 @@ prints the full installation phase plan without mutating the host.
 present. Only read-only phases and idempotent low-risk phases are currently
 executable: system-preflight, install-dependencies, create-service-users,
 create-directory-layout, install-hermes-mobile, install-official-hermes-runtime,
+install-plugin-dependencies,
 run-first-start-preflight, run-smoke-tests, and print-access-info. Use the
 central deploy script for existing production updates.
 
@@ -196,6 +199,9 @@ phase_command() {
       ;;
     configure-plugins)
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase configure-plugins --root %s --plugin-source-mode %s --json' "$APP_SOURCE" "$ROOT" "$PLUGIN_SOURCE_MODE"
+      ;;
+    install-plugin-dependencies)
+      printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root %s --npm-command %s --json' "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
       ;;
     plan-plugin-workspace-provisioning)
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase plan-plugin-workspace-provisioning --root %s --workspace-map %s --json' "$APP_SOURCE" "$ROOT" "$WORKSPACE_MAP"
@@ -355,7 +361,7 @@ NODE
 
 phase_executable() {
   case "$1" in
-    system-preflight|install-dependencies|create-service-users|create-directory-layout|install-hermes-mobile|install-official-hermes-runtime|configure-owner|configure-workspace-isolation|configure-gateway-profiles|install-gateway-launchd-services|repair-gateway-worker-acl|configure-cron|configure-plugins|plan-plugin-workspace-provisioning|install-launchd-services|run-first-start-preflight|run-smoke-tests|print-access-info)
+    system-preflight|install-dependencies|create-service-users|create-directory-layout|install-hermes-mobile|install-official-hermes-runtime|configure-owner|configure-workspace-isolation|configure-gateway-profiles|install-gateway-launchd-services|repair-gateway-worker-acl|configure-cron|configure-plugins|install-plugin-dependencies|plan-plugin-workspace-provisioning|install-launchd-services|run-first-start-preflight|run-smoke-tests|print-access-info)
       return 0
       ;;
     *)
@@ -815,6 +821,12 @@ const path = require("node:path");
 const root = path.resolve(process.argv[2]);
 const requestedOwnerKeyFile = String(process.argv[3] || "").trim();
 const ownerKeyFile = path.resolve(requestedOwnerKeyFile || path.join(root, "data", "secrets", "owner-web-key.secret"));
+const bridgeHostKeyFile = path.join(root, "data", "secrets", "bridge-host.secret");
+const pluginSecretFiles = [
+  path.join(root, "data", "plugin-secrets", "growth-registration-key.txt"),
+  path.join(root, "data", "plugin-secrets", "health-registration-key.txt"),
+  path.join(root, "data", "plugin-secrets", "email-registration-key.txt"),
+];
 const issues = [];
 const actions = [];
 
@@ -825,6 +837,30 @@ function modeOctal(stat) {
 function readFirstNonEmptyLine(file) {
   const text = fs.readFileSync(file, "utf8");
   return text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "";
+}
+
+function ensureHexSecret(file, actionPrefix) {
+  const dir = path.dirname(file);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(dir, 0o700);
+  if (fs.existsSync(file)) {
+    const stat = fs.statSync(file);
+    if (!stat.isFile()) {
+      issues.push({ code: `${actionPrefix}_path_not_file`, path: path.relative(root, file) || file });
+      return;
+    }
+    const key = readFirstNonEmptyLine(file);
+    if (!key) {
+      issues.push({ code: `${actionPrefix}_file_empty`, path: path.relative(root, file) || file });
+      return;
+    }
+    if ((stat.mode & 0o077) !== 0) fs.chmodSync(file, 0o600);
+    actions.push({ action: `${actionPrefix}-exists`, path: path.relative(root, file) || file, mode: modeOctal(fs.statSync(file)), keyLength: key.length });
+    return;
+  }
+  fs.writeFileSync(file, `${crypto.randomBytes(32).toString("hex")}\n`, { mode: 0o600, flag: "wx" });
+  fs.chmodSync(file, 0o600);
+  actions.push({ action: `${actionPrefix}-create`, path: path.relative(root, file) || file, mode: "0600", keyBytes: 32 });
 }
 
 try {
@@ -868,6 +904,10 @@ try {
       mode: "0600",
       keyBytes: 32,
     });
+  }
+  if (issues.length === 0) {
+    ensureHexSecret(bridgeHostKeyFile, "bridge-host-key");
+    for (const file of pluginSecretFiles) ensureHexSecret(file, "plugin-registration-key");
   }
 } catch (err) {
   issues.push({
@@ -2485,6 +2525,122 @@ if (!report.ok) process.exitCode = 1;
 NODE
 }
 
+run_plugin_dependencies_phase() {
+  node - "$ROOT" "$NPM_COMMAND" <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+
+const root = path.resolve(process.argv[2]);
+const requestedNpm = process.argv[3] || "npm";
+const pluginRoot = path.join(root, "plugins");
+const agentPython = path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python");
+const npmCache = path.join(root, "tmp", "npm-cache");
+const issues = [];
+const actions = [];
+
+function rel(file) {
+  return path.relative(root, file) || ".";
+}
+
+function resolveCommand(command) {
+  if (command.includes("/")) return path.resolve(command);
+  const result = spawnSync("/usr/bin/env", ["bash", "-c", `command -v ${JSON.stringify(command)}`], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  return result.status === 0 ? result.stdout.trim() : "";
+}
+
+function compactOutput(result) {
+  return String(`${result.stderr || ""}\n${result.stdout || ""}`).replace(/\s+/g, " ").trim().slice(-1000);
+}
+
+function run(command, args, options = {}) {
+  return spawnSync(command, args, {
+    cwd: options.cwd || root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: {
+      ...process.env,
+      HOME: process.env.HOME || path.join(root, "tmp", "home"),
+      npm_config_cache: npmCache,
+      NODE_ENV: "production",
+      ...(options.env || {}),
+    },
+    timeout: options.timeout || 600000,
+  });
+}
+
+try {
+  if (!fs.existsSync(pluginRoot) || !fs.statSync(pluginRoot).isDirectory()) {
+    issues.push({ code: "plugin_root_missing", path: rel(pluginRoot) });
+  }
+  fs.mkdirSync(npmCache, { recursive: true, mode: 0o755 });
+  const resolvedNpm = resolveCommand(requestedNpm);
+  if (!resolvedNpm || !fs.existsSync(resolvedNpm)) {
+    issues.push({ code: "npm_command_not_found", command: requestedNpm });
+  }
+  if (issues.length === 0) {
+    for (const entry of fs.readdirSync(pluginRoot).sort()) {
+      const dir = path.join(pluginRoot, entry);
+      if (!fs.statSync(dir).isDirectory()) continue;
+      const packageJson = path.join(dir, "package.json");
+      if (fs.existsSync(packageJson)) {
+        const hasLock = fs.existsSync(path.join(dir, "package-lock.json"));
+        const args = hasLock
+          ? ["ci", "--omit=dev", "--no-audit", "--no-fund"]
+          : ["install", "--omit=dev", "--no-audit", "--no-fund"];
+        const install = run(resolvedNpm, args, { cwd: dir, timeout: 1200000 });
+        if (install.status !== 0) {
+          issues.push({ code: "plugin_npm_install_failed", plugin: entry, status: install.status, outputSample: compactOutput(install) });
+          continue;
+        }
+        actions.push({ action: hasLock ? "npm-ci" : "npm-install", plugin: entry, path: rel(dir) });
+      }
+      const requirements = path.join(dir, "requirements.txt");
+      if (fs.existsSync(requirements)) {
+        if (!fs.existsSync(agentPython)) {
+          issues.push({ code: "plugin_python_runtime_missing", plugin: entry, path: rel(agentPython) });
+          continue;
+        }
+        const pip = run(agentPython, ["-m", "pip", "install", "-r", requirements], { cwd: dir, timeout: 1200000 });
+        if (pip.status !== 0) {
+          issues.push({ code: "plugin_pip_install_failed", plugin: entry, status: pip.status, outputSample: compactOutput(pip) });
+          continue;
+        }
+        actions.push({ action: "pip-install", plugin: entry, path: rel(requirements) });
+      }
+    }
+  }
+} catch (err) {
+  issues.push({
+    code: "plugin_dependency_install_failed",
+    detail: err && err.code ? err.code : String(err && err.message ? err.message : err),
+  });
+}
+
+const report = {
+  ok: issues.length === 0,
+  schemaVersion: 1,
+  phase: "install-plugin-dependencies",
+  root,
+  pluginRoot,
+  npmCommand: requestedNpm,
+  npmCache,
+  actionCount: actions.length,
+  actions,
+  rollback: {
+    safeOnlyBeforeFirstRun: true,
+    note: "Remove plugin node_modules only before plugin services have created runtime data.",
+  },
+  issues,
+};
+process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+if (!report.ok) process.exitCode = 1;
+NODE
+}
+
 run_plugin_workspace_provisioning_plan_phase() {
   node - "$ROOT" "$APP_SOURCE" "$WORKSPACE_MAP" <<'NODE'
 const fs = require("node:fs");
@@ -3391,20 +3547,23 @@ NODE
 }
 
 run_runtime_phase() {
-  node - "$ROOT" "$NODE_COMMAND" "$PYTHON_COMMAND" "$HERMES_AGENT_SOURCE" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES" <<'NODE'
+  node - "$ROOT" "$NODE_COMMAND" "$NPM_COMMAND" "$PYTHON_COMMAND" "$HERMES_AGENT_SOURCE" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES" <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const root = path.resolve(process.argv[2]);
 const requestedNode = process.argv[3] || "node";
-const requestedPython = process.argv[4] || "python3";
-const requestedAgentSource = String(process.argv[5] || "").trim();
-const agentRepositoryUrl = String(process.argv[6] || "").trim();
-const agentRef = String(process.argv[7] || "main").trim() || "main";
-const installAgentDependencies = /^(1|true|yes|on)$/i.test(String(process.argv[8] || "0"));
+const requestedNpm = process.argv[4] || "npm";
+const requestedPython = process.argv[5] || "python3";
+const requestedAgentSource = String(process.argv[6] || "").trim();
+const agentRepositoryUrl = String(process.argv[7] || "").trim();
+const agentRef = String(process.argv[8] || "main").trim() || "main";
+const installAgentDependencies = /^(1|true|yes|on)$/i.test(String(process.argv[9] || "0"));
 const runtimeBin = path.join(root, "runtime", "node-current", "bin");
 const targetNode = path.join(runtimeBin, "node");
+const targetNpm = path.join(runtimeBin, "npm");
+const targetNpx = path.join(runtimeBin, "npx");
 const agentRoot = path.join(root, "runtime", "hermes-agent-official");
 const agentSource = requestedAgentSource ? path.resolve(requestedAgentSource) : path.join(agentRoot, "source");
 const agentVenv = path.join(agentRoot, "venv");
@@ -3452,6 +3611,32 @@ function hasPythonProjectMarker(directory) {
   return fs.existsSync(path.join(directory, "pyproject.toml")) || fs.existsSync(path.join(directory, "setup.py"));
 }
 
+function ensureSymlink(pathName, resolvedTarget, codePrefix) {
+  const actionName = codePrefix.replace(/_/g, "-");
+  if (fs.existsSync(pathName)) {
+    const stat = fs.lstatSync(pathName);
+    if (!stat.isSymbolicLink()) {
+      issues.push({ code: `${codePrefix}_target_exists_not_symlink`, path: pathName });
+      return;
+    }
+    const currentTarget = fs.readlinkSync(pathName);
+    const currentResolved = path.resolve(path.dirname(pathName), currentTarget);
+    if (currentResolved !== resolvedTarget) {
+      issues.push({
+        code: `${codePrefix}_symlink_target_mismatch`,
+        path: pathName,
+        currentTarget: currentResolved,
+        requestedTarget: resolvedTarget,
+      });
+      return;
+    }
+    actions.push({ action: `${actionName}-already-linked`, path: pathName, target: resolvedTarget });
+    return;
+  }
+  fs.symlinkSync(resolvedTarget, pathName);
+  actions.push({ action: `${actionName}-symlink`, path: pathName, target: resolvedTarget });
+}
+
 try {
   const resolvedNode = resolveCommand(requestedNode);
   if (!resolvedNode || !fs.existsSync(resolvedNode)) {
@@ -3474,29 +3659,18 @@ try {
 
     if (issues.length === 0) {
       fs.mkdirSync(runtimeBin, { recursive: true, mode: 0o755 });
-      if (fs.existsSync(targetNode)) {
-        const stat = fs.lstatSync(targetNode);
-        if (!stat.isSymbolicLink()) {
-          issues.push({ code: "runtime_node_target_exists_not_symlink", path: targetNode });
-        } else {
-          const currentTarget = fs.readlinkSync(targetNode);
-          const currentResolved = path.resolve(path.dirname(targetNode), currentTarget);
-          if (currentResolved !== resolvedNode) {
-            issues.push({
-              code: "runtime_node_symlink_target_mismatch",
-              path: targetNode,
-              currentTarget: currentResolved,
-              requestedTarget: resolvedNode,
-            });
-          } else {
-            actions.push({ action: "already-linked", path: targetNode, target: resolvedNode });
-          }
-        }
-      }
-      if (issues.length === 0 && !fs.existsSync(targetNode)) {
-        fs.symlinkSync(resolvedNode, targetNode);
-        actions.push({ action: "symlink", path: targetNode, target: resolvedNode });
-      }
+      ensureSymlink(targetNode, resolvedNode, "runtime_node");
+    }
+  }
+
+  const resolvedNpm = resolveCommand(requestedNpm);
+  if (!resolvedNpm || !fs.existsSync(resolvedNpm)) {
+    issues.push({ code: "npm_command_not_found", command: requestedNpm });
+  } else if (issues.length === 0) {
+    ensureSymlink(targetNpm, resolvedNpm, "runtime_npm");
+    const siblingNpx = path.join(path.dirname(resolvedNpm), "npx");
+    if (fs.existsSync(siblingNpx)) {
+      ensureSymlink(targetNpx, siblingNpx, "runtime_npx");
     }
   }
 
@@ -3604,6 +3778,7 @@ const report = {
   nodeCommand: requestedNode,
   pythonCommand: requestedPython,
   runtimeNode: targetNode,
+  runtimeNpm: targetNpm,
   hermesAgent: {
     source: agentSource,
     repositoryUrl: agentRepositoryUrl,
@@ -3889,6 +4064,9 @@ run_phase() {
       ;;
     configure-plugins)
       run_configure_plugins_phase
+      ;;
+    install-plugin-dependencies)
+      run_plugin_dependencies_phase
       ;;
     plan-plugin-workspace-provisioning)
       run_plugin_workspace_provisioning_plan_phase
