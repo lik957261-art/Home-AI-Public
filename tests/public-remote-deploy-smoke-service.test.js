@@ -197,6 +197,14 @@ function testSummariesAreBounded() {
   });
   assert.deepEqual(summary.missingTools, []);
   assert.equal(summary.nodeAvailable, false);
+  const installSummary = summarizeStep("macos-install-cycle-first", {
+    ok: true,
+    status: 0,
+    stdout: "installStatus=0\ninstallOk=true\nguidedExecutedCount=12\noperatorPhaseCount=5\nphaseCount=18\nissueCount=0\n",
+  });
+  assert.equal(installSummary.ok, true);
+  assert.equal(installSummary.guidedExecutedCount, 12);
+  assert.equal(installSummary.operatorPhaseCount, 5);
   const steps = buildRemoteSteps({ remoteRoot: "/tmp/homeai-public-remote-deploy-smoke-x", publicRepoUrl: "https://example.test/repo.git" });
   assert.deepEqual(steps.map((step) => step.type), [
     "remote-system-probe",

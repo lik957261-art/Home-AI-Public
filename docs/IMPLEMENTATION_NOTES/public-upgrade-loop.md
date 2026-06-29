@@ -136,6 +136,12 @@ blank machine state without leaving the operator to manually repair stale
 partial files. The cycle still remains sandboxed unless
 `--execute-production-upgrade` is also explicit.
 
+Guided install and cycle-install phases keep the full installer JSON under the
+remote temp root and return only bounded summary fields to the remote smoke
+report. This keeps large install plans from masking the real pass/fail state
+while preserving the full per-phase report for same-session diagnosis when
+`--keep-remote-temp` is used.
+
 Home AI Self-Improving Loop collects this rehearsal as the
 `public_upgrade_rehearsal` self-check signal. Production collection runs
 `homeai-public-upgrade-rehearsal.js --execute --json` by default; if the

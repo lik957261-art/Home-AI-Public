@@ -97,6 +97,21 @@ function summarizeStep(type, result = {}) {
       removed: fields.removed === "true",
     };
   }
+  if (type === "macos-guided-install-sandbox"
+    || type === "macos-install-cycle-first"
+    || type === "macos-install-cycle-second") {
+    const fields = keyValueSummary(result.stdout);
+    if (fields.installOk) {
+      return {
+        ok: result.ok === true && fields.installOk === "true" && Number(fields.installStatus || 0) === 0,
+        installStatus: Number(fields.installStatus || 0),
+        guidedExecutedCount: Number(fields.guidedExecutedCount || 0),
+        operatorPhaseCount: Number(fields.operatorPhaseCount || 0),
+        phaseCount: Number(fields.phaseCount || 0),
+        issueCount: Number(fields.issueCount || 0),
+      };
+    }
+  }
   if (!json) return { ok: result.ok === true, jsonParsed: false };
   if (type === "public-source-preflight") {
     return {
@@ -215,6 +230,37 @@ function bootstrapNodeScript(plan = {}) {
   ].join("\n");
 }
 
+function remoteInstallSummaryScript(command, outputPath) {
+  const jsonPath = clean(outputPath, 300);
+  return [
+    "set +e",
+    `${command} > ${shellQuote(jsonPath)} 2> ${shellQuote(`${jsonPath}.err`)}`,
+    "status=$?",
+    "set -e",
+    `INSTALL_STATUS="$status" INSTALL_JSON=${shellQuote(jsonPath)} node - <<'NODE'`,
+    "const fs = require('node:fs');",
+    "const status = Number(process.env.INSTALL_STATUS || 0);",
+    "let json = {};",
+    "try { json = JSON.parse(fs.readFileSync(process.env.INSTALL_JSON, 'utf8')); } catch (_) { json = {}; }",
+    "const issues = Array.isArray(json.issues) ? json.issues : [];",
+    "const guidedExecutedCount = Number(json.guidedExecutedCount || json.execution?.guidedExecutedCount || json.guidedPlan?.executedCount || 0);",
+    "const operatorPhaseCount = Array.isArray(json.guidedPlan?.operatorPhaseIds) ? json.guidedPlan.operatorPhaseIds.length : 0;",
+    "const phaseCount = Number(json.phaseCount || (Array.isArray(json.phases) ? json.phases.length : 0));",
+    "const issueCount = issues.length || Number(json.issueCount || 0);",
+    "console.log(`installStatus=${status}`);",
+    "console.log(`installOk=${json.ok === true}`);",
+    "console.log(`guidedExecutedCount=${guidedExecutedCount}`);",
+    "console.log(`operatorPhaseCount=${operatorPhaseCount}`);",
+    "console.log(`phaseCount=${phaseCount}`);",
+    "console.log(`issueCount=${issueCount}`);",
+    "NODE",
+    "if [ \"$status\" -ne 0 ]; then",
+    `  tail -n 40 ${shellQuote(`${jsonPath}.err`)} >&2 || true`,
+    "  exit \"$status\"",
+    "fi",
+  ].join("\n");
+}
+
 function buildRemoteSteps(plan = {}) {
   const appPath = `${plan.remoteRoot}/Home-AI-Public`;
   const targetRoot = `${plan.remoteRoot}/target-root`;
@@ -254,10 +300,10 @@ function buildRemoteSteps(plan = {}) {
     },
   ];
   if (plan.cycleInstall) {
-    const installScript = `${nodeEnv}\ncd ${shellQuote(appPath)} && bash scripts/install-macos-production.sh --execute --guided --root ${shellQuote(targetRoot)} --json`;
+    const installCommand = `cd ${shellQuote(appPath)} && bash scripts/install-macos-production.sh --execute --guided --root ${shellQuote(targetRoot)} --json`;
     steps.push({
       type: "macos-install-cycle-first",
-      script: installScript,
+      script: `${nodeEnv}\n${remoteInstallSummaryScript(installCommand, `${plan.remoteRoot}/install-cycle-first.json`)}`,
     });
     steps.push({
       type: "macos-install-cycle-delete",
@@ -269,12 +315,13 @@ function buildRemoteSteps(plan = {}) {
     });
     steps.push({
       type: "macos-install-cycle-second",
-      script: installScript,
+      script: `${nodeEnv}\n${remoteInstallSummaryScript(installCommand, `${plan.remoteRoot}/install-cycle-second.json`)}`,
     });
   } else if (plan.runGuidedInstall) {
+    const installCommand = `cd ${shellQuote(appPath)} && bash scripts/install-macos-production.sh --execute --guided --root ${shellQuote(targetRoot)} --json`;
     steps.push({
       type: "macos-guided-install-sandbox",
-      script: `${nodeEnv}\ncd ${shellQuote(appPath)} && bash scripts/install-macos-production.sh --execute --guided --root ${shellQuote(targetRoot)} --json`,
+      script: `${nodeEnv}\n${remoteInstallSummaryScript(installCommand, `${plan.remoteRoot}/guided-install.json`)}`,
     });
   }
   steps.push({
