@@ -595,6 +595,18 @@ roots fail closed without `--clone-missing-plugins`, and proves the explicit
 clone gate can produce clone/deploy/closure-validation plan actions. The
 rehearsal is source/plan-only and must not pass `--execute` into
 `upgrade:public`.
+New-Mac remote deployment smoke uses
+`scripts/homeai-public-remote-deploy-smoke.js`
+(`npm run remote:public-deploy-smoke`). It is plan-only by default. With
+`--execute --ssh-target <target>`, it runs only sandboxed SSH checks under a
+remote `/tmp` or `/var/tmp` root: tool probe, public repo clone, source
+preflight, macOS fresh-install rehearsal, and public upgrade rehearsal. The
+remote temp root is removed unless `--keep-remote-temp` is explicit. It does
+not install system LaunchDaemons, create service users, run production
+`upgrade:public --execute`, restart services, or copy credentials. Use
+`--run-guided-install` for a sandbox guided-install pass. Use
+`--execute-production-upgrade --production-root <root>` only after the sandbox
+smoke passes and the target operator has approved the production mutation.
 
 The public upgrade inventory includes Moira and Movie. Moira uses the public
 `https://github.com/pentiumxp/MOIRA_chinese_astrology_public.git` repository.

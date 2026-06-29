@@ -75,6 +75,7 @@ remaining gap as an explicit follow-up.
 - Public upgrade loop:
   `docs/IMPLEMENTATION_NOTES/public-upgrade-loop.md`,
   `scripts/homeai-public-release-closure.js`,
+  `scripts/homeai-public-remote-deploy-smoke.js`,
   `scripts/homeai-public-upgrade-rehearsal.js`,
   `scripts/homeai-public-upgrade.js`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`

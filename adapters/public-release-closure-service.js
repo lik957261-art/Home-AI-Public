@@ -79,6 +79,8 @@ function publicValidationCommands() {
     ["node", ["tests/homeai-public-release-closure-script.test.js"]],
     ["node", ["tests/public-upgrade-rehearsal-service.test.js"]],
     ["node", ["tests/homeai-public-upgrade-rehearsal-script.test.js"]],
+    ["node", ["tests/public-remote-deploy-smoke-service.test.js"]],
+    ["node", ["tests/homeai-public-remote-deploy-smoke-script.test.js"]],
     ["node", ["tests/public-plugin-sources.test.js"]],
     ["node", ["tests/public-upgrade-orchestrator-service.test.js"]],
     ["node", ["tests/homeai-public-upgrade-script.test.js"]],
@@ -137,12 +139,14 @@ function createPublicReleaseClosureService(options = {}) {
       packageHasReleaseScript: Boolean(pkg?.scripts?.["release:public"]),
       packageHasUpgradeScript: Boolean(pkg?.scripts?.["upgrade:public"]),
       packageHasExportScript: Boolean(pkg?.scripts?.["export:public"]),
+      packageHasRemoteDeploySmokeScript: Boolean(pkg?.scripts?.["remote:public-deploy-smoke"]),
       manifestHasMoira: plugins.some((plugin) => plugin.id === "moira" && /MOIRA_chinese_astrology_public/.test(plugin.repositoryUrl || "")),
       manifestHasMovie: plugins.some((plugin) => plugin.id === "movie" && plugin.operatorAuthenticated === true),
       upgradeDocExists: fileExists(path.join(repoRoot, "docs", "IMPLEMENTATION_NOTES", "public-upgrade-loop.md")),
       exportScriptExists: fileExists(path.join(repoRoot, "scripts", "create-public-export.js")),
       releaseScriptExists: fileExists(path.join(repoRoot, "scripts", "homeai-public-release-closure.js")),
       upgradeScriptExists: fileExists(path.join(repoRoot, "scripts", "homeai-public-upgrade.js")),
+      remoteDeploySmokeScriptExists: fileExists(path.join(repoRoot, "scripts", "homeai-public-remote-deploy-smoke.js")),
     };
   }
 

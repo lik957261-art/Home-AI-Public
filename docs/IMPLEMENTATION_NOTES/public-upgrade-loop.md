@@ -84,6 +84,29 @@ The rehearsal is source/plan-only. It does not pass `--execute` to
 not read or print provider keys, OAuth state, access keys, cookies, launch
 tokens, or plugin private payloads.
 
+When a new Mac is reachable over SSH, use the remote deployment smoke before
+attempting a mutating install or upgrade:
+
+```bash
+npm run remote:public-deploy-smoke -- --ssh-target <macbook-air-ssh-alias> --json
+npm run remote:public-deploy-smoke -- --ssh-target <macbook-air-ssh-alias> --execute --json
+```
+
+The default execute mode is still sandboxed. It creates a temporary root under
+`/tmp` or `/var/tmp` on the target Mac, clones the published public Home AI
+repository, runs source preflight, runs macOS fresh-install rehearsal, and runs
+public upgrade rehearsal. It deletes the temporary root unless
+`--keep-remote-temp` is explicit. It does not create macOS service users,
+install LaunchDaemons into `/Library/LaunchDaemons`, run `upgrade:public
+--execute`, restart services, or write provider credentials.
+
+For a first end-to-end MacBook Air validation, add `--run-guided-install` to
+also execute the installer guided automatic phases inside the same remote
+sandbox root. A real production upgrade remains a separate operator action and
+requires `--execute-production-upgrade --production-root <root>`, which should
+only be used after the sandbox smoke passes and the operator has confirmed the
+target root and credential boundary.
+
 Home AI Self-Improving Loop collects this rehearsal as the
 `public_upgrade_rehearsal` self-check signal. Production collection runs
 `homeai-public-upgrade-rehearsal.js --execute --json` by default; if the
@@ -183,6 +206,8 @@ Run after changes to the upgrade loop:
 ```bash
 node tests/public-release-closure-service.test.js
 node tests/homeai-public-release-closure-script.test.js
+node tests/public-remote-deploy-smoke-service.test.js
+node tests/homeai-public-remote-deploy-smoke-script.test.js
 node tests/public-upgrade-rehearsal-service.test.js
 node tests/homeai-public-upgrade-rehearsal-script.test.js
 node tests/public-upgrade-orchestrator-service.test.js

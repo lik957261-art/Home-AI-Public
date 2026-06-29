@@ -27,6 +27,7 @@ function setupFixture(options = {}) {
     scripts: Object.assign({
       "export:public": "node scripts/create-public-export.js",
       "upgrade:public": "node scripts/homeai-public-upgrade.js",
+      "remote:public-deploy-smoke": "node scripts/homeai-public-remote-deploy-smoke.js",
     }, options.includeReleaseScript === false ? {} : {
       "release:public": "node scripts/homeai-public-release-closure.js",
     }),
@@ -47,6 +48,7 @@ function setupFixture(options = {}) {
   });
   writeFile(path.join(repoRoot, "docs", "IMPLEMENTATION_NOTES", "public-upgrade-loop.md"), "# Public upgrade loop\n");
   writeFile(path.join(repoRoot, "scripts", "create-public-export.js"), "\n");
+  writeFile(path.join(repoRoot, "scripts", "homeai-public-remote-deploy-smoke.js"), "\n");
   if (options.includeReleaseScript !== false) {
     writeFile(path.join(repoRoot, "scripts", "homeai-public-release-closure.js"), "\n");
   }

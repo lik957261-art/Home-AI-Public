@@ -23,6 +23,7 @@
     "export:public": "node scripts/create-public-export.js",
     "release:public": "node scripts/homeai-public-release-closure.js",
     "rehearse:public-upgrade": "node scripts/homeai-public-upgrade-rehearsal.js",
+    "remote:public-deploy-smoke": "node scripts/homeai-public-remote-deploy-smoke.js",
     "productization:check": "node scripts/productization-check.js",
     "public-install:preflight": "node scripts/public-install-preflight.js",
     "upgrade:public": "node scripts/homeai-public-upgrade.js",
