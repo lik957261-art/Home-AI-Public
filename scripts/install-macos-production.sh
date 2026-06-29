@@ -3429,6 +3429,45 @@ function ensureDir(target, mode) {
   actions.push({ action: existed ? "chmod" : "mkdir", path: rel(target), mode: `0${mode.toString(8)}`, existed });
 }
 
+function repairServiceOwnedPath(target, owner, mode) {
+  if (!fs.existsSync(target)) return;
+  if (mode) fs.chmodSync(target, mode);
+  const isRoot = typeof process.getuid === "function" ? process.getuid() === 0 : false;
+  if (!isRoot) {
+    actions.push({ action: "service-owner-repair-skipped-nonroot", path: rel(target), owner });
+    return;
+  }
+  const result = spawnSync("/usr/sbin/chown", ["-R", owner, target], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    issues.push({
+      code: "service_owner_repair_failed",
+      path: rel(target),
+      owner,
+      status: result.status,
+      outputSample: `${result.stdout || ""}\n${result.stderr || ""}`.trim().slice(-500),
+    });
+    return;
+  }
+  actions.push({ action: "service-owner-repair", path: rel(target), owner, mode: mode ? `0${mode.toString(8)}` : "" });
+}
+
+function repairServiceOwnership() {
+  const owner = `${serviceUser}:staff`;
+  const paths = [
+    { path: logsRoot, mode: 0o750 },
+    { path: path.join(root, "plugins"), mode: 0o755 },
+    { path: path.join(dataDir, "secrets"), mode: 0o700 },
+    { path: path.join(dataDir, "plugin-secrets"), mode: 0o700 },
+    { path: hermesHome, mode: 0o750 },
+    { path: path.join(root, "runtime", "uploads"), mode: 0o750 },
+    { path: path.join(root, "tmp"), mode: 0o700 },
+  ];
+  for (const item of paths) repairServiceOwnedPath(item.path, owner, item.mode);
+}
+
 function envRows(env) {
   const rows = Object.entries(env || {});
   if (!rows.length) return "";
@@ -3618,6 +3657,7 @@ try {
   ensureDir(dataDir, 0o750);
   ensureDir(logsRoot, 0o755);
   ensureDir(stagingDir, 0o755);
+  repairServiceOwnership();
   const services = [
     {
       label: "com.hermesmobile.listener",
@@ -4097,6 +4137,7 @@ const specs = [
   { relativePath: "data/hermes-home", mode: 0o750 },
   { relativePath: "data/production-drift-audit", mode: 0o750 },
   { relativePath: "runtime", mode: 0o755 },
+  { relativePath: "runtime/uploads", mode: 0o750 },
   { relativePath: "plugins", mode: 0o755 },
   { relativePath: "logs", mode: 0o750 },
   { relativePath: "backups", mode: 0o750 },

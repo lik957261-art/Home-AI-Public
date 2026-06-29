@@ -595,6 +595,7 @@ function testExecuteDirectoryLayoutPhaseIsIdempotent() {
   assert.ok(first.execution.report.rollback.safeOnlyForEmptyDirectories);
   assert.ok(first.execution.report.rollback.commands.some((command) => command.includes("/data/secrets")));
   assert.equal(fs.statSync(path.join(root, "data", "secrets")).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(path.join(root, "runtime", "uploads")).mode & 0o777, 0o750);
   assert.equal(fs.statSync(path.join(root, "tmp")).mode & 0o777, 0o700);
   const phase = first.phases.find((item) => item.id === "create-directory-layout");
   assert.equal(phase.status, "executed");
@@ -2026,6 +2027,7 @@ function testExecuteLaunchdServicesCanInstallAndLoadFromCentralGate() {
   assert.equal(calls.filter((line) => line.startsWith("load -w ")).length, 15);
   assert.equal(calls.filter((line) => line.startsWith("unload -w ")).length, 15);
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "install-plist"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "service-owner-repair-skipped-nonroot" && action.path === "logs"));
   assert.ok(parsed.execution.report.rollback.commands.some((command) => command.includes("unload -w")));
 }
 

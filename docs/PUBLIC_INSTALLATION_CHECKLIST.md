@@ -435,6 +435,11 @@ cleanup, and then runs `launchctl load -w` for every staged core and public
 plugin service. It keeps the same `data/launchd-services-plan.json` as the
 audit record and marks `launchdInstalled` / `launchdLoaded` only after every
 service load succeeds.
+Before loading services, the phase repairs Home AI service-owned runtime
+ownership for paths that are created by earlier sudo phases but must be writable
+or readable by LaunchDaemons running as `hermes-host`: `logs`, plugin source
+directories, generated service secrets, Hermes Home CRON state,
+`runtime/uploads`, and `tmp`.
 
 Then install Home AI source into an empty app directory:
 
