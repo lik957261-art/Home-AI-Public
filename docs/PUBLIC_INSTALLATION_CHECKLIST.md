@@ -129,7 +129,9 @@ prints the key contents. It fails closed if an existing key file is empty or
 not a regular file. When the Owner key is valid, the same phase also creates
 or validates the local bridge-host secret and maintained plugin registration
 key files needed for first start. These generated runtime secrets are reported
-only as bounded path/mode/length metadata and are never printed.
+only as bounded path/mode/length metadata and are never printed. This phase
+writes service-owned secret paths and must run through the operator sudo
+boundary on production installs.
 The `configure-workspace-isolation` phase is executable. It creates the
 baseline workspace data roots, upload/artifact roots, and Skill/Memory store
 roots from a bounded workspace map. By default it does not apply macOS ACLs or
@@ -164,7 +166,9 @@ home scaffold under `data/hermes-home`, preserves any existing
 missing, installs dispatcher/helper scripts under `data/hermes-home/scripts`,
 copies source-controlled productivity Skills into `data/hermes-home/skills`,
 and writes `data/cron-config-plan.json`. It does not create business
-automation jobs and does not install or load `com.hermesmobile.cron`.
+automation jobs and does not install or load `com.hermesmobile.cron`. This
+phase writes service-owned CRON state and must run through the operator sudo
+boundary on production installs.
 The `create-directory-layout` phase is executable and idempotent; it creates
 only the standard app/data/runtime/plugin/log/temp directory layout and reports
 empty-directory rollback commands.
@@ -212,7 +216,8 @@ reports bounded action metadata, and never rewrites existing users.
 Then configure the Owner Web Access Key:
 
 ```bash
-bash scripts/install-macos-production.sh --execute --phase configure-owner --root /Users/example/path --json
+sudo env PATH=/Users/example/path \
+  bash scripts/install-macos-production.sh --execute --phase configure-owner --root /Users/example/path --json
 ```
 
 Use `--owner-key-file /path/to/owner-web-key.secret` or
@@ -336,7 +341,8 @@ manager / onboarding action after the plugin service is installed and healthy.
 Then write the first-run workspace plugin provisioning plan:
 
 ```bash
-bash scripts/install-macos-production.sh --execute --phase plan-plugin-workspace-provisioning --root /Users/example/path --json
+sudo env PATH=/Users/example/path \
+  bash scripts/install-macos-production.sh --execute --phase plan-plugin-workspace-provisioning --root /Users/example/path --json
 ```
 
 The phase writes `data/plugin-workspace-provisioning-plan.json` from
@@ -350,12 +356,15 @@ grants, launch tokens, or plugin-owned database rows, and it does not call
 plugin bind/register endpoints. After plugin services are installed and
 healthy, apply actual provisioning through `/api/workspace-onboarding/apply`
 or the Owner plugin manager so each plugin's own server-side bind/register
-contract runs.
+contract runs. The plan file is stored under the service-owned production data
+root, so production installs must run this phase through the operator sudo
+boundary.
 
 Then configure the official Hermes CRON scaffold:
 
 ```bash
-bash scripts/install-macos-production.sh --execute --phase configure-cron --root /Users/example/path --cron-network-mode direct --json
+sudo env PATH=/Users/example/path \
+  bash scripts/install-macos-production.sh --execute --phase configure-cron --root /Users/example/path --cron-network-mode direct --json
 ```
 
 Use `--cron-network-mode proxy` only when model-backed CRON jobs must use the
@@ -412,7 +421,8 @@ Then pin the production Node runtime and materialize the official Hermes Agent
 runtime used by Gateway/provider ingress:
 
 ```bash
-sudo bash scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime \
+sudo env PATH=/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin \
+  bash scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime \
   --root /Users/example/path \
   --node-command /path/to/node \
   --npm-command /path/to/npm \
@@ -424,6 +434,10 @@ sudo bash scripts/install-macos-production.sh --execute --phase install-official
 
 The runtime phase requires an operator sudo boundary when the production
 runtime root is service-owned. It requires Node.js `>=22` and Python `>=3.12`.
+If the requested Node/npm executables are outside `/usr/local/bin`,
+`/opt/homebrew/bin`, or the system PATH, include their bin directory in the
+`sudo env PATH=...` prefix until `runtime/node-current/bin` has been
+materialized.
 It creates
 `runtime/node-current/bin/node`, `npm`, and `npx` symlinks to the requested
 runtime executables, clones or reuses `runtime/hermes-agent-official/source`,
@@ -440,7 +454,8 @@ the Python / Hermes Agent inputs are missing.
 Then install production dependencies:
 
 ```bash
-sudo bash scripts/install-macos-production.sh --execute --phase install-dependencies --root /Users/example/path --npm-command /path/to/npm --json
+sudo env PATH=/Users/example/path \
+  bash scripts/install-macos-production.sh --execute --phase install-dependencies --root /Users/example/path --npm-command /path/to/npm --json
 ```
 
 The dependency phase requires an operator sudo boundary when the production app
@@ -453,7 +468,8 @@ a truncated failure sample. It fails closed instead of falling back to
 Then install plugin dependencies after plugin sources have been cloned:
 
 ```bash
-sudo bash scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root /Users/example/path --npm-command /path/to/npm --json
+sudo env PATH=/Users/example/path \
+  bash scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root /Users/example/path --npm-command /path/to/npm --json
 ```
 
 This phase requires an operator sudo boundary when the production plugin roots
@@ -465,7 +481,8 @@ package dependencies.
 Then run first-start preflight:
 
 ```bash
-bash scripts/install-macos-production.sh --execute --phase run-first-start-preflight --network-mode direct --json
+sudo env PATH=/Users/example/path \
+  bash scripts/install-macos-production.sh --execute --phase run-first-start-preflight --network-mode direct --json
 ```
 
 The launchd staging command is not the final privileged install. The apply
@@ -476,7 +493,8 @@ After the install phases have created runtime state, run the read-only
 first-start preflight:
 
 ```bash
-node scripts/macos-first-start-preflight.js --root /Users/example/path --network-mode direct --json
+sudo env PATH=/Users/example/path \
+  node scripts/macos-first-start-preflight.js --root /Users/example/path --network-mode direct --json
 ```
 
 Use `--network-mode proxy` instead when the target host is intentionally routed

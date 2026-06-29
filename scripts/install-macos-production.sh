@@ -66,12 +66,9 @@ PHASES=(
 GUIDED_AUTO_PHASES=(
   "create-directory-layout"
   "install-hermes-mobile"
-  "configure-owner"
   "configure-gateway-profiles"
   "install-gateway-launchd-services"
-  "configure-cron"
   "configure-plugins"
-  "plan-plugin-workspace-provisioning"
   "install-launchd-services"
   "print-access-info"
 )
@@ -80,7 +77,10 @@ GUIDED_OPERATOR_PHASES=(
   "create-service-users"
   "install-official-hermes-runtime"
   "install-dependencies"
+  "configure-owner"
   "install-plugin-dependencies"
+  "configure-cron"
+  "plan-plugin-workspace-provisioning"
   "configure-workspace-isolation"
   "repair-gateway-worker-acl"
   "run-first-start-preflight"
@@ -184,44 +184,44 @@ phase_command() {
       printf 'node %s/scripts/public-install-preflight.js --repo-root %s --python-command %s --json' "$APP_SOURCE" "$APP_SOURCE" "$PYTHON_COMMAND"
       ;;
     install-dependencies)
-      printf 'sudo bash %s/scripts/install-macos-production.sh --execute --phase install-dependencies --root %s --npm-command %s --json' "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase install-dependencies --root %s --npm-command %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
       ;;
     create-service-users)
-      printf 'sudo HOMEAI_INSTALL_ALLOW_USER_CREATE=1 bash %s/scripts/install-macos-production.sh --execute --phase create-service-users --root %s --service-users %s --json' "$APP_SOURCE" "$ROOT" "$SERVICE_USERS"
+      printf '%s HOMEAI_INSTALL_ALLOW_USER_CREATE=1 bash %s/scripts/install-macos-production.sh --execute --phase create-service-users --root %s --service-users %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$SERVICE_USERS"
       ;;
     configure-owner)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase configure-owner --root %s --owner-key-file %s --json' "$APP_SOURCE" "$ROOT" "${OWNER_KEY_FILE:-$ROOT/data/secrets/owner-web-key.secret}"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase configure-owner --root %s --owner-key-file %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "${OWNER_KEY_FILE:-$ROOT/data/secrets/owner-web-key.secret}"
       ;;
     configure-workspace-isolation)
-      printf 'sudo HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 bash %s/scripts/install-macos-production.sh --execute --phase configure-workspace-isolation --root %s --workspace-map %s --json' "$APP_SOURCE" "$ROOT" "$WORKSPACE_MAP"
+      printf '%s HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 bash %s/scripts/install-macos-production.sh --execute --phase configure-workspace-isolation --root %s --workspace-map %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$WORKSPACE_MAP"
       ;;
     configure-gateway-profiles)
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase configure-gateway-profiles --root %s --workspace-map %s --gateway-openai-workers %s --gateway-deepseek-workers %s --gateway-owner-grok-workers %s --gateway-owner-maintenance-openai-workers %s --gateway-owner-maintenance-deepseek-workers %s --json' "$APP_SOURCE" "$ROOT" "$WORKSPACE_MAP" "$GATEWAY_OPENAI_WORKERS" "$GATEWAY_DEEPSEEK_WORKERS" "$GATEWAY_OWNER_GROK_WORKERS" "$GATEWAY_OWNER_MAINTENANCE_OPENAI_WORKERS" "$GATEWAY_OWNER_MAINTENANCE_DEEPSEEK_WORKERS"
       ;;
     install-gateway-launchd-services)
-      printf 'sudo HOMEAI_INSTALL_LAUNCHD_APPLY=1 bash %s/scripts/install-macos-production.sh --execute --phase install-gateway-launchd-services --root %s --json' "$APP_SOURCE" "$ROOT"
+      printf '%s HOMEAI_INSTALL_LAUNCHD_APPLY=1 bash %s/scripts/install-macos-production.sh --execute --phase install-gateway-launchd-services --root %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT"
       ;;
     repair-gateway-worker-acl)
-      printf 'sudo HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 bash %s/scripts/install-macos-production.sh --execute --phase repair-gateway-worker-acl --root %s --json' "$APP_SOURCE" "$ROOT"
+      printf '%s HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 bash %s/scripts/install-macos-production.sh --execute --phase repair-gateway-worker-acl --root %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT"
       ;;
     configure-plugins)
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase configure-plugins --root %s --plugin-source-mode %s --json' "$APP_SOURCE" "$ROOT" "$PLUGIN_SOURCE_MODE"
       ;;
     install-plugin-dependencies)
-      printf 'sudo bash %s/scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root %s --npm-command %s --json' "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root %s --npm-command %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
       ;;
     plan-plugin-workspace-provisioning)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase plan-plugin-workspace-provisioning --root %s --workspace-map %s --json' "$APP_SOURCE" "$ROOT" "$WORKSPACE_MAP"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase plan-plugin-workspace-provisioning --root %s --workspace-map %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$WORKSPACE_MAP"
       ;;
     configure-cron)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase configure-cron --root %s --cron-network-mode %s --json' "$APP_SOURCE" "$ROOT" "$CRON_NETWORK_MODE"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase configure-cron --root %s --cron-network-mode %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$CRON_NETWORK_MODE"
       ;;
     install-launchd-services)
-      printf 'sudo HOMEAI_INSTALL_LAUNCHD_APPLY=1 bash %s/scripts/install-macos-production.sh --execute --phase install-launchd-services --root %s --json' "$APP_SOURCE" "$ROOT"
+      printf '%s HOMEAI_INSTALL_LAUNCHD_APPLY=1 bash %s/scripts/install-macos-production.sh --execute --phase install-launchd-services --root %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT"
       ;;
     run-first-start-preflight)
       local mode="${NETWORK_MODE:-<direct|proxy>}"
-      printf 'node %s/scripts/macos-first-start-preflight.js --root %s --network-mode %s --base %s --json' "$APP_SOURCE" "$ROOT" "$mode" "$BASE_URL"
+      printf '%s node %s/scripts/macos-first-start-preflight.js --root %s --network-mode %s --base %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$mode" "$BASE_URL"
       ;;
     create-directory-layout)
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase create-directory-layout --root %s --json' "$APP_SOURCE" "$ROOT"
@@ -230,7 +230,7 @@ phase_command() {
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-hermes-mobile --root %s --app-source %s --json' "$APP_SOURCE" "$ROOT" "$APP_SOURCE"
       ;;
     install-official-hermes-runtime)
-      printf 'sudo bash %s/scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root %s --node-command %s --npm-command %s --python-command %s --hermes-agent-source %s --hermes-agent-repository-url %s --hermes-agent-ref %s --install-hermes-agent-dependencies %s --json' "$APP_SOURCE" "$ROOT" "$NODE_COMMAND" "$NPM_COMMAND" "$PYTHON_COMMAND" "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root %s --node-command %s --npm-command %s --python-command %s --hermes-agent-source %s --hermes-agent-repository-url %s --hermes-agent-ref %s --install-hermes-agent-dependencies %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$NODE_COMMAND" "$NPM_COMMAND" "$PYTHON_COMMAND" "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES"
       ;;
     run-smoke-tests)
       printf 'sudo %s/runtime/node-current/bin/node %s/app/scripts/macos-production-closure-validation.js --root %s --base %s --json' "$ROOT" "$ROOT" "$ROOT" "$BASE_URL"
@@ -263,6 +263,27 @@ array_contains() {
     [[ "$item" == "$needle" ]] && return 0
   done
   return 1
+}
+
+sudo_phase_path() {
+  local phase_path="$ROOT/runtime/node-current/bin"
+  local command_path command_dir
+  for command_path in "$NODE_COMMAND" "$NPM_COMMAND"; do
+    if [[ "$command_path" == */* ]]; then
+      command_dir="${command_path%/*}"
+      if [[ -z "$command_dir" ]]; then
+        command_dir="/"
+      fi
+      if [[ -n "$command_dir" && ":$phase_path:" != *":$command_dir:"* ]]; then
+        phase_path="$command_dir:$phase_path"
+      fi
+    fi
+  done
+  printf '%s:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin' "$phase_path"
+}
+
+sudo_phase_prefix() {
+  printf 'sudo env PATH=%s' "$(sudo_phase_path)"
 }
 
 phase_guided_auto() {
@@ -300,6 +321,33 @@ const [
   installHermesAgentDependencies,
 ] = process.argv.slice(2);
 const installer = `bash ${appSource}/scripts/install-macos-production.sh`;
+function commandDir(command) {
+  const value = String(command || "").trim();
+  if (!value.includes("/")) return "";
+  const index = value.lastIndexOf("/");
+  if (index < 0) return "";
+  return index === 0 ? "/" : value.slice(0, index);
+}
+function unique(values) {
+  const seen = new Set();
+  return values.filter((value) => {
+    if (!value || seen.has(value)) return false;
+    seen.add(value);
+    return true;
+  });
+}
+const sudoPath = unique([
+  commandDir(nodeCommand),
+  commandDir(npmCommand),
+  `${root}/runtime/node-current/bin`,
+  "/usr/local/bin",
+  "/opt/homebrew/bin",
+  "/usr/bin",
+  "/bin",
+  "/usr/sbin",
+  "/sbin",
+]).join(":");
+const sudoEnv = `sudo env PATH=${sudoPath}`;
 const steps = [
   {
     id: "create-service-users",
@@ -308,7 +356,7 @@ const steps = [
     gate: "HOMEAI_INSTALL_ALLOW_USER_CREATE=1",
     commands: [
       `${installer} --execute --phase create-service-users --root ${root} --service-users ${serviceUsers} --json`,
-      `sudo HOMEAI_INSTALL_ALLOW_USER_CREATE=1 ${installer} --execute --phase create-service-users --root ${root} --service-users ${serviceUsers} --json`,
+      `${sudoEnv} HOMEAI_INSTALL_ALLOW_USER_CREATE=1 ${installer} --execute --phase create-service-users --root ${root} --service-users ${serviceUsers} --json`,
     ],
     evidenceRequired: [
       "phase JSON ok=true",
@@ -323,7 +371,7 @@ const steps = [
     requiresSudo: true,
     gate: "sudo",
     commands: [
-      `sudo ${installer} --execute --phase install-official-hermes-runtime --root ${root} --node-command ${nodeCommand} --npm-command ${npmCommand} --python-command ${pythonCommand} --hermes-agent-source ${hermesAgentSource} --hermes-agent-repository-url ${hermesAgentRepositoryUrl} --hermes-agent-ref ${hermesAgentRef} --install-hermes-agent-dependencies ${installHermesAgentDependencies} --json`,
+      `${sudoEnv} ${installer} --execute --phase install-official-hermes-runtime --root ${root} --node-command ${nodeCommand} --npm-command ${npmCommand} --python-command ${pythonCommand} --hermes-agent-source ${hermesAgentSource} --hermes-agent-repository-url ${hermesAgentRepositoryUrl} --hermes-agent-ref ${hermesAgentRef} --install-hermes-agent-dependencies ${installHermesAgentDependencies} --json`,
     ],
     evidenceRequired: [
       "runtime/node-current/bin/node, npm, and npx exist",
@@ -338,7 +386,7 @@ const steps = [
     requiresSudo: true,
     gate: "sudo",
     commands: [
-      `sudo ${installer} --execute --phase install-dependencies --root ${root} --npm-command ${npmCommand} --json`,
+      `${sudoEnv} ${installer} --execute --phase install-dependencies --root ${root} --npm-command ${npmCommand} --json`,
     ],
     evidenceRequired: [
       "Home AI npm ci report has no issues",
@@ -347,12 +395,26 @@ const steps = [
     riskBoundary: "The production app root is service-owned; dependency install must run through the operator sudo boundary.",
   },
   {
+    id: "configure-owner",
+    title: "Create or verify Owner access key",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [
+      `${sudoEnv} ${installer} --execute --phase configure-owner --root ${root} --json`,
+    ],
+    evidenceRequired: [
+      "Owner key file exists with bounded metadata only",
+      "no generated key value is printed",
+    ],
+    riskBoundary: "Owner key storage is service-owned and must not expose the raw key.",
+  },
+  {
     id: "install-plugin-dependencies",
     title: "Install public plugin production dependencies",
     requiresSudo: true,
     gate: "sudo",
     commands: [
-      `sudo ${installer} --execute --phase install-plugin-dependencies --root ${root} --npm-command ${npmCommand} --json`,
+      `${sudoEnv} ${installer} --execute --phase install-plugin-dependencies --root ${root} --npm-command ${npmCommand} --json`,
     ],
     evidenceRequired: [
       "plugin dependency report has no issues",
@@ -361,13 +423,41 @@ const steps = [
     riskBoundary: "Plugin production roots are service-owned; dependency install must run through the operator sudo boundary.",
   },
   {
+    id: "configure-cron",
+    title: "Create Home AI CRON store and helper scripts",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [
+      `${sudoEnv} ${installer} --execute --phase configure-cron --root ${root} --json`,
+    ],
+    evidenceRequired: [
+      "cron-config-plan.json exists",
+      "Hermes Home helper scripts exist under data/hermes-home/scripts",
+    ],
+    riskBoundary: "CRON runtime state is service-owned; business jobs are not created by this phase.",
+  },
+  {
+    id: "plan-plugin-workspace-provisioning",
+    title: "Write plugin workspace provisioning plan",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [
+      `${sudoEnv} ${installer} --execute --phase plan-plugin-workspace-provisioning --root ${root} --workspace-map ${workspaceMap} --json`,
+    ],
+    evidenceRequired: [
+      "plugin-workspace-provisioning-plan.json exists",
+      "plan does not create plugin keys or workspace grants",
+    ],
+    riskBoundary: "Writes a bounded plan only; actual grants still require Owner provisioning flow.",
+  },
+  {
     id: "configure-workspace-isolation",
     title: "Apply workspace ownership and ACL isolation",
     requiresSudo: true,
     gate: "HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1",
     commands: [
       `${installer} --execute --phase configure-workspace-isolation --root ${root} --workspace-map ${workspaceMap} --json`,
-      `sudo HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 ${installer} --execute --phase configure-workspace-isolation --root ${root} --workspace-map ${workspaceMap} --json`,
+      `${sudoEnv} HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 ${installer} --execute --phase configure-workspace-isolation --root ${root} --workspace-map ${workspaceMap} --json`,
     ],
     evidenceRequired: [
       "workspace data roots exist",
@@ -382,7 +472,7 @@ const steps = [
     gate: "HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1",
     commands: [
       `${installer} --execute --phase repair-gateway-worker-acl --root ${root} --json`,
-      `sudo HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 ${installer} --execute --phase repair-gateway-worker-acl --root ${root} --json`,
+      `${sudoEnv} HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 ${installer} --execute --phase repair-gateway-worker-acl --root ${root} --json`,
     ],
     evidenceRequired: [
       "data/gateway-worker-acl-plan.json reviewed",
@@ -393,10 +483,10 @@ const steps = [
   {
     id: "run-first-start-preflight",
     title: "Run first-start runtime preflight",
-    requiresSudo: false,
-    gate: "",
+    requiresSudo: true,
+    gate: "sudo",
     commands: [
-      `${installer} --execute --phase run-first-start-preflight --root ${root} --network-mode direct --base ${baseUrl} --json`,
+      `${sudoEnv} ${installer} --execute --phase run-first-start-preflight --root ${root} --network-mode direct --base ${baseUrl} --json`,
     ],
     evidenceRequired: [
       "first-start preflight ok=true for the selected network mode",
@@ -2992,6 +3082,7 @@ const actions = [];
 const helperScripts = [
   "hermes-mobile-cron-dispatcher.py",
   "homeai-disaster-backup-cron.sh",
+  "homeai-production-drift-audit-watchdog.sh",
   "homeai-visual-polish-audit-cron.sh",
   "visual-polish-audit-runner.js",
 ];

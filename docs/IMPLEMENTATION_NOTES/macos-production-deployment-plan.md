@@ -362,14 +362,23 @@ bash ./scripts/install-macos-production.sh --execute --guided --root /Users/exam
 ```
 
 The official Hermes Agent runtime phase writes service-owned runtime paths and
-must be run through an operator sudo boundary on production installs:
+must be run through an operator sudo boundary on production installs. Preserve
+the installer runtime PATH under sudo so the phase uses the pinned Node runtime
+instead of depending on the system shell environment. During bootstrap, when
+the requested Node/npm executables live in a temporary runtime directory, that
+directory must be included in the sudo PATH until `runtime/node-current/bin`
+exists:
 
 ```bash
-sudo bash ./scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root /Users/example/path --json
+sudo env PATH=/Users/example/path \
+  bash ./scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root /Users/example/path --json
 ```
 
 The Home AI and plugin dependency phases also write service-owned production
-roots and must use the same operator sudo boundary.
+roots and must use the same operator sudo boundary. The same boundary applies
+to Owner secret materialization, CRON scaffold writes, plugin provisioning plan
+writes, and first-start preflight because those phases read or write
+service-owned production state.
 
 The installer should be idempotent and phase-based:
 
@@ -401,18 +410,17 @@ guided steps:
 
 Current implementation status: `scripts/install-macos-production.sh` is a
 dry-run, machine-readable phase plan by default. `--execute` requires either
-`--phase` or `--guided`. Guided execution runs the non-privileged automatic
+`--phase` or `--guided`. Guided execution runs only the non-privileged automatic
 fresh-install phases: directory layout, source copy into an empty app root,
-runtime pinning, production dependency install, Owner key setup, Gateway
-profile skeletons, launchd staging plans, CRON scaffold, plugin source plan,
-plugin dependency install, first-run plugin provisioning plan, and access-info
-printing. It then reports the remaining operator, sudo, and live-runtime
-closure commands. The
+Gateway profile skeletons, launchd staging plans, plugin source plan, and
+access-info printing. It then reports the remaining operator, sudo, and
+live-runtime closure commands. The
 implemented phases also cover service-user audit and optional creation,
-workspace isolation scaffold/ACL gate, Gateway launchd apply, Gateway worker
-ACL repair, plugin source clone, core/plugin launchd apply, first-start
-preflight, and aggregate closure smoke. Existing production updates should
-continue to use
+runtime pinning, production dependency install, Owner key setup, workspace
+isolation scaffold/ACL gate, Gateway launchd apply, Gateway worker ACL repair,
+CRON scaffold, plugin source clone, plugin dependency install, first-run plugin
+provisioning plan, core/plugin launchd apply, first-start preflight, and
+aggregate closure smoke. Existing production updates should continue to use
 `scripts/deploy-macos-production.js`.
 The `run-first-start-preflight` phase points at
 `scripts/macos-first-start-preflight.js --root <root> --network-mode <direct|proxy> --json`.

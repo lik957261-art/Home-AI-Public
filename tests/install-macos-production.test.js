@@ -90,7 +90,7 @@ function testDryRunJsonPlan() {
   assert.match(smokeTests.command, /--base http:\/\/127\.0\.0\.1:8797/);
   assert.match(smokeTests.command, /--json/);
   const deps = parsed.phases.find((phase) => phase.id === "install-dependencies");
-  assert.match(deps.command, /^sudo bash /);
+  assert.match(deps.command, /^sudo env /);
   assert.match(deps.command, /--phase install-dependencies/);
   assert.match(deps.command, /--npm-command/);
   const serviceUsers = parsed.phases.find((phase) => phase.id === "create-service-users");
@@ -98,6 +98,7 @@ function testDryRunJsonPlan() {
   assert.match(serviceUsers.command, /--service-users/);
   assert.match(serviceUsers.command, /HOMEAI_INSTALL_ALLOW_USER_CREATE=1/);
   const owner = parsed.phases.find((phase) => phase.id === "configure-owner");
+  assert.match(owner.command, /^sudo env /);
   assert.match(owner.command, /--phase configure-owner/);
   assert.match(owner.command, /--owner-key-file/);
   const isolation = parsed.phases.find((phase) => phase.id === "configure-workspace-isolation");
@@ -118,16 +119,18 @@ function testDryRunJsonPlan() {
   assert.match(gatewayAcl.command, /--phase repair-gateway-worker-acl/);
   assert.match(gatewayAcl.command, /HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1/);
   const cron = parsed.phases.find((phase) => phase.id === "configure-cron");
+  assert.match(cron.command, /^sudo env /);
   assert.match(cron.command, /--phase configure-cron/);
   assert.match(cron.command, /--cron-network-mode direct/);
   const plugins = parsed.phases.find((phase) => phase.id === "configure-plugins");
   assert.match(plugins.command, /--phase configure-plugins/);
   assert.match(plugins.command, /--plugin-source-mode plan/);
   const pluginDependencies = parsed.phases.find((phase) => phase.id === "install-plugin-dependencies");
-  assert.match(pluginDependencies.command, /^sudo bash /);
+  assert.match(pluginDependencies.command, /^sudo env /);
   assert.match(pluginDependencies.command, /--phase install-plugin-dependencies/);
   assert.match(pluginDependencies.command, /--npm-command/);
   const pluginProvisioning = parsed.phases.find((phase) => phase.id === "plan-plugin-workspace-provisioning");
+  assert.match(pluginProvisioning.command, /^sudo env /);
   assert.match(pluginProvisioning.command, /--phase plan-plugin-workspace-provisioning/);
   assert.match(pluginProvisioning.command, /--workspace-map/);
   const launchd = parsed.phases.find((phase) => phase.id === "install-launchd-services");
@@ -139,7 +142,7 @@ function testDryRunJsonPlan() {
   assert.match(installApp.command, /--phase install-hermes-mobile/);
   assert.match(installApp.command, /--app-source/);
   const runtime = parsed.phases.find((phase) => phase.id === "install-official-hermes-runtime");
-  assert.match(runtime.command, /^sudo bash /);
+  assert.match(runtime.command, /^sudo env /);
   assert.match(runtime.command, /--phase install-official-hermes-runtime/);
   assert.match(runtime.command, /--node-command/);
   assert.match(runtime.command, /--python-command/);
@@ -148,6 +151,48 @@ function testDryRunJsonPlan() {
   const accessInfo = parsed.phases.find((phase) => phase.id === "print-access-info");
   assert.match(accessInfo.command, /--phase print-access-info/);
   assert.match(accessInfo.command, /--base http:\/\/127\.0\.0\.1:8797/);
+}
+
+function testDryRunSudoCommandsPreserveRequestedRuntimePath() {
+  const nodeCommand = "/tmp/homeai-runtime/bin/node";
+  const npmCommand = "/tmp/homeai-runtime/bin/npm";
+  const output = run([
+    "--json",
+    "--node-command",
+    nodeCommand,
+    "--npm-command",
+    npmCommand,
+  ]);
+  const parsed = JSON.parse(output);
+  const expectedPath = "PATH=/tmp/homeai-runtime/bin:/Users/example/path";
+  for (const phaseId of [
+    "install-official-hermes-runtime",
+    "install-dependencies",
+    "configure-owner",
+    "configure-cron",
+    "install-plugin-dependencies",
+    "plan-plugin-workspace-provisioning",
+    "run-first-start-preflight",
+  ]) {
+    const phase = parsed.phases.find((item) => item.id === phaseId);
+    assert.ok(phase, phaseId);
+    assert.match(phase.command, /^sudo env /);
+    assert.match(phase.command, new RegExp(escapeRegex(expectedPath)));
+  }
+
+  const guided = JSON.parse(run([
+    "--json",
+    "--guided",
+    "--node-command",
+    nodeCommand,
+    "--npm-command",
+    npmCommand,
+  ]));
+  for (const step of guided.guidedPlan.operatorSteps) {
+    for (const command of step.commands.filter((item) => item.startsWith("sudo env "))) {
+      assert.match(command, new RegExp(escapeRegex(expectedPath)), `${step.id}: ${command}`);
+    }
+  }
 }
 
 function testGuidedDryRunJsonPlan() {
@@ -159,12 +204,9 @@ function testGuidedDryRunJsonPlan() {
   assert.deepEqual(parsed.guidedPlan.autoPhaseIds, [
     "create-directory-layout",
     "install-hermes-mobile",
-    "configure-owner",
     "configure-gateway-profiles",
     "install-gateway-launchd-services",
-    "configure-cron",
     "configure-plugins",
-    "plan-plugin-workspace-provisioning",
     "install-launchd-services",
     "print-access-info",
   ]);
@@ -172,7 +214,10 @@ function testGuidedDryRunJsonPlan() {
     "create-service-users",
     "install-official-hermes-runtime",
     "install-dependencies",
+    "configure-owner",
     "install-plugin-dependencies",
+    "configure-cron",
+    "plan-plugin-workspace-provisioning",
     "configure-workspace-isolation",
     "repair-gateway-worker-acl",
     "run-first-start-preflight",
@@ -182,30 +227,40 @@ function testGuidedDryRunJsonPlan() {
   const serviceUsersStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "create-service-users");
   assert.equal(serviceUsersStep.requiresSudo, true);
   assert.equal(serviceUsersStep.gate, "HOMEAI_INSTALL_ALLOW_USER_CREATE=1");
-  assert.ok(serviceUsersStep.commands.some((command) => command.startsWith("sudo HOMEAI_INSTALL_ALLOW_USER_CREATE=1")));
+  assert.ok(serviceUsersStep.commands.some((command) => command.startsWith("sudo env ")));
   assert.ok(serviceUsersStep.evidenceRequired.includes("all required macOS service users exist"));
   const runtimeStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-official-hermes-runtime");
   assert.equal(runtimeStep.requiresSudo, true);
   assert.equal(runtimeStep.gate, "sudo");
-  assert.ok(runtimeStep.commands.some((command) => command.startsWith("sudo bash ")));
+  assert.ok(runtimeStep.commands.some((command) => command.startsWith("sudo env ")));
   assert.ok(runtimeStep.commands.some((command) => command.includes("--install-hermes-agent-dependencies")));
   const dependencyStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-dependencies");
   assert.equal(dependencyStep.requiresSudo, true);
-  assert.ok(dependencyStep.commands.some((command) => command.startsWith("sudo bash ")));
+  assert.ok(dependencyStep.commands.some((command) => command.startsWith("sudo env ")));
+  const ownerStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-owner");
+  assert.equal(ownerStep.requiresSudo, true);
+  assert.ok(ownerStep.commands.some((command) => command.startsWith("sudo env ")));
   const pluginDependencyStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-plugin-dependencies");
   assert.equal(pluginDependencyStep.requiresSudo, true);
-  assert.ok(pluginDependencyStep.commands.some((command) => command.startsWith("sudo bash ")));
+  assert.ok(pluginDependencyStep.commands.some((command) => command.startsWith("sudo env ")));
+  const cronStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-cron");
+  assert.equal(cronStep.requiresSudo, true);
+  assert.ok(cronStep.commands.some((command) => command.startsWith("sudo env ")));
+  const pluginProvisioningStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "plan-plugin-workspace-provisioning");
+  assert.equal(pluginProvisioningStep.requiresSudo, true);
+  assert.ok(pluginProvisioningStep.commands.some((command) => command.startsWith("sudo env ")));
   const workspaceAclStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-workspace-isolation");
   assert.equal(workspaceAclStep.requiresSudo, true);
   assert.equal(workspaceAclStep.gate, "HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1");
   assert.ok(workspaceAclStep.commands.some((command) => command.includes("--workspace-map")));
   const firstStartStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "run-first-start-preflight");
-  assert.equal(firstStartStep.requiresSudo, false);
+  assert.equal(firstStartStep.requiresSudo, true);
+  assert.ok(firstStartStep.commands.some((command) => command.startsWith("sudo env ")));
   assert.ok(firstStartStep.commands.some((command) => command.includes("--network-mode direct")));
   assert.equal(parsed.guidedPlan.executedCount, 0);
   assert.equal(parsed.guidedPlan.failedPhase, "");
   assert.deepEqual(parsed.guidedPlan.reports, []);
-  assert.equal(parsed.phases.find((phase) => phase.id === "configure-owner").status, "guided-auto");
+  assert.equal(parsed.phases.find((phase) => phase.id === "configure-owner").status, "operator-required");
   assert.equal(parsed.phases.find((phase) => phase.id === "create-service-users").status, "operator-required");
 }
 
@@ -262,7 +317,7 @@ exit 64
       parsed.phases.filter((phase) => phase.status === "operator-required").map((phase) => phase.id).sort(),
       [...parsed.guidedPlan.operatorPhaseIds].sort(),
     );
-    assert.ok(fs.existsSync(path.join(root, "data", "secrets", "owner-web-key.secret")));
+    assert.equal(fs.existsSync(path.join(root, "data", "secrets", "owner-web-key.secret")), false);
     assert.ok(fs.existsSync(path.join(root, "app", "package.json")));
     assert.equal(fs.existsSync(path.join(root, "runtime", "node-current", "bin", "node")), false);
     assert.equal(fs.existsSync(path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python")), false);
@@ -1407,6 +1462,8 @@ function testExecuteConfigureCronCreatesCanonicalStoreAndHelpers() {
   assert.deepEqual(JSON.parse(fs.readFileSync(jobsPath, "utf8")), { jobs: [] });
   assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "scripts", "hermes-mobile-cron-dispatcher.py")), true);
   assert.equal(fs.statSync(path.join(root, "data", "hermes-home", "scripts", "hermes-mobile-cron-dispatcher.py")).mode & 0o777, 0o755);
+  assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "scripts", "homeai-production-drift-audit-watchdog.sh")), true);
+  assert.equal(fs.statSync(path.join(root, "data", "hermes-home", "scripts", "homeai-production-drift-audit-watchdog.sh")).mode & 0o777, 0o755);
   assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "skills", "productivity", "home-ai-todo-intake", "SKILL.md")), true);
   const plan = JSON.parse(fs.readFileSync(path.join(root, "data", "cron-config-plan.json"), "utf8"));
   assert.equal(plan.businessJobsCreated, false);
@@ -1967,6 +2024,7 @@ function testHelpDocumentsDryRunDefault() {
 
 testScriptExistsAndIsSafeByDefault();
 testDryRunJsonPlan();
+testDryRunSudoCommandsPreserveRequestedRuntimePath();
 testGuidedDryRunJsonPlan();
 testGuidedExecuteRunsAutomaticPhasesOnly();
 testExecuteFailsClosed();
