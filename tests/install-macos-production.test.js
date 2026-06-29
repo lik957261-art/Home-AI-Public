@@ -166,13 +166,21 @@ function testDryRunSudoCommandsPreserveRequestedRuntimePath() {
   const parsed = JSON.parse(output);
   const expectedPath = "PATH=/tmp/homeai-runtime/bin:/Users/example/path";
   for (const phaseId of [
+    "create-directory-layout",
+    "install-hermes-mobile",
     "install-official-hermes-runtime",
     "install-dependencies",
     "configure-owner",
+    "configure-gateway-profiles",
+    "install-gateway-launchd-services",
     "configure-cron",
+    "configure-plugins",
     "install-plugin-dependencies",
     "plan-plugin-workspace-provisioning",
+    "install-launchd-services",
     "run-first-start-preflight",
+    "run-smoke-tests",
+    "print-access-info",
   ]) {
     const phase = parsed.phases.find((item) => item.id === phaseId);
     assert.ok(phase, phaseId);
@@ -201,27 +209,26 @@ function testGuidedDryRunJsonPlan() {
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
   assert.equal(parsed.mode, "dry-run");
   assert.equal(parsed.guided, true);
-  assert.deepEqual(parsed.guidedPlan.autoPhaseIds, [
-    "create-directory-layout",
-    "install-hermes-mobile",
-    "configure-gateway-profiles",
-    "install-gateway-launchd-services",
-    "configure-plugins",
-    "install-launchd-services",
-    "print-access-info",
-  ]);
+  assert.deepEqual(parsed.guidedPlan.autoPhaseIds, []);
   assert.deepEqual(parsed.guidedPlan.operatorPhaseIds, [
     "create-service-users",
+    "create-directory-layout",
+    "install-hermes-mobile",
     "install-official-hermes-runtime",
     "install-dependencies",
     "configure-owner",
-    "install-plugin-dependencies",
-    "configure-cron",
-    "plan-plugin-workspace-provisioning",
     "configure-workspace-isolation",
+    "configure-gateway-profiles",
+    "install-gateway-launchd-services",
     "repair-gateway-worker-acl",
+    "configure-cron",
+    "configure-plugins",
+    "install-plugin-dependencies",
+    "plan-plugin-workspace-provisioning",
+    "install-launchd-services",
     "run-first-start-preflight",
     "run-smoke-tests",
+    "print-access-info",
   ]);
   assert.deepEqual(parsed.guidedPlan.operatorSteps.map((step) => step.id), parsed.guidedPlan.operatorPhaseIds);
   const serviceUsersStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "create-service-users");
@@ -237,26 +244,50 @@ function testGuidedDryRunJsonPlan() {
   const dependencyStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-dependencies");
   assert.equal(dependencyStep.requiresSudo, true);
   assert.ok(dependencyStep.commands.some((command) => command.startsWith("sudo env ")));
+  const directoryStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "create-directory-layout");
+  assert.equal(directoryStep.requiresSudo, true);
+  assert.ok(directoryStep.commands.some((command) => command.startsWith("sudo env ")));
+  const installAppStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-hermes-mobile");
+  assert.equal(installAppStep.requiresSudo, true);
+  assert.ok(installAppStep.commands.some((command) => command.startsWith("sudo env ")));
   const ownerStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-owner");
   assert.equal(ownerStep.requiresSudo, true);
   assert.ok(ownerStep.commands.some((command) => command.startsWith("sudo env ")));
-  const pluginDependencyStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-plugin-dependencies");
-  assert.equal(pluginDependencyStep.requiresSudo, true);
-  assert.ok(pluginDependencyStep.commands.some((command) => command.startsWith("sudo env ")));
-  const cronStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-cron");
-  assert.equal(cronStep.requiresSudo, true);
-  assert.ok(cronStep.commands.some((command) => command.startsWith("sudo env ")));
-  const pluginProvisioningStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "plan-plugin-workspace-provisioning");
-  assert.equal(pluginProvisioningStep.requiresSudo, true);
-  assert.ok(pluginProvisioningStep.commands.some((command) => command.startsWith("sudo env ")));
   const workspaceAclStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-workspace-isolation");
   assert.equal(workspaceAclStep.requiresSudo, true);
   assert.equal(workspaceAclStep.gate, "HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1");
   assert.ok(workspaceAclStep.commands.some((command) => command.includes("--workspace-map")));
+  const gatewayProfilesStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-gateway-profiles");
+  assert.equal(gatewayProfilesStep.requiresSudo, true);
+  assert.ok(gatewayProfilesStep.commands.some((command) => command.startsWith("sudo env ")));
+  const gatewayLaunchdStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-gateway-launchd-services");
+  assert.equal(gatewayLaunchdStep.requiresSudo, true);
+  assert.equal(gatewayLaunchdStep.gate, "HOMEAI_INSTALL_LAUNCHD_APPLY=1");
+  const cronStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-cron");
+  assert.equal(cronStep.requiresSudo, true);
+  assert.ok(cronStep.commands.some((command) => command.startsWith("sudo env ")));
+  const configurePluginsStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "configure-plugins");
+  assert.equal(configurePluginsStep.requiresSudo, true);
+  assert.ok(configurePluginsStep.commands.some((command) => command.startsWith("sudo env ")));
+  const pluginDependencyStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-plugin-dependencies");
+  assert.equal(pluginDependencyStep.requiresSudo, true);
+  assert.ok(pluginDependencyStep.commands.some((command) => command.startsWith("sudo env ")));
+  const pluginProvisioningStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "plan-plugin-workspace-provisioning");
+  assert.equal(pluginProvisioningStep.requiresSudo, true);
+  assert.ok(pluginProvisioningStep.commands.some((command) => command.startsWith("sudo env ")));
+  const launchdStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-launchd-services");
+  assert.equal(launchdStep.requiresSudo, true);
+  assert.equal(launchdStep.gate, "HOMEAI_INSTALL_LAUNCHD_APPLY=1");
   const firstStartStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "run-first-start-preflight");
   assert.equal(firstStartStep.requiresSudo, true);
   assert.ok(firstStartStep.commands.some((command) => command.startsWith("sudo env ")));
   assert.ok(firstStartStep.commands.some((command) => command.includes("--network-mode direct")));
+  const smokeStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "run-smoke-tests");
+  assert.equal(smokeStep.requiresSudo, true);
+  assert.ok(smokeStep.commands.some((command) => command.startsWith("sudo env ")));
+  const accessInfoStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "print-access-info");
+  assert.equal(accessInfoStep.requiresSudo, true);
+  assert.ok(accessInfoStep.commands.some((command) => command.startsWith("sudo env ")));
   assert.equal(parsed.guidedPlan.executedCount, 0);
   assert.equal(parsed.guidedPlan.failedPhase, "");
   assert.deepEqual(parsed.guidedPlan.reports, []);
@@ -304,27 +335,53 @@ exit 64
     assert.equal(parsed.guided, true);
     assert.equal(parsed.execution.phase, "guided");
     assert.equal(parsed.execution.ok, true);
-    assert.equal(parsed.guidedPlan.executedCount, parsed.guidedPlan.autoPhaseIds.length);
+    assert.equal(parsed.guidedPlan.executedCount, 0);
+    assert.deepEqual(parsed.guidedPlan.autoPhaseIds, []);
     assert.deepEqual(parsed.guidedPlan.operatorSteps.map((step) => step.id), parsed.guidedPlan.operatorPhaseIds);
     assert.equal(parsed.guidedPlan.failedPhase, "");
-    assert.equal(parsed.guidedPlan.reports.length, parsed.guidedPlan.autoPhaseIds.length);
-    assert.deepEqual(parsed.guidedPlan.reports.map((report) => report.phase), parsed.guidedPlan.autoPhaseIds);
+    assert.equal(parsed.guidedPlan.reports.length, 0);
     assert.deepEqual(
       parsed.phases.filter((phase) => phase.status === "executed").map((phase) => phase.id).sort(),
-      [...parsed.guidedPlan.autoPhaseIds].sort(),
+      [],
     );
     assert.deepEqual(
       parsed.phases.filter((phase) => phase.status === "operator-required").map((phase) => phase.id).sort(),
       [...parsed.guidedPlan.operatorPhaseIds].sort(),
     );
     assert.equal(fs.existsSync(path.join(root, "data", "secrets", "owner-web-key.secret")), false);
-    assert.ok(fs.existsSync(path.join(root, "app", "package.json")));
+    assert.equal(fs.existsSync(path.join(root, "app", "package.json")), false);
     assert.equal(fs.existsSync(path.join(root, "runtime", "node-current", "bin", "node")), false);
     assert.equal(fs.existsSync(path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python")), false);
     assert.equal(fs.existsSync(path.join(root, "app", "node_modules", "@homeai-guided")), false);
-    assert.ok(fs.existsSync(path.join(root, "data", "gateway-pool-manifest-mac.json")));
-    assert.ok(fs.existsSync(path.join(root, "data", "launchd-services-plan.json")));
+    assert.equal(fs.existsSync(path.join(root, "data", "gateway-pool-manifest-mac.json")), false);
+    assert.equal(fs.existsSync(path.join(root, "data", "launchd-services-plan.json")), false);
     assert.doesNotMatch(JSON.stringify(parsed), /owner-key\n|secret-value/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function testGuidedOperatorExecutionRequiresRoot() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-guided-root-"));
+  try {
+    const result = spawnSync("bash", [
+      SCRIPT,
+      "--execute",
+      "--guided",
+      "--root",
+      root,
+      "--json",
+    ], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      env: { ...process.env, HOMEAI_INSTALL_RUN_OPERATOR_PHASES: "1" },
+    });
+    assert.notEqual(result.status, 0);
+    const parsed = JSON.parse(result.stdout);
+    assert.equal(parsed.ok, false);
+    assert.equal(parsed.guidedPlan.failedPhase, "operator-gate");
+    assert.ok(parsed.issues.some((issue) => issue.code === "guided_operator_phases_require_root"));
+    assert.equal(fs.existsSync(path.join(root, "app", "package.json")), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -2027,6 +2084,7 @@ testDryRunJsonPlan();
 testDryRunSudoCommandsPreserveRequestedRuntimePath();
 testGuidedDryRunJsonPlan();
 testGuidedExecuteRunsAutomaticPhasesOnly();
+testGuidedOperatorExecutionRequiresRoot();
 testExecuteFailsClosed();
 testExecuteServiceUserPhasePassesWithExistingUsers();
 testExecuteServiceUserPhaseFailsClosedForMissingUsers();

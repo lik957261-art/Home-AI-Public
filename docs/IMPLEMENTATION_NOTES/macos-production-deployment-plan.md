@@ -410,11 +410,11 @@ guided steps:
 
 Current implementation status: `scripts/install-macos-production.sh` is a
 dry-run, machine-readable phase plan by default. `--execute` requires either
-`--phase` or `--guided`. Guided execution runs only the non-privileged automatic
-fresh-install phases: directory layout, source copy into an empty app root,
-Gateway profile skeletons, launchd staging plans, plugin source plan, and
-access-info printing. It then reports the remaining operator, sudo, and
-live-runtime closure commands. The
+`--phase` or `--guided`. Guided execution reports the ordered operator closure
+plan by default and performs no production write unless
+`HOMEAI_INSTALL_RUN_OPERATOR_PHASES=1` is set and the process is already running
+as root through the operator sudo boundary. With that explicit gate, guided
+execution runs the full fresh-install sequence in order. The
 implemented phases also cover service-user audit and optional creation,
 runtime pinning, production dependency install, Owner key setup, workspace
 isolation scaffold/ACL gate, Gateway launchd apply, Gateway worker ACL repair,

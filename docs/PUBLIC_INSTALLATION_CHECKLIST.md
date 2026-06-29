@@ -61,17 +61,25 @@ For a fresh macOS install, the guided entrypoint is:
 bash scripts/install-macos-production.sh --execute --guided --root /Users/example/path --json
 ```
 
-Guided mode executes only the non-privileged automatic phases that create the
-install directory layout, copy the fresh app source into an empty app root, pin
-the Node/npm/npx runtime links, install production app and plugin dependencies,
-create the Owner/runtime secret files, write the Gateway manifest/profile
-skeleton, CRON scaffold, plugin source/provisioning plans, and launchd staging
-plans. It then reports the
-remaining operator phases with exact commands. It does not create macOS users,
-apply ACLs, install files under `/Library/LaunchDaemons`, copy provider
-credentials, start services, or run live smoke tests without the explicit phase
-gates below. The guided JSON report includes `guidedPlan.operatorSteps`, which
-lists each remaining command, sudo gate, required evidence, and risk boundary.
+Guided mode reports the full ordered `guidedPlan.operatorSteps` by default and
+does not silently mutate service-owned production paths. To run a real
+one-command fresh install, execute the same guided command through the operator
+sudo boundary with the explicit gates:
+
+```bash
+sudo env PATH=<node-bin-dir>:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin \
+  HOMEAI_INSTALL_RUN_OPERATOR_PHASES=1 \
+  HOMEAI_INSTALL_ALLOW_USER_CREATE=1 \
+  HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 \
+  HOMEAI_INSTALL_LAUNCHD_APPLY=1 \
+  bash scripts/install-macos-production.sh --execute --guided --root /Users/example/path --json
+```
+
+This runs the service-user, directory, source, runtime, dependency,
+Owner-secret, workspace/Gateway, CRON, plugin, launchd, first-start preflight,
+smoke, and access-info phases in fresh-install order. It still does not install
+provider credentials, complete external OAuth/session setup, or print raw
+secrets.
 
 Before treating a source checkout as fresh-install ready, run the source-only
 rehearsal:
@@ -114,9 +122,9 @@ against the selected root. The separate checklist remains the source-level audit
 that verifies every phase has an operator closure definition.
 
 It is currently a dry-run, phase-based plan by default. `--execute --guided`
-runs the safe automatic fresh-install phases in one command, but it still does
-not create users, install launchd services, or write provider/plugin secrets
-until each privileged or live-runtime phase is explicitly closed.
+without `HOMEAI_INSTALL_RUN_OPERATOR_PHASES=1` only emits the operator closure
+plan and performs no production write. The full guided install requires
+operator sudo/root plus the explicit gates above.
 The `create-service-users` phase is executable but conservative: by default it
 audits the required macOS service users and fails closed if any are missing.
 It creates missing users only when run as root with
@@ -759,10 +767,10 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
   the remote temp root and uses it only for that smoke. It does not create
   service users, install LaunchDaemons, run production `upgrade:public
   --execute`, restart services, or copy credentials. Add `--run-guided-install`
-  only after the basic smoke passes and you want to exercise guided automatic
-  install phases in the sandbox root. Add `--cycle-install` for first-machine
-  acceptance: guided install in the sandbox root, delete the sandbox target
-  root, then guided reinstall. Add
+  only after the basic smoke passes and you want to exercise the guided
+  operator-step planner in the sandbox root. Add `--cycle-install` for
+  first-machine acceptance: guided planning in the sandbox root, delete the
+  sandbox target root, then guided planning again. Add
   `--execute-production-upgrade --production-root <root>` only for an approved
   real production mutation.
 - Public deployments should keep the Home AI checkout and plugin checkouts as

@@ -63,28 +63,27 @@ PHASES=(
   "print-access-info"
 )
 
-GUIDED_AUTO_PHASES=(
-  "create-directory-layout"
-  "install-hermes-mobile"
-  "configure-gateway-profiles"
-  "install-gateway-launchd-services"
-  "configure-plugins"
-  "install-launchd-services"
-  "print-access-info"
-)
+GUIDED_AUTO_PHASES=()
 
 GUIDED_OPERATOR_PHASES=(
   "create-service-users"
+  "create-directory-layout"
+  "install-hermes-mobile"
   "install-official-hermes-runtime"
   "install-dependencies"
   "configure-owner"
-  "install-plugin-dependencies"
-  "configure-cron"
-  "plan-plugin-workspace-provisioning"
   "configure-workspace-isolation"
+  "configure-gateway-profiles"
+  "install-gateway-launchd-services"
   "repair-gateway-worker-acl"
+  "configure-cron"
+  "configure-plugins"
+  "install-plugin-dependencies"
+  "plan-plugin-workspace-provisioning"
+  "install-launchd-services"
   "run-first-start-preflight"
   "run-smoke-tests"
+  "print-access-info"
 )
 
 usage() {
@@ -104,13 +103,11 @@ install-plugin-dependencies,
 run-first-start-preflight, run-smoke-tests, and print-access-info. Use the
 central deploy script for existing production updates.
 
---guided prints a one-command guided install report. With --execute, it runs
-only non-privileged automatic phases that create the install skeleton and
-bounded plan files, then reports the remaining operator, sudo, and live-runtime
-closure commands. It does not create macOS users, apply ACLs, install
-the root-owned Hermes Agent runtime, install LaunchDaemons under
-/Library/LaunchDaemons, install provider credentials, or start production
-services without the explicit phase gates listed below.
+--guided prints a one-command guided install report. With --execute, it does
+not run service-owned phases unless HOMEAI_INSTALL_RUN_OPERATOR_PHASES=1 is set
+and the command is already running as root through the operator sudo boundary.
+That explicit operator gate can run the full fresh-install phase order; provider
+credentials and external OAuth/session setup remain outside this installer.
 
 The create-service-users phase audits the required macOS service users by
 default. To let it create missing users, run as root and set
@@ -196,7 +193,7 @@ phase_command() {
       printf '%s HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 bash %s/scripts/install-macos-production.sh --execute --phase configure-workspace-isolation --root %s --workspace-map %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$WORKSPACE_MAP"
       ;;
     configure-gateway-profiles)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase configure-gateway-profiles --root %s --workspace-map %s --gateway-openai-workers %s --gateway-deepseek-workers %s --gateway-owner-grok-workers %s --gateway-owner-maintenance-openai-workers %s --gateway-owner-maintenance-deepseek-workers %s --json' "$APP_SOURCE" "$ROOT" "$WORKSPACE_MAP" "$GATEWAY_OPENAI_WORKERS" "$GATEWAY_DEEPSEEK_WORKERS" "$GATEWAY_OWNER_GROK_WORKERS" "$GATEWAY_OWNER_MAINTENANCE_OPENAI_WORKERS" "$GATEWAY_OWNER_MAINTENANCE_DEEPSEEK_WORKERS"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase configure-gateway-profiles --root %s --workspace-map %s --gateway-openai-workers %s --gateway-deepseek-workers %s --gateway-owner-grok-workers %s --gateway-owner-maintenance-openai-workers %s --gateway-owner-maintenance-deepseek-workers %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$WORKSPACE_MAP" "$GATEWAY_OPENAI_WORKERS" "$GATEWAY_DEEPSEEK_WORKERS" "$GATEWAY_OWNER_GROK_WORKERS" "$GATEWAY_OWNER_MAINTENANCE_OPENAI_WORKERS" "$GATEWAY_OWNER_MAINTENANCE_DEEPSEEK_WORKERS"
       ;;
     install-gateway-launchd-services)
       printf '%s HOMEAI_INSTALL_LAUNCHD_APPLY=1 bash %s/scripts/install-macos-production.sh --execute --phase install-gateway-launchd-services --root %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT"
@@ -205,7 +202,7 @@ phase_command() {
       printf '%s HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 bash %s/scripts/install-macos-production.sh --execute --phase repair-gateway-worker-acl --root %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT"
       ;;
     configure-plugins)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase configure-plugins --root %s --plugin-source-mode %s --json' "$APP_SOURCE" "$ROOT" "$PLUGIN_SOURCE_MODE"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase configure-plugins --root %s --plugin-source-mode %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$PLUGIN_SOURCE_MODE"
       ;;
     install-plugin-dependencies)
       printf '%s bash %s/scripts/install-macos-production.sh --execute --phase install-plugin-dependencies --root %s --npm-command %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
@@ -224,19 +221,19 @@ phase_command() {
       printf '%s node %s/scripts/macos-first-start-preflight.js --root %s --network-mode %s --base %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$mode" "$BASE_URL"
       ;;
     create-directory-layout)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase create-directory-layout --root %s --json' "$APP_SOURCE" "$ROOT"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase create-directory-layout --root %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT"
       ;;
     install-hermes-mobile)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-hermes-mobile --root %s --app-source %s --json' "$APP_SOURCE" "$ROOT" "$APP_SOURCE"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase install-hermes-mobile --root %s --app-source %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$APP_SOURCE"
       ;;
     install-official-hermes-runtime)
       printf '%s bash %s/scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root %s --node-command %s --npm-command %s --python-command %s --hermes-agent-source %s --hermes-agent-repository-url %s --hermes-agent-ref %s --install-hermes-agent-dependencies %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$NODE_COMMAND" "$NPM_COMMAND" "$PYTHON_COMMAND" "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES"
       ;;
     run-smoke-tests)
-      printf 'sudo %s/runtime/node-current/bin/node %s/app/scripts/macos-production-closure-validation.js --root %s --base %s --json' "$ROOT" "$ROOT" "$ROOT" "$BASE_URL"
+      printf '%s %s/runtime/node-current/bin/node %s/app/scripts/macos-production-closure-validation.js --root %s --base %s --json' "$(sudo_phase_prefix)" "$ROOT" "$ROOT" "$ROOT" "$BASE_URL"
       ;;
     print-access-info)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase print-access-info --root %s --base %s --json' "$APP_SOURCE" "$ROOT" "$BASE_URL"
+      printf '%s bash %s/scripts/install-macos-production.sh --execute --phase print-access-info --root %s --base %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$BASE_URL"
       ;;
     *)
       printf 'manual:%s' "$1"
@@ -287,6 +284,9 @@ sudo_phase_prefix() {
 }
 
 phase_guided_auto() {
+  if [[ "${#GUIDED_AUTO_PHASES[@]}" -eq 0 ]]; then
+    return 1
+  fi
   array_contains "$1" "${GUIDED_AUTO_PHASES[@]}"
 }
 
@@ -299,6 +299,10 @@ guided_phase_executed() {
 }
 
 json_array() {
+  if [[ "$#" -eq 0 ]]; then
+    printf '[]'
+    return 0
+  fi
   node - "$@" <<'NODE'
 console.log(JSON.stringify(process.argv.slice(2)));
 NODE
@@ -358,26 +362,34 @@ const steps = [
       `${installer} --execute --phase create-service-users --root ${root} --service-users ${serviceUsers} --json`,
       `${sudoEnv} HOMEAI_INSTALL_ALLOW_USER_CREATE=1 ${installer} --execute --phase create-service-users --root ${root} --service-users ${serviceUsers} --json`,
     ],
-    evidenceRequired: [
-      "phase JSON ok=true",
-      "all required macOS service users exist",
-      "no conflicting user records were modified",
-    ],
+    evidenceRequired: ["phase JSON ok=true", "all required macOS service users exist"],
     riskBoundary: "Audits by default; user creation requires explicit administrator approval.",
+  },
+  {
+    id: "create-directory-layout",
+    title: "Create production directory layout",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [`${sudoEnv} ${installer} --execute --phase create-directory-layout --root ${root} --json`],
+    evidenceRequired: ["standard production directories exist"],
+    riskBoundary: "Creates the service-owned production directory scaffold only.",
+  },
+  {
+    id: "install-hermes-mobile",
+    title: "Install Home AI source into the production app root",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [`${sudoEnv} ${installer} --execute --phase install-hermes-mobile --root ${root} --app-source ${appSource} --json`],
+    evidenceRequired: ["root/app contains the public Home AI source"],
+    riskBoundary: "Copies source only into an empty app root; existing production updates use the deploy script.",
   },
   {
     id: "install-official-hermes-runtime",
     title: "Install official Node and Hermes Agent runtime",
     requiresSudo: true,
     gate: "sudo",
-    commands: [
-      `${sudoEnv} ${installer} --execute --phase install-official-hermes-runtime --root ${root} --node-command ${nodeCommand} --npm-command ${npmCommand} --python-command ${pythonCommand} --hermes-agent-source ${hermesAgentSource} --hermes-agent-repository-url ${hermesAgentRepositoryUrl} --hermes-agent-ref ${hermesAgentRef} --install-hermes-agent-dependencies ${installHermesAgentDependencies} --json`,
-    ],
-    evidenceRequired: [
-      "runtime/node-current/bin/node, npm, and npx exist",
-      "runtime/hermes-agent-official/venv exists",
-      "Hermes Agent dependencies install report has no issues",
-    ],
+    commands: [`${sudoEnv} ${installer} --execute --phase install-official-hermes-runtime --root ${root} --node-command ${nodeCommand} --npm-command ${npmCommand} --python-command ${pythonCommand} --hermes-agent-source ${hermesAgentSource} --hermes-agent-repository-url ${hermesAgentRepositoryUrl} --hermes-agent-ref ${hermesAgentRef} --install-hermes-agent-dependencies ${installHermesAgentDependencies} --json`],
+    evidenceRequired: ["runtime/node-current/bin/node, npm, and npx exist", "runtime/hermes-agent-official/venv exists"],
     riskBoundary: "Production runtime paths are service-owned; dependency refresh must run with an operator sudo boundary.",
   },
   {
@@ -385,13 +397,8 @@ const steps = [
     title: "Install Home AI production npm dependencies",
     requiresSudo: true,
     gate: "sudo",
-    commands: [
-      `${sudoEnv} ${installer} --execute --phase install-dependencies --root ${root} --npm-command ${npmCommand} --json`,
-    ],
-    evidenceRequired: [
-      "Home AI npm ci report has no issues",
-      "app/node_modules exists for production runtime",
-    ],
+    commands: [`${sudoEnv} ${installer} --execute --phase install-dependencies --root ${root} --npm-command ${npmCommand} --json`],
+    evidenceRequired: ["Home AI npm ci report has no issues"],
     riskBoundary: "The production app root is service-owned; dependency install must run through the operator sudo boundary.",
   },
   {
@@ -399,56 +406,9 @@ const steps = [
     title: "Create or verify Owner access key",
     requiresSudo: true,
     gate: "sudo",
-    commands: [
-      `${sudoEnv} ${installer} --execute --phase configure-owner --root ${root} --json`,
-    ],
-    evidenceRequired: [
-      "Owner key file exists with bounded metadata only",
-      "no generated key value is printed",
-    ],
+    commands: [`${sudoEnv} ${installer} --execute --phase configure-owner --root ${root} --json`],
+    evidenceRequired: ["Owner key file exists with bounded metadata only", "no generated key value is printed"],
     riskBoundary: "Owner key storage is service-owned and must not expose the raw key.",
-  },
-  {
-    id: "install-plugin-dependencies",
-    title: "Install public plugin production dependencies",
-    requiresSudo: true,
-    gate: "sudo",
-    commands: [
-      `${sudoEnv} ${installer} --execute --phase install-plugin-dependencies --root ${root} --npm-command ${npmCommand} --json`,
-    ],
-    evidenceRequired: [
-      "plugin dependency report has no issues",
-      "all deployable public plugin sources have runtime dependencies installed or are explicitly skipped",
-    ],
-    riskBoundary: "Plugin production roots are service-owned; dependency install must run through the operator sudo boundary.",
-  },
-  {
-    id: "configure-cron",
-    title: "Create Home AI CRON store and helper scripts",
-    requiresSudo: true,
-    gate: "sudo",
-    commands: [
-      `${sudoEnv} ${installer} --execute --phase configure-cron --root ${root} --json`,
-    ],
-    evidenceRequired: [
-      "cron-config-plan.json exists",
-      "Hermes Home helper scripts exist under data/hermes-home/scripts",
-    ],
-    riskBoundary: "CRON runtime state is service-owned; business jobs are not created by this phase.",
-  },
-  {
-    id: "plan-plugin-workspace-provisioning",
-    title: "Write plugin workspace provisioning plan",
-    requiresSudo: true,
-    gate: "sudo",
-    commands: [
-      `${sudoEnv} ${installer} --execute --phase plan-plugin-workspace-provisioning --root ${root} --workspace-map ${workspaceMap} --json`,
-    ],
-    evidenceRequired: [
-      "plugin-workspace-provisioning-plan.json exists",
-      "plan does not create plugin keys or workspace grants",
-    ],
-    riskBoundary: "Writes a bounded plan only; actual grants still require Owner provisioning flow.",
   },
   {
     id: "configure-workspace-isolation",
@@ -459,11 +419,26 @@ const steps = [
       `${installer} --execute --phase configure-workspace-isolation --root ${root} --workspace-map ${workspaceMap} --json`,
       `${sudoEnv} HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 ${installer} --execute --phase configure-workspace-isolation --root ${root} --workspace-map ${workspaceMap} --json`,
     ],
-    evidenceRequired: [
-      "workspace data roots exist",
-      "ACL/ownership repair report has no issues",
-    ],
-    riskBoundary: "Scaffold is non-privileged; ownership/ACL mutation requires explicit sudo gate.",
+    evidenceRequired: ["workspace data roots exist", "ACL/ownership repair report has no issues"],
+    riskBoundary: "Ownership and ACL mutation requires explicit sudo gate.",
+  },
+  {
+    id: "configure-gateway-profiles",
+    title: "Create Gateway worker manifest and profile skeletons",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [`${sudoEnv} ${installer} --execute --phase configure-gateway-profiles --root ${root} --workspace-map ${workspaceMap} --gateway-openai-workers 3 --gateway-deepseek-workers 1 --gateway-owner-grok-workers 1 --gateway-owner-maintenance-openai-workers 1 --gateway-owner-maintenance-deepseek-workers 1 --json`],
+    evidenceRequired: ["gateway-pool-manifest-mac.json exists", "worker API key files are stored as files"],
+    riskBoundary: "Creates profile skeletons only; provider OAuth/session setup remains external.",
+  },
+  {
+    id: "install-gateway-launchd-services",
+    title: "Install Gateway worker LaunchDaemons",
+    requiresSudo: true,
+    gate: "HOMEAI_INSTALL_LAUNCHD_APPLY=1",
+    commands: [`${sudoEnv} HOMEAI_INSTALL_LAUNCHD_APPLY=1 ${installer} --execute --phase install-gateway-launchd-services --root ${root} --json`],
+    evidenceRequired: ["Gateway worker plist files are installed and loaded"],
+    riskBoundary: "Installs only generated Gateway worker LaunchDaemons.",
   },
   {
     id: "repair-gateway-worker-acl",
@@ -474,38 +449,80 @@ const steps = [
       `${installer} --execute --phase repair-gateway-worker-acl --root ${root} --json`,
       `${sudoEnv} HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 ${installer} --execute --phase repair-gateway-worker-acl --root ${root} --json`,
     ],
-    evidenceRequired: [
-      "data/gateway-worker-acl-plan.json reviewed",
-      "applied ACL report has no issues",
-    ],
+    evidenceRequired: ["data/gateway-worker-acl-plan.json reviewed", "applied ACL report has no issues"],
     riskBoundary: "Writes an ACL plan by default; filesystem mutation requires explicit sudo gate.",
+  },
+  {
+    id: "configure-cron",
+    title: "Create Home AI CRON store and helper scripts",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [`${sudoEnv} ${installer} --execute --phase configure-cron --root ${root} --json`],
+    evidenceRequired: ["cron-config-plan.json exists", "Hermes Home helper scripts exist under data/hermes-home/scripts"],
+    riskBoundary: "CRON runtime state is service-owned; business jobs are not created by this phase.",
+  },
+  {
+    id: "configure-plugins",
+    title: "Create plugin source plan",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [`${sudoEnv} ${installer} --execute --phase configure-plugins --root ${root} --json`],
+    evidenceRequired: ["plugin-source-plan.json exists", "no workspace grants or plugin secrets are created"],
+    riskBoundary: "Plans plugin sources only unless explicit clone mode is requested.",
+  },
+  {
+    id: "install-plugin-dependencies",
+    title: "Install public plugin production dependencies",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [`${sudoEnv} ${installer} --execute --phase install-plugin-dependencies --root ${root} --npm-command ${npmCommand} --json`],
+    evidenceRequired: ["plugin dependency report has no issues"],
+    riskBoundary: "Plugin production roots are service-owned; dependency install must run through the operator sudo boundary.",
+  },
+  {
+    id: "plan-plugin-workspace-provisioning",
+    title: "Write plugin workspace provisioning plan",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [`${sudoEnv} ${installer} --execute --phase plan-plugin-workspace-provisioning --root ${root} --workspace-map ${workspaceMap} --json`],
+    evidenceRequired: ["plugin-workspace-provisioning-plan.json exists", "plan does not create plugin keys or workspace grants"],
+    riskBoundary: "Writes a bounded plan only; actual grants still require Owner provisioning flow.",
+  },
+  {
+    id: "install-launchd-services",
+    title: "Install Home AI and plugin LaunchDaemons",
+    requiresSudo: true,
+    gate: "HOMEAI_INSTALL_LAUNCHD_APPLY=1",
+    commands: [`${sudoEnv} HOMEAI_INSTALL_LAUNCHD_APPLY=1 ${installer} --execute --phase install-launchd-services --root ${root} --json`],
+    evidenceRequired: ["core and plugin plist files are installed", "launchd load succeeds for staged services"],
+    riskBoundary: "Installs only generated core and public plugin LaunchDaemons.",
   },
   {
     id: "run-first-start-preflight",
     title: "Run first-start runtime preflight",
     requiresSudo: true,
     gate: "sudo",
-    commands: [
-      `${sudoEnv} ${installer} --execute --phase run-first-start-preflight --root ${root} --network-mode direct --base ${baseUrl} --json`,
-    ],
-    evidenceRequired: [
-      "first-start preflight ok=true for the selected network mode",
-    ],
+    commands: [`${sudoEnv} ${installer} --execute --phase run-first-start-preflight --root ${root} --network-mode direct --base ${baseUrl} --json`],
+    evidenceRequired: ["first-start preflight ok=true for the selected network mode"],
     riskBoundary: "Read-only runtime readiness check before first service use.",
   },
   {
     id: "run-smoke-tests",
     title: "Run aggregate production smoke tests",
-    requiresSudo: false,
-    gate: "",
-    commands: [
-      `${installer} --execute --phase run-smoke-tests --root ${root} --base ${baseUrl} --json`,
-    ],
-    evidenceRequired: [
-      "production closure validation ok=true",
-      "listener and supporting runtime services reachable",
-    ],
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [`${sudoEnv} ${installer} --execute --phase run-smoke-tests --root ${root} --base ${baseUrl} --json`],
+    evidenceRequired: ["production closure validation ok=true", "listener and supporting runtime services reachable"],
     riskBoundary: "Validates live services; does not repair production state.",
+  },
+  {
+    id: "print-access-info",
+    title: "Print bounded access information",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [`${sudoEnv} ${installer} --execute --phase print-access-info --root ${root} --base ${baseUrl} --json`],
+    evidenceRequired: ["local access URL and placeholder smoke commands are printed"],
+    riskBoundary: "Does not print Owner keys or other secrets.",
   },
 ];
 process.stdout.write(JSON.stringify(steps));
@@ -4452,33 +4469,52 @@ elif [[ "$MODE" == "execute" ]]; then
   if [[ "$GUIDED" == "true" ]]; then
     GUIDED_REPORTS_FILE="$(mktemp)"
     trap 'rm -f "$GUIDED_REPORTS_FILE"' EXIT
-    for guided_phase in "${GUIDED_AUTO_PHASES[@]}"; do
-      EXECUTED_PHASE="$guided_phase"
-      set +e
-      EXECUTION_JSON="$(run_phase "$guided_phase" 2>/dev/null)"
-      EXECUTION_STATUS=$?
-      set -e
-      PHASE_OK="$(printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { try { const p = JSON.parse(s); console.log(p.ok ? "true" : "false"); } catch { console.log("false"); } });')"
-      if [[ "$EXECUTION_STATUS" -eq 0 && "$PHASE_OK" == "true" ]]; then
-        GUIDED_EXECUTED_COUNT="$((GUIDED_EXECUTED_COUNT + 1))"
-        if [[ -z "$GUIDED_EXECUTED_PHASES" ]]; then
-          GUIDED_EXECUTED_PHASES="$guided_phase"
-        else
-          GUIDED_EXECUTED_PHASES="$GUIDED_EXECUTED_PHASES,$guided_phase"
-        fi
-        printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { process.stdout.write(JSON.stringify(JSON.parse(s))); });' >> "$GUIDED_REPORTS_FILE"
-        printf '\n' >> "$GUIDED_REPORTS_FILE"
-      else
-        GUIDED_FAILED_PHASE="$guided_phase"
-        EXECUTED_PHASE_OK="false"
-        EXECUTED_PHASE_ISSUE_CODES="$(printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { try { const p = JSON.parse(s); console.log((p.issues || []).map((item) => item.code).filter(Boolean).join(",")); } catch { console.log("phase_output_not_json"); } });')"
-        EXECUTION_REPORT_JSON="$(printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { try { JSON.parse(s); process.stdout.write(s.trim() || "null"); } catch { process.stdout.write("null"); } });')"
+    GUIDED_RUN_PHASES=()
+    if [[ "${#GUIDED_AUTO_PHASES[@]}" -gt 0 ]]; then
+      GUIDED_RUN_PHASES=("${GUIDED_AUTO_PHASES[@]}")
+    fi
+    if [[ "${HOMEAI_INSTALL_RUN_OPERATOR_PHASES:-0}" == "1" ]]; then
+      if [[ "$(id -u)" != "0" ]]; then
         OK="false"
-        ISSUE_CODE="guided_phase_execution_failed"
-        ISSUE_DETAIL="$guided_phase failed"
-        break
+        ISSUE_CODE="guided_operator_phases_require_root"
+        ISSUE_DETAIL="HOMEAI_INSTALL_RUN_OPERATOR_PHASES requires sudo/root"
+        GUIDED_FAILED_PHASE="operator-gate"
+      else
+        GUIDED_RUN_PHASES=("${GUIDED_OPERATOR_PHASES[@]}")
       fi
-    done
+    fi
+    if [[ "${#GUIDED_RUN_PHASES[@]}" -gt 0 ]]; then
+      for guided_phase in "${GUIDED_RUN_PHASES[@]}"; do
+        if [[ "$OK" != "true" ]]; then
+          break
+        fi
+        EXECUTED_PHASE="$guided_phase"
+        set +e
+        EXECUTION_JSON="$(run_phase "$guided_phase" 2>/dev/null)"
+        EXECUTION_STATUS=$?
+        set -e
+        PHASE_OK="$(printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { try { const p = JSON.parse(s); console.log(p.ok ? "true" : "false"); } catch { console.log("false"); } });')"
+        if [[ "$EXECUTION_STATUS" -eq 0 && "$PHASE_OK" == "true" ]]; then
+          GUIDED_EXECUTED_COUNT="$((GUIDED_EXECUTED_COUNT + 1))"
+          if [[ -z "$GUIDED_EXECUTED_PHASES" ]]; then
+            GUIDED_EXECUTED_PHASES="$guided_phase"
+          else
+            GUIDED_EXECUTED_PHASES="$GUIDED_EXECUTED_PHASES,$guided_phase"
+          fi
+          printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { process.stdout.write(JSON.stringify(JSON.parse(s))); });' >> "$GUIDED_REPORTS_FILE"
+          printf '\n' >> "$GUIDED_REPORTS_FILE"
+        else
+          GUIDED_FAILED_PHASE="$guided_phase"
+          EXECUTED_PHASE_OK="false"
+          EXECUTED_PHASE_ISSUE_CODES="$(printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { try { const p = JSON.parse(s); console.log((p.issues || []).map((item) => item.code).filter(Boolean).join(",")); } catch { console.log("phase_output_not_json"); } });')"
+          EXECUTION_REPORT_JSON="$(printf '%s' "$EXECUTION_JSON" | node -e 'let s = ""; process.stdin.on("data", d => s += d); process.stdin.on("end", () => { try { JSON.parse(s); process.stdout.write(s.trim() || "null"); } catch { process.stdout.write("null"); } });')"
+          OK="false"
+          ISSUE_CODE="guided_phase_execution_failed"
+          ISSUE_DETAIL="$guided_phase failed"
+          break
+        fi
+      done
+    fi
     if [[ -z "$GUIDED_FAILED_PHASE" ]]; then
       EXECUTED_PHASE="guided"
       EXECUTED_PHASE_OK="true"
@@ -4596,7 +4632,12 @@ if [[ "$OUTPUT" == "json" ]]; then
       printf '    {"order": %s, "id": %s, "status": %s, "selected": %s, "command": %s}%s\n' "$((index + 1))" "$(printf '%s' "$phase" | json_escape)" "$(printf '%s' "$status" | json_escape)" "$(phase_selected "$phase" && printf true || printf false)" "$(printf '%s' "$command" | json_escape)" "$comma"
     done
     printf '  ],\n'
-    printf '  "guidedPlan": {"autoPhaseIds": %s, "operatorPhaseIds": %s, "operatorSteps": %s, "executedCount": %s, "failedPhase": %s, "reports": %s},\n' "$(json_array "${GUIDED_AUTO_PHASES[@]}")" "$(json_array "${GUIDED_OPERATOR_PHASES[@]}")" "$(guided_operator_steps_json)" "$GUIDED_EXECUTED_COUNT" "$(printf '%s' "$GUIDED_FAILED_PHASE" | json_escape)" "$GUIDED_REPORTS_JSON"
+    if [[ "${#GUIDED_AUTO_PHASES[@]}" -gt 0 ]]; then
+      GUIDED_AUTO_PHASES_JSON="$(json_array "${GUIDED_AUTO_PHASES[@]}")"
+    else
+      GUIDED_AUTO_PHASES_JSON="[]"
+    fi
+    printf '  "guidedPlan": {"autoPhaseIds": %s, "operatorPhaseIds": %s, "operatorSteps": %s, "executedCount": %s, "failedPhase": %s, "reports": %s},\n' "$GUIDED_AUTO_PHASES_JSON" "$(json_array "${GUIDED_OPERATOR_PHASES[@]}")" "$(guided_operator_steps_json)" "$GUIDED_EXECUTED_COUNT" "$(printf '%s' "$GUIDED_FAILED_PHASE" | json_escape)" "$GUIDED_REPORTS_JSON"
     printf '  "execution": {"phase": %s, "ok": %s, "issueCodes": [' "$(printf '%s' "$EXECUTED_PHASE" | json_escape)" "$EXECUTED_PHASE_OK"
     if [[ -n "$EXECUTED_PHASE_ISSUE_CODES" ]]; then
       IFS=',' read -r -a issue_codes <<< "$EXECUTED_PHASE_ISSUE_CODES"
