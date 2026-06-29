@@ -1366,6 +1366,8 @@ const createdProfiles = [];
 const createdKeyFiles = [];
 const REQUIRED_OWNER_SKILLS = Object.freeze(["productivity/wardrobe-style-operations"]);
 const REQUIRED_SHARED_SKILLS = Object.freeze(["shared/response-grounding-baseline"]);
+const listenerUser = process.env.HOMEAI_LISTENER_USER || "hermes-host";
+const listenerRequiredSkillAclTargets = new Set();
 
 const STANDARD_TOOLSETS = [
   "web",
@@ -1493,6 +1495,44 @@ function chmodRecursive(target, mode) {
   } else {
     actions.push({ action: "chmod-recursive", path: rel(target), mode });
   }
+}
+
+function applyDarwinAcl(target, acl, options = {}) {
+  if (!fs.existsSync(target)) return;
+  if (process.platform !== "darwin") {
+    actions.push({ action: "acl-skipped", path: rel(target), reason: "not-darwin", acl: options.label || "listener-required-skill-read" });
+    return;
+  }
+  run("/bin/chmod", ["-a", acl, target]);
+  const args = options.recursive ? ["-R", "+a", acl, target] : ["+a", acl, target];
+  const result = run("/bin/chmod", args);
+  if (result.status !== 0) {
+    issues.push({
+      code: "gateway_profile_acl_failed",
+      path: rel(target),
+      acl: options.label || "listener-required-skill-read",
+      detail: String(result.stderr || result.stdout || `status=${result.status}`).trim().slice(-300),
+    });
+  } else {
+    actions.push({ action: "listener-required-skill-acl", path: rel(target), recursive: Boolean(options.recursive), acl: options.label || "listener-required-skill-read" });
+  }
+}
+
+function applyListenerRequiredSkillAcl(skillStoreRoot, relativeSkillPath) {
+  const segments = String(relativeSkillPath || "").split("/").map((item) => item.trim()).filter(Boolean);
+  if (!segments.length || segments.some((segment) => segment === "." || segment === "..")) return;
+  const target = path.join(skillStoreRoot, "skills", ...segments);
+  if (listenerRequiredSkillAclTargets.has(target)) return;
+  listenerRequiredSkillAclTargets.add(target);
+  const searchAcl = `user:${listenerUser} allow list,search,readattr,readextattr,readsecurity`;
+  const readAcl = `user:${listenerUser} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
+  let current = path.join(skillStoreRoot, "skills");
+  applyDarwinAcl(current, searchAcl, { label: "listener-required-skill-search" });
+  for (const segment of segments.slice(0, -1)) {
+    current = path.join(current, segment);
+    applyDarwinAcl(current, searchAcl, { label: "listener-required-skill-search" });
+  }
+  applyDarwinAcl(target, readAcl, { recursive: true, label: "listener-required-skill-read" });
 }
 
 function copyDirectoryRecursive(source, target) {
@@ -1699,6 +1739,9 @@ function writeProfileConfig(worker) {
   chownRecursive(profileDir, `${worker.osUser}:staff`);
   chownRecursive(skillRoot, `${worker.osUser}:staff`);
   chownRecursive(sharedSkillRoot, "hermes-host:staff");
+  if (skillStoreId === "owner-full") {
+    for (const skill of REQUIRED_OWNER_SKILLS) applyListenerRequiredSkillAcl(skillRoot, skill);
+  }
 }
 
 try {

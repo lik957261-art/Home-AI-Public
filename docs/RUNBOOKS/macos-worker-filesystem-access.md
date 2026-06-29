@@ -231,20 +231,18 @@ shared cache/upload roots that their policy exposes.
 For keyless required plugin Skill bundles, the listener needs read/traverse but
 not write. Keep the Skill Store owner as the workspace worker. Grant the
 listener user an explicit read/traverse ACL on the selected required bundle and
-its parent category, then keep group read/traverse as a secondary compatibility
-guard. This is more stable than relying only on POSIX group bits because worker
-or isolation scripts may later tighten a Skill Store parent back to `700`
-without changing the required bundle itself:
+its parent category. Do not make the private Skill Store group-readable: on
+macOS the service users commonly share `staff`, so group read/traverse can leak
+Owner Skill bundles to other workspace users and should fail the worker ACL
+harness.
 
 ```bash
 sudo chmod -RN /Users/example/path
 sudo chown -R :staff /Users/example/path
+sudo chmod -R u+rwX,go-rwx /Users/example/path
 sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/example/path
 sudo chmod +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity" /Users/example/path
 sudo chmod -R +a "user:hermes-host allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit" /Users/example/path
-sudo chmod g+rx,o-rwx /Users/example/path
-sudo chmod g+rx,o-rwx /Users/example/path
-sudo chmod -R g+rX,o-rwx /Users/example/path
 sudo -u hermes-host test -r /Users/example/path
 ```
 

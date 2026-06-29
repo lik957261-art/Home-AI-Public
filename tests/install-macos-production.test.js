@@ -1227,6 +1227,7 @@ function testExecuteGatewayProfilesCreatesManifestKeysAndConfigs() {
   assert.ok(parsed.execution.report.actions.some((item) => item.action === "create-profile-soul" && item.profile === "hm-owner-openai-1"));
   assert.ok(parsed.execution.report.actions.some((item) => item.action === "sync-required-skill" && item.skill === "productivity/wardrobe-style-operations"));
   assert.ok(parsed.execution.report.actions.some((item) => item.action === "sync-required-skill" && item.skill === "shared/response-grounding-baseline"));
+  assert.ok(parsed.execution.report.actions.some((item) => item.action === "listener-required-skill-acl" && item.acl === "listener-required-skill-read"));
   const deepSeekWorker = manifest.workers.find((worker) => worker.profile === "hm-owner-deepseek-1");
   assert.equal(deepSeekWorker.provider, "deepseek");
   assert.equal(deepSeekWorker.securityLevel, "user");
