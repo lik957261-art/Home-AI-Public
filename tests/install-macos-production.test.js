@@ -135,6 +135,9 @@ function testDryRunJsonPlan() {
   const runtime = parsed.phases.find((phase) => phase.id === "install-official-hermes-runtime");
   assert.match(runtime.command, /--phase install-official-hermes-runtime/);
   assert.match(runtime.command, /--node-command/);
+  assert.match(runtime.command, /--python-command/);
+  assert.match(runtime.command, /--hermes-agent-repository-url/);
+  assert.match(runtime.command, /hermes-agent-public\.git/);
   const accessInfo = parsed.phases.find((phase) => phase.id === "print-access-info");
   assert.match(accessInfo.command, /--phase print-access-info/);
   assert.match(accessInfo.command, /--base http:\/\/127\.0\.0\.1:8797/);
@@ -189,6 +192,8 @@ function testGuidedDryRunJsonPlan() {
 
 function testGuidedExecuteRunsAutomaticPhasesOnly() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-guided-"));
+  const fakePython = makeFakePython();
+  const agentSource = makeFakeAgentSource();
   const fakeNpm = path.join(root, "fake-npm");
   fs.writeFileSync(fakeNpm, `#!/bin/sh
 if [ "$1" = "--version" ]; then
@@ -211,6 +216,12 @@ exit 64
       root,
       "--npm-command",
       fakeNpm,
+      "--python-command",
+      fakePython,
+      "--hermes-agent-source",
+      agentSource,
+      "--install-hermes-agent-dependencies",
+      "0",
       "--json",
     ]);
     const parsed = JSON.parse(output);
@@ -235,6 +246,7 @@ exit 64
     assert.ok(fs.existsSync(path.join(root, "data", "secrets", "owner-web-key.secret")));
     assert.ok(fs.existsSync(path.join(root, "app", "package.json")));
     assert.ok(fs.existsSync(path.join(root, "runtime", "node-current", "bin", "node")));
+    assert.ok(fs.existsSync(path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python")));
     assert.ok(fs.existsSync(path.join(root, "app", "node_modules", "@homeai-guided")));
     assert.ok(fs.existsSync(path.join(root, "data", "gateway-pool-manifest-mac.json")));
     assert.ok(fs.existsSync(path.join(root, "data", "launchd-services-plan.json")));
@@ -537,6 +549,37 @@ exit 1
   return npmPath;
 }
 
+function makeFakePython(version = "Python 3.12.4") {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-python-"));
+  const pythonPath = path.join(dir, "python3.12");
+  const script = `#!/bin/sh
+if [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi
+if [ "$1" = "-m" ] && [ "$2" = "venv" ]; then
+  dest="$3"
+  mkdir -p "$dest/bin"
+  cat > "$dest/bin/python" <<'PY'
+#!/bin/sh
+if [ "$1" = "--version" ]; then echo "Python 3.12.4"; exit 0; fi
+if [ "$1" = "-m" ] && [ "$2" = "pip" ]; then echo "pip ok"; exit 0; fi
+if [ "$1" = "-m" ] && [ "$2" = "hermes_cli.main" ]; then echo "hermes ok"; exit 0; fi
+exit 0
+PY
+  chmod 755 "$dest/bin/python"
+  exit 0
+fi
+exit 0
+`;
+  fs.writeFileSync(pythonPath, script, { mode: 0o755 });
+  return pythonPath;
+}
+
+function makeFakeAgentSource() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-agent-source-"));
+  fs.mkdirSync(path.join(dir, ".git"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "pyproject.toml"), "[project]\nname='hermes-agent-fixture'\nversion='0.0.0'\n");
+  return dir;
+}
+
 function makeDependencyRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-deps-"));
   fs.mkdirSync(path.join(root, "app"), { recursive: true });
@@ -638,6 +681,8 @@ function testExecuteDependencyPhaseReportsNpmFailureBoundedly() {
 function testExecuteRuntimePhaseLinksNodeIdempotently() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-runtime-"));
   const nodePath = makeFakeNode();
+  const pythonPath = makeFakePython();
+  const agentSource = makeFakeAgentSource();
   const first = JSON.parse(run([
     "--execute",
     "--phase",
@@ -646,6 +691,10 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
     root,
     "--node-command",
     nodePath,
+    "--python-command",
+    pythonPath,
+    "--hermes-agent-source",
+    agentSource,
     "--json",
   ]));
   assert.equal(first.ok, true, JSON.stringify(first.issues, null, 2));
@@ -653,9 +702,14 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
   assert.equal(first.execution.ok, true);
   assert.equal(first.execution.report.ok, true);
   const runtimeNode = path.join(root, "runtime", "node-current", "bin", "node");
+  const runtimePython = path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python");
   assert.equal(fs.lstatSync(runtimeNode).isSymbolicLink(), true);
   assert.equal(path.resolve(path.dirname(runtimeNode), fs.readlinkSync(runtimeNode)), nodePath);
-  assert.equal(first.execution.report.actions[0].action, "symlink");
+  assert.equal(fs.existsSync(runtimePython), true);
+  assert.ok(first.execution.report.actions.some((action) => action.action === "symlink"));
+  assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-source-exists"));
+  assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-venv-create"));
+  assert.ok(first.execution.report.actions.some((action) => action.action === "hermes-agent-dependencies-install"));
   const phase = first.phases.find((item) => item.id === "install-official-hermes-runtime");
   assert.equal(phase.status, "executed");
 
@@ -667,16 +721,23 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
     root,
     "--node-command",
     nodePath,
+    "--python-command",
+    pythonPath,
+    "--hermes-agent-source",
+    agentSource,
     "--json",
   ]));
   assert.equal(second.ok, true, JSON.stringify(second.issues, null, 2));
-  assert.equal(second.execution.report.actions[0].action, "already-linked");
+  assert.ok(second.execution.report.actions.some((action) => action.action === "already-linked"));
+  assert.ok(second.execution.report.actions.some((action) => action.action === "hermes-agent-venv-exists"));
 }
 
 function testExecuteRuntimePhaseFailsOnDifferentExistingNode() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-runtime-conflict-"));
   const firstNode = makeFakeNode();
   const secondNode = makeFakeNode();
+  const pythonPath = makeFakePython();
+  const agentSource = makeFakeAgentSource();
   JSON.parse(run([
     "--execute",
     "--phase",
@@ -685,6 +746,10 @@ function testExecuteRuntimePhaseFailsOnDifferentExistingNode() {
     root,
     "--node-command",
     firstNode,
+    "--python-command",
+    pythonPath,
+    "--hermes-agent-source",
+    agentSource,
     "--json",
   ]));
   const result = spawnSync("bash", [
@@ -696,6 +761,10 @@ function testExecuteRuntimePhaseFailsOnDifferentExistingNode() {
     root,
     "--node-command",
     secondNode,
+    "--python-command",
+    pythonPath,
+    "--hermes-agent-source",
+    agentSource,
     "--json",
   ], {
     cwd: REPO_ROOT,
@@ -705,6 +774,32 @@ function testExecuteRuntimePhaseFailsOnDifferentExistingNode() {
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.ok, false);
   assert.ok(parsed.execution.issueCodes.includes("runtime_node_symlink_target_mismatch"));
+}
+
+function testExecuteRuntimePhaseFailsClosedForOldPython() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-runtime-python-"));
+  const result = spawnSync("bash", [
+    SCRIPT,
+    "--execute",
+    "--phase",
+    "install-official-hermes-runtime",
+    "--root",
+    root,
+    "--node-command",
+    makeFakeNode(),
+    "--python-command",
+    makeFakePython("Python 3.9.6"),
+    "--hermes-agent-source",
+    makeFakeAgentSource(),
+    "--json",
+  ], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.execution.issueCodes.includes("python_version_too_old_or_unreadable"));
 }
 
 function testExecuteConfigureOwnerCreatesMissingKeyWithoutPrintingIt() {
@@ -1751,6 +1846,7 @@ testExecuteDependencyPhaseFailsWithoutLockfile();
 testExecuteDependencyPhaseReportsNpmFailureBoundedly();
 testExecuteRuntimePhaseLinksNodeIdempotently();
 testExecuteRuntimePhaseFailsOnDifferentExistingNode();
+testExecuteRuntimePhaseFailsClosedForOldPython();
 testExecuteConfigureOwnerCreatesMissingKeyWithoutPrintingIt();
 testExecuteConfigureOwnerPreservesExistingKeyAndTightensMode();
 testExecuteConfigureOwnerFailsClosedForEmptyExistingKey();

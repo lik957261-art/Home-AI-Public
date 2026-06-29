@@ -335,14 +335,17 @@ Moira and Movie are in the deployable plugin inventory. Moira points at the
 public `MOIRA_chinese_astrology_public` repository; Movie is marked
 `operatorAuthenticated` and requires operator Git read access.
 
-The upgrade loop must also account for the official Hermes Agent runtime used
-by provider ingress. Updating
-`<root>/runtime/hermes-agent-official/source` requires the explicit
-`--update-hermes-agent` gate, and dependency refresh requires
+The install and upgrade loops must also account for the official Hermes Agent
+runtime used by provider ingress. Fresh install closure now requires
+`install-official-hermes-runtime` to verify Python `>=3.12`, clone or reuse
+`<root>/runtime/hermes-agent-official/source`, create
+`<root>/runtime/hermes-agent-official/venv`, and install Hermes Agent
+dependencies when explicitly requested. Updating that source later requires the
+explicit `--update-hermes-agent` gate, and dependency refresh requires
 `--install-hermes-agent-dependencies`. After a Home AI, plugin, or Hermes Agent
 update, the loop must rerun the production profile/provider audit and
-`scripts/macos-production-closure-validation.js`. Do not model an upgrade as
-closed if provider access through Hermes Agent has not been checked.
+`scripts/macos-production-closure-validation.js`. Do not model an install or
+upgrade as closed if provider access through Hermes Agent has not been checked.
 
 ## Installer Shape
 

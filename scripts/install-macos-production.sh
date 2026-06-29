@@ -6,6 +6,7 @@ APP_SOURCE="$(cd "$SCRIPT_DIR/.." && pwd)"
 ROOT="/Users/example/path"
 NODE_COMMAND="${HOMEAI_NODE:-node}"
 NPM_COMMAND="${HOMEAI_NPM:-npm}"
+PYTHON_COMMAND="${HOMEAI_PYTHON:-${PYTHON:-python3}}"
 SERVICE_USERS="${HOMEAI_SERVICE_USERS:-hermes-host,hm-owner,hm-wuping,hm-stephen,hm-xuyan,hm-test}"
 ALLOW_USER_CREATE="${HOMEAI_INSTALL_ALLOW_USER_CREATE:-0}"
 OWNER_KEY_FILE="${HOMEAI_OWNER_KEY_FILE:-}"
@@ -18,6 +19,10 @@ GATEWAY_OWNER_MAINTENANCE_OPENAI_WORKERS="${HOMEAI_GATEWAY_OWNER_MAINTENANCE_OPE
 GATEWAY_OWNER_MAINTENANCE_DEEPSEEK_WORKERS="${HOMEAI_GATEWAY_OWNER_MAINTENANCE_DEEPSEEK_WORKERS:-1}"
 PLUGIN_SOURCE_MODE="${HOMEAI_INSTALL_PLUGIN_SOURCE_MODE:-plan}"
 CRON_NETWORK_MODE="${HOMEAI_INSTALL_CRON_NETWORK_MODE:-direct}"
+HERMES_AGENT_SOURCE="${HOMEAI_HERMES_AGENT_SOURCE:-}"
+HERMES_AGENT_REPOSITORY_URL="${HOMEAI_HERMES_AGENT_REPOSITORY_URL:-${HERMES_MOBILE_HERMES_AGENT_REPOSITORY_URL:-https://github.com/pentiumxp/hermes-agent-public.git}}"
+HERMES_AGENT_REF="${HOMEAI_HERMES_AGENT_REF:-${HERMES_MOBILE_HERMES_AGENT_REF:-main}}"
+INSTALL_HERMES_AGENT_DEPENDENCIES="${HOMEAI_INSTALL_HERMES_AGENT_DEPENDENCIES:-1}"
 APPLY_LAUNCHD_SERVICES="${HOMEAI_INSTALL_LAUNCHD_APPLY:-0}"
 LAUNCH_DAEMONS_DIR="${HOMEAI_LAUNCH_DAEMONS_DIR:-/Library/LaunchDaemons}"
 LAUNCHCTL_COMMAND="${HOMEAI_LAUNCHCTL:-/bin/launchctl}"
@@ -82,7 +87,7 @@ GUIDED_OPERATOR_PHASES=(
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/install-macos-production.sh [--dry-run|--execute] [--guided] [--json] [--root <path>] [--app-source <path>] [--node-command <path>] [--npm-command <path>] [--service-users <csv>] [--owner-key-file <path>] [--workspace-map <csv>] [--gateway-openai-workers <n>] [--gateway-deepseek-workers <n>] [--gateway-owner-grok-workers <n>] [--gateway-owner-maintenance-openai-workers <n>] [--gateway-owner-maintenance-deepseek-workers <n>] [--plugin-source-mode plan|clone] [--cron-network-mode direct|proxy] [--phase <id>] [--network-mode direct|proxy] [--base <url>]
+Usage: scripts/install-macos-production.sh [--dry-run|--execute] [--guided] [--json] [--root <path>] [--app-source <path>] [--node-command <path>] [--npm-command <path>] [--python-command <path>] [--service-users <csv>] [--owner-key-file <path>] [--workspace-map <csv>] [--gateway-openai-workers <n>] [--gateway-deepseek-workers <n>] [--gateway-owner-grok-workers <n>] [--gateway-owner-maintenance-openai-workers <n>] [--gateway-owner-maintenance-deepseek-workers <n>] [--plugin-source-mode plan|clone] [--cron-network-mode direct|proxy] [--hermes-agent-source <path>] [--hermes-agent-repository-url <url>] [--hermes-agent-ref <ref>] [--install-hermes-agent-dependencies 0|1] [--phase <id>] [--network-mode direct|proxy] [--base <url>]
 
 Plans the phase-based Home AI macOS production installation.
 
@@ -145,6 +150,11 @@ The configure-cron phase creates the official Hermes CRON store scaffold,
 output/log/workdir directories, helper scripts, and source-controlled CRON
 Skills. It does not create business jobs or install launchd.
 
+The install-official-hermes-runtime phase pins the Node runtime, verifies a
+Python >=3.12 command, materializes the official Hermes Agent source under
+runtime/hermes-agent-official/source, creates runtime/hermes-agent-official/venv,
+and installs Hermes Agent dependencies when HOMEAI_INSTALL_HERMES_AGENT_DEPENDENCIES=1.
+
 The install-launchd-services phase stages the canonical core and public plugin
 launchd plist files and writes a launchd service plan. By default it does not
 install files under /Library/LaunchDaemons and does not load or restart
@@ -161,7 +171,7 @@ json_escape() {
 phase_command() {
   case "$1" in
     system-preflight)
-      printf 'node %s/scripts/public-install-preflight.js --repo-root %s --json' "$APP_SOURCE" "$APP_SOURCE"
+      printf 'node %s/scripts/public-install-preflight.js --repo-root %s --python-command %s --json' "$APP_SOURCE" "$APP_SOURCE" "$PYTHON_COMMAND"
       ;;
     install-dependencies)
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-dependencies --root %s --npm-command %s --json' "$APP_SOURCE" "$ROOT" "$NPM_COMMAND"
@@ -207,7 +217,7 @@ phase_command() {
       printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-hermes-mobile --root %s --app-source %s --json' "$APP_SOURCE" "$ROOT" "$APP_SOURCE"
       ;;
     install-official-hermes-runtime)
-      printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root %s --node-command %s --json' "$APP_SOURCE" "$ROOT" "$NODE_COMMAND"
+      printf 'bash %s/scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root %s --node-command %s --python-command %s --hermes-agent-source %s --hermes-agent-repository-url %s --hermes-agent-ref %s --install-hermes-agent-dependencies %s --json' "$APP_SOURCE" "$ROOT" "$NODE_COMMAND" "$PYTHON_COMMAND" "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES"
       ;;
     run-smoke-tests)
       printf 'sudo %s/runtime/node-current/bin/node %s/app/scripts/macos-production-closure-validation.js --root %s --base %s --json' "$ROOT" "$ROOT" "$ROOT" "$BASE_URL"
@@ -3329,15 +3339,24 @@ NODE
 }
 
 run_runtime_phase() {
-  node - "$ROOT" "$NODE_COMMAND" <<'NODE'
+  node - "$ROOT" "$NODE_COMMAND" "$PYTHON_COMMAND" "$HERMES_AGENT_SOURCE" "$HERMES_AGENT_REPOSITORY_URL" "$HERMES_AGENT_REF" "$INSTALL_HERMES_AGENT_DEPENDENCIES" <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const root = path.resolve(process.argv[2]);
 const requestedNode = process.argv[3] || "node";
+const requestedPython = process.argv[4] || "python3";
+const requestedAgentSource = String(process.argv[5] || "").trim();
+const agentRepositoryUrl = String(process.argv[6] || "").trim();
+const agentRef = String(process.argv[7] || "main").trim() || "main";
+const installAgentDependencies = /^(1|true|yes|on)$/i.test(String(process.argv[8] || "0"));
 const runtimeBin = path.join(root, "runtime", "node-current", "bin");
 const targetNode = path.join(runtimeBin, "node");
+const agentRoot = path.join(root, "runtime", "hermes-agent-official");
+const agentSource = requestedAgentSource ? path.resolve(requestedAgentSource) : path.join(agentRoot, "source");
+const agentVenv = path.join(agentRoot, "venv");
+const agentPython = path.join(agentVenv, "bin", "python");
 const issues = [];
 const actions = [];
 
@@ -3361,6 +3380,20 @@ function resolveCommand(command) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   return result.status === 0 ? result.stdout.trim() : "";
+}
+
+function run(command, args, options = {}) {
+  return spawnSync(command, args, {
+    cwd: options.cwd || root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    env: Object.assign({}, process.env, options.env || {}),
+    timeout: options.timeout || 300000,
+  });
+}
+
+function compactOutput(result) {
+  return String(`${result.stderr || ""}\n${result.stdout || ""}`).replace(/\s+/g, " ").trim().slice(-800);
 }
 
 try {
@@ -3410,6 +3443,93 @@ try {
       }
     }
   }
+
+  const resolvedPython = resolveCommand(requestedPython);
+  if (!resolvedPython || !fs.existsSync(resolvedPython)) {
+    issues.push({ code: "python_command_not_found", command: requestedPython });
+  } else {
+    const versionResult = spawnSync(resolvedPython, ["--version"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const versionOutput = `${versionResult.stdout || ""}\n${versionResult.stderr || ""}`.trim();
+    const version = parseVersion(versionOutput);
+    if (versionResult.status !== 0 || !versionAtLeast(version, { major: 3, minor: 12, patch: 0 })) {
+      issues.push({
+        code: "python_version_too_old_or_unreadable",
+        command: resolvedPython,
+        found: versionOutput || `status=${versionResult.status}`,
+        required: ">=3.12.0",
+      });
+    }
+  }
+
+  if (issues.length === 0) {
+    fs.mkdirSync(agentRoot, { recursive: true, mode: 0o755 });
+    if (fs.existsSync(agentSource)) {
+      if (!fs.statSync(agentSource).isDirectory()) {
+        issues.push({ code: "hermes_agent_source_not_directory", path: agentSource });
+      } else if (!fs.existsSync(path.join(agentSource, ".git"))) {
+        issues.push({ code: "hermes_agent_source_not_git_checkout", path: agentSource });
+      } else {
+        actions.push({ action: "hermes-agent-source-exists", path: path.relative(root, agentSource) || agentSource });
+      }
+    } else {
+      if (!agentRepositoryUrl) {
+        issues.push({ code: "hermes_agent_repository_url_required", path: agentSource });
+      } else {
+        fs.mkdirSync(path.dirname(agentSource), { recursive: true, mode: 0o755 });
+        const clone = run("git", ["clone", "--branch", agentRef, "--depth", "1", agentRepositoryUrl, agentSource], {
+          cwd: path.dirname(agentSource),
+          timeout: 600000,
+        });
+        if (clone.status !== 0) {
+          issues.push({
+            code: "hermes_agent_clone_failed",
+            path: agentSource,
+            ref: agentRef,
+            detail: compactOutput(clone),
+          });
+        } else {
+          actions.push({ action: "hermes-agent-clone", path: path.relative(root, agentSource) || agentSource, ref: agentRef });
+        }
+      }
+    }
+  }
+
+  if (issues.length === 0) {
+    if (fs.existsSync(agentPython)) {
+      actions.push({ action: "hermes-agent-venv-exists", path: path.relative(root, agentPython) || agentPython });
+    } else {
+      fs.mkdirSync(path.dirname(agentVenv), { recursive: true, mode: 0o755 });
+      const venv = run(resolvedPython, ["-m", "venv", agentVenv], { timeout: 600000 });
+      if (venv.status !== 0 || !fs.existsSync(agentPython)) {
+        issues.push({
+          code: "hermes_agent_venv_create_failed",
+          path: agentVenv,
+          detail: compactOutput(venv),
+        });
+      } else {
+        actions.push({ action: "hermes-agent-venv-create", path: path.relative(root, agentVenv) || agentVenv });
+      }
+    }
+  }
+
+  if (issues.length === 0 && installAgentDependencies) {
+    const pip = run(agentPython, ["-m", "pip", "install", "-e", agentSource], {
+      cwd: agentSource,
+      timeout: 1200000,
+    });
+    if (pip.status !== 0) {
+      issues.push({
+        code: "hermes_agent_dependency_install_failed",
+        path: path.relative(root, agentSource) || agentSource,
+        detail: compactOutput(pip),
+      });
+    } else {
+      actions.push({ action: "hermes-agent-dependencies-install", path: path.relative(root, agentSource) || agentSource });
+    }
+  }
 } catch (err) {
   issues.push({
     code: "runtime_install_failed",
@@ -3423,12 +3543,23 @@ const report = {
   phase: "install-official-hermes-runtime",
   root,
   nodeCommand: requestedNode,
+  pythonCommand: requestedPython,
   runtimeNode: targetNode,
+  hermesAgent: {
+    source: agentSource,
+    repositoryUrl: agentRepositoryUrl,
+    ref: agentRef,
+    python: agentPython,
+    dependenciesInstalled: installAgentDependencies && issues.length === 0,
+  },
   actionCount: actions.length,
   actions,
   rollback: {
     safeOnlyIfCreatedByThisPhase: true,
-    command: `rm -f ${JSON.stringify(targetNode)}`,
+    commands: [
+      `rm -f ${JSON.stringify(targetNode)}`,
+      `rm -rf ${JSON.stringify(agentRoot)}`,
+    ],
   },
   issues,
 };
@@ -3671,7 +3802,7 @@ NODE
 run_phase() {
   case "$1" in
     system-preflight)
-      node "$APP_SOURCE/scripts/public-install-preflight.js" --repo-root "$APP_SOURCE" --json
+      node "$APP_SOURCE/scripts/public-install-preflight.js" --repo-root "$APP_SOURCE" --python-command "$PYTHON_COMMAND" --json
       ;;
     install-dependencies)
       run_dependency_phase
@@ -3764,6 +3895,10 @@ while [[ $# -gt 0 ]]; do
       NPM_COMMAND="${2:-}"
       shift 2
       ;;
+    --python-command)
+      PYTHON_COMMAND="${2:-}"
+      shift 2
+      ;;
     --service-users)
       SERVICE_USERS="${2:-}"
       shift 2
@@ -3804,6 +3939,22 @@ while [[ $# -gt 0 ]]; do
       CRON_NETWORK_MODE="${2:-}"
       shift 2
       ;;
+    --hermes-agent-source)
+      HERMES_AGENT_SOURCE="${2:-}"
+      shift 2
+      ;;
+    --hermes-agent-repository-url)
+      HERMES_AGENT_REPOSITORY_URL="${2:-}"
+      shift 2
+      ;;
+    --hermes-agent-ref)
+      HERMES_AGENT_REF="${2:-}"
+      shift 2
+      ;;
+    --install-hermes-agent-dependencies)
+      INSTALL_HERMES_AGENT_DEPENDENCIES="${2:-}"
+      shift 2
+      ;;
     --phase)
       PHASE_FILTER="${2:-}"
       shift 2
@@ -3840,6 +3991,11 @@ fi
 
 if [[ -z "$NPM_COMMAND" ]]; then
   echo "npm-command must be non-empty" >&2
+  exit 2
+fi
+
+if [[ -z "$PYTHON_COMMAND" ]]; then
+  echo "python-command must be non-empty" >&2
   exit 2
 fi
 
@@ -3958,6 +4114,7 @@ if [[ "$OUTPUT" == "json" ]]; then
     printf '  "appSource": %s,\n' "$(printf '%s' "$APP_SOURCE" | json_escape)"
     printf '  "nodeCommand": %s,\n' "$(printf '%s' "$NODE_COMMAND" | json_escape)"
     printf '  "npmCommand": %s,\n' "$(printf '%s' "$NPM_COMMAND" | json_escape)"
+    printf '  "pythonCommand": %s,\n' "$(printf '%s' "$PYTHON_COMMAND" | json_escape)"
     printf '  "serviceUsers": %s,\n' "$(printf '%s' "$SERVICE_USERS" | json_escape)"
     printf '  "ownerKeyFile": %s,\n' "$(printf '%s' "${OWNER_KEY_FILE:-$ROOT/data/secrets/owner-web-key.secret}" | json_escape)"
     printf '  "workspaceMap": %s,\n' "$(printf '%s' "$WORKSPACE_MAP" | json_escape)"
@@ -3968,6 +4125,10 @@ if [[ "$OUTPUT" == "json" ]]; then
     printf '  "gatewayOwnerMaintenanceDeepSeekWorkers": %s,\n' "$(printf '%s' "$GATEWAY_OWNER_MAINTENANCE_DEEPSEEK_WORKERS" | json_escape)"
     printf '  "pluginSourceMode": %s,\n' "$(printf '%s' "$PLUGIN_SOURCE_MODE" | json_escape)"
     printf '  "cronNetworkMode": %s,\n' "$(printf '%s' "$CRON_NETWORK_MODE" | json_escape)"
+    printf '  "hermesAgentSource": %s,\n' "$(printf '%s' "${HERMES_AGENT_SOURCE:-$ROOT/runtime/hermes-agent-official/source}" | json_escape)"
+    printf '  "hermesAgentRepositoryUrl": %s,\n' "$(printf '%s' "$HERMES_AGENT_REPOSITORY_URL" | json_escape)"
+    printf '  "hermesAgentRef": %s,\n' "$(printf '%s' "$HERMES_AGENT_REF" | json_escape)"
+    printf '  "installHermesAgentDependencies": %s,\n' "$(printf '%s' "$INSTALL_HERMES_AGENT_DEPENDENCIES" | json_escape)"
     printf '  "phaseFilter": %s,\n' "$(printf '%s' "$PHASE_FILTER" | json_escape)"
     printf '  "networkMode": %s,\n' "$(printf '%s' "$NETWORK_MODE" | json_escape)"
     printf '  "base": %s,\n' "$(printf '%s' "$BASE_URL" | json_escape)"

@@ -396,16 +396,28 @@ Then install Home AI source into an empty app directory:
 bash scripts/install-macos-production.sh --execute --phase install-hermes-mobile --root /Users/example/path --app-source /path/to/HomeAI --json
 ```
 
-Then pin the production Node runtime:
+Then pin the production Node runtime and materialize the official Hermes Agent
+runtime used by Gateway/provider ingress:
 
 ```bash
-bash scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime --root /Users/example/path --node-command /path/to/node --json
+bash scripts/install-macos-production.sh --execute --phase install-official-hermes-runtime \
+  --root /Users/example/path \
+  --node-command /path/to/node \
+  --python-command /path/to/python3.12 \
+  --hermes-agent-repository-url https://github.com/pentiumxp/hermes-agent-public.git \
+  --install-hermes-agent-dependencies 1 \
+  --json
 ```
 
-The runtime phase requires Node.js `>=22`, creates
+The runtime phase requires Node.js `>=22` and Python `>=3.12`. It creates
 `runtime/node-current/bin/node` as a symlink to the requested Node executable,
-is idempotent when the link already points at the same executable, and fails
-closed when an existing runtime link points elsewhere.
+clones or reuses `runtime/hermes-agent-official/source`, creates
+`runtime/hermes-agent-official/venv`, and installs Hermes Agent dependencies
+with `<venv>/bin/python -m pip install -e <source>` when
+`--install-hermes-agent-dependencies 1` is set. It is idempotent when the Node
+link, Hermes Agent checkout, and venv already match the requested inputs, and
+it fails closed when an existing runtime link points elsewhere or the Python /
+Hermes Agent inputs are missing.
 
 Then install production dependencies:
 
@@ -723,11 +735,16 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
   operator-authenticated repository read access and is marked
   `operatorAuthenticated`; it is not an anonymous default public plugin.
 - Hermes Agent is a deployment dependency because Gateway provider access can
-  route through the official Hermes Agent runtime. Updating the Hermes Agent
-  source requires explicit `--update-hermes-agent`, and dependency refresh
-  requires `--install-hermes-agent-dependencies`. After any Hermes Agent update,
-  the upgrade must run the production profile/provider audit and closure
-  validation; it must not print raw provider credentials or OAuth state.
+  route through the official Hermes Agent runtime. Fresh install closure now
+  requires `install-official-hermes-runtime` to create
+  `runtime/hermes-agent-official/source` and
+  `runtime/hermes-agent-official/venv/bin/python` from an operator-provided
+  Python 3.12+ executable and Hermes Agent repository URL. Updating the Hermes
+  Agent source requires explicit `--update-hermes-agent`, and dependency
+  refresh requires `--install-hermes-agent-dependencies`. After any Hermes
+  Agent update, the upgrade must run the production profile/provider audit and
+  closure validation; it must not print raw provider credentials or OAuth
+  state.
 - Owner login checks `/api/app-update/status`. The response covers both Home AI
   and plugin source directories declared in `config/public-plugin-sources.json`.
 - The in-app update action is Owner-only and fast-forward-only. It must fail

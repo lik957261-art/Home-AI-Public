@@ -619,8 +619,13 @@ It is not an anonymous default public plugin. `--clone-missing-plugins` is the
 explicit gate for cloning missing plugin sources, including operator-
 authenticated sources when the operator has configured Git credentials.
 
-Hermes Agent and provider ingress are deployment dependencies. The public
-upgrade loop checks `<root>/runtime/hermes-agent-official/source` and
+Hermes Agent and provider ingress are deployment dependencies. A fresh install
+must close `install-official-hermes-runtime`, which now pins
+`runtime/node-current/bin/node`, verifies an operator-provided Python `>=3.12`,
+clones or reuses `<root>/runtime/hermes-agent-official/source`, creates
+`<root>/runtime/hermes-agent-official/venv`, and installs Hermes Agent
+dependencies when `--install-hermes-agent-dependencies 1` is set. The public
+upgrade loop then checks the same source and
 `<root>/runtime/hermes-agent-official/venv/bin/python`; a Hermes Agent source
 update requires explicit `--update-hermes-agent`, and dependency installation
 requires `--install-hermes-agent-dependencies`. After Home AI, plugin, or
