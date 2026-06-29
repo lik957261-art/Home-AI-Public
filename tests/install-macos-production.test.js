@@ -82,7 +82,7 @@ function testDryRunJsonPlan() {
   ]);
   const firstStart = parsed.phases.find((phase) => phase.id === "run-first-start-preflight");
   assert.match(firstStart.command, /macos-first-start-preflight\.js/);
-  assert.match(firstStart.command, /--network-mode <direct\|proxy>/);
+  assert.match(firstStart.command, /--network-mode direct/);
   assert.match(firstStart.command, /--base http:\/\/127\.0\.0\.1:8797/);
   const smokeTests = parsed.phases.find((phase) => phase.id === "run-smoke-tests");
   assert.match(smokeTests.command, /macos-production-closure-validation\.js/);

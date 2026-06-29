@@ -358,7 +358,7 @@ bash ./scripts/install-macos-production.sh --json
 Fresh-install guided entrypoint:
 
 ```bash
-bash ./scripts/install-macos-production.sh --execute --guided --root /Users/example/path --json
+bash ./scripts/install-macos-production.sh --execute --guided --root /Users/example/path --network-mode direct --json
 ```
 
 The official Hermes Agent runtime phase writes service-owned runtime paths and
@@ -422,6 +422,9 @@ CRON scaffold, plugin source clone, plugin dependency install, first-run plugin
 provisioning plan, core/plugin launchd apply, first-start preflight, and
 aggregate closure smoke. Existing production updates should continue to use
 `scripts/deploy-macos-production.js`.
+The installer defaults guided fresh install to `direct` network mode. Operators
+can pass `--network-mode proxy` when the target host intentionally requires a
+proxy path for provider egress.
 Plugin source installation supports two operator-run materialization paths:
 `--plugin-source-mode clone` clones public HTTPS GitHub repositories, while
 `--plugin-source-mode bundle --plugin-source-bundle-dir <dir>` copies

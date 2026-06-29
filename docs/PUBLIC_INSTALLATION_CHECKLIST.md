@@ -58,7 +58,7 @@ bash scripts/install-macos-production.sh --json
 For a fresh macOS install, the guided entrypoint is:
 
 ```bash
-bash scripts/install-macos-production.sh --execute --guided --root /Users/example/path --json
+bash scripts/install-macos-production.sh --execute --guided --root /Users/example/path --network-mode direct --json
 ```
 
 Guided mode reports the full ordered `guidedPlan.operatorSteps` by default and
@@ -72,7 +72,7 @@ sudo env PATH=<node-bin-dir>:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr
   HOMEAI_INSTALL_ALLOW_USER_CREATE=1 \
   HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1 \
   HOMEAI_INSTALL_LAUNCHD_APPLY=1 \
-  bash scripts/install-macos-production.sh --execute --guided --root /Users/example/path --json
+  bash scripts/install-macos-production.sh --execute --guided --root /Users/example/path --network-mode direct --json
 ```
 
 This runs the service-user, directory, source, runtime, dependency,
@@ -130,6 +130,9 @@ audits the required macOS service users and fails closed if any are missing.
 It creates missing users only when run as root with
 `HOMEAI_INSTALL_ALLOW_USER_CREATE=1`. Existing users are reported but not
 modified.
+Guided fresh install defaults to `--network-mode direct`; pass
+`--network-mode proxy` only when the target host intentionally requires
+per-process proxy configuration for provider egress.
 The `configure-owner` phase is executable. It creates a missing Owner Web
 Access Key file at `data/secrets/owner-web-key.secret` with `0600`
 permissions, tightens an existing key file's mode when needed, and never
