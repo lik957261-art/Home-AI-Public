@@ -1819,14 +1819,18 @@ function testExecuteGatewayLaunchdServicesStagesWorkersWithoutLoading() {
   assert.equal(parsed.execution.report.operatorInstallRequired, true);
   const planPath = path.join(root, "data", "gateway-launchd-services-plan.json");
   const plan = JSON.parse(fs.readFileSync(planPath, "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, "data", "gateway-pool-manifest-mac.json"), "utf8"));
   assert.equal(plan.workerCount, 1);
   assert.equal(plan.launchdInstalled, false);
   assert.equal(plan.launchdLoaded, false);
   assert.equal(plan.services[0].label, "com.hermesmobile.gateway.hm-owner.openai.1");
   assert.equal(plan.services[0].runAtLoad, false);
   assert.equal(plan.services[0].keepAlive, false);
-  const startScript = fs.readFileSync(plan.services[0].startScript, "utf8");
   const profileDir = plan.services[0].profileDir;
+  assert.equal(manifest.workers[0].launchdLabel, "com.hermesmobile.gateway.hm-owner.openai.1");
+  assert.equal(manifest.workers[0].configPath, path.join(profileDir, "config.yaml"));
+  assert.equal(manifest.workers[0].startScriptPath, plan.services[0].startScript);
+  const startScript = fs.readFileSync(plan.services[0].startScript, "utf8");
   assert.match(startScript, /HERMES_MOBILE_BRIDGE_HOST_URL/);
   assert.match(startScript, /HERMES_WEB_BRIDGE_HOST_KEY_PATH/);
   assert.match(startScript, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
@@ -1848,6 +1852,8 @@ function testExecuteGatewayLaunchdServicesStagesWorkersWithoutLoading() {
   assert.match(plist, /<key>RunAtLoad<\/key><false\/>/);
   assert.match(plist, /<key>KeepAlive<\/key><false\/>/);
   assert.match(plist, /<key>UserName<\/key><string>hm-owner<\/string>/);
+  assert.match(plist, /<key>HERMES_MOBILE_BRIDGE_HOST_URL<\/key><string>http:\/\/127\.0\.0\.1:8798<\/string>/);
+  assert.match(plist, /<key>HERMES_MOBILE_BRIDGE_HOST_KEY_PATH<\/key><string>.*data\/secrets\/bridge-host\.secret<\/string>/);
   const phase = parsed.phases.find((item) => item.id === "install-gateway-launchd-services");
   assert.equal(phase.status, "executed");
 }

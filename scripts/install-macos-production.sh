@@ -2060,6 +2060,9 @@ function plistFor(worker, label, profileDir, startScript) {
   const profile = safeProfile(worker.profile || worker.name);
   const osUser = safeMacUser(worker.osUser || worker.os_user);
   const logs = path.join(profileDir, "logs");
+  const manifestFile = manifestPath;
+  const bridgeHostUrl = "http://127.0.0.1:8798";
+  const bridgeKeyPath = path.join(root, "data", "secrets", "bridge-host.secret");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -2077,6 +2080,15 @@ function plistFor(worker, label, profileDir, startScript) {
     <key>HERMES_HOME</key><string>${xmlEscape(profileDir)}</string>
     <key>HERMES_PROFILE</key><string>${xmlEscape(profile)}</string>
     <key>HERMES_WORKSPACE_ROOT</key><string>${xmlEscape(path.join(root, "users", osUser, "HermesWorkspace"))}</string>
+    <key>HERMES_MOBILE_ROOT</key><string>${xmlEscape(root)}</string>
+    <key>HERMES_WEB_ROOT</key><string>${xmlEscape(root)}</string>
+    <key>HERMES_MOBILE_GATEWAY_POOL_MANIFEST</key><string>${xmlEscape(manifestFile)}</string>
+    <key>HERMES_WEB_GATEWAY_POOL_MANIFEST</key><string>${xmlEscape(manifestFile)}</string>
+    <key>HERMES_GATEWAY_POOL_MANIFEST_PATH</key><string>${xmlEscape(manifestFile)}</string>
+    <key>HERMES_MOBILE_BRIDGE_HOST_URL</key><string>${xmlEscape(bridgeHostUrl)}</string>
+    <key>HERMES_WEB_BRIDGE_HOST_URL</key><string>${xmlEscape(bridgeHostUrl)}</string>
+    <key>HERMES_MOBILE_BRIDGE_HOST_KEY_PATH</key><string>${xmlEscape(bridgeKeyPath)}</string>
+    <key>HERMES_WEB_BRIDGE_HOST_KEY_PATH</key><string>${xmlEscape(bridgeKeyPath)}</string>
     <key>PATH</key><string>${xmlEscape(`${root}/runtime/node-current/bin:${root}/runtime/hermes-agent-official/venv/bin:/usr/local/bin:/usr/bin:/bin`)}</string>
   </dict>
   <key>RunAtLoad</key><false/>
@@ -2174,6 +2186,10 @@ try {
     fs.writeFileSync(startScript, startScriptFor(worker, profileDir, startScript, manifestPath), { encoding: "utf8", mode: 0o700 });
     fs.chmodSync(startScript, 0o700);
     actions.push({ action: "write-gateway-start-script", profile, path: rel(startScript), mode: "0700" });
+    worker.launchdLabel = label;
+    worker.launchd_label = label;
+    worker.configPath = path.join(profileDir, "config.yaml");
+    worker.startScriptPath = startScript;
     const stagedPlistPath = path.join(stagingDir, `${label}.plist`);
     fs.writeFileSync(stagedPlistPath, plistFor(worker, label, profileDir, startScript), { encoding: "utf8", mode: 0o644 });
     fs.chmodSync(stagedPlistPath, 0o644);
@@ -2193,6 +2209,10 @@ try {
     });
   }
   applyServicePlans(servicePlans);
+  if (issues.length === 0) {
+    fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: "utf8", mode: 0o640 });
+    actions.push({ action: "update-gateway-manifest-launchd-fields", path: rel(manifestPath), workerCount: servicePlans.length, mode: "0640" });
+  }
   if (issues.length === 0) {
     const launchdInstalled = applyLaunchd && servicePlans.every((service) => service.installStatus === "installed" || service.installStatus === "installed-and-loaded");
     const launchdLoaded = applyLaunchd && servicePlans.every((service) => service.installStatus === "installed-and-loaded");
