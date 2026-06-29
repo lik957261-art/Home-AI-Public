@@ -62,6 +62,10 @@ assert.match(script, /expectedVersion/);
 assert.match(script, /data-client-version/);
 assert.match(script, /productionStatusArgs/);
 assert.match(script, /--expected-version/);
+assert.match(script, /expectedWorkspaces/);
+assert.match(script, /--expected-workspaces/);
+assert.match(script, /requiredWorkspacePlugins/);
+assert.match(script, /--required-workspace-plugins/);
 assert.match(script, /wrongHeaderDenied/);
 assert.match(script, /activeGlobal === 0/);
 assert.match(script, /blockingWarningCount === 0/);
@@ -141,6 +145,8 @@ const {
 
 const parsed = parseArgs([]);
 assert.equal(parsed.root, "/Users/example/path");
+assert.equal(parsed.expectedWorkspaces, "owner");
+assert.equal(parsed.requiredWorkspacePlugins, "");
 assert.equal(isProviderAuthRuntimeError(new Error("schema:wuping failed with exit 1: File \"<HERMES_MOBILE_ROOT>/runtime/hermes-agent-official/source/hermes_cli/auth.py\", line 1606, in resolve_provider raise AuthError(\"provider auth missing\")")), true);
 assert.equal(isProviderAuthRuntimeError(new Error("schema:wuping failed with exit 1: random schema parse failure")), false);
 assert.equal(parsed.base, "http://127.0.0.1:8797");

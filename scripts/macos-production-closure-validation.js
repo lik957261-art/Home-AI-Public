@@ -6,6 +6,7 @@ const path = require("node:path");
 
 const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_BASE = "http://127.0.0.1:8797";
+const DEFAULT_PROFILE_AUDIT_WORKSPACES = "owner";
 const AUTH_PROCESS_PATTERN = "[a]uth add xai-oauth|[m]acos-grok-xai-reauth";
 const macPath = path.posix;
 const MAC_BASE_SCHEMA_TOOLS = [
@@ -44,6 +45,8 @@ function parseArgs(argv) {
     runTimeoutMs: 300000,
     commandTimeoutMs: 360000,
     concurrentOwnerRuns: 2,
+    expectedWorkspaces: process.env.HOMEAI_CLOSURE_EXPECTED_WORKSPACES || DEFAULT_PROFILE_AUDIT_WORKSPACES,
+    requiredWorkspacePlugins: process.env.HOMEAI_CLOSURE_REQUIRED_WORKSPACE_PLUGINS || "",
     skipSchema: false,
     skipPluginDirectory: false,
     skipBoundDirectory: false,
@@ -70,6 +73,8 @@ function parseArgs(argv) {
     else if (arg === "--run-timeout-ms") out.runTimeoutMs = Number(argv[++index] || out.runTimeoutMs);
     else if (arg === "--command-timeout-ms") out.commandTimeoutMs = Number(argv[++index] || out.commandTimeoutMs);
     else if (arg === "--concurrent-owner-runs") out.concurrentOwnerRuns = Number(argv[++index] || out.concurrentOwnerRuns);
+    else if (arg === "--expected-workspaces") out.expectedWorkspaces = argv[++index] || out.expectedWorkspaces;
+    else if (arg === "--required-workspace-plugins") out.requiredWorkspacePlugins = argv[++index] || out.requiredWorkspacePlugins;
     else if (arg === "--skip-schema") out.skipSchema = true;
     else if (arg === "--skip-plugin-directory") out.skipPluginDirectory = true;
     else if (arg === "--skip-bound-directory") out.skipBoundDirectory = true;
@@ -88,6 +93,9 @@ function parseArgs(argv) {
         "  --base <url>              Home AI origin, default http://127.0.0.1:8797",
         "  --owner-key-file <file>   Owner Web key file; path and contents are not printed",
         "  --expected-version <value> Expected served client version; default reads <app>/public/index.html",
+        "  --expected-workspaces <ids> Profile-audit workspace ids, default owner",
+        "  --required-workspace-plugins <map>",
+        "                            Profile-audit workspace plugin map, default empty",
         "  --skip-schema             Skip native Gateway schema probes",
         "  --skip-plugin-directory   Skip plugin delivery-directory creation and preview smoke",
         "  --skip-bound-directory    Skip all-workspace directory-topic binding preview smokes",
@@ -117,6 +125,9 @@ function parseArgs(argv) {
   if (!Number.isFinite(out.runTimeoutMs) || out.runTimeoutMs <= 0) out.runTimeoutMs = 300000;
   if (!Number.isFinite(out.commandTimeoutMs) || out.commandTimeoutMs <= 0) out.commandTimeoutMs = 360000;
   if (!Number.isFinite(out.concurrentOwnerRuns) || out.concurrentOwnerRuns < 1) out.concurrentOwnerRuns = 2;
+  out.expectedWorkspaces = String(out.expectedWorkspaces || DEFAULT_PROFILE_AUDIT_WORKSPACES).trim();
+  if (!out.expectedWorkspaces) out.expectedWorkspaces = DEFAULT_PROFILE_AUDIT_WORKSPACES;
+  out.requiredWorkspacePlugins = String(out.requiredWorkspacePlugins || "").trim();
   return out;
 }
 
@@ -500,6 +511,8 @@ async function runClosure(options) {
   const status = compactStatus(await runNodeJson("status", options, "production-status-smoke.js", productionStatusArgs(options)));
   const profileAuditArgs = [
     "--root", options.root,
+    "--expected-workspaces", options.expectedWorkspaces,
+    "--required-workspace-plugins", options.requiredWorkspacePlugins,
     "--json",
   ];
   if (options.allowProviderAuthPending) profileAuditArgs.push("--no-strict");
