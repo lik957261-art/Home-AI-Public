@@ -128,6 +128,7 @@ async function testPlanRequiresExplicitCloneAndAgentUpdate() {
     appPath: fixture.appPath,
     pluginRoot: fixture.pluginRoot,
     runtimeRoot: fixture.runtimeRoot,
+    homeAiRepositoryUrl: "git@github.com:pentiumxp/Home-AI-Public.git",
     hermesAgentSource: fixture.agentSource,
     hermesAgentRepositoryUrl: "https://github.com/pentiumxp/hermes-agent-public.git",
     runProcess: createFakeRunner(fixture, calls),
@@ -143,6 +144,9 @@ async function testPlanRequiresExplicitCloneAndAgentUpdate() {
   assert.ok(blocked.blockers.some((blocker) => blocker.code === "plugin_source_missing_requires_clone_missing_plugins" && blocker.id === "movie"));
   assert.ok(blocked.blockers.some((blocker) => blocker.code === "operator_authenticated_plugin_source_missing" && blocker.id === "movie"));
   assert.ok(blocked.blockers.some((blocker) => blocker.code === "hermes_agent_update_available_requires_update_hermes_agent"));
+  assert.ok(calls.some((call) => call.command === "git"
+    && call.args[0] === "ls-remote"
+    && call.args[1] === "git@github.com:pentiumxp/Home-AI-Public.git"));
 
   const allowed = await service.buildPlan({
     reason: "test-upgrade",

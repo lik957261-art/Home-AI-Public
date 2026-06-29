@@ -4,6 +4,7 @@ const { execFile } = require("node:child_process");
 
 const DEFAULT_PUBLIC_REPO_URL = "https://github.com/pentiumxp/Home-AI-Public.git";
 const DEFAULT_TIMEOUT_MS = 180000;
+const DEFAULT_NODE_VERSION = "v24.14.1";
 
 function clean(value, max = 500) {
   return String(value == null ? "" : value).trim().slice(0, max);
@@ -69,13 +70,31 @@ function summarizeStep(type, result = {}) {
   const json = parseJsonOutput(result.stdout);
   if (type === "remote-system-probe") {
     const fields = keyValueSummary(result.stdout);
-    const required = ["git", "node", "npm", "bash"];
+    const required = ["git", "curl", "tar", "bash"];
     const missingTools = required.filter((tool) => !fields[tool]);
     return {
       ok: result.ok === true && missingTools.length === 0,
       uname: fields.uname || "",
       arch: fields.arch || "",
       missingTools,
+      nodeAvailable: Boolean(fields.node),
+      npmAvailable: Boolean(fields.npm),
+    };
+  }
+  if (type === "bootstrap-node-runtime") {
+    const fields = keyValueSummary(result.stdout);
+    return {
+      ok: result.ok === true && Boolean(fields.node) && Boolean(fields.npm),
+      node: clean(fields.node, 120),
+      npm: clean(fields.npm, 120),
+      nodeVersion: clean(fields.nodeVersion, 40),
+    };
+  }
+  if (type === "macos-install-cycle-delete") {
+    const fields = keyValueSummary(result.stdout);
+    return {
+      ok: result.ok === true && fields.removed === "true",
+      removed: fields.removed === "true",
     };
   }
   if (!json) return { ok: result.ok === true, jsonParsed: false };
@@ -97,7 +116,9 @@ function summarizeStep(type, result = {}) {
       issueCount: Array.isArray(json.issues) ? json.issues.length : 0,
     };
   }
-  if (type === "macos-guided-install-sandbox") {
+  if (type === "macos-guided-install-sandbox"
+    || type === "macos-install-cycle-first"
+    || type === "macos-install-cycle-second") {
     return {
       ok: json.ok === true,
       guidedExecutedCount: Number(json.guidedExecutedCount || json.execution?.guidedExecutedCount || 0),
@@ -146,9 +167,58 @@ function remoteShell(script) {
   return `/bin/sh -lc ${shellQuote(script)}`;
 }
 
+function remoteNodeEnv(plan = {}) {
+  return [
+    `export PATH=${shellQuote(`${plan.remoteRoot}/runtime/bin`)}:"$PATH"`,
+    "export HOMEAI_NODE=node",
+    "export HOMEAI_NPM=npm",
+    `export HOMEAI_PUBLIC_REPOSITORY_URL=${shellQuote(plan.publicRepoUrl || DEFAULT_PUBLIC_REPO_URL)}`,
+    "export GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new'",
+  ].join("\n");
+}
+
+function bootstrapNodeScript(plan = {}) {
+  const runtimeRoot = `${plan.remoteRoot}/runtime`;
+  const runtimeBin = `${runtimeRoot}/bin`;
+  const nodeVersion = clean(plan.nodeVersion || DEFAULT_NODE_VERSION, 40);
+  return [
+    "set -e",
+    `runtime_root=${shellQuote(runtimeRoot)}`,
+    `runtime_bin=${shellQuote(runtimeBin)}`,
+    `node_version=${shellQuote(nodeVersion)}`,
+    "mkdir -p \"$runtime_bin\"",
+    "system_node=\"$(command -v node 2>/dev/null || true)\"",
+    "system_npm=\"$(command -v npm 2>/dev/null || true)\"",
+    "if [ -n \"$system_node\" ] && [ -n \"$system_npm\" ]; then",
+    "  ln -sf \"$system_node\" \"$runtime_bin/node\"",
+    "  ln -sf \"$system_npm\" \"$runtime_bin/npm\"",
+    "else",
+    "  arch=\"$(uname -m)\"",
+    "  case \"$arch\" in arm64) node_arch=arm64 ;; x86_64) node_arch=x64 ;; *) printf 'unsupported_arch=%s\\n' \"$arch\"; exit 2 ;; esac",
+    "  package=\"node-${node_version}-darwin-${node_arch}\"",
+    "  archive=\"$runtime_root/${package}.tar.gz\"",
+    "  url=\"https://nodejs.org/dist/${node_version}/${package}.tar.gz\"",
+    "  mkdir -p \"$runtime_root\"",
+    "  curl -fsSL \"$url\" -o \"$archive\"",
+    "  rm -rf \"$runtime_root/$package\"",
+    "  tar -xzf \"$archive\" -C \"$runtime_root\"",
+    "  ln -sf \"$runtime_root/$package/bin/node\" \"$runtime_bin/node\"",
+    "  ln -sf \"$runtime_root/$package/bin/npm\" \"$runtime_bin/npm\"",
+    "fi",
+    "PATH=\"$runtime_bin:$PATH\"",
+    "export PATH",
+    "\"$runtime_bin/node\" --version >/dev/null",
+    "\"$runtime_bin/npm\" --version >/dev/null",
+    "printf 'node=%s\\n' \"$runtime_bin/node\"",
+    "printf 'npm=%s\\n' \"$runtime_bin/npm\"",
+    "printf 'nodeVersion=%s\\n' \"$(\"$runtime_bin/node\" --version)\"",
+  ].join("\n");
+}
+
 function buildRemoteSteps(plan = {}) {
   const appPath = `${plan.remoteRoot}/Home-AI-Public`;
   const targetRoot = `${plan.remoteRoot}/target-root`;
+  const nodeEnv = remoteNodeEnv(plan);
   const steps = [
     {
       type: "remote-system-probe",
@@ -157,7 +227,8 @@ function buildRemoteSteps(plan = {}) {
         "printf 'uname=%s\\n' \"$(/usr/bin/uname -s 2>/dev/null || uname -s 2>/dev/null)\"",
         "printf 'arch=%s\\n' \"$(/usr/bin/uname -m 2>/dev/null || uname -m 2>/dev/null)\"",
         "missing=0",
-        "for tool in git node npm bash; do path=\"$(command -v \"$tool\" 2>/dev/null)\"; printf '%s=%s\\n' \"$tool\" \"$path\"; [ -n \"$path\" ] || missing=1; done",
+        "for tool in git curl tar bash; do path=\"$(command -v \"$tool\" 2>/dev/null)\"; printf '%s=%s\\n' \"$tool\" \"$path\"; [ -n \"$path\" ] || missing=1; done",
+        "for tool in node npm; do path=\"$(command -v \"$tool\" 2>/dev/null)\"; printf '%s=%s\\n' \"$tool\" \"$path\"; done",
         "exit \"$missing\"",
       ].join("\n"),
     },
@@ -166,32 +237,55 @@ function buildRemoteSteps(plan = {}) {
       script: `rm -rf ${shellQuote(plan.remoteRoot)} && mkdir -p ${shellQuote(plan.remoteRoot)}`,
     },
     {
+      type: "bootstrap-node-runtime",
+      script: bootstrapNodeScript(plan),
+    },
+    {
       type: "clone-public-repo",
-      script: `git clone --depth 1 ${shellQuote(plan.publicRepoUrl)} ${shellQuote(appPath)}`,
+      script: `${nodeEnv}\ngit clone --depth 1 ${shellQuote(plan.publicRepoUrl)} ${shellQuote(appPath)}`,
     },
     {
       type: "public-source-preflight",
-      script: `cd ${shellQuote(appPath)} && node scripts/public-install-preflight.js --source-only --json`,
+      script: `${nodeEnv}\ncd ${shellQuote(appPath)} && node scripts/public-install-preflight.js --source-only --json`,
     },
     {
       type: "macos-fresh-install-rehearsal",
-      script: `cd ${shellQuote(appPath)} && node scripts/macos-fresh-install-rehearsal.js --root ${shellQuote(targetRoot)} --json`,
+      script: `${nodeEnv}\ncd ${shellQuote(appPath)} && node scripts/macos-fresh-install-rehearsal.js --root ${shellQuote(targetRoot)} --json`,
     },
   ];
-  if (plan.runGuidedInstall) {
+  if (plan.cycleInstall) {
+    const installScript = `${nodeEnv}\ncd ${shellQuote(appPath)} && bash scripts/install-macos-production.sh --execute --guided --root ${shellQuote(targetRoot)} --json`;
+    steps.push({
+      type: "macos-install-cycle-first",
+      script: installScript,
+    });
+    steps.push({
+      type: "macos-install-cycle-delete",
+      script: [
+        `rm -rf ${shellQuote(targetRoot)}`,
+        `if [ -e ${shellQuote(targetRoot)} ]; then printf 'removed=false\\n'; exit 1; fi`,
+        "printf 'removed=true\\n'",
+      ].join("\n"),
+    });
+    steps.push({
+      type: "macos-install-cycle-second",
+      script: installScript,
+    });
+  } else if (plan.runGuidedInstall) {
     steps.push({
       type: "macos-guided-install-sandbox",
-      script: `cd ${shellQuote(appPath)} && bash scripts/install-macos-production.sh --execute --guided --root ${shellQuote(targetRoot)} --json`,
+      script: `${nodeEnv}\ncd ${shellQuote(appPath)} && bash scripts/install-macos-production.sh --execute --guided --root ${shellQuote(targetRoot)} --json`,
     });
   }
   steps.push({
     type: "public-upgrade-rehearsal",
-    script: `cd ${shellQuote(appPath)} && npm run --silent rehearse:public-upgrade -- --execute --json`,
+    script: `${nodeEnv}\ncd ${shellQuote(appPath)} && npm run --silent rehearse:public-upgrade -- --execute --json`,
   });
   if (plan.executeProductionUpgrade) {
     steps.push({
       type: "public-production-upgrade",
       script: [
+        nodeEnv,
         `cd ${shellQuote(appPath)}`,
         "npm run --silent upgrade:public --",
         `--root ${shellQuote(plan.productionRoot)}`,
@@ -222,11 +316,13 @@ function buildPlan(options = {}) {
     generatedAt: new Date().toISOString(),
     sshTarget: clean(options.sshTarget, 240),
     publicRepoUrl: clean(options.publicRepoUrl || DEFAULT_PUBLIC_REPO_URL, 500),
+    nodeVersion: clean(options.nodeVersion || DEFAULT_NODE_VERSION, 40),
     remoteRoot,
     appPath: remoteRoot ? `${remoteRoot}/Home-AI-Public` : "",
     targetRoot: remoteRoot ? `${remoteRoot}/target-root` : "",
     productionRoot: clean(options.productionRoot, 300),
     runGuidedInstall: bool(options.runGuidedInstall),
+    cycleInstall: bool(options.cycleInstall),
     executeProductionUpgrade: bool(options.executeProductionUpgrade),
     keepRemoteTemp: bool(options.keepRemoteTemp),
     reason: clean(options.reason || "public-remote-deploy-smoke", 120),
@@ -295,6 +391,7 @@ async function runRemoteDeploySmoke(options = {}, deps = {}) {
 
 module.exports = {
   DEFAULT_PUBLIC_REPO_URL,
+  DEFAULT_NODE_VERSION,
   buildPlan,
   buildRemoteSteps,
   buildSshArgs,

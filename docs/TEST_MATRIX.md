@@ -927,9 +927,11 @@ production mutation.
 Remote new-Mac public deployment smoke must prove
 `scripts/homeai-public-remote-deploy-smoke.js`,
 `npm run remote:public-deploy-smoke`, bounded SSH argument construction,
-remote `/tmp`/`/var/tmp` root restriction, public repo clone, source preflight,
-macOS fresh-install rehearsal, public upgrade rehearsal, failure-stop cleanup,
-and explicit gating for production `upgrade:public --execute`.
+remote `/tmp`/`/var/tmp` root restriction, temporary Node runtime bootstrap on
+new Macs without system `node`/`npm`, public repo clone, source preflight,
+macOS fresh-install rehearsal, public upgrade rehearsal, install-delete-
+reinstall sandbox cycle, failure-stop cleanup, and explicit gating for
+production `upgrade:public --execute`.
 The maintained public upgrade loop must additionally prove
 `scripts/homeai-public-upgrade.js`, clean fast-forward planning/execution,
 Moira/Movie source inventory, explicit clone gating for missing plugins,

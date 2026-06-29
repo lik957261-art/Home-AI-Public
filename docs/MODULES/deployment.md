@@ -605,8 +605,11 @@ remote temp root is removed unless `--keep-remote-temp` is explicit. It does
 not install system LaunchDaemons, create service users, run production
 `upgrade:public --execute`, restart services, or copy credentials. Use
 `--run-guided-install` for a sandbox guided-install pass. Use
-`--execute-production-upgrade --production-root <root>` only after the sandbox
-smoke passes and the target operator has approved the production mutation.
+`--cycle-install` for first-machine acceptance: it runs a guided install in the
+sandbox target root, deletes the sandbox target root, and runs the guided
+install again to prove a clean reinstall path. Use `--execute-production-upgrade
+--production-root <root>` only after the sandbox smoke passes and the target
+operator has approved the production mutation.
 
 The public upgrade inventory includes Moira and Movie. Moira uses the public
 `https://github.com/pentiumxp/MOIRA_chinese_astrology_public.git` repository.

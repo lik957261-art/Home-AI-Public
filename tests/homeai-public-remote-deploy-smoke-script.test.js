@@ -24,9 +24,12 @@ function testParseArgs() {
     "2222",
     "--ssh-option",
     "-vv",
+    "--node-version",
+    "v24.14.1",
     "--remote-root",
     "/tmp/homeai-public-remote-deploy-smoke-test",
     "--run-guided-install",
+    "--cycle-install",
     "--json",
   ]);
   assert.equal(parsed.execute, true);
@@ -36,7 +39,9 @@ function testParseArgs() {
   assert.equal(parsed.sshConfig, "/tmp/config");
   assert.equal(parsed.port, "2222");
   assert.deepEqual(parsed.sshOptions, ["-vv"]);
+  assert.equal(parsed.nodeVersion, "v24.14.1");
   assert.equal(parsed.runGuidedInstall, true);
+  assert.equal(parsed.cycleInstall, true);
 }
 
 function testPlanCli() {
@@ -54,6 +59,34 @@ function testPlanCli() {
   assert.equal(parsed.mode, "plan");
   assert.equal(parsed.remoteRoot, "/tmp/homeai-public-remote-deploy-smoke-cli");
   assert.ok(parsed.actions.some((action) => action.type === "public-upgrade-rehearsal"));
+}
+
+function testCycleInstallPlanCli() {
+  const output = execFileSync(process.execPath, [
+    "scripts/homeai-public-remote-deploy-smoke.js",
+    "--remote-root",
+    "/tmp/homeai-public-remote-deploy-smoke-cli-cycle",
+    "--cycle-install",
+    "--json",
+  ], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  });
+  const parsed = JSON.parse(output);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.cycleInstall, true);
+  assert.deepEqual(parsed.actions.map((action) => action.type), [
+    "remote-system-probe",
+    "prepare-remote-root",
+    "bootstrap-node-runtime",
+    "clone-public-repo",
+    "public-source-preflight",
+    "macos-fresh-install-rehearsal",
+    "macos-install-cycle-first",
+    "macos-install-cycle-delete",
+    "macos-install-cycle-second",
+    "public-upgrade-rehearsal",
+  ]);
 }
 
 function testExecuteRequiresTarget() {
@@ -86,6 +119,7 @@ function testRenderText() {
 
 testParseArgs();
 testPlanCli();
+testCycleInstallPlanCli();
 testExecuteRequiresTarget();
 testRenderText();
 

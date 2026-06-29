@@ -688,15 +688,20 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
   ```bash
   npm run remote:public-deploy-smoke -- --ssh-target <macbook-air-ssh-alias> --json
   npm run remote:public-deploy-smoke -- --ssh-target <macbook-air-ssh-alias> --execute --json
+  npm run remote:public-deploy-smoke -- --ssh-target <macbook-air-ssh-alias> --execute --cycle-install --json
   ```
 
   This clones the published public repository into a target-side temporary
   root, runs public source preflight, macOS fresh-install rehearsal, and public
-  upgrade rehearsal, then removes the temp root by default. It does not create
+  upgrade rehearsal, then removes the temp root by default. If the target Mac
+  does not have `node`/`npm`, the smoke downloads a temporary Node runtime under
+  the remote temp root and uses it only for that smoke. It does not create
   service users, install LaunchDaemons, run production `upgrade:public
   --execute`, restart services, or copy credentials. Add `--run-guided-install`
   only after the basic smoke passes and you want to exercise guided automatic
-  install phases in the sandbox root. Add
+  install phases in the sandbox root. Add `--cycle-install` for first-machine
+  acceptance: guided install in the sandbox root, delete the sandbox target
+  root, then guided reinstall. Add
   `--execute-production-upgrade --production-root <root>` only for an approved
   real production mutation.
 - Public deployments should keep the Home AI checkout and plugin checkouts as

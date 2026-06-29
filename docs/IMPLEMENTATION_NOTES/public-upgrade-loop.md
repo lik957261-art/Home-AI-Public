@@ -90,6 +90,7 @@ attempting a mutating install or upgrade:
 ```bash
 npm run remote:public-deploy-smoke -- --ssh-target <macbook-air-ssh-alias> --json
 npm run remote:public-deploy-smoke -- --ssh-target <macbook-air-ssh-alias> --execute --json
+npm run remote:public-deploy-smoke -- --ssh-target <macbook-air-ssh-alias> --execute --cycle-install --json
 ```
 
 The default execute mode is still sandboxed. It creates a temporary root under
@@ -100,12 +101,40 @@ public upgrade rehearsal. It deletes the temporary root unless
 install LaunchDaemons into `/Library/LaunchDaemons`, run `upgrade:public
 --execute`, restart services, or write provider credentials.
 
+The remote smoke does not require Node/npm to be preinstalled on a new Mac. If
+they are missing, it downloads the configured Node runtime version into the
+remote temp root and prepends only that temp `runtime/bin` for the smoke
+session.
+
+If the published Home AI repository is private, run the remote smoke with the
+SSH repository URL and SSH agent forwarding from the operator machine:
+
+```bash
+npm run remote:public-deploy-smoke -- \
+  --ssh-target <macbook-air-ssh-alias> \
+  --ssh-option -A \
+  --public-repo-url git@github.com:pentiumxp/Home-AI-Public.git \
+  --execute --cycle-install --json
+```
+
+The remote smoke exports that same repository URL as
+`HOMEAI_PUBLIC_REPOSITORY_URL` for nested `upgrade:public` rehearsals, so the
+Home AI source status check does not fall back to the manifest HTTPS URL and
+prompt for GitHub credentials on the target Mac.
+
 For a first end-to-end MacBook Air validation, add `--run-guided-install` to
 also execute the installer guided automatic phases inside the same remote
 sandbox root. A real production upgrade remains a separate operator action and
 requires `--execute-production-upgrade --production-root <root>`, which should
 only be used after the sandbox smoke passes and the operator has confirmed the
 target root and credential boundary.
+
+Use `--cycle-install` for first-machine acceptance. It runs the guided install
+inside the sandbox target root, deletes that target root, and runs the guided
+install again. This proves the one-command install path can recover from a
+blank machine state without leaving the operator to manually repair stale
+partial files. The cycle still remains sandboxed unless
+`--execute-production-upgrade` is also explicit.
 
 Home AI Self-Improving Loop collects this rehearsal as the
 `public_upgrade_rehearsal` self-check signal. Production collection runs

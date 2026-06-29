@@ -116,6 +116,7 @@ function createPublicUpgradeOrchestratorService(options = {}) {
   const npmCommand = options.npmCommand || process.env.HOMEAI_NPM || "npm";
   const gitCommand = options.gitCommand || process.env.HOMEAI_GIT || "git";
   const manifestPath = pathApi.resolve(options.manifestPath || pathApi.join(appPath, "config", "public-plugin-sources.json"));
+  const homeAiRepositoryUrl = cleanString(options.homeAiRepositoryUrl || process.env.HOMEAI_PUBLIC_REPOSITORY_URL || "", 500);
   const hermesAgentSource = pathApi.resolve(options.hermesAgentSource || pathApi.join(runtimeRoot, "hermes-agent-official", "source"));
   const hermesAgentPython = pathApi.resolve(options.hermesAgentPython || pathApi.join(runtimeRoot, "hermes-agent-official", "venv", "bin", "python"));
   const hermesAgentRepositoryUrl = cleanString(options.hermesAgentRepositoryUrl || process.env.HOMEAI_HERMES_AGENT_REPOSITORY_URL || process.env.HERMES_MOBILE_HERMES_AGENT_REPOSITORY_URL || "");
@@ -199,7 +200,7 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     const appRepo = await repoStatus({
       id: "home-ai",
       path: appPath,
-      repositoryUrl: homeAi.repositoryUrl || "",
+      repositoryUrl: homeAiRepositoryUrl || homeAi.repositoryUrl || "",
       ref: homeAi.ref || DEFAULT_BRANCH,
     });
     if (appRepo.updateAvailable) actions.push({ type: "fast-forward-source", target: "home-ai", path: appPath });

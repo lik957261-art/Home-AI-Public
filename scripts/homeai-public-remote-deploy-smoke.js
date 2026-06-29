@@ -3,6 +3,7 @@
 
 const {
   DEFAULT_PUBLIC_REPO_URL,
+  DEFAULT_NODE_VERSION,
   buildPlan,
   runRemoteDeploySmoke,
 } = require("../adapters/public-remote-deploy-smoke-service");
@@ -21,12 +22,14 @@ function parseArgs(argv = []) {
     identityFile: process.env.HOMEAI_REMOTE_DEPLOY_IDENTITY_FILE || "",
     port: process.env.HOMEAI_REMOTE_DEPLOY_SSH_PORT || "",
     publicRepoUrl: process.env.HOMEAI_PUBLIC_REPOSITORY_URL || DEFAULT_PUBLIC_REPO_URL,
+    nodeVersion: process.env.HOMEAI_REMOTE_DEPLOY_NODE_VERSION || DEFAULT_NODE_VERSION,
     remoteRoot: process.env.HOMEAI_REMOTE_DEPLOY_ROOT || "",
     productionRoot: process.env.HOMEAI_REMOTE_PRODUCTION_ROOT || "",
     timeoutMs: 180000,
     connectTimeoutSeconds: 15,
     keepRemoteTemp: false,
     runGuidedInstall: false,
+    cycleInstall: false,
     executeProductionUpgrade: false,
     reason: "public-remote-deploy-smoke",
     sshOptions: [],
@@ -42,12 +45,14 @@ function parseArgs(argv = []) {
     else if (arg === "--port") out.port = clean(argv[++index] || "", 20);
     else if (arg === "--ssh-option") out.sshOptions.push(clean(argv[++index] || "", 200));
     else if (arg === "--public-repo-url" || arg === "--repo") out.publicRepoUrl = clean(argv[++index] || DEFAULT_PUBLIC_REPO_URL, 500);
+    else if (arg === "--node-version") out.nodeVersion = clean(argv[++index] || DEFAULT_NODE_VERSION, 40);
     else if (arg === "--remote-root") out.remoteRoot = clean(argv[++index] || "", 300);
     else if (arg === "--production-root") out.productionRoot = clean(argv[++index] || "", 300);
     else if (arg === "--timeout-ms") out.timeoutMs = Number(argv[++index] || out.timeoutMs);
     else if (arg === "--connect-timeout-seconds") out.connectTimeoutSeconds = Number(argv[++index] || out.connectTimeoutSeconds);
     else if (arg === "--keep-remote-temp") out.keepRemoteTemp = true;
     else if (arg === "--run-guided-install") out.runGuidedInstall = true;
+    else if (arg === "--cycle-install") out.cycleInstall = true;
     else if (arg === "--execute-production-upgrade") out.executeProductionUpgrade = true;
     else if (arg === "--reason") out.reason = clean(argv[++index] || out.reason, 120);
     else if (arg === "--help") {
@@ -74,6 +79,7 @@ function printHelp() {
     "  3. run public source preflight;",
     "  4. run macOS fresh-install rehearsal in a remote sandbox root;",
     "  5. run public upgrade rehearsal.",
+    "  Add --cycle-install to run sandbox install, delete the sandbox target root, then reinstall.",
     "",
     "Options:",
     "  --ssh-target <target>              SSH target or alias. Required with --execute.",
@@ -82,8 +88,10 @@ function printHelp() {
     "  --port <port>                      Optional SSH port.",
     "  --ssh-option <arg>                 Extra single SSH argument, repeatable.",
     "  --public-repo-url <url>            Public repo URL, default Home-AI-Public HTTPS.",
+    "  --node-version <version>           Node runtime version for temp bootstrap, default current Home AI runtime.",
     "  --remote-root <path>               Remote temp root. Must be /tmp or /var/tmp homeai-public-remote-deploy-smoke-*.",
     "  --run-guided-install               Also run installer --guided in the remote sandbox root.",
+    "  --cycle-install                    Run sandbox guided install, delete sandbox target root, then reinstall.",
     "  --execute-production-upgrade        Also run upgrade:public --execute on --production-root.",
     "  --production-root <path>            Required with --execute-production-upgrade.",
     "  --keep-remote-temp                 Keep the remote temp root for inspection.",
