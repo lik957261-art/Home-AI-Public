@@ -77,6 +77,8 @@ assert.match(script, /allowProviderAuthPending/);
 assert.match(script, /--allow-provider-auth-pending/);
 assert.match(script, /codex_auth_\(json\|lock\)_missing/);
 assert.match(script, /skipped_provider_auth_pending/);
+assert.match(script, /isProviderAuthRuntimeError/);
+assert.match(script, /runtime_schema_probe/);
 assert.match(script, /--strict-status/);
 assert.doesNotMatch(script, /console\.log\(.*ownerKeyFile/);
 assert.doesNotMatch(script, /console\.log\(.*ingressKeyFile/);
@@ -129,6 +131,7 @@ const {
   compactSchema,
   compactStatus,
   isAllowedProfileAuditWarning,
+  isProviderAuthRuntimeError,
   parseArgs,
   productionStatusArgs,
   readAppClientVersion,
@@ -138,6 +141,8 @@ const {
 
 const parsed = parseArgs([]);
 assert.equal(parsed.root, "/Users/example/path");
+assert.equal(isProviderAuthRuntimeError(new Error("schema:wuping failed with exit 1: File \"<HERMES_MOBILE_ROOT>/runtime/hermes-agent-official/source/hermes_cli/auth.py\", line 1606, in resolve_provider raise AuthError(\"provider auth missing\")")), true);
+assert.equal(isProviderAuthRuntimeError(new Error("schema:wuping failed with exit 1: random schema parse failure")), false);
 assert.equal(parsed.base, "http://127.0.0.1:8797");
 assert.equal(parsed.expectedVersion, "");
 assert.ok(parsed.ownerKeyFile.endsWith("/data/secrets/owner-web-key.secret"));

@@ -255,6 +255,12 @@ function isProviderAuthPendingIssue(value) {
   return /^codex_auth_(json|lock)_missing:/.test(String(value || ""));
 }
 
+function isProviderAuthRuntimeError(error) {
+  const text = String(error?.message || error || "");
+  return /schema:[^ ]+ failed with exit \d+:/i.test(text)
+    && /hermes_cli\/auth\.py|hermes_cli[\\/]auth\.py|resolve_provider|AuthError|provider auth/i.test(text);
+}
+
 function compactProfileAudit(profile, options = {}) {
   const issues = Array.isArray(profile.issues) ? profile.issues : [];
   const providerAuthPendingIssues = issues.filter(isProviderAuthPendingIssue);
@@ -498,7 +504,8 @@ async function runClosure(options) {
   ];
   if (options.allowProviderAuthPending) profileAuditArgs.push("--no-strict");
   const profileAudit = compactProfileAudit(await runNodeJson("profile-audit", options, "macos-production-profile-audit.js", profileAuditArgs), options);
-  const providerAuthPending = Boolean(profileAudit.providerAuthPendingAccepted);
+  let providerAuthPending = Boolean(profileAudit.providerAuthPendingAccepted);
+  let providerAuthPendingSource = providerAuthPending ? "profile_audit" : "";
   const runtimePython = compactRuntimePython(options);
   const acl = compactAcl(await runNodeJson("acl", options, "macos-worker-filesystem-access-harness.js", [
     "--root", options.root,
@@ -541,41 +548,51 @@ async function runClosure(options) {
     "--json",
   ]));
 
-  const schemas = (options.skipSchema || providerAuthPending) ? [] : [
-    await runSchema(
-      options,
-      "wuping",
-      "hm-wuping-openai-1",
-      "/Users/example/path",
-      requiredTools(MAC_BASE_SCHEMA_TOOLS, [
-        "mcp_wardrobe_wardrobe_search_items",
-        "mcp_wardrobe_wardrobe_write_history",
-        "mcp_finance_list_ledgers",
-        "mcp_note_notes_create",
-        "mcp_email_search_messages",
-      ]),
-    ),
-    await runSchema(
-      options,
-      "owner",
-      "hm-owner-openai-1",
-      "/Users/example/path",
-      requiredTools(MAC_BASE_SCHEMA_TOOLS, [
-        "mcp_health_records_get_summary",
-        "mcp_note_notes_create",
-      ]),
-    ),
-    await runSchema(
-      options,
-      "test",
-      "hm-test-openai-1",
-      "/Users/example/path",
-      requiredTools(MAC_BASE_SCHEMA_TOOLS, [
-        "mcp_wardrobe_wardrobe_search_items",
-        "mcp_finance_list_ledgers",
-      ]),
-    ),
-  ];
+  let schemas = [];
+  if (!options.skipSchema && !providerAuthPending) {
+    try {
+      schemas = [
+        await runSchema(
+          options,
+          "wuping",
+          "hm-wuping-openai-1",
+          "/Users/example/path",
+          requiredTools(MAC_BASE_SCHEMA_TOOLS, [
+            "mcp_wardrobe_wardrobe_search_items",
+            "mcp_wardrobe_wardrobe_write_history",
+            "mcp_finance_list_ledgers",
+            "mcp_note_notes_create",
+            "mcp_email_search_messages",
+          ]),
+        ),
+        await runSchema(
+          options,
+          "owner",
+          "hm-owner-openai-1",
+          "/Users/example/path",
+          requiredTools(MAC_BASE_SCHEMA_TOOLS, [
+            "mcp_health_records_get_summary",
+            "mcp_note_notes_create",
+          ]),
+        ),
+        await runSchema(
+          options,
+          "test",
+          "hm-test-openai-1",
+          "/Users/example/path",
+          requiredTools(MAC_BASE_SCHEMA_TOOLS, [
+            "mcp_wardrobe_wardrobe_search_items",
+            "mcp_finance_list_ledgers",
+          ]),
+        ),
+      ];
+    } catch (err) {
+      if (!options.allowProviderAuthPending || !isProviderAuthRuntimeError(err)) throw err;
+      providerAuthPending = true;
+      providerAuthPendingSource = "runtime_schema_probe";
+      schemas = [];
+    }
+  }
 
   const deepseek = (options.skipDeepseek || providerAuthPending) ? null : {
     user: compactGatewaySmoke(await runNodeJson("deepseek-user", options, "gateway-pool-production-smoke.js", [
@@ -631,6 +648,7 @@ async function runClosure(options) {
     scope: {
       grokXai: "deferred_manual_oauth_not_included",
       providerAuth: providerAuthPending ? "pending_accepted" : "configured_or_not_required",
+      providerAuthPendingSource,
       schema: options.skipSchema ? "skipped" : (providerAuthPending ? "skipped_provider_auth_pending" : "included"),
       pluginDirectory: options.skipPluginDirectory ? "skipped" : "included",
       boundDirectory: options.skipBoundDirectory ? "skipped" : "included",
@@ -686,6 +704,7 @@ module.exports = {
   compactWardrobeBinding,
   compactAutomationCron,
   isAllowedProfileAuditWarning,
+  isProviderAuthRuntimeError,
   parseArgs,
   productionStatusArgs,
   readAppClientVersion,
