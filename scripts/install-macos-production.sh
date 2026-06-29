@@ -3669,6 +3669,7 @@ try {
       environment: {
         HERMES_MOBILE_ROOT: root,
         HERMES_WEB_DATA_DIR: dataDir,
+        HERMES_WEB_AUTH_KEY_PATH: path.join(dataDir, "secrets", "owner-web-key.secret"),
         HERMES_WEB_RUNTIME_DIR: path.join(root, "runtime"),
         HERMES_WEB_UPLOAD_DIR: path.join(root, "runtime", "uploads"),
         HERMES_WEB_HOST: "0.0.0.0",
@@ -3689,6 +3690,7 @@ try {
         HERMES_HOME: hermesHome,
         HERMES_WEB_HERMES_HOME: hermesHome,
         HERMES_WEB_DATA_DIR: dataDir,
+        HERMES_WEB_AUTH_KEY_PATH: path.join(dataDir, "secrets", "owner-web-key.secret"),
         HERMES_WEB_CRON_JOBS_PATH: path.join(cronRoot, "jobs.json"),
         HERMES_WEB_CRON_OUTPUT_ROOT: path.join(cronRoot, "output"),
         HERMES_WEB_RUN_LOG_ROOT: path.join(hermesHome, "run-logs"),
@@ -3712,6 +3714,7 @@ try {
         HERMES_HOME: hermesHome,
         HERMES_WEB_HERMES_HOME: hermesHome,
         HERMES_WEB_DATA_DIR: dataDir,
+        HERMES_WEB_AUTH_KEY_PATH: path.join(dataDir, "secrets", "owner-web-key.secret"),
         HERMES_WEB_CRON_JOBS_PATH: path.join(cronRoot, "jobs.json"),
         HERMES_WEB_CRON_OUTPUT_ROOT: path.join(cronRoot, "output"),
         HERMES_WEB_RUN_LOG_ROOT: path.join(hermesHome, "run-logs"),

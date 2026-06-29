@@ -1717,6 +1717,14 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
   assert.match(listenerPlist, /<string>com\.hermesmobile\.listener<\/string>/);
   assert.match(listenerPlist, /<string>8797<\/string>/);
   assert.match(listenerPlist, /<key>KeepAlive<\/key>/);
+  assert.match(listenerPlist, /<key>HERMES_WEB_AUTH_KEY_PATH<\/key>/);
+  assert.match(listenerPlist, /data\/secrets\/owner-web-key\.secret/);
+  const bridgePlist = fs.readFileSync(path.join(stagingDir, "com.hermesmobile.bridge-host.plist"), "utf8");
+  assert.match(bridgePlist, /<key>HERMES_WEB_AUTH_KEY_PATH<\/key>/);
+  assert.match(bridgePlist, /data\/secrets\/owner-web-key\.secret/);
+  const cronPlist = fs.readFileSync(path.join(stagingDir, "com.hermesmobile.cron.plist"), "utf8");
+  assert.match(cronPlist, /<key>HERMES_WEB_AUTH_KEY_PATH<\/key>/);
+  assert.match(cronPlist, /data\/secrets\/owner-web-key\.secret/);
   const musicPlist = fs.readFileSync(path.join(stagingDir, "com.hermesmobile.plugin.music.plist"), "utf8");
   assert.match(musicPlist, /<string>com\.hermesmobile\.plugin\.music<\/string>/);
   assert.match(musicPlist, /<string>src\/roon-first-server\.js<\/string>/);

@@ -441,6 +441,9 @@ or readable by LaunchDaemons running as `hermes-host`: the `data` root itself,
 `logs`, plugin source
 directories, generated service secrets, Hermes Home CRON state,
 `runtime/uploads`, and `tmp`.
+The core Home AI LaunchDaemons bind `HERMES_WEB_AUTH_KEY_PATH` to
+`<root>/data/secrets/owner-web-key.secret`; fresh installs must not fall back to
+an app-root `.hermes_web_secret_key`.
 
 Then install Home AI source into an empty app directory:
 
