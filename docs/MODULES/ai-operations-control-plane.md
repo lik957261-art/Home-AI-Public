@@ -253,17 +253,19 @@ manual explanation. It is implemented as a Home AI platform service, not as
 plugin-local model logic.
 
 Self-check diagnostics use the same intake boundary. The maintained signal
-matrix version `20260628-self-improving-loop-v3` covers Gateway profile health,
+matrix version `20260629-self-improving-loop-v5` covers Gateway profile health,
 MCP/schema closure, deploy lane liveness, task-card dispatch, plugin proxy
 latency, native bridge capability, notification delivery, plugin manifest
-health, audit-thread liveness, Automation cron health, and production
-self-diagnostic inventory health. Current production collectors read bounded
-outputs from `production-status-smoke.js`, `macos-automation-cron-audit.js`,
-and `production-self-diagnostics.js`. Each self-check event must include only
-bounded metadata such as signal id, owner, route kind, error code, duration
-bucket, counts, build id, and short hashes. It must not include raw URLs, paths,
-keys, cookies, launch tokens, screenshots, payload bodies, database rows, full
-prompts, or long logs.
+health, audit-thread liveness, Automation cron health, production
+self-diagnostic inventory health, and published public-upgrade rehearsal
+closure. Current production collectors read bounded outputs from
+`production-status-smoke.js`, `macos-automation-cron-audit.js`,
+`production-self-diagnostics.js`, and
+`homeai-public-upgrade-rehearsal.js --execute --json`. Each self-check event
+must include only bounded metadata such as signal id, owner, route kind, error
+code, duration bucket, counts, build id, and short hashes. It must not include
+raw URLs, paths, keys, cookies, launch tokens, screenshots, payload bodies,
+database rows, full prompts, or long logs.
 
 The default hidden client trigger is a three-finger long press. The two-finger
 long press remains reserved for native shell settings. The same Home AI sheet is

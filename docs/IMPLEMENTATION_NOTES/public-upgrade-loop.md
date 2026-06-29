@@ -84,6 +84,16 @@ The rehearsal is source/plan-only. It does not pass `--execute` to
 not read or print provider keys, OAuth state, access keys, cookies, launch
 tokens, or plugin private payloads.
 
+Home AI Self-Improving Loop collects this rehearsal as the
+`public_upgrade_rehearsal` self-check signal. Production collection runs
+`homeai-public-upgrade-rehearsal.js --execute --json` by default; if the
+published public repository cannot be cloned, source preflight fails, missing
+plugin sources stop failing closed, the explicit clone gate stops producing
+clone/deploy/closure-validation actions, or Movie loses its
+`operatorAuthenticated` marker, AI Ops receives a bounded self-check diagnostic
+eligible for the strict self-check auto-dispatch gate. The self-loop still does
+not run `upgrade:public --execute`, restart services, or deploy code.
+
 Supported execution gates:
 
 - `--clone-missing-plugins`: clone missing plugin sources from

@@ -890,6 +890,12 @@ events, and generates bounded audit request cards for the dedicated audit
 lanes. It is a scheduling and diagnostic trigger only: it must not run deep
 audits, restart services, deploy code, or dispatch repair implementation cards
 directly.
+The self-improving loop production collector also runs
+`scripts/homeai-public-upgrade-rehearsal.js --execute --json` by default. That
+rehearsal clones the published public repository into a temporary root and runs
+target-side `upgrade:public` plans only. It does not mutate production, but a
+failed rehearsal becomes a bounded `public_upgrade_rehearsal` self-check
+diagnostic eligible for the strict self-check remediation gate.
 The same self-diagnostic inventory includes
 `scripts/grok-auth-metadata-smoke.js` as the bounded Grok/xAI OAuth metadata
 check. Run it with the effective Grok profile auth file and shared auth file

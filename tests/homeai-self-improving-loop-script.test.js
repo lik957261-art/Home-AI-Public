@@ -59,10 +59,56 @@ function testCoverageAuditCli() {
   assert.equal(result.ok, true);
   assert.equal(result.status, "covered");
   assert.equal(result.requirements.some((item) => item.id === "plugin_deploy_auth_or_lane_regression"), true);
+  assert.equal(result.requirements.some((item) => item.id === "public_upgrade_rehearsal_regression"), true);
   assert.equal(
     result.requirements.find((item) => item.id === "plugin_deploy_auth_or_lane_regression").missingClosureReadbacks.length,
     0,
   );
+}
+
+function publicUpgradeRehearsalPayload() {
+  return {
+    ok: true,
+    tempRemoved: true,
+    stepCount: 7,
+    steps: [
+      { type: "public-source-preflight", result: { ok: true }, summary: { ok: true, requiredPluginCount: 10 } },
+      {
+        type: "upgrade-plan-missing-sources-fail-closed",
+        result: { ok: false, status: 1 },
+        summary: { ok: false, issueCount: 0, missingSourceBlockerCount: 10, pluginCount: 10 },
+      },
+      {
+        type: "validate-missing-source-fail-closed",
+        ok: true,
+        detail: { ok: true, missingSourceBlockerCount: 10, pluginCount: 10, hasMovieOperatorAuthBlocker: true },
+      },
+      {
+        type: "upgrade-plan-with-operator-clone-gate",
+        result: { ok: true, status: 0 },
+        summary: {
+          ok: true,
+          cloneActionCount: 10,
+          deployActionCount: 10,
+          pluginCount: 10,
+          movieOperatorAuthenticated: true,
+          closureValidationPresent: true,
+        },
+      },
+      {
+        type: "validate-operator-clone-gate-plan",
+        ok: true,
+        detail: {
+          ok: true,
+          cloneActionCount: 10,
+          deployActionCount: 10,
+          pluginCount: 10,
+          movieOperatorAuthenticated: true,
+          closureValidationPresent: true,
+        },
+      },
+    ],
+  };
 }
 
 function testCollectProductionObservationsFromReplayPayloads() {
@@ -88,12 +134,15 @@ function testCollectProductionObservationsFromReplayPayloads() {
     }),
     "--production-diagnostics-json",
     JSON.stringify({ ok: true, diagnosticCount: 27, diagnostics: [], issues: [] }),
+    "--public-upgrade-rehearsal-json",
+    JSON.stringify(publicUpgradeRehearsalPayload()),
     "--json",
   ]);
   assert.equal(result.ok, true);
   assert.equal(result.productionCollection.enabled, true);
-  assert.equal(result.productionCollection.observationCount, 3);
+  assert.equal(result.productionCollection.observationCount, 4);
   assert.equal(result.productionCollection.signals.some((item) => item.signalId === "automation_cron_health"), true);
+  assert.equal(result.productionCollection.signals.some((item) => item.signalId === "public_upgrade_rehearsal"), true);
 }
 
 function testCollectProductionDiagnosticsFailureProducesReport() {
@@ -101,6 +150,7 @@ function testCollectProductionDiagnosticsFailureProducesReport() {
     "--collect-production-observations",
     "--skip-status-smoke",
     "--skip-cron-audit",
+    "--skip-public-upgrade-rehearsal",
     "--production-diagnostics-json",
     JSON.stringify({
       ok: false,
@@ -138,6 +188,7 @@ function testSourceCollectorPermissionBlockIsSkipped() {
     "--cron-audit-json",
     JSON.stringify(cronPermissionBlockedPayload()),
     "--skip-production-diagnostics",
+    "--skip-public-upgrade-rehearsal",
     "--collector-context",
     "source",
     "--json",
@@ -159,6 +210,7 @@ function testProductionCollectorPermissionBlockIsDiagnostic() {
     "--cron-audit-json",
     JSON.stringify(cronPermissionBlockedPayload()),
     "--skip-production-diagnostics",
+    "--skip-public-upgrade-rehearsal",
     "--collector-context",
     "production",
     "--json",
@@ -177,6 +229,7 @@ function testCollectorPlainErrorCodeIsPreserved() {
     "/tmp/homeai-self-loop-missing-key",
     "--skip-cron-audit",
     "--skip-production-diagnostics",
+    "--skip-public-upgrade-rehearsal",
     "--json",
   ]);
   assert.equal(result.productionCollection.observationCount, 1);

@@ -34,7 +34,7 @@ The loop must:
 ## Signal Matrix
 
 The maintained matrix version is currently
-`20260629-self-improving-loop-v4`.
+`20260629-self-improving-loop-v5`.
 
 The current required signals are:
 
@@ -55,6 +55,7 @@ The current required signals are:
 | `audit_thread_liveness` | Home AI platform | Dedicated audit thread discovery for scheduled request cards. |
 | `automation_cron_health` | Home AI Automation | Canonical scheduler store, skills, runtime scripts, and recent job status. |
 | `production_self_diagnostics` | Home AI platform | Production diagnostic inventory, source harness, and doc coverage health. |
+| `public_upgrade_rehearsal` | Home AI deployment | Published public repository target-side upgrade rehearsal closure. |
 
 Each signal defines:
 
@@ -140,6 +141,20 @@ diagnostic. Source/manual runs use `auto` by default, which resolves to
 production cron audit is recorded as a skipped, non-diagnostic observation so a
 manual dry run does not misclassify local operator permissions as a broken
 production scheduler.
+
+The production collector also runs the public upgrade rehearsal by default:
+
+```bash
+node scripts/homeai-public-upgrade-rehearsal.js --execute --json
+```
+
+This clones the published public Home AI repository into a temporary directory
+and runs target-side upgrade plans only. It does not execute `upgrade:public`
+production mutation. A failed clone, failed source preflight, missing-source
+fail-closed regression, missing clone/deploy plan action, missing closure
+validation, or missing Movie `operatorAuthenticated` marker becomes a bounded
+`public_upgrade_rehearsal` self-check diagnostic. Use
+`--skip-public-upgrade-rehearsal` only for a deliberately offline local dry run.
 
 Build daily audit request cards without sending them:
 

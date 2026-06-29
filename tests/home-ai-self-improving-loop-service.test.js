@@ -13,6 +13,7 @@ const {
   cronAuditPermissionBlocked,
   evaluateObservations,
   observationFromCronAudit,
+  observationFromPublicUpgradeRehearsal,
   observationFromProductionDiagnostics,
   observationFromStatusSmoke,
 } = require("../adapters/home-ai-self-improving-loop-service");
@@ -37,6 +38,7 @@ function testSignalMatrixCoversHighFrequencyBoundaries() {
   assert.ok(ids.has("audit_thread_liveness"));
   assert.ok(ids.has("automation_cron_health"));
   assert.ok(ids.has("production_self_diagnostics"));
+  assert.ok(ids.has("public_upgrade_rehearsal"));
   assert.ok(matrix.signals.every((signal) => signal.privacy === "metadata_only"));
   assert.ok(matrix.signals.every((signal) => signal.fallbackPolicy === "no_silent_fallback_no_restart_as_closure"));
   assert.ok(matrix.signals.every((signal) => Array.isArray(signal.closureReadbacks) && signal.closureReadbacks.length > 0));
@@ -89,6 +91,7 @@ function testCoverageAuditCoversRecentIncidentClasses() {
   assert.equal(byId.get("mcp_dispatcher_schema_missing").status, "covered");
   assert.equal(byId.get("gateway_document_tool_capability_gap").status, "covered");
   assert.equal(byId.get("plugin_workspace_propagation_regression").status, "covered");
+  assert.equal(byId.get("public_upgrade_rehearsal_regression").status, "covered");
   assert.equal(audit.policy.closureRequired, true);
   assert.equal(audit.policy.selfCheckAutomationMayAutoDispatch, true);
 }
@@ -216,6 +219,110 @@ function testProductionDiagnosticsCollectorFindsMissingHarness() {
   assert.equal(observation.metadata.missingEntryCount, 1);
 }
 
+function publicUpgradeRehearsalPayload(overrides = {}) {
+  return Object.assign({
+    ok: true,
+    tempRemoved: true,
+    stepCount: 7,
+    steps: [
+      {
+        type: "public-source-preflight",
+        result: { ok: true, status: 0 },
+        summary: { ok: true, issueCount: 0, requiredPluginCount: 10 },
+      },
+      {
+        type: "upgrade-plan-missing-sources-fail-closed",
+        result: { ok: false, status: 1 },
+        summary: {
+          ok: false,
+          issueCount: 0,
+          blockerCount: 11,
+          pluginCount: 10,
+          missingSourceBlockerCount: 10,
+          cloneActionCount: 10,
+          deployActionCount: 0,
+          movieOperatorAuthenticated: true,
+          closureValidationPresent: true,
+          rawSecretsInOutput: false,
+        },
+      },
+      {
+        type: "validate-missing-source-fail-closed",
+        ok: true,
+        detail: {
+          ok: true,
+          reportOk: false,
+          issueCount: 0,
+          missingSourceBlockerCount: 10,
+          pluginCount: 10,
+          hasMovieOperatorAuthBlocker: true,
+        },
+      },
+      {
+        type: "upgrade-plan-with-operator-clone-gate",
+        result: { ok: true, status: 0 },
+        summary: {
+          ok: true,
+          issueCount: 0,
+          blockerCount: 0,
+          actionCount: 21,
+          pluginCount: 10,
+          missingSourceBlockerCount: 0,
+          cloneActionCount: 10,
+          deployActionCount: 10,
+          movieOperatorAuthenticated: true,
+          closureValidationPresent: true,
+          rawSecretsInOutput: false,
+        },
+      },
+      {
+        type: "validate-operator-clone-gate-plan",
+        ok: true,
+        detail: {
+          ok: true,
+          reportOk: true,
+          cloneActionCount: 10,
+          deployActionCount: 10,
+          pluginCount: 10,
+          movieOperatorAuthenticated: true,
+          closureValidationPresent: true,
+        },
+      },
+    ],
+  }, overrides);
+}
+
+function testPublicUpgradeRehearsalCollectorReportsClosure() {
+  const observation = observationFromPublicUpgradeRehearsal(publicUpgradeRehearsalPayload());
+  assert.equal(observation.signalId, "public_upgrade_rehearsal");
+  assert.equal(observation.status, "ok");
+  assert.equal(observation.metadata.pluginCount, 10);
+  assert.equal(observation.metadata.missingSourceBlockerCount, 10);
+  assert.equal(observation.metadata.cloneActionCount, 10);
+  assert.equal(observation.metadata.deployActionCount, 10);
+  assert.equal(observation.metadata.movieOperatorAuthenticated, true);
+  assert.equal(observation.metadata.closureValidationPresent, true);
+}
+
+function testPublicUpgradeRehearsalCollectorReportsBrokenCloneGate() {
+  const observation = observationFromPublicUpgradeRehearsal(publicUpgradeRehearsalPayload({
+    steps: publicUpgradeRehearsalPayload().steps.map((step) => (
+      step.type === "validate-operator-clone-gate-plan"
+        ? Object.assign({}, step, {
+          ok: false,
+          detail: Object.assign({}, step.detail, { ok: false, deployActionCount: 0 }),
+        })
+        : step
+    )),
+  }));
+  assert.equal(observation.status, "failed");
+  assert.equal(observation.errorCode, "public_upgrade_clone_gate_validation_failed");
+  const evaluated = evaluateObservations({ observations: [observation] });
+  assert.equal(evaluated.issueCount, 1);
+  assert.equal(evaluated.diagnosticEvents[0].category, "self_check_public_upgrade");
+  assert.equal(evaluated.diagnosticEvents[0].error_code, "public_upgrade_clone_gate_validation_failed");
+}
+
 function testProductionObservationBatchFeedsDiagnostics() {
   const collected = buildProductionObservations({
     statusSmoke: {
@@ -240,9 +347,10 @@ function testProductionObservationBatchFeedsDiagnostics() {
       diagnosticCount: 10,
       issues: [{ code: "diagnostic_doc_reference_missing" }],
     },
+    publicUpgradeRehearsal: publicUpgradeRehearsalPayload(),
   });
   assert.equal(collected.ok, false);
-  assert.equal(collected.observationCount, 3);
+  assert.equal(collected.observationCount, 4);
   const evaluated = evaluateObservations({
     nowIso: "2026-06-28T00:00:00.000Z",
     observations: collected.observations,
@@ -297,6 +405,8 @@ testCronAuditCollectorReportsRecentStatusIssue();
 testCronAuditPermissionBlockedSkipsSourceContextDiagnostic();
 testCronAuditPermissionBlockedFailsProductionContext();
 testProductionDiagnosticsCollectorFindsMissingHarness();
+testPublicUpgradeRehearsalCollectorReportsClosure();
+testPublicUpgradeRehearsalCollectorReportsBrokenCloneGate();
 testProductionObservationBatchFeedsDiagnostics();
 testAuditRequestCardsAreCentralAuditOnly();
 testReportCombinesMatrixEvaluationAndAuditRequests();

@@ -35,6 +35,7 @@ function parseArgs(argv) {
     statusSmokeJson: "",
     cronAuditJson: "",
     productionDiagnosticsJson: "",
+    publicUpgradeRehearsalJson: "",
     base: process.env.HERMES_SELF_LOOP_BASE || process.env.HERMES_MOBILE_SMOKE_BASE || "http://127.0.0.1:8797",
     accessKeyFile: process.env.HERMES_SELF_LOOP_ACCESS_KEY_FILE || process.env.HERMES_WEB_AUTH_KEY_PATH || "",
     expectedVersion: process.env.HERMES_SELF_LOOP_EXPECTED_VERSION || "",
@@ -47,6 +48,7 @@ function parseArgs(argv) {
     skipStatusSmoke: false,
     skipCronAudit: false,
     skipProductionDiagnostics: false,
+    skipPublicUpgradeRehearsal: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -64,6 +66,7 @@ function parseArgs(argv) {
     else if (arg === "--status-smoke-json") out.statusSmokeJson = argv[++index] || "";
     else if (arg === "--cron-audit-json") out.cronAuditJson = argv[++index] || "";
     else if (arg === "--production-diagnostics-json") out.productionDiagnosticsJson = argv[++index] || "";
+    else if (arg === "--public-upgrade-rehearsal-json") out.publicUpgradeRehearsalJson = argv[++index] || "";
     else if (arg === "--base") out.base = clean(argv[++index] || out.base, 400);
     else if (arg === "--access-key-file" || arg === "--key-file") out.accessKeyFile = argv[++index] || "";
     else if (arg === "--expected-version") out.expectedVersion = clean(argv[++index] || "", 120);
@@ -76,6 +79,7 @@ function parseArgs(argv) {
     else if (arg === "--skip-status-smoke") out.skipStatusSmoke = true;
     else if (arg === "--skip-cron-audit") out.skipCronAudit = true;
     else if (arg === "--skip-production-diagnostics") out.skipProductionDiagnostics = true;
+    else if (arg === "--skip-public-upgrade-rehearsal") out.skipPublicUpgradeRehearsal = true;
     else if (arg === "--help") {
       printHelp();
       process.exit(0);
@@ -101,6 +105,8 @@ function printHelp() {
     "  --cron-audit-json <json>        Test/replay input for macos-automation-cron-audit payload.",
     "  --production-diagnostics-json <json>",
     "                                 Test/replay input for production-self-diagnostics payload.",
+    "  --public-upgrade-rehearsal-json <json>",
+    "                                 Test/replay input for public upgrade rehearsal payload.",
     "  --submit-diagnostics            Submit generated diagnostic events to AI Ops intake.",
     "  --base <url>                    Home AI base URL, default http://127.0.0.1:8797.",
     "  --access-key-file <file>        Owner web key file for status smoke or diagnostic submit.",
@@ -111,6 +117,8 @@ function printHelp() {
     "                                 Classify protected production read failures by runner context.",
     "  --status-since <iso>            Cron status lower bound.",
     "  --status-window-hours <hours>   Cron status lookback when --status-since is omitted.",
+    "  --skip-public-upgrade-rehearsal",
+    "                                 Do not run the published public repo upgrade rehearsal collector.",
     "  --create-audit-cards           Build daily audit request cards.",
     "  --coverage-audit               Audit recent incident coverage and closure readback requirements.",
     "  --audit-scope <all|platform|plugin|none>",
@@ -245,6 +253,13 @@ function collectProductionPayloads(options) {
       out.productionDiagnostics = parseJsonObject(options.productionDiagnosticsJson, "production_diagnostics");
     } else {
       out.productionDiagnostics = runNodeJson("scripts/production-self-diagnostics.js", ["--json"], "production_self_diagnostics");
+    }
+  }
+  if (!options.skipPublicUpgradeRehearsal) {
+    if (options.publicUpgradeRehearsalJson) {
+      out.publicUpgradeRehearsal = parseJsonObject(options.publicUpgradeRehearsalJson, "public_upgrade_rehearsal");
+    } else {
+      out.publicUpgradeRehearsal = runNodeJson("scripts/homeai-public-upgrade-rehearsal.js", ["--execute", "--json"], "public_upgrade_rehearsal");
     }
   }
   return out;

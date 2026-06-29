@@ -7,7 +7,7 @@ const DEFAULT_PLUGIN_AUDIT_THREAD_TITLE = "Plugin Workspace Audit";
 const SEVERITY_RANK = Object.freeze({ info: 0, H4: 1, H3: 2, H2: 3, H1: 4 });
 const SKIPPED_STATUSES = new Set(["skipped", "not_applicable", "blocked_by_context"]);
 
-const SIGNAL_MATRIX_VERSION = "20260629-self-improving-loop-v4";
+const SIGNAL_MATRIX_VERSION = "20260629-self-improving-loop-v5";
 
 const DEFAULT_SIGNALS = Object.freeze([
   Object.freeze({
@@ -282,6 +282,36 @@ const DEFAULT_SIGNALS = Object.freeze([
       "node tests/production-self-diagnostics-coverage-audit.test.js",
     ],
   }),
+  Object.freeze({
+    id: "public_upgrade_rehearsal",
+    title: "Public repository upgrade rehearsal closure",
+    domain: "public_upgrade",
+    owner: "home-ai-deployment",
+    severity: "H2",
+    source: "homeai-public-upgrade-rehearsal",
+    expected: "published public repo can be cloned and target-side upgrade planning proves missing-source fail-closed and explicit clone/deploy closure",
+    threshold: "public rehearsal must pass source preflight, fail closed without clone gate, and produce clone/deploy/closure-validation actions with the clone gate",
+    evidence: [
+      "pluginCount",
+      "missingSourceBlockerCount",
+      "cloneActionCount",
+      "deployActionCount",
+      "movieOperatorAuthenticated",
+      "closureValidationPresent",
+      "tempRemoved",
+    ],
+    closureReadbacks: [
+      "public_repo_remote_head",
+      "source_rehearsal_execute",
+      "production_rehearsal_execute",
+      "release_public_validation",
+    ],
+    target: "Home AI",
+    checks: [
+      "node tests/public-upgrade-rehearsal-service.test.js",
+      "node tests/homeai-public-upgrade-rehearsal-script.test.js",
+    ],
+  }),
 ]);
 
 const DEFAULT_INCIDENT_COVERAGE_REQUIREMENTS = Object.freeze([
@@ -353,6 +383,16 @@ const DEFAULT_INCIDENT_COVERAGE_REQUIREMENTS = Object.freeze([
     requiredSignals: ["task_card_dispatch", "notification_delivery"],
     requiredEvidence: ["caseId", "actionInboxItemId", "dispatchStatus", "dedupeKey"],
     requiredClosureReadbacks: ["action_inbox_item_readback", "task_card_id_readback", "target_thread_readback", "duplicate_signature_count"],
+    remediationGate: "self_check_auto_dispatch",
+  }),
+  Object.freeze({
+    id: "public_upgrade_rehearsal_regression",
+    title: "Published public repo cannot rehearse target-side upgrade closure",
+    severity: "H2",
+    incidentClass: "public_upgrade_regression",
+    requiredSignals: ["public_upgrade_rehearsal"],
+    requiredEvidence: ["pluginCount", "missingSourceBlockerCount", "cloneActionCount", "deployActionCount", "movieOperatorAuthenticated"],
+    requiredClosureReadbacks: ["public_repo_remote_head", "source_rehearsal_execute", "production_rehearsal_execute"],
     remediationGate: "self_check_auto_dispatch",
   }),
 ]);
@@ -793,6 +833,82 @@ function observationFromProductionDiagnostics(payload = {}) {
   };
 }
 
+function stepOfType(payload = {}, type) {
+  const steps = Array.isArray(payload.steps) ? payload.steps : [];
+  return steps.find((step) => step && step.type === type) || {};
+}
+
+function firstNumber(...values) {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+}
+
+function observationFromPublicUpgradeRehearsal(payload = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("public_upgrade_rehearsal", "public_upgrade_rehearsal_missing_payload");
+  }
+  const preflight = stepOfType(payload, "public-source-preflight");
+  const missingPlan = stepOfType(payload, "upgrade-plan-missing-sources-fail-closed");
+  const missingValidation = stepOfType(payload, "validate-missing-source-fail-closed");
+  const cloneGatePlan = stepOfType(payload, "upgrade-plan-with-operator-clone-gate");
+  const cloneGateValidation = stepOfType(payload, "validate-operator-clone-gate-plan");
+
+  const missingSourceBlockerCount = firstNumber(
+    missingValidation.detail?.missingSourceBlockerCount,
+    missingPlan.summary?.missingSourceBlockerCount,
+  );
+  const cloneActionCount = firstNumber(
+    cloneGateValidation.detail?.cloneActionCount,
+    cloneGatePlan.summary?.cloneActionCount,
+  );
+  const deployActionCount = firstNumber(
+    cloneGateValidation.detail?.deployActionCount,
+    cloneGatePlan.summary?.deployActionCount,
+  );
+  const pluginCount = firstNumber(
+    cloneGateValidation.detail?.pluginCount,
+    cloneGatePlan.summary?.pluginCount,
+    missingValidation.detail?.pluginCount,
+    missingPlan.summary?.pluginCount,
+  );
+  const movieOperatorAuthenticated = cloneGateValidation.detail?.movieOperatorAuthenticated === true
+    || cloneGatePlan.summary?.movieOperatorAuthenticated === true;
+  const closureValidationPresent = cloneGateValidation.detail?.closureValidationPresent === true
+    || cloneGatePlan.summary?.closureValidationPresent === true;
+
+  let errorCode = "";
+  if (payload.ok === false) errorCode = payload.error || "public_upgrade_rehearsal_failed";
+  else if (payload.tempRemoved !== true) errorCode = "public_upgrade_rehearsal_temp_not_removed";
+  else if (preflight.summary?.ok !== true && preflight.result?.ok !== true) errorCode = "public_upgrade_rehearsal_preflight_failed";
+  else if (missingValidation.ok !== true || missingSourceBlockerCount <= 0) errorCode = "public_upgrade_missing_source_fail_closed_missing";
+  else if (cloneGateValidation.ok !== true) errorCode = "public_upgrade_clone_gate_validation_failed";
+  else if (cloneActionCount <= 0) errorCode = "public_upgrade_clone_actions_missing";
+  else if (deployActionCount <= 0) errorCode = "public_upgrade_deploy_actions_missing";
+  else if (!movieOperatorAuthenticated) errorCode = "public_upgrade_movie_operator_auth_missing";
+  else if (!closureValidationPresent) errorCode = "public_upgrade_closure_validation_missing";
+
+  return {
+    signalId: "public_upgrade_rehearsal",
+    status: errorCode ? "failed" : "ok",
+    errorCode,
+    count: cloneActionCount + deployActionCount,
+    metadata: {
+      pluginCount,
+      missingSourceBlockerCount,
+      cloneActionCount,
+      deployActionCount,
+      movieOperatorAuthenticated,
+      closureValidationPresent,
+      tempRemoved: payload.tempRemoved === true,
+      stepCount: firstNumber(payload.stepCount),
+      preflightOk: preflight.summary?.ok === true || preflight.result?.ok === true,
+    },
+  };
+}
+
 function buildProductionObservations(input = {}) {
   const observations = [];
   if (Object.prototype.hasOwnProperty.call(input, "statusSmoke")) {
@@ -803,6 +919,9 @@ function buildProductionObservations(input = {}) {
   }
   if (Object.prototype.hasOwnProperty.call(input, "productionDiagnostics")) {
     observations.push(observationFromProductionDiagnostics(input.productionDiagnostics));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "publicUpgradeRehearsal")) {
+    observations.push(observationFromPublicUpgradeRehearsal(input.publicUpgradeRehearsal));
   }
   return {
     ok: observations.every((item) => item.status === "ok" || (item.status === "skipped" && item.diagnosticEligible === false)),
@@ -940,6 +1059,7 @@ module.exports = {
   evaluateObservations,
   normalizeObservation,
   observationFromCronAudit,
+  observationFromPublicUpgradeRehearsal,
   observationFromProductionDiagnostics,
   observationFromStatusSmoke,
   cronAuditPermissionBlocked,
