@@ -594,7 +594,9 @@ NODE
 
 run_service_user_phase() {
   node - "$ROOT" "$SERVICE_USERS" "$ALLOW_USER_CREATE" <<'NODE'
+const fs = require("node:fs");
 const os = require("node:os");
+const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const root = process.argv[2];
@@ -658,7 +660,7 @@ function createUser(dsclPath, user, uid) {
     [".", "-create", `/Users/${user}`, "UniqueID", String(uid)],
     [".", "-create", `/Users/${user}`, "PrimaryGroupID", "20"],
     [".", "-create", `/Users/${user}`, "NFSHomeDirectory", home],
-    [".", "-passwd", `/Users/${user}`, "*"],
+    [".", "-create", `/Users/${user}`, "Password", "*"],
   ];
   for (const args of steps) {
     const result = run(dsclPath, args);
@@ -670,6 +672,33 @@ function createUser(dsclPath, user, uid) {
     }
   }
   return { ok: true };
+}
+
+function ensureHomeDirectory(user) {
+  const home = `/Users/${user}`;
+  try {
+    if (fs.existsSync(home) && !fs.statSync(home).isDirectory()) {
+      return { ok: false, code: "service_user_home_not_directory", detail: home };
+    }
+    const existed = fs.existsSync(home);
+    fs.mkdirSync(home, { recursive: true, mode: 0o755 });
+    fs.chmodSync(home, 0o755);
+    const chown = run("/usr/sbin/chown", [`${user}:staff`, home]);
+    if (chown.status !== 0) {
+      return {
+        ok: false,
+        code: "service_user_home_chown_failed",
+        detail: `${chown.stderr || chown.stdout || `status=${chown.status}`}`.trim().slice(-500),
+      };
+    }
+    return { ok: true, existed, home };
+  } catch (err) {
+    return {
+      ok: false,
+      code: "service_user_home_create_failed",
+      detail: err && err.code ? err.code : String(err && err.message ? err.message : err),
+    };
+  }
 }
 
 try {
@@ -697,6 +726,24 @@ try {
       }
       const before = userExists(dsclPath, user);
       if (before.exists) {
+        const home = `/Users/${user}`;
+        if (!fs.existsSync(home)) {
+          if (!allowCreate || !isRoot) {
+            issues.push({
+              code: "service_user_home_missing",
+              user,
+              home,
+              remediation: "rerun as root with HOMEAI_INSTALL_ALLOW_USER_CREATE=1",
+            });
+          } else {
+            const ensured = ensureHomeDirectory(user);
+            if (!ensured.ok) {
+              issues.push({ code: ensured.code, user, detail: ensured.detail });
+            } else {
+              actions.push({ user, action: "home-created", home, mode: "0755" });
+            }
+          }
+        }
         actions.push({
           user,
           action: "exists",
@@ -719,6 +766,11 @@ try {
       const created = createUser(dsclPath, user, uid);
       if (!created.ok) {
         issues.push({ code: "service_user_create_failed", user, detail: created.detail });
+        continue;
+      }
+      const ensured = ensureHomeDirectory(user);
+      if (!ensured.ok) {
+        issues.push({ code: ensured.code, user, detail: ensured.detail });
         continue;
       }
       actions.push({ user, action: "created", uid, shell: "/usr/bin/false", home: `/Users/${user}` });

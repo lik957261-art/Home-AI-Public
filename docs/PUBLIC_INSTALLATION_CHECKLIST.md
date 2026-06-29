@@ -194,8 +194,9 @@ sudo HOMEAI_INSTALL_ALLOW_USER_CREATE=1 bash scripts/install-macos-production.sh
 
 Use `--service-users hermes-host,hm-owner,...` or `HOMEAI_SERVICE_USERS` when a
 deployment has a different workspace-user set. The phase validates user names,
-uses macOS `dscl`, reports bounded action metadata, and never rewrites existing
-users.
+uses macOS `dscl`, creates or repairs the corresponding `/Users/<service-user>`
+home directory with service-user ownership when run with the root create gate,
+reports bounded action metadata, and never rewrites existing users.
 
 Then configure the Owner Web Access Key:
 
