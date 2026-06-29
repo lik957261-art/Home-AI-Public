@@ -405,19 +405,20 @@ bash scripts/install-macos-production.sh --execute --phase install-official-herm
   --root /Users/example/path \
   --node-command /path/to/node \
   --python-command /path/to/python3.12 \
-  --hermes-agent-repository-url https://github.com/pentiumxp/hermes-agent-public.git \
+  --hermes-agent-source /path/to/hermes-agent-source \
   --install-hermes-agent-dependencies 1 \
   --json
 ```
 
 The runtime phase requires Node.js `>=22` and Python `>=3.12`. It creates
 `runtime/node-current/bin/node` as a symlink to the requested Node executable,
-clones or reuses `runtime/hermes-agent-official/source`, creates
-`runtime/hermes-agent-official/venv`, and installs Hermes Agent dependencies
-with `<venv>/bin/python -m pip install -e <source>` when
+clones or reuses `runtime/hermes-agent-official/source`, accepts either a git
+checkout or a packaged Python project containing `pyproject.toml` / `setup.py`,
+creates `runtime/hermes-agent-official/venv`, and installs Hermes Agent
+dependencies with `<venv>/bin/python -m pip install -e <source>` when
 `--install-hermes-agent-dependencies 1` is set. It is idempotent when the Node
-link, Hermes Agent checkout, and venv already match the requested inputs, and
-it fails closed when an existing runtime link points elsewhere or the Python /
+link, Hermes Agent source, and venv already match the requested inputs, and it
+fails closed when an existing runtime link points elsewhere or the Python /
 Hermes Agent inputs are missing.
 
 Then install production dependencies:

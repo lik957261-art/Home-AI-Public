@@ -580,6 +580,12 @@ function makeFakeAgentSource() {
   return dir;
 }
 
+function makeFakePackagedAgentSource() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-packaged-agent-source-"));
+  fs.writeFileSync(path.join(dir, "pyproject.toml"), "[project]\nname='hermes-agent-fixture'\nversion='0.0.0'\n");
+  return dir;
+}
+
 function makeDependencyRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-deps-"));
   fs.mkdirSync(path.join(root, "app"), { recursive: true });
@@ -730,6 +736,55 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
   assert.equal(second.ok, true, JSON.stringify(second.issues, null, 2));
   assert.ok(second.execution.report.actions.some((action) => action.action === "already-linked"));
   assert.ok(second.execution.report.actions.some((action) => action.action === "hermes-agent-venv-exists"));
+}
+
+function testExecuteRuntimePhaseAcceptsPackagedAgentSource() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-runtime-package-"));
+  const parsed = JSON.parse(run([
+    "--execute",
+    "--phase",
+    "install-official-hermes-runtime",
+    "--root",
+    root,
+    "--node-command",
+    makeFakeNode(),
+    "--python-command",
+    makeFakePython(),
+    "--hermes-agent-source",
+    makeFakePackagedAgentSource(),
+    "--json",
+  ]));
+  assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "hermes-agent-packaged-source-exists"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "hermes-agent-dependencies-install"));
+}
+
+function testExecuteRuntimePhaseFailsClosedForNonProjectAgentSource() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-runtime-non-project-"));
+  const agentSource = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-agent-non-project-"));
+  fs.writeFileSync(path.join(agentSource, "README.md"), "not a Python project\n");
+  const result = spawnSync("bash", [
+    SCRIPT,
+    "--execute",
+    "--phase",
+    "install-official-hermes-runtime",
+    "--root",
+    root,
+    "--node-command",
+    makeFakeNode(),
+    "--python-command",
+    makeFakePython(),
+    "--hermes-agent-source",
+    agentSource,
+    "--json",
+  ], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.execution.issueCodes.includes("hermes_agent_source_not_python_project"));
 }
 
 function testExecuteRuntimePhaseFailsOnDifferentExistingNode() {
@@ -1845,6 +1900,8 @@ testExecuteDependencyPhaseUsesBoundedNpmCi();
 testExecuteDependencyPhaseFailsWithoutLockfile();
 testExecuteDependencyPhaseReportsNpmFailureBoundedly();
 testExecuteRuntimePhaseLinksNodeIdempotently();
+testExecuteRuntimePhaseAcceptsPackagedAgentSource();
+testExecuteRuntimePhaseFailsClosedForNonProjectAgentSource();
 testExecuteRuntimePhaseFailsOnDifferentExistingNode();
 testExecuteRuntimePhaseFailsClosedForOldPython();
 testExecuteConfigureOwnerCreatesMissingKeyWithoutPrintingIt();

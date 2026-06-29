@@ -3448,6 +3448,10 @@ function compactOutput(result) {
   return String(`${result.stderr || ""}\n${result.stdout || ""}`).replace(/\s+/g, " ").trim().slice(-800);
 }
 
+function hasPythonProjectMarker(directory) {
+  return fs.existsSync(path.join(directory, "pyproject.toml")) || fs.existsSync(path.join(directory, "setup.py"));
+}
+
 try {
   const resolvedNode = resolveCommand(requestedNode);
   if (!resolvedNode || !fs.existsSync(resolvedNode)) {
@@ -3521,10 +3525,13 @@ try {
     if (fs.existsSync(agentSource)) {
       if (!fs.statSync(agentSource).isDirectory()) {
         issues.push({ code: "hermes_agent_source_not_directory", path: agentSource });
-      } else if (!fs.existsSync(path.join(agentSource, ".git"))) {
-        issues.push({ code: "hermes_agent_source_not_git_checkout", path: agentSource });
+      } else if (!hasPythonProjectMarker(agentSource)) {
+        issues.push({ code: "hermes_agent_source_not_python_project", path: agentSource });
       } else {
-        actions.push({ action: "hermes-agent-source-exists", path: path.relative(root, agentSource) || agentSource });
+        actions.push({
+          action: fs.existsSync(path.join(agentSource, ".git")) ? "hermes-agent-source-exists" : "hermes-agent-packaged-source-exists",
+          path: path.relative(root, agentSource) || agentSource,
+        });
       }
     } else {
       if (!agentRepositoryUrl) {
