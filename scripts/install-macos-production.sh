@@ -3391,6 +3391,8 @@ const nodePath = path.join(root, "runtime", "node-current", "bin", "node");
 const pythonPath = path.join(root, "runtime", "hermes-agent-official", "venv", "bin", "python");
 const hermesHome = path.join(dataDir, "hermes-home");
 const cronRoot = path.join(hermesHome, "cron");
+const gatewayManifestPath = path.join(dataDir, "gateway-pool-manifest-mac.json");
+const gatewayProfileLaunchScript = path.join(appRoot, "scripts", "macos-launch-gateway-profile.sh");
 const issues = [];
 const actions = [];
 const pluginInstallerScripts = Object.freeze({
@@ -3498,6 +3500,25 @@ function repairServiceOwnership() {
     { path: path.join(root, "tmp"), mode: 0o700 },
   ];
   for (const item of paths) repairServiceOwnedPath(item.path, owner, item.mode, { recursive: item.recursive });
+}
+
+function gatewayRuntimeEnvironment() {
+  return {
+    HERMES_WEB_GATEWAY_POOL_ENABLED: "1",
+    HERMES_WEB_GATEWAY_POOL_MANIFEST: gatewayManifestPath,
+    HERMES_MOBILE_GATEWAY_POOL_MANIFEST: gatewayManifestPath,
+    HERMES_GATEWAY_POOL_MANIFEST_PATH: gatewayManifestPath,
+    HERMES_MOBILE_GATEWAY_POOL_START_MODE: "hybrid",
+    HERMES_WEB_GATEWAY_POOL_START_MODE: "hybrid",
+    HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT: gatewayProfileLaunchScript,
+    HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT: gatewayProfileLaunchScript,
+    HERMES_MOBILE_GATEWAY_START_TIMEOUT_MS: "300000",
+    HERMES_WEB_GATEWAY_START_TIMEOUT_MS: "300000",
+    HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS: "90000",
+    HERMES_WEB_GATEWAY_START_HEALTH_WAIT_MS: "90000",
+    HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS: "1000",
+    HERMES_WEB_GATEWAY_START_HEALTH_POLL_MS: "1000",
+  };
 }
 
 function envRows(env) {
@@ -3707,6 +3728,7 @@ try {
         HERMES_WEB_HOST: "0.0.0.0",
         HERMES_WEB_PORT: "8797",
         HERMES_ACCEPT_HOOKS: "1",
+        ...gatewayRuntimeEnvironment(),
       },
       keepAlive: true,
       stdoutLog: path.join(logsRoot, "listener.out.log"),
@@ -3732,6 +3754,7 @@ try {
         HERMES_WEB_BRIDGE_HOST_KEY_PATH: path.join(dataDir, "secrets", "bridge-host.secret"),
         HERMES_MOBILE_NETWORK_MODE: "direct",
         HERMES_ACCEPT_HOOKS: "1",
+        ...gatewayRuntimeEnvironment(),
       },
       keepAlive: true,
       stdoutLog: path.join(logsRoot, "bridge-host.out.log"),
@@ -3754,6 +3777,7 @@ try {
         HERMES_MOBILE_NETWORK_MODE: "direct",
         HERMES_MOBILE_CRON_TICK_SIDE: "macos",
         HERMES_CRON_SCRIPT_TIMEOUT: "1800",
+        ...gatewayRuntimeEnvironment(),
       },
       startInterval: 60,
       stdoutLog: path.join(logsRoot, "cron.out.log"),

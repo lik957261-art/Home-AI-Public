@@ -443,6 +443,16 @@ The core Home AI LaunchDaemons explicitly set `HERMES_WEB_AUTH_KEY_PATH` to
 `<root>/data/secrets/owner-web-key.secret`; otherwise a fresh install would
 create the Owner key successfully but the listener would fall back to the
 app-root `.hermes_web_secret_key` default and report setup as incomplete.
+The core listener, bridge-host, and cron LaunchDaemons also carry the
+workspace-aware Mac Gateway Pool runtime environment. The install phase sets
+`HERMES_WEB_GATEWAY_POOL_ENABLED=1`, points `HERMES_WEB_GATEWAY_POOL_MANIFEST`,
+`HERMES_MOBILE_GATEWAY_POOL_MANIFEST`, and
+`HERMES_GATEWAY_POOL_MANIFEST_PATH` at
+`<root>/data/gateway-pool-manifest-mac.json`, enables hybrid mode, and points
+both profile-launch-script aliases at
+`<root>/app/scripts/macos-launch-gateway-profile.sh`. This keeps clean installs
+from passing Owner setup while `/api/status` still checks the legacy single
+Gateway at `127.0.0.1:8642`.
 The same phase pre-creates stdout/stderr log files for every core/plugin
 LaunchDaemon and assigns each file to the service user. This keeps plugins that
 do not run as `hermes-host`, such as Codex Mobile, from failing launchd config

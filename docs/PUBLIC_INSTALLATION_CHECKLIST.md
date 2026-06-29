@@ -444,6 +444,13 @@ directories, generated service secrets, Hermes Home CRON state,
 The core Home AI LaunchDaemons bind `HERMES_WEB_AUTH_KEY_PATH` to
 `<root>/data/secrets/owner-web-key.secret`; fresh installs must not fall back to
 an app-root `.hermes_web_secret_key`.
+The same core LaunchDaemons also bind the fresh-install Gateway Pool runtime:
+`HERMES_WEB_GATEWAY_POOL_ENABLED=1`, the `HERMES_WEB_*`,
+`HERMES_MOBILE_*`, and generic manifest paths all point to
+`<root>/data/gateway-pool-manifest-mac.json`, start mode is `hybrid`, and the
+profile launcher points to `<root>/app/scripts/macos-launch-gateway-profile.sh`
+with the maintained Mac cold-start timeout values. A clean install must not
+fall back to the legacy single Gateway URL at `127.0.0.1:8642`.
 Before each service is loaded, the installer pre-creates its stdout/stderr log
 files and assigns them to the service user. This is required for plugins such as
 Codex Mobile that run as the interactive macOS user instead of `hermes-host`.

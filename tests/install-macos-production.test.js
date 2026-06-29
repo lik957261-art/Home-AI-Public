@@ -2030,6 +2030,24 @@ function testExecuteLaunchdServicesCanInstallAndLoadFromCentralGate() {
   assert.equal(plan.launchdLoaded, true);
   assert.equal(plan.operatorInstallRequired, false);
   assert.equal(plan.launchDaemonsDir, launchDaemonsDir);
+  const gatewayManifestPath = path.join(root, "data", "gateway-pool-manifest-mac.json");
+  const gatewayLaunchScript = path.join(root, "app", "scripts", "macos-launch-gateway-profile.sh");
+  for (const label of ["com.hermesmobile.listener", "com.hermesmobile.bridge-host", "com.hermesmobile.cron"]) {
+    const service = plan.services.find((item) => item.label === label);
+    assert.ok(service, `${label} should be staged`);
+    const plist = fs.readFileSync(service.stagedPlistPath, "utf8");
+    assert.match(plist, /<key>HERMES_WEB_GATEWAY_POOL_ENABLED<\/key>\s*<string>1<\/string>/);
+    assert.match(plist, new RegExp(`<key>HERMES_WEB_GATEWAY_POOL_MANIFEST</key>\\s*<string>${escapeRegex(gatewayManifestPath)}</string>`));
+    assert.match(plist, new RegExp(`<key>HERMES_MOBILE_GATEWAY_POOL_MANIFEST</key>\\s*<string>${escapeRegex(gatewayManifestPath)}</string>`));
+    assert.match(plist, new RegExp(`<key>HERMES_GATEWAY_POOL_MANIFEST_PATH</key>\\s*<string>${escapeRegex(gatewayManifestPath)}</string>`));
+    assert.match(plist, /<key>HERMES_MOBILE_GATEWAY_POOL_START_MODE<\/key>\s*<string>hybrid<\/string>/);
+    assert.match(plist, /<key>HERMES_WEB_GATEWAY_POOL_START_MODE<\/key>\s*<string>hybrid<\/string>/);
+    assert.match(plist, new RegExp(`<key>HERMES_MOBILE_GATEWAY_PROFILE_LAUNCH_SCRIPT</key>\\s*<string>${escapeRegex(gatewayLaunchScript)}</string>`));
+    assert.match(plist, new RegExp(`<key>HERMES_WEB_GATEWAY_PROFILE_LAUNCH_SCRIPT</key>\\s*<string>${escapeRegex(gatewayLaunchScript)}</string>`));
+    assert.match(plist, /<key>HERMES_MOBILE_GATEWAY_START_TIMEOUT_MS<\/key>\s*<string>300000<\/string>/);
+    assert.match(plist, /<key>HERMES_MOBILE_GATEWAY_START_HEALTH_WAIT_MS<\/key>\s*<string>90000<\/string>/);
+    assert.match(plist, /<key>HERMES_MOBILE_GATEWAY_START_HEALTH_POLL_MS<\/key>\s*<string>1000<\/string>/);
+  }
   assert.ok(plan.services.every((service) => service.productionPlistPath.startsWith(launchDaemonsDir)));
   assert.ok(plan.services.every((service) => service.installStatus === "installed-and-loaded"));
   assert.equal(fs.readdirSync(launchDaemonsDir).filter((name) => name.endsWith(".plist")).length, 15);
