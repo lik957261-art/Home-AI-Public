@@ -19,7 +19,6 @@ function createDeps(options = {}) {
   return {
     bootTraceLabels,
     deps: {
-      ackWeixinOutboundDelivery: () => ({ ok: true }),
       appRouteUrl: () => "/",
       appUpdateStatus: () => ({ ok: true }),
       applyAppUpdate: () => ({ ok: true }),
@@ -31,7 +30,6 @@ function createDeps(options = {}) {
       clientVersionInfo: () => ({ version: "test" }),
       compactText: (value) => String(value || ""),
       createInitialOwnerKey: () => ({ key: "test" }),
-      createWeixinFileForwardDelivery: () => ({ ok: true }),
       deleteLocalWorkspace: () => ({ ok: true }),
       display: {},
       findWorkspace: (workspaceId) => ({ id: workspaceId, label: workspaceId }),
@@ -56,7 +54,6 @@ function createDeps(options = {}) {
       },
       nowIso: () => "2026-06-07T00:00:00.000Z",
       ownerSetupStatus: () => ({ setupRequired: false }),
-      pendingWeixinOutboundDeliveries: () => [],
       platformCurrencyService,
       publicConcurrencyForAuth: () => ({ activeGlobal: 0 }),
       publicGatewayPoolStatusForAuth: () => ({ enabled: false }),
@@ -70,7 +67,6 @@ function createDeps(options = {}) {
       readBody: async () => ({}),
       reloadWebPush: () => ({ ok: true }),
       requireOwner: () => ({ ok: true, role: "owner" }),
-      requireWeixinIngress: () => ({ ok: true }),
       requireWorkspaceAccess: () => "owner",
       requestClientVersion: () => "",
       revokeOwnerElevation: () => ({ ok: true }),
@@ -88,7 +84,6 @@ function createDeps(options = {}) {
         applyFix: () => ({}),
         detail: () => ({}),
       },
-      startWeixinIngressEvent: () => ({ ok: true }),
       state: () => ({ pushReceipts: [], pushDeliveries: [] }),
       upsertLocalWorkspace: () => ({ ok: true }),
       webPushDeliveryService: {
@@ -98,8 +93,6 @@ function createDeps(options = {}) {
         savePushSubscription: () => ({ ok: true }),
         sendPushNotification: () => ({ ok: true }),
       },
-      weixinForwardTargetsForWorkspace: () => [],
-      weixinIngressProvider: { normalizeAck: () => ({ status: "sent" }) },
       workspacePrincipal: () => "owner",
     },
   };
@@ -125,7 +118,6 @@ function testCompositionContract() {
     "resourceApiRoutes",
     "runtimeConfigApiRoutes",
     "systemApiRoutes",
-    "weixinApiRoutes",
     "workspaceApiRoutes",
   ]);
   assert.deepEqual(Object.keys(composition.services).sort(), [
@@ -138,7 +130,7 @@ function testCompositionContract() {
   ]);
   assert.equal(composition.services.platformCurrencyService, injectedPlatformCurrencyService);
   for (const [name, route] of Object.entries(composition.routes)) assertRouteContract(route, name);
-  assert.deepEqual(bootTraceLabels, ["public api routes ready", "weixin api routes ready"]);
+  assert.deepEqual(bootTraceLabels, ["public api routes ready"]);
 }
 
 testCompositionContract();

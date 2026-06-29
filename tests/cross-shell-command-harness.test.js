@@ -61,24 +61,6 @@ assert.match(startGatewayPool, /Write-GatewayPoolElasticResult -Request \$reques
 assert.match(startGatewayPool, /Start-LowGateways -Profiles \$ownerWarmProfiles -ForceConfigure:\$ForceConfigure/);
 assert.match(startGatewayPool, /Stop-LowGatewayProfiles -Profiles \$resolvedStopProfiles -Replicas \$resolvedStopReplicas/);
 
-const startWeixinFrontGateway = read("scripts/start-weixin-front-gateway.ps1");
-assert.match(startWeixinFrontGateway, /WriteAllText\(\$tmpScript, \$Script, \$encoding\)/);
-assert.match(startWeixinFrontGateway, /\$portableTmpScript = \$tmpScript\.Replace\(\[string\]\[char\]92, "\/"\)/);
-assert.match(startWeixinFrontGateway, /\$wslPathOutput = .*wslpath -a \$portableTmpScript/);
-assert.match(startWeixinFrontGateway, /\$wslScript = \$wslPathOutput \| Where-Object \{ \$_ -match "\^\/" \}/);
-assert.match(startWeixinFrontGateway, /wslpath -a \$portableTmpScript/);
-assert.doesNotMatch(startWeixinFrontGateway, /wslpath -a \$portableTmpScript 2>&1 \| Select-Object -First 1/);
-assert.match(startWeixinFrontGateway, /-- bash \$wslScript/);
-
-const startWeixinMobileIngressBridge = read("scripts/start-weixin-mobile-ingress-bridge.ps1");
-assert.match(startWeixinMobileIngressBridge, /WriteAllText\(\$tmpScript, \$Script, \$encoding\)/);
-assert.match(startWeixinMobileIngressBridge, /\$portableTmpScript = \$tmpScript\.Replace\(\[string\]\[char\]92, "\/"\)/);
-assert.match(startWeixinMobileIngressBridge, /\$wslPathOutput = .*wslpath -a \$portableTmpScript/);
-assert.match(startWeixinMobileIngressBridge, /\$wslScript = \$wslPathOutput \| Where-Object \{ \$_ -match "\^\/" \}/);
-assert.match(startWeixinMobileIngressBridge, /wslpath -a \$portableTmpScript/);
-assert.doesNotMatch(startWeixinMobileIngressBridge, /wslpath -a \$portableTmpScript 2>&1 \| Select-Object -First 1/);
-assert.match(startWeixinMobileIngressBridge, /-- bash \$wslScript/);
-
 for (const file of [
   "scripts/deploy-nas-tracked-source.ps1",
   "scripts/deploy-nas-static-assets.ps1",

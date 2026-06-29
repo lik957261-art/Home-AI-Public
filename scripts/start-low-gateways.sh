@@ -314,6 +314,7 @@ weather_plugin_source="${HERMES_MOBILE_WEATHER_PLUGIN_SOURCE:-$mobile_app_root/g
 web_plugin_source="${HERMES_MOBILE_WEB_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-web}"
 http_plugin_source="${HERMES_MOBILE_HTTP_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-http}"
 docx_plugin_source="${HERMES_MOBILE_DOCX_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-docx}"
+pptx_plugin_source="${HERMES_MOBILE_PPTX_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-pptx}"
 pdf_plugin_source="${HERMES_MOBILE_PDF_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-pdf}"
 audio_plugin_source="${HERMES_MOBILE_AUDIO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-audio}"
 archive_plugin_source="${HERMES_MOBILE_ARCHIVE_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-archive}"
@@ -500,6 +501,7 @@ compute_configure_signature() {
     --path "$web_plugin_source" \
     --path "$http_plugin_source" \
     --path "$docx_plugin_source" \
+    --path "$pptx_plugin_source" \
     --path "$pdf_plugin_source" \
     --path "$audio_plugin_source" \
     --path "$archive_plugin_source" \

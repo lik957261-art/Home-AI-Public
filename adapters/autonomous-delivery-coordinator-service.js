@@ -34,6 +34,12 @@ const PLATFORM_AUDIT_TARGET = Object.freeze({
   targetWorkspace: APP_WORKSPACE,
   auditKind: "platform",
 });
+const DEPLOYMENT_TARGET = Object.freeze({
+  label: "Home AI Deploy",
+  targetThreadTitle: "Home AI Deploy",
+  targetWorkspace: APP_WORKSPACE,
+  auditKind: "deployment",
+});
 const CASE_STATUSES = Object.freeze([
   "decision_waiting",
   "ready_to_start",
@@ -801,9 +807,12 @@ function verificationTaskCardForSlice(deliveryCase = {}, slice = {}, target = {}
   };
 }
 
-function deploymentTaskCardBodyForSlice(deliveryCase = {}, deploymentSlice = {}, parentSlice = {}, ownerPrompt = "") {
+function deploymentTaskCardBodyForSlice(deliveryCase = {}, deploymentSlice = {}, parentSlice = {}, target = {}, ownerPrompt = "") {
   const prompt = cleanBlock(ownerPrompt, 1200);
   const returnSummary = cleanBlock(parentSlice.returnSummary || "", 1200);
+  const implementationTarget = objectValue(target.implementationTarget);
+  const implementationWorkspace = clean(parentSlice.targetWorkspacePath || implementationTarget.targetWorkspace || "", 260);
+  const implementationThread = clean(implementationTarget.targetThreadTitle || implementationTarget.targetThreadTitlePrefix || implementationTarget.label || "", 180);
   return [
     "# Autonomous Delivery Deployment / Readback Task",
     "",
@@ -812,11 +821,14 @@ function deploymentTaskCardBodyForSlice(deliveryCase = {}, deploymentSlice = {},
     `Implementation slice: \`${parentSlice.sliceKey || parentSlice.sliceId || "unknown"}\``,
     `Implementation task card: \`${parentSlice.taskCardId || "unknown"}\``,
     `Implementation return card: \`${parentSlice.returnCardId || "unknown"}\``,
+    implementationThread ? `Implementation thread: \`${implementationThread}\`` : "",
+    implementationWorkspace ? `Implementation target workspace: \`${implementationWorkspace}\`` : "",
     `Objective: ${deliveryCase.objective}`,
     "",
     "## Required Deployment / Readback",
     "",
-    "- Use the owning workspace's established deploy contract; do not introduce ad-hoc production mutation paths.",
+    "- Use the central Home AI deploy contract from this dedicated deployment thread; do not introduce ad-hoc production mutation paths.",
+    "- Do not require plugin workspaces to read or pass sudo password files; local operator credential paths are Home AI deployment-thread private inputs.",
     "- Deploy only the returned implementation/repair scope needed for this slice.",
     "- Run bounded production readback for the changed runtime surface.",
     "- Return a real task card with completed, blocked, redirected, rejected, or partially_completed status.",
@@ -844,9 +856,10 @@ function deploymentTaskCardForSlice(deliveryCase = {}, deploymentSlice = {}, par
   return {
     title: clean(`Deploy Delivery Loop: ${label} ${parentSlice.sliceKey || parentSlice.sliceId || deploymentSlice.sliceKey}`, 90),
     summary: clean(`${deliveryCase.caseId} deploy/readback for ${parentSlice.sliceKey || parentSlice.sliceId}: ${deliveryCase.objective}`, 260),
-    body: deploymentTaskCardBodyForSlice(deliveryCase, deploymentSlice, parentSlice, ownerPrompt),
+    body: deploymentTaskCardBodyForSlice(deliveryCase, deploymentSlice, parentSlice, target, ownerPrompt),
     targetThreadTitle: target.targetThreadTitle || "",
     targetWorkspace: target.targetWorkspace || deploymentSlice.targetWorkspacePath || parentSlice.targetWorkspacePath || "",
+    auditKind: target.auditKind || "deployment",
     workflowMode: "manual",
     reasoningEffort: "high",
     requestId: `autonomous-delivery-deploy-readback-${deliveryCase.caseId}-${parentSlice.sliceKey || parentSlice.sliceId}-${parentSlice.returnCardId || parentSlice.taskCardId || "return"}`,
@@ -2058,6 +2071,9 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
 
     const target = targetForWorkspace(parentSlice.targetWorkspaceId, targets);
     if (!target) return { ok: false, status: 409, error: "autonomous_delivery_deployment_target_unknown" };
+    const deploymentTarget = Object.assign({}, DEPLOYMENT_TARGET, objectValue(options.deploymentTarget), {
+      implementationTarget: target,
+    });
     const now = nowIso(options);
     const deploymentSliceKey = deploymentSliceKeyForSlice(parentSlice);
     const rawJson = {
@@ -2093,10 +2109,11 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
       startedAt: existing?.startedAt || now,
     }));
     const ownerPrompt = cleanBlock(input.ownerPrompt || input.owner_prompt || "", 1200);
-    const taskCard = deploymentTaskCardForSlice(loaded.case, deploymentSlice, parentSlice, target, ownerPrompt);
+    const taskCard = deploymentTaskCardForSlice(loaded.case, deploymentSlice, parentSlice, deploymentTarget, ownerPrompt);
     const sent = await Promise.resolve(taskCardService.sendTaskCard(Object.assign({}, taskCard, {
       sourceWorkspaceCwd: APP_WORKSPACE,
       targetWorkspaceCwd: taskCard.targetWorkspace,
+      auditKind: "deployment",
     })));
     const cardIds = cardIdsFromResult(sent);
     deploymentSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, deploymentSlice, {

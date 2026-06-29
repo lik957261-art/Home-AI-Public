@@ -77,7 +77,6 @@ async function run() {
     content: "Read report",
     due_time: "2026-05-07 18:00",
     suppress_external_notice: true,
-    suppress_weixin_notice: true,
     reminder_lead_minutes: 30,
     recurrence: "weekly",
     recurrence_days: "1,3",

@@ -29,9 +29,10 @@ docs. The Home AI development source path is
 `/Users/example/path`; the Mac production target is
 `/Users/example/path`; the production launchd label is
 `com.hermesmobile.plugin.moira`; the loopback service URL is
-`http://127.0.0.1:4174`. Production updates use the central deploy script:
-`npm run --silent deploy:macos -- --plugin moira --reason <reason> --execute
---password-file <sudo-password-file> --json`.
+`http://127.0.0.1:4174`. Production updates are prepared with the central
+deploy script plan and executed/read back through the dedicated
+`Home AI Deploy` thread:
+`npm run --silent deploy:macos -- --plugin moira --reason <reason> --json`.
 
 Moira follows normal workspace-private plugin provisioning. Granting Moira
 through the Home AI plugin manager creates a workspace-local
@@ -84,23 +85,42 @@ Owner-only rule in `docs/MODULES/gateway-pool.md`: it reads the plugin-owned
 SQLite ledger and does not use a model-provided workspace override.
 
 Movie / 影院 is also an Owner-only special embedded app plugin. Home AI may
-expose the Movie app only to the effective `owner` workspace and must not make
-it workspace-grantable for non-Owner users. Owner Movie app launch uses the
-same-origin `/api/hermes-plugins/movie/proxy/...` route with keyless direct
-entry, following the Music Owner-only launch shape. The proxy must not attach a
-workspace `Authorization: Bearer ...` header to Movie upstream requests, and
-Home AI must not store Movie projector, NAS, or device credentials in source,
-docs, logs, launch URLs, or model context. Movie owns theater UI, read-only
-device status adapters, and any future protected control policy. Home AI owns
-only Owner-only visibility, the embedded iframe host, the same-origin proxy,
-and launch metadata projection.
+expose the Movie app and read-only Movie MCP only to the effective `owner`
+workspace and must not make either surface workspace-grantable for non-Owner
+users. Owner Movie app launch uses the same-origin
+`/api/hermes-plugins/movie/proxy/...` route with keyless direct entry, following
+the Music Owner-only launch shape. The proxy must not attach a workspace
+`Authorization: Bearer ...` header to Movie upstream requests, and Home AI must
+not store Movie projector, NAS, or device credentials in source, docs, logs,
+launch URLs, or model context. Movie owns theater UI, read-only device status
+adapters, read-only source-search MCP tools, and any future protected control
+policy. Home AI owns only Owner-only visibility, the embedded iframe host, the
+same-origin proxy, Gateway registration for the read-only MCP toolset, and
+launch metadata projection.
 
-Movie's first Home AI integration is app-entry-only. Even if the Movie plugin
-manifest advertises action routes such as remote, projector, or shutdown states,
-Home AI suppresses Movie host actions from drawer, dock long-press, and search
-until a separate protected-action contract and readback verification policy is
-approved. Owner opens the Movie app; device-control semantics remain inside
-Movie-owned UI and policy.
+Movie's Home AI host-action integration remains app-entry-only. Even if the
+Movie plugin manifest advertises action routes such as remote, projector, or
+shutdown states, Home AI suppresses Movie host actions from drawer, dock
+long-press, and search until a separate protected-action contract and readback
+verification policy is approved. Owner opens the Movie app; device-control
+semantics remain inside Movie-owned UI and policy.
+
+Movie MCP is limited to source-library metadata and local Movie preference/list
+state. Movie v93 is included in the current Gateway schema epoch
+(`20260628-gateway-pptx-create-v966`); the model-facing Gateway callables are
+`mcp_movie_search_sources`, `mcp_movie_recommend_sources`,
+`mcp_movie_get_source_detail`, `mcp_movie_get_catalog_stats`,
+`mcp_movie_record_source_interaction`, `mcp_movie_update_source_list`, and
+`mcp_movie_list_source_state`. Search/recommendation may return bounded counts,
+pagination, facets, and `source_category=115` results for indexed 115 and
+CloudDrive2 sources. Search accepts `actor` and returns actor facets when
+available; recommendations accept `actor` and `preferred_actors` taste hints.
+The writeback tools may only update Movie-owned local preference/list state;
+they must not play media, create stream URLs, switch theater profiles, change
+subtitles/audio, control devices, mutate NAS files, or expose private source
+paths. Home AI mirrors the Movie stdio wrapper into
+`gateway-worker/movie-mcp` for Owner Gateway profiles and keeps the selected
+profile schema epoch current when the callable set changes.
 
 Versioned embedded plugins use the same host refresh contract as Codex Mobile
 and other resident iframe plugins. A plugin that changes its shell or static
@@ -177,23 +197,23 @@ development tree, production plugin directories are updated only through a
 bounded deploy operation with backup, controlled sync, targeted restart, and
 plugin-specific production validation, and plugin projects must not request
 ordinary write access to `/Users/example/path<plugin>`.
-Plugin Codex threads must read that central contract before production deploys
-and should call the Home AI shared deploy script from
-`/Users/example/path`, passing plugin-local facts such as
-`--plugin`, `--source`, `--restart-label`, `--health-url`, MCP schema checks,
-and data readback checks. The shared script also accepts `--plugin all` for a
-bounded all-plugin deployment plan over the known service roots. A plugin-local
-deployment script may wrap the central script, but must not introduce a separate sudo, rsync, SSH, or production write-access path.
+Plugin Codex threads must read that central contract before production deploys.
+They own source implementation, tests, commit/push when applicable, deploy
+plan, and bounded readback expectations. Routine production execute/readback
+is routed to the dedicated `Home AI Deploy` Codex thread so plugin workspaces
+do not need visibility into macOS sudo/password-file credential paths. The
+shared script also accepts `--plugin all` for a bounded all-plugin deployment
+plan over the known service roots. A plugin-local deployment script may wrap
+the central script in plan mode, but must not introduce a separate sudo, rsync,
+SSH, or production write-access path.
 
-Plugin-owned deploy and validation work should stay in the plugin thread. If a
-plugin has changed only its own source and can complete production closure by
-calling `deploy:macos -- --plugin <plugin-id>` plus plugin health, embedded
-launch/proxy, MCP schema, or plugin data smoke checks, it must not send a task
-card to Home AI just because the central deploy script or embedded shell is
-used. Cross-thread cards to Home AI are reserved for host/platform blockers:
-Home AI source changes, central deploy-script gaps, same-origin proxy or launch
-bugs, workspace binding/provisioning bugs, Gateway/toolset schema changes,
-shared policy changes, or unresolved production permission failures.
+Routine plugin deployment cards must target `Home AI Deploy`, not the ordinary
+Home AI implementation thread and not an audit thread. Cross-thread cards to
+the ordinary Home AI implementation thread are reserved for host/platform
+blockers: Home AI source changes, central deploy-script gaps, same-origin proxy
+or launch bugs, workspace binding/provisioning bugs, Gateway/toolset schema
+changes, shared policy changes, or unresolved production permission failures
+that prevent `Home AI Deploy` from executing the central contract.
 
 Normal plugin
 deployments must also prove required frontend entry artifacts before closure:
@@ -727,10 +747,30 @@ Wardrobe photo APIs such as
 also plugin-owned resource routes and must be proxied.
 The rewritten browser-facing path must stay under
 `/api/hermes-plugins/<plugin-id>/proxy/...`. Binary image responses are then
-fetched through that proxy path and streamed back with their original content
-type. Without this, HTTPS Hermes Mobile PWAs can load the plugin shell while
-plugin-supplied images remain broken because the browser is asked to fetch the
-HTTP/LAN upstream directly.
+fetched through that proxy path, streamed back without full-body buffering, and
+returned with safe upstream document/image headers such as `Content-Disposition`,
+`Content-Length`, `Cache-Control`, `ETag`, and range/cache validators. Without
+this, HTTPS Hermes Mobile PWAs can load the plugin shell while plugin-supplied
+images remain broken because the browser is asked to fetch the HTTP/LAN upstream
+directly, or because the proxy strips preview/download metadata required by the
+mobile shell and native viewers.
+
+The JSON rewrite pass must not attempt URL parsing for every ordinary string in
+large plugin API responses. Codex Mobile thread-detail and thread-list JSON may
+include many private message/content strings; those fields remain opaque content
+unless the value is root-relative, is under a URL-like JSON key, is HTML-like
+content containing `src`/`href`/`url(...)`, or starts with an absolute HTTP(S)
+URL. This keeps the host proxy from adding multi-second traversal overhead after
+the plugin server has already produced a warm thread-detail response.
+
+Codex Mobile thread-list and thread-detail proxy timing must preserve both
+host-observed proxy timings and the bounded upstream-reported Codex server
+timing embedded in the JSON payload. The timing record may include
+`upstream_reported_total_ms`, `proxy_upstream_gap_ms`, and
+`proxy_header_gap_ms`; these fields are metadata-only and are used to determine
+whether a slow user-visible request is caused by Home AI proxy work, upstream
+headers/queueing, or Codex server computation. Do not replace this evidence with
+a UI-only refresh or retry fallback.
 
 Proxy rewrite extensions are host-owned and plugin-scoped. A plugin-specific
 resource path must be added as a central proxy profile rule for that plugin id
@@ -749,6 +789,14 @@ iframe response as soon as the upstream responds, preserve no-buffer semantics,
 and forward chunks until either side closes. Otherwise the iframe EventSource
 does not receive the initial status or keepalive in time and will repeatedly
 enter reconnect recovery even though the upstream plugin is healthy.
+
+The proxy records bounded timing metadata for slow requests and for Codex Mobile
+thread list/detail requests. The response includes a `Server-Timing` header with
+host-side preflight, request-body, upstream-header, upstream-body, transform, and
+response-write durations. The production JSONL record stores only plugin id,
+method, route kind, status, content-type family, body byte count, and timing
+buckets; it must not include raw URLs, query strings, workspace ids, headers,
+cookies, access keys, thread ids, prompts, message bodies, or response bodies.
 
 For JSON responses, URL-like keys must include camelCase and separator-based
 variants such as `url`, `previewUrl`, `thumbnailUrl`, `downloadUrl`, `href`,
@@ -1745,6 +1793,24 @@ The visible assistant reply must not say a card was submitted unless the current
 run has a real host/tool response. Do not invent ordinary `t_*` todo ids, Action
 Inbox `ainb_*` ids, or Codex task-card `ttc_*` ids. The hidden request only
 creates an Owner approval item; it does not send a task card automatically.
+If an assistant still emits a visible legacy `t_*` task-card claim without a
+real hidden Owner request marker, Home AI run completion recovers it into a
+bounded Home-AI-owned Owner approval row and records the recovery as a transport
+contract violation. This recovery prevents silent loss, but `t_*` remains an
+invalid implementation repair-card id.
+
+For ordinary chat or directory-bound topic conversations that identify a
+Home-AI-owned platform/Gateway capability gap rather than a plugin-owned gap,
+the assistant uses `homeai-owner-task-request` with `pluginId:"home-ai"`.
+Hermes submits that request through the same Owner-gated approval bridge, but
+the resolved target is the Home AI app implementation thread/workspace. This
+path is available to low-permission Gateways as a capability-gap request
+mechanism; it is not Owner elevation and it does not dispatch a Codex task card
+until Owner explicitly approves. On approval, the Home AI task card uses the
+dedicated `Home AI Task Intake` Codex thread as the source and the current
+`Home AI` implementation thread as the target, avoiding Codex Mobile's
+same-thread task-card rejection while keeping audit threads out of the
+implementation repair loop.
 
 Embedded plugin iframes may use the same `homeai.plugin_conversation.action`
 message; the host accepts it only from the currently mounted plugin frame. A

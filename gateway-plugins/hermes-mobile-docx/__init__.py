@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import io
+import html
+import hashlib
 import json
 import os
 import re
+import time
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -15,6 +18,9 @@ from xml.etree import ElementTree
 DEFAULT_ALLOWED_ROOTS = (
     "/mnt/c/ProgramData/HermesMobile/data/drive",
     "/mnt/c/ProgramData/HermesMobile/data/uploads",
+    "/mnt/c/ProgramData/HermesMobile/data/artifacts",
+)
+DEFAULT_OUTPUT_ROOTS = (
     "/mnt/c/ProgramData/HermesMobile/data/artifacts",
 )
 SUPPORTED_SUFFIXES = {".docx", ".docm", ".dotx", ".dotm"}
@@ -94,6 +100,47 @@ OFFICE_EXTRACT_TEXT_SCHEMA = {
 }
 
 
+DOCX_CREATE_SCHEMA = {
+    "name": "docx_create",
+    "description": (
+        "Create a real Microsoft Word .docx document from structured Markdown or plain text inside "
+        "an allowed Hermes Mobile artifact root. Use this when the user asks for Word/DOCX output, "
+        "including health medication instructions, ECG summaries, checkup reports, or other document "
+        "deliverables. Return the MEDIA path from the tool result."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "markdown": {
+                "type": "string",
+                "description": "Structured Markdown content to write into the Word document.",
+            },
+            "text": {
+                "type": "string",
+                "description": "Plain text content to write when Markdown is not available.",
+            },
+            "title": {
+                "type": "string",
+                "description": "Optional document title used for the generated file name and first heading.",
+            },
+            "output_path": {
+                "type": "string",
+                "description": "Optional absolute .docx output path inside an allowed Hermes Mobile artifact root.",
+            },
+            "output_dir": {
+                "type": "string",
+                "description": "Optional absolute output directory inside an allowed Hermes Mobile artifact root.",
+            },
+            "overwrite": {
+                "type": "boolean",
+                "description": "Whether to replace an existing output_path. Defaults to false.",
+                "default": False,
+            },
+        },
+    },
+}
+
+
 def _json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
@@ -132,6 +179,16 @@ def _allowed_roots() -> list[Path]:
     return roots
 
 
+def _output_roots() -> list[Path]:
+    roots: list[Path] = []
+    for item in _split_env_list("HERMES_MOBILE_DOCX_OUTPUT_ROOTS", DEFAULT_OUTPUT_ROOTS):
+        try:
+            roots.append(Path(_platform_path(item)).resolve())
+        except Exception:
+            continue
+    return roots
+
+
 def _inside_roots(path: Path, roots: list[Path]) -> bool:
     try:
         resolved = path.resolve()
@@ -160,6 +217,11 @@ def _max_chars(value: Any) -> int:
     except Exception:
         number = DEFAULT_RETURN_CHARS
     return max(1000, min(MAX_RETURN_CHARS, number))
+
+
+def _safe_slug(value: str) -> str:
+    text = re.sub(r"[^A-Za-z0-9._-]+", "-", value).strip(".-")
+    return text[:80] or "document"
 
 
 def _bool(value: Any, default: bool) -> bool:
@@ -210,6 +272,32 @@ def _validate_office_path(value: Any) -> Path:
     if size > _max_docx_bytes():
         raise ValueError("office_file_too_large")
     return path.resolve()
+
+
+def _validate_output_path(value: Any, output_dir_value: Any, title: str) -> Path:
+    text = str(value or "").strip()
+    if text:
+        destination = Path(_platform_path(text)).expanduser()
+    else:
+        roots = _output_roots()
+        if not roots:
+            raise PermissionError("docx_output_root_missing")
+        output_dir_text = str(output_dir_value or "").strip()
+        output_dir = Path(_platform_path(output_dir_text)).expanduser() if output_dir_text else roots[0] / "documents"
+        if not output_dir.is_absolute():
+            raise PermissionError("output_dir_must_be_absolute")
+        if not _inside_roots(output_dir, roots):
+            raise PermissionError("output_dir_outside_allowed_roots")
+        digest = hashlib.sha256(f"{title}:{time.time_ns()}".encode("utf-8", "ignore")).hexdigest()[:10]
+        destination = output_dir / f"{_safe_slug(title or 'document')}-{digest}.docx"
+    if not destination.is_absolute():
+        raise PermissionError("output_path_must_be_absolute")
+    if destination.suffix.lower() != ".docx":
+        raise ValueError("output_path_must_end_with_docx")
+    roots = _output_roots()
+    if not roots or not _inside_roots(destination, roots):
+        raise PermissionError("output_path_outside_allowed_roots")
+    return destination.resolve()
 
 
 def _local_name(tag: str) -> str:
@@ -469,6 +557,79 @@ def _extract_office(path: Path, max_chars: int) -> dict[str, Any]:
     }
 
 
+def _content_lines(args: dict[str, Any]) -> list[str]:
+    markdown = str(args.get("markdown") or "").strip()
+    text = str(args.get("text") or "").strip()
+    source = markdown or text
+    if not source:
+        raise ValueError("content_required")
+    source = source.replace("\r\n", "\n").replace("\r", "\n")
+    source = re.sub(r"```[\w-]*\n", "", source)
+    source = source.replace("```", "")
+    source = re.sub(r"^\s{0,3}#{1,6}\s*", "", source, flags=re.MULTILINE)
+    return [line.strip() for line in source.split("\n")]
+
+
+def _word_paragraph(text: str) -> str:
+    if not text:
+        return "<w:p/>"
+    runs = []
+    parts = re.split(r"(\t)", text)
+    for part in parts:
+        if part == "\t":
+            runs.append("<w:r><w:tab/></w:r>")
+        elif part:
+            runs.append(f'<w:r><w:t xml:space="preserve">{html.escape(part, quote=False)}</w:t></w:r>')
+    return f"<w:p>{''.join(runs)}</w:p>"
+
+
+def _docx_document_xml(lines: list[str], title: str) -> str:
+    paragraphs: list[str] = []
+    if title:
+        paragraphs.append(_word_paragraph(title))
+    previous_blank = False
+    for line in lines:
+        if not line:
+            if previous_blank:
+                continue
+            previous_blank = True
+            paragraphs.append("<w:p/>")
+            continue
+        previous_blank = False
+        paragraphs.append(_word_paragraph(line))
+    body = "".join(paragraphs) or "<w:p/>"
+    return (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        f"<w:body>{body}"
+        '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>'
+        "</w:body></w:document>"
+    )
+
+
+def _write_docx(path: Path, lines: list[str], title: str, overwrite: bool) -> dict[str, Any]:
+    if path.exists() and not overwrite:
+        raise FileExistsError("output_path_exists")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            '<Default Extension="xml" ContentType="application/xml"/>'
+            '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+            "</Types>"
+        ))
+        archive.writestr("_rels/.rels", (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+            "</Relationships>"
+        ))
+        archive.writestr("word/document.xml", _docx_document_xml(lines, title))
+    return {"path": str(path), "bytes": path.stat().st_size}
+
+
 def _docx_extract_text_handler(args: dict[str, Any], **_: Any) -> str:
     try:
         path = _validate_docx_path(args.get("file_path"))
@@ -516,7 +677,36 @@ def _office_extract_text_handler(args: dict[str, Any], **_: Any) -> str:
         })
 
 
+def _docx_create_handler(args: dict[str, Any], **_: Any) -> str:
+    try:
+        title = str(args.get("title") or "document").strip() or "document"
+        output_path = _validate_output_path(args.get("output_path"), args.get("output_dir"), title)
+        overwrite = bool(args.get("overwrite") is True)
+        result = _write_docx(output_path, _content_lines(args), title, overwrite=overwrite)
+        return _json({
+            "ok": True,
+            "tool": "docx_create",
+            "fileName": output_path.name,
+            "media": f"MEDIA:{output_path}",
+            **result,
+        })
+    except Exception as error:
+        return _json({
+            "ok": False,
+            "tool": "docx_create",
+            "error": str(error),
+        })
+
+
 def register(ctx) -> None:
+    ctx.register_tool(
+        name="docx_create",
+        toolset="file",
+        schema=DOCX_CREATE_SCHEMA,
+        handler=_docx_create_handler,
+        description="Scoped DOCX/Word generation for Hermes Mobile workspace files.",
+        emoji="docx",
+    )
     ctx.register_tool(
         name="docx_extract_text",
         toolset="file",

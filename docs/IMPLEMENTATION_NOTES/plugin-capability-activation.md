@@ -52,10 +52,12 @@ The first implementation is intentionally service-first and run-assembly scoped:
   `plugin_capability_activated`.
 - `adapters/plugin-authorized-toolset-service.js` projects the effective
   workspace's locally complete plugin bindings into the authorization boundary
-  before run activation. It currently exposes only Gateway-materialized plugin
-  MCP toolsets such as Wardrobe, Finance, Email, Note, and Health, and it requires the
-  matching workspace `.hermes-*` config/key pair where the plugin contract
-  requires one. A key-only partial plugin binding is not authorized for model
+  before run activation. It exposes Gateway-materialized plugin MCP toolsets
+  such as Wardrobe, Finance, Email, Note, Health, Growth, Moira, Music, and
+  Movie. Workspace-private plugins require the matching workspace
+  `.hermes-*` config/key pair where the plugin contract requires one. Owner-only
+  media plugins such as Music and Movie are authorized only for the Owner
+  workspace. A key-only partial plugin binding is not authorized for model
   runs.
 - `adapters/hermes-plugin-service.js` treats plugin-manager grants as complete
   provisioning, not UI toggles. After a plugin-specific bind/register succeeds,

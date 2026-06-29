@@ -27,7 +27,7 @@ function testPolicySummaryIncludesCallableToolHints() {
     principal_id: "owner",
     default_workspace: "C:/workspace",
     allowed_roots: ["C:/workspace", "D:/shared"],
-    allowed_toolsets: ["http", "file", "image_gen", "x_search", "cronjob", "wardrobe", "finance", "health", "moira", "music", "email", "http"],
+    allowed_toolsets: ["http", "file", "image_gen", "x_search", "cronjob", "wardrobe", "finance", "health", "moira", "music", "movie", "email", "http"],
     allowed_skills: ["productivity/wardrobe-style-operations"],
     required_skills: ["productivity/wardrobe-style-operations"],
     connector_profiles: { google: {}, outlook: {} },
@@ -36,15 +36,16 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /Principal: owner/);
   assert.match(summary, /Allowed roots: C:\/workspace; D:\/shared/);
   assert.match(summary, /http -> http_request/);
-  assert.match(summary, /file -> read_file, write_file, patch, search_files, docx_extract_text, office_extract_text, pdf_extract_text, pdf_render_pages, audio_transcribe, archive_list, archive_extract_safe/);
+  assert.match(summary, /file -> read_file, write_file, patch, search_files, docx_create, docx_extract_text, office_extract_text, pptx_create, pdf_create, pdf_extract_text, pdf_render_pages, audio_transcribe, archive_list, archive_extract_safe/);
   assert.match(summary, /image_gen -> image_generate, chatgpt_image_edit, chatgpt_image_erase, image_edit, image_erase/);
   assert.match(summary, /x_search -> x_search/);
   assert.match(summary, /cronjob -> cronjob_mobile, http_request, cronjob/);
-  assert.match(summary, /wardrobe -> mcp_wardrobe_wardrobe_write_item, mcp_wardrobe_wardrobe_write_history, mcp_wardrobe_wardrobe_upload_photo, mcp_wardrobe_wardrobe_set_primary_photo, mcp_wardrobe_wardrobe_get_item, mcp_wardrobe_wardrobe_search_items/);
+  assert.match(summary, /wardrobe -> mcp_wardrobe_wardrobe_write_item, mcp_wardrobe_wardrobe_write_history, mcp_wardrobe_wardrobe_upload_photo, mcp_wardrobe_wardrobe_set_primary_photo, mcp_wardrobe_wardrobe_get_item, mcp_wardrobe_wardrobe_search_items, mcp_wardrobe_wardrobe_prepare_outfit_wear_intent, mcp_wardrobe_wardrobe_execute_outfit_wear_intent/);
   assert.match(summary, /finance -> mcp_finance_list_ledgers, mcp_finance_list_transactions, mcp_finance_get_summary, mcp_finance_get_report, mcp_finance_create_transaction, mcp_finance_add_transaction_attachment, mcp_finance_reference_object_types, mcp_finance_reference_get, mcp_finance_reference_summarize, mcp_finance_get_owner_asset_summary, mcp_finance_list_owner_asset_snapshots, mcp_finance_upsert_owner_asset_snapshot, mcp_finance_get_owner_stock_summary, mcp_finance_list_owner_stock_snapshots, mcp_finance_apply_owner_stock_position_delta/);
   assert.match(summary, /health -> mcp_health_records_get_summary/);
   assert.match(summary, /moira -> mcp_moira_list_records, mcp_moira_get_chart_evidence, mcp_moira_get_interpretation_context, mcp_moira_get_analysis_evidence_bundle, mcp_moira_get_rule_evidence_bundle, mcp_moira_get_year_forecast_evidence, mcp_moira_get_current_progression_evidence, mcp_moira_get_pick_day_evidence, mcp_moira_get_monthly_selection_evidence, mcp_moira_get_transit_event_evidence, mcp_moira_get_eclipse_event_evidence, mcp_moira_get_aspect_evidence, mcp_moira_get_pick_change_position_evidence, mcp_moira_get_fixed_star_change_position_evidence, mcp_moira_get_rule_migration_status, mcp_moira_get_rule_commentary_readiness, mcp_moira_get_functional_coverage_status/);
   assert.match(summary, /music -> mcp_music_music_search_library/);
+  assert.match(summary, /movie -> mcp_movie_search_sources, mcp_movie_recommend_sources, mcp_movie_get_source_detail, mcp_movie_get_catalog_stats, mcp_movie_record_source_interaction, mcp_movie_update_source_list, mcp_movie_list_source_state/);
   assert.match(summary, /mcp_music_music_hifi_profile_get/);
   assert.match(summary, /mcp_music_music_hifi_profile_update/);
   assert.match(summary, /mcp_music_music_track_quality_analyze/);
@@ -65,8 +66,11 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /For HTTP\/API Program calls, use `http_request`/);
   assert.match(summary, /http_request\.file_body/);
   assert.match(summary, /http_request\.multipart_files/);
+  assert.match(summary, /For explicit Word\/DOCX generation requests, use `docx_create`/);
   assert.match(summary, /For Word DOCX text extraction, use `docx_extract_text`/);
   assert.match(summary, /For PowerPoint PPTX\/PPTM and Excel XLSX\/XLSM text extraction, use `office_extract_text`/);
+  assert.match(summary, /For explicit PowerPoint deck generation requests, use `pptx_create`/);
+  assert.match(summary, /For explicit PDF generation requests, use `pdf_create`/);
   assert.match(summary, /For PDF reports, use `pdf_extract_text` first/);
   assert.match(summary, /For MP3\/M4A\/WAV\/AAC\/OGG\/OPUS\/AMR\/FLAC voice notes/);
   assert.match(summary, /For ZIP archives inside allowed roots, use `archive_list`/);
@@ -80,15 +84,21 @@ function testPolicySummaryIncludesCallableToolHints() {
 function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   const service = createService();
   const text = service.currentToolSchemaOverrideInstructions({
-    allowed_toolsets: ["http", "file", "web", "search", "x_search", "image_gen", "cronjob", "wardrobe", "finance", "health", "moira", "music"],
+    allowed_toolsets: ["http", "file", "web", "search", "x_search", "image_gen", "cronjob", "wardrobe", "finance", "health", "moira", "music", "movie"],
   });
 
   assert.match(text, /`http` toolset is enabled/);
   assert.match(text, /`http_request`/);
   assert.match(text, /`file_body` or `multipart_files`/);
   assert.match(text, /never claim upload success after sending only a local path string/);
+  assert.match(text, /Word DOCX generation is available as `docx_create`/);
   assert.match(text, /Word DOCX text extraction is available as `docx_extract_text`/);
   assert.match(text, /PowerPoint PPTX\/PPTM and Excel XLSX\/XLSM text extraction is available as `office_extract_text`/);
+  assert.match(text, /real PowerPoint PPTX generation is available as `pptx_create`/);
+  assert.match(text, /PDF generation is available as `pdf_create`/);
+  assert.match(text, /When the user explicitly asks for Word\/DOCX, use `docx_create`/);
+  assert.match(text, /When the user explicitly asks for a PowerPoint\/PPTX deck, use `pptx_create`/);
+  assert.match(text, /When the user explicitly asks for PDF, use `pdf_create`/);
   assert.match(text, /PDF text extraction and page rendering are available as `pdf_extract_text` \/ `pdf_render_pages`/);
   assert.match(text, /audio transcription.*`audio_transcribe`/);
   assert.match(text, /ZIP listing\/safe extraction is available as `archive_list` \/ `archive_extract_safe`/);
@@ -108,6 +118,8 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /`wardrobe` toolset is enabled/);
   assert.match(text, /`mcp_wardrobe_wardrobe_write_item`/);
   assert.match(text, /`mcp_wardrobe_wardrobe_write_history`/);
+  assert.match(text, /`mcp_wardrobe_wardrobe_prepare_outfit_wear_intent`/);
+  assert.match(text, /`mcp_wardrobe_wardrobe_execute_outfit_wear_intent`/);
   assert.match(text, /`finance` toolset is enabled/);
   assert.match(text, /`mcp_finance_list_ledgers`/);
   assert.match(text, /`mcp_finance_add_transaction_attachment`/);
@@ -164,6 +176,22 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /`mcp_music_music_demo_cleanup_narrations`/);
   assert.match(text, /Music HiFi demo narration/);
   assert.match(text, /HIFI equipment recommendation context/);
+  assert.match(text, /`movie` toolset is enabled/);
+  assert.match(text, /`mcp_movie_search_sources`/);
+  assert.match(text, /`mcp_movie_recommend_sources`/);
+  assert.match(text, /`mcp_movie_get_source_detail`/);
+  assert.match(text, /`mcp_movie_get_catalog_stats`/);
+  assert.match(text, /`mcp_movie_record_source_interaction`/);
+  assert.match(text, /`mcp_movie_update_source_list`/);
+  assert.match(text, /`mcp_movie_list_source_state`/);
+  assert.match(text, /source_category=115/);
+  assert.match(text, /`actor`/);
+  assert.match(text, /facets including `actor`/);
+  assert.match(text, /`preferred_actors`/);
+  assert.match(text, /local Movie preference\/list state/);
+  assert.match(text, /mutate NAS files/);
+  assert.match(text, /lacks `mcp_movie_\*`/);
+  assert.match(text, /Gateway schema mismatch/);
 }
 
 function testExplicitWebSearchPrioritizesQualityAndUsesLargerBudget() {
@@ -215,19 +243,19 @@ function testGatewayConversationIdEpochForSchemaSensitiveToolsets() {
 
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["file"] }),
-    "session_a_group_1_20260624-document-file-tools-v1_file",
+    "session_a_group_1_20260629-wardrobe-wear-intent-v970_file",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["memory"] }),
-    "session_a_group_1_20260624-document-file-tools-v1_memory",
+    "session_a_group_1_20260629-wardrobe-wear-intent-v970_memory",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["x_search"] }),
-    "session_a_group_1_20260624-document-file-tools-v1_x_search",
+    "session_a_group_1_20260629-wardrobe-wear-intent-v970_x_search",
   );
   assert.equal(
     service.gatewayConversationId(thread, message, { allowed_toolsets: ["vision", "wardrobe", "file"] }),
-    "session_a_group_1_20260624-document-file-tools-v1_file-vision-wardrobe",
+    "session_a_group_1_20260629-wardrobe-wear-intent-v970_file-vision-wardrobe",
   );
 }
 
@@ -293,7 +321,10 @@ function testPluginConversationActionBridgeInstructionPreventsFakeCardIds() {
   const direct = service.pluginConversationActionBridgeInstructions();
   assert.match(direct, /repair-request truth rule/);
   assert.match(direct, /homeai-plugin-conversation-action/);
+  assert.match(direct, /homeai-owner-task-request/);
+  assert.match(direct, /pluginId:\"home-ai\"/);
   assert.match(direct, /Do not invent `t_\*`, `ainb_\*`, or `ttc_\*` ids/);
+  assert.match(direct, /`kanban_create` and legacy `t_\*` ids are not Home AI repair-card transport/);
 
   const text = service.buildHermesInstructions(
     { hermesSessionId: "s" },
@@ -302,8 +333,10 @@ function testPluginConversationActionBridgeInstructionPreventsFakeCardIds() {
     "让健康插件增加俯卧撑动作",
   );
   assert.match(text, /homeai-plugin-conversation-action/);
+  assert.match(text, /homeai-owner-task-request/);
   assert.match(text, /Visible prose may say that a repair request has been prepared/);
   assert.match(text, /must not claim successful submission/);
+  assert.match(text, /Never use a Kanban\/Todo card as a substitute/);
   assert.match(text, /raw health records/);
 }
 

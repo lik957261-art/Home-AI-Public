@@ -36,7 +36,8 @@ High-value entry points:
 - Workspace-scoped Access Keys and Owner-managed local workspaces.
 - Runtime Gateway and Web Push configuration from the Owner UI.
 - Optional Gateway Pool scheduling with workspace-aware worker selection.
-- Optional Weixin/iLink ingress sidecar boundary.
+- Retired Weixin/iLink ingress notes are retained only for historical context;
+  Home AI is the maintained communication surface.
 - Markdown-first deliverables: generated documents default to Markdown, render as
   HTML in the app, and offer explicit PDF, Word-compatible, HTML, copy, or raw
   Markdown export/share actions.
@@ -79,7 +80,7 @@ Validation for this public release:
 
 This update refreshes the public tree from source commit
 `0dbebeaf0d2f548feeaa34a241698785e8578392` and advances the static
-client/cache identity to `20260626-in-app-dialog-contract-v954`.
+client/cache identity to `20260627-action-inbox-dispatch-v956`.
 
 Highlights:
 
@@ -276,7 +277,7 @@ Pool 部署可以由另一个 Agent 按公开文档完成。
   - 启动 Hermes Mobile listener。
   - 检查 `/api/status`、真实 callable schema、Grok/xAI worker、auth realpath、SQLite integrity。
 - 看板卡片详情支持回执/过程、Markdown HTML preview、响应式回执字体和更均衡的 Worker 分配。
-- Weixin / Mobile ingress 启动脚本同步到 public，但仍要求部署方自己提供账号、密钥和唯一 poller 边界。
+- Weixin / Mobile ingress 已退役；`weixin_*` 仍只是历史工作区 ID 命名。
 
 ### 部署边界
 
@@ -477,8 +478,8 @@ production Automation jobs are owned by official Hermes CRON.
   tests, local experiments, or explicit import/migration work.
 - **Web Push:** configure VAPID key file path and subject from the Owner runtime
   panel or with environment variables.
-- **Weixin/iLink ingress:** optional sidecar boundary. Only one poller should
-  own a Weixin account at a time.
+- **Weixin/iLink ingress:** retired. Historical `weixin_*` workspace ids remain
+  valid workspace identities only.
 - **Gateway usage telemetry:** optional read-only fallback when Gateway responses
   omit detailed usage fields.
 
@@ -559,7 +560,7 @@ Mobile's PWA.
 - [Official Hermes compatibility](docs/OFFICIAL_HERMES_COMPATIBILITY.md)
 - [Gateway Pool architecture](docs/GATEWAY_POOL_ARCHITECTURE.md)
 - [Multi-task and account permissions](docs/MULTI_TASK_AND_ACCOUNT_PERMISSIONS.zh-CN.md)
-- [Weixin ingress sidecar](docs/WEIXIN_INGRESS.md)
+- [Retired Weixin ingress notes](docs/WEIXIN_INGRESS.md)
 - [SQLite service layer](docs/SERVICE_LAYER_SQLITE.md)
 - [Process isolation](docs/PROCESS_ISOLATION.md)
 - [Agent Windows production deployment](docs/AGENT_WINDOWS_PRODUCTION_DEPLOYMENT.zh-CN.md)

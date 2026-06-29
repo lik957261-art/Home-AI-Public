@@ -140,6 +140,14 @@ Backups must allow a replacement machine to restore source, production app files
   `data/artifacts` so generated plugin artifacts such as Wardrobe thumbnails
   remain readable by the scheduled backup even when a plugin worker created
   them with a private owner and `700` mode.
+- Mac production deploy also repairs read/traverse ACLs for `hermes-host` under
+  `gateway-worker/telemetry` so scheduled disaster backup can copy Gateway
+  telemetry state and read Gateway profile `SOUL.md` files created by
+  root-owned Gateway/profile provisioning paths.
+- If a single `SOUL.md` remains unreadable during manifest construction, the
+  backup records a bounded `soul_file_unreadable` failure in
+  `DISASTER-RECOVERY-MANIFEST.json` instead of crashing before writing the
+  manifest.
 - Daily backup excludes local tooling indexes and volatile runtime logs such as
   `.codegraph/`, Codex `logs_*.sqlite*`, and SQLite `*-wal` / `*-shm` sidecar
   files that are not the durable restore target and can change while rsync is

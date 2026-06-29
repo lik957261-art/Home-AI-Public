@@ -52,6 +52,8 @@ current_environment_plugin_source="${HERMES_MOBILE_CURRENT_ENVIRONMENT_PLUGIN_SO
 current_environment_plugin_target="$worker_home_dir/plugins/hermes-mobile-current-environment"
 docx_plugin_source="${HERMES_MOBILE_DOCX_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-docx}"
 docx_plugin_target="$worker_home_dir/plugins/hermes-mobile-docx"
+pptx_plugin_source="${HERMES_MOBILE_PPTX_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-pptx}"
+pptx_plugin_target="$worker_home_dir/plugins/hermes-mobile-pptx"
 pdf_plugin_source="${HERMES_MOBILE_PDF_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-pdf}"
 pdf_plugin_target="$worker_home_dir/plugins/hermes-mobile-pdf"
 audio_plugin_source="${HERMES_MOBILE_AUDIO_PLUGIN_SOURCE:-$mobile_app_root/gateway-plugins/hermes-mobile-audio}"
@@ -1088,6 +1090,7 @@ web_plugin_enabled=0
 http_plugin_enabled=0
 current_environment_plugin_enabled=0
 docx_plugin_enabled=0
+pptx_plugin_enabled=0
 pdf_plugin_enabled=0
 audio_plugin_enabled=0
 archive_plugin_enabled=0
@@ -1138,6 +1141,15 @@ if [ -f "$docx_plugin_source/plugin.yaml" ] && [ -f "$docx_plugin_source/__init_
   docx_plugin_enabled=1
 else
   echo "DOCX plugin source not found: $docx_plugin_source" >&2
+fi
+
+if [ -f "$pptx_plugin_source/plugin.yaml" ] && [ -f "$pptx_plugin_source/__init__.py" ]; then
+  rm -rf "$pptx_plugin_target"
+  cp -a "$pptx_plugin_source" "$pptx_plugin_target"
+  chown -R "$worker_user:$worker_user" "$pptx_plugin_target"
+  pptx_plugin_enabled=1
+else
+  echo "PPTX plugin source not found: $pptx_plugin_source" >&2
 fi
 
 if [ -f "$pdf_plugin_source/plugin.yaml" ] && [ -f "$pdf_plugin_source/__init__.py" ]; then
@@ -1229,6 +1241,9 @@ fi
 if [ "$docx_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-docx"$'\n'
 fi
+if [ "$pptx_plugin_enabled" = "1" ]; then
+  plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-pptx"$'\n'
+fi
 if [ "$pdf_plugin_enabled" = "1" ]; then
   plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-pdf"$'\n'
 fi
@@ -1259,6 +1274,7 @@ if ! render_gateway_template_yaml "$worker_home_dir/config.yaml" \
   --value "http_plugin_enabled=$http_plugin_enabled" \
   --value "current_environment_plugin_enabled=$current_environment_plugin_enabled" \
   --value "docx_plugin_enabled=$docx_plugin_enabled" \
+  --value "pptx_plugin_enabled=$pptx_plugin_enabled" \
   --value "pdf_plugin_enabled=$pdf_plugin_enabled" \
   --value "audio_plugin_enabled=$audio_plugin_enabled" \
   --value "archive_plugin_enabled=$archive_plugin_enabled" \
@@ -1381,6 +1397,12 @@ while IFS=$'\t' read -r profile port; do
     cp -a "$docx_plugin_target" "$profile_dir/plugins/hermes-mobile-docx"
     chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-docx"
   fi
+  if [ "$pptx_plugin_enabled" = "1" ]; then
+    install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
+    rm -rf "$profile_dir/plugins/hermes-mobile-pptx"
+    cp -a "$pptx_plugin_target" "$profile_dir/plugins/hermes-mobile-pptx"
+    chown -R "$worker_user:$worker_user" "$profile_dir/plugins/hermes-mobile-pptx"
+  fi
   if [ "$pdf_plugin_enabled" = "1" ]; then
     install -d -m 700 -o "$worker_user" -g "$worker_user" "$profile_dir/plugins"
     rm -rf "$profile_dir/plugins/hermes-mobile-pdf"
@@ -1440,6 +1462,9 @@ while IFS=$'\t' read -r profile port; do
   fi
   if [ "$docx_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-docx"$'\n'
+  fi
+  if [ "$pptx_plugin_enabled" = "1" ]; then
+    plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-pptx"$'\n'
   fi
   if [ "$pdf_plugin_enabled" = "1" ]; then
     plugin_enabled_lines="${plugin_enabled_lines}    - hermes-mobile-pdf"$'\n'
@@ -1771,6 +1796,7 @@ ${mcp_server_lines%$'\n'}"
     --value "http_plugin_enabled=$http_plugin_enabled" \
     --value "current_environment_plugin_enabled=$current_environment_plugin_enabled" \
     --value "docx_plugin_enabled=$docx_plugin_enabled" \
+    --value "pptx_plugin_enabled=$pptx_plugin_enabled" \
     --value "pdf_plugin_enabled=$pdf_plugin_enabled" \
     --value "audio_plugin_enabled=$audio_plugin_enabled" \
     --value "archive_plugin_enabled=$archive_plugin_enabled" \

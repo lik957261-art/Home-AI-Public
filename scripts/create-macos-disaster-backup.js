@@ -491,7 +491,13 @@ function sha256File(file) {
   return hash.digest("hex");
 }
 
-function collectSoulFiles(root, operatorHome) {
+function soulFailureLabel(scanRoot, file) {
+  const relative = path.relative(scanRoot, file).split(path.sep).join("/");
+  const rootName = path.basename(scanRoot) || "root";
+  return `${rootName}/${relative}`.replace(/\/+/g, "/");
+}
+
+function collectSoulFiles(root, operatorHome, options = {}) {
   const roots = [
     path.join(root, "data", "hermes-home"),
     path.join(root, "gateway-worker", "telemetry", "profiles"),
@@ -505,12 +511,19 @@ function collectSoulFiles(root, operatorHome) {
     if (!pathExists(scanRoot)) continue;
     walkFiles(scanRoot, (file) => {
       if (path.basename(file).toLowerCase() === "soul.md" || path.basename(file).toLowerCase().includes("soul")) {
-        const stat = fs.statSync(file);
-        files.push({
-          path: file,
-          size: stat.size,
-          sha256: stat.size <= 1024 * 1024 ? sha256File(file) : "",
-        });
+        try {
+          const stat = fs.statSync(file);
+          files.push({
+            path: file,
+            size: stat.size,
+            sha256: stat.size <= 1024 * 1024 ? sha256File(file) : "",
+          });
+        } catch (err) {
+          if (Array.isArray(options.failures)) {
+            const code = err && err.code ? err.code : "read_failed";
+            options.failures.push(`soul_file_unreadable:${soulFailureLabel(scanRoot, file)}:${code}`);
+          }
+        }
       }
     });
   }
@@ -554,7 +567,6 @@ function buildSteps(options, backupId) {
       "openwebui/",
       "pairing/",
       "backup-receipts/",
-      "weixin-mobile-ingress/",
       "worker-pool/",
       "node/",
       "auth.json",
@@ -678,7 +690,11 @@ function runBackup(options) {
     }
   }
 
-  const soulFiles = collectSoulFiles(options.root, options.includeOperatorState ? options.operatorHome : "");
+  const soulFailures = [];
+  const soulFiles = collectSoulFiles(options.root, options.includeOperatorState ? options.operatorHome : "", {
+    failures: soulFailures,
+  });
+  failures.push(...soulFailures);
   const manifest = {
     schemaVersion: 1,
     createdAt: new Date().toISOString(),

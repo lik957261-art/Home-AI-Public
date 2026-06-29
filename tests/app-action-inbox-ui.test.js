@@ -298,6 +298,24 @@ sandbox.state.actionInboxActionMenuItemId = "ainb-plugin-conversation-1";
 const pluginConversationActionSheetHtml = ui.renderActionInboxActionSheet();
 assert.match(pluginConversationActionSheetHtml, /data-action-inbox-menu-action="plugin-conversation-send-card"/);
 assert.match(pluginConversationActionSheetHtml, />\u53d1\u4fee\u590d\u5361<\/button>/);
+assert.doesNotMatch(pluginConversationActionSheetHtml, /data-action-inbox-menu-action="plugin-conversation-send-card"[^>]*disabled aria-disabled="true"/);
+const incompletePluginConversationRepairItem = Object.assign({}, pluginConversationRepairItem, {
+  id: "ainb-plugin-conversation-missing",
+  rawJson: {},
+});
+const missingTaskCardAction = ui.actionInboxActionMenuItems(incompletePluginConversationRepairItem)[0];
+assert.deepEqual(missingTaskCardAction, {
+  id: "plugin-conversation-send-card",
+  label: "\u53d1\u4fee\u590d\u5361",
+  tone: "primary",
+  disabled: false,
+});
+sandbox.state.actionInboxItems = [incompletePluginConversationRepairItem];
+sandbox.state.actionInboxActionMenuItemId = "ainb-plugin-conversation-missing";
+const missingPluginConversationActionSheetHtml = ui.renderActionInboxActionSheet();
+assert.match(missingPluginConversationActionSheetHtml, /data-action-inbox-menu-action="plugin-conversation-send-card"/);
+assert.doesNotMatch(missingPluginConversationActionSheetHtml, /data-action-inbox-menu-action="plugin-conversation-send-card"[^>]*disabled aria-disabled="true"/);
+assert.match(missingPluginConversationActionSheetHtml, />\u53d1\u4fee\u590d\u5361<\/button>/);
 sandbox.state.actionInboxActionMenuItemId = "";
 assert.match(source, /ownerPrompt/);
 assert.match(source, /openActionInboxOwnerPromptDialog/);

@@ -18,10 +18,25 @@ const REQUIRED_PLUGIN_SKILLS = {
 };
 
 const DEFAULT_REQUIRED_SHARED_SKILLS = ["shared/response-grounding-baseline"];
+const REQUIRED_PROFILE_FILE_PLUGINS = Object.freeze([
+  "hermes-mobile-docx",
+  "hermes-mobile-pptx",
+  "hermes-mobile-pdf",
+  "hermes-mobile-audio",
+  "hermes-mobile-archive",
+]);
 
 const FILE_PLUGIN_ROOT_ENV = Object.freeze([
   {
     name: "HERMES_MOBILE_DOCX_ALLOWED_ROOTS",
+    roots: ["data/drive", "data/uploads", "data/artifacts"],
+  },
+  {
+    name: "HERMES_MOBILE_PPTX_ALLOWED_ROOTS",
+    roots: ["data/drive", "data/uploads", "data/artifacts"],
+  },
+  {
+    name: "HERMES_MOBILE_PPTX_OUTPUT_ROOTS",
     roots: ["data/drive", "data/uploads", "data/artifacts"],
   },
   {
@@ -429,6 +444,33 @@ function filePluginRootStatus(worker = {}, profile = "", osUser = "", root = "",
     ),
     env,
   };
+}
+
+function profileLocalFilePluginStatus(profileDir = "", root = "", options = {}) {
+  if (typeof options.profileFilePluginProbe === "function") {
+    return REQUIRED_PROFILE_FILE_PLUGINS.map((pluginName) => {
+      const probe = options.profileFilePluginProbe({ profileDir, pluginName, root }) || {};
+      const pluginYamlPresent = Boolean(probe.pluginYamlPresent ?? probe.plugin_yaml_present ?? probe.pluginYaml ?? probe.exists);
+      const initPresent = Boolean(probe.initPresent ?? probe.init_present ?? probe.init ?? probe.exists);
+      return {
+        plugin: pluginName,
+        pluginYamlPresent,
+        initPresent,
+        complete: Boolean(pluginYamlPresent && initPresent),
+      };
+    });
+  }
+  return REQUIRED_PROFILE_FILE_PLUGINS.map((pluginName) => {
+    const pluginDir = path.join(profileDir, "plugins", pluginName);
+    const pluginYamlPresent = exists(path.join(pluginDir, "plugin.yaml"));
+    const initPresent = exists(path.join(pluginDir, "__init__.py"));
+    return {
+      plugin: pluginName,
+      pluginYamlPresent,
+      initPresent,
+      complete: Boolean(pluginYamlPresent && initPresent),
+    };
+  });
 }
 
 function mobileBridgeStatus(worker = {}, profile = "", osUser = "", root = "", options = {}) {
@@ -1028,6 +1070,7 @@ function buildAudit(options) {
     const launchd = launchdServiceStatus(worker, options);
     const telemetry = options.checkTelemetry === false ? null : telemetryStatus(worker, root, options);
     const filePluginRoots = filePluginRootStatus(worker, profile, osUser, root, options);
+    const filePlugins = profileLocalFilePluginStatus(profileDir, root, options);
     const mobileBridge = mobileBridgeStatus(worker, profile, osUser, root, options);
     const codexAuth = isOpenAiCodexWorker(worker) ? codexAuthStatus(worker, profileDir, root, osUser, options) : null;
     const workerSecrets = workerSecretAccessStatus(worker, osUser, manifestPath, dataDir, root, options);
@@ -1048,6 +1091,7 @@ function buildAudit(options) {
       launchd,
       telemetry,
       filePluginRoots,
+      filePlugins,
       mobileBridge,
       codexAuth,
       workerSecrets,
@@ -1100,6 +1144,9 @@ function buildAudit(options) {
       for (const rootCheck of item.rootsPresent) {
         if (!rootCheck.present) issue(`file_plugin_root_missing:${profile}:${item.name}:${rootCheck.root}`);
       }
+    }
+    for (const item of filePlugins) {
+      if (!item.complete) issue(`file_plugin_profile_missing:${profile}:${item.plugin}`);
     }
     for (const item of mobileBridge.env) {
       if (!item.present) issue(`mobile_bridge_env_missing:${profile}:${item.name}`);

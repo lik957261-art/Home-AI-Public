@@ -13,7 +13,15 @@ function normalizeNotificationChannel(value, fallback = "both") {
   ) {
     return "native_ios_apns";
   }
-  if (text === "both" || text === "all" || text === "dual" || text === "web_push_and_native_ios_apns") return "both";
+  if (
+    text === "native_android_fcm"
+    || text === "native-android-fcm"
+    || text === "android"
+    || text === "fcm"
+  ) {
+    return "native_android_fcm";
+  }
+  if (text === "both" || text === "all" || text === "dual" || text === "web_push_and_native_ios_apns" || text === "web_push_and_native") return "both";
   return fallback;
 }
 
@@ -50,22 +58,22 @@ function createNotificationChannelService(options = {}) {
   async function sendNotification(payload = {}, sendOptions = {}) {
     const channel = payloadNotificationChannel(payload, sendOptions, "both");
     if (channel === "web_push") return sendWebPushNotification(payload, sendOptions);
-    if (channel === "native_ios_apns") {
-      const nativeResults = await sendNativeNotification(payload, sendOptions);
+    if (channel === "native_ios_apns" || channel === "native_android_fcm") {
+      const nativeResults = await sendNativeNotification(payload, Object.assign({}, sendOptions, { notificationChannel: channel }));
       return {
         enabled: Boolean(nativeResults),
         attempted: 0,
         sent: 0,
         failed: 0,
         removed: 0,
-        notificationChannel: "native_ios_apns",
+        notificationChannel: channel,
         native: nativeResults || [],
       };
     }
     const nativeResults = await sendNativeNotification(payload, sendOptions);
-    const suppressIosWebPushWorkspaceIds = successfulNativeWorkspaceIds(nativeResults);
-    const webResult = await sendWebPushNotification(payload, suppressIosWebPushWorkspaceIds.length
-      ? Object.assign({}, sendOptions, { suppressIosWebPushWorkspaceIds })
+    const suppressNativeWebPushWorkspaceIds = successfulNativeWorkspaceIds(nativeResults);
+    const webResult = await sendWebPushNotification(payload, suppressNativeWebPushWorkspaceIds.length
+      ? Object.assign({}, sendOptions, { suppressIosWebPushWorkspaceIds: suppressNativeWebPushWorkspaceIds, suppressNativeWebPushWorkspaceIds })
       : sendOptions);
     return nativeResults ? Object.assign({}, webResult, { native: nativeResults }) : webResult;
   }

@@ -11,7 +11,6 @@ const CORE_PROVIDERS_FILE = "adapters/mobile-runtime-core-providers.js";
 const API_COMPOSITION_FILE = "server-routes/mobile-api-composition.js";
 const API_DIRECTORY_COMPOSITION_FILE = "server-routes/mobile-api-directory-composition.js";
 const RUNTIME_KANBAN_FACADE_FILE = "adapters/mobile-runtime-kanban-facade-service.js";
-const WEIXIN_RUNTIME_FILE = "adapters/weixin-runtime-composition-service.js";
 const APP_FRONTEND_FILES = [
   "public/app.js",
   "public/app-shell-ui.js",
@@ -108,28 +107,25 @@ function main() {
   assertRouteGuardInFile("server-routes/directory-mutation-api-routes.js", /directories-create/, /isSharedDirectoryWriteAllowed/);
   assertRouteGuardInFile("server-routes/directory-mutation-api-routes.js", /directories-upload/, /isSharedDirectoryWriteAllowed/);
   assertRouteGuardInFile("server-routes/directory-mutation-api-routes.js", /directories-delete/, /isSharedDirectoryWriteAllowed/);
-  assertRouteGuardInFile("server-routes/weixin-api-routes.js", /\/api\/ingress\/weixin\/outbound/, /requireWeixinIngress/);
   assertRouteGuardInFile("server-routes/owner-elevation-api-routes.js", /\/api\/owner-elevation\/once/, /requireOwner/);
 
   assertFrontendContains(/function todoWorkflowState\(todo\)/, "frontend must prefer server workflow state");
   assertFrontendContains(/workflow\.canSubmitStudy/, "study submission button must honor workflow state");
   assertFrontendContains(/workflow\.canStartExam/, "assessment start button must honor workflow state");
-  assertContains(WEIXIN_RUNTIME_FILE, /createWeixinFileForwardService[\s\S]{0,1200}egressPolicyProvider/, "manual Weixin file forwarding must receive the egress policy provider");
-  assertContains("adapters/weixin-file-forward-service.js", /egressPolicyProvider\.decide[\s\S]{0,600}operation: "manual_forward"/, "manual Weixin forwarding must use egress policy");
-  assertContains("adapters/weixin-file-forward-service.js", /explicitUserApproved: true[\s\S]{0,200}sendsFileContent: true/, "manual Weixin forwarding must declare user approval and file-content egress");
+  assert.equal(fs.existsSync(path.join(root, "server-routes/weixin-api-routes.js")), false, "Weixin API routes must stay retired");
+  assert.equal(fs.existsSync(path.join(root, "adapters/weixin-runtime-composition-service.js")), false, "Weixin runtime composition must stay retired");
+  assert.equal(fs.existsSync(path.join(root, "adapters/weixin-file-forward-service.js")), false, "manual Weixin file forwarding must stay retired");
   assertContains("adapters/path-policy-provider.js", /normalizePathForBoundary/, "path policy must normalize traversal before root checks");
   assertContains("adapters/path-boundary-service.js", /path\.win32\.normalize/, "path boundary helper must normalize traversal");
   assertContains("adapters/egress-policy-provider.js", /missing_actor_workspace/, "egress policy must fail closed without actor context");
   assertContains("adapters/egress-policy-provider.js", /const actorWorkspaceId = String\(input\.actorWorkspaceId/, "egress policy must require explicit actor workspace");
   assertContains("adapters/egress-policy-provider.js", /const currentWorkspaceOnly = Boolean\(actorWorkspaceId && targetWorkspaceId && targetWorkspaceId === actorWorkspaceId\)/, "egress current-workspace decision must be derived from explicit actor and target");
-  assertContains("adapters/egress-policy-provider.js", /const trustedOriginReply = source === "weixin" && destination === "weixin" && operation === "origin_reply" && originReply/, "origin-reply egress must only trust real Weixin origin replies");
-  assertContains("adapters/egress-policy-provider.js", /sendsFileContent && !trustedOriginReply/, "external file egress must not allow forged origin replies");
+  assertContains("adapters/egress-policy-provider.js", /EXTERNAL_DESTINATIONS = new Set\(\["messaging", "http", "web", "browser", "email", "push"\]\)/, "egress policy must not include retired Weixin destination");
+  assertContains("adapters/egress-policy-provider.js", /sendsFileContent && !ownerApproved && !explicitUserApproved/, "external file egress must require approval");
   assertContains("adapters/path-policy-provider.js", /const realCandidate = cachedRealPath\(candidate\)/, "path policy must verify canonical candidates");
   assertContains("adapters/path-policy-provider.js", /Target directory must not be a symlink or junction/, "write path boundary must reject symlink or junction parents");
   assertContains("adapters/shared-directory-provider.js", /comparableBoundaryPath/, "shared directory provider must use the shared path boundary helper");
   assertContains("adapters/project-discovery-provider.js", /comparableBoundaryPath/, "project discovery provider must use the shared path boundary helper");
-  assertContains("adapters/weixin-file-forward-service.js", /const bridgeResult = resolved\.file \? null : fileResultFromBridgeFileForForward/, "manual Weixin bridge files must resolve only inside the forwarding service");
-  assertContains("adapters/weixin-file-forward-service.js", /const sourceFile = resolved\.file \|\| bridgeResult\?\.file[\s\S]{0,400}materializeWeixinForwardFile/, "manual Weixin bridge files must materialize after egress policy");
 
   console.log("security invariants check passed");
 }

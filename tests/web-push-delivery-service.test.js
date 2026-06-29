@@ -97,7 +97,6 @@ function createHarness(root, overrides = {}) {
       owner: { id: "owner", label: "Owner", policy: { principal_id: "owner" } },
       child: { id: "child", label: "Child", name: "Learner", policy: { principal_id: "child-principal" } },
     })[workspaceId] || null,
-    isWeixinSingleWindowThread: (thread) => thread?.externalIngress?.source === "weixin",
     singleWindowChatTaskGroupId: "chat",
     singleWindowGroupChatTaskGroupId: "group-chat",
     workspaceLabel: (workspaceId) => workspaceId === "child" ? "Child" : "Owner",
@@ -233,7 +232,7 @@ function testNativeNotificationChannelReceivesWorkspaceEvents() {
       assert.equal(nativeCalls[0].title, "Task complete");
       assert.equal(nativeCalls[0].body, "The report is ready.");
       assert.equal(nativeCalls[0].deepLink, "/?view=single&workspaceId=child&threadId=t1&messageId=m1");
-      assert.equal(nativeCalls[0].data.channel, "native_ios_apns");
+      assert.equal(nativeCalls[0].data.channel, "native");
     });
   });
 }
@@ -283,6 +282,20 @@ function testNotificationChannelSelectionSeparatesWebAndNative() {
       assert.equal(calls.sends.length, 1);
       assert.equal(nativeCalls.length, 1);
       assert.equal(nativeCalls[0].workspaceId, "child");
+      return service.sendPushNotification({
+        title: "Android native only",
+        data: { workspaceId: "child" },
+      }, {
+        principalId: "child-principal",
+        notificationChannel: "native_android_fcm",
+      });
+    }).then((androidNativeResult) => {
+      assert.equal(androidNativeResult.notificationChannel, "native_android_fcm");
+      assert.equal(androidNativeResult.native.length, 1);
+      assert.equal(calls.sends.length, 1);
+      assert.equal(nativeCalls.length, 2);
+      assert.equal(nativeCalls[1].notificationChannel, "native_android_fcm");
+      assert.equal(nativeCalls[1].data.channel, "native_android_fcm");
     });
   });
 }
@@ -335,7 +348,7 @@ function testBothChannelPrefersNativeOverIphoneWebPush() {
       assert.equal(nativeCalls.length, 1);
       assert.equal(calls.sends.length, 1);
       assert.equal(calls.sends[0].subscription.endpoint, "endpoint-child-mac");
-      assert.equal(state.pushSubscriptions[0].lastError, "skipped_native_ios_apns_preferred");
+      assert.equal(state.pushSubscriptions[0].lastError, "skipped_native_preferred");
     });
   });
 }
@@ -952,17 +965,16 @@ function testTaskTerminalAndGroupMentionNotifications() {
       assert.equal(calls.sends.at(-1).payload.data.taskGroupId, "plugin:wardrobe");
       assert.equal(calls.sends.at(-1).payload.data.messageId, "wardrobe-receipt-1");
 
-      const weixinThread = Object.assign({}, thread, {
+      const singleThread = Object.assign({}, thread, {
         singleWindow: true,
-        externalIngress: { source: "weixin" },
       });
       const chatMessage = Object.assign({}, message, { taskGroupId: "chat" });
-      return service.notifyTaskTerminal(weixinThread, chatMessage, "failed");
+      return service.notifyTaskTerminal(singleThread, chatMessage, "failed");
     }).then(() => {
       assert.equal(calls.sends.at(-1).payload.title, "聊天：任务失败");
       assert.equal(calls.sends.at(-1).payload.data.contextLabel, "聊天");
       assert.equal(calls.sends.at(-1).payload.data.viewMode, "single");
-      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=single&workspaceId=child&threadId=thread-1&messageId=a1&weixinChat=1");
+      assert.equal(calls.sends.at(-1).payload.data.url, "/?view=single&workspaceId=child&threadId=thread-1&messageId=a1");
       assert.equal(calls.sends.at(-1).payload.data.threadId, "thread-1");
       assert.equal(calls.sends.at(-1).payload.data.messageId, "a1");
 

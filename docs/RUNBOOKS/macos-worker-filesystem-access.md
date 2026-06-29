@@ -172,13 +172,13 @@ check must use the listener user, not root-only file access.
 It must also include no `file_plugin_root_env_missing:<profile>:<env>` and no
 `file_plugin_root_missing:<profile>:<env>:<root>` issue. These issues mean a
 profile-local file tool such as `docx_extract_text`, `office_extract_text`,
-`pdf_extract_text`, `pdf_render_pages`, `archive_extract_safe`, or
+`pptx_create`, `pdf_extract_text`, `pdf_render_pages`, `archive_extract_safe`, or
 `audio_transcribe` is still using Windows/WSL
 default roots instead of Mac live roots. The root list must use comma,
 semicolon, or newline separators; `file_plugin_root_list_delimiter_unsupported`
 means a PATH-style colon-separated list was used and must be repaired. In that
 state a run can read Markdown or analyze uploaded images but fail Word/DOCX,
-PowerPoint, Excel, PDF, audio, or ZIP extraction with
+PowerPoint generation or extraction, Excel, PDF, audio, or ZIP extraction with
 `file_path_outside_allowed_roots`.
 It must also include no `mobile_bridge_env_missing:<profile>:<env>`,
 `mobile_bridge_host_url_default_missing:<profile>`, or

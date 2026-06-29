@@ -1,6 +1,6 @@
 # Wardrobe Plugin
 
-Last updated: 2026-06-04.
+Last updated: 2026-06-29.
 
 This module describes the Hermes Mobile Wardrobe entry. The generic embedded
 plugin host contract is defined in `docs/MODULES/plugins.md`; this file records
@@ -67,6 +67,42 @@ through Home AI run options/model instructions, not through the Wardrobe iframe
 or Wardrobe MCP. If it is unavailable, lacks weather, is stale for the requested
 target time, or the user asks about another city/destination, the workflow
 falls back to the ordinary `weather` toolset.
+
+## Host Message Action Bridge
+
+Wardrobe recommendation receipts may expose a bounded
+`outfit_wear_intent` action for one-click wear-history storage. Wardrobe owns
+the MCP contract and validation; Home AI owns only the host-side message
+projection, button rendering, and deterministic action bridge.
+
+The expected flow is:
+
+1. A Wardrobe plugin conversation run calls
+   `mcp_wardrobe_wardrobe_prepare_outfit_wear_intent`.
+2. On `response.completed`, Home AI extracts the prepared
+   `outfit_wear_intent` from the matching function output and stores it under
+   the assistant message's `pluginActions.wardrobeOutfitWearIntent` metadata.
+3. `thread-view-service` exposes only the normalized public action state when
+   the intent is still valid for the effective workspace/principal and all
+   item codes are locked.
+4. `public/app-message-actions-ui.js` renders a compact `穿着入库` button near
+   the message Usage area. The button is a deterministic action; it does not
+   start another model run.
+5. `POST /api/plugin-conversation/actions/wardrobe/outfit-wear-intent` looks
+   up the server-side message, validates the stored intent, and calls
+   `wardrobe.execute_outfit_wear_intent` through the Wardrobe MCP wrapper.
+6. `needs_confirmation` is shown as an in-app confirmation dialog. Only after
+   user confirmation does Home AI retry with `confirm_replace: true` and
+   `mode: "replace"`.
+7. Stored, running, confirmation, and visible error states are persisted back
+   to the message and broadcast as ordinary message/thread updates.
+
+Home AI must not fabricate or mutate the intent client-side. The browser sends
+only thread id, message id, workspace id, and confirmation flags; the executable
+intent is read from server-side message metadata. Missing MCP schema, expired
+intent, missing item codes, workspace mismatch, principal mismatch, and
+execution failures remain visible action states rather than silent model
+fallbacks.
 
 ## Plugin Host
 

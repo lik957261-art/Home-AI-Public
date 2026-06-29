@@ -1,114 +1,60 @@
 # Module: Weixin And iLink Ingress
 
-## Responsibility
+## Status
 
-Weixin/iLink ingress owns inbound event normalization, workspace/account routing, dedicated Weixin chat window behavior, outbound delivery state, and manual Weixin file forwarding.
+Retired on 2026-06-28.
 
-Hermes Mobile owns product routing and delivery state; official Hermes Gateway remains the model/tool execution kernel.
+Home AI no longer exposes Weixin/iLink ingress, outbound delivery, manual
+Weixin file forwarding, or a dedicated Weixin chat window. Home AI is the
+maintained communication surface. The old Weixin transport was a narrower,
+less stable subset and increased runtime, deployment, and security complexity.
 
-Weixin file ingress is a server-side file entry path, not the primary product
-communication channel. Files that arrive through Weixin should be made visible
-through a Directory-protected server folder when the sidecar has a local
-server path for them. Composer attachment then references that server-side file
-artifact instead of downloading it to the browser and uploading a duplicate
-copy.
+This document is kept only as a retirement record so future work does not
+reintroduce the old sidecar boundary by accident.
 
-## Core Files
+## Removed Runtime Surface
 
-- `docs/WEIXIN_INGRESS.md`
-- `server-routes/weixin-api-routes.js`
-- `adapters/weixin-ingress-event-service.js`
-- `adapters/weixin-ingress-provider.js`
-- `adapters/weixin-runtime-composition-service.js`
-- `adapters/weixin-outbound-delivery-service.js`
-- `adapters/weixin-forward-service.js`
-- `adapters/weixin-file-forward-service.js`
-- `adapters/weixin-markdown-forward-service.js`
-- `adapters/weixin-window-migration-service.js`
-- `scripts/weixin-ingress-production-smoke.js`
-- `scripts/weixin-mobile-ingress-bridge.py`
-- `scripts/weixin-ingress-sidecar.py`
-- `scripts/start-weixin-mobile-ingress-bridge.ps1`
-- `scripts/start-weixin-mobile-ingress-bridge-windows.ps1`
+The following surfaces are intentionally absent:
 
-## Product Rules
+- `/api/ingress/weixin/events`
+- `/api/ingress/weixin/outbound`
+- `/api/ingress/weixin/outbound/<deliveryId>/ack`
+- `/api/weixin/forward-targets`
+- `/api/weixin/forward-file`
+- `/api/weixin/forward-markdown`
+- Weixin ingress/outbound route registration in the mobile API dispatcher.
+- Dedicated Weixin chat URL state such as `weixinChat=1`.
+- Weixin manual file-forward buttons in artifact, PDF, and file preview views.
+- Weixin sidecar startup scripts and production heartbeat smoke scripts.
 
-- Weixin traffic is separated from ordinary Hermes Mobile chat.
-- The dedicated Weixin window is identified by `thread.externalIngress.source === "weixin"` and opened with `weixinChat=1`.
-- Ordinary private chat must not absorb Weixin messages.
-- Weixin should not be expanded as a general AI chat transport. Its durable
-  value is file ingress: inbound files can land in a configured server
-  directory and then be selected from Home AI Directory/Composer.
-- The shared server-side file ingress directory is `系统分享` under the
-  authenticated workspace's default Directory root. Weixin sidecar downloads
-  and iOS/system Share Extension uploads both use this directory contract so
-  files from Weixin and other apps are available through the same
-  Directory/Composer server-file attachment flow. Directory listing is sorted
-  newest first by entry `mtime`, so the latest shared files appear at the top
-  without date subdirectories.
-- Composer server-file attachment must use the existing Directory ACL boundary
-  and artifact registration path. It must not re-upload the file body through
-  browser `dataBase64` when the file already exists on the server.
-- A normalized inbound text event that is exactly `#` or full-width `＃`, with no attachments, is a heartbeat command. It must not create a thread, message, Gateway run, or delivery.
-- Only one poller may own a Weixin account. Do not run a legacy direct Gateway poller and the Mobile sidecar for the same account.
-- Ingress uses its own sidecar credential. Production ingress smokes use
-  `X-Hermes-Mobile-Ingress-Key`; browser/API `X-Hermes-Web-Key` is a negative
-  wrong-header probe for this endpoint, not a valid ingress transport.
-- On Windows-native deployments, use
-  `scripts\start-weixin-mobile-ingress-bridge-windows.ps1`. It starts the
-  Mobile ingress bridge and the three Weixin dispatchers with the native Hermes
-  Python runtime and state under
-  `C:\ProgramData\HermesMobile\hermes-native-profile\.hermes`. The bridge
-  health check must use a Windows-compatible PID probe; `os.kill(pid, 0)` is not
-  a valid Windows liveness test.
+## Preserved Compatibility
 
-## Production Smoke
+Existing workspace ids such as `weixin_wuping`, `weixin_stephen`, and
+`weixin_test_1` remain valid workspace identities. They are historical names,
+not evidence that a Weixin transport is active.
 
-Use the checked heartbeat production smoke for Mac route workspaces:
+Workspace catalogs and plugin bindings may still reference those ids. Do not
+rename them as part of the Weixin ingress retirement unless a separate
+workspace-identity migration is planned and validated.
 
-```powershell
-node scripts\weixin-ingress-production-smoke.js --base http://127.0.0.1:8797 --ingress-key-file <ingress-key-file> --workspaces weixin_wuping,weixin_stephen,weixin_test_1 --json
-```
+## Replacement Product Path
 
-The harness first proves `/api/public-config` on the same origin, then verifies
-that the ingress key is rejected under the browser/API `X-Hermes-Web-Key`
-header, then posts one `#` heartbeat event per route workspace using
-`X-Hermes-Mobile-Ingress-Key`. Its output is bounded metadata only:
-workspace ids, status, heartbeat/skipped/reason, event id, and header names. It
-must not print the ingress key, raw key path, message text, contact lists,
-mailbox codes, or Weixin histories.
+- Use Home AI chat, group chat, directory-bound topics, plugin conversations,
+  Action Inbox, and native app share/open flows as the maintained user-facing
+  communication and file-ingress surfaces.
+- Files should enter through Home AI Directory APIs, native share extensions,
+  uploads, or plugin-owned import flows. They should not depend on a Weixin
+  polling sidecar.
+- External delivery should go through maintained Web Push/native notification,
+  Action Inbox, plugin notification, email, or explicit user-approved export
+  paths.
 
-For Mac production closure, this heartbeat smoke is also run by
-`scripts/macos-production-closure-validation.js`. Keep the focused harness for
-route-level diagnosis and use the closure harness before declaring a Mac
-deployment or repair complete.
+## Guardrails
 
-This is a route/auth/heartbeat production smoke. It proves the sidecar auth
-boundary and route workspaces are accepted without creating a thread, message,
-Gateway run, or delivery. It is not a full normal-message end-to-end proof; a
-normal text event can create a Gateway run and outbound delivery and should be
-performed only as a controlled user-approved E2E check for a real route.
-
-## File Forwarding Rules
-
-- Manual Markdown forwarding should materialize a phone-readable PDF or a safe fallback instead of sending raw Markdown by default.
-- Persistent UI status should show only for manual file forwards whose delivery has reached a terminal acknowledged status.
-- Do not synthesize misleading default captions for forwarded files.
-
-## Validation
-
-- Route/service tests for changed Weixin modules.
-- Sidecar check mode or one bounded metadata-only test event.
-- Production route workspace checks use
-  `node scripts\weixin-ingress-production-smoke.js --ingress-key-file <file>`
-  plus `node tests\weixin-ingress-production-smoke-harness.test.js`.
-- Windows-native service checks use:
-  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\start-weixin-mobile-ingress-bridge-windows.ps1 -CheckOnly`.
-  This check must not invoke WSL, print credentials, or dump contact/history
-  content.
-- Listener restart is required for service/route changes.
-- Do not print Weixin credentials, mailbox codes, push endpoints, raw contact lists, or full message histories.
-
-## Debug Pointers
-
-If Weixin messages appear in the ordinary chat, inspect route-to-thread logic before Gateway routing. If duplicate messages appear, verify that only one poller owns the account. If a heartbeat creates a task, check exact normalized-text handling in `weixin-ingress-event-service`.
+- Do not restore Weixin routes, sidecar scripts, or manual forwarding buttons
+  without a new product requirement and a fresh security review.
+- Do not add Weixin to `EXTERNAL_DESTINATIONS` or trusted origin-reply egress
+  policy.
+- Do not treat `weixin_*` workspace ids as transport state.
+- Keep the negative tests that assert retired Weixin files and routes remain
+  absent.

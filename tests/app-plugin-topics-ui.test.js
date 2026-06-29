@@ -1011,7 +1011,6 @@ globalThis.__pluginContextColdRestoreHarness = {
   assert.deepEqual(harness.calls.api[0].body, {
     workspaceId: "owner",
     groupChat: false,
-    weixinChat: false,
     messageMode: "tasks",
     taskGroupId: "",
     messageLimit: 40,

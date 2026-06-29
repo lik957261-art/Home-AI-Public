@@ -49,8 +49,8 @@ function testHelperExports() {
 }
 
 function testExternalMetadataNormalization() {
-  assert.deepEqual(normalizeExternalIngress({ source: "weixin", thread_key: "t", chat_id: "c" }), {
-    source: "weixin",
+  assert.deepEqual(normalizeExternalIngress({ source: "mail", thread_key: "t", chat_id: "c" }), {
+    source: "mail",
     threadKey: "t",
     eventId: "",
     accountId: "",
@@ -65,7 +65,7 @@ function testExternalMetadataNormalization() {
   });
   assert.equal(normalizeExternalIngress({}), null);
   assert.equal(normalizeExternalDelivery({}), null);
-  assert.equal(normalizeExternalDelivery({ source: "weixin", delivery_id: "d" }).status, "waiting");
+  assert.equal(normalizeExternalDelivery({ source: "mail", delivery_id: "d" }).status, "waiting");
 }
 
 function testStateAndThreadNormalization() {

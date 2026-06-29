@@ -123,7 +123,7 @@ function createProjectDiscoveryProvider(options = {}) {
       root: workspace.id === "owner"
         ? (chatGptDriveRootFromEntries(projectEntries, ownerDriveRootNames) || workspace.defaultWorkspace || repoRoot)
         : (workspace.defaultWorkspace || ""),
-      aliases: ["single", "inbox", "weixin", "stream"],
+      aliases: ["single", "inbox", "stream"],
       source: "single-window",
       hidden: true,
       singleWindow: true,

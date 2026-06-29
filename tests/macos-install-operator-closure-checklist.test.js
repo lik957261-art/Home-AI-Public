@@ -22,7 +22,7 @@ function testChecklistCoversEveryInstallerPhase() {
   assert.equal(report.ok, true, JSON.stringify(report.issues, null, 2));
   assert.equal(report.phaseCount, EXPECTED_PHASES.length);
   assert.deepEqual(report.items.map((item) => item.id), EXPECTED_PHASES);
-  assert.equal(report.operatorClosureCount, 8);
+  assert.equal(report.operatorClosureCount, 7);
 }
 
 function testEveryOperatorClosurePhaseHasEvidenceAndCommands() {
@@ -68,7 +68,7 @@ function testCliJsonAndMarkdown() {
   });
   const parsed = JSON.parse(output);
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
-  assert.equal(parsed.operatorClosureCount, 8);
+  assert.equal(parsed.operatorClosureCount, 7);
 
   const markdown = execFileSync("node", ["scripts/macos-install-operator-closure-checklist.js", "--markdown"], {
     cwd: REPO_ROOT,

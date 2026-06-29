@@ -32,8 +32,20 @@ assert.match(
 
 assert.match(
   appMessageActionsUiJs,
-  /function shouldForceChatStickToBottom\(\) \{[\s\S]*?!conversationReadAnchorActive\(\)[\s\S]*?forceChatStickToBottomUntil/,
-  "manual long-receipt reading must suppress automatic chat bottom sticking"
+  /function shouldForceChatStickToBottom\(\) \{[\s\S]*?!conversationReadAnchorActive\(\)[\s\S]*?!conversationUserScrollProtectActive\(\)[\s\S]*?forceChatStickToBottomUntil/,
+  "manual long-receipt reading and recent user scrolls must suppress automatic chat bottom sticking"
+);
+
+assert.match(
+  appMessageActionsUiJs,
+  /const CONVERSATION_USER_SCROLL_PROTECT_MS = 5000;/,
+  "recent user scroll protection must hold the viewport for five seconds"
+);
+
+assert.match(
+  appMessageActionsUiJs,
+  /function markConversationUserScrollIntent\(event = null\) \{[\s\S]*?CONVERSATION_USER_SCROLL_PROTECT_MS[\s\S]*?state\.conversationUserScrollProtectUntil[\s\S]*?window\.clearTimeout\(state\.conversationBottomStickTimer\);/,
+  "trusted user scroll input must open the viewport protection window and cancel pending bottom stick timers"
 );
 
 assert.match(
@@ -170,8 +182,8 @@ assert.match(
 
 assert.match(
   appThreadListUiJs,
-  /const readAnchorActive = typeof conversationReadAnchorActive === "function" && conversationReadAnchorActive\(conversation\);[\s\S]*?const stickToBottom = !readAnchorActive && Boolean\(options\.stickToBottom \|\| forceChatBottom\);/,
-  "thread rendering must not apply stick-to-bottom while a long-receipt read anchor is active"
+  /const readAnchorActive = typeof conversationReadAnchorActive === "function" && conversationReadAnchorActive\(conversation\);[\s\S]*?const userScrollProtected = typeof conversationUserScrollProtectActive === "function" && conversationUserScrollProtectActive\(\);[\s\S]*?const stickToBottom = !readAnchorActive && !userScrollProtected && Boolean\(options\.stickToBottom \|\| forceChatBottom\);/,
+  "thread rendering must not apply stick-to-bottom while a long-receipt read anchor or user scroll protection is active"
 );
 
 assert.match(

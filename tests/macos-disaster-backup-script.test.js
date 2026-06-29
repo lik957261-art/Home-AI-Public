@@ -80,6 +80,7 @@ function makeFixture() {
   writeFile(path.join(root, "data", "music", "library", "index.json"), "{}\n");
   writeFile(path.join(root, "data", "music", "audio-mounts", "Music", "album", "track.flac"), "audio\n");
   writeFile(path.join(root, "data", "music", "audio-mounts", "Music", "album", "Thumbs.db"), "not sqlite\n");
+  writeFile(path.join(root, "gateway-worker", "telemetry", "hm-owner-openai-1", "events.json"), "{}\n");
   writeFile(path.join(root, "gateway-worker", "telemetry", "profiles", "hm-owner-openai-1", "SOUL.md"), "gateway soul\n");
   writeFile(path.join(root, "plugins", "finance", "server.js"), "finance\n");
   writeFile(path.join(root, "plugins", "finance", "data", "receipt.txt"), "receipt\n");
@@ -185,6 +186,54 @@ function makeFixture() {
   assert.ok(stepNames.includes("operator-hermes-agent-custom-store"));
   assert.ok(stepNames.some((name) => name.startsWith("sqlite-snapshot:data/hermes-mobile.sqlite3")));
   assert.ok(stepNames.some((name) => name.startsWith("sqlite-snapshot:plugins/finance/data/finance.sqlite3")));
+}
+
+{
+  const fixture = makeFixture();
+  const soulPath = path.join(fixture.root, "gateway-worker", "telemetry", "profiles", "hm-owner-openai-1", "SOUL.md");
+  fs.chmodSync(soulPath, 0o000);
+  try {
+    const result = backup.runBackup({
+      root: fixture.root,
+      destination: fixture.dest,
+      operatorHome: fixture.operatorHome,
+      receiptDir: path.join(fixture.root, "data", "backups", "disaster-recovery-receipts"),
+      label: "unit",
+      checkOnly: false,
+      json: true,
+      includeOperatorState: true,
+    });
+
+    assert.equal(result.ok, false);
+    const manifest = JSON.parse(fs.readFileSync(path.join(result.currentRoot, "DISASTER-RECOVERY-MANIFEST.json"), "utf8"));
+    assert.ok(manifest.failures.some((failure) => /soul_file_unreadable:profiles\/hm-owner-openai-1\/SOUL\.md/.test(failure)));
+  } finally {
+    fs.chmodSync(soulPath, 0o600);
+  }
+}
+
+{
+  const fixture = makeFixture();
+  const telemetryPath = path.join(fixture.root, "gateway-worker", "telemetry", "hm-owner-openai-1");
+  fs.chmodSync(telemetryPath, 0o000);
+  try {
+    const result = backup.runBackup({
+      root: fixture.root,
+      destination: fixture.dest,
+      operatorHome: fixture.operatorHome,
+      receiptDir: path.join(fixture.root, "data", "backups", "disaster-recovery-receipts"),
+      label: "unit",
+      checkOnly: false,
+      json: true,
+      includeOperatorState: true,
+    });
+
+    assert.equal(result.ok, false);
+    const manifest = JSON.parse(fs.readFileSync(path.join(result.currentRoot, "DISASTER-RECOVERY-MANIFEST.json"), "utf8"));
+    assert.ok(manifest.failures.some((failure) => /gateway-worker\/telemetry\/hm-owner-openai-1|hm-owner-openai-1/.test(failure)));
+  } finally {
+    fs.chmodSync(telemetryPath, 0o700);
+  }
 }
 
 {

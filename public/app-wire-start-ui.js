@@ -275,9 +275,6 @@ function wireUi() {
     state.selectedWorkspaceId = event.target.value;
     if (typeof resetEmbeddedPluginsForWorkspaceChange === "function") resetEmbeddedPluginsForWorkspaceChange();
     state.privateChatThread = null;
-    state.weixinChatThread = null;
-    state.weixinChatThreadId = "";
-    state.weixinChatAvailable = false;
     state.groupChatThread = null;
     state.groupChatThreadId = "";
     state.groupChatAvailable = false;
@@ -334,9 +331,7 @@ function wireUi() {
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "single";
     setSingleWindowMode("chat");
-    state.weixinChatOpen = false;
     localStorage.setItem("hermesWebViewMode", state.viewMode);
-    localStorage.setItem("hermesWebWeixinChatOpen", "0");
     state.currentTaskGroupId = "";
     schedulePrimaryNavigationViewLoad({ skipTaskListWindowRefresh: true });
   });
@@ -364,9 +359,7 @@ function wireUi() {
     if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
     state.viewMode = "single";
     setSingleWindowMode("chat");
-    state.weixinChatOpen = false;
     localStorage.setItem("hermesWebViewMode", state.viewMode);
-    localStorage.setItem("hermesWebWeixinChatOpen", "0");
     state.currentTaskGroupId = "";
     schedulePrimaryNavigationViewLoad();
   });
@@ -632,9 +625,6 @@ function wireUi() {
   $("topToggleGroupChat")?.addEventListener("click", () => {
     toggleGroupChat().catch(showError);
   });
-  $("topToggleWeixinChat")?.addEventListener("click", () => {
-    toggleWeixinChat().catch(showError);
-  });
   $("topManageGroupMembers")?.addEventListener("click", () => {
     openGroupChatMembers().catch(showError);
   });
@@ -738,6 +728,12 @@ function wireUi() {
     if (typeof rememberTaskListScrollPosition === "function") rememberTaskListScrollPosition();
     if (typeof scheduleAppRouteSnapshot === "function") scheduleAppRouteSnapshot("scroll", 500);
   }, { passive: true });
+  $("conversation")?.addEventListener("wheel", markConversationUserScrollIntent, { passive: true });
+  $("conversation")?.addEventListener("touchmove", markConversationUserScrollIntent, { passive: true });
+  $("conversation")?.addEventListener("keydown", (event) => {
+    const keys = new Set(["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " ", "Spacebar"]);
+    if (keys.has(event.key)) markConversationUserScrollIntent(event);
+  });
   navigator.virtualKeyboard?.addEventListener("geometrychange", handleViewportLayoutChange);
   window.visualViewport?.addEventListener("resize", handleViewportLayoutChange);
   window.visualViewport?.addEventListener("scroll", handleViewportLayoutChange);

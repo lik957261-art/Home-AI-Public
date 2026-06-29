@@ -138,7 +138,6 @@ function currentAppRouteSnapshotParams() {
       if (messageId) params.set("messageId", messageId);
     }
   } else if (view === "single") {
-    if (state.weixinChatOpen) params.set("weixinChat", "1");
     if (state.groupChatOpen) params.set("groupChat", "1");
     if (state.currentThreadId) params.set("threadId", boundedRouteSnapshotValue(state.currentThreadId));
     const messageId = visibleRouteSnapshotMessageId();

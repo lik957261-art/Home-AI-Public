@@ -48,6 +48,35 @@ Web layer and still do nothing in the Android shell unless
 `WebChromeClient.onShowFileChooser` forwards the request to the Android system
 file picker and returns the selected URI array to WebView.
 
+Android WebView document preview must also be bridged by the native shell. The
+Home AI Web client treats WebView/browser document opening as a fallback for
+PDF, Word, and PowerPoint files because some devices silently fail to present a
+viewer. The shell should advertise
+`window.HomeAINativeDocumentCapability.documentPreview` and expose
+`window.HomeAINativeDocument.open(request)`. Requests use
+`type:"homeai.nativeDocument.open"`, `version:1`, a bounded `requestId`, a
+same-origin authorized `url`, bounded `filename`, `mimeType`, `kind`, and
+`requiresAuth:true`. The shell must preserve Home AI auth internally, download
+to app cache, expose the cached file through `FileProvider`, and launch the
+Android system document viewer with temporary read permission. It must reject
+raw filesystem paths, unsupported schemes, external origins, and requests that
+would bypass Home AI Directory/task/file ACLs.
+
+The Web client may invoke this bridge from both task/directory preview links and
+from the direct `pdf-viewer.html` / `file-viewer.html` documents. Viewer URLs
+can carry `nativeShell=android` so the Web fallback waits briefly for the bridge
+after WebView page-load injection; `webPreview=1` is reserved for explicit Web
+fallback/debug.
+
+Home AI Web also detects the legacy raw Android JavaScript interface
+`window.HomeAIAndroidNativeDocument.open(...)` and wraps it into the public
+Promise API as a compatibility path for older installed shells. Current Android
+shells should still inject `HomeAINativeDocumentCapability` and
+`HomeAINativeDocument.open()` at document start for same-origin Home AI
+documents and preview frames. In a native shell, bridge absence, timeout, or
+bounded native failure must remain visible as an in-app native-preview error
+state; it must not silently fall back to PDF.js or adapted Word Web preview.
+
 The shell supports user-confirmed APK updates. It reads a JSON manifest from
 the configured `homeAiUpdateManifestUrl` build property /
 `HOMEAI_ANDROID_UPDATE_MANIFEST_URL` environment variable, or defaults to
@@ -160,9 +189,9 @@ Current source checks:
 - Android debug build: `source scripts/android-env.sh && gradle --no-daemon assembleDebug`
 - Android debug APK:
   `/Users/example/path`
-- Current source public debug APK version: `0.4.16`, `versionCode=20`
+- Current source public debug APK version: `0.4.19`, `versionCode=23`
 - Current public debug APK SHA-256:
-  `9f23019528cac42c04a48775d51071d6694145235eef33a07ef96c2b91409341`
+  `dacc1a260331ba187e7f5a54e0fc8eb1817ef8724978c1a8e4f539432942c6c3`
 - Android update manifest:
   `https://wardrobe-xuxin.synology.me:8555/android/android-update.json` through
   the Home AI HTTPS mapping

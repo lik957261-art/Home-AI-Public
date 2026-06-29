@@ -1544,8 +1544,9 @@ async function testHealthGrantProvisionsWorkspaceKeyHashConfigAndLaunch() {
   assert.equal(manifest.available, true);
   assert.equal(
     manifest.entry.url,
-    "/api/hermes-plugins/health/proxy/health.html?embed=hermes&launch=health_once&workspaceId=weixin_health",
+    "/api/hermes-plugins/health/proxy/health.html?embed=hermes&launch=health_once&workspaceId=weixin_health&workspace_id=weixin_health",
   );
+  assert.equal(manifest.embed.url, manifest.entry.url);
   assert.equal(manifest.embed.expiresIn, 300);
   const launchCall = calls.find((call) => call.url.endsWith("/api/v1/hermes/plugin/launch"));
   assert.ok(launchCall);

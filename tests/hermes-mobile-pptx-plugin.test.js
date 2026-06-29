@@ -1,0 +1,111 @@
+"use strict";
+
+const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+
+const repoRoot = path.resolve(__dirname, "..");
+const pluginPath = path.join(repoRoot, "gateway-plugins", "hermes-mobile-pptx", "__init__.py");
+const officePluginPath = path.join(repoRoot, "gateway-plugins", "hermes-mobile-docx", "__init__.py");
+
+function runPython(script, env = {}) {
+  return execFileSync("python", ["-c", script], {
+    cwd: repoRoot,
+    env: { ...process.env, ...env },
+    encoding: "utf8",
+  }).trim();
+}
+
+function withTempRoot(callback) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-pptx-plugin-"));
+  try {
+    return callback(root);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
+
+function testCreatesReadablePptxWithImageAndMediaLine() {
+  withTempRoot((root) => {
+    const outputPath = path.join(root, "deliverable", "allergy-brief.pptx");
+    const imagePath = path.join(root, "source.png");
+    fs.writeFileSync(imagePath, Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+      "base64",
+    ));
+    const script = `
+import importlib.util, json, zipfile
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("hermes_mobile_pptx", ${JSON.stringify(pluginPath)})
+pptx = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pptx)
+office_spec = importlib.util.spec_from_file_location("hermes_mobile_docx", ${JSON.stringify(officePluginPath)})
+office = importlib.util.module_from_spec(office_spec)
+office_spec.loader.exec_module(office)
+out = Path(${JSON.stringify(outputPath)})
+image = Path(${JSON.stringify(imagePath)})
+created = json.loads(pptx._pptx_create_handler({
+    "output_path": str(out),
+    "title": "Allergy materials brief",
+    "slides": [
+        {"title": "Overview", "body": "Prepared from in-scope materials.", "bullets": ["Confirmed facts only", "Review before external sharing"], "image_path": str(image), "image_alt": "source image"},
+        {"title": "Next steps", "bullets": ["Keep source records attached", "Use mobile preview/download"]}
+    ],
+}))
+with zipfile.ZipFile(out) as archive:
+    names = sorted(archive.namelist())
+    slide1 = archive.read("ppt/slides/slide1.xml").decode("utf-8")
+    rels = archive.read("ppt/slides/_rels/slide1.xml.rels").decode("utf-8")
+extracted = json.loads(office._office_extract_text_handler({"file_path": str(out), "max_chars": 2000}))
+print(json.dumps({"created": created, "names": names, "slide1": slide1, "rels": rels, "extracted": extracted}, ensure_ascii=False))
+`;
+    const result = JSON.parse(runPython(script, {
+      HERMES_MOBILE_PPTX_ALLOWED_ROOTS: root,
+      HERMES_MOBILE_PPTX_OUTPUT_ROOTS: root,
+      HERMES_MOBILE_DOCX_ALLOWED_ROOTS: root,
+    }));
+    assert.equal(result.created.ok, true);
+    assert.equal(result.created.tool, "pptx_create");
+    assert.equal(result.created.slide_count, 2);
+    assert.equal(result.created.image_count, 1);
+    assert.match(result.created.media_line, /^MEDIA:/);
+    assert.ok(fs.existsSync(outputPath));
+    assert.ok(result.names.includes("[Content_Types].xml"));
+    assert.ok(result.names.includes("ppt/presentation.xml"));
+    assert.ok(result.names.includes("ppt/slides/slide1.xml"));
+    assert.ok(result.names.some((name) => name.startsWith("ppt/media/image1-") && name.endsWith(".png")));
+    assert.match(result.slide1, /Overview/);
+    assert.match(result.slide1, /Confirmed facts only/);
+    assert.match(result.rels, /relationships\/image/);
+    assert.equal(result.extracted.ok, true);
+    assert.equal(result.extracted.format, "powerpoint");
+    assert.match(result.extracted.text, /Allergy materials brief|Overview/);
+    assert.match(result.extracted.text, /Next steps/);
+  });
+}
+
+function testRejectsOutputOutsideAllowedRoots() {
+  withTempRoot((root) => {
+    const outside = path.join(os.tmpdir(), `homeai-pptx-outside-${Date.now()}.pptx`);
+    const script = `
+import importlib.util, json
+spec = importlib.util.spec_from_file_location("hermes_mobile_pptx", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+print(module._pptx_create_handler({"output_path": ${JSON.stringify(outside)}, "slides": [{"title": "Blocked"}]}))
+`;
+    const result = JSON.parse(runPython(script, {
+      HERMES_MOBILE_PPTX_ALLOWED_ROOTS: root,
+      HERMES_MOBILE_PPTX_OUTPUT_ROOTS: root,
+    }));
+    assert.equal(result.ok, false);
+    assert.equal(result.tool, "pptx_create");
+    assert.match(result.error, /output_path_outside_allowed_roots/);
+    assert.equal(fs.existsSync(outside), false);
+  });
+}
+
+testCreatesReadablePptxWithImageAndMediaLine();
+testRejectsOutputOutsideAllowedRoots();

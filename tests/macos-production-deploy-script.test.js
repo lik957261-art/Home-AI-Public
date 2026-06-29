@@ -41,6 +41,10 @@ assert.match(script, /PLUGIN_ALIASES/);
 assert.match(script, /health: "healthy"/);
 assert.match(script, /PLUGIN_HEALTH_URLS/);
 assert.match(script, /PLUGIN_GATEWAY_MCP_MIRRORS/);
+assert.match(script, /gateway-worker\/wardrobe-mcp\/scripts/);
+assert.match(script, /gateway-worker\/wardrobe-mcp\/wardrobe_app/);
+assert.match(script, /gateway-worker\/movie-mcp\/src/);
+assert.match(script, /gateway-worker\/movie-mcp\/package\.json/);
 assert.match(script, /gateway-worker\/moira-mcp\/scripts\/moira-mcp-stdio\.mjs/);
 assert.match(script, /gateway-worker\/moira-mcp\/server/);
 assert.match(script, /gateway-worker\/moira-mcp\/web/);
@@ -54,11 +58,24 @@ assert.match(script, /\/usr\/bin\/sudo/);
 assert.match(script, /\/usr\/sbin\/chown/);
 assert.match(script, /productionOwner/);
 assert.match(script, /codex-mobile-log-permissions/);
+assert.match(script, /codex-mobile-selected-mux-refresh/);
 assert.match(script, /codex-mobile-web\.out\.log/);
 assert.match(script, /codex-mobile-web\.err\.log/);
 assert.match(script, /launchdReloadRequired/);
 assert.match(script, /currentStdoutPath !== files\[0\]/);
 assert.match(script, /currentStderrPath !== files\[1\]/);
+assert.match(script, /detectCodexMobileMuxRuntimeChange/);
+assert.match(script, /refreshCodexMobileSelectedMuxRuntime/);
+assert.match(script, /selected_mux_endpoint_unexpected_process/);
+assert.match(script, /codex-app-server-mux/);
+assert.match(script, /codex app-server/);
+assert.match(script, /endpoint\.childPid/);
+assert.match(script, /endpoint\.pid/);
+assert.match(script, /runSudo\(node, \["-e", script, codexRuntime\.muxEndpointFile\], password\)/);
+assert.doesNotMatch(script, /runSudo\(node, \["-", codexRuntime\.muxEndpointFile\], password, script\)/);
+assert.doesNotMatch(script, /killall/);
+assert.doesNotMatch(script, /pkill/);
+assert.doesNotMatch(script, /pgrep/);
 assert.match(script, /finance-launchd-workspace-key-hashes/);
 assert.match(script, /install-finance-launchd-service\.js/);
 assert.match(script, /--require-workspace-key-hashes/);
@@ -73,10 +90,24 @@ assert.match(script, /\/bin\/launchctl kill SIGTERM system\/com\.hermesmobile\.g
 assert.match(script, /gateway-macos-launcher/);
 assert.match(script, /gateway-worker\/macos-launch-gateway-profile\.sh/);
 assert.match(script, /app\/scripts\/macos-launch-gateway-profile\.sh/);
+assert.match(script, /home-ai-gateway-launchd-services-install/);
+assert.match(script, /install-macos-production\.sh/);
+assert.match(script, /install-gateway-launchd-services/);
+assert.match(script, /HOMEAI_INSTALL_LAUNCHD_APPLY=1/);
+assert.match(script, /HOMEAI_NODE=\$\{node\}/);
 assert.match(script, /add_subdirectory/);
 assert.match(script, /PLUGIN_RSYNC_EXCLUDES/);
 assert.match(script, /"-S", "-p", "", command/);
 assert.match(script, /"-n", command/);
+assert.match(script, /function verifySudoAuthentication\(password\)/);
+assert.match(script, /function resolveSudoPassword\(passwordFile = ""\)/);
+assert.match(script, /function codexMobileSelectedMuxRefreshDecision\(input = \{\}\)/);
+assert.match(script, /previous_selected_mux_refresh_incomplete/);
+assert.match(script, /deploy_reason_forces_selected_mux_refresh/);
+assert.match(script, /\.homeai-qa", "sudo-password"/);
+assert.match(script, /sudo_authentication_required/);
+assert.match(script, /sudo_authentication_failed/);
+assert.match(script, /const password = resolveSudoPassword\(options\.passwordFile\);\n\n  runSudo\("\/bin\/mkdir"/);
 assert.match(script, /\/bin\/launchctl/);
 assert.match(script, /kickstart/);
 assert.match(script, /HOME_AI_BRIDGE_HOST_LABEL/);
@@ -126,6 +157,9 @@ assert.match(script, /gui\/\$uid\/\$label/);
 assert.match(script, /data", "hermes-home", "scripts/);
 assert.match(script, /home-ai-backup-artifact-acl-repair/);
 assert.match(script, /HOME_AI_BACKUP_ARTIFACT_READ_ACL/);
+assert.match(script, /home-ai-backup-gateway-telemetry-acl-repair/);
+assert.match(script, /HOME_AI_BACKUP_GATEWAY_TELEMETRY_READ_ACL/);
+assert.match(script, /gateway-worker", "telemetry"/);
 assert.match(script, /function applyAclOnce[\s\S]*?test -e \${shQuote\(targetPath\)} \|\| exit 0/);
 assert.match(script, /find -P \${shQuote\(targetPath\)} -mindepth 0 ! -type l -exec \/bin\/chmod \+a/);
 assert.match(script, /data", "artifacts/);
@@ -229,6 +263,17 @@ assert.match(deploymentDoc, /install-music-launchd-service\.js/);
 assert.match(deploymentDoc, /cover-plan-cache/);
 assert.match(productionAccess, /deploy-macos-production\.js/);
 assert.equal(packageJson.scripts["deploy:macos"], "node scripts/deploy-macos-production.js");
+assert.match(contract, /sudo_authentication_required/);
+assert.match(contract, /sudo_authentication_failed/);
+assert.match(productionAccess, /sudo_authentication_required/);
+assert.match(productionAccess, /sudo_authentication_failed/);
+
+const sudoCandidateRows = deployScript.sudoPasswordFileCandidates("/tmp/homeai-explicit-password");
+assert.equal(sudoCandidateRows[0].path, "/tmp/homeai-explicit-password");
+assert.equal(sudoCandidateRows[0].source, "argument");
+assert.ok(
+  deployScript.defaultSudoPasswordFileCandidates().some((candidate) => candidate.endsWith("/.homeai-qa/sudo-password")),
+);
 
 assert.deepEqual(
   deployScript.parseDeployBackupName("20260622T125745Z-plugin-music-music-verified-roon-playback"),
@@ -299,25 +344,32 @@ assert.match(contract, /\.codegraph/);
 assert.match(contract, /must not reuse the source sync exclude list/);
 assert.match(contract, /keep only the most recent three UTC\s+calendar days for each target/);
 assert.match(contract, /within each target\/day keep only that day's\s+latest backup/);
-assert.match(contract, /Plugin workspaces may call this shared deploy script directly for their own\s+plugin targets/);
-assert.match(contract, /must not send a task card\s+to the Home AI workspace merely because this script lives under the Home AI app\s+workspace/);
-assert.match(contract, /Routine plugin deploy task cards are a routing error/);
-assert.match(contract, /The Home AI receiver must not execute that deploy\s+for convenience/);
-assert.match(contract, /return `redirected` or\s+`blocked` with the exact plugin-owned plan\/execute\/readback commands/);
-assert.match(contract, /Escalate to a Home AI task card only when the missing work is host\/platform\s+owned/);
+assert.match(contract, /dedicated `Home AI Deploy` Codex thread/);
+assert.match(contract, /Plugin deployment cards must not expose or require a sudo password file/);
+assert.match(contract, /plugin deployment card must not be a terminal return receipt/i);
+assert.match(contract, /cardKind=plugin_deployment/);
+assert.match(contract, /Routine plugin deploy cards to the ordinary Home AI implementation thread are a\s+routing error/);
+assert.match(contract, /Home AI Deploy` thread is the only Home AI Codex lane expected to run central\s+plugin deploy execute\/readback/);
+assert.match(contract, /Home AI Deploy` must be discoverable and non-terminal/);
+assert.match(contract, /ordinary\s+Home AI must not execute the plugin deployment as a workaround/);
+assert.match(contract, /Plugin task cards must not include these\s+paths or environment values/);
+assert.match(contract, /Escalate to the ordinary Home AI implementation thread only when the missing\s+work is host\/platform owned/);
 
 assert.match(pluginWorkspaceContract, /macos-dev-to-production-deployment-contract\.md/);
 assert.match(pluginWorkspaceContract, /Plugin threads must read that file before production deploys/);
 assert.match(pluginWorkspaceContract, /must not replace the central deploy path with a\s+plugin-private sudo\/rsync flow/);
 assert.match(pluginWorkspaceContract, /npm run --silent deploy:macos -- --plugin <plugin-id>/);
-assert.match(pluginWorkspaceContract, /Plugin-Owned Deployment Closure And Task Cards/);
-assert.match(pluginWorkspaceContract, /the plugin thread must finish the operation itself/);
-assert.match(pluginWorkspaceContract, /Sending a cross-thread task card to Home AI for that class\s+of work interrupts the host-app work queue/);
-assert.match(pluginWorkspaceContract, /This is a hard routing boundary, not an optimization preference/);
-assert.match(pluginWorkspaceContract, /must not send Home AI a "deploy this\s+plugin" task card as a substitute for continuing its own work/);
-assert.match(pluginWorkspaceContract, /Home AI must return `redirected`\s+or `blocked` with the exact plugin-owned commands and must not deploy the\s+plugin merely because it has access to the shared script/);
-assert.match(autonomousDeliveryLoopContract, /If the owning plugin can execute\s+the central `deploy:macos -- --plugin <plugin-id>` path from its own loop/);
-assert.match(autonomousDeliveryLoopContract, /must not route a Home AI deployment card merely to run the\s+shared script/);
+assert.match(pluginWorkspaceContract, /Plugin-Prepared Deployment Closure And Task Cards/);
+assert.match(pluginWorkspaceContract, /plugin thread must finish source implementation, focused\s+tests, commit\/push when applicable, deploy plan/);
+assert.match(pluginWorkspaceContract, /Routine plugin production execute\/readback belongs to the dedicated\s+`Home AI Deploy` Codex thread/);
+assert.match(pluginWorkspaceContract, /This is a hard routing boundary, not an\s+optimization preference/);
+assert.match(pluginWorkspaceContract, /Deployment cards must not include raw sudo passwords, password-file paths/);
+assert.match(pluginWorkspaceContract, /Deployment cards must be request-shaped/);
+assert.match(pluginWorkspaceContract, /cardKind=plugin_deployment/);
+assert.match(pluginWorkspaceContract, /target-thread: Home AI Deploy/);
+assert.match(pluginWorkspaceContract, /live, discoverable,\s+non-terminal deployment lane/);
+assert.match(autonomousDeliveryLoopContract, /routes one task card to the dedicated `Home AI Deploy` Codex thread/);
+assert.match(autonomousDeliveryLoopContract, /do not receive sudo\s+password-file paths/);
 assert.match(deploymentDoc, /--sync-only/);
 assert.match(deploymentDoc, /Backup rsync uses a narrower exclude list/);
 assert.match(deploymentDoc, /gateway-worker\/<plugin>-mcp/);
@@ -325,9 +377,11 @@ assert.match(deploymentDoc, /gateway-worker\/moira-mcp/);
 assert.match(productionAccess, /--sync-only/);
 
 assert.match(pluginsDoc, /Plugin Codex threads must read that central contract before production deploys/);
-assert.match(pluginsDoc, /must not introduce a separate sudo, rsync, SSH, or production\s+write-access path/);
-assert.match(pluginsDoc, /Plugin-owned deploy and validation work should stay in the plugin thread/);
-assert.match(pluginsDoc, /must not send a task\s+card to Home AI just because the central deploy script or embedded shell is\s+used/);
+assert.match(pluginsDoc, /must not introduce a separate sudo, rsync,\s+SSH, or production\s+write-access path/);
+assert.match(pluginsDoc, /Routine production execute\/readback\s+is routed to the dedicated `Home AI Deploy` Codex thread/);
+assert.match(pluginsDoc, /Routine plugin deployment cards must target `Home AI Deploy`/);
+assert.match(deploymentDoc, /Home AI Deploy` must remain a live operational lane/);
+assert.match(deploymentDoc, /routine plugin deployment card must be a request card, not a terminal\s+receipt/i);
 assert.match(productionAccess, /Plugin workspaces should read the central deployment contract before deploys/);
 assert.match(productionAccess, /\/Users\/hermes-dev\/HermesMobileDev\/app/);
 
@@ -364,6 +418,7 @@ assert.equal(payload.plan.productionOwner, "hermes-host:staff");
 assert.deepEqual(payload.plan.restartLabels, ["com.hermesmobile.bridge-host", "com.hermesmobile.cron", "com.hermesmobile.listener", "com.hermesmobile.workspace-system-helper"]);
 assert.ok(payload.plan.expectedClientVersion);
 assert.ok(payload.plan.proofFiles.includes("scripts/deploy-macos-production.js"));
+assert.ok(payload.plan.proofFiles.includes("scripts/install-macos-production.sh"));
 assert.ok(payload.plan.proofFiles.includes("adapters/automation-cron-profile-service.js"));
 assert.ok(payload.plan.proofFiles.includes("cron_bridge.py"));
 assert.ok(payload.plan.proofFiles.includes("server-routes/automation-api-routes.js"));
@@ -373,6 +428,8 @@ assert.ok(payload.plan.proofFiles.includes("scripts/macos-gateway-start-script-b
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-production-profile-audit.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-production-drift-reconcile.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/homeai-production-drift-audit-watchdog.sh"));
+assert.ok(payload.plan.proofFiles.includes("scripts/gateway-mcp-runtime-call-smoke.js"));
+assert.ok(payload.plan.proofFiles.includes("scripts/mcp-tool-upgrade-closure-smoke.js"));
 assert.equal(payload.plan.cronProfileAliases.type, "home-ai-cron-profile-aliases");
 assert.equal(payload.plan.cronProfileAliases.manifestPath, "/Users/example/path");
 assert.equal(payload.plan.cronProfileAliases.profilesRoot, "/Users/example/path");
@@ -653,6 +710,68 @@ assert.ok(emailPluginPayload.plan.validation.some((item) => (
   && item.files.includes("dist/web/index.html")
 )));
 
+const codexSelectedMuxPluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "codex-mobile-web",
+  "--dev-root",
+  fixtureDevRoot,
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "harness",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(codexSelectedMuxPluginRun.status, 0, codexSelectedMuxPluginRun.stderr);
+const codexSelectedMuxPluginPayload = JSON.parse(codexSelectedMuxPluginRun.stdout);
+assert.equal(codexSelectedMuxPluginPayload.plan.target, "plugin:codex-mobile-web");
+assert.deepEqual(
+  codexSelectedMuxPluginPayload.plan.postSyncRepairs.map((item) => item.type),
+  ["codex-mobile-log-permissions", "codex-mobile-selected-mux-refresh"],
+);
+const selectedMuxRefresh = codexSelectedMuxPluginPayload.plan.postSyncRepairs.find((item) => item.type === "codex-mobile-selected-mux-refresh");
+assert.ok(selectedMuxRefresh.triggerFiles.includes("codex-app-server-mux.js"));
+assert.ok(selectedMuxRefresh.triggerFiles.includes("restart-codex-mobile-host-macos.sh"));
+assert.ok(selectedMuxRefresh.triggerFiles.includes("adapters/shared-chain-restart-service.js"));
+assert.ok(codexSelectedMuxPluginPayload.plan.proofFiles.includes("codex-app-server-mux.js"));
+assert.equal(deployScript.codexMobileMuxRefreshReasonRequiresForce("codex-mobile-v538-selected-mux-runtime"), true);
+assert.equal(deployScript.codexMobileMuxRefreshReasonRequiresForce("routine-doc-update"), false);
+assert.deepEqual(
+  deployScript.codexMobileSelectedMuxRefreshDecision({
+    changedFiles: [],
+    state: { status: "pending" },
+    reason: "retry-after-post-sync-failure",
+  }),
+  { required: true, reason: "previous_selected_mux_refresh_incomplete" },
+);
+assert.deepEqual(
+  deployScript.codexMobileSelectedMuxRefreshDecision({
+    changedFiles: [],
+    state: {},
+    reason: "codex-mobile-v538-selected-mux-runtime",
+  }),
+  { required: true, reason: "deploy_reason_forces_selected_mux_refresh" },
+);
+assert.deepEqual(
+  deployScript.codexMobileSelectedMuxRefreshDecision({
+    changedFiles: [],
+    state: {},
+    reason: "routine-no-change",
+  }),
+  { required: false, reason: "no_mux_runtime_change" },
+);
+assert.deepEqual(
+  deployScript.codexMobileSelectedMuxRefreshDecision({
+    changedFiles: ["codex-app-server-mux.js"],
+    state: {},
+    reason: "routine",
+  }),
+  { required: true, reason: "mux_runtime_files_changed" },
+);
+
 const tempPluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), "home-ai-plugin-proof-"));
 const tempEmailSource = path.join(tempPluginRoot, "plugins", "email");
 fs.mkdirSync(tempEmailSource, { recursive: true });
@@ -725,10 +844,56 @@ assert.deepEqual(moviePluginPayload.plan.restartLabels, ["com.hermesmobile.plugi
 assert.equal(moviePluginPayload.plan.healthUrl, "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest");
 assert.deepEqual(moviePluginPayload.plan.proofFiles, ["public/index.html"]);
 assert.ok(moviePluginPayload.plan.rsyncExcludes.includes("data/"));
+assert.equal(moviePluginPayload.plan.postSyncMirrors.length, 2);
+assert.deepEqual(
+  moviePluginPayload.plan.postSyncMirrors.map((item) => [item.kind || "file", item.target]),
+  [
+    ["directory", "gateway-worker/movie-mcp/src"],
+    ["file", "gateway-worker/movie-mcp/package.json"],
+  ],
+);
+assert.ok(moviePluginPayload.plan.postSyncMirrors.every((item) => item.type === "gateway-mcp-worker-asset"));
+assert.ok(moviePluginPayload.plan.postSyncMirrors.every((item) => item.plugin === "movie"));
 assert.ok(moviePluginPayload.plan.validation.some((item) => (
   item.type === "production-file-hashes"
   && item.files.includes("public/index.html")
 )));
+
+const wardrobePluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "wardrobe",
+  "--dev-root",
+  fixtureDevRoot,
+  "--restart-label",
+  "com.hermesmobile.plugin.wardrobe",
+  "--health-url",
+  "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "harness",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(wardrobePluginRun.status, 0, wardrobePluginRun.stderr);
+const wardrobePluginPayload = JSON.parse(wardrobePluginRun.stdout);
+assert.equal(wardrobePluginPayload.plan.target, "plugin:wardrobe");
+assert.equal(wardrobePluginPayload.plan.productionPath, "/Users/example/path");
+assert.deepEqual(wardrobePluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.wardrobe"]);
+assert.equal(wardrobePluginPayload.plan.healthUrl, "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest");
+assert.equal(wardrobePluginPayload.plan.postSyncMirrors.length, 2);
+assert.deepEqual(
+  wardrobePluginPayload.plan.postSyncMirrors.map((item) => [item.kind || "file", item.target]),
+  [
+    ["directory", "gateway-worker/wardrobe-mcp/scripts"],
+    ["directory", "gateway-worker/wardrobe-mcp/wardrobe_app"],
+  ],
+);
+assert.ok(wardrobePluginPayload.plan.postSyncMirrors.every((item) => item.type === "gateway-mcp-worker-asset"));
+assert.ok(wardrobePluginPayload.plan.postSyncMirrors.every((item) => item.plugin === "wardrobe"));
 
 const codexPluginRun = spawnSync(process.execPath, [
   scriptPath,
@@ -773,6 +938,17 @@ assert.deepEqual(codexPluginPayload.plan.postSyncRepairs, [
     ],
     directoryMode: "700",
     fileMode: "600",
+  },
+  {
+    type: "codex-mobile-selected-mux-refresh",
+    serviceUser: "xuxin",
+    runtimeRoot: "/Users/example/path",
+    profileFile: "/Users/example/path",
+    triggerFiles: [
+      "codex-app-server-mux.js",
+      "restart-codex-mobile-host-macos.sh",
+      "adapters/shared-chain-restart-service.js",
+    ],
   },
 ]);
 
@@ -961,7 +1137,11 @@ assert.deepEqual(
 );
 assert.deepEqual(
   allPluginPayload.plan.plans.filter((item) => item.postSyncMirrors.length).map((item) => item.target),
-  ["plugin:moira", "plugin:music"],
+  ["plugin:moira", "plugin:movie", "plugin:music", "plugin:wardrobe"],
+);
+assert.equal(
+  allPluginPayload.plan.plans.find((item) => item.target === "plugin:wardrobe").postSyncMirrors.length,
+  2,
 );
 assert.equal(
   allPluginPayload.plan.plans.find((item) => item.target === "plugin:moira").postSyncMirrors.length,
@@ -970,6 +1150,10 @@ assert.equal(
 assert.equal(
   allPluginPayload.plan.plans.find((item) => item.target === "plugin:music").postSyncMirrors.length,
   4,
+);
+assert.equal(
+  allPluginPayload.plan.plans.find((item) => item.target === "plugin:movie").postSyncMirrors.length,
+  2,
 );
 
 const allPluginSourceOverrideRun = spawnSync(process.execPath, [

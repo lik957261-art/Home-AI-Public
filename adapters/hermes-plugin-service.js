@@ -497,6 +497,21 @@ function pluginSameOriginProxyPathForUrl(pluginId = "", value = "", input = {}) 
   }
 }
 
+function addPluginWorkspaceQueryAliases(pluginId = "", entryUrl = "", workspaceId = "") {
+  const id = stringValue(pluginId);
+  if (id !== "health") return entryUrl;
+  const workspace = stringValue(workspaceId);
+  if (!workspace) return entryUrl;
+  try {
+    const parsed = new URL(entryUrl);
+    if (!parsed.searchParams.get("workspaceId")) parsed.searchParams.set("workspaceId", workspace);
+    if (!parsed.searchParams.get("workspace_id")) parsed.searchParams.set("workspace_id", workspace);
+    return parsed.toString();
+  } catch (_) {
+    return entryUrl;
+  }
+}
+
 function normalizePluginAppearance(input = {}) {
   const source = input.appearance && typeof input.appearance === "object" ? input.appearance : input;
   const theme = stringValue(source.theme || source.appearanceTheme || source.pluginTheme).toLowerCase();
@@ -1489,10 +1504,10 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
     }
     const launch = await response.json();
     const launchEntryTarget = launch?.entry_path || launch?.entryPath || launch?.entry_url || launch?.entryUrl;
-    const entryUrl = addPluginAppearanceToEntryUrl(
+    const entryUrl = addPluginWorkspaceQueryAliases(pluginId, addPluginAppearanceToEntryUrl(
       serverSidePluginUrl(manifest, launchEntryTarget),
       appearance,
-    );
+    ), workspaceId);
     if (!entryUrl) {
       return Object.assign({}, manifest, {
         available: false,

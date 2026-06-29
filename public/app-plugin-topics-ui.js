@@ -606,7 +606,6 @@ async function refreshPluginContextTopicHomeAfterColdRestore(restoreScrollTop = 
       body: JSON.stringify({
         workspaceId,
         groupChat: false,
-        weixinChat: false,
         messageMode: "tasks",
         taskGroupId: "",
         messageLimit: TASK_MESSAGE_INITIAL_LIMIT,
@@ -620,7 +619,6 @@ async function refreshPluginContextTopicHomeAfterColdRestore(restoreScrollTop = 
     state.currentThreadId = state.currentThread.id;
     state.caseTopicThreads = Array.isArray(result.caseTopicThreads) ? result.caseTopicThreads : [];
     state.groupChatAvailable = Boolean(result.groupChatAvailable || (typeof selectedWorkspaceInThreadGroup === "function" && selectedWorkspaceInThreadGroup(state.currentThread)));
-    state.weixinChatAvailable = Boolean(result.weixinChatAvailable || (typeof isThreadWeixinChat === "function" && isThreadWeixinChat(state.currentThread)));
     if (typeof rememberTaskListThread === "function") rememberTaskListThread(state.currentThread);
     if (typeof summarizeThread === "function") state.threads = [summarizeThread(state.currentThread)];
     if (typeof renderThreads === "function") renderThreads();

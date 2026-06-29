@@ -26,7 +26,8 @@ function testFiltersCommonToolsetsAndShowsSpecialInterfaces() {
   assert.deepEqual(bindings.allowedToolsets, ["web", "todo", "qqmail", "unknown"]);
   assert.deepEqual(bindings.interfaces, [{ id: "qqmail", label: "QQ Mail", category: "Mail" }]);
   assert.equal(bindings.channels.length, 1);
-  assert.equal(bindings.channels[0].type, "weixin");
+  assert.equal(bindings.channels[0].type, "external");
+  assert.equal(bindings.channels[0].label, "外部入口");
   assert.equal(bindings.channels[0].accountId, "acct");
   assert.deepEqual(bindings.connectorProfiles, ["mail"]);
 }

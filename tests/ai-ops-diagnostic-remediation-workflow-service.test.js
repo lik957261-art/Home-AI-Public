@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   NOTIFICATION_TYPE,
   createAiOpsDiagnosticRemediationWorkflowService,
+  isSelfCheckAutomationPlan,
   ownerNotificationForPlan,
 } = require("../adapters/ai-ops-diagnostic-remediation-workflow-service");
 const {
@@ -49,6 +50,43 @@ function event(overrides = {}) {
       },
     },
   }, overrides);
+}
+
+function selfCheckCase(overrides = {}) {
+  return caseRecord(Object.assign({
+    case_id: "diagcase_self_check",
+    workspace_id: "owner",
+    plugin_id: "home-ai",
+    source_surface: "home-ai-self-check",
+    diagnostic_type: "self_check_signal_failed",
+    category: "self_check_plugin_proxy",
+    route: "/system/self-check",
+    build_id: "20260628-self-improving-loop-v3",
+    summary: "self check plugin proxy latency",
+    latest_event_id: "diagevt_self_check",
+  }, overrides));
+}
+
+function selfCheckEvent(overrides = {}) {
+  return event(Object.assign({
+    event_id: "diagevt_self_check",
+    case_id: "diagcase_self_check",
+    payload: { error_code: "proxy_gap_2_10s" },
+  }, overrides));
+}
+
+function capabilityGapCase(overrides = {}) {
+  return caseRecord(Object.assign({
+    case_id: "diagcase_capability_gap",
+    workspace_id: "owner",
+    plugin_id: "home-ai",
+    source_surface: "host-conversation",
+    diagnostic_type: "capability_gap",
+    category: "capability_gap",
+    route: "/api/plugin-conversation/actions",
+    summary: "PPTX generation capability missing",
+    latest_event_id: "diagevt_capability_gap",
+  }, overrides));
 }
 
 function diagnosticService(initialCase = caseRecord(), initialEvents = [event()]) {
@@ -110,6 +148,74 @@ async function run() {
   assert.equal(pushes[0].options.principalId, "owner");
   assert.equal(pushes[0].payload.data.workspaceId, "owner");
   assert.equal(pushes[0].payload.data.diagnosticCaseId, "diagcase_wardrobe_retry");
+}
+
+{
+  const upserts = [];
+  const sent = [];
+  const ds = diagnosticService(selfCheckCase(), [selfCheckEvent()]);
+  const service = createAiOpsDiagnosticRemediationWorkflowService({
+    diagnosticIntakeService: ds,
+    actionInboxService: {
+      upsertSourceItem(input) {
+        upserts.push(input);
+        throw new Error("self-check diagnostics should auto-dispatch instead of notifying owner");
+      },
+    },
+    taskCardService: {
+      async sendTaskCard(input) {
+        sent.push(input);
+        return { ok: true, cardIds: ["ttc_self_check_1"], targetThreadId: "thread-home-ai" };
+      },
+    },
+  });
+  const planned = service.planForCase("diagcase_self_check").plan;
+  assert.equal(isSelfCheckAutomationPlan(planned), true);
+  const result = await service.notifyOwner({ case_id: "diagcase_self_check" });
+  assert.equal(result.ok, true);
+  assert.equal(result.notified, false);
+  assert.equal(result.autoDispatched, true);
+  assert.deepEqual(result.taskCardResult.cardIds, ["ttc_self_check_1"]);
+  assert.equal(upserts.length, 0);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].targetThreadTitlePrefix, "Home AI");
+  assert.equal(ds.state.status, "card_sent");
+  assert.equal(ds.state.lastUpdate.reason, "auto_self_check_task_card");
+  assert.equal(ds.state.lastUpdate.actor, "home-ai-self-check");
+}
+
+{
+  const upserts = [];
+  const sent = [];
+  const ds = diagnosticService(capabilityGapCase(), [event({
+    case_id: "diagcase_capability_gap",
+    event_id: "diagevt_capability_gap",
+    payload: { error_code: "capability_gap" },
+  })]);
+  const service = createAiOpsDiagnosticRemediationWorkflowService({
+    diagnosticIntakeService: ds,
+    actionInboxService: {
+      upsertSourceItem(input) {
+        upserts.push(input);
+        return { ok: true, item: Object.assign({ id: "ainb_capability_gap" }, input), event: { id: "event_gap" } };
+      },
+    },
+    taskCardService: {
+      async sendTaskCard(input) {
+        sent.push(input);
+        return { ok: true, cardIds: ["ttc_should_not_auto_send"] };
+      },
+    },
+  });
+  const planned = service.planForCase("diagcase_capability_gap").plan;
+  assert.equal(isSelfCheckAutomationPlan(planned), false);
+  const result = await service.notifyOwner({ case_id: "diagcase_capability_gap" });
+  assert.equal(result.ok, true);
+  assert.equal(result.notified, true);
+  assert.equal(result.autoDispatched, undefined);
+  assert.equal(upserts.length, 1);
+  assert.equal(sent.length, 0);
+  assert.equal(ds.state.status, "card_candidate");
 }
 
 {

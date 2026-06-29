@@ -264,27 +264,75 @@ instructions.
   bytes (`Uint8Array` data passed to PDF.js), not by handing PDF.js a secondary
   `blob:` URL fetch with credentials. This keeps PDF preview aligned with the
   same-origin ACL/download path used by the other viewers.
-- PDF, Word/DOCX, and PowerPoint/PPTX task and directory preview links are
-  device-shape aware at the shared `public/app-task-preview-ui.js` entrypoint.
-  Coarse-pointer phone widths up to `540px` keep the embedded Hermes preview
-  overlay. Wide tablet/foldable/desktop widths (`>=768px`, or coarse-pointer
-  `>=720px` with enough height) open the resolved original same-origin file URL
-  in the same window so the platform can use native/original document preview.
+- Markdown task and directory preview links keep the Hermes Markdown preview
+  surface and must not be routed through native/original document preview.
+- PDF, Word/DOC/DOCX, and PowerPoint/PPT/PPTX task and directory preview links
+  must first use the explicit native-shell document bridge when the current
+  iOS or Android shell advertises `HomeAINativeDocumentCapability.documentPreview`.
+  The Web request type is `homeai.nativeDocument.open` and must include only a
+  same-origin authorized file URL, bounded filename, MIME type, document kind,
+  source surface, request id, and `requiresAuth:true`. It must not include raw
+  filesystem paths, cookies, launch tokens, plugin credentials, or file bytes.
+- If that native bridge is absent in ordinary browser/PWA contexts, PDF,
+  Word/DOC/DOCX, and PowerPoint/PPT/PPTX task and directory preview links may
+  open the in-app preview overlay on coarse-pointer or sub-`768px` mobile
+  surfaces. If the page is in an iOS or Android native shell, bridge absence,
+  timeout, or bounded native failure must show a visible in-app native-preview
+  error state with actionable exits: retry native preview, use native open-in
+  when advertised, download/share the same authorized file, copy the file link,
+  or explicitly enter `webPreview=1` debug preview. The failure state must not
+  silently fall back to PDF.js/DOCX Web preview or strand the user on a dead
+  "cannot open" screen. Desktop/non-coarse wide screens may still navigate to
+  the resolved original same-origin file URL for native/original document
+  preview.
+- Word/DOCX and PowerPoint/PPT/PPTX mobile preview should prefer native shell
+  document handling. When iOS advertises `documentOpenIn`, task preview may
+  enter the Open-In sheet directly for Office formats. Android uses its native
+  `ACTION_VIEW` document path from `HomeAINativeDocument.open()`. The
+  `file-viewer.html` internal Office text/placeholder preview is only the
+  explicit Web debug fallback and must keep a light document surface so dark
+  WebView backgrounds cannot make text unreadable.
+- The PWA manifest must not lock orientation to portrait. File preview and
+  reading surfaces rely on the current fingerprinted manifest allowing both
+  portrait and landscape orientation, while the Web shell keeps the same
+  single-column mobile layout in either orientation.
 - Image preview must expose a same-window `保存到相册` action in both the full `file-viewer.html` shell and the in-app image overlay. The action should prefer system file share with the image blob and fall back to same-window download/long-press guidance; it must not open a separate browser window.
-- PDF, Word/DOCX, and PowerPoint/PPTX mobile preview surfaces must expose a
-  single preview-mode switch rather than a separate external-open action. In
-  the mobile/adapted preview the switch is labelled `原始格式显示` and navigates to
-  the already-authorized original same-origin file URL. Wide screens default to
-  original format. This must not introduce a separate unauthenticated
-  native-file path or bypass the Directory/file ACL boundary.
-- DOCX mobile/adapted preview is produced by the central document preview
-  service as bounded Markdown structure extracted from the document XML. It
-  must preserve extracted tab stops, convert basic DOCX tables into Markdown
-  tables for the mobile table/card renderer, and show the content on a light
-  Office-style paper canvas so dark app themes do not make black document text
-  unreadable. Full Word layout fidelity, including complex table geometry,
-  remains the responsibility of the original/native preview path reached
-  through `原始格式显示`.
+- `pdf-viewer.html` and `file-viewer.html` must also call the native document
+  bridge directly on load for PDF, Word/DOC/DOCX, and PowerPoint/PPT/PPTX when
+  the viewer is running inside the iOS or Android shell. The task/directory
+  link interceptor is not sufficient because Android WebView bridge injection
+  can happen after the viewer document starts executing.
+- Native-shell viewer pages may wait briefly for the bridge after seeing
+  `nativeShell=ios` or `nativeShell=android`. If the bridge does not appear or
+  returns a bounded failure, they must show the native-preview error state
+  rather than silently rendering Web preview. `webPreview=1` is the explicit
+  debug escape hatch that forces the Web fallback.
+- PDF mobile preview surfaces must expose a single preview-mode switch rather
+  than a separate external-open action. In a native shell the switch first
+  retries `HomeAINativeDocument.open()`; only bridge-unavailable/failure paths
+  navigate to the already-authorized original same-origin file URL. This must
+  not introduce a separate unauthenticated native-file path or bypass the
+  Directory/file ACL boundary. Native-shell PDF failure states must also expose
+  the same actionable exits as task preview: open-in when available,
+  download/share, and explicit Web debug preview.
+- PDF, Word/DOC/DOCX, and PowerPoint/PPT/PPTX preview share/open menus may use
+  the native iOS open-in bridge when the shell explicitly advertises
+  `HomeAINativeDocumentCapability.documentOpenIn === true`. The Web request is
+  the same ACL-protected native document open request plus `mode:"openIn"`;
+  success stops the Web share path, while bridge absence or bounded failure
+  falls back to the existing Web Share/download behavior. Android and ordinary
+  browser/PWA contexts must not regress.
+- DOCX adapted text extraction remains available to backend/document-preview
+  services only as the bridge-unavailable Web fallback. Native Word viewing is
+  the preferred Android/iOS shell path when layout fidelity is needed.
+- Gateway `file` toolset document delivery includes real `.pdf` and `.docx`
+  generation through profile-local `pdf_create` and `docx_create`. These tools
+  write only inside the current allowed artifact/output roots and must return
+  `MEDIA:<path>` for user-downloadable deliverables. Health-plugin document
+  workflows such as medication instructions, ECG summaries, and checkup report
+  organization can choose Markdown, PDF, or Word output through the same delivery
+  boundary; private health records must not be copied into docs, logs, or
+  model-visible debug output.
 - ZIP archive handling for low-permission Gateway runs is provided by the
   profile-local `hermes-mobile-archive` file plugin. `archive_list` may list
   in-scope ZIP entries and `archive_extract_safe` may extract only inside the

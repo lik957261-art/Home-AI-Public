@@ -11,7 +11,7 @@ function openTaskList() {
     return;
   }
   if (reloadTaskWindow) {
-    loadSingleWindow({ groupChat: false, weixinChat: false, preserveTaskListScroll: true }).catch(showError);
+    loadSingleWindow({ groupChat: false, preserveTaskListScroll: true }).catch(showError);
     return;
   }
   renderThreads();

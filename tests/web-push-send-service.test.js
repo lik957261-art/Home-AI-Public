@@ -146,6 +146,34 @@ async function testBothChannelSkipsIphoneWebPushWhenNativeSucceeded() {
   assert.equal(state.pushSubscriptions[1].lastSuccessAt, "2026-06-08T00:00:00.000Z");
 }
 
+async function testNativeSuppressesAndroidPhoneWebPushWhenNativeSucceeded() {
+  const { calls, service, state } = createHarness();
+  state.pushSubscriptions.push(
+    pushSubscription("endpoint-android", ["owner"], {
+      deviceLabel: "Android",
+      userAgent: "Mozilla/5.0 (Linux; Android 15; Pixel 9)",
+      workspaceIds: ["owner"],
+    }),
+    pushSubscription("endpoint-mac", ["owner"], {
+      deviceLabel: "MacIntel",
+      platform: "MacIntel",
+      workspaceIds: ["owner"],
+    }),
+  );
+  const result = await service.sendPushNotification({
+    title: "Background event",
+    data: { workspaceId: "owner" },
+  }, {
+    principalId: "owner",
+    suppressNativeWebPushWorkspaceIds: ["owner"],
+  });
+  assert.deepEqual(result, { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0, skipped: 1 });
+  assert.equal(calls.sends.length, 1);
+  assert.equal(calls.sends[0].subscription.endpoint, "endpoint-mac");
+  assert.equal(state.pushSubscriptions[0].lastError, "skipped_native_preferred");
+  assert.equal(state.pushSubscriptions[1].lastSuccessAt, "2026-06-08T00:00:00.000Z");
+}
+
 function testRemoveAndDisabledConfig() {
   const { calls, service, state } = createHarness({
     serviceOptions: { webPushConfig: () => null },
@@ -169,6 +197,7 @@ function testRemoveAndDisabledConfig() {
 testStatusAndActivePrincipals();
 testSendFiltersSkipsFailuresAndRecordsDelivery()
   .then(testBothChannelSkipsIphoneWebPushWhenNativeSucceeded)
+  .then(testNativeSuppressesAndroidPhoneWebPushWhenNativeSucceeded)
   .then(testRemoveAndDisabledConfig)
   .then(() => {
     console.log("web-push-send-service tests passed");

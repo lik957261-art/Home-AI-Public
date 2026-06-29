@@ -35,7 +35,7 @@ const TOOLSET_KEYWORDS = Object.freeze([
   },
   {
     toolsets: ["file"],
-    pattern: /(?:\bfile\b|\bfolder\b|\bdirectory\b|\bpath\b|\bPDF\b|\bDOCX\b|\bMarkdown\b|\bMEDIA:|\bMP3\b|\bM4A\b|\bWAV\b|\u6587\u4ef6|\u76ee\u5f55|\u8def\u5f84|\u6253\u5f00|\u8bfb\u53d6|\u4fdd\u5b58|\u9644\u4ef6|\u4ea4\u4ed8|\u6587\u6863|\u5f55\u97f3|\u8f6c\u5199|\u56fe\u7247)/i,
+    pattern: /(?:\bfile\b|\bfolder\b|\bdirectory\b|\bpath\b|\bPDF\b|\bDOCX\b|\bPPTX\b|\bPPT\b|\bPowerPoint\b|\bMarkdown\b|\bMEDIA:|\bMP3\b|\bM4A\b|\bWAV\b|\u6587\u4ef6|\u76ee\u5f55|\u8def\u5f84|\u6253\u5f00|\u8bfb\u53d6|\u4fdd\u5b58|\u9644\u4ef6|\u4ea4\u4ed8|\u6587\u6863|\u5e7b\u706f\u7247|\u6f14\u793a\u6587\u7a3f|\u5f55\u97f3|\u8f6c\u5199|\u56fe\u7247)/i,
   },
   {
     toolsets: ["vision"],

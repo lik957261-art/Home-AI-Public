@@ -10,6 +10,7 @@ const INSTALLER = path.join(REPO_ROOT, "scripts", "install-macos-production.sh")
 
 const REHEARSAL_PHASES = [
   "create-directory-layout",
+  "install-hermes-mobile",
   "configure-owner",
   "configure-gateway-profiles",
   "install-gateway-launchd-services",
@@ -20,6 +21,7 @@ const REHEARSAL_PHASES = [
 ];
 
 const REQUIRED_ARTIFACTS = [
+  "app/gateway-plugins/hermes-mobile-docx/plugin.yaml",
   "data/secrets/owner-web-key.secret",
   "data/gateway-pool-manifest-mac.json",
   "data/gateway-launchd-services-plan.json",

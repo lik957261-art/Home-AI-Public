@@ -74,15 +74,20 @@ Current native capabilities:
 - `pwa_webview_shell`: Home AI PWA in `WKWebView`, including native-shell
   layout pulses, dark-mode injection, and WebKit recovery controls.
 - `apple_health_sync`: HealthKit reads sent through Home AI's authenticated
-  Health plugin proxy. The native app sends Home AI auth; Home AI injects plugin
-  authorization server-side.
+  Health plugin proxy. The native app sends Home AI auth plus the current
+  selected/effective workspace on every Health write request, either as
+  `workspaceId`/`workspace_id` on the same-origin proxy URL or as
+  `x-hermes-plugin-workspace-id`. Home AI clamps that workspace through normal
+  access checks and injects plugin authorization server-side. Missing or
+  ambiguous workspace context must fail closed; Home AI must not infer Owner as
+  the Health data workspace from Owner authentication.
 - `apns_device_registration`: APNs device token registration through
   `POST /api/native/devices/register`. Native clients should omit
   `workspaceId` and let Home AI resolve the authenticated workspace from the
   Access Key; explicit workspace hints remain server-clamped compatibility
   input only.
 - `ios_share_extension`: iOS Share Extension uploads inbound files through Home
-  AI Directory APIs into the same `系统分享` server-side folder used by Weixin
+  AI Directory APIs into the same `系统分享` server-side folder used by Home AI
   file ingress. A future dedicated native share endpoint may wrap this path,
   but it must preserve the same Directory ACL boundary.
 - `webview_file_input_picker`: the native shell owns the `WKWebView` file-input
@@ -104,6 +109,34 @@ Current native capabilities:
   facts. Home AI normalizes this payload before persistence/model use and strips
   full forecast arrays. Standalone PWA clients keep the existing server/Gateway
   weather fallback.
+- `native_document_preview_bridge`: PDF, Word, and PowerPoint files that are
+  already authorized in the Home AI Web UI may be opened through a native
+  document preview controller instead of relying on WKWebView inline rendering.
+  The shell advertises `window.HomeAINativeDocumentCapability.documentPreview`
+  and, when available, `documentOpenIn`. It exposes
+  `window.HomeAINativeDocument.open(request)`. Requests use
+  `type:"homeai.nativeDocument.open"`, `version:1`, a bounded `requestId`, a
+  same-origin authorized `url`, bounded `filename`, `mimeType`, `kind`, and
+  `requiresAuth:true`. The default mode presents Quick Look. When the Web file
+  preview share menu passes `mode:"openIn"` and the shell advertises
+  `documentOpenIn:true`, the native shell presents the iOS open-in/share sheet
+  so the user can choose apps such as Microsoft 365, Word, PowerPoint, WPS, or
+  Files. The shell must preserve Home AI auth internally, download to a
+  temporary/cache file, and present native document UI without forcing portrait
+  orientation. It must reject raw filesystem paths, unsupported schemes,
+  external origins, and requests that would bypass Home AI Directory/task/file
+  ACLs.
+
+  The Web client may invoke this bridge from both task/directory preview links
+  and from the direct `pdf-viewer.html` / `file-viewer.html` documents. Viewer
+  URLs can carry `nativeShell=ios` so the Web fallback waits briefly for the
+  bridge after shell injection; `webPreview=1` is reserved for explicit Web
+  fallback/debug.
+
+  The bridge must be available in same-origin preview iframes, not only in the
+  main WKWebView frame. In a native shell, bridge absence, timeout, or bounded
+  native failure must be shown as a visible native-preview error state instead
+  of silently falling back to PDF.js or adapted Word Web preview.
 
 Near-term priority capabilities:
 

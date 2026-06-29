@@ -125,19 +125,6 @@ function createRuntimeStateThreadService(deps = {}) {
     return lines.join("\n\n").trim();
   }
 
-  function findExistingWeixinIngressEvent(eventId) {
-    const id = String(eventId || "").trim();
-    if (!id) return null;
-    for (const thread of stateObject().threads || []) {
-      for (const message of thread.messages || []) {
-        if (message?.role === "user" && message.externalIngress?.source === "weixin" && message.externalIngress.eventId === id) {
-          return { thread, message };
-        }
-      }
-    }
-    return null;
-  }
-
   function storedGatewayUrlForRun(runId) {
     for (const thread of stateObject().threads || []) {
       const message = (thread.messages || []).find((item) => item.runId === runId);
@@ -151,7 +138,6 @@ function createRuntimeStateThreadService(deps = {}) {
     buildUserMessageContent,
     findArtifactReference,
     findArtifactReferenceById,
-    findExistingWeixinIngressEvent,
     findThreadForAuth,
     findThreadForRequest,
     groupChatArtifactAccessibleToAuth,

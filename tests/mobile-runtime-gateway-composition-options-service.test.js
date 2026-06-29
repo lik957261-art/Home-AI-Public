@@ -55,6 +55,8 @@ function createService(overrides = {}) {
       registerArtifactsFromText: () => "artifacts",
       releaseGatewayRunTarget: () => "release",
       replaceGatewayRunTarget: () => "replace",
+      restartRunningGatewayWorkers: () => "restart-gateways",
+      rotateOpenAiCodexCredentialPoolAfterUsageLimit: () => "rotate-openai-codex",
       sanitizePolicy: () => "sanitize",
       saveState: () => "save",
       singleGatewayRunner: () => "runner",
@@ -89,6 +91,7 @@ function createService(overrides = {}) {
       pluginCapabilityActivationService: {
         buildRunPluginCapabilityContext: (...args) => ({ capability: args }),
       },
+      pluginConversationActionBridgeService: { id: "plugin-conversation-action-bridge" },
       pluginRequiredSkillPreloadService: {
         preloadRequiredSkills: (...args) => ({ preloads: args }),
       },
@@ -116,6 +119,9 @@ function testBuildsGatewayRuntimeCompositionOptions() {
   assert.deepEqual(options.routeRunToolsets("policy"), { routed: ["policy"] });
   assert.deepEqual(options.notifyTaskTerminal("run-1"), { notification: ["run-1"] });
   assert.deepEqual(options.selectRunToolsetsWithModel("run-1"), { selected: ["run-1"] });
+  assert.equal(options.restartRunningGatewayWorkers(), "restart-gateways");
+  assert.equal(options.rotateOpenAiCodexCredentialPoolAfterUsageLimit(), "rotate-openai-codex");
+  assert.deepEqual(options.pluginConversationActionBridgeService, { id: "plugin-conversation-action-bridge" });
   assert.deepEqual(options.topicContextCompactionService, { id: "topic-context" });
   assert.deepEqual(options.directoryTopicIndexService, { id: "directory-topic-index" });
 

@@ -250,6 +250,31 @@ analysis. Dedicated audit threads perform evidence gathering, findings-first
 reporting, task-card routing, and closure verification. Audit threads must not
 read `.agent-context/HANDOFF.md` or lineage handoffs as audit context.
 
+Home AI Self-Improving Loop is the maintained observation collector and
+request-card generator for daily host/platform and plugin audit triggers. The
+scheduled job may run:
+
+```bash
+node scripts/homeai-self-improving-loop.js \
+  --collect-production-observations \
+  --access-key-file <owner-web-key-file> \
+  --expected-version <client-version> \
+  --submit-diagnostics \
+  --create-audit-cards \
+  --audit-scope all \
+  --execute \
+  --json
+```
+
+That script may collect bounded production observations through maintained
+source scripts, submit metadata-only self-check events to AI Ops intake, resolve
+current audit threads, and send bounded request cards. It must not run the deep
+audits, inspect private plugin payloads, write findings, mutate workspaces,
+restart services, deploy, or send implementation repair cards from CRON-local
+analysis. If `Home AI Platform Audit` or `Plugin Workspace Audit` is
+unavailable, ambiguous, archived, deleted, or not discoverable, the job must
+fail visibly with a bounded task-card/thread error.
+
 On macOS production, the `com.hermesmobile.cron` LaunchDaemon runs as the
 service user `hermes-host`. The central deploy script must therefore install
 both the CRON profile alias and read/search ACLs for workspace-local plugin

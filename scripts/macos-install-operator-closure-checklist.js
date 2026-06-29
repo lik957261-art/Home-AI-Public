@@ -41,16 +41,6 @@ const PHASE_CLOSURE = {
     operatorInput: ["administrator approval before creating missing service users"],
     riskBoundary: "Audits by default; user creation requires explicit sudo gate.",
   },
-  "install-hermes-mobile": {
-    closureType: "operator",
-    actionRequired: true,
-    commands: [
-      "bash scripts/install-macos-production.sh --execute --phase install-hermes-mobile --root <mac-root> --app-source <source-checkout> --json",
-    ],
-    evidenceRequired: ["phase JSON ok=true", "<mac-root>/app contains source-controlled Home AI files"],
-    operatorInput: ["source checkout path", "empty target app directory"],
-    riskBoundary: "Fresh install only; existing production updates must use deploy-macos-production.js.",
-  },
   "install-official-hermes-runtime": {
     closureType: "operator",
     actionRequired: true,

@@ -12,6 +12,8 @@ const EXPECTED_PLUGIN_IDS = [
   "finance",
   "growth",
   "health",
+  "moira",
+  "movie",
   "note",
   "music",
   "wardrobe",
@@ -58,5 +60,17 @@ assert.equal(codex.special, true);
 const music = plugins.find((plugin) => plugin.id === "music");
 assert.equal(music.publicDefault, false);
 assert.equal(music.special, true);
+
+const moira = plugins.find((plugin) => plugin.id === "moira");
+assert.equal(moira.publicDefault, false);
+assert.equal(moira.repositoryUrl, "https://github.com/pentiumxp/MOIRA_chinese_astrology_public.git");
+assert.equal(Boolean(moira.special), false);
+assert.equal(Boolean(moira.operatorAuthenticated), false);
+
+const movie = plugins.find((plugin) => plugin.id === "movie");
+assert.equal(movie.publicDefault, false);
+assert.equal(movie.special, true);
+assert.equal(movie.operatorAuthenticated, true);
+assert.equal(movie.repositoryUrl, "https://github.com/pentiumxp/HomeAI-Movie.git");
 
 console.log("public plugin source manifest tests passed");

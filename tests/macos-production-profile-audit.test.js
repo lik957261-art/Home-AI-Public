@@ -45,6 +45,10 @@ assert.match(script, /profileConfigProbe/);
 assert.match(script, /file_plugin_root_env_missing/);
 assert.match(script, /file_plugin_root_missing/);
 assert.match(script, /file_plugin_root_list_delimiter_unsupported/);
+assert.match(script, /REQUIRED_PROFILE_FILE_PLUGINS/);
+assert.match(script, /hermes-mobile-audio/);
+assert.match(script, /file_plugin_profile_missing/);
+assert.match(script, /profileLocalFilePluginStatus/);
 assert.match(script, /mobile_bridge_env_missing/);
 assert.match(script, /mobile_bridge_key_path_missing/);
 assert.match(script, /installed_gateway_launchd_untracked/);
@@ -53,6 +57,8 @@ assert.match(script, /installed_gateway_mobile_bridge_env_missing/);
 assert.match(script, /HERMES_MOBILE_BRIDGE_HOST_URL/);
 assert.match(script, /HERMES_MOBILE_BRIDGE_HOST_KEY_PATH/);
 assert.match(script, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
+assert.match(script, /HERMES_MOBILE_PPTX_ALLOWED_ROOTS/);
+assert.match(script, /HERMES_MOBILE_PPTX_OUTPUT_ROOTS/);
 assert.match(script, /HERMES_MOBILE_PDF_ALLOWED_ROOTS/);
 assert.match(script, /HERMES_MOBILE_PDF_OUTPUT_ROOTS/);
 assert.match(script, /HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS/);
@@ -196,9 +202,13 @@ try {
   assert.ok(audit.issues.includes("plugin_required_skill_incomplete:weixin_wuping:wardrobe:productivity/wardrobe-style-operations"));
   assert.ok(audit.issues.includes("file_plugin_start_script_missing:hm-wuping-openai-1"));
   assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_DOCX_ALLOWED_ROOTS"));
+  assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_PPTX_ALLOWED_ROOTS"));
+  assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_PPTX_OUTPUT_ROOTS"));
   assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_PDF_ALLOWED_ROOTS"));
   assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_PDF_OUTPUT_ROOTS"));
   assert.ok(audit.issues.includes("file_plugin_root_env_missing:hm-wuping-openai-1:HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS"));
+  assert.ok(audit.issues.includes("file_plugin_profile_missing:hm-owner-openai-1:hermes-mobile-audio"));
+  assert.ok(audit.issues.includes("file_plugin_profile_missing:hm-owner-openai-1:hermes-mobile-archive"));
   assert.ok(audit.issues.includes("shared_skill_missing:shared/response-grounding-baseline"));
   assert.ok(audit.issues.some((item) => item.startsWith("profile_config_missing:")));
   assert.ok(audit.issues.includes("mobile_bridge_env_missing:hm-wuping-openai-1:HERMES_MOBILE_BRIDGE_HOST_URL"));
@@ -289,6 +299,8 @@ try {
       text: [
         'FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifacts"',
         'HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_PPTX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_PPTX_OUTPUT_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
         'HERMES_MOBILE_PDF_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
         'HERMES_MOBILE_PDF_OUTPUT_ROOTS="$ROOT/data/artifacts"',
         'HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
@@ -307,10 +319,12 @@ try {
         'HERMES_WEB_BRIDGE_HOST_KEY_PATH="$MOBILE_BRIDGE_HOST_KEY_PATH"',
       ].join("\n"),
     }),
+    profileFilePluginProbe: () => ({ exists: true }),
   });
   assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_env_missing:")));
   assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_missing:")));
   assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_root_list_delimiter_unsupported:")));
+  assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("file_plugin_profile_missing:")));
   assert.ok(!fileRootReadyAudit.issues.some((item) => item.startsWith("mobile_bridge_")));
   const bridgeComputedButNotInjectedAudit = buildAudit({
     root: tempRoot,
@@ -342,6 +356,8 @@ try {
       text: [
         'FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive:$ROOT/data/uploads:$ROOT/data/artifacts"',
         'HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_PPTX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+        'HERMES_MOBILE_PPTX_OUTPUT_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
         'HERMES_MOBILE_PDF_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
         'HERMES_MOBILE_PDF_OUTPUT_ROOTS="$ROOT/data/artifacts"',
         'HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
@@ -430,6 +446,8 @@ try {
     startScriptProbe: () => ({ exists: true, text: [
       'FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifacts"',
       'HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+      'HERMES_MOBILE_PPTX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
+      'HERMES_MOBILE_PPTX_OUTPUT_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
       'HERMES_MOBILE_PDF_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',
       'HERMES_MOBILE_PDF_OUTPUT_ROOTS="$ROOT/data/artifacts"',
       'HERMES_MOBILE_AUDIO_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"',

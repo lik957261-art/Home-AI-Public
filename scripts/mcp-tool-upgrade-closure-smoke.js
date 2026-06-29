@@ -36,6 +36,11 @@ function cleanList(values, fallback = []) {
   return cleaned.length ? Array.from(new Set(cleaned)) : fallback.slice();
 }
 
+function cleanString(value, fallback = "") {
+  const text = String(value || "").trim();
+  return text || fallback;
+}
+
 function readText(filePath) {
   return fs.readFileSync(filePath, "utf8");
 }
@@ -145,6 +150,9 @@ function compactWorker(worker = {}) {
     toolCount: Number(worker.toolCount || 0),
     agentSchemaToolCount: Number(worker.agentSchemaToolCount || 0),
     enabledToolsets: Array.isArray(worker.agentSchemaEnabledToolsets) ? worker.agentSchemaEnabledToolsets : [],
+    observedTools: Array.isArray(worker.observedTools) ? worker.observedTools : undefined,
+    sessionFound: typeof worker.sessionFound === "boolean" ? worker.sessionFound : undefined,
+    rawContainsMarker: typeof worker.rawContainsMarker === "boolean" ? worker.rawContainsMarker : undefined,
   };
 }
 
@@ -225,10 +233,80 @@ function gatewaySmokeArgs(options) {
   if (options.runtimeOverrides) args.push("--runtime-overrides", options.runtimeOverrides);
   if (options.runtimePython) args.push("--runtime-python", options.runtimePython);
   if (options.agentSchemaTimeoutMs) args.push("--agent-schema-timeout-ms", String(options.agentSchemaTimeoutMs));
+  if (options.allowMcpLogEvidence) args.push("--allow-mcp-log-evidence");
   if (options.gatewayToolProperties.length) {
     args.push("--require-tool-property", options.gatewayToolProperties.map((check) => `${check.tool}:${check.property}`).join(","));
   }
   return args;
+}
+
+function liveGatewaySmokeArgs(options) {
+  const args = [
+    options.liveGatewaySmokeScript,
+    "--manifest", options.manifest,
+    "--profile", options.profile,
+    "--telemetry-root", options.telemetryRoot,
+    "--timeout-ms", String(options.liveGatewayTimeoutMs),
+  ];
+  if (options.liveGatewayLogDelayMs) args.push("--log-delay-ms", String(options.liveGatewayLogDelayMs));
+  for (const call of options.liveGatewayCalls) args.push("--call", call);
+  return args;
+}
+
+function readPassword(options) {
+  const file = cleanString(options.passwordFile);
+  if (!file) return "";
+  return fs.readFileSync(file, "utf8").split(/\r?\n/)[0] || "";
+}
+
+function runChild(command, args, options = {}) {
+  if (!options.gatewaySudo) {
+    return spawnSync(command, args, {
+      cwd: options.repoRoot,
+      encoding: "utf8",
+      timeout: options.timeout,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+  }
+  const password = readPassword(options);
+  return spawnSync("/usr/bin/sudo", ["-S", "-p", "", command, ...args], {
+    cwd: options.repoRoot,
+    encoding: "utf8",
+    input: password ? `${password}\n` : "\n",
+    timeout: options.timeout,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+}
+
+function runGatewaySchemaSmoke(options) {
+  const result = runChild(process.execPath, gatewaySmokeArgs(options), {
+    repoRoot: options.repoRoot,
+    gatewaySudo: options.gatewaySudo,
+    passwordFile: options.passwordFile,
+    timeout: options.gatewayTimeoutMs,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    const detail = `${result.stderr || ""}\n${result.stdout || ""}`.trim().slice(0, 1000);
+    throw new Error(`Gateway callable schema smoke failed: ${detail}`);
+  }
+  return JSON.parse(result.stdout);
+}
+
+function runLiveGatewaySmoke(options) {
+  if (!options.liveGatewayCalls.length) return null;
+  const result = runChild(process.execPath, liveGatewaySmokeArgs(options), {
+    repoRoot: options.repoRoot,
+    gatewaySudo: options.gatewaySudo,
+    passwordFile: options.passwordFile,
+    timeout: options.liveGatewayTimeoutMs + 10000,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    const detail = `${result.stderr || ""}\n${result.stdout || ""}`.trim().slice(0, 1000);
+    throw new Error(`Gateway live runtime smoke failed: ${detail}`);
+  }
+  return JSON.parse(result.stdout);
 }
 
 function checkGatewaySchema(options) {
@@ -243,29 +321,58 @@ function checkGatewaySchema(options) {
       `Gateway callable schema closure requires ${missing.join(" and ")} for the selected profile, or explicit --skip-gateway for source/service-only checks.`,
     );
   }
-  const result = spawnSync(process.execPath, gatewaySmokeArgs(options), {
-    cwd: options.repoRoot,
-    encoding: "utf8",
-    timeout: options.gatewayTimeoutMs,
-    maxBuffer: 10 * 1024 * 1024,
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    const detail = `${result.stderr || ""}\n${result.stdout || ""}`.trim().slice(0, 1000);
-    throw new Error(`Gateway callable schema smoke failed: ${detail}`);
+  let parsed = null;
+  let schemaError = "";
+  if (!options.skipGatewaySchema) {
+    try {
+      parsed = runGatewaySchemaSmoke(options);
+    } catch (err) {
+      schemaError = err.message || String(err);
+      if (!options.allowLiveGatewaySubstitute || !options.liveGatewayCalls.length) throw err;
+    }
   }
-  const parsed = JSON.parse(result.stdout);
+  const liveParsed = runLiveGatewaySmoke(options);
+  if (!parsed && !liveParsed) {
+    throw new Error("Gateway closure requires schema smoke or explicit live runtime call smoke.");
+  }
+  const primary = parsed || liveParsed || {};
   return {
     ok: true,
     skipped: false,
-    requiredTools: parsed.requiredTools || options.gatewayTools,
+    requiredTools: primary.requiredTools || options.gatewayTools,
     requiredProperties: options.gatewayToolProperties,
-    workers: (parsed.workers || []).map(compactWorker),
+    workers: (primary.workers || []).map(compactWorker),
+    schema: parsed ? {
+      ok: true,
+      workers: (parsed.workers || []).map(compactWorker),
+    } : {
+      ok: false,
+      skipped: options.skipGatewaySchema,
+      error: schemaError ? schemaError.slice(0, 1000) : (options.skipGatewaySchema ? "skip_gateway_schema_requested" : "not_run"),
+    },
+    live: liveParsed ? {
+      ok: true,
+      requiredTools: liveParsed.requiredTools || [],
+      workers: (liveParsed.workers || []).map(compactWorker),
+    } : {
+      ok: false,
+      skipped: true,
+      reason: "live_gateway_calls_not_provided",
+    },
   };
 }
 
 async function main() {
-  const repoRoot = path.resolve(argValue("--repo-root", path.resolve(__dirname, "..")));
+  const macosProductionDefaults = hasFlag("--macos-production") || hasFlag("--macos-production-defaults");
+  const macRoot = cleanString(argValue("--mac-root"), "/Users/example/path");
+  const profileArg = argValue("--profile", "");
+  const defaultProfile = macosProductionDefaults ? "hm-owner-openai-1" : "";
+  const profile = cleanString(profileArg, defaultProfile);
+  const profileUser = profile.split("-").slice(0, 2).join("-");
+  const defaultTelemetryRoot = macosProductionDefaults && profileUser
+    ? `/Users/${profileUser}/HermesWorkspace/.hermes-gateway/profiles`
+    : "";
+  const repoRoot = path.resolve(argValue("--repo-root", macosProductionDefaults ? path.join(macRoot, "app") : path.resolve(__dirname, "..")));
   const serviceTools = cleanList(argValues("--require-service-tool"), [DEFAULT_SERVICE_TOOL]);
   const gatewayTools = cleanList(argValues("--gateway-tool"), [DEFAULT_GATEWAY_TOOL]);
   const defaultServiceToolProperties = serviceTools.includes(DEFAULT_SERVICE_TOOL)
@@ -303,17 +410,26 @@ async function main() {
     schemaPropertyMatches,
     docContains: argValues("--doc-contains"),
     skipGateway: hasFlag("--skip-gateway"),
-    manifest: argValue("--manifest", ""),
-    profile: argValue("--profile", ""),
-    telemetryRoot: argValue("--telemetry-root", ""),
+    skipGatewaySchema: hasFlag("--skip-gateway-schema"),
+    allowLiveGatewaySubstitute: hasFlag("--allow-live-gateway-substitute"),
+    allowMcpLogEvidence: hasFlag("--allow-mcp-log-evidence"),
+    manifest: argValue("--manifest", macosProductionDefaults ? path.join(macRoot, "data/gateway-pool-manifest-mac.json") : ""),
+    profile,
+    telemetryRoot: argValue("--telemetry-root", defaultTelemetryRoot),
     gatewaySmokeScript: path.resolve(repoRoot, argValue("--gateway-smoke-script", "scripts/gateway-tool-schema-smoke.js")),
-    agentSchemaMode: argValue("--agent-schema-mode", ""),
-    runtimeSource: argValue("--runtime-source", ""),
-    runtimeOverrides: argValue("--runtime-overrides", ""),
-    runtimePython: argValue("--runtime-python", ""),
+    liveGatewaySmokeScript: path.resolve(repoRoot, argValue("--live-gateway-smoke-script", "scripts/gateway-mcp-runtime-call-smoke.js")),
+    liveGatewayCalls: argValues("--live-gateway-call"),
+    liveGatewayTimeoutMs: Number(argValue("--live-gateway-timeout-ms", "120000")) || 120000,
+    liveGatewayLogDelayMs: Number(argValue("--live-gateway-log-delay-ms", "1200")) || 1200,
+    agentSchemaMode: argValue("--agent-schema-mode", macosProductionDefaults ? "native" : ""),
+    runtimeSource: argValue("--runtime-source", macosProductionDefaults ? path.join(macRoot, "runtime/hermes-agent-official") : ""),
+    runtimeOverrides: argValue("--runtime-overrides", macosProductionDefaults ? path.join(macRoot, "app/gateway-runtime-overrides") : ""),
+    runtimePython: argValue("--runtime-python", macosProductionDefaults ? path.join(macRoot, "runtime/hermes-agent-official/venv/bin/python") : ""),
     agentSchemaTimeoutMs: Number(argValue("--agent-schema-timeout-ms", "60000")) || 60000,
     timeoutMs: Number(argValue("--timeout-ms", "30000")) || 30000,
     gatewayTimeoutMs: Number(argValue("--gateway-timeout-ms", "90000")) || 90000,
+    passwordFile: cleanString(argValue("--password-file", argValue("--sudo-password-file", ""))),
+    gatewaySudo: hasFlag("--gateway-sudo") || (macosProductionDefaults && Boolean(cleanString(argValue("--password-file", argValue("--sudo-password-file", ""))))),
   };
 
   const source = checkSourceFiles(options);

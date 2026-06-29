@@ -5,7 +5,6 @@ const {
   EMBEDDED_PLUGIN_PROXY_PATH_REGEX,
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,
   PRE_AUTH_SYSTEM_PATHS,
-  WEIXIN_INGRESS_PATH_PREFIX,
   createMobileApiDispatcher,
 } = require("../server-routes/mobile-api-dispatcher");
 
@@ -74,7 +73,6 @@ function makeDeps(options = {}) {
       res.end(JSON.stringify(payload));
     },
     publicApiRoutes: createRoute("publicApiRoutes", calls, routeBehaviors.publicApiRoutes),
-    weixinApiRoutes: createRoute("weixinApiRoutes", calls, routeBehaviors.weixinApiRoutes),
   };
 
   for (const entry of MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE) {
@@ -144,33 +142,6 @@ async function testClientVersionSystemRouteRunsBeforeBrowserAuth() {
   assert.deepEqual(routeCalls(calls).map((call) => call.key), ["publicApiRoutes", "systemApiRoutes"]);
   assert.equal(routeCalls(calls)[1].contextArgCount, 3);
   assert.equal(PRE_AUTH_SYSTEM_PATHS.has("/api/client-version"), true);
-}
-
-async function testWeixinIngressRunsBeforeBrowserAuth() {
-  const { deps, calls } = makeDeps({
-    routeBehaviors: {
-      weixinApiRoutes: ({ context }) => ({
-        handled: !context,
-        status: 202,
-        writeJson: { ok: true, ingress: true },
-      }),
-    },
-  });
-  const dispatcher = createMobileApiDispatcher(deps);
-  const res = makeResponse();
-
-  await dispatcher.handle({ method: "POST", url: `${WEIXIN_INGRESS_PATH_PREFIX}events`, headers: {} }, res);
-
-  assert.equal(res.statusCode, 202);
-  assert.deepEqual(JSON.parse(res.body), { ok: true, ingress: true });
-  assert.deepEqual(calls.map((call) => call.type), [
-    "getUrl",
-    "attachClientVersionHeaders",
-    "route",
-    "route",
-  ]);
-  assert.deepEqual(routeCalls(calls).map((call) => call.key), ["publicApiRoutes", "weixinApiRoutes"]);
-  assert.equal(routeCalls(calls)[1].contextArgCount, 3);
 }
 
 async function testUnauthorizedRequestStopsAfterAuthFailure() {
@@ -290,37 +261,6 @@ async function testAuthenticatedPipelineOrderAndRequestContext() {
   ]);
 }
 
-async function testAuthenticatedWeixinRouteUsesBrowserAuthContext() {
-  const { deps, calls } = makeDeps({
-    routeBehaviors: {
-      weixinApiRoutes: ({ context }) => ({
-        handled: Boolean(context?.auth),
-        status: 200,
-        writeJson: { ok: true, authenticated: true },
-      }),
-    },
-  });
-  const dispatcher = createMobileApiDispatcher(deps);
-  const res = makeResponse();
-  const auth = { ok: true, workspaceId: "owner" };
-
-  await dispatcher.handleApi({
-    method: "GET",
-    url: "/api/weixin/forward-targets",
-    headers: {},
-    authResult: auth,
-  }, res);
-
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(JSON.parse(res.body), { ok: true, authenticated: true });
-  assert.deepEqual(routeCalls(calls).map((call) => call.key), [
-    "publicApiRoutes",
-    "systemApiRoutes",
-    "weixinApiRoutes",
-  ]);
-  assert.equal(routeCalls(calls).at(-1).auth, auth);
-}
-
 async function testGrowthCardRoutesPrecedeProgramCatchAllRoutes() {
   const { deps, calls } = makeDeps({
     routeBehaviors: {
@@ -343,7 +283,7 @@ async function testGrowthCardRoutesPrecedeProgramCatchAllRoutes() {
     method: "POST",
     url: "/api/learning-growth/stage-assessments/challenge",
     headers: {},
-    authResult: { ok: true, workspaceId: "weixin_test_1" },
+    authResult: { ok: true, workspaceId: "learner_test_1" },
   }, res);
 
   assert.equal(res.statusCode, 201);
@@ -377,7 +317,7 @@ async function testGrowthPluginFacadeRoutesPrecedeLearningRoutes() {
     method: "GET",
     url: "/api/growth/v1/board",
     headers: {},
-    authResult: { ok: true, workspaceId: "weixin_test_1" },
+    authResult: { ok: true, workspaceId: "learner_test_1" },
   }, res);
 
   assert.equal(res.statusCode, 200);
@@ -407,11 +347,9 @@ function testDependencyValidation() {
 async function run() {
   await testPublicRoutesRunBeforeAuthAndStopPipeline();
   await testClientVersionSystemRouteRunsBeforeBrowserAuth();
-  await testWeixinIngressRunsBeforeBrowserAuth();
   await testUnauthorizedRequestStopsAfterAuthFailure();
   await testCodexPluginProxyRunsBeforeBrowserAuth();
   await testAuthenticatedPipelineOrderAndRequestContext();
-  await testAuthenticatedWeixinRouteUsesBrowserAuthContext();
   await testGrowthPluginFacadeRoutesPrecedeLearningRoutes();
   await testGrowthCardRoutesPrecedeProgramCatchAllRoutes();
   testDependencyValidation();

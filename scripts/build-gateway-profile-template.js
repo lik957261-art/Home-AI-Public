@@ -111,6 +111,7 @@ function standardPluginNames(values = {}) {
   if (boolValue(values.http_plugin_enabled)) out.push("hermes-mobile-http");
   if (boolValue(values.current_environment_plugin_enabled)) out.push("hermes-mobile-current-environment");
   if (boolValue(values.docx_plugin_enabled)) out.push("hermes-mobile-docx");
+  if (boolValue(values.pptx_plugin_enabled)) out.push("hermes-mobile-pptx");
   if (boolValue(values.pdf_plugin_enabled)) out.push("hermes-mobile-pdf");
   if (boolValue(values.audio_plugin_enabled)) out.push("hermes-mobile-audio");
   if (boolValue(values.archive_plugin_enabled)) out.push("hermes-mobile-archive");
@@ -351,6 +352,30 @@ function mcpServersForProfile(values = {}) {
       },
     });
   }
+  if (boolValue(values.movie_enabled)) {
+    servers.push({
+      name: "movie",
+      command: valueMapValue(values, "movie_mcp_command", "npm"),
+      args: [
+        "--prefix",
+        valueMapValue(values, "movie_mcp_root"),
+        "--silent",
+        "run",
+        "mcp:stdio",
+      ],
+      env: {
+        HERMES_HOME: profileLink,
+        HERMES_PROFILE: profile,
+        MOVIE_CONFIG_PATH: valueMapValue(values, "movie_config_path"),
+        MOVIE_METADATA_DB: valueMapValue(values, "movie_metadata_db"),
+        MOVIE_PLAYBACK_STATE_FILE: valueMapValue(values, "movie_playback_state_file"),
+      },
+      extra: {
+        startup_timeout: "60",
+        connect_timeout: "60",
+      },
+    });
+  }
   if (boolValue(values.email_enabled)) {
     servers.push({
       name: "email",
@@ -425,6 +450,7 @@ function renderProfileConfigYaml(values = {}) {
   if (boolValue(values.growth_enabled)) extras.push("growth");
   if (boolValue(values.moira_enabled)) extras.push("moira");
   if (boolValue(values.music_enabled)) extras.push("music");
+  if (boolValue(values.movie_enabled)) extras.push("movie");
   if (boolValue(values.email_enabled)) extras.push("email");
   if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
   appendStandardBase(lines, [...STANDARD_TOOLSETS, ...extras], [...STANDARD_TOOLSETS, ...extras], standardPluginNames(values));
@@ -469,6 +495,7 @@ function renderMaintenanceConfigYaml(values = {}) {
   if (boolValue(values.growth_enabled)) extras.push("growth");
   if (boolValue(values.moira_enabled)) extras.push("moira");
   if (boolValue(values.music_enabled)) extras.push("music");
+  if (boolValue(values.movie_enabled)) extras.push("movie");
   if (boolValue(values.email_enabled)) extras.push("email");
   if (boolValue(values.outlook_graph_enabled)) extras.push("outlook_graph");
   const toolsets = [

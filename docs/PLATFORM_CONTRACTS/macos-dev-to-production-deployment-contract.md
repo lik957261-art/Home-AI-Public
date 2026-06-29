@@ -74,28 +74,56 @@ Direct live edits such as opening `/Users/example/path` or
 `/Users/example/path<plugin>` as a normal Codex workspace,
 changing files there, and then treating that as deployment are forbidden.
 
-Plugin workspaces may call this shared deploy script directly for their own
-plugin targets. A plugin deployment remains plugin-owned when the deploy target
-is `--plugin <plugin-id>`, the source changes are plugin-local, and the
-post-deploy validation is plugin health, embedded launch/proxy, MCP schema, or
-plugin data/product smoke evidence. The plugin thread must not send a task card
-to the Home AI workspace merely because this script lives under the Home AI app
-workspace or because the smoke opens the plugin through the Home AI shell.
+Plugin workspaces may run this shared deploy script in plan mode for their own
+plugin targets, but routine production execute/readback is owned by the
+dedicated `Home AI Deploy` Codex thread. A plugin deployment remains
+plugin-prepared when the deploy target is `--plugin <plugin-id>`, the source
+changes are plugin-local, and the validation is plugin health, embedded
+launch/proxy, MCP schema, or plugin data/product smoke evidence. The plugin
+thread must complete implementation, tests, commit/push when applicable,
+deploy plan, and safety/readback expectations before sending one deployment
+card to `Home AI Deploy`.
 
-Routine plugin deploy task cards are a routing error when the plugin can run
-the central script itself. The Home AI receiver must not execute that deploy
-for convenience, because doing so interrupts unrelated host work and makes the
-plugin closure depend on another thread's queue. It must return `redirected` or
-`blocked` with the exact plugin-owned plan/execute/readback commands and the
-specific escalation condition that would make the next card Home-AI-owned.
-Only after a platform-owned blocker is proven may Home AI accept a deployment
-card and mutate production on behalf of the plugin.
+Routine plugin deploy cards to the ordinary Home AI implementation thread are a
+routing error. The ordinary Home AI receiver must return `redirected` or
+`blocked` with the exact `Home AI Deploy` target and required card fields. The
+`Home AI Deploy` thread is the only Home AI Codex lane expected to run central
+plugin deploy execute/readback on behalf of plugins. It must not edit plugin
+business code, and it must return a terminal task card to the source plugin
+thread after deployment is completed, blocked, redirected, rejected, or
+partially completed.
 
-Escalate to a Home AI task card only when the missing work is host/platform
-owned: Home AI source edits, deploy-script capability changes, same-origin
-proxy or launch-token bugs, workspace binding/provisioning bugs, Gateway schema
-or worker-profile changes, shared policy changes, or a production permission
-failure that cannot be resolved through the existing bounded deploy contract.
+The deployment lane is a live operational queue, not a one-shot completed
+conversation. `Home AI Deploy` must be discoverable and non-terminal before it
+is used as a routine deployment target. A completed, archived, deleted, hidden,
+or otherwise non-runnable deploy thread is a platform routing defect: ordinary
+Home AI must not execute the plugin deployment as a workaround, and the deploy
+lane must be repaired or recreated before routine plugin deployments are routed
+there again.
+
+Plugin deployment cards must not expose or require a sudo password file,
+password contents, SSH private key, or local operator secret path. If the
+central deploy script needs local elevation, that credential boundary is
+private to the Home AI deployment thread/runtime. The card may include the
+plan command, execute command shape without `--password-file`, source commit,
+dirty-state proof, restart label, health URL, deploy reason, and bounded
+readback expectations.
+
+A plugin deployment card must not be a terminal return receipt. If the title
+starts with `Return:`, the body declares `Return policy: terminal receipt`, or
+the body is primarily a completed/blocked/redirected/partially-completed
+return, that card is a source-thread receipt and cannot satisfy deployment
+request closure. The sender must create a separate deployment request card for
+`Home AI Deploy` with `cardKind=plugin_deployment` when the interface supports
+structured card kinds. Home AI task-card senders must reject receipt-shaped
+deployment cards before posting them to `Home AI Deploy`.
+
+Escalate to the ordinary Home AI implementation thread only when the missing
+work is host/platform owned: Home AI source edits, deploy-script capability
+changes, same-origin proxy or launch-token bugs, workspace binding/provisioning
+bugs, Gateway schema or worker-profile changes, shared policy changes, or a
+production permission failure that proves `Home AI Deploy` cannot execute the
+existing bounded deploy contract.
 
 If a plugin thread changes code but then discovers that deployment is blocked
 by a host/platform prerequisite, it must not end silently. It must return a
@@ -339,24 +367,38 @@ The production target should be:
 ```
 
 Plugin deployment scripts or plugin Codex threads should call the central Home
-AI deploy script. The shared access shape is:
+AI deploy script in plan mode. The plugin-visible deployment request shape is:
 
 ```text
---password-file <private-local-password-file>
---mac-root /Users/example/path
---source <development-source-path>
 --plugin <plugin-id|all>
+--source <development-source-path>
 --restart-label <plugin-launchd-label>
 --health-url <plugin-loopback-health-url>
+--reason <deploy-reason>
 ```
 
-The current local command shape from the Home AI app workspace is:
+The current plugin-visible local command shape from the Home AI app workspace
+is:
 
 ```bash
 npm run --silent deploy:macos -- --plugin <plugin-id> --json
-npm run --silent deploy:macos -- --plugin <plugin-id> --restart-label <label> --health-url <url> --execute --password-file <private-local-password-file> --json
 npm run --silent deploy:macos -- --plugin all --json
 ```
+
+Executable deploys run a sudo authentication preflight before the first
+production filesystem mutation. The password-file resolution order may include
+an explicit `--password-file`, `HOMEAI_MAC_SUDO_PASSWORD_FILE`, then local
+operator fallbacks under `~/.homeai/macos-sudo-password` and
+`~/.homeai-qa/sudo-password`, but that is private to the `Home AI Deploy`
+thread/runtime and central operators. Plugin task cards must not include these
+paths or environment values. When no passwordless helper/sudoers path is
+installed and no valid password file is found, the script fails with
+`sudo_authentication_required`. When all supplied or discovered password files
+are rejected, it fails with `sudo_authentication_failed`. These are operator
+authentication boundary failures, not plugin source or production path
+failures. The `Home AI Deploy` thread or a central operator must repair the
+local operator credential/helper state before retrying; plugin threads must not
+repeatedly run a deploy that has already failed authentication.
 
 The `all` plugin target expands to the bounded known plugin service roots:
 Codex Mobile Web, Email, Finance, Growth, Healthy/Health, Moira, Movie, Music,
@@ -377,13 +419,30 @@ entry and presenting a black embedded surface. The `--sync-only` first-install
 path keeps its existing source-only semantics and does not run runtime/hash
 validation.
 
+Codex Mobile Web has an additional selected shared-mux runtime refresh
+contract. When a Codex Mobile deployment changes mux bridge/runtime files such
+as `codex-app-server-mux.js`, the macOS restart helper, or the shared-chain
+restart service, the central deploy script must refresh only the selected
+profile's shared mux after source sync and plugin host restart. The refresh may
+read only the selected profile endpoint file, may stop only the endpoint's
+recorded `pid` / `childPid`, and must first verify the process command line is
+an expected `codex-app-server-mux` or `codex app-server` command. It must not
+scan or kill unrelated profile muxes, and it must not use broad process
+selectors such as `killall`, `pkill`, or `pgrep`. File parity is not sufficient
+runtime proof for this step. The deploy script records bounded selected-mux
+repair state before sync and marks it completed only after the selected endpoint
+refresh succeeds. A retry after an incomplete post-sync selected-mux refresh
+must run the selected endpoint refresh even when `changedFileCount=0`. Deploy
+reasons that explicitly mention selected-mux, mux-runtime, mux-metrics, or
+shared-mux also force this selected endpoint refresh.
+
 Growth first production install has one extra launchd bootstrap step because
 `com.hermesmobile.plugin.growth` does not exist until the service is installed.
 Use an explicit source-only sync first, then the shared installer from the Home
 AI app workspace:
 
 ```bash
-npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --restart none --sync-only --execute --json
 ```
 
 ```bash
@@ -399,7 +458,7 @@ node scripts/install-growth-launchd-service.js --execute --bootstrap \
   --gateway-evaluation-endpoint http://127.0.0.1:18751/v1/responses \
   --gateway-evaluation-access-token-path <gateway-worker-token-file> \
   --gateway-evaluation-protocol responses \
-  --password-file <private-local-password-file> --json
+  --json
 ```
 
 `--sync-only` is allowed only for plugin first-install source sync before a
@@ -424,9 +483,9 @@ scope is Owner-only and the Home AI host uses its server-side Owner web key for
 the Owner launch exchange:
 
 ```bash
-npm run --silent deploy:macos -- --plugin moira --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin moira --source /Users/example/path --restart none --sync-only --execute --json
 node scripts/install-moira-launchd-service.js --json
-node scripts/install-moira-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+node scripts/install-moira-launchd-service.js --execute --bootstrap --json
 ```
 
 Later Moira source deploys use `npm run --silent deploy:macos -- --plugin
@@ -439,9 +498,9 @@ source workspace is a top-level sibling under the development root, not
 production plugin target:
 
 ```bash
-npm run --silent deploy:macos -- --plugin movie --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin movie --source /Users/example/path --restart none --sync-only --execute --json
 node scripts/install-movie-launchd-service.js --json
-node scripts/install-movie-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+node scripts/install-movie-launchd-service.js --execute --bootstrap --json
 ```
 
 The Movie installer starts `com.hermesmobile.plugin.movie` on
@@ -461,9 +520,9 @@ early development, but the central deploy script must still write to the
 standard production target:
 
 ```bash
-npm run --silent deploy:macos -- --plugin music --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin music --source /Users/example/path --restart none --sync-only --execute --json
 node scripts/install-music-launchd-service.js --json
-node scripts/install-music-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+node scripts/install-music-launchd-service.js --execute --bootstrap --json
 ```
 
 Before bootstrap, build the Music web bundle and install production

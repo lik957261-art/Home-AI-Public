@@ -74,12 +74,10 @@ function showPushToast(message, kind = "", options = {}) {
   }
   toast.classList.remove("hidden", "success", "error");
   if (kind) toast.classList.add(kind);
-  if (kind !== "error") {
-    const durationMs = Number.isFinite(options?.durationMs) && options.durationMs > 0
-      ? Math.max(800, Math.min(10000, Number(options.durationMs)))
-      : (kind === "success" ? 4200 : 6500);
-    state.pushToastTimer = window.setTimeout(() => toast.classList.add("hidden"), durationMs);
-  }
+  const durationMs = Number.isFinite(options?.durationMs) && options.durationMs > 0
+    ? Math.max(800, Math.min(10000, Number(options.durationMs)))
+    : (kind === "success" ? 4200 : 6500);
+  state.pushToastTimer = window.setTimeout(() => toast.classList.add("hidden"), durationMs);
 }
 
 function setPushProgress(message, kind = "") {

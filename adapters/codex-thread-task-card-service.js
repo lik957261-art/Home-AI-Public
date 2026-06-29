@@ -7,8 +7,10 @@ const path = require("node:path");
 const DEFAULT_CODEX_MOBILE_URL = "http://127.0.0.1:8787";
 const DEFAULT_APP_WORKSPACE_CWD = "/Users/example/path";
 const DEFAULT_HOME_AI_SOURCE_TITLE_PREFIX = "Home AI";
+const DEFAULT_HOME_AI_TASK_INTAKE_THREAD_TITLE = "Home AI Task Intake";
 const DEFAULT_PLUGIN_AUDIT_THREAD_TITLE = "Plugin Workspace Audit";
 const DEFAULT_PLATFORM_AUDIT_THREAD_TITLE = "Home AI Platform Audit";
+const DEFAULT_DEPLOY_THREAD_TITLE = "Home AI Deploy";
 
 function clean(value, max = 200) {
   return String(value || "").trim().slice(0, max);
@@ -99,6 +101,24 @@ function isClosedThread(thread) {
   return Boolean(thread?.archived || thread?.deleted || ["archived", "deleted"].includes(status));
 }
 
+function isCompletedThread(thread) {
+  return threadStatusOf(thread) === "completed";
+}
+
+function isDeployKind(kind) {
+  const text = clean(kind, 80).toLowerCase();
+  return text === "deployment" || text === "deploy" || text === "plugin_deployment" || text === "plugin-deployment";
+}
+
+function isTerminalReceiptCard(input = {}) {
+  const title = clean(input.title, 240);
+  const body = String(input.body || input.bodyMarkdown || "");
+  if (/^return\s*:/i.test(title)) return true;
+  if (/^#\s*return\s*:/im.test(body)) return true;
+  if (/return policy:\s*terminal receipt/i.test(body)) return true;
+  return false;
+}
+
 function activeScore(thread) {
   const status = threadStatusOf(thread);
   if (status === "active" || status === "running") return 4;
@@ -152,7 +172,16 @@ function createCodexThreadTaskCardService(options = {}) {
   const sourceThreadTitlePrefix = clean(options.sourceThreadTitlePrefix || env.HOMEAI_CODEX_SOURCE_THREAD_TITLE_PREFIX || DEFAULT_HOME_AI_SOURCE_TITLE_PREFIX, 120) || DEFAULT_HOME_AI_SOURCE_TITLE_PREFIX;
   const defaultPluginAuditThreadTitle = clean(options.pluginAuditThreadTitle || env.HOMEAI_PLUGIN_WORKSPACE_AUDIT_THREAD_TITLE || DEFAULT_PLUGIN_AUDIT_THREAD_TITLE, 160) || DEFAULT_PLUGIN_AUDIT_THREAD_TITLE;
   const defaultPlatformAuditThreadTitle = clean(options.platformAuditThreadTitle || env.HOMEAI_PLATFORM_AUDIT_THREAD_TITLE || DEFAULT_PLATFORM_AUDIT_THREAD_TITLE, 160) || DEFAULT_PLATFORM_AUDIT_THREAD_TITLE;
+  const defaultDeployThreadTitle = clean(options.deployThreadTitle || env.HOMEAI_DEPLOY_THREAD_TITLE || DEFAULT_DEPLOY_THREAD_TITLE, 160) || DEFAULT_DEPLOY_THREAD_TITLE;
   const requestTimeoutMs = Math.max(1000, Number(options.timeoutMs || env.HOMEAI_CODEX_TASK_CARD_TIMEOUT_MS || 15000));
+  const homeAiReservedTargetTitles = new Set([
+    defaultPluginAuditThreadTitle,
+    defaultPlatformAuditThreadTitle,
+    defaultDeployThreadTitle,
+    DEFAULT_HOME_AI_TASK_INTAKE_THREAD_TITLE,
+    clean(env.HOMEAI_CODEX_SOURCE_THREAD_TITLE || "", 160),
+    sourceThreadTitlePrefix,
+  ].filter(Boolean));
 
   function accessKey() {
     const key = codexMobileKey(Object.assign({}, options, { env, fs: fsImpl }));
@@ -219,20 +248,52 @@ function createCodexThreadTaskCardService(options = {}) {
     return matches[0];
   }
 
+  async function findDeployThread(input = {}) {
+    const title = clean(input.title || defaultDeployThreadTitle, 160);
+    const cwd = normalizePath(input.cwd || sourceWorkspaceCwd);
+    const byTitle = await listThreads({ search: title, limit: 100 });
+    const matches = byTitle.filter((thread) => {
+      if (threadTitleOf(thread) !== title) return false;
+      if (isCompletedThread(thread)) return false;
+      return !cwd || normalizePath(threadCwdOf(thread)) === cwd;
+    });
+    if (!matches.length) {
+      throw createError(503, "deploy_thread_not_found", "Central Home AI deployment thread is not currently discoverable", { deployThreadTitle: title, cwd });
+    }
+    if (matches.length > 1) {
+      throw createError(409, "deploy_thread_ambiguous", "Multiple central Home AI deployment threads match the requested role", { deployThreadTitle: title, cwd, matchCount: matches.length });
+    }
+    return matches[0];
+  }
+
   async function findTargetThread(input = {}) {
+    const id = clean(input.id || input.threadId || input.thread_id, 160);
     const title = clean(input.title, 160);
     const titlePrefix = clean(input.titlePrefix || input.title_prefix, 160);
     const cwd = normalizePath(input.cwd || "");
+    if (id) {
+      return {
+        id,
+        title: title || titlePrefix,
+        cwd,
+        status: "configured",
+      };
+    }
     if (!title && !titlePrefix && !cwd) {
+      if (isDeployKind(input.kind)) return findDeployThread({ cwd: sourceWorkspaceCwd });
       return findAuditThread({ kind: input.kind || "plugin", cwd: sourceWorkspaceCwd });
     }
     const search = title || titlePrefix || "";
     const candidates = await listThreads(search ? { search, limit: 120 } : { cwd, limit: 120 });
+    const prefixOnlyHomeAiTarget = !title
+      && [DEFAULT_HOME_AI_SOURCE_TITLE_PREFIX, sourceThreadTitlePrefix].includes(titlePrefix)
+      && (!cwd || normalizePath(cwd) === sourceWorkspaceCwd);
     const matches = candidates.filter((thread) => {
       const threadTitle = threadTitleOf(thread);
       const threadCwd = normalizePath(threadCwdOf(thread));
       if (cwd && threadCwd !== cwd) return false;
       if (title && threadTitle === title) return true;
+      if (prefixOnlyHomeAiTarget && homeAiReservedTargetTitles.has(threadTitle) && !isDeployKind(input.kind)) return false;
       if (!title && titlePrefix && threadTitle.startsWith(titlePrefix)) return true;
       if (!title && !titlePrefix) return true;
       return false;
@@ -249,37 +310,68 @@ function createCodexThreadTaskCardService(options = {}) {
   }
 
   async function findSourceThread(input = {}) {
+    const id = clean(input.id || input.threadId || input.thread_id, 160);
     const cwd = normalizePath(input.cwd || sourceWorkspaceCwd);
+    if (id) {
+      return {
+        id,
+        title: clean(input.title, 160) || id,
+        cwd,
+        status: "configured",
+      };
+    }
     const explicitTitle = clean(input.title || env.HOMEAI_CODEX_SOURCE_THREAD_TITLE, 160);
+    const explicitTitlePrefix = clean(input.titlePrefix || input.title_prefix || input.sourceThreadTitlePrefix || input.source_thread_title_prefix, 160);
     if (explicitTitle) {
       const byTitle = await listThreads({ search: explicitTitle, limit: 100 });
       const matches = byTitle.filter((thread) => threadTitleOf(thread) === explicitTitle && (!cwd || normalizePath(threadCwdOf(thread)) === cwd));
       if (matches.length === 1) return matches[0];
       if (matches.length > 1) throw createError(409, "home_ai_source_thread_ambiguous", "Multiple Home AI source threads match the configured title", { sourceThreadTitle: explicitTitle, cwd, matchCount: matches.length });
+      if (!explicitTitlePrefix) {
+        throw createError(503, "home_ai_source_thread_not_found", "Configured Home AI source thread is not currently discoverable", { sourceThreadTitle: explicitTitle, cwd });
+      }
     }
-    const byWorkspace = await listThreads(cwd ? { cwd, limit: 120 } : { search: sourceThreadTitlePrefix, limit: 120 });
-    const auditTitles = new Set([defaultPluginAuditThreadTitle, defaultPlatformAuditThreadTitle]);
+    const effectiveTitlePrefix = explicitTitlePrefix || sourceThreadTitlePrefix;
+    const byWorkspace = await listThreads(cwd ? { cwd, limit: 120 } : { search: effectiveTitlePrefix, limit: 120 });
+    const reservedTitles = new Set([defaultPluginAuditThreadTitle, defaultPlatformAuditThreadTitle, defaultDeployThreadTitle]);
     const candidates = byWorkspace.filter((thread) => {
       const title = threadTitleOf(thread);
-      if (auditTitles.has(title)) return false;
-      if (!title.startsWith(sourceThreadTitlePrefix)) return false;
+      if (reservedTitles.has(title)) return false;
+      if (!title.startsWith(effectiveTitlePrefix)) return false;
       return !cwd || normalizePath(threadCwdOf(thread)) === cwd;
     });
     const selected = sortedThreads(candidates)[0];
     if (!selected) {
-      throw createError(503, "home_ai_source_thread_not_found", "Home AI source thread is not currently discoverable", { sourceThreadTitlePrefix, cwd });
+      throw createError(503, "home_ai_source_thread_not_found", "Home AI source thread is not currently discoverable", {
+        sourceThreadTitle: explicitTitle,
+        sourceThreadTitlePrefix: effectiveTitlePrefix,
+        cwd,
+      });
     }
     return selected;
   }
 
   async function sendTaskCard(input = {}) {
-    const sourceThread = await findSourceThread({ cwd: input.sourceWorkspaceCwd, title: input.sourceThreadTitle });
+    const taskKind = input.cardKind || input.card_kind || input.category || input.auditKind || "plugin";
+    const sourceThread = await findSourceThread({
+      cwd: input.sourceWorkspaceCwd,
+      id: input.sourceThreadId || input.sourceThread_id,
+      title: input.sourceThreadTitle,
+      titlePrefix: input.sourceThreadTitlePrefix || input.source_thread_title_prefix,
+    });
     const targetThread = await findTargetThread({
-      kind: input.auditKind || "plugin",
+      kind: taskKind,
+      id: input.targetThreadId || input.targetThread_id,
       title: input.targetThreadTitle,
       titlePrefix: input.targetThreadTitlePrefix,
       cwd: input.targetWorkspaceCwd,
     });
+    if (threadIdOf(sourceThread) === threadIdOf(targetThread)) {
+      throw createError(409, "task_card_source_target_same_thread", "Task-card source thread must be different from target thread", {
+        sourceThread: safeThread(sourceThread),
+        targetThread: safeThread(targetThread),
+      });
+    }
     const body = {
       targetThreadIds: [threadIdOf(targetThread)],
       targetWorkspaceIds: { [threadIdOf(targetThread)]: threadCwdOf(targetThread) },
@@ -296,6 +388,11 @@ function createCodexThreadTaskCardService(options = {}) {
     if (reasoningEffort) body.reasoningEffort = reasoningEffort;
     if (!body.title) throw createError(400, "task_card_title_required", "Task-card title is required");
     if (!body.body) throw createError(400, "task_card_body_required", "Task-card body is required");
+    if (isDeployKind(taskKind) && isTerminalReceiptCard(body)) {
+      throw createError(400, "deployment_card_must_not_be_terminal_receipt", "Deployment task cards must be requests, not terminal return receipts", {
+        targetThread: safeThread(targetThread),
+      });
+    }
     const result = await requestJson("POST", `/api/threads/${encodeURIComponent(threadIdOf(sourceThread))}/task-cards`, body);
     const cards = Array.isArray(result.cards) ? result.cards : result.card ? [result.card] : [];
     return {
@@ -317,6 +414,7 @@ function createCodexThreadTaskCardService(options = {}) {
 
   return Object.freeze({
     findAuditThread,
+    findDeployThread,
     findTargetThread,
     findSourceThread,
     listThreads,
@@ -327,6 +425,8 @@ function createCodexThreadTaskCardService(options = {}) {
 module.exports = {
   DEFAULT_PLUGIN_AUDIT_THREAD_TITLE,
   DEFAULT_PLATFORM_AUDIT_THREAD_TITLE,
+  DEFAULT_DEPLOY_THREAD_TITLE,
   createCodexThreadTaskCardService,
+  isTerminalReceiptCard,
   parseThreadList,
 };

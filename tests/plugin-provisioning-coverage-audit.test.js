@@ -28,8 +28,8 @@ function testReportPassesForCurrentPluginContract() {
   }
   const moira = report.provisionedLocal.find((item) => item.pluginId === "moira");
   assert.ok(moira);
-  assert.equal(moira.publicManifest, false);
-  for (const pluginId of ["codex-mobile-web", "music"]) {
+  assert.equal(moira.publicManifest, true);
+  for (const pluginId of ["codex-mobile-web", "music", "movie"]) {
     const row = report.specialPublic.find((item) => item.pluginId === pluginId);
     assert.ok(row, `missing special ${pluginId}`);
     assert.equal(row.publicManifest, true);

@@ -90,7 +90,6 @@ function createMobileRuntimeCoreProviders(deps = {}) {
       runtimeEnv.LOCAL_TODO_STORE_PATH,
       runtimeEnv.LOCAL_AUTOMATION_STORE_PATH,
       runtimeEnv.MOBILE_SQLITE_DB_PATH,
-      ...runtimeEnv.WEIXIN_INGRESS_KEY_PATHS,
       ...runtimeEnv.HERMES_ENV_PATHS,
       ...runtimeEnv.HERMES_API_KEY_PATHS,
       ...runtimeEnv.WORKSPACE_USERS_PATHS,

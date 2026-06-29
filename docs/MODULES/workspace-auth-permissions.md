@@ -54,7 +54,7 @@ service accounts and NTFS DACLs instead of WSL-owned home directories.
 
 Default local/development stance:
 
-- run the listener, bridge host, native Gateway launcher, Whisper, Weixin
+- run the listener, bridge host, native Gateway launcher, Whisper
   bridge, and CRON sidecar under the maintained Windows service/logon account;
 - keep Home AI workspace authorization as the primary product boundary;
 - store per-workspace plugin keys, Skill Stores, Memory Stores, and drive roots

@@ -2,10 +2,15 @@
 
 ## Responsibility
 
-Native Notifications lets the Home AI iOS native shell register APNs devices and
-receive the same bounded notification events that the PWA receives through Web
-Push. Native APNs is an independent channel named `native_ios_apns`; it does not
-reuse Web Push subscriptions or plugin credentials.
+Native Notifications lets Home AI native shells register platform push devices
+and receive the same bounded notification events that the PWA receives through
+Web Push. Native channels are independent from Web Push subscriptions and do
+not reuse plugin credentials.
+
+Supported native channels:
+
+- `native_ios_apns` for iOS APNs devices.
+- `native_android_fcm` for Android FCM registration tokens.
 
 ## Core Files
 
@@ -21,7 +26,8 @@ reuse Web Push subscriptions or plugin credentials.
 - `POST /api/native/devices/register`
   - Authenticated by the normal browser/API Access Key transport:
     `X-Hermes-Web-Key` or the same-origin cookie.
-  - Accepts iOS/APNs device registration payloads from the native shell.
+  - Accepts iOS/APNs and Android/FCM device registration payloads from the
+    native shell.
   - If `workspaceId` is omitted, Home AI uses the workspace resolved from the
     authenticated Access Key. If a client sends an explicit `workspaceId`, it is
     still passed through the authenticated workspace access check before
@@ -30,15 +36,17 @@ reuse Web Push subscriptions or plugin credentials.
 - `POST /api/native/devices/unregister`
   - Disables the current device by device id or device token hash lookup.
 - `POST /api/native/devices/test-notification`
-  - Sends a bounded test notification to enabled APNs devices for the
-    authenticated workspace.
+  - Sends a bounded test notification to enabled native devices for the
+    authenticated workspace. The body may specify `notificationChannel` as
+    `native_ios_apns` or `native_android_fcm`; omitted channel targets all
+    native device providers registered for the workspace.
 
 The native app must not send plugin keys or plugin tokens to these routes.
 
 ## Native Shell Registration Protocol
 
-The current Home AI native iOS shell exposes this flow from its native settings
-surface, labelled `Native Notifications`:
+The Home AI native iOS shell exposes this flow from its native settings surface,
+labelled `Native Notifications`:
 
 1. The user enters the Home AI origin and Access Key. The workspace is resolved
    by Home AI from the authenticated key.
@@ -88,6 +96,26 @@ Request body:
 }
 ```
 
+Android FCM registration uses the same route and auth boundary:
+
+```json
+{
+  "platform": "android",
+  "pushProvider": "fcm",
+  "deviceToken": "<fcm registration token>",
+  "appBundleId": "app.homeai.android",
+  "appVersion": "0.4.22",
+  "buildNumber": "26",
+  "environment": "production",
+  "source": "home_ai_native"
+}
+```
+
+The Android native shell owns Firebase client integration, token refresh, and
+calling `/api/native/devices/register` after permission/token acquisition. Home
+AI stores only the bounded device metadata, token hash, and encrypted/local-safe
+token ciphertext.
+
 `environment` is `sandbox` for native DEBUG builds and `production` for
 non-DEBUG builds. The current local native entitlement is development APNs; a
 TestFlight/App Store build requires a production APNs entitlement/profile and
@@ -110,6 +138,7 @@ Successful response:
     "appVersion": "1.0.0",
     "buildNumber": "100",
     "environment": "sandbox",
+    "channel": "native_ios_apns",
     "enabled": true,
     "lastSeenAt": "2026-06-16T00:00:00.000Z",
     "createdAt": "2026-06-16T00:00:00.000Z",
@@ -127,7 +156,8 @@ message that the server has not provided the registration endpoint yet. HTTP
 Unregister requests may identify the device by raw `deviceToken`, `tokenHash`,
 or `deviceId`; the server still clamps the operation to the authenticated
 workspace before disabling the device. Test-notification requests accept a
-bounded `title`, `body`, and optional `deepLink`.
+bounded `title`, `body`, optional `deepLink`, and optional
+`notificationChannel`.
 
 ## Storage
 
@@ -143,7 +173,7 @@ Stored fields include workspace/principal, platform, push provider, token hash,
 encrypted or local-safe token ciphertext, app bundle/version/build, APNs
 environment, enabled state, timestamps, and bounded source metadata.
 
-Raw APNs device tokens are never returned by API responses and must not be
+Raw APNs/FCM device tokens are never returned by API responses and must not be
 logged. Production deployments should configure
 `HERMES_NATIVE_DEVICE_TOKEN_ENCRYPTION_KEY`; without it the server stores the
 token in local base64 form so local development remains runnable, but that is
@@ -175,6 +205,33 @@ Device records carry `environment=sandbox|production`. Delivery chooses
 If APNs returns `BadDeviceToken`, `Unregistered`, or HTTP `410`, the device is
 disabled so future sends do not keep retrying an invalid token.
 
+## Android FCM Configuration
+
+Android remote push uses Firebase Cloud Messaging HTTP v1. Home AI needs a
+Firebase service account with permission to send messages for the Android app's
+Firebase project. Configure one of:
+
+- `HERMES_NATIVE_FCM_SERVICE_ACCOUNT_JSON`
+- `HERMES_NATIVE_FCM_SERVICE_ACCOUNT_JSON_PATH`
+
+The project id is read from the service account `project_id`, or can be
+overridden with:
+
+- `HERMES_NATIVE_FCM_PROJECT_ID`
+
+Optional Android notification channel override:
+
+- `HERMES_NATIVE_FCM_ANDROID_CHANNEL_ID`
+
+The service account JSON, private key, OAuth access token, and FCM registration
+tokens must not be committed, logged, included in task cards, or returned by
+APIs. If FCM configuration is missing, Android delivery returns the bounded
+reason `fcm_not_configured`.
+
+If FCM returns `UNREGISTERED`, `INVALID_ARGUMENT`, HTTP `404`, or HTTP `410` for
+a registered token send, Home AI disables that device record so future sends do
+not keep retrying a stale token.
+
 ## Event Bridge
 
 `web-push-delivery-service` remains the event producer for chat terminal
@@ -182,8 +239,8 @@ receipts, Action Inbox, Automation, Growth, plugin notification events, and
 other bounded notification surfaces. It delegates APNs fanout to
 `web-push-native-channel-service`, which calls `nativeNotificationService`.
 
-This keeps Web Push and native APNs storage separate while allowing the same
-bounded event summary to reach both channels.
+This keeps Web Push and native device storage separate while allowing the same
+bounded event summary to reach platform-native channels.
 
 Delivery channel selection is explicit:
 
@@ -191,25 +248,28 @@ Delivery channel selection is explicit:
   subscriptions.
 - `notificationChannel=native_ios_apns` sends only to registered iOS APNs
   devices.
+- `notificationChannel=native_android_fcm` sends only to registered Android FCM
+  devices.
 - `notificationChannel=both` is reserved for background events that do not have
   a foreground client source, such as scheduled Automation, Todo/reminder, and
-  durable review notifications. For this channel, Home AI attempts APNs first.
-  If APNs successfully sends to a workspace, same-workspace iPhone PWA Web Push
-  subscriptions are skipped for that event to avoid duplicate phone
-  notifications. Desktop/Mac Web Push subscriptions are not suppressed, and Web
-  Push remains the fallback when APNs has no successful delivery.
+  durable review notifications. For this channel, Home AI attempts native
+  delivery first. If native delivery successfully sends to a workspace,
+  same-workspace phone PWA Web Push subscriptions are skipped for that event to
+  avoid duplicate phone notifications. Desktop/Mac Web Push subscriptions are
+  not suppressed, and Web Push remains the fallback when native delivery has no
+  successful delivery.
 
 Interactive chat/task terminal receipts must preserve the sending client
 source. Messages submitted from the PWA set `notificationChannel=web_push`;
-messages submitted from the native iOS shell set
-`notificationChannel=native_ios_apns`. The terminal notifier reads the stored
-assistant message channel and must not fan out those foreground receipts to both
-channels just because the same workspace has both a PWA subscription and an APNs
-device.
+messages submitted from a native shell set the matching native channel, for
+example `native_ios_apns` or `native_android_fcm`. The terminal notifier reads
+the stored assistant message channel and must not fan out those foreground
+receipts to both channels just because the same workspace has both a PWA
+subscription and a native device.
 
 PWA notification settings use `POST /api/push/test` and are Web Push only.
-Native settings use `POST /api/native/devices/test-notification` and are APNs
-only.
+Native settings use `POST /api/native/devices/test-notification` and target the
+requested native channel.
 
 ## Payload Rules
 
@@ -230,6 +290,12 @@ APNs payloads use a bounded alert:
   "channel": "native_ios_apns"
 }
 ```
+
+FCM payloads are generated from the same bounded fields. The Android message
+uses `notification.title`, `notification.body`, the configured Android
+notification channel id, and string-only `data` fields such as `deepLink`,
+`workspaceId`, `threadId`, `messageId`, `actionInboxId`, `automationId`,
+`pluginId`, and `channel=native_android_fcm`.
 
 Notification taps in the native iOS shell must preserve the same routing
 semantics as PWA Web Push:

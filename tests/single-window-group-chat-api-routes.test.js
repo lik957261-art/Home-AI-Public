@@ -61,12 +61,6 @@ function makeRoutes(overrides = {}) {
         ],
       },
       {
-        id: "weixin-thread",
-        singleWindow: true,
-        workspaceId: "owner",
-        messages: [{ id: "wx-1", taskGroupId: "chat", content: "wx" }],
-      },
-      {
         id: "normal-thread",
         singleWindow: false,
         workspaceId: "owner",
@@ -125,9 +119,6 @@ function makeRoutes(overrides = {}) {
     ensureSingleWindowThread(workspaceId) {
       return state.threads.find((thread) => thread.id === "private-thread" && thread.workspaceId === workspaceId) || null;
     },
-    ensureWeixinSingleWindowThread(workspaceId) {
-      return state.threads.find((thread) => thread.id === "weixin-thread" && thread.workspaceId === workspaceId) || null;
-    },
     ensureGroupChatThreadForWorkspace(workspaceId, memberWorkspaceIds = []) {
       const thread = {
         id: "created-group-thread",
@@ -144,9 +135,6 @@ function makeRoutes(overrides = {}) {
     },
     findThreadForRequest(_req, threadId) {
       return state.threads.find((thread) => thread.id === threadId) || null;
-    },
-    findWeixinSingleWindowThreadForWorkspace(workspaceId) {
-      return state.threads.find((thread) => thread.id === "weixin-thread" && thread.workspaceId === workspaceId) || null;
     },
     findWorkspace(workspaceId) {
       return ["owner", "child-a", "child-b"].includes(String(workspaceId || "")) ? { id: workspaceId } : null;
@@ -223,9 +211,6 @@ function makeRoutes(overrides = {}) {
     threadSummary(thread) {
       return { id: thread.id, workspaceId: thread.workspaceId, updatedAt: thread.updatedAt || "" };
     },
-    weixinForwardTargetsForWorkspace(workspaceId) {
-      return workspaceId === "owner" ? [{ id: "wx-target" }] : [];
-    },
   }, overrides);
   return { routes: createSingleWindowGroupChatApiRoutes(deps), calls, state, deps };
 }
@@ -267,9 +252,7 @@ async function main() {
     assert.equal(got.res.statusCode, 200);
     assert.equal(got.body.thread.id, "group-thread");
     assert.equal(got.body.groupChatAvailable, true);
-    assert.equal(got.body.weixinChatAvailable, true);
     assert.equal(got.body.groupChatThread.id, "group-thread");
-    assert.equal(got.body.weixinChatThread, null);
     assert.equal(calls.compactWithPage.some((item) => item.threadId === "group-thread" && item.options.groupChat === true), true);
     assert.equal(calls.broadcast[0].type, "thread.updated");
   }
@@ -283,9 +266,7 @@ async function main() {
     assert.equal(got.res.statusCode, 200);
     assert.equal(got.body.thread.id, "private-thread");
     assert.equal(got.body.groupChatAvailable, true);
-    assert.equal(got.body.weixinChatAvailable, true);
     assert.equal(got.body.groupChatThread, null);
-    assert.equal(got.body.weixinChatThread, null);
     assert.deepEqual(calls.compactWithPage.map((item) => item.threadId), ["private-thread"]);
   }
 
@@ -301,12 +282,6 @@ async function main() {
       },
       findGroupChatThreadForWorkspace() {
         return null;
-      },
-      findWeixinSingleWindowThreadForWorkspace() {
-        return null;
-      },
-      weixinForwardTargetsForWorkspace() {
-        return [];
       },
     });
     const got = await request(routes, "POST", "/api/single-window", {
@@ -347,19 +322,6 @@ async function main() {
     assert.equal(got.body.thread.id, "private-thread");
     assert.equal(got.body.thread.page.mode, "chat");
     assert.deepEqual(calls.compactWithPage.map((item) => item.threadId), ["private-thread"]);
-  }
-
-  {
-    const { routes } = makeRoutes();
-    const got = await request(routes, "POST", "/api/single-window", {
-      body: { workspaceId: "owner", weixinChat: true, messageMode: "chat" },
-      auth: { ok: true, workspaceId: "owner" },
-    });
-    assert.equal(got.res.statusCode, 200);
-    assert.equal(got.body.thread.id, "weixin-thread");
-    assert.equal(got.body.weixinChatThreadId, "weixin-thread");
-    assert.equal(got.body.weixinChatThread.id, "weixin-thread");
-    assert.equal(got.body.groupChatThread, null);
   }
 
   {

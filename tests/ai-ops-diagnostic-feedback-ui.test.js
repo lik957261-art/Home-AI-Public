@@ -242,6 +242,7 @@ async function testPluginConversationActionMetadataCommentCreatesOwnerApproval()
       return {
         ok: true,
         autoDispatched: false,
+        dispatchReady: true,
         inboxItem: { id: "ainb_health_push_up" },
       };
     },
@@ -262,6 +263,55 @@ async function testPluginConversationActionMetadataCommentCreatesOwnerApproval()
   assert.doesNotMatch(JSON.stringify(apiCalls), /task-card|private workout body/);
 }
 
+async function testPluginConversationActionRequiresDispatchReadyInboxItem() {
+  const documentRef = createFakeDocument([]);
+  const windowRef = createFakeWindow();
+  const controller = createAiOpsDiagnosticFeedbackController({
+    document: documentRef,
+    window: windowRef,
+    now: () => new Date("2026-06-25T08:00:00.000Z"),
+    state: {
+      selectedWorkspaceId: "owner",
+      pluginContextNavPluginId: "movie",
+      currentThreadId: "thread-movie",
+      currentThread: {
+        id: "thread-movie",
+        messages: [{
+          id: "assistant-movie-1",
+          role: "assistant",
+          status: "done",
+          createdAt: "2026-06-25T07:59:30.000Z",
+          content: [
+            "<!-- homeai-plugin-conversation-action",
+            JSON.stringify({
+              pluginId: "movie",
+              requestType: "mcp_schema_gap",
+              severity: "H2",
+              title: "Movie MCP tools missing",
+              summary: "Movie conversation needs source-search callables.",
+            }),
+            "-->",
+          ].join("\n"),
+        }],
+      },
+    },
+    api: async () => ({
+      ok: true,
+      dispatchReady: false,
+      inboxItem: { id: "ainb_movie_missing_task" },
+    }),
+  });
+
+  controller.scanPluginConversationActionMetadata();
+  await new Promise((resolve) => setImmediate(resolve));
+  controller.scanPluginConversationActionMetadata();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(controller.recentEvents.some((item) => item.kind === "plugin_conversation_action_submitted"), false);
+  assert.ok(controller.recentEvents.some((item) => item.kind === "plugin_conversation_action_failed"
+    && item.fields.error === "plugin_conversation_action_not_dispatch_ready"));
+}
+
 function testPluginConversationActionCommentParserRequiresJson() {
   const parsed = parsePluginConversationActionComments([
     "<!-- homeai-plugin-conversation-action",
@@ -270,7 +320,80 @@ function testPluginConversationActionCommentParserRequiresJson() {
   ].join("\n"));
   assert.equal(parsed.length, 1);
   assert.equal(parsed[0].pluginId, "health");
+  const ownerTask = parsePluginConversationActionComments([
+    "<!-- homeai-owner-task-request",
+    "{\"title\":\"Office generation capability gap\",\"summary\":\"Low Gateway needs real PPTX generation.\"}",
+    "-->",
+  ].join("\n"));
+  assert.equal(ownerTask.length, 1);
+  assert.equal(ownerTask[0].pluginId, "home-ai");
+  assert.equal(ownerTask[0].requestType, "capability_gap");
   assert.equal(parsePluginConversationActionComments("plain text").length, 0);
+}
+
+async function testOwnerTaskRequestCommentCreatesHomeAiApproval() {
+  const documentRef = createFakeDocument([]);
+  const windowRef = createFakeWindow();
+  const apiCalls = [];
+  const controller = createAiOpsDiagnosticFeedbackController({
+    document: documentRef,
+    window: windowRef,
+    now: () => new Date("2026-06-27T08:00:00.000Z"),
+    state: {
+      selectedWorkspaceId: "wuping",
+      viewMode: "topic",
+      currentThreadId: "thread-directory",
+      currentThread: {
+        id: "thread-directory",
+        messages: [{
+          id: "assistant-directory-1",
+          role: "assistant",
+          status: "done",
+          createdAt: "2026-06-27T07:59:30.000Z",
+          content: [
+            "已准备给 Owner 审批的能力缺口请求。",
+            "<!-- homeai-owner-task-request",
+            JSON.stringify({
+              title: "Low Gateway cannot generate verified PPTX",
+              summary: "Directory-bound low-permission Gateway needs a real Office/PPTX generation and validation tool path.",
+              suggestedChange: "Add safe Home AI-owned Office/PPTX generation and validation capability.",
+              acceptance: "Host returns a real ainb_* approval id before the assistant claims submission.",
+              evidence: {
+                capability: "office_pptx_generation_validation",
+                affectedSurface: "directory-bound chat",
+                requiredTools: ["pptx_create", "pptx_validate"],
+                rawText: "private directory note",
+                token: "secret-token",
+              },
+            }),
+            "-->",
+          ].join("\n"),
+        }],
+      },
+    },
+    api: async (url, options) => {
+      apiCalls.push({ url, body: JSON.parse(options.body || "{}") });
+      return {
+        ok: true,
+        autoDispatched: false,
+        dispatchReady: true,
+        inboxItem: { id: "ainb_homeai_office_gap" },
+      };
+    },
+  });
+
+  controller.scanPluginConversationActionMetadata();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(apiCalls.length, 1);
+  assert.equal(apiCalls[0].url, "/api/plugin-conversation/actions");
+  assert.equal(apiCalls[0].body.pluginId, "home-ai");
+  assert.equal(apiCalls[0].body.workspaceId, "wuping");
+  assert.equal(apiCalls[0].body.requestType, "capability_gap");
+  assert.equal(apiCalls[0].body.evidence.capability, "office_pptx_generation_validation");
+  assert.equal(apiCalls[0].body.evidence.affected_surface, "directory-bound chat");
+  assert.deepEqual(apiCalls[0].body.evidence.required_tools, ["pptx_create", "pptx_validate"]);
+  assert.doesNotMatch(JSON.stringify(apiCalls), /secret-token|private directory note|ttc_/);
 }
 
 async function testPluginConversationActionPostMessageCreatesOwnerApproval() {
@@ -617,8 +740,10 @@ async function run() {
   testGestureDoesNotConflictWithTwoFingerShellGesture();
   testPluginDiagnosticBridgeIsPlatformOwned();
   testPluginConversationActionCommentParserRequiresJson();
+  await testOwnerTaskRequestCommentCreatesHomeAiApproval();
   await testPluginConversationActionPostMessageCreatesOwnerApproval();
   await testPluginConversationActionMetadataCommentCreatesOwnerApproval();
+  await testPluginConversationActionRequiresDispatchReadyInboxItem();
   await testPluginConversationActionRejectsUnmatchedForeignFrame();
   await testPluginDiagnosticReportAutoSubmitsBoundedEvent();
   await testPluginDiagnosticReportTransportFailureIsPersisted();

@@ -39,8 +39,6 @@ function testPathOverridesAndNormalization() {
       HERMES_MOBILE_AUDIT_EVENT_LOG_PATH: "C:\\logs\\audit.jsonl",
       HERMES_MOBILE_AUDIT_OWNER_READONLY_KEY_PATH: "C:\\keys\\audit-owner-readonly.secret",
       HERMES_MOBILE_LEARNING_COIN_STORE_PATH: "C:\\coins\\coins.json",
-      HERMES_WEB_WEIXIN_INGRESS_KEY_PATH: "C:\\keys\\weixin.secret",
-      HERMES_MOBILE_WEIXIN_INGRESS_DEFAULT_WORKSPACE: " weixin_wuping ",
       HERMES_WEB_OWNER_DEFAULT_WORKSPACE: "C:\\owner\\drive",
       HERMES_WEB_AUTH_KEY_PATH: "C:\\keys\\auth.secret",
       HERMES_WEB_VAPID_PATH: "C:\\keys\\vapid.json",
@@ -55,11 +53,6 @@ function testPathOverridesAndNormalization() {
   assert.equal(runtime.AUDIT_EVENT_LOG_PATH, path.resolve("C:\\logs\\audit.jsonl"));
   assert.equal(runtime.AUDIT_OWNER_READONLY_KEY_PATH, path.resolve("C:\\keys\\audit-owner-readonly.secret"));
   assert.equal(runtime.LEARNING_COIN_STORE_PATH, path.resolve("C:\\coins\\coins.json"));
-  assert.deepEqual(runtime.WEIXIN_INGRESS_KEY_PATHS, [
-    "C:\\keys\\weixin.secret",
-    path.join(path.resolve("C:\\prod\\data"), "weixin-ingress.secret"),
-  ]);
-  assert.equal(runtime.WEIXIN_INGRESS_DEFAULT_WORKSPACE, "weixin_wuping");
   assert.equal(runtime.OWNER_DEFAULT_WORKSPACE, path.resolve("C:\\owner\\drive"));
   assert.equal(runtime.AUTH_KEY_PATH, path.resolve("C:\\keys\\auth.secret"));
   assert.equal(runtime.WEB_PUSH_VAPID_PATH, path.resolve("C:\\keys\\vapid.json"));
@@ -69,24 +62,7 @@ function testPathOverridesAndNormalization() {
   assert.equal(runtime.MOBILE_SQLITE_DB_PATH, path.resolve("C:\\db\\home.sqlite3"));
 }
 
-function testMobileWeixinKeyPrecedenceKeepsBothExplicitPaths() {
-  const runtime = createMobileRuntimeStatePathEnvironment({
-    env: {
-      HERMES_WEB_DATA_DIR: "C:\\prod\\data",
-      HERMES_MOBILE_WEIXIN_INGRESS_KEY_PATH: "C:\\mobile\\weixin.secret",
-      HERMES_WEB_WEIXIN_INGRESS_KEY_PATH: "C:\\web\\weixin.secret",
-    },
-    repoRoot: "C:\\repo\\home-ai",
-  });
-  assert.deepEqual(runtime.WEIXIN_INGRESS_KEY_PATHS, [
-    "C:\\mobile\\weixin.secret",
-    "C:\\web\\weixin.secret",
-    path.join(path.resolve("C:\\prod\\data"), "weixin-ingress.secret"),
-  ]);
-}
-
 testDefaultDataDerivedPaths();
 testPathOverridesAndNormalization();
-testMobileWeixinKeyPrecedenceKeepsBothExplicitPaths();
 
 console.log("mobile runtime state path environment service tests passed");

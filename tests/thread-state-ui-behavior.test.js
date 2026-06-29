@@ -60,7 +60,6 @@ const context = {
     updatedAt: thread.updatedAt,
     preview: "",
   }),
-  isThreadWeixinChat: (thread) => Boolean(thread?.externalIngress?.source === "weixin"),
   selectedWorkspaceInThreadGroup: (thread) => Boolean(thread?.chatGroup?.memberWorkspaceIds?.includes(context.state.selectedWorkspaceId)),
   currentUserCanUseGroupChatThread: (thread) => Boolean(thread?.chatGroup?.enabled && (thread.chatGroup.memberWorkspaceIds || []).includes(context.state.selectedWorkspaceId)),
   scheduleRunProgressRenderForRun: () => {},
@@ -527,7 +526,6 @@ assert.equal(context.renderCachedSingleWindowThreadForRequest({
   singleWindowMode: "chat",
   messageMode: "chat",
   groupChat: false,
-  weixinChat: false,
 }), true);
 assert.equal(renderedThreadId, "private-chat-thread");
 assert.equal(renderedStickToBottom, true);

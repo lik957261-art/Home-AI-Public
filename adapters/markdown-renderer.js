@@ -140,70 +140,6 @@ function renderMarkdownDocument(markdown, options = {}) {
   return `<article class="${classes.join(" ")}" data-font-scale="${escapeAttribute(fontScale)}">${renderMarkdownToHtml(markdown, options)}</article>`;
 }
 
-function renderWeixinMarkdownForwardHtml(title, sourcePath, markdown, options = {}) {
-  const rendered = renderMarkdownToHtml(markdown, Object.assign({ tableLabels: true }, options));
-  const safeTitle = escapeHtml(title || "Markdown");
-  const safeSource = escapeHtml(sourcePath || "");
-  const kicker = escapeHtml(options.kicker || "Hermes Mobile / Weixin readable PDF");
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<style>
-@page { size: 88mm 190mm; margin: 6mm 5.5mm 7mm; }
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; color: #17222b; background: #fffaf2; }
-body { font-family: "Microsoft YaHei", "Noto Sans CJK SC", "PingFang SC", Arial, sans-serif; font-size: 11.8pt; line-height: 1.68; }
-main { width: 100%; }
-.document-cover { margin: 0 0 5mm; padding: 0 0 4mm; border-bottom: 1px solid rgba(36, 53, 48, 0.14); }
-.document-kicker { color: #1f7768; font-size: 8pt; font-weight: 600; letter-spacing: 0; margin: 0 0 1.6mm; }
-.document-title { color: #111b22; font-size: 17pt; line-height: 1.24; font-weight: 600; letter-spacing: 0; margin: 0; overflow-wrap: anywhere; }
-.source { color: #667085; font-size: 7.8pt; line-height: 1.35; margin: 2mm 0 0; overflow-wrap: anywhere; }
-article { width: 100%; overflow-wrap: anywhere; word-break: break-word; }
-h1, h2, h3, h4, h5, h6 { color: #111b22; line-height: 1.28; letter-spacing: 0; page-break-after: avoid; break-after: avoid; }
-h1 { font-size: 16pt; margin: 5.2mm 0 2.2mm; }
-h2 { font-size: 13.6pt; margin: 4.8mm 0 2mm; padding-bottom: 1.1mm; border-bottom: 1px solid rgba(36, 53, 48, 0.14); }
-h3 { font-size: 12.2pt; margin: 4mm 0 1.5mm; }
-h4, h5, h6 { font-size: 11.4pt; margin: 3.2mm 0 1.2mm; }
-p, ul, ol, blockquote, pre, .markdown-table-wrap { margin: 2.5mm 0; }
-ul, ol { padding-left: 5.3mm; }
-li + li { margin-top: 1.1mm; }
-strong { font-weight: 600; color: #111b22; }
-em { color: #34444e; }
-a { color: #1f7768; text-decoration: none; overflow-wrap: anywhere; }
-blockquote { padding: 0.4mm 0 0.4mm 3mm; color: #40515c; border-left: 3px solid rgba(31, 119, 104, 0.32); background: rgba(31, 119, 104, 0.045); }
-code { padding: 0.2mm 0.9mm; color: #102027; background: rgba(20, 32, 39, 0.08); border-radius: 3px; font-family: "Cascadia Code", Consolas, monospace; font-size: 0.86em; }
-pre { overflow-wrap: anywhere; white-space: pre-wrap; padding: 2.5mm; color: #142027; background: rgba(20, 32, 39, 0.075); border: 1px solid rgba(36, 53, 48, 0.1); border-radius: 6px; line-height: 1.52; }
-pre code { padding: 0; background: transparent; border-radius: 0; font-size: 0.9em; }
-img, .hermes-markdown-image { display: block; max-width: 100%; height: auto; border-radius: 6px; }
-.hermes-markdown-task-checkbox { margin-right: 1.4mm; }
-hr { margin: 4mm 0; border: 0; border-top: 1px solid rgba(36, 53, 48, 0.16); }
-.markdown-table-wrap { border: 0; border-radius: 0; background: transparent; }
-table, thead, tbody, tr, th, td { display: block; width: 100%; }
-thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-tr { margin: 0 0 2.6mm; border: 1px solid rgba(36, 53, 48, 0.14); border-radius: 6px; background: rgba(255, 255, 255, 0.68); overflow: hidden; page-break-inside: avoid; break-inside: avoid; }
-td { display: grid; grid-template-columns: minmax(18mm, 36%) minmax(0, 1fr); gap: 2mm; align-items: start; padding: 2mm 2.2mm; border: 0; border-bottom: 1px solid rgba(36, 53, 48, 0.11); overflow-wrap: anywhere; word-break: break-word; }
-td:last-child { border-bottom: 0; }
-td::before { content: attr(data-label); color: #42515c; font-size: 0.82em; font-weight: 600; line-height: 1.35; }
-td[data-label=""] { grid-template-columns: 1fr; }
-td[data-label=""]::before { content: none; }
-</style>
-</head>
-<body>
-<main>
-<section class="document-cover">
-<div class="document-kicker">${kicker}</div>
-<h1 class="document-title">${safeTitle}</h1>
-<div class="source">${safeSource}</div>
-</section>
-<article>
-${rendered}
-</article>
-</main>
-</body>
-</html>`;
-}
-
 function renderMarkdownToHtml(markdown, options = {}) {
   const lines = String(markdown ?? "").replace(/\r\n?/g, "\n").split("\n");
   const html = [];
@@ -417,7 +353,6 @@ module.exports = {
   markdownFontScaleClass,
   renderMarkdownDocument,
   renderMarkdownToHtml,
-  renderWeixinMarkdownForwardHtml,
   sanitizeImageSrc,
   sanitizeLinkHref,
 };

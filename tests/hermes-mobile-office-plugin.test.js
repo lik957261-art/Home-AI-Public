@@ -64,4 +64,36 @@ print(json.dumps({"pptx": pptx, "xlsx": xlsx}, ensure_ascii=False))
   });
 }
 
+function testCreatesAndExtractsDocxDeliverable() {
+  withTempRoot((root) => {
+    const docxPath = path.join(root, "medication.docx");
+    const script = `
+import importlib.util, json
+spec = importlib.util.spec_from_file_location("hermes_mobile_docx", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+created = json.loads(module._docx_create_handler({
+  "title": "用药说明",
+  "markdown": "# 用药说明\\n\\n- 阿司匹林 100mg 每日一次\\n- 饭后服用",
+  "output_path": ${JSON.stringify(docxPath)}
+}))
+extracted = json.loads(module._docx_extract_text_handler({"file_path": ${JSON.stringify(docxPath)}, "max_chars": 2000}))
+print(json.dumps({"created": created, "extracted": extracted}, ensure_ascii=False))
+`;
+    const result = JSON.parse(runPython(script, {
+      HERMES_MOBILE_DOCX_ALLOWED_ROOTS: root,
+      HERMES_MOBILE_DOCX_OUTPUT_ROOTS: root,
+    }));
+    assert.equal(result.created.ok, true);
+    assert.equal(result.created.tool, "docx_create");
+    assert.match(result.created.media, /^MEDIA:/);
+    assert.equal(fs.existsSync(docxPath), true);
+    assert.equal(path.extname(docxPath), ".docx");
+    assert.equal(result.extracted.ok, true);
+    assert.match(result.extracted.text, /用药说明/);
+    assert.match(result.extracted.text, /阿司匹林 100mg/);
+  });
+}
+
 testExtractsPowerPointAndExcelText();
+testCreatesAndExtractsDocxDeliverable();

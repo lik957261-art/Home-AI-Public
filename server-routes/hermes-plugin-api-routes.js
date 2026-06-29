@@ -1,6 +1,13 @@
 "use strict";
 
 const { createApiRouteRegistry } = require("../adapters/api-route-registry");
+const { routeKindForProxyTarget } = require("../adapters/plugin-proxy-timing-service");
+const {
+  binaryBodyBytesFromHeaders,
+  codexReportedTotalMsFromJson,
+  collectSafeBinaryResponseHeaders,
+  streamBinaryResponseBody,
+} = require("../adapters/plugin-proxy-response-service");
 
 const HERMES_PLUGIN_API_ROUTE_SPECS = Object.freeze([
   {
@@ -291,7 +298,8 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (referrer) {
       try {
         const referrerUrl = new URL(String(referrer), "http://localhost");
-        const referrerWorkspaceId = referrerUrl.searchParams.get("workspaceId");
+        const referrerWorkspaceId = referrerUrl.searchParams.get("workspaceId")
+          || referrerUrl.searchParams.get("workspace_id");
         if (referrerWorkspaceId) return { workspaceId: referrerWorkspaceId, ambiguous: false, source: "referrer" };
       } catch (_) {}
     }
@@ -751,17 +759,19 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (jsonKeyLooksLikeHtmlContent(key) && /(?:\bsrc=|\bhref=|url\()/i.test(text)) {
       return rewritePluginProxyText(text, pluginId, upstreamBase, workspaceId);
     }
-    try {
-      const upstreamOrigin = new URL(upstreamBase).origin;
-      const parsed = new URL(text);
-      if (upstreamOrigin && parsed.origin === upstreamOrigin && (
-        shouldProxyJsonResourcePath(parsed.pathname, pluginId)
-        || jsonKeyLooksLikePluginUrl(key)
-      )) {
-        return pluginProxyResourcePath(pluginId, `${parsed.pathname}${parsed.search}${parsed.hash}`, workspaceId);
+    if (/^https?:\/\//i.test(text)) {
+      try {
+        const upstreamOrigin = new URL(upstreamBase).origin;
+        const parsed = new URL(text);
+        if (upstreamOrigin && parsed.origin === upstreamOrigin && (
+          shouldProxyJsonResourcePath(parsed.pathname, pluginId)
+          || jsonKeyLooksLikePluginUrl(key)
+        )) {
+          return pluginProxyResourcePath(pluginId, `${parsed.pathname}${parsed.search}${parsed.hash}`, workspaceId);
+        }
+      } catch (_) {
+        // Non-URL JSON strings are user/content data and must not be regex-rewritten.
       }
-    } catch (_) {
-      // Non-URL JSON strings are user/content data and must not be regex-rewritten.
     }
     return text;
   }
@@ -780,10 +790,18 @@ function createHermesPluginApiRoutes(deps = {}) {
   }
 
   function rewritePluginProxyJsonText(text = "", pluginId = "", upstreamBase = "", workspaceId = "") {
+    return rewritePluginProxyJsonPayload(text, pluginId, upstreamBase, workspaceId).rewritten;
+  }
+
+  function rewritePluginProxyJsonPayload(text = "", pluginId = "", upstreamBase = "", workspaceId = "") {
     try {
-      return JSON.stringify(rewritePluginProxyJsonValue(JSON.parse(String(text)), pluginId, upstreamBase, workspaceId));
+      const parsed = JSON.parse(String(text));
+      return {
+        parsed,
+        rewritten: JSON.stringify(rewritePluginProxyJsonValue(parsed, pluginId, upstreamBase, workspaceId)),
+      };
     } catch (_) {
-      return String(text);
+      return { parsed: null, rewritten: String(text) };
     }
   }
 
@@ -804,12 +822,47 @@ function createHermesPluginApiRoutes(deps = {}) {
     }
   }
 
+  function pluginProxyTiming(req, url, pluginId) {
+    if (typeof deps.pluginProxyTimingService?.begin !== "function") return null;
+    try {
+      return deps.pluginProxyTimingService.begin({
+        pluginId,
+        method: req?.method || "GET",
+        requestPath: url?.pathname || "",
+      });
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function addPluginProxyTimingHeader(outHeaders = {}, timing, input = {}) {
+    if (!timing || typeof timing.serverTimingHeader !== "function") return outHeaders;
+    try {
+      const header = timing.serverTimingHeader(input);
+      if (header) return Object.assign({}, outHeaders, { "Server-Timing": header });
+    } catch (_) {
+      // Timing must not affect proxy correctness.
+    }
+    return outHeaders;
+  }
+
+  function finishPluginProxyTiming(timing, input = {}) {
+    if (!timing || typeof timing.finish !== "function") return null;
+    try {
+      return timing.finish(input);
+    } catch (_) {
+      return null;
+    }
+  }
+
   async function handlePluginProxy(req, res, url) {
     const pluginId = requestedProxyPluginId(url);
     if (!pluginId || !pluginProxyUpstreamBase(pluginId)) {
       deps.sendJson(res, 404, { ok: false, error: "plugin_proxy_not_found" });
       return;
     }
+    const timing = pluginProxyTiming(req, url, pluginId);
+    timing?.start?.("preflight");
     const auth = requestAuthForProxy(req, url);
     const publicOAuthCallback = isPublicMusicTidalOAuthCallback(req, url, pluginId);
     const workspaceRequest = publicOAuthCallback
@@ -842,6 +895,7 @@ function createHermesPluginApiRoutes(deps = {}) {
     const method = req.method || "GET";
     const upstreamBase = pluginProxyUpstreamBase(pluginId);
     const targetUrl = proxyTargetUrl(url, pluginId);
+    timing?.update?.({ targetUrl });
     const headers = {};
     for (const [name, value] of Object.entries(req.headers || {})) {
       const lower = name.toLowerCase();
@@ -875,8 +929,16 @@ function createHermesPluginApiRoutes(deps = {}) {
         // Keep proxying even if a plugin origin is misconfigured.
       }
     }
-    const body = ["GET", "HEAD"].includes(method.toUpperCase()) ? undefined : await readRequestBody(req);
+    timing?.end?.("preflight");
+    let body;
+    if (!["GET", "HEAD"].includes(method.toUpperCase())) {
+      timing?.start?.("request_body");
+      body = await readRequestBody(req);
+      timing?.end?.("request_body");
+    }
+    timing?.start?.("upstream_headers");
     const upstream = await fetchImpl(targetUrl, { method, headers, body, redirect: "manual" });
+    timing?.end?.("upstream_headers");
     const contentType = responseHeader(upstream, "content-type");
     let outHeaders = { "Content-Type": contentType || "application/octet-stream" };
     outHeaders = addPluginProxyDocumentSecurityHeaders(outHeaders, pluginId, contentType);
@@ -892,28 +954,111 @@ function createHermesPluginApiRoutes(deps = {}) {
       outHeaders.Location = rewritePluginProxyLocationHeader(location, pluginId, workspaceId);
     }
     if (/application\/json/i.test(contentType || "")) {
+      timing?.start?.("upstream_body");
       const text = await upstream.text();
-      const rewritten = rewritePluginProxyJsonText(text, pluginId, upstreamBase, workspaceId);
+      timing?.end?.("upstream_body");
+      timing?.start?.("transform");
+      const payload = rewritePluginProxyJsonPayload(text, pluginId, upstreamBase, workspaceId);
+      const rewritten = payload.rewritten;
+      const upstreamReportedTotalMs = pluginId === "codex-mobile"
+        ? codexReportedTotalMsFromJson(payload.parsed, routeKindForProxyTarget({ pluginId, targetUrl }))
+        : 0;
+      timing?.end?.("transform");
+      outHeaders = addPluginProxyTimingHeader(outHeaders, timing, {
+        statusCode: upstream.status || 200,
+        upstreamStatus: upstream.status || 0,
+        contentType,
+        responseKind: "json",
+        bodyBytes: Buffer.byteLength(rewritten),
+        upstreamReportedTotalMs,
+      });
+      timing?.start?.("response_write");
       res.writeHead(upstream.status || 200, outHeaders);
       res.end(rewritten);
+      timing?.end?.("response_write");
+      finishPluginProxyTiming(timing, {
+        statusCode: upstream.status || 200,
+        upstreamStatus: upstream.status || 0,
+        contentType,
+        responseKind: "json",
+        bodyBytes: Buffer.byteLength(rewritten),
+        upstreamReportedTotalMs,
+      });
       return;
     }
     if (/text\/event-stream/i.test(contentType || "")) {
+      outHeaders = addPluginProxyTimingHeader(outHeaders, timing, {
+        statusCode: upstream.status || 200,
+        upstreamStatus: upstream.status || 0,
+        contentType,
+        responseKind: "event_stream",
+      });
+      timing?.start?.("response_write");
       await streamPluginProxyResponse(upstream, res, upstream.status || 200, outHeaders);
+      timing?.end?.("response_write");
+      finishPluginProxyTiming(timing, {
+        statusCode: upstream.status || 200,
+        upstreamStatus: upstream.status || 0,
+        contentType,
+        responseKind: "event_stream",
+      });
       return;
     }
     if (/text\/html|javascript|ecmascript|text\/css/i.test(contentType || "")) {
+      timing?.start?.("upstream_body");
       const text = await upstream.text();
+      timing?.end?.("upstream_body");
+      timing?.start?.("transform");
       const isScript = /javascript|ecmascript/i.test(contentType || "");
       let rewritten = rewritePluginProxyText(text, pluginId, upstreamBase, workspaceId, { script: isScript });
       if (/text\/css/i.test(contentType || "")) rewritten = rewritePluginProxyCssText(rewritten, pluginId);
+      timing?.end?.("transform");
+      outHeaders = addPluginProxyTimingHeader(outHeaders, timing, {
+        statusCode: upstream.status || 200,
+        upstreamStatus: upstream.status || 0,
+        contentType,
+        responseKind: "text",
+        bodyBytes: Buffer.byteLength(rewritten),
+      });
+      timing?.start?.("response_write");
       res.writeHead(upstream.status || 200, outHeaders);
       res.end(rewritten);
+      timing?.end?.("response_write");
+      finishPluginProxyTiming(timing, {
+        statusCode: upstream.status || 200,
+        upstreamStatus: upstream.status || 0,
+        contentType,
+        responseKind: "text",
+        bodyBytes: Buffer.byteLength(rewritten),
+      });
       return;
     }
-    const arrayBuffer = await upstream.arrayBuffer();
+    outHeaders = Object.assign(
+      {},
+      collectSafeBinaryResponseHeaders(upstream),
+      outHeaders,
+    );
+    const expectedBodyBytes = binaryBodyBytesFromHeaders(upstream);
+    outHeaders = addPluginProxyTimingHeader(outHeaders, timing, {
+      statusCode: upstream.status || 200,
+      upstreamStatus: upstream.status || 0,
+      contentType,
+      responseKind: "binary",
+      bodyBytes: expectedBodyBytes,
+    });
     res.writeHead(upstream.status || 200, outHeaders);
-    res.end(Buffer.from(arrayBuffer));
+    timing?.start?.("upstream_body");
+    timing?.start?.("response_write");
+    const bodyBytes = await streamBinaryResponseBody(upstream, res);
+    timing?.end?.("upstream_body");
+    timing?.end?.("response_write");
+    finishPluginProxyTiming(timing, {
+      statusCode: upstream.status || 200,
+      upstreamStatus: upstream.status || 0,
+      contentType,
+      responseKind: "binary",
+      bodyBytes: bodyBytes || expectedBodyBytes,
+    });
   }
 
   async function handleManifest(req, res, url) {

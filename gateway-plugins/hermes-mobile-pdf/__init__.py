@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -111,6 +112,47 @@ PDF_RENDER_PAGES_SCHEMA = {
 }
 
 
+PDF_CREATE_SCHEMA = {
+    "name": "pdf_create",
+    "description": (
+        "Create a real PDF report from structured Markdown or plain text inside an allowed Hermes "
+        "Mobile artifact root. Use this when the user asks for a PDF deliverable, including health "
+        "reports, medication instructions, ECG summaries, or checkup整理. Return the MEDIA path from "
+        "the tool result instead of only returning Markdown."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "markdown": {
+                "type": "string",
+                "description": "Structured Markdown content to render into a PDF. Prefer this for report-like output.",
+            },
+            "text": {
+                "type": "string",
+                "description": "Plain text content to render into a PDF when Markdown is not available.",
+            },
+            "title": {
+                "type": "string",
+                "description": "Optional report title used for the generated file name and document heading.",
+            },
+            "output_path": {
+                "type": "string",
+                "description": "Optional absolute .pdf output path inside an allowed Hermes Mobile artifact root.",
+            },
+            "output_dir": {
+                "type": "string",
+                "description": "Optional absolute output directory inside an allowed Hermes Mobile artifact root.",
+            },
+            "overwrite": {
+                "type": "boolean",
+                "description": "Whether to replace an existing output_path. Defaults to false.",
+                "default": False,
+            },
+        },
+    },
+}
+
+
 def _json(payload: dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
@@ -195,6 +237,77 @@ def _bounded_float(value: Any, fallback: float, min_value: float, max_value: flo
     if number != number:
         number = fallback
     return max(min_value, min(max_value, number))
+
+
+def _text_content(args: dict[str, Any]) -> str:
+    markdown = str(args.get("markdown") or "").strip()
+    text = str(args.get("text") or "").strip()
+    source = markdown or text
+    if not source:
+        raise ValueError("content_required")
+    source = source.replace("\r\n", "\n").replace("\r", "\n")
+    source = re.sub(r"```[\w-]*\n", "", source)
+    source = source.replace("```", "")
+    source = re.sub(r"^\s{0,3}#{1,6}\s*", "", source, flags=re.MULTILINE)
+    source = re.sub(r"^\s{0,3}[-*+]\s+", "- ", source, flags=re.MULTILINE)
+    source = re.sub(r"\n{4,}", "\n\n\n", source)
+    return source.strip()
+
+
+def _validate_output_path(value: Any, output_dir_value: Any, title: str, suffix: str) -> Path:
+    text = str(value or "").strip()
+    if text:
+        destination = Path(_platform_path(text)).expanduser()
+    else:
+        roots = _output_roots()
+        if not roots:
+            raise PermissionError("pdf_output_root_missing")
+        output_dir_text = str(output_dir_value or "").strip()
+        output_dir = Path(_platform_path(output_dir_text)).expanduser() if output_dir_text else roots[0] / "documents"
+        if not output_dir.is_absolute():
+            raise PermissionError("output_dir_must_be_absolute")
+        if not _inside_roots(output_dir, roots):
+            raise PermissionError("output_dir_outside_allowed_roots")
+        digest = hashlib.sha256(f"{title}:{time.time_ns()}".encode("utf-8", "ignore")).hexdigest()[:10]
+        destination = output_dir / f"{_safe_slug(title or 'report')}-{digest}{suffix}"
+    if not destination.is_absolute():
+        raise PermissionError("output_path_must_be_absolute")
+    if destination.suffix.lower() != suffix:
+        raise ValueError(f"output_path_must_end_with_{suffix[1:]}")
+    roots = _output_roots()
+    if not roots or not _inside_roots(destination, roots):
+        raise PermissionError("output_path_outside_allowed_roots")
+    return destination.resolve()
+
+
+def _create_pdf(path: Path, content: str, overwrite: bool) -> dict[str, Any]:
+    if path.exists() and not overwrite:
+        raise FileExistsError("output_path_exists")
+    cupsfilter = _command("HERMES_MOBILE_CUPSFILTER_COMMAND", "/usr/sbin/cupsfilter")
+    if not shutil.which(cupsfilter) and not Path(cupsfilter).exists():
+        return {"ok": False, "error": "pdf_creator_unavailable"}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="homeai-pdf-create-", dir=str(path.parent)) as tmp:
+        text_path = Path(tmp) / "input.txt"
+        text_path.write_text(content, encoding="utf-8")
+        with path.open("wb") as output:
+            completed = subprocess.run(
+                [cupsfilter, "-m", "application/pdf", str(text_path)],
+                stdout=output,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=SCRIPT_TIMEOUT_SECONDS,
+                check=False,
+            )
+    if completed.returncode != 0:
+        try:
+            path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return {"ok": False, "error": "pdf_create_failed"}
+    if not path.exists() or path.stat().st_size <= 0:
+        return {"ok": False, "error": "pdf_create_empty_output"}
+    return {"ok": True, "path": str(path), "bytes": path.stat().st_size}
 
 
 def _validate_pdf_path(value: Any) -> Path:
@@ -356,7 +469,39 @@ def _pdf_render_pages_handler(args: dict[str, Any], **_: Any) -> str:
         })
 
 
+def _pdf_create_handler(args: dict[str, Any], **_: Any) -> str:
+    try:
+        title = str(args.get("title") or "report").strip() or "report"
+        content = _text_content(args)
+        output_path = _validate_output_path(args.get("output_path"), args.get("output_dir"), title, ".pdf")
+        overwrite = bool(args.get("overwrite") is True)
+        result = _create_pdf(output_path, content, overwrite=overwrite)
+        if not result.get("ok"):
+            return _json({"ok": False, "tool": "pdf_create", "error": result.get("error") or "pdf_create_failed"})
+        return _json({
+            "ok": True,
+            "tool": "pdf_create",
+            "fileName": output_path.name,
+            "media": f"MEDIA:{output_path}",
+            **result,
+        })
+    except Exception as error:
+        return _json({
+            "ok": False,
+            "tool": "pdf_create",
+            "error": str(error),
+        })
+
+
 def register(ctx) -> None:
+    ctx.register_tool(
+        name="pdf_create",
+        toolset="file",
+        schema=PDF_CREATE_SCHEMA,
+        handler=_pdf_create_handler,
+        description="Scoped PDF report generation for Hermes Mobile workspace files.",
+        emoji="pdf",
+    )
     ctx.register_tool(
         name="pdf_extract_text",
         toolset="file",

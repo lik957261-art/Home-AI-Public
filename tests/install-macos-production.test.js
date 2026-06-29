@@ -30,7 +30,13 @@ function escapeRegex(value) {
 }
 
 function writeGatewayDocumentPluginFixtures(root) {
-  for (const pluginName of ["hermes-mobile-docx", "hermes-mobile-pdf"]) {
+  for (const pluginName of [
+    "hermes-mobile-docx",
+    "hermes-mobile-pptx",
+    "hermes-mobile-pdf",
+    "hermes-mobile-audio",
+    "hermes-mobile-archive",
+  ]) {
     const dir = path.join(root, "app", "gateway-plugins", pluginName);
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, "plugin.yaml"), `name: ${pluginName}\n`, "utf8");
@@ -1409,15 +1415,24 @@ function testExecuteGatewayLaunchdServicesStagesWorkersWithoutLoading() {
   assert.equal(plan.services[0].runAtLoad, false);
   assert.equal(plan.services[0].keepAlive, false);
   const startScript = fs.readFileSync(plan.services[0].startScript, "utf8");
+  const profileDir = plan.services[0].profileDir;
   assert.match(startScript, /HERMES_MOBILE_BRIDGE_HOST_URL/);
   assert.match(startScript, /HERMES_WEB_BRIDGE_HOST_KEY_PATH/);
   assert.match(startScript, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
+  assert.match(startScript, /HERMES_MOBILE_PPTX_ALLOWED_ROOTS/);
+  assert.match(startScript, /HERMES_MOBILE_PPTX_OUTPUT_ROOTS/);
   assert.match(startScript, /HERMES_MOBILE_PDF_ALLOWED_ROOTS/);
   assert.match(startScript, /HERMES_MOBILE_PDF_OUTPUT_ROOTS/);
+  assert.match(startScript, /HERMES_MOBILE_AUDIO_ALLOWED_ROOTS/);
   assert.match(startScript, /HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS/);
   assert.match(startScript, /HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="\$ROOT\/data\/drive\/users"/);
   assert.match(startScript, /API_SERVER_KEY/);
   assert.doesNotMatch(startScript, /gateway-key/);
+  const configText = fs.readFileSync(path.join(profileDir, "config.yaml"), "utf8");
+  for (const pluginName of ["hermes-mobile-docx", "hermes-mobile-pptx", "hermes-mobile-pdf", "hermes-mobile-audio", "hermes-mobile-archive"]) {
+    assert.match(configText, new RegExp(escapeRegex(pluginName)));
+    assert.ok(fs.existsSync(path.join(profileDir, "plugins", pluginName, "plugin.yaml")), `${pluginName} should be profile-local`);
+  }
   const plist = fs.readFileSync(plan.services[0].stagedPlistPath, "utf8");
   assert.match(plist, /<key>RunAtLoad<\/key><false\/>/);
   assert.match(plist, /<key>KeepAlive<\/key><false\/>/);
@@ -1460,9 +1475,16 @@ function testGatewayLaunchdServicesHonorExistingExternalProfileLayout() {
   const startText = fs.readFileSync(startScript, "utf8");
   assert.match(startText, new RegExp(escapeRegex(`HERMES_WORKSPACE_ROOT=${JSON.stringify(path.join(external, "HermesWorkspace"))}`)));
   assert.match(startText, /HERMES_MOBILE_PDF_ALLOWED_ROOTS/);
+  assert.match(startText, /HERMES_MOBILE_PPTX_ALLOWED_ROOTS/);
+  assert.match(startText, /HERMES_MOBILE_PPTX_OUTPUT_ROOTS/);
+  assert.match(startText, /HERMES_MOBILE_AUDIO_ALLOWED_ROOTS/);
+  assert.match(startText, /HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS/);
   assert.match(startText, /HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="\$ROOT\/data\/drive\/users"/);
-  assert.match(fs.readFileSync(path.join(profileDir, "config.yaml"), "utf8"), /hermes-mobile-pdf/);
-  assert.ok(fs.existsSync(path.join(profileDir, "plugins", "hermes-mobile-pdf", "plugin.yaml")));
+  const configText = fs.readFileSync(path.join(profileDir, "config.yaml"), "utf8");
+  for (const pluginName of ["hermes-mobile-docx", "hermes-mobile-pptx", "hermes-mobile-pdf", "hermes-mobile-audio", "hermes-mobile-archive"]) {
+    assert.match(configText, new RegExp(escapeRegex(pluginName)));
+    assert.ok(fs.existsSync(path.join(profileDir, "plugins", pluginName, "plugin.yaml")), `${pluginName} should be profile-local`);
+  }
   assert.doesNotMatch(startScript, new RegExp(escapeRegex(path.join(root, "users"))));
 }
 

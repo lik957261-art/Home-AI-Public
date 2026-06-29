@@ -6,23 +6,24 @@ Web Push notifies browser/PWA clients about task completion, mentions, automatio
 
 Push payloads are navigation hints. Sensitive content must still be fetched through authenticated APIs after the app opens.
 
-The same bounded event summaries may also be bridged to the independent native
-iOS APNs channel `native_ios_apns`; native device registration and APNs token
-storage are documented in `docs/MODULES/native-notifications.md`.
+The same bounded event summaries may also be bridged to independent native
+channels: `native_ios_apns` for iOS/APNs and `native_android_fcm` for
+Android/FCM. Native device registration and token storage are documented in
+`docs/MODULES/native-notifications.md`.
 
 Channel selection is explicit. PWA-originated interactive messages set
 `notificationChannel=web_push`, and their terminal receipts must stay Web Push
-only. Native-shell-originated interactive messages set
-`notificationChannel=native_ios_apns`, and their terminal receipts must stay
-APNs only. Background events without a foreground sender may use
-`notificationChannel=both`. For `both`, Home AI sends native APNs first; when
-APNs successfully reaches a workspace, same-workspace iPhone PWA Web Push
-subscriptions are skipped for that event so a phone with both the native app and
-installed PWA does not receive duplicate system notifications. Mac/desktop Web
-Push subscriptions still receive the event, and Web Push remains the fallback
-when APNs has no successful delivery. The PWA settings test endpoint
-`/api/push/test` is Web Push only; native APNs testing is handled by
-`/api/native/devices/test-notification`.
+only. Native-shell-originated interactive messages set the matching native
+channel, for example `native_ios_apns` or `native_android_fcm`, and their
+terminal receipts must stay on that native channel only. Background events
+without a foreground sender may use `notificationChannel=both`. For `both`,
+Home AI sends native delivery first; when native delivery successfully reaches a
+workspace, same-workspace phone PWA Web Push subscriptions are skipped for that
+event so a phone with both the native app and installed PWA does not receive
+duplicate system notifications. Mac/desktop Web Push subscriptions still
+receive the event, and Web Push remains the fallback when native delivery has no
+successful delivery. The PWA settings test endpoint `/api/push/test` is Web Push
+only; native testing is handled by `/api/native/devices/test-notification`.
 
 ## Core Files
 
@@ -35,7 +36,7 @@ when APNs has no successful delivery. The PWA settings test endpoint
 - `public/app-route-snapshot-ui.js`
 - `public/app-platform-ui.js`
 - `public/app-task-groups-ui.js`
-- Feature-specific producers such as Growth, Automation, Weixin, and group-chat services.
+- Feature-specific producers such as Growth, Automation, plugin notifications, and group-chat services.
 
 ## Payload Rules
 
@@ -83,7 +84,7 @@ when APNs has no successful delivery. The PWA settings test endpoint
 - Hermes-owned navigation must preserve the current app shell path. Do not hardcode root `/?...` for second-level routes; a deployment opened at `/hermes-mobile/` must keep `/hermes-mobile/?...`, while a root deployment keeps `/?...`.
 - Markdown, HTML/PDF print, image, and document preview should follow the existing in-app overlay/iframe/download-fallback pattern from `public/app-task-preview-ui.js`; they must not create an outer browser frame as a preview workaround.
 - `clients.openWindow(targetWindowRoute)` is allowed only as the service-worker fallback when no same-origin top-level client is available; when an app shell client exists, notification click must post the route to that client and focus it.
-- Single-window chat/group routes take precedence over generic `taskGroupId` routing. If payload data says `viewMode=single`, `weixinChat`, `groupChat`, `taskGroupId=chat`, or `taskGroupId=group-chat`, the service worker must preserve `threadId` and `messageId` and route to `view=single`, not `view=tasks`.
+- Single-window chat/group routes take precedence over generic `taskGroupId` routing. If payload data says `viewMode=single`, `groupChat`, `taskGroupId=chat`, or `taskGroupId=group-chat`, the service worker must preserve `threadId` and `messageId` and route to `view=single`, not `view=tasks`.
 - Automation notification route fields take precedence over generic
   `inboxItemId` routing. Inbox metadata on an Automation payload is used for
   return context and foreground refresh, not as the click destination.

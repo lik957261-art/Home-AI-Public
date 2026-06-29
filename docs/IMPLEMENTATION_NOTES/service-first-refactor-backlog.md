@@ -55,10 +55,9 @@ statements. Priority extraction areas:
   `adapters/mobile-runtime-basic-helper-service.js`. `compactText` and
   `makePublicTaskId` now have focused service coverage, while runtime keeps
   only service wiring and call sites.
-- completed 2026-06-08: Weixin user-facing run-error projection now delegates
-  through `adapters/mobile-runtime-weixin-facade-service.js` to the existing
-  Weixin runtime composition service instead of being duplicated in
-  `mobile-server-runtime.js`.
+- retired 2026-06-28: the former Weixin ingress/outbound runtime facade and
+  user-facing run-error projection were removed with the Weixin transport.
+  Historical `weixin_*` workspace ids remain identity strings only.
 - completed 2026-06-08: `searchableText` moved into
   `adapters/mobile-runtime-basic-helper-service.js`, and artifact path recovery
   from visible message content moved into

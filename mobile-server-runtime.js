@@ -75,7 +75,6 @@ const { createMobileRuntimeSystemStatusFacadeService } = require("./adapters/mob
 const { createMobileRuntimeThreadFacadeService } = require("./adapters/mobile-runtime-thread-facade-service");
 const { createMobileRuntimeThreadViewFacadeService } = require("./adapters/mobile-runtime-thread-view-facade-service");
 const { createMobileRuntimeTodoFacadeService } = require("./adapters/mobile-runtime-todo-facade-service");
-const { createMobileRuntimeWeixinFacadeService } = require("./adapters/mobile-runtime-weixin-facade-service");
 const { createMobileRuntimeWorkspaceIdentityFacadeService } = require("./adapters/mobile-runtime-workspace-identity-facade-service");
 const { createMobileRuntimeWorkspaceFacadeService } = require("./adapters/mobile-runtime-workspace-facade-service");
 const { createMobileRuntimeWorkspaceCatalogFacade } = require("./adapters/mobile-runtime-workspace-catalog-facade");
@@ -90,8 +89,6 @@ const { buildRequestContext } = require("./adapters/request-context-provider");
 const { createWorkspaceBindingsProvider } = require("./adapters/workspace-bindings-provider");
 const { createWorkspaceDisplayPathService } = require("./adapters/workspace-display-path-service");
 const { createWorkspaceSystemProvisioningExecutorService } = require("./adapters/workspace-system-provisioning-executor-service"); const { createWorkspaceSystemProvisioningHelperClientService } = require("./adapters/workspace-system-provisioning-helper-client-service"); const { createTodoProvider } = require("./adapters/todo-provider");
-const { createWeixinIngressProvider } = require("./adapters/weixin-ingress-provider");
-const { createWeixinRuntimeCompositionService } = require("./adapters/weixin-runtime-composition-service");
 const { createWebPushDeliveryService } = require("./adapters/web-push-delivery-service"); const { createActionInboxService } = require("./adapters/action-inbox-service"); const { createDataContextService } = require("./adapters/data-context-service");
 const { createNativeNotificationService } = require("./adapters/native-notification-service");
 const { createDirectoryTopicIndexService } = require("./adapters/directory-topic-index-service");
@@ -106,7 +103,7 @@ const { RUN_START_TIMEOUT_MS, RUN_STREAMING_SAVE_THROTTLE_MS, RUN_LIVENESS_CHECK
 const { DISABLE_AUTH, AUTH_KEY_PATH, ACCESS_KEYS_PATH, PERMISSION_APPROVAL_MARKER, OWNER_MAINTENANCE_RUNS_ENABLED, OWNER_ELEVATION_DURATION_OPTIONS_MINUTES, OWNER_ELEVATION_DEFAULT_MINUTES, OWNER_ELEVATION_ONCE_TTL_MS } = runtimeEnv;
 const { STATE_PATH, STATE_BACKUP_DIR, MAX_STATE_BACKUPS, STATE_BACKUP_MIN_INTERVAL_MS, AUDIT_EVENT_LOG_PATH, RUNTIME_CONFIG_PATH, SERVICE_STORE_BACKEND, MOBILE_SQLITE_DB_PATH } = runtimeEnv;
 const { SHARED_DIRECTORIES_PATH, LOCAL_WORKSPACES_PATH, WORKSPACE_USERS_PATHS, WORKSPACE_ROUTE_MAP_PATHS, PROJECT_MAP_PATHS, WORKSPACE_UPLOAD_DIR_NAME, WORKSPACE_UPLOAD_SUBDIR } = runtimeEnv;
-const { GROUP_DELIVERIES_DIR, WEIXIN_INGRESS_KEY_PATHS, WEIXIN_INGRESS_DEFAULT_WORKSPACE, ENABLE_LEGACY_WEIXIN_COMPAT, WEIXIN_FORWARD_MARKDOWN_MAX_BYTES, WEIXIN_DELIVERY_RETRY_LIMIT, WEIXIN_DELIVERY_RETRY_BASE_MS, WEIXIN_DELIVERY_RETRY_MAX_MS, WEIXIN_INGRESS_ATTACHMENT_CONTEXT_WINDOW_MS } = runtimeEnv;
+const { GROUP_DELIVERIES_DIR } = runtimeEnv;
 const { MAX_BODY_BYTES, MAX_HISTORY_MESSAGES, CHAT_CONTEXT_MAX_MESSAGES, CHAT_CONTEXT_MAX_CHARS, CONTEXT_ASSEMBLY_MODE, CONTEXT_COMPACTION_ENABLED, MAX_MESSAGE_CHARS, MAX_API_TEXT_CHARS, THREAD_MESSAGE_INITIAL_LIMIT, THREAD_MESSAGE_PAGE_LIMIT, THREAD_MESSAGE_SEARCH_LIMIT, MAX_EVENT_PREVIEW_CHARS, MAX_STORED_EVENTS_PER_THREAD, MAX_UPLOAD_BYTES, MAX_FILE_PREVIEW_CHARS, SOURCE_MARKDOWN_SEARCH_LIMIT } = runtimeEnv;
 const { TODO_BRIDGE_TIMEOUT_MS, KANBAN_BRIDGE_TIMEOUT_MS, CRON_BRIDGE_TIMEOUT_MS, CRON_BRIDGE_STDOUT_LIMIT_BYTES, CRON_LIST_CACHE_TTL_MS, AUTOMATION_CREATE_TIMEOUT_MS, AUTOMATION_CREATE_MODEL, LEARNING_GROWTH_JIT_MODEL, LEARNING_GROWTH_JIT_REASONING_EFFORT, DIRECTORY_BRIDGE_TIMEOUT_MS, SKILL_BRIDGE_TIMEOUT_MS } = runtimeEnv;
 const { CRON_OUTPUT_ROOT, CRON_RUN_LOG_ROOT, TODO_BACKEND, AUTOMATION_BACKEND, LOCAL_TODO_STORE_PATH, LOCAL_AUTOMATION_STORE_PATH, DIRECT_TODO_CREATE_SETTING } = runtimeEnv;
@@ -505,7 +502,6 @@ const mobileRuntimeGatewayCompositionOptionsService = createMobileRuntimeGateway
     dedupe,
     effectiveProjectForThread,
     ensureGroupChatSharedArtifactCopies,
-    enqueueExternalDeliveryForTerminalMessage,
     findWorkspace,
     gatewayConversationId,
     gatewayPool,
@@ -520,6 +516,8 @@ const mobileRuntimeGatewayCompositionOptionsService = createMobileRuntimeGateway
     registerArtifactsFromText,
     releaseGatewayRunTarget,
     replaceGatewayRunTarget,
+    restartRunningGatewayWorkers,
+    rotateOpenAiCodexCredentialPoolAfterUsageLimit,
     sanitizePolicy,
     saveState,
     singleGatewayRunner,
@@ -542,6 +540,7 @@ const mobileRuntimeGatewayCompositionOptionsService = createMobileRuntimeGateway
     getRuntimeStateThreadService,
     getSemanticDirectoryAttachmentService,
     pluginCapabilityActivationService,
+    pluginConversationActionBridgeService: mobileApiServices?.pluginConversationActionBridgeService || null,
     pluginRequiredSkillPreloadService,
     topicContextCompactionService,
     webPushDeliveryService,
@@ -600,7 +599,6 @@ const nativeNotificationService = createNativeNotificationService({
 webPushDeliveryService = createWebPushDeliveryService({
   actionInboxService: () => actionInboxService, appRouteUrl, automationProvider: () => automationProvider, chatGroupMemberWorkspaceIds, compactText, dedupe,
   effectiveWebPushSubject, effectiveWebPushVapidPath, hashValue, findWorkspace: (...args) => findWorkspace(...args),
-  isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
   loadCatalog: (...args) => loadCatalog(...args), loadRuntimeConfig, logger: console, makeId, maybeReconcileKanbanDependencyBlocks, normalizeStringList,
   nativeNotificationService, nowIso, publicTodo, saveState, state: () => state, todoProvider: () => todoProvider, useKanbanTodoBackend,
   webpush, workspaceLabel, workspaceIdForPrincipal, workspacePrincipal,
@@ -628,70 +626,6 @@ const mobileRuntimePublicStatusService = createMobileRuntimePublicStatusService(
   reasoningEffortOptions: REASONING_EFFORT_OPTIONS,
   runConcurrencySnapshot: () => runConcurrencySnapshot(),
   runtimeConfigProvider,
-});
-const weixinIngressProvider = createWeixinIngressProvider({
-  listWorkspaces: () => loadCatalog().workspaces,
-  workspaceIdForPrincipal,
-  defaultWorkspaceId: () => WEIXIN_INGRESS_DEFAULT_WORKSPACE,
-});
-const mobileRuntimeWeixinFacadeService = createMobileRuntimeWeixinFacadeService({
-  attachmentContextWindowMs: WEIXIN_INGRESS_ATTACHMENT_CONTEXT_WINDOW_MS,
-  authCanAccessWorkspace,
-  bridgeFileBuffer: (...args) => fileResponseService.bridgeFileBuffer(...args),
-  broadcast,
-  chatGroupMemberWorkspaceIds,
-  classifyMaintenanceIntent: (text) => securityBoundaryProvider.classifyMaintenanceIntent(text),
-  compactMessage,
-  compactText,
-  compactThread,
-  createWeixinRuntimeCompositionService,
-  dataDir: DATA_DIR,
-  deliveryId: (threadId, messageId) => weixinIngressProvider.deliveryId(threadId, messageId),
-  egressDecide: (payload) => egressPolicyProvider.decide(payload),
-  egressPolicyProvider,
-  ensureThreadForEvent: (event, workspaceId) => getSingleWindowThreadService().ensureWeixinSingleWindowThread(workspaceId, event),
-  ensureWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().ensureWeixinSingleWindowThread(...args),
-  findExistingIngressEvent: (...args) => getRuntimeStateThreadService().findExistingWeixinIngressEvent(...args),
-  findThreadForAuth: (...args) => getRuntimeStateThreadService().findThreadForAuth(...args),
-  findWorkspace: (...args) => findWorkspace(...args),
-  forwardMarkdownMaxBytes: WEIXIN_FORWARD_MARKDOWN_MAX_BYTES,
-  hashValue,
-  ingressKeyPaths: WEIXIN_INGRESS_KEY_PATHS,
-  isOwnerAuth,
-  isStaleHttpToolAvailabilityClaim: (...args) => mobileRuntimeGatewayContextFacadeService.isStaleHttpToolAvailabilityClaim(...args),
-  isStaleImageToolAvailabilityClaim: (...args) => mobileRuntimeGatewayContextFacadeService.isStaleImageToolAvailabilityClaim(...args),
-  isWeixinSingleWindowThread: (...args) => getSingleWindowThreadService().isWeixinSingleWindowThread(...args),
-  makeId,
-  maxMessageChars: MAX_MESSAGE_CHARS,
-  mimeFor,
-  normalizeExternalDelivery: (...args) => getRuntimeStateNormalizationService().normalizeExternalDelivery(...args),
-  normalizeExternalIngress: (...args) => getRuntimeStateNormalizationService().normalizeExternalIngress(...args),
-  normalizeLocalPath,
-  nowIso,
-  removeThreadActiveRun,
-  resolveArtifactForRequest,
-  resolveAuthorizedCronDeliverableFile: (...args) => resolveAuthorizedCronDeliverableFile(...args),
-  resolveAuthorizedCronOutputFile: (...args) => resolveAuthorizedCronOutputFile(...args),
-  resolveFileForBrowserRequest,
-  resolveKanbanOutputFile: (...args) => resolveKanbanOutputFile(...args),
-  retryBaseMs: WEIXIN_DELIVERY_RETRY_BASE_MS,
-  retryLimit: WEIXIN_DELIVERY_RETRY_LIMIT,
-  retryMaxMs: WEIXIN_DELIVERY_RETRY_MAX_MS,
-  runConcurrencyError: (...args) => runConcurrencyError(...args),
-  safeFileName,
-  saveState,
-  sendJson,
-  senderInfoForWorkspace,
-  singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-  spawnSync,
-  startRunForThread: (...args) => startRunForThread(...args),
-  state: () => state,
-  taskGroupHasRunningRun,
-  taskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
-  threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
-  threadSummary,
-  weixinIngressProvider,
-  workspaceLabel,
 });
 bootTrace("before loadState");
 state = loadState();
@@ -721,7 +655,6 @@ mobileRuntimeThreadViewFacadeService = createMobileRuntimeThreadViewFacadeServic
   projectSearchLabels: (...args) => getSemanticDirectoryAttachmentService().projectSearchLabels(...args),
   publicChatGroup,
   publicExternalIngress: (...args) => getSingleWindowThreadService().publicExternalIngress(...args),
-  publicWeixinOutboundDelivery: (...args) => mobileRuntimeWeixinFacadeService.publicWeixinOutboundDelivery(...args),
   sanitizeTaskTitle: (...args) => getRuntimeStateNormalizationService().sanitizeTaskTitle(...args),
   searchableText,
   singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
@@ -836,7 +769,6 @@ const singleWindowThreadService = createSingleWindowThreadService({
   taskGroupOwnerWorkspaceId,
   taskGroupsForThread,
   threadAccessibleToAuth: (...args) => getRuntimeStateThreadService().threadAccessibleToAuth(...args),
-  weixinIngressProvider,
 });
 const getSingleWindowThreadService = () => singleWindowThreadService;
 const semanticDirectoryAttachmentService = createSemanticDirectoryAttachmentService({
@@ -893,6 +825,8 @@ const gatewayUsageTelemetry = (...args) => mobileRuntimeGatewayFacadeService.gat
 const chooseGatewayRunTarget = (...args) => mobileRuntimeGatewayFacadeService.chooseGatewayRunTarget(...args);
 const releaseGatewayRunTarget = (...args) => mobileRuntimeGatewayFacadeService.releaseGatewayRunTarget(...args);
 const replaceGatewayRunTarget = (...args) => mobileRuntimeGatewayFacadeService.replaceGatewayRunTarget(...args);
+const restartRunningGatewayWorkers = (...args) => mobileRuntimeGatewayFacadeService.restartRunningGatewayWorkers(...args);
+const rotateOpenAiCodexCredentialPoolAfterUsageLimit = (...args) => mobileRuntimeGatewayFacadeService.rotateOpenAiCodexCredentialPoolAfterUsageLimit(...args);
 const runConcurrencySnapshot = (...args) => mobileRuntimeGatewayFacadeService.runConcurrencySnapshot(...args);
 const runConcurrencyError = (...args) => mobileRuntimeGatewayFacadeService.runConcurrencyError(...args);
 const assertRunConcurrencyCapacity = (...args) => mobileRuntimeGatewayFacadeService.assertRunConcurrencyCapacity(...args);
@@ -1204,7 +1138,8 @@ const listWorkspaceAccessKeyStatuses = (...args) => mobileRuntimeWorkspaceFacade
 const rotateWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateWorkspaceAccessKey(...args);
 const revokeWorkspaceAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.revokeWorkspaceAccessKey(...args);
 const rotateGlobalAccessKey = (...args) => mobileRuntimeWorkspaceFacadeService.rotateGlobalAccessKey(...args);
-const GATEWAY_TOOL_SCHEMA_EPOCH = "20260623-music-demo-narration-cleanup-v1"; const gatewayRunInstructionService = createGatewayRunInstructionService({
+const GATEWAY_TOOL_SCHEMA_EPOCH = "20260629-wardrobe-wear-intent-v970";
+const gatewayRunInstructionService = createGatewayRunInstructionService({
   dedupe,
   toolSchemaEpoch: GATEWAY_TOOL_SCHEMA_EPOCH,
   normalizeSingleWindowMode,
@@ -1234,30 +1169,6 @@ const mobileRuntimeGatewayContextFacadeService = createMobileRuntimeGatewayConte
 const gatewayContextMethod = (methodName) => (...args) => mobileRuntimeGatewayContextFacadeService[methodName](...args);
 const gatewayContextDelegates = Object.fromEntries("buildConversationHistory buildHermesInstructions callableFunctionHintsForToolsets compactConversationHistory conversationHistoryContentForMessage currentToolSchemaOverrideInstructions deriveTitle extractCompletedOutput findRunTarget formatAccessPolicyInstructionSummary gatewayConversationId gatewayTargetForRun isOrdinaryToolSchemaElevationRequest isStaleAudioToolAvailabilityClaim isStaleDocxToolAvailabilityClaim isToolUnavailableClaimText policyHasToolset stripDirectoryAliasLinesForChatHistory supplementGatewayUsage".split(" ").map((methodName) => [methodName, gatewayContextMethod(methodName)]));
 const { buildConversationHistory, buildHermesInstructions, callableFunctionHintsForToolsets, compactConversationHistory, conversationHistoryContentForMessage, currentToolSchemaOverrideInstructions, deriveTitle, extractCompletedOutput, findRunTarget, formatAccessPolicyInstructionSummary, gatewayConversationId, gatewayTargetForRun, isOrdinaryToolSchemaElevationRequest, isStaleAudioToolAvailabilityClaim, isStaleDocxToolAvailabilityClaim, isToolUnavailableClaimText, policyHasToolset, stripDirectoryAliasLinesForChatHistory, supplementGatewayUsage } = gatewayContextDelegates;
-const getWeixinRuntimeCompositionService = () => mobileRuntimeWeixinFacadeService.getWeixinRuntimeCompositionService();
-const requireWeixinIngress = (...args) => mobileRuntimeWeixinFacadeService.requireWeixinIngress(...args);
-const weixinIngressIsAttachmentOnlyEvent = (...args) => mobileRuntimeWeixinFacadeService.weixinIngressIsAttachmentOnlyEvent(...args);
-const consumeWeixinPendingAttachmentMessages = (...args) => mobileRuntimeWeixinFacadeService.consumeWeixinPendingAttachmentMessages(...args);
-const weixinIngressInstructions = (...args) => mobileRuntimeWeixinFacadeService.weixinIngressInstructions(...args);
-const enqueueExternalDeliveryForTerminalMessage = (...args) => mobileRuntimeWeixinFacadeService.enqueueExternalDeliveryForTerminalMessage(...args);
-const weixinTargetFromWorkspace = (...args) => mobileRuntimeWeixinFacadeService.weixinTargetFromWorkspace(...args);
-const collectRecentWeixinForwardTargets = (...args) => mobileRuntimeWeixinFacadeService.collectRecentWeixinForwardTargets(...args);
-const weixinForwardTargetsForWorkspace = (...args) => mobileRuntimeWeixinFacadeService.weixinForwardTargetsForWorkspace(...args);
-const resolveWeixinForwardTarget = (...args) => mobileRuntimeWeixinFacadeService.resolveWeixinForwardTarget(...args);
-const resolveFileFromSourceUrlForRequest = (...args) => mobileRuntimeWeixinFacadeService.resolveFileFromSourceUrlForRequest(...args);
-const resolveWeixinForwardFile = (...args) => mobileRuntimeWeixinFacadeService.resolveWeixinForwardFile(...args);
-const publicArtifactForWeixinForward = (...args) => mobileRuntimeWeixinFacadeService.publicArtifactForWeixinForward(...args);
-const createWeixinFileForwardDelivery = (...args) => mobileRuntimeWeixinFacadeService.createWeixinFileForwardDelivery(...args);
-const userFacingWeixinRunError = (...args) => mobileRuntimeWeixinFacadeService.userFacingWeixinRunError(...args);
-const weixinDeliveryRetryCount = (...args) => mobileRuntimeWeixinFacadeService.weixinDeliveryRetryCount(...args);
-const weixinDeliveryRetryDelayMs = (...args) => mobileRuntimeWeixinFacadeService.weixinDeliveryRetryDelayMs(...args);
-const isWeixinInboundWakeRequiredFailure = (...args) => mobileRuntimeWeixinFacadeService.isWeixinInboundWakeRequiredFailure(...args);
-const isWeixinDeliveryRetryable = (...args) => mobileRuntimeWeixinFacadeService.isWeixinDeliveryRetryable(...args);
-const weixinDeliveryMatchesInboundEvent = (...args) => mobileRuntimeWeixinFacadeService.weixinDeliveryMatchesInboundEvent(...args);
-const wakeWeixinOutboundDeliveriesForInboundEvent = (...args) => mobileRuntimeWeixinFacadeService.wakeWeixinOutboundDeliveriesForInboundEvent(...args);
-const pendingWeixinOutboundDeliveries = (...args) => mobileRuntimeWeixinFacadeService.pendingWeixinOutboundDeliveries(...args);
-const ackWeixinOutboundDelivery = (...args) => mobileRuntimeWeixinFacadeService.ackWeixinOutboundDelivery(...args);
-const startWeixinIngressEvent = (...args) => mobileRuntimeWeixinFacadeService.startWeixinIngressEvent(...args);
 const startRunForThread = (...args) => getGatewayRuntimeCompositionService().startRunForThread(...args);
 const stopRunIds = (...args) => getGatewayRuntimeCompositionService().stopRunIds(...args);
 const gatewayUrlForRun = (...args) => getGatewayRuntimeCompositionService().gatewayUrlForRun(...args);
@@ -1300,13 +1211,13 @@ const getThreadMessageCreateService = (...args) => mobileRuntimeThreadFacadeServ
 const getThreadDirectCreateExecutionService = (...args) => mobileRuntimeThreadFacadeService.getThreadDirectCreateExecutionService(...args);
 const getThreadMessageRunRouteService = (...args) => mobileRuntimeThreadFacadeService.getThreadMessageRunRouteService(...args);
 const { eventStreamApiRoutes, mobileApiDispatcher, services: composedMobileApiServices = {} } = createMobileApiComposition({
-  accessToken: null, actionInboxService, activeStreams: () => activeStreams, ackWeixinOutboundDelivery, appRouteUrl, appUpdateStatus,
+  accessToken: null, actionInboxService, activeStreams: () => activeStreams, appRouteUrl, appUpdateStatus,
   applyAppUpdate, attachClientVersionHeaders, authCanAccessWorkspace, authenticateRequest, authProvider,
   automationCreateModel: AUTOMATION_CREATE_MODEL, learningGrowthJitModel: LEARNING_GROWTH_JIT_MODEL, learningGrowthJitReasoningEffort: LEARNING_GROWTH_JIT_REASONING_EFFORT, automationProvider, basename: (value) => path.basename(value), boolParam, bootTrace, broadcast,
   buildRequestContext, canRevokeGroupChatMessage, chatGroupMemberWorkspaceIds, clearCronListCache, clearDynamicProjectCache: () => clearDynamicProjectCache(),
   clearDynamicProjectCacheForWorkspace: (workspaceId) => clearDynamicProjectCache(workspaceId), clearKanbanCardListCache, clientLayoutDiagnosticService, clientVersionInfo, compactMessage, compactText,
   compactThread, compactThreadWithMessagePage, contentDisposition, createInitialOwnerKey, createKanbanPlanCards,
-  createWeixinFileForwardDelivery, cronJobMatchesOwner, cronJobMatchesSearch, dataDir: DATA_DIR, dataContextService, dedupe, deleteLocalWorkspace, detectDirectTodoCreateIntentForWeb,
+  cronJobMatchesOwner, cronJobMatchesSearch, dataDir: DATA_DIR, dataContextService, dedupe, deleteLocalWorkspace, detectDirectTodoCreateIntentForWeb,
   display: {
     ownerLabel: OWNER_LABEL,
     ownerDriveRootNames: OWNER_DRIVE_ROOT_NAMES,
@@ -1325,23 +1236,23 @@ const { eventStreamApiRoutes, mobileApiDispatcher, services: composedMobileApiSe
   makeId, maxUploadBytes: MAX_UPLOAD_BYTES, maybeReconcileKanbanDependencyBlocks, mimeFor, mobileSqliteStore, mkdir: (value) => fs.mkdirSync(value),
   nativeNotificationService,
   normalizeChatGroup, normalizeKanbanMaxParallel, normalizeKanbanNotificationAssignee, normalizeKanbanPlanReasoningEffort, normalizeStringList,
-  nowIso, ownerSetupStatus, pendingWeixinOutboundDeliveries, planKanbanMultiAgent, publicConcurrencyForAuth,
+  nowIso, ownerSetupStatus, planKanbanMultiAgent, publicConcurrencyForAuth,
   publicGatewayPoolStatusForAuth, publicKanbanCardDetail, publicOwnerElevationStatus, publicPushStatus: webPushDeliveryService.publicPushStatus, publicReasoningInfoForAuth,
   publicRuntimeConfig, publicTodo, publicWorkspace, publicWorkspacesForAuth, pushWorkspaceForAuth,
   readBody, requestClientVersion, readClientVersion, readKanbanCardListCache, readingCoverMaxBytes: KANBAN_READING_COVER_MAX_BYTES, reloadWebPush,
   refreshGatewayRuntimeConfig: (...args) => mobileRuntimeGatewayFacadeService.resetGatewayRuntimeConfig(...args),
-  registerUploadArtifact, removeThreadActiveRun, requireOwner, requireWeixinIngress, requireWorkspaceAccess, resolveArtifactForRequest,
+  registerUploadArtifact, removeThreadActiveRun, requireOwner, requireWorkspaceAccess, resolveArtifactForRequest,
   resolveAuthorizedCronDeliverableFile, resolveAuthorizedCronOutputFile, resolveAutomationCronProfile, resolveFileForBrowserRequest, resolveKanbanCardAccess, resolveKanbanOutputFile,
 	  revokeGroupMessagePayload, revokeOwnerElevation, revokeWorkspaceAccessKey, readdir: (value, options) => fs.readdirSync(value, options), rmdir: (value) => fs.rmdirSync(value), rmDirRecursive: (value) => fs.rmSync(value, { recursive: true, force: false }), rename: (from, to) => fs.renameSync(from, to), rotateGlobalAccessKey,
   rotateWorkspaceAccessKey, runAutomationWebPushTick: webPushDeliveryService.runAutomationWebPushTick, runConcurrencySnapshot, runCronListBridgeCached, runDirectoryBridge,
   safeDirectoryName, safeFileName, sanitizePolicy, saveRuntimeConfig, saveState,
   scheduleKanbanDependencyReconcile, scheduleNextQueuedRunForTaskGroup, searchThreadMessages, sendJson, sendResolvedBridgeFile,
   sendResolvedBridgeFilePreview, sendResolvedFile, sendResolvedFilePreview, singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID, singleWindowProjectTaskSummaries,
-  skillDetailProvider, sourceDocumentMaxBytes: KANBAN_SOURCE_DOCUMENT_MAX_BYTES, startWeixinIngressEvent, statSync: (value) => fs.statSync(value), state: () => state,
+  skillDetailProvider, sourceDocumentMaxBytes: KANBAN_SOURCE_DOCUMENT_MAX_BYTES, statSync: (value) => fs.statSync(value), state: () => state,
   stopRunIds, textFilePreview, threadMessageInitialLimit: THREAD_MESSAGE_INITIAL_LIMIT, threadMessagePageLimit: THREAD_MESSAGE_PAGE_LIMIT, threadMessageSearchLimit: THREAD_MESSAGE_SEARCH_LIMIT,
   threadMessagesPage, threadSummary, todoAssigneeLabel, todoErrorResponse, todoProvider,
   uniqueChildPath, unlink: (value) => fs.unlinkSync(value), upsertLocalWorkspace, useKanbanTodoBackend, verifyDirectTodoCreateResult,
-  webPushDeliveryService, weixinForwardTargetsForWorkspace, weixinIngressProvider, workspacePrincipal, workspaceUploadDirectoryForRequest,
+  webPushDeliveryService, workspacePrincipal, workspaceUploadDirectoryForRequest,
   workspaceSystemProvisioningExecutor: runtimeEnv.WORKSPACE_SYSTEM_PROVISIONING_EXECUTOR_ENABLED ? (runtimeEnv.WORKSPACE_SYSTEM_PROVISIONING_HELPER_SOCKET ? createWorkspaceSystemProvisioningHelperClientService({ socketPath: runtimeEnv.WORKSPACE_SYSTEM_PROVISIONING_HELPER_SOCKET, http }) : createWorkspaceSystemProvisioningExecutorService({ enabled: true, env: process.env, fs, liveRoot: path.basename(DATA_DIR) === "data" ? path.dirname(DATA_DIR) : DATA_DIR, path })) : null,
   repoRoot: TOOL_ROOT, writeFile: (filePath, buffer, options = {}) => fs.writeFileSync(filePath, buffer, { flag: options.flag || "w" }),
   writeKanbanCardListCache,

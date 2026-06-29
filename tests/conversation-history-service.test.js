@@ -30,6 +30,9 @@ function service(options = {}) {
   assert.equal(history.isStaleImageToolAvailabilityClaim("chatgpt_image_edit missing"), true);
   assert.equal(history.isStaleDocxToolAvailabilityClaim("DOCX parser unavailable"), true);
   assert.equal(history.isStaleOfficeToolAvailabilityClaim("PPTX parser unavailable"), true);
+  assert.equal(history.isStalePptxGenerationToolAvailabilityClaim("只能生成 Markdown，无法生成真实 PPTX"), true);
+  assert.equal(history.isStalePdfToolAvailabilityClaim("只能写 Markdown，无法生成真实 PDF"), true);
+  assert.equal(history.isStaleDocxToolAvailabilityClaim("只能写 Markdown，无法生成真实 Word"), true);
   assert.equal(history.isStalePdfToolAvailabilityClaim("PDF 当前不能 OCR，必须导出成图片"), true);
   assert.equal(history.isStaleAudioToolAvailabilityClaim("mp3 audio transcription unavailable"), true);
   assert.equal(history.isStaleArchiveToolAvailabilityClaim("没有 unzip 工具，无法解压 ZIP 文件"), true);
@@ -55,6 +58,7 @@ function service(options = {}) {
   assert.match(content, /Stale assistant tool-availability claim omitted/);
   assert.match(content, /pdf_extract_text/);
   assert.match(content, /pdf_render_pages/);
+  assert.match(content, /pdf_create/);
 }
 
 {
@@ -65,6 +69,26 @@ function service(options = {}) {
   );
   assert.match(content, /Stale assistant tool-availability claim omitted/);
   assert.match(content, /office_extract_text/);
+}
+
+{
+  const history = service();
+  const content = history.conversationHistoryContentForMessage(
+    { role: "assistant", content: "当前无法生成真实 Word，只能写 Markdown" },
+    { allowed_toolsets: ["file"] },
+  );
+  assert.match(content, /Stale assistant tool-availability claim omitted/);
+  assert.match(content, /docx_create/);
+}
+
+{
+  const history = service();
+  const content = history.conversationHistoryContentForMessage(
+    { role: "assistant", content: "当前没有 PPTX 生成工具，只能写 Markdown 或 HTML" },
+    { allowed_toolsets: ["file"] },
+  );
+  assert.match(content, /Stale assistant tool-availability claim omitted/);
+  assert.match(content, /pptx_create/);
 }
 
 {

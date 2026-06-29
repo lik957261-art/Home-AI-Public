@@ -14,6 +14,15 @@ const {
 } = require("./gateway-run-toolset-escalation-service");
 const { receiptSummaryTitleFromText } = require("./directory-topic-index-service");
 const { validateWardrobeOutfitWorkflowCompletion } = require("./wardrobe-outfit-workflow-gate-service");
+const {
+  attachPreparedIntentToMessage,
+  extractPreparedIntentFromCompletedResponse,
+} = require("./wardrobe-outfit-wear-intent-action-service");
+
+const PLUGIN_CONVERSATION_ACTION_COMMENT_RE = /<!--\s*homeai-plugin-conversation-action\b([\s\S]*?)-->/gi;
+const OWNER_TASK_REQUEST_COMMENT_RE = /<!--\s*homeai-owner-task-request\b([\s\S]*?)-->/gi;
+const LEGACY_TASK_CARD_CLAIM_RE = /\bt_[a-z0-9]{6,}\b/ig;
+const LEGACY_TASK_CARD_CONTEXT_RE = /(发卡|重新发卡|任务卡|卡片\s*ID|卡片ID|状态\s*[：:]\s*ready|指派\s*[：:]\s*codex|assigned\s*[:：]?\s*codex)/i;
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -40,6 +49,109 @@ function extractCompletedOutput(event = {}) {
     }
   }
   return chunks.join("\n\n").trim();
+}
+
+function parseJsonCommentBody(body = "") {
+  const text = String(body || "").trim();
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch (_) {
+    return { __parseError: true };
+  }
+}
+
+function parsePluginConversationActionComments(text = "") {
+  const source = String(text || "");
+  const actions = [];
+  const parseMatches = (regex, defaults = {}) => {
+    regex.lastIndex = 0;
+    let match = null;
+    while ((match = regex.exec(source))) {
+      const parsed = parseJsonCommentBody(match[1]);
+      if (!parsed) continue;
+      actions.push(Object.assign({}, defaults, parsed));
+    }
+  };
+  parseMatches(PLUGIN_CONVERSATION_ACTION_COMMENT_RE);
+  parseMatches(OWNER_TASK_REQUEST_COMMENT_RE, {
+    pluginId: "home-ai",
+    requestType: "capability_gap",
+    sourceSurface: "host-conversation",
+  });
+  return actions;
+}
+
+function stripHtmlComments(value = "") {
+  return String(value || "").replace(/<!--[\s\S]*?-->/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function compactText(value = "", max = 700) {
+  const text = stripHtmlComments(value);
+  return text.length <= max ? text : `${text.slice(0, Math.max(1, max - 3))}...`;
+}
+
+function firstLegacyTaskCardIds(value = "") {
+  const out = [];
+  LEGACY_TASK_CARD_CLAIM_RE.lastIndex = 0;
+  let match = null;
+  while ((match = LEGACY_TASK_CARD_CLAIM_RE.exec(String(value || "")))) {
+    const id = match[0];
+    if (!out.includes(id)) out.push(id);
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
+function lineValueAfterLabel(output = "", labels = []) {
+  const escaped = labels.map((label) => String(label || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  if (!escaped) return "";
+  const re = new RegExp(`(?:^|\\n)\\s*(?:${escaped})\\s*[：:]\\s*([^\\n]+)`, "i");
+  const match = String(output || "").match(re);
+  return compactText(match?.[1] || "", 160);
+}
+
+function looksLikeLegacyTaskCardClaim(output = "") {
+  const text = String(output || "");
+  if (!text) return false;
+  if (/\b(?:ainb|ttc)_[a-z0-9_-]+\b/i.test(text)) return false;
+  if (!firstLegacyTaskCardIds(text).length) return false;
+  return LEGACY_TASK_CARD_CONTEXT_RE.test(text);
+}
+
+function recoveredOwnerTaskRequestFromLegacyClaim(output = "") {
+  if (!looksLikeLegacyTaskCardClaim(output)) return null;
+  const cardIds = firstLegacyTaskCardIds(output);
+  const title = lineValueAfterLabel(output, ["标题", "Title"])
+    || "Gateway legacy task-card claim requires Home AI repair";
+  const excerpt = compactText(output, 700);
+  return {
+    pluginId: "home-ai",
+    requestType: "capability_gap",
+    severity: "H2",
+    title,
+    summary: [
+      "A Gateway reply claimed a legacy `t_*` card was created, but no real Home AI Owner-gated request marker or `ainb_*`/`ttc_*` id was present.",
+      "Home AI recovered the claim into an Owner approval request so the implementation work is not silently lost.",
+    ].join(" "),
+    suggestedChange: [
+      "Implement or verify the requested Home AI capability described by the bounded legacy-card claim.",
+      "Prevent future ordinary or directory-bound runs from using legacy Kanban `t_*` cards as implementation repair cards.",
+    ].join(" "),
+    acceptance: [
+      "A fresh ordinary or directory-bound Gateway run that needs implementation work creates a real Owner Action Inbox item (`ainb_*`) or Codex task card (`ttc_*`).",
+      "Legacy `t_*` card claims without a real Home AI marker are recovered or flagged instead of disappearing from Inbox.",
+    ].join(" "),
+    evidence: {
+      recovery: "legacy_task_card_claim_recovered",
+      legacyCardIds: cardIds,
+      affectedSurface: "ordinary_or_directory_bound_gateway",
+      claimExcerpt: excerpt,
+    },
+  };
 }
 
 function completedOutputLooksLikeGatewayFailure(output) {
@@ -120,6 +232,7 @@ function createGatewayRunCompletionService(options = {}) {
   const notifyTaskTerminal = typeof options.notifyTaskTerminal === "function" ? options.notifyTaskTerminal : (() => {});
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : (() => new Date().toISOString());
   const nowMs = typeof options.nowMs === "function" ? options.nowMs : (() => Date.now());
+  const pluginConversationActionBridgeService = options.pluginConversationActionBridgeService || null;
   const registerArtifactsFromText = typeof options.registerArtifactsFromText === "function"
     ? options.registerArtifactsFromText
     : (() => []);
@@ -131,6 +244,9 @@ function createGatewayRunCompletionService(options = {}) {
   const startEscalatedToolsetRetry = typeof options.startEscalatedToolsetRetry === "function"
     ? options.startEscalatedToolsetRetry
     : (() => false);
+  const startQuotaFailoverRetry = typeof options.startQuotaFailoverRetry === "function"
+    ? options.startQuotaFailoverRetry
+    : (() => false);
   const stripPermissionApprovalMarkers = typeof options.stripPermissionApprovalMarkers === "function"
     ? options.stripPermissionApprovalMarkers
     : ((text) => String(text || ""));
@@ -138,6 +254,71 @@ function createGatewayRunCompletionService(options = {}) {
     ? options.supplementGatewayUsage
     : ((usage) => usage);
   const threadSummary = typeof options.threadSummary === "function" ? options.threadSummary : compactFallback;
+
+  function submitPluginConversationActionRequests(thread, message, output, completedAt) {
+    if (!pluginConversationActionBridgeService || typeof pluginConversationActionBridgeService.createRequest !== "function") return [];
+    const parsedActions = parsePluginConversationActionComments(output);
+    const recoveredLegacyAction = parsedActions.length ? null : recoveredOwnerTaskRequestFromLegacyClaim(output);
+    const actions = recoveredLegacyAction ? [recoveredLegacyAction] : parsedActions;
+    if (!actions.length) return [];
+    return actions.map((action, index) => {
+      if (action.__parseError) {
+        addThreadEvent(thread, {
+          event: "run.plugin_conversation_action_request_failed",
+          timestamp: nowMs() / 1000,
+          runId: message.runId || "",
+          tool: "plugin_conversation_action",
+          preview: JSON.stringify({ error: "invalid_json", index }),
+          error: true,
+        });
+        return Promise.resolve({ ok: false, error: "invalid_json" });
+      }
+      const payload = Object.assign({}, action, {
+        workspaceId: action.workspaceId || action.workspace_id || message.actorWorkspaceId || message.workspaceId || thread.workspaceId || "owner",
+        sourceThreadId: action.sourceThreadId || action.source_thread_id || thread.id || "",
+        sourceTurnId: action.sourceTurnId || action.source_turn_id || message.id || "",
+        sourceSurface: action.sourceSurface || action.source_surface || (action.pluginId === "home-ai" || action.plugin_id === "home-ai" ? "host-conversation" : "host-plugin-conversation"),
+        createdAt: action.createdAt || action.created_at || completedAt,
+      });
+      return Promise.resolve(pluginConversationActionBridgeService.createRequest(payload))
+        .then((result) => {
+          addThreadEvent(thread, {
+            event: result?.ok
+              ? (recoveredLegacyAction ? "run.plugin_conversation_action_request_recovered" : "run.plugin_conversation_action_request_created")
+              : "run.plugin_conversation_action_request_failed",
+            timestamp: nowMs() / 1000,
+            runId: message.runId || "",
+            tool: "plugin_conversation_action",
+            preview: JSON.stringify({
+              pluginId: payload.pluginId || payload.plugin_id || "",
+              requestType: payload.requestType || payload.request_type || "",
+              inboxItemId: result?.inboxItem?.id || "",
+              recovery: recoveredLegacyAction ? "legacy_task_card_claim" : "",
+              error: result?.ok ? "" : (result?.error || "create_request_failed"),
+            }),
+            error: !result?.ok,
+          });
+          saveState();
+          return result;
+        })
+        .catch((err) => {
+          addThreadEvent(thread, {
+            event: "run.plugin_conversation_action_request_failed",
+            timestamp: nowMs() / 1000,
+            runId: message.runId || "",
+            tool: "plugin_conversation_action",
+            preview: JSON.stringify({
+              pluginId: payload.pluginId || payload.plugin_id || "",
+              requestType: payload.requestType || payload.request_type || "",
+              error: err?.code || err?.message || "create_request_failed",
+            }),
+            error: true,
+          });
+          saveState();
+          return { ok: false, error: err?.message || "create_request_failed" };
+        });
+    });
+  }
 
   function updateTaskGroupReceiptMeta(thread, message, completedAt) {
     const taskGroupId = cleanString(message?.taskGroupId);
@@ -167,7 +348,13 @@ function createGatewayRunCompletionService(options = {}) {
     if (completedOutputLooksLikeGatewayFailure(output)) {
       const err = new Error(output);
       err.code = "gateway_completed_with_failure_output";
-      return markRunFailed(thread.id, message.id, responseRunId || message.runId || runId, err);
+      const visibleRunId = responseRunId || message.runId || runId;
+      if (startQuotaFailoverRetry(thread, message, { output, error: err, previousRunId: visibleRunId })) {
+        saveState();
+        broadcast({ type: "run.event", threadId: thread.id, runId, event: thread.events?.[thread.events.length - 1], thread: threadSummary(thread) });
+        return { action: "openai_codex_quota_failover_retrying" };
+      }
+      return markRunFailed(thread.id, message.id, visibleRunId, err);
     }
     const toolsetEscalationRequest = parseToolsetEscalationRequest(output, message) || message.pendingToolsetEscalationRequest || null;
     const approvalRequest = modelPermissionApprovalRequest(output, message);
@@ -251,6 +438,10 @@ function createGatewayRunCompletionService(options = {}) {
     message.usage = nextUsage;
     message.loadedSkills = nextLoadedSkills;
     message.loadedTools = nextLoadedTools;
+    const wardrobeOutfitWearIntent = extractPreparedIntentFromCompletedResponse(event);
+    if (wardrobeOutfitWearIntent) {
+      attachPreparedIntentToMessage(message, wardrobeOutfitWearIntent, { updatedAt: completedAt });
+    }
     if (validApprovalRequest) {
       message.elevationRequired = true;
       message.elevationScope = validApprovalRequest.elevationScope;
@@ -273,6 +464,7 @@ function createGatewayRunCompletionService(options = {}) {
     message.completedAt = completedAt;
     message.updatedAt = completedAt;
     message.artifacts = registerArtifactsFromText(thread, message, visibleOutput || output);
+    submitPluginConversationActionRequests(thread, message, visibleOutput || output, completedAt);
     if (directoryTopicIndexService && typeof directoryTopicIndexService.upsertThreadTopicIndex === "function") {
       directoryTopicIndexService.upsertThreadTopicIndex(thread, {
         taskGroupId: message.taskGroupId,
@@ -303,5 +495,6 @@ module.exports = {
   completedOutputLooksLikeGatewayFailure,
   createGatewayRunCompletionService,
   extractCompletedOutput,
+  parsePluginConversationActionComments,
   usageWithRunMetadata,
 };

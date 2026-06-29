@@ -21,6 +21,7 @@ const HOST_PROVISIONED_LOCAL_PLUGINS = Object.freeze([
 const SPECIAL_PUBLIC_PLUGINS = Object.freeze([
   "codex-mobile-web",
   "music",
+  "movie",
 ]);
 
 const PLUGIN_FILE_STEMS = Object.freeze({
@@ -30,6 +31,7 @@ const PLUGIN_FILE_STEMS = Object.freeze({
   growth: "growth",
   health: "health",
   moira: "moira",
+  movie: "movie",
   music: "music",
   note: "note",
   wardrobe: "wardrobe",

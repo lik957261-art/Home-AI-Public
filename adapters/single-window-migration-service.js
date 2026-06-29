@@ -188,10 +188,6 @@ function createSingleWindowMigrationService(options = {}) {
     return Boolean(thread?.externalIngress?.source);
   }
 
-  function isWeixinSingleWindowThread(thread) {
-    return Boolean(thread?.singleWindow && thread?.externalIngress?.source === "weixin");
-  }
-
   function privateThreadForWorkspace(workspaceId, state = stateObject()) {
     const id = String(workspaceId || "").trim();
     if (!id) return null;
@@ -222,7 +218,6 @@ function createSingleWindowMigrationService(options = {}) {
       && thread.workspaceId === id
       && !isGroupChatThread(thread)
       && isExternalIngressThread(thread)
-      && !isWeixinSingleWindowThread(thread)
     ));
   }
 
@@ -367,7 +362,6 @@ function createSingleWindowMigrationService(options = {}) {
     isExternalIngressThread,
     isGroupChatThread,
     isKanbanCaseTopicThread,
-    isWeixinSingleWindowThread,
     migratePrivateSingleWindowGroups,
     privateThreadForWorkspace,
     taskGroupHasActiveRun,

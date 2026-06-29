@@ -10,7 +10,6 @@ function renderArtifacts(artifacts) {
       </div>
     </a>
     ${renderArtifactDirectoryButton(artifact)}
-    ${renderArtifactWeixinButton(artifact)}
   </div>`).join("")}</div>`;
 }
 

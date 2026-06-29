@@ -301,7 +301,7 @@ node tests\gateway-worker-profile-launch-service.test.js
 
 Applies to removing WSL as a resident Windows dependency for the maintained
 local Home AI runtime, including listener startup, bridge-host Python bridges,
-Whisper, Weixin ingress, CRON sidecar, Kanban/Todo compatibility, scheduled
+Whisper, CRON sidecar, Kanban/Todo compatibility, scheduled
 tasks, and production launcher variables.
 
 Required harness dimensions:
@@ -317,8 +317,6 @@ Required harness dimensions:
 - `start-hermes-web.ps1` must pass exactly one `-HermesHome` to
   `start-cron-tick-sidecar.ps1`, preferring
   `HERMES_MOBILE_CRON_TICK_HERMES_HOME` over `HERMES_WEB_HERMES_HOME`.
-- Windows-native Weixin bridge health must use a Windows PID liveness check;
-  `os.kill(pid, 0)` is not sufficient on Windows.
 - `run-kanban-native-windows.ps1` must call the native Hermes Python venv and
   must not invoke WSL/bash.
 - `start-whisper-large-v3-turbo-windows.ps1` must start port `8001` with
@@ -335,7 +333,6 @@ node tests\bridge-command-provider.test.js
 node tests\cron-dispatcher-proxy-harness.test.js
 node tests\static-cache-version-harness.test.js
 node scripts\production-status-smoke.js --access-key-file <file> --base http://127.0.0.1:8797 --expected-version <version> --json
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts\start-weixin-mobile-ingress-bridge-windows.ps1 -CheckOnly
 ```
 
 ### macOS Production Deployment And Workspace Isolation
@@ -416,8 +413,8 @@ Required harness dimensions:
   `--use-bound-thread-context` when closing user-clicked chip failures so the
   smoke previews each binding through its persisted message thread rather than
   only a fresh single-window thread; otherwise topic/shared-workspace context
-  drift can be missed. Owner-only smoke is insufficient because Weixin workspace
-  bindings can drift independently. Unknown/decommissioned workspaces may be
+  drift can be missed. Owner-only smoke is insufficient because non-Owner
+  workspace bindings can drift independently. Unknown/decommissioned workspaces may be
   reported as `skipped: unknown-workspace`; active workspaces must not be
   skipped. Use its `--include-chat` mode only for separate historical
   stale-reference cleanup. Production write repairs must stop the listener

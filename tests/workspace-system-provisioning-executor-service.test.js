@@ -142,6 +142,10 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
     fs.writeFileSync(`${root}/data/secrets/deepseekgw31.secret`, "gateway-key\n", "utf8");
     fs.writeFileSync(`${root}/data/secrets/deepseek-api-key.secret`, "provider-key\n", "utf8");
     fs.writeFileSync(`${root}/data/secrets/bridge-host.secret`, "bridge-key\n", "utf8");
+    fs.mkdirSync(`${root}/plugins/wardrobe/scripts`, { recursive: true });
+    fs.writeFileSync(`${root}/plugins/wardrobe/scripts/wardrobe-mcp.py`, "from wardrobe_app.wardrobe_mcp import main\n", "utf8");
+    fs.mkdirSync(`${root}/plugins/wardrobe/wardrobe_app`, { recursive: true });
+    fs.writeFileSync(`${root}/plugins/wardrobe/wardrobe_app/wardrobe_mcp.py`, "def main(): return 0\n", "utf8");
     const service = createWorkspaceSystemProvisioningExecutorService({
       forceEnabled: true,
       fs,
@@ -281,6 +285,15 @@ async function testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases()
     fs.writeFileSync(`${root}/plugins/music/package-lock.json`, "{\"lockfileVersion\":3}\n", "utf8");
     fs.mkdirSync(`${root}/plugins/music/node_modules/ffmpeg-static`, { recursive: true });
     fs.writeFileSync(`${root}/plugins/music/node_modules/ffmpeg-static/package.json`, "{\"name\":\"ffmpeg-static\"}\n", "utf8");
+    fs.mkdirSync(`${root}/plugins/wardrobe/scripts`, { recursive: true });
+    fs.writeFileSync(`${root}/plugins/wardrobe/scripts/wardrobe-mcp.py`, "from wardrobe_app.wardrobe_mcp import main\n", "utf8");
+    fs.mkdirSync(`${root}/plugins/wardrobe/wardrobe_app`, { recursive: true });
+    fs.writeFileSync(`${root}/plugins/wardrobe/wardrobe_app/wardrobe_mcp.py`, "def main(): return 0\n", "utf8");
+    fs.mkdirSync(`${root}/plugins/movie/src`, { recursive: true });
+    fs.writeFileSync(`${root}/plugins/movie/src/mcp-stdio.js`, "require('./services/movie-mcp-service');\n", "utf8");
+    fs.mkdirSync(`${root}/plugins/movie/src/services`, { recursive: true });
+    fs.writeFileSync(`${root}/plugins/movie/src/services/movie-mcp-service.js`, "module.exports = {};\n", "utf8");
+    fs.writeFileSync(`${root}/plugins/movie/package.json`, "{\"scripts\":{\"mcp:stdio\":\"node src/mcp-stdio.js\"}}\n", "utf8");
     const service = createWorkspaceSystemProvisioningExecutorService({
       forceEnabled: true,
       fs,
@@ -295,27 +308,38 @@ async function testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases()
     const result = await service.runStep("ensure_launchd_services", context);
 
     assert.equal(result.ok, true);
-    assert.deepEqual(result.syncedGatewayMcpAssets, ["music", "music-dependencies"]);
+    assert.deepEqual(result.syncedGatewayMcpAssets, ["wardrobe", "music", "music-dependencies", "movie"]);
+    assert.equal(fs.existsSync(`${root}/gateway-worker/wardrobe-mcp/scripts/wardrobe-mcp.py`), true);
+    assert.equal(fs.existsSync(`${root}/gateway-worker/wardrobe-mcp/wardrobe_app/wardrobe_mcp.py`), true);
     assert.equal(fs.existsSync(`${root}/gateway-worker/music-mcp/src/mcp-stdio.js`), true);
     assert.equal(fs.existsSync(`${root}/gateway-worker/music-mcp/package.json`), true);
     assert.equal(fs.existsSync(`${root}/gateway-worker/music-mcp/package-lock.json`), true);
     assert.equal(fs.existsSync(`${root}/gateway-worker/music-mcp/node_modules/ffmpeg-static/package.json`), true);
+    assert.equal(fs.existsSync(`${root}/gateway-worker/movie-mcp/src/mcp-stdio.js`), true);
+    assert.equal(fs.existsSync(`${root}/gateway-worker/movie-mcp/package.json`), true);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/skills`), `${root}/data/skill-profiles/owner-full/skills`);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/memories`), `${root}/data/skill-profiles/owner-full/memories`);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/legacy-alias/skills`), `${root}/data/skill-profiles/user-981731fe/skills`);
     assert.equal(fs.readlinkSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/legacy-alias/memories`), `${root}/data/skill-profiles/user-981731fe/memories`);
     const ownerConfig = fs.readFileSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/config.yaml`, "utf8");
     assert.match(ownerConfig, /  - music/);
+    assert.match(ownerConfig, /  - movie/);
     assert.match(ownerConfig, /mcp_servers:\n[\s\S]*  music:/);
+    assert.match(ownerConfig, /mcp_servers:\n[\s\S]*  movie:/);
     assert.match(ownerConfig, /MUSIC_SQLITE_PATH: .*\/plugins\/music\/runtime\/music\.sqlite/);
+    assert.match(ownerConfig, /MOVIE_METADATA_DB: .*\/plugins\/movie\/data\/movie-metadata\.sqlite/);
     const grokConfig = fs.readFileSync(`${root}/users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/grokgw1/config.yaml`, "utf8");
     assert.match(grokConfig, /model:\n  default: grok-4\.3\n  provider: xai-oauth/);
     assert.doesNotMatch(grokConfig, /provider: openai-codex/);
     const updatedManifest = JSON.parse(fs.readFileSync(context.gateway.manifestPath, "utf8"));
     assert.ok(updatedManifest.workers[0].toolsets.includes("music"));
+    assert.ok(updatedManifest.workers[0].toolsets.includes("movie"));
     assert.ok(updatedManifest.workers[0].mcpServers.includes("music"));
+    assert.ok(updatedManifest.workers[0].mcpServers.includes("movie"));
     assert.equal((updatedManifest.workers[1].toolsets || []).includes("music"), false);
+    assert.equal((updatedManifest.workers[1].toolsets || []).includes("movie"), false);
     assert.equal((updatedManifest.workers[1].mcpServers || []).includes("music"), false);
+    assert.equal((updatedManifest.workers[1].mcpServers || []).includes("movie"), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

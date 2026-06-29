@@ -3,6 +3,7 @@
 const SEVERITY_RANK = Object.freeze({ info: 0, H4: 1, H3: 2, H2: 3, H1: 4 });
 
 const APP_WORKSPACE = "/Users/example/path";
+const HOME_AI_TASK_INTAKE_THREAD_TITLE = "Home AI Task Intake";
 
 const DEFAULT_PLUGIN_TARGETS = Object.freeze({
   finance: Object.freeze({
@@ -22,21 +23,25 @@ const DEFAULT_PLUGIN_TARGETS = Object.freeze({
   }),
   music: Object.freeze({
     label: "Music",
+    targetThreadId: "019ef42b-2cb8-7332-ab17-033ec5b48947",
     targetThreadTitle: "Music 06-23",
     targetWorkspace: "/Users/example/path",
   }),
   growth: Object.freeze({
     label: "Growth",
+    targetThreadId: "019eda10-3b92-7d81-92f4-5e5cf578f52b",
     targetThreadTitle: "成长 06-18",
     targetWorkspace: "/Users/example/path",
   }),
   health: Object.freeze({
     label: "Health",
+    targetThreadId: "019ea9d5-8f99-7d92-90a2-e9ae094a7977",
     targetThreadTitle: "健康",
     targetWorkspace: "/Users/example/path",
   }),
   healthy: Object.freeze({
     label: "Health",
+    targetThreadId: "019ea9d5-8f99-7d92-90a2-e9ae094a7977",
     targetThreadTitle: "健康",
     targetWorkspace: "/Users/example/path",
   }),
@@ -47,16 +52,33 @@ const DEFAULT_PLUGIN_TARGETS = Object.freeze({
   }),
   moira: Object.freeze({
     label: "Moira",
+    targetThreadId: "019ec3c0-86d2-7852-a9ea-e4c703262cdc",
     targetThreadTitle: "星盘 06-14",
     targetWorkspace: "/Users/example/path",
   }),
   movie: Object.freeze({
     label: "Movie",
+    targetThreadId: "019efca1-ea69-7292-87b7-025ba023ca87",
     targetThreadTitle: "Movie",
     targetWorkspace: "/Users/example/path",
   }),
+  "home-ai": Object.freeze({
+    label: "Home AI",
+    sourceThreadTitle: HOME_AI_TASK_INTAKE_THREAD_TITLE,
+    sourceThreadTitlePrefix: HOME_AI_TASK_INTAKE_THREAD_TITLE,
+    targetThreadTitlePrefix: "Home AI",
+    targetWorkspace: APP_WORKSPACE,
+  }),
+  homeai: Object.freeze({
+    label: "Home AI",
+    sourceThreadTitle: HOME_AI_TASK_INTAKE_THREAD_TITLE,
+    sourceThreadTitlePrefix: HOME_AI_TASK_INTAKE_THREAD_TITLE,
+    targetThreadTitlePrefix: "Home AI",
+    targetWorkspace: APP_WORKSPACE,
+  }),
   "codex-mobile": Object.freeze({
     label: "Codex Mobile Web",
+    targetThreadId: "019eee6c-a6f5-7b20-bfb4-f96ccb6431b3",
     targetThreadTitle: "codex mobile 06-22",
     targetWorkspace: "/Users/example/path",
   }),
@@ -64,7 +86,9 @@ const DEFAULT_PLUGIN_TARGETS = Object.freeze({
 
 const HOME_AI_TARGET = Object.freeze({
   label: "Home AI",
-  targetThreadTitle: "Home AI",
+  sourceThreadTitle: HOME_AI_TASK_INTAKE_THREAD_TITLE,
+  sourceThreadTitlePrefix: HOME_AI_TASK_INTAKE_THREAD_TITLE,
+  targetThreadTitlePrefix: "Home AI",
   targetWorkspace: APP_WORKSPACE,
 });
 
@@ -136,6 +160,13 @@ function normalizedPluginId(caseRecord) {
   const pluginId = safeToken(caseRecord?.plugin_id || caseRecord?.pluginId || "home-ai", "home-ai", 80);
   if (pluginId === "healthy") return "health";
   return pluginId;
+}
+
+function isSelfCheckDiagnosticCase(caseRecord = {}) {
+  return normalizedPluginId(caseRecord) === "home-ai"
+    && cleanString(caseRecord?.source_surface || caseRecord?.sourceSurface, 120) === "home-ai-self-check"
+    && cleanString(caseRecord?.diagnostic_type || caseRecord?.diagnosticType, 160) === "self_check_signal_failed"
+    && cleanString(caseRecord?.category, 160).startsWith("self_check_");
 }
 
 function owningLayerForCase(caseRecord) {
@@ -268,11 +299,16 @@ function buildDiagnosticRemediationPlan(input = {}) {
   const targetInfo = targetForLayer(caseRecord, input.targets || {});
   const eligibility = remediationEligible(caseRecord, events);
   const reasoningEffort = severityRank(packet.severity) >= severityRank("H2") ? "xhigh" : "high";
+  const autoDispatchEligible = eligibility.eligible && isSelfCheckDiagnosticCase(caseRecord);
   const taskCard = targetInfo.target ? {
     title: taskTitle(packet, targetInfo),
     summary: taskSummary(packet, targetInfo),
     body: taskBody(packet, targetInfo, input),
+    sourceThreadTitle: targetInfo.target.sourceThreadTitle,
+    sourceThreadTitlePrefix: targetInfo.target.sourceThreadTitlePrefix,
+    targetThreadId: targetInfo.target.targetThreadId,
     targetThreadTitle: targetInfo.target.targetThreadTitle,
+    targetThreadTitlePrefix: targetInfo.target.targetThreadTitlePrefix,
     targetWorkspace: targetInfo.target.targetWorkspace,
     workflowMode: "autonomous",
     reasoningEffort,
@@ -293,7 +329,9 @@ function buildDiagnosticRemediationPlan(input = {}) {
     dispatch: taskCard ? {
       interface: "codex_mobile_task_card",
       returnCardRequired: true,
-      executeAutomatically: eligibility.eligible,
+      executeAutomatically: autoDispatchEligible,
+      ownerApprovalRequired: !autoDispatchEligible,
+      policy: autoDispatchEligible ? "auto_self_check" : "owner_gated",
     } : null,
   };
 }
@@ -303,6 +341,7 @@ module.exports = {
   HOME_AI_TARGET,
   buildDiagnosticRemediationPlan,
   evidencePacket,
+  isSelfCheckDiagnosticCase,
   owningLayerForCase,
   remediationEligible,
   targetForLayer,

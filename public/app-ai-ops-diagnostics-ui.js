@@ -29,6 +29,7 @@
     "homeai.pluginConversation.repairRequest",
   ]);
   const PLUGIN_CONVERSATION_ACTION_COMMENT_RE = /<!--\s*homeai-plugin-conversation-action\b([\s\S]*?)-->/gi;
+  const OWNER_TASK_REQUEST_COMMENT_RE = /<!--\s*homeai-owner-task-request\b([\s\S]*?)-->/gi;
   const PLUGIN_CONVERSATION_ACTION_SCAN_RECENT_MS = 15 * 60 * 1000;
   const CLIENT_LAYOUT_DIAGNOSTIC_ENDPOINT = "/api/client-layout-diagnostics";
   const SAFE_PLUGIN_REPORT_FIELD_KEYS = new Set([
@@ -123,27 +124,45 @@
   ]);
   const SAFE_PLUGIN_CONVERSATION_EVIDENCE_KEYS = new Set([
     "action",
+    "affected_surface",
     "alias",
     "aliases",
     "catalog",
     "category",
     "code",
+    "capability",
+    "current_limit",
     "count",
     "current_count",
+    "desired_capability",
     "english",
     "error_code",
     "expected_count",
+    "file_kind",
+    "file_type",
+    "format",
+    "formats",
     "key",
     "label",
     "labels",
     "missing_key",
+    "required_tool",
+    "required_tools",
+    "requirement",
+    "requirements",
     "request_type",
+    "risk",
     "route_kind",
     "source_kind",
     "status",
     "status_code",
     "surface",
+    "tool",
+    "tools",
+    "toolset",
+    "toolsets",
     "type",
+    "validation",
     "workspaceId",
   ]);
   const CONTENT_KEY_RE = /message|prompt|completion|transcript|markdown|html|text|value|input|image|screenshot|payload/i;
@@ -388,20 +407,30 @@
   function parsePluginConversationActionComments(text = "") {
     const actions = [];
     const source = String(text || "");
-    PLUGIN_CONVERSATION_ACTION_COMMENT_RE.lastIndex = 0;
-    let match = null;
-    while ((match = PLUGIN_CONVERSATION_ACTION_COMMENT_RE.exec(source))) {
-      const body = String(match[1] || "").trim();
-      const start = body.indexOf("{");
-      const end = body.lastIndexOf("}");
-      if (start < 0 || end <= start) continue;
-      try {
-        const parsed = JSON.parse(body.slice(start, end + 1));
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) actions.push(parsed);
-      } catch (_) {
-        actions.push({ __parseError: true });
+    const parseMatches = (regex, defaults = {}) => {
+      regex.lastIndex = 0;
+      let match = null;
+      while ((match = regex.exec(source))) {
+        const body = String(match[1] || "").trim();
+        const start = body.indexOf("{");
+        const end = body.lastIndexOf("}");
+        if (start < 0 || end <= start) continue;
+        try {
+          const parsed = JSON.parse(body.slice(start, end + 1));
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            actions.push(Object.assign({}, defaults, parsed));
+          }
+        } catch (_) {
+          actions.push({ __parseError: true });
+        }
       }
-    }
+    };
+    parseMatches(PLUGIN_CONVERSATION_ACTION_COMMENT_RE);
+    parseMatches(OWNER_TASK_REQUEST_COMMENT_RE, {
+      pluginId: "home-ai",
+      requestType: "capability_gap",
+      sourceSurface: "host-conversation",
+    });
     return actions;
   }
 
@@ -790,10 +819,17 @@
           method: "POST",
           body: JSON.stringify(payload),
         });
+        const inboxItemId = String(result?.inboxItem?.id || "").trim();
+        if (!inboxItemId || result?.dispatchReady === false) {
+          const err = new Error("plugin_conversation_action_not_dispatch_ready");
+          err.code = "plugin_conversation_action_not_dispatch_ready";
+          throw err;
+        }
         record("plugin_conversation_action_submitted", {
           pluginId: payload.pluginId,
           requestType: payload.requestType,
-          inboxItemId: result?.inboxItem?.id || "",
+          inboxItemId,
+          dispatchReady: result?.dispatchReady !== false,
           autoDispatched: Boolean(result?.autoDispatched),
         });
         return result;
@@ -880,7 +916,7 @@
             return;
           }
           submitPluginConversationAction(null, action).then((result) => {
-            if (result?.ok !== false && result?.inboxItem?.id) {
+            if (result?.ok !== false && result?.inboxItem?.id && result?.dispatchReady !== false) {
               markPluginConversationActionSubmitted(key, { inboxItemId: result.inboxItem.id });
               if (typeof root.showPushToast === "function") {
                 root.showPushToast("已提交插件修复审批，等待 Owner 发卡", "success");

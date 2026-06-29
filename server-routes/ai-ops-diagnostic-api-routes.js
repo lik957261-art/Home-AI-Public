@@ -154,7 +154,9 @@ function createAiOpsDiagnosticApiRoutes(deps = {}) {
           result.owner_notification = {
             ok: notification?.ok !== false,
             notified: Boolean(notification?.notified),
+            auto_dispatched: Boolean(notification?.autoDispatched),
             inbox_item_id: cleanString(notification?.inboxItem?.id, 160),
+            task_card_id: cleanString(notification?.taskCardResult?.cardIds?.[0], 160),
             reason: cleanString(notification?.reason || notification?.error || "", 160),
           };
         } catch (err) {

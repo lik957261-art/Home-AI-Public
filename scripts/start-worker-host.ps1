@@ -11,9 +11,6 @@ param(
     [string]$BridgeHermesHome = "",
     [string]$BridgeTodoPluginName = "",
     [string]$BridgeCronOutputRoot = "",
-    [string]$WeixinFrontGateway = "",
-    [string]$WeixinFrontGatewayScript = "C:\ProgramData\HermesMobile\app\scripts\start-weixin-mobile-ingress-bridge-windows.ps1",
-    [string]$WeixinFrontGatewayHermesHome = "",
     [string]$CronTickSidecar = "",
     [string]$CronTickSidecarScript = "",
     [string]$CronTickSidecarHermesHome = "",
@@ -296,52 +293,6 @@ function Start-BridgeHost {
     throw "Bridge host did not become healthy on port $ListenPort."
 }
 
-function Resolve-WeixinFrontGatewayMode {
-    $value = [string]$WeixinFrontGateway
-    if (-not $value) { $value = [string]$env:HERMES_MOBILE_WEIXIN_FRONT_GATEWAY }
-    if (-not $value) { return "auto" }
-    return $value
-}
-
-function Test-WeixinFrontGatewayDisabled {
-    $value = Resolve-WeixinFrontGatewayMode
-    return ($value -match '^(0|false|off|disabled|none)$')
-}
-
-function Test-WeixinFrontGatewayRequired {
-    $value = Resolve-WeixinFrontGatewayMode
-    return ($value -match '^(required|require|strict)$')
-}
-
-function Start-WeixinFrontGatewayIfNeeded {
-    if (Test-WeixinFrontGatewayDisabled) { return }
-    if (-not (Test-Path -LiteralPath $WeixinFrontGatewayScript)) {
-        $message = "Weixin front gateway starter not found: $WeixinFrontGatewayScript"
-        if (Test-WeixinFrontGatewayRequired) { throw $message }
-        Write-WorkerHostLog $message
-        return
-    }
-    $resolvedHermesHome = $WeixinFrontGatewayHermesHome
-    if (-not $resolvedHermesHome) { $resolvedHermesHome = $env:HERMES_MOBILE_WEIXIN_FRONT_GATEWAY_HERMES_HOME }
-    if (-not $resolvedHermesHome) { $resolvedHermesHome = "C:\ProgramData\HermesMobile\hermes-native-profile\.hermes" }
-    $args = @(
-        "-NoProfile",
-        "-ExecutionPolicy", "Bypass",
-        "-File", $WeixinFrontGatewayScript,
-        "-HermesHome", $resolvedHermesHome
-    )
-    if ($CheckOnly) { $args += "-CheckOnly" }
-    Write-WorkerHostLog "Ensuring Weixin front gateway through $WeixinFrontGatewayScript."
-    $output = & powershell.exe @args 2>&1 | ForEach-Object { $_.ToString() }
-    $exitCode = $LASTEXITCODE
-    foreach ($line in $output) { Write-WorkerHostLog ("weixin-front-gateway: {0}" -f $line) }
-    if ($exitCode -ne 0) {
-        $message = "Weixin front gateway start/check failed with exit code $exitCode."
-        if (Test-WeixinFrontGatewayRequired) { throw $message }
-        Write-WorkerHostLog $message
-    }
-}
-
 function Resolve-CronTickSidecarMode {
     $value = [string]$CronTickSidecar
     if (-not $value) { $value = [string]$env:HERMES_MOBILE_CRON_TICK_SIDECAR }
@@ -418,7 +369,6 @@ Set-BridgeHostEnvironment -ListenPort $BridgeHostPort -KeyPath $BridgeHostKeyPat
 if ($LASTEXITCODE -ne 0) {
     throw "Hermes Mobile bridge host syntax check failed."
 }
-Start-WeixinFrontGatewayIfNeeded
 if (-not $CheckOnly) {
     Start-CronTickSidecarInCallerContextIfNeeded
 }

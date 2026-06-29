@@ -44,9 +44,25 @@ then be converted into deterministic remediation plans under
 `docs/PLATFORM_CONTRACTS/diagnostic-remediation-loop-contract.md`. The plan may
 create an Owner-only system notification when it has a resolved owning
 workspace, bounded evidence, return-card requirements, and no privacy or
-high-risk approval blocker. The system must not auto-dispatch Codex task cards;
-Owner must explicitly trigger dispatch from the notification or diagnostic
-case action. AI Ops does not directly edit code or deploy production.
+high-risk approval blocker. Strict Home AI self-check/log-collection
+diagnostics may auto-dispatch Codex task cards after the remediation plan is
+rebuilt and passes the same privacy, target, severity, confidence, and
+high-risk gates. User demand, feature/capability-gap, plugin conversation
+repair requests, embedded plugin reports, and other request-like cases remain
+Owner-gated; Owner must explicitly trigger dispatch from the notification or
+diagnostic case action. AI Ops does not directly edit code or deploy
+production.
+
+Home AI Self-Improving Loop is layered on top of AI Ops. It is implemented
+in `adapters/home-ai-self-improving-loop-service.js` and
+`scripts/homeai-self-improving-loop.js`. The loop owns the maintained
+self-check signal matrix, converts bounded observations into diagnostic event
+payloads, can submit those metadata-only events to AI Ops intake, and creates
+daily audit request cards for the dedicated audit threads. It does not perform
+deep audits locally, restart services as closure, or modify code. Once a
+self-check event is submitted, the AI Ops remediation workflow may
+auto-dispatch the resulting repair task card only through the strict
+self-check diagnostic gate; daily audit request cards remain request-only.
 
 ## Core Commands
 
@@ -236,6 +252,19 @@ state and bounded evidence are more useful than a user-authored screenshot and
 manual explanation. It is implemented as a Home AI platform service, not as
 plugin-local model logic.
 
+Self-check diagnostics use the same intake boundary. The maintained signal
+matrix version `20260628-self-improving-loop-v3` covers Gateway profile health,
+MCP/schema closure, deploy lane liveness, task-card dispatch, plugin proxy
+latency, native bridge capability, notification delivery, plugin manifest
+health, audit-thread liveness, Automation cron health, and production
+self-diagnostic inventory health. Current production collectors read bounded
+outputs from `production-status-smoke.js`, `macos-automation-cron-audit.js`,
+and `production-self-diagnostics.js`. Each self-check event must include only
+bounded metadata such as signal id, owner, route kind, error code, duration
+bucket, counts, build id, and short hashes. It must not include raw URLs, paths,
+keys, cookies, launch tokens, screenshots, payload bodies, database rows, full
+prompts, or long logs.
+
 The default hidden client trigger is a three-finger long press. The two-finger
 long press remains reserved for native shell settings. The same Home AI sheet is
 also available from embedded plugin surfaces: same-origin plugin iframes are
@@ -328,10 +357,13 @@ reopened
 
 H1/H2 diagnostics with sufficient confidence become `card_candidate`; all
 other diagnostics remain `inbox_waiting`. A remediation plan with
-`ready_to_dispatch` may create an Owner-only Action Inbox notification. Codex
-task-card dispatch remains Owner-triggered; lower-confidence, privacy-unsafe,
-unknown-target, or high-risk cases remain in the Owner-visible AI Ops inbox or
-diagnostic case list without dispatch side effects.
+`ready_to_dispatch` may auto-dispatch only when it matches the strict Home AI
+self-check gate (`plugin_id=home-ai`, `source_surface=home-ai-self-check`,
+`diagnostic_type=self_check_signal_failed`, and `category=self_check_*`). Other
+eligible plans create an Owner-only Action Inbox notification and remain
+Owner-triggered. Lower-confidence, privacy-unsafe, unknown-target, or high-risk
+cases remain in the Owner-visible AI Ops inbox or diagnostic case list without
+dispatch side effects.
 
 Runtime diagnostics can be routed into remediation only as bounded evidence.
 The remediation planner must never export raw screenshots, logs, plugin
@@ -414,6 +446,19 @@ Client trigger:
   counts. Raw records, health logs, private workout text, raw provider payloads,
   URLs, paths, tokens, cookies, screenshots, uploads, and full conversation
   transcripts are stripped before the request is sent to the host API.
+- ordinary chat, directory-bound topic chats, and low-permission Gateway runs may
+  submit a Home-AI-owned capability/platform gap by appending one hidden
+  `homeai-owner-task-request` HTML comment with bounded JSON. The client submits
+  it through the same Owner-gated approval bridge with `pluginId:"home-ai"` and
+  default `requestType:"capability_gap"`. These requests target the Home AI app
+  implementation thread/workspace, not a plugin thread, and still only create an
+  Owner Action Inbox approval item. They must not claim successful submission
+  unless the Host returns a real `ainb_*` id, and they must not claim Codex
+  dispatch unless Owner later receives a real `ttc_*` id.
+- duplicate repair-request upserts must not repeatedly notify Owner. The Action
+  Inbox result marks whether the row was created, updated, or reopened; the
+  bridge sends push only for a newly created approval or a true terminal-state
+  reopen.
 
 ## Ownership
 

@@ -133,6 +133,57 @@ async function testRegisterDefaultsToAuthenticatedWorkspaceWhenWorkspaceIdMissin
   assert.doesNotMatch(res.body, /raw-secret-token/);
 }
 
+async function testRegisterAndroidFcmUsesWorkspaceAccessAndReturnsChannel() {
+  const { calls, routes } = makeRoutes({
+    nativeNotificationService: {
+      channel: "native",
+      registerDevice(input) {
+        calls.registered.push(input);
+        return {
+          ok: true,
+          status: 201,
+          channel: "native_android_fcm",
+          device: {
+            id: "ndev_android",
+            workspaceId: input.workspaceId,
+            platform: input.platform,
+            pushProvider: input.pushProvider,
+            channel: "native_android_fcm",
+            tokenHash: "hash-fcm",
+            enabled: true,
+          },
+        };
+      },
+    },
+  });
+  const req = {
+    method: "POST",
+    auth: { ok: true, workspaceId: "owner", role: "owner" },
+    body: {
+      platform: "android",
+      pushProvider: "fcm",
+      deviceToken: "raw-fcm-secret-token",
+      appBundleId: "app.homeai.android",
+      appVersion: "0.4.22",
+      buildNumber: "26",
+      environment: "production",
+      source: "home_ai_native",
+    },
+  };
+  const res = makeResponse();
+  await routes.handle(req, res, makeUrl("/api/native/devices/register"));
+  assert.equal(res.statusCode, 201);
+  assert.equal(calls.workspaceAccess[0], "owner");
+  assert.equal(calls.registered[0].platform, "android");
+  assert.equal(calls.registered[0].pushProvider, "fcm");
+  assert.equal(calls.registered[0].appBundleId, "app.homeai.android");
+  const body = parseBody(res);
+  assert.equal(body.channel, "native_android_fcm");
+  assert.equal(body.device.channel, "native_android_fcm");
+  assert.equal(body.device.tokenHash, "hash-fcm");
+  assert.doesNotMatch(res.body, /raw-fcm-secret-token/);
+}
+
 async function testRegisterRejectsWorkspaceSpoof() {
   const { calls, routes } = makeRoutes();
   const req = { method: "POST", body: { workspaceId: "blocked", deviceToken: "raw-secret-token" } };
@@ -156,11 +207,19 @@ async function testUnregisterAndTestNotification() {
   assert.equal(testRes.statusCode, 200);
   assert.equal(calls.sent[0].workspaceId, "owner");
   assert.match(calls.sent[0].deepLink, /nativeShell=ios/);
+
+  const androidTestRes = makeResponse();
+  await routes.handle({ method: "POST", body: { workspaceId: "owner", body: "hello", notificationChannel: "native_android_fcm" } }, androidTestRes, makeUrl("/api/native/devices/test-notification"));
+  assert.equal(androidTestRes.statusCode, 200);
+  assert.equal(calls.sent[1].workspaceId, "owner");
+  assert.equal(calls.sent[1].notificationChannel, "native_android_fcm");
+  assert.match(calls.sent[1].deepLink, /nativeShell=android/);
 }
 
 Promise.resolve()
   .then(testRegisterUsesWorkspaceAccessAndReturnsPublicDevice)
   .then(testRegisterDefaultsToAuthenticatedWorkspaceWhenWorkspaceIdMissing)
+  .then(testRegisterAndroidFcmUsesWorkspaceAccessAndReturnsChannel)
   .then(testRegisterRejectsWorkspaceSpoof)
   .then(testUnregisterAndTestNotification)
   .then(() => {

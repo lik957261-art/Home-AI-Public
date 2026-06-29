@@ -14,6 +14,7 @@ const { createCodexMobileRecoveryService } = require("../adapters/codex-mobile-r
 const { createFinanceLedgerJoinApprovalService } = require("../adapters/finance-ledger-join-approval-service");
 const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
 const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
+const { createPluginProxyTimingService } = require("../adapters/plugin-proxy-timing-service");
 const { createPluginDirectoryContextBindingService } = require("../adapters/plugin-directory-context-binding-service");
 const { createPluginTopicBindingService } = require("../adapters/plugin-topic-binding-service");
 const { createPluginTopicContextSourceService } = require("../adapters/plugin-topic-context-source-service");
@@ -111,6 +112,10 @@ function createMobileApiPluginComposition(deps = {}) {
     appRoot: deps.repoRoot || process.cwd(),
     env: deps.env || process.env,
   });
+  const pluginProxyTimingService = deps.pluginProxyTimingService || createPluginProxyTimingService({
+    dataDir: deps.dataDir,
+    nowIso: deps.nowIso,
+  });
 
   const hermesPluginApiRoutes = createHermesPluginApiRoutes({
     authenticateRequest: deps.authenticateRequest,
@@ -122,6 +127,7 @@ function createMobileApiPluginComposition(deps = {}) {
     sendJson: deps.sendJson,
     hermesPluginService,
     hermesPluginNotificationService,
+    pluginProxyTimingService,
     auditPluginManifestRequest: (event) => appendPluginManifestAudit(deps, event),
   });
   callBootTrace(deps, "hermes plugin api routes ready");
@@ -191,6 +197,7 @@ function createMobileApiPluginComposition(deps = {}) {
       financeLedgerJoinApprovalService,
       hermesPluginNotificationService,
       hermesPluginService,
+      pluginProxyTimingService,
       pluginDirectoryContextBindingService,
       pluginTopicBindingService,
       pluginTopicContextSourceService,

@@ -28,6 +28,11 @@ function jsonBody(res) {
 
 function createDeps(options = {}) {
   const calls = [];
+  const thread = options.thread || {
+    id: "thread_1",
+    workspaceId: "owner",
+    messages: [{ id: "assistant_1", role: "assistant" }],
+  };
   return {
     calls,
     deps: {
@@ -45,6 +50,10 @@ function createDeps(options = {}) {
             taskCardResult: { cardIds: ["ttc_plugin_1"] },
           };
         },
+      },
+      findThreadForRequest(_req, threadId) {
+        calls.push({ type: "findThreadForRequest", threadId });
+        return threadId === thread.id ? thread : null;
       },
       broadcast(event) {
         calls.push({ type: "broadcast", event });
@@ -70,6 +79,18 @@ function createDeps(options = {}) {
           return "";
         }
         return workspaceId;
+      },
+      wardrobeOutfitWearIntentActionService: options.wardrobeOutfitWearIntentActionService || {
+        async execute(input) {
+          calls.push({ type: "executeWardrobeOutfitWearIntent", input });
+          return {
+            ok: true,
+            status: 200,
+            actionState: { status: input.confirmReplace ? "stored" : "needs_confirmation" },
+            message: { id: input.message.id, pluginActions: { wardrobeOutfitWearIntent: { status: "needs_confirmation" } } },
+            thread: { id: input.thread.id },
+          };
+        },
       },
       sendJson(res, status, payload) {
         calls.push({ type: "sendJson", status, payload });
@@ -141,6 +162,30 @@ async function testDeniedOwnerStopsDispatch() {
   assert.equal(calls.some((call) => call.type === "dispatchTaskCard"), false);
 }
 
+async function testWardrobeOutfitWearIntentExecutesDeterministicAction() {
+  const { deps, calls } = createDeps();
+  const routes = createPluginConversationActionApiRoutes(deps);
+  const req = makeReq("POST", "/api/plugin-conversation/actions/wardrobe/outfit-wear-intent", {
+    workspaceId: "owner",
+    threadId: "thread_1",
+    messageId: "assistant_1",
+    confirmReplace: true,
+  });
+  const res = makeResponse();
+  await routes.handle(req, res, new URL(req.url, "http://localhost"), { auth: { workspaceId: "owner", principalId: "owner" } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(jsonBody(res).actionState.status, "stored");
+  const executeInput = calls.find((call) => call.type === "executeWardrobeOutfitWearIntent").input;
+  assert.equal(executeInput.thread.id, "thread_1");
+  assert.equal(executeInput.message.id, "assistant_1");
+  assert.equal(executeInput.workspaceId, "owner");
+  assert.equal(executeInput.principalId, "owner");
+  assert.equal(executeInput.confirmReplace, true);
+  assert.equal(executeInput.mode, undefined);
+  assert.equal(calls.some((call) => call.type === "createRequest"), false);
+  assert.equal(calls.some((call) => call.type === "dispatchTaskCard"), false);
+}
+
 function testNoRouteFallsThrough() {
   const { deps } = createDeps();
   const routes = createPluginConversationActionApiRoutes(deps);
@@ -161,6 +206,7 @@ async function run() {
   await testOwnerDispatchesTaskCardWithPrompt();
   await testDeniedWorkspaceStopsCreate();
   await testDeniedOwnerStopsDispatch();
+  await testWardrobeOutfitWearIntentExecutesDeterministicAction();
   await testNoRouteFallsThrough();
   testDependencyValidation();
   console.log("plugin conversation action API route tests passed");

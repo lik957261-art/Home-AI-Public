@@ -114,27 +114,6 @@
     return /\.(png|jpe?g|gif|webp|avif|bmp|heic|heif)(?:[?#]|$)/i.test(href);
   }
 
-  async function forwardFileToWeixin(input = {}) {
-    const workspaceId = currentWorkspaceId();
-    const body = { workspaceId };
-    if (input.markdownText != null) {
-      const filename = /\.md$/i.test(String(input.title || "")) ? input.title : generatedBaseName(input.title, "md");
-      body.inlineFile = {
-        filename,
-        contentType: "text/markdown; charset=utf-8",
-        contentBase64: bytesToBase64(new TextEncoder().encode(String(input.markdownText || ""))),
-      };
-    } else if (input.sourceUrl) {
-      body.sourceUrl = input.sourceUrl;
-    } else {
-      throw new Error("没有可转发的文件地址");
-    }
-    await previewApi("/api/weixin/forward-file", {
-      method: "POST",
-      body: JSON.stringify(body),
-    });
-  }
-
   async function forwardMarkdownToGroup(markdown, title) {
     const text = String(markdown || "");
     if (!text.trim()) throw new Error("Markdown 内容为空");
@@ -195,17 +174,23 @@
     const title = input.title || "Home AI";
     const sourceUrl = input.sourceUrl || "";
     transientPreviewStatus(root, "");
-    if (action === "weixin") {
-      transientPreviewStatus(root, "正在加入微信转发队列...");
-      await forwardFileToWeixin({ sourceUrl, title, mime: input.mime });
-      transientPreviewStatus(root, "已加入微信转发队列", "success");
-    } else if (action === "group") {
+    if (action === "group") {
       transientPreviewStatus(root, "正在转发到群...");
       await forwardFileLinkToGroup(sourceUrl, title);
       transientPreviewStatus(root, "已转发到群", "success");
     } else if (action === "system") {
-      await sharePreviewLink(sourceUrl, title);
+      if (await openNativeDocumentOpenInFromInput(input, {
+        onFailure: () => transientPreviewStatus(root, "系统打开方式不可用，改用分享。"),
+      })) {
+        transientPreviewStatus(root, "已打开系统打开方式", "success");
+        return;
+      }
+      await shareOrDownloadOriginalFile(input);
     } else if (action === "native-preview") {
+      if (openNativeShellDocumentPreviewFromInput(input)) {
+        transientPreviewStatus(root, "正在打开系统预览...", "success");
+        return;
+      }
       const url = previewShareUrl(sourceUrl);
       if (url) global.location.assign(url);
     } else if (action === "save-album") {
@@ -234,7 +219,6 @@
         <div class="task-preview-more-wrap">
           <button class="task-preview-more-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="更多操作">...</button>
           <div class="task-preview-more-menu" role="menu" hidden>
-            <button type="button" role="menuitem" data-preview-action="weixin">分享到微信</button>
             <button type="button" role="menuitem" data-preview-action="group">分享到群</button>
             <button type="button" role="menuitem" data-preview-action="save-album">保存到相册</button>
             <button type="button" role="menuitem" data-preview-action="system">系统分享</button>
@@ -357,6 +341,322 @@
     }
   }
 
+  function currentNativeShellParam() {
+    try {
+      const params = new URLSearchParams(global.location?.search || "");
+      const queryValue = params.get("nativeShell") || "";
+      if (queryValue === "ios" || queryValue === "android") return queryValue;
+    } catch (_) {}
+    const root = global.document?.documentElement;
+    const datasetValue = root?.dataset?.nativeShell || "";
+    if (datasetValue === "ios" || datasetValue === "android") return datasetValue;
+    try {
+      const storedValue = global.localStorage?.getItem("homeAI.nativeShell") || "";
+      if (storedValue === "ios" || storedValue === "android") return storedValue;
+    } catch (_) {}
+    return "";
+  }
+
+  function nativeDocumentPreviewRequestId() {
+    try {
+      if (global.crypto?.randomUUID) return `native_doc_${global.crypto.randomUUID()}`;
+    } catch (err) {
+      void err;
+    }
+    return `native_doc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  function parsedNativeDocumentResult(value) {
+    if (!value) return null;
+    if (typeof value === "object") return value;
+    if (typeof value !== "string") return null;
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function nativeDocumentResultForEvent(event) {
+    return parsedNativeDocumentResult(event?.detail) || parsedNativeDocumentResult(event?.data) || null;
+  }
+
+  function rawAndroidNativeDocumentBridge() {
+    const raw = global.HomeAIAndroidNativeDocument || null;
+    return raw && typeof raw.open === "function" ? raw : null;
+  }
+
+  function rawIosNativeDocumentBridge() {
+    const handlers = global.webkit?.messageHandlers || {};
+    const handler = handlers.homeAINativeDocument || handlers.HomeAINativeDocument || null;
+    return handler && typeof handler.postMessage === "function" ? handler : null;
+  }
+
+  function ensureNativeDocumentBridge() {
+    const capability = global.HomeAINativeDocumentCapability || {};
+    const bridge = global.HomeAINativeDocument || {};
+    if (capability.documentPreview === true && typeof bridge.open === "function") return bridge;
+
+    const androidBridge = rawAndroidNativeDocumentBridge();
+    const iosBridge = rawIosNativeDocumentBridge();
+    if (!androidBridge && !iosBridge) return null;
+
+    const platform = androidBridge ? "android" : "ios";
+    global.HomeAINativeDocumentCapability = Object.assign({}, capability, {
+      documentPreview: true,
+      platform: capability.platform || platform,
+      version: capability.version || 1,
+    });
+    global.HomeAINativeDocument = Object.assign({}, bridge, {
+      open(request) {
+        const safeRequest = Object.assign({}, request || {});
+        if (!safeRequest.requestId) safeRequest.requestId = nativeDocumentPreviewRequestId();
+        return new Promise((resolve) => {
+          let settled = false;
+          let timeoutId = 0;
+          const finish = (body) => {
+            if (settled) return;
+            settled = true;
+            if (timeoutId) global.clearTimeout(timeoutId);
+            global.removeEventListener?.("homeai:native-document-result", onResult);
+            const result = parsedNativeDocumentResult(body) || {};
+            resolve(Object.assign({ ok: result.ok !== false, requestId: safeRequest.requestId }, result));
+          };
+          const onResult = (event) => {
+            const body = nativeDocumentResultForEvent(event);
+            if (!body) return;
+            if (body.requestId && body.requestId !== safeRequest.requestId) return;
+            finish(body);
+          };
+          global.addEventListener?.("homeai:native-document-result", onResult);
+          timeoutId = global.setTimeout?.(() => {
+            finish({ ok: false, requestId: safeRequest.requestId, error: "native_document_result_timeout" });
+          }, 15000);
+          try {
+            const payload = JSON.stringify(safeRequest);
+            const immediate = androidBridge
+              ? androidBridge.open(payload)
+              : iosBridge.postMessage(safeRequest);
+            const parsed = parsedNativeDocumentResult(immediate);
+            if (parsed && (parsed.ok === false || parsed.ok === true || parsed.error)) finish(parsed);
+          } catch (err) {
+            finish({ ok: false, requestId: safeRequest.requestId, error: err?.message || "native_document_open_failed" });
+          }
+        });
+      },
+    });
+    return global.HomeAINativeDocument;
+  }
+
+  function nativeDocumentBridgeAvailable() {
+    return Boolean(ensureNativeDocumentBridge());
+  }
+
+  function nativeDocumentOpenInBridge() {
+    const bridge = ensureNativeDocumentBridge();
+    const capability = global.HomeAINativeDocumentCapability || {};
+    if (capability.documentOpenIn === true && bridge && typeof bridge.open === "function") return bridge;
+    return null;
+  }
+
+  function nativeDocumentOpenInAvailable() {
+    return Boolean(nativeDocumentOpenInBridge());
+  }
+
+  function nativeDocumentBridgeExpected() {
+    return Boolean(
+      currentNativeShellParam()
+      || nativeDocumentBridgeAvailable()
+      || rawAndroidNativeDocumentBridge()
+      || rawIosNativeDocumentBridge()
+    );
+  }
+
+  function nativeDocumentKind(kind) {
+    if (kind === "presentation") return "powerpoint";
+    if (kind === "spreadsheet") return "spreadsheet";
+    return kind || "file";
+  }
+
+  function nativeDocumentSupportedKind(kind) {
+    return kind === "pdf" || kind === "word" || kind === "presentation";
+  }
+
+  function documentMimeFromLink(link) {
+    const datasetMime = link?.dataset?.artifactMime || "";
+    if (datasetMime) return datasetMime;
+    const href = link?.href || link?.getAttribute?.("href") || "";
+    try {
+      const url = new URL(href, global.location.origin);
+      return url.searchParams.get("mime") || "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function documentNameFromLink(link) {
+    const datasetName = link?.dataset?.artifactName || "";
+    if (datasetName) return datasetName;
+    const href = link?.href || link?.getAttribute?.("href") || "";
+    try {
+      const url = new URL(href, global.location.origin);
+      return url.searchParams.get("name") || url.pathname.split("/").pop() || "document";
+    } catch (_) {
+      return "document";
+    }
+  }
+
+  function nativeDocumentSourceSurface() {
+    return global.location?.pathname === "/directory-viewer.html" ? "directory-preview" : "task-preview";
+  }
+
+  function nativeDocumentOpenRequestFromLink(link) {
+    const kind = documentKindFromLink(link);
+    if (!nativeDocumentSupportedKind(kind)) return null;
+    const url = documentNativeUrlFromLink(link);
+    if (!url) return null;
+    return {
+      type: "homeai.nativeDocument.open",
+      version: 1,
+      requestId: nativeDocumentPreviewRequestId(),
+      url,
+      filename: documentNameFromLink(link),
+      mimeType: documentMimeFromLink(link),
+      kind: nativeDocumentKind(kind),
+      sourceSurface: nativeDocumentSourceSurface(),
+      requiresAuth: true,
+    };
+  }
+
+  function nativeDocumentOpenRequestFromInput(input = {}) {
+    const kind = String(input.kind || "").trim();
+    if (!nativeDocumentSupportedKind(kind)) return null;
+    const sourceUrl = documentNativeUrlFromInput(input.sourceUrl || "");
+    if (!sourceUrl) return null;
+    return {
+      type: "homeai.nativeDocument.open",
+      version: 1,
+      requestId: nativeDocumentPreviewRequestId(),
+      url: sourceUrl,
+      filename: input.title || "document",
+      mimeType: input.mime || "",
+      kind: nativeDocumentKind(kind),
+      sourceSurface: input.sourceSurface || nativeDocumentSourceSurface(),
+      requiresAuth: true,
+    };
+  }
+
+  function nativeDocumentOpenInRequestFromInput(input = {}) {
+    const request = nativeDocumentOpenRequestFromInput(input);
+    return request ? Object.assign({}, request, { mode: "openIn" }) : null;
+  }
+
+  function nativeDocumentOpenInRequestFromLink(link) {
+    const request = nativeDocumentOpenRequestFromLink(link);
+    return request ? Object.assign({}, request, { mode: "openIn" }) : null;
+  }
+
+  function documentNativeUrlFromInput(value) {
+    if (!value) return "";
+    try {
+      const url = new URL(value, global.location.origin);
+      if (url.origin !== global.location.origin) return "";
+      return `${url.pathname}${url.search}${url.hash || ""}`;
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function shouldUseNativeShellDocumentPreview(link) {
+    return Boolean(nativeDocumentBridgeExpected() && nativeDocumentOpenRequestFromLink(link));
+  }
+
+  function callNativeDocumentBridge(request, options = {}) {
+    const bridge = request ? ensureNativeDocumentBridge() : null;
+    if (!request || !bridge) return false;
+    const onFailure = typeof options.onFailure === "function" ? options.onFailure : null;
+    try {
+      const result = bridge.open(request);
+      if (result && typeof result.then === "function") {
+        result
+          .then((body) => {
+            if (body && body.ok === false) onFailure?.(body.error || "native_document_open_failed");
+          })
+          .catch((err) => onFailure?.(err?.message || "native_document_open_failed"));
+        return true;
+      }
+      if (result && result.ok === false) {
+        onFailure?.(result.error || "native_document_open_failed");
+        return Boolean(onFailure);
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function openNativeShellDocumentPreview(link, options = {}) {
+    const request = nativeDocumentOpenRequestFromLink(link);
+    return callNativeDocumentBridge(request, options);
+  }
+
+  function openNativeShellDocumentPreviewFromInput(input = {}, options = {}) {
+    const request = nativeDocumentOpenRequestFromInput(input);
+    return callNativeDocumentBridge(request, options);
+  }
+
+  async function openNativeDocumentOpenInFromInput(input = {}, options = {}) {
+    const request = nativeDocumentOpenInRequestFromInput(input);
+    const bridge = request ? nativeDocumentOpenInBridge() : null;
+    if (!request || !bridge) return false;
+    const onFailure = typeof options.onFailure === "function" ? options.onFailure : null;
+    try {
+      const result = await bridge.open(request);
+      if (result && result.ok === true) return true;
+      onFailure?.(result?.error || "native_document_open_in_failed");
+      return false;
+    } catch (err) {
+      onFailure?.(err?.message || "native_document_open_in_failed");
+      return false;
+    }
+  }
+
+  async function openNativeDocumentOpenInFromLink(link, options = {}) {
+    const request = nativeDocumentOpenInRequestFromLink(link);
+    const bridge = request ? nativeDocumentOpenInBridge() : null;
+    if (!request || !bridge) return false;
+    const onFailure = typeof options.onFailure === "function" ? options.onFailure : null;
+    try {
+      const result = await bridge.open(request);
+      if (result && result.ok === true) return true;
+      onFailure?.(result?.error || "native_document_open_in_failed");
+      return false;
+    } catch (err) {
+      onFailure?.(err?.message || "native_document_open_in_failed");
+      return false;
+    }
+  }
+
+  async function shareOrDownloadOriginalFile(input = {}) {
+    const sourceUrl = input.sourceUrl || "";
+    const title = input.title || "document";
+    const mime = input.mime || "";
+    try {
+      const blob = await fetchPreviewBlob(sourceUrl);
+      const file = new File([blob], title, { type: blob.type || mime || "application/octet-stream" });
+      if (canShareFiles([file])) {
+        await navigator.share({ files: [file], title });
+        return true;
+      }
+      downloadGeneratedBlob(blob, title);
+      return true;
+    } catch (_) {
+      if (await sharePreviewLink(sourceUrl, title)) return true;
+      return copyPreviewLink(previewShareUrl(sourceUrl));
+    }
+  }
+
   function documentPreviewViewportMetrics() {
     const visual = global.visualViewport || {};
     const root = document.documentElement || {};
@@ -370,16 +670,38 @@
     };
   }
 
+  function shouldUseNativeDocumentPreview(link) {
+    const kind = documentKindFromLink(link);
+    if (!kind) return false;
+    if (shouldUseNativeShellDocumentPreview(link)) return true;
+    const metrics = documentPreviewViewportMetrics();
+    if (documentPreviewUsesInAppOverlay(metrics)) return false;
+    if (documentKindUsesNativePreview(kind)) return true;
+    return shouldUseWideNativeDocumentPreview(link);
+  }
+
   function shouldUseWideNativeDocumentPreview(link) {
     const kind = documentKindFromLink(link);
     if (!documentKindUsesWideNativePreview(kind)) return false;
     const metrics = documentPreviewViewportMetrics();
-    if (metrics.coarsePointer && metrics.width <= 540) return false;
-    return metrics.width >= 768 || (metrics.coarsePointer && metrics.width >= 720 && metrics.height >= 540);
+    if (documentPreviewUsesInAppOverlay(metrics)) return false;
+    return metrics.width >= 768;
+  }
+
+  function documentPreviewUsesInAppOverlay(metrics = documentPreviewViewportMetrics()) {
+    return Boolean(metrics.coarsePointer || metrics.width < 768);
+  }
+
+  function documentKindUsesNativePreview(kind) {
+    return kind === "word" || kind === "presentation";
+  }
+
+  function documentKindPrefersNativeOpenIn(kind) {
+    return kind === "word" || kind === "presentation";
   }
 
   function documentKindUsesWideNativePreview(kind) {
-    return kind === "pdf" || kind === "word" || kind === "presentation";
+    return kind === "pdf";
   }
 
   function documentKindFromMimeName(mimeValue, nameValue) {
@@ -443,8 +765,10 @@
     try {
       const url = new URL(href, global.location.origin);
       if (url.origin !== global.location.origin) return "";
+      const nativeShell = currentNativeShellParam();
       if (url.pathname === "/file-viewer.html" || url.pathname === "/pdf-viewer.html") {
         url.searchParams.set("embed", "1");
+        if (nativeShell) url.searchParams.set("nativeShell", nativeShell);
         return `${url.pathname}?${url.searchParams.toString()}${url.hash || ""}`;
       }
       const query = new URLSearchParams({
@@ -455,6 +779,7 @@
         return: `${global.location.pathname}${global.location.search}${global.location.hash}`,
         embed: "1",
       });
+      if (nativeShell) query.set("nativeShell", nativeShell);
       const viewer = kind === "pdf" ? "/pdf-viewer.html" : "/file-viewer.html";
       return `${viewer}?${query.toString()}`;
     } catch (_) {
@@ -582,7 +907,6 @@ window.addEventListener("load", function () {
             <div class="task-preview-more-wrap">
               <button class="task-preview-more-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="更多操作">...</button>
               <div class="task-preview-more-menu" role="menu" hidden>
-                <button type="button" role="menuitem" data-preview-action="weixin">分享到微信</button>
                 <button type="button" role="menuitem" data-preview-action="group">分享到群</button>
                 <button type="button" role="menuitem" data-preview-action="md">Markdown 分享</button>
                 <button type="button" role="menuitem" data-preview-action="html">转成 HTML 分享</button>
@@ -613,11 +937,7 @@ window.addEventListener("load", function () {
     bindPreviewMoreMenu(overlay, {
       onAction: async (action) => {
         const markdownText = async () => fetchMarkdownText(previewUrl, markdownCache);
-        if (action === "weixin") {
-          transientPreviewStatus(overlay, "正在加入微信转发队列...");
-          await forwardFileToWeixin({ markdownText: await markdownText(), title });
-          transientPreviewStatus(overlay, "已加入微信转发队列", "success");
-        } else if (action === "group") {
+        if (action === "group") {
           transientPreviewStatus(overlay, "正在转发到群...");
           await forwardMarkdownToGroup(await markdownText(), title);
           transientPreviewStatus(overlay, "已转发到群", "success");
@@ -666,7 +986,37 @@ window.addEventListener("load", function () {
   function openDocumentPreviewOverlay(link) {
     const viewerUrl = documentViewerUrlFromLink(link);
     if (!viewerUrl) return false;
-    if (shouldUseWideNativeDocumentPreview(link)) {
+    const source = documentSourceFromLink(link);
+    const kind = documentKindFromLink(link) || "file";
+    const title = String(link?.dataset?.artifactName || link?.getAttribute?.("aria-label") || "文件预览").trim();
+    const mime = link?.dataset?.artifactMime || "";
+    const skipNativeBridge = Boolean(link?.dataset?.skipNativeDocumentBridge);
+    if (!skipNativeBridge && documentKindPrefersNativeOpenIn(kind) && nativeDocumentOpenInAvailable()) {
+      openNativeDocumentOpenInFromLink(link, {
+        onFailure: (error) => {
+          openNativeDocumentBridgeFailureOverlay(link, error || "native_document_open_in_failed");
+        },
+      }).then((opened) => {
+        if (!opened) openNativeDocumentBridgeFailureOverlay(link, "native_document_open_in_unavailable");
+      });
+      return true;
+    }
+    const attemptedNativeBridge = Boolean(!skipNativeBridge && shouldUseNativeShellDocumentPreview(link));
+    if (attemptedNativeBridge) {
+      const opened = openNativeShellDocumentPreview(link, {
+        onFailure: (error) => {
+          try {
+            link.dataset.skipNativeDocumentBridge = "1";
+            openNativeDocumentBridgeFailureOverlay(link, error);
+          } finally {
+            delete link.dataset.skipNativeDocumentBridge;
+          }
+        },
+      });
+      if (opened) return true;
+      return openNativeDocumentBridgeFailureOverlay(link, "native_document_bridge_unavailable");
+    }
+    if (!attemptedNativeBridge && shouldUseNativeDocumentPreview(link)) {
       const nativeUrl = documentNativeUrlFromLink(link);
       if (nativeUrl) {
         global.location.assign(nativeUrl);
@@ -674,12 +1024,10 @@ window.addEventListener("load", function () {
       }
     }
     closeArtifactPreviewOverlays();
-    const source = documentSourceFromLink(link);
-    const title = String(link?.dataset?.artifactName || link?.getAttribute?.("aria-label") || "文件预览").trim();
-    const mime = link?.dataset?.artifactMime || "";
     const overlay = document.createElement("div");
     overlay.id = "taskDocumentPreviewOverlay";
-    overlay.className = "task-document-preview-overlay";
+    overlay.className = `task-document-preview-overlay task-document-preview-${kind}`;
+    overlay.dataset.documentKind = kind;
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-modal", "true");
     overlay.innerHTML = `
@@ -690,7 +1038,6 @@ window.addEventListener("load", function () {
             <div class="task-preview-more-wrap">
               <button class="task-preview-more-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="更多操作">...</button>
               <div class="task-preview-more-menu" role="menu" hidden>
-                <button type="button" role="menuitem" data-preview-action="weixin">分享到微信</button>
                 <button type="button" role="menuitem" data-preview-action="group">分享到群</button>
                 <button type="button" role="menuitem" data-preview-action="system">系统分享</button>
                 <button type="button" role="menuitem" data-preview-action="native-preview">原始格式显示</button>
@@ -721,7 +1068,101 @@ window.addEventListener("load", function () {
         sourceUrl: source,
         title,
         mime,
+        kind,
       }),
+    });
+    document.body.appendChild(overlay);
+    document.body.classList.add("task-document-preview-open");
+    markPreviewHistory("document");
+    return true;
+  }
+
+  function openNativeDocumentBridgeFailureOverlay(link, error = "") {
+    closeArtifactPreviewOverlays();
+    const source = documentSourceFromLink(link);
+    const kind = documentKindFromLink(link) || "file";
+    const title = String(link?.dataset?.artifactName || link?.getAttribute?.("aria-label") || "文件预览").trim();
+    const mime = link?.dataset?.artifactMime || "";
+    const message = error === "native_document_result_timeout"
+      ? "系统预览没有返回结果，请重启 Home AI 原生壳后再试。"
+      : "系统预览桥接不可用，请更新或重启 Home AI 原生壳后再试。你仍然可以用系统打开方式、分享或下载继续查看。";
+    const overlay = document.createElement("div");
+    overlay.id = "taskDocumentPreviewOverlay";
+    overlay.className = "task-document-preview-overlay task-document-preview-native-error";
+    overlay.dataset.documentKind = kind;
+    overlay.setAttribute("role", "dialog");
+    overlay.setAttribute("aria-modal", "true");
+    overlay.innerHTML = `
+      <div class="task-document-preview-shell">
+        <div class="task-document-preview-head">
+          <strong>${escapeValue(title || "系统预览")}</strong>
+          <button class="task-document-preview-close" type="button" aria-label="关闭预览">×</button>
+        </div>
+        <div class="task-document-preview-body task-document-preview-native-error-body">
+          <div class="task-document-preview-native-error-card">
+            <strong>系统预览未打开</strong>
+            <p>${escapeValue(message)}</p>
+            ${error ? `<p class="task-document-preview-native-error-code">错误：${escapeValue(error)}</p>` : ""}
+            <div class="task-document-preview-native-error-actions">
+              <button type="button" data-native-document-retry>重新打开系统预览</button>
+              <button type="button" data-native-document-open-in>用其他 App 打开</button>
+              <button type="button" data-native-document-share>下载或分享</button>
+              <button type="button" data-native-document-copy>复制链接</button>
+              <button type="button" data-native-document-web>Web 调试预览</button>
+            </div>
+          </div>
+        </div>
+        <div class="task-preview-toast" data-preview-status hidden></div>
+      </div>
+    `;
+    overlay.querySelector(".task-document-preview-close")?.addEventListener("click", () => closePreviewFromUser(closeDocumentPreviewOverlay));
+    overlay.querySelector("[data-native-document-retry]")?.addEventListener("click", () => {
+      closeDocumentPreviewOverlay();
+      const opened = openNativeShellDocumentPreview(link, {
+        onFailure: (nextError) => openNativeDocumentBridgeFailureOverlay(link, nextError),
+      });
+      if (!opened) openNativeDocumentBridgeFailureOverlay(link, "native_document_bridge_unavailable");
+    });
+    overlay.querySelector("[data-native-document-open-in]")?.addEventListener("click", async () => {
+      transientPreviewStatus(overlay, "正在打开系统打开方式...");
+      const opened = await openNativeDocumentOpenInFromLink(link, {
+        onFailure: (nextError) => transientPreviewStatus(overlay, nextError || "系统打开方式不可用", "error"),
+      });
+      if (opened) {
+        transientPreviewStatus(overlay, "已打开系统打开方式", "success");
+        return;
+      }
+      const retried = openNativeShellDocumentPreview(link, {
+        onFailure: (nextError) => transientPreviewStatus(overlay, nextError || "系统预览不可用", "error"),
+      });
+      if (!retried) transientPreviewStatus(overlay, "系统打开方式不可用，请改用下载或分享。", "error");
+    });
+    overlay.querySelector("[data-native-document-share]")?.addEventListener("click", async () => {
+      transientPreviewStatus(overlay, "正在准备文件...");
+      const ok = await shareOrDownloadOriginalFile({
+        root: overlay,
+        sourceUrl: source,
+        title,
+        mime,
+        kind,
+      });
+      transientPreviewStatus(overlay, ok ? "已打开下载或分享" : "下载或分享不可用", ok ? "success" : "error");
+    });
+    overlay.querySelector("[data-native-document-copy]")?.addEventListener("click", async () => {
+      const ok = await copyPreviewLink(previewShareUrl(source));
+      transientPreviewStatus(overlay, ok ? "已复制链接" : "复制失败", ok ? "success" : "error");
+    });
+    overlay.querySelector("[data-native-document-web]")?.addEventListener("click", () => {
+      const viewerUrl = documentViewerUrlFromLink(link);
+      if (!viewerUrl) return;
+      try {
+        const url = new URL(viewerUrl, global.location.origin);
+        url.searchParams.set("webPreview", "1");
+        if (source) url.searchParams.set("src", source);
+        global.location.assign(`${url.pathname}?${url.searchParams.toString()}${url.hash || ""}`);
+      } catch (_) {
+        openNativeDocumentBridgeFailureOverlay(link, "native_document_web_preview_url_invalid");
+      }
     });
     document.body.appendChild(overlay);
     document.body.classList.add("task-document-preview-open");
@@ -736,8 +1177,19 @@ window.addEventListener("load", function () {
     closeImagePreviewOverlay,
     closeMarkdownPreviewOverlay,
     hasArtifactPreviewOverlay,
+    documentKindUsesNativePreview,
     documentKindUsesWideNativePreview,
+    documentPreviewUsesInAppOverlay,
     documentNativeUrlFromLink,
+    nativeDocumentBridgeAvailable,
+    nativeDocumentBridgeExpected,
+    nativeDocumentOpenInAvailable,
+    nativeDocumentOpenInRequestFromLink,
+    nativeDocumentOpenInRequestFromInput,
+    nativeDocumentOpenRequestFromLink,
+    openNativeDocumentOpenInFromInput,
+    openNativeDocumentOpenInFromLink,
+    openNativeShellDocumentPreview,
     isDocumentPreviewLink,
     isImagePreviewLink,
     isMarkdownPreviewLink,
@@ -745,6 +1197,8 @@ window.addEventListener("load", function () {
     openImagePreviewOverlay,
     openMarkdownPreviewOverlay,
     previewBackSwipeSurface,
+    shouldUseNativeShellDocumentPreview,
+    shouldUseNativeDocumentPreview,
     shouldUseWideNativeDocumentPreview,
   };
 }(window));

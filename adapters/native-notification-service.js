@@ -2,10 +2,13 @@
 
 const crypto = require("node:crypto");
 const fs = require("node:fs");
+const https = require("node:https");
 const http2 = require("node:http2");
 
 const APNS_SANDBOX_ORIGIN = "https://api.sandbox.push.apple.com";
 const APNS_PRODUCTION_ORIGIN = "https://api.push.apple.com";
+const FCM_OAUTH_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const FCM_SCOPE = "https://www.googleapis.com/auth/firebase.messaging";
 
 function clean(value, max = 500) {
   const text = String(value || "").trim();
@@ -25,12 +28,15 @@ function sha256(value) {
 }
 
 function publicDevice(device = {}) {
+  const platform = device.platform || "";
+  const pushProvider = device.pushProvider || "";
   return {
     id: device.id || "",
     workspaceId: device.workspaceId || "",
     principalId: device.principalId || "",
-    platform: device.platform || "",
-    pushProvider: device.pushProvider || "",
+    platform,
+    pushProvider,
+    channel: nativeChannelFor(platform, pushProvider),
     tokenHash: device.tokenHash || "",
     appBundleId: device.appBundleId || "",
     appVersion: device.appVersion || "",
@@ -43,14 +49,19 @@ function publicDevice(device = {}) {
   };
 }
 
-function normalizeEnvironment(value) {
+function defaultPushProviderForPlatform(platform) {
+  return platform === "android" ? "fcm" : "apns";
+}
+
+function normalizeEnvironment(value, platform = "ios") {
   const text = clean(value, 40).toLowerCase();
+  if (!text && platform === "android") return "production";
   return text === "production" ? "production" : "sandbox";
 }
 
 function normalizeRegisterInput(input = {}) {
   const platform = clean(input.platform || "ios", 40).toLowerCase();
-  const pushProvider = clean(input.pushProvider || input.push_provider || "apns", 40).toLowerCase();
+  const pushProvider = clean(input.pushProvider || input.push_provider || defaultPushProviderForPlatform(platform), 40).toLowerCase();
   const deviceToken = clean(input.deviceToken || input.device_token, 4096).replace(/\s+/g, "");
   return {
     workspaceId: clean(input.workspaceId || input.workspace_id || "owner", 120) || "owner",
@@ -61,9 +72,46 @@ function normalizeRegisterInput(input = {}) {
     appBundleId: clean(input.appBundleId || input.app_bundle_id, 200),
     appVersion: clean(input.appVersion || input.app_version, 80),
     buildNumber: clean(input.buildNumber || input.build_number, 80),
-    environment: normalizeEnvironment(input.environment),
+    environment: normalizeEnvironment(input.environment, platform),
     source: clean(input.source || "home_ai_native", 80),
   };
+}
+
+function nativeChannelFor(platform, pushProvider) {
+  const normalizedPlatform = clean(platform, 40).toLowerCase();
+  const normalizedProvider = clean(pushProvider, 40).toLowerCase();
+  if (normalizedPlatform === "ios" && normalizedProvider === "apns") return "native_ios_apns";
+  if (normalizedPlatform === "android" && normalizedProvider === "fcm") return "native_android_fcm";
+  return "";
+}
+
+function supportedNativeRegistration(platform, pushProvider) {
+  return Boolean(nativeChannelFor(platform, pushProvider));
+}
+
+function normalizeNativeNotificationChannel(value, defaultChannel = "native") {
+  const text = clean(value, 80).toLowerCase();
+  if (!text) return defaultChannel;
+  if (["native_ios_apns", "native-ios-apns", "ios", "apns"].includes(text)) return "native_ios_apns";
+  if (["native_android_fcm", "native-android-fcm", "android", "fcm"].includes(text)) return "native_android_fcm";
+  if (["native", "both", "all"].includes(text)) return "native";
+  return defaultChannel;
+}
+
+function deviceQueryForChannel(workspaceId, channel) {
+  if (channel === "native_ios_apns") return [{ workspaceId, platform: "ios", pushProvider: "apns", enabledOnly: true, limit: 200 }];
+  if (channel === "native_android_fcm") return [{ workspaceId, platform: "android", pushProvider: "fcm", enabledOnly: true, limit: 200 }];
+  return [
+    { workspaceId, platform: "ios", pushProvider: "apns", enabledOnly: true, limit: 200 },
+    { workspaceId, platform: "android", pushProvider: "fcm", enabledOnly: true, limit: 200 },
+  ];
+}
+
+function defaultNativeDeepLink(input = {}, nativeShell = "ios") {
+  const query = new URLSearchParams({ source: "pwa", nativeShell });
+  const workspaceId = clean(input.workspaceId || input.data?.workspaceId, 120);
+  if (workspaceId) query.set("workspaceId", workspaceId);
+  return `/?${query.toString()}`;
 }
 
 function tokenEncryptionKey(options = {}) {
@@ -175,11 +223,141 @@ function createDefaultApnsClient(options = {}) {
   };
 }
 
+function requestJson(urlString, requestOptions = {}, body = "") {
+  return new Promise((resolve, reject) => {
+    const url = new URL(urlString);
+    const req = https.request({
+      method: requestOptions.method || "POST",
+      hostname: url.hostname,
+      path: `${url.pathname}${url.search}`,
+      headers: requestOptions.headers || {},
+    }, (res) => {
+      let text = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => { text += chunk; });
+      res.on("end", () => {
+        let parsed = {};
+        try { parsed = text ? JSON.parse(text) : {}; } catch (_) { parsed = {}; }
+        resolve({ status: Number(res.statusCode || 0), body: parsed });
+      });
+    });
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
+function readFcmServiceAccount(options = {}) {
+  const direct = clean(options.fcmServiceAccountJson || options.env?.HERMES_NATIVE_FCM_SERVICE_ACCOUNT_JSON, 20000);
+  if (direct) {
+    try { return JSON.parse(direct); } catch (_) { return null; }
+  }
+  const file = clean(options.fcmServiceAccountJsonPath || options.env?.HERMES_NATIVE_FCM_SERVICE_ACCOUNT_JSON_PATH, 1000);
+  if (!file) return null;
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch (_) { return null; }
+}
+
+function fcmProjectId(options = {}, serviceAccount = {}) {
+  return clean(options.fcmProjectId || options.env?.HERMES_NATIVE_FCM_PROJECT_ID || serviceAccount.project_id, 200);
+}
+
+async function createFcmAccessToken(options = {}, serviceAccount = {}) {
+  const clientEmail = clean(serviceAccount.client_email, 300);
+  const privateKey = clean(serviceAccount.private_key, 5000).replace(/\\n/g, "\n");
+  if (!clientEmail || !privateKey) return "";
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claim = base64Url(JSON.stringify({
+    iss: clientEmail,
+    scope: FCM_SCOPE,
+    aud: FCM_OAUTH_TOKEN_URL,
+    iat: now,
+    exp: now + 3600,
+  }));
+  const signature = crypto.sign("RSA-SHA256", Buffer.from(`${header}.${claim}`), privateKey).toString("base64url");
+  const assertion = `${header}.${claim}.${signature}`;
+  const body = new URLSearchParams({
+    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    assertion,
+  }).toString();
+  const response = await requestJson(FCM_OAUTH_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      "content-length": Buffer.byteLength(body),
+    },
+  }, body);
+  return clean(response.body?.access_token, 5000);
+}
+
+function fcmDataFromPayload(payload = {}) {
+  const data = {};
+  for (const [key, value] of Object.entries(payload || {})) {
+    if (key === "aps") continue;
+    if (value === undefined || value === null || typeof value === "object") continue;
+    const text = clean(value, 1000);
+    if (text) data[key] = text;
+  }
+  return data;
+}
+
+function fcmReasonFromBody(body = {}) {
+  const status = clean(body.error?.status || body.status, 120);
+  const message = clean(body.error?.message || body.message, 160);
+  const details = Array.isArray(body.error?.details) ? body.error.details : [];
+  const fcmError = details.map((item) => clean(item?.errorCode, 120)).find(Boolean);
+  return fcmError || status || message || "";
+}
+
+function createDefaultFcmClient(options = {}) {
+  let cachedToken = "";
+  return {
+    async send(device, payload) {
+      const token = decryptDeviceToken(device, options);
+      if (!token) return { ok: false, status: 503, reason: "native_device_token_unavailable" };
+      const serviceAccount = readFcmServiceAccount(options);
+      const projectId = fcmProjectId(options, serviceAccount || {});
+      if (!serviceAccount || !projectId) return { ok: false, status: 503, reason: "fcm_not_configured" };
+      if (!cachedToken) cachedToken = await createFcmAccessToken(options, serviceAccount);
+      if (!cachedToken) return { ok: false, status: 503, reason: "fcm_not_configured" };
+      const body = JSON.stringify({
+        message: {
+          token,
+          notification: {
+            title: clean(payload?.aps?.alert?.title || payload.title || "Home AI", 120) || "Home AI",
+            body: clean(payload?.aps?.alert?.body || payload.body || "", 220),
+          },
+          android: {
+            notification: {
+              channel_id: clean(options.fcmAndroidChannelId || options.env?.HERMES_NATIVE_FCM_ANDROID_CHANNEL_ID || "home_ai_native", 120),
+            },
+          },
+          data: fcmDataFromPayload(payload),
+        },
+      });
+      const response = await requestJson(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/messages:send`, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${cachedToken}`,
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(body),
+        },
+      }, body);
+      return {
+        ok: response.status >= 200 && response.status < 300,
+        status: response.status,
+        reason: fcmReasonFromBody(response.body),
+        fcmName: clean(response.body?.name, 300),
+      };
+    },
+  };
+}
+
 function createNativeNotificationService(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : defaultNowIso;
   const hashValue = typeof options.hashValue === "function" ? options.hashValue : sha256;
   const storeProvider = typeof options.store === "function" ? options.store : (() => options.store);
   const apnsClient = options.apnsClient || createDefaultApnsClient(options);
+  const fcmClient = options.fcmClient || createDefaultFcmClient(options);
   const logger = options.logger || {};
 
   function store() {
@@ -190,8 +368,8 @@ function createNativeNotificationService(options = {}) {
 
   function registerDevice(input = {}) {
     const normalized = normalizeRegisterInput(input);
-    if (normalized.platform !== "ios") return { ok: false, status: 400, error: "native_device_platform_unsupported" };
-    if (normalized.pushProvider !== "apns") return { ok: false, status: 400, error: "native_push_provider_unsupported" };
+    const channel = nativeChannelFor(normalized.platform, normalized.pushProvider);
+    if (!supportedNativeRegistration(normalized.platform, normalized.pushProvider)) return { ok: false, status: 400, error: "native_push_provider_unsupported" };
     if (!normalized.deviceToken) return { ok: false, status: 400, error: "native_device_token_required" };
     const timestamp = nowIso();
     const encrypted = encryptDeviceToken(normalized.deviceToken, options);
@@ -214,7 +392,7 @@ function createNativeNotificationService(options = {}) {
       createdAt: timestamp,
       updatedAt: timestamp,
     });
-    return { ok: true, status: 201, device: publicDevice(device) };
+    return { ok: true, status: 201, channel, device: publicDevice(device) };
   }
 
   function unregisterDevice(input = {}) {
@@ -236,10 +414,12 @@ function createNativeNotificationService(options = {}) {
     return store().listNativeDevices(input).map(publicDevice);
   }
 
-  function payloadFor(input = {}) {
+  function payloadFor(input = {}, payloadOptions = {}) {
+    const channel = normalizeNativeNotificationChannel(payloadOptions.channel || input.channel || input.notificationChannel || input.data?.channel || input.data?.notificationChannel, "native_ios_apns");
+    const nativeShell = channel === "native_android_fcm" ? "android" : "ios";
     const title = clean(input.title || "Home AI", 120) || "Home AI";
     const body = clean(input.body || input.summary || "Home AI 有新的通知。", 220);
-    const deepLink = clean(input.deepLink || input.url || input.data?.url || "/?source=pwa&nativeShell=ios", 600);
+    const deepLink = clean(input.deepLink || input.url || input.data?.url || defaultNativeDeepLink(input, nativeShell), 600);
     return {
       aps: {
         alert: { title, body },
@@ -253,45 +433,62 @@ function createNativeNotificationService(options = {}) {
       actionInboxId: clean(input.actionInboxId || input.data?.inboxItemId || input.data?.sourceInboxItemId, 160),
       automationId: clean(input.automationId || input.data?.automationId, 160),
       pluginId: clean(input.pluginId || input.data?.pluginId, 160),
-      channel: "native_ios_apns",
+      channel,
     };
   }
 
-  function shouldDisableDevice(result = {}) {
+  function shouldDisableDevice(device = {}, result = {}) {
     const reason = clean(result.reason || result.error, 120);
+    if (device.platform === "android" || device.pushProvider === "fcm") {
+      return [404, 410].includes(Number(result.status || 0)) || ["UNREGISTERED", "INVALID_ARGUMENT", "registration-token-not-registered"].includes(reason);
+    }
     return result.status === 410 || ["BadDeviceToken", "Unregistered"].includes(reason);
+  }
+
+  async function sendToDevice(device, input) {
+    const channel = nativeChannelFor(device.platform, device.pushProvider);
+    const payload = payloadFor(Object.assign({}, input, { workspaceId: input.workspaceId }), { channel });
+    const client = channel === "native_android_fcm" ? fcmClient : apnsClient;
+    const result = await client.send(device, payload, {
+      environment: device.environment,
+      topic: device.appBundleId || input.appBundleId,
+    });
+    if (shouldDisableDevice(device, result)) {
+      store().disableNativeDevice({ deviceId: device.id, disabledAt: nowIso() });
+    }
+    return {
+      deviceId: device.id,
+      tokenHash: device.tokenHash,
+      ok: Boolean(result?.ok),
+      status: Number(result?.status || 0),
+      reason: clean(result?.reason || result?.error, 120),
+      environment: device.environment,
+      platform: device.platform,
+      pushProvider: device.pushProvider,
+      channel,
+    };
   }
 
   async function sendToWorkspace(input = {}) {
     const workspaceId = clean(input.workspaceId || input.data?.workspaceId || "owner", 120) || "owner";
-    const devices = store().listNativeDevices({ workspaceId, platform: "ios", pushProvider: "apns", enabledOnly: true, limit: 200 });
-    const payload = payloadFor(Object.assign({}, input, { workspaceId }));
+    const requestedChannel = normalizeNativeNotificationChannel(input.notificationChannel || input.channel || input.data?.notificationChannel || input.data?.channel, "native");
+    const devices = [];
+    for (const query of deviceQueryForChannel(workspaceId, requestedChannel)) {
+      devices.push(...store().listNativeDevices(query));
+    }
     const deliveries = [];
     for (const device of devices) {
       try {
-        const result = await apnsClient.send(device, payload, {
-          environment: device.environment,
-          topic: device.appBundleId || input.appBundleId,
-        });
-        if (shouldDisableDevice(result)) {
-          store().disableNativeDevice({ deviceId: device.id, disabledAt: nowIso() });
-        }
-        deliveries.push({
-          deviceId: device.id,
-          tokenHash: device.tokenHash,
-          ok: Boolean(result?.ok),
-          status: Number(result?.status || 0),
-          reason: clean(result?.reason || result?.error, 120),
-          environment: device.environment,
-        });
+        deliveries.push(await sendToDevice(device, Object.assign({}, input, { workspaceId })));
       } catch (err) {
-        logger.warn?.(`Native APNs send failed: ${clean(err?.message || err, 240)}`);
-        deliveries.push({ deviceId: device.id, tokenHash: device.tokenHash, ok: false, status: 0, reason: "apns_send_failed", environment: device.environment });
+        const channel = nativeChannelFor(device.platform, device.pushProvider);
+        logger.warn?.(`Native notification send failed: ${clean(err?.message || err, 240)}`);
+        deliveries.push({ deviceId: device.id, tokenHash: device.tokenHash, ok: false, status: 0, reason: `${channel || "native"}_send_failed`, environment: device.environment, platform: device.platform, pushProvider: device.pushProvider, channel });
       }
     }
     return {
       ok: deliveries.every((item) => item.ok),
-      channel: "native_ios_apns",
+      channel: requestedChannel,
       attempted: deliveries.length,
       sent: deliveries.filter((item) => item.ok).length,
       failed: deliveries.filter((item) => !item.ok).length,
@@ -300,7 +497,7 @@ function createNativeNotificationService(options = {}) {
   }
 
   return {
-    channel: "native_ios_apns",
+    channel: "native",
     listDevices,
     payloadFor,
     registerDevice,
@@ -313,9 +510,12 @@ module.exports = {
   APNS_PRODUCTION_ORIGIN,
   APNS_SANDBOX_ORIGIN,
   createDefaultApnsClient,
+  createDefaultFcmClient,
   createNativeNotificationService,
   decryptDeviceToken,
   encryptDeviceToken,
+  nativeChannelFor,
   normalizeEnvironment,
+  normalizeNativeNotificationChannel,
   publicDevice,
 };

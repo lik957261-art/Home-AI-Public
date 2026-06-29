@@ -588,11 +588,13 @@ async function main() {
   const targets = workerTargets(manifest);
   if (!targets.length) throw new Error("No matching Gateway worker found for schema smoke.");
   const profilePluginSchemaOnly = hasFlag("--profile-plugin-schema-only");
+  const defaultProfileFilePluginFilter = "hermes-mobile-docx,hermes-mobile-pptx,hermes-mobile-pdf,hermes-mobile-audio,hermes-mobile-archive";
+  const defaultProfileFilePluginTools = "docx_create,docx_extract_text,office_extract_text,pptx_create,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe";
   const requiredTools = cleanList(argValue(
     "--require",
     profilePluginSchemaOnly
-      ? "docx_extract_text,office_extract_text,pdf_extract_text,pdf_render_pages"
-      : "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_extract_text,office_extract_text,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe",
+      ? defaultProfileFilePluginTools
+      : "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_create,docx_extract_text,office_extract_text,pptx_create,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe",
   ));
   const forbiddenTools = forbidToolsFromArgs();
   const requiredDescriptionChecks = cleanToolDescriptionChecks(argValue("--require-tool-description", ""));
@@ -601,7 +603,7 @@ async function main() {
     telemetryRoot: argValue("--telemetry-root", "C:/ProgramData/HermesMobile/gateway-worker/telemetry/profiles"),
     timeoutMs: Number(argValue("--timeout-ms", "120000")) || 120000,
     profilePluginSchemaOnly,
-    profilePluginFilter: argValue("--profile-plugin-filter", ""),
+    profilePluginFilter: argValue("--profile-plugin-filter", profilePluginSchemaOnly ? defaultProfileFilePluginFilter : ""),
     profilePluginPython: argValue("--profile-plugin-python", ""),
     schemaOnly: hasFlag("--schema-only"),
     requireAgentSchema: hasFlag("--require-agent-schema"),

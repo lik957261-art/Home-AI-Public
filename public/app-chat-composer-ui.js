@@ -172,16 +172,8 @@ function currentUserCanUseGroupChatThread(thread = state.currentThread) {
   return selectedWorkspaceInThreadGroup(thread) || Boolean(state.auth?.isOwner && isThreadGroupChat(thread));
 }
 
-function isThreadWeixinChat(thread = state.currentThread) {
-  return Boolean(thread?.singleWindow && thread?.externalIngress?.source === "weixin");
-}
-
-function isWeixinChatView() {
-  return isSingleWindowChatView() && state.weixinChatOpen && isThreadWeixinChat(state.currentThread);
-}
-
 function isGroupChatView() {
-  return isSingleWindowChatView() && !isWeixinChatView() && state.groupChatOpen && currentUserCanUseGroupChatThread(state.currentThread);
+  return isSingleWindowChatView() && state.groupChatOpen && currentUserCanUseGroupChatThread(state.currentThread);
 }
 
 function groupChatSelectable(thread = state.currentThread) {
@@ -230,12 +222,6 @@ function rememberChatScopeThread(thread) {
   const pageMode = String(thread.messagesPage?.mode || "").trim();
   if (pageMode && pageMode !== "chat") return;
   if (!pageMode && Array.isArray(thread.taskGroups) && thread.taskGroups.length) return;
-  if (isThreadWeixinChat(thread)) {
-    state.weixinChatThread = mergeChatScopeThread(state.weixinChatThread, thread);
-    state.weixinChatThreadId = state.weixinChatThread?.id || thread.id || "";
-    state.weixinChatAvailable = true;
-    return;
-  }
   if (selectedWorkspaceInThreadGroup(thread)) {
     state.groupChatThread = mergeChatScopeThread(state.groupChatThread, thread);
     state.groupChatThreadId = state.groupChatThread?.id || thread.id || "";
@@ -249,16 +235,12 @@ function rememberChatScopeThread(thread) {
 
 function chatScopeThread(thread, scope) {
   const normalized = String(scope || "").trim().toLowerCase();
-  if (normalized === "weixin") {
-    if (thread?.id && thread.id === state.weixinChatThread?.id) return thread;
-    return state.weixinChatThread || (isThreadWeixinChat(thread) ? thread : null);
-  }
   if (normalized === "group") {
     if (thread?.id && thread.id === state.groupChatThread?.id) return thread;
     return state.groupChatThread || (selectedWorkspaceInThreadGroup(thread) ? thread : null);
   }
   if (thread?.id && thread.id === state.privateChatThread?.id) return thread;
-  return state.privateChatThread || (!selectedWorkspaceInThreadGroup(thread) && !isThreadWeixinChat(thread) ? thread : null);
+  return state.privateChatThread || (!selectedWorkspaceInThreadGroup(thread) ? thread : null);
 }
 
 function chatScopeTaskGroupId(scope) {
@@ -268,7 +250,6 @@ function chatScopeTaskGroupId(scope) {
 }
 
 function activeChatScope() {
-  if (isWeixinChatView()) return "weixin";
   return isGroupChatView() ? "group" : "chat";
 }
 

@@ -330,7 +330,8 @@ or raw plugin credentials.
 - Directory-bound topic collections are visually attached below the Directory
   root entry and must exclude fixed plugin topics such as
   `plugin:wardrobe`,
-  `plugin:finance`, `plugin:email`, `plugin:health`, and `plugin:music`.
+  `plugin:finance`, `plugin:email`, `plugin:health`, `plugin:music`, and
+  `plugin:movie`.
 - Directory-bound topic collections render as compact collapsible folder-tree
   rows followed by an indented child-topic list. Directory-bound parent rows do
   not repeat the folder icon; the Directory root entry above the tree already
@@ -365,8 +366,9 @@ or raw plugin credentials.
   A fixed `plugin:<id>` topic must not self-authorize a missing plugin MCP just
   because the route or delivery directory names that plugin.
 - Fixed plugin task groups such as `plugin:wardrobe`, `plugin:finance`,
-  `plugin:email`, `plugin:health`, `plugin:moira`, and `plugin:music` must not
-  enter the ordinary directory-bound topic attachment path. Even when a
+  `plugin:email`, `plugin:health`, `plugin:moira`, `plugin:music`, and
+  `plugin:movie` must not enter the ordinary directory-bound topic attachment
+  path. Even when a
   plugin-topic message carries a delivery `directoryRoute`, Gateway run context
   must treat `taskDirectory` as absent for normal plugin work.
 - Plugin-topic run context is plugin-first: configured plugin MCP/toolsets and
@@ -374,8 +376,10 @@ or raw plugin credentials.
   configured as `wardrobe`, `vision`, `file`, and `skills` with required Skill
   `productivity/wardrobe-style-operations`; Moira/星盘 is configured as the
   required `moira` toolset when the effective workspace authorizes it; Music is
-  configured as the Owner-only required `music` toolset for Owner model runs
-  and must not be granted to non-Owner workspaces.
+  configured as the Owner-only required `music` toolset for Owner model runs;
+  Movie/影院 is configured as the Owner-only required `movie` toolset for Owner
+  plugin conversation runs. Owner-only toolsets must not be granted to
+  non-Owner workspaces.
 - Plugin-topic run context is not all-plugin eager context. The current plugin's
   required MCP/toolset and Skill rules are loaded eagerly, while other
   authorized plugins are represented by the compact capability catalog until the

@@ -28,7 +28,7 @@ assert.match(script, /macos-wardrobe-binding-production-smoke\.js/);
 assert.match(script, /macos-automation-cron-audit\.js/);
 assert.match(script, /gateway-tool-schema-smoke\.js/);
 assert.match(script, /gateway-pool-production-smoke\.js/);
-assert.match(script, /weixin-ingress-production-smoke\.js/);
+assert.doesNotMatch(script, /weixin-ingress-production-smoke\.js/);
 assert.match(script, /compactRuntimePython/);
 assert.match(script, /runtime_python_resolves_to_developer_home/);
 assert.match(script, /hm-wuping-openai-1/);
@@ -40,8 +40,11 @@ assert.match(script, /weather/);
 assert.match(script, /mobile_web_search/);
 assert.match(script, /mobile_web_extract/);
 assert.match(script, /chatgpt_image_edit/);
+assert.match(script, /docx_create/);
 assert.match(script, /docx_extract_text/);
 assert.match(script, /office_extract_text/);
+assert.match(script, /pptx_create/);
+assert.match(script, /pdf_create/);
 assert.match(script, /pdf_extract_text/);
 assert.match(script, /pdf_render_pages/);
 assert.match(script, /audio_transcribe/);
@@ -84,7 +87,7 @@ assert.match(runbook, /Grok\/xAI/);
 assert.match(runbook, /deferred/);
 assert.match(runbook, /X-Hermes-Web-Key/);
 assert.match(runbook, /X-Hermes-Access-Key/);
-assert.match(runbook, /X-Hermes-Mobile-Ingress-Key/);
+assert.doesNotMatch(runbook, /X-Hermes-Mobile-Ingress-Key/);
 assert.match(runbook, /Owner\/OpenAI concurrent/);
 assert.match(runbook, /expectedVersion/);
 assert.match(runbook, /blockingWarningCount/);
@@ -121,7 +124,6 @@ const {
   compactWardrobeBinding,
   compactSchema,
   compactStatus,
-  compactWeixin,
   isAllowedProfileAuditWarning,
   parseArgs,
   productionStatusArgs,
@@ -135,7 +137,7 @@ assert.equal(parsed.root, "/Users/example/path");
 assert.equal(parsed.base, "http://127.0.0.1:8797");
 assert.equal(parsed.expectedVersion, "");
 assert.ok(parsed.ownerKeyFile.endsWith("/data/secrets/owner-web-key.secret"));
-assert.ok(parsed.ingressKeyFile.endsWith("/data/weixin-ingress.secret"));
+assert.equal(Object.hasOwn(parsed, "ingressKeyFile"), false);
 
 const explicitVersion = parseArgs(["--expected-version", "20260608-runtime-config-arch-v627"]);
 assert.equal(explicitVersion.expectedVersion, "20260608-runtime-config-arch-v627");
@@ -250,18 +252,6 @@ const gateway = compactGatewaySmoke({
 });
 assert.equal(gateway.gatewayProfile, "deepseekgw1");
 assert.equal(gateway.maintenance, false);
-
-const weixin = compactWeixin({
-  ok: true,
-  mode: "heartbeat",
-  ingressAuthHeader: "X-Hermes-Mobile-Ingress-Key",
-  wrongHeaderDenied: true,
-  wrongHeaderStatus: 401,
-  workspaces: [{ workspaceId: "weixin_wuping", status: 202, heartbeat: true, skipped: false, reason: "weixin_ingress_heartbeat" }],
-});
-assert.equal(weixin.workspaces[0].hasRun, false);
-assert.equal(weixin.workspaces[0].hasThread, false);
-assert.equal(weixin.workspaces[0].hasMessage, false);
 
 const pluginDirectory = compactPluginDirectory({
   ok: true,

@@ -194,7 +194,9 @@ function createExport(options) {
   const outDir = path.resolve(options.outDir);
   const sourceStatus = assertCleanSource(options.allowDirty);
   safeResetOutputDir(outDir, options.force);
-  const files = trackedFiles().filter(shouldExport);
+  const files = trackedFiles()
+    .filter((file) => fs.existsSync(path.join(REPO_ROOT, file)))
+    .filter(shouldExport);
   for (const file of files) copyFile(file, outDir);
 
   const report = {

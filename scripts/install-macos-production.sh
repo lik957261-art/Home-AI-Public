@@ -1272,6 +1272,7 @@ function writeProfileConfig(worker) {
         http_plugin_enabled: "true",
         current_environment_plugin_enabled: "true",
         docx_plugin_enabled: "true",
+        pptx_plugin_enabled: "true",
         pdf_plugin_enabled: "true",
         image_plugin_enabled: "true",
         audio_plugin_enabled: "true",
@@ -1669,7 +1670,13 @@ function syncProfilePlugin(profileDir, osUser, pluginName) {
 }
 
 function syncProfileDocumentFilePlugins(profileDir, osUser) {
-  for (const pluginName of ["hermes-mobile-docx", "hermes-mobile-pdf"]) {
+  for (const pluginName of [
+    "hermes-mobile-docx",
+    "hermes-mobile-pptx",
+    "hermes-mobile-pdf",
+    "hermes-mobile-audio",
+    "hermes-mobile-archive",
+  ]) {
     syncProfilePlugin(profileDir, osUser, pluginName);
     ensureConfigPluginEnabled(path.join(profileDir, "config.yaml"), pluginName);
   }
@@ -1695,6 +1702,8 @@ FILE_PLUGIN_ALLOWED_ROOTS="$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifa
 MOBILE_BRIDGE_HOST_URL="\${HERMES_MOBILE_BRIDGE_HOST_URL:-\${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8798}}"
 MOBILE_BRIDGE_HOST_KEY_PATH="\${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-\${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/data/secrets/bridge-host.secret}}"
 export HERMES_MOBILE_DOCX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
+export HERMES_MOBILE_PPTX_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
+export HERMES_MOBILE_PPTX_OUTPUT_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
 export HERMES_MOBILE_PDF_ALLOWED_ROOTS="$FILE_PLUGIN_ALLOWED_ROOTS"
 export HERMES_MOBILE_PDF_OUTPUT_ROOTS="$ROOT/data/artifacts"
 export HERMES_MOBILE_NODE_MODULES="$ROOT/app/node_modules"

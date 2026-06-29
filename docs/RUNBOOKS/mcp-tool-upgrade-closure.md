@@ -222,6 +222,77 @@ node scripts/mcp-tool-upgrade-closure-smoke.js \
   --runtime-python /Users/example/path
 ```
 
+For Home AI macOS production, prefer the central shortcut so the script supplies
+the production manifest, Owner profile, telemetry root, native runtime source,
+runtime overrides, and Python path consistently:
+
+```bash
+node scripts/mcp-tool-upgrade-closure-smoke.js \
+  --macos-production-defaults \
+  --password-file "$HOMEAI_MAC_SUDO_PASSWORD_FILE" \
+  --service-schema-url http://127.0.0.1:<plugin-port>/<schema-path> \
+  --require-service-tool <local_tool> \
+  --require-service-tool-property <local_tool>:<property> \
+  --gateway-tool <mcp_gateway_tool> \
+  --require-gateway-tool-property <mcp_gateway_tool>:<property> \
+  --epoch <schema-epoch>
+```
+
+`--macos-production-defaults` defaults to:
+
+- manifest: `/Users/example/path`;
+- profile: `hm-owner-openai-1` unless `--profile` is supplied;
+- telemetry root: `/Users/<profile-os-user>/HermesWorkspace/.hermes-gateway/profiles`;
+- runtime source: `/Users/example/path`;
+- runtime overrides: `/Users/example/path`;
+- runtime Python:
+  `/Users/example/path`.
+
+When the selected macOS profile's `agent-schema-probe` returns only built-in
+tools even though the real worker can execute MCP tools, do not hand-roll a
+one-off validation script. Use the central live runtime evidence path:
+
+```bash
+node scripts/mcp-tool-upgrade-closure-smoke.js \
+  --macos-production-defaults \
+  --toolset movie \
+  --password-file "$HOMEAI_MAC_SUDO_PASSWORD_FILE" \
+  --allow-live-gateway-substitute \
+  --service-schema-url http://127.0.0.1:4195/api/v1/movie/mcp/schemas \
+  --require-service-tool search_sources \
+  --require-service-tool recommend_sources \
+  --require-service-tool get_source_detail \
+  --require-service-tool get_catalog_stats \
+  --require-service-tool record_source_interaction \
+  --require-service-tool update_source_list \
+  --require-service-tool list_source_state \
+  --require-service-tool-property search_sources:actor \
+  --require-service-tool-property recommend_sources:preferred_actors \
+  --gateway-tool mcp_movie_search_sources \
+  --gateway-tool mcp_movie_recommend_sources \
+  --gateway-tool mcp_movie_get_source_detail \
+  --gateway-tool mcp_movie_get_catalog_stats \
+  --gateway-tool mcp_movie_record_source_interaction \
+  --gateway-tool mcp_movie_update_source_list \
+  --gateway-tool mcp_movie_list_source_state \
+  --require-gateway-tool-property mcp_movie_search_sources:actor \
+  --require-gateway-tool-property mcp_movie_recommend_sources:preferred_actors \
+  --live-gateway-call 'mcp_movie_search_sources={"query":"电影","limit":1,"actor":"梁朝伟","include_paths":false}' \
+  --live-gateway-call 'mcp_movie_recommend_sources={"limit":1,"preferred_actors":["梁朝伟"],"include_paths":false}' \
+  --epoch 20260628-gateway-pptx-create-v966
+```
+
+This invokes `scripts/gateway-mcp-runtime-call-smoke.js` through the same
+selected Gateway worker and then verifies bounded `agent.tool_executor`
+evidence for the requested MCP tools. It reports only status, worker id,
+evidence kind, observed tool names, and response byte counts. It must not dump
+model output, raw logs, keys, cookies, private catalog rows, or user content.
+
+Use live substitute only for explicitly safe read-only or bounded smoke calls.
+For mutating MCP tools, pass a dedicated dry-run or disposable fixture argument
+set. If no safe live call exists, keep the schema failure as blocked and repair
+the Gateway schema/probe path instead.
+
 Do not accept a Mac schema probe that runs against the wrong profile root. A
 root/default `HERMES_HOME` can fail provider auth or prove the wrong tool
 schema. The closure evidence must bind the same workspace, OS user, profile id,

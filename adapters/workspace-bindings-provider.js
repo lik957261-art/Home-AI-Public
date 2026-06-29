@@ -81,8 +81,6 @@ const DEFAULT_INTERFACE_TOOLSETS = {
   google_workspace: { label: "Google", category: "外部接口", detail: "Workspace" },
   "hermes-email": { label: "邮箱", category: "外部接口", detail: "Email" },
   cronjob: { label: "自动化", category: "接口" },
-  weixin_reminders: { label: "微信提醒", category: "接口" },
-  weixin_todos: { label: "微信待办", category: "接口" },
   taobao_desktop: { label: "淘宝桌面", category: "接口" },
 };
 
@@ -98,8 +96,6 @@ const DEFAULT_COMMON_TOOLSETS = [
   "todo",
   "kanban",
   "cronjob",
-  "weixin_reminders",
-  "weixin_todos",
 ];
 
 function createWorkspaceBindingsProvider(options = {}) {
@@ -126,8 +122,8 @@ function createWorkspaceBindingsProvider(options = {}) {
     if (typeof options.ownerExternalAccessPolicy !== "function") return {};
     return options.ownerExternalAccessPolicy() || {};
   };
-  const channelType = String(options.channelType || "weixin");
-  const channelLabel = String(options.channelLabel || "微信");
+  const channelType = String(options.channelType || "external");
+  const channelLabel = String(options.channelLabel || "外部入口");
 
   function workspaceChannels(workspace) {
     if (typeof options.workspaceChannels === "function") {

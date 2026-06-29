@@ -27,6 +27,10 @@ function stringList(value) {
 }
 
 function pushSubscriptionLooksLikeIphone(item = {}) {
+  return pushSubscriptionLooksLikeMobile(item, ["iphone"]);
+}
+
+function pushSubscriptionLooksLikeMobile(item = {}, markers = ["iphone", "android"]) {
   const values = [
     item.deviceLabel,
     item.device_label,
@@ -37,7 +41,7 @@ function pushSubscriptionLooksLikeIphone(item = {}) {
     item.clientContext?.deviceLabel,
     item.clientContext?.userAgent,
   ].map((value) => String(value || "").toLowerCase());
-  return values.some((value) => value.includes("iphone"));
+  return values.some((value) => markers.some((marker) => value.includes(marker)));
 }
 
 function createWebPushSendService(options = {}) {
@@ -90,6 +94,7 @@ function createWebPushSendService(options = {}) {
     if (!webPushConfig()) return { enabled: false, attempted: 0, sent: 0, failed: 0, removed: 0 };
     const targetPrincipals = normalizeStringList(opts.principalIds || opts.principalId || []);
     const suppressIosWebPushWorkspaceIds = new Set(normalizeStringList(opts.suppressIosWebPushWorkspaceIds || []));
+    const suppressNativeWebPushWorkspaceIds = new Set(normalizeStringList(opts.suppressNativeWebPushWorkspaceIds || []));
     const store = currentState();
     const subscriptions = (store.pushSubscriptions || []).filter((item) => {
       if (!item || item.disabledAt || !item.subscription?.endpoint) return false;
@@ -105,11 +110,18 @@ function createWebPushSendService(options = {}) {
     for (const item of subscriptions) {
       const workspaceIds = stringList(item.workspaceIds || item.workspaceId || item.workspace_id);
       if (
-        suppressIosWebPushWorkspaceIds.size
-        && pushSubscriptionLooksLikeIphone(item)
-        && workspaceIds.some((workspaceId) => suppressIosWebPushWorkspaceIds.has(workspaceId))
+        (
+          suppressIosWebPushWorkspaceIds.size
+          && pushSubscriptionLooksLikeIphone(item)
+          && workspaceIds.some((workspaceId) => suppressIosWebPushWorkspaceIds.has(workspaceId))
+        )
+        || (
+          suppressNativeWebPushWorkspaceIds.size
+          && pushSubscriptionLooksLikeMobile(item)
+          && workspaceIds.some((workspaceId) => suppressNativeWebPushWorkspaceIds.has(workspaceId))
+        )
       ) {
-        item.lastError = "skipped_native_ios_apns_preferred";
+        item.lastError = suppressNativeWebPushWorkspaceIds.size ? "skipped_native_preferred" : "skipped_native_ios_apns_preferred";
         item.updatedAt = now;
         continue;
       }

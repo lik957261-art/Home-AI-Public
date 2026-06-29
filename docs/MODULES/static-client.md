@@ -264,19 +264,20 @@ typed during the in-flight request.
   iPad-like landscape, wide tablet, or desktop-sized browser layouts fall back
   to a fixed left sidebar or hide the primary bottom navigation.
 - The mobile shell rule does not mean all embedded previews should be forced
-  into phone projection. PDF, Word/DOCX, and PowerPoint/PPTX preview links must
-  keep phone widths in the embedded Hermes viewer but route wide tablet/foldable
-  surfaces to same-window native/original document preview when a same-origin
-  source URL is available. The embedded/mobile viewer exposes a single preview
-  mode switch labelled `原始格式显示`; the former separate external-open action is
-  not part of the document preview contract.
+  into phone projection. PDF, Word/DOC/DOCX, and PowerPoint/PPT/PPTX preview
+  links must use the native document bridge first when the iOS or Android shell
+  advertises it, and the `pdf-viewer.html` / `file-viewer.html` documents must
+  retry that same bridge on load after `nativeShell=ios` or
+  `nativeShell=android` is propagated into the viewer URL. Web/PDF.js/Markdown
+  structure preview is the fallback only when the native bridge is absent,
+  delayed past the bounded wait, or returns a bounded failure.
 - DOCX mobile/adapted preview is a lightweight Markdown structure preview, not
   a full Word layout renderer. It must render on an Office-style light document
-  canvas even when the app theme is dark, preserve extracted whitespace such as
-  DOCX tab stops, and convert basic DOCX tables into Markdown tables so the
-  existing mobile table/card renderer can preserve row/column relationships.
-  Keep `原始格式显示` available for the native/original layout when the document
-  has complex table geometry or fixed formatting.
+  canvas when the native bridge is unavailable, preserve extracted whitespace
+  such as DOCX tab stops, and convert basic DOCX tables into Markdown tables so
+  the existing mobile table/card renderer can preserve row/column
+  relationships. In Android/iOS shells, native Word preview is the preferred
+  layout path.
 - Top-level PWA shell changes must keep time, battery, and Wi-Fi indicators
   visible on mobile; browser-shell guards and full-viewport overlays need
   explicit status-bar/safe-area checks. The installed iOS PWA shell should use

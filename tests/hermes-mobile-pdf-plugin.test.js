@@ -86,6 +86,38 @@ print(json.dumps({"extracted": extracted, "rendered": rendered}, ensure_ascii=Fa
   });
 }
 
+function testCreatesPdfDeliverable() {
+  withTempRoot((root) => {
+    const pdfPath = path.join(root, "medication.pdf");
+    const script = `
+import importlib.util, json
+spec = importlib.util.spec_from_file_location("hermes_mobile_pdf", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+created = json.loads(module._pdf_create_handler({
+  "title": "用药说明",
+  "markdown": "# 用药说明\\n\\n阿司匹林 100mg 每日一次",
+  "output_path": ${JSON.stringify(pdfPath)}
+}))
+extracted = json.loads(module._pdf_extract_text_handler({"file_path": ${JSON.stringify(pdfPath)}, "max_pages": 2, "max_chars": 5000}))
+print(json.dumps({"created": created, "extracted": extracted}, ensure_ascii=False))
+`;
+    const result = JSON.parse(runPython(script, {
+      HERMES_MOBILE_PDF_ALLOWED_ROOTS: root,
+      HERMES_MOBILE_PDF_OUTPUT_ROOTS: root,
+      HERMES_MOBILE_NODE_MODULES: path.join(repoRoot, "node_modules"),
+      HERMES_MOBILE_APP_ROOT: repoRoot,
+    }));
+    assert.equal(result.created.ok, true);
+    assert.equal(result.created.tool, "pdf_create");
+    assert.match(result.created.media, /^MEDIA:/);
+    assert.equal(fs.existsSync(pdfPath), true);
+    assert.equal(path.extname(pdfPath), ".pdf");
+    assert.equal(result.extracted.ok, true);
+    assert.match(result.extracted.text, /用药说明|阿司匹林/);
+  });
+}
+
 function testRejectsOutOfScopePdf() {
   withTempRoot((root) => {
     const outside = path.join(os.tmpdir(), `outside-${Date.now()}.pdf`);
@@ -108,4 +140,5 @@ print(module._pdf_extract_text_handler({"file_path": ${JSON.stringify(outside)}}
 }
 
 testExtractsTextAndRendersPages();
+testCreatesPdfDeliverable();
 testRejectsOutOfScopePdf();

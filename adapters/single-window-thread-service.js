@@ -4,7 +4,6 @@ const {
   createSingleWindowMigrationService,
   sortMessagesChronologically,
 } = require("./single-window-migration-service");
-const { createWeixinWindowMigrationService } = require("./weixin-window-migration-service");
 
 function requireFn(deps, name) {
   if (typeof deps[name] !== "function") throw new Error(`single window thread service requires ${name}`);
@@ -17,7 +16,6 @@ function createSingleWindowThreadService(deps = {}) {
   const findProject = requireFn(deps, "findProject");
   const makeId = requireFn(deps, "makeId");
   const normalizeChatGroup = requireFn(deps, "normalizeChatGroup");
-  const normalizeExternalDelivery = requireFn(deps, "normalizeExternalDelivery");
   const normalizeExternalIngress = requireFn(deps, "normalizeExternalIngress");
   const normalizeTaskGroupMeta = requireFn(deps, "normalizeTaskGroupMeta");
   const normalizeThread = requireFn(deps, "normalizeThread");
@@ -33,7 +31,6 @@ function createSingleWindowThreadService(deps = {}) {
   const singleWindowThreadTitle = String(deps.singleWindowThreadTitle || "Single Window");
   const kanbanCaseTopicKind = String(deps.kanbanCaseTopicKind || "case-topic");
   let singleWindowMigrationService = null;
-  let weixinWindowMigrationService = null;
 
   function stateObject() {
     const current = state();
@@ -73,30 +70,11 @@ function createSingleWindowThreadService(deps = {}) {
     }, overrides));
   }
 
-  function getWeixinWindowMigrationService() {
-    if (!weixinWindowMigrationService) {
-      weixinWindowMigrationService = createWeixinWindowMigrationService({
-        createSingleWindowThread,
-        makeId,
-        normalizeChatGroup,
-        normalizeExternalDelivery,
-        normalizeExternalIngress,
-        nowIso,
-        saveState,
-        singleWindowChatTaskGroupId,
-        state,
-        weixinIngressProvider: deps.weixinIngressProvider,
-      });
-    }
-    return weixinWindowMigrationService;
-  }
-
   function getSingleWindowMigrationService() {
     if (!singleWindowMigrationService) {
       singleWindowMigrationService = createSingleWindowMigrationService({
         createSingleWindowThread,
         normalizeChatGroup,
-        normalizeExternalDelivery,
         normalizeTaskGroupMeta,
         nowIso,
         saveState,
@@ -108,10 +86,6 @@ function createSingleWindowThreadService(deps = {}) {
       });
     }
     return singleWindowMigrationService;
-  }
-
-  function isWeixinSingleWindowThread(thread) {
-    return getWeixinWindowMigrationService().isWeixinSingleWindowThread(thread);
   }
 
   function publicExternalIngress(thread) {
@@ -127,33 +101,6 @@ function createSingleWindowThreadService(deps = {}) {
     };
   }
 
-  function ensureWeixinSingleWindowThread(workspaceId, seed = {}) {
-    const current = stateObject();
-    const workspace = findWorkspace(workspaceId);
-    const project = findProject(workspaceId, singleWindowProjectId);
-    if (!workspace || !project) return null;
-    const weixin = getWeixinWindowMigrationService();
-    let thread = weixin.findWeixinSingleWindowThreadForWorkspace(workspaceId);
-    let changed = false;
-    if (!thread) {
-      thread = weixin.createWeixinSingleWindowThread(workspaceId, seed);
-      current.threads.unshift(thread);
-      changed = true;
-    }
-    const nextIngress = weixin.weixinThreadSeed(workspaceId, Object.assign({}, thread.externalIngress || {}, seed || {}, {
-      createdAt: thread.externalIngress?.createdAt || thread.createdAt,
-      updatedAt: nowIso(),
-    }));
-    if (JSON.stringify(nextIngress) !== JSON.stringify(thread.externalIngress || null)) {
-      thread.externalIngress = nextIngress;
-      changed = true;
-    }
-    const migrated = weixin.migrateWeixinMessagesToDedicatedThread(workspaceId, thread);
-    if (migrated && migrated.id === thread.id) thread = migrated;
-    if (changed) saveState();
-    return thread;
-  }
-
   function ensureSingleWindowThread(workspaceId, options = {}) {
     const current = stateObject();
     const workspace = findWorkspace(workspaceId);
@@ -161,7 +108,6 @@ function createSingleWindowThreadService(deps = {}) {
     if (!workspace || !project) return null;
     const allowGroupThread = Boolean(options.allowGroupThread);
     if (!allowGroupThread) {
-      getWeixinWindowMigrationService().migrateWeixinMessagesToDedicatedThread(workspaceId);
       const migrated = getSingleWindowMigrationService().migratePrivateSingleWindowGroups(workspaceId);
       if (migrated) return migrated;
     }
@@ -239,22 +185,15 @@ function createSingleWindowThreadService(deps = {}) {
     createSingleWindowThread,
     ensureGroupChatThreadForWorkspace,
     ensureSingleWindowThread,
-    ensureWeixinSingleWindowThread,
     findGroupChatThreadForWorkspace,
-    findWeixinSingleWindowThreadForWorkspace: (...args) => getWeixinWindowMigrationService().findWeixinSingleWindowThreadForWorkspace(...args),
     getSingleWindowMigrationService,
-    getWeixinWindowMigrationService,
     isExternalIngressThread,
     isGroupChatThread,
     isKanbanCaseTopicThread,
-    isWeixinSingleWindowThread,
     kanbanCaseTopicThreadsForWorkspace,
-    messageBelongsToWeixinWindow: (...args) => getWeixinWindowMigrationService().messageBelongsToWeixinWindow(...args),
     migratePrivateSingleWindowGroups: (...args) => getSingleWindowMigrationService().migratePrivateSingleWindowGroups(...args),
-    migrateWeixinMessagesToDedicatedThread: (...args) => getWeixinWindowMigrationService().migrateWeixinMessagesToDedicatedThread(...args),
     publicExternalIngress,
     sortMessagesChronologically,
-    weixinThreadSeed: (...args) => getWeixinWindowMigrationService().weixinThreadSeed(...args),
   });
 }
 

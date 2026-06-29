@@ -18,6 +18,7 @@ function handleSendMessageResult(result, createsNewTask, consumedPendingDirector
   state.conversationViewportBottomFollowUntil = Date.now() + 5000;
   state.conversationViewportSettleUntil = Date.now() + 900;
   state.suppressChatAutoBottomUntil = 0;
+  if (typeof clearConversationUserScrollProtection === "function") clearConversationUserScrollProtection();
   if (typeof clearConversationReadAnchor === "function") clearConversationReadAnchor();
   state.conversationPinnedToBottom = true;
   state.pendingArtifacts = [];

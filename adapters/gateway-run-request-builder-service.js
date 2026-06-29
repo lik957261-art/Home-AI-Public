@@ -9,7 +9,7 @@ const {
   resolvePluginTopicRunRequirements,
 } = require("./plugin-topic-run-requirements-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260629-wardrobe-wear-intent-v970";
 const DEFAULT_SINGLE_WINDOW_PROJECT_ID = "single-window";
 const DEFAULT_GROUP_CHAT_TASK_GROUP_ID = "group-chat";
 

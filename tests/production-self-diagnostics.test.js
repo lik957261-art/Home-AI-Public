@@ -24,6 +24,7 @@ function testReportIsComplete() {
   assert.ok(report.diagnostics.some((entry) => entry.id === "macos-install-verification-classification"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "macos-install-operator-closure"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "production-self-diagnostics-coverage"));
+  assert.ok(report.diagnostics.some((entry) => entry.id === "self-improving-loop"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "grok-xai-oauth-metadata"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "grok-xai-oauth-closure"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "windows-dev-services-boundary"));
@@ -63,6 +64,7 @@ function testCliJsonAndMarkdown() {
   assert.match(markdown, /macos-install-verification-classification\.js/);
   assert.match(markdown, /macos-install-operator-closure-checklist\.js/);
   assert.match(markdown, /production-self-diagnostics-coverage-audit\.js/);
+  assert.match(markdown, /homeai-self-improving-loop\.js/);
   assert.match(markdown, /grok-auth-metadata-smoke\.js/);
   assert.match(markdown, /grok-xai-oauth-closure-checklist\.js/);
   assert.match(markdown, /windows-dev-services-boundary-checklist\.js/);
@@ -71,8 +73,16 @@ function testCliJsonAndMarkdown() {
   assert.match(markdown, /homeai-production-drift-audit-watchdog\.sh/);
   assert.match(markdown, /macos-web-push-production-audit\.js/);
   assert.match(markdown, /gateway-tool-schema-smoke\.js/);
+  assert.match(markdown, /docx_create/);
   assert.match(markdown, /office_extract_text/);
+  assert.match(markdown, /pptx_create/);
+  assert.match(markdown, /pdf_create/);
   assert.match(markdown, /pdf_extract_text/);
+  assert.match(markdown, /audio_transcribe/);
+  assert.match(markdown, /archive_extract_safe/);
+  assert.match(markdown, /hermes-mobile-audio/);
+  assert.match(markdown, /hermes-mobile-pptx/);
+  assert.match(markdown, /hermes-mobile-archive/);
   assert.match(markdown, /macos-automation-cron-launchd-smoke\.js/);
   assert.match(markdown, /plugin-workspace-audit-runner\.js/);
   assert.match(markdown, /plugin-provisioning-coverage-audit\.js/);

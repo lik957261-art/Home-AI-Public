@@ -172,7 +172,7 @@ function scheduleTaskListWindowRefresh() {
       state.taskListWindowRefreshLoading = false;
       return;
     }
-    loadSingleWindow({ groupChat: false, weixinChat: false, preserveTaskListScroll: true })
+    loadSingleWindow({ groupChat: false, preserveTaskListScroll: true })
       .catch(showError)
       .finally(() => {
         state.taskListWindowRefreshLoading = false;
@@ -759,7 +759,6 @@ function currentViewerReturnUrl() {
     if (directoryRoot) params.set("directoryRoot", directoryRoot);
   } else if (state.viewMode === "single") {
     params.set("view", "single");
-    if (isWeixinChatView()) params.set("weixinChat", "1");
     if (isGroupChatView()) params.set("groupChat", "1");
   } else {
     return `${location.pathname}${location.search}`;
@@ -809,10 +808,4 @@ function renderArtifactDirectoryButton(artifact, options = {}) {
   if (!directoryPath) return "";
   const label = artifact?.name || "交付目录";
   return `<button class="artifact-directory-button${options.compact ? " compact" : ""}" type="button" data-directory-path-open data-directory-path="${escapeHtml(directoryPath)}" data-directory-label="${escapeHtml(label)}" aria-label="打开交付目录" title="打开交付目录">...</button>`;
-}
-
-function renderArtifactWeixinButton(artifact) {
-  if (isWeixinChatView()) return "";
-  if (!artifact?.id) return "";
-  return `<button class="artifact-weixin-button" type="button" data-forward-artifact-weixin="${escapeHtml(artifact.id)}" aria-label="转发到微信" title="转发到微信">微</button>`;
 }

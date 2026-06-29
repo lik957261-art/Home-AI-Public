@@ -376,8 +376,20 @@ npm run --silent deploy:macos -- --plugin all --json
 The script is plan-only unless `--execute` is present. For execution, pass the
 private sudo password file through `--password-file` or
 `HOMEAI_MAC_SUDO_PASSWORD_FILE`; the script feeds it through sudo stdin and does
-not print the password. Listener and plugin health validations retry briefly
-after restart to account for normal launchd warm-up.
+not print the password. If an injected plugin thread loses or rejects that
+environment value, the script also probes local operator credential fallbacks
+under `~/.homeai/macos-sudo-password` and `~/.homeai-qa/sudo-password` before
+failing. Listener and plugin health validations retry briefly after restart to
+account for normal launchd warm-up.
+Before any production `mkdir`, `rsync`, ownership, launchd, or validation step,
+the script performs a bounded sudo authentication preflight. If passwordless
+sudo is not installed for the operator, missing credentials fail as
+`sudo_authentication_required`. If a password file is supplied but rejected,
+the script tries the remaining local fallback candidates; only if all candidates
+fail does it return `sudo_authentication_failed`. Treat either final result as
+an authentication-boundary failure and repair the local operator
+credential/helper state before retrying; do not repeatedly rerun the deploy
+against production commands with unknown or stale credentials.
 Plugin deployment plans must show `data/` in `rsyncExcludes`, and ordinary
 plugin source deploys must not overwrite or delete production plugin `data/`
 directories. The central script restores the production target owner after
@@ -390,10 +402,13 @@ The operator-facing `health` alias resolves to the historical `healthy` source
 and production directory.
 
 Growth first production install also needs a source-only sync followed by the
-shared launchd installer:
+shared launchd installer. These execute/bootstrap commands are run from the
+`Home AI Deploy` thread or an equivalent central operator shell; any local
+sudo credential resolution is private to that context and is not passed in
+plugin task cards.
 
 ```bash
-npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --restart none --sync-only --execute --json
 ```
 
 ```bash
@@ -409,11 +424,12 @@ node scripts/install-growth-launchd-service.js --execute --bootstrap \
   --gateway-evaluation-endpoint http://127.0.0.1:18751/v1/responses \
   --gateway-evaluation-access-token-path <gateway-worker-token-file> \
   --gateway-evaluation-protocol responses \
-  --password-file <private-local-password-file> --json
+  --json
 ```
 
-That installer uses the same sudo/password-file boundary. It may create the
-Growth registration key file when missing, but must not print raw key values.
+That installer uses the same Home AI Deploy/operator sudo boundary. It may
+create the Growth registration key file when missing, but must not print raw
+key values.
 It starts Growth with `GROWTH_DATA_OWNER=plugin` and
 `GROWTH_LEARNING_DB_PATH` under the Growth plugin production data directory.
 The Home AI listener must also expose
@@ -429,9 +445,9 @@ Moira first production install also uses source-only sync before its LaunchDaemo
 exists:
 
 ```bash
-npm run --silent deploy:macos -- --plugin moira --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin moira --source /Users/example/path --restart none --sync-only --execute --json
 node scripts/install-moira-launchd-service.js --json
-node scripts/install-moira-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+node scripts/install-moira-launchd-service.js --execute --bootstrap --json
 ```
 
 The Moira installer starts `com.hermesmobile.plugin.moira` on
@@ -444,9 +460,9 @@ Movie first production install also uses source-only sync before its
 LaunchDaemon exists:
 
 ```bash
-npm run --silent deploy:macos -- --plugin movie --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin movie --source /Users/example/path --restart none --sync-only --execute --json
 node scripts/install-movie-launchd-service.js --json
-node scripts/install-movie-launchd-service.js --execute --bootstrap --password-file <private-local-password-file> --json
+node scripts/install-movie-launchd-service.js --execute --bootstrap --json
 ```
 
 The Movie installer starts `com.hermesmobile.plugin.movie` on
@@ -461,32 +477,42 @@ Plugin workspaces should read the central deployment contract before deploys:
 /Users/example/path
 ```
 
-If a deployment is initiated from a plugin Codex thread, the thread should call
-the Home AI app deploy script by changing to `/Users/example/path`
-or by using the script's absolute path. Plugin-local code may provide
-plugin-specific facts such as label, health URL, MCP schema check, and data
-readback check, but must not define a separate production sudo or direct-write
-path. Use Gateway selected-profile callable schema checks when MCP tools
-changed, and mobile visual/Appium smoke when embedded UI or mobile gestures
-changed.
+If a deployment is initiated from a plugin Codex thread, the thread should run
+the Home AI app deploy script in plan mode by changing to
+`/Users/example/path` or by using the script's absolute path.
+The plugin thread then sends one deployment card to the dedicated
+`Home AI Deploy` Codex thread for production execute/readback. Plugin-local
+code may provide plugin-specific facts such as label, health URL, MCP schema
+check, data readback check, source commit, and safety boundary, but must not
+define a separate production sudo or direct-write path. Use Gateway
+selected-profile callable schema checks when MCP tools changed, and mobile
+visual/Appium smoke when embedded UI or mobile gestures changed.
 
-Plugin deployment scripts should expose one shared access interface:
+Plugin deployment cards should expose one shared non-secret interface:
 
 ```text
---ssh-alias homeai-mac
---password-file <private-local-password-file>
---mac-root /Users/example/path
---source <development-source-path>
---target-plugin <plugin-id>
+target-thread: Home AI Deploy
+plugin: <plugin-id>
+source: <development-source-path>
+source-commit: <git commit>
+deploy-reason: <reason>
+restart-label: <launchd label when needed>
+health-url: <loopback health or manifest URL>
+readback: <bounded expected metadata>
 ```
 
-They should not hard-code:
+They should not include:
 
 - raw password values;
 - per-plugin SSH aliases;
 - per-plugin private keys;
 - interactive sudo prompts that block automation;
-- raw credential file contents.
+- raw credential file contents;
+- `--password-file` paths or environment variable values.
+
+The central deploy script may still support password-file based local
+elevation for the Home AI deployment operator. That path is private to the
+Home AI deploy thread/runtime and is not a plugin-visible contract.
 
 For plugin services, use the plugin's production source path under:
 

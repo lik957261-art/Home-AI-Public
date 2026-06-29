@@ -111,6 +111,7 @@ const HOME_AI_PLUGIN_WORKSPACE_AUDIT_TARGETS = Object.freeze({
   health: "healthy",
   healthy: "healthy",
   moira: "moira",
+  movie: "Movie",
   music: "music",
   note: "note",
   wardrobe: "wardrobe",
@@ -129,6 +130,7 @@ const HOME_AI_GATEWAY_WORKER_RUNTIME_SETTING_ENVS = Object.freeze([
 ]);
 const HOME_AI_CRON_PROFILE_TRAVERSE_ACL = `user:${PRODUCTION_SERVICE_USER} allow search,readattr,readextattr,readsecurity`;
 const HOME_AI_BACKUP_ARTIFACT_READ_ACL = `user:${PRODUCTION_SERVICE_USER} allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit`;
+const HOME_AI_BACKUP_GATEWAY_TELEMETRY_READ_ACL = HOME_AI_CRON_PROFILE_READ_ACL;
 const HOME_AI_CRON_PLUGIN_BINDING_DIR_NAMES = Object.freeze([
   ".hermes-email",
   ".hermes-finance",
@@ -164,6 +166,15 @@ const PLUGIN_DEFAULT_SOURCE_DIRS = Object.freeze({
   movie: "Movie",
 });
 
+function defaultSudoPasswordFileCandidates() {
+  const home = os.homedir();
+  return [
+    process.env.HOMEAI_MAC_SUDO_PASSWORD_FILE || "",
+    home ? path.join(home, ".homeai", "macos-sudo-password") : "",
+    home ? path.join(home, ".homeai-qa", "sudo-password") : "",
+  ].filter(Boolean);
+}
+
 const PLUGIN_ALIASES = Object.freeze({
   codex: "codex-mobile-web",
   "codex-mobile": "codex-mobile-web",
@@ -197,6 +208,20 @@ const PLUGIN_HEALTH_URLS = Object.freeze({
 });
 
 const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
+  wardrobe: Object.freeze([
+    Object.freeze({
+      kind: "directory",
+      source: "scripts",
+      target: "gateway-worker/wardrobe-mcp/scripts",
+      mode: "755",
+    }),
+    Object.freeze({
+      kind: "directory",
+      source: "wardrobe_app",
+      target: "gateway-worker/wardrobe-mcp/wardrobe_app",
+      mode: "755",
+    }),
+  ]),
   music: Object.freeze([
     Object.freeze({
       kind: "directory",
@@ -218,6 +243,19 @@ const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
       kind: "directory",
       source: "node_modules",
       target: "gateway-worker/music-mcp/node_modules",
+      mode: "755",
+    }),
+  ]),
+  movie: Object.freeze([
+    Object.freeze({
+      kind: "directory",
+      source: "src",
+      target: "gateway-worker/movie-mcp/src",
+      mode: "755",
+    }),
+    Object.freeze({
+      source: "package.json",
+      target: "gateway-worker/movie-mcp/package.json",
       mode: "755",
     }),
   ]),
@@ -319,6 +357,19 @@ const CODEX_MOBILE_LOG_REPAIR = Object.freeze({
   fileMode: "600",
 });
 
+const CODEX_MOBILE_SELECTED_MUX_REFRESH = Object.freeze({
+  type: "codex-mobile-selected-mux-refresh",
+  serviceUser: "xuxin",
+  runtimeRoot: "/Users/example/path",
+  profileFile: "/Users/example/path",
+  triggerFiles: Object.freeze([
+    "codex-app-server-mux.js",
+    "restart-codex-mobile-host-macos.sh",
+    "adapters/shared-chain-restart-service.js",
+  ]),
+});
+const CODEX_MOBILE_SELECTED_MUX_REPAIR_STATE_RELATIVE_PATH = "data/deploy-state/codex-mobile-selected-mux-refresh.json";
+
 const MUSIC_RUNTIME_COVER_PERMISSION_REPAIR = Object.freeze({
   type: "music-runtime-cover-permissions",
   plugin: "music",
@@ -414,6 +465,7 @@ const HOME_AI_PROOF_FILES = [
   "server-routes/automation-api-routes.js",
   "server-routes/mobile-api-composition.js",
   "scripts/deploy-macos-production.js",
+  "scripts/install-macos-production.sh",
   "scripts/macos-automation-cron-audit.js",
   "scripts/plugin-workspace-audit-runner.js",
   "scripts/production-status-smoke.js",
@@ -421,6 +473,8 @@ const HOME_AI_PROOF_FILES = [
   "scripts/macos-production-profile-audit.js",
   "scripts/macos-production-drift-reconcile.js",
   "scripts/homeai-production-drift-audit-watchdog.sh",
+  "scripts/gateway-mcp-runtime-call-smoke.js",
+  "scripts/mcp-tool-upgrade-closure-smoke.js",
 ];
 
 const HOME_AI_STATIC_PROOF_FILES = [
@@ -657,7 +711,7 @@ function rsyncExcludesForTarget(options) {
 
 function postSyncRepairsForTarget(options) {
   if (options.target === "home-ai") return [CODEX_MOBILE_LOG_REPAIR, WEB_PUSH_VAPID_PERMISSION_REPAIR, GATEWAY_LAUNCHCTL_SUDOERS_REPAIR, GATEWAY_MACOS_LAUNCHER_REPAIR];
-  if (options.target === "plugin:codex-mobile-web") return [CODEX_MOBILE_LOG_REPAIR];
+  if (options.target === "plugin:codex-mobile-web") return [CODEX_MOBILE_LOG_REPAIR, CODEX_MOBILE_SELECTED_MUX_REFRESH];
   if (options.target === "plugin:finance") return [FINANCE_LAUNCHD_WORKSPACE_KEY_HASH_REPAIR];
   if (options.target === "plugin:music") return [MUSIC_RUNTIME_COVER_PERMISSION_REPAIR];
   return [];
@@ -821,6 +875,7 @@ function buildPlan(options) {
     allowDirty: Boolean(options.allowDirty),
     syncOnly: Boolean(options.syncOnly),
     sourceRef: sourceRef(source),
+    reason: options.reason,
     deployDirtyFiles: relevantDirtyFiles,
     ignoredDirtyFiles: ignoredDirty,
     expectedClientVersion: expectedVersion,
@@ -888,6 +943,20 @@ function assertExecutableAllPluginPlan(plan, options) {
 function readPassword(passwordFile) {
   if (!passwordFile) return "";
   return fs.readFileSync(passwordFile, "utf8").split(/\r?\n/).find((line) => line.trim()) || "";
+}
+
+function sudoPasswordFileCandidates(passwordFile = "") {
+  const seen = new Set();
+  const rows = [];
+  function add(filePath, source) {
+    const normalized = String(filePath || "").trim();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    rows.push({ path: normalized, source });
+  }
+  add(passwordFile, "argument");
+  for (const filePath of defaultSudoPasswordFileCandidates()) add(filePath, "local-default");
+  return rows;
 }
 
 function shQuote(value) {
@@ -1444,6 +1513,54 @@ function runSudo(command, args, password, input) {
     throw err;
   }
   return result;
+}
+
+function verifySudoAuthentication(password) {
+  const sudoArgs = password ? ["-S", "-p", "", "-v"] : ["-n", "-v"];
+  const result = spawnSync("/usr/bin/sudo", sudoArgs, {
+    input: password ? `${password}\n` : "",
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  if (result.status === 0) return;
+  const err = new Error(password ? "sudo_authentication_failed" : "sudo_authentication_required");
+  err.status = result.status;
+  err.command = "/usr/bin/sudo";
+  err.args = sudoArgs;
+  err.stderr = String(result.stderr || "").slice(0, 1200);
+  throw err;
+}
+
+function resolveSudoPassword(passwordFile = "") {
+  const failures = [];
+  for (const candidate of sudoPasswordFileCandidates(passwordFile)) {
+    let password = "";
+    try {
+      password = readPassword(candidate.path);
+    } catch (err) {
+      failures.push({ source: candidate.source, code: "unreadable" });
+      continue;
+    }
+    if (!password) {
+      failures.push({ source: candidate.source, code: "empty" });
+      continue;
+    }
+    try {
+      verifySudoAuthentication(password);
+      return password;
+    } catch (_err) {
+      failures.push({ source: candidate.source, code: "rejected" });
+    }
+  }
+  try {
+    verifySudoAuthentication("");
+    return "";
+  } catch (err) {
+    const hasPasswordCandidate = failures.some((item) => item.code === "rejected");
+    err.message = hasPasswordCandidate ? "sudo_authentication_failed" : "sudo_authentication_required";
+    err.candidateFailures = failures;
+    throw err;
+  }
 }
 
 function deployBackupDateFromTimestamp(timestampText = "") {
@@ -2444,6 +2561,17 @@ printf '{"ok":true,"skipped":false,"updated":%s}\\n' "$updated"
   };
 }
 
+function repairHomeAiBackupGatewayTelemetryAcls(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const telemetryRoot = posixJoin(plan.macRoot, "gateway-worker", "telemetry");
+  applyAclIfExists(telemetryRoot, HOME_AI_BACKUP_GATEWAY_TELEMETRY_READ_ACL, password, true);
+  return {
+    type: "home-ai-backup-gateway-telemetry-acl-repair",
+    status: 0,
+    telemetryRoot,
+  };
+}
+
 function repairGatewayStartScriptBridgeEnv(plan, password) {
   if (plan.target !== "home-ai" || plan.surface !== "full") return null;
   const node = path.join(plan.macRoot, PINNED_NODE);
@@ -2672,6 +2800,245 @@ function repairCodexMobileLogPermissions(plan, password) {
   };
 }
 
+function codexMobileSelectedMuxRepairStatePath(plan = {}) {
+  return posixJoin(plan.macRoot || DEFAULT_MAC_ROOT, CODEX_MOBILE_SELECTED_MUX_REPAIR_STATE_RELATIVE_PATH);
+}
+
+function codexMobileMuxRefreshReasonRequiresForce(reason = "") {
+  return /\b(selected-mux|mux-runtime|shared-mux|mux-metrics)\b/i.test(String(reason || ""))
+    || /(selected_mux|mux_runtime|shared_mux|mux_metrics)/i.test(String(reason || ""));
+}
+
+function codexMobileMuxRepairStateRequiresRefresh(state = {}) {
+  const status = String(state?.status || "");
+  return status === "pending" || status === "invalid";
+}
+
+function codexMobileSelectedMuxRefreshDecision(input = {}) {
+  const changedFiles = Array.isArray(input.changedFiles) ? input.changedFiles : [];
+  if (changedFiles.length > 0) return { required: true, reason: "mux_runtime_files_changed" };
+  if (codexMobileMuxRepairStateRequiresRefresh(input.state)) {
+    return { required: true, reason: "previous_selected_mux_refresh_incomplete" };
+  }
+  if (codexMobileMuxRefreshReasonRequiresForce(input.reason)) {
+    return { required: true, reason: "deploy_reason_forces_selected_mux_refresh" };
+  }
+  return { required: false, reason: "no_mux_runtime_change" };
+}
+
+function readCodexMobileSelectedMuxRepairState(plan, password) {
+  if (!plan || plan.target !== "plugin:codex-mobile-web") return {};
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const statePath = codexMobileSelectedMuxRepairStatePath(plan);
+  const script = `
+const fs = require("node:fs");
+const file = process.argv[1];
+if (!file || !fs.existsSync(file)) {
+  process.stdout.write("{}");
+  process.exit(0);
+}
+try {
+  const parsed = JSON.parse(fs.readFileSync(file, "utf8"));
+  process.stdout.write(JSON.stringify({
+    status: String(parsed.status || ""),
+    target: String(parsed.target || ""),
+    reason: String(parsed.reason || ""),
+    sourceCommit: String(parsed.sourceCommit || ""),
+    repairType: String(parsed.repairType || "")
+  }));
+} catch (_) {
+  process.stdout.write(JSON.stringify({ status: "invalid" }));
+}
+`;
+  try {
+    const result = runSudo(node, ["-e", script, statePath], password);
+    return JSON.parse(String(result.stdout || "{}")) || {};
+  } catch (_) {
+    return { status: "invalid" };
+  }
+}
+
+function writeCodexMobileSelectedMuxRepairState(plan, password, status, change = {}) {
+  if (!plan || plan.target !== "plugin:codex-mobile-web") return null;
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const statePath = codexMobileSelectedMuxRepairStatePath(plan);
+  const payload = {
+    status: String(status || ""),
+    target: plan.target,
+    reason: String(plan.reason || ""),
+    sourceCommit: String(plan.sourceRef?.commit || ""),
+    repairType: CODEX_MOBILE_SELECTED_MUX_REFRESH.type,
+    decisionReason: String(change.reason || ""),
+    changedFileCount: Array.isArray(change.changedFiles) ? change.changedFiles.length : 0,
+    updatedAt: new Date().toISOString(),
+  };
+  const script = `
+const fs = require("node:fs");
+const path = require("node:path");
+const file = process.argv[1];
+const payload = process.argv[2] || "{}";
+fs.mkdirSync(path.dirname(file), { recursive: true });
+fs.writeFileSync(file, payload + "\\n", { mode: 0o600 });
+process.stdout.write(JSON.stringify({ ok: true }));
+`;
+  runSudo(node, ["-e", script, statePath, JSON.stringify(payload)], password);
+  return payload;
+}
+
+function detectCodexMobileMuxRuntimeChange(plan, password, repair = null) {
+  const config = repair || (plan.postSyncRepairs || []).find((item) => item && item.type === CODEX_MOBILE_SELECTED_MUX_REFRESH.type);
+  if (!config || plan.target !== "plugin:codex-mobile-web" || plan.syncOnly) {
+    return { required: false, reason: "not_applicable", changedFiles: [] };
+  }
+  const changedFiles = [];
+  for (const relPath of config.triggerFiles || []) {
+    const sourcePath = path.join(plan.sourcePath, relPath);
+    if (!fs.existsSync(sourcePath) || !fs.statSync(sourcePath).isFile()) continue;
+    const sourceHash = sha256File(sourcePath);
+    const previousPath = path.join(plan.backupPath, relPath);
+    let previousHash = "";
+    try {
+      previousHash = sudoSha256File(previousPath, password);
+    } catch (_) {
+      previousHash = "";
+    }
+    if (sourceHash !== previousHash) changedFiles.push(relPath);
+  }
+  const state = readCodexMobileSelectedMuxRepairState(plan, password);
+  const decision = codexMobileSelectedMuxRefreshDecision({
+    changedFiles,
+    state,
+    reason: plan.reason,
+  });
+  return {
+    required: decision.required,
+    reason: decision.reason,
+    changedFiles,
+    previousRepairStatus: String(state?.status || ""),
+  };
+}
+
+function refreshCodexMobileSelectedMuxRuntime(plan, password, change = null) {
+  const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === CODEX_MOBILE_SELECTED_MUX_REFRESH.type);
+  if (!repair) return null;
+  const detected = change || detectCodexMobileMuxRuntimeChange(plan, password, repair);
+  if (!detected.required) {
+    return {
+      type: repair.type,
+      status: 0,
+      skipped: true,
+      reason: detected.reason || "no_mux_runtime_change",
+      changedFileCount: 0,
+      previousRepairStatus: detected.previousRepairStatus || "",
+    };
+  }
+  const codexRuntime = resolveCodexMobileProfileRuntime({
+    serviceUser: repair.serviceUser,
+    runtimeRoot: repair.runtimeRoot,
+    profileFile: repair.profileFile,
+  });
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const script = `
+const fs = require("node:fs");
+const { spawnSync } = require("node:child_process");
+const endpointFile = process.argv[1];
+const out = {
+  ok: true,
+  endpointFilePresent: false,
+  endpointRemoved: false,
+  candidatePidCount: 0,
+  matchedPidCount: 0,
+  stalePidCount: 0,
+  stoppedPidCount: 0,
+  unexpectedPidCount: 0,
+  error: ""
+};
+function finish() {
+  process.stdout.write(JSON.stringify(out));
+}
+if (!endpointFile || !fs.existsSync(endpointFile)) {
+  finish();
+  process.exit(0);
+}
+out.endpointFilePresent = true;
+let endpoint = {};
+try {
+  endpoint = JSON.parse(fs.readFileSync(endpointFile, "utf8"));
+} catch (_) {
+  out.ok = false;
+  out.error = "selected_mux_endpoint_json_invalid";
+  finish();
+  process.exit(0);
+}
+const pids = [];
+for (const value of [endpoint.childPid, endpoint.pid]) {
+  const pid = Number(value || 0);
+  if (Number.isInteger(pid) && pid > 1 && !pids.includes(pid)) pids.push(pid);
+}
+out.candidatePidCount = pids.length;
+for (const pid of pids) {
+  const ps = spawnSync("/bin/ps", ["-p", String(pid), "-o", "command="], { encoding: "utf8" });
+  const command = String(ps.stdout || "").trim();
+  if (!command) {
+    out.stalePidCount += 1;
+    continue;
+  }
+  if (!command.includes("codex-app-server-mux") && !command.includes("codex app-server")) {
+    out.unexpectedPidCount += 1;
+    continue;
+  }
+  out.matchedPidCount += 1;
+  const term = spawnSync("/bin/kill", [String(pid)], { encoding: "utf8" });
+  if (term.status === 0) out.stoppedPidCount += 1;
+  const alive = spawnSync("/bin/kill", ["-0", String(pid)], { encoding: "utf8" });
+  if (alive.status === 0) spawnSync("/bin/kill", ["-KILL", String(pid)], { encoding: "utf8" });
+}
+if (out.unexpectedPidCount > 0) {
+  out.ok = false;
+  out.error = "selected_mux_endpoint_unexpected_process";
+  finish();
+  process.exit(0);
+}
+try {
+  fs.unlinkSync(endpointFile);
+  out.endpointRemoved = true;
+} catch (err) {
+  if (fs.existsSync(endpointFile)) {
+    out.ok = false;
+    out.error = "selected_mux_endpoint_remove_failed";
+  }
+}
+finish();
+`;
+  const result = runSudo(node, ["-e", script, codexRuntime.muxEndpointFile], password);
+  let parsed = {};
+  try {
+    parsed = JSON.parse(String(result.stdout || "{}"));
+  } catch (_) {
+    throw new Error("codex_mobile_selected_mux_refresh_output_invalid");
+  }
+  if (parsed.ok !== true) {
+    throw new Error(`codex_mobile_selected_mux_refresh_failed:${parsed.error || "unknown"}`);
+  }
+  return {
+    type: repair.type,
+    status: 0,
+    skipped: false,
+    reason: detected.reason || "mux_runtime_files_changed",
+    changedFileCount: detected.changedFiles.length,
+    changedFiles: detected.changedFiles.slice(0, 12),
+    previousRepairStatus: detected.previousRepairStatus || "",
+    endpointFilePresent: parsed.endpointFilePresent === true,
+    endpointRemoved: parsed.endpointRemoved === true,
+    candidatePidCount: Number(parsed.candidatePidCount || 0) || 0,
+    matchedPidCount: Number(parsed.matchedPidCount || 0) || 0,
+    stalePidCount: Number(parsed.stalePidCount || 0) || 0,
+    stoppedPidCount: Number(parsed.stoppedPidCount || 0) || 0,
+    codexHomeSource: codexRuntime.source,
+    codexProfileActiveId: codexRuntime.activeProfileId,
+  };
+}
+
 function repairMusicRuntimeCoverPermissions(plan, password) {
   const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === MUSIC_RUNTIME_COVER_PERMISSION_REPAIR.type);
   if (!repair) return null;
@@ -2829,6 +3196,44 @@ function installGatewayMacosLauncher(plan, password) {
   };
 }
 
+function installHomeAiGatewayLaunchdServices(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface !== "full") return null;
+  const script = posixJoin(plan.productionPath, "scripts", "install-macos-production.sh");
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const result = runSudo("/usr/bin/env", [
+    "HOMEAI_INSTALL_LAUNCHD_APPLY=1",
+    `HOMEAI_NODE=${node}`,
+    "/bin/bash",
+    script,
+    "--execute",
+    "--phase",
+    "install-gateway-launchd-services",
+    "--root",
+    plan.macRoot,
+    "--json",
+  ], password);
+  let parsed = {};
+  try {
+    parsed = JSON.parse(String(result.stdout || "{}"));
+  } catch (_err) {
+    throw new Error("home_ai_gateway_launchd_services_install_output_invalid");
+  }
+  if (parsed.ok !== true || parsed.execution?.ok !== true) {
+    const codes = Array.isArray(parsed.execution?.issueCodes) ? parsed.execution.issueCodes.slice(0, 8).join(",") : "unknown";
+    throw new Error(`home_ai_gateway_launchd_services_install_failed:${codes}`);
+  }
+  const report = parsed.execution?.report || {};
+  return {
+    type: "home-ai-gateway-launchd-services-install",
+    status: result.status,
+    workerCount: Number(report.workerCount || 0) || 0,
+    serviceCount: Array.isArray(report.services) ? report.services.length : 0,
+    launchdInstalled: Boolean(report.launchdInstalled),
+    launchdLoaded: Boolean(report.launchdLoaded),
+    operatorInstallRequired: Boolean(report.operatorInstallRequired),
+  };
+}
+
 function syncPostSyncMirrors(plan, password) {
   const mirrors = Array.isArray(plan.postSyncMirrors) ? plan.postSyncMirrors : [];
   const rows = [];
@@ -2879,11 +3284,14 @@ function syncPostSyncMirrors(plan, password) {
 }
 
 function executePlan(plan, options) {
-  const password = readPassword(options.passwordFile);
-  if (options.passwordFile && !password) throw new Error("sudo_password_file_empty");
+  const password = resolveSudoPassword(options.passwordFile);
 
   runSudo("/bin/mkdir", ["-p", plan.backupPath, plan.productionPath], password);
   runSudo("/usr/bin/rsync", buildRsyncArgs(BACKUP_RSYNC_EXCLUDES, `${plan.productionPath}/`, `${plan.backupPath}/`), password);
+  const codexMobileMuxRuntimeChange = detectCodexMobileMuxRuntimeChange(plan, password);
+  if (codexMobileMuxRuntimeChange.required) {
+    writeCodexMobileSelectedMuxRepairState(plan, password, "pending", codexMobileMuxRuntimeChange);
+  }
 
   if (plan.surface === "static") {
     for (const item of plan.sync) {
@@ -2918,10 +3326,12 @@ function executePlan(plan, options) {
   const visualPolishCronJobs = installHomeAiVisualPolishCronJobs(plan, password);
   const visualDebugLaunchAgent = installHomeAiVisualDebugLaunchAgent(plan, password);
   const backupArtifactAclRepair = repairHomeAiBackupArtifactAcls(plan, password);
+  const backupGatewayTelemetryAclRepair = repairHomeAiBackupGatewayTelemetryAcls(plan, password);
   const codexSharedAuthRepair = repairCodexSharedAuthPermissions(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
   const gatewayLaunchctlSudoers = installGatewayLaunchctlSudoers(plan, password);
   const gatewayMacosLauncher = installGatewayMacosLauncher(plan, password);
+  const gatewayLaunchdServices = installHomeAiGatewayLaunchdServices(plan, password);
   const productionDriftReconcile = reconcileHomeAiProductionDrift(plan, password);
   const deployBackupPrune = pruneDeployBackups(plan, options, password);
 
@@ -2955,9 +3365,14 @@ function executePlan(plan, options) {
     if (reloadedLabels.has(label)) continue;
     runSudo("/bin/launchctl", ["kickstart", "-k", `system/${label}`], password);
   }
+  const codexMobileSelectedMuxRefresh = refreshCodexMobileSelectedMuxRuntime(plan, password, codexMobileMuxRuntimeChange);
+  if (codexMobileSelectedMuxRefresh && !codexMobileSelectedMuxRefresh.skipped) {
+    writeCodexMobileSelectedMuxRepairState(plan, password, "completed", codexMobileMuxRuntimeChange);
+  }
 
   const validations = [];
   if (codexMobileLogRepair) validations.push(codexMobileLogRepair);
+  if (codexMobileSelectedMuxRefresh) validations.push(codexMobileSelectedMuxRefresh);
   if (musicRuntimeCoverPermissionRepair) validations.push(musicRuntimeCoverPermissionRepair);
   if (financeLaunchdWorkspaceKeyHashRepair) validations.push(financeLaunchdWorkspaceKeyHashRepair);
   if (webPushVapidPermissionRepair) validations.push(webPushVapidPermissionRepair);
@@ -2975,10 +3390,12 @@ function executePlan(plan, options) {
   if (visualPolishCronJobs) validations.push(Object.assign({ status: 0 }, visualPolishCronJobs));
   if (visualDebugLaunchAgent) validations.push(Object.assign({ status: 0 }, visualDebugLaunchAgent));
   if (backupArtifactAclRepair) validations.push(backupArtifactAclRepair);
+  if (backupGatewayTelemetryAclRepair) validations.push(backupGatewayTelemetryAclRepair);
   if (codexSharedAuthRepair) validations.push(codexSharedAuthRepair);
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
   if (gatewayLaunchctlSudoers) validations.push(gatewayLaunchctlSudoers);
   if (gatewayMacosLauncher) validations.push(gatewayMacosLauncher);
+  if (gatewayLaunchdServices) validations.push(gatewayLaunchdServices);
   if (productionDriftReconcile) validations.push(productionDriftReconcile);
   if (deployBackupPrune) validations.push(deployBackupPrune);
   for (const check of plan.validation) {
@@ -3052,6 +3469,13 @@ module.exports = {
   buildPlan,
   buildAllPluginPlan,
   assertExecutablePlan,
+  defaultSudoPasswordFileCandidates,
+  sudoPasswordFileCandidates,
+  resolveSudoPassword,
+  codexMobileSelectedMuxRepairStatePath,
+  codexMobileMuxRefreshReasonRequiresForce,
+  codexMobileMuxRepairStateRequiresRefresh,
+  codexMobileSelectedMuxRefreshDecision,
   runValidation,
   buildHomeAiCronProfileAliasPlan,
   buildPluginWorkspaceAuditTargetJson,
@@ -3064,13 +3488,17 @@ module.exports = {
   buildRsyncArgs,
   shouldRepairCodexSharedAuthPermissions,
   repairHomeAiBackupArtifactAcls,
+  repairHomeAiBackupGatewayTelemetryAcls,
   pruneDeployBackups,
   parseDeployBackupName,
   selectDeployBackupsToPrune,
   postSyncRepairsForTarget,
   repairCodexMobileLogPermissions,
+  detectCodexMobileMuxRuntimeChange,
+  refreshCodexMobileSelectedMuxRuntime,
   repairMusicRuntimeCoverPermissions,
   installFinanceLaunchdWorkspaceKeyHashes,
+  installHomeAiGatewayLaunchdServices,
   redactSensitiveOutput,
   deployDirtyFiles,
   isDeploySurfaceIncluded,

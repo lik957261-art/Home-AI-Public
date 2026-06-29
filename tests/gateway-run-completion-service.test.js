@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   createGatewayRunCompletionService,
   extractCompletedOutput,
+  parsePluginConversationActionComments,
   usageWithRunMetadata,
 } = require("../adapters/gateway-run-completion-service");
 
@@ -14,6 +15,8 @@ function makeHarness(overrides = {}) {
     enqueued: [],
     failed: [],
     notified: [],
+    pluginActions: [],
+    quotaRetries: [],
     removed: [],
     saved: 0,
     scheduled: [],
@@ -85,6 +88,15 @@ function makeHarness(overrides = {}) {
       messageId: targetMessage.id,
       status,
     }),
+    pluginConversationActionBridgeService: overrides.pluginConversationActionBridgeService || {
+      createRequest: (payload) => {
+        calls.pluginActions.push(payload);
+        return {
+          ok: true,
+          inboxItem: { id: "ainb_plugin_action_1" },
+        };
+      },
+    },
     nowIso: () => "2026-06-08T01:02:03.000Z",
     nowMs: () => 4000,
     registerArtifactsFromText: (_thread, _message, text) => (/MEDIA:/.test(text) ? [{ id: "artifact_1" }] : []),
@@ -99,6 +111,15 @@ function makeHarness(overrides = {}) {
       taskGroupId,
     }),
     startEscalatedToolsetRetry: overrides.startEscalatedToolsetRetry || (() => false),
+    startQuotaFailoverRetry: overrides.startQuotaFailoverRetry || ((targetThread, targetMessage, input) => {
+      calls.quotaRetries.push({
+        threadId: targetThread.id,
+        messageId: targetMessage.id,
+        output: input.output,
+        previousRunId: input.previousRunId,
+      });
+      return false;
+    }),
     stripPermissionApprovalMarkers: (text) => String(text || "").replace(/HERMES_PERMISSION_APPROVAL_REQUIRED[^\n]*/g, "").trim(),
     supplementGatewayUsage: (usage, runId, targetMessage) => {
       calls.usage.push({ usage, runId, messageId: targetMessage.id });
@@ -142,6 +163,16 @@ function testPureCompletionHelpers() {
     reasoning_effort: "high",
     reasoningEffort: "high",
   });
+  const parsedActions = parsePluginConversationActionComments([
+    "Visible",
+    "<!-- homeai-owner-task-request",
+    "{\"title\":\"Fix platform gap\",\"summary\":\"bounded\",\"suggestedChange\":\"repair\",\"acceptance\":\"test\"}",
+    "-->",
+  ].join("\n"));
+  assert.equal(parsedActions.length, 1);
+  assert.equal(parsedActions[0].pluginId, "home-ai");
+  assert.equal(parsedActions[0].requestType, "capability_gap");
+  assert.equal(parsedActions[0].title, "Fix platform gap");
 }
 
 function testCompletedRunProjectsDoneState() {
@@ -168,6 +199,39 @@ function testCompletedRunProjectsDoneState() {
   assert.deepEqual(calls.scheduled, [{ threadId: "thread_1", taskGroupId: "chat" }]);
   assert.deepEqual(calls.compacted, [{ threadId: "thread_1", messageId: "assistant_1", reason: "run-completed" }]);
   assert.equal(calls.broadcasts.at(-1).type, "run.completed");
+}
+
+function testCompletedRunStoresWardrobeOutfitWearIntentAction() {
+  const { message, service, thread } = makeHarness();
+  const intent = {
+    type: "outfit_wear_intent",
+    schema_version: 1,
+    plugin_id: "wardrobe",
+    principal_id: "owner",
+    workspace_id: "owner",
+    wear_date: "2026-06-29",
+    timezone: "Asia/Shanghai",
+    items: [{ role: "Outer", code: "OUT-001" }],
+    source_message: { message_id: "assistant_1", thread_id: "thread_1" },
+    idempotency_key: "wardrobe:outfit_wear_intent:test",
+    expires_at: "2026-06-30T00:00:00Z",
+  };
+
+  const result = service.markRunCompleted(completionContext(thread, message), {
+    response: {
+      id: "run_1",
+      output: [
+        { type: "function_call", name: "mcp_wardrobe_wardrobe_prepare_outfit_wear_intent", call_id: "call_prepare" },
+        { type: "function_call_output", call_id: "call_prepare", output: JSON.stringify({ structuredContent: { intent } }) },
+        { type: "message", content: [{ type: "output_text", text: "已准备穿着入库动作。" }] },
+      ],
+    },
+  });
+
+  assert.equal(result.action, "completed");
+  assert.equal(message.pluginActions.wardrobeOutfitWearIntent.status, "ready");
+  assert.equal(message.pluginActions.wardrobeOutfitWearIntent.executable, true);
+  assert.equal(message.pluginActions.wardrobeOutfitWearIntent.intent.idempotency_key, intent.idempotency_key);
 }
 
 function testToolsetEscalationRetryShortCircuitsTerminalCompletion() {
@@ -197,6 +261,35 @@ function testToolsetEscalationRetryShortCircuitsTerminalCompletion() {
   assert.equal(calls.saved, 1);
   assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), false);
   assert.deepEqual(calls.notified, []);
+}
+
+function testOpenAiCodexQuotaFailoverShortCircuitsTerminalFailure() {
+  const starts = [];
+  const { calls, message, service, thread } = makeHarness({
+    startQuotaFailoverRetry: (targetThread, targetMessage, input) => {
+      starts.push({ targetThread, targetMessage, input });
+      targetThread.events.push({
+        event: "run.openai_codex_quota_failover_retrying",
+        runId: input.previousRunId,
+        tool: "gateway",
+        preview: "{}",
+        error: false,
+      });
+      return true;
+    },
+  });
+
+  const result = service.markRunCompleted(completionContext(thread, message), {
+    output: "API call failed after 3 retries: HTTP 429: The usage limit has been reached",
+  });
+
+  assert.equal(result.action, "openai_codex_quota_failover_retrying");
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].input.previousRunId, "run_1");
+  assert.equal(calls.failed.length, 0);
+  assert.equal(calls.saved, 1);
+  assert.equal(calls.broadcasts.at(-1).type, "run.event");
+  assert.equal(calls.broadcasts.some((payload) => payload.type === "run.completed"), false);
 }
 
 function testCompletedDirectoryRunUpdatesTopicIndex() {
@@ -304,9 +397,75 @@ function testPermissionApprovalProjectionStripsMarkerAndSetsElevation() {
   assert.equal(message.elevationSource, "model_permission_marker");
 }
 
+async function testCompletedRunSubmitsHiddenOwnerTaskRequestServerSide() {
+  const { calls, message, service, thread } = makeHarness();
+  thread.workspaceId = "owner";
+  message.actorWorkspaceId = "owner";
+
+  const result = service.markRunCompleted(completionContext(thread, message), {
+    output: [
+      "已准备给 Home AI 的 Owner 审批请求。",
+      "<!-- homeai-owner-task-request",
+      "{\"pluginId\":\"home-ai\",\"requestType\":\"capability_gap\",\"severity\":\"H2\",\"title\":\"低权限 Gateway 缺少 PPTX 生成工具\",\"summary\":\"bounded problem\",\"suggestedChange\":\"add tool\",\"acceptance\":\"fresh directory-bound run can submit\"}",
+      "-->",
+    ].join("\n"),
+  });
+
+  assert.equal(result.action, "completed");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls.pluginActions.length, 1);
+  assert.equal(calls.pluginActions[0].pluginId, "home-ai");
+  assert.equal(calls.pluginActions[0].requestType, "capability_gap");
+  assert.equal(calls.pluginActions[0].sourceThreadId, "thread_1");
+  assert.equal(calls.pluginActions[0].sourceTurnId, "assistant_1");
+  assert.equal(calls.pluginActions[0].workspaceId, "owner");
+  assert.equal(thread.events.some((item) => item.event === "run.plugin_conversation_action_request_created"), true);
+}
+
+async function testCompletedRunRecoversLegacyTaskCardClaimServerSide() {
+  const { calls, message, service, thread } = makeHarness();
+  message.actorWorkspaceId = "owner";
+
+  const result = service.markRunCompleted(completionContext(thread, message), {
+    output: [
+      "已经重新发卡，这次卡片只要求 PPT / Office / PDF 工具能力一致。",
+      "",
+      "卡片 ID：t_6937cfb1",
+      "标题：修复：Hermes Mobile Gateway 暴露并验证 PPT/Office 文档工具能力",
+      "状态：ready",
+      "指派：codex",
+      "<!-- homeai-note",
+      "title: 已重新发卡要求修复 Office 工具能力",
+      "-->",
+    ].join("\n"),
+  });
+
+  assert.equal(result.action, "completed");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls.pluginActions.length, 1);
+  assert.equal(calls.pluginActions[0].pluginId, "home-ai");
+  assert.equal(calls.pluginActions[0].requestType, "capability_gap");
+  assert.equal(calls.pluginActions[0].title, "修复：Hermes Mobile Gateway 暴露并验证 PPT/Office 文档工具能力");
+  assert.equal(calls.pluginActions[0].evidence.recovery, "legacy_task_card_claim_recovered");
+  assert.deepEqual(calls.pluginActions[0].evidence.legacyCardIds, ["t_6937cfb1"]);
+  assert.equal(calls.pluginActions[0].sourceThreadId, "thread_1");
+  assert.equal(calls.pluginActions[0].sourceTurnId, "assistant_1");
+  assert.equal(thread.events.some((item) => item.event === "run.plugin_conversation_action_request_recovered"), true);
+}
+
 testPureCompletionHelpers();
 testCompletedRunProjectsDoneState();
+testCompletedRunStoresWardrobeOutfitWearIntentAction();
 testToolsetEscalationRetryShortCircuitsTerminalCompletion();
+testOpenAiCodexQuotaFailoverShortCircuitsTerminalFailure();
 testToolsetEscalationWithoutRetryCompletesWithDiagnostic();
 testWardrobeCompletionGateAdvisoryCompletesIncompleteResult();
 testPermissionApprovalProjectionStripsMarkerAndSetsElevation();
+
+Promise.all([
+  testCompletedRunSubmitsHiddenOwnerTaskRequestServerSide(),
+  testCompletedRunRecoversLegacyTaskCardClaimServerSide(),
+]).catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});

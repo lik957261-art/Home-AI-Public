@@ -31,8 +31,6 @@ Node and native Python processes:
 - Whisper large v3 Turbo uses
   `scripts\start-whisper-large-v3-turbo-windows.ps1` and a native venv under
   `C:\ProgramData\HermesMobile\services\whisper-large-v3-turbo\.venv-windows`;
-- Weixin mobile ingress uses
-  `scripts\start-weixin-mobile-ingress-bridge-windows.ps1`;
 - CRON sidecar uses `scripts\start-cron-tick-sidecar.ps1` with
   `HERMES_MOBILE_CRON_TICK_SIDE=windows-native`;
 - Kanban-backed Todo compatibility uses
@@ -56,7 +54,6 @@ Acceptance for a Windows native cutover:
   --base http://127.0.0.1:8797 --expected-version <version> --json` passes;
 - `/api/status?detail=1` shows `ownerMinWarm=0`, `workspaceMinWarm=0`, and
   `idleTtlMs=60000` for the maintained cold-start configuration;
-- `scripts\start-weixin-mobile-ingress-bridge-windows.ps1 -CheckOnly` passes;
 - `http://127.0.0.1:8001/health` reports `large-v3-turbo`, `cpu`, and `int8`;
 - scheduled task actions do not contain WSL arguments except in archived
   backups.
@@ -354,7 +351,7 @@ service root.
 - Mac production closure validation:
   `scripts/macos-production-closure-validation.js`. Run it after Mac
   deployment, data migration, Gateway/Profile repair, plugin provisioning,
-  Weixin route repair, ACL repair, or before declaring Mac production closed:
+  ACL repair, or before declaring Mac production closed:
   `sudo /Users/example/path /Users/example/path --json`.
   The aggregate harness reads the expected static client version from the live
   app shell by default and passes it as `--expected-version` to every checked
@@ -363,7 +360,7 @@ service root.
   It composes the checked status, profile audit, ACL, native MCP/schema smoke
   for profile-local document/file tools and plugin MCP schema,
   plugin delivery-directory, all-workspace directory-bound topic previews,
-  Wardrobe binding/proxy content, DeepSeek user/maintenance, Weixin heartbeat,
+  Wardrobe binding/proxy content, DeepSeek user/maintenance,
   Owner/OpenAI concurrent product-route, and final-status smokes. Passing output must have top-level
   `ok=true`, `activeGlobal=0` before and after, zero profile issues and zero
   blocking profile warnings,
@@ -518,6 +515,21 @@ Moira, Movie, Music, Note, and Wardrobe, with one restart label and one
 loopback manifest smoke per plugin. The user-facing `health` alias resolves to
 the historical `healthy` source and production directory.
 
+Codex Mobile Web deployments have one extra selected shared-mux runtime
+contract. When mux bridge/runtime files change, the central deploy path must
+refresh only the currently selected profile mux after source sync and plugin
+host restart. The refresh reads only the selected endpoint file, considers only
+recorded `pid` / `childPid` values, validates the command line matches the
+expected Codex mux/app-server command, removes only that selected endpoint file,
+and must not use broad process selectors or touch unrelated profile muxes. The
+deploy script records a bounded selected-mux repair state before sync and marks
+it completed only after the selected endpoint refresh succeeds. A retry after a
+post-sync repair failure must refresh the selected mux even if source and
+production file hashes now match, because file parity does not prove the
+already-running selected mux process has loaded the deployed capability surface.
+Deploy reasons containing selected-mux, mux-runtime, mux-metrics, or shared-mux
+also force this selected endpoint refresh.
+
 Movie is an Owner-only embedded app plugin under the same central deployment
 contract. Its standard source is `/Users/example/path`,
 its production target is `/Users/example/path`, its
@@ -527,12 +539,72 @@ manifest smoke is
 exclude `data/` and prove `public/index.html`; Home AI must not copy Movie
 device, NAS, or projector credentials into host source or docs.
 
+Routine plugin deployment execution is owned by the dedicated
+`Home AI Deploy` Codex thread. Plugin threads prepare source, tests, commits,
+deploy plan, and bounded readback expectations, then send a deployment card to
+that thread. Plugin-visible cards and docs must not include `--password-file`
+paths, SSH private key paths, raw passwords, plugin keys, cookies, launch
+tokens, or local operator secret paths. The central deploy script may still use
+local operator credential discovery inside the Home AI deployment runtime, but
+that is not a plugin-visible contract.
+
+A routine plugin deployment card must be a request card, not a terminal
+receipt. Titles such as `Return: ...`, bodies containing `Return policy:
+terminal receipt`, or cards whose primary status is already `completed`,
+`partially_completed`, `redirected`, `blocked`, or `rejected` are deployment
+closure receipts, not deployment requests. They must not be routed to
+`Home AI Deploy` as the requested production execute/readback. If this shape is
+detected, the sender or host must fail closed with bounded evidence and create
+a new deployment request card that includes the source commit, deploy reason,
+plan result, safety boundary, and required production readback.
+
+`Home AI Deploy` must remain a live operational lane. If readback shows the
+matching deploy thread is completed, archived, deleted, hidden, or missing from
+the runnable target set, routine plugin deployment must fail closed and the
+deploy lane must be repaired or recreated. The ordinary Home AI implementation
+thread should redirect or block the card with that exact deploy-lane evidence;
+it must not silently take over routine plugin deployment execution.
+
 Public setup source locations are declared in
 `config/public-plugin-sources.json`. The manifest maps the public Home AI repo
 and each public plugin repo to the local source directory, deployment label,
 and loopback manifest smoke URL. Public installers must use those HTTPS GitHub
 URLs to clone or update source before invoking `scripts/deploy-macos-production.js`.
 The deploy script itself continues to require local source directories.
+Maintainer-side publication uses `scripts/homeai-public-release-closure.js`
+(`npm run release:public`). It is plan-only by default. Execution creates a
+privacy-scanned public export and runs the public source validation suite. A
+public repository sync, commit, and push are three separate explicit gates:
+`--sync-public-repo`, `--commit-public`, and `--push-public`. Pushing is
+accepted only with a same-run sync and commit, so a stale public checkout cannot
+be mistaken for the current release closure.
+The maintained public online upgrade loop is
+`scripts/homeai-public-upgrade.js` (`npm run upgrade:public`). It is plan-only
+by default, clean-fast-forward only, and Owner/operator-only when `--execute`
+is used. Execution updates Home AI, plugin source checkouts from
+`config/public-plugin-sources.json`, and the official Hermes Agent runtime only
+through explicit gates. Changed Home AI source is deployed with
+`--target home-ai`; changed or freshly cloned plugin source is deployed with the
+matching central `--plugin <id>` target; freshly cloned plugins must not remain
+clone-only partial closures.
+
+The public upgrade inventory includes Moira and Movie. Moira uses the public
+`https://github.com/pentiumxp/MOIRA_chinese_astrology_public.git` repository.
+Movie is deployable but currently marked `operatorAuthenticated` because its
+source requires read access to `https://github.com/pentiumxp/HomeAI-Movie.git`.
+It is not an anonymous default public plugin. `--clone-missing-plugins` is the
+explicit gate for cloning missing plugin sources, including operator-
+authenticated sources when the operator has configured Git credentials.
+
+Hermes Agent and provider ingress are deployment dependencies. The public
+upgrade loop checks `<root>/runtime/hermes-agent-official/source` and
+`<root>/runtime/hermes-agent-official/venv/bin/python`; a Hermes Agent source
+update requires explicit `--update-hermes-agent`, and dependency installation
+requires `--install-hermes-agent-dependencies`. After Home AI, plugin, or
+Hermes Agent updates, the loop must run the production profile/provider audit
+and `scripts/macos-production-closure-validation.js`. It may report bounded
+provider/profile status, but must not print raw provider keys, OAuth state,
+worker API keys, cookies, launch tokens, or profile config bodies.
 
 Home AI plugin-load recovery also uses `config/public-plugin-sources.json` as
 the default plugin label map. When a loopback or private-network plugin
@@ -620,7 +692,7 @@ first source copy uses the central deploy script with explicit plugin
 `--sync-only`:
 
 ```bash
-npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --restart none --sync-only --execute --password-file <private-local-password-file> --json
+npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --restart none --sync-only --execute --json
 ```
 
 `--sync-only` is not a deployment closure. It exists only to place plugin source
@@ -765,6 +837,9 @@ labeled as local diagnostic tooling rather than the canonical audit workflow.
 `scripts/production-self-diagnostics.js` may still confirm diagnostic harnesses
 exist, but production audit closure relies on Codex Mobile task-card delivery to
 the central audit thread.
+The diagnostic inventory still includes
+`scripts/plugin-workspace-audit-runner.js` as a bounded legacy/local audit
+runner check so the retired path remains visible as diagnostic-only tooling.
 It also includes `scripts/macos-first-start-preflight.js`, making the fresh
 install/recovery readiness gate visible in the same production diagnostic
 inventory used for deployment closure.
@@ -800,6 +875,13 @@ workspace-private file access goes through per-workspace broker processes.
 It also includes `scripts/production-self-diagnostics-coverage-audit.js`, which
 keeps the self-diagnostic inventory synchronized across script entries, source
 harnesses, bounded command templates, and durable documentation references.
+It also includes `scripts/homeai-self-improving-loop.js`, which publishes the
+Home AI self-check signal matrix, collects bounded production observations from
+approved smoke/audit scripts, submits metadata-only self-check diagnostic
+events, and generates bounded audit request cards for the dedicated audit
+lanes. It is a scheduling and diagnostic trigger only: it must not run deep
+audits, restart services, deploy code, or dispatch repair implementation cards
+directly.
 The same self-diagnostic inventory includes
 `scripts/grok-auth-metadata-smoke.js` as the bounded Grok/xAI OAuth metadata
 check. Run it with the effective Grok profile auth file and shared auth file
@@ -871,9 +953,10 @@ post-install chmod/chown fixes when workers fail with unreadable manifest or
 key files.
 
 Mac Gateway start scripts must also inject the live file-plugin roots for every
-profile-local file tool. `docx_extract_text`, `office_extract_text`,
-`pdf_extract_text`, `pdf_render_pages`, `audio_transcribe`,
-`archive_list`, `archive_extract_safe`, `chatgpt_image_edit`,
+profile-local file tool. `docx_create`, `docx_extract_text`,
+`office_extract_text`, `pptx_create`, `pdf_create`, `pdf_extract_text`,
+`pdf_render_pages`, `audio_transcribe`, `archive_list`,
+`archive_extract_safe`, `chatgpt_image_edit`,
 `chatgpt_image_erase`, `video_gen`, and scoped
 `http_request` file upload helpers do not consume the per-run
 `access_policy_context.allowed_roots` directly; they read environment variables
@@ -932,8 +1015,8 @@ target profile's local `hermes-mobile-docx` plugin. It must return `ok=true`
 with no `docx_plugin_file_path_outside_allowed_roots:<profile>` issue before a
 Mac file-plugin root repair is considered closed.
 
-Mac production also must explicitly connect the listener workspace catalog to
-the live Weixin route data:
+Mac production must explicitly connect the listener workspace catalog to the
+live workspace catalog data:
 
 - `HERMES_WEB_WORKSPACE_USERS_PATH=/Users/example/path`
 - `HERMES_MOBILE_WORKSPACE_USERS_PATH=/Users/example/path`
@@ -942,10 +1025,9 @@ the live Weixin route data:
 
 Without these explicit LaunchDaemon variables, the runtime catalog checks
 `/Users/example/path` by
-default, while the maintained Mac route files live under `data/config`. In that
-drift state `scripts/weixin-ingress-production-smoke.js` will authenticate but
-return `skipped=true` with `reason=unmatched_workspace_route` for valid
-`weixin_*` route workspaces.
+default, while the maintained Mac workspace files live under `data/config`.
+Historical `weixin_*` workspace ids are retained as workspace identities, not
+as Weixin route state.
 Plugin manifest URLs point to Mac loopback ports:
 
 - Wardrobe: `127.0.0.1:8765`
@@ -1332,7 +1414,11 @@ only after all of these preflight checks pass:
   exposes the plugin MCP only after that worker-local mirror has both
   `config.json` and `access-key.txt`.
 - macOS plugin MCP closure also requires worker-side MCP implementation files
-  under `<root>/gateway-worker/<plugin>-mcp`. For Growth, the workspace
+  under `<root>/gateway-worker/<plugin>-mcp`. For Wardrobe, both the stdio
+  wrapper directory `scripts/` and the imported Python package `wardrobe_app/`
+  must be mirrored into `<root>/gateway-worker/wardrobe-mcp`; copying only
+  `scripts/wardrobe-mcp.py` can leave Gateway schemas on stale plugin code
+  after Wardrobe MCP tool changes. For Growth, the workspace
   provisioning executor materializes the file set from
   `<root>/plugins/growth` into `<root>/gateway-worker/growth-mcp` before
   rendering profiles. For Moira source deploys, the central macOS deploy script
@@ -1340,7 +1426,9 @@ only after all of these preflight checks pass:
   `<root>/gateway-worker/moira-mcp` after the normal plugin source sync. The
   mirror includes the stdio wrapper, `package.json`, and the `server` plus
   `web` subtrees because the MCP service imports rule/commentary and chart
-  calculation providers from those directories. The Gateway manifest must then
+  calculation providers from those directories. Wardrobe source deploys use the
+  same central post-sync mirror mechanism for `scripts/` and `wardrobe_app/`.
+  The Gateway manifest must then
   be updated from the rendered profile capabilities so `toolsets`,
   `mcpServers`, and `configPath` match the actual `config.yaml`; otherwise a
   selected worker may omit the plugin toolset even though the profile file
@@ -1360,6 +1448,11 @@ is a real production blocker.
 The standalone drift reconcile tool runs the same class of shared-auth
 permission repair for Home AI full deploys, so permissions are corrected before
 the post-deploy drift gate even when no Codex token sync is needed.
+Home AI full deploys also repair bounded backup-read ACLs on
+`gateway-worker/telemetry` so the no-agent `hermes-host` disaster backup can
+copy Gateway telemetry state and read Gateway profile `SOUL.md` files created
+by root-owned profile provisioning paths. This does not give the CRON job
+access to sudo or credential files.
 Home AI deploy also installs source-controlled host Skills with explicit
 sharing semantics. CRON-facing built-in Skills are copied to
 `data/hermes-home/skills`, and the allowlisted profile-shared host Skill
@@ -1612,10 +1705,16 @@ Its JSON output includes only bounded metadata, including the non-secret
 header was actually exercised without exposing key material.
 It does not by itself prove Gateway callable schema health. Document/file
 cleaning closure must also run `gateway-tool-schema-smoke.js` or the aggregate
-`macos-production-closure-validation.js` and verify `docx_extract_text`,
-`office_extract_text`, `pdf_extract_text`, `pdf_render_pages`,
-`audio_transcribe`, `archive_list`, and `archive_extract_safe` in the selected
-production profile schema.
+`macos-production-closure-validation.js` and verify `docx_create`,
+`docx_extract_text`, `office_extract_text`, `pptx_create`, `pdf_create`,
+`pdf_extract_text`, `pdf_render_pages`, `audio_transcribe`, `archive_list`,
+and `archive_extract_safe` in the selected production profile schema.
+For lower-level profile-local checks that must not depend on model/provider
+startup, run:
+`node scripts/gateway-tool-schema-smoke.js --manifest /Users/example/path --profile <profile> --profile-plugin-schema-only --profile-plugin-filter hermes-mobile-docx,hermes-mobile-pptx,hermes-mobile-pdf,hermes-mobile-audio,hermes-mobile-archive --runtime-python /Users/example/path --require docx_create,docx_extract_text,office_extract_text,pptx_create,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe`.
+The central Home AI deploy path now reruns the `install-gateway-launchd-services`
+phase after full source sync so the production profile `plugins/` directories,
+`config.yaml`, and start scripts are materialized together before drift audit.
 Do not replace it with a one-off inline Node/Python status script unless the
 new script is added to source and covered by a harness.
 - Mac production profile audit after deployment or profile repair:

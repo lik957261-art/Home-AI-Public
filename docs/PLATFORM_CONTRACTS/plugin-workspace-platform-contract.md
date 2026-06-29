@@ -270,16 +270,17 @@ endpoints that correctly require a workspace id/key are reported as
 `authRequired=true`; tool-specific schema closure still belongs to
 `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`.
 
-## Plugin-Owned Deployment Closure And Task Cards
+## Plugin-Prepared Deployment Closure And Task Cards
 
-Plugin workspaces own their own closure when all of the following are true:
+Plugin workspaces own implementation and deploy preparation when all of the
+following are true:
 
 - the code, tests, data model, UI, MCP schema, or runtime behavior being changed
   lives inside that plugin repository or its Home AI development mirror under
   `/Users/example/path<plugin-id>`;
 - the production operation can be expressed as a normal central deploy-script
-  call such as
-  `cd /Users/example/path && npm run --silent deploy:macos -- --plugin <plugin-id> --reason <reason> --execute`;
+  plan such as
+  `cd /Users/example/path && npm run --silent deploy:macos -- --plugin <plugin-id> --reason <reason> --json`;
 - validation can be completed with plugin-owned evidence, such as local tests,
   the plugin health/version endpoint, Home AI embedded launch/proxy smoke, MCP
   schema smoke, plugin data readback, or a reversible plugin-owned product
@@ -289,21 +290,43 @@ Plugin workspaces own their own closure when all of the following are true:
   workspace provisioning/binding logic, or modifying Gateway worker/toolset
   selection rules.
 
-In that case the plugin thread must finish the operation itself. The fact that
-the central deploy script lives in the Home AI app workspace, or that the final
-smoke opens the plugin through the Home AI embedded shell, does not make the
-task Home-AI-owned. Sending a cross-thread task card to Home AI for that class
-of work interrupts the host-app work queue and should be treated as a routing
-error.
+In that case the plugin thread must finish source implementation, focused
+tests, commit/push when applicable, deploy plan, and the bounded production
+readback specification. The fact that the central deploy script lives in the
+Home AI app workspace, or that the final smoke opens the plugin through the
+Home AI embedded shell, does not make the task belong to the ordinary Home AI
+implementation thread.
 
-This is a hard routing boundary, not an optimization preference. A plugin that
-has a working `deploy:macos -- --plugin <plugin-id>` plan/execute path must run
-that path from its own closure loop. It must not send Home AI a "deploy this
-plugin" task card as a substitute for continuing its own work. If Home AI
-receives such a routine plugin deploy card, Home AI must return `redirected`
-or `blocked` with the exact plugin-owned commands and must not deploy the
-plugin merely because it has access to the shared script, sudo password file,
-or embedded shell smoke.
+Routine plugin production execute/readback belongs to the dedicated
+`Home AI Deploy` Codex thread. This is a hard routing boundary, not an
+optimization preference. A plugin that has a valid
+`deploy:macos -- --plugin <plugin-id>` plan must send a deployment card to
+`Home AI Deploy`, not to the ordinary Home AI implementation thread and not to
+an audit thread. If ordinary Home AI receives such a routine plugin deploy
+card, Home AI must return `redirected` or `blocked` with the exact
+`Home AI Deploy` target and required card fields.
+
+The target `Home AI Deploy` thread must be a live, discoverable,
+non-terminal deployment lane. If the only matching thread is completed,
+archived, deleted, hidden, or otherwise non-runnable, the correct outcome is a
+platform routing repair for the deploy lane, not a routine deployment from the
+ordinary Home AI implementation thread.
+
+Deployment cards must not include raw sudo passwords, password-file paths,
+SSH private keys, local operator secret paths, cookies, launch tokens, plugin
+keys, or raw private payloads. If the central deploy script needs elevation,
+that credential boundary is private to the Home AI deployment thread/runtime
+and is not visible to plugin workspaces.
+
+Deployment cards must be request-shaped. A source-thread `Return: ...` card,
+`Return policy: terminal receipt`, or a card whose primary body is already a
+terminal status such as `completed`, `partially_completed`, `redirected`,
+`blocked`, or `rejected` is a receipt and must not be treated as the routine
+plugin production deployment request. Plugin threads that finish source work
+must send a separate deployment request card to `Home AI Deploy` with source
+commit, deploy reason, plan facts, safety boundary, and bounded readback
+expectations. When structured card kinds are available, use
+`cardKind=plugin_deployment` for that request.
 
 Send a task card to the Home AI workspace only when the blocking work is
 host/platform owned, including:
@@ -321,11 +344,11 @@ host/platform owned, including:
   but cannot obtain the required bounded evidence without a Home AI owned
   permission or platform repair.
 
-When a card is necessary, it must name the failure layer and include bounded
-evidence plus an explicit `Return Card Required` section naming the source
-thread and expected reply shape. It must not ask Home AI to redo plugin-local
-diagnosis, re-run ordinary plugin tests, or perform a plugin deploy that the
-plugin thread can complete by calling the central script itself.
+When a Home AI implementation card is necessary, it must name the failure layer
+and include bounded evidence plus an explicit `Return Card Required` section
+naming the source thread and expected reply shape. It must not ask ordinary
+Home AI to redo plugin-local diagnosis, re-run ordinary plugin tests, or
+perform a plugin deploy that belongs in `Home AI Deploy`.
 
 Receiving a task card does not automatically make the requested work owned by
 the receiving workspace. Home AI and plugin threads must triage every incoming
@@ -515,6 +538,45 @@ The checker enforces those fields. Cross-thread cards may notify already-open
 threads about this rule, but cards are transitional coordination only. The
 durable enforcement path is this contract, each plugin pointer, and the
 platform checker.
+
+## Plugin Self-Check And Diagnostic Report Contract
+
+Plugins that own user-visible H1/H2 workflows must emit metadata-only
+diagnostic reports for repeated product-blocking failures instead of relying on
+silent fallback, broad restart, or user screenshots as the first signal.
+
+The maintained host signal matrix is documented in
+`docs/MODULES/self-improving-loop.md`. Plugin workspaces do not need to
+duplicate that matrix, but their own high-frequency failures must map into the
+same AI Ops loop through `homeai.diagnostic.report` or an equivalent
+Home-AI-owned bounded event path.
+
+Recommended plugin report categories:
+
+- retry-exhausted playback, save, render, sync, import, or submit failures;
+- missing or stale MCP callable/schema evidence;
+- host proxy, manifest, launch token, or workspace authorization failures;
+- native bridge capability mismatches detected from the embedded surface;
+- repeated latency buckets that prove user-visible degradation;
+- deploy/readback drift after a plugin has followed the deployment contract.
+
+Allowed fields are bounded metadata only: plugin id, route kind, build/version,
+error code, status code, duration bucket, retry count, small booleans/counts,
+and anonymous resource hashes such as `item_hash` or `source_hash`.
+
+Forbidden fields include raw titles, album/track/artist names, media URLs,
+file paths, raw provider/library ids, cookies, launch tokens, OAuth tokens,
+access keys, screenshots, database rows, provider payloads, full prompts, raw
+message bodies, and long logs.
+
+Automatic plugin diagnostics may create Owner notifications when the AI Ops
+gate passes, but they must not auto-dispatch Codex task cards. Owner-triggered
+dispatch, return-card requirements, deployment/readback evidence, and closure
+verification remain mandatory.
+
+Adding a fallback branch that hides one of these reportable failures is not a
+valid closure unless it is explicitly registered under the fallback-governance
+contract with owner, status, validation, and removal/hardening condition.
 
 ## Shared Visual Toolchain Contract
 
@@ -817,10 +879,12 @@ Rules:
 
 - SSH and sudo procedures are owned by
   `docs/RUNBOOKS/macos-production-access.md`.
-- Plugin deployment scripts may accept a `--password-file`, `--ssh-alias`, or
-  environment variable, but they must not print the password, print key
-  contents, echo shell commands that contain secrets, or persist raw secrets in
-  logs.
+- Plugin deployment cards may include non-secret target facts such as plugin
+  id, source path, source commit, deploy reason, restart label, health URL, and
+  bounded readback expectations.
+- Plugin deployment cards and plugin-local docs must not ask plugin threads to
+  pass `--password-file`, SSH aliases, private key paths, or environment
+  variables containing credential locations.
 - The shared Windows SSH aliases are platform facts, not plugin-specific facts.
 - The shared Mac production access channel is reusable by all plugin
   workspaces.
@@ -850,16 +914,24 @@ cd /Users/example/path
 npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/example/path<plugin-id> --json
 ```
 
-Standard plugin execute command shape:
+Standard plugin deploy request card fields:
 
-```bash
-cd /Users/example/path
-npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/example/path<plugin-id> --restart-label <label> --health-url <url> --execute --password-file <private-local-password-file> --json
+```text
+target-thread: Home AI Deploy
+plugin: <plugin-id>
+source: /Users/example/path<plugin-id>
+source-commit: <git commit>
+source-dirty: false
+deploy-reason: <reason>
+restart-label: <label>
+health-url: <url>
+plan-result: ok true
+readback: <bounded expected metadata>
 ```
 
-The password file path is an operator-local secret reference. Plugin docs may
-name the argument or environment variable, but must not store the password or
-copy the password file into a plugin repository.
+The Home AI deploy thread may run the execute command with its local operator
+credential context. Plugin docs and task cards must not name or pass the
+password file path.
 
 Plugin deployment must verify all layers that can fail independently:
 

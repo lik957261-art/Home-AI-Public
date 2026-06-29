@@ -267,6 +267,7 @@ function createActionInboxService(options = {}) {
       updatedAt: now,
     });
     const eventType = before ? "source_updated" : "source_created";
+    const reopened = Boolean(before && terminalBefore && input.reopen && item.status !== before.status);
     const event = appendEvent(store, item, eventType, {
       actorWorkspaceId: input.actorWorkspaceId,
       actorPrincipalId: input.actorPrincipalId,
@@ -278,7 +279,15 @@ function createActionInboxService(options = {}) {
       },
       createdAt: now,
     });
-    return { ok: true, item, event, source: { name: "action_inbox", storage: "sqlite" } };
+    return {
+      ok: true,
+      item,
+      event,
+      created: !before,
+      updated: Boolean(before),
+      reopened,
+      source: { name: "action_inbox", storage: "sqlite" },
+    };
   }
 
   function createManualItem(input = {}) {

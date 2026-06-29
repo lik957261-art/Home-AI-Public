@@ -99,6 +99,13 @@ the listener/cron user. Do not run the scheduled job with sudo. The intended
 ACL shape is `hermes-host` read/traverse on the store and inherited read access
 for files under `data/skill-profiles`.
 
+If a manual run reports `soul_file_unreadable` for
+`gateway-worker/telemetry/profiles`, or rsync status 23 for
+`gateway-worker/telemetry/<profile>`, repair the production deploy ACL
+contract for the telemetry root and redeploy Home AI. The CRON job still runs as
+`hermes-host`; do not give it the sudo password file or change the job to run
+with sudo.
+
 If the failure references `.codegraph/`, Codex `logs_*.sqlite*`, or SQLite
 `*-wal` / `*-shm` files, those are local tooling indexes or live sidecars and
 should be excluded from the daily backup instead of copied as restore-critical

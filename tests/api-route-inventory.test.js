@@ -76,16 +76,6 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
-    key: "weixin-api-routes",
-    exportName: "createWeixinApiRoutes",
-    required: false,
-    minRoutes: 1,
-    probes: [
-      { method: "GET", path: "/api/weixin/forward-targets", id: "weixin-forward-targets" },
-      { method: "POST", path: "/api/ingress/weixin/outbound/delivery-1/ack", id: "weixin-outbound-ack" },
-    ],
-  },
-  {
     key: "workspace-api-routes",
     exportName: "createWorkspaceApiRoutes",
     required: false,
@@ -477,7 +467,8 @@ function testInventoryBuildsAValidRegistry() {
 function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/status" }).id, "status");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/login" }).id, "login");
-  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/ingress/weixin/outbound/del-1/ack" }).id, "weixin-ingress-outbound-ack");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/ingress/weixin/outbound/del-1/ack" }), null);
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/weixin/forward-targets" }), null);
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/hermes-plugins/wardrobe/manifest" }).id, "hermes-plugin-manifest");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/hermes-plugins/codex-mobile/manifest" }).id, "hermes-plugin-manifest");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/hermes-plugins/wardrobe/notifications" }).id, "hermes-plugin-notification");
@@ -557,7 +548,7 @@ function testSummarySeparatesRuntimeAuthDomains() {
   const summary = summarizeHermesMobileApiRoutes({ public: true });
   assert.equal(summary.total > 70, true);
   assert.equal(summary.byAuthMode.none >= 4, true);
-  assert.equal(summary.byAuthMode.ingress, 3);
+  assert.equal(summary.byAuthMode.ingress, undefined);
   assert.equal(summary.byAuthMode.owner > 10, true);
   assert.equal(summary.byGroup.kanban > summary.byGroup.todo, true);
   assert.equal(summary.byGroup.learning >= 1, true);
@@ -587,7 +578,7 @@ function testGroupingProducesModuleWorkPackages() {
   assert.ok(modules.has("ai-ops-diagnostics"));
   assert.ok(modules.has("directory-share"));
   assert.ok(modules.has("directory-mutation"));
-  assert.deepEqual(modules.get("weixin-ingress").authModes, ["ingress"]);
+  assert.equal(modules.has("weixin-ingress"), false);
   assert.equal(modules.get("runtime-config").riskLevels.includes("owner"), true);
   assert.equal(JSON.stringify(groups).includes("/api/runtime-config"), false);
 }

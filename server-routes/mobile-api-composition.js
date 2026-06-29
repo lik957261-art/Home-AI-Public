@@ -26,6 +26,7 @@ const { createAutonomousDeliveryCoordinatorService } = require("../adapters/auto
 const { createCodexThreadTaskCardService } = require("../adapters/codex-thread-task-card-service");
 const { createHomeAiTtsService } = require("../adapters/home-ai-tts-service");
 const { createPluginConversationActionBridgeService } = require("../adapters/plugin-conversation-action-bridge-service");
+const { createWardrobeOutfitWearIntentActionService } = require("../adapters/wardrobe-outfit-wear-intent-action-service");
 const { createWorkspaceOnboardingService } = require("../adapters/workspace-onboarding-service");
 function callBootTrace(deps, label) { if (typeof deps.bootTrace === "function") deps.bootTrace(label); }
 function createMobileApiComposition(deps = {}) {
@@ -42,7 +43,6 @@ function createMobileApiComposition(deps = {}) {
     resourceApiRoutes,
     runtimeConfigApiRoutes,
     systemApiRoutes,
-    weixinApiRoutes,
     workspaceApiRoutes,
   } = platformComposition.routes;
   const {
@@ -194,10 +194,8 @@ function createMobileApiComposition(deps = {}) {
     compactThreadWithMessagePage: deps.compactThreadWithMessagePage,
     ensureGroupChatThreadForWorkspace: (...args) => deps.getSingleWindowThreadService().ensureGroupChatThreadForWorkspace(...args),
     ensureSingleWindowThread: (...args) => deps.getSingleWindowThreadService().ensureSingleWindowThread(...args),
-    ensureWeixinSingleWindowThread: (...args) => deps.getSingleWindowThreadService().ensureWeixinSingleWindowThread(...args),
     findGroupChatThreadForWorkspace: (...args) => deps.getSingleWindowThreadService().findGroupChatThreadForWorkspace(...args),
     findThreadForRequest: (...args) => deps.getRuntimeStateThreadService().findThreadForRequest(...args),
-    findWeixinSingleWindowThreadForWorkspace: (...args) => deps.getSingleWindowThreadService().findWeixinSingleWindowThreadForWorkspace(...args),
     findWorkspace: deps.findWorkspace,
     groupAiReplyRevokedText: deps.groupAiReplyRevokedText,
     groupAssistantReplyForUserMessage: deps.groupAssistantReplyForUserMessage,
@@ -221,7 +219,6 @@ function createMobileApiComposition(deps = {}) {
     threadAccessibleToAuth: (...args) => deps.getRuntimeStateThreadService().threadAccessibleToAuth(...args),
     threadMessageInitialLimit: deps.threadMessageInitialLimit,
     threadSummary: deps.threadSummary,
-    weixinForwardTargetsForWorkspace: deps.weixinForwardTargetsForWorkspace,
   });
 
   const threadMessageRunApiRoutes = createThreadMessageRunApiRoutes({
@@ -350,13 +347,24 @@ function createMobileApiComposition(deps = {}) {
     sendPushNotification: deps.webPushDeliveryService?.sendPushNotification,
     taskCardService: codexThreadTaskCardService,
   });
+  const wardrobeOutfitWearIntentActionService = deps.wardrobeOutfitWearIntentActionService || createWardrobeOutfitWearIntentActionService({
+    broadcast: deps.broadcast,
+    compactMessage: deps.compactMessage,
+    dataDir: deps.DATA_DIR || deps.dataDir,
+    nowIso: deps.nowIso,
+    saveState: deps.saveState,
+    threadSummary: deps.threadSummary,
+    wardrobeUserDriveRoot: deps.wardrobeUserDriveRoot,
+  });
   const pluginConversationActionApiRoutes = createPluginConversationActionApiRoutes({
     broadcast: deps.broadcast,
+    findThreadForRequest: (...args) => deps.getRuntimeStateThreadService().findThreadForRequest(...args),
     pluginConversationActionBridgeService,
     readBody: deps.readBody,
     requireOwner: deps.requireOwner,
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
+    wardrobeOutfitWearIntentActionService,
   });
   callBootTrace(deps, "plugin conversation action api routes ready");
   const mobileApiDispatcher = createMobileApiDispatcher({
@@ -409,7 +417,6 @@ function createMobileApiComposition(deps = {}) {
     threadTaskApiRoutes,
     todoApiRoutes,
     voiceInputApiRoutes,
-    weixinApiRoutes,
     workspaceOnboardingApiRoutes,
     workspaceApiRoutes,
   });
@@ -437,6 +444,7 @@ function createMobileApiComposition(deps = {}) {
       platformCurrencyService,
       pluginWorkspaceAuditService,
       pluginConversationActionBridgeService,
+      wardrobeOutfitWearIntentActionService,
       learningGrowthTeachingCheckService,
       learningGrowthExperienceSignalService,
       learningGrowthStageAssessmentService,
@@ -495,7 +503,6 @@ function createMobileApiComposition(deps = {}) {
       threadTaskApiRoutes,
       todoApiRoutes,
       voiceInputApiRoutes,
-      weixinApiRoutes,
       workspaceOnboardingApiRoutes,
       workspaceApiRoutes,
     },

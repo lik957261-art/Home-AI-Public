@@ -135,13 +135,6 @@
       font-weight: 800;
     }
 
-    .weixin-button {
-      right: calc(max(8px, env(safe-area-inset-right)) + 154px);
-      padding: 0 10px;
-      font-size: 13px;
-      font-weight: 760;
-    }
-
     .viewer-toast {
       position: fixed;
       z-index: 3;
@@ -163,8 +156,8 @@
       display: none !important;
     }
 
-    body.embedded-viewer .share-button,
-    body.embedded-viewer .back-button {
+    body.embedded-viewer .back-button,
+    body.embedded-viewer .mode-toggle-button {
       display: none !important;
     }
 
@@ -180,6 +173,29 @@
 
     .fallback a {
       color: var(--pdf-link);
+    }
+
+    .fallback-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .fallback-actions button,
+    .fallback-actions a {
+      min-height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
+      color: var(--pdf-ink);
+      text-decoration: none;
+      background: rgba(255, 255, 255, 0.68);
+      border: 1px solid rgba(38, 49, 47, 0.16);
+      border-radius: 10px;
+      font: 700 14px/1.2 "Aptos", "Segoe UI", "Microsoft YaHei", sans-serif;
     }
 
     .pdf-page-error {
@@ -199,7 +215,6 @@
 </head>
 <body>
   <a id="backButton" class="back-button" href="javascript:history.back()" aria-label="Back">&#8249;</a>
-  <button id="weixinButton" class="share-button weixin-button" type="button" aria-label="转发到微信" title="转发到微信">微</button>
   <button id="previewModeToggle" class="share-button mode-toggle-button" type="button" aria-label="原始格式显示" title="原始格式显示">原始格式</button>
   <button id="shareButton" class="share-button" type="button" aria-label="系统分享" title="系统分享">...</button>
   <main id="pdfScroll" class="pdf-scroll">
@@ -225,6 +240,7 @@
     const key = localStorage.getItem("hermesWebKey") || "";
     const returnUrl = params.get("return") || "";
     const embedded = params.get("embed") === "1";
+    const forceWebPreview = params.get("webPreview") === "1";
     document.body.classList.toggle("embedded-viewer", embedded);
     let pdfDocument = null;
     let renderSerial = 0;
@@ -296,6 +312,271 @@
         url.pathname = "/api/files";
       }
       return `${url.pathname}${url.search}${url.hash}`;
+    }
+
+    function nativeDocumentPreviewRequestId() {
+      try {
+        if (crypto?.randomUUID) return `native_doc_${crypto.randomUUID()}`;
+      } catch (_) {}
+      return `native_doc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+
+    function parsedNativeDocumentResult(value) {
+      if (!value) return null;
+      if (typeof value === "object") return value;
+      if (typeof value !== "string") return null;
+      try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === "object" ? parsed : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function nativeDocumentResultForEvent(event) {
+      return parsedNativeDocumentResult(event?.detail) || parsedNativeDocumentResult(event?.data) || null;
+    }
+
+    function rawAndroidNativeDocumentBridge(target) {
+      const raw = target?.HomeAIAndroidNativeDocument || null;
+      return raw && typeof raw.open === "function" ? raw : null;
+    }
+
+    function rawIosNativeDocumentBridge(target) {
+      const handlers = target?.webkit?.messageHandlers || {};
+      const handler = handlers.homeAINativeDocument || handlers.HomeAINativeDocument || null;
+      return handler && typeof handler.postMessage === "function" ? handler : null;
+    }
+
+    function ensureNativeDocumentBridgeForTarget(target) {
+      if (!target) return null;
+      const capability = target.HomeAINativeDocumentCapability || {};
+      const bridge = target.HomeAINativeDocument || {};
+      if (capability.documentPreview === true && typeof bridge.open === "function") return bridge;
+
+      const androidBridge = rawAndroidNativeDocumentBridge(target);
+      const iosBridge = rawIosNativeDocumentBridge(target);
+      if (!androidBridge && !iosBridge) return null;
+
+      const platform = androidBridge ? "android" : "ios";
+      target.HomeAINativeDocumentCapability = Object.assign({}, capability, {
+        documentPreview: true,
+        platform: capability.platform || platform,
+        version: capability.version || 1,
+      });
+      target.HomeAINativeDocument = Object.assign({}, bridge, {
+        open(request) {
+          const safeRequest = Object.assign({}, request || {});
+          if (!safeRequest.requestId) safeRequest.requestId = nativeDocumentPreviewRequestId();
+          return new Promise((resolve) => {
+            let settled = false;
+            let timeoutId = 0;
+            const finish = (body) => {
+              if (settled) return;
+              settled = true;
+              if (timeoutId) target.clearTimeout?.(timeoutId);
+              target.removeEventListener?.("homeai:native-document-result", onResult);
+              const result = parsedNativeDocumentResult(body) || {};
+              resolve(Object.assign({ ok: result.ok !== false, requestId: safeRequest.requestId }, result));
+            };
+            const onResult = (event) => {
+              const body = nativeDocumentResultForEvent(event);
+              if (!body) return;
+              if (body.requestId && body.requestId !== safeRequest.requestId) return;
+              finish(body);
+            };
+            target.addEventListener?.("homeai:native-document-result", onResult);
+            timeoutId = target.setTimeout?.(() => {
+              finish({ ok: false, requestId: safeRequest.requestId, error: "native_document_result_timeout" });
+            }, 15000);
+            try {
+              const payload = JSON.stringify(safeRequest);
+              const immediate = androidBridge
+                ? androidBridge.open(payload)
+                : iosBridge.postMessage(safeRequest);
+              const parsed = parsedNativeDocumentResult(immediate);
+              if (parsed && (parsed.ok === false || parsed.ok === true || parsed.error)) finish(parsed);
+            } catch (err) {
+              finish({ ok: false, requestId: safeRequest.requestId, error: err?.message || "native_document_open_failed" });
+            }
+          });
+        },
+      });
+      return target.HomeAINativeDocument;
+    }
+
+    function nativeDocumentBridgeTarget() {
+      const candidates = [window];
+      try {
+        if (window.parent && window.parent !== window) candidates.push(window.parent);
+      } catch (_) {}
+      for (const target of candidates) {
+        try {
+          if (ensureNativeDocumentBridgeForTarget(target)) {
+            return target;
+          }
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    function nativeDocumentBridgeAvailable() {
+      return Boolean(nativeDocumentBridgeTarget());
+    }
+
+    function nativeDocumentOpenInBridgeTarget() {
+      const candidates = [window];
+      try {
+        if (window.parent && window.parent !== window) candidates.push(window.parent);
+      } catch (_) {}
+      for (const target of candidates) {
+        try {
+          const bridge = ensureNativeDocumentBridgeForTarget(target);
+          const capability = target?.HomeAINativeDocumentCapability || {};
+          if (capability.documentOpenIn === true && bridge && typeof bridge.open === "function") return target;
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    function nativeDocumentBridgeExpected() {
+      const queryValue = params.get("nativeShell") || "";
+      if (queryValue === "ios" || queryValue === "android") return true;
+      const root = document.documentElement;
+      const datasetValue = root?.dataset?.nativeShell || "";
+      if (datasetValue === "ios" || datasetValue === "android") return true;
+      try {
+        const storedValue = localStorage.getItem("homeAI.nativeShell") || "";
+        if (storedValue === "ios" || storedValue === "android") return true;
+      } catch (_) {}
+      return false;
+    }
+
+    function nativePdfOpenRequest() {
+      if (!raw) return null;
+      const openUrl = originalUrlFor(raw);
+      const url = sameOriginUrl(openUrl);
+      if (!url || !url.pathname.startsWith("/api/")) return null;
+      return {
+        type: "homeai.nativeDocument.open",
+        version: 1,
+        requestId: nativeDocumentPreviewRequestId(),
+        url: `${url.pathname}${url.search}${url.hash}`,
+        filename: name || "document.pdf",
+        mimeType: "application/pdf",
+        kind: "pdf",
+        sourceSurface: "pdf-viewer",
+        requiresAuth: true,
+      };
+    }
+
+    function nativePdfOpenInRequest() {
+      const request = nativePdfOpenRequest();
+      return request ? Object.assign({}, request, { mode: "openIn" }) : null;
+    }
+
+    function shouldUseNativePdfPreview() {
+      return Boolean(!forceWebPreview && nativeDocumentBridgeAvailable() && nativePdfOpenRequest());
+    }
+
+    function canWaitForNativePdfPreview() {
+      return Boolean(!forceWebPreview && nativePdfOpenRequest() && nativeDocumentBridgeExpected());
+    }
+
+    function showNativePdfPreviewFailure(error = "") {
+      document.documentElement.dataset.nativeDocumentStatus = "failed";
+      const message = error === "native_document_result_timeout"
+        ? "系统预览没有返回结果，请重启 Home AI 原生壳后再试。"
+        : "系统预览桥接不可用，请更新或重启 Home AI 原生壳后再试。你仍然可以用系统打开方式、分享或下载继续查看。";
+      showFallback(`${message}${error ? ` (${error})` : ""}`, "");
+      const actions = document.createElement("div");
+      actions.className = "fallback-actions";
+      const openIn = document.createElement("button");
+      openIn.type = "button";
+      openIn.textContent = "用其他 App 打开";
+      openIn.addEventListener("click", async () => {
+        if (await openNativePdfOpenIn()) return;
+        setTransientStatus("系统打开方式不可用，请改用下载或分享。");
+      });
+      const share = document.createElement("button");
+      share.type = "button";
+      share.textContent = "下载或分享";
+      share.addEventListener("click", sharePdf);
+      const web = document.createElement("a");
+      web.href = `${location.pathname}?${new URLSearchParams(Object.assign(Object.fromEntries(params), { webPreview: "1" })).toString()}`;
+      web.target = "_self";
+      web.rel = "noopener";
+      web.textContent = "Web 调试预览";
+      actions.append(openIn, share, web);
+      fallback.append(actions);
+    }
+
+    function openNativePdfPreview(options = {}) {
+      if (!shouldUseNativePdfPreview()) return false;
+      const request = nativePdfOpenRequest();
+      const onFailure = typeof options.onFailure === "function" ? options.onFailure : null;
+      const bridgeTarget = nativeDocumentBridgeTarget();
+      if (!bridgeTarget) return false;
+      const bridge = ensureNativeDocumentBridgeForTarget(bridgeTarget);
+      if (!bridge) return false;
+      try {
+        setStatus("正在打开系统预览...");
+        const result = bridge.open(request);
+        if (result && typeof result.then === "function") {
+          result
+            .then((body) => {
+              if (body && body.ok === false) onFailure?.(body.error || "native_document_open_failed");
+            })
+            .catch((err) => onFailure?.(err?.message || "native_document_open_failed"));
+          return true;
+        }
+        if (result && result.ok === false) {
+          onFailure?.(result.error || "native_document_open_failed");
+          return Boolean(onFailure);
+        }
+        return true;
+      } catch (err) {
+        onFailure?.(err?.message || "native_document_open_failed");
+        return Boolean(onFailure);
+      }
+    }
+
+    async function openNativePdfOpenIn() {
+      const request = nativePdfOpenInRequest();
+      const bridgeTarget = request ? nativeDocumentOpenInBridgeTarget() : null;
+      if (!request || !bridgeTarget) return false;
+      const bridge = ensureNativeDocumentBridgeForTarget(bridgeTarget);
+      if (!bridge) return false;
+      try {
+        setTransientStatus("正在打开系统打开方式...");
+        const result = await bridge.open(request);
+        if (result && result.ok === true) {
+          setTransientStatus("");
+          return true;
+        }
+        return false;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function waitForNativePdfPreview(options = {}) {
+      if (!canWaitForNativePdfPreview()) return false;
+      if (openNativePdfPreview(options)) return true;
+      const onFailure = typeof options.onFailure === "function" ? options.onFailure : null;
+      const timeoutMs = Number.isFinite(options.timeoutMs) ? Math.max(0, options.timeoutMs) : 1800;
+      const startedAt = Date.now();
+      setStatus("正在准备系统预览...");
+      const retry = () => {
+        if (openNativePdfPreview(options)) return;
+        if (Date.now() - startedAt >= timeoutMs) {
+          onFailure?.("native_document_bridge_unavailable");
+          return;
+        }
+        window.setTimeout(retry, 120);
+      };
+      window.setTimeout(retry, 80);
+      return true;
     }
 
     function downloadBlob(blob, filename) {
@@ -507,45 +788,9 @@
       return Boolean(navigator.share && (!navigator.canShare || navigator.canShare({ files })));
     }
 
-    async function apiJson(url, options = {}) {
-      const headers = Object.assign({ "Content-Type": "application/json" }, options.headers || {});
-      if (key) headers["X-Hermes-Web-Key"] = key;
-      const res = await fetch(url, Object.assign({}, options, { headers }));
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
-      return body;
-    }
-
-    function workspaceIdForForward() {
-      const direct = String(params.get("workspaceId") || "").trim();
-      if (direct) return direct;
-      for (const candidate of [returnUrl, raw, document.referrer]) {
-        try {
-          const url = new URL(candidate || "", location.origin);
-          if (url.origin !== location.origin) continue;
-          const workspaceId = String(url.searchParams.get("workspaceId") || "").trim();
-          if (workspaceId) return workspaceId;
-        } catch (_) {}
-      }
-      return localStorage.getItem("hermesWebWorkspace") || "owner";
-    }
-
-    async function forwardPdfToWeixin() {
-      if (!raw) throw new Error("No PDF URL is available.");
-      setTransientStatus("\u6b63\u5728\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217...");
-      await apiJson("/api/weixin/forward-file", {
-        method: "POST",
-        body: JSON.stringify({
-          workspaceId: workspaceIdForForward(),
-          sourceUrl: raw,
-          caption: `PDF \u8f6c\u53d1\uff1a${name}`,
-        }),
-      });
-      setTransientStatus("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217");
-    }
-
     async function sharePdf() {
       if (!raw) return;
+      if (await openNativePdfOpenIn()) return;
       const downloadUrl = downloadUrlFor(raw);
       const shareUrl = absoluteUrlFor(downloadUrl);
       try {
@@ -602,6 +847,9 @@
 
     function switchPreviewMode() {
       if (!raw) return;
+      if (waitForNativePdfPreview({
+        onFailure: () => location.assign(originalUrlFor(raw)),
+      })) return;
       location.assign(originalUrlFor(raw));
     }
 
@@ -720,13 +968,23 @@
     document.getElementById("backButton").addEventListener("click", navigateBack);
     document.getElementById("shareButton").addEventListener("click", sharePdf);
     document.getElementById("previewModeToggle").addEventListener("click", switchPreviewMode);
-    document.getElementById("weixinButton").addEventListener("click", () => {
-      forwardPdfToWeixin().catch((err) => setTransientStatus(err.message || "Weixin forwarding failed."));
-    });
     if (!embedded) wireViewerBackGuard();
     wireViewerBackSwipe(document.getElementById("pdfScroll"));
 
-    loadPdf();
+    if (
+      !raw
+      || !waitForNativePdfPreview({
+        onFailure: (error) => {
+          if (nativeDocumentBridgeExpected()) {
+            showNativePdfPreviewFailure(error);
+            return;
+          }
+          loadPdf();
+        },
+      })
+    ) {
+      loadPdf();
+    }
   </script>
 </body>
 </html>

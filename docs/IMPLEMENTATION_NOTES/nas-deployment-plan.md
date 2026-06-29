@@ -280,7 +280,7 @@ Gateway connection choices:
   no callable schemas if `plugins.enabled` is missing the matching plugin
   bundles. The maintained NAS single-worker config currently installs
   `hermes-mobile-web`, `hermes-mobile-http`, `hermes-mobile-weather`,
-  `hermes-mobile-docx`, `hermes-mobile-audio`, `hermes-mobile-archive`,
+  `hermes-mobile-docx`, `hermes-mobile-pptx`, `hermes-mobile-audio`, `hermes-mobile-archive`,
   `hermes-mobile-image`, `hermes-mobile-video`, and
   `hermes-mobile-cronjob`. Do not enable
   Owner-maintenance plugins such as `hermes-mobile-chatgpt-pro` in this normal

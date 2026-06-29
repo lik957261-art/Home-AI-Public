@@ -46,7 +46,7 @@ function createConversationHistoryService(options = {}) {
     if (!content.trim()) return false;
     return (
       /not available|unavailable|missing|no callable|no\s+.*tool|cannot call|can't call|unable to call|not exposed/i.test(content)
-      || /\u6ca1\u6709|\u4ecd\u6ca1\u6709|\u672a\u770b\u5230|\u770b\u4e0d\u5230|\u672a\u6302\u8f7d|\u6ca1\u6302\u8f7d|\u7f3a\u5c11|\u4e0d\u53ef\u7528|\u65e0\u6cd5\u8c03\u7528|\u4e0d\u80fd\u8c03\u7528|\u4e0d\u80fd\u6267\u884c|\u65e0\u6cd5\u5904\u7406|\u4e0d\u80fd\u5904\u7406|\u5fc5\u987b\u5bfc\u51fa|\u9700\u8981\u5bfc\u51fa/.test(content)
+      || /\u6ca1\u6709|\u4ecd\u6ca1\u6709|\u672a\u770b\u5230|\u770b\u4e0d\u5230|\u672a\u6302\u8f7d|\u6ca1\u6302\u8f7d|\u7f3a\u5c11|\u4e0d\u53ef\u7528|\u65e0\u6cd5\u8c03\u7528|\u4e0d\u80fd\u8c03\u7528|\u4e0d\u80fd\u6267\u884c|\u65e0\u6cd5\u5904\u7406|\u4e0d\u80fd\u5904\u7406|\u65e0\u6cd5\u751f\u6210|\u4e0d\u80fd\u751f\u6210|\u53ea\u80fd\s*(?:\u5199|\u751f\u6210|\u8f93\u51fa)?\s*(?:Markdown|HTML)|\u5fc5\u987b\u5bfc\u51fa|\u9700\u8981\u5bfc\u51fa/.test(content)
     );
   }
 
@@ -69,7 +69,7 @@ function createConversationHistoryService(options = {}) {
   function isStaleDocxToolAvailabilityClaim(text) {
     const content = String(text || "");
     if (!content.trim()) return false;
-    const mentionsDocxTool = /docx_extract_text|DOCX|docm|dotx|dotm|Word\s*(?:tool|function|parser|extract|unpack|document)|Office\s*Open\s*XML|Office\s*(?:tool|function|parser)|\u89e3\u5305|\u89e3\u6790\s*(?:Word|DOCX|docx)|Word\s*\u6587\u6863|\u6587\u6863\u89e3\u6790|\u89e3\u6790\u5de5\u5177/i.test(content);
+    const mentionsDocxTool = /docx_create|docx_extract_text|DOCX|docm|dotx|dotm|Word\s*(?:tool|function|parser|extract|unpack|document|create|generation|writer|export|delivery)|real\s*(?:Word|DOCX)|Office\s*Open\s*XML|Office\s*(?:tool|function|parser)|\u89e3\u5305|\u89e3\u6790\s*(?:Word|DOCX|docx)|Word\s*\u6587\u6863|\u6587\u6863\u89e3\u6790|\u89e3\u6790\u5de5\u5177|\u751f\u6210\s*(?:Word|DOCX|docx)|\u771f\u5b9e\s*(?:Word|DOCX)|\u4f2a\s*(?:Word|DOCX)/i.test(content);
     if (!mentionsDocxTool) return false;
     return isToolUnavailableClaimText(content);
   }
@@ -82,10 +82,18 @@ function createConversationHistoryService(options = {}) {
     return isToolUnavailableClaimText(content);
   }
 
+  function isStalePptxGenerationToolAvailabilityClaim(text) {
+    const content = String(text || "");
+    if (!content.trim()) return false;
+    const mentionsPptxGenerationTool = /pptx_create|presentation\s*(?:generation|create|writer|export|delivery|deck)|slide\s*deck|real\s*PPTX|editable\s*(?:PowerPoint|PPTX)|\u751f\u6210\s*(?:PPT|PPTX|PowerPoint|\u5e7b\u706f\u7247|\u6f14\u793a\u6587\u7a3f)|\u771f\u5b9e\s*(?:PPT|PPTX)|\u53ea\u80fd\s*(?:\u751f\u6210|\u5199|\u505a)?\s*(?:HTML|Markdown)|\u4f2a\s*PPT/i.test(content);
+    if (!mentionsPptxGenerationTool) return false;
+    return isToolUnavailableClaimText(content) || /only\s+(?:HTML|Markdown)|\u53ea\u80fd\s*(?:\u751f\u6210|\u5199|\u505a)?\s*(?:HTML|Markdown)/i.test(content);
+  }
+
   function isStalePdfToolAvailabilityClaim(text) {
     const content = String(text || "");
     if (!content.trim()) return false;
-    const mentionsPdfTool = /pdf_extract_text|pdf_render_pages|\bPDF\b|PDF\s*(?:tool|function|parser|extract|render|OCR|container)|application\/pdf|scanned\s*PDF|image\s*PDF|PDF\s*\u5bb9\u5668|PDF\s*\u89e3\u6790|PDF\s*\u63d0\u53d6|PDF\s*\u6e32\u67d3|PDF\s*\u8f6c\s*(?:\u56fe\u7247|\u9875\u56fe)|\u626b\u63cf\s*PDF/i.test(content);
+    const mentionsPdfTool = /pdf_create|pdf_extract_text|pdf_render_pages|\bPDF\b|PDF\s*(?:tool|function|parser|extract|render|OCR|container|create|generation|writer|export|delivery)|real\s*PDF|application\/pdf|scanned\s*PDF|image\s*PDF|PDF\s*\u5bb9\u5668|PDF\s*\u89e3\u6790|PDF\s*\u63d0\u53d6|PDF\s*\u6e32\u67d3|PDF\s*\u8f6c\s*(?:\u56fe\u7247|\u9875\u56fe)|\u626b\u63cf\s*PDF|\u751f\u6210\s*PDF|\u771f\u5b9e\s*PDF|\u4f2a\s*PDF/i.test(content);
     if (!mentionsPdfTool) return false;
     return isToolUnavailableClaimText(content);
   }
@@ -129,7 +137,12 @@ function createConversationHistoryService(options = {}) {
     } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStaleDocxToolAvailabilityClaim(content)) {
       content = [
         "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
-        "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `docx_extract_text`, DOCX extraction, or Word parser availability.",
+        "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `docx_create`, `docx_extract_text`, DOCX generation/extraction, or Word parser availability.",
+      ].join(" ");
+    } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStalePptxGenerationToolAvailabilityClaim(content)) {
+      content = [
+        "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
+        "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `pptx_create`, real PPTX generation, or PowerPoint delivery availability.",
       ].join(" ");
     } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStaleOfficeToolAvailabilityClaim(content)) {
       content = [
@@ -139,7 +152,7 @@ function createConversationHistoryService(options = {}) {
     } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStalePdfToolAvailabilityClaim(content)) {
       content = [
         "[Stale assistant tool-availability claim omitted by Hermes Mobile.]",
-        "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `pdf_extract_text`, `pdf_render_pages`, PDF extraction, PDF rendering, or PDF OCR availability.",
+        "The current run policy enables the `file` toolset; current callable functions supersede older assistant statements about `pdf_create`, `pdf_extract_text`, `pdf_render_pages`, PDF generation, PDF extraction, PDF rendering, or PDF OCR availability.",
       ].join(" ");
     } else if (msg?.role === "assistant" && policyHasToolset(policy, "file") && isStaleAudioToolAvailabilityClaim(content)) {
       content = [
@@ -259,6 +272,7 @@ function createConversationHistoryService(options = {}) {
     isStaleImageToolAvailabilityClaim,
     isStaleDocxToolAvailabilityClaim,
     isStaleOfficeToolAvailabilityClaim,
+    isStalePptxGenerationToolAvailabilityClaim,
     isStalePdfToolAvailabilityClaim,
     isStaleAudioToolAvailabilityClaim,
     isStaleArchiveToolAvailabilityClaim,

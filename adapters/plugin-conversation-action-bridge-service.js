@@ -12,6 +12,10 @@ const NOTIFICATION_TYPE = "plugin_conversation.repair_request";
 
 const PLUGIN_ALIASES = Object.freeze({
   healthy: "health",
+  homeai: "home-ai",
+  home_ai: "home-ai",
+  host: "home-ai",
+  platform: "home-ai",
 });
 
 function clean(value, max = 500) {
@@ -82,6 +86,28 @@ function targetForPlugin(pluginId, targets = {}) {
   return target || null;
 }
 
+function targetDispatchReady(target = {}) {
+  return Boolean(
+    clean(target.targetWorkspace, 300)
+    && (
+      clean(target.targetThreadId, 180)
+      || clean(target.targetThreadTitle, 180)
+      || clean(target.targetThreadTitlePrefix, 180)
+    ),
+  );
+}
+
+function targetThreadLabel(target = {}) {
+  return clean(target.targetThreadTitle || target.targetThreadTitlePrefix || target.targetThreadId || "", 180);
+}
+
+function isHomeAiTarget(recordOrPluginId = {}) {
+  const pluginId = typeof recordOrPluginId === "string"
+    ? normalizePluginId(recordOrPluginId)
+    : normalizePluginId(recordOrPluginId.pluginId || recordOrPluginId.plugin_id);
+  return pluginId === "home-ai";
+}
+
 function requestSignature(input = {}) {
   return hash([
     normalizePluginId(input.pluginId || input.plugin_id),
@@ -135,16 +161,21 @@ function compactEvidence(evidence = {}, max = 1600) {
 
 function taskCardBody(record, target) {
   const evidence = compactEvidence(record.evidence);
+  const homeAiTarget = isHomeAiTarget(record);
   const sections = [
-    "# Plugin Conversation Repair Request",
+    homeAiTarget ? "# Home AI Owner-Gated Repair Request" : "# Plugin Conversation Repair Request",
     "",
-    "Source surface: Home AI host plugin conversation window.",
-    `Plugin: \`${record.pluginId}\` (${record.pluginLabel})`,
+    homeAiTarget
+      ? "Source surface: Home AI host chat or directory-bound conversation."
+      : "Source surface: Home AI host plugin conversation window.",
+    homeAiTarget
+      ? `Target: \`${record.pluginId}\` (${record.pluginLabel})`
+      : `Plugin: \`${record.pluginId}\` (${record.pluginLabel})`,
     `Request id: \`${record.requestId}\``,
     `Request type: \`${record.requestType}\``,
     `Severity hint: \`${record.severity}\``,
     `Source workspace: \`${record.sourceWorkspaceId}\``,
-    `Target thread: \`${target.targetThreadTitle || ""}\``,
+    `Target thread: \`${targetThreadLabel(target)}\``,
     `Target workspace: \`${target.targetWorkspace || ""}\``,
     "",
     "## User-Visible Problem",
@@ -177,7 +208,12 @@ function taskCardForRecord(record, target) {
     title: clean(`Repair ${record.pluginLabel} ${record.requestType}`, 80),
     summary: clean(`${record.pluginId} ${record.requestType}: ${record.title || record.summary}`, 240),
     body: taskCardBody(record, target),
-    targetThreadTitle: target.targetThreadTitle,
+    sourceThreadId: clean(target.sourceThreadId, 180),
+    sourceThreadTitle: clean(target.sourceThreadTitle, 180),
+    sourceThreadTitlePrefix: clean(target.sourceThreadTitlePrefix, 180),
+    targetThreadId: clean(target.targetThreadId, 180),
+    targetThreadTitle: clean(target.targetThreadTitle, 180),
+    targetThreadTitlePrefix: clean(target.targetThreadTitlePrefix, 180),
     targetWorkspace: target.targetWorkspace,
     workflowMode: "manual",
     reasoningEffort: record.severity === "H1" || record.severity === "H2" ? "xhigh" : "high",
@@ -187,6 +223,7 @@ function taskCardForRecord(record, target) {
 
 function ownerNotificationForRecord(record, target) {
   const taskCard = taskCardForRecord(record, target);
+  const homeAiTarget = isHomeAiTarget(record);
   return {
     workspaceId: OWNER_WORKSPACE_ID,
     assigneeWorkspaceId: OWNER_WORKSPACE_ID,
@@ -195,11 +232,11 @@ function ownerNotificationForRecord(record, target) {
     itemType: "approval",
     status: "open",
     priority: severityPriority(record.severity),
-    title: clean(`插件请求修复：${record.pluginLabel} ${record.title || record.requestType}`, 180),
+    title: clean(`${homeAiTarget ? "Home AI 请求修复" : "插件请求修复"}：${record.pluginLabel} ${record.title || record.requestType}`, 180),
     summary: [
-      `${record.pluginLabel} 会话提出 ${record.requestType} 修复请求。`,
+      `${record.pluginLabel} ${homeAiTarget ? "会话" : "插件会话"}提出 ${record.requestType} 修复请求。`,
       record.summary || record.suggestedChange || "",
-      `目标：${target.targetThreadTitle || target.targetWorkspace || "unknown"}`,
+      `目标：${targetThreadLabel(target) || target.targetWorkspace || "unknown"}`,
     ].filter(Boolean).join("\n"),
     actionLabel: "发修复卡",
     dedupeKey: `plugin-conversation-repair:${record.pluginId}:${record.signature}:owner`,
@@ -213,7 +250,12 @@ function ownerNotificationForRecord(record, target) {
       sourceTurnId: record.sourceTurnId,
       severity: record.severity,
       requestType: record.requestType,
-      targetThreadTitle: target.targetThreadTitle || "",
+      sourceThreadIdForTaskCard: clean(target.sourceThreadId, 180),
+      sourceThreadTitleForTaskCard: clean(target.sourceThreadTitle, 180),
+      sourceThreadTitlePrefixForTaskCard: clean(target.sourceThreadTitlePrefix, 180),
+      targetThreadId: clean(target.targetThreadId, 180),
+      targetThreadTitle: targetThreadLabel(target),
+      targetThreadTitlePrefix: target.targetThreadTitlePrefix || "",
       targetWorkspace: target.targetWorkspace || "",
     },
     rawJson: {
@@ -246,6 +288,32 @@ function cardIdsFromResult(result = {}) {
   return [];
 }
 
+function shouldNotifyOwner(inboxResult = {}) {
+  if (inboxResult.created === true || inboxResult.reopened === true) return true;
+  if (inboxResult.created === false || inboxResult.updated === true) return false;
+  const eventType = clean(inboxResult.event?.eventType || inboxResult.event?.event_type, 80);
+  if (!eventType) return true;
+  return eventType === "source_created";
+}
+
+function dispatchTaskCardTarget(baseTaskCard = {}, sourceRef = {}, pluginTargets = {}) {
+  const pluginId = normalizePluginId(sourceRef.pluginId || sourceRef.plugin_id);
+  const target = targetForPlugin(pluginId, pluginTargets) || {};
+  const next = Object.assign({}, baseTaskCard);
+  if (target.targetWorkspace && !next.targetWorkspace) next.targetWorkspace = target.targetWorkspace;
+  if (target.sourceThreadId && !next.sourceThreadId) next.sourceThreadId = target.sourceThreadId;
+  if (target.sourceThreadTitle && !next.sourceThreadTitle) next.sourceThreadTitle = target.sourceThreadTitle;
+  if (target.sourceThreadTitlePrefix && !next.sourceThreadTitlePrefix) next.sourceThreadTitlePrefix = target.sourceThreadTitlePrefix;
+  if (target.targetThreadId && !next.targetThreadId) next.targetThreadId = target.targetThreadId;
+  if (target.targetThreadTitlePrefix) {
+    next.targetThreadTitlePrefix = target.targetThreadTitlePrefix;
+    if (!target.targetThreadTitle) delete next.targetThreadTitle;
+  } else if (target.targetThreadTitle && !next.targetThreadTitle) {
+    next.targetThreadTitle = target.targetThreadTitle;
+  }
+  return next;
+}
+
 function createPluginConversationActionBridgeService(options = {}) {
   const actionInboxService = options.actionInboxService;
   const taskCardService = options.taskCardService;
@@ -257,6 +325,9 @@ function createPluginConversationActionBridgeService(options = {}) {
     if (!pluginId) return { ok: false, status: 400, error: "plugin_conversation_plugin_id_required" };
     const target = targetForPlugin(pluginId, pluginTargets);
     if (!target) return { ok: false, status: 400, error: "plugin_conversation_target_unknown", pluginId };
+    if (!targetDispatchReady(target)) {
+      return { ok: false, status: 500, error: "plugin_conversation_target_incomplete", pluginId };
+    }
     if (!actionInboxService || typeof actionInboxService.upsertSourceItem !== "function") {
       return { ok: false, status: 503, error: "action_inbox_service_unavailable" };
     }
@@ -264,8 +335,9 @@ function createPluginConversationActionBridgeService(options = {}) {
     const notification = ownerNotificationForRecord(record, target);
     const inboxResult = await Promise.resolve(actionInboxService.upsertSourceItem(notification));
     if (!inboxResult?.ok) return inboxResult || { ok: false, status: 500, error: "action_inbox_upsert_failed" };
+    const ownerPushRequired = shouldNotifyOwner(inboxResult);
     let push = null;
-    if (sendPushNotification) {
+    if (sendPushNotification && ownerPushRequired) {
       const url = appRouteUrl(options, {
         view: "inbox",
         workspaceId: OWNER_WORKSPACE_ID,
@@ -297,7 +369,7 @@ function createPluginConversationActionBridgeService(options = {}) {
     }
     return {
       ok: true,
-      notified: true,
+      notified: Boolean(ownerPushRequired),
       request: record,
       inboxItem: inboxResult.item,
       event: inboxResult.event,
@@ -324,9 +396,12 @@ function createPluginConversationActionBridgeService(options = {}) {
       return { ok: false, status: 409, error: "plugin_conversation_item_not_dispatchable" };
     }
     const raw = objectValue(item.rawJson || item.raw_json);
+    if (item.pluginConversationActionBridge && typeof item.pluginConversationActionBridge === "object" && !Array.isArray(item.pluginConversationActionBridge)) {
+      raw.pluginConversationActionBridge = item.pluginConversationActionBridge;
+    }
     const bridge = objectValue(raw.pluginConversationActionBridge);
-    const baseTaskCard = objectValue(bridge.taskCard);
-    if (!baseTaskCard.title || !baseTaskCard.body || !baseTaskCard.targetWorkspace) {
+    const baseTaskCard = dispatchTaskCardTarget(objectValue(bridge.taskCard), sourceRef, pluginTargets);
+    if (!baseTaskCard.title || !baseTaskCard.body || !baseTaskCard.targetWorkspace || !(baseTaskCard.targetThreadTitle || baseTaskCard.targetThreadId || baseTaskCard.targetThreadTitlePrefix)) {
       return { ok: false, status: 409, error: "plugin_conversation_task_card_missing" };
     }
     const ownerPrompt = cleanBlock(input.ownerPrompt || input.owner_prompt || "", 1200);

@@ -37,7 +37,6 @@ function createMobileRuntimeThreadViewFacadeService(options = {}) {
         projectSearchLabels: options.projectSearchLabels,
         publicChatGroup: options.publicChatGroup,
         publicExternalIngress: options.publicExternalIngress,
-        publicWeixinOutboundDelivery: options.publicWeixinOutboundDelivery,
         sanitizeTaskTitle: options.sanitizeTaskTitle,
         searchableText: options.searchableText,
         singleWindowChatTaskGroupId: options.singleWindowChatTaskGroupId,

@@ -4,6 +4,7 @@ const {
   createDirectoryTopicIndexService,
   receiptSummaryTitleFromText,
 } = require("./directory-topic-index-service");
+const { publicPluginActions } = require("./wardrobe-outfit-wear-intent-action-service");
 
 function defaultCompactText(value, maxChars) {
   const text = String(value || "");
@@ -131,9 +132,6 @@ function createThreadViewService(deps = {}) {
   const compactArtifactsForMessage = typeof deps.compactArtifactsForMessage === "function"
     ? deps.compactArtifactsForMessage
     : ((message) => (Array.isArray(message?.artifacts) ? message.artifacts : []));
-  const publicWeixinOutboundDelivery = typeof deps.publicWeixinOutboundDelivery === "function"
-    ? deps.publicWeixinOutboundDelivery
-    : (() => null);
   const findThreadForMessage = typeof deps.findThreadForMessage === "function"
     ? deps.findThreadForMessage
     : (() => null);
@@ -654,9 +652,7 @@ function createThreadViewService(deps = {}) {
       gatewaySecurityLevel: gatewayRouting.securityLevel || gatewayRouting.security_level || "",
       gatewayMaintenance: Boolean(gatewayRouting.maintenance || gatewayRouting.allowMaintenance || gatewayRouting.allow_maintenance),
       gatewayMaintenanceCategory: gatewayRouting.maintenanceCategory || gatewayRouting.maintenance_category || "",
-      externalDelivery: message.externalDelivery?.source === "weixin" && resolvedThread
-        ? publicWeixinOutboundDelivery(resolvedThread, message)
-        : null,
+      externalDelivery: null,
       elevationRequired: Boolean(message.elevationRequired),
       elevationScope: message.elevationScope || "",
       elevationReason: message.elevationReason || "",
@@ -665,6 +661,10 @@ function createThreadViewService(deps = {}) {
       toolsetEscalationToolsets: Array.isArray(message.toolsetEscalationToolsets) ? message.toolsetEscalationToolsets : [],
       toolsetEscalationReason: message.toolsetEscalationReason || "",
       toolsetEscalationSource: message.toolsetEscalationSource || "",
+      pluginActions: publicPluginActions(message.pluginActions || {}, {
+        workspaceId: message.actorWorkspaceId || message.senderWorkspaceId || resolvedThread?.workspaceId || "",
+        principalId: message.senderPrincipalId || message.actorPrincipalId || message.actorWorkspaceId || message.senderWorkspaceId || resolvedThread?.workspaceId || "",
+      }),
       truncated: typeof message.content === "string" && message.content.length > maxApiTextChars,
     };
   }

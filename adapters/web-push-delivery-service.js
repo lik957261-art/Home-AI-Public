@@ -107,9 +107,6 @@ function createWebPushDeliveryService(options = {}) {
   const chatGroupMemberWorkspaceIds = typeof options.chatGroupMemberWorkspaceIds === "function"
     ? options.chatGroupMemberWorkspaceIds
     : (() => []);
-  const isWeixinSingleWindowThread = typeof options.isWeixinSingleWindowThread === "function"
-    ? options.isWeixinSingleWindowThread
-    : (() => false);
   const singleWindowChatTaskGroupId = String(options.singleWindowChatTaskGroupId || "chat");
   const singleWindowGroupChatTaskGroupId = String(options.singleWindowGroupChatTaskGroupId || "group-chat");
   const loadCatalog = typeof options.loadCatalog === "function" ? options.loadCatalog : (() => ({ workspaces: [] }));
@@ -860,7 +857,6 @@ function createWebPushDeliveryService(options = {}) {
         threadId: thread?.id || "",
         messageId: taskReceiptMessageId(thread, message),
       };
-      if (isWeixinSingleWindowThread(thread)) params.weixinChat = "1";
       return {
         url: appRouteUrl(params),
         viewMode: "single",

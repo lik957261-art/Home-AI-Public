@@ -1,6 +1,7 @@
 "use strict";
 
 const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -10,14 +11,13 @@ const PYTHON_COMPILE_FILES = [
   "directory_bridge.py",
   "skill_bridge.py",
   "todo_bridge.py",
-  "scripts/weixin-ingress-sidecar.py",
-  "scripts/weixin-mobile-ingress-bridge.py",
   "scripts/migrate-workspace-roots.py",
   "gateway-plugins/hermes-mobile-weather/__init__.py",
   "gateway-plugins/hermes-mobile-http/__init__.py",
   "gateway-plugins/hermes-mobile-web/__init__.py",
   "gateway-plugins/hermes-mobile-image/__init__.py",
   "gateway-plugins/hermes-mobile-docx/__init__.py",
+  "gateway-plugins/hermes-mobile-pptx/__init__.py",
   "gateway-plugins/hermes-mobile-pdf/__init__.py",
   "gateway-plugins/hermes-mobile-audio/__init__.py",
   "gateway-plugins/hermes-mobile-archive/__init__.py",
@@ -49,7 +49,9 @@ function trackedAndUntracked(pathspec) {
     ...gitFiles(["ls-files", "-z", "--", pathspec]),
     ...gitFiles(["ls-files", "--others", "--exclude-standard", "-z", "--", pathspec]),
   ]);
-  return [...files].sort((a, b) => a.localeCompare(b));
+  return [...files]
+    .filter((file) => fs.existsSync(path.join(REPO_ROOT, file)))
+    .sort((a, b) => a.localeCompare(b));
 }
 
 function runSyntaxChecks() {

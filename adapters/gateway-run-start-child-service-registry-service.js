@@ -21,7 +21,7 @@ const { createGatewayRunStartToolsetPreflightService } = require("./gateway-run-
 const { createGatewayRunStartToolsetSelectionService } = require("./gateway-run-start-toolset-selection-service");
 const { createGatewayRunStartWardrobeGateService } = require("./gateway-run-start-wardrobe-gate-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260513-audio-file-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260629-wardrobe-wear-intent-v970";
 
 function maybeCall(fn, fallback) {
   return typeof fn === "function" ? fn : fallback;

@@ -1,6 +1,6 @@
 "use strict";
 
-const EXTERNAL_DESTINATIONS = new Set(["weixin", "messaging", "http", "web", "browser", "email", "push"]);
+const EXTERNAL_DESTINATIONS = new Set(["messaging", "http", "web", "browser", "email", "push"]);
 const DURABLE_DESTINATIONS = new Set(["memory", "cronjob", "automation"]);
 const INTERNAL_DESTINATIONS = new Set(["local", "workspace", "thread", "todo", "kanban", "file", "artifact", "skill", "session"]);
 
@@ -36,9 +36,6 @@ function createEgressPolicyProvider(options = {}) {
     const targetWorkspaceId = String(input.targetWorkspaceId || input.target_workspace_id || "").trim();
     const ownerApproved = Boolean(input.ownerApproved || input.owner_approved || input.elevationApproved);
     const explicitUserApproved = Boolean(input.userApproved || input.user_approved || input.explicitUserApproved || input.explicit_user_approved);
-    const originReply = Boolean(input.originReply || input.origin_reply);
-    const source = String(input.source || input.sourceKind || "").trim().toLowerCase();
-    const trustedOriginReply = source === "weixin" && destination === "weixin" && operation === "origin_reply" && originReply;
     const currentWorkspaceOnly = Boolean(actorWorkspaceId && targetWorkspaceId && targetWorkspaceId === actorWorkspaceId);
     const contentKinds = list(input.contentKinds || input.content_kinds);
     const toolsets = list(input.toolsets);
@@ -57,12 +54,10 @@ function createEgressPolicyProvider(options = {}) {
       decision = normalizeDecision(input, false, "unknown_egress_destination_requires_policy", "medium");
     } else if ((DURABLE_DESTINATIONS.has(destination) || writesMemory || createsSchedule) && !ownerApproved && !currentWorkspaceOnly) {
       decision = normalizeDecision(input, false, "durable_cross_workspace_egress_requires_owner_approval", "high");
-    } else if (EXTERNAL_DESTINATIONS.has(destination) && sendsFileContent && !trustedOriginReply && !ownerApproved && !explicitUserApproved) {
+    } else if (EXTERNAL_DESTINATIONS.has(destination) && sendsFileContent && !ownerApproved && !explicitUserApproved) {
       decision = normalizeDecision(input, false, "file_content_external_egress_requires_explicit_approval", "high");
     } else if (!currentWorkspaceOnly && !ownerApproved) {
       decision = normalizeDecision(input, false, "cross_workspace_egress_requires_owner_approval", "high");
-    } else if (trustedOriginReply) {
-      decision = normalizeDecision(input, true, "origin_reply_allowed", sendsFileContent ? "medium" : "low");
     } else {
       decision = normalizeDecision(input, true, "current_workspace_egress_allowed", sendsFileContent ? "medium" : "low");
     }

@@ -9,17 +9,15 @@ This is a hand-maintained route ownership and auth reference. The executable inv
 `server-routes/mobile-api-dispatcher.js` handles API requests in this order:
 
 1. Public routes.
-2. Weixin ingress routes under `/api/ingress/weixin/`, authenticated by the ingress key instead of browser Access Keys.
-3. Public system probes, currently only `/api/client-version`, before browser Access Key authentication.
-4. Browser/API Access Key authentication.
-5. Authenticated route pipeline.
+2. Public system probes, currently only `/api/client-version`, before browser Access Key authentication.
+3. Browser/API Access Key authentication.
+4. Authenticated route pipeline.
 
 The authenticated pipeline is defined by `MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE`. Route modules marked `passAuth: true` receive `{ auth }` and must enforce workspace/resource rules inside the module or service layer.
 
 ## Auth Modes
 
 - `public`: No browser Access Key. Must not expose private state.
-- `ingress-key`: Dedicated sidecar key, used only for Weixin ingress/outbound.
 - `access-key`: Owner or workspace Access Key required.
 - `owner`: Owner Access Key required.
 - `workspace-scoped`: Access Key required, then route/service clamps to the authenticated workspace unless Owner is allowed to select another workspace.
@@ -63,7 +61,6 @@ regression. See `docs/RUNBOOKS/production-api-auth-header.md`.
 | `push-api-routes.js` | VAPID public key, subscriptions, tests, receipts | access-key, owner for admin views | Payloads and receipts must not expose endpoints or secrets to unauthorized users. |
 | `native-device-api-routes.js` | iOS native APNs device register/unregister/test | access-key, workspace-scoped | Uses `X-Hermes-Web-Key`, never plugin keys. The native shell registers `platform=ios`, `pushProvider=apns`, `deviceToken`, `workspaceId`, app bundle/version/build metadata, `environment=sandbox|production`, and `source=home_ai_native`; the route clamps workspace access and raw APNs tokens are never returned or logged. |
 | `native-environment-context-api-routes.js` | iOS native environment snapshot upsert | access-key, workspace-scoped | Native shell posts compact current-device environment snapshots to `/api/native/environment-context`; the route clamps workspace access, normalizes through `current-environment-context-service`, strips full forecast arrays, and stores only TTL-bounded data for the `current_environment` Gateway tool. |
-| `weixin-api-routes.js` | Weixin ingress/outbound, forward targets | ingress-key or workspace-scoped | Ingress events use sidecar auth; browser forward target reads are workspace-scoped. |
 | `workspace-api-routes.js` | workspace list/create/update/delete | access-key, owner for management | Ordinary users see only their workspace projection. |
 | `workspace-onboarding-api-routes.js` | workspace onboarding plan/apply | owner | `plan` is side-effect free. `apply` orchestrates workspace record, one-time Home AI key, macOS executor steps, Gateway profiles, selected plugin grants, and validation. Without a configured macOS provisioning executor it returns a blocked diagnostic before side effects. |
 | `access-key-api-routes.js` | workspace key status/rotate/revoke | owner | Plaintext key shown only once on generation/rotation. |

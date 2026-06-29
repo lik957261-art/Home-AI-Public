@@ -76,6 +76,9 @@ function event(overrides = {}) {
   assert.equal(plan.target.targetThreadTitle, "男装衣橱");
   assert.equal(plan.taskCard.targetWorkspace, "/Users/example/path");
   assert.equal(plan.taskCard.reasoningEffort, "xhigh");
+  assert.equal(plan.dispatch.executeAutomatically, false);
+  assert.equal(plan.dispatch.ownerApprovalRequired, true);
+  assert.equal(plan.dispatch.policy, "owner_gated");
   assert.match(plan.taskCard.body, /Return a real task card/);
   assert.match(plan.taskCard.body, /retry_exhausted/);
   assert.doesNotMatch(plan.taskCard.body, /private wardrobe image bytes/);
@@ -98,6 +101,49 @@ function event(overrides = {}) {
   assert.equal(plan.target.targetWorkspace, "/Users/example/path");
   assert.match(plan.taskCard.title, /Home AI/);
   assert.match(plan.taskCard.body, /home-ai-gateway-toolset/);
+}
+
+{
+  const selfCheck = baseCase({
+    case_id: "diagcase_self_check",
+    plugin_id: "home-ai",
+    workspace_id: "owner",
+    source_surface: "home-ai-self-check",
+    diagnostic_type: "self_check_signal_failed",
+    category: "self_check_plugin_proxy",
+    route: "/system/self-check",
+    summary: "plugin proxy self-check failed",
+  });
+  const plan = buildDiagnosticRemediationPlan({
+    case: selfCheck,
+    events: [event({ case_id: "diagcase_self_check", confidence: 0.9 })],
+  });
+  assert.equal(plan.eligible, true);
+  assert.equal(plan.targetKind, "home-ai");
+  assert.equal(plan.dispatch.executeAutomatically, true);
+  assert.equal(plan.dispatch.ownerApprovalRequired, false);
+  assert.equal(plan.dispatch.policy, "auto_self_check");
+}
+
+{
+  const capabilityGap = baseCase({
+    case_id: "diagcase_capability_gap",
+    plugin_id: "home-ai",
+    workspace_id: "owner",
+    source_surface: "host-conversation",
+    diagnostic_type: "capability_gap",
+    category: "capability_gap",
+    route: "/api/plugin-conversation/actions",
+    summary: "PPTX generation capability missing",
+  });
+  const plan = buildDiagnosticRemediationPlan({
+    case: capabilityGap,
+    events: [event({ case_id: "diagcase_capability_gap", confidence: 0.9 })],
+  });
+  assert.equal(plan.eligible, true);
+  assert.equal(plan.dispatch.executeAutomatically, false);
+  assert.equal(plan.dispatch.ownerApprovalRequired, true);
+  assert.equal(plan.dispatch.policy, "owner_gated");
 }
 
 {

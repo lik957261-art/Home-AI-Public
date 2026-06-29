@@ -88,11 +88,6 @@ const LEGACY_COMPLEX_INLINE_BASELINE = new Set([
   "scripts/provision-worker-stt-cache.ps1:87: complex inline command must be moved to a script file",
   "scripts/start-gateway-pool.ps1:517: complex inline command must be moved to a script file",
   "scripts/start-gateway-pool.ps1:800: complex inline command must be moved to a script file",
-  "scripts/start-weixin-front-gateway.ps1:88: complex inline command must be moved to a script file",
-  "scripts/start-weixin-front-gateway.ps1:138: complex inline command must be moved to a script file",
-  "scripts/start-weixin-front-gateway.ps1:161: complex inline command must be moved to a script file",
-  "scripts/start-weixin-mobile-ingress-bridge.ps1:132: complex inline command must be moved to a script file",
-  "scripts/start-weixin-mobile-ingress-bridge.ps1:181: complex inline command must be moved to a script file",
 ]);
 const LEGACY_COMPLEX_INLINE_PATTERNS = [
   {

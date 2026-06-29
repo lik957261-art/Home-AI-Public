@@ -13,7 +13,6 @@ function makeService(overrides = {}) {
         id: "msg-1",
         role: "user",
         artifacts: [{ id: "artifact-1" }],
-        externalIngress: { source: "weixin", eventId: "wx-1" },
         runId: "run-1",
         gatewayUrl: "http://gateway",
       }],
@@ -37,7 +36,6 @@ function testFindsThreadsArtifactsAndIngressEvents() {
   assert.equal(service.findThreadForAuth({ ok: true, workspaceId: "owner" }, "thread-1").id, "thread-1");
   assert.equal(service.findArtifactReferenceById("artifact-1").message.id, "msg-1");
   assert.equal(service.findArtifactReference({ id: "artifact-1" }).thread.id, "thread-1");
-  assert.equal(service.findExistingWeixinIngressEvent("wx-1").message.id, "msg-1");
   assert.equal(service.storedGatewayUrlForRun("run-1"), "http://gateway");
   assert.equal(service.buildUserMessageContent("hello", [{ id: "artifact-1" }]), "hello\n\nMEDIA:C:\\file.txt");
 }

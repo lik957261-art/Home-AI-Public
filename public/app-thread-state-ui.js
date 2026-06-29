@@ -44,6 +44,9 @@ function mergeServerMessage(existing, incoming) {
   if (!incoming.revokedAt && Array.isArray(existing.loadedSkills) && existing.loadedSkills.length && !incoming.loadedSkills?.length) {
     merged.loadedSkills = existing.loadedSkills;
   }
+  if (!incoming.revokedAt && existing.pluginActions && !incoming.pluginActions) {
+    merged.pluginActions = existing.pluginActions;
+  }
   if (!incoming.revokedAt && existing.model && !incoming.model) merged.model = existing.model;
   if (!incoming.revokedAt && existing.modelProvider && !incoming.modelProvider) merged.modelProvider = existing.modelProvider;
   for (const field of MESSAGE_TIMESTAMP_FIELDS) {
@@ -146,9 +149,8 @@ function singleWindowRequestStillCurrent(request = {}) {
     return String(state.currentTaskGroupId || "") === request.taskGroupId;
   }
   if (request.messageMode === "chat") {
-    const currentWeixinChat = Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.weixinChatOpen);
-    const currentGroupChat = currentWeixinChat ? false : Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.groupChatOpen);
-    return currentWeixinChat === request.weixinChat && currentGroupChat === request.groupChat;
+    const currentGroupChat = Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.groupChatOpen);
+    return currentGroupChat === request.groupChat;
   }
   return true;
 }
@@ -156,15 +158,10 @@ function singleWindowRequestStillCurrent(request = {}) {
 function cachedSingleWindowThreadForRequest(request = {}) {
   if (String(request.messageMode || "") !== "chat") return null;
   const workspaceId = String(request.workspaceId || "").trim();
-  const cached = request.weixinChat
-    ? state.weixinChatThread
-    : request.groupChat
-      ? state.groupChatThread
-      : state.privateChatThread;
+  const cached = request.groupChat ? state.groupChatThread : state.privateChatThread;
   if (!cached?.id || !cached.singleWindow) return null;
-  if (request.weixinChat) return isThreadWeixinChat(cached) ? cached : null;
   if (request.groupChat) return currentUserCanUseGroupChatThread(cached) ? cached : null;
-  if (isThreadWeixinChat(cached) || selectedWorkspaceInThreadGroup(cached)) return null;
+  if (selectedWorkspaceInThreadGroup(cached)) return null;
   if (workspaceId && String(cached.workspaceId || "") !== workspaceId) return null;
   return cached;
 }
@@ -180,7 +177,7 @@ function singleWindowSurfaceCacheKeyForRequest(request = {}) {
   const workspaceId = String(request.workspaceId || state.selectedWorkspaceId || "owner").trim() || "owner";
   const messageMode = String(request.messageMode || "").trim();
   if (messageMode === "chat") {
-    const chatScope = request.weixinChat ? "weixin" : request.groupChat ? "group" : "private";
+    const chatScope = request.groupChat ? "group" : "private";
     return `single:${workspaceId}:chat:${chatScope}`;
   }
   if (messageMode === "tasks" && !String(request.taskGroupId || "").trim()) {
@@ -192,7 +189,7 @@ function singleWindowSurfaceCacheKeyForRequest(request = {}) {
 function currentMainConversationSurfaceCacheKey() {
   const workspaceId = String(state.selectedWorkspaceId || "owner").trim() || "owner";
   if (state.viewMode === "single" && state.singleWindowMode === "chat") {
-    const chatScope = state.weixinChatOpen ? "weixin" : state.groupChatOpen ? "group" : "private";
+    const chatScope = state.groupChatOpen ? "group" : "private";
     return `single:${workspaceId}:chat:${chatScope}`;
   }
   if (state.viewMode === "tasks" && !state.currentTaskGroupId) {
@@ -273,6 +270,7 @@ function chatMessageRenderSignature(message = {}) {
     stableConversationSignatureHash(loadedSkills),
     stableConversationJsonHash(message?.usage),
     stableConversationJsonHash(message?.externalDelivery),
+    stableConversationJsonHash(message?.pluginActions),
     stableConversationJsonHash(message?.localRunProgressEvents),
     runIds,
     message?.model || "",
@@ -405,8 +403,7 @@ function mainConversationSurfaceThreadSignature(key = "", thread = state.current
 function mainConversationSurfaceRequestForCurrentView() {
   const messageMode = currentSingleWindowMessageMode();
   if (!(messageMode === "chat" || (messageMode === "tasks" && !state.currentTaskGroupId))) return null;
-  const weixinChat = Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.weixinChatOpen);
-  const groupChat = weixinChat ? false : Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.groupChatOpen);
+  const groupChat = Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.groupChatOpen);
   return {
     seq: state.singleWindowRequestSeq,
     workspaceId: String(state.selectedWorkspaceId || ""),
@@ -414,7 +411,6 @@ function mainConversationSurfaceRequestForCurrentView() {
     singleWindowMode: String(state.singleWindowMode || ""),
     taskGroupId: String(state.currentTaskGroupId || ""),
     messageMode,
-    weixinChat,
     groupChat,
   };
 }
@@ -503,8 +499,7 @@ function renderCachedSingleWindowThreadForCurrentViewShell(options = {}) {
     singleWindowMode: String(state.singleWindowMode || ""),
     taskGroupId: "",
     messageMode: "chat",
-    weixinChat: Boolean(state.weixinChatOpen),
-    groupChat: state.weixinChatOpen ? false : Boolean(state.groupChatOpen),
+    groupChat: Boolean(state.groupChatOpen),
   };
   return renderCachedSingleWindowThreadForRequest(request, options);
 }
@@ -616,17 +611,11 @@ async function loadSingleWindow(options = {}) {
     messageMode: currentSingleWindowMessageMode(),
   };
   state.singleWindowRequestSeq = request.seq;
-  const weixinChat = Boolean(options.weixinChat ?? (
-    state.viewMode === "single"
-    && state.singleWindowMode === "chat"
-    && state.weixinChatOpen
-  ));
-  const groupChat = weixinChat ? false : (options.groupChat ?? (
+  const groupChat = Boolean(options.groupChat ?? (
     state.viewMode === "single"
     && state.singleWindowMode === "chat"
     && state.groupChatOpen
   ));
-  request.weixinChat = weixinChat;
   request.groupChat = groupChat;
   const messageMode = request.messageMode;
   let renderedCachedSingleWindow = false;
@@ -653,7 +642,6 @@ async function loadSingleWindow(options = {}) {
       body: JSON.stringify({
         workspaceId: request.workspaceId,
         groupChat,
-        weixinChat,
         messageMode,
         taskGroupId: messageMode === "tasks" ? request.taskGroupId : "",
         messageLimit: messageMode === "tasks"
@@ -688,25 +676,10 @@ async function loadSingleWindow(options = {}) {
     state.groupChatThread = mergeChatScopeThread(state.groupChatThread, result.groupChatThread);
     state.groupChatThreadId = state.groupChatThread?.id || result.groupChatThreadId || "";
   }
-  if (result.weixinChatThread) {
-    state.weixinChatThread = mergeChatScopeThread(state.weixinChatThread, result.weixinChatThread);
-    state.weixinChatThreadId = state.weixinChatThread?.id || result.weixinChatThreadId || "";
-  }
   state.caseTopicThreads = Array.isArray(result.caseTopicThreads) ? result.caseTopicThreads : [];
   if (messageMode === "tasks") scheduleKanbanTopicCardSnapshotRefresh();
   state.groupChatAvailable = Boolean(result.groupChatAvailable || selectedWorkspaceInThreadGroup(state.currentThread));
-  state.weixinChatAvailable = Boolean(result.weixinChatAvailable || isThreadWeixinChat(state.currentThread));
   rememberChatScopeThread(state.currentThread);
-  if (weixinChat && !isThreadWeixinChat(state.currentThread)) {
-    state.weixinChatOpen = false;
-    localStorage.setItem("hermesWebWeixinChatOpen", "0");
-  }
-  if (isThreadWeixinChat(state.currentThread)) {
-    state.weixinChatOpen = true;
-    state.groupChatOpen = false;
-    localStorage.setItem("hermesWebWeixinChatOpen", "1");
-    localStorage.setItem("hermesWebGroupChatOpen", "0");
-  }
   if (groupChat && !currentUserCanUseGroupChatThread(state.currentThread)) {
     state.groupChatOpen = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
@@ -767,22 +740,18 @@ async function selectChatScope(scope) {
   state.currentTaskGroupId = "";
   if (String(scope || "").trim().toLowerCase() !== "group") {
     state.groupChatOpen = false;
-    state.weixinChatOpen = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
-    localStorage.setItem("hermesWebWeixinChatOpen", "0");
-    await loadSingleWindow({ groupChat: false, weixinChat: false });
+    await loadSingleWindow({ groupChat: false });
     return;
   }
   if (isGroupChatView()) {
     renderCurrentThread({ stickToBottom: false });
     return;
   }
-  state.weixinChatOpen = false;
   state.groupChatOpen = true;
-  localStorage.setItem("hermesWebWeixinChatOpen", "0");
   localStorage.setItem("hermesWebGroupChatOpen", "1");
   try {
-    await loadSingleWindow({ groupChat: true, weixinChat: false });
+    await loadSingleWindow({ groupChat: true });
   } catch (err) {
     state.groupChatOpen = false;
     localStorage.setItem("hermesWebGroupChatOpen", "0");
@@ -801,19 +770,4 @@ async function selectChatScope(scope) {
 
 async function toggleGroupChat() {
   await selectChatScope(isGroupChatView() ? "chat" : "group");
-}
-
-async function selectWeixinChat(open = true) {
-  closeTopMoreMenu();
-  clearQuotedReply({ render: false });
-  state.currentTaskGroupId = "";
-  state.weixinChatOpen = Boolean(open);
-  state.groupChatOpen = false;
-  localStorage.setItem("hermesWebWeixinChatOpen", state.weixinChatOpen ? "1" : "0");
-  localStorage.setItem("hermesWebGroupChatOpen", "0");
-  await loadSingleWindow({ weixinChat: state.weixinChatOpen, groupChat: false });
-}
-
-async function toggleWeixinChat() {
-  await selectWeixinChat(!isWeixinChatView());
 }

@@ -159,6 +159,7 @@ function createHarness(overrides = {}) {
   Object.assign(record, {
     checked: true,
     manifestAppearanceKey: "light/default",
+    manifestMaxAgeMs: 60000,
     manifest: {
       workspaceId: "weixin_test_1",
       entry: { url: "/api/hermes-plugins/finance/proxy/finance.html?launch=stale-owner-style" },

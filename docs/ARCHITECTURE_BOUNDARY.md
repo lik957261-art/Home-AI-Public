@@ -85,8 +85,7 @@ policy, or Note plugin business behavior.
 
 `server-routes/mobile-api-platform-composition.js` is only the route composition
 boundary for public setup/status, system status, Owner elevation, access-key,
-runtime-config, Push, Workspace, platform-currency, Resource, and Weixin ingress
-routes. It may construct `platform-currency-service.js`, but it must not own
+runtime-config, Push, Workspace, platform-currency, and Resource routes. It may construct `platform-currency-service.js`, but it must not own
 plugin business services, thread/message runtime behavior, Directory path
 authorization, Growth/Learning graphs, Todo/Automation domain behavior, or
 dispatcher registration policy.
@@ -163,7 +162,6 @@ focused adapters such as `app-route-url-service.js`,
 `mobile-runtime-thread-facade-service.js`,
 `mobile-runtime-thread-view-facade-service.js`,
 `mobile-runtime-todo-facade-service.js`,
-`mobile-runtime-weixin-facade-service.js`,
 `mobile-runtime-workspace-identity-facade-service.js`,
 `mobile-runtime-workspace-facade-service.js`,
 `mobile-runtime-workspace-catalog-facade.js`,
@@ -188,7 +186,7 @@ WSL/config path candidate parsing, public status projections, runtime state
 normalization/persistence lazy delegation, DATA_DIR-derived state/storage path
 parsing, system status lazy delegation, thread runtime composition delegation,
 thread view projection lazy delegation, Todo/direct-create runtime delegation,
-Weixin runtime composition delegation, workspace identity fallback delegation,
+workspace identity fallback delegation,
 local workspace store/projection, workspace access/auth gate, access-key
 operation, sender label, and principal-to-workspace lazy
 delegation, workspace catalog lazy
@@ -320,8 +318,7 @@ completion/abort terminal handoff to
 stream-state initialization to `gateway-run-stream-state-service.js`.
 
 `mobile-runtime-gateway-context-facade-service.js` owns stale tool-availability
-claim detection delegates for HTTP, image, DOCX, and audio tool schemas. Weixin
-runtime wiring may receive delayed delegates to this facade, but
+claim detection delegates for HTTP, image, DOCX, and audio tool schemas.
 `mobile-server-runtime.js` must not define duplicate
 `isStaleHttpToolAvailabilityClaim` or `isStaleImageToolAvailabilityClaim`
 wrapper functions.
@@ -842,18 +839,11 @@ card mutation, reading artifact generation, study/assessment business rules,
 or HTTP route behavior. Those stay in the Kanban providers, learning route
 composition, and focused domain services.
 
-Weixin outbound delivery projection belongs in
-`mobile-runtime-weixin-facade-service.js` and
-`weixin-runtime-composition-service.js`. Thread-view runtime wiring may receive
-a delegate, but `mobile-server-runtime.js` must not define a duplicate
-`publicWeixinOutboundDelivery` or `userFacingWeixinRunError` wrapper function.
-
 `server.js` and `mobile-server-runtime.js` must not own new business behavior such as:
 
 - workflow state machines;
 - natural-language interpretation;
 - Kanban/story/study/assessment planning;
-- Weixin ingress/outbound queue policy;
 - file, Markdown, PDF, DOCX, audio, or image transformation;
 - Gateway run lifecycle policy;
 - runtime state migration or persistence policy;
@@ -861,7 +851,7 @@ a delegate, but `mobile-server-runtime.js` must not define a duplicate
 
 ## Service Contract
 
-A service should accept plain input objects and return plain result objects. Side effects such as filesystem writes, SQLite operations, Gateway calls, Weixin delivery, Web Push, and child processes should be passed in through explicit dependencies when practical.
+A service should accept plain input objects and return plain result objects. Side effects such as filesystem writes, SQLite operations, Gateway calls, Web Push, and child processes should be passed in through explicit dependencies when practical.
 
 Required baseline for new business services:
 
@@ -1160,9 +1150,6 @@ Current CI guardrails:
 - `mobile-runtime-kanban-facade-service.js` must stay at or below 380 lines and
   remain a facade over existing Kanban projection/topic/plan/assessment
   services plus cache/maintenance delegates;
-- `mobile-runtime-weixin-facade-service.js` must stay at or below 115 lines and
-  remain a facade over Weixin runtime composition, not an ingress/outbound
-  delivery implementation;
 - `mobile-runtime-workspace-facade-service.js` must stay at or below 190 lines
   and remain a facade over local workspace store/projection, workspace/auth
   gate helpers, access-key delegation, sender labels, and principal mapping;
@@ -1177,7 +1164,7 @@ Current CI guardrails:
   a domain service graph;
 - `mobile-api-platform-composition.js` must stay at or below 210 lines and
   remain the public/system/Owner/access-key/runtime-config/Push/Workspace/
-  platform-currency/Resource/Weixin route composition boundary;
+  platform-currency/Resource route composition boundary;
 - `mobile-api-directory-composition.js` must stay at or below 150 lines and
   remain the Directory/file/artifact/Note receipt route wiring boundary;
 - `mobile-api-learning-composition.js` must stay at or below 350 lines and

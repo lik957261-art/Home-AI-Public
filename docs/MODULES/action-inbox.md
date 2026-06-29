@@ -356,14 +356,44 @@ when a plugin-related chat identifies a bounded implementation request, such as
 a missing Health strength-catalog action. They are not plugin iframe
 notifications and they are not direct Codex dispatches.
 
+Ordinary chat and directory-bound topic chats may use the same Owner-gated
+approval mechanics for Home-AI-owned platform or Gateway capability gaps. Those
+assistant replies append `homeai-owner-task-request` instead of
+`homeai-plugin-conversation-action`; Gateway run completion submits the request
+server-side with `pluginId=home-ai`, so the eventual Owner-approved task card
+targets the Home AI app thread/workspace. The browser client scanner remains a
+compatibility path, but directory-bound topic chats must not depend on a DOM
+mutation being observed before the request reaches Action Inbox. This is the
+route for low-permission Gateway capability gap requests such as "safe real
+Office/PPTX generation and validation", where the model may prepare a request
+but must not claim a real `ainb_*` or `ttc_*` until the Host returns one.
+Home-AI-owned repair dispatch must not pin an old dated implementation-thread
+title such as `Home AI 06-18`; it uses the Home AI app workspace plus the
+`Home AI` thread-title prefix so Codex Mobile selects the current discoverable
+Home AI implementation thread. Old approval rows that still contain a stale
+exact title are upgraded at dispatch time before sending the task card. Because
+Codex Mobile requires a task-card source thread to differ from the target
+thread, Home-AI-owned repair dispatch uses the dedicated `Home AI Task Intake`
+Codex thread as the source and the current `Home AI` implementation thread as
+the target. This source thread is only a task-card/return-card intake lane; it
+is not the Home AI audit thread and must not replace `Home AI Platform Audit`
+for Product Reality or platform audits.
+
 Host-side assistant replies in plugin conversation topics may create these rows
 by appending a hidden `homeai-plugin-conversation-action` JSON comment. The
-client strips that metadata from display, deduplicates recent completed
-assistant messages, and submits the request to
-`POST /api/plugin-conversation/actions`. This path must not create an ordinary
-Todo/Kanban `t_*` card or claim a repair card was submitted. A visible
-dispatchable approval row has an `ainb_*` id; a real Codex repair card exists
-only after Owner clicks `发修复卡` and receives a `ttc_*` id.
+Gateway run-completion path submits the bounded request through the same
+bridge; the client also strips that metadata from display, deduplicates recent
+completed assistant messages, and may submit the request to
+`POST /api/plugin-conversation/actions` as a compatibility fallback. This path
+must not create an ordinary Todo/Kanban `t_*` card or claim a repair card was
+submitted. A visible dispatchable approval row has an `ainb_*` id; a real Codex
+repair card exists only after Owner clicks `发修复卡` and receives a `ttc_*` id.
+If a Gateway reply still claims a legacy `t_*` card was created for an
+implementation repair request without a real hidden Owner request marker or
+`ainb_*`/`ttc_*` id, run completion treats that as a recoverable transport
+contract violation. The host creates a bounded Home-AI-owned Owner approval row
+from the visible claim metadata and records a `legacy_task_card_claim_recovered`
+event instead of letting the request disappear from Inbox.
 
 The Inbox item stores only the plugin id, request id, request type, target
 thread/workspace metadata, bounded summary, suggested change, and compact
@@ -378,6 +408,11 @@ The dispatch endpoint appends the Owner prompt to the task card and only then
 marks the Inbox item `done`. Non-Owner workspaces may create an Owner-visible
 request through the bridge, but they cannot dispatch a task card or attach the
 Owner prompt.
+
+Repeated submissions with the same bounded signature must update the existing
+approval row without sending duplicate system notifications. Owner push is sent
+only when the Action Inbox upsert created a new row or truly reopened a terminal
+row.
 
 AI Ops diagnostic remediation rows and plugin conversation repair rows must
 show button-level dispatch state. When Owner taps `发修复卡`, the row/action
@@ -430,9 +465,10 @@ Verification review items expose `开始验证`; that action creates a
 ledger-backed verification slice and sends one task card to the central audit
 thread. Deployment/readback review items expose `部署读回`; that action creates
 a ledger-backed deployment slice and sends one deployment/readback card to the
-owning workspace without performing local deployment in the Inbox UI. Repair
-review items expose `发修复卡`; that action creates a ledger-backed repair
-slice and sends one repair card back to the original implementation workspace.
+dedicated `Home AI Deploy` thread without performing local deployment in the
+Inbox UI. Repair review items expose `发修复卡`; that action creates a
+ledger-backed repair slice and sends one repair card back to the original
+implementation workspace.
 Closure review items expose `完成闭环` only after the coordinator case is
 already `verified_waiting`. None of these item types auto-dispatch cards before
 Owner action, and repeated dispatch failures use the Home AI diagnostic

@@ -258,6 +258,36 @@ function testMoiraPluginTopicRequiresMoiraToolsetWhenAuthorized() {
   assert.deepEqual(instructions.pluginTopicContext.requiredToolsets, ["moira"]);
 }
 
+function testMoviePluginTopicRequiresMovieToolsetWhenAuthorized() {
+  const { service } = createBuilder({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "movie"],
+      authorized_toolsets: ["file", "movie"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+  });
+  const request = service.buildRunRequest(
+    baseThread({ workspaceId: "owner" }),
+    baseUser({
+      content: "推荐几个今晚可以看的片源",
+      senderWorkspaceId: "owner",
+      taskGroupId: "plugin:movie",
+    }),
+    { id: "assistant_1" },
+    {},
+  );
+  const instructions = JSON.parse(request.body.instructions);
+
+  assert.equal(request.pluginTopicContext.pluginId, "movie");
+  assert.deepEqual(request.pluginTopicContext.requiredToolsets, ["movie"]);
+  assert.deepEqual(request.gatewayRouting.requiredToolsets, ["movie"]);
+  assert.ok(request.body.enabled_toolsets.includes("movie"));
+  assert.deepEqual(request.pluginCapabilityContext.activeSchemaSet.active_toolsets, ["movie"]);
+  assert.deepEqual(instructions.pluginTopicContext.requiredToolsets, ["movie"]);
+}
+
 function testDirectoryBoundRunUsesTargetWorkspaceForGatewayAndPolicy() {
   const { service } = createBuilder({
     taskDirectoryAttachmentForMessage: () => ({
@@ -332,6 +362,7 @@ testBuildRunRequestAddsPluginRequirementsAndRouting();
 testLatestUserHttpLinkRemainsFullInput();
 testPluginTopicDoesNotAuthorizeMissingWorkspaceToolset();
 testMoiraPluginTopicRequiresMoiraToolsetWhenAuthorized();
+testMoviePluginTopicRequiresMovieToolsetWhenAuthorized();
 testDirectoryBoundRunUsesTargetWorkspaceForGatewayAndPolicy();
 testBuildGroupChatRunContextMergesDeliveryRoots();
 

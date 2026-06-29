@@ -32,7 +32,7 @@ const DEFAULT_PLUGIN_CAPABILITIES = Object.freeze([
     pluginId: "health",
     label: "Health",
     primaryToolset: "health",
-    requiredToolsets: Object.freeze(["health"]),
+    requiredToolsets: Object.freeze(["health", "file"]),
     requiredSkills: Object.freeze([]),
     summary: "Inspect health records, summaries, reports, and health-related history.",
     triggers: Object.freeze(["health", "medical", "record", "\u5065\u5eb7", "\u4f53\u68c0", "\u62a5\u544a"]),
@@ -72,6 +72,15 @@ const DEFAULT_PLUGIN_CAPABILITIES = Object.freeze([
     requiredSkills: Object.freeze([]),
     summary: "Inspect Roon listening events, favorite albums, tags, volume labels, and recommendation context.",
     triggers: Object.freeze(["music", "roon", "favorite", "favorites", "playlist", "album", "track", "\u97f3\u4e50", "\u542c\u6b4c", "\u6536\u85cf", "\u6536\u85cf\u5939", "\u64ad\u653e\u5217\u8868", "\u4e13\u8f91", "\u6b4c\u66f2"]),
+  }),
+  Object.freeze({
+    pluginId: "movie",
+    label: "Movie",
+    primaryToolset: "movie",
+    requiredToolsets: Object.freeze(["movie"]),
+    requiredSkills: Object.freeze([]),
+    summary: "Inspect Movie source catalog recommendations and source details through read-only MCP tools.",
+    triggers: Object.freeze(["movie", "cinema", "theater", "film", "source", "catalog", "\u5f71\u9662", "\u7535\u5f71", "\u7247\u6e90", "\u7247\u5e93", "\u89c2\u5f71"]),
   }),
 ]);
 

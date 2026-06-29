@@ -6,6 +6,7 @@ const { createGatewayUsageTelemetryProvider: defaultCreateGatewayUsageTelemetryP
 const { createGatewayWorkerProfileLaunchService: defaultCreateGatewayWorkerProfileLaunchService } = require("./gateway-worker-profile-launch-service");
 const { createGatewayWorkspaceProvisioningService: defaultCreateGatewayWorkspaceProvisioningService } = require("./gateway-workspace-provisioning-service");
 const { createMobileRuntimeGatewayStatusService } = require("./mobile-runtime-gateway-status-service");
+const { createOpenAiCodexQuotaFailoverRuntimeService: defaultCreateOpenAiCodexQuotaFailoverRuntimeService } = require("./openai-codex-quota-failover-runtime-service");
 
 function optionFunction(options, name, fallback = null) {
   const value = options[name];
@@ -27,14 +28,13 @@ function createMobileRuntimeGatewayProviderService(options = {}) {
   const createGatewayUsageTelemetryProvider = options.createGatewayUsageTelemetryProvider || defaultCreateGatewayUsageTelemetryProvider;
   const createGatewayWorkerProfileLaunchService = options.createGatewayWorkerProfileLaunchService || defaultCreateGatewayWorkerProfileLaunchService;
   const createGatewayWorkspaceProvisioningService = options.createGatewayWorkspaceProvisioningService || defaultCreateGatewayWorkspaceProvisioningService;
+  const createOpenAiCodexQuotaFailoverRuntimeService = options.createOpenAiCodexQuotaFailoverRuntimeService || defaultCreateOpenAiCodexQuotaFailoverRuntimeService;
 
   const apiBase = optionFunction(options, "effectiveHermesApiBase");
   const apiKey = optionFunction(options, "loadHermesApiKey");
   const apiTimeoutMs = optionFunction(options, "apiTimeoutMs");
   const gatewayPoolElasticConfig = optionFunction(options, "gatewayPoolElasticConfig", () => ({}));
-  const gatewayPoolStatusHealthy = options.gatewayPoolStatusHealthy === undefined
-    ? undefined
-    : optionFunction(options, "gatewayPoolStatusHealthy");
+  const gatewayPoolStatusHealthy = options.gatewayPoolStatusHealthy === undefined ? undefined : optionFunction(options, "gatewayPoolStatusHealthy");
   const fs = requiredObject(options, "fs");
   const manifestPaths = optionFunction(options, "gatewayPoolManifestPaths");
   const nowIso = optionFunction(options, "nowIso", () => new Date().toISOString());
@@ -47,26 +47,18 @@ function createMobileRuntimeGatewayProviderService(options = {}) {
   let gatewayUsageTelemetryProvider = null;
   let gatewayWorkerProfileLaunchService = null;
   let gatewayWorkspaceProvisioningService = null;
+  let openAiCodexQuotaFailoverRuntimeService = null;
 
   function singleGatewayRunner() {
     if (!gatewayRunner) {
-      gatewayRunner = createGatewayRunner({
-        apiBase,
-        apiKey,
-        timeoutMs: apiTimeoutMs,
-      });
+      gatewayRunner = createGatewayRunner({ apiBase, apiKey, timeoutMs: apiTimeoutMs });
     }
     return gatewayRunner;
   }
 
   function gatewayWorkerProfileLauncher() {
     if (!gatewayWorkerProfileLaunchService) {
-      gatewayWorkerProfileLaunchService = createGatewayWorkerProfileLaunchService({
-        elasticConfig: gatewayPoolElasticConfig(),
-        fs,
-        path,
-        toolRoot: options.toolRoot,
-      });
+      gatewayWorkerProfileLaunchService = createGatewayWorkerProfileLaunchService({ elasticConfig: gatewayPoolElasticConfig(), fs, path, toolRoot: options.toolRoot });
     }
     return gatewayWorkerProfileLaunchService;
   }
@@ -99,40 +91,42 @@ function createMobileRuntimeGatewayProviderService(options = {}) {
 
   function getGatewayWorkspaceProvisioningService() {
     if (!gatewayWorkspaceProvisioningService) {
-      gatewayWorkspaceProvisioningService = createGatewayWorkspaceProvisioningService({
-        fs,
-        manifestPaths,
-        nowIso,
-        path,
-      });
+      gatewayWorkspaceProvisioningService = createGatewayWorkspaceProvisioningService({ fs, manifestPaths, nowIso, path });
     }
     return gatewayWorkspaceProvisioningService;
   }
 
   function gatewayUsageTelemetry() {
     if (!gatewayUsageTelemetryProvider) {
-      gatewayUsageTelemetryProvider = createGatewayUsageTelemetryProvider({
-        enabled: optionFunction(options, "gatewayUsageTelemetryEnabled"),
-        manifestPaths,
-        profileRoots: optionFunction(options, "gatewayUsageTelemetryProfileRoots", () => []),
-      });
+      gatewayUsageTelemetryProvider = createGatewayUsageTelemetryProvider({ enabled: optionFunction(options, "gatewayUsageTelemetryEnabled"), manifestPaths, profileRoots: optionFunction(options, "gatewayUsageTelemetryProfileRoots", () => []) });
     }
     return gatewayUsageTelemetryProvider;
   }
 
   function gatewayStatus() {
     if (!gatewayStatusService) {
-      gatewayStatusService = createMobileRuntimeGatewayStatusService({
-        gatewayPool,
-        gatewayPoolStatusHealthy,
-        singleGatewayRunner,
-      });
+      gatewayStatusService = createMobileRuntimeGatewayStatusService({ gatewayPool, gatewayPoolStatusHealthy, singleGatewayRunner });
     }
     return gatewayStatusService;
   }
 
+  function openAiCodexQuotaFailoverRuntime() {
+    if (!openAiCodexQuotaFailoverRuntimeService) {
+      openAiCodexQuotaFailoverRuntimeService = createOpenAiCodexQuotaFailoverRuntimeService(Object.assign({}, options, { fs, gatewayPool, gatewayPoolElasticConfig, gatewayWorkerProfileLauncher, nowIso, path }));
+    }
+    return openAiCodexQuotaFailoverRuntimeService;
+  }
+
   async function chooseGatewayRunTarget(hints = {}, context = {}) {
     return gatewayPool().chooseTarget(hints, context);
+  }
+
+  function rotateOpenAiCodexCredentialPoolAfterUsageLimit(input = {}) {
+    return openAiCodexQuotaFailoverRuntime().rotateOpenAiCodexCredentialPoolAfterUsageLimit(input);
+  }
+
+  async function restartRunningGatewayWorkers(input = {}) {
+    return openAiCodexQuotaFailoverRuntime().restartRunningGatewayWorkers(input);
   }
 
   function releaseGatewayRunTarget(runId, idleStatus = "idle") {
@@ -155,6 +149,8 @@ function createMobileRuntimeGatewayProviderService(options = {}) {
     releaseGatewayRunTarget,
     replaceGatewayRunTarget,
     resetGatewayRuntimeConfig,
+    restartRunningGatewayWorkers,
+    rotateOpenAiCodexCredentialPoolAfterUsageLimit,
     singleGatewayRunner,
   });
 }

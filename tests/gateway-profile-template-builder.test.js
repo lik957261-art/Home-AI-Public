@@ -149,6 +149,7 @@ function testRenderProfileConfigYaml() {
         web_plugin_enabled: "1",
         http_plugin_enabled: "1",
         docx_plugin_enabled: "1",
+        pptx_plugin_enabled: "1",
         pdf_plugin_enabled: "1",
         audio_plugin_enabled: "1",
         archive_plugin_enabled: "1",
@@ -167,6 +168,7 @@ function testRenderProfileConfigYaml() {
         note_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/note-mcp/scripts/note_mcp_stdio.py",
         note_workspace: "/mnt/c/ProgramData/HermesMobile/data/drive/users/owner",
         note_mcp_api_base_url: "http://127.0.0.1:4181",
+        pptx_plugin_enabled: "1",
         health_enabled: "1",
         health_mcp_command: "node",
         health_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/health-mcp/scripts/mcp-health-wrapper.js",
@@ -187,6 +189,12 @@ function testRenderProfileConfigYaml() {
         music_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/music-mcp/src/mcp-stdio.js",
         music_workspace: "/mnt/c/ProgramData/HermesMobile/data/drive/users/owner",
         music_sqlite_path: "/mnt/c/ProgramData/HermesMobile/plugins/music/runtime/music.sqlite",
+        movie_enabled: "1",
+        movie_mcp_command: "npm",
+        movie_mcp_root: "/mnt/c/ProgramData/HermesMobile/gateway-worker/movie-mcp",
+        movie_config_path: "/mnt/c/ProgramData/HermesMobile/plugins/movie/data/movie-devices.json",
+        movie_metadata_db: "/mnt/c/ProgramData/HermesMobile/plugins/movie/data/movie-metadata.sqlite",
+        movie_playback_state_file: "/mnt/c/ProgramData/HermesMobile/plugins/movie/data/playback-state.json",
         email_enabled: "1",
         email_mcp_python: "/opt/hermes-gateway-runtime/venv/bin/python",
         email_mcp_path: "/mnt/c/ProgramData/HermesMobile/gateway-worker/email-mcp/scripts/email-mcp-wrapper.py",
@@ -206,10 +214,11 @@ function testRenderProfileConfigYaml() {
       "hermes-mobile-http",
       "hermes-mobile-image",
       "hermes-mobile-pdf",
+      "hermes-mobile-pptx",
       "hermes-mobile-weather",
       "hermes-mobile-web",
     ]);
-    assert.deepEqual(capabilities.mcpServers, ["email", "finance", "growth", "health", "moira", "music", "note", "outlook_graph", "wardrobe"]);
+    assert.deepEqual(capabilities.mcpServers, ["email", "finance", "growth", "health", "moira", "movie", "music", "note", "outlook_graph", "wardrobe"]);
     assert.equal(capabilities.toolsets.includes("wardrobe"), true);
     assert.equal(capabilities.toolsets.includes("finance"), true);
     assert.equal(capabilities.toolsets.includes("note"), true);
@@ -217,9 +226,13 @@ function testRenderProfileConfigYaml() {
     assert.equal(capabilities.toolsets.includes("growth"), true);
     assert.equal(capabilities.toolsets.includes("moira"), true);
     assert.equal(capabilities.toolsets.includes("music"), true);
+    assert.equal(capabilities.toolsets.includes("movie"), true);
     assert.equal(capabilities.toolsets.includes("email"), true);
     assert.equal(capabilities.toolsets.includes("outlook_graph"), true);
     assert.equal(yaml.includes("MUSIC_SQLITE_PATH: /mnt/c/ProgramData/HermesMobile/plugins/music/runtime/music.sqlite"), true);
+    assert.equal(yaml.includes("MOVIE_CONFIG_PATH: /mnt/c/ProgramData/HermesMobile/plugins/movie/data/movie-devices.json"), true);
+    assert.equal(yaml.includes("MOVIE_METADATA_DB: /mnt/c/ProgramData/HermesMobile/plugins/movie/data/movie-metadata.sqlite"), true);
+    assert.match(yaml, /mcp_servers:\n[\s\S]*  movie:\n[\s\S]*    command: npm\n[\s\S]*    args:\n[\s\S]*      - --prefix\n[\s\S]*      - \/mnt\/c\/ProgramData\/HermesMobile\/gateway-worker\/movie-mcp\n[\s\S]*      - --silent\n[\s\S]*      - run\n[\s\S]*      - mcp:stdio/);
     assert.equal(yaml.includes("port: 18760"), true);
   });
 }
@@ -269,6 +282,7 @@ function testRenderMaintenanceConfigYaml() {
         web_plugin_enabled: "1",
         http_plugin_enabled: "1",
         docx_plugin_enabled: "1",
+        pptx_plugin_enabled: "1",
         pdf_plugin_enabled: "1",
         audio_plugin_enabled: "1",
         archive_plugin_enabled: "1",
@@ -307,6 +321,12 @@ function testRenderMaintenanceConfigYaml() {
         music_mcp_path: "/mnt/c/music/src/mcp-stdio.js",
         music_workspace: "/mnt/c/owner",
         music_sqlite_path: "/mnt/c/music/runtime/music.sqlite",
+        movie_enabled: "1",
+        movie_mcp_command: "npm",
+        movie_mcp_root: "/mnt/c/movie",
+        movie_config_path: "/mnt/c/movie/data/movie-devices.json",
+        movie_metadata_db: "/mnt/c/movie/data/movie-metadata.sqlite",
+        movie_playback_state_file: "/mnt/c/movie/data/playback-state.json",
         email_enabled: "1",
         email_mcp_python: "/opt/hermes-gateway-runtime/venv/bin/python",
         email_mcp_path: "/mnt/c/email.py",
@@ -315,14 +335,15 @@ function testRenderMaintenanceConfigYaml() {
       },
     }));
     assert.equal(official.modelProvider, "openai-codex");
-    for (const toolset of ["web", "file", "skills", "wardrobe", "finance", "note", "health", "growth", "moira", "music", "email", "weather", "http", "cronjob_mobile", "chatgpt_pro", "hermes-cli"]) {
+    for (const toolset of ["web", "file", "skills", "wardrobe", "finance", "note", "health", "growth", "moira", "music", "movie", "email", "weather", "http", "cronjob_mobile", "chatgpt_pro", "hermes-cli"]) {
       assert.equal(official.toolsets.includes(toolset), true, `missing maintenance toolset ${toolset}`);
       assert.equal(official.apiServerToolsets.includes(toolset), true, `missing maintenance api toolset ${toolset}`);
     }
-    assert.deepEqual(official.mcpServers, ["email", "finance", "growth", "health", "moira", "music", "note", "wardrobe"]);
+    assert.deepEqual(official.mcpServers, ["email", "finance", "growth", "health", "moira", "movie", "music", "note", "wardrobe"]);
     assert.equal(official.plugins.includes("hermes-mobile-chatgpt-pro"), true);
     assert.equal(official.plugins.includes("hermes-mobile-web"), true);
     assert.equal(official.plugins.includes("hermes-mobile-pdf"), true);
+    assert.equal(official.plugins.includes("hermes-mobile-pptx"), true);
 
     const deepseekMaintenance = readRenderedCapabilities(root, "deepseekmaint", renderGatewayConfigYaml({
       configKind: "maintenance",

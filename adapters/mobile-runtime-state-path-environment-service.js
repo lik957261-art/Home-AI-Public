@@ -19,16 +19,6 @@ function createMobileRuntimeStatePathEnvironment(options = {}) {
   const LOCAL_WORKSPACES_PATH = path.join(DATA_DIR, "workspaces.json");
   const RUNTIME_CONFIG_PATH = path.join(DATA_DIR, "runtime-config.json");
   const LEARNING_COIN_STORE_PATH = path.resolve(env.HERMES_MOBILE_LEARNING_COIN_STORE_PATH || env.HERMES_WEB_LEARNING_COIN_STORE_PATH || path.join(DATA_DIR, "learning-coins.json"));
-  const WEIXIN_INGRESS_KEY_PATHS = [
-    env.HERMES_MOBILE_WEIXIN_INGRESS_KEY_PATH,
-    env.HERMES_WEB_WEIXIN_INGRESS_KEY_PATH,
-    path.join(DATA_DIR, "weixin-ingress.secret"),
-  ].filter(Boolean);
-  const WEIXIN_INGRESS_DEFAULT_WORKSPACE = String(
-    env.HERMES_MOBILE_WEIXIN_INGRESS_DEFAULT_WORKSPACE
-      || env.HERMES_WEB_WEIXIN_INGRESS_DEFAULT_WORKSPACE
-      || "",
-  ).trim();
   const GROUP_DELIVERIES_DIR = path.join(DATA_DIR, "artifacts", "group-deliveries");
   const OWNER_DEFAULT_WORKSPACE = path.resolve(env.HERMES_WEB_OWNER_DEFAULT_WORKSPACE || path.join(DATA_DIR, "drive"));
   const WORKSPACE_UPLOAD_DIR_NAME = ".hermes-mobile";
@@ -61,8 +51,6 @@ function createMobileRuntimeStatePathEnvironment(options = {}) {
     STATE_BACKUP_DIR,
     STATE_PATH,
     WEB_PUSH_VAPID_PATH,
-    WEIXIN_INGRESS_DEFAULT_WORKSPACE,
-    WEIXIN_INGRESS_KEY_PATHS,
     WORKSPACE_UPLOAD_DIR_NAME,
     WORKSPACE_UPLOAD_SUBDIR,
   });

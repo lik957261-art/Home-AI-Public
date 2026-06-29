@@ -3,7 +3,16 @@
 const { explicitSearchContext } = require("./gateway-run-search-budget-service");
 const { formatEnvironmentContextInstructions } = require("./environment-context-service");
 
-const DEFAULT_TOOL_SCHEMA_EPOCH = "20260624-document-file-tools-v1";
+const DEFAULT_TOOL_SCHEMA_EPOCH = "20260629-wardrobe-wear-intent-v970";
+const MOVIE_MCP_CALLABLES = Object.freeze([
+  "mcp_movie_search_sources",
+  "mcp_movie_recommend_sources",
+  "mcp_movie_get_source_detail",
+  "mcp_movie_get_catalog_stats",
+  "mcp_movie_record_source_interaction",
+  "mcp_movie_update_source_list",
+  "mcp_movie_list_source_state",
+]);
 
 function defaultDedupe(values = []) {
   return Array.from(new Set((Array.isArray(values) ? values : []).filter(Boolean)));
@@ -58,7 +67,7 @@ function createGatewayRunInstructionService(options = {}) {
       x_search: ["x_search"],
       http: ["http_request"],
       weather: ["weather"],
-      file: ["read_file", "write_file", "patch", "search_files", "docx_extract_text", "office_extract_text", "pdf_extract_text", "pdf_render_pages", "audio_transcribe", "archive_list", "archive_extract_safe"],
+      file: ["read_file", "write_file", "patch", "search_files", "docx_create", "docx_extract_text", "office_extract_text", "pptx_create", "pdf_create", "pdf_extract_text", "pdf_render_pages", "audio_transcribe", "archive_list", "archive_extract_safe"],
       vision: ["vision_analyze"],
       image_gen: ["image_generate", "chatgpt_image_edit", "chatgpt_image_erase", "image_edit", "image_erase"],
       wardrobe: [
@@ -68,6 +77,8 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_wardrobe_wardrobe_set_primary_photo",
         "mcp_wardrobe_wardrobe_get_item",
         "mcp_wardrobe_wardrobe_search_items",
+        "mcp_wardrobe_wardrobe_prepare_outfit_wear_intent",
+        "mcp_wardrobe_wardrobe_execute_outfit_wear_intent",
       ],
       finance: [
         "mcp_finance_list_ledgers",
@@ -209,6 +220,7 @@ function createGatewayRunInstructionService(options = {}) {
         "mcp_music_music_play_track_on_zone",
         "mcp_music_music_play_playlist_on_zone",
       ],
+      movie: MOVIE_MCP_CALLABLES,
       email: [
         "mcp_email_list_accounts",
         "mcp_email_list_mailboxes",
@@ -264,7 +276,10 @@ function createGatewayRunInstructionService(options = {}) {
       if (toolsets.includes("http")) lines.push("- For HTTP/API Program calls, use `http_request`; do not look for or mention a `web_request` function.");
       if (toolsets.includes("http")) lines.push("- For Program API file uploads, pass in-scope local image bytes through `http_request.file_body` or `http_request.multipart_files`; do not put local path strings or file:// URLs inside the target API JSON body.");
       if (toolsets.includes("file")) lines.push("- For Word DOCX text extraction, use `docx_extract_text` when `read_file` cannot decode the Office Open XML package directly.");
+      if (toolsets.includes("file")) lines.push("- For explicit Word/DOCX generation requests, use `docx_create` to write a real `.docx` file inside allowed roots and include its returned `MEDIA:<path>` line in the final answer.");
       if (toolsets.includes("file")) lines.push("- For PowerPoint PPTX/PPTM and Excel XLSX/XLSM text extraction, use `office_extract_text` when `read_file` cannot decode the Office Open XML package directly.");
+      if (toolsets.includes("file")) lines.push("- For explicit PowerPoint deck generation requests, use `pptx_create` to write a real `.pptx` file inside allowed roots and include its returned `MEDIA:<path>` line in the final answer.");
+      if (toolsets.includes("file")) lines.push("- For explicit PDF generation requests, use `pdf_create` to write a real `.pdf` file inside allowed roots and include its returned `MEDIA:<path>` line in the final answer.");
       if (toolsets.includes("file")) lines.push("- For PDF reports, use `pdf_extract_text` first; if the PDF has no text layer or text is empty, use `pdf_render_pages` and pass the rendered page images to the vision/OCR tool. Do not ask the user to export PDF pages manually.");
       if (toolsets.includes("file")) lines.push("- For MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC voice notes or reading-retelling audio, use `audio_transcribe`; do not route audio-only files through `video_analyze` or ask the user to convert audio to video.");
       if (toolsets.includes("file")) lines.push("- For ZIP archives inside allowed roots, use `archive_list` to inspect entries and `archive_extract_safe` to extract safely; do not ask for Owner elevation or shell merely to unzip an in-scope archive.");
@@ -307,14 +322,17 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "file")) {
       lines.push(
-        "Current tool schema override: the `file` toolset is enabled for this run. Word DOCX text extraction is available as `docx_extract_text`; PowerPoint PPTX/PPTM and Excel XLSX/XLSM text extraction is available as `office_extract_text`; PDF text extraction and page rendering are available as `pdf_extract_text` / `pdf_render_pages`; audio transcription for MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC files is available as `audio_transcribe`; and ZIP listing/safe extraction is available as `archive_list` / `archive_extract_safe`, when the file is inside the current allowed roots.",
+        "Current tool schema override: the `file` toolset is enabled for this run. Word DOCX generation is available as `docx_create`; Word DOCX text extraction is available as `docx_extract_text`; PowerPoint PPTX/PPTM and Excel XLSX/XLSM text extraction is available as `office_extract_text`; real PowerPoint PPTX generation is available as `pptx_create`; PDF generation is available as `pdf_create`; PDF text extraction and page rendering are available as `pdf_extract_text` / `pdf_render_pages`; audio transcription for MP3/M4A/WAV/AAC/OGG/OPUS/AMR/FLAC files is available as `audio_transcribe`; and ZIP listing/safe extraction is available as `archive_list` / `archive_extract_safe`, when the file is inside the current allowed roots.",
         "For .docx/.docm/.dotx/.dotm files, use `docx_extract_text` if `read_file` cannot decode the Office Open XML package directly.",
+        "When the user explicitly asks for Word/DOCX, use `docx_create` rather than producing only Markdown, HTML, or a renamed pseudo-DOCX. Write the `.docx` under an allowed delivery/workspace root and include the returned `MEDIA:<path>` line.",
         "For .pptx/.pptm/.potx/.potm/.ppsx/.ppsm/.xlsx/.xlsm/.xltx/.xltm files, use `office_extract_text` if `read_file` cannot decode the Office Open XML package directly.",
+        "When the user explicitly asks for a PowerPoint/PPTX deck, use `pptx_create` rather than producing only Markdown, HTML, or a renamed pseudo-PPT. Write the `.pptx` under an allowed delivery/workspace root and include the returned `MEDIA:<path>` line.",
+        "When the user explicitly asks for PDF, use `pdf_create` rather than producing only Markdown, HTML, or a renamed pseudo-PDF. Write the `.pdf` under an allowed delivery/workspace root and include the returned `MEDIA:<path>` line.",
         "For .pdf files, use `pdf_extract_text` first. If hasTextLayer is false or the extracted text is empty, use `pdf_render_pages` and then use the rendered image paths with vision/OCR. Do not tell the user to export PDF pages manually.",
         "For audio-only files such as .mp3/.m4a/.wav/.aac/.ogg/.opus/.amr/.flac, use `audio_transcribe`; `video_analyze` is for video files and should not be used as an audio transcription substitute.",
         "For .zip files, use `archive_list` first when the contents are unknown, then `archive_extract_safe` when extraction is needed; do not ask the user to unzip the archive manually.",
         "Do not ask the user to convert an ordinary current-workspace audio file into a blank video just to work around a missing audio transcription function.",
-        "Do not request Owner elevation merely because an ordinary current-workspace DOCX/Office/PDF extraction, ZIP extraction, or audio transcription tool is missing from an older callable schema. That is a Hermes Mobile deployment/schema mismatch, not a high-privilege operation."
+        "Do not request Owner elevation merely because an ordinary current-workspace DOCX/Office/PPTX/PDF extraction or generation, ZIP extraction, or audio transcription tool is missing from an older callable schema. That is a Hermes Mobile deployment/schema mismatch, not a high-privilege operation."
       );
     }
     if (policyHasToolset(policy, "web") || policyHasToolset(policy, "search")) {
@@ -362,8 +380,8 @@ function createGatewayRunInstructionService(options = {}) {
     }
     if (policyHasToolset(policy, "wardrobe")) {
       lines.push(
-        "Current tool schema override: the `wardrobe` toolset is enabled for this run. Callable function names normally begin with `mcp_wardrobe_`, including `mcp_wardrobe_wardrobe_write_item`, `mcp_wardrobe_wardrobe_write_history`, `mcp_wardrobe_wardrobe_upload_photo`, `mcp_wardrobe_wardrobe_set_primary_photo`, `mcp_wardrobe_wardrobe_get_item`, and `mcp_wardrobe_wardrobe_search_items`.",
-        "For wardrobe ingest, writeback, photo upload, primary-photo updates, and readback verification, use the `mcp_wardrobe_*` callable functions when they are present.",
+        "Current tool schema override: the `wardrobe` toolset is enabled for this run. Callable function names normally begin with `mcp_wardrobe_`, including `mcp_wardrobe_wardrobe_write_item`, `mcp_wardrobe_wardrobe_write_history`, `mcp_wardrobe_wardrobe_upload_photo`, `mcp_wardrobe_wardrobe_set_primary_photo`, `mcp_wardrobe_wardrobe_get_item`, `mcp_wardrobe_wardrobe_search_items`, `mcp_wardrobe_wardrobe_prepare_outfit_wear_intent`, and `mcp_wardrobe_wardrobe_execute_outfit_wear_intent`.",
+        "For wardrobe ingest, writeback, photo upload, primary-photo updates, outfit wear-intent preparation/execution, and readback verification, use the `mcp_wardrobe_*` callable functions when they are present.",
         "Do not report that the run lacks wardrobe capability solely because an older conversation turn said only file or vision tools were available. Check the current run's callable functions first.",
         "If `Enabled toolsets` includes `wardrobe` but the current callable schema still lacks `mcp_wardrobe_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of pretending the write completed."
       );
@@ -404,6 +422,16 @@ function createGatewayRunInstructionService(options = {}) {
         "Music MCP is Owner-only and reads the shared Music SQLite database through the selected Gateway profile. Do not pass a workspace override, and do not infer local catalog counts, volume tags, favorites, tags, duplicate state, playlist plans, or loudness status from the visible plugin UI alone.",
         "For Music management writes, prefer dry-run plan tools first. Soft-delete means metadata states such as hidden, duplicate, deprecated, or tombstoned; physical file deletion is not implemented. Cover search and candidate selection belong to the agent; Music MCP writes an explicitly selected local image/base64 or allowed direct cover `image_url` into the cover cache with backup/rollback. If only `source_url` is available and no image bytes are provided, Music MCP treats it as the candidate image URL. Do not use generic `http_request` to download cover art for Music writes. Playback control requires explicit confirmation/safety limits. For grouped Roon zones with multiple Devialet outputs, pass `output_ids` or a matching `output_name_contains` so Music applies volume to every selected output. For Music-managed volume-policy playback, AI may provide playlist items and an overall offset only; Music computes per-track absolute volume from Music-owned manual tags and explicit fallback policy. Predicted tags may be displayed as predictions, but main dCS/Boulder physical-volume automation uses only Music manual local/collection tags or the safe fallback.",
         "If `Enabled toolsets` includes `music` but the current callable schema still lacks `mcp_music_music_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of inventing music-library facts."
+      );
+    }
+    if (policyHasToolset(policy, "movie")) {
+      lines.push(
+        `Current tool schema override: the \`movie\` toolset is enabled for this run. Callable function names normally begin with \`mcp_movie_\`, including ${MOVIE_MCP_CALLABLES.map((name) => `\`${name}\``).join(", ")}.`,
+        "Movie MCP is Owner-only. Use it for Movie source catalog search, source recommendations, source detail readback, catalog stats, and local Movie preference/list state only. It must not be granted to non-Owner workspaces.",
+        "`mcp_movie_search_sources` supports bounded library search over local and 115/CloudDrive2 indexed sources, including `source_category=115`, `actor`, `total_count`, `has_more`, pagination, and facets including `actor`. `mcp_movie_recommend_sources` may use taste hints, `actor`, `preferred_actors`, and local Movie preference/list state.",
+        "`mcp_movie_record_source_interaction`, `mcp_movie_update_source_list`, and `mcp_movie_list_source_state` are limited to local Movie preference/list state. They must not play media, create stream URLs, mutate NAS files, switch projector/profile state, change subtitles/audio, poll devices, or control devices.",
+        "Do not use Movie MCP to play media, create stream URLs, switch projector/profile state, change subtitles/audio, control devices, mutate NAS files, or expose private source paths unless the callable result explicitly returns bounded metadata for the current Owner run.",
+        "If `Enabled toolsets` includes `movie` but the current callable schema still lacks `mcp_movie_*`, treat that as a Gateway schema mismatch and request toolset/schema recovery instead of inventing Movie source facts."
       );
     }
     return lines.join("\n");
@@ -520,12 +548,18 @@ function createGatewayRunInstructionService(options = {}) {
   function pluginConversationActionBridgeInstructions() {
     return [
       "Plugin conversation repair-request truth rule: an implementation repair card is not submitted unless Home AI returns a real Action Inbox id (`ainb_*`) or Codex task-card id (`ttc_*`). Do not invent `t_*`, `ainb_*`, or `ttc_*` ids, and do not say a card was submitted from ordinary prose, a Todo/Kanban item, or `homeai-note` metadata.",
+      "`kanban_create` and legacy `t_*` ids are not Home AI repair-card transport. Never use a Kanban/Todo card as a substitute for an Owner-gated implementation repair request; for repair/capability gaps use the hidden request marker below or report that no real `ainb_*`/`ttc_*` was returned.",
       "When a host-side plugin conversation identifies a plugin-owned implementation gap, prepare a bounded Owner-gated repair request instead of pretending to call the plugin thread. Append one hidden Markdown HTML comment with exact JSON:",
       "<!-- homeai-plugin-conversation-action",
       "{\"pluginId\":\"plugin-id\",\"requestType\":\"catalog_missing\",\"severity\":\"H2\",\"title\":\"short title\",\"summary\":\"bounded problem summary\",\"suggestedChange\":\"bounded requested change\",\"acceptance\":\"focused acceptance checks\",\"evidence\":{\"catalog\":\"bounded catalog\",\"missingKey\":\"bounded_key\"}}",
       "-->",
+      "When an ordinary chat, directory-bound topic, or low-permission Gateway identifies a Home AI platform/Gateway capability gap, prepare the same Owner-gated approval for the Home AI app thread. Append one hidden Markdown HTML comment with exact JSON:",
+      "<!-- homeai-owner-task-request",
+      "{\"pluginId\":\"home-ai\",\"requestType\":\"capability_gap\",\"severity\":\"H2\",\"title\":\"short title\",\"summary\":\"bounded platform problem summary\",\"suggestedChange\":\"bounded requested Home AI change\",\"acceptance\":\"focused acceptance checks\",\"evidence\":{\"capability\":\"bounded_capability\",\"affectedSurface\":\"directory-bound chat\"}}",
+      "-->",
+      "For Home AI platform requests, use `pluginId:\"home-ai\"`; do not route them to a plugin implementation workspace merely because the request was discovered while discussing a plugin or directory.",
       "Visible prose may say that a repair request has been prepared for Home AI Owner approval. It must not claim successful submission, dispatch, or thread delivery unless a real host/tool response with `ainb_*` or `ttc_*` is available in the current run.",
-      "Never put raw health records, private plugin records, raw conversation transcripts, provider payloads, file paths, URLs with secrets, cookies, access keys, launch tokens, screenshots, uploads, full prompts, or long logs in the hidden plugin repair request.",
+      "Never put raw health records, private plugin records, raw conversation transcripts, provider payloads, file paths, URLs with secrets, cookies, access keys, launch tokens, screenshots, uploads, full prompts, or long logs in the hidden repair request.",
     ].join("\n");
   }
 

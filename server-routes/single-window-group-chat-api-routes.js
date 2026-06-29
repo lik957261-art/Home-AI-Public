@@ -82,10 +82,8 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
     "compactThreadWithMessagePage",
     "ensureGroupChatThreadForWorkspace",
     "ensureSingleWindowThread",
-    "ensureWeixinSingleWindowThread",
     "findGroupChatThreadForWorkspace",
     "findThreadForRequest",
-    "findWeixinSingleWindowThreadForWorkspace",
     "findWorkspace",
     "groupAssistantReplyForUserMessage",
     "groupMessageRevoker",
@@ -104,7 +102,6 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
     "stopRunIds",
     "threadAccessibleToAuth",
     "threadSummary",
-    "weixinForwardTargetsForWorkspace",
   ]);
   if (!deps.state) throw new Error("single-window group chat api routes require state");
 
@@ -128,30 +125,18 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
     const auth = context.auth || deps.authenticateRequest(req);
     const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || "owner");
     if (!workspaceId) return;
-    const weixinRequested = Boolean(body.weixinChat || body.weixin_chat);
-    let weixinThread = weixinRequested
-      ? deps.ensureWeixinSingleWindowThread(workspaceId)
-      : deps.findWeixinSingleWindowThreadForWorkspace(workspaceId);
-    const groupRequested = !weixinRequested && Boolean(body.groupChat || body.group_chat);
+    const groupRequested = Boolean(body.groupChat || body.group_chat);
     let availableGroupThread = deps.findGroupChatThreadForWorkspace(workspaceId);
     if (groupRequested && (!availableGroupThread || !deps.threadAccessibleToAuth(auth, availableGroupThread)) && isOwnerAuth(auth)) {
       availableGroupThread = deps.ensureGroupChatThreadForWorkspace(workspaceId, [workspaceId]);
     }
     const groupChatAvailable = Boolean(availableGroupThread && deps.threadAccessibleToAuth(auth, availableGroupThread));
     const groupThread = groupRequested && groupChatAvailable ? availableGroupThread : null;
-    const thread = weixinRequested
-      ? weixinThread
-      : (groupThread || deps.ensureSingleWindowThread(workspaceId, { allowGroupThread: false }));
+    const thread = groupThread || deps.ensureSingleWindowThread(workspaceId, { allowGroupThread: false });
     if (!thread) {
       deps.sendJson(res, 400, { error: "Unknown workspace or single-window project" });
       return;
     }
-    if (!weixinRequested) weixinThread = deps.findWeixinSingleWindowThreadForWorkspace(workspaceId);
-    const weixinTargets = deps.weixinForwardTargetsForWorkspace(workspaceId, auth);
-    const weixinChatAvailable = Boolean(
-      (weixinThread && deps.threadAccessibleToAuth(auth, weixinThread))
-      || weixinTargets.length
-    );
     deps.broadcast({ type: "thread.updated", thread: deps.threadSummary(thread) });
     const rawMessageMode = String(body.messageMode || body.message_mode || "").trim().toLowerCase();
     const messageMode = rawMessageMode || "chat";
@@ -160,7 +145,7 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
     const responseThread = wantsMessagePage
       ? deps.compactThreadWithMessagePage(thread, {
         mode: messageMode,
-        groupChat: Boolean(groupThread) && !weixinRequested,
+        groupChat: Boolean(groupThread),
         taskGroupId: requestedTaskGroupId,
         limit: body.messageLimit || body.message_limit || threadMessageInitialLimit,
       })
@@ -169,13 +154,6 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
       ? deps.compactThreadWithMessagePage(availableGroupThread, {
         mode: "chat",
         groupChat: true,
-        limit: body.messageLimit || body.message_limit || threadMessageInitialLimit,
-      })
-      : null;
-    const weixinChatThread = weixinRequested && weixinThread && deps.threadAccessibleToAuth(auth, weixinThread)
-      ? deps.compactThreadWithMessagePage(weixinThread, {
-        mode: "chat",
-        groupChat: false,
         limit: body.messageLimit || body.message_limit || threadMessageInitialLimit,
       })
       : null;
@@ -190,9 +168,6 @@ function createSingleWindowGroupChatApiRoutes(deps = {}) {
       groupChatAvailable,
       groupChatThreadId: groupChatAvailable ? availableGroupThread.id : "",
       groupChatThread,
-      weixinChatAvailable,
-      weixinChatThreadId: weixinChatThread ? weixinThread.id : "",
-      weixinChatThread,
       caseTopicThreads,
     });
   }

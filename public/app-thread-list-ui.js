@@ -52,8 +52,7 @@ function renderThreads() {
 function renderChatScopeHeader(thread) {
   const header = $("chatScopeHeader");
   if (!header) return;
-  if (!isSingleWindowChatView() || !thread || isWeixinChatView()) {
-    if (thread && isWeixinChatView()) markActiveChatScopeRead(thread);
+  if (!isSingleWindowChatView() || !thread) {
     header.hidden = true;
     header.innerHTML = "";
     return;
@@ -180,7 +179,6 @@ function wireRenderedChatConversation(conversation) {
   wireMessageRevokeButtons(conversation);
   wireMessageScrollButtons(conversation);
   wireMessageReplyActionButtons(conversation);
-  wireArtifactWeixinButtons(conversation);
   wireSkillLinks(conversation);
   wireUsagePanels(conversation);
   wireMessageSkillPanels(conversation);
@@ -242,8 +240,9 @@ function renderCurrentThreadUnsafe(options = {}) {
   const conversation = $("conversation");
   if (thread && typeof retainRestoredMainConversationSurfaceIfFresh === "function" && retainRestoredMainConversationSurfaceIfFresh(options)) return;
   const readAnchorActive = typeof conversationReadAnchorActive === "function" && conversationReadAnchorActive(conversation);
-  const forceChatBottom = readAnchorActive ? false : shouldForceChatStickToBottom();
-  const stickToBottom = !readAnchorActive && Boolean(options.stickToBottom || forceChatBottom);
+  const userScrollProtected = typeof conversationUserScrollProtectActive === "function" && conversationUserScrollProtectActive();
+  const forceChatBottom = readAnchorActive || userScrollProtected ? false : shouldForceChatStickToBottom();
+  const stickToBottom = !readAnchorActive && !userScrollProtected && Boolean(options.stickToBottom || forceChatBottom);
   let bottomOffset = state.preservedBottomOffset;
   if (forceChatBottom) bottomOffset = 0;
   if (!stickToBottom && conversation.scrollHeight) {
@@ -267,14 +266,12 @@ function renderCurrentThreadUnsafe(options = {}) {
   updateNavigationControls();
   configureComposer({ enabled: true, placeholder: "Message Home AI..." });
   const infoStream = isSingleWindowView();
-  const weixinChat = isWeixinChatView();
   const groupChat = isGroupChatView();
   $("threadTitle").textContent = infoStream
     ? (state.singleWindowMode === "chat" ? (groupChat ? "群聊" : "聊天") : "话题流")
     : (thread.title || thread.id);
   renderChatScopeHeader(thread);
   if (isSingleWindowChatView()) $("threadTitle").textContent = "";
-  if (weixinChat) $("threadTitle").textContent = "\u5fae\u4fe1";
   const project = state.projects.find((item) => item.id === thread.projectId);
   const subproject = (project?.children || []).find((item) => item.id === thread.subprojectId);
   let displayMessages = isSingleWindowChatView() ? chatMessagesForThread(thread) : (thread.messages || []);
@@ -301,18 +298,22 @@ function renderCurrentThreadUnsafe(options = {}) {
   const transientChatGap = isSingleWindowChatView()
     && !displayMessages.length
     && (thread.messages || []).length
-    && (shouldForceChatStickToBottom() || currentThreadHasPendingMessages(thread) || state.currentThreadRefreshInFlight);
+    && (
+      (!userScrollProtected && shouldForceChatStickToBottom())
+      || currentThreadHasPendingMessages(thread)
+      || state.currentThreadRefreshInFlight
+    );
   const keepRenderedChatMessages = isSingleWindowChatView()
     && !displayMessages.length
     && conversation.querySelector("[data-message-id]")
     && (
       transientChatGap
-      || shouldForceChatStickToBottom()
+      || (!userScrollProtected && shouldForceChatStickToBottom())
       || currentThreadHasPendingMessages(thread)
       || state.currentThreadRefreshInFlight
     );
   if (keepRenderedChatMessages) {
-    requestCurrentThreadRefresh({ stickToBottom: !readAnchorActive, delayMs: 120 });
+    requestCurrentThreadRefresh({ stickToBottom: !readAnchorActive && !userScrollProtected, delayMs: 120 });
     scheduleConversationViewportRefresh(conversation);
     return;
   }
@@ -583,7 +584,6 @@ function renderTaskWindow(thread, conversation, options, bottomOffset) {
   wireMessageRevokeButtons(conversation);
   wireMessageScrollButtons(conversation);
   wireMessageReplyActionButtons(conversation);
-  wireArtifactWeixinButtons(conversation);
   wireUsagePanels(conversation);
   wireMessageSkillPanels(conversation);
   wireRunProgressHistoryPanels(conversation);

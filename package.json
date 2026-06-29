@@ -21,8 +21,10 @@
     "security:invariants": "node scripts/security-invariants-check.js",
     "package:runtime": "node scripts/create-runtime-package.js",
     "export:public": "node scripts/create-public-export.js",
+    "release:public": "node scripts/homeai-public-release-closure.js",
     "productization:check": "node scripts/productization-check.js",
     "public-install:preflight": "node scripts/public-install-preflight.js",
+    "upgrade:public": "node scripts/homeai-public-upgrade.js",
     "install:macos:plan": "bash scripts/install-macos-production.sh --json",
     "install:macos:first-start-preflight": "node scripts/macos-first-start-preflight.js",
     "deploy:macos": "node scripts/deploy-macos-production.js",
@@ -30,6 +32,7 @@
     "ios:pwa:visual": "node scripts/ios-pwa-visual-harness.js",
     "visual:polish": "node scripts/visual-polish-controller.js",
     "visual:smoke": "node scripts/playwright-visual-smoke.js",
+    "self:loop": "node scripts/homeai-self-improving-loop.js",
     "test": "node scripts/run-checks.js --test",
     "migrate:sqlite:dry-run": "node scripts/migrate-json-to-sqlite.js --dry-run",
     "start": "node server.js"

@@ -25,6 +25,8 @@ const REQUIRED_PLUGIN_IDS = [
   "finance",
   "growth",
   "health",
+  "moira",
+  "movie",
   "note",
   "music",
   "wardrobe",

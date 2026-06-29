@@ -651,16 +651,9 @@ function updateTopMoreControls() {
     toggleGroupChat.hidden = true;
     toggleGroupChat.disabled = true;
   }
-  const toggleWeixinChat = $("topToggleWeixinChat");
-  if (toggleWeixinChat) {
-    const canToggleWeixin = Boolean(chatView);
-    toggleWeixinChat.hidden = !canToggleWeixin;
-    toggleWeixinChat.disabled = !canToggleWeixin;
-    toggleWeixinChat.textContent = isWeixinChatView() ? "\u666e\u901a\u804a\u5929" : "\u5fae\u4fe1";
-  }
   const manageGroupMembers = $("topManageGroupMembers");
   if (manageGroupMembers) {
-    const canManageGroupMembers = Boolean(state.auth?.isOwner && chatView && !isWeixinChatView() && state.currentThread && groupChatSelectable(state.currentThread));
+    const canManageGroupMembers = Boolean(state.auth?.isOwner && chatView && state.currentThread && groupChatSelectable(state.currentThread));
     manageGroupMembers.hidden = !canManageGroupMembers;
     manageGroupMembers.disabled = !canManageGroupMembers || !state.currentThread;
   }

@@ -162,15 +162,13 @@ Deployment/readback rules:
   `notificationType=autonomous_delivery.deploy_readback_required`;
 - only Owner may start deployment/readback from that projection or equivalent
   Owner-only API call;
-- starting deployment/readback creates a separate `deployment_owner` slice only
-  when another workspace is required to act. If the owning plugin can execute
-  the central `deploy:macos -- --plugin <plugin-id>` path from its own loop,
-  the deployment/readback projection must instruct that plugin-owned loop to
-  continue and must not route a Home AI deployment card merely to run the
-  shared script. If a card is needed because the blocker is platform-owned, it
-  routes one task card to the owning workspace, stores the deployment task-card
-  id, completes the Inbox item, and moves the case to
-  `deployment_dispatched`;
+- starting deployment/readback creates a separate `deployment_owner` slice and
+  routes one task card to the dedicated `Home AI Deploy` Codex thread. Plugin
+  implementation threads prepare source, tests, commit/push when applicable,
+  deploy plan, and bounded readback expectations, but they do not receive sudo
+  password-file paths and do not execute production deployment directly. The
+  coordinator stores the deployment task-card id, completes the Inbox item, and
+  moves the case to `deployment_dispatched`;
 - deployment/readback task cards must use the established central/plugin
   deploy contract and return bounded production readback evidence;
 - completed deployment/readback returns annotate the original implementation

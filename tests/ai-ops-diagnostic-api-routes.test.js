@@ -140,8 +140,48 @@ async function testCreateEventCreatesOwnerNotificationWhenReady() {
   assert.deepEqual(body.owner_notification, {
     ok: true,
     notified: true,
+    auto_dispatched: false,
     inbox_item_id: "ainb_diag_1",
+    task_card_id: "",
     reason: "",
+  });
+}
+
+async function testCreateSelfCheckEventReportsAutoDispatch() {
+  const notificationCalls = [];
+  const { deps } = createDeps({
+    workflowService: {
+      async notifyOwner(input) {
+        notificationCalls.push(input);
+        return {
+          ok: true,
+          notified: false,
+          autoDispatched: true,
+          reason: "auto_self_check_task_card",
+          taskCardResult: { cardIds: ["ttc_self_check_1"] },
+        };
+      },
+    },
+  });
+  const routes = createAiOpsDiagnosticApiRoutes(deps);
+  const res = makeResponse();
+  const req = makeReq("POST", "/api/v1/home-ai/diagnostics/events", {
+    workspaceId: "owner",
+    source_surface: "home-ai-self-check",
+    diagnostic_type: "self_check_signal_failed",
+    category: "self_check_plugin_proxy",
+  });
+  await routes.handle(req, res, new URL(req.url, "http://localhost"), { auth: { workspaceId: "owner" } });
+  const body = jsonBody(res);
+  assert.equal(res.statusCode, 202);
+  assert.deepEqual(notificationCalls, [{ case_id: "diagcase_test" }]);
+  assert.deepEqual(body.owner_notification, {
+    ok: true,
+    notified: false,
+    auto_dispatched: true,
+    inbox_item_id: "",
+    task_card_id: "ttc_self_check_1",
+    reason: "auto_self_check_task_card",
   });
 }
 
@@ -215,6 +255,7 @@ function testDependencyValidation() {
 async function run() {
   await testCreateEventRequiresWorkspaceAndStores();
   await testCreateEventCreatesOwnerNotificationWhenReady();
+  await testCreateSelfCheckEventReportsAutoDispatch();
   await testDeniedWorkspaceStopsCreate();
   await testOwnerListsCasesAndEvents();
   await testOwnerUpdatesCaseState();

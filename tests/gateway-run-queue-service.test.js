@@ -120,7 +120,7 @@ function testQueuedInstructionTextAndRunOptionMerge() {
         instructions: "previous instruction",
         reasoning_effort: "low",
         model: "gpt-test",
-        gatewayRouting: { source: "weixin" },
+        gatewayRouting: { source: "mail" },
       },
     },
   };
@@ -128,7 +128,7 @@ function testQueuedInstructionTextAndRunOptionMerge() {
   assert.equal(runOptions.singleWindowMode, "chat");
   assert.equal(runOptions.reasoning_effort, "high");
   assert.equal(runOptions.model, "gpt-test");
-  assert.deepEqual(runOptions.gatewayRouting, { source: "weixin" });
+  assert.deepEqual(runOptions.gatewayRouting, { source: "mail" });
   assert.equal(runOptions.instructions, `previous instruction\n\n${QUEUED_CHAT_INSTRUCTIONS}`);
 
   const taskOptions = service.buildQueuedRunOptions({
@@ -309,7 +309,7 @@ function testQueuedAssistantFactoryAndHistoryCompactionAreInjected() {
     reasoningEffort: "high",
     singleWindowMode: "chat",
     fields: {
-      externalDelivery: { source: "weixin", status: "waiting" },
+      externalDelivery: { source: "mail", status: "waiting" },
     },
   });
 
@@ -323,7 +323,7 @@ function testQueuedAssistantFactoryAndHistoryCompactionAreInjected() {
   assert.equal(message.actorWorkspaceId, "child_workspace");
   assert.equal(message.reasoningEffort, "high");
   assert.equal(message.singleWindowMode, "chat");
-  assert.deepEqual(message.externalDelivery, { source: "weixin", status: "waiting" });
+  assert.deepEqual(message.externalDelivery, { source: "mail", status: "waiting" });
 
   const compacted = service.compactQueuedConversationHistory(["a", "b", "c"], 2, 100, { principal_id: "owner" });
   assert.deepEqual(compacted, ["b", "c"]);

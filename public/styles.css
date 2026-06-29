@@ -3606,6 +3606,42 @@ button {
   background: var(--ui-accent-soft);
 }
 
+.message-wardrobe-action {
+  flex: 0 0 auto;
+  min-height: 24px;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 9px;
+  padding: 3px 8px;
+  color: var(--ui-accent-ink);
+  background: var(--ui-surface-muted);
+  border: 1px solid var(--ui-hairline);
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.15;
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+.message-wardrobe-action[data-wardrobe-outfit-status="stored"] {
+  color: var(--ui-success-ink);
+}
+
+.message-wardrobe-action[data-wardrobe-outfit-status="needs_confirmation"] {
+  color: var(--ui-warning-ink);
+}
+
+.message-wardrobe-action[data-wardrobe-outfit-status="error"] {
+  color: var(--danger);
+}
+
+.message-wardrobe-action:disabled {
+  opacity: 0.72;
+}
+
 .message-line-icon {
   width: 16px;
   height: 16px;
@@ -4536,13 +4572,12 @@ button.directory-alias-chip {
 .artifact-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 30px 34px;
+  grid-template-columns: minmax(0, 1fr) 30px;
   align-items: center;
   gap: 7px;
 }
 
-.artifact-directory-button,
-.artifact-weixin-button {
+.artifact-directory-button {
   width: 30px;
   min-width: 30px;
   min-height: 30px;
@@ -4558,34 +4593,12 @@ button.directory-alias-chip {
   box-shadow: none;
 }
 
-.artifact-weixin-button {
-  width: 34px;
-  min-width: 34px;
-  color: rgba(31, 111, 98, 0.78);
-  font-size: 11px;
-  letter-spacing: 0;
-}
-
 .artifact-directory-button.compact {
   width: 22px;
   min-width: 22px;
   min-height: 24px;
   border-radius: 8px;
   font-size: 13px;
-}
-
-.external-delivery-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  margin-top: 10px;
-  padding: 4px 9px;
-  color: rgba(31, 111, 98, 0.82);
-  background: rgba(31, 111, 98, 0.08);
-  border: 1px solid rgba(31, 111, 98, 0.12);
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 560;
 }
 
 :root[data-theme="dark"] .artifact-card,
@@ -4595,14 +4608,12 @@ button.directory-alias-chip {
   box-shadow: none;
 }
 
-:root[data-theme="dark"] .artifact-directory-button,
-:root[data-theme="dark"] .artifact-weixin-button {
+:root[data-theme="dark"] .artifact-directory-button {
   color: var(--ui-accent-ink);
   background: var(--ui-control-bg);
   border-color: var(--ui-hairline);
 }
 
-:root[data-theme="dark"] .external-delivery-status,
 :root[data-theme="dark"] .learning-growth-role-badge {
   color: var(--ui-success-ink);
   background: var(--ui-success-surface);
@@ -4617,25 +4628,17 @@ button.directory-alias-chip {
     box-shadow: none;
   }
 
-  :root[data-theme="system"] .artifact-directory-button,
-  :root[data-theme="system"] .artifact-weixin-button {
+  :root[data-theme="system"] .artifact-directory-button {
     color: var(--ui-accent-ink);
     background: var(--ui-control-bg);
     border-color: var(--ui-hairline);
   }
 
-  :root[data-theme="system"] .external-delivery-status,
   :root[data-theme="system"] .learning-growth-role-badge {
     color: var(--ui-success-ink);
     background: var(--ui-success-surface);
     border-color: rgba(200, 234, 216, 0.18);
   }
-}
-
-.external-delivery-status.status-failed {
-  color: #9a3412;
-  background: rgba(154, 52, 18, 0.08);
-  border-color: rgba(154, 52, 18, 0.16);
 }
 
 .artifact-icon {
@@ -8219,6 +8222,7 @@ body.task-markdown-preview-open {
   display: grid;
   padding: 0;
   background: var(--ui-page);
+  color-scheme: light dark;
   touch-action: none;
 }
 
@@ -8304,6 +8308,85 @@ body.task-markdown-preview-open {
   min-height: 0;
   border: 0;
   background: var(--ui-page);
+  color-scheme: light dark;
+}
+
+.task-document-preview-native-error-body {
+  place-items: center;
+  padding: 22px;
+}
+
+.task-document-preview-native-error-card {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--ui-sheet);
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.12);
+}
+
+.task-document-preview-native-error-card strong {
+  font-size: 17px;
+  line-height: 1.28;
+}
+
+.task-document-preview-native-error-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.task-document-preview-native-error-code {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.task-document-preview-native-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.task-document-preview-native-error-actions button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--ui-hairline-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--ui-control-bg);
+  font: inherit;
+  font-weight: 700;
+}
+
+.task-document-preview-overlay[data-document-kind="word"] .task-document-preview-body,
+.task-document-preview-overlay[data-document-kind="presentation"] .task-document-preview-body,
+.task-document-preview-overlay[data-document-kind="spreadsheet"] .task-document-preview-body {
+  background: #f3f4f6;
+}
+
+.task-document-preview-overlay[data-document-kind="word"] .task-document-preview-frame,
+.task-document-preview-overlay[data-document-kind="presentation"] .task-document-preview-frame,
+.task-document-preview-overlay[data-document-kind="spreadsheet"] .task-document-preview-frame {
+  background: #fff;
+  color-scheme: light;
+}
+
+@media (max-width: 1099px) and (orientation: landscape) {
+  .task-document-preview-head {
+    min-height: 42px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+
+  .task-document-preview-actions .task-preview-more-button,
+  .task-document-preview-close {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 .task-markdown-preview-shell {

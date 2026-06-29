@@ -72,6 +72,10 @@ remaining gap as an explicit follow-up.
   `server-routes/autonomous-delivery-api-routes.js`,
   `scripts/autonomous-delivery-loop.js`
 - Public install/deploy checklist: `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
+- Public upgrade loop:
+  `docs/IMPLEMENTATION_NOTES/public-upgrade-loop.md`,
+  `scripts/homeai-public-release-closure.js`,
+  `scripts/homeai-public-upgrade.js`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`
 - NAS first-start deploy harness: `tests/nas-deploy-harness.test.js`
@@ -128,11 +132,13 @@ remaining gap as an explicit follow-up.
 - Web Push delivery and deep links: `docs/MODULES/web-push.md`,
   `scripts/macos-web-push-production-audit.js`
 - Native iOS/APNs notifications: `docs/MODULES/native-notifications.md`
-- Weixin/iLink ingress and delivery: `docs/MODULES/weixin-ingress.md`
+- Retired Weixin/iLink ingress notes: `docs/MODULES/weixin-ingress.md`
 - Grok/xAI Gateway profile routing: `docs/MODULES/grok-gateway.md`
 - Runtime state, SQLite, and disaster backup: `docs/MODULES/runtime-state-backup.md`
 - AI Operations Control Plane and diagnostic intake:
   `docs/MODULES/ai-operations-control-plane.md`
+- Home AI Self-Improving Loop:
+  `docs/MODULES/self-improving-loop.md`
 - Group chat and shared messages: `docs/MODULES/group-chat.md`
 
 ## Current Priority Runbooks

@@ -6,6 +6,8 @@ const {
   policyThreadForRun,
   resolveActorWorkspaceId,
 } = require("../adapters/gateway-run-start-service");
+const { createAccessPolicyProvider } = require("../adapters/access-policy-provider");
+const { createPluginAuthorizedToolsetService } = require("../adapters/plugin-authorized-toolset-service");
 
 function makeHarness(overrides = {}) {
   const calls = {
@@ -684,6 +686,68 @@ async function testWardrobePluginTopicForcesSkillMcpStackAndPluginContext() {
     name: "productivity/wardrobe-style-operations",
     source: "required_preload",
   });
+}
+
+async function testMoviePluginConversationRunInjectsMovieMcpToolset() {
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, _user, project) => ({
+      principal_id: routePolicy.principal_id || "unknown",
+      allowed_roots: [project.root],
+      allowed_toolsets: ["file", "web", "movie"],
+      authorized_toolsets: ["file", "web", "movie"],
+      connector_profiles: { base: { type: "profile" } },
+    }),
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      taskGroupId: "plugin:movie",
+      content: "推荐几个今晚可以看的片源",
+    }),
+    assistant,
+    { actorWorkspaceId: "owner", model: "gpt-test", provider: "openai-codex" },
+  );
+
+  assert.deepEqual(calls.gatewayRouting[0].requiredToolsets, ["movie"]);
+  assert.deepEqual(calls.gatewayRouting[0].enabledToolsets, ["movie"]);
+  assert.deepEqual(calls.streams[0].body.enabled_toolsets, ["file", "web", "movie"]);
+  assert.deepEqual(calls.streams[0].body.access_policy_context.required_toolsets, ["movie"]);
+  assert.deepEqual(calls.hermesInstructions[0].buildOptions.pluginTopicContext.requiredToolsets, ["movie"]);
+  assert.equal(calls.hermesInstructions[0].buildOptions.pluginTopicContext.pluginId, "movie");
+}
+
+async function testMoviePluginConversationRunGetsMovieFromOwnerAuthorization() {
+  const pluginAuthorizedToolsetService = createPluginAuthorizedToolsetService({
+    dataDir: "",
+    env: {},
+    cacheTtlMs: 0,
+  });
+  const accessPolicyProvider = createAccessPolicyProvider({
+    pluginToolsetsForWorkspace: (workspaceId) => pluginAuthorizedToolsetService.toolsetsForWorkspace(workspaceId),
+  });
+  const { calls, service } = makeHarness({
+    buildAccessPolicy: (routePolicy, user, project) => accessPolicyProvider.build(routePolicy, user, project),
+  });
+  const assistant = baseAssistantMessage();
+
+  await service.startRunForThread(
+    baseThread({ workspaceId: "owner" }),
+    baseUserMessage({
+      senderWorkspaceId: "owner",
+      taskGroupId: "plugin:movie",
+      content: "推荐几个今晚可以看的片源",
+    }),
+    assistant,
+    { actorWorkspaceId: "owner", model: "gpt-test", provider: "openai-codex" },
+  );
+
+  assert.ok(calls.streams[0].body.access_policy_context.allowed_toolsets.includes("movie"));
+  assert.ok(calls.streams[0].body.enabled_toolsets.includes("movie"));
+  assert.deepEqual(calls.gatewayRouting[0].requiredToolsets, ["movie"]);
+  assert.deepEqual(calls.gatewayRouting[0].enabledToolsets, ["movie"]);
 }
 
 async function testWardrobePluginTopicFailsBeforeGatewayWhenRequiredSkillMissing() {
@@ -1709,6 +1773,8 @@ function testMarkStartFailedFormatsGatewayCapacityError() {
   await testHealthProfileImportActivatesHealthMcpThroughRunAssemblyHarness();
   await testEmailRequestActivatesEmailMcpThroughRunAssemblyHarness();
   await testWardrobePluginTopicForcesSkillMcpStackAndPluginContext();
+  await testMoviePluginConversationRunInjectsMovieMcpToolset();
+  await testMoviePluginConversationRunGetsMovieFromOwnerAuthorization();
   await testWardrobePluginTopicFailsBeforeGatewayWhenRequiredSkillMissing();
   await testWardrobeOutfitGateRequiresWeatherBeforeGateway();
   await testWardrobeOutfitGatePassesWithWeatherAndAddsCompletionMetadata();

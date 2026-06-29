@@ -51,6 +51,21 @@ const WORKSPACE_PLUGIN_BINDINGS = Object.freeze([
 const DEFAULT_PROFILE_SOUL = "You are Hermes Agent, an intelligent AI assistant created by Nous Research. You are helpful, knowledgeable, and direct. You assist users with a wide range of tasks including answering questions, writing and editing code, analyzing information, creative work, and executing actions via your tools. You communicate clearly, admit uncertainty when appropriate, and prioritize being genuinely useful over being verbose unless otherwise directed below. Be targeted and efficient in your exploration and investigations.";
 const GATEWAY_MCP_WORKER_ASSETS = Object.freeze([
   {
+    id: "wardrobe",
+    files: [
+      {
+        kind: "directory",
+        source: ["plugins", "wardrobe", "scripts"],
+        target: ["gateway-worker", "wardrobe-mcp", "scripts"],
+      },
+      {
+        kind: "directory",
+        source: ["plugins", "wardrobe", "wardrobe_app"],
+        target: ["gateway-worker", "wardrobe-mcp", "wardrobe_app"],
+      },
+    ],
+  },
+  {
     id: "growth",
     files: [
       {
@@ -118,6 +133,20 @@ const GATEWAY_MCP_WORKER_ASSETS = Object.freeze([
       },
     ],
   },
+  {
+    id: "movie",
+    files: [
+      {
+        kind: "directory",
+        source: ["plugins", "movie", "src"],
+        target: ["gateway-worker", "movie-mcp", "src"],
+      },
+      {
+        source: ["plugins", "movie", "package.json"],
+        target: ["gateway-worker", "movie-mcp", "package.json"],
+      },
+    ],
+  },
 ]);
 const GATEWAY_MCP_SERVER_FILES = Object.freeze({
   wardrobe: ["gateway-worker", "wardrobe-mcp", "scripts", "wardrobe-mcp.py"],
@@ -127,6 +156,7 @@ const GATEWAY_MCP_SERVER_FILES = Object.freeze({
   growth: ["gateway-worker", "growth-mcp", "scripts", "growth-mcp-wrapper.js"],
   moira: ["gateway-worker", "moira-mcp", "scripts", "moira-mcp-stdio.mjs"],
   music: ["gateway-worker", "music-mcp", "src", "mcp-stdio.js"],
+  movie: ["gateway-worker", "movie-mcp", "src", "mcp-stdio.js"],
   email: ["gateway-worker", "email-mcp", "scripts", "email-mcp-wrapper.py"],
 });
 const ALLOWED_ACTIONS = new Set([
@@ -571,6 +601,13 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     return skillStoreIdForWorker(fields, worker) === "owner-full";
   }
 
+  function ownerMovieEnabledForWorker(fields, worker = {}) {
+    if (fields.workspaceId !== "owner") return false;
+    const workspaceIds = workspaceIdsForWorker(worker);
+    if (workspaceIds.includes("owner")) return true;
+    return skillStoreIdForWorker(fields, worker) === "owner-full";
+  }
+
   function availableWorkspacePluginToolsets(fields, worker = {}) {
     const out = [];
     for (const binding of WORKSPACE_PLUGIN_BINDINGS) {
@@ -581,6 +618,9 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     }
     if (ownerMusicEnabledForWorker(fields, worker) && fileExists(path.posix.join(fields.root, ...GATEWAY_MCP_SERVER_FILES.music))) {
       out.push("music");
+    }
+    if (ownerMovieEnabledForWorker(fields, worker) && fileExists(path.posix.join(fields.root, ...GATEWAY_MCP_SERVER_FILES.movie))) {
+      out.push("movie");
     }
     return out;
   }
@@ -980,6 +1020,14 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       music_mcp_path: path.posix.join(fields.root, "gateway-worker", "music-mcp", "src", "mcp-stdio.js"),
       music_workspace: fields.workerWorkspaceRoot,
       music_sqlite_path: path.posix.join(fields.root, "plugins", "music", "runtime", "music.sqlite"),
+    });
+    if (ownerMovieEnabledForWorker(fields, worker) && fileExists(path.posix.join(fields.root, "gateway-worker", "movie-mcp", "src", "mcp-stdio.js"))) Object.assign(pluginValues, {
+      movie_enabled: "1",
+      movie_mcp_command: path.posix.join(fields.root, "runtime", "node-current", "bin", "npm"),
+      movie_mcp_root: path.posix.join(fields.root, "gateway-worker", "movie-mcp"),
+      movie_config_path: path.posix.join(fields.root, "plugins", "movie", "data", "movie-devices.json"),
+      movie_metadata_db: path.posix.join(fields.root, "plugins", "movie", "data", "movie-metadata.sqlite"),
+      movie_playback_state_file: path.posix.join(fields.root, "plugins", "movie", "data", "playback-state.json"),
     });
     const configFile = path.posix.join(dir, "config.yaml");
     const configYaml = renderGatewayConfigYaml({

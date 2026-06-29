@@ -271,7 +271,6 @@ function actionInboxSourceLabel(sourceType) {
   if (value === "automation") return "\u81ea\u52a8\u5316";
   if (value === "manual") return "\u5f85\u529e";
   if (value === "chat") return "\u4efb\u52a1\u56de\u6267";
-  if (value === "weixin") return "\u5fae\u4fe1";
   if (value === "directory") return "\u76ee\u5f55";
   if (value === "autonomous_delivery") return "\u4ea4\u4ed8 Loop";
   return value || "\u6536\u4ef6";
@@ -664,7 +663,12 @@ function actionInboxActionMenuItems(item = {}) {
   }
   if (actionInboxIsPluginConversationRepairRequest(item) && !actionInboxIsTerminalStatus(item.status)) {
     const pending = actionInboxTaskCardActionInFlight(item);
-    actions.push({ id: "plugin-conversation-send-card", label: actionInboxTaskCardActionLabel(item), tone: pending ? "neutral" : "primary", disabled: pending });
+    actions.push({
+      id: "plugin-conversation-send-card",
+      label: actionInboxTaskCardActionLabel(item),
+      tone: pending ? "neutral" : "primary",
+      disabled: pending,
+    });
     actions.push({ id: "snooze", label: "\u7a0d\u540e", tone: "neutral" });
     actions.push({ id: "dismiss", label: "\u5220\u9664", tone: "danger" });
     return actions;

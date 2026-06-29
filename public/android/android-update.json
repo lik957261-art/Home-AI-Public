@@ -1,8 +1,8 @@
 {
-  "versionCode": 20,
-  "versionName": "0.4.16",
+  "versionCode": 31,
+  "versionName": "0.4.27",
   "apkUrl": "https://wardrobe-xuxin.synology.me:8555/android/HomeAI-Android-native-shell-debug-20260621.apk",
-  "sha256": "9f23019528cac42c04a48775d51071d6694145235eef33a07ef96c2b91409341",
-  "size": 3310659,
-  "notes": "Home AI Android native shell v0.4.16: refresh carrier for Web client v903 Android WebView plugin-exit navigation recovery; keeps v0.4.15 native behavior, status bar handling, WebView file picker forwarding, and foreground update checks."
+  "sha256": "219084c8a705aa272c592c3eb10b77ddeb22da2e632ff71e894c662e66c9ad5f",
+  "size": 4117412,
+  "notes": "Home AI Android native shell v0.4.27: adds a native Android clipboard bridge and Composer long-press clipboard menu for paste, copy, and select-all. This provides a shell-level fallback when Android WebView's built-in text ActionMode loses Composer focus. Keeps v0.4.26 Composer touch exclusion and WebView focusability fixes."
 }

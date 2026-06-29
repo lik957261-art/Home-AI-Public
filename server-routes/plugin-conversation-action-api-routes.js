@@ -10,7 +10,7 @@ const PLUGIN_CONVERSATION_ACTION_API_ROUTE_SPECS = Object.freeze([
     group: "plugin-conversation-actions",
     moduleKey: "plugin-conversation-actions",
     handlerKey: "createRequest",
-    summary: "Create an Owner-gated repair request from a Home AI plugin conversation window.",
+    summary: "Create an Owner-gated repair request from a Home AI plugin, chat, or directory-bound conversation window.",
     riskLevel: "medium",
     authMode: "access-key",
     authRequired: true,
@@ -32,6 +32,21 @@ const PLUGIN_CONVERSATION_ACTION_API_ROUTE_SPECS = Object.freeze([
     ownerOnly: true,
     resourceTypes: ["action-inbox", "codex-task-card"],
     tags: ["plugin-conversation", "task-card", "owner"],
+  },
+  {
+    id: "plugin-conversation-action-wardrobe-outfit-wear-intent",
+    method: "POST",
+    path: "/api/plugin-conversation/actions/wardrobe/outfit-wear-intent",
+    group: "plugin-conversation-actions",
+    moduleKey: "plugin-conversation-actions",
+    handlerKey: "executeWardrobeOutfitWearIntent",
+    summary: "Execute a prepared Wardrobe outfit wear intent through the deterministic MCP action bridge.",
+    riskLevel: "medium",
+    authMode: "access-key",
+    authRequired: true,
+    workspaceScoped: true,
+    resourceTypes: ["plugin", "wardrobe", "mcp", "message"],
+    tags: ["plugin-conversation", "wardrobe", "deterministic-action"],
   },
 ]);
 
@@ -64,6 +79,12 @@ function itemIdFromTaskCardPath(pathname) {
   const raw = value.slice(prefix.length, -suffix.length);
   if (!raw || raw.includes("/")) return "";
   return decodeURIComponent(raw);
+}
+
+function messageFromThread(thread, messageId) {
+  const id = clean(messageId, 180);
+  if (!id) return null;
+  return (Array.isArray(thread?.messages) ? thread.messages : []).find((message) => String(message?.id || "") === id) || null;
 }
 
 function responseFromResult(deps, res, result, successStatus = 200) {
@@ -129,6 +150,47 @@ function createPluginConversationActionApiRoutes(deps = {}) {
     return { handled: true, status: res.statusCode || 200 };
   }
 
+  async function handleWardrobeOutfitWearIntent(req, res, url, context = {}) {
+    if (!deps.wardrobeOutfitWearIntentActionService || typeof deps.wardrobeOutfitWearIntentActionService.execute !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "wardrobe_outfit_action_service_unavailable" });
+      return { handled: true, status: 503 };
+    }
+    if (typeof deps.findThreadForRequest !== "function") {
+      deps.sendJson(res, 503, { ok: false, error: "thread_lookup_unavailable" });
+      return { handled: true, status: 503 };
+    }
+    const body = await deps.readBody(req, 64 * 1024).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, body.__error.status || 400, safeErrorPayload(body.__error));
+      return { handled: true, status: body.__error.status || 400 };
+    }
+    const workspaceId = deps.requireWorkspaceAccess(req, res, workspaceFromRequest(url, body, context.auth));
+    if (!workspaceId) return { handled: true, status: res.statusCode || 403 };
+    const threadId = clean(body.threadId || body.thread_id || url.searchParams.get("threadId"), 180);
+    const messageId = clean(body.messageId || body.message_id || url.searchParams.get("messageId"), 180);
+    const thread = deps.findThreadForRequest(req, threadId);
+    if (!thread) {
+      deps.sendJson(res, 404, { ok: false, error: "thread_not_found" });
+      return { handled: true, status: 404 };
+    }
+    const message = messageFromThread(thread, messageId);
+    if (!message) {
+      deps.sendJson(res, 404, { ok: false, error: "message_not_found" });
+      return { handled: true, status: 404 };
+    }
+    const result = await deps.wardrobeOutfitWearIntentActionService.execute({
+      thread,
+      message,
+      workspaceId,
+      principalId: clean(context.auth?.principalId || message.senderPrincipalId || message.actorWorkspaceId || workspaceId, 120) || workspaceId,
+      confirmReplace: body.confirmReplace || body.confirm_replace,
+      mode: body.mode,
+    });
+    const status = result?.message || result?.actionState ? 200 : Number(result?.status || (result?.ok ? 200 : 400));
+    deps.sendJson(res, status, result);
+    return { handled: true, status: res.statusCode || Number(result?.status || 200) };
+  }
+
   async function handle(req, res, url, context = {}) {
     const match = registry.match({ method: req.method, path: url.pathname });
     if (!match) return { handled: false };
@@ -137,6 +199,9 @@ function createPluginConversationActionApiRoutes(deps = {}) {
     }
     if (match.id === "plugin-conversation-action-task-card") {
       return handleSendTaskCard(req, res, url, context);
+    }
+    if (match.id === "plugin-conversation-action-wardrobe-outfit-wear-intent") {
+      return handleWardrobeOutfitWearIntent(req, res, url, context);
     }
     return { handled: false };
   }

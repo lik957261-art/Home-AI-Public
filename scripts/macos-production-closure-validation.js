@@ -16,8 +16,11 @@ const MAC_BASE_SCHEMA_TOOLS = [
   "image_generate",
   "chatgpt_image_edit",
   "chatgpt_image_erase",
+  "docx_create",
   "docx_extract_text",
   "office_extract_text",
+  "pptx_create",
+  "pdf_create",
   "pdf_extract_text",
   "pdf_render_pages",
   "audio_transcribe",
@@ -32,7 +35,6 @@ function parseArgs(argv) {
     node: "",
     base: process.env.HERMES_MOBILE_SMOKE_BASE || DEFAULT_BASE,
     ownerKeyFile: "",
-    ingressKeyFile: "",
     manifest: "",
     runtimeSource: "",
     runtimeOverrides: "",
@@ -48,7 +50,6 @@ function parseArgs(argv) {
     skipWardrobeBinding: false,
     skipAutomationCron: false,
     skipDeepseek: false,
-    skipWeixin: false,
     skipConcurrency: false,
     json: false,
   };
@@ -59,7 +60,6 @@ function parseArgs(argv) {
     else if (arg === "--node") out.node = argv[++index] || out.node;
     else if (arg === "--base") out.base = argv[++index] || out.base;
     else if (arg === "--owner-key-file") out.ownerKeyFile = argv[++index] || out.ownerKeyFile;
-    else if (arg === "--ingress-key-file") out.ingressKeyFile = argv[++index] || out.ingressKeyFile;
     else if (arg === "--manifest") out.manifest = argv[++index] || out.manifest;
     else if (arg === "--runtime-source") out.runtimeSource = argv[++index] || out.runtimeSource;
     else if (arg === "--runtime-overrides") out.runtimeOverrides = argv[++index] || out.runtimeOverrides;
@@ -75,7 +75,6 @@ function parseArgs(argv) {
     else if (arg === "--skip-wardrobe-binding") out.skipWardrobeBinding = true;
     else if (arg === "--skip-automation-cron") out.skipAutomationCron = true;
     else if (arg === "--skip-deepseek") out.skipDeepseek = true;
-    else if (arg === "--skip-weixin") out.skipWeixin = true;
     else if (arg === "--skip-concurrency") out.skipConcurrency = true;
     else if (arg === "--json") out.json = true;
     else if (arg === "--help") {
@@ -86,7 +85,6 @@ function parseArgs(argv) {
         "  --node <file>             Pinned Node path, default <root>/runtime/node-current/bin/node",
         "  --base <url>              Home AI origin, default http://127.0.0.1:8797",
         "  --owner-key-file <file>   Owner Web key file; path and contents are not printed",
-        "  --ingress-key-file <file> Weixin ingress key file; path and contents are not printed",
         "  --expected-version <value> Expected served client version; default reads <app>/public/index.html",
         "  --skip-schema             Skip native Gateway schema probes",
         "  --skip-plugin-directory   Skip plugin delivery-directory creation and preview smoke",
@@ -94,7 +92,6 @@ function parseArgs(argv) {
         "  --skip-wardrobe-binding   Skip Wardrobe manifest/binding/proxy content smoke",
         "  --skip-automation-cron    Skip Automation cron source/config/status audit",
         "  --skip-deepseek           Skip product-route DeepSeek provider smokes",
-        "  --skip-weixin             Skip Weixin ingress heartbeat smoke",
         "  --skip-concurrency        Skip two-run Owner/OpenAI concurrency smoke",
         "  --json                    Print bounded JSON metadata",
       ].join("\n"));
@@ -108,7 +105,6 @@ function parseArgs(argv) {
   out.node = out.node || macPath.join(out.root, "runtime", "node-current", "bin", "node");
   out.base = String(out.base || DEFAULT_BASE).replace(/\/+$/, "");
   out.ownerKeyFile = out.ownerKeyFile || macPath.join(out.root, "data", "secrets", "owner-web-key.secret");
-  out.ingressKeyFile = out.ingressKeyFile || macPath.join(out.root, "data", "weixin-ingress.secret");
   out.manifest = out.manifest || macPath.join(out.root, "data", "gateway-pool-manifest-mac.json");
   out.runtimeSource = out.runtimeSource || macPath.join(out.root, "runtime", "hermes-agent-official", "source");
   out.runtimeOverrides = out.runtimeOverrides || macPath.join(out.app, "gateway-runtime-overrides");
@@ -149,7 +145,6 @@ function sanitize(text, options) {
   let out = String(text || "");
   const replacements = [
     [options.ownerKeyFile, "<owner-key-file>"],
-    [options.ingressKeyFile, "<weixin-ingress-key-file>"],
     [options.root, "<HERMES_MOBILE_ROOT>"],
     [options.app, "<HERMES_MOBILE_APP>"],
   ];
@@ -337,27 +332,6 @@ function compactGatewaySmoke(data) {
     gatewaySource: data.run?.gatewaySource || "",
     maintenance: Boolean(data.run?.gatewayMaintenance),
     category: data.run?.gatewayMaintenanceCategory || "",
-  };
-}
-
-function compactWeixin(weixin) {
-  return {
-    ok: Boolean(weixin.ok),
-    mode: weixin.mode || "",
-    ingressAuthHeader: weixin.ingressAuthHeader || "",
-    wrongHeaderDenied: Boolean(weixin.wrongHeaderDenied),
-    wrongHeaderStatus: Number(weixin.wrongHeaderStatus || 0),
-    workspaces: (weixin.workspaces || []).map((row) => ({
-      workspaceId: row.workspaceId,
-      status: row.status,
-      heartbeat: Boolean(row.heartbeat),
-      skipped: Boolean(row.skipped),
-      reason: row.reason || "",
-      responseWorkspaceId: row.responseWorkspaceId || "",
-      hasRun: Boolean(row.hasRun),
-      hasThread: Boolean(row.hasThread),
-      hasMessage: Boolean(row.hasMessage),
-    })),
   };
 }
 
@@ -604,12 +578,6 @@ async function runClosure(options) {
     ])),
   };
 
-  const weixin = options.skipWeixin ? null : compactWeixin(await runNodeJson("weixin", options, "weixin-ingress-production-smoke.js", [
-    "--base", options.base,
-    "--ingress-key-file", options.ingressKeyFile,
-    "--json",
-  ]));
-
   const concurrency = options.skipConcurrency ? null : await runOwnerConcurrency(options);
   const finalStatus = compactStatus(await runNodeJson("final-status", options, "production-status-smoke.js", productionStatusArgs(options)));
   assertNoOauthProcess();
@@ -631,9 +599,6 @@ async function runClosure(options) {
     && schemas.every((row) => row.ok)
     && (!deepseek || (deepseek.user.ok && deepseek.user.gatewayProfile === "deepseekgw1" && !deepseek.user.maintenance
       && deepseek.maintenance.ok && deepseek.maintenance.gatewayProfile === "deepseekmaint1" && deepseek.maintenance.maintenance))
-    && (!weixin || (weixin.ok && weixin.wrongHeaderDenied && weixin.workspaces.every((row) => (
-      row.heartbeat && !row.skipped && row.reason === "weixin_ingress_heartbeat" && !row.hasRun && !row.hasThread && !row.hasMessage
-    ))))
     && (!concurrency || concurrency.ok)
     && finalStatus.ok
     && finalStatus.activeGlobal === 0
@@ -650,7 +615,6 @@ async function runClosure(options) {
       wardrobeBinding: options.skipWardrobeBinding ? "skipped" : "included",
       automationCron: options.skipAutomationCron ? "skipped" : "included",
       deepseek: options.skipDeepseek ? "skipped" : "included",
-      weixin: options.skipWeixin ? "skipped" : "included",
       ownerConcurrency: options.skipConcurrency ? "skipped" : "included",
     },
     oauthAuthProcess: "absent",
@@ -664,7 +628,6 @@ async function runClosure(options) {
     automationCron,
     schemas,
     deepseek,
-    weixin,
     concurrency,
     finalStatus,
   };
@@ -697,7 +660,6 @@ module.exports = {
   compactRuntimePython,
   compactSchema,
   compactStatus,
-  compactWeixin,
   compactPluginDirectory,
   compactWardrobeBinding,
   compactAutomationCron,

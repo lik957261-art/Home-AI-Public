@@ -43,22 +43,6 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     authRequired: false,
     resourceTypes: ["access-key"],
   })),
-  exact("weixin-ingress-events", "POST", "/api/ingress/weixin/events", "ingress", routeOptions("weixin-ingress", {
-    riskLevel: "high",
-    authMode: "ingress",
-    resourceTypes: ["weixin", "message"],
-  })),
-  exact("weixin-ingress-outbound", "GET", "/api/ingress/weixin/outbound", "ingress", routeOptions("weixin-ingress", {
-    riskLevel: "high",
-    authMode: "ingress",
-    resourceTypes: ["weixin", "delivery"],
-  })),
-  regex("weixin-ingress-outbound-ack", "POST", /^\/api\/ingress\/weixin\/outbound\/[^/]+\/ack$/, "ingress", routeOptions("weixin-ingress", {
-    riskLevel: "high",
-    authMode: "ingress",
-    resourceTypes: ["weixin", "delivery"],
-  })),
-
   exact("client-version", "GET", "/api/client-version", "system", routeOptions("system-status", {
     resourceTypes: ["client-version"],
   })),
@@ -75,16 +59,6 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
   exact("status", "GET", "/api/status", "system", routeOptions("system-status", {
     resourceTypes: ["status", "gateway-pool"],
   })),
-  exact("weixin-forward-targets", "GET", "/api/weixin/forward-targets", "weixin", routeOptions("weixin-forwarding", {
-    workspaceScoped: true,
-    resourceTypes: ["weixin", "workspace"],
-  })),
-  exact("weixin-forward-file", "POST", "/api/weixin/forward-file", "weixin", routeOptions("weixin-forwarding", {
-    workspaceScoped: true,
-    resourceTypes: ["weixin", "file", "delivery"],
-    riskLevel: "medium",
-  })),
-
   exact("owner-elevation-status", "GET", "/api/owner-elevation", "owner-elevation", routeOptions("owner-elevation", {
     riskLevel: "owner",
     ownerOnly: true,
@@ -283,7 +257,7 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     riskLevel: "medium",
     workspaceScoped: true,
     resourceTypes: ["plugin", "action-inbox", "codex-task-card"],
-    summary: "Create an Owner-gated repair request from a Home AI plugin conversation window.",
+    summary: "Create an Owner-gated repair request from a Home AI plugin, chat, or directory-bound conversation window.",
   })),
   regex("plugin-conversation-action-task-card", "POST", /^\/api\/plugin-conversation\/actions\/[^/]+\/task-card$/, "plugin-conversation-actions", routeOptions("plugin-conversation-actions", {
     riskLevel: "owner",

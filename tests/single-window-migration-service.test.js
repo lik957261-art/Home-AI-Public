@@ -161,11 +161,11 @@ function groupThreadFixture() {
         ],
       },
       {
-        id: "weixin-child",
+        id: "external-child-2",
         workspaceId: "child",
         singleWindow: true,
-        externalIngress: { source: "weixin" },
-        messages: [{ id: "weixin-msg", role: "user", createdAt: "2026-05-15T08:32:00.000Z" }],
+        externalIngress: { source: "sms" },
+        messages: [{ id: "external-2-msg", role: "user", createdAt: "2026-05-15T08:32:00.000Z" }],
       },
       {
         id: "active-external-child",
@@ -178,14 +178,14 @@ function groupThreadFixture() {
     ],
     artifacts: [
       { id: "artifact-external", threadId: "external-child", messageId: "external-msg" },
-      { id: "artifact-weixin", threadId: "weixin-child", messageId: "weixin-msg" },
+      { id: "artifact-external-2", threadId: "external-child-2", messageId: "external-2-msg" },
     ],
   };
   const { service, calls } = makeService(state);
   const privateThread = service.migratePrivateSingleWindowGroups("child");
 
   assert.equal(privateThread.id, "private-child");
-  assert.deepEqual(privateThread.messages.map((message) => message.id), ["external-msg", "existing"]);
+  assert.deepEqual(privateThread.messages.map((message) => message.id), ["external-msg", "external-2-msg", "existing"]);
   const moved = privateThread.messages.find((message) => message.id === "external-msg");
   assert.equal(moved.taskGroupId, "chat");
   assert.equal(moved.singleWindowMode, "chat");
@@ -193,10 +193,10 @@ function groupThreadFixture() {
   assert.equal(moved.externalDelivery.taskGroupId, "chat");
   assert.equal(moved.externalDelivery.normalized, true);
   assert.equal(state.threads.some((thread) => thread.id === "external-child"), false);
-  assert.equal(state.threads.some((thread) => thread.id === "weixin-child"), true);
+  assert.equal(state.threads.some((thread) => thread.id === "external-child-2"), false);
   assert.equal(state.threads.some((thread) => thread.id === "active-external-child"), true);
   assert.equal(state.artifacts.find((artifact) => artifact.id === "artifact-external").threadId, "private-child");
-  assert.equal(state.artifacts.find((artifact) => artifact.id === "artifact-weixin").threadId, "weixin-child");
+  assert.equal(state.artifacts.find((artifact) => artifact.id === "artifact-external-2").threadId, "private-child");
   assert.equal(calls.saveState.length, 1);
 }
 

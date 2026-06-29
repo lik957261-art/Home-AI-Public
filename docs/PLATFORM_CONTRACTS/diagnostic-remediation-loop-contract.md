@@ -42,6 +42,12 @@ repair, validation, deployment, and return-card closure.
    - Accepted sources are Home AI client feedback, trusted embedded plugin
      `postMessage`, host/proxy diagnostics, Gateway/toolset status, and
      bounded service error summaries.
+   - Home AI Self-Improving Loop may submit metadata-only self-check events
+     derived from the maintained signal matrix. These events are normal AI Ops
+     diagnostic inputs. Eligible self-check/log-collection cases may bypass
+     Owner approval and dispatch a task card automatically after the
+     remediation plan is rebuilt and all privacy, target, severity, confidence,
+     and high-risk gates pass.
 2. `case_deduplication`
    - AI Ops rolls matching events into a diagnostic case by workspace, plugin,
      route, diagnostic type, category, build id, and hashed thread context.
@@ -52,9 +58,13 @@ repair, validation, deployment, and return-card closure.
    - AI Ops builds a deterministic plan that names owning layer, target
      workspace/thread, evidence packet, blocked reasons, and task-card payload.
 5. `task_card_dispatch`
-   - Current policy is Owner-gated. The system may create an Owner-only
-     notification for an eligible plan, but it must not send the Codex Mobile
-     task card until Owner explicitly triggers dispatch.
+   - Current policy is split by source. Strict Home AI self-check diagnostics
+     may directly send a Codex Mobile task card after eligibility checks pass.
+     User demand, feature/capability-gap, plugin conversation repair requests,
+     embedded plugin automatic reports, and other product/request-like cases
+     remain Owner-gated: the system may create an Owner-only notification for
+     an eligible plan, but it must not send the task card until Owner
+     explicitly triggers dispatch.
    - The Owner dispatch UI must immediately show a sending state, disable the
      active send action, and then show bounded success or failure feedback. A
      failed dispatch must not look like a no-op.
@@ -143,6 +153,69 @@ keys, and hashed item/collection identifiers. Reports must not include album or
 track titles, media URLs, file paths, raw library ids, provider payloads,
 screenshots, cookies, launch tokens, OAuth tokens, or long logs.
 
+## Home AI Self-Check Signal Protocol
+
+Home AI Self-Improving Loop defines the maintained host/platform signal
+matrix in `docs/MODULES/self-improving-loop.md` and
+`adapters/home-ai-self-improving-loop-service.js`.
+
+Self-check signal failures are normalized into ordinary AI Ops diagnostic event
+payloads with:
+
+- `plugin_id=home-ai`;
+- `source_surface=home-ai-self-check`;
+- `diagnostic_type=self_check_signal_failed`;
+- `category=self_check_<signal-domain>`;
+- `error_code` as a bounded machine-readable failure code;
+- `duration_bucket`, `counts`, and `context` limited to signal metadata;
+- breadcrumbs containing only signal id/hash, source, route kind, counts, and
+  short bounded status fields.
+
+The current required signals are:
+
+- `gateway_profile_health`;
+- `mcp_schema_closure`;
+- `deploy_lane_liveness`;
+- `task_card_dispatch`;
+- `plugin_proxy_latency`;
+- `media_preview_health`;
+- `gateway_document_tool_capability`;
+- `plugin_deploy_contract_closure`;
+- `plugin_proxy_workspace_boundary`;
+- `native_bridge_capability`;
+- `notification_delivery`;
+- `plugin_manifest_health`;
+- `audit_thread_liveness`;
+- `automation_cron_health`;
+- `production_self_diagnostics`.
+
+Current production collectors may read bounded JSON from
+`production-status-smoke.js`, `macos-automation-cron-audit.js`, and
+`production-self-diagnostics.js`, then submit only the normalized event payload
+through `POST /api/v1/home-ai/diagnostics/events`.
+
+Self-check events may also carry `context.closure_readbacks`, a bounded list of
+machine-readable readback requirements such as selected Gateway schema,
+dispatcher registry probe, proxy timing split, protected media route probe,
+native bridge result, production manifest readback, or return-card receipt
+state. Remediation task cards should preserve this list, and closure should
+fail or remain partially completed when the return card does not answer the
+required readbacks.
+
+Self-check diagnostics are discovery and routing evidence only. They may
+auto-dispatch implementation task cards only when all of these are true:
+
+- `plugin_id=home-ai`;
+- `source_surface=home-ai-self-check`;
+- `diagnostic_type=self_check_signal_failed`;
+- `category` starts with `self_check_`;
+- the remediation plan is otherwise eligible, target-resolved, metadata-only,
+  and not high-risk.
+
+They must not mutate production state, restart services, rotate credentials, or
+perform deep audits in the diagnostic intake process itself. High-risk
+self-check cases remain blocked for Owner approval.
+
 Severity rules:
 
 - single transient failures should remain local, H3, or unreported;
@@ -199,10 +272,16 @@ Examples:
 
 Current policy:
 
-- automatic Owner notification is allowed for eligible remediation plans;
-- automatic Codex task-card dispatch is not allowed;
+- Home AI self-check/log-collection diagnostics may automatically dispatch a
+  Codex task card when the strict self-check source/type/category gate and all
+  remediation eligibility gates pass;
+- automatic Owner notification is allowed for other eligible remediation plans;
+- automatic Codex task-card dispatch is not allowed for user demand,
+  feature/capability-gap, plugin conversation repair-request, embedded plugin
+  automatic-report, high-risk, privacy-unsafe, low-confidence, or unknown-target
+  cases;
 - Owner can trigger task-card dispatch from the Owner-only notification or
-  diagnostic case action.
+  diagnostic case action for Owner-gated cases.
 
 A remediation plan may create an Owner-only notification only when all are true:
 
@@ -216,8 +295,9 @@ A remediation plan may create an Owner-only notification only when all are true:
   approval;
 - the task card can require a return card and bounded validation.
 
-Owner-triggered dispatch must re-read the case/events, rebuild the plan, and
-re-check the same gate before calling the Codex Mobile task-card interface.
+Owner-triggered and self-check automatic dispatch must re-read the case/events,
+rebuild the plan, and re-check the same gate before calling the Codex Mobile
+task-card interface.
 If the case is already `card_sent`, dispatch is idempotent: the UI should mark
 the Owner notification handled and show that a remediation card has already
 been sent rather than sending another card or reopening the same notification.

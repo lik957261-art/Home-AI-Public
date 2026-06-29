@@ -659,9 +659,8 @@ function applyRouteParams(params) {
   const directoryRoot = String(params.get("directoryRoot") || "").trim();
   const readingQuizRequested = ["1", "true", "yes"].includes(String(params.get("readingQuiz") || params.get("reading_quiz") || "").trim().toLowerCase());
   const assessmentExamRequested = ["1", "true", "yes"].includes(String(params.get("assessmentExam") || params.get("assessment_exam") || "").trim().toLowerCase());
-  const weixinChatRequested = ["1", "true", "yes"].includes(String(params.get("weixinChat") || params.get("weixin_chat") || "").trim().toLowerCase());
   const groupChatRequested = ["1", "true", "yes"].includes(String(params.get("groupChat") || params.get("group_chat") || "").trim().toLowerCase());
-  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), inboxItemId ? "inbox" : automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : (groupChatRequested || weixinChatRequested) ? "single" : "");
+  let routeView = normalizedRouteView(params.get("view") || params.get("viewMode"), inboxItemId ? "inbox" : automationId ? "automation" : taskCardId ? "learning" : todoId ? "todos" : taskGroupId ? "tasks" : groupChatRequested ? "single" : "");
   const legacyGrowthRoute = routeView === "learning";
   const legacyGrowthTaskRoute = legacyGrowthRoute && taskCardId;
   if (legacyGrowthRoute) routeView = "growth";
@@ -806,26 +805,19 @@ function applyRouteParams(params) {
   }
   if (routeView === "single") {
     setSingleWindowMode("chat");
-    if (weixinChatRequested) {
-      state.weixinChatOpen = true;
-      state.groupChatOpen = false;
-      localStorage.setItem("hermesWebWeixinChatOpen", "1");
-      localStorage.setItem("hermesWebGroupChatOpen", "0");
-    } else if (groupChatRequested) {
-      state.weixinChatOpen = false;
+    if (groupChatRequested) {
       state.groupChatOpen = true;
-      localStorage.setItem("hermesWebWeixinChatOpen", "0");
       localStorage.setItem("hermesWebGroupChatOpen", "1");
     } else {
-      state.weixinChatOpen = false;
-      localStorage.setItem("hermesWebWeixinChatOpen", "0");
+      state.groupChatOpen = false;
+      localStorage.setItem("hermesWebGroupChatOpen", "0");
     }
     if (routeThreadId) state.currentThreadId = routeThreadId;
     if (messageId) {
       setRouteScrollTarget(taskGroupId || (groupChatRequested ? "group-chat" : "chat"), messageId);
     }
   }
-  return Boolean(routeView || inboxItemId || automationId || todoId || taskGroupId || groupChatRequested || weixinChatRequested || readingQuizRequested || assessmentExamRequested);
+  return Boolean(routeView || inboxItemId || automationId || todoId || taskGroupId || groupChatRequested || readingQuizRequested || assessmentExamRequested);
 }
 
 function applyRouteFromUrl(value) {
@@ -905,11 +897,9 @@ async function openNotificationRoute(value) {
 function applyDefaultLaunchView() {
   state.viewMode = "tasks";
   setSingleWindowMode("chat");
-  state.weixinChatOpen = false;
   state.currentTaskGroupId = "";
   state.skillDetail = null;
   localStorage.setItem("hermesWebViewMode", state.viewMode);
-  localStorage.setItem("hermesWebWeixinChatOpen", "0");
 }
 
 function restoreVisibleAppScroll() {

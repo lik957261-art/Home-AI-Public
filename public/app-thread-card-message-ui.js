@@ -65,18 +65,8 @@ function renderMessageRevokeAction(message) {
   return `<button class="message-revoke-button" type="button" data-revoke-message="${escapeHtml(message.id || "")}" title="${escapeHtml(GROUP_REVOKE_LABEL)}">${escapeHtml(GROUP_REVOKE_LABEL)}</button>`;
 }
 
-function renderExternalDeliveryStatus(message) {
-  if (isWeixinChatView()) return "";
-  const delivery = message?.externalDelivery || null;
-  if (!delivery || delivery.source !== "weixin") return "";
-  if (delivery.terminalStatus !== "manual_forward") return "";
-  const status = String(delivery.status || "").toLowerCase();
-  if (status !== "sent") return "";
-  const label = {
-    sent: "\u5fae\u4fe1\u5df2\u8f6c\u53d1",
-  }[status] || "\u5fae\u4fe1\u8f6c\u53d1";
-  const error = delivery.error ? `: ${delivery.error}` : "";
-  return `<div class="external-delivery-status status-${escapeHtml(status || "unknown")}">${escapeHtml(label + error)}</div>`;
+function renderExternalDeliveryStatus(_message) {
+  return "";
 }
 
 function messageUsesSenderLabel(message) {

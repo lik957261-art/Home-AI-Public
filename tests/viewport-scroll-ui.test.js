@@ -23,6 +23,9 @@ assert.match(appJs, /function scheduleConversationOrientationRecovery\(conversat
 assert.match(appJs, /--mobile-bottom-nav-reserved-height-runtime/);
 assert.match(appJs, /function scheduleConversationBottomStick\(\)/);
 assert.match(appJs, /\$\("conversation"\)\?\.addEventListener\("scroll", \(event\) => \{[\s\S]*?handleConversationScrollState\(event\);[\s\S]*?scheduleAppRouteSnapshot\("scroll", 500\)/);
+assert.match(appJs, /\$\("conversation"\)\?\.addEventListener\("wheel", markConversationUserScrollIntent, \{ passive: true \}\)/);
+assert.match(appJs, /\$\("conversation"\)\?\.addEventListener\("touchmove", markConversationUserScrollIntent, \{ passive: true \}\)/);
+assert.match(appJs, /function shouldFollowConversationBottomDuringViewport\(\) \{[\s\S]*?conversationUserScrollProtectActive\(\)[\s\S]*?return false;/);
 assert.match(appJs, /window\.visualViewport\?\.addEventListener\("resize", handleViewportLayoutChange\)/);
 assert.match(appJs, /window\.addEventListener\("scroll", handleViewportLayoutChange, \{ passive: true \}\)/);
 assert.match(appJs, /window\.addEventListener\("orientationchange", handleViewportLayoutChange\)/);

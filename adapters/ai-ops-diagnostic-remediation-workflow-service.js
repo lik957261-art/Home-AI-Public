@@ -27,6 +27,15 @@ function caseAlreadyDispatched(caseRecord = {}) {
   return clean(caseRecord.status, 80) === "card_sent";
 }
 
+function isSelfCheckAutomationPlan(plan = {}) {
+  const evidence = objectValue(plan.evidence);
+  return clean(plan.dispatch?.policy, 80) === "auto_self_check"
+    || (clean(evidence.plugin_id || plan.plugin_id, 80) === "home-ai"
+    && clean(evidence.source_surface, 120) === "home-ai-self-check"
+    && clean(evidence.diagnostic_type, 160) === "self_check_signal_failed"
+    && clean(evidence.category, 160).startsWith("self_check_"));
+}
+
 function caseEvents(diagnosticIntakeService, caseId) {
   const result = diagnosticIntakeService.listEvents({ case_id: caseId, limit: 20 });
   return Array.isArray(result?.events) ? result.events : [];
@@ -130,6 +139,22 @@ function createAiOpsDiagnosticRemediationWorkflowService(options = {}) {
         plan: planned.plan,
       };
     }
+    if (isSelfCheckAutomationPlan(planned.plan)) {
+      const dispatched = await dispatchTaskCard({
+        case_id: caseId,
+        actor: "home-ai-self-check",
+        reason: "auto_self_check_task_card",
+      });
+      return {
+        ok: dispatched?.ok !== false,
+        notified: false,
+        autoDispatched: Boolean(dispatched?.dispatched),
+        reason: clean(dispatched?.reason || dispatched?.error || "auto_self_check_task_card", 160),
+        plan: planned.plan,
+        taskCardResult: dispatched?.taskCardResult,
+        dispatchResult: dispatched,
+      };
+    }
     if (!actionInboxService || typeof actionInboxService.upsertSourceItem !== "function") {
       return { ok: false, status: 503, error: "action_inbox_service_unavailable", plan: planned.plan };
     }
@@ -212,11 +237,14 @@ function createAiOpsDiagnosticRemediationWorkflowService(options = {}) {
     }
     const sent = await taskCardService.sendTaskCard(dispatchInput);
     if (typeof diagnosticIntakeService.updateCaseStatus === "function") {
+      const actor = clean(input.actor || "ai-ops-diagnostic-workflow", 80);
+      const updateReason = clean(input.reason
+        || (actor === OWNER_WORKSPACE_ID ? "owner_triggered_task_card" : "diagnostic_remediation_task_card"), 120);
       diagnosticIntakeService.updateCaseStatus({
         case_id: caseId,
         status: "card_sent",
-        reason: "owner_triggered_task_card",
-        actor: clean(input.actor || "owner", 80),
+        reason: updateReason,
+        actor,
       });
     }
     return {
@@ -239,5 +267,6 @@ module.exports = {
   NOTIFICATION_TYPE,
   OWNER_WORKSPACE_ID,
   createAiOpsDiagnosticRemediationWorkflowService,
+  isSelfCheckAutomationPlan,
   ownerNotificationForPlan,
 };

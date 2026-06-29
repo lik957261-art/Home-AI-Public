@@ -39,7 +39,7 @@ const NATIVE_DEVICE_API_ROUTE_SPECS = Object.freeze([
     group: "native-devices",
     moduleKey: "native-devices",
     workspaceScoped: true,
-    resourceTypes: ["native-notification", "apns"],
+    resourceTypes: ["native-notification", "apns", "fcm"],
   },
 ]);
 
@@ -84,7 +84,7 @@ function createNativeDeviceApiRoutes(deps = {}) {
       principalId: deps.workspacePrincipal(workspaceId),
     }));
     deps.sendJson(res, result.ok ? 201 : (result.status || 400), result.ok
-      ? { ok: true, device: result.device, channel: service.channel }
+      ? { ok: true, device: result.device, channel: result.channel || service.channel }
       : publicError(result));
   }
 
@@ -97,7 +97,7 @@ function createNativeDeviceApiRoutes(deps = {}) {
       principalId: deps.workspacePrincipal(workspaceId),
     }));
     deps.sendJson(res, result.ok ? 200 : (result.status || 404), result.ok
-      ? { ok: true, device: result.device, channel: service.channel }
+      ? { ok: true, device: result.device, channel: result.channel || service.channel }
       : publicError(result));
   }
 
@@ -105,13 +105,16 @@ function createNativeDeviceApiRoutes(deps = {}) {
     const body = await deps.readBody(req).catch(() => ({}));
     const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(req, body));
     if (!workspaceId) return;
-    const deepLink = clean(body.deepLink || body.deep_link || appRouteUrl({ source: "pwa", nativeShell: "ios", view: "tasks", workspaceId }), 600);
+    const channel = clean(body.notificationChannel || body.notification_channel || body.channel, 120);
+    const nativeShell = channel === "native_android_fcm" || channel === "android" || channel === "fcm" ? "android" : "ios";
+    const deepLink = clean(body.deepLink || body.deep_link || appRouteUrl({ source: "pwa", nativeShell, view: "tasks", workspaceId }), 600);
     const result = await service.sendToWorkspace({
       workspaceId,
       title: clean(body.title || "Home AI", 120) || "Home AI",
       body: clean(body.body || "原生通知测试", 220),
       deepLink,
-      data: { workspaceId, messageType: "native_test" },
+      notificationChannel: channel,
+      data: { workspaceId, messageType: "native_test", notificationChannel: channel },
     });
     deps.sendJson(res, 200, { ok: true, result });
   }

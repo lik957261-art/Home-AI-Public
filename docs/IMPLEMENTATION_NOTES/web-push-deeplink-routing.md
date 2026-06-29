@@ -18,7 +18,7 @@ Notification clicks should:
 
 - Payloads should prefer product identifiers such as task group id, message id, automation id, group-chat flag, or learning evaluation id.
 - Active chat/topic terminal notifications should use the terminal assistant receipt `messageId`. Topic routes should scroll to that receipt inside the selected task group; single-window chat and group-chat routes should preserve `threadId`/`messageId` and stay in `view=single`.
-- In the service worker, single-window route intent takes precedence over generic `taskGroupId` routing. `viewMode=single`, `weixinChat`, `groupChat`, `taskGroupId=chat`, and `taskGroupId=group-chat` must not be rewritten into `view=tasks`.
+- In the service worker, single-window route intent takes precedence over generic `taskGroupId` routing. `viewMode=single`, `groupChat`, `taskGroupId=chat`, and `taskGroupId=group-chat` must not be rewritten into `view=tasks`.
 - Automation notification route intent takes precedence over generic
   `inboxItemId` routing. Automation payloads may still carry `inboxItemId` for
   foreground refresh and return context, but click routing should open

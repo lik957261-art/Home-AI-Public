@@ -1,0 +1,7 @@
+name: hermes-mobile-pptx
+version: 1.0.0
+description: Scoped PPTX generation for Hermes Mobile Gateway profiles.
+author: Hermes Mobile
+kind: standalone
+provides_tools:
+  - file

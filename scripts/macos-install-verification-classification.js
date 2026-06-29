@@ -42,9 +42,9 @@ const PHASE_VERIFICATION = {
     reason: "Runs in a temporary root and verifies directory/artifact creation.",
   },
   "install-hermes-mobile": {
-    verificationClass: "external_input",
-    evidence: ["--app-source copy into an empty target app directory"],
-    reason: "Requires an explicit app source and an empty target tree; existing production updates use deploy-macos-production.js.",
+    verificationClass: "source_rehearsed",
+    evidence: ["scripts/macos-fresh-install-rehearsal.js"],
+    reason: "Copies the source checkout into an empty temporary app tree during fresh-install rehearsal; existing production updates use deploy-macos-production.js.",
   },
   "install-official-hermes-runtime": {
     verificationClass: "external_input",

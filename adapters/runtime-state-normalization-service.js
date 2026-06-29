@@ -271,8 +271,7 @@ function createRuntimeStateNormalizationService(options = {}) {
       if (next.taskGroupId) next.taskGroupId = sanitizeTaskGroupId(next.taskGroupId);
       if (thread.singleWindow) {
         const rawSingleWindowMode = String(next.singleWindowMode || next.single_window_mode || "").trim();
-        const weixinIngressMessage = next.externalIngress?.source === "weixin" || next.externalDelivery?.source === "weixin";
-        const conversationMessage = isSingleWindowConversationTaskGroupId(next.taskGroupId) || weixinIngressMessage;
+        const conversationMessage = isSingleWindowConversationTaskGroupId(next.taskGroupId);
         next.singleWindowMode = normalizeSingleWindowMode(rawSingleWindowMode || (conversationMessage ? "chat" : "task"));
         if (next.singleWindowMode === "chat") next.taskGroupId = singleWindowChatTaskGroupId(next.taskGroupId);
       }

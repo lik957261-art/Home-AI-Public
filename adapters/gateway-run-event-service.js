@@ -16,6 +16,7 @@ const { createGatewayRunOutputEventService } = require("./gateway-run-output-eve
 const { createGatewayRunTerminalStateService } = require("./gateway-run-terminal-state-service");
 const { createGatewayRunResponseCreatedService } = require("./gateway-run-response-created-service");
 const { createGatewayRunStreamingSaveService } = require("./gateway-run-streaming-save-service");
+const { createGatewayRunQuotaFailoverRetryService } = require("./gateway-run-quota-failover-retry-service");
 const { createGatewayRunToolsetEscalationRetryService } = require("./gateway-run-toolset-escalation-retry-service");
 const { gatewayRunUserFacingErrorFromEvent } = require("./gateway-run-error-message-service");
 
@@ -113,6 +114,7 @@ function createGatewayRunEventService(options = {}) {
   let completionService = null;
   let deltaEventService = null;
   let outputEventService = null;
+  let quotaFailoverRetryService = null;
   let responseCreatedService = null;
   let streamingStateSaveService = null;
   let terminalStateService = null;
@@ -261,6 +263,29 @@ function createGatewayRunEventService(options = {}) {
     return toolsetEscalationRetryService;
   }
 
+  function getQuotaFailoverRetryService() {
+    if (!quotaFailoverRetryService) {
+      quotaFailoverRetryService = options.quotaFailoverRetryService || createGatewayRunQuotaFailoverRetryService({
+        addThreadEvent,
+        broadcast,
+        broadcastMessageUpdated,
+        compactMessage,
+        maxQuotaFailoverRetries: options.maxQuotaFailoverRetries,
+        notifyTaskTerminal,
+        nowIso,
+        nowMs,
+        removeThreadActiveRun,
+        restartRunningGatewayWorkers: options.restartRunningGatewayWorkers,
+        rotateOpenAiCodexCredentialPoolAfterUsageLimit: options.rotateOpenAiCodexCredentialPoolAfterUsageLimit,
+        saveState,
+        setImmediate: options.setImmediate,
+        startQuotaFailoverRun: options.startQuotaFailoverRun,
+        threadSummary,
+      });
+    }
+    return quotaFailoverRetryService;
+  }
+
   function getCompletionService() {
     if (!completionService) {
       completionService = options.completionService || createGatewayRunCompletionService({
@@ -278,10 +303,14 @@ function createGatewayRunEventService(options = {}) {
         notifyTaskTerminal,
         nowIso,
         nowMs,
+        pluginConversationActionBridgeService: options.pluginConversationActionBridgeService,
         registerArtifactsFromText,
         removeThreadActiveRun,
         saveState,
         scheduleNextQueuedRunForTaskGroup,
+        startQuotaFailoverRetry: (thread, message, input) => (
+          getQuotaFailoverRetryService().startQuotaFailoverRetry(thread, message, input)
+        ),
         startEscalatedToolsetRetry: (thread, message, request, previousRunId) => (
           getToolsetEscalationRetryService().startEscalatedToolsetRetry(thread, message, request, previousRunId)
         ),

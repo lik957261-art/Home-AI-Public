@@ -50,11 +50,6 @@ function makeService(overrides = {}) {
     taskGroupOwnerWorkspaceId: () => "owner",
     taskGroupsForThread: () => [],
     threadAccessibleToAuth: (auth, thread) => auth?.isOwner || thread.workspaceId === auth?.workspaceId,
-    weixinIngressProvider: {
-      threadKey(source) {
-        return `wx:${source.accountId || ""}:${source.chatId || ""}`;
-      },
-    },
   }, overrides.deps || {}));
   return { service, state, saves };
 }
@@ -124,30 +119,11 @@ function testEnsureGroupChatCreatesDedicatedEmptyThread() {
   assert.equal(saves.length, 1);
 }
 
-function testEnsuresWeixinThreadAndPublicIngress() {
-  const { service, state, saves } = makeService();
-  const thread = service.ensureWeixinSingleWindowThread("owner", { accountId: "a", chatId: "c", senderLabel: "Sender" });
-  assert.equal(thread.title, "Weixin");
-  assert.equal(thread.externalIngress.source, "weixin");
-  assert.equal(service.findWeixinSingleWindowThreadForWorkspace("owner").id, thread.id);
-  assert.deepEqual(service.publicExternalIngress(thread), {
-    source: "weixin",
-    type: "weixin",
-    workspaceId: "owner",
-    senderLabel: "Sender",
-    status: "window",
-    updatedAt: "2026-05-15T00:00:00.000Z",
-  });
-  assert.equal(state.threads.length, 1);
-  assert.equal(saves.length, 1);
-}
-
 function run() {
   testCreatesPrivateThread();
   testFindsGroupAndCaseTopicThreads();
   testGroupThreadPrefersNonEmptyGroupMessages();
   testEnsureGroupChatCreatesDedicatedEmptyThread();
-  testEnsuresWeixinThreadAndPublicIngress();
   console.log("single-window-thread-service tests passed");
 }
 

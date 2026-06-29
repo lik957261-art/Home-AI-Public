@@ -1,5 +1,7 @@
 "use strict";
 
+const CONVERSATION_USER_SCROLL_PROTECT_MS = 5000;
+
 function conversationBottomOffset(el = $("conversation")) {
   if (!el) return 0;
   return Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
@@ -17,6 +19,29 @@ function clearConversationReadAnchor() {
   state.conversationReadAnchorMessageId = "";
   state.conversationReadAnchorScrollTop = 0;
   state.conversationReadAnchorSetAt = 0;
+}
+
+function conversationUserScrollProtectActive() {
+  return Date.now() < Number(state.conversationUserScrollProtectUntil || 0);
+}
+
+function markConversationUserScrollIntent(event = null) {
+  const conversation = $("conversation");
+  if (!conversation) return false;
+  if (event?.target && event.target !== conversation && !conversation.contains(event.target)) return false;
+  const now = Date.now();
+  const protectUntil = now + CONVERSATION_USER_SCROLL_PROTECT_MS;
+  state.conversationUserScrollProtectUntil = Math.max(Number(state.conversationUserScrollProtectUntil || 0), protectUntil);
+  state.suppressChatAutoBottomUntil = Math.max(Number(state.suppressChatAutoBottomUntil || 0), protectUntil);
+  state.conversationViewportBottomFollowUntil = 0;
+  state.conversationPinnedToBottom = false;
+  window.clearTimeout(state.conversationBottomStickTimer);
+  updateConversationJumpBottomButton();
+  return true;
+}
+
+function clearConversationUserScrollProtection() {
+  state.conversationUserScrollProtectUntil = 0;
 }
 
 function conversationReadAnchorActive(conversation = $("conversation")) {
@@ -63,6 +88,7 @@ function restoreConversationReadAnchorScroll(conversation = $("conversation")) {
 
 function shouldForceChatStickToBottom() {
   return !conversationReadAnchorActive()
+    && !conversationUserScrollProtectActive()
     && isSingleWindowChatView()
     && Date.now() >= Number(state.suppressChatAutoBottomUntil || 0)
     && Date.now() < Number(state.forceChatStickToBottomUntil || 0);
@@ -79,6 +105,7 @@ function shouldStickConversationOnViewportChange() {
 
 function shouldFollowConversationBottomDuringViewport() {
   if (conversationReadAnchorActive()) return false;
+  if (conversationUserScrollProtectActive()) return false;
   return shouldForceChatStickToBottom()
     || Date.now() < Number(state.conversationViewportBottomFollowUntil || 0)
     || state.conversationPinnedToBottom
@@ -97,6 +124,7 @@ function scrollConversationToBottom() {
 function scrollConversationToBottomSmooth() {
   const conversation = $("conversation");
   if (!conversation) return;
+  clearConversationUserScrollProtection();
   clearConversationReadAnchor();
   const top = conversation.scrollHeight;
   if (typeof conversation.scrollTo === "function") {
@@ -310,10 +338,12 @@ function wireConversationJumpBottomButton() {
 function scheduleConversationBottomStick() {
   if (Date.now() < Number(state.suppressChatAutoBottomUntil || 0)) return;
   if (conversationReadAnchorActive()) return;
+  if (conversationUserScrollProtectActive()) return;
   window.clearTimeout(state.conversationBottomStickTimer);
   state.suppressConversationPinUntil = Date.now() + 700;
   const stick = () => {
     if (!shouldStickConversationOnViewportChange()) return;
+    if (conversationUserScrollProtectActive()) return;
     scrollConversationToBottom();
     scheduleMessageScrollButtonVisibility($("conversation"));
   };
@@ -611,15 +641,49 @@ function renderMessageGatewayDiagnostic(message) {
   return "";
 }
 
+function wardrobeOutfitWearActionState(message = {}) {
+  return message?.pluginActions?.wardrobeOutfitWearIntent || message?.pluginActions?.outfit_wear_intent || null;
+}
+
+function wardrobeOutfitWearActionLabel(action = {}) {
+  const status = String(action.status || "").trim();
+  if (status === "running") return "写入中";
+  if (status === "needs_confirmation") return "确认替换";
+  if (status === "stored") return "已入库";
+  if (status === "error") return "写入失败";
+  return "穿着入库";
+}
+
+function renderWardrobeOutfitWearAction(message = {}) {
+  const action = wardrobeOutfitWearActionState(message);
+  if (!action || action.kind !== "outfit_wear_intent") return "";
+  const status = String(action.status || "").trim();
+  if (!["ready", "running", "needs_confirmation", "stored", "error"].includes(status)) return "";
+  const disabled = status === "running" || status === "stored" || status === "error" || action.executable === false;
+  const intent = action.intent || {};
+  const wearDate = String(intent.wear_date || intent.wearDate || "").trim();
+  const itemCount = Array.isArray(intent.items) ? intent.items.length : 0;
+  const title = status === "stored"
+    ? `已写入衣橱穿着记录${action.outfitId ? ` #${action.outfitId}` : ""}`
+    : `写入衣橱穿着记录${wearDate ? ` ${wearDate}` : ""}${itemCount ? ` · ${itemCount}件` : ""}`;
+  const statusAttr = status ? ` data-wardrobe-outfit-status="${escapeHtml(status)}"` : "";
+  const label = wardrobeOutfitWearActionLabel(action);
+  return `<button class="message-wardrobe-action" type="button" data-wardrobe-outfit-wear-message="${escapeHtml(message.id || "")}"${statusAttr} title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${disabled ? " disabled" : ""}>
+    <svg class="message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 7.5 12 4l4 3.5"></path><path d="M6.5 8.5 9 7l3 2 3-2 2.5 1.5L16 20H8L6.5 8.5Z"></path><path d="M10 20v-7"></path><path d="M14 20v-7"></path></svg>
+    <span>${escapeHtml(label)}</span>
+  </button>`;
+}
+
 function renderMessageFooter(message, usage) {
   const actions = renderMessageActionStrip(message, "start");
   const gatewayDiagnostic = renderMessageGatewayDiagnostic(message);
+  const wardrobeAction = renderWardrobeOutfitWearAction(message);
   const skills = renderMessageSkillPanel(message, state.currentThread);
   const runProgressHistory = typeof renderMessageRunProgressHistory === "function"
     ? renderMessageRunProgressHistory(state.currentThread, message)
     : "";
-  if (!actions && !usage && !skills && !gatewayDiagnostic && !runProgressHistory) return "";
-  const meta = `${gatewayDiagnostic}${usage}${skills}${runProgressHistory}`;
+  if (!actions && !usage && !wardrobeAction && !skills && !gatewayDiagnostic && !runProgressHistory) return "";
+  const meta = `${gatewayDiagnostic}${usage}${wardrobeAction}${skills}${runProgressHistory}`;
   return `<div class="message-footer-row">${actions}<div class="message-footer-meta">${meta}</div></div>`;
 }
 
@@ -782,7 +846,76 @@ function currentMessageById(messageId) {
   return (state.currentThread?.messages || []).find((message) => message?.id === id) || null;
 }
 
+async function confirmWardrobeOutfitReplace(action = {}) {
+  if (typeof openAppConfirmDialog !== "function") return false;
+  const intent = action.intent || {};
+  const wearDate = String(intent.wear_date || intent.wearDate || "").trim();
+  return openAppConfirmDialog({
+    title: "确认替换",
+    message: `这一天已有穿着记录${wearDate ? `（${wearDate}）` : ""}。`,
+    detail: "确认后会用这条推荐替换当天记录。",
+    confirmLabel: "确认替换",
+    cancelLabel: "取消",
+  });
+}
+
+function applyWardrobeOutfitWearActionResponse(result = {}) {
+  if (result.thread && typeof upsertThreadSummary === "function") {
+    upsertThreadSummary(result.thread);
+  }
+  if (result.message && typeof upsertMessage === "function") {
+    upsertMessage(result.message);
+  }
+  return result.actionState || result.message?.pluginActions?.wardrobeOutfitWearIntent || null;
+}
+
+async function executeWardrobeOutfitWearMessageAction(messageId, options = {}) {
+  const message = currentMessageById(messageId);
+  if (!message || !state.currentThread?.id) throw new Error("未找到可执行的衣橱消息");
+  const action = wardrobeOutfitWearActionState(message);
+  if (!action || action.kind !== "outfit_wear_intent") throw new Error("这条消息没有可执行的衣橱入库动作");
+  const needsConfirmation = String(action.status || "") === "needs_confirmation";
+  if (needsConfirmation && !options.confirmReplace) {
+    const confirmed = await confirmWardrobeOutfitReplace(action);
+    if (!confirmed) return null;
+    return executeWardrobeOutfitWearMessageAction(messageId, { confirmReplace: true });
+  }
+  const result = await api("/api/plugin-conversation/actions/wardrobe/outfit-wear-intent", {
+    method: "POST",
+    body: JSON.stringify({
+      threadId: state.currentThread.id,
+      messageId,
+      workspaceId: state.currentThread.workspaceId || state.selectedWorkspaceId || "",
+      confirmReplace: Boolean(options.confirmReplace),
+      mode: options.confirmReplace ? "replace" : "create_only",
+    }),
+  });
+  const nextAction = applyWardrobeOutfitWearActionResponse(result);
+  if (String(nextAction?.status || "") === "needs_confirmation" && !options.confirmReplace) {
+    const confirmed = await confirmWardrobeOutfitReplace(nextAction);
+    if (confirmed) return executeWardrobeOutfitWearMessageAction(messageId, { confirmReplace: true });
+  }
+  if (result?.ok === false) throw new Error(result.error || "衣橱入库失败");
+  return result;
+}
+
 function wireMessageReplyActionButtons(root) {
+  root?.querySelectorAll?.("[data-wardrobe-outfit-wear-message]").forEach((button) => {
+    if (button.dataset.boundWardrobeOutfitWear) return;
+    button.dataset.boundWardrobeOutfitWear = "1";
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      button.disabled = true;
+      try {
+        await executeWardrobeOutfitWearMessageAction(button.dataset.wardrobeOutfitWearMessage || "");
+      } catch (err) {
+        showError(err);
+      } finally {
+        if (button.isConnected) button.disabled = false;
+      }
+    });
+  });
   root?.querySelectorAll?.("[data-copy-message]").forEach((button) => {
     if (button.dataset.boundCopyMessage) return;
     button.dataset.boundCopyMessage = "1";
@@ -826,48 +959,6 @@ function wireMessageReplyActionButtons(root) {
         await saveMessageToNote(button.dataset.saveMessageNote || "");
       } catch (err) {
         if (err?.name !== "AbortError") showError(err);
-      } finally {
-        button.disabled = false;
-      }
-    });
-  });
-}
-
-async function forwardArtifactToWeixin(button) {
-  const artifactId = String(button?.dataset?.forwardArtifactWeixin || "").trim();
-  if (!artifactId) return;
-  const result = await api("/api/weixin/forward-file", {
-    method: "POST",
-    body: JSON.stringify({
-      artifactId,
-      threadId: state.currentThreadId || "",
-      workspaceId: state.selectedWorkspaceId || "owner",
-    }),
-  });
-  if (result?.thread) rememberChatScopeThread(result.thread);
-  if (result?.message) {
-    const resultThreadId = result?.thread?.id || result?.delivery?.threadId || "";
-    if (resultThreadId && resultThreadId !== state.currentThreadId) {
-      upsertCachedChatScopeMessage(resultThreadId, result.message, result.thread || null);
-    } else {
-      upsertMessage(result.message);
-    }
-  }
-  showPushToast("\u5df2\u52a0\u5165\u5fae\u4fe1\u8f6c\u53d1\u961f\u5217", "success");
-}
-
-function wireArtifactWeixinButtons(root) {
-  root?.querySelectorAll?.("[data-forward-artifact-weixin]").forEach((button) => {
-    if (button.dataset.boundForwardArtifactWeixin) return;
-    button.dataset.boundForwardArtifactWeixin = "1";
-    button.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      button.disabled = true;
-      try {
-        await forwardArtifactToWeixin(button);
-      } catch (err) {
-        showError(err);
       } finally {
         button.disabled = false;
       }

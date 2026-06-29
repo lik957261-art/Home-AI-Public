@@ -42,7 +42,7 @@ main API aggregator. Current focused route composition modules include:
   service exposure.
 - `server-routes/mobile-api-platform-composition.js` for public setup/status,
   system status, Owner elevation, access-key, runtime-config, Push, Workspace,
-  platform-currency, Resource, and Weixin ingress route wiring.
+  platform-currency, and Resource route wiring.
 - `server-routes/mobile-api-directory-composition.js` for Directory browser,
   Directory mutation/share, file/artifact read, and Note receipt route wiring.
   It owns the Directory boundary and shared-directory projection delegates plus
@@ -102,7 +102,7 @@ out of the composition root. Current focused runtime adapters include:
 - `adapters/mobile-runtime-path-candidate-environment-service.js` for WSL UNC
   candidate generation and config/token/catalog path candidate arrays.
 - `adapters/mobile-runtime-state-path-environment-service.js` for `DATA_DIR`
-  derived runtime state, workspace, audit, Access Key, Web Push, Weixin,
+  derived runtime state, workspace, audit, Access Key, Web Push,
   SQLite, Todo, and Automation store paths.
 - `adapters/mobile-runtime-kanban-environment-service.js` for Kanban, reading,
   assessment, multi-agent, and case-topic runtime environment constants.
@@ -138,9 +138,6 @@ out of the composition root. Current focused runtime adapters include:
   It must delegate natural-language parsing and Kanban result validation to
   `direct-kanban-create-service.js` and must not own Todo persistence, Kanban
   card creation, or bridge execution.
-- `adapters/mobile-runtime-weixin-facade-service.js` for lazy Weixin runtime
-  composition wiring and Weixin ingress, outbound delivery, retry, wake, and
-  file-forward delegate wrappers.
 - `adapters/mobile-runtime-workspace-facade-service.js` for lazy local
   workspace store wiring, local workspace mutation delegates, Gateway
   provisioning attachment, public workspace projection delegation, workspace

@@ -48,11 +48,31 @@ hard-coded to a fixed historical worker list.
    - `HOME=/home/hermes HERMES_HOME=/home/hermes/.hermes /opt/hermes-gateway-runtime/bin/hermes auth status openai-codex`
 5. If `auth list` or `auth add` is needed, use the same wrapper path so `gateway-runtime-overrides` is loaded.
 
+## Home AI Profile Isolation
+
+Home AI's OpenAI-Codex Gateway credentials are Home AI runtime state. They are
+not derived from the current Codex Desktop/Codex Mobile active profile at run
+time. Codex and Home AI may intentionally use different accounts/profiles.
+
+The only supported relationship is an explicit operator import: an operator may
+copy a token block from a named Codex home into Home AI's own shared-auth
+credential pool. After import, Home AI treats that entry as a Home AI-managed
+profile. Quota failover uses only entries already present in Home AI's pool.
+
+When a Gateway run completes with the bounded provider error text
+`API call failed after ... HTTP 429: The usage limit has been reached`, Home AI
+marks the active Home AI pool entry as usage-limited, rotates to the next usable
+Home AI pool entry, restarts running Gateway workers so they reload the active
+shared-auth token block, and retries the same user turn. This does not inspect
+or follow Codex's current profile.
+
 ## Repair
 
 For a one-time repair, copy only the current local Codex token block from the
 operator's private Codex auth store into the shared low Gateway auth store,
-preserving the existing JSON shape and credential pool. On macOS use:
+preserving the existing JSON shape and credential pool. This legacy script is
+only a repair/import helper and must not be used as a runtime rule for following
+Codex's active profile. On macOS use:
 
 ```sh
 sudo /Users/example/path \
@@ -70,6 +90,38 @@ bounded metadata. Do not symlink Gateway shared-auth directly to Codex CLI
 CLI, VS Code, or Desktop clients can recreate the
 `refresh_token_reused`/`already consumed by another client` failure class.
 Back up the shared auth file first and never print token values.
+
+For Home AI-managed pool operations on macOS, use the Home AI-owned pool script.
+The import source is explicit and does not imply future coupling to Codex:
+
+```sh
+node /Users/example/path \
+  --root /Users/example/path \
+  --import-codex-home /Users/example/path \
+  --profile-id homeai-default \
+  --label "Home AI Default" \
+  --make-active \
+  --restart-gateways \
+  --execute \
+  --password-file "$HOMEAI_MAC_SUDO_PASSWORD_FILE" \
+  --json
+```
+
+To rotate after a Home AI quota exhaustion when another Home AI-managed pool
+entry already exists:
+
+```sh
+node /Users/example/path \
+  --root /Users/example/path \
+  --rotate-on-limit \
+  --restart-gateways \
+  --execute \
+  --password-file "$HOMEAI_MAC_SUDO_PASSWORD_FILE" \
+  --json
+```
+
+The pool script prints only bounded profile ids, entry counts, booleans, and
+error codes. It must not print token values or infer the active Codex profile.
 
 For a durable repair, ensure the production runtime override is synced to:
 
@@ -101,6 +153,9 @@ On macOS, also validate:
   reports `codexIssueCount=0`.
 - Every OpenAI/Codex manifest `osUser` can read and write the shared
   `auth.json` and `auth.lock` via `sudo -u <user> test -r/-w`.
+- Home AI's own pool script can print a bounded summary:
+  `node scripts/homeai-openai-codex-auth-pool.js --json`, and the summary must
+  include no raw access or refresh tokens.
 
 ## Privacy
 

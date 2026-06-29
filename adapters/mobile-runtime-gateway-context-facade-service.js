@@ -75,6 +75,7 @@ function createMobileRuntimeGatewayContextFacadeService(options = {}) {
     isStaleDocxToolAvailabilityClaim: (...args) => conversationHistoryService.isStaleDocxToolAvailabilityClaim(...args),
     isStaleHttpToolAvailabilityClaim: (...args) => conversationHistoryService.isStaleHttpToolAvailabilityClaim(...args),
     isStaleImageToolAvailabilityClaim: (...args) => conversationHistoryService.isStaleImageToolAvailabilityClaim(...args),
+    isStalePptxGenerationToolAvailabilityClaim: (...args) => conversationHistoryService.isStalePptxGenerationToolAvailabilityClaim(...args),
     isToolUnavailableClaimText: (...args) => conversationHistoryService.isToolUnavailableClaimText(...args),
     policyHasToolset,
     stripDirectoryAliasLinesForChatHistory: (...args) => conversationHistoryService.stripDirectoryAliasLinesForChatHistory(...args),

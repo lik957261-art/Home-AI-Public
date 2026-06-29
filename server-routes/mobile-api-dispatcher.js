@@ -1,6 +1,5 @@
 "use strict";
 
-const WEIXIN_INGRESS_PATH_PREFIX = "/api/ingress/weixin/";
 const EMBEDDED_PLUGIN_PROXY_PATH_REGEX = /^\/api\/hermes-plugins\/[^/]+\/proxy(?:\/|$)/;
 const PRE_AUTH_SYSTEM_PATHS = Object.freeze(new Set([
   "/api/client-version",
@@ -8,7 +7,6 @@ const PRE_AUTH_SYSTEM_PATHS = Object.freeze(new Set([
 
 const MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE = Object.freeze([
   Object.freeze({ key: "systemApiRoutes", passAuth: false }),
-  Object.freeze({ key: "weixinApiRoutes", passAuth: true }),
   Object.freeze({ key: "ownerElevationApiRoutes", passAuth: false }),
   Object.freeze({ key: "runtimeConfigApiRoutes", passAuth: false }),
   Object.freeze({ key: "pushApiRoutes", passAuth: false }),
@@ -111,7 +109,6 @@ function createMobileApiDispatcher(deps = {}) {
   const sendJson = ensureFunction(deps, "sendJson");
 
   const publicApiRoutes = ensureRouteHandler(deps, "publicApiRoutes");
-  const weixinApiRoutes = ensureRouteHandler(deps, "weixinApiRoutes");
   const systemApiRoutes = ensureRouteHandler(deps, "systemApiRoutes");
   const authenticatedRoutes = (deps.authenticatedRoutePipeline || MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE)
     .map((entry) => normalizeAuthenticatedRouteEntry(deps, entry));
@@ -122,11 +119,6 @@ function createMobileApiDispatcher(deps = {}) {
 
     const publicResult = await publicApiRoutes.handle(req, res, url);
     if (routeWasHandled(publicResult)) return publicResult;
-
-    if (url.pathname.startsWith(WEIXIN_INGRESS_PATH_PREFIX)) {
-      const ingressResult = await weixinApiRoutes.handle(req, res, url);
-      if (routeWasHandled(ingressResult)) return ingressResult;
-    }
 
     if (EMBEDDED_PLUGIN_PROXY_PATH_REGEX.test(url.pathname)) {
       const proxyResult = await deps.hermesPluginApiRoutes.handle(req, res, url);
@@ -168,7 +160,6 @@ function createMobileApiDispatcher(deps = {}) {
 
 module.exports = {
   EMBEDDED_PLUGIN_PROXY_PATH_REGEX,
-  WEIXIN_INGRESS_PATH_PREFIX,
   MOBILE_API_AUTHENTICATED_ROUTE_KEYS,
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,
   PRE_AUTH_SYSTEM_PATHS,

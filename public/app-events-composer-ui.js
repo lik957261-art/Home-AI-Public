@@ -16,7 +16,8 @@ function scheduleRenderCurrentThread() {
   const conversation = $("conversation");
   if (!conversation) return;
   const routeSnapshot = currentThreadRouteSnapshot();
-  state.shouldStickToBottom = shouldForceChatStickToBottom() || isNearBottom();
+  const userScrollProtected = typeof conversationUserScrollProtectActive === "function" && conversationUserScrollProtectActive();
+  state.shouldStickToBottom = !userScrollProtected && (shouldForceChatStickToBottom() || isNearBottom());
   state.preservedBottomOffset = conversation.scrollHeight - conversation.scrollTop;
   state.renderScheduled = true;
   requestAnimationFrame(() => {
@@ -105,9 +106,10 @@ function renderStreamingMessageContent(message) {
   if (!article || !body || !content || message.revokedAt) return false;
   const conversation = $("conversation");
   const readAnchorActive = typeof conversationReadAnchorActive === "function" && conversationReadAnchorActive(conversation);
+  const userScrollProtected = typeof conversationUserScrollProtectActive === "function" && conversationUserScrollProtectActive();
   const shouldStick = typeof shouldKeepRunProgressPinnedToBottom === "function"
-    ? !readAnchorActive && shouldKeepRunProgressPinnedToBottom(conversation)
-    : !readAnchorActive && (shouldForceChatStickToBottom() || isNearBottom());
+    ? !readAnchorActive && !userScrollProtected && shouldKeepRunProgressPinnedToBottom(conversation)
+    : !readAnchorActive && !userScrollProtected && (shouldForceChatStickToBottom() || isNearBottom());
   const scrollMetrics = typeof runProgressScrollMetrics === "function"
     ? runProgressScrollMetrics(conversation)
     : null;
@@ -250,11 +252,6 @@ function upsertCachedChatScopeMessage(threadId, message, threadSummary = null) {
     state.groupChatAvailable = true;
     state.groupChatThreadId = state.groupChatThread.id;
   }
-  if (state.weixinChatThread?.id === threadId) {
-    state.weixinChatThread = update(state.weixinChatThread);
-    state.weixinChatAvailable = true;
-    state.weixinChatThreadId = state.weixinChatThread.id;
-  }
   if (state.privateChatThread?.id === threadId) {
     state.privateChatThread = update(state.privateChatThread);
   }
@@ -307,7 +304,10 @@ async function refreshCurrentThreadFromServer(options = {}) {
   state.currentThreadRefreshInFlight = true;
   state.currentThreadRefreshInFlightSeq = refreshSeq;
   state.currentThreadRefreshPending = false;
-  const stickToBottom = Object.prototype.hasOwnProperty.call(options, "stickToBottom")
+  const userScrollProtected = typeof conversationUserScrollProtectActive === "function" && conversationUserScrollProtectActive();
+  const stickToBottom = userScrollProtected
+    ? false
+    : Object.prototype.hasOwnProperty.call(options, "stickToBottom")
     ? Boolean(options.stickToBottom || shouldForceChatStickToBottom())
     : (shouldForceChatStickToBottom() || isNearBottom());
   const beforeTaskRootSignature = isCurrentTopicRootListView() && typeof taskListRootRenderSignature === "function"

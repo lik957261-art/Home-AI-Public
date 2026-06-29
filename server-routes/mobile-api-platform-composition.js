@@ -11,7 +11,6 @@ const { createPushApiRoutes } = require("./push-api-routes");
 const { createResourceApiRoutes } = require("./resource-api-routes");
 const { createRuntimeConfigApiRoutes } = require("./runtime-config-api-routes");
 const { createSystemApiRoutes } = require("./system-api-routes");
-const { createWeixinApiRoutes } = require("./weixin-api-routes");
 const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
 const { createCurrentEnvironmentContextService } = require("../adapters/current-environment-context-service");
 const { createPlatformCurrencyService } = require("../adapters/platform-currency-service");
@@ -47,20 +46,6 @@ function createMobileApiPlatformComposition(deps = {}) {
     sendJson: deps.sendJson,
   });
   callBootTrace(deps, "public api routes ready");
-
-  const weixinApiRoutes = createWeixinApiRoutes({
-    requireWeixinIngress: deps.requireWeixinIngress,
-    readBody: deps.readBody,
-    sendJson: deps.sendJson,
-    startWeixinIngressEvent: deps.startWeixinIngressEvent,
-    pendingWeixinOutboundDeliveries: deps.pendingWeixinOutboundDeliveries,
-    ackWeixinOutboundDelivery: deps.ackWeixinOutboundDelivery,
-    weixinIngressProvider: deps.weixinIngressProvider,
-    authCanAccessWorkspace: deps.authCanAccessWorkspace,
-    weixinForwardTargetsForWorkspace: deps.weixinForwardTargetsForWorkspace,
-    createWeixinFileForwardDelivery: deps.createWeixinFileForwardDelivery,
-  });
-  callBootTrace(deps, "weixin api routes ready");
 
   const systemApiRoutes = createSystemApiRoutes({
     authenticateRequest: deps.authenticateRequest,
@@ -203,7 +188,6 @@ function createMobileApiPlatformComposition(deps = {}) {
       resourceApiRoutes,
       runtimeConfigApiRoutes,
       systemApiRoutes,
-      weixinApiRoutes,
       workspaceApiRoutes,
     },
     services: {

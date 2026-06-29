@@ -84,6 +84,14 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
     return gatewayProviderService.replaceGatewayRunTarget(oldRunId, newRunId);
   }
 
+  function rotateOpenAiCodexCredentialPoolAfterUsageLimit(input = {}) {
+    return gatewayProviderService.rotateOpenAiCodexCredentialPoolAfterUsageLimit(input);
+  }
+
+  function restartRunningGatewayWorkers(input = {}) {
+    return gatewayProviderService.restartRunningGatewayWorkers(input);
+  }
+
   function runConcurrencySnapshot() {
     return gatewayConcurrencyService.runConcurrencySnapshot();
   }
@@ -108,6 +116,8 @@ function createMobileRuntimeGatewayFacadeService(options = {}) {
     resetGatewayRuntimeConfig,
     releaseGatewayRunTarget,
     replaceGatewayRunTarget,
+    restartRunningGatewayWorkers,
+    rotateOpenAiCodexCredentialPoolAfterUsageLimit,
     runConcurrencyError,
     runConcurrencySnapshot,
     singleGatewayRunner,

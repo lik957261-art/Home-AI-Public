@@ -2,6 +2,9 @@
 
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const path = require("node:path");
+
+const repoRoot = path.resolve(__dirname, "..");
 
 const assessmentExamService = require("../adapters/assessment-exam-service");
 const assessmentExamWorkflowService = require("../adapters/assessment-exam-workflow-service");
@@ -186,7 +189,6 @@ const mobileRuntimeSystemStatusFacadeService = require("../adapters/mobile-runti
 const mobileRuntimeThreadFacadeService = require("../adapters/mobile-runtime-thread-facade-service");
 const mobileRuntimeThreadViewFacadeService = require("../adapters/mobile-runtime-thread-view-facade-service");
 const mobileRuntimeTodoFacadeService = require("../adapters/mobile-runtime-todo-facade-service");
-const mobileRuntimeWeixinFacadeService = require("../adapters/mobile-runtime-weixin-facade-service");
 const mobileRuntimeWorkspaceIdentityFacadeService = require("../adapters/mobile-runtime-workspace-identity-facade-service");
 const mobileRuntimeWorkspaceFacadeService = require("../adapters/mobile-runtime-workspace-facade-service");
 const mobileRuntimeWorkspaceCatalogFacade = require("../adapters/mobile-runtime-workspace-catalog-facade");
@@ -218,13 +220,6 @@ const threadMessageRunRouteService = require("../adapters/thread-message-run-rou
 const threadOwnerElevationRetryService = require("../adapters/thread-owner-elevation-retry-service");
 const threadRuntimeCompositionService = require("../adapters/thread-runtime-composition-service");
 const threadViewService = require("../adapters/thread-view-service");
-const weixinFileForwardService = require("../adapters/weixin-file-forward-service");
-const weixinForwardService = require("../adapters/weixin-forward-service");
-const weixinIngressEventService = require("../adapters/weixin-ingress-event-service");
-const weixinMarkdownForwardService = require("../adapters/weixin-markdown-forward-service");
-const weixinOutboundDeliveryService = require("../adapters/weixin-outbound-delivery-service");
-const weixinRuntimeCompositionService = require("../adapters/weixin-runtime-composition-service");
-const weixinWindowMigrationService = require("../adapters/weixin-window-migration-service");
 const voiceInputAsrProvider = require("../adapters/voice-input-asr-provider");
 const voiceInputCorrectionService = require("../adapters/voice-input-correction-service");
 const voiceInputService = require("../adapters/voice-input-service");
@@ -278,7 +273,6 @@ const threadTaskApiRoutes = require("../server-routes/thread-task-api-routes");
 const todoApiRoutes = require("../server-routes/todo-api-routes");
 const voiceInputApiRoutes = require("../server-routes/voice-input-api-routes");
 const todoPublicProjectionService = require("../adapters/todo-public-projection-service");
-const weixinApiRoutes = require("../server-routes/weixin-api-routes");
 const workspaceApiRoutes = require("../server-routes/workspace-api-routes");
 const workspaceOnboardingApiRoutes = require("../server-routes/workspace-onboarding-api-routes");
 const appLearningCoinsUi = require("../public/app-learning-coins-ui");
@@ -553,12 +547,11 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof mobileRuntimeThreadFacadeService.createMobileRuntimeThreadFacadeService, "function");
   assert.equal(typeof mobileRuntimeThreadViewFacadeService.createMobileRuntimeThreadViewFacadeService, "function");
   assert.equal(typeof mobileRuntimeTodoFacadeService.createMobileRuntimeTodoFacadeService, "function");
-  assert.equal(typeof mobileRuntimeWeixinFacadeService.createMobileRuntimeWeixinFacadeService, "function");
   assert.equal(typeof mobileRuntimeWorkspaceIdentityFacadeService.createMobileRuntimeWorkspaceIdentityFacadeService, "function");
   assert.equal(typeof mobileRuntimeWorkspaceFacadeService.createMobileRuntimeWorkspaceFacadeService, "function");
   assert.equal(typeof mobileRuntimeWorkspaceCatalogFacade.createMobileRuntimeWorkspaceCatalogFacade, "function");
   assert.equal(typeof markdownRenderer.renderMarkdownDocument, "function");
-  assert.equal(typeof markdownRenderer.renderWeixinMarkdownForwardHtml, "function");
+  assert.equal(markdownRenderer.renderWeixinMarkdownForwardHtml, undefined);
   assert.equal(typeof naturalLanguageDraftService.createNaturalLanguageDraftService, "function");
   assert.equal(typeof naturalLanguageDraftService.extractJsonObject, "function");
   assert.equal(typeof nativeNotificationService.createNativeNotificationService, "function");
@@ -599,16 +592,14 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof threadOwnerElevationRetryService.createThreadOwnerElevationRetryService, "function");
   assert.equal(typeof threadRuntimeCompositionService.createThreadRuntimeCompositionService, "function");
   assert.equal(typeof threadViewService.createThreadViewService, "function");
-  assert.equal(typeof weixinFileForwardService.createWeixinFileForwardService, "function");
-  assert.equal(typeof weixinFileForwardService.fileResultFromResolvedForwardSource, "function");
-  assert.equal(typeof weixinForwardService.createWeixinForwardService, "function");
-  assert.equal(typeof weixinForwardService.compactWeixinForwardTarget, "function");
-  assert.equal(typeof weixinIngressEventService.createWeixinIngressEventService, "function");
-  assert.equal(typeof weixinMarkdownForwardService.materializeWeixinForwardFile, "function");
-  assert.equal(typeof weixinMarkdownForwardService.renderMarkdownForwardPdf, "function");
-  assert.equal(typeof weixinOutboundDeliveryService.createWeixinOutboundDeliveryService, "function");
-  assert.equal(typeof weixinRuntimeCompositionService.createWeixinRuntimeCompositionService, "function");
-  assert.equal(typeof weixinWindowMigrationService.createWeixinWindowMigrationService, "function");
+  assert.equal(fs.existsSync(path.join(repoRoot, "adapters", "mobile-runtime-weixin-facade-service.js")), false);
+  assert.equal(fs.existsSync(path.join(repoRoot, "adapters", "weixin-file-forward-service.js")), false);
+  assert.equal(fs.existsSync(path.join(repoRoot, "adapters", "weixin-forward-service.js")), false);
+  assert.equal(fs.existsSync(path.join(repoRoot, "adapters", "weixin-ingress-event-service.js")), false);
+  assert.equal(fs.existsSync(path.join(repoRoot, "adapters", "weixin-markdown-forward-service.js")), false);
+  assert.equal(fs.existsSync(path.join(repoRoot, "adapters", "weixin-outbound-delivery-service.js")), false);
+  assert.equal(fs.existsSync(path.join(repoRoot, "adapters", "weixin-runtime-composition-service.js")), false);
+  assert.equal(fs.existsSync(path.join(repoRoot, "adapters", "weixin-window-migration-service.js")), false);
   assert.equal(typeof webPushAutomationProjectionService.createWebPushAutomationProjectionService, "function");
   assert.equal(typeof webPushDeliveryService.createWebPushDeliveryService, "function");
   assert.equal(typeof webPushDeliveryNormalizationService.createWebPushDeliveryNormalizationService, "function");
@@ -633,7 +624,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof nativeEnvironmentContextApiRoutes.createNativeEnvironmentContextApiRoutes, "function");
   assert.equal(typeof eventStreamApiRoutes.createEventStreamApiRoutes, "function");
   assert.equal(typeof ownerElevationApiRoutes.createOwnerElevationApiRoutes, "function");
-  assert.equal(typeof weixinApiRoutes.createWeixinApiRoutes, "function");
+  assert.equal(fs.existsSync(path.join(repoRoot, "server-routes", "weixin-api-routes.js")), false);
   assert.equal(typeof workspaceApiRoutes.createWorkspaceApiRoutes, "function");
   assert.equal(typeof workspaceOnboardingApiRoutes.createWorkspaceOnboardingApiRoutes, "function");
   assert.equal(typeof accessKeyApiRoutes.createAccessKeyApiRoutes, "function");
@@ -777,8 +768,6 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   const sqliteStoreFacade = fileText("adapters/mobile-runtime-sqlite-store-facade-service.js");
   const systemStatusFacade = fileText("adapters/mobile-runtime-system-status-facade-service.js");
   const threadFacade = fileText("adapters/mobile-runtime-thread-facade-service.js");
-  const weixinFacade = fileText("adapters/mobile-runtime-weixin-facade-service.js");
-  const weixinRuntime = fileText("adapters/weixin-runtime-composition-service.js");
   const workspaceIdentityFacade = fileText("adapters/mobile-runtime-workspace-identity-facade-service.js");
   const workspaceFacade = fileText("adapters/mobile-runtime-workspace-facade-service.js");
   const threadRuntime = fileText("adapters/thread-runtime-composition-service.js");
@@ -798,8 +787,9 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(gatewayContextFacade, /conversationHistoryService\.deriveTitle/);
   assert.doesNotMatch(server, /conversationHistoryService\.buildConversationHistory/);
   assert.match(gatewayContextFacade, /isStaleHttpToolAvailabilityClaim: \(\.\.\.args\) => conversationHistoryService\.isStaleHttpToolAvailabilityClaim\(\.\.\.args\)/);
-  assert.match(server, /isStaleHttpToolAvailabilityClaim: \(\.\.\.args\) => mobileRuntimeGatewayContextFacadeService\.isStaleHttpToolAvailabilityClaim\(\.\.\.args\)/);
-  assert.match(server, /isStaleImageToolAvailabilityClaim: \(\.\.\.args\) => mobileRuntimeGatewayContextFacadeService\.isStaleImageToolAvailabilityClaim\(\.\.\.args\)/);
+  assert.match(server, /const gatewayContextMethod = \(methodName\) => \(\.\.\.args\) => mobileRuntimeGatewayContextFacadeService\[methodName\]\(\.\.\.args\)/);
+  assert.doesNotMatch(server, /isStaleHttpToolAvailabilityClaim: \(\.\.\.args\) => mobileRuntimeGatewayContextFacadeService\.isStaleHttpToolAvailabilityClaim\(\.\.\.args\)/);
+  assert.doesNotMatch(server, /isStaleImageToolAvailabilityClaim: \(\.\.\.args\) => mobileRuntimeGatewayContextFacadeService\.isStaleImageToolAvailabilityClaim\(\.\.\.args\)/);
   assert.doesNotMatch(server, /^function isStaleHttpToolAvailabilityClaim/gm);
   assert.doesNotMatch(server, /^function isStaleImageToolAvailabilityClaim/gm);
   assert.match(server, /createGatewayRunInstructionService/);
@@ -1460,24 +1450,20 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.doesNotMatch(server, /function clientCanReceivePayload/);
   assert.match(mobileComposition, /createEventStreamApiRoutes/);
   assert.match(httpServer, /eventStreamApiRoutes\.handle\(req, res, url\)/);
-  assert.match(mobilePlatformComposition, /createWeixinApiRoutes/);
-  assert.match(dispatcher, /weixinApiRoutes\.handle\(req, res, url/);
-  assert.match(server, /createMobileRuntimeWeixinFacadeService/);
-  assert.match(weixinFacade, /createWeixinRuntimeCompositionService/);
-  assert.match(weixinFacade, /userFacingWeixinRunError: \(\.\.\.args\) => callService\("userFacingWeixinRunError", args\)/);
-  assert.doesNotMatch(server, /weixinRuntimeCompositionService = createWeixinRuntimeCompositionService/);
-  assert.match(weixinRuntime, /createWeixinIngressEventService/);
-  assert.match(weixinRuntime, /getIngressEventService\(\)\.start/);
-  assert.match(weixinRuntime, /createWeixinOutboundDeliveryService/);
-  assert.match(weixinRuntime, /getOutboundDeliveryService\(\)\.ackDelivery/);
-  assert.match(server, /publicWeixinOutboundDelivery: \(\.\.\.args\) => mobileRuntimeWeixinFacadeService\.publicWeixinOutboundDelivery\(\.\.\.args\)/);
+  assert.doesNotMatch(mobilePlatformComposition, /createWeixinApiRoutes/);
+  assert.doesNotMatch(dispatcher, /weixinApiRoutes\.handle\(req, res, url/);
+  assert.doesNotMatch(server, /createMobileRuntimeWeixinFacadeService/);
+  assert.doesNotMatch(server, /createWeixinRuntimeCompositionService/);
+  assert.doesNotMatch(server, /createWeixinIngressEventService/);
+  assert.doesNotMatch(server, /createWeixinOutboundDeliveryService/);
+  assert.doesNotMatch(server, /publicWeixinOutboundDelivery/);
   assert.doesNotMatch(server, /^function publicWeixinOutboundDelivery/gm);
   assert.doesNotMatch(server, /^function userFacingWeixinRunError/gm);
   assert.match(server, /createSingleWindowThreadService/);
   assert.match(server, /const singleWindowThreadService = createSingleWindowThreadService/);
   assert.match(server, /const getSingleWindowThreadService = \(\) => singleWindowThreadService/);
   assert.doesNotMatch(server, /^function getSingleWindowThreadService/gm);
-  assert.match(fileText("adapters/single-window-thread-service.js"), /migrateWeixinMessagesToDedicatedThread/);
+  assert.doesNotMatch(fileText("adapters/single-window-thread-service.js"), /migrateWeixinMessagesToDedicatedThread/);
   assert.match(server, /createWebPushDeliveryService/);
   assert.match(server, /const loadVapidConfig = \(\.\.\.args\) => webPushDeliveryService\.loadVapidConfig\(\.\.\.args\);/);
   assert.match(server, /const initializeWebPush = \(\.\.\.args\) => webPushDeliveryService\.initializeWebPush\(\.\.\.args\);/);
@@ -1533,7 +1519,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(dispatcher, /key: "singleWindowGroupChatApiRoutes"/);
   assert.match(fileText("adapters/single-window-thread-service.js"), /migratePrivateSingleWindowGroups/);
   assert.match(fileText("adapters/single-window-thread-service.js"), /createSingleWindowMigrationService/);
-  assert.match(fileText("adapters/single-window-thread-service.js"), /createWeixinWindowMigrationService/);
+  assert.doesNotMatch(fileText("adapters/single-window-thread-service.js"), /createWeixinWindowMigrationService/);
   assert.match(mobileComposition, /createThreadMessageRunApiRoutes/);
   assert.match(dispatcher, /key: "threadMessageRunApiRoutes"/);
   assert.match(server, /createMobileRuntimeThreadFacadeService/);
@@ -1741,11 +1727,7 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(fileHelpers, /documentPreviewService\.extractDocxText/);
   assert.match(fileHelpers, /documentPreviewService\.textFilePreview/);
   assert.match(server, /const extractArtifactPaths = \(\.\.\.args\) => fileResourceService\.extractArtifactPaths\(\.\.\.args\)/);
-  assert.match(weixinRuntime, /createWeixinForwardService/);
-  assert.match(weixinRuntime, /getForwardService\(\)\.targetsForWorkspace/);
-  assert.match(weixinRuntime, /createWeixinFileForwardService/);
-  assert.match(weixinRuntime, /getFileForwardService\(\)\.createWeixinFileForwardDelivery/);
-  assert.match(weixinRuntime, /weixinMarkdownForwardService\.materializeWeixinForwardFile/);
+  assert.equal(fs.existsSync(path.join(repoRoot, "adapters", "weixin-runtime-composition-service.js")), false);
   assert.match(fileText("adapters/kanban-case-share-service.js"), /function syncToSqlite/);
   assertAppearsInOrder(dispatcher, [
     'key: "threadReadUploadApiRoutes"',
@@ -1864,7 +1846,7 @@ function testServiceFirstArchitectureContract() {
   assert.match(doc, /mobile-runtime-thread-view-facade-service\.js` must stay at or below 140\s+lines/);
   assert.match(doc, /mobile-runtime-todo-facade-service\.js` must stay at or below 120 lines/);
   assert.match(doc, /mobile-runtime-kanban-facade-service\.js` must stay at or below 380 lines/);
-  assert.match(doc, /mobile-runtime-weixin-facade-service\.js` must stay at or below 115 lines/);
+  assert.doesNotMatch(doc, /mobile-runtime-weixin-facade-service/);
   assert.match(doc, /mobile-runtime-workspace-facade-service\.js` must stay at or below 190 lines/);
   assert.match(doc, /mobile-api-composition\.js` must stay at or below 410 lines/);
   assert.match(doc, /mobile-api-directory-composition\.js` must stay at or below 150 lines/);
@@ -1976,7 +1958,6 @@ function testServiceFirstArchitectureContract() {
   const workspaceIdentityFacade = fileText("adapters/mobile-runtime-workspace-identity-facade-service.js");
   const workspaceFacade = fileText("adapters/mobile-runtime-workspace-facade-service.js");
   const workspaceCatalogFacade = fileText("adapters/mobile-runtime-workspace-catalog-facade.js");
-  const weixinFacade = fileText("adapters/mobile-runtime-weixin-facade-service.js");
   const stateFacade = fileText("adapters/mobile-runtime-state-facade-service.js");
   const runtimeEnvironment = fileText("adapters/mobile-runtime-environment-service.js");
   const gatewayEnvironment = fileText("adapters/mobile-runtime-gateway-environment-service.js");

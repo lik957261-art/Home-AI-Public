@@ -230,8 +230,9 @@ The maintained baseline diagnostics are:
 - `scripts/macos-worker-filesystem-access-harness.js`;
 - `scripts/macos-gateway-manifest-toolset-smoke.js`;
 - `scripts/gateway-tool-schema-smoke.js` for document/file tools callable
-  schema (`docx_extract_text`, `office_extract_text`, `pdf_extract_text`,
-  `pdf_render_pages`, `audio_transcribe`, `archive_list`,
+  schema (`docx_create`, `docx_extract_text`, `office_extract_text`,
+  `pptx_create`, `pdf_create`, `pdf_extract_text`, `pdf_render_pages`,
+  `audio_transcribe`, `archive_list`,
   `archive_extract_safe`);
 - `scripts/macos-plugin-directory-production-smoke.js`;
 - `scripts/macos-bound-directory-preview-smoke.js`;
@@ -300,14 +301,19 @@ node scripts/macos-install-verification-classification.js
 node scripts/macos-install-operator-closure-checklist.js
 node scripts/macos-web-push-production-audit.js --source-check --json
 node scripts/macos-web-push-production-audit.js --root <mac-root> --public-origin <external-origin> --require-public-origin --require-active-external-subscription --json
+node scripts/homeai-self-improving-loop.js --matrix --json
+node scripts/homeai-self-improving-loop.js --coverage-audit --json
+node scripts/homeai-self-improving-loop.js --collect-production-observations --status-smoke-json '{"ok":true,"activeGlobal":0,"gatewayPool":{"enabled":true,"workerCount":1},"gatewayWorkerPolicyContract":{"ok":true}}' --cron-audit-json '{"ok":true,"jobCount":1,"skillCount":1,"sourceIssueCount":0,"configIssueCount":0,"statusIssueCount":0}' --production-diagnostics-json '{"ok":true,"diagnosticCount":1,"diagnostics":[],"issues":[]}' --json
 node scripts/production-self-diagnostics-coverage-audit.js
 node tests/production-self-diagnostics.test.js
 node tests/production-self-diagnostics-coverage-audit.test.js
+node tests/home-ai-self-improving-loop-service.test.js
+node tests/homeai-self-improving-loop-script.test.js
 ```
 
 The JSON output lists the diagnostic id, script path, source harness, intended
-production command, required use cases, and bounded-output policy. This command
-does not execute production repair or smoke actions by itself; it is the
+production command, required use cases, closure readbacks, and bounded-output
+policy. This command does not execute production repair or smoke actions by itself; it is the
 operator-facing checklist and source-side guard for selecting the right
 production diagnostic before closure.
 
@@ -364,6 +370,7 @@ The accepted production self-diagnostic evidence ids are:
 - `macos-install-verification-classification`;
 - `macos-install-operator-closure`;
 - `production-self-diagnostics-coverage`;
+- `self-improving-loop`;
 - `production-drift-reconcile`;
 - `production-drift-watchdog`;
 - `web-push-production-audit`;

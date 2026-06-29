@@ -1,8 +1,7 @@
 # Mac Production Closure Validation
 
 Use this runbook when Mac Studio production has been changed, migrated, repaired,
-or revalidated after a Gateway/Profile/Skill/MCP/plugin/Weixin/auth-header
-incident.
+or revalidated after a Gateway/Profile/Skill/MCP/plugin/auth-header incident.
 
 The checked closure harness is:
 
@@ -67,13 +66,14 @@ It validates:
   Owner, and test profiles, plus the standard profile-local base tools
   `http_request`, `weather`, `mobile_web_search`, `mobile_web_extract`,
   `image_generate`, `chatgpt_image_edit`, `chatgpt_image_erase`,
-  `docx_extract_text`, `office_extract_text`, `pdf_extract_text`,
-  `pdf_render_pages`, `audio_transcribe`, `archive_list`, and
+  `docx_create`, `docx_extract_text`, `office_extract_text`, `pptx_create`,
+  `pdf_create`, `pdf_extract_text`, `pdf_render_pages`, `audio_transcribe`,
+  `archive_list`, and
   `archive_extract_safe`.
 - Document-file tool closure also requires the profile-plugin schema smoke:
   `gateway-tool-schema-smoke.js --profile <profile> --profile-plugin-schema-only
-  --profile-plugin-filter hermes-mobile-docx,hermes-mobile-pdf --require
-  docx_extract_text,office_extract_text,pdf_extract_text,pdf_render_pages`.
+  --profile-plugin-filter hermes-mobile-docx,hermes-mobile-pptx,hermes-mobile-pdf,hermes-mobile-audio,hermes-mobile-archive --require
+  docx_create,docx_extract_text,office_extract_text,pptx_create,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe`.
   This check reads the production profile `config.yaml` and profile-local
   `plugins/` directory without starting the model provider, so it catches
   config/plugin drift independently from provider auth or full `AIAgent`
@@ -85,8 +85,6 @@ It validates:
   are configured but not yet healthy because `ownerMinWarm=0`; it still fails if
   the pool is disabled, no workers are configured, the run fails, or the
   completed run does not report the expected profile.
-- Weixin heartbeat ingress uses `X-Hermes-Mobile-Ingress-Key`, rejects
-  `X-Hermes-Web-Key`, and does not create a run, thread, or message.
 - After static UI changes, `/api/client-version` reports the deployed client
   version from the live Mac listener, the served `/api/status?detail=1`
   `clientVersion` matches the expected app-shell version, and visual smoke
@@ -166,7 +164,7 @@ callable, missing standard profile-local base tool, failed directory-bound topic
 preview row in either path-only or UI-route mode, Wardrobe binding row with a
 legacy origin, Wardrobe manifest launch failure, zero/negative Wardrobe
 bootstrap item count, unreadable Automation cron source, nonzero Automation
-cron config/status issue count, wrong DeepSeek profile, failed Weixin route, or
+cron config/status issue count, wrong DeepSeek profile, or
 nonzero final `activeGlobal` as a production blocker for the non-Grok closure
 gate.
 

@@ -318,6 +318,32 @@ NO_PROXY=127.0.0.1,localhost,::1
 In proxy mode, model-backed CRON jobs must fail before official
 `cron.scheduler.run_job()` starts if no configured/reachable proxy exists.
 
+## Public Upgrade Closure
+
+Existing public installs must use the central upgrade loop before being treated
+as current:
+
+```bash
+npm run upgrade:public -- --json
+npm run upgrade:public -- --execute --reason public-upgrade --json
+```
+
+The loop reads `config/public-plugin-sources.json`, performs clean
+fast-forward-only source updates, deploys changed Home AI/plugin roots through
+`scripts/deploy-macos-production.js`, and runs production closure validation.
+Moira and Movie are in the deployable plugin inventory. Moira points at the
+public `MOIRA_chinese_astrology_public` repository; Movie is marked
+`operatorAuthenticated` and requires operator Git read access.
+
+The upgrade loop must also account for the official Hermes Agent runtime used
+by provider ingress. Updating
+`<root>/runtime/hermes-agent-official/source` requires the explicit
+`--update-hermes-agent` gate, and dependency refresh requires
+`--install-hermes-agent-dependencies`. After a Home AI, plugin, or Hermes Agent
+update, the loop must rerun the production profile/provider audit and
+`scripts/macos-production-closure-validation.js`. Do not model an upgrade as
+closed if provider access through Hermes Agent has not been checked.
+
 ## Installer Shape
 
 Target top-level installer:
@@ -521,8 +547,7 @@ Minimum smoke after install:
 
 - `sudo /Users/example/path /Users/example/path --json`.
   This is the default Mac production closure gate after deployment, migration,
-  Gateway/Profile repair, plugin provisioning, Weixin route repair, or ACL
-  repair.
+  Gateway/Profile repair, plugin provisioning, or ACL repair.
 - `sudo /Users/example/path /Users/example/path --root /Users/example/path --base http://127.0.0.1:8797 --json`.
   Use this focused smoke after workspace catalog path repair, local workspace
   rename, directory ownership repair, or plugin-topic delivery-directory
@@ -574,8 +599,6 @@ Required scenarios:
   `activeGlobal=0`;
 - DeepSeek ordinary and Owner-maintenance routes use `deepseekgw1` and
   `deepseekmaint1`, respectively;
-- Weixin heartbeat ingress uses `X-Hermes-Mobile-Ingress-Key`, rejects the
-  browser/API header, and does not create a run, thread, or message;
 - clean public install can create Owner and then provision plugins on demand.
 
 ## Deployment Flow For The New Mac

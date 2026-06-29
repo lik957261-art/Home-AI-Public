@@ -78,15 +78,8 @@ function fixtureDependencies() {
         updatedAt: ingress.updatedAt || "",
       };
     },
-    publicWeixinOutboundDelivery(thread, message) {
-      return {
-        source: "weixin",
-        threadId: thread?.id || "",
-        messageId: message?.id || "",
-      };
-    },
     findThreadForMessage(message) {
-      return message?.id === "orphan-weixin" ? makeThread() : null;
+      return message?.id === "orphan-external" ? makeThread() : null;
     },
     sanitizeTaskTitle(value) {
       return String(value || "").trim().replace(/\s+/g, " ").slice(0, 120);
@@ -166,7 +159,7 @@ function makeThread() {
       updatedAt: "2026-05-14T10:00:00.000Z",
     },
     externalIngress: {
-      source: "weixin",
+      source: "mail",
       workspaceId: "owner",
       senderLabel: "External User",
       status: "window",
@@ -215,7 +208,26 @@ function makeThread() {
         gatewaySource: "codex",
         loadedSkills: [{ id: "write", label: "write", path: "productivity/write", namespace: "productivity" }],
         loadedTools: [{ id: "x_search", name: "x_search", label: "x_search" }],
-        externalDelivery: { source: "weixin" },
+        externalDelivery: { source: "mail" },
+        pluginActions: {
+          wardrobeOutfitWearIntent: {
+            status: "ready",
+            executable: true,
+            intent: {
+              type: "outfit_wear_intent",
+              schema_version: 1,
+              plugin_id: "wardrobe",
+              principal_id: "owner",
+              workspace_id: "owner",
+              wear_date: "2026-06-29",
+              timezone: "Asia/Shanghai",
+              items: [{ role: "Outer", code: "OUT-001" }],
+              source_message: { message_id: "task-a-assistant", thread_id: "thread-view" },
+              idempotency_key: "wardrobe:outfit_wear_intent:test",
+              expires_at: "2026-06-30T00:00:00Z",
+            },
+          },
+        },
         runOptions: {
           model: "gpt-test",
           provider: "openai-codex",
@@ -387,25 +399,20 @@ function testCompactMessage(subject) {
   assert.equal(got.truncated, false);
   assert.equal(Object.hasOwn(got, "runOptions"), false);
   assert.equal(got.artifacts[0].id, "artifact-alpha");
-  assert.deepEqual(got.externalDelivery, {
-    source: "weixin",
-    threadId: "thread-view",
-    messageId: "task-a-assistant",
-  });
+  assert.equal(got.externalDelivery, null);
+  assert.equal(got.pluginActions.wardrobeOutfitWearIntent.status, "ready");
+  assert.equal(got.pluginActions.wardrobeOutfitWearIntent.executable, true);
+  assert.equal(got.pluginActions.wardrobeOutfitWearIntent.intent.items[0].code, "OUT-001");
 
   const fallback = compactMessage({
-    id: "orphan-weixin",
+    id: "orphan-external",
     role: "assistant",
     content: "orphan delivery",
-    externalDelivery: { source: "weixin" },
+    externalDelivery: { source: "mail" },
     artifacts: [{ id: "artifact-orphan", name: "orphan.txt", path: "C:\\tmp\\orphan.txt", mime: "text/plain" }],
     createdAt: "2026-05-14T10:11:00.000Z",
   });
-  assert.deepEqual(fallback.externalDelivery, {
-    source: "weixin",
-    threadId: "thread-view",
-    messageId: "orphan-weixin",
-  });
+  assert.equal(fallback.externalDelivery, null);
   assert.equal(fallback.artifacts[0].threadId, "thread-view");
   assert.deepEqual(fallback.loadedSkills, []);
 
@@ -424,15 +431,6 @@ function testCompactMessage(subject) {
   }));
   assert.deepEqual(toolFallback.loadedSkills, []);
   assert.deepEqual(toolFallback.loadedTools, [{ id: "x_search", name: "x_search", label: "x_search" }]);
-
-  const notWeixin = compactMessage({
-    id: "not-weixin",
-    role: "assistant",
-    content: "no delivery",
-    externalDelivery: { source: "email" },
-    createdAt: "2026-05-14T10:12:00.000Z",
-  }, thread);
-  assert.equal(notWeixin.externalDelivery, null);
 
   const longContent = `head-${"x".repeat(82_000)}-tail`;
   const long = compactMessage({
@@ -476,7 +474,7 @@ function testCompactThread(subject) {
   assert.deepEqual(got.activeRunIds, ["run-task-a", "run-task-b"]);
   assert.equal(got.taskGroupMeta["task-a"].title, " Alpha plan ");
   assert.equal(got.chatGroup.enabled, true);
-  assert.equal(got.externalIngress.source, "weixin");
+  assert.equal(got.externalIngress.source, "mail");
   assert.deepEqual(got.messages.map((message) => message.id), ["task-a-user", "task-a-assistant"]);
   assert.deepEqual(got.messagesPage, { mode: "tasks", total: 5, limit: 2 });
   assert.ok(got.taskGroups.some((group) => group.id === "task-old-dir"), "metadata-only task groups stay visible when messages are paged");

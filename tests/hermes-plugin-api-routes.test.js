@@ -5,6 +5,7 @@ const {
   HERMES_PLUGIN_API_ROUTE_SPECS,
   createHermesPluginApiRoutes,
 } = require("../server-routes/hermes-plugin-api-routes");
+const { createPluginProxyTimingService } = require("../adapters/plugin-proxy-timing-service");
 
 function makeResponse() {
   return {
@@ -24,6 +25,27 @@ function makeResponse() {
         return;
       }
       if (body) this.write(body);
+    },
+  };
+}
+
+function makeBinaryResponse() {
+  return {
+    statusCode: 0,
+    headers: {},
+    body: Buffer.alloc(0),
+    ended: false,
+    writeHead(status, headers = {}) {
+      this.statusCode = status;
+      this.headers = Object.assign({}, headers);
+    },
+    write(chunk = "") {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+      this.body = Buffer.concat([this.body, buffer]);
+    },
+    end(body = "") {
+      if (body) this.write(body);
+      this.ended = true;
     },
   };
 }
@@ -727,6 +749,52 @@ async function testHealthProxyNativeSyncPreservesHeaderWorkspace() {
   assert.equal(parseBody(res).ok, true);
 }
 
+async function testHealthProxyUsesSnakeCaseWorkspaceReferrer() {
+  const authorizationCalls = [];
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list(input = {}) {
+        assert.deepEqual(input, { workspaceId: "liyushuang", ownerAuthorized: false });
+        return [{ id: "health", manifestUrl: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" }];
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "health" });
+      },
+      pluginManifestUrl(id) {
+        return id === "health" ? "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" : "";
+      },
+      pluginProxyAuthorizationHeader(input) {
+        authorizationCalls.push(input);
+        return "Bearer liyushuang-health-secret";
+      },
+    },
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:4877/api/v1/profile/medications");
+      assert.equal(options.headers.Authorization, "Bearer liyushuang-health-secret");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "liyushuang");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify({ ok: true, medications: [] })),
+      });
+    },
+  });
+  const req = makeRequest("GET");
+  req.headers.referer = "https://home.example.test/api/hermes-plugins/health/proxy/health.html?embed=hermes&workspace_id=liyushuang";
+  req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/health/proxy/api/v1/profile/medications"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(authorizationCalls, [{ pluginId: "health", workspaceId: "liyushuang" }]);
+  assert.equal(parseBody(res).ok, true);
+}
+
 async function testPluginNotificationRoute() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
@@ -816,6 +884,81 @@ async function testCodexProxyDoesNotInjectWorkspaceIdIntoJavascriptPathConstants
   assert.match(res.body, /`\/api\/hermes-plugins\/codex-mobile\/proxy\/api\/uploads\/file\?\$\{params\.toString\(\)\}`/);
   assert.equal(res.body.includes("?workspaceId=owner"), false);
   assert.equal(res.body.includes("/api/?workspaceId=owner"), false);
+}
+
+async function testCodexThreadDetailProxyRecordsBoundedTimingAndSkipsProseUrlParsing() {
+  const recorded = [];
+  let now = 1000;
+  const pluginProxyTimingService = createPluginProxyTimingService({
+    nowMs: () => {
+      now += 10;
+      return now;
+    },
+    nowIso: () => "2026-06-28T00:00:00.000Z",
+    recordEvent: (event) => recorded.push(event),
+  });
+  const plainMessage = "plain thread content with private user text but no url";
+  const responseBody = {
+    ok: true,
+    thread: {
+      id: "thread-private",
+      mobileDiagnostics: { threadDetailTimings: { totalMs: 107 } },
+      messages: Array.from({ length: 80 }, (_, index) => ({
+        id: `msg-${index}`,
+        role: "assistant",
+        content: `${plainMessage} ${index}`,
+      })),
+    },
+    previewUrl: "/api/uploads/file?artifact=1",
+    iconUrl: "http://127.0.0.1:8787/icons/app.png",
+  };
+  const { routes } = makeRoutes({
+    pluginProxyTimingService,
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:8787/api/threads/thread-private?workspaceId=owner");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "application/json; charset=utf-8" : "" },
+        text: () => Promise.resolve(JSON.stringify(responseBody)),
+      });
+    },
+  });
+  const targetUrl = makeUrl("/api/hermes-plugins/codex-mobile/proxy/api/threads/thread-private?workspaceId=owner");
+  const OriginalURL = global.URL;
+  const urlInputs = [];
+  global.URL = class CountingURL extends OriginalURL {
+    constructor(value, base) {
+      urlInputs.push(String(value || ""));
+      super(value, base);
+    }
+  };
+  try {
+    const res = makeResponse();
+    const result = await routes.handle(makeRequest("GET"), res, targetUrl);
+    assert.equal(result.handled, true);
+    assert.equal(res.statusCode, 200);
+    const body = parseBody(res);
+    assert.equal(body.ok, true);
+    assert.equal(body.previewUrl, "/api/hermes-plugins/codex-mobile/proxy/api/uploads/file?artifact=1&workspaceId=owner");
+    assert.equal(body.iconUrl, "/api/hermes-plugins/codex-mobile/proxy/icons/app.png?workspaceId=owner");
+    assert.match(res.headers["Server-Timing"], /hm_proxy_upstream;dur=/);
+    assert.match(res.headers["Server-Timing"], /hm_proxy_transform;dur=/);
+    assert.equal(recorded.length, 1);
+    assert.equal(recorded[0].plugin_id, "codex-mobile");
+    assert.equal(recorded[0].route_kind, "codex_thread_detail");
+    assert.equal(recorded[0].content_type_family, "json");
+    assert.equal(recorded[0].response_kind, "json");
+    assert.equal(recorded[0].upstream_reported_total_ms, 107);
+    assert.ok(recorded[0].proxy_upstream_gap_ms >= 0);
+    assert.ok(recorded[0].proxy_header_gap_ms >= 0);
+    assert.equal(JSON.stringify(recorded[0]).includes("thread-private"), false);
+    assert.equal(JSON.stringify(recorded[0]).includes("workspaceId"), false);
+    assert.equal(urlInputs.some((value) => value.startsWith(plainMessage)), false);
+  } finally {
+    global.URL = OriginalURL;
+  }
 }
 
 async function testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp() {
@@ -1915,6 +2058,7 @@ async function testPluginProxyDoesNotCorruptJsonProse() {
 
 async function testPluginProxyForwardsBinaryImages() {
   const body = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  const chunks = [body.subarray(0, 2), body.subarray(2)];
   const { routes } = makeRoutes({
     hermesPluginService: {
       list() {
@@ -1932,12 +2076,27 @@ async function testPluginProxyForwardsBinaryImages() {
       return Promise.resolve({
         ok: true,
         status: 200,
-        headers: { get: (name) => name.toLowerCase() === "content-type" ? "image/jpeg" : "" },
-        arrayBuffer: () => Promise.resolve(body),
+        headers: {
+          get(name) {
+            const key = String(name || "").toLowerCase();
+            if (key === "content-type") return "image/jpeg";
+            if (key === "content-length") return String(body.length);
+            if (key === "content-disposition") return 'inline; filename="screenshot.jpg"';
+            if (key === "cache-control") return "private, max-age=60";
+            if (key === "etag") return '"image-etag"';
+            return "";
+          },
+        },
+        body: (async function* stream() {
+          for (const chunk of chunks) yield chunk;
+        })(),
+        arrayBuffer() {
+          throw new Error("binary image proxy must stream the upstream body");
+        },
       });
     },
   });
-  const res = makeResponse();
+  const res = makeBinaryResponse();
   const result = await routes.handle(
     makeRequest("GET"),
     res,
@@ -1946,7 +2105,12 @@ async function testPluginProxyForwardsBinaryImages() {
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
   assert.equal(res.headers["Content-Type"], "image/jpeg");
-  assert.deepEqual(Buffer.from(res.body), body);
+  assert.equal(res.headers["Content-Length"], String(body.length));
+  assert.equal(res.headers["Content-Disposition"], 'inline; filename="screenshot.jpg"');
+  assert.equal(res.headers["Cache-Control"], "private, max-age=60");
+  assert.equal(res.headers.ETag, '"image-etag"');
+  assert.deepEqual(res.body, body);
+  assert.equal(res.ended, true);
 }
 
 async function testWardrobeProxyNormalizesThumbnailQuerySuffix() {
@@ -1970,11 +2134,13 @@ async function testWardrobeProxyNormalizesThumbnailQuerySuffix() {
         ok: true,
         status: 200,
         headers: { get: (name) => name.toLowerCase() === "content-type" ? "image/jpeg" : "" },
-        arrayBuffer: () => Promise.resolve(body),
+        body: (async function* stream() {
+          yield body;
+        })(),
       });
     },
   });
-  const res = makeResponse();
+  const res = makeBinaryResponse();
   const result = await routes.handle(
     makeRequest("GET"),
     res,
@@ -1984,7 +2150,7 @@ async function testWardrobeProxyNormalizesThumbnailQuerySuffix() {
   assert.equal(res.statusCode, 200);
   assert.equal(res.headers["Content-Type"], "image/jpeg");
   assert.deepEqual(calls.access, ["owner"]);
-  assert.deepEqual(Buffer.from(res.body), body);
+  assert.deepEqual(res.body, body);
 }
 
 async function testWardrobeProxyInjectsUploadFileInputCompatibilityCss() {
@@ -2091,9 +2257,11 @@ async function run() {
   await testHealthProxyWriteRequiresExplicitWorkspace();
   await testHealthProxyOwnerWriteTargetsNonOwnerWorkspaceKey();
   await testHealthProxyNativeSyncPreservesHeaderWorkspace();
+  await testHealthProxyUsesSnakeCaseWorkspaceReferrer();
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyDoesNotInjectWorkspaceIdIntoJavascriptPathConstants();
+  await testCodexThreadDetailProxyRecordsBoundedTimingAndSkipsProseUrlParsing();
   await testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp();
   await testMoiraProxyInfersWorkspaceFromNamespacedSessionCookie();
   await testCodexProxyStreamsEventSource();

@@ -619,7 +619,6 @@ README/deployment docs must keep these restart boundaries clear:
 - Listener/bridge host: `scripts/start-worker-host.ps1 -ReplaceExisting`
 - Gateway Pool: `scripts/start-gateway-pool.ps1` or scheduled task `Hermes Mobile Gateway Pool`
 - Cron sidecar: `scripts/start-cron-tick-sidecar.ps1 -ReplaceExisting`
-- Weixin bridge: `scripts/start-weixin-mobile-ingress-bridge.ps1`
 
 Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` processes as the normal restart method.
 
@@ -639,23 +638,72 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
 ## Public Export Safety
 
 - Use `npm.cmd run export:public`.
+- For a maintained public release, prefer `npm run release:public`; it wraps
+  public export creation, source-only install preflight, public plugin source
+  checks, public upgrade harness checks, and provisioning coverage before any
+  optional public-repository sync.
 - Do not publish `.agent-context`, runtime data, SQLite DBs, logs, uploads, backups, keys, OAuth state, push endpoints, worker manifests with real API keys, or private reports.
 - Run privacy scan and productization checks according to the release scope.
 
 ## Public Online Updates
 
+- Maintainer-side publication is separate from friend/operator-side upgrade.
+  A public release should first be closed from the private source tree:
+
+  ```bash
+  npm run release:public -- --json
+  npm run release:public -- --execute --out /tmp/Home-AI-Public-export --json
+  ```
+
+  Publishing to the public Git checkout requires all explicit gates:
+
+  ```bash
+  npm run release:public -- --execute --out /tmp/Home-AI-Public-export \
+    --public-repo /path/to/Home-AI-Public \
+    --sync-public-repo \
+    --commit-public \
+    --push-public \
+    --commit-message "Publish Home AI public release" \
+    --json
+  ```
+
+  The release script must not print or copy raw secrets, provider credentials,
+  OAuth state, access keys, cookies, launch tokens, or private runtime data.
 - Public deployments should keep the Home AI checkout and plugin checkouts as
   Git repositories with HTTPS public remotes.
+- The maintained source-and-runtime upgrade entrypoint is:
+
+  ```bash
+  npm run upgrade:public -- --json
+  npm run upgrade:public -- --execute --reason public-upgrade --json
+  ```
+
+  The first command is plan-only. The second command is Owner/operator-only and
+  performs clean fast-forward source updates, dependency installs when tracked
+  dependency files changed, Home AI/plugin deployments for changed or newly
+  cloned sources, and provider/profile closure validation.
+- `config/public-plugin-sources.json` is the source inventory. It includes
+  Moira and Movie as deployable plugins. Moira uses the public
+  `MOIRA_chinese_astrology_public` repository. Movie currently requires
+  operator-authenticated repository read access and is marked
+  `operatorAuthenticated`; it is not an anonymous default public plugin.
+- Hermes Agent is a deployment dependency because Gateway provider access can
+  route through the official Hermes Agent runtime. Updating the Hermes Agent
+  source requires explicit `--update-hermes-agent`, and dependency refresh
+  requires `--install-hermes-agent-dependencies`. After any Hermes Agent update,
+  the upgrade must run the production profile/provider audit and closure
+  validation; it must not print raw provider credentials or OAuth state.
 - Owner login checks `/api/app-update/status`. The response covers both Home AI
   and plugin source directories declared in `config/public-plugin-sources.json`.
 - The in-app update action is Owner-only and fast-forward-only. It must fail
   closed on a dirty worktree, missing checkout, non-fast-forward remote, or
   unreadable plugin source directory.
-- Plugin updates are source updates. If a deployment needs service restarts,
-  dependency installs, or plugin production sync after a source update, set
-  `HERMES_MOBILE_POST_UPDATE_COMMAND` or `HERMES_WEB_POST_UPDATE_COMMAND` to a
-  local restart/deploy script. Do not put raw secrets in that command; use
-  secret files or OS service configuration.
+- The older in-app apply path remains a bounded source-update surface. For full
+  public runtime closure, prefer `npm run upgrade:public` because it couples
+  source fast-forward, deployment, Hermes Agent/provider checks, and production
+  closure validation. If the in-app source updater still uses
+  `HERMES_MOBILE_POST_UPDATE_COMMAND` or `HERMES_WEB_POST_UPDATE_COMMAND`, the
+  command must be local operator-owned and must not contain raw secrets.
 - Do not silently auto-apply updates for every login. The product default is:
   check on Owner login, show the update badge, then apply after Owner action.
 

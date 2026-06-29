@@ -112,6 +112,18 @@ function testFileAndSkillIntentCanCombine() {
   assert.deepEqual(result.routing.suggested_toolsets, ["file", "skills"]);
 }
 
+function testPowerPointGenerationSuggestsFileToolset() {
+  const service = createService();
+  const result = service.routePolicy({
+    policy: policy(),
+    userMessage: { content: "请把这些资料生成一份真实 PPTX 图文演示稿，并作为附件交付" },
+    runOptions: {},
+  });
+
+  assert.deepEqual(result.policy.allowed_toolsets, allToolsets);
+  assert.deepEqual(result.routing.suggested_toolsets, ["file"]);
+}
+
 function testWardrobeIngestionSuggestsWardrobeMcpAndInputTools() {
   const service = createService();
   const result = service.routePolicy({
@@ -320,6 +332,7 @@ testExplicitXSearchKeepsOnlyXSearchWhenAllowed();
 testSearchSourceOptionsAddXSearch();
 testExplicitWebSearchKeepsBrowserCompanionWhenAllowed();
 testFileAndSkillIntentCanCombine();
+testPowerPointGenerationSuggestsFileToolset();
 testWardrobeIngestionSuggestsWardrobeMcpAndInputTools();
 testWardrobeBoundTopicDefaultsToWardrobeMcp();
 testWardrobeOutfitRecommendationKeepsWeatherCompanion();

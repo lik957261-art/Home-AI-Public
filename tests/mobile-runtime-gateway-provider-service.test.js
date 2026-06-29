@@ -8,6 +8,7 @@ const {
 const calls = {
   pool: 0,
   provisioning: 0,
+  quotaFailover: 0,
   runner: 0,
   telemetry: 0,
   workerLauncher: 0,
@@ -79,6 +80,13 @@ function makeService() {
         manifestPaths: options.manifestPaths(),
         nowIso: options.nowIso(),
         ensureWorkspaceGateway: ({ workspaceId }) => ({ workspaceId, created: true }),
+      };
+    },
+    createOpenAiCodexQuotaFailoverRuntimeService() {
+      calls.quotaFailover += 1;
+      return {
+        restartRunningGatewayWorkers: (input) => ({ restarted: true, input }),
+        rotateOpenAiCodexCredentialPoolAfterUsageLimit: (input) => ({ rotated: true, input }),
       };
     },
     effectiveHermesApiBase: () => "http://gateway.example",
@@ -157,6 +165,16 @@ async function run() {
   assert.deepEqual(service.gatewayUsageTelemetry().manifestPaths, ["manifest.json"]);
   assert.deepEqual(service.gatewayUsageTelemetry().profileRoots, ["/profiles"]);
   assert.equal(calls.telemetry, 1);
+
+  assert.deepEqual(service.rotateOpenAiCodexCredentialPoolAfterUsageLimit({ reason: "usage_limit_reached" }), {
+    rotated: true,
+    input: { reason: "usage_limit_reached" },
+  });
+  assert.deepEqual(await service.restartRunningGatewayWorkers({ reason: "profile-rotated" }), {
+    restarted: true,
+    input: { reason: "profile-rotated" },
+  });
+  assert.equal(calls.quotaFailover, 1);
 
   const hermesStatus = await service.getHermesStatus();
   assert.equal(hermesStatus.ok, true);
