@@ -1262,9 +1262,15 @@ try {
       const workerHome = path.join("/Users", item.macUser);
       const workerWorkspaceRoot = path.join(workerHome, "HermesWorkspace");
       const workspaceDataRoot = item.workspaceId === "owner" ? path.join(drive, item.driveName) : path.join(driveUsers, item.driveName);
+      const ownerPluginRoot = item.workspaceId === "owner" ? path.join(drive, "插件") : "";
+      const ownerWardrobePluginRoot = ownerPluginRoot ? path.join(ownerPluginRoot, "衣橱") : "";
       const skillStoreId = item.workspaceId === "owner" ? "owner-full" : item.workspaceId;
       const skillRoot = path.join(skillProfiles, skillStoreId);
       ensureDir(workspaceDataRoot, 0o700);
+      if (ownerPluginRoot) {
+        ensureDir(ownerPluginRoot, 0o750);
+        ensureDir(ownerWardrobePluginRoot, 0o700);
+      }
       ensureDir(path.join(skillRoot, "skills"), 0o700);
       ensureDir(path.join(skillRoot, "memories"), 0o700);
       if (applyAcl) {
@@ -1278,14 +1284,22 @@ try {
         ensureDir(path.join(workerWorkspaceRoot, ".hermes-gateway", "logs"), 0o700);
         chown(workerWorkspaceRoot, `${item.macUser}:staff`);
         chown(workspaceDataRoot, `${item.macUser}:staff`);
+        if (ownerWardrobePluginRoot) chown(ownerWardrobePluginRoot, `${item.macUser}:staff`);
         chown(skillRoot, `${item.macUser}:staff`);
         chmodAcl(item.macUser, root, "search,readattr,readextattr,readsecurity");
         chmodAcl(item.macUser, data, "list,search,readattr,readextattr,readsecurity");
-        chmodAcl(item.macUser, drive, "list,search,readattr,readextattr,readsecurity");
+        if (item.workspaceId === "owner") {
+          chmodAcl(item.macUser, drive, "list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit");
+        } else {
+          chmodAcl(item.macUser, drive, "list,search,readattr,readextattr,readsecurity");
+        }
         if (workspaceDataRoot.startsWith(`${driveUsers}${path.sep}`)) {
           chmodAcl(item.macUser, driveUsers, "list,search,readattr,readextattr,readsecurity");
         }
         chmodAcl(item.macUser, workspaceDataRoot, "list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit", true);
+        if (ownerWardrobePluginRoot) {
+          chmodAcl(item.macUser, ownerWardrobePluginRoot, "list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit", true);
+        }
         chmodAcl(item.macUser, uploads, "list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit", true);
       } else {
         aclPlan.push({
