@@ -441,8 +441,9 @@ plugin sources, service secrets, Hermes Home CRON state, `runtime/uploads`, and
 `tmp`) and do not recursively rewrite workspace/Gateway profile ownership.
 The earlier `configure-workspace-isolation` phase owns workspace drive setup,
 including Owner's shared `data/drive` write ACL and
-`data/drive/插件/衣橱` scaffold. These paths are required by the worker
-filesystem access smoke and must not be left as post-install manual fixes.
+`data/drive/插件` built-in plugin scaffolds. These paths are required by the
+worker filesystem access and plugin-directory smokes and must not be left as
+post-install manual fixes.
 The core Home AI LaunchDaemons explicitly set `HERMES_WEB_AUTH_KEY_PATH` to
 `<root>/data/secrets/owner-web-key.secret`; otherwise a fresh install would
 create the Owner key successfully but the listener would fall back to the

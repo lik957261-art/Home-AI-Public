@@ -1100,7 +1100,9 @@ function testExecuteWorkspaceIsolationCreatesBaselineScaffoldWithoutAcl() {
   assert.equal(parsed.execution.report.workspaceMap.length, 2);
   assert.equal(fs.statSync(path.join(root, "data", "drive", "owner")).mode & 0o777, 0o700);
   assert.equal(fs.statSync(path.join(root, "data", "drive", "插件")).mode & 0o777, 0o750);
-  assert.equal(fs.statSync(path.join(root, "data", "drive", "插件", "衣橱")).mode & 0o777, 0o700);
+  for (const folder of ["衣橱", "记账", "邮箱", "健康", "笔记"]) {
+    assert.equal(fs.statSync(path.join(root, "data", "drive", "插件", folder)).mode & 0o777, 0o700);
+  }
   assert.equal(fs.statSync(path.join(root, "data", "drive", "users", "weixin_wuping")).mode & 0o777, 0o700);
   assert.equal(fs.statSync(path.join(root, "data", "skill-profiles", "owner-full", "skills")).mode & 0o777, 0o700);
   assert.equal(fs.statSync(path.join(root, "data", "skill-profiles", "weixin_wuping", "memories")).mode & 0o777, 0o700);

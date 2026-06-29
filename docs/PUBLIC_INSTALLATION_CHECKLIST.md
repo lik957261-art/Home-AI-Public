@@ -149,10 +149,10 @@ roots from a bounded workspace map. By default it does not apply macOS ACLs or
 change OS ownership. ACL/ownership repair requires root and
 `HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1`.
 For the Owner workspace, the phase also creates the shared drive root and the
-built-in plugin drive path `data/drive/插件/衣橱`; when ACL application is enabled,
-`hm-owner` receives bounded write access to the drive root and that plugin path
-so the worker filesystem smoke can verify real writes without manual directory
-creation.
+built-in plugin drive paths under `data/drive/插件` (`衣橱`, `记账`, `邮箱`, `健康`,
+and `笔记`); when ACL application is enabled, `hm-owner` receives bounded write
+access to the drive root and plugin paths so the worker filesystem and plugin
+directory smokes can verify real writes without manual directory creation.
 The `configure-gateway-profiles` phase is executable for fresh installs. It
 creates `data/gateway-pool-manifest-mac.json`, per-worker Mobile-to-Gateway
 API key files under `data/secrets/gateway-workers`, and profile `config.yaml`
