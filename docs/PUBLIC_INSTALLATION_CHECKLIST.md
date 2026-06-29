@@ -444,6 +444,9 @@ directories, generated service secrets, Hermes Home CRON state,
 The core Home AI LaunchDaemons bind `HERMES_WEB_AUTH_KEY_PATH` to
 `<root>/data/secrets/owner-web-key.secret`; fresh installs must not fall back to
 an app-root `.hermes_web_secret_key`.
+Before each service is loaded, the installer pre-creates its stdout/stderr log
+files and assigns them to the service user. This is required for plugins such as
+Codex Mobile that run as the interactive macOS user instead of `hermes-host`.
 
 Then install Home AI source into an empty app directory:
 

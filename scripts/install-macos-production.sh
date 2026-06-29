@@ -3455,6 +3455,36 @@ function repairServiceOwnedPath(target, owner, mode, options = {}) {
   actions.push({ action: "service-owner-repair", path: rel(target), owner, mode: mode ? `0${mode.toString(8)}` : "", recursive: options.recursive !== false });
 }
 
+function prepareLaunchdLogFile(target, userName) {
+  if (!target) return;
+  const dir = path.dirname(target);
+  fs.mkdirSync(dir, { recursive: true, mode: dir === logsRoot ? 0o750 : 0o700 });
+  fs.chmodSync(dir, dir === logsRoot ? 0o750 : 0o700);
+  fs.closeSync(fs.openSync(target, "a"));
+  fs.chmodSync(target, 0o600);
+  const owner = `${userName || serviceUser}:staff`;
+  const isRoot = typeof process.getuid === "function" ? process.getuid() === 0 : false;
+  if (!isRoot) {
+    actions.push({ action: "launchd-log-file-owner-repair-skipped-nonroot", path: rel(target), owner });
+    return;
+  }
+  const result = spawnSync("/usr/sbin/chown", [owner, target], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (result.status !== 0) {
+    issues.push({
+      code: "launchd_log_file_owner_repair_failed",
+      path: rel(target),
+      owner,
+      status: result.status,
+      outputSample: `${result.stdout || ""}\n${result.stderr || ""}`.trim().slice(-500),
+    });
+    return;
+  }
+  actions.push({ action: "launchd-log-file-owner-repair", path: rel(target), owner, mode: "0600" });
+}
+
 function repairServiceOwnership() {
   const owner = `${serviceUser}:staff`;
   const paths = [
@@ -3592,6 +3622,8 @@ function applyLaunchdServices(servicePlans) {
   }
   ensureDir(launchDaemonsDir, 0o755);
   for (const service of servicePlans) {
+    prepareLaunchdLogFile(service.stdoutLog, service.userName);
+    prepareLaunchdLogFile(service.stderrLog, service.userName);
     if (!fs.existsSync(service.stagedPlistPath)) {
       issues.push({ code: "launchd_staged_plist_missing", label: service.label, path: service.stagedPlistPath });
       continue;
@@ -3644,7 +3676,7 @@ function canonicalPluginServices() {
       label: String(pluginPlan.label || installer.DEFAULT_LABEL || ""),
       plist: installer.plistFor({ macRoot: root }),
       productionPlistPath: pluginPlan.plistPath,
-      userName: "hermes-host",
+      userName: String(pluginPlan.serviceUser || "hermes-host"),
       workingDirectory: pluginPlan.pluginRoot,
       programArguments: [],
       stdoutLog: Array.isArray(pluginPlan.logPaths) ? (pluginPlan.logPaths[0] || "") : "",

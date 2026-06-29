@@ -1664,6 +1664,7 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
     root,
     "--json",
   ], {
+    CODEX_MOBILE_SERVICE_USER: "xuxin",
     CODEX_MOBILE_PROFILE_FILE: codexProfileFile,
     CODEX_MOBILE_RUNTIME_DIR: codexRuntimeRoot,
   }));
@@ -1734,6 +1735,7 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
   assert.match(financePlist, new RegExp(expectedFinanceHash));
   assert.doesNotMatch(financePlist, /finance-secret/);
   const codexPlist = fs.readFileSync(path.join(stagingDir, "com.hermesmobile.plugin.codex-mobile.plist"), "utf8");
+  assert.equal(plan.services.find((service) => service.label === "com.hermesmobile.plugin.codex-mobile").userName, "xuxin");
   assert.match(codexPlist, /<key>CODEX_HOME<\/key>\s*<string>\/Users\/xuxin\/\.codex-homes\/previous<\/string>/);
   assert.match(codexPlist, /<key>CODEX_MOBILE_PROFILE_FILE<\/key>/);
   assert.match(codexPlist, /<key>CODEX_MOBILE_REQUIRE_SHARED_APP_SERVER<\/key>\s*<string>1<\/string>/);
@@ -2031,10 +2033,12 @@ function testExecuteLaunchdServicesCanInstallAndLoadFromCentralGate() {
   assert.ok(plan.services.every((service) => service.productionPlistPath.startsWith(launchDaemonsDir)));
   assert.ok(plan.services.every((service) => service.installStatus === "installed-and-loaded"));
   assert.equal(fs.readdirSync(launchDaemonsDir).filter((name) => name.endsWith(".plist")).length, 15);
+  assert.equal(fs.existsSync(path.join(root, "logs", "plugin-codex-mobile.out.log")), true);
   const calls = fs.readFileSync(fake.logPath, "utf8").trim().split(/\n+/);
   assert.equal(calls.filter((line) => line.startsWith("load -w ")).length, 15);
   assert.equal(calls.filter((line) => line.startsWith("unload -w ")).length, 15);
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "install-plist"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "launchd-log-file-owner-repair-skipped-nonroot" && action.path === "logs/plugin-codex-mobile.out.log"));
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "service-owner-repair-skipped-nonroot" && action.path === "data"));
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "service-owner-repair-skipped-nonroot" && action.path === "logs"));
   assert.ok(parsed.execution.report.rollback.commands.some((command) => command.includes("unload -w")));

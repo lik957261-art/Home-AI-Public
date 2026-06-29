@@ -443,6 +443,10 @@ The core Home AI LaunchDaemons explicitly set `HERMES_WEB_AUTH_KEY_PATH` to
 `<root>/data/secrets/owner-web-key.secret`; otherwise a fresh install would
 create the Owner key successfully but the listener would fall back to the
 app-root `.hermes_web_secret_key` default and report setup as incomplete.
+The same phase pre-creates stdout/stderr log files for every core/plugin
+LaunchDaemon and assigns each file to the service user. This keeps plugins that
+do not run as `hermes-host`, such as Codex Mobile, from failing launchd config
+validation when their log files do not exist yet.
 The `run-first-start-preflight` phase points at
 `scripts/macos-first-start-preflight.js --root <root> --network-mode <direct|proxy> --json`.
 The `run-smoke-tests` phase points at the live app
