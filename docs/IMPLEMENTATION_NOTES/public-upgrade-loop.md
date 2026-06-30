@@ -252,7 +252,9 @@ The upgrade loop is clean fast-forward only:
   insufficient.
 - temporary Node distributions used by remote smoke or bootstrap are copied into
   `<root>/runtime/node-distributions/<node-package>` before `runtime/node-current`
-  is linked. Production must not remain bound to a one-run `/tmp` Node tree.
+  is linked. Production must not remain bound to a one-run `/tmp` Node tree, and
+  the installer repairs stale `node-current/bin/npm` / `npx` symlinks when they
+  still point into an old temporary Node distribution.
 
 After a source update:
 

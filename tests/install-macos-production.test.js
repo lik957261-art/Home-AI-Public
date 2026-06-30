@@ -1011,6 +1011,52 @@ function testExecuteRuntimePhaseMaterializesTemporaryNodeDistribution() {
   assert.ok(parsed.execution.report.actions.some((action) => action.action === "runtime-npm-symlink-repair"));
 }
 
+function testExecuteRuntimePhaseRepairsNestedNpmSymlinkInTemporaryDistribution() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-runtime-npm-nested-"));
+  const previous = makeFakeNodeDistribution();
+  const next = makeFakeNodeDistribution();
+  const runtimeBin = path.join(root, "runtime", "node-current", "bin");
+  fs.mkdirSync(runtimeBin, { recursive: true });
+
+  const previousNpmCli = path.join(previous.packageRoot, "lib", "node_modules", "npm", "bin", "npm-cli.js");
+  const previousNpxCli = path.join(previous.packageRoot, "lib", "node_modules", "npm", "bin", "npx-cli.js");
+  fs.mkdirSync(path.dirname(previousNpmCli), { recursive: true });
+  fs.writeFileSync(previousNpmCli, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  fs.writeFileSync(previousNpxCli, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  fs.rmSync(previous.npmPath);
+  fs.rmSync(previous.npxPath);
+  fs.symlinkSync("../lib/node_modules/npm/bin/npm-cli.js", previous.npmPath);
+  fs.symlinkSync("../lib/node_modules/npm/bin/npx-cli.js", previous.npxPath);
+
+  fs.symlinkSync(path.join(root, "runtime", "node-distributions", next.packageName, "bin", "node"), path.join(runtimeBin, "node"));
+  fs.symlinkSync(previous.npmPath, path.join(runtimeBin, "npm"));
+  fs.symlinkSync(previous.npxPath, path.join(runtimeBin, "npx"));
+
+  const parsed = JSON.parse(run([
+    "--execute",
+    "--phase",
+    "install-official-hermes-runtime",
+    "--root",
+    root,
+    "--node-command",
+    next.nodePath,
+    "--npm-command",
+    next.npmPath,
+    "--python-command",
+    makeFakePython(),
+    "--hermes-agent-source",
+    makeFakeAgentSource(),
+    "--json",
+  ]));
+  assert.equal(parsed.ok, true, JSON.stringify(parsed.execution?.report?.issues, null, 2));
+  const stableNpm = path.join(root, "runtime", "node-distributions", next.packageName, "bin", "npm");
+  const stableNpx = path.join(root, "runtime", "node-distributions", next.packageName, "bin", "npx");
+  assert.equal(path.resolve(path.dirname(path.join(runtimeBin, "npm")), fs.readlinkSync(path.join(runtimeBin, "npm"))), stableNpm);
+  assert.equal(path.resolve(path.dirname(path.join(runtimeBin, "npx")), fs.readlinkSync(path.join(runtimeBin, "npx"))), stableNpx);
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "runtime-npm-symlink-repair"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "runtime-npx-symlink-repair"));
+}
+
 function testExecuteRuntimePhaseAcceptsPackagedAgentSource() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-runtime-package-"));
   const parsed = JSON.parse(run([
@@ -2386,6 +2432,7 @@ testExecuteDependencyPhaseFailsWithoutLockfile();
 testExecuteDependencyPhaseReportsNpmFailureBoundedly();
 testExecuteRuntimePhaseLinksNodeIdempotently();
 testExecuteRuntimePhaseMaterializesTemporaryNodeDistribution();
+testExecuteRuntimePhaseRepairsNestedNpmSymlinkInTemporaryDistribution();
 testExecuteRuntimePhaseAcceptsPackagedAgentSource();
 testExecuteRuntimePhaseFailsClosedForNonProjectAgentSource();
 testExecuteRuntimePhaseFailsOnDifferentExistingNode();

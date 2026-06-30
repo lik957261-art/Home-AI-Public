@@ -4458,13 +4458,26 @@ function isTemporaryRuntimeTarget(targetPath) {
   return tmpRoots.some((tmpRoot) => realResolved === tmpRoot || isInside(tmpRoot, realResolved));
 }
 
+function temporaryNodeDistributionPackageDir(targetPath) {
+  let current = path.resolve(targetPath);
+  for (let depth = 0; depth < 8; depth += 1) {
+    const base = path.basename(current);
+    if (/^node-v\d+\.\d+\.\d+-darwin-[A-Za-z0-9._-]+$/.test(base)) {
+      return isTemporaryRuntimeTarget(current) ? current : "";
+    }
+    const parent = path.dirname(current);
+    if (!parent || parent === current) break;
+    current = parent;
+  }
+  return "";
+}
+
 function isTemporaryNodeDistributionTarget(targetPath) {
-  const realTarget = fs.existsSync(targetPath) ? fs.realpathSync(targetPath) : path.resolve(targetPath);
-  const binDir = path.dirname(realTarget);
-  const packageDir = path.dirname(binDir);
-  return path.basename(binDir) === "bin"
-    && /^node-v\d+\.\d+\.\d+-darwin-[A-Za-z0-9._-]+$/.test(path.basename(packageDir))
-    && isTemporaryRuntimeTarget(packageDir);
+  const resolved = path.resolve(targetPath);
+  if (temporaryNodeDistributionPackageDir(resolved)) return true;
+  if (!fs.existsSync(resolved)) return false;
+  const realTarget = fs.realpathSync(resolved);
+  return Boolean(temporaryNodeDistributionPackageDir(realTarget));
 }
 
 function materializeTemporaryNodeRuntime(resolvedNode, resolvedNpm) {

@@ -724,6 +724,10 @@ into `<root>/runtime/node-distributions/` before linking them, verifies a Python
 accepts a git checkout or packaged Python project containing `pyproject.toml` /
 `setup.py`, creates `<root>/runtime/hermes-agent-official/venv`, and installs
 Hermes Agent dependencies when `--install-hermes-agent-dependencies 1` is set.
+If `runtime/node-current/bin/npm` or `npx` still points into an older temporary
+Node distribution, the same phase repairs those symlinks to the pinned
+production distribution instead of leaving upgrade blocked on one-run `/tmp`
+paths.
 The public upgrade CLI prefers `HOMEAI_PYTHON`, `PYTHON`,
 `/opt/homebrew/bin/python3`, `/usr/local/bin/python3`, then `python3` when no
 explicit `--python-command` is supplied. The public upgrade loop then checks the
