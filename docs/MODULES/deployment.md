@@ -97,8 +97,15 @@ step is intentionally bounded: it unloads and quarantines installed
 longer tracked by `gateway-pool-manifest-mac.json`, reapplies shared
 OpenAI/Codex auth group/mode/ACL permissions for the active manifest
 `openai-codex` worker users, recreates and grants `hm-owner` write access to
-the Music cover runtime cache directories, and repairs the supported local
-plugin binding classes. It does not delete profile directories or start
+the Music cover runtime cache directories, repairs the supported local
+plugin binding classes, and reinstalls the allowlisted keyless required plugin
+Skill bundle `productivity/wardrobe-style-operations` into any audited
+workspace profile that reports `plugin_required_skill_incomplete` or
+`plugin_required_skill_unreadable`. Required Skill repair copies only the
+validated source-controlled Wardrobe Skill bundle and grants read/traverse ACLs
+to the listener plus that workspace's Gateway users; it must not copy plugin
+keys, launch tokens, provider credentials, or the full source `skills/` tree.
+It does not delete profile directories or start
 scripts, and it does not rewrite provider configs, credential contents, model
 settings, or user data. Quarantined plists are moved under
 `data/production-drift-audit/quarantine/<timestamp>/` before the follow-up
@@ -115,8 +122,9 @@ audit detects a covered core drift issue. After repair it immediately reruns
 the profile audit and writes the post-repair result plus a bounded
 `autoRepair` summary. This auto-repair path is limited to the same tested
 reconcile classes used by deployment: stale Gateway LaunchDaemon quarantine,
-shared OpenAI/Codex auth permissions, Music cover runtime permissions, and the
-supported plugin-local binding repairs. It still does not rewrite credential
+shared OpenAI/Codex auth permissions, Music cover runtime permissions,
+allowlisted required plugin Skill repair, and the supported plugin-local
+binding repairs. It still does not rewrite credential
 contents, provider/model configs, profile directories, or user data.
 The macOS first-start preflight now fails closed unless this drift-control
 chain is present after installation: the app's reconcile/watchdog scripts, the
@@ -691,12 +699,13 @@ Before profile/provider audit and final closure validation, public production
 upgrade runs `scripts/macos-production-drift-reconcile.js --execute --json`
 through the same sudo boundary used by the installer/deployer. This keeps
 online upgrade closure aligned with central Home AI deploys: supported
-Gateway/ACL/plugin-local-binding drift is repaired before the strict
+Gateway/ACL/plugin-local-binding and required-plugin-Skill drift is repaired before the strict
 `macos-production-profile-audit.js` gate runs. The same drift pass also
 repairs fresh-machine public upgrade drift for OpenAI-Codex shared-auth import,
 per-profile auth symlinks, Gateway Office/PDF/PPT file-tool plugins,
-file-tool start-script environment variables, and listener-readable telemetry
-stores. The remote smoke parses the full
+file-tool start-script environment variables, listener-readable telemetry
+stores, and listener-readable `productivity/wardrobe-style-operations` bundles
+for audited Wardrobe-capable workspace profiles. The remote smoke parses the full
 bounded upgrade JSON before truncating display output so failures such as
 `production_drift_reconcile_failed`, `provider_profile_audit_failed`, or
 `closure_validation_failed` remain visible in the step summary.

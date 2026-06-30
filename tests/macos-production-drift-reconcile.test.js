@@ -11,11 +11,14 @@ const {
   openAiCodexManifestUsers,
   parseArgs,
   pluginLocalBindingRepairPlan,
+  pluginRequiredSkillRepairPlan,
   pluginProvisioningStatusRepairPlan,
+  requiredPluginSkillIssueParts,
   reconcileCodexSharedAuthPermissions,
   reconcileGatewayProfileFilePlugins,
   reconcileGatewayStartScriptEnvironment,
   reconcilePluginLocalBindings,
+  reconcilePluginRequiredSkills,
   reconcilePluginProvisioningStatuses,
   reconcileMusicRuntimeCoverPermissions,
   reconcileUntrackedGatewayLaunchd,
@@ -36,6 +39,9 @@ assert.match(script, /gateway-telemetry-access/);
 assert.match(script, /profile_dir\/auth\.json/);
 assert.match(script, /user:hermes-host allow list,add_file,search,delete_child/);
 assert.match(script, /music-runtime-cover-permissions/);
+assert.match(script, /plugin-required-skill/);
+assert.match(script, /plugin_required_skill_/);
+assert.match(script, /installWardrobeSkill/);
 assert.match(script, /plugin-provisioning-status/);
 assert.match(script, /plugin-local-binding/);
 assert.match(script, /createGrowthPluginProvisioningService/);
@@ -136,6 +142,30 @@ const auditWithPluginProvisioningStatusDrift = {
   },
 };
 
+const auditWithRequiredSkillDrift = {
+  issues: [
+    "plugin_required_skill_incomplete:owner:wardrobe:productivity/wardrobe-style-operations",
+    "plugin_required_skill_unreadable:weixin_wuping:wardrobe:productivity/wardrobe-style-operations",
+    "plugin_required_skill_incomplete:legacy:unknown:productivity/unknown-skill",
+  ],
+  byWorkspace: {
+    owner: { workers: [{ osUser: "hm-owner" }] },
+    weixin_wuping: { workers: [{ osUser: "hm-wuping" }] },
+    legacy: { workers: [] },
+  },
+};
+
+assert.deepEqual(
+  requiredPluginSkillIssueParts("plugin_required_skill_unreadable:owner:wardrobe:productivity/wardrobe-style-operations"),
+  {
+    issueKind: "unreadable",
+    workspaceId: "owner",
+    pluginId: "wardrobe",
+    skillId: "productivity/wardrobe-style-operations",
+  },
+);
+assert.equal(requiredPluginSkillIssueParts("plugin_local_binding_incomplete:owner:growth"), null);
+
 const pluginRepairPlan = pluginLocalBindingRepairPlan(auditWithPluginBindingDrift, {
   root: "/Users/example/path",
   plugins: [
@@ -162,6 +192,23 @@ const tempAppRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "homea
 fs.mkdirSync(path.join(tempRoot, "data"), { recursive: true });
 fs.mkdirSync(path.join(tempRoot, "gateway-worker", "telemetry", "profiles", "shared-auth"), { recursive: true });
 fs.mkdirSync(path.join(tempRoot, "plugins", "music"), { recursive: true });
+const wardrobeSkillSource = path.join(tempAppRoot, "skills", "productivity", "wardrobe-style-operations");
+fs.mkdirSync(path.join(wardrobeSkillSource, "references"), { recursive: true });
+fs.mkdirSync(path.join(wardrobeSkillSource, "scripts"), { recursive: true });
+fs.writeFileSync(path.join(wardrobeSkillSource, "SKILL.md"), [
+  "---",
+  "name: wardrobe-style-operations",
+  "description: Test wardrobe skill template without credentials.",
+  "---",
+  "",
+  "# Wardrobe Style Operations",
+  "",
+  "Use this keyless template for wardrobe read/write planning.",
+  "x".repeat(2300),
+].join("\n"), "utf8");
+fs.writeFileSync(path.join(wardrobeSkillSource, "references", "wardrobe-program-api.md"), "# Program API\n", "utf8");
+fs.writeFileSync(path.join(wardrobeSkillSource, "references", "wardrobe-style-policy.md"), "# Style Policy\n", "utf8");
+fs.writeFileSync(path.join(wardrobeSkillSource, "scripts", "render_wardrobe_phone_pdf.py"), "print('ok')\n", "utf8");
 for (const pluginName of ["hermes-mobile-docx", "hermes-mobile-pptx", "hermes-mobile-pdf", "hermes-mobile-audio", "hermes-mobile-archive"]) {
   const pluginDir = path.join(tempAppRoot, "gateway-plugins", pluginName);
   fs.mkdirSync(pluginDir, { recursive: true });
@@ -182,6 +229,35 @@ fs.writeFileSync(path.join(tempRoot, "plugins", "music", "runtime-placeholder"),
 const profileDir = path.join(tempRoot, "users", "hm-owner", "HermesWorkspace", ".hermes-gateway", "profiles", "hm-owner-openai-1");
 fs.mkdirSync(path.join(profileDir, "plugins"), { recursive: true });
 fs.writeFileSync(path.join(profileDir, "config.yaml"), "provider: openai-codex\n", "utf8");
+
+const requiredSkillPlan = pluginRequiredSkillRepairPlan(auditWithRequiredSkillDrift, {
+  root: tempRoot,
+  execute: true,
+  listenerUser: "hermes-host",
+});
+assert.deepEqual(requiredSkillPlan.map((row) => `${row.workspaceId}:${row.pluginId}:${row.issueKind}:${row.supported}:${row.action}:${row.ok}`), [
+  "owner:wardrobe:incomplete:true:repair:true",
+  "weixin_wuping:wardrobe:unreadable:true:repair:true",
+  "legacy:unknown:incomplete:false:plan:false",
+]);
+assert.equal(requiredSkillPlan.find((row) => row.workspaceId === "owner").profileId, "owner-full");
+
+const requiredSkillRepair = reconcilePluginRequiredSkills(auditWithRequiredSkillDrift, {
+  root: tempRoot,
+  appPath: tempAppRoot,
+  execute: true,
+  listenerUser: "hermes-host",
+  applyAcl: false,
+  userExists: () => true,
+});
+assert.equal(requiredSkillRepair.length, 3);
+assert.equal(requiredSkillRepair.find((row) => row.workspaceId === "owner").ok, true);
+assert.equal(requiredSkillRepair.find((row) => row.workspaceId === "weixin_wuping").ok, true);
+assert.equal(requiredSkillRepair.find((row) => row.workspaceId === "legacy").ok, false);
+assert.equal(fs.existsSync(path.join(tempRoot, "data", "skill-profiles", "owner-full", "skills", "productivity", "wardrobe-style-operations", "SKILL.md")), true);
+assert.equal(fs.existsSync(path.join(tempRoot, "data", "skill-profiles", "weixin_wuping", "skills", "productivity", "wardrobe-style-operations", "scripts", "render_wardrobe_phone_pdf.py")), true);
+assert.deepEqual(requiredSkillRepair.find((row) => row.workspaceId === "weixin_wuping").aclUsers.sort(), ["hermes-host", "hm-wuping"]);
+assert.equal(JSON.stringify(requiredSkillRepair).includes("wd_live_"), false);
 
 assert.deepEqual(openAiCodexManifestUsers(tempRoot), ["hm-owner", "hm-wuping"]);
 

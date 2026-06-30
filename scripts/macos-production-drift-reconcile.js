@@ -29,6 +29,9 @@ const {
 const {
   configuredPlugins,
 } = require("../adapters/hermes-plugin-service");
+const {
+  installWardrobeSkill,
+} = require("../adapters/wardrobe-plugin-provisioning-service");
 
 const REQUIRED_PROFILE_FILE_PLUGINS = Object.freeze([
   "hermes-mobile-docx",
@@ -91,6 +94,16 @@ function runShell(script) {
   return run("/bin/bash", ["-lc", script]);
 }
 
+function userExists(user, options = {}) {
+  const safeUser = String(user || "").trim();
+  if (!safeUser) return false;
+  if (typeof options.userExists === "function") return Boolean(options.userExists(safeUser));
+  if (process.platform !== "darwin") return true;
+  const command = options.idCommand || "/usr/bin/id";
+  const result = run(command, ["-u", safeUser]);
+  return result.status === 0;
+}
+
 function readJson(file) {
   try {
     return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -145,6 +158,57 @@ function chownRecursive(target, owner) {
 function chownSymlink(file, owner) {
   if (!owner) return { status: null, stderr: "" };
   return run("/usr/sbin/chown", ["-h", owner, file]);
+}
+
+function chmodAcl(target, user, permissions, options = {}) {
+  if (options.applyAcl === false) return { ok: true, skipped: true, status: null, stderr: "" };
+  if (process.platform !== "darwin") return { ok: true, skipped: true, status: null, stderr: "" };
+  const safeUser = String(user || "").trim();
+  if (!safeUser) return { ok: false, skipped: false, status: 1, stderr: "acl_user_required" };
+  const command = options.chmodCommand || "/bin/chmod";
+  const args = [];
+  if (options.recursive) args.push("-R");
+  args.push("+a", `user:${safeUser} allow ${permissions}`, target);
+  const result = run(command, args);
+  return {
+    ok: result.status === 0,
+    skipped: false,
+    status: result.status,
+    stderr: String(result.stderr || result.stdout || "").trim().slice(-240),
+  };
+}
+
+function grantSkillReadAcls(input = {}, options = {}) {
+  const root = path.resolve(input.root || "/Users/example/path");
+  const profileRoot = path.resolve(String(input.profileRoot || ""));
+  const skillDir = path.resolve(String(input.skillDir || ""));
+  const users = [...new Set((input.users || []).map((item) => String(item || "").trim()).filter(Boolean))];
+  const rows = [];
+  const searchPerms = "list,search,readattr,readextattr,readsecurity";
+  const readTreePerms = "list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit";
+  if (!profileRoot || !skillDir || !fs.existsSync(skillDir)) {
+    return [{ ok: false, user: "", path: "", recursive: false, error: "skill_acl_target_missing" }];
+  }
+  const searchDirs = [
+    path.join(root, "data"),
+    path.join(root, "data", "skill-profiles"),
+    profileRoot,
+    path.join(profileRoot, "skills"),
+    path.dirname(skillDir),
+  ].filter((item, index, array) => item && array.indexOf(item) === index && fs.existsSync(item));
+  for (const user of users) {
+    if (!userExists(user, options)) {
+      rows.push({ ok: false, user, path: "", recursive: false, error: "acl_user_missing" });
+      continue;
+    }
+    for (const dir of searchDirs) {
+      const result = chmodAcl(dir, user, searchPerms, options);
+      rows.push({ ok: Boolean(result.ok), user, path: compactPath(dir, root), recursive: false, error: result.ok ? "" : result.stderr || "skill_acl_chmod_failed" });
+    }
+    const treeResult = chmodAcl(skillDir, user, readTreePerms, Object.assign({}, options, { recursive: true }));
+    rows.push({ ok: Boolean(treeResult.ok), user, path: compactPath(skillDir, root), recursive: true, error: treeResult.ok ? "" : treeResult.stderr || "skill_acl_chmod_failed" });
+  }
+  return rows;
 }
 
 function openAiCodexManifestUsers(root) {
@@ -612,6 +676,10 @@ function enabledPluginAuthorizationRow(audit = {}, workspaceId = "", pluginId = 
   )) || null;
 }
 
+function workspaceProfileId(workspaceId = "") {
+  return workspaceId === "owner" ? "owner-full" : String(workspaceId || "").trim();
+}
+
 function pluginProvisioningIssueParts(issue = "") {
   const match = String(issue || "").match(/^plugin_provisioning_not_active:([^:]+):([^:]+):([^:]+)$/);
   if (!match) return null;
@@ -628,6 +696,104 @@ function requiredPluginSkillsComplete(audit = {}, workspaceId = "", pluginId = "
   const skills = audit.byWorkspace?.[workspaceId]?.requiredPluginSkills || [];
   const relevant = skills.filter((item) => item.pluginId === pluginId);
   return relevant.length === 0 || relevant.every((item) => item.complete && item.listenerCanReadSkillFile !== false);
+}
+
+function requiredPluginSkillIssueParts(issue = "") {
+  const match = String(issue || "").match(/^plugin_required_skill_(incomplete|unreadable):([^:]+):([^:]+):(.+)$/);
+  if (!match) return null;
+  return {
+    issueKind: match[1],
+    workspaceId: match[2],
+    pluginId: match[3],
+    skillId: match[4],
+  };
+}
+
+function supportedRequiredPluginSkill(pluginId = "", skillId = "") {
+  return pluginId === "wardrobe" && skillId === "productivity/wardrobe-style-operations";
+}
+
+function requiredSkillWorkerUsers(audit = {}, workspaceId = "") {
+  const workers = audit.byWorkspace?.[workspaceId]?.workers || [];
+  return [...new Set(workers.map((worker) => String(worker.osUser || "").trim()).filter(Boolean))];
+}
+
+function pluginRequiredSkillRepairPlan(audit = {}, options = {}) {
+  const root = path.resolve(options.root || "/Users/example/path");
+  const listenerUser = options.listenerUser || process.env.HERMES_MOBILE_LISTENER_USER || "hermes-host";
+  const rows = [];
+  for (const issue of audit.issues || []) {
+    const parts = requiredPluginSkillIssueParts(issue);
+    if (!parts) continue;
+    const { issueKind, workspaceId, pluginId, skillId } = parts;
+    const profileId = workspaceProfileId(workspaceId);
+    const supported = supportedRequiredPluginSkill(pluginId, skillId);
+    const skillStorePath = path.join(root, "data", "skill-profiles", profileId, "skills");
+    const skillDir = path.join(skillStorePath, ...skillId.split("/"));
+    rows.push({
+      type: "plugin-required-skill",
+      workspaceId,
+      profileId,
+      pluginId,
+      skillId,
+      issueKind,
+      supported,
+      action: options.execute && supported ? "repair" : "plan",
+      skillDir: compactPath(skillDir, root),
+      listenerUser,
+      workerUsers: requiredSkillWorkerUsers(audit, workspaceId),
+      ok: !options.execute || supported,
+      error: supported ? "" : "plugin_required_skill_repair_not_supported",
+    });
+  }
+  return rows;
+}
+
+function reconcilePluginRequiredSkills(audit = {}, options = {}) {
+  const execute = Boolean(options.execute);
+  const root = path.resolve(options.root || "/Users/example/path");
+  const dataDir = path.join(root, "data");
+  const appPath = appRootFromOptions(options);
+  const listenerUser = options.listenerUser || process.env.HERMES_MOBILE_LISTENER_USER || "hermes-host";
+  const rows = pluginRequiredSkillRepairPlan(audit, options);
+  if (!execute) return rows;
+
+  for (const row of rows) {
+    if (!row.supported) {
+      row.ok = false;
+      continue;
+    }
+    const skillStorePath = path.join(dataDir, "skill-profiles", row.profileId, "skills");
+    const installResult = installWardrobeSkill({
+      dataDir,
+      repoRoot: appPath,
+      workspaceId: row.profileId,
+      skillStorePath,
+    });
+    row.installed = Boolean(installResult?.ok);
+    row.sourceKind = String(installResult?.sourceKind || "");
+    row.bundle = installResult?.bundle || null;
+    row.error = installResult?.ok ? "" : String(installResult?.error || "plugin_required_skill_install_failed").replace(/\s+/g, " ").slice(0, 160);
+    if (!installResult?.ok) {
+      row.ok = false;
+      continue;
+    }
+    const skillDir = installResult.skillDir || compactToAbsolute(row.skillDir, root);
+    chmodRecursive(skillDir, 0o750);
+    const users = [listenerUser, ...row.workerUsers];
+    const aclRows = grantSkillReadAcls({
+      root,
+      profileRoot: path.join(dataDir, "skill-profiles", row.profileId),
+      skillDir,
+      users,
+    }, options);
+    row.aclApplied = aclRows.filter((acl) => acl.ok).length;
+    row.aclErrorCount = aclRows.filter((acl) => !acl.ok).length;
+    row.aclUsers = [...new Set(aclRows.map((acl) => acl.user).filter(Boolean))];
+    row.ok = row.installed && row.aclErrorCount === 0;
+    row.error = row.ok ? "" : (aclRows.find((acl) => !acl.ok)?.error || "plugin_required_skill_acl_failed");
+  }
+  return rows;
 }
 
 function pluginProvisioningStatusRepairPlan(audit = {}, options = {}) {
@@ -792,6 +958,7 @@ async function runReconcile(options = {}) {
     ...reconcileGatewayStartScriptEnvironment(options),
     ...reconcileGatewayTelemetryAccess(options),
     ...reconcileMusicRuntimeCoverPermissions(audit, options),
+    ...reconcilePluginRequiredSkills(audit, options),
     ...await reconcilePluginLocalBindings(audit, options),
     ...await reconcilePluginProvisioningStatuses(audit, options),
   ];
@@ -807,6 +974,7 @@ async function runReconcile(options = {}) {
       if (row.type === "gateway-start-script-env") return row.ok !== false;
       if (row.type === "gateway-telemetry-access") return row.ok !== false;
       if (row.type === "music-runtime-cover-permissions") return row.ok !== false;
+      if (row.type === "plugin-required-skill") return row.ok !== false;
       return true;
     }),
     execute: Boolean(options.execute),
@@ -838,10 +1006,13 @@ module.exports = {
   pluginProvisioningIssueParts,
   pluginProvisioningStatusRepairPlan,
   parseArgs,
+  pluginRequiredSkillRepairPlan,
+  requiredPluginSkillIssueParts,
   reconcileCodexSharedAuthPermissions,
   reconcileGatewayProfileFilePlugins,
   reconcileGatewayStartScriptEnvironment,
   reconcileGatewayTelemetryAccess,
+  reconcilePluginRequiredSkills,
   reconcilePluginLocalBindings,
   reconcilePluginProvisioningStatuses,
   reconcileMusicRuntimeCoverPermissions,

@@ -551,9 +551,17 @@ deploy plans must include a focused `home-ai-production-drift-audit` gate that
 fails on any non-empty production audit `issues` array. Warnings remain
 advisory unless the audit promotes them into issues.
 Home AI full deploys must also run the bounded
-`macos-production-drift-reconcile.js` step before that gate; it may only unload
-and quarantine untracked Gateway LaunchDaemon plists, not mutate auth stores,
-provider configs, ACLs, plugin bindings, or user data.
+`macos-production-drift-reconcile.js` step before that gate. Its mutation
+scope is a tested allowlist: unload and quarantine untracked Gateway
+LaunchDaemon plists, repair shared OpenAI/Codex auth documents/symlinks and
+ACLs without reading credential contents, resync packaged Gateway file-tool
+plugins/env, repair listener-readable telemetry ACLs, repair supported
+plugin-local binding status, and reinstall the keyless
+`productivity/wardrobe-style-operations` required Skill bundle when profile
+audit reports `plugin_required_skill_incomplete` or
+`plugin_required_skill_unreadable`. It must not rewrite provider configs,
+model settings, raw credential contents, unsupported plugin bindings, profile
+directories, or user data.
 Home AI full deploys must also install the periodic
 `com.hermesmobile.production-drift-audit` LaunchDaemon and
 `homeai-production-drift-audit-watchdog.sh`; the watchdog must emit bounded
@@ -577,6 +585,9 @@ Mac production closure. The profile audit must also include Skill-only required
 gate coverage for Owner Wardrobe outfit runs:
 `owner:wardrobe:productivity/wardrobe-style-operations` is required even when
 the plugin authorization table does not currently list `wardrobe` for Owner.
+The bounded drift reconcile harness must cover both missing and listener-
+unreadable Wardrobe required Skill repair, and it must prove unsupported plugin
+Skill issue shapes fail closed rather than copying arbitrary source Skills.
 The same profile audit must prove every Mac Gateway start script injects live
 file-plugin roots for DOCX/Office, PDF, archive, audio, image, video, and
 scoped HTTP file helpers.

@@ -256,11 +256,15 @@ After a source update:
   closure;
 - production drift reconcile runs before provider/profile audit so public
   upgrades repair the same bounded macOS drift classes as central Home AI
-  deploys, including plugin-local binding repairs and supported Gateway/ACL
-  drift. Fresh/public-machine closure drift includes OpenAI-Codex shared-auth
-  import from the operator Codex home when available, per-profile shared-auth
-  links, Gateway file-tool profile plugins, file-tool start-script environment,
-  and listener-readable Gateway telemetry stores;
+  deploys, including plugin-local binding repairs, supported Gateway/ACL
+  drift, and the allowlisted keyless Wardrobe required Skill bundle when the
+  profile audit reports it missing or unreadable. Fresh/public-machine closure
+  drift includes OpenAI-Codex shared-auth import from the operator Codex home
+  when available, per-profile shared-auth links, Gateway file-tool profile
+  plugins, file-tool start-script environment, listener-readable Gateway
+  telemetry stores, and listener-readable
+  `productivity/wardrobe-style-operations` bundles for audited
+  Wardrobe-capable workspace profiles;
 - profile/provider audit runs before final closure validation whenever Home AI,
   a plugin, or Hermes Agent changed;
 - production closure validation runs through
