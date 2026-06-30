@@ -216,6 +216,7 @@ function testProductionUpgradeCommandUsesSourceAdoptionGate() {
     stderrPath: "/tmp/homeai-public-remote-deploy-smoke-x/production-upgrade.stderr",
     statusPath: "/tmp/homeai-public-remote-deploy-smoke-x/production-upgrade.status",
     runnerPath: "/tmp/homeai-public-remote-deploy-smoke-x/production-upgrade-runner.sh",
+    nodePath: "/tmp/homeai-public-remote-deploy-smoke-x/runtime/bin/node",
   });
 }
 

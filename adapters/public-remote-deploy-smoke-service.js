@@ -288,12 +288,13 @@ function remoteInstallSummaryScript(command, outputPath) {
 }
 
 function remoteResultFileReaderScript(files = {}) {
+  const nodeCommand = clean(files.nodePath || "node", 300);
   return [
     "set -e",
     `HOMEAI_REMOTE_RESULT_STATUS_PATH=${shellQuote(files.statusPath || "")} \\`,
     `HOMEAI_REMOTE_RESULT_STDOUT_PATH=${shellQuote(files.stdoutPath || "")} \\`,
     `HOMEAI_REMOTE_RESULT_STDERR_PATH=${shellQuote(files.stderrPath || "")} \\`,
-    "node - <<'NODE'",
+    `${shellQuote(nodeCommand)} - <<'NODE'`,
     "const fs = require('node:fs');",
     "function readBounded(path, maxBytes) {",
     "  if (!path || !fs.existsSync(path)) return '';",
@@ -457,6 +458,7 @@ function buildRemoteSteps(plan = {}) {
       stderrPath: `${plan.remoteRoot}/production-upgrade.stderr`,
       statusPath: `${plan.remoteRoot}/production-upgrade.status`,
       runnerPath: `${plan.remoteRoot}/production-upgrade-runner.sh`,
+      nodePath: `${plan.remoteRoot}/runtime/bin/node`,
     };
     const productionUpgradeCommand = [
       `cd ${shellQuote(appPath)} &&`,
