@@ -208,8 +208,8 @@ The maintained phase order is audited by
 `install-gateway-launchd-services`, `repair-gateway-worker-acl`,
 `configure-cron`, `configure-plugins`,
 `install-plugin-dependencies`, `plan-plugin-workspace-provisioning`,
-`install-launchd-services`, `run-first-start-preflight`, `run-smoke-tests`,
-and `print-access-info`.
+`install-launchd-services`, `apply-plugin-workspace-provisioning`,
+`run-first-start-preflight`, `run-smoke-tests`, and `print-access-info`.
 
 ```bash
 bash scripts/install-macos-production.sh --execute --phase create-directory-layout --root /Users/example/path --json
@@ -379,16 +379,14 @@ The phase writes `data/plugin-workspace-provisioning-plan.json` from
 `config/public-plugin-sources.json`, `--workspace-map`, current
 `plugin-workspace-authorizations.json`, and existing `.hermes-<plugin>`
 binding files. It includes the ordinary default family business plugins:
-Wardrobe, Health, Finance, Email, Note, and Growth. It explicitly excludes
-special Owner-only plugins such as Codex Mobile and Music. This phase is
+Wardrobe, Health, Finance, Email, Moira, Note, and Growth. It explicitly excludes
+special Owner-only/operator-authenticated plugins such as Codex Mobile, Movie,
+and Music. This phase is
 read/write only for the plan file: it does not create plugin keys, workspace
 grants, launch tokens, or plugin-owned database rows, and it does not call
-plugin bind/register endpoints. After plugin services are installed and
-healthy, apply actual provisioning through `/api/workspace-onboarding/apply`
-or the Owner plugin manager so each plugin's own server-side bind/register
-contract runs. The plan file is stored under the service-owned production data
-root, so production installs must run this phase through the operator sudo
-boundary.
+plugin bind/register endpoints. The plan file is stored under the service-owned
+production data root, so production installs must run this phase through the
+operator sudo boundary.
 
 Then configure the official Hermes CRON scaffold:
 
@@ -456,17 +454,34 @@ The same core LaunchDaemons also bind the fresh-install Gateway Pool runtime:
 profile launcher points to `<root>/app/scripts/macos-launch-gateway-profile.sh`
 with the maintained Mac cold-start timeout values. A clean install must not
 fall back to the legacy single Gateway URL at `127.0.0.1:8642`.
+
+After the core and plugin LaunchDaemons are installed and loaded, apply
+first-install plugin workspace provisioning:
+
+```bash
+sudo env PATH=/Users/example/path \
+  bash scripts/install-macos-production.sh --execute --phase apply-plugin-workspace-provisioning --root /Users/example/path --json
+```
+
+The apply phase writes `data/plugin-workspace-provisioning-apply.json`. It uses
+the generated Owner/plugin registration credentials to create workspace-local
+`.hermes-<plugin>` key/config bindings, persist Home AI plugin authorization
+grants, call plugin bind/register endpoints, and refresh Gateway MCP/profile
+materialization. It does not print raw keys, tokens, private plugin payloads, or
+provider credentials. Wardrobe is not special in this path: Owner and non-Owner
+workspaces use the same plugin provisioning contract.
+
 The install-time `run-smoke-tests` phase accepts only fresh-install provider
 authorization gaps (`codex_auth_json_missing` / `codex_auth_lock_missing`) as a
-bounded pending setup state and skips the legacy Wardrobe binding smoke because
-fresh public installs do not yet contain imported non-Owner workspace binding
-data. It still fails on malformed links, unreadable auth files, or other
-profile-audit issues. Maintainer production closure and deploy validation remain
-strict unless these explicit install-mode flags are used.
+bounded pending setup state. It still fails on malformed links, unreadable auth
+files, missing Wardrobe binding, broken plugin bindings, or other profile-audit
+issues. Maintainer production closure and deploy validation remain strict unless
+these explicit install-mode provider-auth flags are used.
 In that same fresh-install mode, profile audit does not require workspace-private
-business plugin authorization records to exist yet. The installer writes
-`data/plugin-workspace-provisioning-plan.json` for those grants, while the
-Gateway profile filesystem must already be complete: profile `skills` and
+business plugin authorization records before the apply phase. The installer
+writes `data/plugin-workspace-provisioning-plan.json` for those grants, and
+`data/plugin-workspace-provisioning-apply.json` must exist before first-start
+preflight. Gateway profile filesystem must already be complete: profile `skills` and
 `memories` links are writable by the worker user, `SOUL.md` exists for every
 worker profile, `owner-full` contains
 `productivity/wardrobe-style-operations`, and `shared-global` contains
@@ -565,10 +580,12 @@ Use `--network-mode proxy` instead when the target host is intentionally routed
 through a local proxy.
 This preflight must fail if the earlier
 `plan-plugin-workspace-provisioning` phase did not write
-`data/plugin-workspace-provisioning-plan.json`. The plan is required evidence
-that default business plugin provisioning was considered for each workspace,
-but it is still plan-only: actual plugin grants and plugin-owned rows are
-created later through onboarding or the Owner plugin manager.
+`data/plugin-workspace-provisioning-plan.json`, or if the later
+`apply-plugin-workspace-provisioning` phase did not write a successful
+`data/plugin-workspace-provisioning-apply.json`. The plan proves that default
+business plugin provisioning was considered for each workspace; the apply report
+proves those workspace-local plugin keys/configs, grants, plugin bind/register
+calls, and Gateway MCP materialization actually ran before first start.
 
 On an already hardened production root, files such as the Gateway manifest and
 Owner Access Key are intentionally restricted. In that case run the same
@@ -687,10 +704,10 @@ plugin provisioning is not.
 
 Fresh setup/account creation must expose every deployable workspace-private
 business plugin in one place and default them on for the ordinary family
-workspace path: Wardrobe, Health, Finance, Email, Note, and Growth. Directory is
-built in and is not deployed as an external plugin. Codex plugin edition is a
-special Owner-oriented plugin and must not be silently granted as an ordinary
-family workspace plugin.
+workspace path: Wardrobe, Health, Finance, Email, Moira, Note, and Growth.
+Directory is built in and is not deployed as an external plugin. Codex plugin
+edition, Movie, and Music are special Owner/operator-authenticated plugins and
+must not be silently granted as ordinary family workspace plugins.
 
 The Mac deploy entrypoint must support both individual plugin deployment and an
 all-plugin deployment plan. `npm run --silent deploy:macos -- --plugin all

@@ -42,6 +42,7 @@ function testPrivilegedAndLivePhasesRemainExplicit() {
   const byId = Object.fromEntries(report.phases.map((phase) => [phase.id, phase]));
   assert.equal(byId["configure-workspace-isolation"].verificationClass, "privileged_apply");
   assert.equal(byId["repair-gateway-worker-acl"].verificationClass, "privileged_apply");
+  assert.equal(byId["apply-plugin-workspace-provisioning"].verificationClass, "live_runtime");
   assert.equal(byId["run-first-start-preflight"].verificationClass, "live_runtime");
   assert.equal(byId["run-smoke-tests"].verificationClass, "live_runtime");
   assert.equal(byId["install-launchd-services"].privilegedApplyGate, "HOMEAI_INSTALL_LAUNCHD_APPLY=1");

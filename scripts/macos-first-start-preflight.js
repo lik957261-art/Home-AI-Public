@@ -18,6 +18,7 @@ const REQUIRED_SOURCE_FILES = [
   "scripts/macos-bound-directory-preview-smoke.js",
   "scripts/macos-production-closure-validation.js",
   "scripts/production-self-diagnostics.js",
+  "scripts/macos-plugin-workspace-provisioning-apply.js",
 ];
 
 const FOLLOW_UP_DIAGNOSTICS = [
@@ -44,6 +45,7 @@ const DEFAULT_BUSINESS_PLUGIN_IDS = Object.freeze([
   "finance",
   "growth",
   "health",
+  "moira",
   "note",
   "wardrobe",
 ]);
@@ -235,6 +237,60 @@ function checkPluginWorkspaceProvisioningPlan(options, issues) {
   }
 }
 
+function checkPluginWorkspaceProvisioningApply(options, issues) {
+  const reportPath = path.join(options.root, "data", "plugin-workspace-provisioning-apply.json");
+  const status = pathStatus(reportPath);
+  if (status === "missing") {
+    issues.push({ code: "plugin_workspace_provisioning_apply_missing", path: "<root>/data/plugin-workspace-provisioning-apply.json" });
+    return;
+  }
+  if (status !== "exists") {
+    issues.push({ code: "plugin_workspace_provisioning_apply_unreadable", path: "<root>/data/plugin-workspace-provisioning-apply.json" });
+    return;
+  }
+  const report = readJsonIfExists(reportPath);
+  if (!report || typeof report !== "object" || Array.isArray(report)) {
+    issues.push({ code: "plugin_workspace_provisioning_apply_invalid_json", path: "<root>/data/plugin-workspace-provisioning-apply.json" });
+    return;
+  }
+  if (report.schemaVersion !== 1) {
+    issues.push({ code: "plugin_workspace_provisioning_apply_schema_invalid", path: "<root>/data/plugin-workspace-provisioning-apply.json" });
+  }
+  if (String(report.generatedBy || "") !== "install-macos-production apply-plugin-workspace-provisioning") {
+    issues.push({ code: "plugin_workspace_provisioning_apply_generator_invalid", path: "<root>/data/plugin-workspace-provisioning-apply.json" });
+  }
+  if (report.createsPluginKeys !== true || report.createsWorkspaceGrants !== true || report.callsPluginBindEndpoints !== true) {
+    issues.push({ code: "plugin_workspace_provisioning_apply_contract_invalid", path: "<root>/data/plugin-workspace-provisioning-apply.json" });
+  }
+  if (report.rawKeysReturned === true || report.rawTokensReturned === true || report.privacy?.rawKeysReturned === true || report.privacy?.rawTokensReturned === true) {
+    issues.push({ code: "plugin_workspace_provisioning_apply_privacy_invalid", path: "<root>/data/plugin-workspace-provisioning-apply.json" });
+  }
+  if (report.ok !== true) {
+    issues.push({ code: "plugin_workspace_provisioning_apply_failed", status: String(report.status || "unknown").slice(0, 80) });
+  }
+  const workspaces = Array.isArray(report.workspaces) ? report.workspaces : [];
+  if (!workspaces.length) {
+    issues.push({ code: "plugin_workspace_provisioning_apply_workspaces_empty", path: "<root>/data/plugin-workspace-provisioning-apply.json" });
+  }
+  const owner = workspaces.find((workspace) => String(workspace?.workspaceId || "") === "owner");
+  if (!owner) {
+    issues.push({ code: "plugin_workspace_provisioning_apply_owner_missing" });
+  } else {
+    const activePlugins = new Set((Array.isArray(owner.plugins) ? owner.plugins : [])
+      .filter((plugin) => String(plugin?.status || "") === "active")
+      .map((plugin) => String(plugin?.pluginId || "").trim())
+      .filter(Boolean));
+    for (const pluginId of DEFAULT_BUSINESS_PLUGIN_IDS) {
+      if (!activePlugins.has(pluginId)) {
+        issues.push({ code: "plugin_workspace_provisioning_apply_owner_plugin_not_active", pluginId });
+      }
+    }
+    if (owner.gateway?.launchd?.ok !== true) {
+      issues.push({ code: "plugin_workspace_provisioning_apply_owner_gateway_not_refreshed" });
+    }
+  }
+}
+
 function checkExecutableFile(filePath, codePrefix, issues, compactPath) {
   const status = pathStatus(filePath);
   if (status === "missing") {
@@ -332,6 +388,7 @@ function checkHost(options, issues) {
   checkOwnerKey(options, issues);
   checkProductionDriftWatchdog(options, issues);
   checkPluginWorkspaceProvisioningPlan(options, issues);
+  checkPluginWorkspaceProvisioningApply(options, issues);
 }
 
 function buildReport(options = {}) {

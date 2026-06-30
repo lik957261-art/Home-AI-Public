@@ -24,6 +24,7 @@ const EXPECTED_PUBLIC_DEFAULTS = [
   "finance",
   "growth",
   "health",
+  "moira",
   "note",
   "wardrobe",
 ];
@@ -64,7 +65,7 @@ assert.equal(music.operatorAuthenticated, true);
 assert.equal(music.repositoryUrl, "https://github.com/pentiumxp/HomeAI-Music.git");
 
 const moira = plugins.find((plugin) => plugin.id === "moira");
-assert.equal(moira.publicDefault, false);
+assert.equal(moira.publicDefault, true);
 assert.equal(moira.repositoryUrl, "https://github.com/pentiumxp/MOIRA_chinese_astrology_public.git");
 assert.equal(Boolean(moira.special), false);
 assert.equal(Boolean(moira.operatorAuthenticated), false);

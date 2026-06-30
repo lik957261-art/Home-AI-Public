@@ -94,7 +94,7 @@ wiring, and that special public plugins such as Codex Mobile and Music are not
 treated as ordinary public-default provisioning targets.
 `scripts/install-macos-production.sh --json` is the current phase-based Mac
 installer entrypoint. It is dry-run by default and returns a machine-readable
-18-phase install plan. Its `--execute` path requires `--phase`; read-only
+20-phase install plan. Its `--execute` path requires `--phase`; read-only
 phases, the low-risk idempotent `create-directory-layout` phase, the
 conservative `create-service-users` audit/create phase, and the
 fresh-install-only `install-hermes-mobile` source copy phase are executable
@@ -152,7 +152,7 @@ bounded plugin/action metadata and fails closed on dependency errors. The
 workspace map, current authorization store, and existing `.hermes-<plugin>`
 binding evidence. It covers only ordinary default business plugins and
 explicitly remains plan-only: no plugin keys, grants, launch tokens,
-plugin-owned rows, or bind/register calls are created by the installer. The
+plugin-owned rows, or bind/register calls are created by the plan phase. The
 `configure-cron` phase creates the official Hermes CRON scaffold, empty or
 preserved canonical `cron/jobs.json`, helper scripts, and source-controlled
 productivity Skills without creating business jobs or loading launchd. The
@@ -161,6 +161,14 @@ launchd plist files plus plugin plist files for the public plugin set: Codex
 Mobile, Email, Finance, Growth, Health, Moira, Music, Note, and Wardrobe. It
 writes `data/launchd-services-plan.json`, but by default it does not install
 files under `/Library/LaunchDaemons` and does not load or restart services.
+After those LaunchDaemons are loaded, `apply-plugin-workspace-provisioning`
+consumes the plan, creates workspace-local plugin keys/config, persists plugin
+authorization grants, calls plugin bind/register endpoints, refreshes Gateway
+MCP/profile materialization, and writes
+`data/plugin-workspace-provisioning-apply.json` without returning raw keys or
+tokens. First-start preflight fails closed if this apply report is missing or
+does not prove Owner default business plugins are active and Gateway was
+refreshed.
 The `run-smoke-tests` phase invokes the live app
 `macos-production-closure-validation.js` through the configured production
 Node runtime when present and wraps only bounded closure metadata in the
@@ -172,8 +180,8 @@ The audited phase list is `system-preflight`, `install-dependencies`,
 `install-gateway-launchd-services`, `repair-gateway-worker-acl`,
 `configure-cron`, `configure-plugins`,
 `install-plugin-dependencies`, `plan-plugin-workspace-provisioning`,
-`install-launchd-services`, `run-first-start-preflight`, `run-smoke-tests`,
-and `print-access-info`.
+`install-launchd-services`, `apply-plugin-workspace-provisioning`,
+`run-first-start-preflight`, `run-smoke-tests`, and `print-access-info`.
 `scripts/macos-install-phase-coverage-audit.js` verifies that this phase array,
 command generator, execution dispatcher, executable allowlist, install tests,
 and durable docs remain synchronized.

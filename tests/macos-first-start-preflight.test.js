@@ -90,6 +90,45 @@ function installPluginWorkspaceProvisioningPlan(root, overrides = {}) {
   }, overrides), null, 2));
 }
 
+function installPluginWorkspaceProvisioningApply(root, overrides = {}) {
+  const workspaces = overrides.workspaces || [
+    {
+      workspaceId: "owner",
+      macUser: "hm-owner",
+      status: "active",
+      activeCount: DEFAULT_BUSINESS_PLUGIN_IDS.length,
+      plugins: DEFAULT_BUSINESS_PLUGIN_IDS.map((pluginId) => ({
+        pluginId,
+        status: "active",
+      })),
+      gateway: {
+        launchd: {
+          ok: true,
+          workerCount: 1,
+          syncedPluginBindings: DEFAULT_BUSINESS_PLUGIN_IDS,
+        },
+      },
+    },
+  ];
+  fs.writeFileSync(path.join(root, "data", "plugin-workspace-provisioning-apply.json"), JSON.stringify(Object.assign({
+    schemaVersion: 1,
+    generatedBy: "install-macos-production apply-plugin-workspace-provisioning",
+    ok: true,
+    status: "active",
+    createsPluginKeys: true,
+    createsWorkspaceGrants: true,
+    callsPluginBindEndpoints: true,
+    workspaceCount: workspaces.length,
+    activeCount: DEFAULT_BUSINESS_PLUGIN_IDS.length,
+    failedCount: 0,
+    workspaces,
+    privacy: {
+      rawKeysReturned: false,
+      rawTokensReturned: false,
+    },
+  }, overrides), null, 2));
+}
+
 function testSourceOnlyPasses() {
   const report = buildReport({ repoRoot: REPO_ROOT, sourceOnly: true });
   assert.equal(report.ok, true, JSON.stringify(report.issues, null, 2));
@@ -102,6 +141,7 @@ function testHostModeCanPassWithTempRoot() {
   const launchdDir = makeLaunchdDir();
   installProductionDriftScripts(root);
   installPluginWorkspaceProvisioningPlan(root);
+  installPluginWorkspaceProvisioningApply(root);
   const report = buildReport({
     repoRoot: REPO_ROOT,
     root,
@@ -117,6 +157,7 @@ function testHostModeFailsClosedForMissingNetworkModeAndOpenKey() {
   const launchdDir = makeLaunchdDir();
   installProductionDriftScripts(root);
   installPluginWorkspaceProvisioningPlan(root);
+  installPluginWorkspaceProvisioningApply(root);
   fs.chmodSync(path.join(root, "data", "secrets", "owner-web-key.secret"), 0o644);
   const report = buildReport({ repoRoot: REPO_ROOT, root, launchdDir });
   assert.equal(report.ok, false);
@@ -129,6 +170,7 @@ function testHostModeFailsClosedForMissingDriftWatchdogPlist() {
   const launchdDir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-first-start-empty-launchd-"));
   installProductionDriftScripts(root);
   installPluginWorkspaceProvisioningPlan(root);
+  installPluginWorkspaceProvisioningApply(root);
   const report = buildReport({ repoRoot: REPO_ROOT, root, launchdDir, networkMode: "direct" });
   assert.equal(report.ok, false);
   assert.ok(report.issues.some((issue) => issue.code === "production_drift_launchd_plist_missing"));
@@ -153,12 +195,54 @@ function testHostModeFailsClosedForInvalidPluginProvisioningPlan() {
     defaultBusinessPluginIds: ["finance"],
     workspaces: [{ workspaceId: "owner", plugins: [{ pluginId: "finance" }] }],
   });
+  installPluginWorkspaceProvisioningApply(root, {
+    workspaces: [{
+      workspaceId: "owner",
+      macUser: "hm-owner",
+      status: "active",
+      plugins: DEFAULT_BUSINESS_PLUGIN_IDS.map((pluginId) => ({ pluginId, status: "active" })),
+      gateway: { launchd: { ok: true } },
+    }],
+  });
   const report = buildReport({ repoRoot: REPO_ROOT, root, launchdDir, networkMode: "direct" });
   assert.equal(report.ok, false);
   assert.ok(report.issues.some((issue) => issue.code === "plugin_workspace_provisioning_plan_schema_invalid"));
   assert.ok(report.issues.some((issue) => issue.code === "plugin_workspace_provisioning_plan_creates_keys_unexpected"));
   assert.ok(report.issues.some((issue) => issue.code === "plugin_workspace_provisioning_plan_default_plugin_missing" && issue.pluginId === "email"));
   assert.ok(report.issues.some((issue) => issue.code === "plugin_workspace_provisioning_plan_workspace_plugin_missing" && issue.pluginId === "email"));
+}
+
+function testHostModeFailsClosedForMissingPluginProvisioningApply() {
+  const root = makeTempRoot();
+  const launchdDir = makeLaunchdDir();
+  installProductionDriftScripts(root);
+  installPluginWorkspaceProvisioningPlan(root);
+  const report = buildReport({ repoRoot: REPO_ROOT, root, launchdDir, networkMode: "direct" });
+  assert.equal(report.ok, false);
+  assert.ok(report.issues.some((issue) => issue.code === "plugin_workspace_provisioning_apply_missing"));
+}
+
+function testHostModeFailsClosedForIncompletePluginProvisioningApply() {
+  const root = makeTempRoot();
+  const launchdDir = makeLaunchdDir();
+  installProductionDriftScripts(root);
+  installPluginWorkspaceProvisioningPlan(root);
+  installPluginWorkspaceProvisioningApply(root, {
+    ok: false,
+    status: "partial",
+    workspaces: [{
+      workspaceId: "owner",
+      macUser: "hm-owner",
+      status: "partial",
+      plugins: DEFAULT_BUSINESS_PLUGIN_IDS.filter((pluginId) => pluginId !== "moira").map((pluginId) => ({ pluginId, status: "active" })),
+      gateway: { launchd: { ok: false } },
+    }],
+  });
+  const report = buildReport({ repoRoot: REPO_ROOT, root, launchdDir, networkMode: "direct" });
+  assert.equal(report.ok, false);
+  assert.ok(report.issues.some((issue) => issue.code === "plugin_workspace_provisioning_apply_failed"));
+  assert.ok(report.issues.some((issue) => issue.code === "plugin_workspace_provisioning_apply_owner_plugin_not_active" && issue.pluginId === "moira"));
+  assert.ok(report.issues.some((issue) => issue.code === "plugin_workspace_provisioning_apply_owner_gateway_not_refreshed"));
 }
 
 function testCliSourceOnly() {
@@ -204,6 +288,8 @@ testHostModeFailsClosedForMissingNetworkModeAndOpenKey();
 testHostModeFailsClosedForMissingDriftWatchdogPlist();
 testHostModeFailsClosedForMissingPluginProvisioningPlan();
 testHostModeFailsClosedForInvalidPluginProvisioningPlan();
+testHostModeFailsClosedForMissingPluginProvisioningApply();
+testHostModeFailsClosedForIncompletePluginProvisioningApply();
 testCliSourceOnly();
 testCliHostFailureIsBounded();
 testPermissionDeniedIsNotReportedAsMissing();

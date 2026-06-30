@@ -59,7 +59,7 @@
       "sourceDir": "moira",
       "repositoryUrl": "https://github.com/pentiumxp/MOIRA_chinese_astrology_public.git",
       "ref": "main",
-      "publicDefault": false,
+      "publicDefault": true,
       "launchdLabel": "com.hermesmobile.plugin.moira",
       "manifestUrl": "http://127.0.0.1:4174/api/v1/hermes/plugin/manifest"
     },

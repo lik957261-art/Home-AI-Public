@@ -19,16 +19,14 @@ function testReportPassesForCurrentPluginContract() {
   assert.equal(report.hostProvisionedPublicCount, HOST_PROVISIONED_PUBLIC_PLUGINS.length);
   assert.equal(report.hostProvisionedLocalCount, HOST_PROVISIONED_LOCAL_PLUGINS.length);
   assert.equal(report.specialPublicCount, SPECIAL_PUBLIC_PLUGINS.length);
-  for (const pluginId of ["email", "finance", "growth", "health", "note", "wardrobe"]) {
+  for (const pluginId of ["email", "finance", "growth", "health", "moira", "note", "wardrobe"]) {
     const row = report.provisionedPublic.find((item) => item.pluginId === pluginId);
     assert.ok(row, `missing ${pluginId}`);
     assert.equal(row.publicManifest, true);
     assert.equal(row.publicDefault, true);
     assert.deepEqual(row.files, expectedProvisioningFiles(pluginId));
   }
-  const moira = report.provisionedLocal.find((item) => item.pluginId === "moira");
-  assert.ok(moira);
-  assert.equal(moira.publicManifest, true);
+  assert.equal(report.provisionedLocal.length, 0);
   for (const pluginId of ["codex-mobile-web", "music", "movie"]) {
     const row = report.specialPublic.find((item) => item.pluginId === pluginId);
     assert.ok(row, `missing special ${pluginId}`);

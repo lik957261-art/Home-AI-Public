@@ -400,9 +400,10 @@ The installer should be idempotent and phase-based:
 14. install-plugin-dependencies
 15. plan-plugin-workspace-provisioning
 16. install-launchd-services
-17. run-first-start-preflight
-18. run-smoke-tests
-19. print-access-info
+17. apply-plugin-workspace-provisioning
+18. run-first-start-preflight
+19. run-smoke-tests
+20. print-access-info
 ```
 
 `configure-gateway-profiles` is a repair-safe phase on hosts that already have
@@ -472,12 +473,13 @@ both profile-launch-script aliases at
 from passing Owner setup while `/api/status` still checks the legacy single
 Gateway at `127.0.0.1:8642`.
 Install-time smoke runs production closure with
-`--allow-provider-auth-pending --skip-wardrobe-binding`, which accepts only
-missing Codex auth JSON/lock files as a fresh-machine pending setup state, skips
-model-run smokes that cannot pass without provider credentials, and skips the
-legacy non-Owner Wardrobe binding smoke until migrated workspace binding data is
-available. The normal maintainer production closure path does not use these
-flags and continues to fail on missing/broken provider auth or missing Wardrobe
+`--allow-provider-auth-pending`, which accepts only missing Codex auth JSON/lock
+files as a fresh-machine pending setup state and skips model-run smokes that
+cannot pass without provider credentials. Wardrobe is no longer skipped as a
+special migrated-data plugin in fresh installs: `apply-plugin-workspace-provisioning`
+must create/confirm the Owner Wardrobe binding before first-start preflight and
+smoke. The normal maintainer production closure path does not use these flags
+and continues to fail on missing/broken provider auth or missing plugin
 bindings.
 The same phase pre-creates stdout/stderr log files for every core/plugin
 LaunchDaemon and assigns each file to the service user. This keeps plugins that
@@ -489,8 +491,8 @@ The `run-smoke-tests` guided command must call
 `scripts/install-macos-production.sh --execute --phase run-smoke-tests` instead
 of invoking closure validation directly. The phase wrapper then points at the
 live app `scripts/macos-production-closure-validation.js --root <root> --base
-<url> --allow-provider-auth-pending --skip-wardrobe-binding --json` and wraps
-its bounded output as an installer report.
+<url> --allow-provider-auth-pending --json` and wraps its bounded output as an
+installer report.
 Codex Mobile LaunchDaemon generation is profile-aware: when the operator's
 `codex-profiles.json` exists, generated `CODEX_HOME` and any shared-Mux
 endpoint must follow that active profile instead of the desktop/default

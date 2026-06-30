@@ -59,6 +59,7 @@ PHASES=(
   "install-plugin-dependencies"
   "plan-plugin-workspace-provisioning"
   "install-launchd-services"
+  "apply-plugin-workspace-provisioning"
   "run-first-start-preflight"
   "run-smoke-tests"
   "print-access-info"
@@ -82,6 +83,7 @@ GUIDED_OPERATOR_PHASES=(
   "install-plugin-dependencies"
   "plan-plugin-workspace-provisioning"
   "install-launchd-services"
+  "apply-plugin-workspace-provisioning"
   "run-first-start-preflight"
   "run-smoke-tests"
   "print-access-info"
@@ -101,7 +103,8 @@ present. Only read-only phases and idempotent low-risk phases are currently
 executable: system-preflight, install-dependencies, create-service-users,
 create-directory-layout, install-hermes-mobile, install-official-hermes-runtime,
 install-plugin-dependencies,
-run-first-start-preflight, run-smoke-tests, and print-access-info. Use the
+apply-plugin-workspace-provisioning, run-first-start-preflight, run-smoke-tests,
+and print-access-info. Use the
 central deploy script for existing production updates.
 
 --guided prints a one-command guided install report. With --execute, it does
@@ -148,8 +151,13 @@ repositories.
 The plan-plugin-workspace-provisioning phase writes a bounded first-run
 workspace plugin provisioning plan from the public plugin manifest and
 workspace map. It does not create plugin keys, grants, launch tokens, or
-plugin-owned database rows; actual provisioning still goes through
-/api/workspace-onboarding/apply or the Owner plugin manager.
+plugin-owned database rows.
+
+The apply-plugin-workspace-provisioning phase consumes that plan after
+LaunchDaemons are installed, registers local plugin workspaces with the
+generated Owner/plugin registration credentials, writes workspace .hermes-*
+bindings, updates plugin authorization records, and refreshes Gateway profile
+MCP materialization. It never prints raw keys.
 
 The configure-cron phase creates the official Hermes CRON store scaffold,
 output/log/workdir directories, helper scripts, and source-controlled CRON
@@ -223,6 +231,9 @@ phase_command() {
       ;;
     install-launchd-services)
       printf '%s HOMEAI_INSTALL_LAUNCHD_APPLY=1 bash %s/scripts/install-macos-production.sh --execute --phase install-launchd-services --root %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT"
+      ;;
+    apply-plugin-workspace-provisioning)
+      printf '%s node %s/scripts/macos-plugin-workspace-provisioning-apply.js --root %s --app-source %s --workspace-map %s --json' "$(sudo_phase_prefix)" "$APP_SOURCE" "$ROOT" "$APP_SOURCE" "$WORKSPACE_MAP"
       ;;
     run-first-start-preflight)
       local mode="${NETWORK_MODE:-<direct|proxy>}"
@@ -510,6 +521,15 @@ const steps = [
     riskBoundary: "Installs only generated core and public plugin LaunchDaemons.",
   },
   {
+    id: "apply-plugin-workspace-provisioning",
+    title: "Register first-install plugin workspaces and refresh Gateway MCP",
+    requiresSudo: true,
+    gate: "sudo",
+    commands: [`${sudoEnv} ${root}/runtime/node-current/bin/node ${appSource}/scripts/macos-plugin-workspace-provisioning-apply.js --root ${root} --app-source ${appSource} --workspace-map ${workspaceMap} --json`],
+    evidenceRequired: ["plugin-workspace-provisioning-apply.json exists", "workspace plugin grants and Gateway MCP materialization report bounded status"],
+    riskBoundary: "Creates local plugin keys/config and authorization grants only; raw keys are not printed.",
+  },
+  {
     id: "run-first-start-preflight",
     title: "Run first-start runtime preflight",
     requiresSudo: true,
@@ -543,7 +563,7 @@ NODE
 
 phase_executable() {
   case "$1" in
-    system-preflight|install-dependencies|create-service-users|create-directory-layout|install-hermes-mobile|install-official-hermes-runtime|configure-owner|configure-workspace-isolation|configure-gateway-profiles|install-gateway-launchd-services|repair-gateway-worker-acl|configure-cron|configure-plugins|install-plugin-dependencies|plan-plugin-workspace-provisioning|install-launchd-services|run-first-start-preflight|run-smoke-tests|print-access-info)
+    system-preflight|install-dependencies|create-service-users|create-directory-layout|install-hermes-mobile|install-official-hermes-runtime|configure-owner|configure-workspace-isolation|configure-gateway-profiles|install-gateway-launchd-services|repair-gateway-worker-acl|configure-cron|configure-plugins|install-plugin-dependencies|plan-plugin-workspace-provisioning|install-launchd-services|apply-plugin-workspace-provisioning|run-first-start-preflight|run-smoke-tests|print-access-info)
       return 0
       ;;
     *)
@@ -1004,10 +1024,39 @@ const root = path.resolve(process.argv[2]);
 const requestedOwnerKeyFile = String(process.argv[3] || "").trim();
 const ownerKeyFile = path.resolve(requestedOwnerKeyFile || path.join(root, "data", "secrets", "owner-web-key.secret"));
 const bridgeHostKeyFile = path.join(root, "data", "secrets", "bridge-host.secret");
-const pluginSecretFiles = [
-  path.join(root, "data", "plugin-secrets", "growth-registration-key.txt"),
-  path.join(root, "data", "plugin-secrets", "health-registration-key.txt"),
-  path.join(root, "data", "plugin-secrets", "email-registration-key.txt"),
+const pluginSecretGroups = [
+  {
+    actionPrefix: "wardrobe-registration-key",
+    files: [path.join(root, "data", "plugin-secrets", "wardrobe-registration-access-key.txt")],
+  },
+  {
+    actionPrefix: "growth-plugin-owner-key",
+    files: [
+      path.join(root, "data", "plugin-secrets", "growth-owner-key.txt"),
+      path.join(root, "data", "plugin-secrets", "growth-registration-key.txt"),
+    ],
+  },
+  {
+    actionPrefix: "health-plugin-owner-key",
+    files: [
+      path.join(root, "data", "plugin-secrets", "health-owner-key.txt"),
+      path.join(root, "data", "plugin-secrets", "health-registration-key.txt"),
+    ],
+  },
+  {
+    actionPrefix: "note-plugin-owner-key",
+    files: [
+      path.join(root, "data", "plugin-secrets", "note-owner-key.txt"),
+      path.join(root, "data", "plugin-secrets", "note-registration-key.txt"),
+    ],
+  },
+  {
+    actionPrefix: "email-plugin-owner-key",
+    files: [
+      path.join(root, "data", "plugin-secrets", "email-owner-key.txt"),
+      path.join(root, "data", "plugin-secrets", "email-registration-key.txt"),
+    ],
+  },
 ];
 const issues = [];
 const actions = [];
@@ -1043,6 +1092,48 @@ function ensureHexSecret(file, actionPrefix) {
   fs.writeFileSync(file, `${crypto.randomBytes(32).toString("hex")}\n`, { mode: 0o600, flag: "wx" });
   fs.chmodSync(file, 0o600);
   actions.push({ action: `${actionPrefix}-create`, path: path.relative(root, file) || file, mode: "0600", keyBytes: 32 });
+}
+
+function ensureHexSecretGroup(group) {
+  const files = Array.isArray(group.files) ? group.files : [];
+  if (!files.length) return;
+  let canonical = "";
+  for (const file of files) {
+    try {
+      if (!fs.existsSync(file)) continue;
+      const stat = fs.statSync(file);
+      if (!stat.isFile()) {
+        issues.push({ code: `${group.actionPrefix}_path_not_file`, path: path.relative(root, file) || file });
+        continue;
+      }
+      const key = readFirstNonEmptyLine(file);
+      if (!key) {
+        issues.push({ code: `${group.actionPrefix}_file_empty`, path: path.relative(root, file) || file });
+        continue;
+      }
+      canonical = key;
+      break;
+    } catch (_) {}
+  }
+  if (!canonical) canonical = crypto.randomBytes(32).toString("hex");
+  for (const file of files) {
+    const dir = path.dirname(file);
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fs.chmodSync(dir, 0o700);
+    if (fs.existsSync(file)) {
+      const existing = readFirstNonEmptyLine(file);
+      if (existing && existing !== canonical) {
+        issues.push({ code: `${group.actionPrefix}_alias_mismatch`, path: path.relative(root, file) || file });
+        continue;
+      }
+      fs.chmodSync(file, 0o600);
+      actions.push({ action: `${group.actionPrefix}-exists`, path: path.relative(root, file) || file, mode: modeOctal(fs.statSync(file)), keyLength: canonical.length });
+    } else {
+      fs.writeFileSync(file, `${canonical}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
+      fs.chmodSync(file, 0o600);
+      actions.push({ action: `${group.actionPrefix}-create`, path: path.relative(root, file) || file, mode: "0600", keyBytes: 32 });
+    }
+  }
 }
 
 try {
@@ -1089,7 +1180,7 @@ try {
   }
   if (issues.length === 0) {
     ensureHexSecret(bridgeHostKeyFile, "bridge-host-key");
-    for (const file of pluginSecretFiles) ensureHexSecret(file, "plugin-registration-key");
+    for (const group of pluginSecretGroups) ensureHexSecretGroup(group);
   }
 } catch (err) {
   issues.push({
@@ -4394,7 +4485,7 @@ try {
         detail: err && err.code ? err.code : String(err && err.message ? err.message : err),
       });
     }
-    const pip = issues.length === 0 ? run(agentPython, ["-m", "pip", "install", buildSource], {
+    const pip = issues.length === 0 ? run(agentPython, ["-m", "pip", "install", buildSource, "websockets>=12,<16"], {
       cwd: buildSource,
       timeout: 1200000,
     }) : null;
@@ -4631,7 +4722,7 @@ try {
     issues.push({ code: "closure_node_missing", path: nodeCommand });
   }
   if (issues.length === 0) {
-    const args = [closureScript, "--root", root, "--base", base, "--expected-workspaces", expectedWorkspaces, "--allow-provider-auth-pending", "--skip-wardrobe-binding", "--json"];
+    const args = [closureScript, "--root", root, "--base", base, "--expected-workspaces", expectedWorkspaces, "--allow-provider-auth-pending", "--json"];
     const result = spawnSync(nodeCommand, args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -4739,6 +4830,11 @@ run_phase() {
       ;;
     install-launchd-services)
       run_launchd_services_phase
+      ;;
+    apply-plugin-workspace-provisioning)
+      apply_node="$ROOT/runtime/node-current/bin/node"
+      [[ -x "$apply_node" ]] || apply_node="$NODE_COMMAND"
+      "$apply_node" "$APP_SOURCE/scripts/macos-plugin-workspace-provisioning-apply.js" --root "$ROOT" --app-source "$APP_SOURCE" --workspace-map "$WORKSPACE_MAP" --json
       ;;
     run-first-start-preflight)
       node "$APP_SOURCE/scripts/macos-first-start-preflight.js" --root "$ROOT" --network-mode "$NETWORK_MODE" --base "$BASE_URL" --json

@@ -103,6 +103,11 @@ const PHASE_VERIFICATION = {
     evidence: ["scripts/macos-fresh-install-rehearsal.js", "tests/install-macos-production.test.js"],
     reason: "Stages core/plugin launchd plans in a temporary root; system install/load remains gated.",
   },
+  "apply-plugin-workspace-provisioning": {
+    verificationClass: "live_runtime",
+    evidence: ["scripts/macos-plugin-workspace-provisioning-apply.js", "tests/macos-plugin-workspace-provisioning-apply.test.js"],
+    reason: "Requires installed plugin services and writes workspace-local plugin bindings/grants plus Gateway MCP materialization before first-start preflight.",
+  },
   "run-first-start-preflight": {
     verificationClass: "live_runtime",
     evidence: ["scripts/macos-first-start-preflight.js"],

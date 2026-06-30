@@ -50,7 +50,7 @@ function testScriptExistsAndIsSafeByDefault() {
   assert.match(source, /public-install-preflight\.js/);
   assert.match(source, /execute_not_enabled/);
   assert.match(source, /--allow-provider-auth-pending/);
-  assert.match(source, /--skip-wardrobe-binding/);
+  assert.doesNotMatch(source, /--skip-wardrobe-binding/);
   assert.doesNotMatch(source, /launchctl bootstrap/);
 }
 
@@ -60,7 +60,7 @@ function testDryRunJsonPlan() {
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
   assert.equal(parsed.mode, "dry-run");
   assert.equal(parsed.preflightOk, true);
-  assert.equal(parsed.phaseCount, 19);
+  assert.equal(parsed.phaseCount, 20);
   assert.deepEqual(parsed.phases.map((phase) => phase.id), [
     "system-preflight",
     "install-dependencies",
@@ -78,6 +78,7 @@ function testDryRunJsonPlan() {
     "install-plugin-dependencies",
     "plan-plugin-workspace-provisioning",
     "install-launchd-services",
+    "apply-plugin-workspace-provisioning",
     "run-first-start-preflight",
     "run-smoke-tests",
     "print-access-info",
@@ -86,6 +87,9 @@ function testDryRunJsonPlan() {
   assert.match(firstStart.command, /macos-first-start-preflight\.js/);
   assert.match(firstStart.command, /--network-mode direct/);
   assert.match(firstStart.command, /--base http:\/\/127\.0\.0\.1:8797/);
+  const applyPluginProvisioning = parsed.phases.find((phase) => phase.id === "apply-plugin-workspace-provisioning");
+  assert.match(applyPluginProvisioning.command, /macos-plugin-workspace-provisioning-apply\.js/);
+  assert.match(applyPluginProvisioning.command, /--workspace-map/);
   const smokeTests = parsed.phases.find((phase) => phase.id === "run-smoke-tests");
   assert.match(smokeTests.command, /--phase run-smoke-tests/);
   assert.match(smokeTests.command, /--root/);
@@ -180,6 +184,7 @@ function testDryRunSudoCommandsPreserveRequestedRuntimePath() {
     "install-plugin-dependencies",
     "plan-plugin-workspace-provisioning",
     "install-launchd-services",
+    "apply-plugin-workspace-provisioning",
     "run-first-start-preflight",
     "run-smoke-tests",
     "print-access-info",
@@ -228,6 +233,7 @@ function testGuidedDryRunJsonPlan() {
     "install-plugin-dependencies",
     "plan-plugin-workspace-provisioning",
     "install-launchd-services",
+    "apply-plugin-workspace-provisioning",
     "run-first-start-preflight",
     "run-smoke-tests",
     "print-access-info",
@@ -280,6 +286,9 @@ function testGuidedDryRunJsonPlan() {
   const launchdStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "install-launchd-services");
   assert.equal(launchdStep.requiresSudo, true);
   assert.equal(launchdStep.gate, "HOMEAI_INSTALL_LAUNCHD_APPLY=1");
+  const applyPluginProvisioningStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "apply-plugin-workspace-provisioning");
+  assert.equal(applyPluginProvisioningStep.requiresSudo, true);
+  assert.ok(applyPluginProvisioningStep.commands.some((command) => command.includes("macos-plugin-workspace-provisioning-apply.js")));
   const firstStartStep = parsed.guidedPlan.operatorSteps.find((step) => step.id === "run-first-start-preflight");
   assert.equal(firstStartStep.requiresSudo, true);
   assert.ok(firstStartStep.commands.some((command) => command.startsWith("sudo env ")));
@@ -414,7 +423,7 @@ function makeFirstStartRoot() {
   fs.writeFileSync(path.join(root, "data", "plugin-workspace-provisioning-plan.json"), JSON.stringify({
     schemaVersion: 1,
     generatedBy: "install-macos-production plan-plugin-workspace-provisioning",
-    defaultBusinessPluginIds: ["email", "finance", "growth", "health", "note", "wardrobe"],
+    defaultBusinessPluginIds: ["email", "finance", "growth", "health", "moira", "note", "wardrobe"],
     excludedSpecialPluginIds: ["codex-mobile-web", "music"],
     createsPluginKeys: false,
     createsWorkspaceGrants: false,
@@ -423,10 +432,38 @@ function makeFirstStartRoot() {
       {
         workspaceId: "owner",
         macUser: "hm-owner",
-        plugins: ["email", "finance", "growth", "health", "note", "wardrobe"].map((pluginId) => ({
+        plugins: ["email", "finance", "growth", "health", "moira", "note", "wardrobe"].map((pluginId) => ({
           pluginId,
           currentStatus: "pending",
         })),
+      },
+    ],
+  }, null, 2));
+  fs.writeFileSync(path.join(root, "data", "plugin-workspace-provisioning-apply.json"), JSON.stringify({
+    schemaVersion: 1,
+    generatedBy: "install-macos-production apply-plugin-workspace-provisioning",
+    phase: "apply-plugin-workspace-provisioning",
+    ok: true,
+    createsPluginKeys: true,
+    createsWorkspaceGrants: true,
+    callsPluginBindEndpoints: true,
+    includesRawKeys: false,
+    includesAccessTokens: false,
+    includesPrivatePayloads: false,
+    workspaces: [
+      {
+        workspaceId: "owner",
+        macUser: "hm-owner",
+        plugins: ["email", "finance", "growth", "health", "moira", "note", "wardrobe"].map((pluginId) => ({
+          pluginId,
+          status: "active",
+        })),
+        gateway: {
+          launchd: {
+            ok: true,
+            status: "ready",
+          },
+        },
       },
     ],
   }, null, 2));
@@ -1038,6 +1075,37 @@ function testExecuteConfigureOwnerCreatesMissingKeyWithoutPrintingIt() {
   assert.match(key, /^[a-f0-9]{64}$/);
   assert.equal(fs.statSync(keyPath).mode & 0o777, 0o600);
   assert.equal(fs.statSync(path.dirname(keyPath)).mode & 0o777, 0o700);
+  const pluginSecrets = path.join(root, "data", "plugin-secrets");
+  for (const file of [
+    "wardrobe-registration-access-key.txt",
+    "growth-owner-key.txt",
+    "growth-registration-key.txt",
+    "health-owner-key.txt",
+    "health-registration-key.txt",
+    "note-owner-key.txt",
+    "note-registration-key.txt",
+    "email-owner-key.txt",
+    "email-registration-key.txt",
+  ]) {
+    assert.equal(fs.existsSync(path.join(pluginSecrets, file)), true, file);
+    assert.equal(fs.statSync(path.join(pluginSecrets, file)).mode & 0o777, 0o600, file);
+  }
+  assert.equal(
+    fs.readFileSync(path.join(pluginSecrets, "growth-owner-key.txt"), "utf8"),
+    fs.readFileSync(path.join(pluginSecrets, "growth-registration-key.txt"), "utf8"),
+  );
+  assert.equal(
+    fs.readFileSync(path.join(pluginSecrets, "health-owner-key.txt"), "utf8"),
+    fs.readFileSync(path.join(pluginSecrets, "health-registration-key.txt"), "utf8"),
+  );
+  assert.equal(
+    fs.readFileSync(path.join(pluginSecrets, "note-owner-key.txt"), "utf8"),
+    fs.readFileSync(path.join(pluginSecrets, "note-registration-key.txt"), "utf8"),
+  );
+  assert.equal(
+    fs.readFileSync(path.join(pluginSecrets, "email-owner-key.txt"), "utf8"),
+    fs.readFileSync(path.join(pluginSecrets, "email-registration-key.txt"), "utf8"),
+  );
   assert.doesNotMatch(JSON.stringify(parsed), new RegExp(key));
   const phase = parsed.phases.find((item) => item.id === "configure-owner");
   assert.equal(phase.status, "executed");
@@ -1525,7 +1593,7 @@ function testExecutePluginWorkspaceProvisioningPlanDoesNotCreateSecretsOrGrants(
   assert.equal(parsed.execution.report.workspaceCount, 2);
   const planPath = path.join(root, "data", "plugin-workspace-provisioning-plan.json");
   const plan = JSON.parse(fs.readFileSync(planPath, "utf8"));
-  assert.deepEqual(plan.defaultBusinessPluginIds.sort(), ["email", "finance", "growth", "health", "note", "wardrobe"]);
+  assert.deepEqual(plan.defaultBusinessPluginIds.sort(), ["email", "finance", "growth", "health", "moira", "note", "wardrobe"]);
   assert.ok(plan.excludedSpecialPluginIds.includes("codex-mobile-web"));
   assert.ok(plan.excludedSpecialPluginIds.includes("music"));
   assert.equal(plan.createsPluginKeys, false);
@@ -1534,7 +1602,7 @@ function testExecutePluginWorkspaceProvisioningPlanDoesNotCreateSecretsOrGrants(
   assert.equal(fs.existsSync(path.join(root, "data", "plugin-workspace-authorizations.json")), false);
   assert.equal(fs.existsSync(path.join(root, "data", "drive", "users", "owner", ".hermes-finance", "access-key.txt")), false);
   const owner = plan.workspaces.find((workspace) => workspace.workspaceId === "owner");
-  assert.equal(owner.defaultBusinessPluginCount, 6);
+  assert.equal(owner.defaultBusinessPluginCount, 7);
   assert.ok(owner.plugins.every((plugin) => plugin.currentStatus === "pending"));
 }
 

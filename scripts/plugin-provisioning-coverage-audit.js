@@ -10,13 +10,12 @@ const HOST_PROVISIONED_PUBLIC_PLUGINS = Object.freeze([
   "finance",
   "growth",
   "health",
+  "moira",
   "note",
   "wardrobe",
 ]);
 
-const HOST_PROVISIONED_LOCAL_PLUGINS = Object.freeze([
-  "moira",
-]);
+const HOST_PROVISIONED_LOCAL_PLUGINS = Object.freeze([]);
 
 const SPECIAL_PUBLIC_PLUGINS = Object.freeze([
   "codex-mobile-web",

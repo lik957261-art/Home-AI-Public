@@ -83,6 +83,24 @@ const PHASE_CLOSURE = {
     operatorInput: ["administrator approval for Gateway worker ACL apply"],
     riskBoundary: "Writes an ACL plan by default; filesystem mutation requires explicit sudo gate.",
   },
+  "apply-plugin-workspace-provisioning": {
+    closureType: "operator",
+    actionRequired: true,
+    commands: [
+      "bash scripts/install-macos-production.sh --execute --phase apply-plugin-workspace-provisioning --root <mac-root> --workspace-map <map> --json",
+    ],
+    evidenceRequired: [
+      "data/plugin-workspace-provisioning-apply.json ok=true",
+      "Owner default business plugins are active",
+      "Gateway MCP/profile materialization refreshed",
+    ],
+    operatorInput: [
+      "running installed plugin services",
+      "generated Owner/plugin registration credentials",
+      "workspaceId:macUser:driveName map",
+    ],
+    riskBoundary: "Creates workspace-local plugin key/config files, plugin authorization grants, and plugin bind/register calls; raw keys and tokens must not be printed.",
+  },
   "run-first-start-preflight": {
     closureType: "operator",
     actionRequired: true,

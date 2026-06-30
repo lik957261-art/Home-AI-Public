@@ -40,7 +40,6 @@ function defaultDataDir(env = process.env) {
 function safeWorkspaceId(value) {
   const text = stringValue(value);
   if (!/^[A-Za-z0-9_-]{1,120}$/.test(text)) return "";
-  if (text === "owner") return "";
   return text;
 }
 
