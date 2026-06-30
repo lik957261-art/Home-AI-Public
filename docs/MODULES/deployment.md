@@ -146,8 +146,9 @@ Gateway worker assets are assigned to that group, and the workspace executor
 keeps the same group-creation guard for direct repair calls. Email registration
 has a narrow central ACL preparation step because the Email service writes its
 own `.hermes-email` workspace binding during registration; the installer must
-pre-create that directory, allow the service user to write it, and then
-reassert workspace-worker ownership. Plugin registration calls can retry
+pre-create that directory, allow the service user to search the private parent
+directories, allow writes only on `.hermes-email`, and then reassert
+workspace-worker ownership. Plugin registration calls can retry
 transient loopback `fetch` failures, but persistent plugin contract failures
 remain blocking.
 The installer phase contract is intentionally machine-audited by

@@ -206,6 +206,21 @@ function emailBindingDir(root, workspaceId) {
   return path.join(emailWorkspaceRoot(root, workspaceId), EMAIL_BINDING_DIR);
 }
 
+function grantDarwinAcl(spawnSync, target, user, permissions, recursive = false) {
+  spawnChecked(spawnSync, "/bin/chmod", [recursive ? "-R" : "", "+a", `user:${user} allow ${permissions}`, target].filter(Boolean));
+}
+
+function ensureDarwinEmailParentSearchAcls({ root, workspaceId, listenerUser, spawnSync }) {
+  const dataDir = path.join(root, "data");
+  const driveDir = path.join(dataDir, "drive");
+  const usersDir = path.join(driveDir, "users");
+  const workspaceRoot = emailWorkspaceRoot(root, workspaceId);
+  const parentPerms = "search,readattr,readextattr,readsecurity";
+  for (const dir of [root, dataDir, driveDir, usersDir, workspaceRoot]) {
+    if (fs.existsSync(dir)) grantDarwinAcl(spawnSync, dir, listenerUser, parentPerms);
+  }
+}
+
 function ensureDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUser, spawnSync }) {
   const dir = emailBindingDir(root, workspaceId);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -228,7 +243,8 @@ function ensureDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUser,
   ].join(",");
   spawnChecked(spawnSync, "/usr/sbin/chown", ["-R", `${macUser}:staff`, dir]);
   spawnChecked(spawnSync, "/bin/chmod", ["700", dir]);
-  spawnChecked(spawnSync, "/bin/chmod", ["+a", `user:${listenerUser} allow ${narrowWriteAcl}`, dir]);
+  ensureDarwinEmailParentSearchAcls({ root, workspaceId, listenerUser, spawnSync });
+  grantDarwinAcl(spawnSync, dir, listenerUser, narrowWriteAcl);
   return { dir, listenerAcl: true };
 }
 
@@ -258,7 +274,8 @@ function finalizeDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUse
   ].join(",");
   spawnChecked(spawnSync, "/usr/sbin/chown", ["-R", `${macUser}:staff`, dir]);
   spawnChecked(spawnSync, "/bin/chmod", ["700", dir]);
-  spawnChecked(spawnSync, "/bin/chmod", ["+a", `user:${listenerUser} allow ${narrowWriteAcl}`, dir]);
+  ensureDarwinEmailParentSearchAcls({ root, workspaceId, listenerUser, spawnSync });
+  grantDarwinAcl(spawnSync, dir, listenerUser, narrowWriteAcl);
   return { dir, existed: true, listenerAcl: true };
 }
 

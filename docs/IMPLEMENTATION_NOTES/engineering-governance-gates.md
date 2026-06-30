@@ -173,10 +173,11 @@ Fresh-machine install evidence must also prove the central installer owns the
 common macOS prerequisites: `create-service-users` creates or verifies the
 `hermes-workers` shared group, the workspace executor can self-create that
 group during direct repair calls, and Email workspace registration is wrapped
-by a bounded `.hermes-email` ACL preparation/finalization step instead of
-relying on ad hoc manual ownership repair. Transient loopback registration
-failures may be retried by the apply phase; persistent plugin contract errors
-remain blocking and must be returned with bounded details.
+by a bounded parent-search plus `.hermes-email` write ACL
+preparation/finalization step instead of relying on ad hoc manual ownership
+repair. Transient loopback registration failures may be retried by the apply
+phase; persistent plugin contract errors remain blocking and must be returned
+with bounded details.
 The `run-smoke-tests` phase invokes the live app
 `macos-production-closure-validation.js` through the configured production
 Node runtime when present and wraps only bounded closure metadata in the

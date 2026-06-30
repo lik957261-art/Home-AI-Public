@@ -475,8 +475,9 @@ The apply phase is also responsible for the fresh-machine race and ownership
 boundary around plugin registration. It may retry transient loopback `fetch`
 failures while recently loaded plugin services settle. Before registering
 Email it creates only the workspace-local `.hermes-email` directory, grants the
-service user a narrow temporary write ACL, then restores worker ownership while
-preserving the minimal ACL needed for future service-side key refreshes. The
+service user narrow parent-directory search ACLs plus a temporary write ACL on
+that binding directory, then restores worker ownership while preserving the
+minimal ACL needed for future service-side key refreshes. The
 `create-service-users` and workspace system executor paths both ensure the
 `hermes-workers` shared group exists before Gateway MCP worker assets are
 owned by that group.

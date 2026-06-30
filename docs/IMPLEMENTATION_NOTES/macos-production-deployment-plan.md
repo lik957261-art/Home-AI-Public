@@ -173,9 +173,10 @@ Raw plugin keys remain in `access-key.txt` files and must not enter frontend
 JavaScript, iframe URLs, model tool arguments, screenshots, docs, handoffs, or
 logs.
 Fresh-install Email provisioning is the one central write-preparation case:
-the installer creates `.hermes-email`, grants `hermes-host` a narrow ACL so the
-Email service can write its registration result, then reasserts workspace user
-ownership while keeping only the bounded service ACL needed for future refresh.
+the installer creates `.hermes-email`, grants `hermes-host` narrow search ACLs
+on private parent directories plus a write ACL only on `.hermes-email`, then
+reasserts workspace user ownership while keeping only the bounded service ACL
+needed for future refresh.
 Gateway MCP worker assets use the shared `hermes-workers` group, which the
 service-user phase and workspace executor both create when missing.
 
