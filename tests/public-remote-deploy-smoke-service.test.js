@@ -198,6 +198,10 @@ function testProductionUpgradeCommandUsesSourceAdoptionGate() {
   assert.match(upgrade.script, /--install-hermes-agent-dependencies/);
   assert.match(upgrade.script, /--force-closure-validation/);
   assert.match(upgrade.script, /--allow-provider-auth-pending/);
+  assert.match(upgrade.script, /nohup \/bin\/sh "\$runner_path"/);
+  assert.match(upgrade.script, /production-upgrade\.stdout/);
+  assert.match(upgrade.script, /production-upgrade\.stderr/);
+  assert.match(upgrade.script, /production-upgrade\.status/);
   assert.match(upgrade.script, /HOMEAI_MAC_SUDO_PASSWORD_FILE='\/tmp\/homeai-public-remote-deploy-smoke-x\/sudo-password'/);
   assert.match(upgrade.script, /HOMEAI_NODE='\/tmp\/homeai-public-remote-deploy-smoke-x\/runtime\/bin\/node'/);
   assert.match(upgrade.script, /HOMEAI_NPM='\/tmp\/homeai-public-remote-deploy-smoke-x\/runtime\/bin\/npm'/);
@@ -206,7 +210,13 @@ function testProductionUpgradeCommandUsesSourceAdoptionGate() {
   assert.match(upgrade.script, /--hermes-agent-source '\/tmp\/homeai-public-remote-deploy-smoke-x\/upgrade-sources\/hermes-agent-official'/);
   assert.doesNotMatch(upgrade.script, /export HOMEAI_PUBLIC_REPOSITORY_URL=.*npm run --silent upgrade:public/);
   assert.match(upgrade.script, /export HOMEAI_PUBLIC_REPOSITORY_URL='https:\/\/example\.test\/repo\.git'\nexport GIT_SSH_COMMAND=/);
-  assert.match(upgrade.script, /\ncd '\/tmp\/homeai-public-remote-deploy-smoke-x\/Home-AI-Public'\nnpm run --silent upgrade:public -- --root/);
+  assert.match(upgrade.script, /cd '\/tmp\/homeai-public-remote-deploy-smoke-x\/Home-AI-Public' && npm run --silent upgrade:public -- --root/);
+  assert.deepEqual(upgrade.resultFiles, {
+    stdoutPath: "/tmp/homeai-public-remote-deploy-smoke-x/production-upgrade.stdout",
+    stderrPath: "/tmp/homeai-public-remote-deploy-smoke-x/production-upgrade.stderr",
+    statusPath: "/tmp/homeai-public-remote-deploy-smoke-x/production-upgrade.status",
+    runnerPath: "/tmp/homeai-public-remote-deploy-smoke-x/production-upgrade-runner.sh",
+  });
 }
 
 async function testStopsOnFailedPreflightAndCleansUp() {
@@ -236,18 +246,30 @@ async function testProductionUpgradeFailureParsesLongJsonBeforeTruncation() {
     if (remote.includes("public-install-preflight")) return { status: 0, stdout: json({ ok: true, requiredPluginCount: 10, issues: [] }), stderr: "" };
     if (remote.includes("macos-fresh-install-rehearsal")) return { status: 0, stdout: json({ ok: true, phaseCount: 9, issues: [], artifacts: [] }), stderr: "" };
     if (remote.includes("rehearse:public-upgrade")) return { status: 0, stdout: json({ ok: true, steps: [] }), stderr: "" };
+    if (remote.includes("HOMEAI_REMOTE_RESULT_STATUS_PATH")) {
+      return {
+        status: 0,
+        stdout: json({
+          status: 1,
+          statusPresent: true,
+          stdout: json({
+            ok: false,
+            mode: "execute",
+            error: "closure_validation_failed",
+            stepCount: 2,
+            initialPlan: {
+              padding: "x".repeat(12000),
+            },
+          }),
+          stderr: "",
+        }),
+        stderr: "",
+      };
+    }
     if (remote.includes("upgrade:public")) {
       return {
-        status: 1,
-        stdout: json({
-          ok: false,
-          mode: "execute",
-          error: "closure_validation_failed",
-          stepCount: 2,
-          initialPlan: {
-            padding: "x".repeat(12000),
-          },
-        }),
+        status: 255,
+        stdout: "",
         stderr: "",
       };
     }
@@ -265,6 +287,53 @@ async function testProductionUpgradeFailureParsesLongJsonBeforeTruncation() {
   assert.equal(upgrade.summary.ok, false);
   assert.equal(upgrade.summary.error, "closure_validation_failed");
   assert.equal(upgrade.summary.stepCount, 2);
+}
+
+async function testProductionUpgradeReadsResultFilesAfterSshChannelFailure() {
+  async function runProcess(command, args) {
+    const remote = args.at(-1);
+    if (remote.includes("for tool in git")) return { status: 0, stdout: "uname=Darwin\narch=arm64\ngit=/usr/bin/git\ncurl=/usr/bin/curl\ntar=/usr/bin/tar\nbash=/bin/bash\nnode=\nnpm=\n", stderr: "" };
+    if (remote.includes("nodeVersion=")) return { status: 0, stdout: "node=/tmp/homeai-public-remote-deploy-smoke-x/runtime/bin/node\nnpm=/tmp/homeai-public-remote-deploy-smoke-x/runtime/bin/npm\nnodeVersion=v24.14.1\n", stderr: "" };
+    if (remote.includes("public-install-preflight")) return { status: 0, stdout: json({ ok: true, requiredPluginCount: 10, issues: [] }), stderr: "" };
+    if (remote.includes("macos-fresh-install-rehearsal")) return { status: 0, stdout: json({ ok: true, phaseCount: 9, issues: [], artifacts: [] }), stderr: "" };
+    if (remote.includes("rehearse:public-upgrade")) return { status: 0, stdout: json({ ok: true, steps: [] }), stderr: "" };
+    if (remote.includes("HOMEAI_REMOTE_RESULT_STATUS_PATH")) {
+      return {
+        status: 0,
+        stdout: json({
+          status: 0,
+          statusPresent: true,
+          stdout: json({
+            ok: true,
+            mode: "execute",
+            stepCount: 6,
+            updatedPlugins: ["codex-mobile-web"],
+            appUpdated: false,
+            hermesAgentUpdated: false,
+          }),
+          stderr: "",
+        }),
+        stderr: "",
+      };
+    }
+    if (remote.includes("upgrade:public")) {
+      return { status: 255, stdout: "", stderr: "ssh channel closed" };
+    }
+    return { status: 0, stdout: "", stderr: "" };
+  }
+  const report = await runRemoteDeploySmoke({
+    execute: true,
+    sshTarget: "macbook-air",
+    executeProductionUpgrade: true,
+    productionRoot: "/Users/example/path",
+    stamp: "20260629T150006Z",
+  }, { runProcess });
+  assert.equal(report.ok, true, JSON.stringify(report, null, 2));
+  const upgrade = report.steps.find((step) => step.type === "public-production-upgrade");
+  assert.equal(upgrade.ok, true);
+  assert.equal(upgrade.status, 0);
+  assert.equal(upgrade.summary.updatedPluginCount, 1);
+  assert.equal(upgrade.summary.stepCount, 6);
 }
 
 function testSummariesAreBounded() {
@@ -303,6 +372,7 @@ function testSummariesAreBounded() {
   testProductionUpgradeCommandUsesSourceAdoptionGate();
   await testStopsOnFailedPreflightAndCleansUp();
   await testProductionUpgradeFailureParsesLongJsonBeforeTruncation();
+  await testProductionUpgradeReadsResultFilesAfterSshChannelFailure();
   testSummariesAreBounded();
   console.log("public remote deploy smoke service tests passed");
 })();

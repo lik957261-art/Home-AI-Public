@@ -287,6 +287,87 @@ function remoteInstallSummaryScript(command, outputPath) {
   ].join("\n");
 }
 
+function remoteResultFileReaderScript(files = {}) {
+  return [
+    "set -e",
+    `HOMEAI_REMOTE_RESULT_STATUS_PATH=${shellQuote(files.statusPath || "")} \\`,
+    `HOMEAI_REMOTE_RESULT_STDOUT_PATH=${shellQuote(files.stdoutPath || "")} \\`,
+    `HOMEAI_REMOTE_RESULT_STDERR_PATH=${shellQuote(files.stderrPath || "")} \\`,
+    "node - <<'NODE'",
+    "const fs = require('node:fs');",
+    "function readBounded(path, maxBytes) {",
+    "  if (!path || !fs.existsSync(path)) return '';",
+    "  const stat = fs.statSync(path);",
+    "  const size = Number(stat.size || 0);",
+    "  const fd = fs.openSync(path, 'r');",
+    "  try {",
+    "    const length = Math.min(size, maxBytes);",
+    "    const buffer = Buffer.alloc(length);",
+    "    fs.readSync(fd, buffer, 0, length, 0);",
+    "    return buffer.toString('utf8');",
+    "  } finally {",
+    "    fs.closeSync(fd);",
+    "  }",
+    "}",
+    "const rawStatus = readBounded(process.env.HOMEAI_REMOTE_RESULT_STATUS_PATH, 100).trim();",
+    "const status = Number(rawStatus);",
+    "process.stdout.write(JSON.stringify({",
+    "  status: Number.isFinite(status) ? status : 1,",
+    "  statusPresent: Boolean(rawStatus),",
+    "  stdout: readBounded(process.env.HOMEAI_REMOTE_RESULT_STDOUT_PATH, 6 * 1024 * 1024),",
+    "  stderr: readBounded(process.env.HOMEAI_REMOTE_RESULT_STDERR_PATH, 128 * 1024),",
+    "}));",
+    "NODE",
+  ].join("\n");
+}
+
+function remoteDetachedJsonCommandScript(command, files = {}, waitSeconds = 1800) {
+  const stdoutPath = clean(files.stdoutPath, 300);
+  const stderrPath = clean(files.stderrPath, 300);
+  const statusPath = clean(files.statusPath, 300);
+  const runnerPath = clean(files.runnerPath, 300);
+  const waitLimit = Math.max(30, Math.min(7200, Number(waitSeconds || 1800)));
+  return [
+    "set -e",
+    `stdout_path=${shellQuote(stdoutPath)}`,
+    `stderr_path=${shellQuote(stderrPath)}`,
+    `status_path=${shellQuote(statusPath)}`,
+    `runner_path=${shellQuote(runnerPath)}`,
+    "rm -f \"$stdout_path\" \"$stderr_path\" \"$status_path\" \"$runner_path\"",
+    "cat > \"$runner_path\" <<'HOMEAI_REMOTE_RUNNER'",
+    "#!/bin/sh",
+    "set +e",
+    command,
+    "exit_code=$?",
+    `printf '%s\\n' "$exit_code" > ${shellQuote(`${statusPath}.tmp`)}`,
+    `mv ${shellQuote(`${statusPath}.tmp`)} ${shellQuote(statusPath)}`,
+    "exit 0",
+    "HOMEAI_REMOTE_RUNNER",
+    "chmod 700 \"$runner_path\"",
+    "nohup /bin/sh \"$runner_path\" > \"$stdout_path\" 2> \"$stderr_path\" < /dev/null &",
+    "elapsed=0",
+    `wait_limit=${waitLimit}`,
+    "while [ ! -f \"$status_path\" ]; do",
+    "  if [ \"$elapsed\" -ge \"$wait_limit\" ]; then",
+    "    printf 'upgradeResult=files\\n'",
+    "    printf 'statusPath=%s\\n' \"$status_path\"",
+    "    printf 'stdoutPath=%s\\n' \"$stdout_path\"",
+    "    printf 'stderrPath=%s\\n' \"$stderr_path\"",
+    "    printf 'waitTimedOut=true\\n'",
+    "    exit 0",
+    "  fi",
+    "  sleep 2",
+    "  elapsed=$((elapsed + 2))",
+    "done",
+    "printf 'upgradeResult=files\\n'",
+    "printf 'statusPath=%s\\n' \"$status_path\"",
+    "printf 'stdoutPath=%s\\n' \"$stdout_path\"",
+    "printf 'stderrPath=%s\\n' \"$stderr_path\"",
+    "printf 'waitTimedOut=false\\n'",
+    "exit 0",
+  ].join("\n");
+}
+
 function buildRemoteSteps(plan = {}) {
   const appPath = `${plan.remoteRoot}/Home-AI-Public`;
   const targetRoot = `${plan.remoteRoot}/target-root`;
@@ -371,7 +452,14 @@ function buildRemoteSteps(plan = {}) {
     script: `${nodeEnv}\ncd ${shellQuote(appPath)} && npm run --silent rehearse:public-upgrade -- --execute --json`,
   });
   if (plan.executeProductionUpgrade) {
+    const productionUpgradeFiles = {
+      stdoutPath: `${plan.remoteRoot}/production-upgrade.stdout`,
+      stderrPath: `${plan.remoteRoot}/production-upgrade.stderr`,
+      statusPath: `${plan.remoteRoot}/production-upgrade.status`,
+      runnerPath: `${plan.remoteRoot}/production-upgrade-runner.sh`,
+    };
     const productionUpgradeCommand = [
+      `cd ${shellQuote(appPath)} &&`,
       "npm run --silent upgrade:public --",
       `--root ${shellQuote(plan.productionRoot)}`,
       `--app ${shellQuote(appPath)}`,
@@ -391,9 +479,9 @@ function buildRemoteSteps(plan = {}) {
       type: "public-production-upgrade",
       script: [
         nodeEnv,
-        `cd ${shellQuote(appPath)}`,
-        productionUpgradeCommand,
+        remoteDetachedJsonCommandScript(productionUpgradeCommand, productionUpgradeFiles, 1800),
       ].join("\n"),
+      resultFiles: productionUpgradeFiles,
     });
   }
   return steps;
@@ -465,6 +553,47 @@ async function runRemoteStep(step, options, runProcess) {
     timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
     maxBuffer: 2 * 1024 * 1024,
   });
+  if (step.resultFiles) {
+    const readerCommand = remoteShell(remoteResultFileReaderScript(step.resultFiles));
+    const readResult = await runProcess(options.sshCommand || "ssh", buildSshArgs(options, readerCommand), {
+      timeoutMs: Math.max(options.timeoutMs || DEFAULT_TIMEOUT_MS, 900000),
+      maxBuffer: 8 * 1024 * 1024,
+    });
+    const readJson = parseJsonOutput(readResult.stdout);
+    if (!readJson || readJson.statusPresent !== true) {
+      const initialStderr = boundedOutput(result.stderr || result.error, 2000);
+      const readStderr = boundedOutput(readResult.stderr || readResult.error, 2000);
+      return {
+        type: step.type,
+        ok: false,
+        status: Number.isFinite(Number(readResult.status)) ? Number(readResult.status) : 1,
+        summary: {
+          ok: false,
+          jsonParsed: Boolean(readJson),
+          resultFileReadOk: readResult.ok === true || readResult.status === 0,
+          statusPresent: Boolean(readJson?.statusPresent),
+        },
+        error: readStderr || initialStderr || `remote_result_file_missing:${step.type}`,
+      };
+    }
+    const commandStatus = Number(readJson.status || 0);
+    const commandOk = commandStatus === 0;
+    const summaryStdout = boundedOutput(readJson.stdout, 256000);
+    const summaryStderr = boundedOutput(readJson.stderr, 16000);
+    const summary = summarizeStep(step.type, {
+      ok: commandOk,
+      status: commandStatus,
+      stdout: summaryStdout,
+      stderr: summaryStderr,
+    });
+    return {
+      type: step.type,
+      ok: commandOk,
+      status: commandStatus,
+      summary,
+      error: commandOk ? "" : (boundedOutput(readJson.stderr, 2000) || summary.error || boundedOutput(readJson.stdout, 8000) || `remote_step_failed:${step.type}`),
+    };
+  }
   const summaryStdout = boundedOutput(result.stdout, 256000);
   const summaryStderr = boundedOutput(result.stderr || result.error, 16000);
   const normalized = {

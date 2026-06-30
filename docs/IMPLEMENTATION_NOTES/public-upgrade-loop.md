@@ -158,6 +158,16 @@ report. This keeps large install plans from masking the real pass/fail state
 while preserving the full per-phase report for same-session diagnosis when
 `--keep-remote-temp` is used.
 
+When `homeai-public-remote-deploy-smoke.js` is explicitly run with
+`--execute-production-upgrade`, the production `upgrade:public --execute`
+phase is launched through a detached remote runner. The runner writes
+`production-upgrade.stdout`, `production-upgrade.stderr`, and
+`production-upgrade.status` under the remote temp root, and the local smoke
+then opens a second SSH read to parse those files. This prevents long plugin
+deploy output or an interrupted SSH stdout channel from turning a completed
+remote upgrade into a false `jsonParsed:false` failure while preserving the
+real upgrade exit status and bounded error summary.
+
 The fresh-install rehearsal and the guided sandbox install use separate roots
 under the remote temp directory. Rehearsal artifacts must not pre-populate the
 install target root, because the installer intentionally refuses to overwrite a
