@@ -4545,7 +4545,7 @@ NODE
 }
 
 run_smoke_tests_phase() {
-  node - "$ROOT" "$NODE_COMMAND" "$BASE_URL" <<'NODE'
+  node - "$ROOT" "$NODE_COMMAND" "$BASE_URL" "$WORKSPACE_MAP" <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
@@ -4553,6 +4553,7 @@ const { spawnSync } = require("node:child_process");
 const root = path.resolve(process.argv[2]);
 const requestedNode = String(process.argv[3] || "node").trim() || "node";
 const base = String(process.argv[4] || "http://127.0.0.1:8797").trim().replace(/\/+$/, "") || "http://127.0.0.1:8797";
+const workspaceMap = String(process.argv[5] || "");
 const app = path.join(root, "app");
 const runtimeNode = path.join(root, "runtime", "node-current", "bin", "node");
 const nodeCommand = fs.existsSync(runtimeNode) ? runtimeNode : requestedNode;
@@ -4566,6 +4567,15 @@ function rel(file) {
 
 function compactText(value) {
   return String(value || "").replace(/\s+/g, " ").trim().slice(0, 1800);
+}
+
+function expectedWorkspacesFromMap(value) {
+  const ids = String(value || "")
+    .split(",")
+    .map((entry) => entry.trim().split(":")[0])
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return Array.from(new Set(ids)).join(",") || "owner";
 }
 
 function compactClosure(summary = {}) {
@@ -4593,6 +4603,7 @@ function compactClosure(summary = {}) {
 
 let closure = null;
 try {
+  const expectedWorkspaces = expectedWorkspacesFromMap(workspaceMap);
   if (!fs.existsSync(closureScript)) {
     issues.push({ code: "closure_validation_script_missing", path: rel(closureScript) });
   }
@@ -4600,7 +4611,7 @@ try {
     issues.push({ code: "closure_node_missing", path: nodeCommand });
   }
   if (issues.length === 0) {
-    const args = [closureScript, "--root", root, "--base", base, "--allow-provider-auth-pending", "--skip-wardrobe-binding", "--json"];
+    const args = [closureScript, "--root", root, "--base", base, "--expected-workspaces", expectedWorkspaces, "--allow-provider-auth-pending", "--skip-wardrobe-binding", "--json"];
     const result = spawnSync(nodeCommand, args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
@@ -4611,6 +4622,7 @@ try {
       node: nodeCommand,
       script: rel(closureScript),
       base,
+      expectedWorkspaces,
       status: result.status,
     });
     let parsed = null;

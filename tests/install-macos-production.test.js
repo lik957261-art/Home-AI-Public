@@ -2146,6 +2146,8 @@ printf '%s\\n' '{"ok":true,"expectedVersion":"test-version","status":{"activeGlo
     fakeNode,
     "--base",
     "http://127.0.0.1:8797",
+    "--workspace-map",
+    "owner:hm-owner:owner",
     "--json",
   ]);
   const parsed = JSON.parse(output);
@@ -2161,6 +2163,7 @@ printf '%s\\n' '{"ok":true,"expectedVersion":"test-version","status":{"activeGlo
   assert.equal(parsed.execution.report.closure.finalActiveGlobal, 0);
   assert.equal(parsed.execution.report.closure.profileIssueCount, 0);
   assert.equal(parsed.execution.report.closure.aclFailedCount, 0);
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "run-closure-validation" && action.expectedWorkspaces === "owner"));
   assert.doesNotMatch(JSON.stringify(parsed.execution.report), /owner-web-key|weixin-ingress|secret-value/);
   const phase = parsed.phases.find((item) => item.id === "run-smoke-tests");
   assert.equal(phase.status, "executed");

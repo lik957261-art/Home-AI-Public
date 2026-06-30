@@ -131,6 +131,55 @@ function parseArgs(argv) {
   return out;
 }
 
+function expectedWorkspaceIdSet(value) {
+  return new Set(String(value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean));
+}
+
+function schemaTargetsForExpectedWorkspaces(expectedWorkspaces) {
+  const ids = expectedWorkspaceIdSet(expectedWorkspaces);
+  const targets = [];
+  if (ids.has("weixin_wuping") || ids.has("wuping")) {
+    targets.push({
+      name: "wuping",
+      profile: "hm-wuping-openai-1",
+      telemetryRoot: "/Users/example/path",
+      requiredTools: requiredTools(MAC_BASE_SCHEMA_TOOLS, [
+        "mcp_wardrobe_wardrobe_search_items",
+        "mcp_wardrobe_wardrobe_write_history",
+        "mcp_finance_list_ledgers",
+        "mcp_note_notes_create",
+        "mcp_email_search_messages",
+      ]),
+    });
+  }
+  if (ids.has("owner")) {
+    targets.push({
+      name: "owner",
+      profile: "hm-owner-openai-1",
+      telemetryRoot: "/Users/example/path",
+      requiredTools: requiredTools(MAC_BASE_SCHEMA_TOOLS, [
+        "mcp_health_records_get_summary",
+        "mcp_note_notes_create",
+      ]),
+    });
+  }
+  if (ids.has("test")) {
+    targets.push({
+      name: "test",
+      profile: "hm-test-openai-1",
+      telemetryRoot: "/Users/example/path",
+      requiredTools: requiredTools(MAC_BASE_SCHEMA_TOOLS, [
+        "mcp_wardrobe_wardrobe_search_items",
+        "mcp_finance_list_ledgers",
+      ]),
+    });
+  }
+  return targets;
+}
+
 function readAppClientVersion(options) {
   const indexPath = macPath.join(options.app, "public", "index.html");
   let text = "";
@@ -566,41 +615,10 @@ async function runClosure(options) {
   let schemas = [];
   if (!options.skipSchema && !providerAuthPending) {
     try {
-      schemas = [
-        await runSchema(
-          options,
-          "wuping",
-          "hm-wuping-openai-1",
-          "/Users/example/path",
-          requiredTools(MAC_BASE_SCHEMA_TOOLS, [
-            "mcp_wardrobe_wardrobe_search_items",
-            "mcp_wardrobe_wardrobe_write_history",
-            "mcp_finance_list_ledgers",
-            "mcp_note_notes_create",
-            "mcp_email_search_messages",
-          ]),
-        ),
-        await runSchema(
-          options,
-          "owner",
-          "hm-owner-openai-1",
-          "/Users/example/path",
-          requiredTools(MAC_BASE_SCHEMA_TOOLS, [
-            "mcp_health_records_get_summary",
-            "mcp_note_notes_create",
-          ]),
-        ),
-        await runSchema(
-          options,
-          "test",
-          "hm-test-openai-1",
-          "/Users/example/path",
-          requiredTools(MAC_BASE_SCHEMA_TOOLS, [
-            "mcp_wardrobe_wardrobe_search_items",
-            "mcp_finance_list_ledgers",
-          ]),
-        ),
-      ];
+      schemas = [];
+      for (const target of schemaTargetsForExpectedWorkspaces(options.expectedWorkspaces)) {
+        schemas.push(await runSchema(options, target.name, target.profile, target.telemetryRoot, target.requiredTools));
+      }
     } catch (err) {
       if (!options.allowProviderAuthPending || !isProviderAuthRuntimeError(err)) throw err;
       providerAuthPending = true;
@@ -726,4 +744,5 @@ module.exports = {
   resolveExpectedVersion,
   runClosure,
   sanitize,
+  schemaTargetsForExpectedWorkspaces,
 };

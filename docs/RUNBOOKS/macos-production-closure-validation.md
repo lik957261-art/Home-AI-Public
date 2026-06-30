@@ -62,8 +62,10 @@ It validates:
   are readable, strict config checks pass, and no enabled job has latest status
   `error`, `failed`, or `failure`. A readable but failing script/no-agent job is
   still a closure blocker until a later successful run clears the status.
-- Native Gateway schema probes expose the required MCP callables for Wuping,
-  Owner, and test profiles, plus the standard profile-local base tools
+- Native Gateway schema probes follow `--expected-workspaces`: `owner` checks
+  the Owner profile, `weixin_wuping`/`wuping` checks Wuping, and `test` checks
+  the test profile. Each selected profile must expose the required MCP
+  callables plus the standard profile-local base tools
   `http_request`, `weather`, `mobile_web_search`, `mobile_web_extract`,
   `image_generate`, `chatgpt_image_edit`, `chatgpt_image_erase`,
   `docx_create`, `docx_extract_text`, `office_extract_text`, `pptx_create`,

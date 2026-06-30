@@ -141,6 +141,7 @@ const {
   productionStatusArgs,
   readAppClientVersion,
   resolveExpectedVersion,
+  schemaTargetsForExpectedWorkspaces,
   sanitize,
 } = require("../scripts/macos-production-closure-validation");
 
@@ -157,6 +158,9 @@ assert.equal(Object.hasOwn(parsed, "ingressKeyFile"), false);
 
 const explicitVersion = parseArgs(["--expected-version", "20260608-runtime-config-arch-v627"]);
 assert.equal(explicitVersion.expectedVersion, "20260608-runtime-config-arch-v627");
+assert.deepEqual(schemaTargetsForExpectedWorkspaces("owner").map((item) => item.name), ["owner"]);
+assert.deepEqual(schemaTargetsForExpectedWorkspaces("owner,weixin_wuping,test").map((item) => item.name), ["wuping", "owner", "test"]);
+assert.deepEqual(schemaTargetsForExpectedWorkspaces("owner,wuping").map((item) => item.name), ["wuping", "owner"]);
 
 const appRoot = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-mac-closure-"));
 fs.mkdirSync(path.join(appRoot, "public"), { recursive: true });
