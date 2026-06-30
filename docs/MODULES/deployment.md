@@ -734,8 +734,11 @@ requires `--install-hermes-agent-dependencies`. If the virtualenv Python is
 missing, upgrade must fail closed until `--install-hermes-agent-dependencies`
 and a Python 3.12+ `--python-command` are supplied; with that gate, it reruns
 the first-install `install-official-hermes-runtime` phase before provider
-audit. After Home AI, plugin, or Hermes Agent updates, the loop must run the
-production profile/provider audit and
+audit. Closure validation also imports the same production runtime entrypoints
+used by the Mac Gateway launcher (`hermes_cli.main`, `hermes_cli.tools_config`,
+`run_agent`) plus `websockets` with production `PYTHONPATH`; a present Python
+binary alone is not closure. After Home AI, plugin, or Hermes Agent updates,
+the loop must run the production profile/provider audit and
 `scripts/macos-production-closure-validation.js`. It may report bounded
 provider/profile status, but must not print raw provider keys, OAuth state,
 worker API keys, cookies, launch tokens, or profile config bodies.

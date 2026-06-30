@@ -246,6 +246,10 @@ The upgrade loop is clean fast-forward only:
   `--install-hermes-agent-dependencies` is explicit. With that gate, the
   upgrade runs `install-macos-production.sh --phase install-official-hermes-runtime`
   before provider/profile audit and closure validation.
+- closure validation must verify the production Hermes Agent runtime imports
+  `hermes_cli.main`, `hermes_cli.tools_config`, `run_agent`, and `websockets`
+  with production `PYTHONPATH`; checking only that `venv/bin/python` exists is
+  insufficient.
 - temporary Node distributions used by remote smoke or bootstrap are copied into
   `<root>/runtime/node-distributions/<node-package>` before `runtime/node-current`
   is linked. Production must not remain bound to a one-run `/tmp` Node tree.

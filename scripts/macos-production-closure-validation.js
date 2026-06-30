@@ -431,6 +431,7 @@ function compactRuntimePython(options) {
     configuredPath,
     realPath: "",
     executable: false,
+    imports: [],
     issue: "",
   };
   if (!configuredPath) {
@@ -456,6 +457,43 @@ function compactRuntimePython(options) {
     summary.executable = true;
   } catch (_err) {
     summary.issue = "runtime_python_not_executable";
+    return summary;
+  }
+  const requiredImports = [
+    "hermes_cli.main",
+    "hermes_cli.tools_config",
+    "run_agent",
+    "websockets",
+  ];
+  const pythonPath = [options.runtimeOverrides, options.runtimeSource, process.env.PYTHONPATH]
+    .filter(Boolean)
+    .join(":");
+  const importCheck = spawnSync(summary.realPath, [
+    "-c",
+    [
+      "import importlib, json",
+      `mods=${JSON.stringify(requiredImports)}`,
+      "out=[]",
+      "for name in mods:",
+      "    try:",
+      "        importlib.import_module(name)",
+      "        out.append({'name': name, 'ok': True})",
+      "    except Exception as exc:",
+      "        out.append({'name': name, 'ok': False, 'error': type(exc).__name__})",
+      "print(json.dumps(out, sort_keys=True))",
+    ].join("\n"),
+  ], {
+    encoding: "utf8",
+    env: Object.assign({}, process.env, pythonPath ? { PYTHONPATH: pythonPath } : {}),
+    timeout: 30000,
+  });
+  try {
+    summary.imports = JSON.parse(String(importCheck.stdout || "[]"));
+  } catch (_err) {
+    summary.imports = [];
+  }
+  if (importCheck.status !== 0 || !summary.imports.length || summary.imports.some((row) => row.ok !== true)) {
+    summary.issue = "runtime_python_import_check_failed";
     return summary;
   }
   summary.ok = true;

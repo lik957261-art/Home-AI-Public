@@ -9,6 +9,12 @@ const DEFAULT_BRANCH = "main";
 const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_HERMES_AGENT_REPOSITORY_URL = "https://github.com/pentiumxp/hermes-agent-public.git";
 const SOURCE_DIRECTORY_NOT_GIT = "source_directory_not_git_checkout";
+const HERMES_AGENT_RUNTIME_IMPORTS = [
+  "hermes_cli.main",
+  "hermes_cli.tools_config",
+  "run_agent",
+  "websockets",
+];
 const ADOPTION_EXCLUDE_LINES = [
   "# Home AI public upgrade runtime-state excludes",
   "data/",
@@ -327,7 +333,12 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       ref: hermesAgentRef,
     });
     const hermesAgentRuntimePythonMissing = !fileExists(hermesAgentPython);
-    if (hermesAgentRuntimePythonMissing) {
+    const hermesAgentRuntimeImports = hermesAgentRuntimePythonMissing
+      ? { ok: false, issue: "runtime_python_missing", imports: [] }
+      : await hermesAgentRuntimeImportStatus();
+    const hermesAgentRuntimeImportMissing = !hermesAgentRuntimePythonMissing && hermesAgentRuntimeImports.ok !== true;
+    const hermesAgentRuntimeRepairNeeded = hermesAgentRuntimePythonMissing || hermesAgentRuntimeImportMissing;
+    if (hermesAgentRuntimeRepairNeeded) {
       actions.push({
         type: "install-hermes-agent-runtime",
         target: "hermes-agent-official",
@@ -403,8 +414,14 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     if (!hermesAgent.present && planOptions.updateHermesAgent && !hermesAgentRepositoryUrl) {
       blockers.push({ code: "hermes_agent_repository_url_required_for_clone", id: "hermes-agent-official" });
     }
-    if (hermesAgentRuntimePythonMissing && !planOptions.installHermesAgentDependencies) {
-      blockers.push({ code: "hermes_agent_runtime_python_missing_requires_install_hermes_agent_dependencies", id: "hermes-agent-official", path: hermesAgentPython });
+    if (hermesAgentRuntimeRepairNeeded && !planOptions.installHermesAgentDependencies) {
+      blockers.push({
+        code: hermesAgentRuntimePythonMissing
+          ? "hermes_agent_runtime_python_missing_requires_install_hermes_agent_dependencies"
+          : "hermes_agent_runtime_import_failed_requires_install_hermes_agent_dependencies",
+        id: "hermes-agent-official",
+        path: hermesAgentPython,
+      });
     }
     if (isNonGitSource(hermesAgent) && planOptions.adoptNonGitSources && !hermesAgentRepositoryUrl) {
       blockers.push({ code: "hermes_agent_repository_url_required_for_adoption", id: "hermes-agent-official" });
@@ -425,6 +442,8 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       hermesAgent: Object.assign({}, hermesAgent, {
         pythonPath: hermesAgentPython,
         runtimePythonMissing: hermesAgentRuntimePythonMissing,
+        runtimeImportMissing: hermesAgentRuntimeImportMissing,
+        runtimeImports: hermesAgentRuntimeImports,
         providerIngress: "Hermes Agent runtime and Gateway provider profiles are validated by profile audit and closure validation",
       }),
       actionCount: actions.length,
@@ -508,6 +527,46 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       input.installDependencies ? "1" : "0",
       "--json",
     ]);
+  }
+
+  async function hermesAgentRuntimeImportStatus() {
+    if (!fileExists(hermesAgentPython)) {
+      return { ok: false, issue: "runtime_python_missing", imports: [] };
+    }
+    const pythonPath = [hermesAgentSource, process.env.PYTHONPATH].filter(Boolean).join(":");
+    const result = normalizeRun(await runProcess(hermesAgentPython, [
+      "-c",
+      [
+        "import importlib, json",
+        `mods=${JSON.stringify(HERMES_AGENT_RUNTIME_IMPORTS)}`,
+        "out=[]",
+        "for name in mods:",
+        "    try:",
+        "        importlib.import_module(name)",
+        "        out.append({'name': name, 'ok': True})",
+        "    except Exception as exc:",
+        "        out.append({'name': name, 'ok': False, 'error': type(exc).__name__})",
+        "print(json.dumps(out, sort_keys=True))",
+      ].join("\n"),
+    ], {
+      cwd: dirExists(hermesAgentSource) ? hermesAgentSource : appPath,
+      timeoutMs: Math.min(timeoutMs * 2, 60000),
+      env: Object.assign({}, process.env, pythonPath ? { PYTHONPATH: pythonPath } : {}),
+    }));
+    let imports = [];
+    try {
+      imports = JSON.parse(result.stdout || "[]");
+    } catch (_err) {
+      imports = [];
+    }
+    const ok = result.ok && imports.length > 0 && imports.every((row) => row.ok === true);
+    return {
+      ok,
+      issue: ok ? "" : "runtime_python_import_check_failed",
+      imports,
+      status: result.status,
+      stderr: result.stderr ? cleanString(result.stderr, 400) : "",
+    };
   }
 
   function closureCommand(commandOptions = {}) {
@@ -685,7 +744,8 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     const updatedPlugins = [];
     let appUpdated = false;
     let hermesAgentUpdated = false;
-    let hermesAgentRuntimeRepairNeeded = initialPlan.hermesAgent.runtimePythonMissing === true;
+    let hermesAgentRuntimeRepairNeeded = initialPlan.hermesAgent.runtimePythonMissing === true
+      || initialPlan.hermesAgent.runtimeImportMissing === true;
 
     if (isNonGitSource(initialPlan.homeAi) && executeOptions.adoptNonGitSources) {
       const adopted = await adoptSourceCheckout(initialPlan.homeAi);

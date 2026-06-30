@@ -75,8 +75,8 @@ function pathKind(cwd, fixture) {
   return "other";
 }
 
-function createFakeRunner(fixture, calls, options = {}) {
-  const nonGitKinds = new Set(options.nonGitKinds || []);
+function createFakeRunner(fixture, calls, runnerOptions = {}) {
+  const nonGitKinds = new Set(runnerOptions.nonGitKinds || []);
   const adoptedKinds = new Set();
   return async function fakeRunProcess(command, args = [], options = {}) {
     calls.push({ command, args: [...args], cwd: options.cwd || "" });
@@ -123,7 +123,26 @@ function createFakeRunner(fixture, calls, options = {}) {
       }
     }
     if (command === "npm") return { ok: true, status: 0, stdout: "" };
-    if (command === fixture.agentPython) return { ok: true, status: 0, stdout: "" };
+    if (command === fixture.agentPython) {
+      if (runnerOptions.agentRuntimeImportFails) {
+        return {
+          ok: false,
+          status: 1,
+          stdout: JSON.stringify([{ name: "hermes_cli.main", ok: false, error: "ModuleNotFoundError" }]),
+          stderr: "ModuleNotFoundError",
+        };
+      }
+      return {
+        ok: true,
+        status: 0,
+        stdout: JSON.stringify([
+          { name: "hermes_cli.main", ok: true },
+          { name: "hermes_cli.tools_config", ok: true },
+          { name: "run_agent", ok: true },
+          { name: "websockets", ok: true },
+        ]),
+      };
+    }
     if (command === "/bin/bash" && String(args[0] || "").endsWith("install-macos-production.sh")) {
       return { ok: true, status: 0, stdout: JSON.stringify({ ok: true, execution: { phase: "install-official-hermes-runtime", ok: true } }) };
     }
@@ -345,6 +364,53 @@ async function testRepairsMissingHermesAgentRuntimeWithExplicitGate() {
     && call.args.join(" ").includes("/opt/homebrew/bin/python3")));
 }
 
+async function testRepairsBrokenHermesAgentRuntimeImportsWithExplicitGate() {
+  const fixture = setupFixture();
+  const calls = [];
+  const service = createPublicUpgradeOrchestratorService({
+    root: fixture.root,
+    appPath: fixture.appPath,
+    pluginRoot: fixture.pluginRoot,
+    runtimeRoot: fixture.runtimeRoot,
+    hermesAgentSource: fixture.agentSource,
+    hermesAgentRepositoryUrl: "https://github.com/pentiumxp/hermes-agent-public.git",
+    hermesAgentPython: fixture.agentPython,
+    pythonCommand: "/opt/homebrew/bin/python3",
+    runProcess: createFakeRunner(fixture, calls, { agentRuntimeImportFails: true }),
+    nodePath: "/fake/node",
+    nowIso: () => "2026-06-29T00:00:00.000Z",
+  });
+  const blocked = await service.buildPlan({
+    reason: "test-upgrade",
+    cloneMissingPlugins: true,
+    updateHermesAgent: true,
+  });
+  assert.equal(blocked.ok, false);
+  assert.equal(blocked.hermesAgent.runtimePythonMissing, false);
+  assert.equal(blocked.hermesAgent.runtimeImportMissing, true);
+  assert.ok(blocked.actions.some((action) => action.type === "install-hermes-agent-runtime"));
+  assert.ok(blocked.blockers.some((blocker) => blocker.code === "hermes_agent_runtime_import_failed_requires_install_hermes_agent_dependencies"));
+
+  const allowed = await service.buildPlan({
+    reason: "test-upgrade",
+    cloneMissingPlugins: true,
+    updateHermesAgent: true,
+    installHermesAgentDependencies: true,
+  });
+  assert.equal(allowed.ok, true, JSON.stringify(allowed.blockers, null, 2));
+  assert.ok(allowed.actions.some((action) => action.type === "install-hermes-agent-runtime"));
+
+  const result = await service.executeUpgrade({
+    reason: "test-upgrade",
+    cloneMissingPlugins: true,
+    updateHermesAgent: true,
+    installHermesAgentDependencies: true,
+  });
+  assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+  assert.equal(result.hermesAgentUpdated, true);
+  assert.ok(result.steps.some((step) => step.type === "install-hermes-agent-runtime"));
+}
+
 async function testClonesMissingHermesAgentSourceWithExplicitGate() {
   const fixture = setupFixture();
   fs.rmSync(fixture.agentSource, { recursive: true, force: true });
@@ -401,6 +467,7 @@ function testDependencyHelpers() {
   await testExecuteClonesDeploysAndValidatesProviderClosure();
   await testAdoptsNonGitInstalledSourcesBeforeDeploy();
   await testRepairsMissingHermesAgentRuntimeWithExplicitGate();
+  await testRepairsBrokenHermesAgentRuntimeImportsWithExplicitGate();
   await testClonesMissingHermesAgentSourceWithExplicitGate();
   console.log("public upgrade orchestrator service tests passed");
 })().catch((err) => {

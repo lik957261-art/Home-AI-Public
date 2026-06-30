@@ -244,13 +244,20 @@ assert.equal(isAllowedProfileAuditWarning("telemetry_response_store_missing:hm-o
 assert.equal(isAllowedProfileAuditWarning("profile_skills_target_unexpected:hm-owner-openai-3"), false);
 
 const runtimePythonPath = path.join(appRoot, "python");
-fs.writeFileSync(runtimePythonPath, "#!/bin/sh\nexit 0\n", "utf8");
+const runtimeImports = [
+  { name: "hermes_cli.main", ok: true },
+  { name: "hermes_cli.tools_config", ok: true },
+  { name: "run_agent", ok: true },
+  { name: "websockets", ok: true },
+];
+fs.writeFileSync(runtimePythonPath, `#!/bin/sh\ncat <<'JSON'\n${JSON.stringify(runtimeImports)}\nJSON\n`, "utf8");
 fs.chmodSync(runtimePythonPath, 0o755);
 assert.deepEqual(compactRuntimePython({ runtimePython: runtimePythonPath }), {
   ok: true,
   configuredPath: runtimePythonPath,
   realPath: fs.realpathSync(runtimePythonPath),
   executable: true,
+  imports: runtimeImports,
   issue: "",
 });
 assert.deepEqual(compactRuntimePython({ runtimePython: "/Users/example/path" }), {
@@ -258,8 +265,19 @@ assert.deepEqual(compactRuntimePython({ runtimePython: "/Users/example/path" }),
   configuredPath: "/Users/example/path",
   realPath: "",
   executable: false,
+  imports: [],
   issue: "runtime_python_resolves_to_developer_home",
 });
+const brokenRuntimePythonPath = path.join(appRoot, "python-broken");
+fs.writeFileSync(brokenRuntimePythonPath, "#!/bin/sh\ncat <<'JSON'\n[{\"name\":\"hermes_cli.main\",\"ok\":false,\"error\":\"ModuleNotFoundError\"}]\nJSON\n", "utf8");
+fs.chmodSync(brokenRuntimePythonPath, 0o755);
+const brokenRuntimePython = compactRuntimePython({ runtimePython: brokenRuntimePythonPath });
+assert.equal(brokenRuntimePython.ok, false);
+assert.equal(brokenRuntimePython.executable, true);
+assert.equal(brokenRuntimePython.issue, "runtime_python_import_check_failed");
+assert.deepEqual(brokenRuntimePython.imports, [
+  { name: "hermes_cli.main", ok: false, error: "ModuleNotFoundError" },
+]);
 
 const acl = compactAcl({
   ok: true,
