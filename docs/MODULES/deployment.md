@@ -709,6 +709,12 @@ for audited Wardrobe-capable workspace profiles. The remote smoke parses the ful
 bounded upgrade JSON before truncating display output so failures such as
 `production_drift_reconcile_failed`, `provider_profile_audit_failed`, or
 `closure_validation_failed` remain visible in the step summary.
+Remote public production smoke passes `--allow-provider-auth-pending` because a
+fresh friend/operator Mac can have Home AI, plugins, Hermes Agent, and local
+runtime permissions installed before the operator configures provider
+credentials. That path must still report provider auth as pending in closure
+metadata and must be rerun without the flag after provider setup for strict
+model/schema/concurrency validation.
 
 Hermes Agent and provider ingress are deployment dependencies. A fresh install
 must close `install-official-hermes-runtime`, which now pins

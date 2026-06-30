@@ -510,16 +510,18 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     ]);
   }
 
-  function closureCommand() {
-    return sudoNodeCommand("macos-production-closure-validation.js", [
+  function closureCommand(commandOptions = {}) {
+    const args = [
       "--root",
       root,
       "--base",
       baseUrl,
       "--wardrobe-min-item-count",
       "0",
-      "--json",
-    ]);
+    ];
+    if (commandOptions.allowProviderAuthPending) args.push("--allow-provider-auth-pending");
+    args.push("--json");
+    return sudoNodeCommand("macos-production-closure-validation.js", args);
   }
 
   function sudoNodeCommand(scriptName, args = []) {
@@ -815,7 +817,7 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       if (!profile.ok || profile.json?.ok === false || Number(profile.json?.issueCount || 0) > 0) {
         return fail(initialPlan, steps, "provider_profile_audit_failed");
       }
-      const closure = await runCommand(closureCommand(), { timeoutMs: timeoutMs * 20 });
+      const closure = await runCommand(closureCommand(executeOptions), { timeoutMs: timeoutMs * 20 });
       steps.push({ type: "closure-validation", result: closure });
       if (!closure.ok || closure.json?.ok === false) return fail(initialPlan, steps, "closure_validation_failed");
     }

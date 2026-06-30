@@ -197,6 +197,7 @@ function testProductionUpgradeCommandUsesSourceAdoptionGate() {
   assert.match(upgrade.script, /--update-hermes-agent/);
   assert.match(upgrade.script, /--install-hermes-agent-dependencies/);
   assert.match(upgrade.script, /--force-closure-validation/);
+  assert.match(upgrade.script, /--allow-provider-auth-pending/);
   assert.match(upgrade.script, /HOMEAI_MAC_SUDO_PASSWORD_FILE='\/tmp\/homeai-public-remote-deploy-smoke-x\/sudo-password'/);
   assert.match(upgrade.script, /HOMEAI_NODE='\/tmp\/homeai-public-remote-deploy-smoke-x\/runtime\/bin\/node'/);
   assert.match(upgrade.script, /HOMEAI_NPM='\/tmp\/homeai-public-remote-deploy-smoke-x\/runtime\/bin\/npm'/);

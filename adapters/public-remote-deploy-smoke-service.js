@@ -383,6 +383,7 @@ function buildRemoteSteps(plan = {}) {
       "--update-hermes-agent",
       "--install-hermes-agent-dependencies",
       "--force-closure-validation",
+      "--allow-provider-auth-pending",
       `--reason ${shellQuote(plan.reason)}`,
       "--json",
     ].join(" ");

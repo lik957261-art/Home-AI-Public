@@ -214,6 +214,7 @@ async function testExecuteClonesDeploysAndValidatesProviderClosure() {
     cloneMissingPlugins: true,
     updateHermesAgent: true,
     installHermesAgentDependencies: true,
+    allowProviderAuthPending: true,
   });
   assert.equal(result.ok, true, JSON.stringify(result, null, 2));
   assert.deepEqual(result.updatedPlugins.sort(), ["moira", "movie"]);
@@ -227,7 +228,8 @@ async function testExecuteClonesDeploysAndValidatesProviderClosure() {
     && call.args[0] === "-lc"
     && call.args.join(" ").includes("macos-production-closure-validation.js")
     && call.args.join(" ").includes("--wardrobe-min-item-count")
-    && call.args.join(" ").includes("'0'")));
+    && call.args.join(" ").includes("'0'")
+    && call.args.join(" ").includes("--allow-provider-auth-pending")));
   assert.ok(calls.some((call) => call.command === "/bin/bash"
     && call.args[0] === "-lc"
     && call.args.join(" ").includes("--phase")

@@ -202,7 +202,12 @@ Supported execution gates:
   runtime;
 - `--force-deploy`: redeploy Home AI even when source did not update;
 - `--force-closure-validation`: run provider/profile and production closure
-  validation even when no source changed.
+  validation even when no source changed;
+- `--allow-provider-auth-pending`: accept deployment, plugin, permission, and
+  runtime closure when the target Mac has not configured a Hermes Agent
+  inference provider yet. Closure validation records provider auth as pending
+  and skips model/schema/concurrency probes that require provider credentials;
+  rerun without this flag after provider setup for strict model closure.
 
 ## Source Inventory
 

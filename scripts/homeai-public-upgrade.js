@@ -42,6 +42,7 @@ function parseArgs(argv = []) {
     installHermesAgentDependencies: false,
     forceDeploy: false,
     forceClosureValidation: false,
+    allowProviderAuthPending: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -66,6 +67,7 @@ function parseArgs(argv = []) {
     else if (arg === "--install-hermes-agent-dependencies") out.installHermesAgentDependencies = true;
     else if (arg === "--force-deploy") out.forceDeploy = true;
     else if (arg === "--force-closure-validation") out.forceClosureValidation = true;
+    else if (arg === "--allow-provider-auth-pending") out.allowProviderAuthPending = true;
     else if (arg === "--execute") out.execute = true;
     else if (arg === "--json") out.json = true;
     else if (arg === "--help") {
@@ -106,6 +108,7 @@ function printHelp() {
     "  --install-hermes-agent-dependencies   Run python -m pip install -e for Hermes Agent.",
     "  --force-deploy                        Deploy Home AI even when source did not update.",
     "  --force-closure-validation            Run provider/profile closure validation even with no updates.",
+    "  --allow-provider-auth-pending         Accept infrastructure closure when provider auth is not configured yet.",
     "  --execute                             Execute the upgrade plan.",
     "  --json                                Print JSON output.",
   ].join("\n"));
@@ -140,6 +143,7 @@ function executionOptions(options) {
     installHermesAgentDependencies: options.installHermesAgentDependencies,
     forceDeploy: options.forceDeploy,
     forceClosureValidation: options.forceClosureValidation,
+    allowProviderAuthPending: options.allowProviderAuthPending,
   };
 }
 

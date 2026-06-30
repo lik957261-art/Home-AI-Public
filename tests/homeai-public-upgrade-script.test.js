@@ -43,6 +43,7 @@ function testParseArgsSupportsUpgradeClosureFlags() {
     "--install-hermes-agent-dependencies",
     "--force-deploy",
     "--force-closure-validation",
+    "--allow-provider-auth-pending",
     "--execute",
     "--json",
   ]);
@@ -55,6 +56,7 @@ function testParseArgsSupportsUpgradeClosureFlags() {
   assert.equal(args.installHermesAgentDependencies, true);
   assert.equal(args.forceDeploy, true);
   assert.equal(args.forceClosureValidation, true);
+  assert.equal(args.allowProviderAuthPending, true);
   assert.equal(args.hermesAgentRepositoryUrl, "https://github.com/pentiumxp/hermes-agent-public.git");
   assert.equal(args.nodeCommand, "/opt/homebrew/bin/node");
   assert.equal(args.npmCommand, "/opt/homebrew/bin/npm");
@@ -63,6 +65,7 @@ function testParseArgsSupportsUpgradeClosureFlags() {
   assert.equal(serviceOptions(args).pythonCommand, "/opt/homebrew/bin/python3");
   assert.equal(executionOptions(args).reason, "friend-upgrade");
   assert.equal(executionOptions(args).adoptNonGitSources, true);
+  assert.equal(executionOptions(args).allowProviderAuthPending, true);
 }
 
 function testRenderTextShowsBoundedPlan() {
@@ -92,6 +95,7 @@ function testCliHelpMentionsHermesAgentAndExecute() {
   assert.match(output, /--clone-missing-plugins/);
   assert.match(output, /--adopt-non-git-sources/);
   assert.match(output, /--python-command/);
+  assert.match(output, /--allow-provider-auth-pending/);
 }
 
 testParseArgsDefaultsToPlanOnly();
