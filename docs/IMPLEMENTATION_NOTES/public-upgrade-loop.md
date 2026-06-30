@@ -249,6 +249,10 @@ After a source update:
 - adopted Home AI/plugin source directories are deployed in the same run, so a
   checkout-adoption-only partial closure cannot be mistaken for runtime
   closure;
+- production drift reconcile runs before provider/profile audit so public
+  upgrades repair the same bounded macOS drift classes as central Home AI
+  deploys, including plugin-local binding repairs and supported Gateway/ACL
+  drift;
 - profile/provider audit runs before final closure validation whenever Home AI,
   a plugin, or Hermes Agent changed;
 - production closure validation runs through
@@ -269,8 +273,9 @@ provider behavior independently of Home AI source. A closed upgrade must prove
 the Gateway/profile provider layer after any Hermes Agent update via:
 
 ```bash
-node scripts/macos-production-profile-audit.js --root <root> --expected-workspaces owner --json --no-strict
-node scripts/macos-production-closure-validation.js --root <root> --base <base> --json
+sudo node scripts/macos-production-drift-reconcile.js --root <root> --execute --json
+sudo node scripts/macos-production-profile-audit.js --root <root> --expected-workspaces owner --json --no-strict
+sudo node scripts/macos-production-closure-validation.js --root <root> --base <base> --json
 ```
 
 The script may report provider/key file names and status codes, but it must not

@@ -53,6 +53,10 @@ function safeSlug(value = "upgrade") {
   return cleanString(value, 120).toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "upgrade";
 }
 
+function shellQuote(value) {
+  return `'${String(value == null ? "" : value).replaceAll("'", "'\\''")}'`;
+}
+
 function readJson(filePath, fallback = null) {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -88,8 +92,8 @@ function defaultRunProcess(command, args = [], options = {}) {
       resolve({
         ok: !error,
         status: typeof error?.code === "number" ? error.code : 0,
-        stdout: cleanString(stdout, 8000),
-        stderr: cleanString(stderr || error?.message || "", 2000),
+        stdout: cleanString(stdout, 256000),
+        stderr: cleanString(stderr || error?.message || "", 8000),
       });
     });
   });
@@ -99,8 +103,8 @@ function normalizeRun(result = {}) {
   return {
     ok: result.ok === true || result.status === 0,
     status: Number.isFinite(Number(result.status)) ? Number(result.status) : (result.ok === true ? 0 : 1),
-    stdout: cleanString(result.stdout, 8000),
-    stderr: cleanString(result.stderr || result.error, 2000),
+    stdout: cleanString(result.stdout, 256000),
+    stderr: cleanString(result.stderr || result.error, 8000),
   };
 }
 
@@ -358,6 +362,12 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       });
     }
 
+    if (!actions.some((action) => action.type === "production-drift-reconcile")) {
+      actions.push({ type: "production-drift-reconcile", command: driftReconcileCommand() });
+    }
+    if (!actions.some((action) => action.type === "provider-profile-audit")) {
+      actions.push({ type: "provider-profile-audit", command: profileAuditCommand() });
+    }
     actions.push({ type: "closure-validation", command: closureCommand() });
 
     const blockers = [];
@@ -443,16 +453,23 @@ function createPublicUpgradeOrchestratorService(options = {}) {
   }
 
   function profileAuditCommand() {
-    return [
-      nodePath,
-      pathApi.join(appPath, "scripts", "macos-production-profile-audit.js"),
+    return sudoNodeCommand("macos-production-profile-audit.js", [
       "--root",
       root,
       "--expected-workspaces",
       "owner",
       "--json",
       "--no-strict",
-    ];
+    ]);
+  }
+
+  function driftReconcileCommand() {
+    return sudoNodeCommand("macos-production-drift-reconcile.js", [
+      "--root",
+      root,
+      "--execute",
+      "--json",
+    ]);
   }
 
   function hermesAgentRuntimeInstallCommand(input = {}) {
@@ -485,15 +502,31 @@ function createPublicUpgradeOrchestratorService(options = {}) {
   }
 
   function closureCommand() {
-    return [
-      nodePath,
-      pathApi.join(appPath, "scripts", "macos-production-closure-validation.js"),
+    return sudoNodeCommand("macos-production-closure-validation.js", [
       "--root",
       root,
       "--base",
       baseUrl,
       "--json",
-    ];
+    ]);
+  }
+
+  function sudoNodeCommand(scriptName, args = []) {
+    const script = pathApi.join(appPath, "scripts", scriptName);
+    const argv = [nodePath, script, ...args].map(shellQuote).join(" ");
+    const shell = [
+      "set -e",
+      "if /usr/bin/sudo -n -v >/dev/null 2>&1; then",
+      `  exec /usr/bin/sudo -n ${argv}`,
+      "fi",
+      "if [ -n \"${HOMEAI_MAC_SUDO_PASSWORD_FILE:-}\" ] && [ -r \"$HOMEAI_MAC_SUDO_PASSWORD_FILE\" ]; then",
+      "  pw=\"$(/usr/bin/sed -n '1p' \"$HOMEAI_MAC_SUDO_PASSWORD_FILE\")\"",
+      `  printf '%s\\n' "$pw" | /usr/bin/sudo -S -p '' ${argv}`,
+      "  exit $?",
+      "fi",
+      `exec ${argv}`,
+    ].join("\n");
+    return ["/bin/bash", "-lc", shell];
   }
 
   async function fastForward(repo = {}) {
@@ -759,6 +792,9 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     }
 
     if (hermesAgentUpdated || appUpdated || updatedPlugins.length || executeOptions.forceClosureValidation) {
+      const drift = await runCommand(driftReconcileCommand(), { timeoutMs: timeoutMs * 6 });
+      steps.push({ type: "production-drift-reconcile", result: drift });
+      if (!drift.ok || drift.json?.ok === false) return fail(initialPlan, steps, "production_drift_reconcile_failed");
       const profile = await runCommand(profileAuditCommand(), { timeoutMs: timeoutMs * 6 });
       steps.push({ type: "provider-profile-audit", result: profile });
       if (!profile.ok || profile.json?.ok === false || Number(profile.json?.issueCount || 0) > 0) {

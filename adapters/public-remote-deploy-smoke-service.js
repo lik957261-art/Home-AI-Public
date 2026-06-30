@@ -158,9 +158,14 @@ function summarizeStep(type, result = {}) {
     return {
       ok: json.ok === true,
       mode: clean(json.mode, 40),
+      error: clean(json.error, 120),
+      stepCount: Number(json.stepCount || 0),
       actionCount: Number(json.actionCount || 0),
       issueCount: Number(json.issueCount || 0),
       blockerCount: Number(json.blockerCount || 0),
+      updatedPluginCount: Array.isArray(json.updatedPlugins) ? json.updatedPlugins.length : 0,
+      appUpdated: json.appUpdated === true,
+      hermesAgentUpdated: json.hermesAgentUpdated === true,
     };
   }
   return { ok: json.ok === true, jsonParsed: true };
@@ -454,18 +459,26 @@ async function runRemoteStep(step, options, runProcess) {
     timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
     maxBuffer: 2 * 1024 * 1024,
   });
+  const summaryStdout = boundedOutput(result.stdout, 256000);
+  const summaryStderr = boundedOutput(result.stderr || result.error, 16000);
   const normalized = {
     ok: result.ok === true || result.status === 0,
     status: Number.isFinite(Number(result.status)) ? Number(result.status) : (result.ok === true ? 0 : 1),
     stdout: boundedOutput(result.stdout, 8000),
     stderr: boundedOutput(result.stderr || result.error, 2000),
   };
+  const summary = summarizeStep(step.type, {
+    ok: normalized.ok,
+    status: normalized.status,
+    stdout: summaryStdout,
+    stderr: summaryStderr,
+  });
   return {
     type: step.type,
     ok: normalized.ok,
     status: normalized.status,
-    summary: summarizeStep(step.type, normalized),
-    error: normalized.ok ? "" : (normalized.stderr || normalized.stdout || `remote_step_failed:${step.type}`),
+    summary,
+    error: normalized.ok ? "" : (normalized.stderr || summary.error || normalized.stdout || `remote_step_failed:${step.type}`),
   };
 }
 

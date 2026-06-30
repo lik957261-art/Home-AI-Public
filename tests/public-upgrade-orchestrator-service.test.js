@@ -127,6 +127,15 @@ function createFakeRunner(fixture, calls, options = {}) {
     if (command === "/bin/bash" && String(args[0] || "").endsWith("install-macos-production.sh")) {
       return { ok: true, status: 0, stdout: JSON.stringify({ ok: true, execution: { phase: "install-official-hermes-runtime", ok: true } }) };
     }
+    if (command === "/bin/bash" && args[0] === "-lc" && String(args[1] || "").includes("macos-production-drift-reconcile.js")) {
+      return { ok: true, status: 0, stdout: JSON.stringify({ ok: true, actionCount: 1 }) };
+    }
+    if (command === "/bin/bash" && args[0] === "-lc" && String(args[1] || "").includes("macos-production-profile-audit.js")) {
+      return { ok: true, status: 0, stdout: JSON.stringify({ ok: true, issueCount: 0 }) };
+    }
+    if (command === "/bin/bash" && args[0] === "-lc" && String(args[1] || "").includes("macos-production-closure-validation.js")) {
+      return { ok: true, status: 0, stdout: JSON.stringify({ ok: true }) };
+    }
     if (String(args[0] || "").endsWith("deploy-macos-production.js")) {
       return { ok: true, status: 0, stdout: JSON.stringify({ ok: true }) };
     }
@@ -177,6 +186,8 @@ async function testPlanRequiresExplicitCloneAndAgentUpdate() {
   assert.ok(allowed.actions.some((action) => action.type === "clone-plugin-source" && action.pluginId === "movie"));
   assert.ok(allowed.actions.some((action) => action.type === "deploy" && action.pluginId === "movie"));
   assert.ok(allowed.actions.some((action) => action.type === "fast-forward-hermes-agent"));
+  assert.ok(allowed.actions.some((action) => action.type === "production-drift-reconcile"));
+  assert.ok(allowed.actions.some((action) => action.type === "provider-profile-audit"));
   assert.equal(allowed.hermesAgent.providerIngress.includes("Gateway provider profiles"), true);
 }
 
@@ -206,6 +217,7 @@ async function testExecuteClonesDeploysAndValidatesProviderClosure() {
   assert.equal(result.hermesAgentUpdated, true);
   assert.ok(result.steps.some((step) => step.type === "clone-plugin-source" && step.pluginId === "movie"));
   assert.ok(result.steps.some((step) => step.type === "deploy" && step.pluginId === "movie"));
+  assert.ok(result.steps.some((step) => step.type === "production-drift-reconcile"));
   assert.ok(result.steps.some((step) => step.type === "provider-profile-audit"));
   assert.ok(result.steps.some((step) => step.type === "closure-validation"));
   assert.ok(calls.some((call) => call.command === "/bin/bash"
@@ -264,6 +276,7 @@ async function testAdoptsNonGitInstalledSourcesBeforeDeploy() {
   assert.ok(result.steps.some((step) => step.type === "adopt-source-checkout" && step.pluginId === "moira"));
   assert.ok(result.steps.some((step) => step.type === "deploy" && step.target === "home-ai"));
   assert.ok(result.steps.some((step) => step.type === "deploy" && step.pluginId === "moira"));
+  assert.ok(result.steps.some((step) => step.type === "production-drift-reconcile"));
   assert.ok(fs.existsSync(path.join(fixture.appPath, ".git", "info", "exclude")));
 }
 

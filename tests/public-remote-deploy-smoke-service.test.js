@@ -224,6 +224,45 @@ async function testStopsOnFailedPreflightAndCleansUp() {
   assert.equal(report.steps.at(-1).summary.issueCount, 1);
 }
 
+async function testProductionUpgradeFailureParsesLongJsonBeforeTruncation() {
+  async function runProcess(command, args) {
+    const remote = args.at(-1);
+    if (remote.includes("for tool in git")) return { status: 0, stdout: "uname=Darwin\narch=arm64\ngit=/usr/bin/git\ncurl=/usr/bin/curl\ntar=/usr/bin/tar\nbash=/bin/bash\nnode=\nnpm=\n", stderr: "" };
+    if (remote.includes("nodeVersion=")) return { status: 0, stdout: "node=/tmp/homeai-public-remote-deploy-smoke-x/runtime/bin/node\nnpm=/tmp/homeai-public-remote-deploy-smoke-x/runtime/bin/npm\nnodeVersion=v24.14.1\n", stderr: "" };
+    if (remote.includes("public-install-preflight")) return { status: 0, stdout: json({ ok: true, requiredPluginCount: 10, issues: [] }), stderr: "" };
+    if (remote.includes("macos-fresh-install-rehearsal")) return { status: 0, stdout: json({ ok: true, phaseCount: 9, issues: [], artifacts: [] }), stderr: "" };
+    if (remote.includes("rehearse:public-upgrade")) return { status: 0, stdout: json({ ok: true, steps: [] }), stderr: "" };
+    if (remote.includes("upgrade:public")) {
+      return {
+        status: 1,
+        stdout: json({
+          ok: false,
+          mode: "execute",
+          error: "closure_validation_failed",
+          stepCount: 2,
+          initialPlan: {
+            padding: "x".repeat(12000),
+          },
+        }),
+        stderr: "",
+      };
+    }
+    return { status: 0, stdout: "", stderr: "" };
+  }
+  const report = await runRemoteDeploySmoke({
+    execute: true,
+    sshTarget: "macbook-air",
+    executeProductionUpgrade: true,
+    productionRoot: "/Users/example/path",
+    stamp: "20260629T150005Z",
+  }, { runProcess });
+  assert.equal(report.ok, false);
+  const upgrade = report.steps.find((step) => step.type === "public-production-upgrade");
+  assert.equal(upgrade.summary.ok, false);
+  assert.equal(upgrade.summary.error, "closure_validation_failed");
+  assert.equal(upgrade.summary.stepCount, 2);
+}
+
 function testSummariesAreBounded() {
   const summary = summarizeStep("remote-system-probe", {
     ok: false,
@@ -259,6 +298,7 @@ function testSummariesAreBounded() {
   await testCycleInstallRunsInstallDeleteReinstallInSandbox();
   testProductionUpgradeCommandUsesSourceAdoptionGate();
   await testStopsOnFailedPreflightAndCleansUp();
+  await testProductionUpgradeFailureParsesLongJsonBeforeTruncation();
   testSummariesAreBounded();
   console.log("public remote deploy smoke service tests passed");
 })();
