@@ -361,6 +361,16 @@ function reconcileCodexSharedAuthPermissions(audit, options = {}) {
 
   const userBlock = users.join("\n");
   const fileBlock = currentFiles.map((file) => shQuote(file)).join(" ");
+  const parentDirs = [
+    path.dirname(root),
+    root,
+    path.join(root, "gateway-worker"),
+    path.join(root, "gateway-worker", "telemetry"),
+    path.join(root, "gateway-worker", "telemetry", "profiles"),
+  ]
+    .filter((dir) => fs.existsSync(dir))
+    .map((dir) => shQuote(dir))
+    .join(" ");
   const script = `
 set -e
 shared=${shQuote(sharedAuthRoot)}
@@ -373,6 +383,10 @@ for f in ${fileBlock}; do
 done
 while IFS= read -r user; do
   [ -n "$user" ] || continue
+  for d in ${parentDirs || ":SKIP:"}; do
+    [ "$d" = ":SKIP:" ] && continue
+    /bin/chmod +a "user:$user allow search,readattr,readextattr,readsecurity" "$d" 2>/dev/null || true
+  done
   /bin/chmod +a "user:$user allow list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" "$shared" 2>/dev/null || true
   for profile_dir in "/Users/$user/HermesWorkspace/.hermes-gateway/profiles"/*; do
     [ -d "$profile_dir" ] || continue
