@@ -75,6 +75,8 @@ assert.match(script, /skipBoundDirectory/);
 assert.match(script, /compactBoundDirectory/);
 assert.match(script, /skipWardrobeBinding/);
 assert.match(script, /compactWardrobeBinding/);
+assert.match(script, /wardrobeSmokeWorkspaceArgs/);
+assert.match(script, /args\.push\("--workspace", workspaceId\)/);
 assert.match(script, /skipAutomationCron/);
 assert.match(script, /compactAutomationCron/);
 assert.match(script, /allowProviderAuthPending/);

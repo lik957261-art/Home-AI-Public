@@ -460,6 +460,12 @@ including Owner's shared `data/drive` write ACL and
 `data/drive/插件` built-in plugin scaffolds. These paths are required by the
 worker filesystem access and plugin-directory smokes and must not be left as
 post-install manual fixes.
+On fresh installs, that phase also materializes non-Owner workspace-map entries
+into the local `data/workspaces.json` catalog. The plugin provisioning apply
+phase then grants the Home AI host service user minimal read/search ACLs for
+generated workspace-local `.hermes-<plugin>` binding directories, because the
+host must read plugin key/config files to issue launch tokens while preserving
+workspace-user isolation.
 The later `repair-gateway-worker-acl` phase is the final ACL normalization
 point before first-start and smoke checks. It must preserve worker isolation
 while also reapplying listener search/read ACLs for packaged Owner required

@@ -180,6 +180,14 @@ function schemaTargetsForExpectedWorkspaces(expectedWorkspaces) {
   return targets;
 }
 
+function wardrobeSmokeWorkspaceArgs(expectedWorkspaces) {
+  const args = [];
+  for (const workspaceId of expectedWorkspaceIdSet(expectedWorkspaces)) {
+    args.push("--workspace", workspaceId);
+  }
+  return args;
+}
+
 function readAppClientVersion(options) {
   const indexPath = macPath.join(options.app, "public", "index.html");
   let text = "";
@@ -601,6 +609,7 @@ async function runClosure(options) {
     "--root", options.root,
     "--base", options.base,
     "--access-key-file", options.ownerKeyFile,
+    ...wardrobeSmokeWorkspaceArgs(options.expectedWorkspaces),
     "--json",
   ]));
 

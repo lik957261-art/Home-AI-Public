@@ -1349,6 +1349,67 @@ function ensureDir(target, mode) {
   });
 }
 
+function readJson(file, fallback) {
+  try {
+    if (!fs.existsSync(file)) return fallback;
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function writeJson(file, value, mode) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o750 });
+  fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode });
+  fs.chmodSync(file, mode);
+}
+
+function workspaceRecordForMapEntry(item, driveUsers) {
+  const defaultWorkspace = path.join(driveUsers, item.driveName);
+  return {
+    id: item.workspaceId,
+    label: item.driveName || item.workspaceId,
+    accessMode: "restricted",
+    defaultWorkspace,
+    allowedRoots: [defaultWorkspace],
+    aliases: [],
+    allowedToolsets: [],
+    connectorProfiles: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    createdBy: "macos-first-install",
+  };
+}
+
+function ensureWorkspaceCatalogRecords(data, driveUsers, workspaces) {
+  const file = path.join(data, "workspaces.json");
+  const existing = readJson(file, { schemaVersion: 1, workspaces: [] });
+  const byId = new Map(Array.isArray(existing.workspaces)
+    ? existing.workspaces.map((record) => [String(record?.id || ""), record]).filter(([id]) => id)
+    : []);
+  for (const item of workspaces) {
+    if (item.workspaceId === "owner") continue;
+    const previous = byId.get(item.workspaceId) || {};
+    const next = Object.assign({}, workspaceRecordForMapEntry(item, driveUsers), {
+      createdAt: previous.createdAt || new Date().toISOString(),
+      createdBy: previous.createdBy || "macos-first-install",
+    });
+    byId.set(item.workspaceId, next);
+  }
+  const out = {
+    schemaVersion: 1,
+    workspaces: [...byId.values()].sort((a, b) => String(a.id).localeCompare(String(b.id))),
+    updatedAt: new Date().toISOString(),
+  };
+  writeJson(file, out, 0o640);
+  actions.push({ action: "write-workspace-catalog", path: path.relative(root, file) || file, workspaceCount: out.workspaces.length, mode: "0640" });
+  if (applyAcl && typeof process.getuid === "function" && process.getuid() === 0 && userExists("hermes-host")) {
+    const result = run("/usr/sbin/chown", ["hermes-host:staff", file]);
+    if (result.status === 0) actions.push({ action: "chown", path: path.relative(root, file) || file, owner: "hermes-host:staff" });
+    else issues.push({ code: "workspace_catalog_chown_failed", path: path.relative(root, file) || file });
+  }
+}
+
 function chown(target, owner) {
   const result = run("/usr/sbin/chown", ["-R", owner, target]);
   if (result.status !== 0) {
@@ -1416,6 +1477,7 @@ try {
     ensureDir(skillProfiles, 0o750);
     ensureDir(path.join(artifacts, "http-request"), 0o770);
     ensureDir(path.join(artifacts, "grok-videos"), 0o770);
+    ensureWorkspaceCatalogRecords(data, driveUsers, workspaces);
 
     for (const item of workspaces) {
       const workerHome = path.join("/Users", item.macUser);

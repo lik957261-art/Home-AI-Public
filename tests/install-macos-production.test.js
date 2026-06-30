@@ -1208,6 +1208,11 @@ function testExecuteWorkspaceIsolationCreatesBaselineScaffoldWithoutAcl() {
   assert.equal(fs.statSync(path.join(root, "data", "drive", "users", "weixin_wuping")).mode & 0o777, 0o700);
   assert.equal(fs.statSync(path.join(root, "data", "skill-profiles", "owner-full", "skills")).mode & 0o777, 0o700);
   assert.equal(fs.statSync(path.join(root, "data", "skill-profiles", "weixin_wuping", "memories")).mode & 0o777, 0o700);
+  const workspaceStore = JSON.parse(fs.readFileSync(path.join(root, "data", "workspaces.json"), "utf8"));
+  assert.deepEqual(workspaceStore.workspaces.map((item) => item.id), ["weixin_wuping"]);
+  assert.equal(workspaceStore.workspaces[0].defaultWorkspace, path.join(root, "data", "drive", "users", "weixin_wuping"));
+  assert.deepEqual(workspaceStore.workspaces[0].allowedRoots, [path.join(root, "data", "drive", "users", "weixin_wuping")]);
+  assert.ok(parsed.execution.report.actions.some((item) => item.action === "write-workspace-catalog" && item.workspaceCount === 1));
   assert.ok(parsed.execution.report.aclPlan.some((item) => item.user === "hm-owner"));
   const phase = parsed.phases.find((item) => item.id === "configure-workspace-isolation");
   assert.equal(phase.status, "executed");

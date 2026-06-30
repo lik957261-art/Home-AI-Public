@@ -11,6 +11,15 @@ const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_WORKSPACE_MAP = "owner:hm-owner:owner,weixin_wuping:hm-wuping:weixin_wuping,weixin_stephen:hm-stephen:weixin_stephen,user-981731fe:hm-xuyan:user-981731fe,test:hm-test:test";
 const DEFAULT_LISTENER_USER = "hermes-host";
 const EMAIL_BINDING_DIR = ".hermes-email";
+const HOST_READ_PLUGIN_DIRS = Object.freeze({
+  email: ".hermes-email",
+  finance: ".hermes-finance",
+  growth: ".hermes-growth",
+  health: ".hermes-health",
+  moira: ".hermes-moira",
+  note: ".hermes-note",
+  wardrobe: ".hermes-wardrobe",
+});
 const DEFAULT_ALLOWED_ERRORS = new Set([
   "workspace_gateway_workers_missing",
   "macos_system_executor_requires_darwin",
@@ -198,27 +207,50 @@ function spawnChecked(spawnSync, command, args = [], options = {}) {
   return result;
 }
 
-function emailWorkspaceRoot(root, workspaceId) {
+function workspaceRoot(root, workspaceId) {
   return path.join(root, "data", "drive", "users", workspaceId);
 }
 
 function emailBindingDir(root, workspaceId) {
-  return path.join(emailWorkspaceRoot(root, workspaceId), EMAIL_BINDING_DIR);
+  return path.join(workspaceRoot(root, workspaceId), EMAIL_BINDING_DIR);
 }
 
 function grantDarwinAcl(spawnSync, target, user, permissions, recursive = false) {
   spawnChecked(spawnSync, "/bin/chmod", [recursive ? "-R" : "", "+a", `user:${user} allow ${permissions}`, target].filter(Boolean));
 }
 
-function ensureDarwinEmailParentSearchAcls({ root, workspaceId, listenerUser, spawnSync }) {
+function ensureDarwinWorkspaceParentSearchAcls({ root, workspaceId, listenerUser, spawnSync }) {
   const dataDir = path.join(root, "data");
   const driveDir = path.join(dataDir, "drive");
   const usersDir = path.join(driveDir, "users");
-  const workspaceRoot = emailWorkspaceRoot(root, workspaceId);
+  const workspaceDataRoot = workspaceRoot(root, workspaceId);
   const parentPerms = "search,readattr,readextattr,readsecurity";
-  for (const dir of [root, dataDir, driveDir, usersDir, workspaceRoot]) {
+  for (const dir of [root, dataDir, driveDir, usersDir, workspaceDataRoot]) {
     if (fs.existsSync(dir)) grantDarwinAcl(spawnSync, dir, listenerUser, parentPerms);
   }
+}
+
+function ensureDarwinHostPluginBindingReadAcl({ root, workspaceId, pluginId, listenerUser, spawnSync }) {
+  const dirName = HOST_READ_PLUGIN_DIRS[pluginId];
+  if (!dirName) return { dir: "", existed: false };
+  const dir = path.join(workspaceRoot(root, workspaceId), dirName);
+  if (!fs.existsSync(dir)) return { dir, existed: false };
+  if (process.platform !== "darwin" || typeof process.getuid !== "function" || process.getuid() !== 0) {
+    return { dir, existed: true };
+  }
+  const readAcl = [
+    "list",
+    "search",
+    "read",
+    "readattr",
+    "readextattr",
+    "readsecurity",
+    "file_inherit",
+    "directory_inherit",
+  ].join(",");
+  ensureDarwinWorkspaceParentSearchAcls({ root, workspaceId, listenerUser, spawnSync });
+  grantDarwinAcl(spawnSync, dir, listenerUser, readAcl, true);
+  return { dir, existed: true, listenerAcl: true };
 }
 
 function ensureDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUser, spawnSync }) {
@@ -243,7 +275,7 @@ function ensureDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUser,
   ].join(",");
   spawnChecked(spawnSync, "/usr/sbin/chown", ["-R", `${macUser}:staff`, dir]);
   spawnChecked(spawnSync, "/bin/chmod", ["700", dir]);
-  ensureDarwinEmailParentSearchAcls({ root, workspaceId, listenerUser, spawnSync });
+  ensureDarwinWorkspaceParentSearchAcls({ root, workspaceId, listenerUser, spawnSync });
   grantDarwinAcl(spawnSync, dir, listenerUser, narrowWriteAcl);
   return { dir, listenerAcl: true };
 }
@@ -274,7 +306,7 @@ function finalizeDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUse
   ].join(",");
   spawnChecked(spawnSync, "/usr/sbin/chown", ["-R", `${macUser}:staff`, dir]);
   spawnChecked(spawnSync, "/bin/chmod", ["700", dir]);
-  ensureDarwinEmailParentSearchAcls({ root, workspaceId, listenerUser, spawnSync });
+  ensureDarwinWorkspaceParentSearchAcls({ root, workspaceId, listenerUser, spawnSync });
   grantDarwinAcl(spawnSync, dir, listenerUser, narrowWriteAcl);
   return { dir, existed: true, listenerAcl: true };
 }
@@ -435,6 +467,15 @@ async function apply(options = {}) {
         if (row.id === "email") {
           finalizeDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUser, spawnSync });
           actions.push({ action: "finalize-email-workspace-binding", workspaceId, pluginId: row.id, directory: `${EMAIL_BINDING_DIR}` });
+        }
+        const hostReadAcl = ensureDarwinHostPluginBindingReadAcl({ root, workspaceId, pluginId: row.id, listenerUser, spawnSync });
+        if (hostReadAcl.listenerAcl) {
+          actions.push({
+            action: "grant-host-plugin-binding-read",
+            workspaceId,
+            pluginId: row.id,
+            directory: path.basename(hostReadAcl.dir),
+          });
         }
         workspaceReport.activeCount += 1;
         workspaceReport.plugins.push({

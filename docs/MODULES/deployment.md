@@ -151,6 +151,12 @@ directories, allow writes only on `.hermes-email`, and then reassert
 workspace-worker ownership. Plugin registration calls can retry
 transient loopback `fetch` failures, but persistent plugin contract failures
 remain blocking.
+`configure-workspace-isolation` must also write the local `data/workspaces.json`
+catalog for non-Owner workspace-map entries. After plugin provisioning creates
+workspace-local `.hermes-<plugin>` bindings, the apply phase grants the Home AI
+host service user minimal parent search plus binding read ACLs so manifests and
+launch-token requests can read plugin key/config files. These ACLs are host-only
+and must not become cross-workspace read access for other workspace users.
 The installer phase contract is intentionally machine-audited by
 `scripts/macos-install-phase-coverage-audit.js`; keep the source phase array,
 command generator, execution dispatcher, executable allowlist, tests, and docs

@@ -480,7 +480,11 @@ that binding directory, then restores worker ownership while preserving the
 minimal ACL needed for future service-side key refreshes. The
 `create-service-users` and workspace system executor paths both ensure the
 `hermes-workers` shared group exists before Gateway MCP worker assets are
-owned by that group.
+owned by that group. Fresh-machine closure also materializes
+`data/workspaces.json` from the configured workspace map and grants the Home AI
+host service user minimal search/read ACLs on generated `.hermes-<plugin>`
+binding directories, so the host can read workspace-local plugin key/config
+files without giving workspace users cross-workspace plugin access.
 
 The install-time `run-smoke-tests` phase accepts only fresh-install provider
 authorization gaps (`codex_auth_json_missing` / `codex_auth_lock_missing`) as a
