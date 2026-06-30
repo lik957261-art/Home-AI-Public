@@ -516,6 +516,8 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       root,
       "--base",
       baseUrl,
+      "--wardrobe-min-item-count",
+      "0",
       "--json",
     ]);
   }

@@ -464,7 +464,7 @@ service root.
   bounded bootstrap counts. It must not print raw keys, key paths, launch
   tokens, or item details.
   Maintainer production closure keeps the default minimum bootstrap item count
-  of `1`; fresh public macOS install smoke passes
+  of `1`; fresh public macOS install and public upgrade closure pass
   `--wardrobe-min-item-count 0` through
   `scripts/macos-production-closure-validation.js` because a newly provisioned
   Wardrobe workspace can be valid but empty.

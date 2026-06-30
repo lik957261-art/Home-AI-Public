@@ -225,6 +225,11 @@ async function testExecuteClonesDeploysAndValidatesProviderClosure() {
   assert.ok(result.steps.some((step) => step.type === "closure-validation"));
   assert.ok(calls.some((call) => call.command === "/bin/bash"
     && call.args[0] === "-lc"
+    && call.args.join(" ").includes("macos-production-closure-validation.js")
+    && call.args.join(" ").includes("--wardrobe-min-item-count")
+    && call.args.join(" ").includes("'0'")));
+  assert.ok(calls.some((call) => call.command === "/bin/bash"
+    && call.args[0] === "-lc"
     && call.args.join(" ").includes("--phase")
     && call.args.join(" ").includes("install-official-hermes-runtime")));
 }

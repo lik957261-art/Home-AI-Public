@@ -268,7 +268,10 @@ After a source update:
 - profile/provider audit runs before final closure validation whenever Home AI,
   a plugin, or Hermes Agent changed;
 - production closure validation runs through
-  `scripts/macos-production-closure-validation.js`.
+  `scripts/macos-production-closure-validation.js`. Public upgrade closure
+  passes `--wardrobe-min-item-count 0`, so a newly provisioned but empty
+  Wardrobe workspace can close after manifest, launch-token, proxy-entry, and
+  bootstrap HTTP checks pass.
 
 ## Hermes Agent And Provider Boundary
 
