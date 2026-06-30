@@ -471,6 +471,16 @@ materialization. It does not print raw keys, tokens, private plugin payloads, or
 provider credentials. Wardrobe is not special in this path: Owner and non-Owner
 workspaces use the same plugin provisioning contract.
 
+The apply phase is also responsible for the fresh-machine race and ownership
+boundary around plugin registration. It may retry transient loopback `fetch`
+failures while recently loaded plugin services settle. Before registering
+Email it creates only the workspace-local `.hermes-email` directory, grants the
+service user a narrow temporary write ACL, then restores worker ownership while
+preserving the minimal ACL needed for future service-side key refreshes. The
+`create-service-users` and workspace system executor paths both ensure the
+`hermes-workers` shared group exists before Gateway MCP worker assets are
+owned by that group.
+
 The install-time `run-smoke-tests` phase accepts only fresh-install provider
 authorization gaps (`codex_auth_json_missing` / `codex_auth_lock_missing`) as a
 bounded pending setup state. It still fails on malformed links, unreadable auth

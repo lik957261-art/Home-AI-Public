@@ -112,6 +112,8 @@ const cases = [
     extra: [
       /<key>PYTHONUNBUFFERED<\/key>\s*<string>1<\/string>/,
       /<key>WARDROBE_API_TOKEN_SECRET_DIR<\/key>/,
+      /<key>WARDROBE_REGISTRATION_ACCESS_KEY_PATH<\/key>/,
+      /wardrobe-registration-access-key\.txt/,
       /<key>WARDROBE_HERMES_PLUGIN_FRAME_ANCESTORS<\/key>/,
     ],
   },

@@ -496,20 +496,31 @@ function makeFirstStartRoot() {
   return root;
 }
 
-function makeFakeDscl(existingUsers = []) {
+function makeFakeDscl(existingUsers = [], existingGroups = ["hermes-workers"]) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-dscl-"));
   const stateDir = path.join(dir, "state");
+  const groupDir = path.join(dir, "groups");
   fs.mkdirSync(stateDir, { recursive: true });
+  fs.mkdirSync(groupDir, { recursive: true });
   for (const user of existingUsers) {
     fs.writeFileSync(path.join(stateDir, user), `UniqueID: 550\nPrimaryGroupID: 20\nUserShell: /usr/bin/false\nNFSHomeDirectory: /Users/${user}\n`);
+  }
+  for (const group of existingGroups) {
+    fs.writeFileSync(path.join(groupDir, group), `RealName: ${group}\n`);
   }
   const dsclPath = path.join(dir, "dscl");
   fs.writeFileSync(dsclPath, `#!/bin/sh
 STATE=${JSON.stringify(stateDir)}
+GROUPS_DIR=${JSON.stringify(groupDir)}
 if [ "$1" = "." ] && [ "$2" = "-read" ]; then
-  user=$(basename "$3")
-  if [ -f "$STATE/$user" ]; then
-    cat "$STATE/$user"
+  kind=$(dirname "$3")
+  name=$(basename "$3")
+  if [ "$kind" = "/Users" ] && [ -f "$STATE/$name" ]; then
+    cat "$STATE/$name"
+    exit 0
+  fi
+  if [ "$kind" = "/Groups" ] && [ -f "$GROUPS_DIR/$name" ]; then
+    cat "$GROUPS_DIR/$name"
     exit 0
   fi
   echo "No such key: $3" >&2
@@ -538,6 +549,21 @@ fi
 echo "unsupported dscl call: $*" >&2
 exit 64
 `, { mode: 0o755 });
+  const dseditgroupPath = path.join(dir, "dseditgroup");
+  fs.writeFileSync(dseditgroupPath, `#!/bin/sh
+GROUPS_DIR=${JSON.stringify(groupDir)}
+if [ "$1" = "-o" ] && [ "$2" = "create" ]; then
+  group="$5"
+  [ -n "$group" ] || group="$3"
+  printf 'RealName: %s\\n' "$group" > "$GROUPS_DIR/$group"
+  exit 0
+fi
+if [ "$1" = "-o" ] && [ "$2" = "edit" ]; then
+  exit 0
+fi
+echo "unsupported dseditgroup call: $*" >&2
+exit 64
+`, { mode: 0o755 });
   return { dir, dsclPath };
 }
 
@@ -558,7 +584,9 @@ function testExecuteServiceUserPhasePassesWithExistingUsers() {
   assert.equal(parsed.execution.ok, true);
   assert.equal(parsed.execution.report.ok, true);
   assert.equal(parsed.execution.report.createdCount, 0);
-  assert.deepEqual(parsed.execution.report.actions.map((item) => item.action), ["exists", "exists"]);
+  assert.equal(parsed.execution.report.workerGroup, "hermes-workers");
+  assert.equal(parsed.execution.report.actions.some((item) => item.action === "group-exists" && item.group === "hermes-workers"), true);
+  assert.deepEqual(parsed.execution.report.actions.filter((item) => item.action === "exists").map((item) => item.user), ["hermes-host", "hm-owner"]);
   const phase = parsed.phases.find((item) => item.id === "create-service-users");
   assert.equal(phase.status, "executed");
 }

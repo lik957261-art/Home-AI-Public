@@ -9,6 +9,8 @@ const { createWorkspaceSystemProvisioningExecutorService } = require("../adapter
 
 const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_WORKSPACE_MAP = "owner:hm-owner:owner,weixin_wuping:hm-wuping:weixin_wuping,weixin_stephen:hm-stephen:weixin_stephen,user-981731fe:hm-xuyan:user-981731fe,test:hm-test:test";
+const DEFAULT_LISTENER_USER = "hermes-host";
+const EMAIL_BINDING_DIR = ".hermes-email";
 const DEFAULT_ALLOWED_ERRORS = new Set([
   "workspace_gateway_workers_missing",
   "macos_system_executor_requires_darwin",
@@ -24,6 +26,28 @@ function boolValue(value) {
 
 function compactError(value) {
   return stringValue(value).replace(/\s+/g, " ").slice(0, 180) || "plugin_workspace_provisioning_failed";
+}
+
+function compactDetails(value = {}) {
+  if (!value || typeof value !== "object") return {};
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (item == null) continue;
+    if (/key|token|secret|credential|password/i.test(key)) {
+      out[key] = Boolean(item);
+    } else if (typeof item === "string") {
+      out[key] = compactError(item);
+    } else if (typeof item === "number" || typeof item === "boolean") {
+      out[key] = item;
+    }
+  }
+  return out;
+}
+
+function sleep(ms) {
+  const delay = Math.max(0, Number(ms || 0));
+  if (!delay) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
 function parseArgs(argv = process.argv.slice(2)) {
@@ -160,6 +184,84 @@ function compatibleSecretEnv(root) {
   };
 }
 
+function spawnChecked(spawnSync, command, args = [], options = {}) {
+  const result = spawnSync(command, args, Object.assign({ encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }, options));
+  if (result.status !== 0) {
+    const err = new Error(`command_failed:${path.basename(command)}`);
+    err.details = {
+      status: result.status,
+      stdout: compactError(result.stdout || ""),
+      stderr: compactError(result.stderr || ""),
+    };
+    throw err;
+  }
+  return result;
+}
+
+function emailWorkspaceRoot(root, workspaceId) {
+  return path.join(root, "data", "drive", "users", workspaceId);
+}
+
+function emailBindingDir(root, workspaceId) {
+  return path.join(emailWorkspaceRoot(root, workspaceId), EMAIL_BINDING_DIR);
+}
+
+function ensureDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUser, spawnSync }) {
+  const dir = emailBindingDir(root, workspaceId);
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  fs.chmodSync(dir, 0o700);
+  if (process.platform !== "darwin" || typeof process.getuid !== "function" || process.getuid() !== 0) {
+    return { dir };
+  }
+  const narrowWriteAcl = [
+    "list",
+    "add_file",
+    "search",
+    "delete_child",
+    "readattr",
+    "writeattr",
+    "readextattr",
+    "writeextattr",
+    "readsecurity",
+    "file_inherit",
+    "directory_inherit",
+  ].join(",");
+  spawnChecked(spawnSync, "/usr/sbin/chown", ["-R", `${macUser}:staff`, dir]);
+  spawnChecked(spawnSync, "/bin/chmod", ["700", dir]);
+  spawnChecked(spawnSync, "/bin/chmod", ["+a", `user:${listenerUser} allow ${narrowWriteAcl}`, dir]);
+  return { dir, listenerAcl: true };
+}
+
+function finalizeDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUser, spawnSync }) {
+  const dir = emailBindingDir(root, workspaceId);
+  if (!fs.existsSync(dir)) return { dir, existed: false };
+  fs.chmodSync(dir, 0o700);
+  for (const name of ["access-key.txt", "config.json"]) {
+    const file = path.join(dir, name);
+    if (fs.existsSync(file)) fs.chmodSync(file, 0o600);
+  }
+  if (process.platform !== "darwin" || typeof process.getuid !== "function" || process.getuid() !== 0) {
+    return { dir, existed: true };
+  }
+  const narrowWriteAcl = [
+    "list",
+    "add_file",
+    "search",
+    "delete_child",
+    "readattr",
+    "writeattr",
+    "readextattr",
+    "writeextattr",
+    "readsecurity",
+    "file_inherit",
+    "directory_inherit",
+  ].join(",");
+  spawnChecked(spawnSync, "/usr/sbin/chown", ["-R", `${macUser}:staff`, dir]);
+  spawnChecked(spawnSync, "/bin/chmod", ["700", dir]);
+  spawnChecked(spawnSync, "/bin/chmod", ["+a", `user:${listenerUser} allow ${narrowWriteAcl}`, dir]);
+  return { dir, existed: true, listenerAcl: true };
+}
+
 function contextPaths(root, workspaceId, macUser) {
   return {
     liveRoot: root,
@@ -197,6 +299,10 @@ async function apply(options = {}) {
   const issues = [];
   const workspaceReports = [];
   const specialPluginIds = pluginRows.filter((plugin) => plugin.special).map((plugin) => plugin.id);
+  const spawnSync = options.spawnSync || require("node:child_process").spawnSync;
+  const listenerUser = stringValue(env.HERMES_MOBILE_LISTENER_USER || env.HERMES_WEB_LISTENER_USER) || DEFAULT_LISTENER_USER;
+  const retryCount = Math.max(1, Number(options.retryCount || 4));
+  const retryDelayMs = Math.max(0, Number(options.retryDelayMs == null ? 750 : options.retryDelayMs));
 
   const gatewayWorkspaceProvisioningService = createGatewayWorkspaceProvisioningService({
     manifestPaths: [path.join(dataDir, "gateway-pool-manifest-mac.json")],
@@ -265,15 +371,37 @@ async function apply(options = {}) {
         continue;
       }
       try {
-        const result = await hermesPluginService.grantWorkspace({
-          id: row.id,
-          pluginId: row.id,
-          workspaceId,
-          displayName,
-          actor: "macos-first-install",
-          skipGatewayRefresh: true,
-          macUser,
-        });
+        if (row.id === "email") {
+          ensureDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUser, spawnSync });
+          actions.push({ action: "prepare-email-workspace-binding", workspaceId, pluginId: row.id, directory: `${EMAIL_BINDING_DIR}` });
+        }
+        let result = null;
+        let lastError = null;
+        for (let attempt = 1; attempt <= retryCount; attempt += 1) {
+          try {
+            result = await hermesPluginService.grantWorkspace({
+              id: row.id,
+              pluginId: row.id,
+              workspaceId,
+              displayName,
+              actor: "macos-first-install",
+              skipGatewayRefresh: true,
+              macUser,
+            });
+            lastError = null;
+          } catch (err) {
+            lastError = err;
+            result = null;
+          }
+          const failedResult = !result || result.ok === false || result.provisioning?.status === "provisioning_failed";
+          const retryable = failedResult && /fetch failed|ECONNREFUSED|ECONNRESET|EPIPE|ETIMEDOUT|timeout|AbortError/i.test(
+            stringValue(lastError?.message || result?.error || result?.provisioning?.error),
+          );
+          if (!retryable || attempt >= retryCount) break;
+          actions.push({ action: "retry-plugin-workspace-provisioning", workspaceId, pluginId: row.id, attempt, reason: compactError(lastError?.message || result?.error || result?.provisioning?.error) });
+          await sleep(retryDelayMs);
+        }
+        if (lastError) throw lastError;
         const failed = !result || result.ok === false || result.provisioning?.status === "provisioning_failed";
         if (failed) {
           const error = compactError(result?.error || result?.provisioning?.error || `${row.id}_provisioning_failed`);
@@ -286,6 +414,10 @@ async function apply(options = {}) {
           });
           issues.push({ code: "plugin_workspace_provisioning_failed", workspaceId, pluginId: row.id, error });
           continue;
+        }
+        if (row.id === "email") {
+          finalizeDarwinEmailBindingAcl({ root, workspaceId, macUser, listenerUser, spawnSync });
+          actions.push({ action: "finalize-email-workspace-binding", workspaceId, pluginId: row.id, directory: `${EMAIL_BINDING_DIR}` });
         }
         workspaceReport.activeCount += 1;
         workspaceReport.plugins.push({
@@ -332,9 +464,9 @@ async function apply(options = {}) {
       const launchd = await systemProvisioningExecutor.runStep("ensure_launchd_services", context);
       if (!launchd || launchd.ok === false) {
         const error = compactError(launchd?.error || "gateway_launchd_refresh_failed");
-        workspaceReport.gateway.launchd = { ok: false, error };
+        workspaceReport.gateway.launchd = { ok: false, error, details: compactDetails(launchd?.details) };
         if (!DEFAULT_ALLOWED_ERRORS.has(error)) {
-          issues.push({ code: "gateway_launchd_refresh_failed", workspaceId, error });
+          issues.push({ code: "gateway_launchd_refresh_failed", workspaceId, error, details: compactDetails(launchd?.details) });
         }
       } else {
         workspaceReport.gateway.launchd = {

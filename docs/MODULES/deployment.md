@@ -139,6 +139,17 @@ plugin bind/register calls, and Gateway MCP materialization ran without
 returning raw keys or tokens. This makes a fresh install fail closed if it only
 planned plugin provisioning but did not actually activate the workspace-local
 plugin boundary.
+The apply report must keep bounded failure details for Gateway materialization
+errors such as missing macOS groups or denied ownership changes. Fresh installs
+must create the `hermes-workers` group through `create-service-users` before
+Gateway worker assets are assigned to that group, and the workspace executor
+keeps the same group-creation guard for direct repair calls. Email registration
+has a narrow central ACL preparation step because the Email service writes its
+own `.hermes-email` workspace binding during registration; the installer must
+pre-create that directory, allow the service user to write it, and then
+reassert workspace-worker ownership. Plugin registration calls can retry
+transient loopback `fetch` failures, but persistent plugin contract failures
+remain blocking.
 The installer phase contract is intentionally machine-audited by
 `scripts/macos-install-phase-coverage-audit.js`; keep the source phase array,
 command generator, execution dispatcher, executable allowlist, tests, and docs

@@ -104,6 +104,29 @@ async function testEnsureMacUserCreatesHiddenAccount() {
   assert.ok(calls.some((call) => call.command === "/usr/sbin/dseditgroup" && call.args.includes("hermes-workers") && call.args.includes("hm-xulu")));
 }
 
+async function testEnsureMacUserCreatesMissingWorkerGroup() {
+  const calls = [];
+  const service = createWorkspaceSystemProvisioningExecutorService({
+    forceEnabled: true,
+    platform: "darwin",
+    run: fakeRunFactory(calls, {
+      "/usr/bin/dscl . -read /Groups/hermes-workers": () => ({ status: 185, stdout: "", stderr: "No such key" }),
+    }),
+    useSudoWrites: false,
+  });
+  const result = await service.runStep("ensure_mac_user", {
+    workspaceId: "xulu",
+    macUser: "hm-xulu",
+    paths: {
+      workerHome: "/Users/example/path",
+      workerWorkspaceRoot: "/Users/example/path",
+    },
+  });
+  assert.equal(result.ok, true);
+  assert.ok(calls.some((call) => call.command === "/usr/sbin/dseditgroup" && call.args.includes("create") && call.args.includes("hermes-workers")));
+  assert.ok(calls.some((call) => call.command === "/usr/sbin/dseditgroup" && call.args.includes("edit") && call.args.includes("hm-xulu")));
+}
+
 async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
   const root = posixTempRoot();
   const calls = [];
@@ -693,6 +716,7 @@ async function testRunSmokesFailsForTargetToolsetIssues() {
 async function run() {
   await testValidationHelpersAndDisabledStates();
   await testEnsureMacUserCreatesHiddenAccount();
+  await testEnsureMacUserCreatesMissingWorkerGroup();
   await testEnsureLaunchdMaterializesWorkerFilesAndManifest();
   await testEnsureLaunchdUsesManifestSkillStoreForOwnerAndLegacyAliases();
   await testEnsureLaunchdSyncsHealthBindingAndRendersMcpConfig();

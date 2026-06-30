@@ -8,6 +8,7 @@ NODE_COMMAND="${HOMEAI_NODE:-node}"
 NPM_COMMAND="${HOMEAI_NPM:-npm}"
 PYTHON_COMMAND="${HOMEAI_PYTHON:-${PYTHON:-python3}}"
 SERVICE_USERS="${HOMEAI_SERVICE_USERS:-hermes-host,hm-owner,hm-wuping,hm-stephen,hm-xuyan,hm-test}"
+WORKER_GROUP="${HOMEAI_WORKER_GROUP:-hermes-workers}"
 ALLOW_USER_CREATE="${HOMEAI_INSTALL_ALLOW_USER_CREATE:-0}"
 OWNER_KEY_FILE="${HOMEAI_OWNER_KEY_FILE:-}"
 WORKSPACE_MAP="${HOMEAI_WORKSPACE_MAP:-owner:hm-owner:owner,weixin_wuping:hm-wuping:weixin_wuping,weixin_stephen:hm-stephen:weixin_stephen,user-981731fe:hm-xuyan:user-981731fe,test:hm-test:test}"
@@ -801,7 +802,7 @@ NODE
 }
 
 run_service_user_phase() {
-  node - "$ROOT" "$SERVICE_USERS" "$ALLOW_USER_CREATE" <<'NODE'
+  node - "$ROOT" "$SERVICE_USERS" "$ALLOW_USER_CREATE" "$WORKER_GROUP" <<'NODE'
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -810,9 +811,11 @@ const { spawnSync } = require("node:child_process");
 const root = process.argv[2];
 const serviceUserCsv = process.argv[3] || "";
 const allowCreate = process.argv[4] === "1";
+const workerGroup = String(process.argv[5] || "hermes-workers").trim();
 const issues = [];
 const actions = [];
 const users = [...new Set(serviceUserCsv.split(",").map((item) => item.trim()).filter(Boolean))];
+let dseditgroupPath = "/usr/sbin/dseditgroup";
 
 function commandExists(command) {
   const result = spawnSync("/usr/bin/env", ["bash", "-c", `command -v ${JSON.stringify(command)}`], {
@@ -857,6 +860,50 @@ function findNextUid(dsclPath) {
   let uid = 550;
   while (ids.includes(uid)) uid += 1;
   return uid;
+}
+
+function groupExists(dsclPath, group) {
+  return run(dsclPath, [".", "-read", `/Groups/${group}`]).status === 0;
+}
+
+function ensureWorkerGroup(dsclPath, group) {
+  if (!/^[a-z_][a-z0-9_-]{0,31}$/.test(group)) {
+    return { ok: false, code: "worker_group_name_invalid" };
+  }
+  if (groupExists(dsclPath, group)) {
+    actions.push({ group, action: "group-exists" });
+    return { ok: true, existed: true };
+  }
+  if (!allowCreate) {
+    return {
+      ok: false,
+      code: "worker_group_missing",
+      remediation: "rerun as root with HOMEAI_INSTALL_ALLOW_USER_CREATE=1",
+    };
+  }
+  const created = run(dseditgroupPath, ["-o", "create", "-r", "Home AI Gateway worker group", group]);
+  if (created.status !== 0) {
+    return {
+      ok: false,
+      code: "worker_group_create_failed",
+      detail: `${created.stderr || created.stdout || `status=${created.status}`}`.trim().slice(-500),
+    };
+  }
+  actions.push({ group, action: "group-created" });
+  return { ok: true, existed: false };
+}
+
+function ensureUserInWorkerGroup(user, group) {
+  const result = run(dseditgroupPath, ["-o", "edit", "-a", user, "-t", "user", group]);
+  if (result.status !== 0) {
+    return {
+      ok: false,
+      code: "worker_group_membership_failed",
+      detail: `${result.stderr || result.stdout || `status=${result.status}`}`.trim().slice(-500),
+    };
+  }
+  actions.push({ user, group, action: "group-member" });
+  return { ok: true };
 }
 
 function createUser(dsclPath, user, uid) {
@@ -920,9 +967,23 @@ try {
   if (!dsclPath) {
     issues.push({ code: "dscl_not_found" });
   }
+  const resolvedDseditgroupPath = commandExists("dseditgroup");
+  if (resolvedDseditgroupPath) dseditgroupPath = resolvedDseditgroupPath;
   const isRoot = typeof process.getuid === "function" ? process.getuid() === 0 : false;
   if (allowCreate && !isRoot) {
     issues.push({ code: "root_required_for_user_create" });
+  }
+
+  if (issues.length === 0) {
+    const group = ensureWorkerGroup(dsclPath, workerGroup);
+    if (!group.ok) {
+      issues.push({
+        code: group.code,
+        group: workerGroup,
+        detail: group.detail,
+        remediation: group.remediation,
+      });
+    }
   }
 
   if (issues.length === 0) {
@@ -959,6 +1020,10 @@ try {
           shell: before.metadata.shell,
           home: before.metadata.home,
         });
+        if (allowCreate && isRoot) {
+          const member = ensureUserInWorkerGroup(user, workerGroup);
+          if (!member.ok) issues.push({ code: member.code, user, group: workerGroup, detail: member.detail });
+        }
         continue;
       }
       if (!allowCreate) {
@@ -982,6 +1047,8 @@ try {
         continue;
       }
       actions.push({ user, action: "created", uid, shell: "/usr/bin/false", home: `/Users/${user}` });
+      const member = ensureUserInWorkerGroup(user, workerGroup);
+      if (!member.ok) issues.push({ code: member.code, user, group: workerGroup, detail: member.detail });
     }
   }
 } catch (err) {
@@ -1000,6 +1067,7 @@ const report = {
   platform: os.platform(),
   allowCreate,
   serviceUsers: users,
+  workerGroup,
   actionCount: actions.length,
   createdCount: createdUsers.length,
   actions,
@@ -5000,6 +5068,13 @@ fi
 if [[ -z "$PYTHON_COMMAND" ]]; then
   echo "python-command must be non-empty" >&2
   exit 2
+fi
+
+if ! command -v node >/dev/null 2>&1 && [[ "$NODE_COMMAND" == */* ]] && "$NODE_COMMAND" -e 'process.exit(0)' >/dev/null 2>&1; then
+  NODE_COMMAND_DIR="$(cd "$(dirname "$NODE_COMMAND")" 2>/dev/null && pwd || true)"
+  if [[ -n "$NODE_COMMAND_DIR" ]]; then
+    export PATH="$NODE_COMMAND_DIR:$PATH"
+  fi
 fi
 
 if [[ -n "$PHASE_FILTER" ]] && ! phase_exists "$PHASE_FILTER"; then

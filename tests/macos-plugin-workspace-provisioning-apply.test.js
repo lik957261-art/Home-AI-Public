@@ -111,6 +111,7 @@ async function testApplyProvisionsOwnerPluginBindingsWithoutRawSecrets() {
     appSource: REPO_ROOT,
     workspaceMap: "owner:hm-owner:owner",
     skipGatewayRefresh: true,
+    retryDelayMs: 0,
     fetch: fakeFetchForRoot(root, calls),
   });
 
@@ -148,9 +149,45 @@ async function testApplyProvisionsOwnerPluginBindingsWithoutRawSecrets() {
   assert.equal(calls.some((call) => call.port === "5175"), true);
   assert.equal(calls.some((call) => call.port === "8791"), true);
   assert.equal(calls.some((call) => call.port === "8765"), true);
+  assert.equal(report.actions.some((action) => action.action === "prepare-email-workspace-binding"), true);
+  assert.equal(report.actions.some((action) => action.action === "finalize-email-workspace-binding"), true);
 }
 
-testApplyProvisionsOwnerPluginBindingsWithoutRawSecrets()
+async function testApplyRetriesTransientPluginFetchFailure() {
+  const root = tempRoot();
+  writePlan(root);
+  writeSecret(root, "wardrobe-registration-access-key.txt", "wardrobe-registration-secret");
+  writeSecret(root, "growth-owner-key.txt", "growth-owner-secret");
+  writeSecret(root, "health-owner-key.txt", "health-owner-secret");
+  writeSecret(root, "note-owner-key.txt", "note-owner-secret");
+  writeSecret(root, "email-owner-key.txt", "email-owner-secret");
+  const calls = [];
+  let growthAttempts = 0;
+  const fetch = async (url, options = {}) => {
+    const parsed = new URL(url);
+    if (parsed.port === "4881" && parsed.pathname.endsWith("/workspaces")) {
+      growthAttempts += 1;
+      if (growthAttempts === 1) throw new Error("fetch failed");
+    }
+    return fakeFetchForRoot(root, calls)(url, options);
+  };
+  const report = await apply({
+    root,
+    appSource: REPO_ROOT,
+    workspaceMap: "owner:hm-owner:owner",
+    skipGatewayRefresh: true,
+    retryCount: 2,
+    retryDelayMs: 0,
+    fetch,
+  });
+  assert.equal(report.ok, true, JSON.stringify(report.issues, null, 2));
+  assert.equal(growthAttempts, 2);
+  assert.equal(report.actions.some((action) => action.action === "retry-plugin-workspace-provisioning" && action.pluginId === "growth"), true);
+}
+
+Promise.resolve()
+  .then(testApplyProvisionsOwnerPluginBindingsWithoutRawSecrets)
+  .then(testApplyRetriesTransientPluginFetchFailure)
   .then(() => {
     console.log("macos plugin workspace provisioning apply tests passed");
   })

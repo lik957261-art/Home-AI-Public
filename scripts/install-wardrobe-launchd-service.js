@@ -43,6 +43,8 @@ function plistFor(options = {}) {
       WARDROBE_HOST: currentPlan.host,
       WARDROBE_PORT: currentPlan.port,
       WARDROBE_API_TOKEN_SECRET_DIR: path.posix.join(currentPlan.pluginRoot, "data", "api-token-secrets"),
+      WARDROBE_REGISTRATION_ACCESS_KEY_PATH: path.posix.join(paths.macRoot, "data", "plugin-secrets", "wardrobe-registration-access-key.txt"),
+      HERMES_MOBILE_WARDROBE_REGISTRATION_ACCESS_KEY_PATH: path.posix.join(paths.macRoot, "data", "plugin-secrets", "wardrobe-registration-access-key.txt"),
       WARDROBE_ALLOWED_ORIGINS: "http://127.0.0.1:8797",
       WARDROBE_HERMES_PLUGIN_FRAME_ANCESTORS: "http://127.0.0.1:8797",
     },

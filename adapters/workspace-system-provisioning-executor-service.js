@@ -438,6 +438,16 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     return command("/usr/bin/id", ["-u", user]).status === 0;
   }
 
+  function workerGroupExists() {
+    return command("/usr/bin/dscl", [".", "-read", `/Groups/${workerGroup}`]).status === 0;
+  }
+
+  function ensureWorkerGroupExists() {
+    if (workerGroupExists()) return { existed: true };
+    privileged("/usr/sbin/dseditgroup", ["-o", "create", "-r", "Home AI Gateway worker group", workerGroup]);
+    return { existed: false, created: true };
+  }
+
   function nextUid() {
     const result = checked("/usr/bin/dscl", [".", "-list", "/Users", "UniqueID"]);
     const uids = String(result.stdout || "").split(/\r?\n/)
@@ -447,6 +457,7 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
   }
 
   function ensureWorkerGroupMembership(fields) {
+    ensureWorkerGroupExists();
     privileged("/usr/sbin/dseditgroup", ["-o", "edit", "-a", fields.macUser, "-t", "user", workerGroup]);
     return workerGroup;
   }
