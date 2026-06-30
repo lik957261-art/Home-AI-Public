@@ -468,7 +468,7 @@ function compactRuntimePython(options) {
   const pythonPath = [options.runtimeOverrides, options.runtimeSource, process.env.PYTHONPATH]
     .filter(Boolean)
     .join(":");
-  const importCheck = spawnSync(summary.realPath, [
+  const importCheck = spawnSync(configuredPath, [
     "-c",
     [
       "import importlib, json",

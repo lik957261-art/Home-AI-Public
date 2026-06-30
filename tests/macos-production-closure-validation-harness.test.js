@@ -31,6 +31,7 @@ assert.match(script, /gateway-pool-production-smoke\.js/);
 assert.doesNotMatch(script, /weixin-ingress-production-smoke\.js/);
 assert.match(script, /compactRuntimePython/);
 assert.match(script, /runtime_python_resolves_to_developer_home/);
+assert.match(script, /spawnSync\(configuredPath/);
 assert.match(script, /hm-wuping-openai-1/);
 assert.match(script, /hm-owner-openai-1/);
 assert.match(script, /hm-test-openai-1/);
