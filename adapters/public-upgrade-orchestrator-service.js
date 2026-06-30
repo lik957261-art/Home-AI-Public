@@ -469,6 +469,7 @@ function createPublicUpgradeOrchestratorService(options = {}) {
   function deployCommand(input = {}) {
     const reason = safeSlug(input.reason || `public-upgrade-${Date.now()}`);
     const args = [pathApi.join(appPath, "scripts", "deploy-macos-production.js")];
+    const deployDevRoot = input.target === "home-ai" ? pathApi.dirname(appPath) : pluginRoot;
     if (input.target === "home-ai") {
       args.push("--target", "home-ai");
       if (input.sourcePath) args.push("--source", input.sourcePath);
@@ -476,7 +477,7 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       args.push("--plugin", targetPluginId(input.pluginId));
       if (input.sourcePath) args.push("--source", input.sourcePath);
     }
-    args.push("--mac-root", root, "--reason", reason, "--execute", "--json");
+    args.push("--mac-root", root, "--dev-root", deployDevRoot, "--reason", reason, "--execute", "--json");
     return [nodePath, ...args];
   }
 

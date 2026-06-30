@@ -243,6 +243,11 @@ async function testExecuteClonesDeploysAndValidatesProviderClosure() {
   assert.ok(result.steps.some((step) => step.type === "production-drift-reconcile"));
   assert.ok(result.steps.some((step) => step.type === "provider-profile-audit"));
   assert.ok(result.steps.some((step) => step.type === "closure-validation"));
+  const deployCalls = calls.filter((call) => String(call.args[0] || "").endsWith("deploy-macos-production.js"));
+  assert.ok(deployCalls.some((call) => call.args.includes("--plugin")
+    && call.args.includes("movie")
+    && call.args.includes("--dev-root")
+    && call.args.includes(fixture.pluginRoot)));
   assert.ok(calls.some((call) => call.command === "/bin/bash"
     && call.args[0] === "-lc"
     && call.args.join(" ").includes("macos-production-closure-validation.js")
@@ -308,6 +313,15 @@ async function testAdoptsNonGitInstalledSourcesBeforeDeploy() {
   assert.ok(result.steps.some((step) => step.type === "deploy" && step.pluginId === "moira"));
   assert.ok(result.steps.some((step) => step.type === "production-drift-reconcile"));
   assert.ok(fs.existsSync(path.join(fixture.appPath, ".git", "info", "exclude")));
+  const deployCalls = calls.filter((call) => String(call.args[0] || "").endsWith("deploy-macos-production.js"));
+  assert.ok(deployCalls.some((call) => call.args.includes("--target")
+    && call.args.includes("home-ai")
+    && call.args.includes("--dev-root")
+    && call.args.includes(path.dirname(fixture.appPath))));
+  assert.ok(deployCalls.some((call) => call.args.includes("--plugin")
+    && call.args.includes("moira")
+    && call.args.includes("--dev-root")
+    && call.args.includes(fixture.pluginRoot)));
 }
 
 async function testRepairsMissingHermesAgentRuntimeWithExplicitGate() {

@@ -746,6 +746,9 @@ the loop must run the production profile/provider audit and
 `scripts/macos-production-closure-validation.js`. It may report bounded
 provider/profile status, but must not print raw provider keys, OAuth state,
 worker API keys, cookies, launch tokens, or profile config bodies.
+When public upgrade deploys freshly cloned plugin sources, it passes the
+upgrade `pluginRoot` as the central deploy `--dev-root`; this accepts the
+explicit upgrade source tree without allowing arbitrary `/tmp` paths.
 
 Home AI plugin-load recovery also uses `config/public-plugin-sources.json` as
 the default plugin label map. When a loopback or private-network plugin

@@ -262,6 +262,9 @@ After a source update:
 - plugin source updates deploy the matching `--plugin <id>`;
 - freshly cloned plugin sources are also deployed, so clone-only partial
   closure cannot be mistaken for runtime closure;
+- cloned plugin sources deploy with the upgrade `pluginRoot` as the central
+  deploy `--dev-root`, so trusted temporary upgrade sources are accepted without
+  broadening the source boundary to arbitrary `/tmp` paths;
 - adopted Home AI/plugin source directories are deployed in the same run, so a
   checkout-adoption-only partial closure cannot be mistaken for runtime
   closure;
