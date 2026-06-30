@@ -140,6 +140,12 @@ function hasPackageLock(targetPath) {
   return fileExists(path.join(targetPath, "package-lock.json"));
 }
 
+function packageHasBuildScript(targetPath) {
+  const pkg = readJson(path.join(targetPath, "package.json"), null);
+  const build = pkg && typeof pkg === "object" ? pkg.scripts?.build : "";
+  return typeof build === "string" && build.trim().length > 0;
+}
+
 function isNonGitSource(repo = {}) {
   return repo.present === true && repo.warning === SOURCE_DIRECTORY_NOT_GIT;
 }
@@ -731,6 +737,14 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     return Object.assign({ target: label, path: targetPath }, result);
   }
 
+  async function buildPluginSource(targetPath, label) {
+    const result = await runCommand([npmCommand, "run", "build"], {
+      cwd: targetPath,
+      timeoutMs: timeoutMs * 12,
+    });
+    return Object.assign({ target: label, path: targetPath }, result);
+  }
+
   async function executeUpgrade(executeOptions = {}) {
     const startedAt = nowIso();
     const initialPlan = await buildPlan(Object.assign({}, executeOptions, { execute: true }));
@@ -864,6 +878,11 @@ function createPublicUpgradeOrchestratorService(options = {}) {
 
     for (const pluginId of updatedPlugins) {
       const plugin = initialPlan.plugins.find((item) => item.id === pluginId);
+      if (plugin?.sourcePath && packageHasBuildScript(plugin.sourcePath)) {
+        const build = await buildPluginSource(plugin.sourcePath, `plugin:${pluginId}`);
+        steps.push({ type: "build-plugin-source", target: `plugin:${pluginId}`, pluginId, result: build });
+        if (!build.ok) return fail(initialPlan, steps, `plugin_build_failed:${pluginId}`);
+      }
       const deploy = await runCommand(deployCommand({ pluginId, sourcePath: plugin?.sourcePath, reason: executeOptions.reason }), { timeoutMs: timeoutMs * 20 });
       steps.push({ type: "deploy", target: `plugin:${pluginId}`, pluginId, result: deploy });
       if (!deploy.ok || deploy.json?.ok === false) return fail(initialPlan, steps, `plugin_deploy_failed:${pluginId}`);
@@ -931,6 +950,7 @@ module.exports = {
   createPublicUpgradeOrchestratorService,
   hasDependencyFile,
   hasPackageLock,
+  packageHasBuildScript,
   normalizePluginId,
   targetPluginId,
 };

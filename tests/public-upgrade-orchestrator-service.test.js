@@ -8,6 +8,7 @@ const {
   createPublicUpgradeOrchestratorService,
   hasDependencyFile,
   hasPackageLock,
+  packageHasBuildScript,
 } = require("../adapters/public-upgrade-orchestrator-service");
 
 function mkdirp(value) {
@@ -28,6 +29,9 @@ function setupFixture() {
   const agentPython = path.join(runtimeRoot, "hermes-agent-official", "venv", "bin", "python");
   mkdirp(path.join(appPath, "config"));
   mkdirp(path.join(pluginRoot, "moira"));
+  writeJson(path.join(pluginRoot, "moira", "package.json"), {
+    scripts: { build: "node build.js" },
+  });
   mkdirp(agentSource);
   mkdirp(path.dirname(agentPython));
   fs.writeFileSync(agentPython, "#!/bin/sh\n");
@@ -121,6 +125,13 @@ function createFakeRunner(fixture, calls, runnerOptions = {}) {
         fs.writeFileSync(path.join(target, "package-lock.json"), "{}\n");
         return { ok: true, status: 0, stdout: "" };
       }
+    }
+    if (command === "npm" && args[0] === "run" && args[1] === "build") {
+      const kind = pathKind(options.cwd, fixture);
+      if ((runnerOptions.pluginBuildFails || []).includes(kind)) {
+        return { ok: false, status: 1, stderr: `build failed for ${kind}` };
+      }
+      return { ok: true, status: 0, stdout: "built\n" };
     }
     if (command === "npm") return { ok: true, status: 0, stdout: "" };
     if (command === fixture.agentPython) {
@@ -239,11 +250,21 @@ async function testExecuteClonesDeploysAndValidatesProviderClosure() {
   assert.deepEqual(result.updatedPlugins.sort(), ["moira", "movie"]);
   assert.equal(result.hermesAgentUpdated, true);
   assert.ok(result.steps.some((step) => step.type === "clone-plugin-source" && step.pluginId === "movie"));
+  assert.ok(result.steps.some((step) => step.type === "build-plugin-source" && step.pluginId === "moira"));
   assert.ok(result.steps.some((step) => step.type === "deploy" && step.pluginId === "movie"));
   assert.ok(result.steps.some((step) => step.type === "production-drift-reconcile"));
   assert.ok(result.steps.some((step) => step.type === "provider-profile-audit"));
   assert.ok(result.steps.some((step) => step.type === "closure-validation"));
+  const buildMoiraIndex = calls.findIndex((call) => call.command === "npm"
+    && call.args[0] === "run"
+    && call.args[1] === "build"
+    && call.cwd === path.join(fixture.pluginRoot, "moira"));
   const deployCalls = calls.filter((call) => String(call.args[0] || "").endsWith("deploy-macos-production.js"));
+  const deployMoiraIndex = calls.findIndex((call) => String(call.args[0] || "").endsWith("deploy-macos-production.js")
+    && call.args.includes("--plugin")
+    && call.args.includes("moira"));
+  assert.ok(buildMoiraIndex >= 0);
+  assert.ok(deployMoiraIndex > buildMoiraIndex);
   assert.ok(deployCalls.some((call) => call.args.includes("--plugin")
     && call.args.includes("movie")
     && call.args.includes("--dev-root")
@@ -258,6 +279,35 @@ async function testExecuteClonesDeploysAndValidatesProviderClosure() {
     && call.args[0] === "-lc"
     && call.args.join(" ").includes("--phase")
     && call.args.join(" ").includes("install-official-hermes-runtime")));
+}
+
+async function testPluginBuildFailureBlocksDeploy() {
+  const fixture = setupFixture();
+  const calls = [];
+  const service = createPublicUpgradeOrchestratorService({
+    root: fixture.root,
+    appPath: fixture.appPath,
+    pluginRoot: fixture.pluginRoot,
+    runtimeRoot: fixture.runtimeRoot,
+    hermesAgentSource: fixture.agentSource,
+    hermesAgentRepositoryUrl: "https://github.com/pentiumxp/hermes-agent-public.git",
+    hermesAgentPython: fixture.agentPython,
+    runProcess: createFakeRunner(fixture, calls, { pluginBuildFails: ["moira"] }),
+    nodePath: "/fake/node",
+    nowIso: () => "2026-06-29T00:00:00.000Z",
+  });
+  const result = await service.executeUpgrade({
+    reason: "test-upgrade",
+    cloneMissingPlugins: true,
+    updateHermesAgent: true,
+    installHermesAgentDependencies: true,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "plugin_build_failed:moira");
+  assert.ok(result.steps.some((step) => step.type === "build-plugin-source" && step.pluginId === "moira"));
+  assert.equal(calls.some((call) => String(call.args[0] || "").endsWith("deploy-macos-production.js")
+    && call.args.includes("--plugin")
+    && call.args.includes("moira")), false);
 }
 
 async function testAdoptsNonGitInstalledSourcesBeforeDeploy() {
@@ -473,12 +523,16 @@ function testDependencyHelpers() {
   assert.equal(hasPackageLock(dir), false);
   fs.writeFileSync(path.join(dir, "package-lock.json"), "{}\n");
   assert.equal(hasPackageLock(dir), true);
+  assert.equal(packageHasBuildScript(dir), false);
+  fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ scripts: { build: "vite build" } }));
+  assert.equal(packageHasBuildScript(dir), true);
 }
 
 (async () => {
   testDependencyHelpers();
   await testPlanRequiresExplicitCloneAndAgentUpdate();
   await testExecuteClonesDeploysAndValidatesProviderClosure();
+  await testPluginBuildFailureBlocksDeploy();
   await testAdoptsNonGitInstalledSourcesBeforeDeploy();
   await testRepairsMissingHermesAgentRuntimeWithExplicitGate();
   await testRepairsBrokenHermesAgentRuntimeImportsWithExplicitGate();
