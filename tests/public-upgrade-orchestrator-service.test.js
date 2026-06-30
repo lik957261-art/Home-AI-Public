@@ -259,10 +259,15 @@ async function testExecuteClonesDeploysAndValidatesProviderClosure() {
     && call.args[0] === "run"
     && call.args[1] === "build"
     && call.cwd === path.join(fixture.pluginRoot, "moira"));
+  const installMoiraIndex = calls.findIndex((call) => call.command === "npm"
+    && call.args[0] === "ci"
+    && call.cwd === path.join(fixture.pluginRoot, "moira"));
   const deployCalls = calls.filter((call) => String(call.args[0] || "").endsWith("deploy-macos-production.js"));
   const deployMoiraIndex = calls.findIndex((call) => String(call.args[0] || "").endsWith("deploy-macos-production.js")
     && call.args.includes("--plugin")
     && call.args.includes("moira"));
+  assert.ok(installMoiraIndex >= 0);
+  assert.equal(calls[installMoiraIndex].args.includes("--omit=dev"), false);
   assert.ok(buildMoiraIndex >= 0);
   assert.ok(deployMoiraIndex > buildMoiraIndex);
   assert.ok(deployCalls.some((call) => call.args.includes("--plugin")

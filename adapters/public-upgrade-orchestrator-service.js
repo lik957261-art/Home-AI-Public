@@ -729,12 +729,15 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     });
   }
 
-  async function installDependencies(targetPath, label) {
-    const result = await runCommand([npmCommand, "ci", "--omit=dev", "--no-audit", "--no-fund"], {
+  async function installDependencies(targetPath, label, installOptions = {}) {
+    const args = ["ci"];
+    if (installOptions.includeDev !== true) args.push("--omit=dev");
+    args.push("--no-audit", "--no-fund");
+    const result = await runCommand([npmCommand, ...args], {
       cwd: targetPath,
       timeoutMs: timeoutMs * 8,
     });
-    return Object.assign({ target: label, path: targetPath }, result);
+    return Object.assign({ target: label, path: targetPath, includeDev: installOptions.includeDev === true }, result);
   }
 
   async function buildPluginSource(targetPath, label) {
@@ -794,7 +797,9 @@ function createPublicUpgradeOrchestratorService(options = {}) {
         if (!adopted.ok) return fail(initialPlan, steps, `plugin_source_adoption_failed:${plugin.id}`);
         if (!updatedPlugins.includes(plugin.id)) updatedPlugins.push(plugin.id);
         if (executeOptions.installDependencies || hasPackageLock(plugin.sourcePath)) {
-          const deps = await installDependencies(plugin.sourcePath, `plugin:${plugin.id}`);
+        const deps = await installDependencies(plugin.sourcePath, `plugin:${plugin.id}`, {
+          includeDev: packageHasBuildScript(plugin.sourcePath),
+        });
           steps.push({ type: "install-dependencies", target: `plugin:${plugin.id}`, pluginId: plugin.id, result: deps });
           if (!deps.ok) return fail(initialPlan, steps, `plugin_dependency_install_failed:${plugin.id}`);
         }
@@ -806,7 +811,9 @@ function createPublicUpgradeOrchestratorService(options = {}) {
         clonedPlugin = true;
         updatedPlugins.push(plugin.id);
         if (executeOptions.installDependencies || hasPackageLock(plugin.sourcePath)) {
-          const deps = await installDependencies(plugin.sourcePath, `plugin:${plugin.id}`);
+          const deps = await installDependencies(plugin.sourcePath, `plugin:${plugin.id}`, {
+            includeDev: packageHasBuildScript(plugin.sourcePath),
+          });
           steps.push({ type: "install-dependencies", target: `plugin:${plugin.id}`, pluginId: plugin.id, result: deps });
           if (!deps.ok) return fail(initialPlan, steps, `plugin_dependency_install_failed:${plugin.id}`);
         }
@@ -823,7 +830,9 @@ function createPublicUpgradeOrchestratorService(options = {}) {
         if (!update.ok) return fail(initialPlan, steps, `plugin_fast_forward_failed:${plugin.id}`);
         if (!updatedPlugins.includes(plugin.id)) updatedPlugins.push(plugin.id);
         if (update.dependencyFilesChanged || executeOptions.installDependencies) {
-          const deps = await installDependencies(plugin.sourcePath, `plugin:${plugin.id}`);
+          const deps = await installDependencies(plugin.sourcePath, `plugin:${plugin.id}`, {
+            includeDev: packageHasBuildScript(plugin.sourcePath),
+          });
           steps.push({ type: "install-dependencies", target: `plugin:${plugin.id}`, pluginId: plugin.id, result: deps });
           if (!deps.ok) return fail(initialPlan, steps, `plugin_dependency_install_failed:${plugin.id}`);
         }

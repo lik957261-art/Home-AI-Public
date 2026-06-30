@@ -753,10 +753,11 @@ worker API keys, cookies, launch tokens, or profile config bodies.
 When public upgrade deploys freshly cloned plugin sources, it passes the
 upgrade `pluginRoot` as the central deploy `--dev-root`; this accepts the
 explicit upgrade source tree without allowing arbitrary `/tmp` paths.
-For source-only public plugin checkouts, the upgrade loop runs `npm run build`
-before deploy when the plugin package declares `scripts.build`. The central
-deploy proof-file gate remains strict: if the build fails or still does not
-produce the expected artifact, upgrade stops before runtime closure.
+For source-only public plugin checkouts, the upgrade loop keeps dev
+dependencies during `npm ci` and runs `npm run build` before deploy when the
+plugin package declares `scripts.build`. The central deploy proof-file gate
+remains strict: if the build fails or still does not produce the expected
+artifact, upgrade stops before runtime closure.
 
 Home AI plugin-load recovery also uses `config/public-plugin-sources.json` as
 the default plugin label map. When a loopback or private-network plugin

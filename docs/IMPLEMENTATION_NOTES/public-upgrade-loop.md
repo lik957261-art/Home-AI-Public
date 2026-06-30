@@ -261,9 +261,10 @@ After a source update:
 - Home AI source updates deploy `--target home-ai`;
 - plugin source updates deploy the matching `--plugin <id>`;
 - updated plugin sources with a `package.json` `scripts.build` command run
-  `npm run build` before deploy, so source-only public plugin checkouts produce
-  required proof artifacts such as `dist/web/index.html` before the central
-  deploy proof-file gate runs;
+  `npm ci` with dev dependencies retained and then `npm run build` before
+  deploy, so source-only public plugin checkouts produce required proof
+  artifacts such as `dist/web/index.html` before the central deploy proof-file
+  gate runs;
 - freshly cloned plugin sources are also deployed, so clone-only partial
   closure cannot be mistaken for runtime closure;
 - cloned plugin sources deploy with the upgrade `pluginRoot` as the central
