@@ -4865,7 +4865,7 @@ try {
     issues.push({ code: "closure_node_missing", path: nodeCommand });
   }
   if (issues.length === 0) {
-    const args = [closureScript, "--root", root, "--base", base, "--expected-workspaces", expectedWorkspaces, "--allow-provider-auth-pending", "--json"];
+    const args = [closureScript, "--root", root, "--base", base, "--expected-workspaces", expectedWorkspaces, "--allow-provider-auth-pending", "--wardrobe-min-item-count", "0", "--json"];
     const result = spawnSync(nodeCommand, args, {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],

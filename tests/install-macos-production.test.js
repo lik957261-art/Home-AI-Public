@@ -50,6 +50,7 @@ function testScriptExistsAndIsSafeByDefault() {
   assert.match(source, /public-install-preflight\.js/);
   assert.match(source, /execute_not_enabled/);
   assert.match(source, /--allow-provider-auth-pending/);
+  assert.match(source, /--wardrobe-min-item-count", "0"/);
   assert.doesNotMatch(source, /--skip-wardrobe-binding/);
   assert.doesNotMatch(source, /launchctl bootstrap/);
 }

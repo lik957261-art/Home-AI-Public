@@ -455,6 +455,11 @@ service root.
   `http://127.0.0.1:8765`, opens the same-origin proxy entry, and reads only
   bounded bootstrap counts. It must not print raw keys, key paths, launch
   tokens, or item details.
+  Maintainer production closure keeps the default minimum bootstrap item count
+  of `1`; fresh public macOS install smoke passes
+  `--wardrobe-min-item-count 0` through
+  `scripts/macos-production-closure-validation.js` because a newly provisioned
+  Wardrobe workspace can be valid but empty.
 - Shared Windows SSH aliases for all local workspaces and plugin projects:
   `homeai-mac`, `homeai-macstudio-prod`, and `macstudio-110`
 - Shared Windows SSH identity:

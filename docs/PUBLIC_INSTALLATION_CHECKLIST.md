@@ -494,6 +494,12 @@ bounded pending setup state. It still fails on malformed links, unreadable auth
 files, missing Wardrobe binding, broken plugin bindings, or other profile-audit
 issues. Maintainer production closure and deploy validation remain strict unless
 these explicit install-mode provider-auth flags are used.
+Fresh installs also pass `--wardrobe-min-item-count 0` to the aggregate closure
+because a new Wardrobe workspace may be correctly provisioned but empty. This
+does not weaken Wardrobe binding validation: manifest availability, launch
+token issuance, Mac loopback origin, same-origin proxy entry, bootstrap route,
+and workspace-local key/config shape still have to pass. Maintainer production
+closure keeps the default minimum item count.
 In that same fresh-install mode, profile audit does not require workspace-private
 business plugin authorization records before the apply phase. The installer
 writes `data/plugin-workspace-provisioning-plan.json` for those grants, and

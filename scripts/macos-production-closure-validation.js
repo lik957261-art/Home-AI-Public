@@ -47,6 +47,7 @@ function parseArgs(argv) {
     concurrentOwnerRuns: 2,
     expectedWorkspaces: process.env.HOMEAI_CLOSURE_EXPECTED_WORKSPACES || DEFAULT_PROFILE_AUDIT_WORKSPACES,
     requiredWorkspacePlugins: process.env.HOMEAI_CLOSURE_REQUIRED_WORKSPACE_PLUGINS || "",
+    wardrobeMinItemCount: 1,
     skipSchema: false,
     skipPluginDirectory: false,
     skipBoundDirectory: false,
@@ -75,6 +76,7 @@ function parseArgs(argv) {
     else if (arg === "--concurrent-owner-runs") out.concurrentOwnerRuns = Number(argv[++index] || out.concurrentOwnerRuns);
     else if (arg === "--expected-workspaces") out.expectedWorkspaces = argv[++index] || out.expectedWorkspaces;
     else if (arg === "--required-workspace-plugins") out.requiredWorkspacePlugins = argv[++index] || out.requiredWorkspacePlugins;
+    else if (arg === "--wardrobe-min-item-count") out.wardrobeMinItemCount = Number(argv[++index] || out.wardrobeMinItemCount);
     else if (arg === "--skip-schema") out.skipSchema = true;
     else if (arg === "--skip-plugin-directory") out.skipPluginDirectory = true;
     else if (arg === "--skip-bound-directory") out.skipBoundDirectory = true;
@@ -96,6 +98,8 @@ function parseArgs(argv) {
         "  --expected-workspaces <ids> Profile-audit workspace ids, default owner",
         "  --required-workspace-plugins <map>",
         "                            Profile-audit workspace plugin map, default empty",
+        "  --wardrobe-min-item-count <n>",
+        "                            Minimum Wardrobe bootstrap item count, default 1; fresh install may use 0",
         "  --skip-schema             Skip native Gateway schema probes",
         "  --skip-plugin-directory   Skip plugin delivery-directory creation and preview smoke",
         "  --skip-bound-directory    Skip all-workspace directory-topic binding preview smokes",
@@ -125,6 +129,7 @@ function parseArgs(argv) {
   if (!Number.isFinite(out.runTimeoutMs) || out.runTimeoutMs <= 0) out.runTimeoutMs = 300000;
   if (!Number.isFinite(out.commandTimeoutMs) || out.commandTimeoutMs <= 0) out.commandTimeoutMs = 360000;
   if (!Number.isFinite(out.concurrentOwnerRuns) || out.concurrentOwnerRuns < 1) out.concurrentOwnerRuns = 2;
+  if (!Number.isFinite(out.wardrobeMinItemCount) || out.wardrobeMinItemCount < 0) out.wardrobeMinItemCount = 1;
   out.expectedWorkspaces = String(out.expectedWorkspaces || DEFAULT_PROFILE_AUDIT_WORKSPACES).trim();
   if (!out.expectedWorkspaces) out.expectedWorkspaces = DEFAULT_PROFILE_AUDIT_WORKSPACES;
   out.requiredWorkspacePlugins = String(out.requiredWorkspacePlugins || "").trim();
@@ -610,6 +615,7 @@ async function runClosure(options) {
     "--base", options.base,
     "--access-key-file", options.ownerKeyFile,
     ...wardrobeSmokeWorkspaceArgs(options.expectedWorkspaces),
+    "--min-item-count", String(options.wardrobeMinItemCount),
     "--json",
   ]));
 
