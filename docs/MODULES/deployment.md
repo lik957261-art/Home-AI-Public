@@ -703,12 +703,16 @@ bounded upgrade JSON before truncating display output so failures such as
 
 Hermes Agent and provider ingress are deployment dependencies. A fresh install
 must close `install-official-hermes-runtime`, which now pins
-`runtime/node-current/bin/node`, verifies an operator-provided Python `>=3.12`,
-clones or reuses `<root>/runtime/hermes-agent-official/source`, accepts a git
-checkout or packaged Python project containing `pyproject.toml` / `setup.py`,
-creates `<root>/runtime/hermes-agent-official/venv`, and installs Hermes Agent
-dependencies when `--install-hermes-agent-dependencies 1` is set. The public
-upgrade loop then checks the same source and
+`runtime/node-current/bin/node`, copies temporary bootstrap Node distributions
+into `<root>/runtime/node-distributions/` before linking them, verifies a Python
+`>=3.12`, clones or reuses `<root>/runtime/hermes-agent-official/source`,
+accepts a git checkout or packaged Python project containing `pyproject.toml` /
+`setup.py`, creates `<root>/runtime/hermes-agent-official/venv`, and installs
+Hermes Agent dependencies when `--install-hermes-agent-dependencies 1` is set.
+The public upgrade CLI prefers `HOMEAI_PYTHON`, `PYTHON`,
+`/opt/homebrew/bin/python3`, `/usr/local/bin/python3`, then `python3` when no
+explicit `--python-command` is supplied. The public upgrade loop then checks the
+same source and
 `<root>/runtime/hermes-agent-official/venv/bin/python`; a Hermes Agent source
 update requires explicit `--update-hermes-agent`, and dependency installation
 requires `--install-hermes-agent-dependencies`. If the virtualenv Python is

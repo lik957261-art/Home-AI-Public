@@ -736,6 +736,20 @@ function makeFakeNode(version = "v24.14.1") {
   return nodePath;
 }
 
+function makeFakeNodeDistribution(version = "v24.14.1") {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-node-dist-parent-"));
+  const packageName = `node-${version}-darwin-arm64`;
+  const bin = path.join(parent, packageName, "bin");
+  fs.mkdirSync(bin, { recursive: true });
+  const nodePath = path.join(bin, "node");
+  const npmPath = path.join(bin, "npm");
+  const npxPath = path.join(bin, "npx");
+  fs.writeFileSync(nodePath, `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "${version}"; exit 0; fi\nexit 0\n`, { mode: 0o755 });
+  fs.writeFileSync(npmPath, "#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo \"11.11.0\"; exit 0; fi\nexit 0\n", { mode: 0o755 });
+  fs.writeFileSync(npxPath, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  return { packageName, packageRoot: path.join(parent, packageName), nodePath, npmPath, npxPath };
+}
+
 function makeFakeNpm({ fail = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-npm-"));
   const npmPath = path.join(dir, "npm");
@@ -958,6 +972,43 @@ function testExecuteRuntimePhaseLinksNodeIdempotently() {
   assert.ok(second.execution.report.actions.some((action) => action.action === "runtime-node-already-linked"));
   assert.ok(second.execution.report.actions.some((action) => action.action === "runtime-npm-already-linked"));
   assert.ok(second.execution.report.actions.some((action) => action.action === "hermes-agent-venv-exists"));
+}
+
+function testExecuteRuntimePhaseMaterializesTemporaryNodeDistribution() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-runtime-materialize-"));
+  const previous = makeFakeNodeDistribution();
+  const next = makeFakeNodeDistribution();
+  const runtimeBin = path.join(root, "runtime", "node-current", "bin");
+  fs.mkdirSync(runtimeBin, { recursive: true });
+  fs.symlinkSync(previous.nodePath, path.join(runtimeBin, "node"));
+  fs.symlinkSync(previous.npmPath, path.join(runtimeBin, "npm"));
+  fs.symlinkSync(previous.npxPath, path.join(runtimeBin, "npx"));
+
+  const parsed = JSON.parse(run([
+    "--execute",
+    "--phase",
+    "install-official-hermes-runtime",
+    "--root",
+    root,
+    "--node-command",
+    next.nodePath,
+    "--npm-command",
+    next.npmPath,
+    "--python-command",
+    makeFakePython(),
+    "--hermes-agent-source",
+    makeFakeAgentSource(),
+    "--json",
+  ]));
+  assert.equal(parsed.ok, true, JSON.stringify(parsed.execution?.report?.issues, null, 2));
+  const stableNode = path.join(root, "runtime", "node-distributions", next.packageName, "bin", "node");
+  const stableNpm = path.join(root, "runtime", "node-distributions", next.packageName, "bin", "npm");
+  assert.equal(fs.existsSync(stableNode), true);
+  assert.equal(path.resolve(path.dirname(path.join(runtimeBin, "node")), fs.readlinkSync(path.join(runtimeBin, "node"))), stableNode);
+  assert.equal(path.resolve(path.dirname(path.join(runtimeBin, "npm")), fs.readlinkSync(path.join(runtimeBin, "npm"))), stableNpm);
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "runtime-node-distribution-copy"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "runtime-node-symlink-repair"));
+  assert.ok(parsed.execution.report.actions.some((action) => action.action === "runtime-npm-symlink-repair"));
 }
 
 function testExecuteRuntimePhaseAcceptsPackagedAgentSource() {
@@ -2334,6 +2385,7 @@ testExecuteDependencyPhaseUsesBoundedNpmCi();
 testExecuteDependencyPhaseFailsWithoutLockfile();
 testExecuteDependencyPhaseReportsNpmFailureBoundedly();
 testExecuteRuntimePhaseLinksNodeIdempotently();
+testExecuteRuntimePhaseMaterializesTemporaryNodeDistribution();
 testExecuteRuntimePhaseAcceptsPackagedAgentSource();
 testExecuteRuntimePhaseFailsClosedForNonProjectAgentSource();
 testExecuteRuntimePhaseFailsOnDifferentExistingNode();

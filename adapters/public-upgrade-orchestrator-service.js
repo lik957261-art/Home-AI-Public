@@ -81,6 +81,15 @@ function dirExists(filePath) {
   }
 }
 
+function bestPythonCommand() {
+  const configured = cleanString(process.env.HOMEAI_PYTHON || process.env.PYTHON, 500);
+  if (configured) return configured;
+  for (const candidate of ["/opt/homebrew/bin/python3", "/usr/local/bin/python3"]) {
+    if (fileExists(candidate)) return candidate;
+  }
+  return "python3";
+}
+
 function defaultRunProcess(command, args = [], options = {}) {
   return new Promise((resolve) => {
     execFile(command, args, {
@@ -141,7 +150,7 @@ function createPublicUpgradeOrchestratorService(options = {}) {
   const nodePath = pathApi.resolve(options.nodePath || pathApi.join(runtimeRoot, "node-current", "bin", "node"));
   const npmCommand = options.npmCommand || process.env.HOMEAI_NPM || "npm";
   const installerNodeCommand = cleanString(options.installerNodeCommand || process.env.HOMEAI_NODE || process.execPath || "node", 500);
-  const pythonCommand = cleanString(options.pythonCommand || process.env.HOMEAI_PYTHON || process.env.PYTHON || "python3", 500);
+  const pythonCommand = cleanString(options.pythonCommand || bestPythonCommand(), 500);
   const gitCommand = options.gitCommand || process.env.HOMEAI_GIT || "git";
   const manifestPath = pathApi.resolve(options.manifestPath || pathApi.join(appPath, "config", "public-plugin-sources.json"));
   const homeAiRepositoryUrl = cleanString(options.homeAiRepositoryUrl || process.env.HOMEAI_PUBLIC_REPOSITORY_URL || "", 500);
@@ -473,7 +482,7 @@ function createPublicUpgradeOrchestratorService(options = {}) {
   }
 
   function hermesAgentRuntimeInstallCommand(input = {}) {
-    return [
+    return sudoCommand([
       "/bin/bash",
       pathApi.join(appPath, "scripts", "install-macos-production.sh"),
       "--execute",
@@ -498,7 +507,7 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       "--install-hermes-agent-dependencies",
       input.installDependencies ? "1" : "0",
       "--json",
-    ];
+    ]);
   }
 
   function closureCommand() {
@@ -513,7 +522,11 @@ function createPublicUpgradeOrchestratorService(options = {}) {
 
   function sudoNodeCommand(scriptName, args = []) {
     const script = pathApi.join(appPath, "scripts", scriptName);
-    const argv = [nodePath, script, ...args].map(shellQuote).join(" ");
+    return sudoCommand([nodePath, script, ...args]);
+  }
+
+  function sudoCommand(argvItems = []) {
+    const argv = argvItems.map(shellQuote).join(" ");
     const shell = [
       "set -e",
       "if /usr/bin/sudo -n -v >/dev/null 2>&1; then",

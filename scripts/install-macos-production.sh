@@ -6,7 +6,16 @@ APP_SOURCE="$(cd "$SCRIPT_DIR/.." && pwd)"
 ROOT="/Users/example/path"
 NODE_COMMAND="${HOMEAI_NODE:-node}"
 NPM_COMMAND="${HOMEAI_NPM:-npm}"
-PYTHON_COMMAND="${HOMEAI_PYTHON:-${PYTHON:-python3}}"
+default_python_command() {
+  for candidate in /opt/homebrew/bin/python3 /usr/local/bin/python3 python3.13 python3.12 python3; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      command -v "$candidate"
+      return
+    fi
+  done
+  printf '%s\n' "python3"
+}
+PYTHON_COMMAND="${HOMEAI_PYTHON:-${PYTHON:-$(default_python_command)}}"
 SERVICE_USERS="${HOMEAI_SERVICE_USERS:-hermes-host,hm-owner,hm-wuping,hm-stephen,hm-xuyan,hm-test}"
 WORKER_GROUP="${HOMEAI_WORKER_GROUP:-hermes-workers}"
 ALLOW_USER_CREATE="${HOMEAI_INSTALL_ALLOW_USER_CREATE:-0}"
@@ -4435,7 +4444,69 @@ function hasPythonProjectMarker(directory) {
   return fs.existsSync(path.join(directory, "pyproject.toml")) || fs.existsSync(path.join(directory, "setup.py"));
 }
 
-function ensureSymlink(pathName, resolvedTarget, codePrefix) {
+function isInside(parent, child) {
+  const relative = path.relative(parent, child);
+  return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function isTemporaryRuntimeTarget(targetPath) {
+  const resolved = path.resolve(targetPath);
+  const tmpRoots = [os.tmpdir(), "/tmp", "/private/tmp", "/var/tmp"]
+    .map((item) => path.resolve(item))
+    .map((item) => (fs.existsSync(item) ? fs.realpathSync(item) : item));
+  const realResolved = fs.existsSync(resolved) ? fs.realpathSync(resolved) : resolved;
+  return tmpRoots.some((tmpRoot) => realResolved === tmpRoot || isInside(tmpRoot, realResolved));
+}
+
+function isTemporaryNodeDistributionTarget(targetPath) {
+  const realTarget = fs.existsSync(targetPath) ? fs.realpathSync(targetPath) : path.resolve(targetPath);
+  const binDir = path.dirname(realTarget);
+  const packageDir = path.dirname(binDir);
+  return path.basename(binDir) === "bin"
+    && /^node-v\d+\.\d+\.\d+-darwin-[A-Za-z0-9._-]+$/.test(path.basename(packageDir))
+    && isTemporaryRuntimeTarget(packageDir);
+}
+
+function materializeTemporaryNodeRuntime(resolvedNode, resolvedNpm) {
+  const nodeReal = fs.realpathSync(resolvedNode);
+  const nodeBinDir = path.dirname(nodeReal);
+  const nodePackageDir = path.dirname(nodeBinDir);
+  const packageName = path.basename(nodePackageDir);
+  if (path.basename(nodeReal) !== "node") return { node: resolvedNode, npm: resolvedNpm };
+  if (path.basename(nodeBinDir) !== "bin") return { node: resolvedNode, npm: resolvedNpm };
+  if (!/^node-v\d+\.\d+\.\d+-darwin-[A-Za-z0-9._-]+$/.test(packageName)) return { node: resolvedNode, npm: resolvedNpm };
+  if (!isTemporaryRuntimeTarget(nodePackageDir)) return { node: resolvedNode, npm: resolvedNpm };
+  const stableRoot = path.join(root, "runtime", "node-distributions");
+  const stablePackageDir = path.join(stableRoot, packageName);
+  if (!fs.existsSync(path.join(stablePackageDir, "bin", "node"))) {
+    fs.mkdirSync(stableRoot, { recursive: true, mode: 0o755 });
+    fs.rmSync(stablePackageDir, { recursive: true, force: true });
+    fs.cpSync(nodePackageDir, stablePackageDir, {
+      recursive: true,
+      filter(sourcePath) {
+        const base = path.basename(sourcePath);
+        return base !== "__pycache__";
+      },
+    });
+    actions.push({
+      action: "runtime-node-distribution-copy",
+      source: path.relative(root, nodePackageDir) || nodePackageDir,
+      target: path.relative(root, stablePackageDir) || stablePackageDir,
+    });
+  } else {
+    actions.push({
+      action: "runtime-node-distribution-exists",
+      target: path.relative(root, stablePackageDir) || stablePackageDir,
+    });
+  }
+  return {
+    node: path.join(stablePackageDir, "bin", "node"),
+    npm: path.join(stablePackageDir, "bin", "npm"),
+    npx: path.join(stablePackageDir, "bin", "npx"),
+  };
+}
+
+function ensureSymlink(pathName, resolvedTarget, codePrefix, options = {}) {
   const actionName = codePrefix.replace(/_/g, "-");
   if (fs.existsSync(pathName)) {
     const stat = fs.lstatSync(pathName);
@@ -4446,6 +4517,21 @@ function ensureSymlink(pathName, resolvedTarget, codePrefix) {
     const currentTarget = fs.readlinkSync(pathName);
     const currentResolved = path.resolve(path.dirname(pathName), currentTarget);
     if (currentResolved !== resolvedTarget) {
+      const currentTargetMissing = !fs.existsSync(currentResolved);
+      const currentTargetRepairable = currentTargetMissing
+        ? isTemporaryRuntimeTarget(currentResolved)
+        : isTemporaryNodeDistributionTarget(currentResolved);
+      if (options.repairTemporaryTarget && currentTargetRepairable) {
+        fs.unlinkSync(pathName);
+        fs.symlinkSync(resolvedTarget, pathName);
+        actions.push({
+          action: `${actionName}-symlink-repair`,
+          path: pathName,
+          previousTarget: currentResolved,
+          target: resolvedTarget,
+        });
+        return;
+      }
       issues.push({
         code: `${codePrefix}_symlink_target_mismatch`,
         path: pathName,
@@ -4503,7 +4589,9 @@ function syncRuntimeAgentSource(sourceDirectory) {
 }
 
 try {
-  const resolvedNode = resolveCommand(requestedNode);
+  let resolvedNode = resolveCommand(requestedNode);
+  let resolvedNpm = "";
+  let resolvedNpx = "";
   if (!resolvedNode || !fs.existsSync(resolvedNode)) {
     issues.push({ code: "node_command_not_found", command: requestedNode });
   } else {
@@ -4523,19 +4611,23 @@ try {
     }
 
     if (issues.length === 0) {
+      const materialized = materializeTemporaryNodeRuntime(resolvedNode, "");
+      resolvedNode = materialized.node;
+      resolvedNpm = materialized.npm || "";
+      resolvedNpx = materialized.npx || "";
       fs.mkdirSync(runtimeBin, { recursive: true, mode: 0o755 });
-      ensureSymlink(targetNode, resolvedNode, "runtime_node");
+      ensureSymlink(targetNode, resolvedNode, "runtime_node", { repairTemporaryTarget: true });
     }
   }
 
-  const resolvedNpm = resolveCommand(requestedNpm);
+  if (!resolvedNpm) resolvedNpm = resolveCommand(requestedNpm);
   if (!resolvedNpm || !fs.existsSync(resolvedNpm)) {
     issues.push({ code: "npm_command_not_found", command: requestedNpm });
   } else if (issues.length === 0) {
-    ensureSymlink(targetNpm, resolvedNpm, "runtime_npm");
-    const siblingNpx = path.join(path.dirname(resolvedNpm), "npx");
+    ensureSymlink(targetNpm, resolvedNpm, "runtime_npm", { repairTemporaryTarget: true });
+    const siblingNpx = resolvedNpx || path.join(path.dirname(resolvedNpm), "npx");
     if (fs.existsSync(siblingNpx)) {
-      ensureSymlink(targetNpx, siblingNpx, "runtime_npx");
+      ensureSymlink(targetNpx, siblingNpx, "runtime_npx", { repairTemporaryTarget: true });
     }
   }
 

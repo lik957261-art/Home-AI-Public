@@ -1,10 +1,20 @@
 #!/usr/bin/env node
 "use strict";
 
+const fs = require("node:fs");
 const { createPublicUpgradeOrchestratorService } = require("../adapters/public-upgrade-orchestrator-service");
 
 function clean(value, max = 400) {
   return String(value == null ? "" : value).trim().slice(0, max);
+}
+
+function bestPythonCommand() {
+  const configured = clean(process.env.HOMEAI_PYTHON || process.env.PYTHON, 500);
+  if (configured) return configured;
+  for (const candidate of ["/opt/homebrew/bin/python3", "/usr/local/bin/python3"]) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return "python3";
 }
 
 function parseArgs(argv = []) {
@@ -20,7 +30,7 @@ function parseArgs(argv = []) {
     baseUrl: process.env.HERMES_MOBILE_SMOKE_BASE || "http://127.0.0.1:8797",
     nodeCommand: process.env.HOMEAI_NODE || process.execPath || "node",
     npmCommand: process.env.HOMEAI_NPM || "npm",
-    pythonCommand: process.env.HOMEAI_PYTHON || process.env.PYTHON || "python3",
+    pythonCommand: bestPythonCommand(),
     reason: "public-upgrade",
     timeoutMs: 30000,
     execute: false,

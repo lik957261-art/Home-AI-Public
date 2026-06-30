@@ -202,8 +202,13 @@ function remoteShell(script) {
 function remoteNodeEnv(plan = {}) {
   const lines = [
     `export PATH=${shellQuote(`${plan.remoteRoot}/runtime/bin`)}:"$PATH"`,
-    "export HOMEAI_NODE=node",
-    "export HOMEAI_NPM=npm",
+    `export HOMEAI_NODE=${shellQuote(`${plan.remoteRoot}/runtime/bin/node`)}`,
+    `export HOMEAI_NPM=${shellQuote(`${plan.remoteRoot}/runtime/bin/npm`)}`,
+    "if [ -z \"${HOMEAI_PYTHON:-}\" ]; then",
+    "  for candidate in /opt/homebrew/bin/python3 /usr/local/bin/python3 python3.13 python3.12 python3; do",
+    "    if command -v \"$candidate\" >/dev/null 2>&1; then export HOMEAI_PYTHON=\"$(command -v \"$candidate\")\"; break; fi",
+    "  done",
+    "fi",
     `export HOMEAI_PUBLIC_REPOSITORY_URL=${shellQuote(plan.publicRepoUrl || DEFAULT_PUBLIC_REPO_URL)}`,
     "export GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new'",
   ];

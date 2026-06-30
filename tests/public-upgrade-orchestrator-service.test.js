@@ -127,6 +127,9 @@ function createFakeRunner(fixture, calls, options = {}) {
     if (command === "/bin/bash" && String(args[0] || "").endsWith("install-macos-production.sh")) {
       return { ok: true, status: 0, stdout: JSON.stringify({ ok: true, execution: { phase: "install-official-hermes-runtime", ok: true } }) };
     }
+    if (command === "/bin/bash" && args[0] === "-lc" && String(args[1] || "").includes("install-official-hermes-runtime")) {
+      return { ok: true, status: 0, stdout: JSON.stringify({ ok: true, execution: { phase: "install-official-hermes-runtime", ok: true } }) };
+    }
     if (command === "/bin/bash" && args[0] === "-lc" && String(args[1] || "").includes("macos-production-drift-reconcile.js")) {
       return { ok: true, status: 0, stdout: JSON.stringify({ ok: true, actionCount: 1 }) };
     }
@@ -221,8 +224,9 @@ async function testExecuteClonesDeploysAndValidatesProviderClosure() {
   assert.ok(result.steps.some((step) => step.type === "provider-profile-audit"));
   assert.ok(result.steps.some((step) => step.type === "closure-validation"));
   assert.ok(calls.some((call) => call.command === "/bin/bash"
-    && call.args.includes("--phase")
-    && call.args.includes("install-official-hermes-runtime")));
+    && call.args[0] === "-lc"
+    && call.args.join(" ").includes("--phase")
+    && call.args.join(" ").includes("install-official-hermes-runtime")));
 }
 
 async function testAdoptsNonGitInstalledSourcesBeforeDeploy() {
@@ -315,7 +319,7 @@ async function testRepairsMissingHermesAgentRuntimeWithExplicitGate() {
   assert.equal(allowed.ok, true, JSON.stringify(allowed.blockers, null, 2));
   const runtimeAction = allowed.actions.find((action) => action.type === "install-hermes-agent-runtime");
   assert.ok(runtimeAction);
-  assert.ok(runtimeAction.command.includes("/opt/homebrew/bin/python3"));
+  assert.ok(runtimeAction.command.join(" ").includes("/opt/homebrew/bin/python3"));
 
   const result = await service.executeUpgrade({
     reason: "test-upgrade",
@@ -327,10 +331,11 @@ async function testRepairsMissingHermesAgentRuntimeWithExplicitGate() {
   assert.equal(result.hermesAgentUpdated, true);
   assert.ok(result.steps.some((step) => step.type === "install-hermes-agent-runtime"));
   assert.ok(calls.some((call) => call.command === "/bin/bash"
-    && call.args.includes("--phase")
-    && call.args.includes("install-official-hermes-runtime")
-    && call.args.includes("--python-command")
-    && call.args.includes("/opt/homebrew/bin/python3")));
+    && call.args[0] === "-lc"
+    && call.args.join(" ").includes("--phase")
+    && call.args.join(" ").includes("install-official-hermes-runtime")
+    && call.args.join(" ").includes("--python-command")
+    && call.args.join(" ").includes("/opt/homebrew/bin/python3")));
 }
 
 async function testClonesMissingHermesAgentSourceWithExplicitGate() {

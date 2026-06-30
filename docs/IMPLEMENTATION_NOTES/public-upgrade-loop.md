@@ -194,10 +194,12 @@ Supported execution gates:
   Agent virtualenv by running the same `install-official-hermes-runtime` phase
   used by first install;
 - `--python-command <path|name>`: Python 3.12+ command for the Hermes Agent
-  runtime repair phase. If `<root>/runtime/hermes-agent-official/venv/bin/python`
-  is missing and this command is not a Python 3.12+ executable, execute mode must
-  fail with bounded installer evidence rather than falling back to an older
-  system Python runtime;
+  runtime repair phase. If omitted, the CLI prefers `HOMEAI_PYTHON`, `PYTHON`,
+  `/opt/homebrew/bin/python3`, `/usr/local/bin/python3`, then `python3`. If
+  `<root>/runtime/hermes-agent-official/venv/bin/python` is missing and the
+  selected command is not a Python 3.12+ executable, execute mode must fail with
+  bounded installer evidence rather than falling back to an older system Python
+  runtime;
 - `--force-deploy`: redeploy Home AI even when source did not update;
 - `--force-closure-validation`: run provider/profile and production closure
   validation even when no source changed.
@@ -239,6 +241,9 @@ The upgrade loop is clean fast-forward only:
   `--install-hermes-agent-dependencies` is explicit. With that gate, the
   upgrade runs `install-macos-production.sh --phase install-official-hermes-runtime`
   before provider/profile audit and closure validation.
+- temporary Node distributions used by remote smoke or bootstrap are copied into
+  `<root>/runtime/node-distributions/<node-package>` before `runtime/node-current`
+  is linked. Production must not remain bound to a one-run `/tmp` Node tree.
 
 After a source update:
 
