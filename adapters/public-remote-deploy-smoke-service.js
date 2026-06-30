@@ -178,18 +178,34 @@ function buildSshArgs(options = {}, remoteCommand) {
   return args;
 }
 
+function buildScpArgs(options = {}, sourcePath, remotePath) {
+  const args = ["-o", "BatchMode=yes", "-o", `ConnectTimeout=${Math.max(1, Number(options.connectTimeoutSeconds || 15) || 15)}`];
+  if (options.sshConfig) args.push("-F", options.sshConfig);
+  if (options.identityFile) args.push("-i", options.identityFile);
+  if (options.port) args.push("-P", String(options.port));
+  for (const item of options.sshOptions || []) {
+    args.push(item);
+  }
+  args.push(sourcePath, `${options.sshTarget}:${remotePath}`);
+  return args;
+}
+
 function remoteShell(script) {
   return `/bin/sh -lc ${shellQuote(script)}`;
 }
 
 function remoteNodeEnv(plan = {}) {
-  return [
+  const lines = [
     `export PATH=${shellQuote(`${plan.remoteRoot}/runtime/bin`)}:"$PATH"`,
     "export HOMEAI_NODE=node",
     "export HOMEAI_NPM=npm",
     `export HOMEAI_PUBLIC_REPOSITORY_URL=${shellQuote(plan.publicRepoUrl || DEFAULT_PUBLIC_REPO_URL)}`,
     "export GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new'",
-  ].join("\n");
+  ];
+  if (plan.remoteSudoPasswordFile) {
+    lines.push(`export HOMEAI_MAC_SUDO_PASSWORD_FILE=${shellQuote(plan.remoteSudoPasswordFile)}`);
+  }
+  return lines.join("\n");
 }
 
 function bootstrapNodeScript(plan = {}) {
@@ -265,6 +281,9 @@ function buildRemoteSteps(plan = {}) {
   const appPath = `${plan.remoteRoot}/Home-AI-Public`;
   const targetRoot = `${plan.remoteRoot}/target-root`;
   const rehearsalRoot = `${plan.remoteRoot}/rehearsal-root`;
+  const upgradeSourceRoot = `${plan.remoteRoot}/upgrade-sources`;
+  const upgradePluginRoot = `${upgradeSourceRoot}/plugins`;
+  const upgradeHermesAgentSource = `${upgradeSourceRoot}/hermes-agent-official`;
   const nodeEnv = remoteNodeEnv(plan);
   const steps = [
     {
@@ -283,6 +302,18 @@ function buildRemoteSteps(plan = {}) {
       type: "prepare-remote-root",
       script: `rm -rf ${shellQuote(plan.remoteRoot)} && mkdir -p ${shellQuote(plan.remoteRoot)}`,
     },
+    ...(plan.remoteSudoPasswordFile ? [
+      {
+        type: "upload-sudo-password-file",
+        localCommand: "scp",
+        localSource: plan.sudoPasswordFile,
+        remotePath: plan.remoteSudoPasswordFile,
+      },
+      {
+        type: "chmod-sudo-password-file",
+        script: `chmod 600 ${shellQuote(plan.remoteSudoPasswordFile)}`,
+      },
+    ] : []),
     {
       type: "bootstrap-node-runtime",
       script: bootstrapNodeScript(plan),
@@ -330,23 +361,28 @@ function buildRemoteSteps(plan = {}) {
     script: `${nodeEnv}\ncd ${shellQuote(appPath)} && npm run --silent rehearse:public-upgrade -- --execute --json`,
   });
   if (plan.executeProductionUpgrade) {
+    const productionUpgradeCommand = [
+      "npm run --silent upgrade:public --",
+      `--root ${shellQuote(plan.productionRoot)}`,
+      `--app ${shellQuote(appPath)}`,
+      `--plugin-root ${shellQuote(upgradePluginRoot)}`,
+      `--hermes-agent-source ${shellQuote(upgradeHermesAgentSource)}`,
+      "--execute",
+      "--clone-missing-plugins",
+      "--adopt-non-git-sources",
+      "--update-hermes-agent",
+      "--install-hermes-agent-dependencies",
+      "--force-closure-validation",
+      `--reason ${shellQuote(plan.reason)}`,
+      "--json",
+    ].join(" ");
     steps.push({
       type: "public-production-upgrade",
       script: [
         nodeEnv,
         `cd ${shellQuote(appPath)}`,
-        "npm run --silent upgrade:public --",
-        `--root ${shellQuote(plan.productionRoot)}`,
-        `--app ${shellQuote(appPath)}`,
-        "--execute",
-        "--clone-missing-plugins",
-        "--adopt-non-git-sources",
-        "--update-hermes-agent",
-        "--install-hermes-agent-dependencies",
-        "--force-closure-validation",
-        `--reason ${shellQuote(plan.reason)}`,
-        "--json",
-      ].join(" "),
+        productionUpgradeCommand,
+      ].join("\n"),
     });
   }
   return steps;
@@ -355,6 +391,7 @@ function buildRemoteSteps(plan = {}) {
 function buildPlan(options = {}) {
   const stamp = clean(options.stamp || new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z"), 40);
   const remoteRoot = safeRemoteTempRoot(options.remoteRoot, stamp);
+  const sudoPasswordFile = clean(options.sudoPasswordFile, 500);
   const blockers = [];
   if (!remoteRoot) blockers.push({ code: "remote_temp_root_invalid" });
   if (options.execute && !clean(options.sshTarget)) blockers.push({ code: "ssh_target_required" });
@@ -372,6 +409,8 @@ function buildPlan(options = {}) {
     appPath: remoteRoot ? `${remoteRoot}/Home-AI-Public` : "",
     targetRoot: remoteRoot ? `${remoteRoot}/target-root` : "",
     productionRoot: clean(options.productionRoot, 300),
+    remoteSudoPasswordFile: sudoPasswordFile && remoteRoot ? `${remoteRoot}/sudo-password` : "",
+    sudoPasswordFileProvided: Boolean(sudoPasswordFile),
     runGuidedInstall: bool(options.runGuidedInstall),
     cycleInstall: bool(options.cycleInstall),
     executeProductionUpgrade: bool(options.executeProductionUpgrade),
@@ -379,12 +418,37 @@ function buildPlan(options = {}) {
     reason: clean(options.reason || "public-remote-deploy-smoke", 120),
     blockers,
   };
+  Object.defineProperty(plan, "sudoPasswordFile", {
+    value: sudoPasswordFile,
+    enumerable: false,
+    configurable: false,
+    writable: false,
+  });
   plan.actions = remoteRoot ? buildRemoteSteps(plan).map((step) => ({ type: step.type })) : [];
   plan.actionCount = plan.actions.length;
   return plan;
 }
 
 async function runRemoteStep(step, options, runProcess) {
+  if (step.localCommand === "scp") {
+    const result = await runProcess(options.scpCommand || "scp", buildScpArgs(options, step.localSource, step.remotePath), {
+      timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    const normalized = {
+      ok: result.ok === true || result.status === 0,
+      status: Number.isFinite(Number(result.status)) ? Number(result.status) : (result.ok === true ? 0 : 1),
+      stdout: boundedOutput(result.stdout, 1000),
+      stderr: boundedOutput(result.stderr || result.error, 1000),
+    };
+    return {
+      type: step.type,
+      ok: normalized.ok,
+      status: normalized.status,
+      summary: { ok: normalized.ok },
+      error: normalized.ok ? "" : (normalized.stderr || `local_step_failed:${step.type}`),
+    };
+  }
   const remoteCommand = remoteShell(step.script);
   const result = await runProcess(options.sshCommand || "ssh", buildSshArgs(options, remoteCommand), {
     timeoutMs: options.timeoutMs || DEFAULT_TIMEOUT_MS,
@@ -401,7 +465,7 @@ async function runRemoteStep(step, options, runProcess) {
     ok: normalized.ok,
     status: normalized.status,
     summary: summarizeStep(step.type, normalized),
-    error: normalized.ok ? "" : (normalized.stderr || `remote_step_failed:${step.type}`),
+    error: normalized.ok ? "" : (normalized.stderr || normalized.stdout || `remote_step_failed:${step.type}`),
   };
 }
 

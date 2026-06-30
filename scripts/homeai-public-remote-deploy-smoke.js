@@ -25,6 +25,7 @@ function parseArgs(argv = []) {
     nodeVersion: process.env.HOMEAI_REMOTE_DEPLOY_NODE_VERSION || DEFAULT_NODE_VERSION,
     remoteRoot: process.env.HOMEAI_REMOTE_DEPLOY_ROOT || "",
     productionRoot: process.env.HOMEAI_REMOTE_PRODUCTION_ROOT || "",
+    sudoPasswordFile: process.env.HOMEAI_REMOTE_DEPLOY_SUDO_PASSWORD_FILE || "",
     timeoutMs: 180000,
     connectTimeoutSeconds: 15,
     keepRemoteTemp: false,
@@ -48,6 +49,7 @@ function parseArgs(argv = []) {
     else if (arg === "--node-version") out.nodeVersion = clean(argv[++index] || DEFAULT_NODE_VERSION, 40);
     else if (arg === "--remote-root") out.remoteRoot = clean(argv[++index] || "", 300);
     else if (arg === "--production-root") out.productionRoot = clean(argv[++index] || "", 300);
+    else if (arg === "--sudo-password-file") out.sudoPasswordFile = clean(argv[++index] || "", 500);
     else if (arg === "--timeout-ms") out.timeoutMs = Number(argv[++index] || out.timeoutMs);
     else if (arg === "--connect-timeout-seconds") out.connectTimeoutSeconds = Number(argv[++index] || out.connectTimeoutSeconds);
     else if (arg === "--keep-remote-temp") out.keepRemoteTemp = true;
@@ -94,6 +96,7 @@ function printHelp() {
     "  --cycle-install                    Run sandbox guided install, delete sandbox target root, then reinstall.",
     "  --execute-production-upgrade        Also run upgrade:public --execute on --production-root.",
     "  --production-root <path>            Required with --execute-production-upgrade.",
+    "  --sudo-password-file <path>         Optional local sudo password file copied to remote temp root for production upgrade.",
     "  --keep-remote-temp                 Keep the remote temp root for inspection.",
     "  --reason <slug>                    Production upgrade reason if explicitly executed.",
     "  --json                            Print JSON.",

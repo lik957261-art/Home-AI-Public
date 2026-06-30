@@ -320,6 +320,47 @@ async function testRepairsMissingHermesAgentRuntimeWithExplicitGate() {
     && call.args.includes("/opt/homebrew/bin/python3")));
 }
 
+async function testClonesMissingHermesAgentSourceWithExplicitGate() {
+  const fixture = setupFixture();
+  fs.rmSync(fixture.agentSource, { recursive: true, force: true });
+  const calls = [];
+  const service = createPublicUpgradeOrchestratorService({
+    root: fixture.root,
+    appPath: fixture.appPath,
+    pluginRoot: fixture.pluginRoot,
+    runtimeRoot: fixture.runtimeRoot,
+    hermesAgentSource: fixture.agentSource,
+    hermesAgentRepositoryUrl: "https://github.com/pentiumxp/hermes-agent-public.git",
+    hermesAgentPython: fixture.agentPython,
+    runProcess: createFakeRunner(fixture, calls),
+    nodePath: "/fake/node",
+    nowIso: () => "2026-06-29T00:00:00.000Z",
+  });
+  const plan = await service.buildPlan({
+    reason: "test-upgrade",
+    cloneMissingPlugins: true,
+    updateHermesAgent: true,
+    installHermesAgentDependencies: true,
+  });
+  assert.equal(plan.ok, true, JSON.stringify(plan.blockers, null, 2));
+  assert.ok(plan.actions.some((action) => action.type === "clone-hermes-agent-source"));
+
+  const result = await service.executeUpgrade({
+    reason: "test-upgrade",
+    cloneMissingPlugins: true,
+    updateHermesAgent: true,
+    installHermesAgentDependencies: true,
+  });
+  assert.equal(result.ok, true, JSON.stringify(result, null, 2));
+  assert.equal(result.hermesAgentUpdated, true);
+  assert.ok(result.steps.some((step) => step.type === "clone-hermes-agent-source"));
+  assert.ok(result.steps.some((step) => step.type === "install-hermes-agent-runtime"));
+  assert.ok(calls.some((call) => call.command === "git"
+    && call.args[0] === "clone"
+    && call.args.includes("https://github.com/pentiumxp/hermes-agent-public.git")
+    && call.args.at(-1) === fixture.agentSource));
+}
+
 function testDependencyHelpers() {
   assert.equal(hasDependencyFile(["src/a.js", "package-lock.json"]), true);
   assert.equal(hasDependencyFile(["docs/readme.md"]), false);
@@ -335,6 +376,7 @@ function testDependencyHelpers() {
   await testExecuteClonesDeploysAndValidatesProviderClosure();
   await testAdoptsNonGitInstalledSourcesBeforeDeploy();
   await testRepairsMissingHermesAgentRuntimeWithExplicitGate();
+  await testClonesMissingHermesAgentSourceWithExplicitGate();
   console.log("public upgrade orchestrator service tests passed");
 })().catch((err) => {
   console.error(err);

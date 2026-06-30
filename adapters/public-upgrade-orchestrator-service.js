@@ -322,6 +322,16 @@ function createPublicUpgradeOrchestratorService(options = {}) {
         requiresOption: "installHermesAgentDependencies",
       });
     }
+    if (!hermesAgent.present && planOptions.updateHermesAgent && hermesAgentRepositoryUrl) {
+      actions.push({
+        type: "clone-hermes-agent-source",
+        target: "hermes-agent-official",
+        path: hermesAgentSource,
+        repositoryUrl: hermesAgentRepositoryUrl,
+        ref: hermesAgentRef,
+        requiresOption: "updateHermesAgent",
+      });
+    }
     if (isNonGitSource(hermesAgent)) {
       actions.push({
         type: "adopt-source-checkout",
@@ -370,6 +380,9 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     }
     if (hermesAgent.updateAvailable && !planOptions.updateHermesAgent) {
       blockers.push({ code: "hermes_agent_update_available_requires_update_hermes_agent", id: "hermes-agent-official" });
+    }
+    if (!hermesAgent.present && planOptions.updateHermesAgent && !hermesAgentRepositoryUrl) {
+      blockers.push({ code: "hermes_agent_repository_url_required_for_clone", id: "hermes-agent-official" });
     }
     if (hermesAgentRuntimePythonMissing && !planOptions.installHermesAgentDependencies) {
       blockers.push({ code: "hermes_agent_runtime_python_missing_requires_install_hermes_agent_dependencies", id: "hermes-agent-official", path: hermesAgentPython });
@@ -503,23 +516,27 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     };
   }
 
-  async function clonePlugin(plugin = {}) {
-    const target = pathApi.resolve(plugin.sourcePath || plugin.path || "");
+  async function cloneSource(source = {}) {
+    const target = pathApi.resolve(source.sourcePath || source.path || "");
     if (dirExists(target)) return { ok: true, skipped: true, reason: "target_exists", path: target };
     const parent = pathApi.dirname(target);
     fsApi.mkdirSync(parent, { recursive: true });
     const clone = normalizeRun(await runProcess(gitCommand, [
       "clone",
       "--branch",
-      cleanString(plugin.ref || DEFAULT_BRANCH, 120) || DEFAULT_BRANCH,
+      cleanString(source.ref || DEFAULT_BRANCH, 120) || DEFAULT_BRANCH,
       "--depth",
       "1",
-      cleanString(plugin.repositoryUrl || "", 500),
+      cleanString(source.repositoryUrl || "", 500),
       target,
     ], { cwd: parent, timeoutMs: timeoutMs * 4 }));
     return clone.ok
       ? { ok: true, path: target }
       : { ok: false, error: clone.stderr || "plugin_clone_failed", path: target };
+  }
+
+  async function clonePlugin(plugin = {}) {
+    return cloneSource(plugin);
   }
 
   function writeAdoptionExclude(repoPath) {
@@ -694,6 +711,18 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       const adopted = await adoptSourceCheckout(initialPlan.hermesAgent);
       steps.push({ type: "adopt-source-checkout", target: "hermes-agent-official", result: adopted });
       if (!adopted.ok) return fail(initialPlan, steps, "hermes_agent_source_adoption_failed");
+      hermesAgentUpdated = true;
+      if (executeOptions.installHermesAgentDependencies) hermesAgentRuntimeRepairNeeded = true;
+    }
+
+    if (!initialPlan.hermesAgent.present && executeOptions.updateHermesAgent && hermesAgentRepositoryUrl) {
+      const cloned = await cloneSource({
+        path: hermesAgentSource,
+        repositoryUrl: hermesAgentRepositoryUrl,
+        ref: hermesAgentRef,
+      });
+      steps.push({ type: "clone-hermes-agent-source", target: "hermes-agent-official", result: cloned });
+      if (!cloned.ok) return fail(initialPlan, steps, "hermes_agent_source_clone_failed");
       hermesAgentUpdated = true;
       if (executeOptions.installHermesAgentDependencies) hermesAgentRuntimeRepairNeeded = true;
     }

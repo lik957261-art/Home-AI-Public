@@ -62,6 +62,9 @@ assert.match(script, /concurrentOwnerRuns/);
 assert.match(script, /expectedVersion/);
 assert.match(script, /data-client-version/);
 assert.match(script, /productionStatusArgs/);
+assert.match(script, /prepareOwnerKeyFileForClosure/);
+assert.match(script, /HOMEAI_MAC_SUDO_PASSWORD_FILE/);
+assert.match(script, /macos_closure_owner_key_sudo_copy_failed/);
 assert.match(script, /--expected-version/);
 assert.match(script, /expectedWorkspaces/);
 assert.match(script, /--expected-workspaces/);
@@ -144,6 +147,7 @@ const {
   isAllowedProfileAuditWarning,
   isProviderAuthRuntimeError,
   parseArgs,
+  prepareOwnerKeyFileForClosure,
   productionStatusArgs,
   readAppClientVersion,
   resolveExpectedVersion,
@@ -161,6 +165,16 @@ assert.equal(parsed.base, "http://127.0.0.1:8797");
 assert.equal(parsed.expectedVersion, "");
 assert.ok(parsed.ownerKeyFile.endsWith("/data/secrets/owner-web-key.secret"));
 assert.equal(Object.hasOwn(parsed, "ingressKeyFile"), false);
+
+const readableOwnerKeyDir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-readable-owner-key-"));
+const readableOwnerKeyFile = path.join(readableOwnerKeyDir, "owner-web-key.secret");
+fs.writeFileSync(readableOwnerKeyFile, "test-owner-key\n", { mode: 0o600 });
+const preparedOwnerKey = prepareOwnerKeyFileForClosure(Object.assign({}, parsed, {
+  ownerKeyFile: readableOwnerKeyFile,
+}));
+assert.equal(preparedOwnerKey.options.ownerKeyFile, readableOwnerKeyFile);
+assert.equal(preparedOwnerKey.usedSudoTempCopy, false);
+preparedOwnerKey.cleanup();
 
 const explicitVersion = parseArgs(["--expected-version", "20260608-runtime-config-arch-v627"]);
 assert.equal(explicitVersion.expectedVersion, "20260608-runtime-config-arch-v627");

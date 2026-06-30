@@ -174,13 +174,22 @@ async function testCycleInstallRunsInstallDeleteReinstallInSandbox() {
 }
 
 function testProductionUpgradeCommandUsesSourceAdoptionGate() {
-  const steps = buildRemoteSteps({
+  const plan = buildPlan({
+    execute: true,
+    sshTarget: "macbook-air",
+    stamp: "20260629T150004Z",
     remoteRoot: "/tmp/homeai-public-remote-deploy-smoke-x",
     publicRepoUrl: "https://example.test/repo.git",
     executeProductionUpgrade: true,
     productionRoot: "/Users/example/path",
     reason: "friend-upgrade",
+    sudoPasswordFile: "/private/local/sudo-password",
   });
+  assert.equal(plan.sudoPasswordFileProvided, true);
+  assert.equal(JSON.stringify(plan).includes("/private/local/sudo-password"), false);
+  const steps = buildRemoteSteps(plan);
+  assert.deepEqual(steps.slice(2, 4).map((step) => step.type), ["upload-sudo-password-file", "chmod-sudo-password-file"]);
+  assert.equal(steps.find((step) => step.type === "upload-sudo-password-file").localCommand, "scp");
   const upgrade = steps.find((step) => step.type === "public-production-upgrade");
   assert.ok(upgrade);
   assert.match(upgrade.script, /--clone-missing-plugins/);
@@ -188,6 +197,12 @@ function testProductionUpgradeCommandUsesSourceAdoptionGate() {
   assert.match(upgrade.script, /--update-hermes-agent/);
   assert.match(upgrade.script, /--install-hermes-agent-dependencies/);
   assert.match(upgrade.script, /--force-closure-validation/);
+  assert.match(upgrade.script, /HOMEAI_MAC_SUDO_PASSWORD_FILE='\/tmp\/homeai-public-remote-deploy-smoke-x\/sudo-password'/);
+  assert.match(upgrade.script, /--plugin-root '\/tmp\/homeai-public-remote-deploy-smoke-x\/upgrade-sources\/plugins'/);
+  assert.match(upgrade.script, /--hermes-agent-source '\/tmp\/homeai-public-remote-deploy-smoke-x\/upgrade-sources\/hermes-agent-official'/);
+  assert.doesNotMatch(upgrade.script, /export HOMEAI_PUBLIC_REPOSITORY_URL=.*npm run --silent upgrade:public/);
+  assert.match(upgrade.script, /export HOMEAI_PUBLIC_REPOSITORY_URL='https:\/\/example\.test\/repo\.git'\nexport GIT_SSH_COMMAND=/);
+  assert.match(upgrade.script, /\ncd '\/tmp\/homeai-public-remote-deploy-smoke-x\/Home-AI-Public'\nnpm run --silent upgrade:public -- --root/);
 }
 
 async function testStopsOnFailedPreflightAndCleansUp() {

@@ -30,6 +30,8 @@ function testParseArgs() {
     "/tmp/homeai-public-remote-deploy-smoke-test",
     "--run-guided-install",
     "--cycle-install",
+    "--sudo-password-file",
+    "/private/local/sudo-password",
     "--json",
   ]);
   assert.equal(parsed.execute, true);
@@ -42,6 +44,7 @@ function testParseArgs() {
   assert.equal(parsed.nodeVersion, "v24.14.1");
   assert.equal(parsed.runGuidedInstall, true);
   assert.equal(parsed.cycleInstall, true);
+  assert.equal(parsed.sudoPasswordFile, "/private/local/sudo-password");
 }
 
 function testPlanCli() {
@@ -89,6 +92,32 @@ function testCycleInstallPlanCli() {
   ]);
 }
 
+function testProductionUpgradePlanDoesNotExposeLocalSudoPasswordPath() {
+  const result = spawnSync(process.execPath, [
+    "scripts/homeai-public-remote-deploy-smoke.js",
+    "--ssh-target",
+    "macbook-air",
+    "--remote-root",
+    "/tmp/homeai-public-remote-deploy-smoke-cli-production",
+    "--execute-production-upgrade",
+    "--production-root",
+    "/Users/example/path",
+    "--sudo-password-file",
+    "/private/local/sudo-password",
+    "--json",
+  ], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+  });
+  assert.notEqual(result.status, 0);
+  const output = result.stdout;
+  const parsed = JSON.parse(output);
+  assert.equal(parsed.sudoPasswordFileProvided, true);
+  assert.equal(output.includes("/private/local/sudo-password"), false);
+  assert.ok(parsed.actions.some((action) => action.type === "upload-sudo-password-file"));
+  assert.ok(parsed.actions.some((action) => action.type === "public-production-upgrade"));
+}
+
 function testExecuteRequiresTarget() {
   const result = spawnSync(process.execPath, [
     "scripts/homeai-public-remote-deploy-smoke.js",
@@ -120,6 +149,7 @@ function testRenderText() {
 testParseArgs();
 testPlanCli();
 testCycleInstallPlanCli();
+testProductionUpgradePlanDoesNotExposeLocalSudoPasswordPath();
 testExecuteRequiresTarget();
 testRenderText();
 

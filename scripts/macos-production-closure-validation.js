@@ -2,6 +2,7 @@
 
 const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 const DEFAULT_ROOT = "/Users/example/path";
@@ -237,6 +238,59 @@ function compactErrorText(value, options) {
   const text = sanitize(value, options).trim();
   if (!text) return "";
   return text.split(/\r?\n/).slice(-8).join("\n").slice(0, 2000);
+}
+
+function fileReadable(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.R_OK);
+    return true;
+  } catch (_err) {
+    return false;
+  }
+}
+
+function readFirstSecretLine(filePath) {
+  if (!filePath || !fileReadable(filePath)) return "";
+  return String(fs.readFileSync(filePath, "utf8"))
+    .split(/\r?\n/)
+    .find((line) => line.trim()) || "";
+}
+
+function prepareOwnerKeyFileForClosure(options) {
+  if (fileReadable(options.ownerKeyFile)) {
+    return { options, cleanup: () => {}, usedSudoTempCopy: false };
+  }
+  const sudoPasswordFile = process.env.HOMEAI_MAC_SUDO_PASSWORD_FILE || "";
+  const sudoPassword = readFirstSecretLine(sudoPasswordFile);
+  if (!sudoPassword) {
+    return { options, cleanup: () => {}, usedSudoTempCopy: false };
+  }
+  const result = spawnSync("/usr/bin/sudo", ["-S", "-p", "", "/bin/cat", options.ownerKeyFile], {
+    input: `${sudoPassword}\n`,
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  if (result.status !== 0 || !String(result.stdout || "").trim()) {
+    throw new Error("macos_closure_owner_key_sudo_copy_failed");
+  }
+  const tempPath = path.join(os.tmpdir(), `homeai-closure-owner-key-${process.pid}-${Date.now()}.secret`);
+  fs.writeFileSync(tempPath, result.stdout, { encoding: "utf8", mode: 0o600 });
+  fs.chmodSync(tempPath, 0o600);
+  const preparedOptions = Object.assign({}, options, {
+    ownerKeyFile: tempPath,
+    ownerKeyFileSource: "sudo_temp_copy",
+  });
+  return {
+    options: preparedOptions,
+    cleanup: () => {
+      try {
+        fs.unlinkSync(tempPath);
+      } catch (_err) {
+        // Best effort cleanup only.
+      }
+    },
+    usedSudoTempCopy: true,
+  };
 }
 
 function parseJsonOutput(label, stdout, options) {
@@ -725,8 +779,10 @@ async function runClosure(options) {
 if (require.main === module) {
   (async () => {
     const options = parseArgs(process.argv.slice(2));
+    let prepared = { options, cleanup: () => {} };
     try {
-      const summary = await runClosure(options);
+      prepared = prepareOwnerKeyFileForClosure(options);
+      const summary = await runClosure(prepared.options);
       if (options.json) {
         console.log(JSON.stringify(summary, null, 2));
       } else {
@@ -736,6 +792,8 @@ if (require.main === module) {
     } catch (err) {
       console.error(err?.message || String(err));
       process.exit(1);
+    } finally {
+      prepared.cleanup();
     }
   })();
 }
@@ -755,6 +813,7 @@ module.exports = {
   isAllowedProfileAuditWarning,
   isProviderAuthRuntimeError,
   parseArgs,
+  prepareOwnerKeyFileForClosure,
   productionStatusArgs,
   readAppClientVersion,
   resolveExpectedVersion,

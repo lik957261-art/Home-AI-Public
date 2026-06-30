@@ -662,7 +662,14 @@ not install system LaunchDaemons, create service users, run production
 sandbox target root, deletes the sandbox target root, and runs the guided
 install again to prove a clean reinstall path. Use `--execute-production-upgrade
 --production-root <root>` only after the sandbox smoke passes and the target
-operator has approved the production mutation.
+operator has approved the production mutation. For SSH-driven production
+upgrade on a machine without passwordless sudo, pass `--sudo-password-file`
+from the operator machine. The file is copied only to the current remote temp
+root, exported as a remote `HOMEAI_MAC_SUDO_PASSWORD_FILE`, and removed with the
+temp root; reports must not include the local password-file path or password
+contents. The production-upgrade step uses temporary remote source checkouts
+for plugins and Hermes Agent instead of adopting service-owned runtime
+directories in place.
 
 The public upgrade inventory includes Moira, Movie, and Music. Moira uses the public
 `https://github.com/pentiumxp/MOIRA_chinese_astrology_public.git` repository.
@@ -677,6 +684,9 @@ source directories can be non-Git. `--adopt-non-git-sources` is the explicit
 operator gate that initializes Git metadata in place, writes local runtime-state
 excludes for `data/`, `logs/`, `tmp/`, `node_modules/`, and similar directories,
 then deploys adopted Home AI/plugin sources before final closure validation.
+Remote production smoke avoids applying that in-place conversion to protected
+runtime plugin directories by cloning into the remote smoke source root and
+deploying from there.
 
 Hermes Agent and provider ingress are deployment dependencies. A fresh install
 must close `install-official-hermes-runtime`, which now pins

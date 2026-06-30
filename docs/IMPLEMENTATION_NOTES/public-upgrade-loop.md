@@ -131,7 +131,19 @@ also execute the installer guided automatic phases inside the same remote
 sandbox root. A real production upgrade remains a separate operator action and
 requires `--execute-production-upgrade --production-root <root>`, which should
 only be used after the sandbox smoke passes and the operator has confirmed the
-target root and credential boundary.
+target root and credential boundary. When that production upgrade is run over
+SSH and the target does not have passwordless sudo, pass an explicit local
+`--sudo-password-file <path>`. The remote smoke copies that file to the current
+remote `/tmp` smoke root with mode `0600`, exports only the remote temporary
+path as `HOMEAI_MAC_SUDO_PASSWORD_FILE`, and removes it during normal cleanup.
+The local password-file path and password contents must not appear in JSON
+reports, task cards, or logs.
+
+Remote production upgrades do not initialize Git metadata inside existing
+production runtime plugin directories. They clone plugin sources into the
+current remote smoke source root and deploy from those checkouts through the
+normal macOS deploy contract. This avoids requiring the SSH operator account to
+write service-owned runtime directories such as `<root>/plugins/*`.
 
 Use `--cycle-install` for first-machine acceptance. It runs the guided install
 inside the sandbox target root, deletes that target root, and runs the guided
@@ -169,7 +181,9 @@ Supported execution gates:
   directories into Git checkouts in place, without deleting runtime-state
   directories such as `data/`, `logs/`, `tmp/`, or `node_modules/`; this gate is
   required when a first install was performed from copied sources rather than
-  direct Git checkouts;
+  direct Git checkouts. Remote production smoke uses temporary source checkouts
+  for plugin deployments instead of adopting service-owned production runtime
+  directories in place;
 - `--update-hermes-agent`: allow fast-forward of the official Hermes Agent
   runtime source;
 - `--install-dependencies`: run `npm ci --omit=dev --no-audit --no-fund`
