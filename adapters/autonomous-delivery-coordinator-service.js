@@ -35,8 +35,8 @@ const PLATFORM_AUDIT_TARGET = Object.freeze({
   auditKind: "platform",
 });
 const DEPLOYMENT_TARGET = Object.freeze({
-  label: "Home AI Deploy",
-  targetThreadTitle: "Home AI Deploy",
+  label: "Home AI Deploy Lane Pool",
+  targetThreadTitle: "",
   targetWorkspace: APP_WORKSPACE,
   auditKind: "deployment",
 });
@@ -860,6 +860,8 @@ function deploymentTaskCardForSlice(deliveryCase = {}, deploymentSlice = {}, par
     targetThreadTitle: target.targetThreadTitle || "",
     targetWorkspace: target.targetWorkspace || deploymentSlice.targetWorkspacePath || parentSlice.targetWorkspacePath || "",
     auditKind: target.auditKind || "deployment",
+    cardKind: "plugin_deployment",
+    pluginId: clean(parentSlice.targetWorkspaceId || deploymentSlice.targetWorkspaceId || "", 120),
     workflowMode: "manual",
     reasoningEffort: "high",
     requestId: `autonomous-delivery-deploy-readback-${deliveryCase.caseId}-${parentSlice.sliceKey || parentSlice.sliceId}-${parentSlice.returnCardId || parentSlice.taskCardId || "return"}`,

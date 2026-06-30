@@ -272,9 +272,11 @@ async function testDeploymentReadbackReturnLanePrecedesVerification() {
   assert.equal(deployment.deploymentSlice.parentSliceId, parentSliceId);
   assert.equal(deployment.parentSlice.deploymentTaskCardId, "ttc_2");
   assert.equal(sent.length, 2);
-  assert.equal(sent[1].targetThreadTitle, "Home AI Deploy");
+  assert.equal(sent[1].targetThreadTitle, "");
   assert.equal(sent[1].targetWorkspaceCwd, "/Users/example/path");
   assert.equal(sent[1].auditKind, "deployment");
+  assert.equal(sent[1].cardKind, "plugin_deployment");
+  assert.equal(sent[1].pluginId, "music");
   assert.match(sent[1].body, /Deployment \/ Readback Task/);
   assert.match(sent[1].body, /Owner Additional Prompt/);
   assert.match(sent[1].body, /Deployment planning\/readback is required before closure/);

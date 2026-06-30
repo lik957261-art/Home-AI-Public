@@ -42,12 +42,12 @@ The current required signals are:
 | --- | --- | --- |
 | `gateway_profile_health` | Home AI Gateway | Production Gateway worker/profile status and worker policy health. |
 | `mcp_schema_closure` | Home AI Gateway/toolset | Plugin service schema, selected Gateway profile schema, and dispatcher registry agreement. |
-| `deploy_lane_liveness` | Home AI platform | Live `Home AI Deploy` lane discovery for routine plugin deployments. |
+| `deploy_lane_liveness` | Home AI platform | Live configured Home AI deploy lane pool discovery for routine plugin deployments. |
 | `task_card_dispatch` | Home AI platform | Owner-gated real task-card dispatch and legacy `t_*` repair-card prevention. |
 | `plugin_proxy_latency` | Home AI plugin host | Host proxy latency gap and route-kind timing for embedded plugin requests. |
 | `media_preview_health` | Home AI media preview / native shell | PDF, Word, PPT, and generated-image preview/open/share fallback health. |
 | `gateway_document_tool_capability` | Home AI Gateway/toolset | Low-permission Gateway PDF, Word, PowerPoint, audio, and archive file-tool availability. |
-| `plugin_deploy_contract_closure` | Home AI platform / Home AI Deploy | Routine plugin deploy cards are request-shaped, route to Home AI Deploy, and close with production readback. |
+| `plugin_deploy_contract_closure` | Home AI platform / deploy lane pool | Routine plugin deploy cards are request-shaped, route to the configured deploy lane pool, and close with production readback. |
 | `plugin_proxy_workspace_boundary` | Home AI plugin host | Write-capable plugin proxy calls carry explicit effective workspace and missing workspace fails closed. |
 | `native_bridge_capability` | Native shell / Home AI bridge | Web/native capability agreement for document, notification, workspace, and open-in bridges. |
 | `notification_delivery` | Home AI notifications | Owner notification delivery, dedupe, and failed-delivery visibility. |

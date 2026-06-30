@@ -69,13 +69,13 @@ It validates:
   `http_request`, `weather`, `mobile_web_search`, `mobile_web_extract`,
   `image_generate`, `chatgpt_image_edit`, `chatgpt_image_erase`,
   `docx_create`, `docx_extract_text`, `office_extract_text`, `pptx_create`,
-  `pdf_create`, `pdf_extract_text`, `pdf_render_pages`, `audio_transcribe`,
+  `pptx_validate`, `pdf_create`, `pdf_extract_text`, `pdf_render_pages`, `audio_transcribe`,
   `archive_list`, and
   `archive_extract_safe`.
 - Document-file tool closure also requires the profile-plugin schema smoke:
   `gateway-tool-schema-smoke.js --profile <profile> --profile-plugin-schema-only
   --profile-plugin-filter hermes-mobile-docx,hermes-mobile-pptx,hermes-mobile-pdf,hermes-mobile-audio,hermes-mobile-archive --require
-  docx_create,docx_extract_text,office_extract_text,pptx_create,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe`.
+  docx_create,docx_extract_text,office_extract_text,pptx_create,pptx_validate,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe`.
   This check reads the production profile `config.yaml` and profile-local
   `plugins/` directory without starting the model provider, so it catches
   config/plugin drift independently from provider auth or full `AIAgent`

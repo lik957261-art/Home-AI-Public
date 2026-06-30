@@ -21,6 +21,7 @@ const MAC_BASE_SCHEMA_TOOLS = [
   "docx_extract_text",
   "office_extract_text",
   "pptx_create",
+  "pptx_validate",
   "pdf_create",
   "pdf_extract_text",
   "pdf_render_pages",

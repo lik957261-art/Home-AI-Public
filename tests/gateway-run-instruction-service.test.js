@@ -36,7 +36,7 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /Principal: owner/);
   assert.match(summary, /Allowed roots: C:\/workspace; D:\/shared/);
   assert.match(summary, /http -> http_request/);
-  assert.match(summary, /file -> read_file, write_file, patch, search_files, docx_create, docx_extract_text, office_extract_text, pptx_create, pdf_create, pdf_extract_text, pdf_render_pages, audio_transcribe, archive_list, archive_extract_safe/);
+  assert.match(summary, /file -> read_file, write_file, patch, search_files, docx_create, docx_extract_text, office_extract_text, pptx_create, pptx_validate, pdf_create, pdf_extract_text, pdf_render_pages, audio_transcribe, archive_list, archive_extract_safe/);
   assert.match(summary, /image_gen -> image_generate, chatgpt_image_edit, chatgpt_image_erase, image_edit, image_erase/);
   assert.match(summary, /x_search -> x_search/);
   assert.match(summary, /cronjob -> cronjob_mobile, http_request, cronjob/);
@@ -70,6 +70,7 @@ function testPolicySummaryIncludesCallableToolHints() {
   assert.match(summary, /For Word DOCX text extraction, use `docx_extract_text`/);
   assert.match(summary, /For PowerPoint PPTX\/PPTM and Excel XLSX\/XLSM text extraction, use `office_extract_text`/);
   assert.match(summary, /For explicit PowerPoint deck generation requests, use `pptx_create`/);
+  assert.match(summary, /Use `pptx_validate` to re-check existing in-scope decks/);
   assert.match(summary, /For explicit PDF generation requests, use `pdf_create`/);
   assert.match(summary, /For PDF reports, use `pdf_extract_text` first/);
   assert.match(summary, /For MP3\/M4A\/WAV\/AAC\/OGG\/OPUS\/AMR\/FLAC voice notes/);
@@ -95,9 +96,11 @@ function testSchemaOverrideInstructionsCoverOrdinaryLowTools() {
   assert.match(text, /Word DOCX text extraction is available as `docx_extract_text`/);
   assert.match(text, /PowerPoint PPTX\/PPTM and Excel XLSX\/XLSM text extraction is available as `office_extract_text`/);
   assert.match(text, /real PowerPoint PPTX generation is available as `pptx_create`/);
+  assert.match(text, /PowerPoint compatibility validation is available as `pptx_validate`/);
   assert.match(text, /PDF generation is available as `pdf_create`/);
   assert.match(text, /When the user explicitly asks for Word\/DOCX, use `docx_create`/);
   assert.match(text, /When the user explicitly asks for a PowerPoint\/PPTX deck, use `pptx_create`/);
+  assert.match(text, /call `pptx_validate` on existing in-scope decks/);
   assert.match(text, /When the user explicitly asks for PDF, use `pdf_create`/);
   assert.match(text, /PDF text extraction and page rendering are available as `pdf_extract_text` \/ `pdf_render_pages`/);
   assert.match(text, /audio transcription.*`audio_transcribe`/);

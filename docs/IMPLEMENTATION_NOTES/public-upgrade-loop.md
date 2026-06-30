@@ -78,6 +78,10 @@ root, runs source-only public preflight, then runs two target-side
   closed with bounded missing-source blockers;
 - with `--clone-missing-plugins`, the plan must expose clone/deploy actions,
   keep Movie marked `operatorAuthenticated`, and include closure validation.
+- with installed public-export or bundle source directories that are present but
+  not Git checkouts, the plan must fail closed until `--adopt-non-git-sources`
+  is explicit; with that gate, the plan must expose adopt/deploy/closure
+  actions.
 
 The rehearsal is source/plan-only. It does not pass `--execute` to
 `upgrade:public`, does not touch `/Users/example/path`, and does
@@ -161,13 +165,25 @@ Supported execution gates:
 
 - `--clone-missing-plugins`: clone missing plugin sources from
   `config/public-plugin-sources.json`;
+- `--adopt-non-git-sources`: convert present public-export or bundle source
+  directories into Git checkouts in place, without deleting runtime-state
+  directories such as `data/`, `logs/`, `tmp/`, or `node_modules/`; this gate is
+  required when a first install was performed from copied sources rather than
+  direct Git checkouts;
 - `--update-hermes-agent`: allow fast-forward of the official Hermes Agent
   runtime source;
 - `--install-dependencies`: run `npm ci --omit=dev --no-audit --no-fund`
   through the operator sudo boundary when source dependency files changed;
 - `--install-hermes-agent-dependencies`: run through the operator sudo boundary
   `<hermes-agent-python> -m pip install <sanitized-hermes-agent-source-copy>`
-  after an explicit Hermes Agent update;
+  after an explicit Hermes Agent update, and repair a missing official Hermes
+  Agent virtualenv by running the same `install-official-hermes-runtime` phase
+  used by first install;
+- `--python-command <path|name>`: Python 3.12+ command for the Hermes Agent
+  runtime repair phase. If `<root>/runtime/hermes-agent-official/venv/bin/python`
+  is missing and this command is not a Python 3.12+ executable, execute mode must
+  fail with bounded installer evidence rather than falling back to an older
+  system Python runtime;
 - `--force-deploy`: redeploy Home AI even when source did not update;
 - `--force-closure-validation`: run provider/profile and production closure
   validation even when no source changed.
@@ -200,10 +216,15 @@ plan mode and must not print credentials.
 The upgrade loop is clean fast-forward only:
 
 - dirty source checkouts block;
-- non-Git or unreadable source checkouts block;
+- non-Git or unreadable source checkouts block unless
+  `--adopt-non-git-sources` is explicit for present copied source directories;
 - non-fast-forward remotes block during execution;
 - missing plugin sources block unless `--clone-missing-plugins` is explicit;
 - Hermes Agent source updates block unless `--update-hermes-agent` is explicit.
+- missing `<root>/runtime/hermes-agent-official/venv/bin/python` blocks unless
+  `--install-hermes-agent-dependencies` is explicit. With that gate, the
+  upgrade runs `install-macos-production.sh --phase install-official-hermes-runtime`
+  before provider/profile audit and closure validation.
 
 After a source update:
 
@@ -211,6 +232,9 @@ After a source update:
 - plugin source updates deploy the matching `--plugin <id>`;
 - freshly cloned plugin sources are also deployed, so clone-only partial
   closure cannot be mistaken for runtime closure;
+- adopted Home AI/plugin source directories are deployed in the same run, so a
+  checkout-adoption-only partial closure cannot be mistaken for runtime
+  closure;
 - profile/provider audit runs before final closure validation whenever Home AI,
   a plugin, or Hermes Agent changed;
 - production closure validation runs through

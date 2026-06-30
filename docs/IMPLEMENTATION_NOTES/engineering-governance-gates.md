@@ -254,7 +254,7 @@ The maintained baseline diagnostics are:
 - `scripts/macos-gateway-manifest-toolset-smoke.js`;
 - `scripts/gateway-tool-schema-smoke.js` for document/file tools callable
   schema (`docx_create`, `docx_extract_text`, `office_extract_text`,
-  `pptx_create`, `pdf_create`, `pdf_extract_text`, `pdf_render_pages`,
+  `pptx_create`, `pptx_validate`, `pdf_create`, `pdf_extract_text`, `pdf_render_pages`,
   `audio_transcribe`, `archive_list`,
   `archive_extract_safe`);
 - `scripts/macos-plugin-directory-production-smoke.js`;

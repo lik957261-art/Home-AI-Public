@@ -163,12 +163,15 @@ Deployment/readback rules:
 - only Owner may start deployment/readback from that projection or equivalent
   Owner-only API call;
 - starting deployment/readback creates a separate `deployment_owner` slice and
-  routes one task card to the dedicated `Home AI Deploy` Codex thread. Plugin
-  implementation threads prepare source, tests, commit/push when applicable,
-  deploy plan, and bounded readback expectations, but they do not receive sudo
-  password-file paths and do not execute production deployment directly. The
-  coordinator stores the deployment task-card id, completes the Inbox item, and
-  moves the case to `deployment_dispatched`;
+  routes one task card to the configured Home AI deploy lane pool. The default
+  lane is `Home AI Deploy`; deployments may use additional live non-terminal
+  lanes such as `Home AI Deploy Lane A/B/C`, `Codex Mobile Deploy Lane`, or
+  `Movie Deploy Lane` when configured. Plugin implementation threads prepare
+  source, tests, commit/push when applicable, deploy plan, and bounded readback
+  expectations, but they do not receive sudo password-file paths and do not
+  execute production deployment directly. The coordinator stores the deployment
+  task-card id, completes the Inbox item, and moves the case to
+  `deployment_dispatched`;
 - deployment/readback task cards must use the established central/plugin
   deploy contract and return bounded production readback evidence;
 - completed deployment/readback returns annotate the original implementation

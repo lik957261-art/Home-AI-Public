@@ -18,11 +18,15 @@ function parseArgs(argv = []) {
     hermesAgentRepositoryUrl: process.env.HOMEAI_HERMES_AGENT_REPOSITORY_URL || process.env.HERMES_MOBILE_HERMES_AGENT_REPOSITORY_URL || "",
     hermesAgentRef: process.env.HOMEAI_HERMES_AGENT_REF || process.env.HERMES_MOBILE_HERMES_AGENT_REF || "main",
     baseUrl: process.env.HERMES_MOBILE_SMOKE_BASE || "http://127.0.0.1:8797",
+    nodeCommand: process.env.HOMEAI_NODE || process.execPath || "node",
+    npmCommand: process.env.HOMEAI_NPM || "npm",
+    pythonCommand: process.env.HOMEAI_PYTHON || process.env.PYTHON || "python3",
     reason: "public-upgrade",
     timeoutMs: 30000,
     execute: false,
     json: false,
     cloneMissingPlugins: false,
+    adoptNonGitSources: false,
     updateHermesAgent: false,
     installDependencies: false,
     installHermesAgentDependencies: false,
@@ -39,10 +43,14 @@ function parseArgs(argv = []) {
     else if (arg === "--hermes-agent-source") out.hermesAgentSource = clean(argv[++index] || "");
     else if (arg === "--hermes-agent-repository-url") out.hermesAgentRepositoryUrl = clean(argv[++index] || "");
     else if (arg === "--hermes-agent-ref") out.hermesAgentRef = clean(argv[++index] || "main", 120);
+    else if (arg === "--node-command") out.nodeCommand = clean(argv[++index] || out.nodeCommand);
+    else if (arg === "--npm-command") out.npmCommand = clean(argv[++index] || out.npmCommand);
+    else if (arg === "--python-command") out.pythonCommand = clean(argv[++index] || out.pythonCommand);
     else if (arg === "--base") out.baseUrl = clean(argv[++index] || out.baseUrl);
     else if (arg === "--reason") out.reason = clean(argv[++index] || out.reason, 120);
     else if (arg === "--timeout-ms") out.timeoutMs = Number(argv[++index] || out.timeoutMs);
     else if (arg === "--clone-missing-plugins") out.cloneMissingPlugins = true;
+    else if (arg === "--adopt-non-git-sources") out.adoptNonGitSources = true;
     else if (arg === "--update-hermes-agent") out.updateHermesAgent = true;
     else if (arg === "--install-dependencies") out.installDependencies = true;
     else if (arg === "--install-hermes-agent-dependencies") out.installHermesAgentDependencies = true;
@@ -76,10 +84,14 @@ function printHelp() {
     "  --base <url>                          Production base for closure validation.",
     "  --reason <slug>                       Deployment reason slug.",
     "  --clone-missing-plugins               Clone missing manifest plugin sources.",
+    "  --adopt-non-git-sources              Adopt present public-export/bundle source dirs as Git checkouts.",
     "  --update-hermes-agent                 Fast-forward Hermes Agent official runtime source.",
     "  --hermes-agent-source <path>          Hermes Agent source checkout path.",
     "  --hermes-agent-repository-url <url>   Hermes Agent upstream repository URL.",
     "  --hermes-agent-ref <ref>              Hermes Agent branch, default main.",
+    "  --node-command <path|name>            Node command used to repair the official Hermes Agent runtime.",
+    "  --npm-command <path|name>             npm command used to repair the official Hermes Agent runtime.",
+    "  --python-command <path|name>          Python 3.12+ command used to repair the official Hermes Agent runtime.",
     "  --install-dependencies                Run npm ci when source dependency files changed.",
     "  --install-hermes-agent-dependencies   Run python -m pip install -e for Hermes Agent.",
     "  --force-deploy                        Deploy Home AI even when source did not update.",
@@ -99,6 +111,9 @@ function serviceOptions(options) {
     hermesAgentSource: options.hermesAgentSource || undefined,
     hermesAgentRepositoryUrl: options.hermesAgentRepositoryUrl || undefined,
     hermesAgentRef: options.hermesAgentRef || undefined,
+    installerNodeCommand: options.nodeCommand || undefined,
+    npmCommand: options.npmCommand || undefined,
+    pythonCommand: options.pythonCommand || undefined,
     baseUrl: options.baseUrl,
     timeoutMs: options.timeoutMs,
   };
@@ -109,6 +124,7 @@ function executionOptions(options) {
     execute: options.execute,
     reason: options.reason,
     cloneMissingPlugins: options.cloneMissingPlugins,
+    adoptNonGitSources: options.adoptNonGitSources,
     updateHermesAgent: options.updateHermesAgent,
     installDependencies: options.installDependencies,
     installHermesAgentDependencies: options.installHermesAgentDependencies,

@@ -59,7 +59,8 @@ with zipfile.ZipFile(out) as archive:
     slide1 = archive.read("ppt/slides/slide1.xml").decode("utf-8")
     rels = archive.read("ppt/slides/_rels/slide1.xml.rels").decode("utf-8")
 extracted = json.loads(office._office_extract_text_handler({"file_path": str(out), "max_chars": 2000}))
-print(json.dumps({"created": created, "names": names, "slide1": slide1, "rels": rels, "extracted": extracted}, ensure_ascii=False))
+validated = json.loads(pptx._pptx_validate_handler({"file_path": str(out)}))
+print(json.dumps({"created": created, "validated": validated, "names": names, "slide1": slide1, "rels": rels, "extracted": extracted}, ensure_ascii=False))
 `;
     const result = JSON.parse(runPython(script, {
       HERMES_MOBILE_PPTX_ALLOWED_ROOTS: root,
@@ -68,6 +69,12 @@ print(json.dumps({"created": created, "names": names, "slide1": slide1, "rels": 
     }));
     assert.equal(result.created.ok, true);
     assert.equal(result.created.tool, "pptx_create");
+    assert.equal(result.created.compatibility, "validated");
+    assert.equal(result.created.validation.ok, true);
+    assert.deepEqual(result.created.validation.issues, []);
+    assert.equal(result.validated.ok, true);
+    assert.equal(result.validated.tool, "pptx_validate");
+    assert.equal(result.validated.slide_count, 2);
     assert.equal(result.created.slide_count, 2);
     assert.equal(result.created.image_count, 1);
     assert.match(result.created.media_line, /^MEDIA:/);
@@ -75,6 +82,7 @@ print(json.dumps({"created": created, "names": names, "slide1": slide1, "rels": 
     assert.ok(result.names.includes("[Content_Types].xml"));
     assert.ok(result.names.includes("ppt/presentation.xml"));
     assert.ok(result.names.includes("ppt/slides/slide1.xml"));
+    assert.ok(result.names.includes("ppt/slideLayouts/_rels/slideLayout1.xml.rels"));
     assert.ok(result.names.some((name) => name.startsWith("ppt/media/image1-") && name.endsWith(".png")));
     assert.match(result.slide1, /Overview/);
     assert.match(result.slide1, /Confirmed facts only/);
@@ -83,6 +91,73 @@ print(json.dumps({"created": created, "names": names, "slide1": slide1, "rels": 
     assert.equal(result.extracted.format, "powerpoint");
     assert.match(result.extracted.text, /Allergy materials brief|Overview/);
     assert.match(result.extracted.text, /Next steps/);
+  });
+}
+
+function testValidateRejectsMissingLayoutMasterRelationship() {
+  withTempRoot((root) => {
+    const outputPath = path.join(root, "deliverable", "broken.pptx");
+    const script = `
+import importlib.util, json, zipfile
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("hermes_mobile_pptx", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+out = Path(${JSON.stringify(outputPath)})
+created = json.loads(module._pptx_create_handler({
+    "output_path": str(out),
+    "title": "Broken deck",
+    "slides": [{"title": "Overview", "bullets": ["One"]}],
+}))
+tmp = out.with_suffix(".rewrite.pptx")
+with zipfile.ZipFile(out, "r") as src, zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as dst:
+    for name in src.namelist():
+        if name == "ppt/slideLayouts/_rels/slideLayout1.xml.rels":
+            continue
+        dst.writestr(name, src.read(name))
+tmp.replace(out)
+validated = json.loads(module._pptx_validate_handler({"file_path": str(out)}))
+print(json.dumps({"created": created, "validated": validated}, ensure_ascii=False))
+`;
+    const result = JSON.parse(runPython(script, {
+      HERMES_MOBILE_PPTX_ALLOWED_ROOTS: root,
+      HERMES_MOBILE_PPTX_OUTPUT_ROOTS: root,
+    }));
+    assert.equal(result.created.ok, true);
+    assert.equal(result.validated.ok, false);
+    assert.equal(result.validated.tool, "pptx_validate");
+    assert.ok(result.validated.issues.some((issue) => /layout_master_relationship_missing|missing_relationships:ppt\/slideLayouts\/_rels\/slideLayout1\.xml\.rels/.test(issue)));
+    assert.doesNotMatch(JSON.stringify(result.validated), new RegExp(root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  });
+}
+
+function testCreateBlocksMediaLineWhenCompatibilityValidationFails() {
+  withTempRoot((root) => {
+    const outputPath = path.join(root, "deliverable", "blocked.pptx");
+    const script = `
+import importlib.util, json
+spec = importlib.util.spec_from_file_location("hermes_mobile_pptx", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+module._slide_layout_rels = lambda: """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>"""
+print(module._pptx_create_handler({
+    "output_path": ${JSON.stringify(outputPath)},
+    "title": "Blocked deck",
+    "slides": [{"title": "Overview", "bullets": ["One"]}],
+}))
+`;
+    const result = JSON.parse(runPython(script, {
+      HERMES_MOBILE_PPTX_ALLOWED_ROOTS: root,
+      HERMES_MOBILE_PPTX_OUTPUT_ROOTS: root,
+    }));
+    assert.equal(result.ok, false);
+    assert.equal(result.tool, "pptx_create");
+    assert.equal(result.error, "pptx_compatibility_validation_failed");
+    assert.equal(result.validation.ok, false);
+    assert.ok(result.validation.issues.some((issue) => /layout_master_relationship_missing/.test(issue)));
+    assert.equal(result.media_line, undefined);
+    assert.equal(fs.existsSync(outputPath), false);
   });
 }
 
@@ -108,4 +183,6 @@ print(module._pptx_create_handler({"output_path": ${JSON.stringify(outside)}, "s
 }
 
 testCreatesReadablePptxWithImageAndMediaLine();
+testValidateRejectsMissingLayoutMasterRelationship();
+testCreateBlocksMediaLineWhenCompatibilityValidationFails();
 testRejectsOutputOutsideAllowedRoots();

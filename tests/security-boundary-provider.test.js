@@ -197,6 +197,7 @@ function run() {
   assert.match(permissionInstructions, /`office_extract_text`/);
   assert.match(permissionInstructions, /PowerPoint PPTX generation inside the current allowed roots is ordinary low-permission file delivery/);
   assert.match(permissionInstructions, /`pptx_create`/);
+  assert.match(permissionInstructions, /`pptx_validate`/);
   assert.match(permissionInstructions, /PDF generation inside the current allowed roots is ordinary low-permission file delivery/);
   assert.match(permissionInstructions, /`pdf_create`/);
   assert.match(permissionInstructions, /PDF text extraction and PDF-to-page-image rendering inside the current allowed roots are ordinary low-permission file analysis/);
@@ -255,6 +256,7 @@ function run() {
   assert.match(fs.readFileSync(skillPath, "utf8"), /Use `office_extract_text` when `read_file` cannot decode an Office document package/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /PowerPoint PPTX generation inside the current run's allowed roots is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Use `pptx_create` for explicit real \.pptx deck requests/);
+  assert.match(fs.readFileSync(skillPath, "utf8"), /Use `pptx_validate` to re-check existing in-scope decks/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /PDF generation inside the current run's allowed roots is \*\*Allowed\*\*/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /Use `pdf_create` for explicit real \.pdf document requests/);
   assert.match(fs.readFileSync(skillPath, "utf8"), /PDF text extraction and PDF-to-page-image rendering inside the current run's allowed roots are \*\*Allowed\*\*/);

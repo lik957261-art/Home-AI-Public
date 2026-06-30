@@ -465,8 +465,10 @@ Verification review items expose `开始验证`; that action creates a
 ledger-backed verification slice and sends one task card to the central audit
 thread. Deployment/readback review items expose `部署读回`; that action creates
 a ledger-backed deployment slice and sends one deployment/readback card to the
-dedicated `Home AI Deploy` thread without performing local deployment in the
-Inbox UI. Repair review items expose `发修复卡`; that action creates a
+configured Home AI deploy lane pool without performing local deployment in the
+Inbox UI. The deployment card carries `cardKind=plugin_deployment` and
+`pluginId=<plugin-id>` when available so the task-card router can select a
+stable lane. Repair review items expose `发修复卡`; that action creates a
 ledger-backed repair slice and sends one repair card back to the original
 implementation workspace.
 Closure review items expose `完成闭环` only after the coordinator case is

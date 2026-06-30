@@ -297,20 +297,24 @@ Home AI app workspace, or that the final smoke opens the plugin through the
 Home AI embedded shell, does not make the task belong to the ordinary Home AI
 implementation thread.
 
-Routine plugin production execute/readback belongs to the dedicated
-`Home AI Deploy` Codex thread. This is a hard routing boundary, not an
+Routine plugin production execute/readback belongs to the configured Home AI
+deploy lane pool. The default lane is `Home AI Deploy`; installations may add
+live non-terminal lanes such as `Home AI Deploy Lane A`,
+`Home AI Deploy Lane B`, `Home AI Deploy Lane C`,
+`Codex Mobile Deploy Lane`, or `Movie Deploy Lane` when throughput requires
+parallel deploy/readback work. This is a hard routing boundary, not an
 optimization preference. A plugin that has a valid
-`deploy:macos -- --plugin <plugin-id>` plan must send a deployment card to
-`Home AI Deploy`, not to the ordinary Home AI implementation thread and not to
+`deploy:macos -- --plugin <plugin-id>` plan must send a deployment card to the
+deploy lane pool, not to the ordinary Home AI implementation thread and not to
 an audit thread. If ordinary Home AI receives such a routine plugin deploy
-card, Home AI must return `redirected` or `blocked` with the exact
-`Home AI Deploy` target and required card fields.
+card, Home AI must return `redirected` or `blocked` with the configured deploy
+lane target and required card fields.
 
-The target `Home AI Deploy` thread must be a live, discoverable,
-non-terminal deployment lane. If the only matching thread is completed,
-archived, deleted, hidden, or otherwise non-runnable, the correct outcome is a
-platform routing repair for the deploy lane, not a routine deployment from the
-ordinary Home AI implementation thread.
+At least one configured deploy lane must be live, discoverable, and
+non-terminal. A completed, archived, deleted, hidden, duplicate-title, or
+otherwise non-runnable configured lane is a platform routing defect. The
+correct outcome is a platform routing repair for the deploy lane pool, not a
+routine deployment from the ordinary Home AI implementation thread.
 
 Deployment cards must not include raw sudo passwords, password-file paths,
 SSH private keys, local operator secret paths, cookies, launch tokens, plugin
@@ -323,10 +327,11 @@ Deployment cards must be request-shaped. A source-thread `Return: ...` card,
 terminal status such as `completed`, `partially_completed`, `redirected`,
 `blocked`, or `rejected` is a receipt and must not be treated as the routine
 plugin production deployment request. Plugin threads that finish source work
-must send a separate deployment request card to `Home AI Deploy` with source
+must send a separate deployment request card to the deploy lane pool with source
 commit, deploy reason, plan facts, safety boundary, and bounded readback
 expectations. When structured card kinds are available, use
-`cardKind=plugin_deployment` for that request.
+`cardKind=plugin_deployment` and `pluginId=<plugin-id>` for that request so the
+router can choose a stable deploy lane.
 
 Send a task card to the Home AI workspace only when the blocking work is
 host/platform owned, including:
@@ -348,7 +353,8 @@ When a Home AI implementation card is necessary, it must name the failure layer
 and include bounded evidence plus an explicit `Return Card Required` section
 naming the source thread and expected reply shape. It must not ask ordinary
 Home AI to redo plugin-local diagnosis, re-run ordinary plugin tests, or
-perform a plugin deploy that belongs in `Home AI Deploy`.
+perform a plugin deploy that belongs in the configured Home AI deploy lane
+pool.
 
 Receiving a task card does not automatically make the requested work owned by
 the receiving workspace. Home AI and plugin threads must triage every incoming
@@ -917,8 +923,9 @@ npm run --silent deploy:macos -- --plugin <plugin-id> --source /Users/example/pa
 Standard plugin deploy request card fields:
 
 ```text
-target-thread: Home AI Deploy
+target-thread: Home AI Deploy or configured deploy lane pool
 plugin: <plugin-id>
+pluginId: <plugin-id>
 source: /Users/example/path<plugin-id>
 source-commit: <git commit>
 source-dirty: false

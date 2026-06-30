@@ -30,8 +30,10 @@ docs. The Home AI development source path is
 `/Users/example/path`; the production launchd label is
 `com.hermesmobile.plugin.moira`; the loopback service URL is
 `http://127.0.0.1:4174`. Production updates are prepared with the central
-deploy script plan and executed/read back through the dedicated
-`Home AI Deploy` thread:
+deploy script plan and executed/read back through the configured Home AI deploy
+lane pool. The default lane is `Home AI Deploy`; installations may add
+plugin-specific lanes such as `Movie Deploy Lane` when throughput requires
+parallel production readbacks:
 `npm run --silent deploy:macos -- --plugin moira --reason <reason> --json`.
 
 Moira follows normal workspace-private plugin provisioning. Granting Moira
@@ -200,20 +202,22 @@ ordinary write access to `/Users/example/path<plugin>`.
 Plugin Codex threads must read that central contract before production deploys.
 They own source implementation, tests, commit/push when applicable, deploy
 plan, and bounded readback expectations. Routine production execute/readback
-is routed to the dedicated `Home AI Deploy` Codex thread so plugin workspaces
-do not need visibility into macOS sudo/password-file credential paths. The
+is routed to the configured Home AI deploy lane pool so plugin workspaces do
+not need visibility into macOS sudo/password-file credential paths. The
 shared script also accepts `--plugin all` for a bounded all-plugin deployment
 plan over the known service roots. A plugin-local deployment script may wrap
 the central script in plan mode, but must not introduce a separate sudo, rsync,
 SSH, or production write-access path.
 
-Routine plugin deployment cards must target `Home AI Deploy`, not the ordinary
-Home AI implementation thread and not an audit thread. Cross-thread cards to
-the ordinary Home AI implementation thread are reserved for host/platform
-blockers: Home AI source changes, central deploy-script gaps, same-origin proxy
-or launch bugs, workspace binding/provisioning bugs, Gateway/toolset schema
-changes, shared policy changes, or unresolved production permission failures
-that prevent `Home AI Deploy` from executing the central contract.
+Routine plugin deployment cards must target the deploy lane pool with
+`cardKind=plugin_deployment` and `pluginId=<plugin-id>` when structured fields
+are available, not the ordinary Home AI implementation thread and not an audit
+thread. Cross-thread cards to the ordinary Home AI implementation thread are
+reserved for host/platform blockers: Home AI source changes, central
+deploy-script gaps, same-origin proxy or launch bugs, workspace
+binding/provisioning bugs, Gateway/toolset schema changes, shared policy
+changes, or unresolved production permission failures that prevent the deploy
+lane pool from executing the central contract.
 
 Normal plugin
 deployments must also prove required frontend entry artifacts before closure:

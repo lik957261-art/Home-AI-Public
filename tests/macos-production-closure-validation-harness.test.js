@@ -44,6 +44,7 @@ assert.match(script, /docx_create/);
 assert.match(script, /docx_extract_text/);
 assert.match(script, /office_extract_text/);
 assert.match(script, /pptx_create/);
+assert.match(script, /pptx_validate/);
 assert.match(script, /pdf_create/);
 assert.match(script, /pdf_extract_text/);
 assert.match(script, /pdf_render_pages/);

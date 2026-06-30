@@ -589,12 +589,12 @@ async function main() {
   if (!targets.length) throw new Error("No matching Gateway worker found for schema smoke.");
   const profilePluginSchemaOnly = hasFlag("--profile-plugin-schema-only");
   const defaultProfileFilePluginFilter = "hermes-mobile-docx,hermes-mobile-pptx,hermes-mobile-pdf,hermes-mobile-audio,hermes-mobile-archive";
-  const defaultProfileFilePluginTools = "docx_create,docx_extract_text,office_extract_text,pptx_create,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe";
+  const defaultProfileFilePluginTools = "docx_create,docx_extract_text,office_extract_text,pptx_create,pptx_validate,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe";
   const requiredTools = cleanList(argValue(
     "--require",
     profilePluginSchemaOnly
       ? defaultProfileFilePluginTools
-      : "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_create,docx_extract_text,office_extract_text,pptx_create,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe",
+      : "http_request,weather,mobile_web_search,mobile_web_extract,image_generate,chatgpt_image_edit,chatgpt_image_erase,docx_create,docx_extract_text,office_extract_text,pptx_create,pptx_validate,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe",
   ));
   const forbiddenTools = forbidToolsFromArgs();
   const requiredDescriptionChecks = cleanToolDescriptionChecks(argValue("--require-tool-description", ""));

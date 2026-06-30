@@ -584,29 +584,35 @@ manifest smoke is
 exclude `data/` and prove `public/index.html`; Home AI must not copy Movie
 device, NAS, or projector credentials into host source or docs.
 
-Routine plugin deployment execution is owned by the dedicated
-`Home AI Deploy` Codex thread. Plugin threads prepare source, tests, commits,
+Routine plugin deployment execution is owned by the configured Home AI deploy
+lane pool. The default lane is `Home AI Deploy`; installations may add live
+non-terminal lanes such as `Home AI Deploy Lane A`,
+`Home AI Deploy Lane B`, `Home AI Deploy Lane C`,
+`Codex Mobile Deploy Lane`, or `Movie Deploy Lane` when throughput requires
+parallel deploy/readback work. Plugin threads prepare source, tests, commits,
 deploy plan, and bounded readback expectations, then send a deployment card to
-that thread. Plugin-visible cards and docs must not include `--password-file`
-paths, SSH private key paths, raw passwords, plugin keys, cookies, launch
-tokens, or local operator secret paths. The central deploy script may still use
-local operator credential discovery inside the Home AI deployment runtime, but
-that is not a plugin-visible contract.
+the lane pool with `cardKind=plugin_deployment` and `pluginId=<plugin-id>` when
+structured fields are available. Plugin-visible cards and docs must not include
+`--password-file` paths, SSH private key paths, raw passwords, plugin keys,
+cookies, launch tokens, or local operator secret paths. The central deploy
+script may still use local operator credential discovery inside the Home AI
+deployment runtime, but that is not a plugin-visible contract.
 
 A routine plugin deployment card must be a request card, not a terminal
 receipt. Titles such as `Return: ...`, bodies containing `Return policy:
 terminal receipt`, or cards whose primary status is already `completed`,
 `partially_completed`, `redirected`, `blocked`, or `rejected` are deployment
 closure receipts, not deployment requests. They must not be routed to
-`Home AI Deploy` as the requested production execute/readback. If this shape is
+the deploy lane pool as the requested production execute/readback. If this shape is
 detected, the sender or host must fail closed with bounded evidence and create
 a new deployment request card that includes the source commit, deploy reason,
 plan result, safety boundary, and required production readback.
 
-`Home AI Deploy` must remain a live operational lane. If readback shows the
-matching deploy thread is completed, archived, deleted, hidden, or missing from
-the runnable target set, routine plugin deployment must fail closed and the
-deploy lane must be repaired or recreated. The ordinary Home AI implementation
+At least one configured deploy lane must remain live and operational. If
+readback shows a configured deploy thread is completed, archived, deleted,
+hidden, duplicated, or missing from the runnable target set, routine plugin
+deployment must fail closed and the deploy lane must be repaired, recreated, or
+removed from the configured lane pool. The ordinary Home AI implementation
 thread should redirect or block the card with that exact deploy-lane evidence;
 it must not silently take over routine plugin deployment execution.
 
@@ -638,8 +644,10 @@ Target-side public upgrade rehearsal uses
 temporary root, runs source-only public preflight, proves missing plugin source
 roots fail closed without `--clone-missing-plugins`, and proves the explicit
 clone gate can produce clone/deploy/closure-validation plan actions. The
-rehearsal is source/plan-only and must not pass `--execute` into
-`upgrade:public`.
+rehearsal also seeds installed-but-non-Git source directories and proves they
+fail closed until `--adopt-non-git-sources`, then produce
+adopt/deploy/closure-validation plan actions with that gate. The rehearsal is
+source/plan-only and must not pass `--execute` into `upgrade:public`.
 New-Mac remote deployment smoke uses
 `scripts/homeai-public-remote-deploy-smoke.js`
 (`npm run remote:public-deploy-smoke`). It is plan-only by default. With
@@ -664,6 +672,11 @@ and `https://github.com/pentiumxp/HomeAI-Music.git`. They are not anonymous
 default public plugins. `--clone-missing-plugins` is the
 explicit gate for cloning missing plugin sources, including operator-
 authenticated sources when the operator has configured Git credentials.
+If a first install used a public export or bundled plugin source copy, present
+source directories can be non-Git. `--adopt-non-git-sources` is the explicit
+operator gate that initializes Git metadata in place, writes local runtime-state
+excludes for `data/`, `logs/`, `tmp/`, `node_modules/`, and similar directories,
+then deploys adopted Home AI/plugin sources before final closure validation.
 
 Hermes Agent and provider ingress are deployment dependencies. A fresh install
 must close `install-official-hermes-runtime`, which now pins
@@ -675,9 +688,13 @@ dependencies when `--install-hermes-agent-dependencies 1` is set. The public
 upgrade loop then checks the same source and
 `<root>/runtime/hermes-agent-official/venv/bin/python`; a Hermes Agent source
 update requires explicit `--update-hermes-agent`, and dependency installation
-requires `--install-hermes-agent-dependencies`. After Home AI, plugin, or
-Hermes Agent updates, the loop must run the production profile/provider audit
-and `scripts/macos-production-closure-validation.js`. It may report bounded
+requires `--install-hermes-agent-dependencies`. If the virtualenv Python is
+missing, upgrade must fail closed until `--install-hermes-agent-dependencies`
+and a Python 3.12+ `--python-command` are supplied; with that gate, it reruns
+the first-install `install-official-hermes-runtime` phase before provider
+audit. After Home AI, plugin, or Hermes Agent updates, the loop must run the
+production profile/provider audit and
+`scripts/macos-production-closure-validation.js`. It may report bounded
 provider/profile status, but must not print raw provider keys, OAuth state,
 worker API keys, cookies, launch tokens, or profile config bodies.
 
@@ -1037,7 +1054,7 @@ unreadable manifest, key, or required Skill files.
 
 Mac Gateway start scripts must also inject the live file-plugin roots for every
 profile-local file tool. `docx_create`, `docx_extract_text`,
-`office_extract_text`, `pptx_create`, `pdf_create`, `pdf_extract_text`,
+`office_extract_text`, `pptx_create`, `pptx_validate`, `pdf_create`, `pdf_extract_text`,
 `pdf_render_pages`, `audio_transcribe`, `archive_list`,
 `archive_extract_safe`, `chatgpt_image_edit`,
 `chatgpt_image_erase`, `video_gen`, and scoped
@@ -1805,12 +1822,12 @@ header was actually exercised without exposing key material.
 It does not by itself prove Gateway callable schema health. Document/file
 cleaning closure must also run `gateway-tool-schema-smoke.js` or the aggregate
 `macos-production-closure-validation.js` and verify `docx_create`,
-`docx_extract_text`, `office_extract_text`, `pptx_create`, `pdf_create`,
+`docx_extract_text`, `office_extract_text`, `pptx_create`, `pptx_validate`, `pdf_create`,
 `pdf_extract_text`, `pdf_render_pages`, `audio_transcribe`, `archive_list`,
 and `archive_extract_safe` in the selected production profile schema.
 For lower-level profile-local checks that must not depend on model/provider
 startup, run:
-`node scripts/gateway-tool-schema-smoke.js --manifest /Users/example/path --profile <profile> --profile-plugin-schema-only --profile-plugin-filter hermes-mobile-docx,hermes-mobile-pptx,hermes-mobile-pdf,hermes-mobile-audio,hermes-mobile-archive --runtime-python /Users/example/path --require docx_create,docx_extract_text,office_extract_text,pptx_create,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe`.
+`node scripts/gateway-tool-schema-smoke.js --manifest /Users/example/path --profile <profile> --profile-plugin-schema-only --profile-plugin-filter hermes-mobile-docx,hermes-mobile-pptx,hermes-mobile-pdf,hermes-mobile-audio,hermes-mobile-archive --runtime-python /Users/example/path --require docx_create,docx_extract_text,office_extract_text,pptx_create,pptx_validate,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe`.
 The central Home AI deploy path now reruns the `install-gateway-launchd-services`
 phase after full source sync so the production profile `plugins/` directories,
 `config.yaml`, and start scripts are materialized together before drift audit.

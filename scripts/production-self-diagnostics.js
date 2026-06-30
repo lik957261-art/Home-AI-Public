@@ -295,7 +295,7 @@ const BASELINE_DIAGNOSTICS = [
       "--runtime-python",
       "<mac-root>/runtime/hermes-agent-official/venv/bin/python",
       "--require",
-      "docx_create,docx_extract_text,office_extract_text,pptx_create,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe",
+      "docx_create,docx_extract_text,office_extract_text,pptx_create,pptx_validate,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe",
     ],
     requiredFor: ["document cleaning", "file analysis", "Gateway callable schema", "configuration drift prevention"],
   },

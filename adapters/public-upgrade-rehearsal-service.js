@@ -129,6 +129,8 @@ function createPublicUpgradeRehearsalService(options = {}) {
     const appPath = path.join(rehearsalRoot, "app");
     const targetRoot = path.join(rehearsalRoot, "target-root");
     const pluginRoot = path.join(targetRoot, "plugins");
+    const installedAppPath = path.join(targetRoot, "installed-app");
+    const installedPluginRoot = path.join(targetRoot, "installed-plugins");
     const runtimeRoot = path.join(targetRoot, "runtime");
     const hermesAgentSource = path.join(runtimeRoot, "hermes-agent-official", "source");
     const hermesAgentPython = path.join(runtimeRoot, "hermes-agent-official", "venv", "bin", "python");
@@ -137,6 +139,8 @@ function createPublicUpgradeRehearsalService(options = {}) {
       appPath,
       targetRoot,
       pluginRoot,
+      installedAppPath,
+      installedPluginRoot,
       runtimeRoot,
       manifestPath: path.join(appPath, "config", "public-plugin-sources.json"),
       hermesAgentSource,
@@ -167,6 +171,22 @@ function createPublicUpgradeRehearsalService(options = {}) {
       {
         type: "upgrade-plan-with-operator-clone-gate",
         command: commandLabel(nodeCommand, upgradeArgs(resolved, planOptions, { cloneMissingPlugins: true })),
+      },
+      {
+        type: "upgrade-plan-missing-hermes-runtime-requires-repair",
+        command: commandLabel(nodeCommand, upgradeArgs(resolved, planOptions, { cloneMissingPlugins: true })),
+      },
+      {
+        type: "upgrade-plan-with-hermes-runtime-repair-gate",
+        command: commandLabel(nodeCommand, upgradeArgs(resolved, planOptions, { cloneMissingPlugins: true, installHermesAgentDependencies: true })),
+      },
+      {
+        type: "upgrade-plan-non-git-sources-require-adoption",
+        command: commandLabel(nodeCommand, upgradeArgs(resolved, planOptions, { installedSourceShape: true })),
+      },
+      {
+        type: "upgrade-plan-with-source-adoption-gate",
+        command: commandLabel(nodeCommand, upgradeArgs(resolved, planOptions, { installedSourceShape: true, adoptNonGitSources: true })),
       },
     ];
     return {
@@ -214,8 +234,27 @@ function createPublicUpgradeRehearsalService(options = {}) {
       "--reason",
       clean(options.reason || "public-upgrade-rehearsal", 120),
     ];
+    if (gates.installedSourceShape) {
+      const appIndex = args.indexOf("--app");
+      if (appIndex >= 0) args[appIndex + 1] = resolved.installedAppPath;
+      const pluginIndex = args.indexOf("--plugin-root");
+      if (pluginIndex >= 0) args[pluginIndex + 1] = resolved.installedPluginRoot;
+    }
     if (gates.cloneMissingPlugins) args.push("--clone-missing-plugins");
+    if (gates.adoptNonGitSources) args.push("--adopt-non-git-sources");
+    if (gates.installHermesAgentDependencies) args.push("--install-hermes-agent-dependencies");
     return args;
+  }
+
+  function seedNonGitInstalledSources(resolved) {
+    fs.mkdirSync(resolved.installedAppPath, { recursive: true });
+    fs.writeFileSync(path.join(resolved.installedAppPath, "README.md"), "non-git installed Home AI source placeholder\n", "utf8");
+    const manifest = JSON.parse(fs.readFileSync(resolved.manifestPath, "utf8"));
+    for (const plugin of Array.isArray(manifest.plugins) ? manifest.plugins : []) {
+      const dir = path.join(resolved.installedPluginRoot, clean(plugin.sourceDir || plugin.id, 160));
+      fs.mkdirSync(path.join(dir, "data"), { recursive: true });
+      fs.writeFileSync(path.join(dir, "README.md"), `non-git installed plugin placeholder:${clean(plugin.id, 120)}\n`, "utf8");
+    }
   }
 
   async function run(command, args = [], runOptions = {}) {
@@ -286,6 +325,76 @@ function createPublicUpgradeRehearsalService(options = {}) {
       steps.push({ type: "validate-operator-clone-gate-plan", ok: operatorCheck.ok, detail: operatorCheck });
       if (!operatorCheck.ok) return fail(plan, steps, "operator_clone_gate_plan_validation_failed");
 
+      fs.rmSync(resolved.hermesAgentPython, { force: true });
+      steps.push({ type: "remove-target-runtime-placeholder", ok: true, path: resolved.hermesAgentPython });
+
+      const runtimeBlocked = await run(nodeCommand, upgradeArgs(resolved, executeOptions, { cloneMissingPlugins: true }), {
+        cwd: resolved.appPath,
+        timeoutMs: timeoutMs * 4,
+      });
+      const runtimeBlockedJson = parseJsonOutput(runtimeBlocked);
+      steps.push({
+        type: "upgrade-plan-missing-hermes-runtime-requires-repair",
+        result: compactRunResult(runtimeBlocked, 0, 300),
+        summary: summarizeUpgradePlan(runtimeBlockedJson || {}),
+      });
+      const runtimeBlockedCheck = validateHermesAgentRuntimeRepairRequiredPlan(runtimeBlockedJson);
+      steps.push({ type: "validate-hermes-runtime-repair-required", ok: runtimeBlockedCheck.ok, detail: runtimeBlockedCheck });
+      if (!runtimeBlockedCheck.ok) return fail(plan, steps, "hermes_runtime_repair_required_validation_failed");
+
+      const runtimeRepairPlan = await run(nodeCommand, upgradeArgs(resolved, executeOptions, { cloneMissingPlugins: true, installHermesAgentDependencies: true }), {
+        cwd: resolved.appPath,
+        timeoutMs: timeoutMs * 4,
+      });
+      const runtimeRepairJson = parseJsonOutput(runtimeRepairPlan);
+      steps.push({
+        type: "upgrade-plan-with-hermes-runtime-repair-gate",
+        result: compactRunResult(runtimeRepairPlan, 0, 300),
+        summary: summarizeUpgradePlan(runtimeRepairJson || {}),
+      });
+      const runtimeRepairCheck = validateHermesAgentRuntimeRepairGatePlan(runtimeRepairJson);
+      steps.push({ type: "validate-hermes-runtime-repair-gate-plan", ok: runtimeRepairCheck.ok, detail: runtimeRepairCheck });
+      if (!runtimeRepairCheck.ok) return fail(plan, steps, "hermes_runtime_repair_gate_plan_validation_failed");
+
+      writePlaceholderExecutable(resolved.hermesAgentPython);
+      steps.push({ type: "restore-target-runtime-placeholder", ok: true, path: resolved.hermesAgentPython });
+
+      seedNonGitInstalledSources(resolved);
+      steps.push({
+        type: "seed-non-git-installed-sources",
+        ok: true,
+        appPath: resolved.installedAppPath,
+        pluginRoot: resolved.installedPluginRoot,
+      });
+
+      const adoptionBlocked = await run(nodeCommand, upgradeArgs(resolved, executeOptions, { installedSourceShape: true }), {
+        cwd: resolved.appPath,
+        timeoutMs: timeoutMs * 4,
+      });
+      const adoptionBlockedJson = parseJsonOutput(adoptionBlocked);
+      steps.push({
+        type: "upgrade-plan-non-git-sources-require-adoption",
+        result: compactRunResult(adoptionBlocked, 0, 300),
+        summary: summarizeUpgradePlan(adoptionBlockedJson || {}),
+      });
+      const adoptionBlockedCheck = validateNonGitSourceAdoptionRequiredPlan(adoptionBlockedJson);
+      steps.push({ type: "validate-non-git-source-adoption-required", ok: adoptionBlockedCheck.ok, detail: adoptionBlockedCheck });
+      if (!adoptionBlockedCheck.ok) return fail(plan, steps, "non_git_source_adoption_required_validation_failed");
+
+      const adoptionPlan = await run(nodeCommand, upgradeArgs(resolved, executeOptions, { installedSourceShape: true, adoptNonGitSources: true }), {
+        cwd: resolved.appPath,
+        timeoutMs: timeoutMs * 4,
+      });
+      const adoptionJson = parseJsonOutput(adoptionPlan);
+      steps.push({
+        type: "upgrade-plan-with-source-adoption-gate",
+        result: compactRunResult(adoptionPlan, 0, 300),
+        summary: summarizeUpgradePlan(adoptionJson || {}),
+      });
+      const adoptionCheck = validateSourceAdoptionGatePlan(adoptionJson);
+      steps.push({ type: "validate-source-adoption-gate-plan", ok: adoptionCheck.ok, detail: adoptionCheck });
+      if (!adoptionCheck.ok) return fail(plan, steps, "source_adoption_gate_plan_validation_failed");
+
       const completed = {
         ok: true,
         schemaVersion: 1,
@@ -345,6 +454,64 @@ function createPublicUpgradeRehearsalService(options = {}) {
     };
   }
 
+  function validateNonGitSourceAdoptionRequiredPlan(report = {}) {
+    const blockers = Array.isArray(report?.blockers) ? report.blockers : [];
+    const sourceBlockers = blockers.filter((item) => item.code === "source_directory_not_git_checkout");
+    return {
+      ok: report?.ok === false && sourceBlockers.length > 0,
+      reportOk: report?.ok === true,
+      sourceDirectoryNotGitBlockerCount: sourceBlockers.length,
+      hasHomeAiBlocker: sourceBlockers.some((item) => item.id === "home-ai"),
+    };
+  }
+
+  function validateHermesAgentRuntimeRepairRequiredPlan(report = {}) {
+    const blockers = Array.isArray(report?.blockers) ? report.blockers : [];
+    const actions = Array.isArray(report?.actions) ? report.actions : [];
+    return {
+      ok: report?.ok === false
+        && blockers.some((item) => item.code === "hermes_agent_runtime_python_missing_requires_install_hermes_agent_dependencies")
+        && actions.some((item) => item.type === "install-hermes-agent-runtime"),
+      reportOk: report?.ok === true,
+      runtimeRepairBlockerPresent: blockers.some((item) => item.code === "hermes_agent_runtime_python_missing_requires_install_hermes_agent_dependencies"),
+      runtimeRepairActionPresent: actions.some((item) => item.type === "install-hermes-agent-runtime"),
+    };
+  }
+
+  function validateHermesAgentRuntimeRepairGatePlan(report = {}) {
+    const actions = Array.isArray(report?.actions) ? report.actions : [];
+    return {
+      ok: report?.ok === true
+        && actions.some((item) => item.type === "install-hermes-agent-runtime")
+        && actions.some((item) => item.type === "closure-validation")
+        && report?.policy?.hermesAgentRuntimeRepairRequiresInstallDependenciesOption === true
+        && report?.policy?.rawSecretsInOutput === false,
+      reportOk: report?.ok === true,
+      runtimeRepairActionPresent: actions.some((item) => item.type === "install-hermes-agent-runtime"),
+      closureValidationPresent: actions.some((item) => item.type === "closure-validation"),
+    };
+  }
+
+  function validateSourceAdoptionGatePlan(report = {}) {
+    const actions = Array.isArray(report?.actions) ? report.actions : [];
+    const plugins = Array.isArray(report?.plugins) ? report.plugins : [];
+    const adoptActions = actions.filter((item) => item.type === "adopt-source-checkout");
+    const deployActions = actions.filter((item) => item.type === "deploy");
+    return {
+      ok: report?.ok === true
+        && adoptActions.length > 0
+        && deployActions.length > 0
+        && actions.some((item) => item.type === "closure-validation")
+        && report?.policy?.adoptNonGitSourcesRequiresOption === true
+        && report?.policy?.rawSecretsInOutput === false,
+      reportOk: report?.ok === true,
+      adoptActionCount: adoptActions.length,
+      deployActionCount: deployActions.length,
+      pluginCount: plugins.length,
+      closureValidationPresent: actions.some((item) => item.type === "closure-validation"),
+    };
+  }
+
   function fail(plan, steps, error) {
     return {
       ok: false,
@@ -363,6 +530,10 @@ function createPublicUpgradeRehearsalService(options = {}) {
     executeRehearsal,
     validateExpectedMissingSourcePlan,
     validateOperatorCloneGatePlan,
+    validateHermesAgentRuntimeRepairRequiredPlan,
+    validateHermesAgentRuntimeRepairGatePlan,
+    validateNonGitSourceAdoptionRequiredPlan,
+    validateSourceAdoptionGatePlan,
   });
 }
 

@@ -11,9 +11,24 @@ const DEFAULT_HOME_AI_TASK_INTAKE_THREAD_TITLE = "Home AI Task Intake";
 const DEFAULT_PLUGIN_AUDIT_THREAD_TITLE = "Plugin Workspace Audit";
 const DEFAULT_PLATFORM_AUDIT_THREAD_TITLE = "Home AI Platform Audit";
 const DEFAULT_DEPLOY_THREAD_TITLE = "Home AI Deploy";
+const DEFAULT_DEPLOY_THREAD_TITLES = Object.freeze([
+  DEFAULT_DEPLOY_THREAD_TITLE,
+  "Home AI Deploy Lane A",
+  "Home AI Deploy Lane B",
+  "Home AI Deploy Lane C",
+  "Codex Mobile Deploy Lane",
+  "Movie Deploy Lane",
+]);
 
 function clean(value, max = 200) {
   return String(value || "").trim().slice(0, max);
+}
+
+function cleanList(value, max = 160) {
+  const raw = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[\n,]/);
+  return [...new Set(raw.map((item) => clean(item, max)).filter(Boolean))];
 }
 
 function compactText(value, maxChars = 800) {
@@ -110,6 +125,32 @@ function isDeployKind(kind) {
   return text === "deployment" || text === "deploy" || text === "plugin_deployment" || text === "plugin-deployment";
 }
 
+function parseDeployLaneAssignments(value) {
+  if (!value) return {};
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([key, val]) => [clean(key, 120).toLowerCase(), clean(val, 160)])
+        .filter(([key, val]) => key && val),
+    );
+  }
+  try {
+    return parseDeployLaneAssignments(JSON.parse(String(value)));
+  } catch (_) {
+    return {};
+  }
+}
+
+function stableHash(value) {
+  const text = clean(value, 240);
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  }
+  return hash >>> 0;
+}
+
 function isTerminalReceiptCard(input = {}) {
   const title = clean(input.title, 240);
   const body = String(input.body || input.bodyMarkdown || "");
@@ -173,11 +214,19 @@ function createCodexThreadTaskCardService(options = {}) {
   const defaultPluginAuditThreadTitle = clean(options.pluginAuditThreadTitle || env.HOMEAI_PLUGIN_WORKSPACE_AUDIT_THREAD_TITLE || DEFAULT_PLUGIN_AUDIT_THREAD_TITLE, 160) || DEFAULT_PLUGIN_AUDIT_THREAD_TITLE;
   const defaultPlatformAuditThreadTitle = clean(options.platformAuditThreadTitle || env.HOMEAI_PLATFORM_AUDIT_THREAD_TITLE || DEFAULT_PLATFORM_AUDIT_THREAD_TITLE, 160) || DEFAULT_PLATFORM_AUDIT_THREAD_TITLE;
   const defaultDeployThreadTitle = clean(options.deployThreadTitle || env.HOMEAI_DEPLOY_THREAD_TITLE || DEFAULT_DEPLOY_THREAD_TITLE, 160) || DEFAULT_DEPLOY_THREAD_TITLE;
+  const deployThreadTitles = cleanList(
+    options.deployThreadTitles || env.HOMEAI_DEPLOY_THREAD_TITLES,
+    160,
+  );
+  const deployLaneTitles = deployThreadTitles.length
+    ? deployThreadTitles
+    : [defaultDeployThreadTitle, ...DEFAULT_DEPLOY_THREAD_TITLES.filter((title) => title !== defaultDeployThreadTitle)];
+  const deployLaneAssignments = parseDeployLaneAssignments(options.deployLaneAssignments || env.HOMEAI_DEPLOY_LANE_ASSIGNMENTS);
   const requestTimeoutMs = Math.max(1000, Number(options.timeoutMs || env.HOMEAI_CODEX_TASK_CARD_TIMEOUT_MS || 15000));
   const homeAiReservedTargetTitles = new Set([
     defaultPluginAuditThreadTitle,
     defaultPlatformAuditThreadTitle,
-    defaultDeployThreadTitle,
+    ...deployLaneTitles,
     DEFAULT_HOME_AI_TASK_INTAKE_THREAD_TITLE,
     clean(env.HOMEAI_CODEX_SOURCE_THREAD_TITLE || "", 160),
     sourceThreadTitlePrefix,
@@ -249,21 +298,49 @@ function createCodexThreadTaskCardService(options = {}) {
   }
 
   async function findDeployThread(input = {}) {
-    const title = clean(input.title || defaultDeployThreadTitle, 160);
     const cwd = normalizePath(input.cwd || sourceWorkspaceCwd);
-    const byTitle = await listThreads({ search: title, limit: 100 });
+    const explicitTitle = clean(input.title, 160);
+    const allowedTitles = explicitTitle ? [explicitTitle] : deployLaneTitles;
+    const allowedTitleSet = new Set(allowedTitles);
+    const pluginKey = clean(input.pluginId || input.plugin || input.plugin_id || input.deployPluginId || input.deploy_plugin_id || "", 120).toLowerCase();
+    const byTitle = explicitTitle
+      ? await listThreads({ search: explicitTitle, limit: 100 })
+      : await listThreads({ cwd, limit: 200 });
     const matches = byTitle.filter((thread) => {
-      if (threadTitleOf(thread) !== title) return false;
+      const title = threadTitleOf(thread);
+      if (!allowedTitleSet.has(title)) return false;
       if (isCompletedThread(thread)) return false;
       return !cwd || normalizePath(threadCwdOf(thread)) === cwd;
     });
     if (!matches.length) {
-      throw createError(503, "deploy_thread_not_found", "Central Home AI deployment thread is not currently discoverable", { deployThreadTitle: title, cwd });
+      throw createError(503, "deploy_thread_not_found", "Central Home AI deployment lane is not currently discoverable", { deployThreadTitles: allowedTitles, cwd });
     }
-    if (matches.length > 1) {
-      throw createError(409, "deploy_thread_ambiguous", "Multiple central Home AI deployment threads match the requested role", { deployThreadTitle: title, cwd, matchCount: matches.length });
+    const duplicates = new Map();
+    for (const thread of matches) {
+      const title = threadTitleOf(thread);
+      duplicates.set(title, (duplicates.get(title) || 0) + 1);
     }
-    return matches[0];
+    const duplicateTitle = [...duplicates.entries()].find(([, count]) => count > 1)?.[0] || "";
+    if (duplicateTitle) {
+      throw createError(409, "deploy_thread_ambiguous", "Multiple central Home AI deployment lanes match the same title", { deployThreadTitle: duplicateTitle, cwd, matchCount: duplicates.get(duplicateTitle) });
+    }
+    const sorted = [...matches].sort((left, right) => {
+      const titleDiff = allowedTitles.indexOf(threadTitleOf(left)) - allowedTitles.indexOf(threadTitleOf(right));
+      if (titleDiff) return titleDiff;
+      return threadUpdatedAt(right) - threadUpdatedAt(left);
+    });
+    const assignedTitle = pluginKey ? deployLaneAssignments[pluginKey] : "";
+    if (assignedTitle) {
+      const assigned = sorted.find((thread) => threadTitleOf(thread) === assignedTitle);
+      if (!assigned) {
+        throw createError(503, "deploy_lane_assignment_not_found", "Configured plugin deployment lane is not currently discoverable", { pluginId: pluginKey, deployThreadTitle: assignedTitle, cwd });
+      }
+      return assigned;
+    }
+    if (pluginKey && sorted.length > 1) {
+      return sorted[stableHash(pluginKey) % sorted.length];
+    }
+    return sorted[0];
   }
 
   async function findTargetThread(input = {}) {
@@ -279,8 +356,13 @@ function createCodexThreadTaskCardService(options = {}) {
         status: "configured",
       };
     }
+    if (isDeployKind(input.kind) && !title && !titlePrefix) {
+      return findDeployThread({
+        cwd: cwd || sourceWorkspaceCwd,
+        pluginId: input.pluginId || input.plugin || input.plugin_id,
+      });
+    }
     if (!title && !titlePrefix && !cwd) {
-      if (isDeployKind(input.kind)) return findDeployThread({ cwd: sourceWorkspaceCwd });
       return findAuditThread({ kind: input.kind || "plugin", cwd: sourceWorkspaceCwd });
     }
     const search = title || titlePrefix || "";
@@ -365,6 +447,7 @@ function createCodexThreadTaskCardService(options = {}) {
       title: input.targetThreadTitle,
       titlePrefix: input.targetThreadTitlePrefix,
       cwd: input.targetWorkspaceCwd,
+      pluginId: input.pluginId || input.plugin || input.plugin_id || input.targetPlugin || input.target_plugin,
     });
     if (threadIdOf(sourceThread) === threadIdOf(targetThread)) {
       throw createError(409, "task_card_source_target_same_thread", "Task-card source thread must be different from target thread", {
@@ -426,6 +509,7 @@ module.exports = {
   DEFAULT_PLUGIN_AUDIT_THREAD_TITLE,
   DEFAULT_PLATFORM_AUDIT_THREAD_TITLE,
   DEFAULT_DEPLOY_THREAD_TITLE,
+  DEFAULT_DEPLOY_THREAD_TITLES,
   createCodexThreadTaskCardService,
   isTerminalReceiptCard,
   parseThreadList,

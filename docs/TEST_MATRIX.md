@@ -632,14 +632,14 @@ native agent schema probe, for example
 `node scripts\gateway-tool-schema-smoke.js --manifest /Users/example/path --profile <profile> --schema-only --agent-schema-mode native --runtime-source /Users/example/path --runtime-overrides /Users/example/path --runtime-python /Users/example/path`. Do not treat a Windows-only WSL schema probe as Mac production evidence.
 PDF/Office document-file tool drift has a lower-level production check that
 must pass even if provider auth or full agent startup is broken:
-`node scripts\gateway-tool-schema-smoke.js --manifest /Users/example/path --profile <profile> --profile-plugin-schema-only --profile-plugin-filter hermes-mobile-docx,hermes-mobile-pptx,hermes-mobile-pdf,hermes-mobile-audio,hermes-mobile-archive --runtime-python /Users/example/path --require docx_create,docx_extract_text,office_extract_text,pptx_create,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe`.
+`node scripts\gateway-tool-schema-smoke.js --manifest /Users/example/path --profile <profile> --profile-plugin-schema-only --profile-plugin-filter hermes-mobile-docx,hermes-mobile-pptx,hermes-mobile-pdf,hermes-mobile-audio,hermes-mobile-archive --runtime-python /Users/example/path --require docx_create,docx_extract_text,office_extract_text,pptx_create,pptx_validate,pdf_create,pdf_extract_text,pdf_render_pages,audio_transcribe,archive_list,archive_extract_safe`.
 It validates the profile `config.yaml` plus profile-local plugin schemas and
 does not replace the full native agent schema probe for platform/MCP coverage.
 For Mac named profiles such as `hm-owner-openai-1`, the schema probe must also
 require the standard profile-local base tools `http_request`, `weather`,
 `mobile_web_search`, `mobile_web_extract`, `image_generate`,
 `chatgpt_image_edit`, `chatgpt_image_erase`, `docx_extract_text`,
-`office_extract_text`, `pptx_create`, `pdf_extract_text`, `pdf_render_pages`,
+`office_extract_text`, `pptx_create`, `pptx_validate`, `pdf_extract_text`, `pdf_render_pages`,
 `audio_transcribe`, `archive_list`, and `archive_extract_safe`. A manifest
 `toolsets` list is insufficient if the
 profile-local `gateway-plugins/hermes-mobile-*` directories were not copied.
@@ -928,8 +928,9 @@ Target-side public upgrade rehearsal must prove
 `npm run rehearse:public-upgrade`, public repo clone planning, source-only
 preflight, missing plugin source fail-closed behavior without
 `--clone-missing-plugins`, explicit clone-gate planning, Movie
-`operatorAuthenticated` preservation, and closure-validation presence without
-production mutation.
+`operatorAuthenticated` preservation, present-but-non-Git source fail-closed
+behavior without `--adopt-non-git-sources`, explicit source-adoption planning,
+and closure-validation presence without production mutation.
 Remote new-Mac public deployment smoke must prove
 `scripts/homeai-public-remote-deploy-smoke.js`,
 `npm run remote:public-deploy-smoke`, bounded SSH argument construction,
@@ -941,8 +942,11 @@ production `upgrade:public --execute`.
 The maintained public upgrade loop must additionally prove
 `scripts/homeai-public-upgrade.js`, clean fast-forward planning/execution,
 Moira/Movie source inventory, explicit clone gating for missing plugins,
+explicit adoption gating for public-export or bundled non-Git source dirs,
 explicit Hermes Agent update gating, changed/freshly cloned plugin deployment,
-dependency install gating, profile/provider audit, and closure validation.
+dependency install gating, missing Hermes Agent virtualenv repair through
+`install-official-hermes-runtime`, profile/provider audit, and closure
+validation.
 Focused checks:
 `node tests\public-release-closure-service.test.js`,
 `node tests\homeai-public-release-closure-script.test.js`,

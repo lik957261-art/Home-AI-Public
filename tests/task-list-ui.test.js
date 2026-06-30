@@ -1344,7 +1344,7 @@ assert.match(gatewayRunInstructionServiceJs, /web: \["mobile_web_search", "mobil
 assert.match(gatewayRunInstructionServiceJs, /search: \["mobile_web_search", "mobile_web_extract", "web_search", "web_extract"\]/);
 assert.match(gatewayRunInstructionServiceJs, /x_search: \["x_search"\]/);
 assert.match(gatewayRunInstructionServiceJs, /http: \["http_request"\]/);
-assert.match(gatewayRunInstructionServiceJs, /file: \["read_file", "write_file", "patch", "search_files", "docx_create", "docx_extract_text", "office_extract_text", "pptx_create", "pdf_create", "pdf_extract_text", "pdf_render_pages", "audio_transcribe", "archive_list", "archive_extract_safe"\]/);
+assert.match(gatewayRunInstructionServiceJs, /file: \["read_file", "write_file", "patch", "search_files", "docx_create", "docx_extract_text", "office_extract_text", "pptx_create", "pptx_validate", "pdf_create", "pdf_extract_text", "pdf_render_pages", "audio_transcribe", "archive_list", "archive_extract_safe"\]/);
 assert.match(gatewayRunInstructionServiceJs, /image_gen: \["image_generate", "chatgpt_image_edit", "chatgpt_image_erase", "image_edit", "image_erase"\]/);
 assert.match(gatewayRunInstructionServiceJs, /For HTTP\/API Program calls, use `http_request`; do not look for or mention a `web_request` function\./);
 assert.match(gatewayRunInstructionServiceJs, /http_request\.file_body/);
@@ -1354,6 +1354,7 @@ assert.match(gatewayRunInstructionServiceJs, /For Word DOCX text extraction, use
 assert.match(gatewayRunInstructionServiceJs, /For explicit Word\/DOCX generation requests, use `docx_create`/);
 assert.match(gatewayRunInstructionServiceJs, /For PowerPoint PPTX\/PPTM and Excel XLSX\/XLSM text extraction, use `office_extract_text`/);
 assert.match(gatewayRunInstructionServiceJs, /For explicit PowerPoint deck generation requests, use `pptx_create`/);
+assert.match(gatewayRunInstructionServiceJs, /Use `pptx_validate` to re-check existing in-scope decks/);
 assert.match(gatewayRunInstructionServiceJs, /For explicit PDF generation requests, use `pdf_create`/);
 assert.match(gatewayRunInstructionServiceJs, /For PDF reports, use `pdf_extract_text` first/);
 assert.match(gatewayRunInstructionServiceJs, /For MP3\/M4A\/WAV\/AAC\/OGG\/OPUS\/AMR\/FLAC voice notes or reading-retelling audio, use `audio_transcribe`/);
@@ -1361,9 +1362,10 @@ assert.match(gatewayRunInstructionServiceJs, /For ZIP archives inside allowed ro
 assert.match(gatewayRunInstructionServiceJs, /Callable function names for enabled toolsets/);
 assert.match(gatewayRunInstructionServiceJs, /function currentToolSchemaOverrideInstructions\(policy = \{\}, buildOptions = \{\}\)/);
 assert.match(gatewayRunInstructionServiceJs, /Current tool schema override: the `http` toolset is enabled for this run/);
-assert.match(gatewayRunInstructionServiceJs, /Word DOCX generation is available as `docx_create`; Word DOCX text extraction is available as `docx_extract_text`; PowerPoint PPTX\/PPTM and Excel XLSX\/XLSM text extraction is available as `office_extract_text`; real PowerPoint PPTX generation is available as `pptx_create`; PDF generation is available as `pdf_create`; PDF text extraction and page rendering are available as `pdf_extract_text` \/ `pdf_render_pages`/);
+assert.match(gatewayRunInstructionServiceJs, /Word DOCX generation is available as `docx_create`; Word DOCX text extraction is available as `docx_extract_text`; PowerPoint PPTX\/PPTM and Excel XLSX\/XLSM text extraction is available as `office_extract_text`; real PowerPoint PPTX generation is available as `pptx_create`; PowerPoint compatibility validation is available as `pptx_validate`; PDF generation is available as `pdf_create`; PDF text extraction and page rendering are available as `pdf_extract_text` \/ `pdf_render_pages`/);
 assert.match(gatewayRunInstructionServiceJs, /When the user explicitly asks for Word\/DOCX, use `docx_create`/);
 assert.match(gatewayRunInstructionServiceJs, /When the user explicitly asks for a PowerPoint\/PPTX deck, use `pptx_create`/);
+assert.match(gatewayRunInstructionServiceJs, /call `pptx_validate` on existing in-scope decks/);
 assert.match(gatewayRunInstructionServiceJs, /When the user explicitly asks for PDF, use `pdf_create`/);
 assert.match(gatewayRunInstructionServiceJs, /ZIP listing\/safe extraction is available as `archive_list` \/ `archive_extract_safe`/);
 assert.match(gatewayRunInstructionServiceJs, /For audio-only files such as \.mp3\/\.m4a\/\.wav/);

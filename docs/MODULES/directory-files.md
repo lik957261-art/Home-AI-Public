@@ -325,14 +325,17 @@ instructions.
 - DOCX adapted text extraction remains available to backend/document-preview
   services only as the bridge-unavailable Web fallback. Native Word viewing is
   the preferred Android/iOS shell path when layout fidelity is needed.
-- Gateway `file` toolset document delivery includes real `.pdf` and `.docx`
-  generation through profile-local `pdf_create` and `docx_create`. These tools
-  write only inside the current allowed artifact/output roots and must return
-  `MEDIA:<path>` for user-downloadable deliverables. Health-plugin document
-  workflows such as medication instructions, ECG summaries, and checkup report
-  organization can choose Markdown, PDF, or Word output through the same delivery
-  boundary; private health records must not be copied into docs, logs, or
-  model-visible debug output.
+- Gateway `file` toolset document delivery includes real `.pdf`, `.docx`, and
+  `.pptx` generation through profile-local `pdf_create`, `docx_create`, and
+  `pptx_create`. These tools write only inside the current allowed
+  artifact/output roots and must return `MEDIA:<path>` for user-downloadable
+  deliverables. `pptx_create` must validate PowerPoint-compatible OpenXML
+  relationships before returning `MEDIA:<path>`, and `pptx_validate` is the
+  explicit re-check tool for existing in-scope PPTX decks. Health-plugin
+  document workflows such as medication instructions, ECG summaries, checkup
+  report organization, and presentation handouts can choose Markdown, PDF,
+  Word, or PowerPoint output through the same delivery boundary; private health
+  records must not be copied into docs, logs, or model-visible debug output.
 - ZIP archive handling for low-permission Gateway runs is provided by the
   profile-local `hermes-mobile-archive` file plugin. `archive_list` may list
   in-scope ZIP entries and `archive_extract_safe` may extract only inside the

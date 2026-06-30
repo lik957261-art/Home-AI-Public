@@ -397,6 +397,127 @@ async function testDeploymentKindTargetsDedicatedDeployThread() {
   assert.deepEqual(result.cardIds, ["ttc_deploy_1"]);
 }
 
+async function testDeploymentKindCanUseConfiguredLanePoolAssignments() {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    if (String(url).startsWith("http://codex.local/api/threads?")) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          data: [
+            {
+              id: "thread-home-current",
+              title: "Home AI 06-30",
+              cwd: "/Users/example/path",
+              status: "active",
+              updatedAt: 500,
+            },
+            {
+              id: "thread-home-deploy",
+              title: "Home AI Deploy",
+              cwd: "/Users/example/path",
+              status: "idle",
+              updatedAt: 300,
+            },
+            {
+              id: "thread-movie-deploy",
+              title: "Movie Deploy Lane",
+              cwd: "/Users/example/path",
+              status: "idle",
+              updatedAt: 200,
+            },
+            {
+              id: "thread-codex-deploy",
+              title: "Codex Mobile Deploy Lane",
+              cwd: "/Users/example/path",
+              status: "idle",
+              updatedAt: 100,
+            },
+          ],
+        }),
+      };
+    }
+    if (String(url) === "http://codex.local/api/threads/thread-home-current/task-cards") {
+      const body = JSON.parse(options.body || "{}");
+      assert.deepEqual(body.targetThreadIds, ["thread-movie-deploy"]);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          direct: true,
+          autoApprove: true,
+          workspaceDelegationEnabled: true,
+          cards: [{ id: "ttc_movie_lane" }],
+        }),
+      };
+    }
+    return { ok: false, status: 404, text: async () => JSON.stringify({ error: "not_found" }) };
+  };
+  const service = createCodexThreadTaskCardService({
+    baseUrl: "http://codex.local",
+    key: "secret",
+    fetch: fetchImpl,
+    sourceWorkspaceCwd: "/Users/example/path",
+    deployThreadTitles: ["Home AI Deploy", "Movie Deploy Lane", "Codex Mobile Deploy Lane"],
+    deployLaneAssignments: { movie: "Movie Deploy Lane", "codex-mobile-web": "Codex Mobile Deploy Lane" },
+  });
+
+  const result = await service.sendTaskCard({
+    title: "Deploy Movie",
+    body: "deployment readback request",
+    requestId: "deploy-movie-lane-pool",
+    reasoningEffort: "xhigh",
+    cardKind: "plugin_deployment",
+    pluginId: "movie",
+    targetWorkspaceCwd: "/Users/example/path",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.targetThreadId, "thread-movie-deploy");
+  assert.deepEqual(result.cardIds, ["ttc_movie_lane"]);
+  assert.equal(calls.filter((call) => call.url.includes("/api/threads?")).length, 2);
+}
+
+async function testConfiguredDeployLaneAssignmentFailsClosedWhenLaneTerminal() {
+  const service = createCodexThreadTaskCardService({
+    baseUrl: "http://codex.local",
+    key: "secret",
+    sourceWorkspaceCwd: "/Users/example/path",
+    deployThreadTitles: ["Home AI Deploy", "Movie Deploy Lane"],
+    deployLaneAssignments: { movie: "Movie Deploy Lane" },
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        data: [
+          {
+            id: "thread-home-deploy",
+            title: "Home AI Deploy",
+            cwd: "/Users/example/path",
+            status: "idle",
+            updatedAt: 300,
+          },
+          {
+            id: "thread-movie-deploy",
+            title: "Movie Deploy Lane",
+            cwd: "/Users/example/path",
+            status: "completed",
+            updatedAt: 400,
+          },
+        ],
+      }),
+    }),
+  });
+
+  await assert.rejects(
+    () => service.findDeployThread({ pluginId: "movie" }),
+    (err) => err.code === "deploy_lane_assignment_not_found" && err.status === 503,
+  );
+}
+
 async function testDeploymentKindRejectsTerminalReceiptCard() {
   const { calls, fetchImpl } = createFetchStub();
   const service = createCodexThreadTaskCardService({
@@ -477,6 +598,8 @@ async function testCompletedDeployThreadFailsClosed() {
   await testCanSendToExplicitTargetThreadIdWithoutDiscoveringTarget();
   await testDefaultSourceDiscoverySkipsReservedDeployThread();
   await testDeploymentKindTargetsDedicatedDeployThread();
+  await testDeploymentKindCanUseConfiguredLanePoolAssignments();
+  await testConfiguredDeployLaneAssignmentFailsClosedWhenLaneTerminal();
   await testDeploymentKindRejectsTerminalReceiptCard();
   await testCompletedDeployThreadFailsClosed();
   console.log("codex thread task-card service tests passed");

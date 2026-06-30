@@ -173,6 +173,23 @@ async function testCycleInstallRunsInstallDeleteReinstallInSandbox() {
   assert.equal(calls.some((remote) => remote.includes("/Users/example/path")), false);
 }
 
+function testProductionUpgradeCommandUsesSourceAdoptionGate() {
+  const steps = buildRemoteSteps({
+    remoteRoot: "/tmp/homeai-public-remote-deploy-smoke-x",
+    publicRepoUrl: "https://example.test/repo.git",
+    executeProductionUpgrade: true,
+    productionRoot: "/Users/example/path",
+    reason: "friend-upgrade",
+  });
+  const upgrade = steps.find((step) => step.type === "public-production-upgrade");
+  assert.ok(upgrade);
+  assert.match(upgrade.script, /--clone-missing-plugins/);
+  assert.match(upgrade.script, /--adopt-non-git-sources/);
+  assert.match(upgrade.script, /--update-hermes-agent/);
+  assert.match(upgrade.script, /--install-hermes-agent-dependencies/);
+  assert.match(upgrade.script, /--force-closure-validation/);
+}
+
 async function testStopsOnFailedPreflightAndCleansUp() {
   async function runProcess(command, args) {
     const remote = args.at(-1);
@@ -225,6 +242,7 @@ function testSummariesAreBounded() {
   testSshArgsDoNotExposeShellToLocalEvaluation();
   await testExecuteHappyPathWithFakeSsh();
   await testCycleInstallRunsInstallDeleteReinstallInSandbox();
+  testProductionUpgradeCommandUsesSourceAdoptionGate();
   await testStopsOnFailedPreflightAndCleansUp();
   testSummariesAreBounded();
   console.log("public remote deploy smoke service tests passed");

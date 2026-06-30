@@ -882,6 +882,13 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
   performs clean fast-forward source updates, dependency installs when tracked
   dependency files changed, Home AI/plugin deployments for changed or newly
   cloned sources, and provider/profile closure validation.
+- If a machine was originally installed from a public export or bundled plugin
+  sources, present source directories may not yet be Git checkouts. In that
+  case the plan must fail closed with `source_directory_not_git_checkout`.
+  After reviewing the bounded plan, the operator can run the same upgrade with
+  `--adopt-non-git-sources`; this initializes Git metadata in place, keeps
+  runtime-state directories excluded, and deploys adopted Home AI/plugin sources
+  before closure validation.
 - `config/public-plugin-sources.json` is the source inventory. It includes
   Moira, Movie, and Music as deployable plugins. Moira uses the public
   `MOIRA_chinese_astrology_public` repository. Movie and Music currently require
@@ -898,9 +905,11 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
   `runtime/hermes-agent-official/venv/bin/python` from an operator-provided
   Python 3.12+ executable and Hermes Agent repository URL. Updating the Hermes
   Agent source requires explicit `--update-hermes-agent`, and dependency
-  refresh requires `--install-hermes-agent-dependencies`. After any Hermes
-  Agent update, the upgrade must run the production profile/provider audit and
-  closure validation; it must not print raw provider credentials or OAuth
+  refresh or missing virtualenv repair requires
+  `--install-hermes-agent-dependencies` plus a Python 3.12+
+  `--python-command`. After any Hermes Agent update or runtime repair, the
+  upgrade must run the production profile/provider audit and closure
+  validation; it must not print raw provider credentials or OAuth
   state.
 - Owner login checks `/api/app-update/status`. The response covers both Home AI
   and plugin source directories declared in `config/public-plugin-sources.json`.

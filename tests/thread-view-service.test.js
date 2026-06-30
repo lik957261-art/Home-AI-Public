@@ -224,7 +224,7 @@ function makeThread() {
               items: [{ role: "Outer", code: "OUT-001" }],
               source_message: { message_id: "task-a-assistant", thread_id: "thread-view" },
               idempotency_key: "wardrobe:outfit_wear_intent:test",
-              expires_at: "2026-06-30T00:00:00Z",
+              expires_at: "2099-06-30T00:00:00Z",
             },
           },
         },

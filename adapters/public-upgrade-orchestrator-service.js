@@ -7,6 +7,24 @@ const { execFile } = require("node:child_process");
 const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_BRANCH = "main";
 const DEFAULT_TIMEOUT_MS = 30000;
+const DEFAULT_HERMES_AGENT_REPOSITORY_URL = "https://github.com/pentiumxp/hermes-agent-public.git";
+const SOURCE_DIRECTORY_NOT_GIT = "source_directory_not_git_checkout";
+const ADOPTION_EXCLUDE_LINES = [
+  "# Home AI public upgrade runtime-state excludes",
+  "data/",
+  "runtime/",
+  "logs/",
+  "tmp/",
+  "temp/",
+  ".agent-context/",
+  "node_modules/",
+  ".venv/",
+  "__pycache__/",
+  "*.py[cod]",
+  "*.log",
+  ".env",
+  ".env.*",
+];
 
 function cleanString(value, max = 400) {
   return String(value || "").trim().slice(0, max);
@@ -103,6 +121,10 @@ function hasPackageLock(targetPath) {
   return fileExists(path.join(targetPath, "package-lock.json"));
 }
 
+function isNonGitSource(repo = {}) {
+  return repo.present === true && repo.warning === SOURCE_DIRECTORY_NOT_GIT;
+}
+
 function createPublicUpgradeOrchestratorService(options = {}) {
   const pathApi = options.path || path;
   const fsApi = options.fs || fs;
@@ -114,12 +136,14 @@ function createPublicUpgradeOrchestratorService(options = {}) {
   const runtimeRoot = pathApi.resolve(options.runtimeRoot || pathApi.join(root, "runtime"));
   const nodePath = pathApi.resolve(options.nodePath || pathApi.join(runtimeRoot, "node-current", "bin", "node"));
   const npmCommand = options.npmCommand || process.env.HOMEAI_NPM || "npm";
+  const installerNodeCommand = cleanString(options.installerNodeCommand || process.env.HOMEAI_NODE || process.execPath || "node", 500);
+  const pythonCommand = cleanString(options.pythonCommand || process.env.HOMEAI_PYTHON || process.env.PYTHON || "python3", 500);
   const gitCommand = options.gitCommand || process.env.HOMEAI_GIT || "git";
   const manifestPath = pathApi.resolve(options.manifestPath || pathApi.join(appPath, "config", "public-plugin-sources.json"));
   const homeAiRepositoryUrl = cleanString(options.homeAiRepositoryUrl || process.env.HOMEAI_PUBLIC_REPOSITORY_URL || "", 500);
   const hermesAgentSource = pathApi.resolve(options.hermesAgentSource || pathApi.join(runtimeRoot, "hermes-agent-official", "source"));
   const hermesAgentPython = pathApi.resolve(options.hermesAgentPython || pathApi.join(runtimeRoot, "hermes-agent-official", "venv", "bin", "python"));
-  const hermesAgentRepositoryUrl = cleanString(options.hermesAgentRepositoryUrl || process.env.HOMEAI_HERMES_AGENT_REPOSITORY_URL || process.env.HERMES_MOBILE_HERMES_AGENT_REPOSITORY_URL || "");
+  const hermesAgentRepositoryUrl = cleanString(options.hermesAgentRepositoryUrl || process.env.HOMEAI_HERMES_AGENT_REPOSITORY_URL || process.env.HERMES_MOBILE_HERMES_AGENT_REPOSITORY_URL || DEFAULT_HERMES_AGENT_REPOSITORY_URL);
   const hermesAgentRef = cleanString(options.hermesAgentRef || process.env.HOMEAI_HERMES_AGENT_REF || process.env.HERMES_MOBILE_HERMES_AGENT_REF || DEFAULT_BRANCH) || DEFAULT_BRANCH;
   const baseUrl = cleanString(options.baseUrl || process.env.HERMES_MOBILE_SMOKE_BASE || "http://127.0.0.1:8797", 300);
   const timeoutMs = Math.max(1000, Number(options.timeoutMs || DEFAULT_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS);
@@ -203,8 +227,21 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       repositoryUrl: homeAiRepositoryUrl || homeAi.repositoryUrl || "",
       ref: homeAi.ref || DEFAULT_BRANCH,
     });
+    if (isNonGitSource(appRepo)) {
+      actions.push({
+        type: "adopt-source-checkout",
+        target: "home-ai",
+        path: appPath,
+        repositoryUrl: homeAiRepositoryUrl || homeAi.repositoryUrl || "",
+        ref: homeAi.ref || DEFAULT_BRANCH,
+        requiresOption: "adoptNonGitSources",
+      });
+      if (planOptions.adoptNonGitSources) {
+        actions.push({ type: "deploy", target: "home-ai", command: deployCommand({ target: "home-ai", sourcePath: appPath, reason: planOptions.reason }) });
+      }
+    }
     if (appRepo.updateAvailable) actions.push({ type: "fast-forward-source", target: "home-ai", path: appPath });
-    if (appRepo.updateAvailable) actions.push({ type: "deploy", target: "home-ai", command: deployCommand({ target: "home-ai", reason: planOptions.reason }) });
+    if (appRepo.updateAvailable) actions.push({ type: "deploy", target: "home-ai", command: deployCommand({ target: "home-ai", sourcePath: appPath, reason: planOptions.reason }) });
 
     const plugins = [];
     for (const entry of pluginEntries()) {
@@ -241,6 +278,24 @@ function createPublicUpgradeOrchestratorService(options = {}) {
             command: deployCommand({ pluginId: id, sourcePath, reason: planOptions.reason }),
           });
         }
+      } else if (isNonGitSource(status)) {
+        actions.push({
+          type: "adopt-source-checkout",
+          target: `plugin:${id}`,
+          pluginId: id,
+          path: sourcePath,
+          repositoryUrl: entry.repositoryUrl || "",
+          ref: entry.ref || DEFAULT_BRANCH,
+          requiresOption: "adoptNonGitSources",
+        });
+        if (planOptions.adoptNonGitSources) {
+          actions.push({
+            type: "deploy",
+            target: `plugin:${id}`,
+            pluginId: id,
+            command: deployCommand({ pluginId: id, sourcePath, reason: planOptions.reason }),
+          });
+        }
       } else if (status.updateAvailable) {
         actions.push({ type: "fast-forward-source", target: `plugin:${id}`, pluginId: id, path: sourcePath });
         actions.push({
@@ -258,8 +313,27 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       repositoryUrl: hermesAgentRepositoryUrl || "origin",
       ref: hermesAgentRef,
     });
-    if (!fileExists(hermesAgentPython)) {
-      issues.push({ code: "hermes_agent_runtime_python_missing", path: hermesAgentPython });
+    const hermesAgentRuntimePythonMissing = !fileExists(hermesAgentPython);
+    if (hermesAgentRuntimePythonMissing) {
+      actions.push({
+        type: "install-hermes-agent-runtime",
+        target: "hermes-agent-official",
+        command: hermesAgentRuntimeInstallCommand({ installDependencies: planOptions.installHermesAgentDependencies }),
+        requiresOption: "installHermesAgentDependencies",
+      });
+    }
+    if (isNonGitSource(hermesAgent)) {
+      actions.push({
+        type: "adopt-source-checkout",
+        target: "hermes-agent-official",
+        path: hermesAgentSource,
+        repositoryUrl: hermesAgentRepositoryUrl || "",
+        ref: hermesAgentRef,
+        requiresOptions: ["adoptNonGitSources", "updateHermesAgent"],
+      });
+      if (planOptions.adoptNonGitSources && planOptions.updateHermesAgent && hermesAgentRepositoryUrl) {
+        actions.push({ type: "provider-profile-audit", command: profileAuditCommand() });
+      }
     }
     if (hermesAgent.updateAvailable) {
       actions.push({
@@ -279,7 +353,12 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     const blockers = [];
     for (const repo of [appRepo, ...plugins.map((item) => item.status), hermesAgent]) {
       if (repo.updateAvailable && !repo.clean) blockers.push({ code: "source_dirty_blocks_fast_forward", id: repo.id, dirtyFiles: repo.dirtyFiles });
-      if (repo.warning && repo.present) blockers.push({ code: repo.warning, id: repo.id });
+      if (repo.warning && repo.present) {
+        const adoptionAllowed = repo.warning === SOURCE_DIRECTORY_NOT_GIT
+          && planOptions.adoptNonGitSources === true
+          && (repo.id !== "hermes-agent-official" || (planOptions.updateHermesAgent === true && Boolean(hermesAgentRepositoryUrl)));
+        if (!adoptionAllowed) blockers.push({ code: repo.warning, id: repo.id });
+      }
     }
     for (const plugin of plugins) {
       if (!plugin.status.present && !planOptions.cloneMissingPlugins) {
@@ -291,6 +370,12 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     }
     if (hermesAgent.updateAvailable && !planOptions.updateHermesAgent) {
       blockers.push({ code: "hermes_agent_update_available_requires_update_hermes_agent", id: "hermes-agent-official" });
+    }
+    if (hermesAgentRuntimePythonMissing && !planOptions.installHermesAgentDependencies) {
+      blockers.push({ code: "hermes_agent_runtime_python_missing_requires_install_hermes_agent_dependencies", id: "hermes-agent-official", path: hermesAgentPython });
+    }
+    if (isNonGitSource(hermesAgent) && planOptions.adoptNonGitSources && !hermesAgentRepositoryUrl) {
+      blockers.push({ code: "hermes_agent_repository_url_required_for_adoption", id: "hermes-agent-official" });
     }
 
     return {
@@ -307,6 +392,7 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       plugins,
       hermesAgent: Object.assign({}, hermesAgent, {
         pythonPath: hermesAgentPython,
+        runtimePythonMissing: hermesAgentRuntimePythonMissing,
         providerIngress: "Hermes Agent runtime and Gateway provider profiles are validated by profile audit and closure validation",
       }),
       actionCount: actions.length,
@@ -319,7 +405,9 @@ function createPublicUpgradeOrchestratorService(options = {}) {
         ownerOnly: true,
         cleanFastForwardOnly: true,
         cloneMissingPluginsRequiresOption: true,
+        adoptNonGitSourcesRequiresOption: true,
         hermesAgentUpdateRequiresOption: true,
+        hermesAgentRuntimeRepairRequiresInstallDependenciesOption: true,
         deployAfterSourceUpdate: true,
         closureValidationRequired: true,
         rawSecretsInOutput: false,
@@ -332,6 +420,7 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     const args = [pathApi.join(appPath, "scripts", "deploy-macos-production.js")];
     if (input.target === "home-ai") {
       args.push("--target", "home-ai");
+      if (input.sourcePath) args.push("--source", input.sourcePath);
     } else {
       args.push("--plugin", targetPluginId(input.pluginId));
       if (input.sourcePath) args.push("--source", input.sourcePath);
@@ -350,6 +439,35 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       "owner",
       "--json",
       "--no-strict",
+    ];
+  }
+
+  function hermesAgentRuntimeInstallCommand(input = {}) {
+    return [
+      "/bin/bash",
+      pathApi.join(appPath, "scripts", "install-macos-production.sh"),
+      "--execute",
+      "--phase",
+      "install-official-hermes-runtime",
+      "--root",
+      root,
+      "--app-source",
+      appPath,
+      "--node-command",
+      installerNodeCommand,
+      "--npm-command",
+      npmCommand,
+      "--python-command",
+      pythonCommand,
+      "--hermes-agent-source",
+      hermesAgentSource,
+      "--hermes-agent-repository-url",
+      hermesAgentRepositoryUrl,
+      "--hermes-agent-ref",
+      hermesAgentRef,
+      "--install-hermes-agent-dependencies",
+      input.installDependencies ? "1" : "0",
+      "--json",
     ];
   }
 
@@ -404,6 +522,62 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       : { ok: false, error: clone.stderr || "plugin_clone_failed", path: target };
   }
 
+  function writeAdoptionExclude(repoPath) {
+    const excludePath = pathApi.join(repoPath, ".git", "info", "exclude");
+    const existing = fsApi.existsSync(excludePath) ? String(fsApi.readFileSync(excludePath, "utf8")) : "";
+    const missing = ADOPTION_EXCLUDE_LINES.filter((line) => !existing.split(/\r?\n/).includes(line));
+    if (!missing.length) return { ok: true, changed: false, path: ".git/info/exclude" };
+    fsApi.mkdirSync(pathApi.dirname(excludePath), { recursive: true });
+    const prefix = existing && !existing.endsWith("\n") ? "\n" : "";
+    fsApi.writeFileSync(excludePath, `${existing}${prefix}${missing.join("\n")}\n`, "utf8");
+    return { ok: true, changed: true, path: ".git/info/exclude", addedLineCount: missing.length };
+  }
+
+  async function adoptSourceCheckout(repo = {}) {
+    const repoPath = pathApi.resolve(repo.path || "");
+    const repositoryUrl = cleanString(repo.repositoryUrl || "", 500);
+    const ref = cleanString(repo.ref || DEFAULT_BRANCH, 120) || DEFAULT_BRANCH;
+    if (!dirExists(repoPath)) return { ok: false, error: "source_directory_missing", path: repoPath };
+    if (!repositoryUrl || repositoryUrl === "origin") return { ok: false, error: "repository_url_required", path: repoPath };
+    const inside = await runGit(["rev-parse", "--is-inside-work-tree"], { cwd: repoPath });
+    if (inside.ok && inside.stdout === "true") return { ok: true, skipped: true, reason: "already_git_checkout", path: repoPath };
+    const init = await runGit(["init"], { cwd: repoPath });
+    if (!init.ok) return { ok: false, error: init.stderr || "git_init_failed", path: repoPath };
+    await runGit(["remote", "remove", "origin"], { cwd: repoPath });
+    let remote = await runGit(["remote", "add", "origin", repositoryUrl], { cwd: repoPath });
+    if (!remote.ok) remote = await runGit(["remote", "set-url", "origin", repositoryUrl], { cwd: repoPath });
+    if (!remote.ok) return { ok: false, error: remote.stderr || "git_remote_setup_failed", path: repoPath };
+    const exclude = writeAdoptionExclude(repoPath);
+    const fetch = await runGit(["fetch", "--depth", "1", "origin", ref], { cwd: repoPath, timeoutMs: timeoutMs * 4 });
+    if (!fetch.ok) return { ok: false, error: fetch.stderr || "git_fetch_failed", path: repoPath, exclude };
+    const reset = await runGit(["reset", "--hard", "FETCH_HEAD"], { cwd: repoPath, timeoutMs: timeoutMs * 2 });
+    if (!reset.ok) return { ok: false, error: reset.stderr || "git_reset_failed", path: repoPath, exclude };
+    const checkout = await runGit(["checkout", "-B", ref, "FETCH_HEAD"], { cwd: repoPath, timeoutMs: timeoutMs * 2 });
+    if (!checkout.ok) return { ok: false, error: checkout.stderr || "git_checkout_failed", path: repoPath, exclude };
+    await runGit(["branch", "--set-upstream-to", `origin/${ref}`, ref], { cwd: repoPath });
+    const status = await repoStatus({
+      id: repo.id,
+      path: repoPath,
+      repositoryUrl,
+      ref,
+    });
+    if (!status.gitCheckout || status.warning) {
+      return { ok: false, error: status.warning || "source_adoption_status_failed", path: repoPath, exclude };
+    }
+    if (!status.clean) {
+      return { ok: false, error: "source_adoption_dirty", path: repoPath, dirtyFiles: status.dirtyFiles, exclude };
+    }
+    return {
+      ok: true,
+      adopted: true,
+      path: repoPath,
+      ref,
+      currentCommit: status.currentCommit,
+      latestCommit: status.latestCommit,
+      exclude,
+    };
+  }
+
   async function runCommand(command = [], options = {}) {
     const [cmd, ...args] = command;
     if (!cmd) return { ok: false, error: "command_missing" };
@@ -444,6 +618,19 @@ function createPublicUpgradeOrchestratorService(options = {}) {
     const updatedPlugins = [];
     let appUpdated = false;
     let hermesAgentUpdated = false;
+    let hermesAgentRuntimeRepairNeeded = initialPlan.hermesAgent.runtimePythonMissing === true;
+
+    if (isNonGitSource(initialPlan.homeAi) && executeOptions.adoptNonGitSources) {
+      const adopted = await adoptSourceCheckout(initialPlan.homeAi);
+      steps.push({ type: "adopt-source-checkout", target: "home-ai", result: adopted });
+      if (!adopted.ok) return fail(initialPlan, steps, "home_ai_source_adoption_failed");
+      appUpdated = true;
+      if (executeOptions.installDependencies || hasPackageLock(appPath)) {
+        const deps = await installDependencies(appPath, "home-ai");
+        steps.push({ type: "install-dependencies", target: "home-ai", result: deps });
+        if (!deps.ok) return fail(initialPlan, steps, "home_ai_dependency_install_failed");
+      }
+    }
 
     if (initialPlan.homeAi.updateAvailable) {
       const update = await fastForward(initialPlan.homeAi);
@@ -459,6 +646,17 @@ function createPublicUpgradeOrchestratorService(options = {}) {
 
     for (const plugin of initialPlan.plugins) {
       let clonedPlugin = false;
+      if (isNonGitSource(plugin.status) && executeOptions.adoptNonGitSources) {
+        const adopted = await adoptSourceCheckout(plugin.status);
+        steps.push({ type: "adopt-source-checkout", target: `plugin:${plugin.id}`, pluginId: plugin.id, result: adopted });
+        if (!adopted.ok) return fail(initialPlan, steps, `plugin_source_adoption_failed:${plugin.id}`);
+        if (!updatedPlugins.includes(plugin.id)) updatedPlugins.push(plugin.id);
+        if (executeOptions.installDependencies || hasPackageLock(plugin.sourcePath)) {
+          const deps = await installDependencies(plugin.sourcePath, `plugin:${plugin.id}`);
+          steps.push({ type: "install-dependencies", target: `plugin:${plugin.id}`, pluginId: plugin.id, result: deps });
+          if (!deps.ok) return fail(initialPlan, steps, `plugin_dependency_install_failed:${plugin.id}`);
+        }
+      }
       if (!plugin.status.present && executeOptions.cloneMissingPlugins) {
         const cloned = await clonePlugin(plugin);
         steps.push({ type: "clone-plugin-source", pluginId: plugin.id, result: cloned });
@@ -492,19 +690,30 @@ function createPublicUpgradeOrchestratorService(options = {}) {
       }
     }
 
+    if (isNonGitSource(initialPlan.hermesAgent) && executeOptions.adoptNonGitSources && executeOptions.updateHermesAgent) {
+      const adopted = await adoptSourceCheckout(initialPlan.hermesAgent);
+      steps.push({ type: "adopt-source-checkout", target: "hermes-agent-official", result: adopted });
+      if (!adopted.ok) return fail(initialPlan, steps, "hermes_agent_source_adoption_failed");
+      hermesAgentUpdated = true;
+      if (executeOptions.installHermesAgentDependencies) hermesAgentRuntimeRepairNeeded = true;
+    }
+
     if (initialPlan.hermesAgent.updateAvailable && executeOptions.updateHermesAgent) {
       const update = await fastForward(initialPlan.hermesAgent);
       steps.push({ type: "fast-forward-hermes-agent", target: "hermes-agent-official", result: update });
       if (!update.ok) return fail(initialPlan, steps, "hermes_agent_fast_forward_failed");
       hermesAgentUpdated = true;
-      if (update.dependencyFilesChanged || executeOptions.installHermesAgentDependencies) {
-        const deps = await runCommand([hermesAgentPython, "-m", "pip", "install", "-e", hermesAgentSource], {
-          cwd: hermesAgentSource,
-          timeoutMs: timeoutMs * 10,
-        });
-        steps.push({ type: "install-hermes-agent-dependencies", target: "hermes-agent-official", result: deps });
-        if (!deps.ok) return fail(initialPlan, steps, "hermes_agent_dependency_install_failed");
-      }
+      if (update.dependencyFilesChanged || executeOptions.installHermesAgentDependencies) hermesAgentRuntimeRepairNeeded = true;
+    }
+
+    if (hermesAgentRuntimeRepairNeeded && executeOptions.installHermesAgentDependencies) {
+      const runtime = await runCommand(hermesAgentRuntimeInstallCommand({ installDependencies: true }), {
+        cwd: appPath,
+        timeoutMs: timeoutMs * 30,
+      });
+      steps.push({ type: "install-hermes-agent-runtime", target: "hermes-agent-official", result: runtime });
+      if (!runtime.ok || runtime.json?.ok === false) return fail(initialPlan, steps, "hermes_agent_runtime_install_failed");
+      hermesAgentUpdated = true;
     }
 
     if (appUpdated || executeOptions.forceDeploy) {

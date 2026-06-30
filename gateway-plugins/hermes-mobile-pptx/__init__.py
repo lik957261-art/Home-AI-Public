@@ -6,10 +6,14 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 import zipfile
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
+from xml.etree import ElementTree as ET
 from xml.sax.saxutils import escape
 
 
@@ -29,6 +33,16 @@ MAX_TEXT_CHARS = 5000
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
 EMU_W = 12192000
 EMU_H = 6858000
+REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
+CT_NS = "{http://schemas.openxmlformats.org/package/2006/content-types}"
+P_NS = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+R_ATTR = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+REL_OFFICE_DOCUMENT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+REL_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
+REL_SLIDE_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster"
+REL_SLIDE_LAYOUT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
+REL_THEME = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
+REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
 
 
 PPTX_CREATE_SCHEMA = {
@@ -77,6 +91,30 @@ PPTX_CREATE_SCHEMA = {
             },
         },
         "required": ["output_path", "slides"],
+    },
+}
+
+PPTX_VALIDATE_SCHEMA = {
+    "name": "pptx_validate",
+    "description": (
+        "Validate an in-scope .pptx deliverable for PowerPoint-compatible OpenXML package "
+        "relationships before returning it to the user. If LibreOffice/soffice is installed, "
+        "the validator also performs a bounded headless conversion smoke."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "file_path": {
+                "type": "string",
+                "description": "Absolute .pptx path inside an allowed Hermes Mobile root.",
+            },
+            "require_external_engine": {
+                "type": "boolean",
+                "description": "When true, fail if the optional LibreOffice/soffice validation engine is unavailable.",
+                "default": False,
+            },
+        },
+        "required": ["file_path"],
     },
 }
 
@@ -164,6 +202,24 @@ def _validate_output_path(value: Any) -> Path:
     if not _inside(path, _output_roots()):
         raise PermissionError("output_path_outside_allowed_roots")
     path.parent.mkdir(parents=True, exist_ok=True)
+    return path.resolve()
+
+
+def _validate_existing_pptx_path(value: Any) -> Path:
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError("file_path_required")
+    path = Path(_platform_path(text)).expanduser()
+    if not path.is_absolute():
+        raise PermissionError("file_path_must_be_absolute")
+    if path.suffix.lower() != ".pptx":
+        raise ValueError("unsupported_pptx_file_suffix")
+    if not _inside(path, _roots()):
+        raise PermissionError("file_path_outside_allowed_roots")
+    if not path.exists():
+        raise FileNotFoundError("pptx_file_not_found")
+    if not path.is_file():
+        raise ValueError("pptx_path_not_file")
     return path.resolve()
 
 
@@ -372,6 +428,13 @@ def _slide_layout_xml() -> str:
 </p:sldLayout>'''
 
 
+def _slide_layout_rels() -> str:
+    return '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
+</Relationships>'''
+
+
 def _doc_props(title: str, slide_count: int) -> tuple[str, str]:
     now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     core = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -416,6 +479,7 @@ def _write_pptx(output_path: Path, title: str, slides: list[dict[str, Any]], col
         archive.writestr("ppt/slideMasters/slideMaster1.xml", _slide_master_xml())
         archive.writestr("ppt/slideMasters/_rels/slideMaster1.xml.rels", _slide_master_rels())
         archive.writestr("ppt/slideLayouts/slideLayout1.xml", _slide_layout_xml())
+        archive.writestr("ppt/slideLayouts/_rels/slideLayout1.xml.rels", _slide_layout_rels())
         archive.writestr("ppt/theme/theme1.xml", _theme_xml(colors))
         for index, slide in enumerate(slides, start=1):
             media_name = slide_media_names[index - 1]
@@ -433,6 +497,274 @@ def _write_pptx(output_path: Path, title: str, slides: list[dict[str, Any]], col
     }
 
 
+def _rels_name_for_part(part_name: str) -> str:
+    if part_name == "_rels/.rels":
+        return "_rels/.rels"
+    path = PurePosixPath(part_name)
+    return str(path.parent / "_rels" / f"{path.name}.rels")
+
+
+def _source_part_for_rels(rels_name: str) -> str:
+    if rels_name == "_rels/.rels":
+        return "_rels/.rels"
+    marker = "/_rels/"
+    if marker not in rels_name or not rels_name.endswith(".rels"):
+        return ""
+    prefix, rest = rels_name.split(marker, 1)
+    return f"{prefix}/{rest[:-5]}"
+
+
+def _normalize_part(parts: tuple[str, ...]) -> str:
+    out: list[str] = []
+    for item in parts:
+        if item in {"", "."}:
+            continue
+        if item == "..":
+            if not out:
+                return ""
+            out.pop()
+        else:
+            out.append(item)
+    return "/".join(out)
+
+
+def _resolve_rel_target(source_part: str, target: str) -> str:
+    clean = str(target or "").strip()
+    if not clean:
+        return ""
+    if clean.startswith("/"):
+        return _normalize_part(tuple(PurePosixPath(clean.lstrip("/")).parts))
+    base = PurePosixPath("") if source_part == "_rels/.rels" else PurePosixPath(source_part).parent
+    return _normalize_part(tuple((base / clean).parts))
+
+
+def _read_xml(archive: zipfile.ZipFile, part_name: str, issues: list[str]) -> ET.Element | None:
+    try:
+        return ET.fromstring(archive.read(part_name))
+    except KeyError:
+        issues.append(f"missing_part:{part_name}")
+    except ET.ParseError:
+        issues.append(f"invalid_xml:{part_name}")
+    return None
+
+
+def _relationship_list(archive: zipfile.ZipFile, source_part: str, issues: list[str], *, required: bool = True) -> list[dict[str, str]]:
+    rels_name = _rels_name_for_part(source_part)
+    if rels_name not in archive.namelist():
+        if required:
+            issues.append(f"missing_relationships:{rels_name}")
+        return []
+    root = _read_xml(archive, rels_name, issues)
+    if root is None:
+        return []
+    relationships = []
+    for rel in root.findall(f"{REL_NS}Relationship"):
+        relationships.append({
+            "id": str(rel.attrib.get("Id") or ""),
+            "type": str(rel.attrib.get("Type") or ""),
+            "target": str(rel.attrib.get("Target") or ""),
+            "target_mode": str(rel.attrib.get("TargetMode") or ""),
+        })
+    return relationships
+
+
+def _first_rel_target(relationships: list[dict[str, str]], rel_type: str, source_part: str) -> str:
+    for rel in relationships:
+        if rel.get("type") == rel_type:
+            return _resolve_rel_target(source_part, rel.get("target") or "")
+    return ""
+
+
+def _rels_by_id(relationships: list[dict[str, str]]) -> dict[str, dict[str, str]]:
+    return {rel.get("id") or "": rel for rel in relationships if rel.get("id")}
+
+
+def _validate_relationship_targets(archive: zipfile.ZipFile, issues: list[str]) -> None:
+    names = set(archive.namelist())
+    for rels_name in sorted(name for name in names if name.endswith(".rels")):
+        source_part = _source_part_for_rels(rels_name)
+        if not source_part:
+            continue
+        relationships = _relationship_list(archive, source_part, issues, required=False)
+        for rel in relationships:
+            if (rel.get("target_mode") or "").lower() == "external":
+                issues.append(f"external_relationship:{rels_name}:{rel.get('id') or 'unknown'}")
+                continue
+            target = _resolve_rel_target(source_part, rel.get("target") or "")
+            if not target or target not in names:
+                issues.append(f"relationship_target_missing:{rels_name}:{rel.get('id') or 'unknown'}")
+
+
+def _content_type_sets(root: ET.Element | None) -> tuple[set[str], set[str]]:
+    if root is None:
+        return set(), set()
+    defaults = {str(item.attrib.get("Extension") or "").lower() for item in root.findall(f"{CT_NS}Default")}
+    overrides = {str(item.attrib.get("PartName") or "").lstrip("/") for item in root.findall(f"{CT_NS}Override")}
+    return defaults, overrides
+
+
+def _libreoffice_command() -> str:
+    configured = str(os.environ.get("HERMES_MOBILE_PPTX_VALIDATOR_COMMAND") or "").strip()
+    if configured:
+        return configured
+    found = shutil.which("soffice") or shutil.which("libreoffice")
+    if found:
+        return found
+    mac_app = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+    return mac_app if Path(mac_app).exists() else ""
+
+
+def _run_libreoffice_validation(path: Path, require_external_engine: bool = False) -> dict[str, Any]:
+    command = _libreoffice_command()
+    if not command:
+        return {
+            "available": False,
+            "skipped": True,
+            "required": bool(require_external_engine),
+            "ok": not require_external_engine,
+            "error": "libreoffice_validator_unavailable" if require_external_engine else "",
+        }
+    timeout = int(os.environ.get("HERMES_MOBILE_PPTX_VALIDATOR_TIMEOUT_SECONDS") or "35")
+    with tempfile.TemporaryDirectory(prefix="homeai-pptx-validate-") as tmp:
+        try:
+            result = subprocess.run(
+                [command, "--headless", "--convert-to", "pdf", "--outdir", tmp, str(path)],
+                timeout=max(5, min(timeout, 120)),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return {"available": True, "skipped": False, "ok": False, "error": "libreoffice_validation_timeout"}
+        except Exception:
+            return {"available": True, "skipped": False, "ok": False, "error": "libreoffice_validation_failed"}
+        outputs = list(Path(tmp).glob("*.pdf"))
+        converted = bool(outputs and outputs[0].exists() and outputs[0].stat().st_size > 0)
+        return {
+            "available": True,
+            "skipped": False,
+            "ok": bool(result.returncode == 0 and converted),
+            "error": "" if result.returncode == 0 and converted else "libreoffice_conversion_failed",
+            "output_count": len(outputs),
+        }
+
+
+def _validate_pptx_file(path: Path, *, require_external_engine: bool = False) -> dict[str, Any]:
+    issues: list[str] = []
+    slide_count = 0
+    image_count = 0
+    try:
+        with zipfile.ZipFile(path) as archive:
+            bad_member = archive.testzip()
+            if bad_member:
+                issues.append(f"zip_member_corrupt:{bad_member}")
+            names = set(archive.namelist())
+            for part in ("[Content_Types].xml", "_rels/.rels", "ppt/presentation.xml", "ppt/_rels/presentation.xml.rels"):
+                if part not in names:
+                    issues.append(f"missing_part:{part}")
+            content_root = _read_xml(archive, "[Content_Types].xml", issues)
+            defaults, overrides = _content_type_sets(content_root)
+            if "rels" not in defaults:
+                issues.append("content_type_default_missing:rels")
+            if "xml" not in defaults:
+                issues.append("content_type_default_missing:xml")
+            root_rels = _relationship_list(archive, "_rels/.rels", issues)
+            presentation_target = _first_rel_target(root_rels, REL_OFFICE_DOCUMENT, "_rels/.rels")
+            if presentation_target != "ppt/presentation.xml":
+                issues.append("office_document_relationship_invalid")
+            presentation_root = _read_xml(archive, "ppt/presentation.xml", issues)
+            presentation_rels = _relationship_list(archive, "ppt/presentation.xml", issues)
+            presentation_by_id = _rels_by_id(presentation_rels)
+            slide_parts: list[str] = []
+            master_parts: list[str] = []
+            if presentation_root is not None:
+                slide_ids = presentation_root.findall(f".//{P_NS}sldId")
+                slide_count = len(slide_ids)
+                if slide_count < 1:
+                    issues.append("presentation_has_no_slides")
+                for item in slide_ids:
+                    rel_id = str(item.attrib.get(R_ATTR) or "")
+                    rel = presentation_by_id.get(rel_id)
+                    if not rel or rel.get("type") != REL_SLIDE:
+                        issues.append(f"slide_relationship_missing:{rel_id or 'unknown'}")
+                        continue
+                    target = _resolve_rel_target("ppt/presentation.xml", rel.get("target") or "")
+                    slide_parts.append(target)
+                    if target not in names:
+                        issues.append(f"slide_part_missing:{target or 'unknown'}")
+                master_ids = presentation_root.findall(f".//{P_NS}sldMasterId")
+                if not master_ids:
+                    issues.append("slide_master_list_missing")
+                for item in master_ids:
+                    rel_id = str(item.attrib.get(R_ATTR) or "")
+                    rel = presentation_by_id.get(rel_id)
+                    if not rel or rel.get("type") != REL_SLIDE_MASTER:
+                        issues.append(f"slide_master_relationship_missing:{rel_id or 'unknown'}")
+                        continue
+                    target = _resolve_rel_target("ppt/presentation.xml", rel.get("target") or "")
+                    master_parts.append(target)
+                    if target not in names:
+                        issues.append(f"slide_master_part_missing:{target or 'unknown'}")
+            for part in ["ppt/presentation.xml", *slide_parts, *master_parts, "ppt/slideLayouts/slideLayout1.xml", "ppt/theme/theme1.xml"]:
+                if part and part.endswith(".xml") and part not in overrides:
+                    issues.append(f"content_type_override_missing:{part}")
+            for slide_part in slide_parts:
+                _read_xml(archive, slide_part, issues)
+                slide_rels = _relationship_list(archive, slide_part, issues)
+                layout_target = _first_rel_target(slide_rels, REL_SLIDE_LAYOUT, slide_part)
+                if not layout_target:
+                    issues.append(f"slide_layout_relationship_missing:{slide_part}")
+                elif layout_target not in names:
+                    issues.append(f"slide_layout_part_missing:{layout_target}")
+                for rel in slide_rels:
+                    if rel.get("type") == REL_IMAGE:
+                        image_count += 1
+            for master_part in master_parts:
+                _read_xml(archive, master_part, issues)
+                master_rels = _relationship_list(archive, master_part, issues)
+                if not _first_rel_target(master_rels, REL_SLIDE_LAYOUT, master_part):
+                    issues.append(f"master_layout_relationship_missing:{master_part}")
+                if not _first_rel_target(master_rels, REL_THEME, master_part):
+                    issues.append(f"master_theme_relationship_missing:{master_part}")
+            for layout_part in sorted(part for part in names if part.startswith("ppt/slideLayouts/") and part.endswith(".xml")):
+                _read_xml(archive, layout_part, issues)
+                layout_rels = _relationship_list(archive, layout_part, issues)
+                master_target = _first_rel_target(layout_rels, REL_SLIDE_MASTER, layout_part)
+                if not master_target:
+                    issues.append(f"layout_master_relationship_missing:{layout_part}")
+                elif master_target not in names:
+                    issues.append(f"layout_master_part_missing:{master_target}")
+            _read_xml(archive, "ppt/theme/theme1.xml", issues)
+            _validate_relationship_targets(archive, issues)
+    except zipfile.BadZipFile:
+        issues.append("invalid_zip_package")
+    except Exception:
+        issues.append("pptx_validation_failed")
+    external = _run_libreoffice_validation(path, require_external_engine=require_external_engine) if not issues else {
+        "available": False,
+        "skipped": True,
+        "required": bool(require_external_engine),
+        "ok": not require_external_engine,
+        "error": "skipped_due_openxml_issues",
+    }
+    if not external.get("ok"):
+        issues.append(str(external.get("error") or "external_validation_failed"))
+    issues = list(dict.fromkeys(item for item in issues if item))[:40]
+    return {
+        "ok": not issues,
+        "tool": "pptx_validate",
+        "fileName": path.name,
+        "bytes": path.stat().st_size if path.exists() else 0,
+        "slide_count": slide_count,
+        "image_count": image_count,
+        "validation_engine": "openxml-relationships",
+        "external_validation": external,
+        "issue_count": len(issues),
+        "issues": issues,
+    }
+
+
 def _pptx_create_handler(args: dict[str, Any], **_: Any) -> str:
     try:
         output_path = _validate_output_path(args.get("output_path"))
@@ -445,10 +777,24 @@ def _pptx_create_handler(args: dict[str, Any], **_: Any) -> str:
             "text": _hex(theme.get("text_color"), "111827"),
         }
         result = _write_pptx(output_path, title, slides, colors)
+        validation = _validate_pptx_file(output_path)
+        if not validation.get("ok"):
+            try:
+                output_path.unlink()
+            except Exception:
+                pass
+            return _json({
+                "ok": False,
+                "tool": "pptx_create",
+                "error": "pptx_compatibility_validation_failed",
+                "validation": validation,
+            })
         return _json({
             "ok": True,
             "tool": "pptx_create",
             "source": "office-open-xml",
+            "compatibility": "validated",
+            "validation": validation,
             "media_line": f"MEDIA:{output_path}",
             **result,
         })
@@ -460,6 +806,18 @@ def _pptx_create_handler(args: dict[str, Any], **_: Any) -> str:
         })
 
 
+def _pptx_validate_handler(args: dict[str, Any], **_: Any) -> str:
+    try:
+        file_path = _validate_existing_pptx_path(args.get("file_path"))
+        return _json(_validate_pptx_file(file_path, require_external_engine=bool(args.get("require_external_engine"))))
+    except Exception as error:
+        return _json({
+            "ok": False,
+            "tool": "pptx_validate",
+            "error": str(error),
+        })
+
+
 def register(ctx) -> None:
     ctx.register_tool(
         name="pptx_create",
@@ -467,5 +825,13 @@ def register(ctx) -> None:
         schema=PPTX_CREATE_SCHEMA,
         handler=_pptx_create_handler,
         description="Scoped PPTX generation for Hermes Mobile workspace deliverables.",
+        emoji="pptx",
+    )
+    ctx.register_tool(
+        name="pptx_validate",
+        toolset="file",
+        schema=PPTX_VALIDATE_SCHEMA,
+        handler=_pptx_validate_handler,
+        description="Scoped PPTX compatibility validation for Hermes Mobile workspace deliverables.",
         emoji="pptx",
     )

@@ -76,30 +76,44 @@ changing files there, and then treating that as deployment are forbidden.
 
 Plugin workspaces may run this shared deploy script in plan mode for their own
 plugin targets, but routine production execute/readback is owned by the
-dedicated `Home AI Deploy` Codex thread. A plugin deployment remains
+configured Home AI deploy lane pool. The default lane is `Home AI Deploy`;
+installations may add live non-terminal lanes such as `Home AI Deploy Lane A`,
+`Home AI Deploy Lane B`,
+`Home AI Deploy Lane C`, `Codex Mobile Deploy Lane`, or `Movie Deploy Lane`
+when throughput requires parallel deploy/readback work. A plugin deployment remains
 plugin-prepared when the deploy target is `--plugin <plugin-id>`, the source
 changes are plugin-local, and the validation is plugin health, embedded
 launch/proxy, MCP schema, or plugin data/product smoke evidence. The plugin
 thread must complete implementation, tests, commit/push when applicable,
 deploy plan, and safety/readback expectations before sending one deployment
-card to `Home AI Deploy`.
+card to the deploy lane pool.
 
 Routine plugin deploy cards to the ordinary Home AI implementation thread are a
 routing error. The ordinary Home AI receiver must return `redirected` or
-`blocked` with the exact `Home AI Deploy` target and required card fields. The
-`Home AI Deploy` thread is the only Home AI Codex lane expected to run central
-plugin deploy execute/readback on behalf of plugins. It must not edit plugin
-business code, and it must return a terminal task card to the source plugin
-thread after deployment is completed, blocked, redirected, rejected, or
-partially completed.
+`blocked` with the configured deploy lane target and required card fields. The
+deploy lane pool is the only Home AI Codex target set expected to run central
+plugin deploy execute/readback on behalf of plugins. Deploy lanes must not edit
+plugin business code, and each lane must return a terminal task card to the
+source plugin thread after deployment is completed, blocked, redirected,
+rejected, or partially completed.
 
-The deployment lane is a live operational queue, not a one-shot completed
-conversation. `Home AI Deploy` must be discoverable and non-terminal before it
-is used as a routine deployment target. A completed, archived, deleted, hidden,
-or otherwise non-runnable deploy thread is a platform routing defect: ordinary
-Home AI must not execute the plugin deployment as a workaround, and the deploy
-lane must be repaired or recreated before routine plugin deployments are routed
+Deployment lanes are live operational queues, not one-shot completed
+conversations. At least one configured deploy lane must be discoverable and
+non-terminal before routine deployments are routed. A completed, archived,
+deleted, hidden, duplicate-title, or otherwise non-runnable configured lane is
+a platform routing defect. Ordinary Home AI must not execute the plugin
+deployment as a workaround; the lane must be repaired, recreated, or removed
+from the configured lane pool before routine plugin deployments are routed
 there again.
+
+When multiple lanes are configured, routing must be deterministic and bounded:
+same plugin id maps to the same configured lane while that lane is live; a
+plugin-specific assignment may pin high-volume plugins such as Codex Mobile or
+Movie to dedicated lanes; otherwise the card router may hash the plugin id over
+the available configured lanes. The actual deploy/restart for a single plugin
+or launchd label remains serialized by lane ownership; independent read-only
+readbacks may be parallelized inside a lane only after production mutation is
+complete.
 
 Plugin deployment cards must not expose or require a sudo password file,
 password contents, SSH private key, or local operator secret path. If the
@@ -114,16 +128,16 @@ starts with `Return:`, the body declares `Return policy: terminal receipt`, or
 the body is primarily a completed/blocked/redirected/partially-completed
 return, that card is a source-thread receipt and cannot satisfy deployment
 request closure. The sender must create a separate deployment request card for
-`Home AI Deploy` with `cardKind=plugin_deployment` when the interface supports
-structured card kinds. Home AI task-card senders must reject receipt-shaped
-deployment cards before posting them to `Home AI Deploy`.
+the deploy lane pool with `cardKind=plugin_deployment` and `pluginId` when the
+interface supports structured card kinds. Home AI task-card senders must reject
+receipt-shaped deployment cards before posting them to any deploy lane.
 
 Escalate to the ordinary Home AI implementation thread only when the missing
 work is host/platform owned: Home AI source edits, deploy-script capability
 changes, same-origin proxy or launch-token bugs, workspace binding/provisioning
 bugs, Gateway schema or worker-profile changes, shared policy changes, or a
-production permission failure that proves `Home AI Deploy` cannot execute the
-existing bounded deploy contract.
+production permission failure that proves the configured Home AI deploy lane
+pool cannot execute the existing bounded deploy contract.
 
 If a plugin thread changes code but then discovers that deployment is blocked
 by a host/platform prerequisite, it must not end silently. It must return a
@@ -389,14 +403,14 @@ Executable deploys run a sudo authentication preflight before the first
 production filesystem mutation. The password-file resolution order may include
 an explicit `--password-file`, `HOMEAI_MAC_SUDO_PASSWORD_FILE`, then local
 operator fallbacks under `~/.homeai/macos-sudo-password` and
-`~/.homeai-qa/sudo-password`, but that is private to the `Home AI Deploy`
-thread/runtime and central operators. Plugin task cards must not include these
+`~/.homeai-qa/sudo-password`, but that is private to the Home AI deploy lane
+runtime and central operators. Plugin task cards must not include these
 paths or environment values. When no passwordless helper/sudoers path is
 installed and no valid password file is found, the script fails with
 `sudo_authentication_required`. When all supplied or discovered password files
 are rejected, it fails with `sudo_authentication_failed`. These are operator
 authentication boundary failures, not plugin source or production path
-failures. The `Home AI Deploy` thread or a central operator must repair the
+failures. The configured deploy lane or a central operator must repair the
 local operator credential/helper state before retrying; plugin threads must not
 repeatedly run a deploy that has already failed authentication.
 

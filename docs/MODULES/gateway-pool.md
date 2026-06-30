@@ -466,7 +466,7 @@ and config may list `web`, `http`, `weather`, `image_gen`, `file`, `vision`,
 and related toolsets, but the native agent schema will still omit tools such as
 `mobile_web_search`, `http_request`, `weather`, `chatgpt_image_edit`,
 `docx_create`, `docx_extract_text`, `office_extract_text`, `pptx_create`,
-`pdf_create`, `pdf_extract_text`, `pdf_render_pages`, `audio_transcribe`,
+`pptx_validate`, `pdf_create`, `pdf_extract_text`, `pdf_render_pages`, `audio_transcribe`,
 `archive_list`, and
 `archive_extract_safe` if the corresponding
 `gateway-plugins/hermes-mobile-*` directories are not copied into the profile's

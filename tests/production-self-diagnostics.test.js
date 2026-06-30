@@ -76,6 +76,7 @@ function testCliJsonAndMarkdown() {
   assert.match(markdown, /docx_create/);
   assert.match(markdown, /office_extract_text/);
   assert.match(markdown, /pptx_create/);
+  assert.match(markdown, /pptx_validate/);
   assert.match(markdown, /pdf_create/);
   assert.match(markdown, /pdf_extract_text/);
   assert.match(markdown, /audio_transcribe/);

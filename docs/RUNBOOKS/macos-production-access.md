@@ -403,9 +403,9 @@ and production directory.
 
 Growth first production install also needs a source-only sync followed by the
 shared launchd installer. These execute/bootstrap commands are run from the
-`Home AI Deploy` thread or an equivalent central operator shell; any local
-sudo credential resolution is private to that context and is not passed in
-plugin task cards.
+configured Home AI deploy lane pool or an equivalent central operator shell;
+any local sudo credential resolution is private to that context and is not
+passed in plugin task cards.
 
 ```bash
 npm run --silent deploy:macos -- --plugin growth --source /Users/example/path --restart none --sync-only --execute --json
@@ -427,7 +427,7 @@ node scripts/install-growth-launchd-service.js --execute --bootstrap \
   --json
 ```
 
-That installer uses the same Home AI Deploy/operator sudo boundary. It may
+That installer uses the same Home AI deploy-lane/operator sudo boundary. It may
 create the Growth registration key file when missing, but must not print raw
 key values.
 It starts Growth with `GROWTH_DATA_OWNER=plugin` and
@@ -480,18 +480,19 @@ Plugin workspaces should read the central deployment contract before deploys:
 If a deployment is initiated from a plugin Codex thread, the thread should run
 the Home AI app deploy script in plan mode by changing to
 `/Users/example/path` or by using the script's absolute path.
-The plugin thread then sends one deployment card to the dedicated
-`Home AI Deploy` Codex thread for production execute/readback. Plugin-local
-code may provide plugin-specific facts such as label, health URL, MCP schema
-check, data readback check, source commit, and safety boundary, but must not
-define a separate production sudo or direct-write path. Use Gateway
-selected-profile callable schema checks when MCP tools changed, and mobile
-visual/Appium smoke when embedded UI or mobile gestures changed.
+The plugin thread then sends one deployment card to the configured Home AI
+deploy lane pool for production execute/readback. Plugin-local code may provide
+plugin-specific facts such as label, health URL, MCP schema check, data
+readback check, source commit, and safety boundary, but must not define a
+separate production sudo or direct-write path. Use Gateway selected-profile
+callable schema checks when MCP tools changed, and mobile visual/Appium smoke
+when embedded UI or mobile gestures changed.
 
 Plugin deployment cards should expose one shared non-secret interface:
 
 ```text
-target-thread: Home AI Deploy
+target-thread: Home AI Deploy or configured deploy lane pool
+cardKind: plugin_deployment
 plugin: <plugin-id>
 source: <development-source-path>
 source-commit: <git commit>

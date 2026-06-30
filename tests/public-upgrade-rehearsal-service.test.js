@@ -18,7 +18,46 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
-function createUpgradeReport({ cloneGate = false, unexpectedIssue = false } = {}) {
+function createUpgradeReport({ cloneGate = false, adoptionGate = false, installedSourceShape = false, missingHermesRuntime = false, installHermesAgentDependencies = false, unexpectedIssue = false } = {}) {
+  if (installedSourceShape && !adoptionGate) {
+    return {
+      ok: false,
+      issues: [],
+      blockers: [
+        { code: "source_directory_not_git_checkout", id: "home-ai" },
+        { code: "source_directory_not_git_checkout", id: "moira" },
+      ],
+      plugins: [
+        { id: "moira", operatorAuthenticated: false },
+        { id: "movie", operatorAuthenticated: true },
+      ],
+      actions: [
+        { type: "adopt-source-checkout", target: "home-ai" },
+        { type: "adopt-source-checkout", pluginId: "moira" },
+        { type: "closure-validation" },
+      ],
+      policy: { adoptNonGitSourcesRequiresOption: true, rawSecretsInOutput: false },
+    };
+  }
+  if (installedSourceShape && adoptionGate) {
+    return {
+      ok: true,
+      issues: [],
+      blockers: [],
+      plugins: [
+        { id: "moira", operatorAuthenticated: false },
+        { id: "movie", operatorAuthenticated: true },
+      ],
+      actions: [
+        { type: "adopt-source-checkout", target: "home-ai" },
+        { type: "deploy", target: "home-ai" },
+        { type: "adopt-source-checkout", pluginId: "moira" },
+        { type: "deploy", pluginId: "moira" },
+        { type: "closure-validation" },
+      ],
+      policy: { adoptNonGitSourcesRequiresOption: true, rawSecretsInOutput: false },
+    };
+  }
   if (!cloneGate) {
     return {
       ok: false,
@@ -33,6 +72,50 @@ function createUpgradeReport({ cloneGate = false, unexpectedIssue = false } = {}
         { id: "moira", operatorAuthenticated: false },
         { id: "movie", operatorAuthenticated: true },
       ],
+    };
+  }
+  if (missingHermesRuntime && !installHermesAgentDependencies) {
+    return {
+      ok: false,
+      issueCount: 0,
+      issues: [],
+      blockerCount: 1,
+      blockers: [
+        { code: "hermes_agent_runtime_python_missing_requires_install_hermes_agent_dependencies", id: "hermes-agent-official" },
+      ],
+      actions: [
+        { type: "install-hermes-agent-runtime" },
+        { type: "clone-plugin-source", pluginId: "moira" },
+        { type: "deploy", pluginId: "moira" },
+        { type: "closure-validation" },
+      ],
+      plugins: [
+        { id: "moira", operatorAuthenticated: false },
+        { id: "movie", operatorAuthenticated: true },
+      ],
+      policy: { hermesAgentRuntimeRepairRequiresInstallDependenciesOption: true, rawSecretsInOutput: false },
+    };
+  }
+  if (missingHermesRuntime && installHermesAgentDependencies) {
+    return {
+      ok: true,
+      issueCount: 0,
+      issues: [],
+      blockerCount: 0,
+      blockers: [],
+      actions: [
+        { type: "install-hermes-agent-runtime" },
+        { type: "clone-plugin-source", pluginId: "moira" },
+        { type: "deploy", pluginId: "moira" },
+        { type: "clone-plugin-source", pluginId: "movie" },
+        { type: "deploy", pluginId: "movie" },
+        { type: "closure-validation" },
+      ],
+      plugins: [
+        { id: "moira", operatorAuthenticated: false },
+        { id: "movie", operatorAuthenticated: true },
+      ],
+      policy: { hermesAgentRuntimeRepairRequiresInstallDependenciesOption: true, rawSecretsInOutput: false },
     };
   }
   return {
@@ -67,6 +150,13 @@ function createFakeRunner(calls, options = {}) {
           "upgrade:public": "node scripts/homeai-public-upgrade.js",
         },
       });
+      writeJson(path.join(target, "config", "public-plugin-sources.json"), {
+        schemaVersion: 1,
+        plugins: [
+          { id: "moira", sourceDir: "moira", repositoryUrl: "https://github.com/pentiumxp/MOIRA_chinese_astrology_public.git", ref: "main" },
+          { id: "movie", sourceDir: "movie", repositoryUrl: "https://github.com/pentiumxp/HomeAI-Movie.git", ref: "main", operatorAuthenticated: true },
+        ],
+      });
       return { ok: true, status: 0, stdout: "" };
     }
     if (command === "/fake/node" && args[0] === "scripts/public-install-preflight.js") {
@@ -78,7 +168,23 @@ function createFakeRunner(calls, options = {}) {
     }
     if (command === "/fake/node" && args[0] === "scripts/homeai-public-upgrade.js") {
       const cloneGate = args.includes("--clone-missing-plugins");
-      const report = createUpgradeReport({ cloneGate, unexpectedIssue: options.unexpectedIssue });
+      const adoptionGate = args.includes("--adopt-non-git-sources");
+      const installHermesAgentDependencies = args.includes("--install-hermes-agent-dependencies");
+      const installedSourceShape = args.some((arg) => String(arg).includes("installed-app") || String(arg).includes("installed-plugins"));
+      const runtimeRootIndex = args.indexOf("--runtime-root");
+      const runtimeRoot = runtimeRootIndex >= 0 ? args[runtimeRootIndex + 1] : "";
+      const hermesAgentPython = runtimeRoot
+        ? path.join(runtimeRoot, "hermes-agent-official", "venv", "bin", "python")
+        : "";
+      const missingHermesRuntime = Boolean(hermesAgentPython && !fs.existsSync(hermesAgentPython));
+      const report = createUpgradeReport({
+        cloneGate,
+        adoptionGate,
+        installedSourceShape,
+        missingHermesRuntime,
+        installHermesAgentDependencies,
+        unexpectedIssue: options.unexpectedIssue,
+      });
       return {
         ok: report.ok,
         status: report.ok ? 0 : 1,
@@ -98,10 +204,14 @@ function testBuildPlanIsSourceOnlyAndBounded() {
     rehearsalRoot: "/tmp/Home-AI-Public-upgrade-rehearsal-plan",
   });
   assert.equal(plan.ok, true);
-  assert.equal(plan.actionCount, 5);
+  assert.equal(plan.actionCount, 9);
   assert.equal(plan.policy.productionWrites, false);
   assert.ok(plan.actions.some((action) => action.type === "upgrade-plan-missing-sources-fail-closed"));
   assert.ok(plan.actions.some((action) => action.type === "upgrade-plan-with-operator-clone-gate"));
+  assert.ok(plan.actions.some((action) => action.type === "upgrade-plan-missing-hermes-runtime-requires-repair"));
+  assert.ok(plan.actions.some((action) => action.type === "upgrade-plan-with-hermes-runtime-repair-gate"));
+  assert.ok(plan.actions.some((action) => action.type === "upgrade-plan-non-git-sources-require-adoption"));
+  assert.ok(plan.actions.some((action) => action.type === "upgrade-plan-with-source-adoption-gate"));
 }
 
 async function testExecuteRehearsalValidatesBothUpgradePlans() {
@@ -119,7 +229,13 @@ async function testExecuteRehearsalValidatesBothUpgradePlans() {
   assert.equal(result.tempRemoved, true);
   assert.ok(result.steps.some((step) => step.type === "validate-missing-source-fail-closed" && step.ok === true));
   assert.ok(result.steps.some((step) => step.type === "validate-operator-clone-gate-plan" && step.ok === true));
+  assert.ok(result.steps.some((step) => step.type === "validate-hermes-runtime-repair-required" && step.ok === true));
+  assert.ok(result.steps.some((step) => step.type === "validate-hermes-runtime-repair-gate-plan" && step.ok === true));
+  assert.ok(result.steps.some((step) => step.type === "validate-non-git-source-adoption-required" && step.ok === true));
+  assert.ok(result.steps.some((step) => step.type === "validate-source-adoption-gate-plan" && step.ok === true));
   assert.ok(calls.some((call) => call.command === "/fake/node" && call.args.includes("--clone-missing-plugins")));
+  assert.ok(calls.some((call) => call.command === "/fake/node" && call.args.includes("--adopt-non-git-sources")));
+  assert.ok(calls.some((call) => call.command === "/fake/node" && call.args.includes("--install-hermes-agent-dependencies")));
 }
 
 async function testUnexpectedBlockedPlanIssueFails() {
