@@ -2083,6 +2083,60 @@ async function testLegacyWardrobePendingProvisioningBlocksManifest() {
   assert.equal(manifest.code, "plugin_workspace_provisioning_pending");
 }
 
+async function testOwnerWardrobeLaunchFindsDirectKeyWhenWorkspaceRootIsNotListable() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-owner-wardrobe-key-"));
+  const wardrobeDir = path.join(dir, "drive", "users", "owner", ".hermes-wardrobe");
+  fs.mkdirSync(wardrobeDir, { recursive: true });
+  fs.writeFileSync(path.join(wardrobeDir, "access-key.txt"), "owner-wardrobe-key\n", "utf8");
+  fs.writeFileSync(path.join(wardrobeDir, "config.json"), JSON.stringify({
+    workspace_id: "wardrobe:owner",
+    hermes_workspace_id: "owner",
+    access_key_file: ".hermes-wardrobe/access-key.txt",
+  }), "utf8");
+
+  const workspaceRoot = path.join(dir, "drive", "users", "owner");
+  const originalReaddirSync = fs.readdirSync;
+  const launchBodies = [];
+  fs.readdirSync = function patchedReaddirSync(target, options) {
+    if (path.resolve(String(target)) === path.resolve(workspaceRoot)) {
+      const err = new Error("permission denied");
+      err.code = "EACCES";
+      throw err;
+    }
+    return originalReaddirSync.call(this, target, options);
+  };
+  try {
+    const service = createHermesPluginService({
+      dataDir: dir,
+      plugins: [{ id: "wardrobe", manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest" }],
+      fetch(url, options = {}) {
+        if (url.endsWith("/api/v1/hermes/plugin/manifest")) {
+          return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleManifest()) });
+        }
+        if (url.endsWith("/api/v1/hermes/plugin/launch")) {
+          launchBodies.push(JSON.parse(options.body));
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ entry_path: "/?embed=hermes&launch=wpl_owner", expires_in: 90 }),
+          });
+        }
+        throw new Error(`unexpected fetch ${url}`);
+      },
+    });
+
+    const manifest = await service.manifest({ id: "wardrobe", workspaceId: "owner", launchPlugin: true });
+    assert.equal(manifest.available, true);
+    assert.equal(manifest.embed.tokenStatus, "launch_token_issued");
+    assert.deepEqual(launchBodies, [{
+      workspace_id: "wardrobe:owner",
+      hermes_workspace_id: "owner",
+    }]);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+  }
+}
+
 async function testHttpsManifestOverride() {
   const service = createHermesPluginService({
     env: {
@@ -2974,6 +3028,25 @@ function testPluginSameOriginProxyPathForUrl() {
 
 function testFindWardrobeAccessKeyPath() {
   assert.equal(findWardrobeAccessKeyPath({ wardrobeAccessKeyPath: __filename }), __filename);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-direct-key-"));
+  const workspaceRoot = path.join(dir, "drive", "users", "owner");
+  const keyPath = path.join(workspaceRoot, ".hermes-wardrobe", "access-key.txt");
+  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
+  fs.writeFileSync(keyPath, "owner-wardrobe-key\n", "utf8");
+  const originalReaddirSync = fs.readdirSync;
+  fs.readdirSync = function patchedReaddirSync(target, options) {
+    if (path.resolve(String(target)) === path.resolve(workspaceRoot)) {
+      const err = new Error("permission denied");
+      err.code = "EACCES";
+      throw err;
+    }
+    return originalReaddirSync.call(this, target, options);
+  };
+  try {
+    assert.equal(findWardrobeAccessKeyPath({ workspaceId: "owner" }, { dataDir: dir }), keyPath);
+  } finally {
+    fs.readdirSync = originalReaddirSync;
+  }
 }
 
 function testFindCodexMobileAccessKeyPath() {
@@ -3113,6 +3186,7 @@ async function run() {
   await testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBinding();
   await testWardrobeProvisioningFailureBlocksManifest();
   await testLegacyWardrobePendingProvisioningBlocksManifest();
+  await testOwnerWardrobeLaunchFindsDirectKeyWhenWorkspaceRootIsNotListable();
   await testHttpsManifestOverride();
   await testFetchFailureReturnsUnavailable();
   await testManifestRetriesAfterRecoverableLaunchFailure();

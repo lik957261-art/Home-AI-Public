@@ -644,14 +644,14 @@ function findWardrobeAccessKeyPath(input = {}, options = {}) {
 
   function walk(dir, depth) {
     if (depth > maxDepth) return "";
+    const direct = path.join(dir, ...targetParts);
+    if (fs.existsSync(direct)) return direct;
     let entries = [];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch (_) {
       return "";
     }
-    const direct = path.join(dir, ...targetParts);
-    if (fs.existsSync(direct)) return direct;
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       if (entry.name === ".hermes-cache" || entry.name === "node_modules" || entry.name === ".git") continue;
