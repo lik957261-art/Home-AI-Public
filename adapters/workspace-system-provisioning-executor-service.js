@@ -12,6 +12,7 @@ const DEFAULT_OWNER_USER = "hm-owner";
 const DEFAULT_WORKER_GROUP = "hermes-workers";
 const FILE_PLUGIN_ROOT_ENVS = Object.freeze([
   "HERMES_MOBILE_DOCX_ALLOWED_ROOTS",
+  "HERMES_MOBILE_PPTX_ALLOWED_ROOTS",
   "HERMES_MOBILE_PDF_ALLOWED_ROOTS",
   "HERMES_MOBILE_AUDIO_ALLOWED_ROOTS",
   "HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS",
@@ -20,6 +21,7 @@ const FILE_PLUGIN_ROOT_ENVS = Object.freeze([
   "HERMES_MOBILE_HTTP_FILE_ROOTS",
 ]);
 const FILE_PLUGIN_SINGLE_ROOT_ENVS = Object.freeze({
+  HERMES_MOBILE_PPTX_OUTPUT_ROOTS: "${ROOT}/data/drive,${ROOT}/data/uploads,${ROOT}/data/artifacts",
   HERMES_MOBILE_PDF_OUTPUT_ROOTS: "${ROOT}/data/artifacts",
   HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS: "${ROOT}/data/drive/users",
   HERMES_MOBILE_HTTP_SAVE_ROOT: "${ROOT}/data/artifacts/http-request",
@@ -33,6 +35,7 @@ const STANDARD_PROFILE_PLUGINS = Object.freeze([
   "http",
   "current_environment",
   "docx",
+  "pptx",
   "pdf",
   "audio",
   "archive",

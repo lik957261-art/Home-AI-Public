@@ -692,7 +692,11 @@ upgrade runs `scripts/macos-production-drift-reconcile.js --execute --json`
 through the same sudo boundary used by the installer/deployer. This keeps
 online upgrade closure aligned with central Home AI deploys: supported
 Gateway/ACL/plugin-local-binding drift is repaired before the strict
-`macos-production-profile-audit.js` gate runs. The remote smoke parses the full
+`macos-production-profile-audit.js` gate runs. The same drift pass also
+repairs fresh-machine public upgrade drift for OpenAI-Codex shared-auth import,
+per-profile auth symlinks, Gateway Office/PDF/PPT file-tool plugins,
+file-tool start-script environment variables, and listener-readable telemetry
+stores. The remote smoke parses the full
 bounded upgrade JSON before truncating display output so failures such as
 `production_drift_reconcile_failed`, `provider_profile_audit_failed`, or
 `closure_validation_failed` remain visible in the step summary.

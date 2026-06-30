@@ -64,6 +64,8 @@ try {
   const patched = ensureBridgeAssignments(missingInjectionScript, productionRoot);
   assert.equal(patched.changed, true);
   assert.match(patched.text, /FILE_PLUGIN_ALLOWED_ROOTS="\$ROOT\/data\/drive,\$ROOT\/data\/uploads,\$ROOT\/data\/artifacts"/);
+  assert.match(patched.text, /export HERMES_MOBILE_PPTX_ALLOWED_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
+  assert.match(patched.text, /export HERMES_MOBILE_PPTX_OUTPUT_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
   assert.match(patched.text, /export HERMES_MOBILE_PDF_ALLOWED_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
   assert.match(patched.text, /export HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
   assert.match(patched.text, /export HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="\$ROOT\/data\/drive\/users"/);
@@ -107,6 +109,8 @@ try {
   assert.equal(execute.changed, 2);
   assert.equal(execute.written, 2);
   const written = fs.readFileSync(fixture.scriptPath, "utf8");
+  assert.match(written, /export HERMES_MOBILE_PPTX_ALLOWED_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
+  assert.match(written, /export HERMES_MOBILE_PPTX_OUTPUT_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
   assert.match(written, /export HERMES_MOBILE_PDF_ALLOWED_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
   assert.match(written, /export HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
   assert.match(written, /export HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS="\$ROOT\/data\/drive\/users"/);
@@ -115,6 +119,8 @@ try {
   assert.match(written, /HERMES_MOBILE_BRIDGE_HOST_KEY_PATH="\$MOBILE_BRIDGE_HOST_KEY_PATH"/);
   assert.match(written, /HERMES_WEB_BRIDGE_HOST_KEY_PATH="\$MOBILE_BRIDGE_HOST_KEY_PATH"/);
   const orphanWritten = fs.readFileSync(orphanScriptPath, "utf8");
+  assert.match(orphanWritten, /export HERMES_MOBILE_PPTX_ALLOWED_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
+  assert.match(orphanWritten, /export HERMES_MOBILE_PPTX_OUTPUT_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
   assert.match(orphanWritten, /export HERMES_MOBILE_PDF_ALLOWED_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
   assert.match(orphanWritten, /export HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS="\$FILE_PLUGIN_ALLOWED_ROOTS"/);
 

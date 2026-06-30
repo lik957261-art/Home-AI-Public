@@ -13,6 +13,8 @@ const {
   pluginLocalBindingRepairPlan,
   pluginProvisioningStatusRepairPlan,
   reconcileCodexSharedAuthPermissions,
+  reconcileGatewayProfileFilePlugins,
+  reconcileGatewayStartScriptEnvironment,
   reconcilePluginLocalBindings,
   reconcilePluginProvisioningStatuses,
   reconcileMusicRuntimeCoverPermissions,
@@ -27,6 +29,10 @@ assert.match(script, /\/Library\/LaunchDaemons\/com\.hermesmobile\.gateway\./);
 assert.match(script, /launchctl", \["bootout", "system", plistPath\]/);
 assert.match(script, /production-drift-audit", "quarantine"/);
 assert.match(script, /codex-shared-auth-permissions/);
+assert.match(script, /codex-shared-auth-document/);
+assert.match(script, /gateway-profile-file-plugins/);
+assert.match(script, /gateway-start-script-env/);
+assert.match(script, /gateway-telemetry-access/);
 assert.match(script, /profile_dir\/auth\.json/);
 assert.match(script, /user:hermes-host allow list,add_file,search,delete_child/);
 assert.match(script, /music-runtime-cover-permissions/);
@@ -152,9 +158,16 @@ assert.deepEqual(provisioningStatusPlan.map((row) => `${row.workspaceId}:${row.p
 ]);
 
 const tempRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "homeai-drift-reconcile-"));
+const tempAppRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "homeai-drift-reconcile-app-"));
 fs.mkdirSync(path.join(tempRoot, "data"), { recursive: true });
 fs.mkdirSync(path.join(tempRoot, "gateway-worker", "telemetry", "profiles", "shared-auth"), { recursive: true });
 fs.mkdirSync(path.join(tempRoot, "plugins", "music"), { recursive: true });
+for (const pluginName of ["hermes-mobile-docx", "hermes-mobile-pptx", "hermes-mobile-pdf", "hermes-mobile-audio", "hermes-mobile-archive"]) {
+  const pluginDir = path.join(tempAppRoot, "gateway-plugins", pluginName);
+  fs.mkdirSync(pluginDir, { recursive: true });
+  fs.writeFileSync(path.join(pluginDir, "plugin.yaml"), `name: ${pluginName}\n`, "utf8");
+  fs.writeFileSync(path.join(pluginDir, "__init__.py"), "# test plugin\n", "utf8");
+}
 fs.writeFileSync(path.join(tempRoot, "data", "gateway-pool-manifest-mac.json"), JSON.stringify({
   workers: [
     { provider: "openai-codex", osUser: "hm-owner" },
@@ -166,6 +179,9 @@ fs.writeFileSync(path.join(tempRoot, "data", "gateway-pool-manifest-mac.json"), 
 fs.writeFileSync(path.join(tempRoot, "gateway-worker", "telemetry", "profiles", "shared-auth", "auth.json"), "{}\n");
 fs.writeFileSync(path.join(tempRoot, "gateway-worker", "telemetry", "profiles", "shared-auth", "auth.lock"), "");
 fs.writeFileSync(path.join(tempRoot, "plugins", "music", "runtime-placeholder"), "");
+const profileDir = path.join(tempRoot, "users", "hm-owner", "HermesWorkspace", ".hermes-gateway", "profiles", "hm-owner-openai-1");
+fs.mkdirSync(path.join(profileDir, "plugins"), { recursive: true });
+fs.writeFileSync(path.join(profileDir, "config.yaml"), "provider: openai-codex\n", "utf8");
 
 assert.deepEqual(openAiCodexManifestUsers(tempRoot), ["hm-owner", "hm-wuping"]);
 
@@ -173,12 +189,45 @@ const codexSharedAuthPlan = reconcileCodexSharedAuthPermissions({}, {
   root: tempRoot,
   execute: false,
 });
-assert.equal(codexSharedAuthPlan.length, 1);
-assert.equal(codexSharedAuthPlan[0].type, "codex-shared-auth-permissions");
-assert.equal(codexSharedAuthPlan[0].action, "plan");
-assert.equal(codexSharedAuthPlan[0].userCount, 2);
-assert.equal(codexSharedAuthPlan[0].fileCount, 2);
+assert.equal(codexSharedAuthPlan.length, 2);
+assert.equal(codexSharedAuthPlan[0].type, "codex-shared-auth-document");
+assert.equal(codexSharedAuthPlan[1].type, "codex-shared-auth-permissions");
+assert.equal(codexSharedAuthPlan[1].action, "plan");
+assert.equal(codexSharedAuthPlan[1].userCount, 2);
+assert.equal(codexSharedAuthPlan[1].fileCount, 2);
 assert.equal(JSON.stringify(codexSharedAuthPlan).includes("access_token"), false);
+
+const missingAuthRoot = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "homeai-drift-missing-auth-"));
+const operatorCodexHome = path.join(missingAuthRoot, "operator-codex-home");
+const missingProfileDir = path.join(missingAuthRoot, "users", "hm-owner", "HermesWorkspace", ".hermes-gateway", "profiles", "hm-owner-openai-1");
+fs.mkdirSync(operatorCodexHome, { recursive: true });
+fs.mkdirSync(missingProfileDir, { recursive: true });
+fs.mkdirSync(path.join(missingAuthRoot, "data"), { recursive: true });
+fs.writeFileSync(path.join(operatorCodexHome, "auth.json"), JSON.stringify({
+  auth_mode: "chatgpt",
+  tokens: { access_token: "access-token", refresh_token: "refresh-token" },
+}, null, 2));
+fs.writeFileSync(path.join(missingAuthRoot, "data", "gateway-pool-manifest-mac.json"), JSON.stringify({
+  workers: [{ provider: "openai-codex", osUser: "hm-owner" }],
+}));
+const missingSharedAuthRows = reconcileCodexSharedAuthPermissions({
+  profileChecks: [{
+    profile: "hm-owner-openai-1",
+    provider: "openai-codex",
+    osUser: "",
+    profileDir: missingProfileDir,
+  }],
+}, {
+  root: missingAuthRoot,
+  execute: true,
+  codexHomeCandidates: [operatorCodexHome],
+  openAiCodexManifestUsers: () => [],
+});
+assert.equal(missingSharedAuthRows.find((row) => row.type === "codex-shared-auth-document").ok, true);
+assert.equal(fs.existsSync(path.join(missingAuthRoot, "gateway-worker", "telemetry", "profiles", "shared-auth", "auth.json")), true);
+assert.equal(fs.existsSync(path.join(missingAuthRoot, "gateway-worker", "telemetry", "profiles", "shared-auth", "auth.lock")), true);
+assert.equal(fs.lstatSync(path.join(missingProfileDir, "auth.json")).isSymbolicLink(), true);
+assert.equal(JSON.stringify(missingSharedAuthRows).includes("access-token"), false);
 
 const musicCoverPlan = reconcileMusicRuntimeCoverPermissions({}, {
   root: tempRoot,
@@ -189,6 +238,37 @@ assert.equal(musicCoverPlan[0].type, "music-runtime-cover-permissions");
 assert.equal(musicCoverPlan[0].action, "plan");
 assert.equal(musicCoverPlan[0].directoryCount, 4);
 assert.equal(JSON.stringify(musicCoverPlan).includes("image_base64"), false);
+
+const filePluginAudit = {
+  profileChecks: [{
+    profile: "hm-owner-openai-1",
+    osUser: "",
+    profileDir,
+    filePlugins: [
+      { plugin: "hermes-mobile-docx", complete: false },
+      { plugin: "hermes-mobile-pptx", complete: false },
+      { plugin: "hermes-mobile-pdf", complete: false },
+      { plugin: "hermes-mobile-audio", complete: false },
+      { plugin: "hermes-mobile-archive", complete: false },
+    ],
+  }],
+};
+const filePluginPlan = reconcileGatewayProfileFilePlugins(filePluginAudit, {
+  root: tempRoot,
+  appPath: tempAppRoot,
+});
+assert.equal(filePluginPlan.length, 1);
+assert.equal(filePluginPlan[0].pluginCount, 5);
+assert.equal(filePluginPlan[0].action, "plan");
+const filePluginSync = reconcileGatewayProfileFilePlugins(filePluginAudit, {
+  root: tempRoot,
+  appPath: tempAppRoot,
+  execute: true,
+});
+assert.equal(filePluginSync[0].ok, true);
+assert.equal(fs.existsSync(path.join(profileDir, "plugins", "hermes-mobile-pptx", "plugin.yaml")), true);
+assert.match(fs.readFileSync(path.join(profileDir, "config.yaml"), "utf8"), /pptx_plugin_enabled:\s*true/);
+assert.equal(JSON.stringify(filePluginSync).includes("access_token"), false);
 
 (async () => {
   const calls = [];
@@ -250,6 +330,9 @@ assert.equal(JSON.stringify(musicCoverPlan).includes("image_base64"), false);
   const report = await runReconcile({
     root: tempRoot,
     execute: false,
+    appPath: tempAppRoot,
+    launchDaemonsDir: path.join(tempRoot, "LaunchDaemons"),
+    usersRoot: path.join(tempRoot, "Users"),
     buildAudit: () => ({ issues: [], installedGatewayChecks: [] }),
   });
   assert.equal(report.execute, false);

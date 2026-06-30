@@ -197,6 +197,8 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
 
     const startScript = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/start-lowgw31.sh`, "utf8");
     assert.match(startScript, /HERMES_MOBILE_DOCX_ALLOWED_ROOTS/);
+    assert.match(startScript, /HERMES_MOBILE_PPTX_ALLOWED_ROOTS/);
+    assert.match(startScript, /HERMES_MOBILE_PPTX_OUTPUT_ROOTS/);
     assert.match(startScript, /HERMES_MOBILE_PDF_ALLOWED_ROOTS/);
     assert.match(startScript, /HERMES_MOBILE_PDF_OUTPUT_ROOTS/);
     assert.match(startScript, /HERMES_MOBILE_ARCHIVE_ALLOWED_ROOTS/);
@@ -225,6 +227,7 @@ async function testEnsureLaunchdMaterializesWorkerFilesAndManifest() {
     const config = fs.readFileSync(`${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/config.yaml`, "utf8");
     assert.match(config, /provider: openai-codex/);
     assert.match(config, /port: 18781/);
+    assert.match(config, /hermes-mobile-pptx/);
     const authLink = `${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/auth.json`;
     const authLockLink = `${root}/users/hm-xulu/HermesWorkspace/.hermes-gateway/profiles/lowgw31/auth.lock`;
     assert.equal(fs.lstatSync(authLink).isSymbolicLink(), true);
