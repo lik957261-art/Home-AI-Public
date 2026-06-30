@@ -452,6 +452,11 @@ including Owner's shared `data/drive` write ACL and
 `data/drive/插件` built-in plugin scaffolds. These paths are required by the
 worker filesystem access and plugin-directory smokes and must not be left as
 post-install manual fixes.
+The later `repair-gateway-worker-acl` phase is the final ACL normalization
+point before first-start and smoke checks. It must preserve worker isolation
+while also reapplying listener search/read ACLs for packaged Owner required
+Skills; otherwise a fresh install can create complete Skill files that the
+listener cannot preload.
 The core Home AI LaunchDaemons explicitly set `HERMES_WEB_AUTH_KEY_PATH` to
 `<root>/data/secrets/owner-web-key.secret`; otherwise a fresh install would
 create the Owner key successfully but the listener would fall back to the

@@ -2010,6 +2010,7 @@ function testExecuteGatewayWorkerAclWritesPlanWithoutApplying() {
   assert.equal(plan.applied, false);
   assert.ok(plan.aclPlan.some((entry) => entry.user === "hm-owner" && entry.path.endsWith("gateway-pool-manifest-mac.json")));
   assert.ok(plan.aclPlan.some((entry) => entry.user === "hermes-host" && entry.path.includes("gateway-workers")));
+  assert.ok(plan.aclPlan.some((entry) => entry.user === "hermes-host" && entry.path.endsWith(path.join("owner-full", "skills", "productivity", "wardrobe-style-operations")) && entry.recursive === true));
   const phase = parsed.phases.find((item) => item.id === "repair-gateway-worker-acl");
   assert.equal(phase.status, "executed");
 }
@@ -2043,6 +2044,7 @@ function testExecuteGatewayWorkerAclCanApplyWithFakeCommands() {
   const calls = fs.readFileSync(fake.logPath, "utf8");
   assert.match(calls, /chmod .*user:hm-owner allow read,readattr,readextattr,readsecurity/);
   assert.match(calls, /chmod .*user:hermes-host allow read,readattr,readextattr,readsecurity/);
+  assert.match(calls, /chmod .*user:hermes-host allow list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit .*wardrobe-style-operations/);
   assert.match(calls, /chown -R hm-owner:staff/);
 }
 

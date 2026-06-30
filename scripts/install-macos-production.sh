@@ -2486,6 +2486,7 @@ const listenerUser = process.env.HOMEAI_LISTENER_USER || "hermes-host";
 const chmodCommand = process.env.HOMEAI_CHMOD || "/bin/chmod";
 const chownCommand = process.env.HOMEAI_CHOWN || "/usr/sbin/chown";
 const idCommand = process.env.HOMEAI_ID || "/usr/bin/id";
+const REQUIRED_OWNER_SKILLS = Object.freeze(["productivity/wardrobe-style-operations"]);
 const issues = [];
 const actions = [];
 const aclPlan = [];
@@ -2609,6 +2610,24 @@ function parentDirsFor(file, stopAt) {
   return dirs.reverse();
 }
 
+function addRequiredOwnerSkillListenerAcls() {
+  const ownerSkillRoot = path.join(dataDir, "skill-profiles", "owner-full");
+  const searchPerms = "list,search,readattr,readextattr,readsecurity";
+  const readTreePerms = "list,search,readattr,readextattr,readsecurity,read,execute,file_inherit,directory_inherit";
+  for (const relativeSkill of REQUIRED_OWNER_SKILLS) {
+    const segments = String(relativeSkill || "").split("/").map((item) => item.trim()).filter(Boolean);
+    if (!segments.length || segments.some((segment) => segment === "." || segment === "..")) continue;
+    addAcl(listenerUser, ownerSkillRoot, searchPerms);
+    let current = path.join(ownerSkillRoot, "skills");
+    addAcl(listenerUser, current, searchPerms);
+    for (const segment of segments.slice(0, -1)) {
+      current = path.join(current, segment);
+      addAcl(listenerUser, current, searchPerms);
+    }
+    addAcl(listenerUser, path.join(ownerSkillRoot, "skills", ...segments), readTreePerms, true);
+  }
+}
+
 try {
   ensureDir(dataDir, 0o750);
   if (!fs.existsSync(manifestPath)) {
@@ -2670,6 +2689,7 @@ try {
     }
     addAcl(osUser, profileDir, profileDirPerms, true);
   }
+  if (issues.length === 0) addRequiredOwnerSkillListenerAcls();
   if (issues.length === 0) {
     const plan = {
       schemaVersion: 1,

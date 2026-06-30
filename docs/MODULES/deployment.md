@@ -998,9 +998,11 @@ Fresh installs then run `scripts/install-macos-production.sh --execute --phase
 repair-gateway-worker-acl`; the default writes
 `data/gateway-worker-acl-plan.json`, and
 `HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1` applies the final manifest/key/profile
-ACL repair. This installer phase is the productized replacement for manual
-post-install chmod/chown fixes when workers fail with unreadable manifest or
-key files.
+ACL repair. It also reapplies the listener read/search ACL for packaged Owner
+required Skills so later ACL normalization cannot leave the listener unable to
+preload required Skill metadata. This installer phase is the productized
+replacement for manual post-install chmod/chown fixes when workers fail with
+unreadable manifest, key, or required Skill files.
 
 Mac Gateway start scripts must also inject the live file-plugin roots for every
 profile-local file tool. `docx_create`, `docx_extract_text`,
