@@ -78,7 +78,20 @@ function safeResetDir(targetPath) {
 
 function writePlaceholderExecutable(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  if (!fs.existsSync(filePath)) fs.writeFileSync(filePath, "#!/bin/sh\nexit 0\n", "utf8");
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, [
+      "#!/bin/sh",
+      "cat <<'JSON'",
+      JSON.stringify([
+        { name: "hermes_cli.main", ok: true },
+        { name: "hermes_cli.tools_config", ok: true },
+        { name: "run_agent", ok: true },
+        { name: "websockets", ok: true },
+      ]),
+      "JSON",
+      "",
+    ].join("\n"), "utf8");
+  }
   try {
     fs.chmodSync(filePath, 0o755);
   } catch (_) {}
