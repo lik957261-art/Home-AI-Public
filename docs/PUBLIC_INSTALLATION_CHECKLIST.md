@@ -482,9 +482,11 @@ minimal ACL needed for future service-side key refreshes. The
 `hermes-workers` shared group exists before Gateway MCP worker assets are
 owned by that group. Fresh-machine closure also materializes
 `data/workspaces.json` from the configured workspace map and grants the Home AI
-host service user minimal search/read ACLs on generated `.hermes-<plugin>`
-binding directories, so the host can read workspace-local plugin key/config
-files without giving workspace users cross-workspace plugin access.
+host service user the workspace-root write ACL needed for directory API
+creation/preview, plus minimal search/read ACLs on generated `.hermes-<plugin>`
+binding directories, so the host can manage workspace-local delivery
+directories and read plugin key/config files without giving workspace users
+cross-workspace plugin access.
 
 The install-time `run-smoke-tests` phase accepts only fresh-install provider
 authorization gaps (`codex_auth_json_missing` / `codex_auth_lock_missing`) as a

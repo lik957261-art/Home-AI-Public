@@ -1519,6 +1519,13 @@ try {
           chmodAcl(item.macUser, driveUsers, "list,search,readattr,readextattr,readsecurity");
         }
         chmodAcl(item.macUser, workspaceDataRoot, "list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit", true);
+        chmodAcl("hermes-host", root, "search,readattr,readextattr,readsecurity");
+        chmodAcl("hermes-host", data, "list,search,readattr,readextattr,readsecurity");
+        chmodAcl("hermes-host", drive, "list,search,readattr,readextattr,readsecurity");
+        if (workspaceDataRoot.startsWith(`${driveUsers}${path.sep}`)) {
+          chmodAcl("hermes-host", driveUsers, "list,search,readattr,readextattr,readsecurity");
+        }
+        chmodAcl("hermes-host", workspaceDataRoot, "list,add_file,add_subdirectory,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit", true);
         if (ownerPluginRoot) {
           chmodAcl(item.macUser, ownerPluginRoot, "list,add_file,search,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit", true);
         }
@@ -1528,6 +1535,12 @@ try {
           user: item.macUser,
           path: path.relative(root, workspaceDataRoot) || workspaceDataRoot,
           permissions: "workspace read/write ACL requires HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1",
+          recursive: true,
+        });
+        aclPlan.push({
+          user: "hermes-host",
+          path: path.relative(root, workspaceDataRoot) || workspaceDataRoot,
+          permissions: "workspace host directory create/preview ACL requires HOMEAI_INSTALL_APPLY_WORKSPACE_ACL=1; includes add_subdirectory and file_inherit",
           recursive: true,
         });
       }

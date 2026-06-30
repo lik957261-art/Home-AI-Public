@@ -1214,6 +1214,13 @@ function testExecuteWorkspaceIsolationCreatesBaselineScaffoldWithoutAcl() {
   assert.deepEqual(workspaceStore.workspaces[0].allowedRoots, [path.join(root, "data", "drive", "users", "weixin_wuping")]);
   assert.ok(parsed.execution.report.actions.some((item) => item.action === "write-workspace-catalog" && item.workspaceCount === 1));
   assert.ok(parsed.execution.report.aclPlan.some((item) => item.user === "hm-owner"));
+  assert.ok(parsed.execution.report.aclPlan.some((item) => (
+    item.user === "hermes-host"
+    && item.path.endsWith(path.join("data", "drive", "users", "weixin_wuping"))
+    && item.permissions.includes("add_subdirectory")
+    && item.permissions.includes("file_inherit")
+    && item.recursive === true
+  )));
   const phase = parsed.phases.find((item) => item.id === "configure-workspace-isolation");
   assert.equal(phase.status, "executed");
 }

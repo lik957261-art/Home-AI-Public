@@ -152,11 +152,14 @@ workspace-worker ownership. Plugin registration calls can retry
 transient loopback `fetch` failures, but persistent plugin contract failures
 remain blocking.
 `configure-workspace-isolation` must also write the local `data/workspaces.json`
-catalog for non-Owner workspace-map entries. After plugin provisioning creates
-workspace-local `.hermes-<plugin>` bindings, the apply phase grants the Home AI
-host service user minimal parent search plus binding read ACLs so manifests and
-launch-token requests can read plugin key/config files. These ACLs are host-only
-and must not become cross-workspace read access for other workspace users.
+catalog for non-Owner workspace-map entries and grant the Home AI host service
+user write ACLs on each workspace root so directory APIs can create and preview
+standard delivery directories such as `插件/<plugin title>`. After plugin
+provisioning creates workspace-local `.hermes-<plugin>` bindings, the apply
+phase grants the Home AI host service user minimal parent search plus binding
+read ACLs so manifests and launch-token requests can read plugin key/config
+files. These ACLs are host-only and must not become cross-workspace read access
+for other workspace users.
 The installer phase contract is intentionally machine-audited by
 `scripts/macos-install-phase-coverage-audit.js`; keep the source phase array,
 command generator, execution dispatcher, executable allowlist, tests, and docs
