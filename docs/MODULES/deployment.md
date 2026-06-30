@@ -728,6 +728,10 @@ If `runtime/node-current/bin/npm` or `npx` still points into an older temporary
 Node distribution, the same phase repairs those symlinks to the pinned
 production distribution instead of leaving upgrade blocked on one-run `/tmp`
 paths.
+During Codex Mobile plugin deploy repair, an optional
+`codex-profiles.json` profile store that is missing or unreadable is treated as
+absent and falls back to the service user's default `CODEX_HOME`; malformed JSON
+and real deploy/restart/sudo failures still fail closed.
 The public upgrade CLI prefers `HOMEAI_PYTHON`, `PYTHON`,
 `/opt/homebrew/bin/python3`, `/usr/local/bin/python3`, then `python3` when no
 explicit `--python-command` is supplied. The public upgrade loop then checks the

@@ -44,8 +44,14 @@ function safeCodexHome(candidate, serviceUser = DEFAULT_CODEX_MOBILE_USER) {
 }
 
 function readJsonIfExists(filePath) {
-  if (!filePath || !fs.existsSync(filePath)) return null;
-  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  if (!filePath) return null;
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (error) {
+    if (["EACCES", "EPERM", "ENOENT", "ENOTDIR", "EISDIR"].includes(error?.code)) return null;
+    throw error;
+  }
 }
 
 function resolveCodexMobileProfileRuntime(options = {}) {
