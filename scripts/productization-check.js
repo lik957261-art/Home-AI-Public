@@ -57,6 +57,7 @@ function main() {
   run("Production self-diagnostics coverage audit", "node", ["scripts/production-self-diagnostics-coverage-audit.js"]);
   run("Productization acceptance matrix docs verification", "node", ["scripts/productization-acceptance-matrix.js", "--verify-docs"]);
   runNpm(["test"]);
+  runNpm(["run", "test:install-lane"]);
   startupCheck();
   run("Whitespace diff check", "git", ["diff", "--check"]);
   run("Staged whitespace diff check", "git", ["diff", "--cached", "--check"]);

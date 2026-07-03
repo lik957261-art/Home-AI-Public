@@ -90,6 +90,41 @@ configuration drift before it can become a user-visible runtime failure. For
 every non-`--sync-only` Home AI or plugin deployment, the script also runs the focused
 `codex-auth-profile-audit` gate and fails on `codex_auth_*` issues so
 MCP/profile refreshes cannot silently break Codex auth.
+For every non-`--sync-only` Home AI deployment, the validation phase also seeds
+and reads back
+`data/hermes-home/self-improving-loop/owner-3a-quality-evidence.json` through
+the production Node runtime. This seed uses a plan-only install/upgrade canary
+plus the maintained plugin action metadata closure smoke, writes bounded
+metadata only, and must keep `noCompletionClaim=true`,
+`installUpgradeCanaryObservedStatus=partial`, `installUpgradeCanary.mode=plan`,
+no clean-target closure, and zero diagnostic events. The deploy then assigns
+the evidence file and its directory back to `hermes-host:staff` with private
+service-readable modes. This ensures the Owner System Console has a current
+readable evidence file after deploy without pretending a clean install/upgrade
+execute canary has passed.
+The same Home AI deployment proof-hash set includes the AI Ops diagnostic
+intake service, Web Push sender, Owner 3A evidence service, Owner 3A program
+service, Owner System Console service/API, mobile API platform composition,
+self-improving loop script, install/upgrade canary script, plugin action
+metadata closure service, and the plugin action metadata closure smoke script.
+This keeps the deployment readback tied to the code that creates and projects
+Owner 3A evidence and notification/dispatch idempotency, not only the generic
+listener and automation scripts.
+The install/upgrade canary report distinguishes source-safe rehearsal from
+clean-target closure. Ordinary local or implementation-thread `--execute`
+canary runs must remain `executionClass=source_safe_rehearsal` and
+`closureStatus=partial` unless a dedicated install/deploy lane supplies bounded
+`cleanTargetCanary` readback. That readback must fail closed unless it includes
+bounded lane/evidence identity, passed fresh-install and public-upgrade
+clean-target phases, temporary root cleanup, production/readback evidence, and
+`noCompletionClaim=false`. Do not use local developer-machine install tests to
+claim clean install or upgrade closure.
+The report also includes `cleanTargetEnvironment`, a metadata-only readiness
+summary for install/deploy lanes. It may report `ready` only when the lane has
+an absolute isolated target root, absolute safe fixture declaration, absolute
+clean-target readback file, and operator gates for install phases, launchd
+apply, and workspace ACL apply. The summary redacts raw paths to basename/hash
+metadata and never substitutes for passed `cleanTargetCanary` readback.
 Before that drift gate, Home AI full deploys run
 `scripts/macos-production-drift-reconcile.js --execute --json`. The reconcile
 step is intentionally bounded: it unloads and quarantines installed
@@ -133,6 +168,16 @@ installed executable watchdog under `data/hermes-home/scripts`, the bounded
 `com.hermesmobile.production-drift-audit` LaunchDaemon with
 `HOMEAI_PRODUCTION_DRIFT_AUTO_REPAIR=1`. This makes fresh installs and recovery
 runs prove the anti-drift guard before the system is considered usable.
+Home AI launchd reinstall/reload must be idempotent. The central deploy script
+may rewrite plist files and then attempt `bootout` by plist, `bootout` by label,
+and `bootstrap`. A `bootstrap` status such as macOS error 5 is not by itself a
+failed deployment if `launchctl print system/<label>` proves the service is
+already loaded. In that case the deploy must run
+`launchctl kickstart -k system/<label>`, return bounded reload metadata
+(`bootoutStatus`, `labelBootoutStatus`, `bootstrapStatus`, `alreadyLoaded`,
+`fallbackKickstartStatus`), and continue only when the fallback kickstart
+succeeds. This rule covers Home AI listener-related reloads, bridge-host, cron,
+production drift audit, NAS backup mount, and bounded post-sync service reloads.
 The same first-start preflight also requires both plugin workspace
 provisioning artifacts written by the installer:
 `data/plugin-workspace-provisioning-plan.json` from
@@ -192,12 +237,18 @@ Hermes Agent virtualenv; it is the supported closure path for plugin services
 on a new host.
 Normal source deploys must preserve production-owned runtime dependency
 directories. The shared script excludes `.venv/`, `node_modules/`, plugin
-`data/`, and other runtime/local state from source-to-production rsync so a
-Python plugin LaunchDaemon interpreter cannot be deleted by a code deploy.
+root-anchored `/data/` and `/runtime/`, and other runtime/local state from
+source-to-production rsync so a Python plugin LaunchDaemon interpreter cannot be
+deleted by a code deploy. Plugin source directories with deployable code under
+paths such as `services/runtime/` must not be excluded by the plugin runtime
+data rule.
 Backup rsync uses a narrower exclude list for local tooling metadata such as
 `.git`, `.codex`, `.codegraph`, and `.agent-context`; it must not omit
 production-owned plugin `data/`, `runtime/`, or `.venv/` directories from the
-pre-deploy backup.
+pre-deploy backup. The exception is volatile derived production-app paths, such
+as `gateway-runtime-overrides/__pycache__/` and `workspace/public-export/`,
+which can change while the backup is running and are regenerated from source or
+explicit export workflows rather than used as rollback state.
 Mac deploy backups are rollback points, not an accumulating archive. The
 central deploy script applies one retention rule to Home AI and every plugin:
 under `/Users/example/path`, each target keeps only
@@ -511,6 +562,8 @@ full Home AI deploy installs or refreshes
 `/Users/example/path` exists as the
 canonical Hermes CRON store, installs runtime no-agent scripts such as
 `/Users/example/path`
+and
+`/Users/example/path`
 and the `homeai-visual-polish-*.sh` visual-audit wrappers from the deployed app
 source, starts the dispatcher every 60 seconds with
 `scripts/hermes-mobile-cron-dispatcher.py --dispatch`, sets
@@ -606,6 +659,24 @@ cookies, launch tokens, or local operator secret paths. The central deploy
 script may still use local operator credential discovery inside the Home AI
 deployment runtime, but that is not a plugin-visible contract.
 
+Plugin-specific deploy lanes are preferred, not mandatory single points of
+failure. Codex Mobile deploy cards should route to `Codex Mobile Deploy Lane`
+and Movie deploy cards should route to `Movie Deploy Lane` while those lanes
+are live. If a dedicated lane is missing or terminal, route the card to another
+live lane in the shared deploy pool and preserve the same central deploy
+contract. Cards should carry `pluginId`; the router may infer known plugin
+targets from bounded title/body/workspace metadata only as a compatibility
+fallback for older cards.
+
+The deploy lane closure contract is
+`docs/PLATFORM_CONTRACTS/deploy-upgrade-lane-closure-contract.md`. Focused
+source and production readback use
+`node scripts/deploy-upgrade-lane-closure-smoke.js --json` plus
+`node tests/deploy-upgrade-lane-closure-service.test.js` and
+`node tests/deploy-upgrade-lane-closure-smoke.test.js`. These checks validate
+bounded deploy-lane lock metadata and fail closed when a routine plugin deploy
+card is shaped like a terminal receipt.
+
 A routine plugin deployment card must be a request card, not a terminal
 receipt. Titles such as `Return: ...`, bodies containing `Return policy:
 terminal receipt`, or cards whose primary status is already `completed`,
@@ -617,12 +688,22 @@ a new deployment request card that includes the source commit, deploy reason,
 plan result, safety boundary, and required production readback.
 
 At least one configured deploy lane must remain live and operational. If
-readback shows a configured deploy thread is completed, archived, deleted,
+readback shows every configured deploy thread is completed, archived, deleted,
 hidden, duplicated, or missing from the runnable target set, routine plugin
-deployment must fail closed and the deploy lane must be repaired, recreated, or
-removed from the configured lane pool. The ordinary Home AI implementation
-thread should redirect or block the card with that exact deploy-lane evidence;
-it must not silently take over routine plugin deployment execution.
+deployment must fail closed and the deploy lane pool must be repaired,
+recreated, or pruned. The ordinary Home AI implementation thread should
+redirect or block the card with that exact deploy-lane evidence; it must not
+silently take over routine plugin deployment execution.
+
+Home AI host deploys also run host-owned post-sync provisioning repairs that
+keep existing plugin/workspace contracts valid. The deploy plan must include the
+`wardrobe-thumbnail-artifact-acl` repair for the Owner workspace. During
+execute, the central script invokes the production workspace-system provisioning
+executor to create or repair `<root>/data/artifacts/wardrobe-thumbnails/owner`,
+grant the active `hm-owner` Wardrobe Gateway/MCP worker write ACL only on that
+artifact directory, and run a bounded atomic temp-file-plus-rename probe as that
+worker user. This is a Home AI platform repair, not a plugin routine deploy,
+because it closes an existing host artifact-root/worker-ACL invariant.
 
 Public setup source locations are declared in
 `config/public-plugin-sources.json`. The manifest maps the public Home AI repo
@@ -654,8 +735,11 @@ roots fail closed without `--clone-missing-plugins`, and proves the explicit
 clone gate can produce clone/deploy/closure-validation plan actions. The
 rehearsal also seeds installed-but-non-Git source directories and proves they
 fail closed until `--adopt-non-git-sources`, then produce
-adopt/deploy/closure-validation plan actions with that gate. The rehearsal is
-source/plan-only and must not pass `--execute` into `upgrade:public`.
+source-adoption adopt/deploy/closure-validation plan actions with that gate.
+It also proves Hermes Agent runtime repair is gated by the matching operator
+option and that Provider/profile closure validation remains present. The
+rehearsal is source/plan-only and must not pass `--execute` into
+`upgrade:public`.
 New-Mac remote deployment smoke uses
 `scripts/homeai-public-remote-deploy-smoke.js`
 (`npm run remote:public-deploy-smoke`). It is plan-only by default. With
@@ -715,6 +799,22 @@ runtime permissions installed before the operator configures provider
 credentials. That path must still report provider auth as pending in closure
 metadata and must be rerun without the flag after provider setup for strict
 model/schema/concurrency validation.
+
+The source-safe install/upgrade canary (`npm run canary:install-upgrade`) is the
+daily and manual readiness ledger for this deployment path. Canary version
+`20260702-install-upgrade-canary-v3` must show full stage coverage for source
+preflight, Owner/key bootstrap, Home AI install, Hermes Agent runtime, Provider
+ingress, plugin registration, Gateway/tool schema, plugin MCP/schema smoke,
+public upgrade rehearsal, and production closure readback. Missing stage
+coverage or a phase without owner/evidence/readback/check/privacy metadata is a
+canary failure even if the underlying command exits `0`. Source-safe canary
+execution is still rehearsal evidence; clean install or upgrade closure requires
+dedicated lane `cleanTargetCanary` readback.
+Manual operator runs should use the development source checkout. If the canary
+is executed from `/Users/example/path`, it must run as the
+production service user `hermes-host`; otherwise the production ACL boundary can
+block source-copy rehearsal and the command fails closed with
+`production_rehearsal_requires_service_user`.
 
 Hermes Agent and provider ingress are deployment dependencies. A fresh install
 must close `install-official-hermes-runtime`, which now pins
@@ -791,6 +891,31 @@ The Home AI API mirrors that flow through
 the script for `401` responses, healthy `8787` listeners, ordinary Codex thread
 failures, iframe projection bugs, or during normal deployments where the deploy
 script already owns the restart.
+
+For normal private `plugin:codex-mobile-web` macOS deployments,
+`scripts/deploy-macos-production.js` performs a listener startup gate after the
+LaunchDaemon and health URL checks. The central deploy lane runs the deployed
+plugin script from the production plugin cwd:
+
+```bash
+node scripts/codex-mobile-runtime-self-check-loop.js \
+  --server http://127.0.0.1:8787 \
+  --gate-mode deploy \
+  --browser-mode full \
+  --browser-startup-only \
+  --skip-api \
+  --skip-client-events \
+  --json
+```
+
+The gate is intentionally startup-only: it validates the public config, shell
+asset fetches, split frontend runtime factories, and browser startup exceptions
+without sampling thread detail or submitting Composer messages. A result with
+`ok=false`, `deployPass=false`, or browser execution failure is deploy-blocking;
+Chrome/browser unavailability must be reported as bounded
+`browser_startup_smoke_unavailable` evidence rather than silently skipped. The
+Home AI deploy script must not duplicate Codex Mobile frontend diagnostics; it
+only invokes the plugin-owned script to avoid rule drift.
 
 Home AI also exposes an Owner-only in-app update path for public deployments:
 Owner login calls `/api/app-update/status`, which checks the Home AI checkout
@@ -1035,6 +1160,11 @@ events, and generates bounded audit request cards for the dedicated audit
 lanes. It is a scheduling and diagnostic trigger only: it must not run deep
 audits, restart services, deploy code, or dispatch repair implementation cards
 directly.
+The production self-improving loop wrapper
+`homeai-self-improving-loop-cron.sh` is installed into the CRON script store by
+the deploy path and checked by the Automation cron audit. It runs the
+production collector, submits bounded diagnostics to AI Ops when enabled, and
+emits only bounded status/count summaries to CRON logs.
 The self-improving loop production collector also runs
 `scripts/homeai-public-upgrade-rehearsal.js --execute --json` by default. That
 rehearsal clones the published public repository into a temporary root and runs

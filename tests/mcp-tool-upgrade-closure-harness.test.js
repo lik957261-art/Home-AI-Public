@@ -336,11 +336,24 @@ function testScriptFailsWhenSelectedGatewayProfileIsOmittedWithoutExplicitSkip()
     "--repo-root", root,
     "--gateway-tool", "mcp_finance_add_transaction_attachment",
     "--epoch", "20260606-finance-reference-mcp-v1",
+    "--require-gateway",
   ]);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /Gateway callable schema closure requires --manifest and --profile/);
   assert.match(result.stderr, /selected profile/);
   assert.match(result.stderr, /--skip-gateway/);
+}
+
+function testDefaultNoArgSmokeUsesCurrentSourceClosure() {
+  const result = run(["--json"]);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, true);
+  assert.equal(parsed.toolset, "wardrobe");
+  assert.equal(parsed.epoch, "20260629-wardrobe-wear-intent-v970");
+  assert.deepEqual(parsed.source.gatewayTools, ["mcp_wardrobe_wardrobe_execute_outfit_wear_intent"]);
+  assert.equal(parsed.gateway.skipped, true);
+  assert.equal(parsed.gateway.reason, "gateway_manifest_profile_not_provided_default_source_check");
 }
 
 function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
@@ -364,8 +377,12 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
   assert.match(script, /file_path/);
   assert.match(script, /upload_path/);
   assert.match(script, /mcp_finance_add_transaction_attachment/);
+  assert.match(script, /mcp_wardrobe_wardrobe_execute_outfit_wear_intent/);
+  assert.match(script, /20260629-wardrobe-wear-intent-v970/);
+  assert.match(script, /requireGateway/);
   assert.match(script, /Gateway callable schema closure requires/);
   assert.match(script, /skip_gateway_requested/);
+  assert.match(script, /gateway_manifest_profile_not_provided_default_source_check/);
   assert.match(script, /macos-production-defaults/);
   assert.match(script, /allow-live-gateway-substitute/);
   assert.match(script, /live-gateway-call/);
@@ -379,7 +396,9 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
 
   assert.match(runbook, /mcp-tool-upgrade-closure-smoke\.js/);
   assert.match(runbook, /Gateway worker callable schema/);
-  assert.match(runbook, /Only an explicit `--skip-gateway`/);
+  assert.match(runbook, /The no-argument daily smoke is a current source\/default closure check/);
+  assert.match(runbook, /`--require-gateway`/);
+  assert.match(runbook, /gateway_manifest_profile_not_provided_default_source_check/);
   assert.match(runbook, /Mobile instruction-service/);
   assert.match(runbook, /GATEWAY_TOOL_SCHEMA_EPOCH/);
   assert.match(runbook, /mcp_finance_add_transaction_attachment/);
@@ -411,6 +430,7 @@ function testRepositoryDocsAndHarnessContractMentionUpgradeClosure() {
   await testScriptFailsWhenServiceSchemaMissesRequiredAttachmentPathProperty();
   testScriptFailsWhenInstructionHintsMissGatewayTool();
   testScriptFailsWhenSelectedGatewayProfileIsOmittedWithoutExplicitSkip();
+  testDefaultNoArgSmokeUsesCurrentSourceClosure();
   testRepositoryDocsAndHarnessContractMentionUpgradeClosure();
   console.log("mcp tool upgrade closure harness tests passed");
 })();

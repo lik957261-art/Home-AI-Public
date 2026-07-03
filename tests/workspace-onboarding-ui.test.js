@@ -32,6 +32,17 @@ assert.match(accessKeyManagerUi, /button\.addEventListener\("touchend", activate
 assert.match(accessKeyManagerUi, /button\.addEventListener\("click", activate\)/);
 assert.match(accessKeyManagerUi, /预览中\.\.\./);
 assert.match(accessKeyManagerUi, /开通中\.\.\./);
+assert.match(accessKeyManagerUi, /Owner 工作区开通/);
+assert.match(accessKeyManagerUi, /基础配置 \/ 编辑账号/);
+assert.match(accessKeyManagerUi, /不含插件开通/);
+assert.match(accessKeyManagerUi, /这里只保存 Home AI 工作区基础配置/);
+assert.match(accessKeyManagerUi, /新账号需要使用上方“Owner 工作区开通”完成 Finance 等插件绑定/);
+assert.match(accessKeyManagerUi, /保存基础配置/);
+assert.match(accessKeyManagerUi, /const workspaceExists = \(state\.workspaces \|\| \[\]\)\.some/);
+assert.match(accessKeyManagerUi, /if \(!workspaceExists\) \{/);
+assert.match(accessKeyManagerUi, /pluginIds: WORKSPACE_ONBOARDING_PLUGIN_OPTIONS\.map\(\(item\) => item\.id\)/);
+assert.match(accessKeyManagerUi, /新账号需要先完整开通，才能自动创建 Finance 等插件绑定。/);
+assert.match(accessKeyManagerUi, /data-workspace-onboarding-section/);
 assert.match(accessKeyManagerUi, /\/api\/workspace-onboarding\/plan/);
 assert.match(accessKeyManagerUi, /\/api\/workspace-onboarding\/apply/);
 assert.match(accessKeyManagerUi, /runSmokes: true/);

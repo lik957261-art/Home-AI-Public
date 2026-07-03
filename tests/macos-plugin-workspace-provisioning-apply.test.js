@@ -97,6 +97,27 @@ function fakeFetchForRoot(root, calls) {
   };
 }
 
+function fakeSystemProvisioningExecutor(calls = []) {
+  return {
+    runStep(action, context = {}) {
+      calls.push({ action, context });
+      if (action === "repair_wardrobe_thumbnail_artifact_acl") {
+        return Promise.resolve({
+          ok: true,
+          aclRepaired: true,
+          writeProbeOk: true,
+          probeUser: context.macUser,
+          photoCacheDir: `<root>/data/artifacts/wardrobe-thumbnails/${context.workspaceId}`,
+        });
+      }
+      if (action === "ensure_launchd_services") {
+        return Promise.resolve({ ok: true, workers: [], syncedPluginBindings: [], syncedGatewayMcpAssets: [], kickstarted: [] });
+      }
+      return Promise.resolve({ ok: true });
+    },
+  };
+}
+
 async function testApplyProvisionsOwnerPluginBindingsWithoutRawSecrets() {
   const root = tempRoot();
   writePlan(root);
@@ -106,6 +127,7 @@ async function testApplyProvisionsOwnerPluginBindingsWithoutRawSecrets() {
   writeSecret(root, "note-owner-key.txt", "note-owner-secret");
   writeSecret(root, "email-owner-key.txt", "email-owner-secret");
   const calls = [];
+  const systemCalls = [];
   const report = await apply({
     root,
     appSource: REPO_ROOT,
@@ -113,6 +135,7 @@ async function testApplyProvisionsOwnerPluginBindingsWithoutRawSecrets() {
     skipGatewayRefresh: true,
     retryDelayMs: 0,
     fetch: fakeFetchForRoot(root, calls),
+    systemProvisioningExecutor: fakeSystemProvisioningExecutor(systemCalls),
   });
 
   assert.equal(report.ok, true, JSON.stringify(report.issues, null, 2));
@@ -151,6 +174,14 @@ async function testApplyProvisionsOwnerPluginBindingsWithoutRawSecrets() {
   assert.equal(calls.some((call) => call.port === "8765"), true);
   assert.equal(report.actions.some((action) => action.action === "prepare-email-workspace-binding"), true);
   assert.equal(report.actions.some((action) => action.action === "finalize-email-workspace-binding"), true);
+  assert.deepEqual(systemCalls, [{
+    action: "repair_wardrobe_thumbnail_artifact_acl",
+    context: {
+      workspaceId: "owner",
+      macUser: "hm-owner",
+      paths: { dataRoot: path.join(root, "data") },
+    },
+  }]);
 }
 
 async function testApplyRetriesTransientPluginFetchFailure() {
@@ -162,6 +193,7 @@ async function testApplyRetriesTransientPluginFetchFailure() {
   writeSecret(root, "note-owner-key.txt", "note-owner-secret");
   writeSecret(root, "email-owner-key.txt", "email-owner-secret");
   const calls = [];
+  const systemCalls = [];
   let growthAttempts = 0;
   const fetch = async (url, options = {}) => {
     const parsed = new URL(url);
@@ -179,6 +211,7 @@ async function testApplyRetriesTransientPluginFetchFailure() {
     retryCount: 2,
     retryDelayMs: 0,
     fetch,
+    systemProvisioningExecutor: fakeSystemProvisioningExecutor(systemCalls),
   });
   assert.equal(report.ok, true, JSON.stringify(report.issues, null, 2));
   assert.equal(growthAttempts, 2);

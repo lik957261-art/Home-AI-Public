@@ -3,6 +3,10 @@
 const {
   buildDiagnosticRemediationPlan,
 } = require("./ai-ops-diagnostic-remediation-service");
+const {
+  exceptionTaskCardResult,
+  normalizeTaskCardDispatchResult,
+} = require("./task-card-dispatch-result-service");
 
 const OWNER_WORKSPACE_ID = "owner";
 const APP_WORKSPACE = "/Users/example/path";
@@ -41,6 +45,14 @@ function caseEvents(diagnosticIntakeService, caseId) {
   return Array.isArray(result?.events) ? result.events : [];
 }
 
+function shouldNotifyOwner(inboxResult = {}) {
+  if (inboxResult.created === true || inboxResult.reopened === true) return true;
+  if (inboxResult.created === false || inboxResult.updated === true) return false;
+  const eventType = clean(inboxResult.event?.eventType || inboxResult.event?.event_type, 80);
+  if (!eventType) return true;
+  return eventType === "source_created";
+}
+
 function ownerNotificationForPlan(plan = {}) {
   const evidence = objectValue(plan.evidence);
   const caseId = clean(plan.case_id || evidence.case_id, 160);
@@ -62,7 +74,7 @@ function ownerNotificationForPlan(plan = {}) {
     summary,
     actionLabel: "发修复卡",
     dedupeKey: `ai-ops-diagnostic-remediation:${caseId}:owner`,
-    reopen: true,
+    reopen: false,
     sourceRef: {
       notificationType: NOTIFICATION_TYPE,
       caseId,
@@ -87,6 +99,26 @@ function ownerNotificationForPlan(plan = {}) {
       },
     },
   };
+}
+
+async function completeDispatchInboxItem(actionInboxService, input = {}, payload = {}) {
+  const itemId = clean(input.itemId || input.item_id || input.inboxItemId || input.inbox_item_id, 160);
+  if (!itemId || !actionInboxService || typeof actionInboxService.completeItem !== "function") return null;
+  try {
+    return await Promise.resolve(actionInboxService.completeItem({
+      itemId,
+      actorWorkspaceId: OWNER_WORKSPACE_ID,
+      actorPrincipalId: clean(input.actor || OWNER_WORKSPACE_ID, 80),
+      payload: Object.assign({
+        reason: "diagnostic_remediation_task_card_sent",
+      }, objectValue(payload)),
+    }));
+  } catch (err) {
+    return {
+      ok: false,
+      error: clean(err?.message || err || "diagnostic_remediation_inbox_complete_failed", 240),
+    };
+  }
 }
 
 function createAiOpsDiagnosticRemediationWorkflowService(options = {}) {
@@ -160,8 +192,9 @@ function createAiOpsDiagnosticRemediationWorkflowService(options = {}) {
     }
     const inboxResult = await Promise.resolve(actionInboxService.upsertSourceItem(ownerNotificationForPlan(planned.plan)));
     if (!inboxResult?.ok) return inboxResult || { ok: false, status: 500, error: "action_inbox_upsert_failed" };
+    const ownerPushRequired = shouldNotifyOwner(inboxResult);
     let push = null;
-    if (sendPushNotification) {
+    if (sendPushNotification && ownerPushRequired) {
       const url = appRouteUrl({
         view: "inbox",
         workspaceId: OWNER_WORKSPACE_ID,
@@ -192,7 +225,7 @@ function createAiOpsDiagnosticRemediationWorkflowService(options = {}) {
     }
     return {
       ok: true,
-      notified: true,
+      notified: Boolean(ownerPushRequired),
       inboxItem: inboxResult.item,
       event: inboxResult.event,
       push,
@@ -205,6 +238,9 @@ function createAiOpsDiagnosticRemediationWorkflowService(options = {}) {
     const planned = planForCase(caseId);
     if (!planned.ok) return planned;
     if (caseAlreadyDispatched(planned.case)) {
+      const completeResult = await completeDispatchInboxItem(actionInboxService, input, {
+        alreadyDispatched: true,
+      });
       return {
         ok: true,
         dispatched: false,
@@ -212,6 +248,11 @@ function createAiOpsDiagnosticRemediationWorkflowService(options = {}) {
         reason: "diagnostic_remediation_task_card_already_sent",
         plan: planned.plan,
         case: planned.case,
+        inboxItem: completeResult?.item,
+        inboxCompletion: completeResult ? {
+          ok: completeResult.ok !== false,
+          error: clean(completeResult.error || "", 160),
+        } : null,
       };
     }
     if (!planned.plan?.eligible || planned.plan.status !== "ready_to_dispatch") {
@@ -235,7 +276,29 @@ function createAiOpsDiagnosticRemediationWorkflowService(options = {}) {
       dispatchInput.targetThreadTitle = "";
       dispatchInput.targetThreadTitlePrefix = "Home AI";
     }
-    const sent = await taskCardService.sendTaskCard(dispatchInput);
+    let sent;
+    try {
+      sent = await Promise.resolve(taskCardService.sendTaskCard(dispatchInput));
+    } catch (err) {
+      sent = exceptionTaskCardResult(err);
+    }
+    const dispatchResult = normalizeTaskCardDispatchResult(sent, {
+      targetWorkspaceId: clean(planned.plan.target?.workspaceId || planned.plan.plugin_id || planned.case?.plugin_id || "", 120),
+      targetWorkspace: taskCard.targetWorkspace || "",
+      targetThreadTitle: taskCard.targetThreadTitle || taskCard.targetThreadTitlePrefix || "",
+      targetThreadId: taskCard.targetThreadId || "",
+    });
+    if (!dispatchResult.ok) {
+      return {
+        ok: false,
+        status: 502,
+        error: "diagnostic_remediation_task_card_dispatch_failed",
+        plan: planned.plan,
+        taskCardResult: sent,
+        dispatchFailure: dispatchResult.failure,
+        case: planned.case,
+      };
+    }
     if (typeof diagnosticIntakeService.updateCaseStatus === "function") {
       const actor = clean(input.actor || "ai-ops-diagnostic-workflow", 80);
       const updateReason = clean(input.reason
@@ -247,11 +310,20 @@ function createAiOpsDiagnosticRemediationWorkflowService(options = {}) {
         actor,
       });
     }
+    const completeResult = await completeDispatchInboxItem(actionInboxService, input, {
+      taskCardIds: dispatchResult.cardIds,
+    });
     return {
       ok: true,
       dispatched: true,
       plan: planned.plan,
       taskCardResult: sent,
+      taskCardIds: dispatchResult.cardIds,
+      inboxItem: completeResult?.item,
+      inboxCompletion: completeResult ? {
+        ok: completeResult.ok !== false,
+        error: clean(completeResult.error || "", 160),
+      } : null,
       case: typeof diagnosticIntakeService.getCase === "function" ? diagnosticIntakeService.getCase(caseId) : planned.case,
     };
   }

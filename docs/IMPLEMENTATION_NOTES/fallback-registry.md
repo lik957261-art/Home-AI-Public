@@ -28,8 +28,21 @@ Every fallback entry must include:
 
 ## Active Entries
 
-No active newly registered fallback entries are open as of
-`2026-06-23`.
+```text
+fallback_id: codex_mobile_workspace_read_compat_20260630
+status: mitigation_only
+layer: Codex Mobile workspace-delegation runtime permission policy
+owning_workspace: /Users/example/path
+trigger_condition: workspace delegation is enabled for a non-exempt target workspace and CODEX_MOBILE_WORKSPACE_DELEGATION_ENFORCE_SANDBOX_GUARD is not set
+visible_status: Codex Mobile workspace-delegation RPC diagnostics show sandbox=danger-full-access or sandboxPolicyType=dangerFullAccess with approvalPolicy=on-request; docs reference this fallback id
+why_needed_now: current Codex app-server workspace-write turns can generate a managed effective profile where the workspace root is write-only, so fresh plugin continuations can enter cwd but cannot read existing source files or run git status
+unresolved_root_cause: app-server workspace-write / managed permission-profile semantics do not provide effective read+write access for the workspace root
+owner: Codex Mobile Web implementation thread plus Codex app-server runtime owner for final hardening
+removal_condition: a fresh delegated Music continuation under /Users/example/path can read src/roon-bridge-service.js, .agent-context/PROJECT_CONTEXT.md, and git status while using workspace-write or an equivalent least-privilege profile without dangerFullAccess
+validation: Codex Mobile focused tests for runtime guard and source-write guard; production smoke must create a fresh Music continuation and run pwd, sed -n '1,5p' src/roon-bridge-service.js, git status --short, and sed -n '1,80p' .agent-context/PROJECT_CONTEXT.md
+review_by: 2026-07-15
+notes: This is a mitigation, not closure. It restores current plugin workspace reads while retaining source-write approval guard; direct writes that do not raise app-server approval requests remain the known risk until the app-server hard sandbox is repaired.
+```
 
 Historical compatibility branches are not grandfathered as architectural
 closure. When a historical fallback is touched, extended, or used to close a

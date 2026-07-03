@@ -6,6 +6,9 @@ Reusable Codex skill: `$service-first-architecture`.
 
 Root-cause discipline: `docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md`.
 
+Runtime closure discipline:
+`docs/PLATFORM_CONTRACTS/home-ai-runtime-boundary-contract.md`.
+
 ## Service-First Rule
 
 New product behavior must be implemented as a service or provider before it is wired into `server.js`.
@@ -25,6 +28,64 @@ tests/<domain>-service.test.js
 
 `server.js` is the thin process entrypoint. It should do little more than load
 the runtime composition module and preserve the deployment command surface.
+
+## Runtime Closure Boundaries
+
+Runtime work that crosses a Gateway run, message projection, deterministic
+plugin action, or mitigation/fallback must follow the Home AI runtime boundary
+contract. The four enforced boundaries are:
+
+- Run Pipeline Boundary: Gateway run-start, stream, and output-event services
+  own request construction, lifecycle projection, and bounded metadata
+  extraction before provider events are compacted.
+- Message Projection Boundary: `thread-view-service.js` owns public projection
+  only and must not execute actions, call MCP tools, or infer raw provider
+  payloads after compaction.
+- Plugin Action Bridge Boundary: deterministic plugin buttons use focused
+  action services and action API routes, and must not start a model run.
+- Fallback Registry Boundary: H1/H2 mitigations remain explicit registry
+  entries with owner, trigger, unresolved root cause, removal condition,
+  validation, and review date.
+
+The central guard is:
+
+```bash
+node tests/home-ai-runtime-boundary-contract.test.js
+```
+
+The wider map guard remains:
+
+```bash
+node tests/architecture-code-test-harness-map.test.js
+```
+
+## Growth Plugin Ownership Boundary
+
+Growth plugin owns learner programs, card authoring, teaching/practice/stage
+assessment workflows, learner submission/evaluation/reflection behavior,
+Growth-domain rewards, Growth UI, Growth MCP tools, and plugin-owned learning
+SQLite state.
+
+Home AI may keep only the platform boundary around Growth:
+
+- plugin provisioning, launch, iframe host, same-origin proxy, appearance, and
+  mobile shell integration;
+- workspace identity, access-key policy, Gateway profile/toolset activation,
+  Action Inbox, Web Push, platform `通宝` exchange, and deployment orchestration;
+- migration facade/readback and legacy URL compatibility while old links or
+  old Kanban-linked cards still need a bounded transition path.
+
+The existing host `learning-*`, `growth-*`, `study-*`, and `assessment-*`
+surface is a migration residual. It is allowed to shrink, but it must not grow.
+New Growth business behavior belongs in `/Users/example/path`;
+new host files in these domains require deleting or migrating at least as much
+legacy surface and updating the migration plan.
+
+Guard:
+
+```bash
+node scripts/growth-host-residual-boundary-check.js --json
+```
 
 ## Architecture Gates
 
@@ -1159,12 +1220,13 @@ Current CI guardrails:
   creation from injected dependencies, but it must not own catalog loading,
   access-policy merge rules, shared-directory projection, or project discovery
   behavior;
-- `mobile-api-composition.js` must stay at or below 410 lines and remain the
-  top-level API aggregator, service collector, and dispatcher constructor, not
-  a domain service graph;
-- `mobile-api-platform-composition.js` must stay at or below 210 lines and
-  remain the public/system/Owner/access-key/runtime-config/Push/Workspace/
-  platform-currency/Resource route composition boundary;
+- `mobile-api-composition.js` must remain the top-level API aggregator,
+  service collector, and dispatcher constructor, not a domain service graph;
+- `mobile-api-platform-composition.js` must remain the public/system/Owner/
+  access-key/runtime-config/Push/Workspace/platform-currency/Resource route
+  composition boundary. It may construct Owner System Console and bounded
+  system resource collector services, but resource classification policy belongs
+  in their adapters, not in composition glue;
 - `mobile-api-directory-composition.js` must stay at or below 150 lines and
   remain the Directory/file/artifact/Note receipt route wiring boundary;
 - `mobile-api-learning-composition.js` must stay at or below 350 lines and

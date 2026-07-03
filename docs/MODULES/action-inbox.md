@@ -26,6 +26,12 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
   The loop coordinator remains responsible for execution state, task-card
   routing, verification, and closure; Inbox must not become the execution
   engine or a store for full private work payloads.
+  Owner approval/review rows for Autonomous Delivery, AI Ops remediation, and
+  plugin conversation repair requests must be dedupe-keyed. Updating an already
+  open row with the same dedupe key may refresh title/summary/source metadata,
+  but it must not send a second Web Push notification or create a second
+  approval item. A reopened row may notify again because it represents a new
+  actionable Owner attention state.
   Terminal completed return cards may also create
   `sourceType=autonomous_delivery`, `itemType=review` rows that tell Owner a
   delivery slice is ready for verification/deploy/audit decisions. These review
@@ -49,6 +55,11 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
   `notificationType=autonomous_delivery.repair_required`. Those rows expose
   `发修复卡`, optionally accept an Owner prompt, and dispatch only after Owner
   action to the original implementation workspace.
+  Owner-triggered dispatch actions complete the approval/review row only after
+  the Codex task-card transport returns at least one concrete task-card id. A
+  routing failure, exception, or response with no card id leaves the row open
+  and records a bounded failure in the owning service so Owner can retry or
+  route the repair explicitly.
 - Inbox detail/create screens are secondary screens. They must use the shared top-left back button and right-swipe back path; the content area should not render another back button or duplicate the top bar title.
 - Existing simple Todo behavior becomes an Action Inbox item type instead of a separate product tab.
 - Todo must appear as its own primary Inbox filter tab. The default Inbox list
@@ -374,20 +385,41 @@ Home AI implementation thread. Old approval rows that still contain a stale
 exact title are upgraded at dispatch time before sending the task card. Because
 Codex Mobile requires a task-card source thread to differ from the target
 thread, Home-AI-owned repair dispatch uses the dedicated `Home AI Task Intake`
-Codex thread as the source and the current `Home AI` implementation thread as
-the target. This source thread is only a task-card/return-card intake lane; it
+Codex thread as the source. The target is a current Home AI implementation
+thread selected through the `Home AI` title prefix. Codex Mobile routing must
+not auto-dispatch these Home-AI-owned implementation cards directly to the
+`Home AI Worker Lane A/B/C` worker lanes, because those lanes share the same app
+repository and can conflict on source files, tests, commits, deployment, and
+handoff updates. The current main Home AI implementation thread is the
+orchestrator: it may explicitly delegate a bounded subtask to a worker lane only
+after defining the module/file boundary, write lock, validation responsibility,
+and return-card path. Worker lanes must return bounded evidence to the main
+thread; the main thread owns final merge, full validation, commit, deploy, and
+closure. `Home AI Task Intake` is only a task-card/return-card intake lane; it
 is not the Home AI audit thread and must not replace `Home AI Platform Audit`
 for Product Reality or platform audits.
+
+Plugin conversation repair approvals are idempotent by bounded request
+signature. Equivalent server-side and client-fallback submissions may update the
+same row while it is open, but they must not create a second Owner approval,
+reopen a terminal approval, dispatch a second task card, or trigger another Web
+Push. A new Owner approval requires a distinct bounded request signature.
 
 Host-side assistant replies in plugin conversation topics may create these rows
 by appending a hidden `homeai-plugin-conversation-action` JSON comment. The
 Gateway run-completion path submits the bounded request through the same
 bridge; the client also strips that metadata from display, deduplicates recent
 completed assistant messages, and may submit the request to
-`POST /api/plugin-conversation/actions` as a compatibility fallback. This path
-must not create an ordinary Todo/Kanban `t_*` card or claim a repair card was
-submitted. A visible dispatchable approval row has an `ainb_*` id; a real Codex
-repair card exists only after Owner clicks `发修复卡` and receives a `ttc_*` id.
+`POST /api/plugin-conversation/actions` as a compatibility fallback. The host
+bridge deduplicates those two transport paths by plugin id, request type, title,
+and a compact problem-summary prefix, because one path can preserve longer text
+or source message ids while the other may send a trimmed payload. Sparse client
+fallback updates must not erase the server-completion source thread/turn
+metadata, and must not create a second Owner approval row or second Web Push for
+the same bounded request. This path must not create an ordinary Todo/Kanban
+`t_*` card or claim a repair card was submitted. A visible dispatchable approval
+row has an `ainb_*` id; a real Codex repair card exists only after Owner clicks
+`发修复卡` and receives a `ttc_*` id.
 If a Gateway reply still claims a legacy `t_*` card was created for an
 implementation repair request without a real hidden Owner request marker or
 `ainb_*`/`ttc_*` id, run completion treats that as a recoverable transport
@@ -413,6 +445,17 @@ Repeated submissions with the same bounded signature must update the existing
 approval row without sending duplicate system notifications. Owner push is sent
 only when the Action Inbox upsert created a new row or truly reopened a terminal
 row.
+For AI Ops diagnostic remediation, the same diagnostic case does not reopen a
+terminal Owner row: a dismissed or completed case item may receive bounded
+metadata updates, but it must not create another approval prompt or Web Push
+unless a new diagnostic case id is created.
+For plugin conversation repair requests, the stable bounded signature is also
+the Codex task-card `requestId` basis; different transport `requestId` values
+for the same bounded request must not create a second approval row, second Web
+Push, or second Codex task-card dispatch. If the same approval item is submitted
+again after a successful dispatch, the dispatch endpoint returns the prior
+task-card ids from the Inbox completion event and does not call Codex Mobile
+again.
 
 AI Ops diagnostic remediation rows and plugin conversation repair rows must
 show button-level dispatch state. When Owner taps `发修复卡`, the row/action
@@ -424,6 +467,10 @@ dispatch path itself can be repaired. If the diagnostic case is already
 `card_sent`, the dispatch operation is idempotent: the row should be marked
 handled and must not reopen only because later diagnostic events matched the
 same case.
+When an AI Ops diagnostic remediation dispatch succeeds, or the case was
+already `card_sent`, the dispatch workflow must complete the corresponding
+Inbox item when the UI supplies its `itemId`; successful task-card delivery
+must not leave an actionable approval row behind.
 
 ## Official Kanban Cutover
 

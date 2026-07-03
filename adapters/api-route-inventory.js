@@ -147,6 +147,12 @@ const HERMES_MOBILE_API_ROUTE_SPECS = Object.freeze([
     workspaceScoped: true,
     resourceTypes: ["native-notification", "apns"],
   })),
+  exact("native-ios-shell-version-policy", "GET", "/api/native/ios-shell/version-policy", "native-ios-shell", routeOptions("native-ios-shell", {
+    riskLevel: "public",
+    authRequired: false,
+    workspaceScoped: false,
+    resourceTypes: ["native-shell", "version-policy"],
+  })),
 
   exact("workspaces-list", "GET", "/api/workspaces", "workspace-admin", routeOptions("workspace-admin", {
     resourceTypes: ["workspace"],

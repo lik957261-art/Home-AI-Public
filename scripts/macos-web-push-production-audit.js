@@ -1,6 +1,8 @@
 "use strict";
 
 const fs = require("node:fs");
+const http = require("node:http");
+const https = require("node:https");
 const os = require("node:os");
 const path = require("node:path");
 
@@ -19,6 +21,9 @@ function parseArgs(argv = []) {
     dbPath: "",
     statePath: "",
     vapidPath: "",
+    base: process.env.HERMES_MOBILE_SMOKE_BASE || "http://127.0.0.1:8797",
+    accessKeyFile: "",
+    accessKey: "",
     publicOrigin: process.env.HERMES_MOBILE_PUBLIC_ORIGIN
       || process.env.HERMES_WEB_PUBLIC_ORIGIN
       || process.env.HERMES_PUBLIC_ORIGIN
@@ -37,6 +42,9 @@ function parseArgs(argv = []) {
     else if (arg === "--db-path") out.dbPath = argv[++index] || out.dbPath;
     else if (arg === "--state-path") out.statePath = argv[++index] || out.statePath;
     else if (arg === "--vapid-path") out.vapidPath = argv[++index] || out.vapidPath;
+    else if (arg === "--base") out.base = argv[++index] || out.base;
+    else if (arg === "--access-key-file" || arg === "--key-file") out.accessKeyFile = argv[++index] || out.accessKeyFile;
+    else if (arg === "--access-key") out.accessKey = argv[++index] || out.accessKey;
     else if (arg === "--public-origin") out.publicOrigin = argv[++index] || out.publicOrigin;
     else if (arg === "--require-public-origin") out.requirePublicOrigin = true;
     else if (arg === "--require-active-external-subscription") out.requireActiveExternalSubscription = true;
@@ -65,8 +73,17 @@ function parseArgs(argv = []) {
   out.dbPath = path.resolve(out.dbPath || path.join(out.dataDir, "hermes-mobile.sqlite3"));
   out.statePath = path.resolve(out.statePath || path.join(out.dataDir, "state.json"));
   out.vapidPath = path.resolve(out.vapidPath || path.join(out.dataDir, "web-push-vapid.json"));
+  out.base = String(out.base || "").replace(/\/+$/, "");
   out.publicOrigin = normalizeWebPushOrigin(out.publicOrigin);
   return out;
+}
+
+function readAccessKey(filePath) {
+  try {
+    return fs.readFileSync(filePath, "utf8").split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "";
+  } catch (_) {
+    return "";
+  }
 }
 
 function writeSourceCheckFixture(root) {
@@ -157,8 +174,86 @@ function readJson(filePath) {
   }
 }
 
+function requestJson(url, headers = {}, timeoutMs = 5000) {
+  const parsed = new URL(url);
+  const client = parsed.protocol === "https:" ? https : http;
+  return new Promise((resolve) => {
+    const req = client.request(parsed, {
+      method: "GET",
+      headers,
+      timeout: timeoutMs,
+    }, (res) => {
+      let raw = "";
+      res.setEncoding("utf8");
+      res.on("data", (chunk) => {
+        raw += chunk;
+        if (raw.length > 256 * 1024) req.destroy(new Error("response_too_large"));
+      });
+      res.on("end", () => {
+        let body = {};
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch (_) {}
+        resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode || 0, body });
+      });
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", (err) => resolve({ ok: false, status: 0, error: err?.code || err?.message || "request_failed" }));
+    req.end();
+  });
+}
+
+async function collectRuntimePushStatus(options = {}) {
+  const normalized = parseArgs([
+    "--root", options.root || DEFAULT_ROOT,
+    ...(options.dataDir ? ["--data-dir", options.dataDir] : []),
+    ...(options.dbPath ? ["--db-path", options.dbPath] : []),
+    ...(options.statePath ? ["--state-path", options.statePath] : []),
+    ...(options.vapidPath ? ["--vapid-path", options.vapidPath] : []),
+    ...(options.base ? ["--base", options.base] : []),
+    ...(options.accessKeyFile ? ["--access-key-file", options.accessKeyFile] : []),
+    ...(options.accessKey ? ["--access-key", options.accessKey] : []),
+    ...(options.publicOrigin ? ["--public-origin", options.publicOrigin] : []),
+  ]);
+  if (!normalized.base) return { checked: false, ok: false, reason: "base_missing" };
+  const key = normalized.accessKey || readAccessKey(normalized.accessKeyFile);
+  const headers = key ? { "X-Hermes-Web-Key": key } : {};
+  const runtimeConfig = await requestJson(`${normalized.base}/api/runtime-config`, headers);
+  if (runtimeConfig.ok && runtimeConfig.body?.config) {
+    const config = runtimeConfig.body.config;
+    return {
+      checked: true,
+      ok: true,
+      source: "runtime-config",
+      status: runtimeConfig.status,
+      enabled: Boolean(config.webPushConfigured || config.webPushPublicKeyPresent),
+      publicKeyPresent: Boolean(config.webPushPublicKeyPresent),
+      subscriptionCount: Number(config.webPushSubscriptionCount || 0),
+      vapidExists: Boolean(config.webPushVapidExists),
+      runtimeSourcePresent: Boolean(config.webPushSource),
+      privateKeyExposed: Object.prototype.hasOwnProperty.call(config, "privateKey"),
+    };
+  }
+  const publicKey = await requestJson(`${normalized.base}/api/push/vapid-public-key`, headers);
+  const body = publicKey.body || {};
+  return {
+    checked: true,
+    ok: publicKey.ok,
+    source: "push-vapid-public-key",
+    status: publicKey.status,
+    enabled: Boolean(body.enabled),
+    publicKeyPresent: Boolean(body.publicKey),
+    subscriptionCount: Number(body.subscriptionCount || 0),
+    vapidExists: false,
+    runtimeSourcePresent: false,
+    privateKeyExposed: Object.prototype.hasOwnProperty.call(body, "privateKey"),
+    error: publicKey.error || body.error || "",
+  };
+}
+
 function loadState(options, issues) {
   const dbStatus = pathStatus(options.dbPath);
+  let sqliteIssue = null;
   if (dbStatus.exists && dbStatus.file) {
     let store = null;
     try {
@@ -169,7 +264,7 @@ function loadState(options, issues) {
         state: store.exportRuntimeState(),
       };
     } catch (err) {
-      issues.push({ code: "web_push_sqlite_state_unreadable", detail: String(err?.code || err?.name || err?.message || err).slice(0, 160) });
+      sqliteIssue = { code: "web_push_sqlite_state_unreadable", detail: String(err?.code || err?.name || err?.message || err).slice(0, 160) };
     } finally {
       try {
         store?.close?.();
@@ -180,28 +275,45 @@ function loadState(options, issues) {
   if (stateStatus.exists && stateStatus.file) {
     const parsed = readJson(options.statePath);
     if (parsed && !parsed.__error && typeof parsed === "object") {
-      return { source: "state-json", path: "<root>/data/state.json", state: parsed };
+      return { source: "state-json", path: "<root>/data/state.json", state: parsed, fallbackIssues: sqliteIssue ? [sqliteIssue] : [] };
     }
     issues.push({ code: "web_push_state_json_invalid", path: "<root>/data/state.json" });
   } else if (!dbStatus.exists) {
     issues.push({ code: "web_push_runtime_state_missing", paths: ["<root>/data/hermes-mobile.sqlite3", "<root>/data/state.json"] });
   }
+  if (sqliteIssue) issues.push(sqliteIssue);
   return { source: "none", path: "", state: {} };
 }
 
 function vapidStatus(options, issues) {
   const status = pathStatus(options.vapidPath);
+  const runtimePushStatus = options.runtimePushStatus || {};
+  const runtimeConfigured = Boolean(runtimePushStatus.enabled && runtimePushStatus.publicKeyPresent);
   if (!status.exists) {
-    issues.push({ code: "web_push_vapid_file_missing", path: "<root>/data/web-push-vapid.json" });
-    return { exists: false, configured: false, source: "<root>/data/web-push-vapid.json" };
+    if (!runtimeConfigured) issues.push({ code: "web_push_vapid_file_missing", path: "<root>/data/web-push-vapid.json" });
+    return {
+      exists: false,
+      configured: runtimeConfigured,
+      source: "<root>/data/web-push-vapid.json",
+      runtimeConfigured,
+      runtimeSource: runtimePushStatus.source || "",
+    };
   }
   if (!status.file) {
     issues.push({ code: "web_push_vapid_path_not_file", path: "<root>/data/web-push-vapid.json" });
     return { exists: true, configured: false, source: "<root>/data/web-push-vapid.json" };
   }
   const parsed = readJson(options.vapidPath);
-  const configured = Boolean(parsed?.publicKey && parsed?.privateKey);
-  if (!configured) issues.push({ code: "web_push_vapid_keys_missing", path: "<root>/data/web-push-vapid.json" });
+  const fileReadable = !parsed?.__error;
+  const fileConfigured = Boolean(parsed?.publicKey && parsed?.privateKey);
+  const configured = fileConfigured || runtimeConfigured;
+  if (!configured) {
+    issues.push({
+      code: fileReadable ? "web_push_vapid_keys_missing" : "web_push_vapid_unreadable",
+      path: "<root>/data/web-push-vapid.json",
+      detail: cleanErrorCode(parsed?.__error),
+    });
+  }
   if ((status.mode & 0o077) !== 0) {
     issues.push({ code: "web_push_vapid_mode_too_open", path: "<root>/data/web-push-vapid.json", mode: modeOctal(status.mode) });
   }
@@ -211,10 +323,17 @@ function vapidStatus(options, issues) {
     source: "<root>/data/web-push-vapid.json",
     mode: modeOctal(status.mode),
     bytes: status.bytes,
-    publicKeyPresent: Boolean(parsed?.publicKey),
+    fileReadable,
+    runtimeConfigured,
+    runtimeSource: runtimePushStatus.source || "",
+    publicKeyPresent: Boolean(parsed?.publicKey || runtimePushStatus.publicKeyPresent),
     privateKeyPresent: Boolean(parsed?.privateKey),
     subjectPresent: Boolean(parsed?.subject),
   };
+}
+
+function cleanErrorCode(value) {
+  return String(value || "").replace(/[^A-Za-z0-9_.-]/g, "").slice(0, 80);
 }
 
 function isIosLike(item = {}, context = {}) {
@@ -339,7 +458,8 @@ function buildReport(options = {}) {
   if (publicOrigin && !publicOrigin.startsWith("https://") && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(publicOrigin)) {
     issues.push({ code: "web_push_public_origin_not_https", publicOrigin });
   }
-  const vapid = vapidStatus(normalized, issues);
+  const runtimePushStatus = options.runtimePushStatus || {};
+  const vapid = vapidStatus(Object.assign({}, normalized, { runtimePushStatus }), issues);
   const loaded = loadState(normalized, issues);
   const subscriptions = summarizeSubscriptions(loaded.state, normalized);
   const deliveries = summarizeDeliveries(loaded.state, normalized, issues);
@@ -356,15 +476,27 @@ function buildReport(options = {}) {
     requireActiveExternalSubscription: normalized.requireActiveExternalSubscription,
     requireRecentSuccessHours: normalized.requireRecentSuccessHours,
     vapid,
+    runtimePushStatus: {
+      checked: Boolean(runtimePushStatus.checked),
+      ok: Boolean(runtimePushStatus.ok),
+      source: runtimePushStatus.source || "",
+      status: runtimePushStatus.status || 0,
+      enabled: Boolean(runtimePushStatus.enabled),
+      publicKeyPresent: Boolean(runtimePushStatus.publicKeyPresent),
+      subscriptionCount: Number(runtimePushStatus.subscriptionCount || 0),
+      privateKeyExposed: Boolean(runtimePushStatus.privateKeyExposed),
+    },
+    stateFallbackIssues: loaded.fallbackIssues || [],
     subscriptions,
     deliveries,
     issues,
   };
 }
 
-function main() {
+async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const report = options.sourceCheck ? buildSourceCheckReport() : buildReport(options);
+  const runtimePushStatus = options.sourceCheck ? null : await collectRuntimePushStatus(options);
+  const report = options.sourceCheck ? buildSourceCheckReport() : buildReport(Object.assign({}, options, { runtimePushStatus }));
   if (options.json || !process.argv.includes("--markdown")) {
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   } else {
@@ -386,19 +518,22 @@ function main() {
 }
 
 if (require.main === module) {
-  try {
-    main();
-  } catch (err) {
-    process.stdout.write(`${JSON.stringify({
-      ok: false,
-      schemaVersion: 1,
-      issues: [{ code: "web_push_audit_failed", detail: String(err?.message || err).slice(0, 240) }],
-    }, null, 2)}\n`);
-    process.exitCode = 1;
-  }
+  (async () => {
+    try {
+      await main();
+    } catch (err) {
+      process.stdout.write(`${JSON.stringify({
+        ok: false,
+        schemaVersion: 1,
+        issues: [{ code: "web_push_audit_failed", detail: String(err?.message || err).slice(0, 240) }],
+      }, null, 2)}\n`);
+      process.exitCode = 1;
+    }
+  })();
 }
 
 module.exports = {
   buildReport,
+  collectRuntimePushStatus,
   parseArgs,
 };

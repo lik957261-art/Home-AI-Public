@@ -3658,6 +3658,7 @@ const actions = [];
 const helperScripts = [
   "hermes-mobile-cron-dispatcher.py",
   "homeai-disaster-backup-cron.sh",
+  "homeai-self-improving-loop-cron.sh",
   "homeai-production-drift-audit-watchdog.sh",
   "homeai-visual-polish-audit-cron.sh",
   "visual-polish-audit-runner.js",
@@ -3745,6 +3746,69 @@ function ensureJobsStore() {
   return "created";
 }
 
+function ensureSelfImprovingLoopJob() {
+  if (!fs.existsSync(jobsPath)) return { ok: false, action: "missing_jobs_store" };
+  const doc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  if (!Array.isArray(doc.jobs)) {
+    issues.push({ code: "cron_jobs_schema_invalid", path: rel(jobsPath) });
+    return { ok: false, action: "invalid_jobs_store" };
+  }
+  const now = Date.now();
+  const item = {
+    id: "homeai_self_improving_loop",
+    name: "Home AI 自我改进闭环",
+    script: "homeai-self-improving-loop-cron.sh",
+    schedule: "17 4 * * *",
+    firstDelayMinutes: 2,
+  };
+  const existing = doc.jobs.find((job) => job && job.id === item.id);
+  const base = existing || {};
+  const configured = Object.assign({}, base, {
+    id: item.id,
+    name: item.name,
+    prompt: "Home AI platform self-improving loop no_agent script job. Collects bounded self-check observations, submits eligible diagnostics, and sends audit request cards.",
+    skills: [],
+    skill: null,
+    model: null,
+    provider: null,
+    base_url: null,
+    script: item.script,
+    no_agent: true,
+    profile: null,
+    owner_principal_id: "owner",
+    access_policy_context: null,
+    context_from: null,
+    schedule: { kind: "cron", expr: item.schedule, display: item.schedule },
+    schedule_display: item.schedule,
+    repeat: base.repeat && typeof base.repeat === "object" ? base.repeat : { times: null, completed: 0 },
+    enabled: true,
+    state: "scheduled",
+    paused_at: null,
+    paused_reason: null,
+    created_at: base.created_at || new Date(now).toISOString(),
+    next_run_at: base.next_run_at || new Date(now + item.firstDelayMinutes * 60000).toISOString(),
+    last_run_at: base.last_run_at || null,
+    last_status: base.last_status || null,
+    last_error: base.last_error || null,
+    last_delivery_error: base.last_delivery_error || null,
+    deliver: "local",
+    origin: null,
+    enabled_toolsets: [],
+    workdir: null,
+    updated_at: new Date(now).toISOString(),
+  });
+  const index = doc.jobs.findIndex((job) => job && job.id === item.id);
+  if (index >= 0) doc.jobs[index] = configured;
+  else doc.jobs.push(configured);
+  const tmp = `${jobsPath}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(doc, null, 2)}\n`, { encoding: "utf8", mode: 0o640 });
+  fs.renameSync(tmp, jobsPath);
+  fs.chmodSync(jobsPath, 0o640);
+  const action = existing ? "update-self-improving-loop-job" : "create-self-improving-loop-job";
+  actions.push({ action, path: rel(jobsPath), id: item.id, script: item.script, schedule: item.schedule });
+  return { ok: true, action, id: item.id, script: item.script, schedule: item.schedule };
+}
+
 try {
   if (!["direct", "proxy"].includes(cronNetworkMode)) {
     issues.push({ code: "cron_network_mode_invalid", mode: cronNetworkMode });
@@ -3758,6 +3822,7 @@ try {
   ensureDir(scriptsDir, 0o755);
   ensureDir(skillsRoot, 0o755);
   const jobsStatus = ensureJobsStore();
+  const selfImprovingLoopJob = jobsStatus === "invalid" ? { ok: false, action: "skipped_invalid_jobs_store" } : ensureSelfImprovingLoopJob();
 
   const copiedHelpers = [];
   for (const script of helperScripts) {
@@ -3784,6 +3849,7 @@ try {
       skillsRoot,
       networkMode: cronNetworkMode,
       businessJobsCreated: false,
+      selfImprovingLoopJob,
       launchdInstalled: false,
       jobsStatus,
       helperScripts: copiedHelpers,
@@ -3844,6 +3910,7 @@ const report = {
   jobCount,
   skillCount,
   businessJobsCreated: false,
+  selfImprovingLoopJobConfigured: actions.some((item) => item.id === "homeai_self_improving_loop"),
   launchdInstalled: false,
   actionCount: actions.length,
   actions,

@@ -161,6 +161,45 @@ function testDuplicateEventsRollUpIntoCase() {
   service.close();
 }
 
+function testSelfCheckEventsRollUpAcrossBuildAndThread() {
+  const service = createService();
+  const first = service.ingestEvent({
+    plugin_id: "home-ai",
+    source_surface: "home-ai-self-check",
+    diagnostic_type: "self_check_signal_failed",
+    category: "self_check_gateway",
+    severity_hint: "H2",
+    evidence_confidence: 0.82,
+    route: "/system/self-check",
+    build_id: "20260701-self-improving-loop-v13",
+    thread_id: "thread-a",
+    turn_id: "turn-a",
+    error_code: "production_status_smoke_command_failed",
+    breadcrumbs: [{ kind: "self_check", code: "gateway_failed" }],
+  }, { workspaceId: "owner" });
+  const second = service.ingestEvent({
+    plugin_id: "home-ai",
+    source_surface: "home-ai-self-check",
+    diagnostic_type: "self_check_signal_failed",
+    category: "self_check_gateway",
+    severity_hint: "H2",
+    evidence_confidence: 0.82,
+    route: "/system/self-check",
+    build_id: "20260702-self-improving-loop-v14",
+    thread_id: "thread-b",
+    turn_id: "turn-b",
+    error_code: "production_status_smoke_command_failed",
+    breadcrumbs: [{ kind: "self_check", code: "gateway_failed" }],
+  }, { workspaceId: "owner" });
+
+  assert.equal(first.status, "card_candidate");
+  assert.equal(second.case_id, first.case_id);
+  assert.equal(second.deduped, true);
+  assert.equal(second.event_count, 2);
+  assert.equal(service.getCase(first.case_id).event_count, 2);
+  service.close();
+}
+
 function testPluginPlaybackDifferentItemHashesCreateDifferentCases() {
   const service = createService();
   const first = service.ingestEvent(musicPlaybackEvent("6566230e3a3ce3774c1bbc7c"), { workspaceId: "owner" });
@@ -230,6 +269,7 @@ function testCaseStatusUpdate() {
 testSanitizeRedactsSecretsAndPrivateContent();
 testIngestStoresBoundedEventAndCase();
 testDuplicateEventsRollUpIntoCase();
+testSelfCheckEventsRollUpAcrossBuildAndThread();
 testPluginPlaybackDifferentItemHashesCreateDifferentCases();
 testPluginPlaybackSameItemHashRollsUp();
 testCardSentCaseForOneItemDoesNotSuppressNewItemCase();

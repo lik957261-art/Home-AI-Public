@@ -72,6 +72,14 @@ function createDeps(options = {}) {
           calls.push({ type: "recordReturnForTaskCard", input });
           return { ok: true, case: { caseId: "delivery_1" }, slice: { sliceId: "slice_1", taskCardId: input.taskCardId, status: input.status } };
         },
+        returnWatchdogSummary(input) {
+          calls.push({ type: "returnWatchdogSummary", input });
+          return { ok: true, status: "degraded", counts: { stale: 1 }, items: [{ taskCardId: "ttc_1" }] };
+        },
+        runReturnWatchdog(input) {
+          calls.push({ type: "runReturnWatchdog", input });
+          return { ok: true, status: "degraded", workspaceId: input.workspaceId, markedCount: 1, marked: [{ taskCardId: "ttc_1" }] };
+        },
         recordReturnCardEvent(input) {
           calls.push({ type: "recordReturnCardEvent", input });
           return { ok: true, case: { caseId: "delivery_1" }, slice: { sliceId: "slice_1", taskCardId: input.taskCardId, status: input.status } };
@@ -325,6 +333,43 @@ async function testRecordReturnCardEventIntake() {
   });
 }
 
+async function testOwnerReadsReturnWatchdogSummary() {
+  const { deps, calls } = createDeps();
+  const routes = createAutonomousDeliveryApiRoutes(deps);
+  const req = makeReq("GET", "/api/autonomous-delivery/return-watchdog?workspaceId=owner&staleAfterMs=60000&limit=5");
+  const res = makeResponse();
+  await routes.handle(req, res, new URL(req.url, "http://localhost"), { auth: { principalId: "owner", workspaceId: "owner" } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(jsonBody(res).status, "degraded");
+  assert.deepEqual(calls.find((call) => call.type === "returnWatchdogSummary").input, {
+    workspaceId: "owner",
+    staleAfterMs: 60000,
+    limit: 5,
+    auth: { principalId: "owner", workspaceId: "owner" },
+  });
+}
+
+async function testOwnerRunsReturnWatchdogAndBroadcastsWhenMarked() {
+  const { deps, calls } = createDeps();
+  const routes = createAutonomousDeliveryApiRoutes(deps);
+  const req = makeReq("POST", "/api/autonomous-delivery/return-watchdog", {
+    workspaceId: "owner",
+    staleAfterMs: 60000,
+  });
+  const res = makeResponse();
+  await routes.handle(req, res, new URL(req.url, "http://localhost"), { auth: { principalId: "owner", workspaceId: "owner" } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(jsonBody(res).markedCount, 1);
+  assert.deepEqual(calls.find((call) => call.type === "runReturnWatchdog").input, {
+    workspaceId: "owner",
+    staleAfterMs: 60000,
+    limit: undefined,
+    actor: "owner",
+    auth: { principalId: "owner", workspaceId: "owner" },
+  });
+  assert.equal(calls.some((call) => call.type === "broadcast" && call.event.reason === "return_watchdog"), true);
+}
+
 async function testDeniedOwnerStopsStart() {
   const { deps, calls } = createDeps({ denyOwner: true });
   const routes = createAutonomousDeliveryApiRoutes(deps);
@@ -360,6 +405,8 @@ async function run() {
   await testOwnerStartsRepairWithPrompt();
   await testRecordReturnByTaskCardId();
   await testRecordReturnCardEventIntake();
+  await testOwnerReadsReturnWatchdogSummary();
+  await testOwnerRunsReturnWatchdogAndBroadcastsWhenMarked();
   await testDeniedOwnerStopsStart();
   await testNoRouteFallsThrough();
   testDependencyValidation();

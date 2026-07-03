@@ -613,6 +613,21 @@ function testActionInboxCrud() {
   });
   assert.equal(second.id, first.id);
   assert.equal(second.title, "Automation delivery updated");
+  const third = store.upsertActionInboxItem({
+    id: "ainb_duplicate_requested_id",
+    workspaceId: "child",
+    sourceType: "automation",
+    sourceId: "job-1",
+    itemType: "delivery",
+    status: "open",
+    title: "Automation delivery dedupe update",
+    summary: "Report was updated through a caller with a fresh id.",
+    dedupeKey: "automation:job-1:sig-a",
+    updatedAt: "2026-05-26T00:01:15.000Z",
+  });
+  assert.equal(third.id, first.id);
+  assert.equal(third.title, "Automation delivery dedupe update");
+  assert.equal(store.getActionInboxItem("ainb_duplicate_requested_id"), null);
   const todo = store.upsertActionInboxItem({
     workspaceId: "child",
     sourceType: "manual",

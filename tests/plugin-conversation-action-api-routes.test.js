@@ -186,6 +186,22 @@ async function testWardrobeOutfitWearIntentExecutesDeterministicAction() {
   assert.equal(calls.some((call) => call.type === "dispatchTaskCard"), false);
 }
 
+async function testWardrobeOutfitWearIntentReportsUnavailableActionBridge() {
+  const { deps } = createDeps({ wardrobeOutfitWearIntentActionService: {} });
+  const routes = createPluginConversationActionApiRoutes(deps);
+  const req = makeReq("POST", "/api/plugin-conversation/actions/wardrobe/outfit-wear-intent", {
+    workspaceId: "owner",
+    threadId: "thread_1",
+    messageId: "assistant_1",
+  });
+  const res = makeResponse();
+  await routes.handle(req, res, new URL(req.url, "http://localhost"), { auth: { workspaceId: "owner", principalId: "owner" } });
+  assert.equal(res.statusCode, 503);
+  assert.equal(jsonBody(res).error, "action_bridge_unavailable");
+  assert.equal(jsonBody(res).diagnostic, "action_bridge_unavailable");
+  assert.equal(jsonBody(res).actionDiagnostic.code, "action_bridge_unavailable");
+}
+
 function testNoRouteFallsThrough() {
   const { deps } = createDeps();
   const routes = createPluginConversationActionApiRoutes(deps);
@@ -207,6 +223,7 @@ async function run() {
   await testDeniedWorkspaceStopsCreate();
   await testDeniedOwnerStopsDispatch();
   await testWardrobeOutfitWearIntentExecutesDeterministicAction();
+  await testWardrobeOutfitWearIntentReportsUnavailableActionBridge();
   await testNoRouteFallsThrough();
   testDependencyValidation();
   console.log("plugin conversation action API route tests passed");

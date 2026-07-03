@@ -71,8 +71,12 @@ capability prompts, not application page dialogs.
 The central executable check is `tests/no-browser-native-dialogs.test.js`.
 By default it fails on Home AI runtime UI files. Local cross-workspace audits
 can set `HOMEAI_SCAN_ADJACENT_PLUGIN_DIALOGS=1` to scan locally available
-adjacent plugin source files; any plugin findings must be repaired in the
-owning plugin thread/workspace. Plugin repositories should keep their local
+adjacent active plugin source files; any plugin findings must be repaired in
+the owning plugin thread/workspace. The central adjacent scan skips clearly
+inactive deployment-clean, archived, backup, or detached hygiene checkouts such
+as `*-deploy-clean`, because those directories are not current host/deploy
+sources and should not keep the active plugin UI contract red after the real
+plugin workspace has been repaired. Plugin repositories should keep their local
 pointer docs aligned with this contract and should add an equivalent local
 check when they own standalone UI pages.
 
@@ -190,8 +194,9 @@ node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-m
 
 The checker validates:
 
-- the standard inserted plugin set plus the Owner-critical Codex Mobile Web
-  special insertion: Finance, Wardrobe, Note, Email, Health, and Codex Mobile;
+- the standard inserted plugin set plus Owner-only special insertions:
+  Finance, Wardrobe, Note, Email, Health, Growth, Moira, Music, Movie, and
+  Codex Mobile;
 - managed native client targets such as `home-ai-native-ios` separately from
   embedded plugins;
 - plugin-local `docs/HOME_AI_PLATFORM_CONTRACT.md` files;

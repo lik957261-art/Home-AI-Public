@@ -289,7 +289,7 @@ function createKanbanCardApiRoutes(deps = {}) {
     throw new Error("kanban card api routes require learningGrowthSubmissionService.submitTask");
   }
   const growthPluginSubmissionProxyService = deps.growthPluginSubmissionProxyService || null;
-  const allowLegacyGrowthFallback = deps.allowLegacyGrowthFallback !== false;
+  const allowLegacyGrowthFallback = deps.allowLegacyGrowthFallback === true;
 
   const sourceDocumentMaxBytes = Math.max(1, Number(deps.sourceDocumentMaxBytes || 20 * 1024 * 1024));
   const maxUploadBytes = Math.max(1, Number(deps.maxUploadBytes || 20 * 1024 * 1024));

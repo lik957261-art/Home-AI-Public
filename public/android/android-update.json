@@ -1,8 +1,8 @@
 {
-  "versionCode": 31,
-  "versionName": "0.4.27",
+  "versionCode": 32,
+  "versionName": "0.4.28",
   "apkUrl": "https://wardrobe-xuxin.synology.me:8555/android/HomeAI-Android-native-shell-debug-20260621.apk",
-  "sha256": "219084c8a705aa272c592c3eb10b77ddeb22da2e632ff71e894c662e66c9ad5f",
-  "size": 4117412,
-  "notes": "Home AI Android native shell v0.4.27: adds a native Android clipboard bridge and Composer long-press clipboard menu for paste, copy, and select-all. This provides a shell-level fallback when Android WebView's built-in text ActionMode loses Composer focus. Keeps v0.4.26 Composer touch exclusion and WebView focusability fixes."
+  "sha256": "1730f53e2c2ea364bd2e27da2aa8590c8a62ac99502b360d22ccdaa480ca884c",
+  "size": 4169794,
+  "notes": "Home AI Android native shell v0.4.28: adds an outbound native share bridge for Home AI reply and learning-card PNG images. Web can call HomeAINativeShare.share(request), and the shell writes a bounded verified PNG to cache and opens the Android ACTION_SEND chooser with a FileProvider content URI. Existing inbound system share intake remains unchanged."
 }

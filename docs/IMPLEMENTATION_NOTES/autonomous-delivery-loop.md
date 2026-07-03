@@ -171,6 +171,13 @@ Owner start behavior:
   `Plugin Workspace Audit` for plugin/workspace work or `Home AI Platform
   Audit` for Home AI-owned work, completes the review Inbox item, and stores
   the verification task-card id for later terminal return-card correlation;
+- verification, deployment/readback, and repair start paths complete their
+  Owner review Inbox item only after Codex Mobile task-card transport returns a
+  concrete task-card id. A thrown transport exception, routing failure, or
+  response with no card id keeps the case in the waiting state, marks the new
+  follow-up slice `blocked` with `dispatchStatus=failed`, stores bounded
+  `dispatchFailure` metadata, appends the matching `*_dispatch_failed` event,
+  and leaves the Owner review item open for retry or rerouting;
 - verification, deployment/readback, and repair starts accept bounded Owner
   prompts, but none of those lanes auto-dispatch cards or mutate production
   without Owner action;
@@ -198,6 +205,117 @@ Owner start behavior:
 - repeated UI/API start failures use the Action Inbox diagnostic channel after
   the existing threshold;
 - creation never auto-dispatches task cards.
+
+## Main Thread Scheduling And Worker Use
+
+The ordinary Home AI implementation thread remains the scheduling authority for
+Home AI-owned delivery. It should keep the current objective, split work into
+bounded slices, decide which slices can run elsewhere, and merge returned
+evidence back into the handoff and delivery ledger. A separate "scheduler"
+thread is not required for ordinary Home AI delivery; the implementation
+thread is the central scheduler unless a future contract explicitly moves that
+role.
+
+Use Worker threads for durable, independently returnable work:
+
+- plugin-owned implementation or repair in a plugin workspace;
+- routine deployment/readback in a configured deploy lane;
+- independent platform/plugin audit in the dedicated audit threads;
+- long-running bounded probes whose output can be summarized without exposing
+  private payloads;
+- modules with disjoint write sets and clear acceptance evidence.
+
+Each Worker dispatch should include the target workspace/thread, allowed module
+or file boundary, expected checks, return-card requirement, privacy boundary,
+requested reasoning effort, and a conflict rule. The effective task-card
+reasoning effort must be at least `medium`; `low` is not a valid default for
+durable Worker, audit, deployment, or repair cards. If a Worker finds
+overlapping edits, missing prerequisite commits, or shared-file contention, it
+must return `blocked` or
+`partially_completed` with bounded evidence instead of overwriting local work.
+The main thread may also dispatch bounded assistance that did not originate as a
+task card, provided the target thread/workspace is visible, the work has a clear
+return contract, and the main thread remains responsible for sequencing and
+merge decisions.
+
+Operational dispatch rules:
+
+- use the main thread inline for small Home AI-owned changes where the touched
+  files are already in the current workspace, validation is local, and no
+  independent terminal return is needed;
+- when the coordinator dispatches a Home AI-owned implementation slice through
+  Codex Mobile task-card transport, it marks the card as
+  `cardKind=home_ai_worker`. The task-card service then selects a live
+  `Home AI Worker Lane A/B/C` implementation lane through its Worker-lane
+  load selector. Ordinary inbound cards that only target the `Home AI` prefix
+  still land on the main Home AI implementation thread as the intake and
+  scheduling surface;
+- dispatch to a Worker when the slice belongs to another workspace, needs a
+  dedicated audit/deploy lane, may run for a long time, or can return bounded
+  evidence independently;
+- do not dispatch service-user or private production readback to a normal
+  Worker lane unless that lane explicitly exposes the needed non-interactive
+  capability. `hermes-host` data-tree reads/writes, sudo-gated install phases,
+  clean-target mutation, and operator service-user execution belong in a
+  deploy/service lane or must return blocked as a capability gap;
+- never dispatch an unbounded "help me continue" card. The card must name the
+  target workspace/thread, allowed files or module, validation/readback
+  evidence, terminal return-card requirement, privacy boundary, and conflict
+  rule;
+- if the Worker reports a stale source ref, overlapping local edits, missing
+  prerequisite commits, routing failure, or unclear ownership, treat the result
+  as a scheduling decision for the main thread instead of letting the Worker
+  overwrite state;
+- when multiple deploy lanes are configured, route routine plugin deploys to
+  the first live non-terminal lane that can accept the card. Plugin-specific
+  assignments take precedence: Codex Mobile deploy requests route to
+  `Codex Mobile Deploy Lane`, and Movie deploy requests route to
+  `Movie Deploy Lane` when those live lanes are discoverable. If one lane is
+  stuck or unreachable, fall back to the shared deploy pool before declaring
+  the deploy blocked. Preserve the central deploy contract and bounded
+  readback expectations in every deploy card. Prefer explicit `pluginId`;
+  the router may also infer known plugin targets from bounded title, summary,
+  body, or workspace path metadata when older cards omit structured fields.
+
+Duplicate dispatch or notification delivery is not normal Owner burden. When
+two equivalent repair cards or Web Push notifications are created for the same
+source request, approve/execute at most one and treat the duplicate as a
+Home AI/Codex Mobile idempotency defect. The coordinator should key dispatch
+and return intake by source request id, case/slice id, workflow id, and
+task-card id where available, then record only bounded duplicate evidence.
+The duplicate rule applies to plugin-topic inbox approvals, AI Ops diagnostic
+repair cards, autonomous delivery repair/deploy/verification cards, and Web
+Push notifications generated from those surfaces. Producers should set stable
+task-card request ids and Web Push tags; consumers should record completed
+dispatch events before retrying or re-notifying.
+
+Return-card Watchdog:
+
+- `GET /api/autonomous-delivery/return-watchdog` returns an Owner-only bounded
+  summary of dispatched task cards that are still waiting for terminal return
+  cards;
+- `POST /api/autonomous-delivery/return-watchdog` marks stale dispatched slices
+  as `dispatchStatus=return_stale` after the configured stale window, records a
+  `return_card_watchdog_stale` event, and updates the Action Inbox surface;
+- the Watchdog never retries, redispatches, or closes work. Its recommended
+  action is Owner/coordinator inspection followed by recording a real terminal
+  return card or rerouting the slice;
+- return recording by original `taskCardId` still works after a stale mark, so
+  a late Worker return can close the correct slice without manual case lookup.
+
+Sub-agents are different from Worker threads. They are temporary helpers inside
+the current turn and do not have a durable task-card lifecycle, source-thread
+return contract, deployment authority, or independent workspace ownership.
+They are appropriate for bounded analysis or review that the main thread can
+fully inspect. They are not appropriate for cross-workspace mutation,
+deployment/readback, Owner-gated actions, or any work that needs a terminal
+return card.
+
+Local development should run focused checks first, then `npm test` after a
+module-sized change is coherent. Install, upgrade, production-smoke, and deploy
+lane tests are intentionally outside the default local gate; run
+`npm run test:install-lane` only from an install/deploy lane, release lane, or
+explicit operator validation context.
 
 ## Relationship To Existing Systems
 

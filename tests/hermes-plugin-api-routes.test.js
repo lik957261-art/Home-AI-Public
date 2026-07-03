@@ -886,6 +886,40 @@ async function testCodexProxyDoesNotInjectWorkspaceIdIntoJavascriptPathConstants
   assert.equal(res.body.includes("/api/?workspaceId=owner"), false);
 }
 
+async function testCodexProxyRewritesViteShellJavascriptImports() {
+  const { routes } = makeRoutes({
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:8787/vite-shell/app-preview-entry.js?workspaceId=owner");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/javascript; charset=utf-8" : "" },
+        text: () => Promise.resolve([
+          'import("/vite-shell/assets/vite-shell-entry-d3FNWOOl.js");',
+          'const shard = "/vite-shell/assets/shard-06-CPu73sWb.js";',
+          'const deps = ["assets/shard-01-fe8qIyTv.js","assets/vite-shell-entry-d3FNWOOl.js"];',
+        ].join("\n")),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/vite-shell/app-preview-entry.js?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /import\("\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/vite-shell-entry-d3FNWOOl\.js"\)/);
+  assert.match(res.body, /const shard = "\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/shard-06-CPu73sWb\.js"/);
+  assert.match(res.body, /const deps = \["\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/shard-01-fe8qIyTv\.js","\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/vite-shell-entry-d3FNWOOl\.js"\]/);
+  assert.doesNotMatch(res.body, /import\("\/vite-shell\/assets\/vite-shell-entry-d3FNWOOl\.js"\)/);
+  assert.doesNotMatch(res.body, /const shard = "\/vite-shell\/assets\/shard-06-CPu73sWb\.js"/);
+  assert.doesNotMatch(res.body, /"assets\/shard-01-fe8qIyTv\.js"/);
+  assert.equal(res.body.includes("?workspaceId=owner"), false);
+}
+
 async function testCodexThreadDetailProxyRecordsBoundedTimingAndSkipsProseUrlParsing() {
   const recorded = [];
   let now = 1000;
@@ -2261,6 +2295,7 @@ async function run() {
   await testPluginNotificationRoute();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyDoesNotInjectWorkspaceIdIntoJavascriptPathConstants();
+  await testCodexProxyRewritesViteShellJavascriptImports();
   await testCodexThreadDetailProxyRecordsBoundedTimingAndSkipsProseUrlParsing();
   await testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp();
   await testMoiraProxyInfersWorkspaceFromNamespacedSessionCookie();

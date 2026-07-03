@@ -7,7 +7,10 @@ const {
   attachPreparedIntentToMessage,
   createWardrobeOutfitWearIntentActionService,
   extractPreparedIntentFromCompletedResponse,
+  extractPreparedIntentFromOutputItemEvent,
   publicActionState,
+  publicPluginActionDiagnostics,
+  publicPluginActionsFromMessage,
   validateIntentForExecution,
 } = require("../adapters/wardrobe-outfit-wear-intent-action-service");
 
@@ -113,6 +116,60 @@ function testCompletedResponseExtractsPreparedIntent() {
   assert.equal(message.pluginActions[ACTION_KEY].intent.idempotency_key, intent.idempotency_key);
 }
 
+function testOutputItemEventExtractsPreparedIntent() {
+  const intent = readyIntent();
+  const event = {
+    event: "response.output_item.done",
+    item: {
+      type: "function_call_output",
+      call_id: "call_1",
+      output: JSON.stringify({ structuredContent: { intent } }),
+    },
+  };
+  assert.deepEqual(
+    extractPreparedIntentFromOutputItemEvent(event, { functionName: "mcp_wardrobe_wardrobe_prepare_outfit_wear_intent" }),
+    intent,
+  );
+  assert.equal(extractPreparedIntentFromOutputItemEvent(event, { functionName: "mcp_wardrobe_wardrobe_search_items" }), null);
+}
+
+function testPublicProjectionExtractsCompatibilityActionMetadata() {
+  const intent = readyIntent();
+  for (const message of [
+    { metadata: { wardrobeOutfitWearIntent: { status: "ready", intent } } },
+    { metadata: { outfit_wear_intent: { status: "ready", intent } } },
+    { plugin_actions: { outfit_wear_intent: { status: "ready", intent } } },
+    { rawJson: { pluginActions: { outfit_wear_intent: { status: "ready", intent } } } },
+    { rawJson: { plugin_actions: { wardrobeOutfitWearIntent: { status: "ready", intent } } } },
+    { rawJson: { outfitWearIntent: { status: "ready", intent } } },
+  ]) {
+    const actions = publicPluginActionsFromMessage(message, {
+      workspaceId: "owner",
+      principalId: "owner",
+      nowIso: "2026-06-29T01:00:00Z",
+    });
+    assert.equal(actions.wardrobeOutfitWearIntent.status, "ready");
+    assert.equal(actions.wardrobeOutfitWearIntent.intent.items[0].code, "OUT-001");
+  }
+}
+
+function testPublicDiagnosticsUsesCompatibilityActionMetadata() {
+  const diagnostics = publicPluginActionDiagnostics({
+    metadata: {
+      outfit_wear_intent: {
+        status: "ready",
+        intent: readyIntent({ workspace_id: "weixin_wuping" }),
+      },
+    },
+  }, {
+    workspaceId: "owner",
+    principalId: "owner",
+    nowIso: "2026-06-29T01:00:00Z",
+  });
+  assert.equal(diagnostics.wardrobeOutfitWearIntent.code, "renderer_filtered");
+  assert.equal(diagnostics.wardrobeOutfitWearIntent.reason, "workspace_mismatch");
+}
+
 async function testExecuteNeedsConfirmationThenStoresAfterConfirm() {
   const { calls, message, service, thread } = makeHarness();
   const first = await service.execute({ thread, message, workspaceId: "owner", principalId: "owner" });
@@ -121,6 +178,10 @@ async function testExecuteNeedsConfirmationThenStoresAfterConfirm() {
   assert.equal(calls.mcp[0].name, LOCAL_EXECUTE_TOOL);
   assert.equal(calls.mcp[0].args.confirm_replace, false);
   assert.equal(calls.mcp[0].args.mode, "create_only");
+  assert.deepEqual(calls.mcp[0].args.intent.items, [
+    { role: "Outer", code: "OUT-001" },
+    { role: "Footwear", code: "SHOE-001" },
+  ]);
   assert.equal(message.pluginActions[ACTION_KEY].existingOutfitId, "321");
 
   const second = await service.execute({ thread, message, workspaceId: "owner", principalId: "owner", confirmReplace: true });
@@ -129,6 +190,7 @@ async function testExecuteNeedsConfirmationThenStoresAfterConfirm() {
   assert.equal(second.actionState.outfitId, "777");
   assert.equal(calls.mcp[1].args.confirm_replace, true);
   assert.equal(calls.mcp[1].args.mode, "replace");
+  assert.deepEqual(calls.mcp[1].args.intent.items, calls.mcp[0].args.intent.items);
   assert.ok(calls.saves.length >= 4);
   assert.ok(calls.broadcasts.some((event) => event.type === "message.updated"));
 }
@@ -147,6 +209,9 @@ async function testMcpUnavailableBecomesVisibleErrorState() {
 async function run() {
   testValidationRejectsUnsafeIntents();
   testCompletedResponseExtractsPreparedIntent();
+  testOutputItemEventExtractsPreparedIntent();
+  testPublicProjectionExtractsCompatibilityActionMetadata();
+  testPublicDiagnosticsUsesCompatibilityActionMetadata();
   await testExecuteNeedsConfirmationThenStoresAfterConfirm();
   await testMcpUnavailableBecomesVisibleErrorState();
   console.log("wardrobe outfit wear intent action service tests passed");

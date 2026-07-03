@@ -77,6 +77,23 @@ documents and preview frames. In a native shell, bridge absence, timeout, or
 bounded native failure must remain visible as an in-app native-preview error
 state; it must not silently fall back to PDF.js or adapted Word Web preview.
 
+Android WebView outbound sharing must also be bridged by the native shell for
+Home AI generated image shares. Browser/WebView clipboard image writes are not
+a reliable delivery mechanism on Android: Web may report that an image was
+copied while downstream apps cannot paste it. The shell should advertise
+`window.HomeAINativeShareCapability.outboundShare === true` and expose
+`window.HomeAINativeShare.share(request)` while preserving the existing inbound
+`HomeAINativeShare.receive(...)` file-intake bridge. The outbound request uses
+`type:"homeai.nativeShare.share"`, `version:1`, a bounded `requestId`,
+`sourceSurface`, `title`, optional bounded `text`, bounded `filename`,
+`mimeType:"image/png"`, and `dataBase64` image bytes. The native shell must
+decode the payload into app cache, expose it through `FileProvider`, and launch
+an Android `ACTION_SEND` chooser with temporary read permission. It must reject
+unsupported MIME types, malformed base64, oversized payloads, and unavailable
+share handlers with bounded errors, and it must never log or return raw image
+bytes, base64 payloads, message bodies, cookies, access keys, launch tokens, or
+cache paths.
+
 The shell supports user-confirmed APK updates. It reads a JSON manifest from
 the configured `homeAiUpdateManifestUrl` build property /
 `HOMEAI_ANDROID_UPDATE_MANIFEST_URL` environment variable, or defaults to

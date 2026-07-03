@@ -152,7 +152,12 @@ function createPluginConversationActionApiRoutes(deps = {}) {
 
   async function handleWardrobeOutfitWearIntent(req, res, url, context = {}) {
     if (!deps.wardrobeOutfitWearIntentActionService || typeof deps.wardrobeOutfitWearIntentActionService.execute !== "function") {
-      deps.sendJson(res, 503, { ok: false, error: "wardrobe_outfit_action_service_unavailable" });
+      deps.sendJson(res, 503, {
+        ok: false,
+        error: "action_bridge_unavailable",
+        diagnostic: "action_bridge_unavailable",
+        actionDiagnostic: { code: "action_bridge_unavailable" },
+      });
       return { handled: true, status: 503 };
     }
     if (typeof deps.findThreadForRequest !== "function") {

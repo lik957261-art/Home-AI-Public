@@ -6,9 +6,12 @@ const os = require("node:os");
 const path = require("node:path");
 const {
   DEFAULT_WARDROBE_SCOPES,
+  WARDROBE_PHOTO_CACHE_DIR_MODE,
   createWardrobePluginProvisioningService,
+  ensureWardrobePhotoCacheDir,
   installWardrobeSkill,
   readWardrobeWorkspaceConfig,
+  repairWardrobeWorkspacePhotoCacheConfig,
   sha256Hex,
   validateWardrobeSkillBundle,
   wardrobePhotoCacheDir,
@@ -88,6 +91,7 @@ async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding()
   writeCompleteTemplate(repoRoot);
   const calls = [];
   const gatewayCalls = [];
+  const systemCalls = [];
   const service = createWardrobePluginProvisioningService({
     dataDir,
     repoRoot,
@@ -101,10 +105,24 @@ async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding()
         return {
           ok: true,
           profiles: ["lowgw21", "lowgw22", "deepseekgw21"],
+          macUser: "hm-test-wardrobe",
+          workerOsUsers: ["hm-test-wardrobe"],
           restartRequired: true,
           profileBindingRefreshed: true,
           skillStorePath,
         };
+      },
+    },
+    systemProvisioningExecutor: {
+      runStep(action, context) {
+        systemCalls.push({ action, context });
+        return Promise.resolve({
+          ok: true,
+          aclRepaired: true,
+          writeProbeOk: true,
+          probeUser: context.macUser,
+          photoCacheDir: "<root>/data/artifacts/wardrobe-thumbnails/weixin_test_wardrobe",
+        });
       },
     },
     fetch(url, options) {
@@ -142,6 +160,18 @@ async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding()
   assert.equal(result.gatewayRestartRequired, true);
   assert.equal(result.gatewayProfileBindingRefreshed, true);
   assert.deepEqual(gatewayCalls, [{ workspaceId: "weixin_test_wardrobe", refreshProfileBinding: true }]);
+  assert.equal(result.photoCacheRuntimeAccess.runtimeProbeOk, true);
+  assert.equal(result.photoCacheRuntimeAccess.runtimeProbeUser, "hm-test-wardrobe");
+  assert.equal(result.verification.photoCacheRuntimeWritable, true);
+  assert.equal(result.verification.photoCacheRuntimeProbeUser, "hm-test-wardrobe");
+  assert.deepEqual(systemCalls, [{
+    action: "repair_wardrobe_thumbnail_artifact_acl",
+    context: {
+      workspaceId: "weixin_test_wardrobe",
+      macUser: "hm-test-wardrobe",
+      paths: { dataRoot: dataDir },
+    },
+  }]);
 
   const keyPath = wardrobeWorkspaceKeyPath({ dataDir, workspaceId: "weixin_test_wardrobe" });
   const configPath = wardrobeWorkspaceConfigPath({ dataDir, workspaceId: "weixin_test_wardrobe" });
@@ -159,6 +189,9 @@ async function testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding()
   assert.equal(config.photo_cache_dir, wardrobePhotoCacheDir({ dataDir, workspaceId: "weixin_test_wardrobe" }));
   assert.equal(fs.existsSync(config.photo_cache_dir), true);
   assert.match(config.photo_cache_dir, /[/\\]artifacts[/\\]wardrobe-thumbnails[/\\]weixin_test_wardrobe$/);
+  assert.equal(fs.statSync(config.photo_cache_dir).mode & 0o770, WARDROBE_PHOTO_CACHE_DIR_MODE);
+  assert.equal(result.verification.photoCacheDirWritable, true);
+  assert.equal(result.verification.configPhotoCacheMatches, true);
   assert.deepEqual(config.scopes, DEFAULT_WARDROBE_SCOPES);
 
   assert.equal(calls.length, 1);
@@ -316,6 +349,173 @@ function testRegistrationUrlFromManifestOrigin() {
   );
 }
 
+function testPhotoCacheDirRepairAddsGroupWriteAndAtomicProbe() {
+  const dataDir = tempDir();
+  const workspaceId = "owner";
+  const dir = wardrobePhotoCacheDir({ dataDir, workspaceId });
+  fs.mkdirSync(dir, { recursive: true, mode: 0o750 });
+  fs.chmodSync(dir, 0o750);
+  const result = ensureWardrobePhotoCacheDir({ dataDir, workspaceId });
+  assert.equal(result.ok, true);
+  assert.equal(result.dir, dir);
+  assert.equal(result.groupWritable, true);
+  assert.equal(result.writeProbeOk, true);
+  assert.equal(fs.statSync(dir).mode & 0o770, WARDROBE_PHOTO_CACHE_DIR_MODE);
+  assert.equal(fs.readdirSync(dir).filter((name) => name.includes("thumbnail-probe")).length, 0);
+}
+
+function testPhotoCacheConfigRepairMigratesWorkspaceCacheToArtifactRoot() {
+  const dataDir = tempDir();
+  const workspaceId = "owner";
+  const configPath = wardrobeWorkspaceConfigPath({ dataDir, workspaceId });
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify({
+    schema_version: 1,
+    workspace_id: wardrobeWorkspaceIdForHermesWorkspace(workspaceId),
+    photo_cache_dir: ".hermes-cache/photos",
+  }, null, 2), "utf8");
+  const result = repairWardrobeWorkspacePhotoCacheConfig({
+    dataDir,
+    workspaceId,
+    nowIso: () => "2026-07-01T00:00:00.000Z",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.changed, true);
+  assert.equal(result.previousPhotoCacheDirBasename, "photos");
+  assert.equal(result.photoCache.ok, true);
+  const config = readWardrobeWorkspaceConfig({ dataDir, workspaceId });
+  assert.equal(config.photo_cache_dir, wardrobePhotoCacheDir({ dataDir, workspaceId }));
+  assert.equal(config.updated_at, "2026-07-01T00:00:00.000Z");
+}
+
+async function testServicePhotoCacheRepairMigratesConfigAndRunsRuntimeAclProbe() {
+  const dataDir = tempDir();
+  const workspaceId = "owner";
+  const configPath = wardrobeWorkspaceConfigPath({ dataDir, workspaceId });
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify({
+    schema_version: 1,
+    workspace_id: wardrobeWorkspaceIdForHermesWorkspace(workspaceId),
+    photo_cache_dir: ".hermes-cache/photos",
+  }, null, 2), "utf8");
+  const systemCalls = [];
+  const service = createWardrobePluginProvisioningService({
+    dataDir,
+    systemProvisioningExecutor: {
+      runStep(action, context) {
+        systemCalls.push({ action, context });
+        return Promise.resolve({
+          ok: true,
+          aclRepaired: true,
+          writeProbeOk: true,
+          probeUser: context.macUser,
+          photoCacheDir: "<root>/data/artifacts/wardrobe-thumbnails/owner",
+        });
+      },
+    },
+  });
+
+  const result = await service.repairPhotoCacheConfig({
+    workspaceId,
+    nowIso: () => "2026-07-01T00:00:00.000Z",
+    gateway: { macUser: "hm-owner" },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.changed, true);
+  assert.equal(result.photoCacheRuntimeAccess.runtimeProbeOk, true);
+  assert.equal(result.photoCacheRuntimeAccess.runtimeProbeUser, "hm-owner");
+  assert.deepEqual(systemCalls, [{
+    action: "repair_wardrobe_thumbnail_artifact_acl",
+    context: {
+      workspaceId,
+      macUser: "hm-owner",
+      paths: { dataRoot: dataDir },
+    },
+  }]);
+  const config = readWardrobeWorkspaceConfig({ dataDir, workspaceId });
+  assert.equal(config.photo_cache_dir, wardrobePhotoCacheDir({ dataDir, workspaceId }));
+}
+
+async function testRuntimePhotoCacheAclRepairRequiresWriteProbe() {
+  const dataDir = tempDir();
+  const workspaceId = "owner";
+  const configPath = wardrobeWorkspaceConfigPath({ dataDir, workspaceId });
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
+  fs.writeFileSync(configPath, JSON.stringify({
+    schema_version: 1,
+    workspace_id: wardrobeWorkspaceIdForHermesWorkspace(workspaceId),
+    photo_cache_dir: wardrobePhotoCacheDir({ dataDir, workspaceId }),
+  }, null, 2), "utf8");
+  const service = createWardrobePluginProvisioningService({
+    dataDir,
+    systemProvisioningExecutor: {
+      runStep(action, context) {
+        assert.equal(action, "repair_wardrobe_thumbnail_artifact_acl");
+        assert.equal(context.macUser, "hm-owner");
+        return Promise.resolve({
+          ok: true,
+          aclRepaired: true,
+          writeProbeOk: false,
+          probeUser: context.macUser,
+          photoCacheDir: "<root>/data/artifacts/wardrobe-thumbnails/owner",
+        });
+      },
+    },
+  });
+
+  const result = await service.repairPhotoCacheConfig({ workspaceId });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "wardrobe_photo_cache_runtime_probe_failed");
+  assert.equal(result.photoCacheRuntimeAccess.runtimeAcl.aclRepaired, true);
+  assert.equal(result.photoCacheRuntimeAccess.runtimeAcl.writeProbeOk, false);
+}
+
+async function testRuntimePhotoCacheAclFailureBlocksProvisioning() {
+  const dataDir = tempDir();
+  const repoRoot = tempDir();
+  writeCompleteTemplate(repoRoot);
+  const service = createWardrobePluginProvisioningService({
+    dataDir,
+    repoRoot,
+    wardrobeRegistrationAccessKey: `wd_${"live"}_${"a".repeat(40)}`,
+    gatewayWorkspaceProvisioningService: {
+      ensureWorkspaceGateway() {
+        return {
+          ok: true,
+          profiles: ["lowgw77"],
+          macUser: "hm-acl-fail",
+          skillStorePath: path.join(dataDir, "skill-profiles", "weixin_acl_fail", "skills"),
+        };
+      },
+    },
+    systemProvisioningExecutor: {
+      runStep() {
+        return Promise.resolve({ ok: false, error: "wardrobe_photo_cache_runtime_probe_failed" });
+      },
+    },
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ result: { workspace_id: "wardrobe:weixin_acl_fail", owner: "weixin_acl_fail" } }),
+      });
+    },
+  });
+
+  const result = await service.provisionWorkspace({
+    workspaceId: "weixin_acl_fail",
+    displayName: "ACL Fail",
+    wardrobeManifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "wardrobe_photo_cache_runtime_probe_failed");
+  assert.equal(result.registrationStatus, "accepted");
+  assert.equal(result.gatewayMacUser, "hm-acl-fail");
+}
+
 (async () => {
   await testProvisionCreatesKeyConfigRegistrationSkillAndGatewayBinding();
   await testRegistrationFailureKeepsRawKeyOutOfResult();
@@ -324,6 +524,11 @@ function testRegistrationUrlFromManifestOrigin() {
   testIncompleteTemplateFailsInsteadOfWritingBuiltInFallback();
   testSensitiveTemplateFailsClosed();
   testRegistrationUrlFromManifestOrigin();
+  testPhotoCacheDirRepairAddsGroupWriteAndAtomicProbe();
+  testPhotoCacheConfigRepairMigratesWorkspaceCacheToArtifactRoot();
+  await testServicePhotoCacheRepairMigratesConfigAndRunsRuntimeAclProbe();
+  await testRuntimePhotoCacheAclRepairRequiresWriteProbe();
+  await testRuntimePhotoCacheAclFailureBlocksProvisioning();
   console.log("wardrobe-plugin-provisioning-service tests passed");
 })().catch((err) => {
   console.error(err);

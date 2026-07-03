@@ -57,6 +57,15 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "native-ios-shell-api-routes",
+    exportName: "createNativeIosShellApiRoutes",
+    required: false,
+    minRoutes: 1,
+    probes: [
+      { method: "GET", path: "/api/native/ios-shell/version-policy", id: "native-ios-shell-version-policy" },
+    ],
+  },
+  {
     key: "event-stream-api-routes",
     exportName: "createEventStreamApiRoutes",
     required: false,

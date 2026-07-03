@@ -25,6 +25,7 @@ function testReportIsComplete() {
   assert.ok(report.diagnostics.some((entry) => entry.id === "macos-install-operator-closure"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "production-self-diagnostics-coverage"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "self-improving-loop"));
+  assert.ok(report.diagnostics.some((entry) => entry.id === "install-upgrade-canary"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "grok-xai-oauth-metadata"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "grok-xai-oauth-closure"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "windows-dev-services-boundary"));
@@ -65,6 +66,7 @@ function testCliJsonAndMarkdown() {
   assert.match(markdown, /macos-install-operator-closure-checklist\.js/);
   assert.match(markdown, /production-self-diagnostics-coverage-audit\.js/);
   assert.match(markdown, /homeai-self-improving-loop\.js/);
+  assert.match(markdown, /homeai-self-improving-loop-cron\.sh/);
   assert.match(markdown, /grok-auth-metadata-smoke\.js/);
   assert.match(markdown, /grok-xai-oauth-closure-checklist\.js/);
   assert.match(markdown, /windows-dev-services-boundary-checklist\.js/);

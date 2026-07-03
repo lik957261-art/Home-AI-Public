@@ -26,16 +26,20 @@ function tempStore() {
 function createServices(options = {}) {
   const store = tempStore();
   const sent = [];
+  const nowIso = typeof options.nowIso === "function"
+    ? options.nowIso
+    : () => options.nowIso || "2026-06-26T00:00:00.000Z";
   const actionInboxService = createActionInboxService({
     makeId(prefix) {
       return `${prefix}_test_${Math.random().toString(36).slice(2, 8)}`;
     },
-    nowIso: () => "2026-06-26T00:00:00.000Z",
+    nowIso,
     store,
   });
   const coordinator = createAutonomousDeliveryCoordinatorService({
     actionInboxService,
-    nowIso: () => "2026-06-26T00:00:00.000Z",
+    createIntent: options.createIntent,
+    nowIso,
     store: options.storeFactory ? () => store : store,
     taskCardService: options.taskCardService || {
       async sendTaskCard(input) {
@@ -45,6 +49,41 @@ function createServices(options = {}) {
     },
   });
   return { actionInboxService, coordinator, sent, store };
+}
+
+function deliveryIntentWithSlices(taskSlices = [], options = {}) {
+  return {
+    ok: true,
+    id: options.id || `delivery_${Math.random().toString(36).slice(2, 8)}`,
+    objective: options.objective || "Dispatch bounded worker slices",
+    mode: "delivery",
+    risk: options.risk || "medium",
+    requestedLowIntervention: true,
+    userDecisionGate: { userInterventionRequired: false, required: [] },
+    autonomyPolicy: { canAutoDispatch: true, canAutoImplement: false },
+    privacyBoundary: { metadataOnly: true },
+    taskSlices,
+  };
+}
+
+function noteImplementationSlice(id = "note_implementation") {
+  return {
+    id,
+    ownerLayer: "plugin_workspace",
+    workspaceId: "note",
+    workspacePath: "/Users/example/path",
+    description: `Implement ${id} in Note.`,
+  };
+}
+
+function homeAiImplementationSlice(id = "home_ai_implementation") {
+  return {
+    id,
+    ownerLayer: "home_ai_workspace",
+    workspaceId: "home-ai",
+    workspacePath: "/Users/example/path",
+    description: `Implement ${id} in Home AI.`,
+  };
 }
 
 function tempLedgerPath() {
@@ -109,6 +148,192 @@ async function testManualStartDispatchesNonHighRiskSliceAndCompletesInboxItem() 
   assert.match(sent[0].body, /node tests\/autonomous-delivery-coordinator-service\.test\.js/);
   const item = actionInboxService.getItem({ itemId: created.inboxItem.id }).item;
   assert.equal(item.status, "done");
+}
+
+async function testHomeAiImplementationSliceDispatchesToWorkerKind() {
+  const { coordinator, sent } = createServices({
+    createIntent: () => deliveryIntentWithSlices([homeAiImplementationSlice("home_ai_worker_dispatch")], {
+      id: "delivery_home_ai_worker",
+    }),
+  });
+
+  const created = await coordinator.createCase({ text: "home ai worker dispatch", workspaceId: "owner" });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+
+  assert.equal(started.ok, true);
+  assert.equal(started.dispatched.length, 1);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].cardKind, "home_ai_worker");
+  assert.equal(sent[0].targetWorkspace, "/Users/example/path");
+  assert.equal(sent[0].targetThreadTitle, "");
+  assert.equal(sent[0].targetThreadTitlePrefix, "");
+  assert.equal(sent[0].reasoningEffort, "high");
+}
+
+async function testStartCaseDefersWorkspaceConflictAcrossActiveCases() {
+  const { coordinator, sent, store } = createServices({
+    createIntent: ({ text }) => deliveryIntentWithSlices([noteImplementationSlice(text.includes("second") ? "note_second" : "note_first")], {
+      id: text.includes("second") ? "delivery_second" : "delivery_first",
+    }),
+  });
+  const first = await coordinator.createCase({ text: "first note implementation", workspaceId: "owner" });
+  const firstStarted = await coordinator.startCase({ caseId: first.case.caseId, confirmDecisions: true });
+  assert.equal(firstStarted.ok, true);
+  assert.equal(firstStarted.dispatched.length, 1);
+  assert.equal(sent.length, 1);
+
+  const second = await coordinator.createCase({ text: "second note implementation", workspaceId: "owner" });
+  const secondStarted = await coordinator.startCase({ caseId: second.case.caseId, confirmDecisions: true });
+  assert.equal(secondStarted.ok, false);
+  assert.equal(secondStarted.status, 409);
+  assert.equal(secondStarted.error, "autonomous_delivery_workspace_dispatch_conflict");
+  assert.equal(secondStarted.deferred.length, 1);
+  assert.equal(sent.length, 1);
+
+  const deferred = store.listAutonomousDeliverySlices({ caseId: second.case.caseId })[0];
+  assert.equal(deferred.status, "pending");
+  assert.equal(deferred.dispatchStatus, "deferred_conflict");
+  assert.equal(deferred.blockedReason, "workspace_dispatch_conflict");
+  assert.equal(deferred.dispatchConflict.code, "workspace_dispatch_conflict");
+  assert.equal(deferred.dispatchConflict.activeTaskCardId, "ttc_1");
+}
+
+async function testStartCaseDefersSameBatchWorkspaceConflict() {
+  const { coordinator, sent, store } = createServices({
+    createIntent: () => deliveryIntentWithSlices([
+      noteImplementationSlice("note_first"),
+      noteImplementationSlice("note_second"),
+    ], { id: "delivery_batch_conflict" }),
+  });
+  const created = await coordinator.createCase({ text: "batch note implementation", workspaceId: "owner" });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true, maxSlices: 2 });
+  assert.equal(started.ok, true);
+  assert.equal(started.dispatched.length, 1);
+  assert.equal(started.deferred.length, 1);
+  assert.equal(started.deferred[0].conflict.code, "workspace_dispatch_batch_conflict");
+  assert.equal(sent.length, 1);
+
+  const slices = store.listAutonomousDeliverySlices({ caseId: created.case.caseId });
+  assert.equal(slices.filter((slice) => slice.status === "dispatched").length, 1);
+  const deferred = slices.find((slice) => slice.dispatchStatus === "deferred_conflict");
+  assert.ok(deferred);
+  assert.equal(deferred.status, "pending");
+  assert.equal(deferred.dispatchConflict.code, "workspace_dispatch_batch_conflict");
+}
+
+async function testTaskCardDispatchFailureDoesNotMarkSliceDispatched() {
+  const { coordinator, sent, store } = createServices({
+    createIntent: () => deliveryIntentWithSlices([noteImplementationSlice("note_dispatch_failure")], { id: "delivery_dispatch_failure" }),
+    taskCardService: {
+      async sendTaskCard(input) {
+        sent.push(input);
+        return { ok: false, status: 404, error: "target_thread_not_visible" };
+      },
+    },
+  });
+  const created = await coordinator.createCase({ text: "note dispatch failure", workspaceId: "owner" });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+  assert.equal(started.ok, false);
+  assert.equal(started.status, 502);
+  assert.equal(started.error, "autonomous_delivery_task_card_dispatch_failed");
+  assert.equal(started.failed.length, 1);
+  assert.equal(started.failed[0].failure.code, "target_thread_not_visible");
+  assert.equal(sent.length, 1);
+
+  const failed = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })[0];
+  assert.equal(failed.status, "blocked");
+  assert.equal(failed.dispatchStatus, "failed");
+  assert.equal(failed.taskCardId, "");
+  assert.equal(failed.dispatchFailure.code, "target_thread_not_visible");
+}
+
+async function testDispatchControlSummarySurfacesConflictsAndFailures() {
+  const { coordinator, store } = createServices({
+    createIntent: ({ text }) => deliveryIntentWithSlices([noteImplementationSlice(text.includes("second") ? "note_second" : "note_first")], {
+      id: text.includes("second") ? "delivery_second" : "delivery_first",
+    }),
+  });
+  const first = await coordinator.createCase({ text: "first note implementation", workspaceId: "owner" });
+  await coordinator.startCase({ caseId: first.case.caseId, confirmDecisions: true });
+  const second = await coordinator.createCase({ text: "second note implementation", workspaceId: "owner" });
+  await coordinator.startCase({ caseId: second.case.caseId, confirmDecisions: true });
+  store.upsertAutonomousDeliverySlice({
+    sliceId: "failed_slice",
+    caseId: "failed_case",
+    workspaceId: "owner",
+    sliceKey: "failed_note",
+    ownerLayer: "plugin_workspace",
+    targetWorkspaceId: "note",
+    targetWorkspacePath: "/Users/example/path",
+    status: "blocked",
+    dispatchStatus: "failed",
+    blockedReason: "target_thread_not_visible",
+    rawJson: {
+      dispatchFailure: {
+        code: "target_thread_not_visible",
+        targetWorkspaceId: "note",
+        targetWorkspacePath: "/Users/example/path",
+      },
+    },
+  });
+
+  const summary = coordinator.dispatchControlSummary({ workspaceId: "owner" });
+  assert.equal(summary.ok, false);
+  assert.equal(summary.status, "degraded");
+  assert.equal(summary.counts.failed, 1);
+  assert.equal(summary.counts.deferredConflict, 1);
+  assert.equal(summary.counts.sent, 1);
+  assert.equal(summary.items.some((item) => item.dispatchStatus === "failed" && item.failureCode === "target_thread_not_visible"), true);
+  assert.equal(summary.items.some((item) => item.dispatchStatus === "deferred_conflict" && item.conflictCode === "workspace_dispatch_conflict"), true);
+  assert.doesNotMatch(JSON.stringify(summary), /must-not-leak/);
+  assert.equal(summary.policy.retryViaActionInbox, true);
+}
+
+async function testVerificationDispatchFailureKeepsReviewOpen() {
+  const sent = [];
+  const { actionInboxService, coordinator, store } = createServices({
+    taskCardService: {
+      async sendTaskCard(input) {
+        sent.push(input);
+        if (sent.length === 1) return { ok: true, cardIds: ["ttc_1"], targetThreadId: "thread-target" };
+        return { ok: false, status: 404, error: "target_thread_not_visible" };
+      },
+    },
+  });
+  const created = await coordinator.createCase({
+    text: "增加 Note 附件导入测试覆盖",
+    workspaceId: "owner",
+  });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+  const parentSliceId = started.dispatched[0].slice.sliceId;
+  coordinator.recordReturn({
+    caseId: created.case.caseId,
+    sliceId: parentSliceId,
+    status: "completed",
+    taskCardId: "ttc_1",
+    returnCardId: "ttc_return_1",
+    summary: "Implementation completed with focused tests.",
+  });
+  const review = actionInboxService.listItems({ workspaceId: "owner", sourceType: "autonomous_delivery" })
+    .items.find((item) => item.sourceRef?.notificationType === VERIFICATION_NOTIFICATION_TYPE);
+  const failed = await coordinator.startVerification({
+    caseId: created.case.caseId,
+    sliceId: parentSliceId,
+    inboxItemId: review.id,
+  });
+  assert.equal(failed.ok, false);
+  assert.equal(failed.status, 502);
+  assert.equal(failed.error, "autonomous_delivery_task_card_dispatch_failed");
+  assert.equal(failed.case.status, "verification_waiting");
+  assert.equal(failed.verificationSlice.status, "blocked");
+  assert.equal(failed.verificationSlice.dispatchStatus, "failed");
+  assert.equal(failed.verificationSlice.taskCardId, "");
+  assert.equal(failed.verificationSlice.dispatchFailure.code, "target_thread_not_visible");
+  assert.equal(sent.length, 2);
+  assert.equal(actionInboxService.getItem({ itemId: review.id }).item.status, "open");
+  const stored = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })
+    .find((slice) => slice.sliceId === failed.verificationSlice.sliceId);
+  assert.equal(stored.dispatchStatus, "failed");
 }
 
 async function testHighRiskCaseDoesNotDispatch() {
@@ -333,6 +558,55 @@ async function testDeploymentReadbackReturnLanePrecedesVerification() {
   assert.match(sent[2].body, /Deployment completed with production readback/);
 }
 
+async function testDeploymentDispatchFailureKeepsDeploymentReviewOpen() {
+  const sent = [];
+  const { actionInboxService, coordinator, store } = createServices({
+    taskCardService: {
+      async sendTaskCard(input) {
+        sent.push(input);
+        if (sent.length === 1) return { ok: true, cardIds: ["ttc_1"], targetThreadId: "thread-target" };
+        return { ok: false, status: 404, error: "target_thread_not_visible" };
+      },
+    },
+  });
+  const created = await coordinator.createCase({
+    text: "增加 Music 收藏页测试覆盖",
+    workspaceId: "owner",
+  });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+  const parentSliceId = started.dispatched[0].slice.sliceId;
+  coordinator.recordReturn({
+    caseId: created.case.caseId,
+    sliceId: parentSliceId,
+    status: "completed",
+    taskCardId: "ttc_1",
+    returnCardId: "ttc_return_1",
+    summary: "Runtime behavior changed; not deployed yet.",
+    runtimeChanged: true,
+  });
+  const deploymentItem = actionInboxService.listItems({ workspaceId: "owner", sourceType: "autonomous_delivery" })
+    .items.find((item) => item.sourceRef?.notificationType === DEPLOYMENT_NOTIFICATION_TYPE);
+  const failed = await coordinator.startDeployment({
+    caseId: created.case.caseId,
+    sliceId: parentSliceId,
+    inboxItemId: deploymentItem.id,
+    confirmDeployment: true,
+  });
+  assert.equal(failed.ok, false);
+  assert.equal(failed.status, 502);
+  assert.equal(failed.error, "autonomous_delivery_task_card_dispatch_failed");
+  assert.equal(failed.case.status, "deployment_waiting");
+  assert.equal(failed.deploymentSlice.status, "blocked");
+  assert.equal(failed.deploymentSlice.dispatchStatus, "failed");
+  assert.equal(failed.deploymentSlice.taskCardId, "");
+  assert.equal(failed.deploymentSlice.dispatchFailure.code, "target_thread_not_visible");
+  assert.equal(sent.length, 2);
+  assert.equal(actionInboxService.getItem({ itemId: deploymentItem.id }).item.status, "open");
+  const stored = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })
+    .find((slice) => slice.sliceId === failed.deploymentSlice.sliceId);
+  assert.equal(stored.dispatchStatus, "failed");
+}
+
 async function testVerificationReturnCreatesOwnerClosureDecisionWithoutRecursiveVerification() {
   const { actionInboxService, coordinator } = createServices();
   const ledgerPath = tempLedgerPath();
@@ -494,6 +768,66 @@ async function testFailedVerificationReturnCreatesOwnerGatedRepairDispatch() {
   assert.ok(repairVerificationItem);
 }
 
+async function testRepairDispatchFailureKeepsRepairReviewOpen() {
+  const sent = [];
+  const { actionInboxService, coordinator, store } = createServices({
+    taskCardService: {
+      async sendTaskCard(input) {
+        sent.push(input);
+        if (sent.length < 3) return { ok: true, cardIds: [`ttc_${sent.length}`], targetThreadId: "thread-target" };
+        return { ok: false, status: 404, error: "target_thread_not_visible" };
+      },
+    },
+  });
+  const created = await coordinator.createCase({
+    text: "增加 Note 附件导入测试覆盖",
+    workspaceId: "owner",
+  });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+  const parentSliceId = started.dispatched[0].slice.sliceId;
+  coordinator.recordReturn({
+    caseId: created.case.caseId,
+    sliceId: parentSliceId,
+    status: "completed",
+    taskCardId: "ttc_1",
+    returnCardId: "ttc_return_1",
+    summary: "Implementation completed with focused tests.",
+  });
+  const review = actionInboxService.listItems({ workspaceId: "owner", sourceType: "autonomous_delivery" })
+    .items.find((item) => item.sourceRef?.notificationType === VERIFICATION_NOTIFICATION_TYPE);
+  const verificationStarted = await coordinator.startVerification({
+    caseId: created.case.caseId,
+    sliceId: parentSliceId,
+    inboxItemId: review.id,
+  });
+  coordinator.recordReturnForTaskCard({
+    taskCardId: verificationStarted.verificationSlice.taskCardId,
+    status: "partially_completed",
+    returnCardId: "ttc_verify_return_partial",
+    summary: "Verification found missing executable UI proof.",
+  });
+  const repairItem = actionInboxService.listItems({ workspaceId: "owner", sourceType: "autonomous_delivery" })
+    .items.find((item) => item.sourceRef?.notificationType === REPAIR_NOTIFICATION_TYPE);
+  const failed = await coordinator.startRepair({
+    caseId: created.case.caseId,
+    sliceId: verificationStarted.verificationSlice.sliceId,
+    inboxItemId: repairItem.id,
+  });
+  assert.equal(failed.ok, false);
+  assert.equal(failed.status, 502);
+  assert.equal(failed.error, "autonomous_delivery_task_card_dispatch_failed");
+  assert.equal(failed.case.status, "repair_waiting");
+  assert.equal(failed.repairSlice.status, "blocked");
+  assert.equal(failed.repairSlice.dispatchStatus, "failed");
+  assert.equal(failed.repairSlice.taskCardId, "");
+  assert.equal(failed.repairSlice.dispatchFailure.code, "target_thread_not_visible");
+  assert.equal(sent.length, 3);
+  assert.equal(actionInboxService.getItem({ itemId: repairItem.id }).item.status, "open");
+  const stored = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })
+    .find((slice) => slice.sliceId === failed.repairSlice.sliceId);
+  assert.equal(stored.dispatchStatus, "failed");
+}
+
 function testFinalReportProjectsDeploymentEvidenceLedger() {
   const report = deliveryFinalReportForCase({
     caseId: "delivery_report_1",
@@ -550,6 +884,53 @@ async function testRecordReturnByTaskCardIdFindsDispatchedSlice() {
   assert.equal(returned.slice.taskCardId, "ttc_1");
   assert.equal(returned.slice.status, "completed");
   assert.equal(returned.case.status, "verification_waiting");
+}
+
+async function testReturnWatchdogMarksStaleDispatchedSliceAndAllowsLateReturn() {
+  let currentNow = "2026-06-26T00:00:00.000Z";
+  const { coordinator, store } = createServices({
+    nowIso: () => currentNow,
+  });
+  const created = await coordinator.createCase({
+    text: "增加 Note 附件导入测试覆盖",
+    workspaceId: "owner",
+  });
+  await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+
+  currentNow = "2026-06-26T05:00:00.000Z";
+  const summary = coordinator.returnWatchdogSummary({
+    workspaceId: "owner",
+    staleAfterMs: 60 * 60 * 1000,
+  });
+  assert.equal(summary.ok, true);
+  assert.equal(summary.status, "degraded");
+  assert.equal(summary.counts.stale, 1);
+  assert.equal(summary.items[0].taskCardId, "ttc_1");
+
+  const watched = coordinator.runReturnWatchdog({
+    workspaceId: "owner",
+    staleAfterMs: 60 * 60 * 1000,
+  });
+  assert.equal(watched.markedCount, 1);
+  assert.equal(watched.counts.alreadyMarked, 1);
+  const stored = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })
+    .find((slice) => slice.taskCardId === "ttc_1");
+  assert.equal(stored.dispatchStatus, "return_stale");
+  assert.equal(stored.blockedReason, "return_card_watchdog_stale");
+  const control = coordinator.dispatchControlSummary({ workspaceId: "owner" });
+  assert.equal(control.counts.returnStale, 1);
+  assert.equal(control.items[0].returnWatchdogCode, "return_card_missing_after_sla");
+  assert.equal(control.items[0].recommendedAction, "inspect_missing_return_then_record_terminal_return_or_reroute");
+
+  const returned = coordinator.recordReturnForTaskCard({
+    taskCardId: "ttc_1",
+    status: "completed",
+    returnCardId: "ttc_return_late",
+    summary: "Late terminal return after watchdog mark.",
+  });
+  assert.equal(returned.ok, true);
+  assert.equal(returned.slice.status, "completed");
+  assert.equal(returned.slice.returnCardId, "ttc_return_late");
 }
 
 async function testRecordReturnCardEventStoresOnlyBoundedReturnMetadata() {
@@ -625,14 +1006,23 @@ async function run() {
   await testCreateCasePersistsLedgerAndOwnerDecisionItem();
   await testCoordinatorAcceptsRuntimeStoreFactory();
   await testManualStartDispatchesNonHighRiskSliceAndCompletesInboxItem();
+  await testHomeAiImplementationSliceDispatchesToWorkerKind();
+  await testStartCaseDefersWorkspaceConflictAcrossActiveCases();
+  await testStartCaseDefersSameBatchWorkspaceConflict();
+  await testTaskCardDispatchFailureDoesNotMarkSliceDispatched();
+  await testDispatchControlSummarySurfacesConflictsAndFailures();
+  await testVerificationDispatchFailureKeepsReviewOpen();
   await testHighRiskCaseDoesNotDispatch();
   await testRecordReturnMovesCaseToVerificationWaiting();
   await testOwnerStartVerificationDispatchesAuditSliceAndCompletesReviewItem();
   await testDeploymentReadbackReturnLanePrecedesVerification();
+  await testDeploymentDispatchFailureKeepsDeploymentReviewOpen();
   await testVerificationReturnCreatesOwnerClosureDecisionWithoutRecursiveVerification();
   await testFailedVerificationReturnCreatesOwnerGatedRepairDispatch();
+  await testRepairDispatchFailureKeepsRepairReviewOpen();
   testFinalReportProjectsDeploymentEvidenceLedger();
   await testRecordReturnByTaskCardIdFindsDispatchedSlice();
+  await testReturnWatchdogMarksStaleDispatchedSliceAndAllowsLateReturn();
   await testRecordReturnCardEventStoresOnlyBoundedReturnMetadata();
   await testDuplicateReturnCardEventIsIdempotent();
   await testUnknownTaskCardReturnDoesNotMutateCase();

@@ -288,7 +288,7 @@
 
   function isTaskListPrimaryDocument(artifact) {
     const kind = artifactKind(artifact);
-    if (kind === "pdf" || kind === "word" || kind === "spreadsheet") return true;
+    if (kind === "pdf" || kind === "word" || kind === "spreadsheet" || kind === "presentation") return true;
     const name = String(artifact?.name || artifact?.id || "").toLowerCase();
     return name.endsWith(".md") || name.endsWith(".txt");
   }
@@ -395,6 +395,14 @@
     ) {
       return "spreadsheet";
     }
+    if (
+      mime.includes("presentation") ||
+      mime.includes("powerpoint") ||
+      name.endsWith(".ppt") ||
+      name.endsWith(".pptx")
+    ) {
+      return "presentation";
+    }
     if (mime.includes("markdown") || name.endsWith(".md")) return "markdown";
     if (
       mime.startsWith("text/") ||
@@ -419,7 +427,7 @@
     const kind = artifactKind(artifact);
     if (kind === "markdown") return 0;
     if (kind === "text") return 1;
-    if (kind === "pdf" || kind === "word" || kind === "spreadsheet") return 2;
+    if (kind === "pdf" || kind === "word" || kind === "spreadsheet" || kind === "presentation") return 2;
     return 3;
   }
 

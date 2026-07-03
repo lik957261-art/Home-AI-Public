@@ -12,7 +12,13 @@
     }[ch]));
   }
 
+  function runtimeFacade() {
+    return global.HomeAiRuntimeFacade || null;
+  }
+
   function previewShareUrl(value) {
+    const runtime = runtimeFacade();
+    if (runtime?.documentPreview?.absoluteUrl) return runtime.documentPreview.absoluteUrl(value);
     try {
       return new URL(value, global.location.href).href;
     } catch (_) {
@@ -21,22 +27,20 @@
   }
 
   function currentWorkspaceId() {
+    const runtime = runtimeFacade();
+    const runtimeWorkspace = runtime?.state?.get?.("selectedWorkspaceId");
+    if (runtimeWorkspace) return runtimeWorkspace;
     try {
       if (typeof state !== "undefined" && state?.selectedWorkspaceId) return state.selectedWorkspaceId;
     } catch (_) {}
-    return global.localStorage?.getItem("hermesWebWorkspace") || "owner";
+    return "owner";
   }
 
   async function previewApi(path, options = {}) {
+    const runtime = runtimeFacade();
+    if (typeof runtime?.api === "function") return runtime.api(path, options);
     if (typeof api === "function") return api(path, options);
-    const headers = Object.assign({}, options.headers || {});
-    const key = global.localStorage?.getItem("hermesWebKey") || "";
-    if (key) headers["X-Hermes-Web-Key"] = key;
-    if (options.body && !headers["Content-Type"]) headers["Content-Type"] = "application/json";
-    const res = await fetch(path, Object.assign({}, options, { headers }));
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
-    return body;
+    throw new Error("预览接口未就绪");
   }
 
   function bytesToBase64(bytes) {
@@ -107,14 +111,18 @@
   }
 
   async function fetchPreviewBlob(url) {
-    const sourceUrl = previewShareUrl(url);
-    if (!sourceUrl) throw new Error("没有可打开的文件地址");
-    const headers = {};
-    const key = global.localStorage?.getItem("hermesWebKey") || "";
-    if (key) headers["X-Hermes-Web-Key"] = key;
-    const res = await fetch(sourceUrl, { headers });
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    return res.blob();
+    const runtime = runtimeFacade();
+    if (typeof runtime?.documentPreview?.fetchBlob === "function") {
+      return runtime.documentPreview.fetchBlob(url);
+    }
+    throw new Error("文件预览下载未就绪");
+  }
+
+  async function fetchPreviewText(url) {
+    const blob = await fetchPreviewBlob(url);
+    if (typeof blob?.text === "function") return blob.text();
+    if (typeof Response === "function") return new Response(blob).text();
+    throw new Error("文件预览下载未就绪");
   }
 
   async function savePreviewImageToAlbum(input = {}) {
@@ -202,6 +210,7 @@
     copyPreviewLink,
     sharePreviewLink,
     fetchPreviewBlob,
+    fetchPreviewText,
     savePreviewImageToAlbum,
     closePreviewMenus,
     bindPreviewMoreMenu,

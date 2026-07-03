@@ -36,6 +36,7 @@ EMU_H = 6858000
 REL_NS = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 CT_NS = "{http://schemas.openxmlformats.org/package/2006/content-types}"
 P_NS = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+A_NS = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 R_ATTR = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
 REL_OFFICE_DOCUMENT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
 REL_SLIDE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide"
@@ -43,6 +44,9 @@ REL_SLIDE_MASTER = "http://schemas.openxmlformats.org/officeDocument/2006/relati
 REL_SLIDE_LAYOUT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout"
 REL_THEME = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme"
 REL_IMAGE = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+REL_PRES_PROPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/presProps"
+REL_VIEW_PROPS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/viewProps"
+REL_TABLE_STYLES = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles"
 
 
 PPTX_CREATE_SCHEMA = {
@@ -341,6 +345,9 @@ def _content_types(slide_count: int, media: list[tuple[str, str]]) -> str:
 <Override PartName="/ppt/slideMasters/slideMaster1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml"/>
 <Override PartName="/ppt/slideLayouts/slideLayout1.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml"/>
 <Override PartName="/ppt/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>
+<Override PartName="/ppt/presProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presProps+xml"/>
+<Override PartName="/ppt/viewProps.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.viewProps+xml"/>
+<Override PartName="/ppt/tableStyles.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml"/>
 <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
 <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
 {slide_xml}
@@ -374,6 +381,9 @@ def _presentation_rels(slide_count: int) -> str:
         for index in range(1, slide_count + 1)
     ]
     rels.append('<Relationship Id="rIdMaster1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="slideMasters/slideMaster1.xml"/>')
+    rels.append('<Relationship Id="rIdPresProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/presProps" Target="presProps.xml"/>')
+    rels.append('<Relationship Id="rIdViewProps" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/viewProps" Target="viewProps.xml"/>')
+    rels.append('<Relationship Id="rIdTableStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles" Target="tableStyles.xml"/>')
     return f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">{"".join(rels)}</Relationships>'''
 
@@ -393,12 +403,52 @@ def _slide_rels(media_name: str | None) -> str:
 
 
 def _theme_xml(colors: dict[str, str]) -> str:
+    accent = colors["accent"]
+    text = colors["text"]
+    background = colors["background"]
     return f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Hermes Mobile">
   <a:themeElements>
-    <a:clrScheme name="Hermes Mobile"><a:dk1><a:srgbClr val="{colors["text"]}"/></a:dk1><a:lt1><a:srgbClr val="{colors["background"]}"/></a:lt1><a:accent1><a:srgbClr val="{colors["accent"]}"/></a:accent1></a:clrScheme>
-    <a:fontScheme name="Hermes Mobile"><a:majorFont><a:latin typeface="Arial"/><a:ea typeface="Microsoft YaHei"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/><a:ea typeface="Microsoft YaHei"/></a:minorFont></a:fontScheme>
-    <a:fmtScheme name="Hermes Mobile"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme>
+    <a:clrScheme name="Hermes Mobile">
+      <a:dk1><a:srgbClr val="{text}"/></a:dk1>
+      <a:lt1><a:srgbClr val="{background}"/></a:lt1>
+      <a:dk2><a:srgbClr val="1F2937"/></a:dk2>
+      <a:lt2><a:srgbClr val="F8FAFC"/></a:lt2>
+      <a:accent1><a:srgbClr val="{accent}"/></a:accent1>
+      <a:accent2><a:srgbClr val="16A34A"/></a:accent2>
+      <a:accent3><a:srgbClr val="F59E0B"/></a:accent3>
+      <a:accent4><a:srgbClr val="DC2626"/></a:accent4>
+      <a:accent5><a:srgbClr val="7C3AED"/></a:accent5>
+      <a:accent6><a:srgbClr val="0891B2"/></a:accent6>
+      <a:hlink><a:srgbClr val="0563C1"/></a:hlink>
+      <a:folHlink><a:srgbClr val="954F72"/></a:folHlink>
+    </a:clrScheme>
+    <a:fontScheme name="Hermes Mobile">
+      <a:majorFont><a:latin typeface="Arial"/><a:ea typeface="Microsoft YaHei"/><a:cs typeface="Arial"/></a:majorFont>
+      <a:minorFont><a:latin typeface="Arial"/><a:ea typeface="Microsoft YaHei"/><a:cs typeface="Arial"/></a:minorFont>
+    </a:fontScheme>
+    <a:fmtScheme name="Hermes Mobile">
+      <a:fillStyleLst>
+        <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>
+        <a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:lumMod val="110000"/><a:satMod val="105000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:lumMod val="105000"/><a:satMod val="103000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill>
+        <a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:lumMod val="105000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:lumMod val="95000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill>
+      </a:fillStyleLst>
+      <a:lnStyleLst>
+        <a:ln w="9525" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>
+        <a:ln w="25400" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>
+        <a:ln w="38100" cap="flat" cmpd="sng" algn="ctr"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>
+      </a:lnStyleLst>
+      <a:effectStyleLst>
+        <a:effectStyle><a:effectLst/></a:effectStyle>
+        <a:effectStyle><a:effectLst><a:outerShdw blurRad="40000" dist="20000" dir="5400000" rotWithShape="0"><a:srgbClr val="000000"><a:alpha val="18000"/></a:srgbClr></a:outerShdw></a:effectLst></a:effectStyle>
+        <a:effectStyle><a:effectLst><a:outerShdw blurRad="57150" dist="38100" dir="5400000" rotWithShape="0"><a:srgbClr val="000000"><a:alpha val="20000"/></a:srgbClr></a:outerShdw></a:effectLst></a:effectStyle>
+      </a:effectStyleLst>
+      <a:bgFillStyleLst>
+        <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>
+        <a:solidFill><a:schemeClr val="phClr"><a:tint val="95000"/><a:satMod val="170000"/></a:schemeClr></a:solidFill>
+        <a:gradFill rotWithShape="1"><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"><a:tint val="93000"/><a:satMod val="150000"/></a:schemeClr></a:gs><a:gs pos="100000"><a:schemeClr val="phClr"><a:shade val="98000"/><a:satMod val="130000"/></a:schemeClr></a:gs></a:gsLst><a:lin ang="5400000" scaled="0"/></a:gradFill>
+      </a:bgFillStyleLst>
+    </a:fmtScheme>
   </a:themeElements>
 </a:theme>'''
 
@@ -407,8 +457,13 @@ def _slide_master_xml() -> str:
     return '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
   <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>
+  <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>
   <p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>
-  <p:txStyles><p:titleStyle/><p:bodyStyle/><p:otherStyle/></p:txStyles>
+  <p:txStyles>
+    <p:titleStyle><a:lvl1pPr algn="l"><a:defRPr sz="3600" kern="1200"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill></a:defRPr></a:lvl1pPr></p:titleStyle>
+    <p:bodyStyle><a:lvl1pPr marL="342900" indent="-171450" algn="l"><a:defRPr sz="2200" kern="1200"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill></a:defRPr></a:lvl1pPr></p:bodyStyle>
+    <p:otherStyle><a:lvl1pPr algn="l"><a:defRPr sz="1800" kern="1200"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill></a:defRPr></a:lvl1pPr></p:otherStyle>
+  </p:txStyles>
 </p:sldMaster>'''
 
 
@@ -433,6 +488,28 @@ def _slide_layout_rels() -> str:
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/>
 </Relationships>'''
+
+
+def _pres_props_xml() -> str:
+    return '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:presentationPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:showPr showAnimation="1"><p:sldAll/><p:penClr><a:srgbClr val="FF0000"/></p:penClr></p:showPr>
+</p:presentationPr>'''
+
+
+def _view_props_xml() -> str:
+    return '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<p:viewPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
+  <p:normalViewPr><p:restoredLeft sz="15620"/><p:restoredTop sz="94660"/></p:normalViewPr>
+  <p:slideViewPr><p:cSldViewPr><p:cViewPr varScale="1"><p:scale><a:sx n="100" d="100"/><a:sy n="100" d="100"/></p:scale><p:origin x="0" y="0"/></p:cViewPr><p:guideLst/></p:cSldViewPr></p:slideViewPr>
+  <p:notesTextViewPr><p:cViewPr><p:scale><a:sx n="100" d="100"/><a:sy n="100" d="100"/></p:scale><p:origin x="0" y="0"/></p:cViewPr></p:notesTextViewPr>
+  <p:gridSpacing cx="72008" cy="72008"/>
+</p:viewPr>'''
+
+
+def _table_styles_xml() -> str:
+    return '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" def="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}"/>'''
 
 
 def _doc_props(title: str, slide_count: int) -> tuple[str, str]:
@@ -481,6 +558,9 @@ def _write_pptx(output_path: Path, title: str, slides: list[dict[str, Any]], col
         archive.writestr("ppt/slideLayouts/slideLayout1.xml", _slide_layout_xml())
         archive.writestr("ppt/slideLayouts/_rels/slideLayout1.xml.rels", _slide_layout_rels())
         archive.writestr("ppt/theme/theme1.xml", _theme_xml(colors))
+        archive.writestr("ppt/presProps.xml", _pres_props_xml())
+        archive.writestr("ppt/viewProps.xml", _view_props_xml())
+        archive.writestr("ppt/tableStyles.xml", _table_styles_xml())
         for index, slide in enumerate(slides, start=1):
             media_name = slide_media_names[index - 1]
             image_rel = "rIdImage1" if media_name else None
@@ -603,6 +683,70 @@ def _content_type_sets(root: ET.Element | None) -> tuple[set[str], set[str]]:
     return defaults, overrides
 
 
+def _validate_theme_root(root: ET.Element | None, issues: list[str]) -> None:
+    if root is None:
+        return
+    theme_elements = root.find(f"{A_NS}themeElements")
+    if theme_elements is None:
+        issues.append("theme_elements_missing")
+        return
+    color_scheme = theme_elements.find(f"{A_NS}clrScheme")
+    if color_scheme is None:
+        issues.append("theme_color_scheme_missing")
+    else:
+        required_colors = ["dk1", "lt1", "dk2", "lt2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6", "hlink", "folHlink"]
+        missing = [name for name in required_colors if color_scheme.find(f"{A_NS}{name}") is None]
+        if missing:
+            issues.append(f"theme_color_scheme_incomplete:{','.join(missing[:6])}")
+    font_scheme = theme_elements.find(f"{A_NS}fontScheme")
+    if font_scheme is None:
+        issues.append("theme_font_scheme_missing")
+    else:
+        for font_kind in ("majorFont", "minorFont"):
+            font_root = font_scheme.find(f"{A_NS}{font_kind}")
+            if font_root is None:
+                issues.append(f"theme_font_scheme_missing:{font_kind}")
+                continue
+            for child in ("latin", "ea", "cs"):
+                if font_root.find(f"{A_NS}{child}") is None:
+                    issues.append(f"theme_font_scheme_incomplete:{font_kind}:{child}")
+    fmt_scheme = theme_elements.find(f"{A_NS}fmtScheme")
+    if fmt_scheme is None:
+        issues.append("theme_format_scheme_missing")
+    else:
+        required_counts = {
+            "fillStyleLst": 3,
+            "lnStyleLst": 3,
+            "effectStyleLst": 3,
+            "bgFillStyleLst": 3,
+        }
+        for list_name, expected_count in required_counts.items():
+            list_root = fmt_scheme.find(f"{A_NS}{list_name}")
+            if list_root is None:
+                issues.append(f"theme_format_list_missing:{list_name}")
+                continue
+            actual_count = len(list(list_root))
+            if actual_count < expected_count:
+                issues.append(f"theme_format_list_incomplete:{list_name}:{actual_count}")
+
+
+def _validate_slide_master_root(root: ET.Element | None, issues: list[str], part: str) -> None:
+    if root is None:
+        return
+    color_map = root.find(f"{P_NS}clrMap")
+    if color_map is None:
+        issues.append(f"slide_master_color_map_missing:{part}")
+    else:
+        required = ["bg1", "tx1", "bg2", "tx2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6", "hlink", "folHlink"]
+        missing = [name for name in required if not color_map.attrib.get(name)]
+        if missing:
+            issues.append(f"slide_master_color_map_incomplete:{part}:{','.join(missing[:6])}")
+    if root.find(f"{P_NS}sldLayoutIdLst") is None:
+        issues.append(f"slide_master_layout_list_missing:{part}")
+    if root.find(f"{P_NS}txStyles") is None:
+        issues.append(f"slide_master_text_styles_missing:{part}")
+
+
 def _libreoffice_command() -> str:
     configured = str(os.environ.get("HERMES_MOBILE_PPTX_VALIDATOR_COMMAND") or "").strip()
     if configured:
@@ -660,7 +804,15 @@ def _validate_pptx_file(path: Path, *, require_external_engine: bool = False) ->
             if bad_member:
                 issues.append(f"zip_member_corrupt:{bad_member}")
             names = set(archive.namelist())
-            for part in ("[Content_Types].xml", "_rels/.rels", "ppt/presentation.xml", "ppt/_rels/presentation.xml.rels"):
+            for part in (
+                "[Content_Types].xml",
+                "_rels/.rels",
+                "ppt/presentation.xml",
+                "ppt/_rels/presentation.xml.rels",
+                "ppt/presProps.xml",
+                "ppt/viewProps.xml",
+                "ppt/tableStyles.xml",
+            ):
                 if part not in names:
                     issues.append(f"missing_part:{part}")
             content_root = _read_xml(archive, "[Content_Types].xml", issues)
@@ -709,6 +861,19 @@ def _validate_pptx_file(path: Path, *, require_external_engine: bool = False) ->
             for part in ["ppt/presentation.xml", *slide_parts, *master_parts, "ppt/slideLayouts/slideLayout1.xml", "ppt/theme/theme1.xml"]:
                 if part and part.endswith(".xml") and part not in overrides:
                     issues.append(f"content_type_override_missing:{part}")
+            for part in ["ppt/presProps.xml", "ppt/viewProps.xml", "ppt/tableStyles.xml"]:
+                if part not in overrides:
+                    issues.append(f"content_type_override_missing:{part}")
+            for rel_type, label in (
+                (REL_PRES_PROPS, "presentation_properties"),
+                (REL_VIEW_PROPS, "view_properties"),
+                (REL_TABLE_STYLES, "table_styles"),
+            ):
+                target = _first_rel_target(presentation_rels, rel_type, "ppt/presentation.xml")
+                if not target:
+                    issues.append(f"{label}_relationship_missing")
+                elif target not in names:
+                    issues.append(f"{label}_part_missing:{target}")
             for slide_part in slide_parts:
                 _read_xml(archive, slide_part, issues)
                 slide_rels = _relationship_list(archive, slide_part, issues)
@@ -721,7 +886,8 @@ def _validate_pptx_file(path: Path, *, require_external_engine: bool = False) ->
                     if rel.get("type") == REL_IMAGE:
                         image_count += 1
             for master_part in master_parts:
-                _read_xml(archive, master_part, issues)
+                master_root = _read_xml(archive, master_part, issues)
+                _validate_slide_master_root(master_root, issues, master_part)
                 master_rels = _relationship_list(archive, master_part, issues)
                 if not _first_rel_target(master_rels, REL_SLIDE_LAYOUT, master_part):
                     issues.append(f"master_layout_relationship_missing:{master_part}")
@@ -735,7 +901,11 @@ def _validate_pptx_file(path: Path, *, require_external_engine: bool = False) ->
                     issues.append(f"layout_master_relationship_missing:{layout_part}")
                 elif master_target not in names:
                     issues.append(f"layout_master_part_missing:{master_target}")
-            _read_xml(archive, "ppt/theme/theme1.xml", issues)
+            theme_root = _read_xml(archive, "ppt/theme/theme1.xml", issues)
+            _validate_theme_root(theme_root, issues)
+            _read_xml(archive, "ppt/presProps.xml", issues)
+            _read_xml(archive, "ppt/viewProps.xml", issues)
+            _read_xml(archive, "ppt/tableStyles.xml", issues)
             _validate_relationship_targets(archive, issues)
     except zipfile.BadZipFile:
         issues.append("invalid_zip_package")

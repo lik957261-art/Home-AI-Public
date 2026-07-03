@@ -40,6 +40,8 @@ function testProductizationRunsGovernanceCheck() {
   assert.match(source, /production-self-diagnostics\.js/);
   assert.match(source, /production-self-diagnostics-coverage-audit\.js/);
   assert.match(source, /productization-acceptance-matrix\.js[\s\S]+--verify-docs/);
+  assert.match(source, /runNpm\(\["test"\]\)/);
+  assert.match(source, /runNpm\(\["run",\s*"test:install-lane"\]\)/);
 }
 
 function testProductizationGateOrderIsPinned() {
@@ -64,6 +66,7 @@ function testProductizationGateOrderIsPinned() {
     "Production self-diagnostics coverage audit",
     "Productization acceptance matrix docs verification",
     "runNpm([\"test\"])",
+    "runNpm([\"run\", \"test:install-lane\"])",
     "startupCheck()",
     "Whitespace diff check",
     "Staged whitespace diff check",

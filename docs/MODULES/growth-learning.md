@@ -2,7 +2,15 @@
 
 ## Responsibility
 
-Growth Learning owns learner programs, evergreen task cards, submissions, async evaluation, reflection, rewards, mastery profile, and next-card strategy.
+The Growth plugin owns learner programs, evergreen task cards, submissions,
+async evaluation, reflection, rewards, mastery profile, next-card strategy, and
+the learner-facing Growth UI.
+
+The Home AI host responsibility is now the platform boundary around Growth:
+plugin provisioning, launch/proxy/iframe integration, workspace and Access Key
+policy, Gateway profile/toolset activation, Action Inbox/Web Push integration,
+platform `通宝` exchange, deployment orchestration, migration facade/readback,
+and legacy URL compatibility while old links are still being retired.
 
 The migration path from the built-in Home AI Growth module to the external
 Growth embedded plugin is tracked in
@@ -10,7 +18,15 @@ Growth embedded plugin is tracked in
 work must follow that staged boundary instead of copying the Home AI server or
 raw Growth internals into the plugin workspace.
 
-## Core Files
+The remaining host `learning-*`, `growth-*`, `study-*`, and `assessment-*`
+files are migration residuals. They may be removed or narrowed as plugin
+ownership closes, but they must not expand. The guard is:
+
+```bash
+node scripts/growth-host-residual-boundary-check.js --json
+```
+
+## Host Residual And Boundary Files
 
 - `adapters/growth-plugin-facade-service.js` for the bounded migration facade.
 - `server-routes/growth-plugin-facade-api-routes.js` for `/api/growth/v1/*`.
@@ -296,10 +312,12 @@ state writes have plugin-owned write paths. The current Home AI legacy kanban
 submission/reflection routes may proxy to the plugin through
 `adapters/growth-plugin-submission-proxy-service.js` when a workspace-local
 `.hermes-growth/config.json` and `access-key.txt` binding exists. If the
-binding is missing during the staged migration, the routes can still fall back
-to the legacy Home AI submission service; that fallback is transitional and
-should be removed only after production cutover evidence proves plugin write
-parity. The plugin evaluation processor writes bounded evaluation records,
+binding is missing during staged migration, production returns
+`410 growth_plugin_owned` by default instead of running the legacy Home AI
+submission/reflection service. The legacy Home AI submission/reflection fallback
+is now explicit opt-in only through
+`HERMES_MOBILE_LEGACY_HOST_GROWTH_API_ENABLED=1`, for local rollback or bounded
+migration verification. The plugin evaluation processor writes bounded evaluation records,
 settles Growth-domain learning coins for completed cards, marks passed cards
 completed, and emits bounded completion/mastery/review events through the
 plugin event outbox.

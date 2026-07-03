@@ -16,6 +16,7 @@ const voiceUi = read("public/app-voice-input-ui.js");
 const voiceLearningUi = read("public/app-voice-learning-ui.js");
 const wireStart = read("public/app-wire-start-ui.js");
 const composerUi = read("public/app-chat-composer-ui.js");
+const sendPipelineUi = read("public/app-composer-send-pipeline-ui.js");
 const embeddedPluginUi = read("public/app-embedded-plugin-ui.js");
 const styles = read("public/styles.css");
 const clientVersion = indexHtml.match(/data-client-version="([^"]+)"/)?.[1] || "";
@@ -23,7 +24,8 @@ const clientVersion = indexHtml.match(/data-client-version="([^"]+)"/)?.[1] || "
 function testStaticLoadingAndCache() {
   assert.ok(clientVersion, "index.html should expose data-client-version");
   const escaped = clientVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  assert.match(indexHtml, new RegExp(`app-composer-send-ui\\.js\\?v=${escaped}[\\s\\S]*app-voice-input-ui\\.js\\?v=${escaped}[\\s\\S]*app-voice-learning-ui\\.js\\?v=${escaped}[\\s\\S]*app-wire-start-ui\\.js\\?v=${escaped}`));
+  assert.match(indexHtml, new RegExp(`app-composer-send-ui\\.js\\?v=${escaped}[\\s\\S]*app-composer-send-pipeline-ui\\.js\\?v=${escaped}[\\s\\S]*app-voice-input-ui\\.js\\?v=${escaped}[\\s\\S]*app-voice-learning-ui\\.js\\?v=${escaped}[\\s\\S]*app-wire-start-ui\\.js\\?v=${escaped}`));
+  assert.match(serviceWorker, new RegExp(`/app-composer-send-pipeline-ui\\.js\\?v=${escaped}`));
   assert.match(serviceWorker, new RegExp(`/app-voice-input-ui\\.js\\?v=${escaped}`));
   assert.match(serviceWorker, new RegExp(`/app-voice-learning-ui\\.js\\?v=${escaped}`));
   assert.match(appJs, /voiceInput: \{[\s\S]*status: "idle"[\s\S]*suppressNextClick: false/);
@@ -32,6 +34,7 @@ function testStaticLoadingAndCache() {
 
 function testSendButtonGestureContract() {
   assert.match(voiceUi, /const VOICE_INPUT_LONG_PRESS_MS = 420/);
+  assert.match(voiceUi, /const VOICE_INPUT_PENDING_GUARD_MS = VOICE_INPUT_LONG_PRESS_MS \+ 1100/);
   assert.match(voiceUi, /document\.addEventListener\("pointerdown", handleVoiceInputPointerDown, true\)/);
   assert.match(voiceUi, /document\.addEventListener\("pointerup", handleVoiceInputPointerUp, true\)/);
   assert.match(voiceUi, /document\.addEventListener\("touchstart", handleVoiceInputTouchStart, \{ capture: true, passive: false \}\)/);
@@ -43,16 +46,20 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted"/);
   assert.match(voiceUi, /function voiceInputMicrophonePermissionState\(\)/);
   assert.match(voiceUi, /function voiceInputAcquireMicrophoneStream\(options = \{\}\)/);
+  assert.match(voiceUi, /function voiceInputRuntimeNative\(\)/);
+  assert.match(voiceUi, /window\.HomeAiRuntimeFacade\?\.native/);
   assert.match(voiceUi, /function voiceInputNativeBridgeAvailable\(\)/);
-  assert.match(voiceUi, /window\.HomeAINativeVoiceInputCapability/);
-  assert.match(voiceUi, /homeAI\.nativeVoiceInput/);
-  assert.match(voiceUi, /document\.documentElement\?\.dataset\?\.nativeVoiceInput === "1"/);
+  assert.match(voiceUi, /native\?\.isVoiceInputBridgeAvailable/);
   assert.match(voiceUi, /function voiceInputPostNativeBridge\(type, fields = \{\}\)/);
-  assert.match(voiceUi, /window\.webkit\.messageHandlers\.homeAI\.postMessage\(payload\)/);
+  assert.match(voiceUi, /native\?\.postHomeAiMessage/);
   assert.match(voiceUi, /function voiceInputStartNativeBridgeCapture\(target\)/);
   assert.match(voiceUi, /voiceInputPostNativeBridge\("voiceInput.start"/);
   assert.match(voiceUi, /function voiceInputStopNativeBridgeCapture\(action = "stop"\)/);
   assert.match(voiceUi, /voiceInputPostNativeBridge\(type, \{/);
+  assert.match(voiceUi, /native\.registerVoiceInputCallbacks\(\{/);
+  assert.doesNotMatch(voiceUi, /window\.HomeAINativeVoiceInputCapability/);
+  assert.doesNotMatch(voiceUi, /window\.webkit\.messageHandlers\.homeAI\.postMessage/);
+  assert.doesNotMatch(voiceUi, /window\.HomeAINativeVoiceInput =/);
   assert.doesNotMatch(voiceUi, /function voiceInputRefreshMicHoldFromForeground\(\)/);
   assert.doesNotMatch(voiceUi, /voiceInputRefreshMicHoldFromForeground/);
   assert.match(voiceUi, /voiceInputStreamIsLive\(voice\.micHoldStream\)/);
@@ -102,8 +109,13 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /setVoiceInputStatus\(permissionState === "granted" \? "preparing" : "requesting", \{/);
   assert.match(voiceUi, /voiceInputOpenStatusPanel\("pending", \{ statusDetail: "等待长按阈值" \}\)/);
   assert.match(voiceUi, /voiceInputOpenStatusPanel\("pending", \{ statusDetail: "按住 Stop 进入语音输入" \}\)/);
+  assert.match(voiceUi, /function voiceInputCancelPendingGesture\(statusDetail = "语音手势已取消"\)/);
+  assert.match(voiceUi, /if \(voice\.status === "pending"\) \{[\s\S]*?setVoiceInputStatus\("cancelled", \{ statusDetail: "语音手势已取消" \}\);[\s\S]*?return;/);
+  assert.match(voiceUi, /if \(!longPress && voice\.status === "pending"\) \{[\s\S]*?setVoiceInputStatus\("cancelled", \{ statusDetail: "语音手势已取消" \}\);/);
   assert.match(voiceUi, /function voiceInputDismissStatusPanel\(\)/);
   assert.match(voiceUi, /voice\.dismissedByUser = true/);
+  assert.match(voiceUi, /data-voice-status-cancel aria-label="取消语音输入" title="取消">取消<\/button>/);
+  assert.match(voiceUi, /cancelButton\?\.addEventListener\("click"[\s\S]*?voiceInputDismissStatusPanel\(\);/);
   assert.match(voiceUi, /function bindVoiceInputStatusPanelDismissGuards\(\)/);
   assert.match(voiceUi, /document\.addEventListener\("pointerdown", dismissVoiceInputStatusPanelFromComposer, true\)/);
   assert.match(voiceUi, /const suppressed = suppressVoiceInputClickEvent\(event\);[\s\S]*if \(!suppressed\) voiceInputDismissStatusPanel\(\);/);
@@ -141,10 +153,10 @@ function testSendButtonGestureContract() {
   assert.match(voiceUi, /streaming final failed; falling back to full clip/);
   assert.match(voiceUi, /composer\.setText\?\.\(voice\.provisionalBaseText\)/);
   assert.match(voiceUi, /\/api\/voice-input\/commit/);
-  assert.doesNotMatch(read("public/app-event-stream-ui.js"), /\/api\/voice-input\/learn-sent-text/);
-  assert.doesNotMatch(read("public/app-event-stream-ui.js"), /learnVoiceInputSentText/);
-  assert.match(read("public/app-event-stream-ui.js"), /handleSendMessageResult\(result, createsNewTask, consumedPendingDirectory, \{\s+threadId: sendThreadId,\s+routeSnapshot: sendRouteSnapshot,\s+\}\);\s+if \(typeof commitPendingVoiceInputFinalText === "function"\) commitPendingVoiceInputFinalText\(text, body\);/);
-  assert.match(read("public/app-event-stream-ui.js"), /if \(isComposerStopMode\(\)\) \{[\s\S]*?await interruptRun\(\);/);
+  assert.doesNotMatch(sendPipelineUi, /\/api\/voice-input\/learn-sent-text/);
+  assert.doesNotMatch(sendPipelineUi, /learnVoiceInputSentText/);
+  assert.match(sendPipelineUi, /handleSendMessageResult\(result, createsNewTask, consumedPendingDirectory, \{\s+threadId: sendThreadId,\s+routeSnapshot: sendRouteSnapshot,\s+\}\);\s+if \(typeof commitPendingVoiceInputFinalText === "function"\) commitPendingVoiceInputFinalText\(text, body\);/);
+  assert.match(sendPipelineUi, /if \(isComposerStopMode\(\)\) \{[\s\S]*?await interruptRun\(\);/);
   assert.match(wireStart, /if \(typeof initializeVoiceInputUi === "function"\) initializeVoiceInputUi\(\)/);
   assert.match(wireStart, /handleVoiceInputSendClick\(event\)[\s\S]*void sendMessage\(event\)/);
   assert.match(composerUi, /refreshVoiceInputSendButton/);
@@ -154,7 +166,7 @@ function testVoiceLearningComposerMode() {
   assert.match(indexHtml, /id="topVoiceLearning"[\s\S]*>语音学习<\/button>/);
   assert.match(read("public/app-navigation-search-ui.js"), /const voiceLearning = \$\("topVoiceLearning"\);[\s\S]*voiceLearning\.hidden = !chatView;[\s\S]*voiceLearning\.disabled = !chatView;/);
   assert.match(wireStart, /\$\("topVoiceLearning"\)\?\.addEventListener\("click", \(\) => \{[\s\S]*closeTopMoreMenu\(\);[\s\S]*openVoiceLearningPanel\(\);[\s\S]*\}\);/);
-  assert.match(read("public/app-event-stream-ui.js"), /if \(typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)\) \{[\s\S]*await handleVoiceLearningComposerSend\(text\);[\s\S]*return;[\s\S]*\}/);
+  assert.match(sendPipelineUi, /if \(typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)\) \{[\s\S]*await handleVoiceLearningComposerSend\(text\);[\s\S]*return;[\s\S]*\}/);
   assert.match(voiceLearningUi, /function openVoiceLearningPanel\(\)/);
   assert.match(voiceLearningUi, /function handleVoiceLearningComposerSend\(text\)/);
   assert.match(voiceLearningUi, /\/api\/voice-input\/learn-sent-text/);
@@ -240,11 +252,12 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(voiceUi, /stopImmediatePropagation\?\.\(\)/);
   assert.match(styles, /\.voice-input-overlay/);
   assert.match(styles, /\.voice-input-overlay \{[\s\S]*?bottom: calc\(var\(--mobile-bottom-stack-height, 72px\) \+ 58px\);[\s\S]*?width: 34px;[\s\S]*?height: 34px;/);
-  assert.match(styles, /\.voice-input-overlay\.voice-input-status-panel-expanded \{[\s\S]*?grid-template-columns: 28px minmax\(0, 1fr\);[\s\S]*?min-height: 48px;/);
+  assert.match(styles, /\.voice-input-overlay\.voice-input-status-panel-expanded \{[\s\S]*?grid-template-columns: 28px minmax\(0, 1fr\) auto;[\s\S]*?min-height: 48px;[\s\S]*?pointer-events: auto;/);
   assert.match(styles, /\.voice-input-status-copy/);
   assert.match(styles, /\.voice-input-status-title/);
   assert.match(styles, /\.voice-input-status-detail/);
   assert.match(styles, /\.voice-input-status-meta/);
+  assert.match(styles, /\.voice-input-status-cancel \{[\s\S]*?min-width: 44px;[\s\S]*?border-radius: 8px;/);
   assert.match(styles, /\.voice-input-transcript/);
   assert.match(styles, /\.voice-input-mic-indicator/);
   assert.match(styles, /-webkit-mask: url\("data:image\/svg\+xml/);
@@ -264,10 +277,12 @@ function testNoTextSelectionOnSendButtonLongPress() {
   assert.match(voiceUi, /data-voice-status-title/);
   assert.match(voiceUi, /data-voice-status-detail/);
   assert.match(voiceUi, /data-voice-status-meta/);
+  assert.match(voiceUi, /data-voice-status-cancel/);
   assert.doesNotMatch(voiceUi, /data-voice-action="cancel"/);
   assert.match(voiceUi, /voice-input-overlay-recording/);
   assert.match(voiceUi, /function initializeNativeVoiceInputBridge\(\)/);
-  assert.match(voiceUi, /window\.HomeAINativeVoiceInput = Object\.assign\(existing, \{/);
+  assert.match(voiceUi, /native\.registerVoiceInputCallbacks\(\{/);
+  assert.doesNotMatch(voiceUi, /window\.HomeAINativeVoiceInput = Object\.assign\(existing, \{/);
   assert.match(voiceUi, /updateVoiceInputFromNative\(payload, payload\.status \|\| "pending"\)/);
   assert.match(voiceUi, /const partialText = status === "transcribing" && payload\.text \? String\(payload\.text\) : ""/);
   assert.match(voiceUi, /voiceInputScheduleProvisionalTranscript\(partialText\)/);
@@ -280,12 +295,15 @@ function testTerminalStatusAutoDismiss() {
   assert.match(voiceUi, /no_speech: 1800/);
   assert.match(voiceUi, /failed: 4200/);
   assert.match(voiceUi, /function scheduleVoiceInputTerminalHide\(status\)/);
+  assert.match(voiceUi, /function scheduleVoiceInputPendingGuard\(status\)/);
+  assert.match(voiceUi, /voiceInputCancelPendingGesture\("未检测到持续按住"\)/);
   assert.match(voiceUi, /clearVoiceInputTerminalHideTimer\(voice\)/);
+  assert.match(voiceUi, /clearVoiceInputPendingGuard\(voice\)/);
   assert.match(voiceUi, /if \(current\.status !== status \|\| current\.terminalHideStatus !== status\) return;/);
   assert.match(voiceUi, /closeVoiceInputOverlay\(\)/);
   assert.match(voiceUi, /function closeVoiceInputOverlay\(\) \{[\s\S]*?clearVoiceInputTerminalHideTimer\(voice\);/);
-  assert.match(voiceUi, /function setVoiceInputStatus\(status, fields = \{\}\) \{[\s\S]*?clearVoiceInputTerminalHideTimer\(voice\);[\s\S]*?scheduleVoiceInputTerminalHide\(status\);/);
-  assert.match(voiceUi, /function voiceInputOpenStatusPanel\(status = "pending", fields = \{\}\) \{[\s\S]*?clearVoiceInputTerminalHideTimer\(voice\);[\s\S]*?scheduleVoiceInputTerminalHide\(status\);/);
+  assert.match(voiceUi, /function setVoiceInputStatus\(status, fields = \{\}\) \{[\s\S]*?clearVoiceInputTerminalHideTimer\(voice\);[\s\S]*?clearVoiceInputPendingGuard\(voice\);[\s\S]*?scheduleVoiceInputPendingGuard\(status\);[\s\S]*?scheduleVoiceInputTerminalHide\(status\);/);
+  assert.match(voiceUi, /function voiceInputOpenStatusPanel\(status = "pending", fields = \{\}\) \{[\s\S]*?clearVoiceInputTerminalHideTimer\(voice\);[\s\S]*?clearVoiceInputPendingGuard\(voice\);[\s\S]*?scheduleVoiceInputPendingGuard\(status\);[\s\S]*?scheduleVoiceInputTerminalHide\(status\);/);
 }
 
 testStaticLoadingAndCache();

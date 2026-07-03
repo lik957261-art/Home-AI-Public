@@ -237,6 +237,28 @@
     return Math.min(max, Math.max(min, number));
   }
 
+  function aiOpsRuntimeFacade(rootRef = root) {
+    return rootRef?.HomeAiRuntimeFacade || null;
+  }
+
+  function aiOpsRuntimeEvent(runtimeFacade, type, detail = {}) {
+    return runtimeFacade?.events?.emit?.(type, detail) || null;
+  }
+
+  function aiOpsRuntimeState(runtimeFacade, patch = {}) {
+    return runtimeFacade?.state?.set?.(patch) || null;
+  }
+
+  function aiOpsRuntimeStatus(runtimeFacade, message, detail = {}) {
+    return runtimeFacade?.feedback?.status?.(message, detail) || null;
+  }
+
+  function aiOpsRuntimeToast(runtimeFacade, message, detail = {}) {
+    if (runtimeFacade?.feedback?.toast) return runtimeFacade.feedback.toast(message, detail);
+    if (typeof root.showPushToast === "function") return root.showPushToast(message, detail.tone || "");
+    return null;
+  }
+
   function safeReportCode(value, defaultValue = "") {
     const text = cleanString(value || defaultValue, 80).replace(/[^A-Za-z0-9._:-]+/g, "_");
     return text || defaultValue;
@@ -437,8 +459,9 @@
   function createAiOpsDiagnosticFeedbackController(options = {}) {
     const documentRef = options.document || root.document;
     const windowRef = options.window || root;
-    const stateRef = options.state || root.state || {};
-    const apiClient = options.api || root.api;
+    const runtimeFacade = options.runtimeFacade || aiOpsRuntimeFacade(windowRef) || aiOpsRuntimeFacade(root);
+    const stateRef = options.state || runtimeFacade?.state?.get?.() || {};
+    const apiClient = options.api || runtimeFacade?.api || null;
     const now = typeof options.now === "function" ? options.now : () => new Date();
     const recentEvents = [];
     let sheet = null;
@@ -457,12 +480,12 @@
       });
       recentEvents.push(item);
       while (recentEvents.length > RING_LIMIT) recentEvents.shift();
+      aiOpsRuntimeEvent(runtimeFacade, "ai-ops-diagnostic:record", { kind, fields: item.fields || {} });
       return item;
     }
 
     function submitTransportDiagnostic(kind, fields = {}) {
-      if (typeof windowRef.fetch !== "function") return;
-      const body = JSON.stringify(sanitizeClientDiagnosticValue({
+      const payload = sanitizeClientDiagnosticValue({
         event: "plugin_diagnostic_transport",
         kind: safeReportCode(kind, "event"),
         clientVersion: documentRef?.documentElement?.dataset?.clientVersion || "",
@@ -474,13 +497,11 @@
         case_id: fields.case_id || "",
         owner_notified: Boolean(fields.owner_notified || fields.ownerNotified),
         source_surface: fields.source_surface || fields.sourceSurface || "embedded-plugin",
-      }));
-      windowRef.fetch(CLIENT_LAYOUT_DIAGNOSTIC_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
+      });
+      runtimeFacade?.diagnostics?.sendClientLayoutDiagnostic?.(payload, {
+        endpoint: CLIENT_LAYOUT_DIAGNOSTIC_ENDPOINT,
         keepalive: true,
-      }).catch(() => {});
+      });
     }
 
     function normalizePluginConversationEvidence(input = {}) {
@@ -637,6 +658,7 @@
           </label>
           <p data-ai-ops-status>将只提交最近的状态、计数和错误码。</p>
           <div class="ai-ops-diagnostic-actions">
+            <button type="button" data-ai-ops-open-system-console hidden>系统控制台</button>
             <button type="button" data-ai-ops-close>取消</button>
             <button type="button" data-ai-ops-submit>提交</button>
           </div>
@@ -644,8 +666,41 @@
       `;
       sheet.querySelectorAll("[data-ai-ops-close]").forEach((button) => button.addEventListener("click", closeFeedback));
       sheet.querySelector("[data-ai-ops-submit]")?.addEventListener("click", submitFeedback);
+      sheet.querySelector("[data-ai-ops-open-system-console]")?.addEventListener("click", openOwnerSystemConsoleFromFeedback);
       documentRef.body.appendChild(sheet);
       return sheet;
+    }
+
+    function ownerSystemConsoleAvailable() {
+      return Boolean(stateRef.auth?.isOwner && typeof windowRef.openOwnerSystemConsoleSurface === "function");
+    }
+
+    function updateOwnerSystemConsoleAction() {
+      const button = sheet?.querySelector?.("[data-ai-ops-open-system-console]");
+      if (!button) return;
+      button.hidden = !ownerSystemConsoleAvailable();
+    }
+
+    function openOwnerSystemConsoleFromFeedback() {
+      if (!stateRef.auth?.isOwner) return;
+      if (typeof windowRef.openOwnerSystemConsoleSurface !== "function") {
+        setStatus("系统控制台尚未就绪。", "error");
+        return;
+      }
+      closeFeedback();
+      try {
+        Promise.resolve(windowRef.openOwnerSystemConsoleSurface({ trigger: "diagnostic_feedback_menu" }))
+          .then(() => {
+            aiOpsRuntimeToast(runtimeFacade, "已打开系统控制台", { tone: "success" });
+          })
+          .catch((err) => {
+            setStatus("系统控制台打开失败。", "error");
+            record("owner_system_console_open_failed", { error: err?.code || err?.message || "open_failed" });
+          });
+      } catch (err) {
+        setStatus("系统控制台打开失败。", "error");
+        record("owner_system_console_open_failed", { error: err?.code || err?.message || "open_failed" });
+      }
     }
 
     function setStatus(message, tone = "") {
@@ -653,6 +708,7 @@
       if (!target) return;
       target.textContent = message;
       target.dataset.tone = tone;
+      aiOpsRuntimeStatus(runtimeFacade, message, { tone });
     }
 
     function setContextLabel(context = {}) {
@@ -676,11 +732,20 @@
       if (!sheet) return;
       pendingFeedbackContext = normalizeFeedbackContext(detail);
       setContextLabel(pendingFeedbackContext);
+      updateOwnerSystemConsoleAction();
       const category = sheet.querySelector("[data-ai-ops-category]");
       const wantedCategory = cleanString(detail.category || (pendingFeedbackContext.plugin_id ? "plugin_issue" : ""), 80);
       if (optionExists(category, wantedCategory)) category.value = wantedCategory;
       setStatus("将只提交最近的状态、计数和错误码。", "");
       sheet.classList.remove("hidden");
+      aiOpsRuntimeState(runtimeFacade, {
+        aiOpsDiagnosticFeedbackOpen: true,
+        aiOpsDiagnosticFeedbackCategory: category?.value || "",
+      });
+      aiOpsRuntimeEvent(runtimeFacade, "ai-ops-diagnostic:feedback-open", {
+        trigger: detail.trigger || "manual",
+        pluginId: pendingFeedbackContext.plugin_id || "",
+      });
       record("feedback_opened", {
         trigger: detail.trigger || "manual",
         pluginId: pendingFeedbackContext.plugin_id || "",
@@ -692,6 +757,8 @@
     function closeFeedback() {
       if (!sheet) return;
       sheet.classList.add("hidden");
+      aiOpsRuntimeState(runtimeFacade, { aiOpsDiagnosticFeedbackOpen: false });
+      aiOpsRuntimeEvent(runtimeFacade, "ai-ops-diagnostic:feedback-close", {});
     }
 
     async function submitFeedback() {
@@ -704,16 +771,33 @@
         return;
       }
       setStatus("正在提交诊断...", "pending");
+      aiOpsRuntimeState(runtimeFacade, { aiOpsDiagnosticSubmissionStatus: "submitting" });
+      aiOpsRuntimeEvent(runtimeFacade, "ai-ops-diagnostic:feedback-submit:start", { category });
       try {
         const result = await apiClient("/api/v1/home-ai/diagnostics/events", {
           method: "POST",
           body: JSON.stringify(payload),
         });
         record("feedback_submitted", { case_id: result?.case_id || "", status: result?.status || "" });
+        aiOpsRuntimeState(runtimeFacade, {
+          aiOpsDiagnosticSubmissionStatus: "submitted",
+          aiOpsDiagnosticCaseId: result?.case_id || "",
+        });
+        aiOpsRuntimeEvent(runtimeFacade, "ai-ops-diagnostic:feedback-submit:success", {
+          caseId: result?.case_id || "",
+          status: result?.status || "",
+        });
         setStatus(`已记录：${result?.case_id || "diagnostic case"}`, "ok");
         windowRef.setTimeout?.(closeFeedback, 900);
       } catch (err) {
         record("feedback_submit_failed", { error: err?.code || err?.message || "submit_failed" });
+        aiOpsRuntimeState(runtimeFacade, {
+          aiOpsDiagnosticSubmissionStatus: "error",
+          aiOpsDiagnosticError: err?.code || err?.message || "submit_failed",
+        });
+        aiOpsRuntimeEvent(runtimeFacade, "ai-ops-diagnostic:feedback-submit:error", {
+          error: err?.code || err?.message || "submit_failed",
+        });
         setStatus("提交失败，诊断未记录。", "error");
       }
     }
@@ -738,6 +822,11 @@
         category: payload.category,
         diagnostic_type: payload.diagnostic_type,
       });
+      aiOpsRuntimeState(runtimeFacade, { aiOpsDiagnosticSubmissionStatus: "submitting" });
+      aiOpsRuntimeEvent(runtimeFacade, "ai-ops-diagnostic:plugin-submit:start", {
+        pluginId: payload.plugin_id,
+        category: payload.category,
+      });
       try {
         const result = await apiClient("/api/v1/home-ai/diagnostics/events", {
           method: "POST",
@@ -756,6 +845,15 @@
           case_id: result?.case_id || "",
           owner_notified: Boolean(result?.owner_notification?.notified),
         });
+        aiOpsRuntimeState(runtimeFacade, {
+          aiOpsDiagnosticSubmissionStatus: "submitted",
+          aiOpsDiagnosticCaseId: result?.case_id || "",
+        });
+        aiOpsRuntimeEvent(runtimeFacade, "ai-ops-diagnostic:plugin-submit:success", {
+          pluginId: payload.plugin_id,
+          category: payload.category,
+          caseId: result?.case_id || "",
+        });
         return result;
       } catch (err) {
         record("plugin_diagnostic_report_failed", {
@@ -767,6 +865,15 @@
           pluginId: payload.plugin_id,
           category: payload.category,
           diagnostic_type: payload.diagnostic_type,
+          error: err?.code || err?.message || "submit_failed",
+        });
+        aiOpsRuntimeState(runtimeFacade, {
+          aiOpsDiagnosticSubmissionStatus: "error",
+          aiOpsDiagnosticError: err?.code || err?.message || "submit_failed",
+        });
+        aiOpsRuntimeEvent(runtimeFacade, "ai-ops-diagnostic:plugin-submit:error", {
+          pluginId: payload.plugin_id,
+          category: payload.category,
           error: err?.code || err?.message || "submit_failed",
         });
         return null;
@@ -843,30 +950,21 @@
       }
     }
 
-    function pluginConversationActionStorageKey(key) {
-      return `homeai.pluginConversationAction.${key}`;
-    }
-
     function pluginConversationActionAlreadySubmitted(key) {
       if (!key || submittedPluginConversationActionKeys.has(key)) return true;
-      try {
-        return Boolean(windowRef.localStorage?.getItem(pluginConversationActionStorageKey(key)));
-      } catch (_) {
-        return false;
-      }
+      return Boolean(runtimeFacade?.dedupe?.has?.("pluginConversationAction", key));
     }
 
     function markPluginConversationActionSubmitted(key, payload = {}) {
       if (!key) return;
       submittedPluginConversationActionKeys.add(key);
-      try {
-        windowRef.localStorage?.setItem(pluginConversationActionStorageKey(key), JSON.stringify({
-          at: now().toISOString(),
-          inboxItemId: payload.inboxItemId || "",
-        }));
-      } catch (err) {
+      const marked = runtimeFacade?.dedupe?.mark?.("pluginConversationAction", key, {
+        at: now().toISOString(),
+        inboxItemId: payload.inboxItemId || "",
+      });
+      if (marked === false) {
         record("plugin_conversation_action_storage_failed", {
-          error: err?.code || err?.message || "storage_write_failed",
+          error: "storage_write_failed",
         });
       }
     }
@@ -918,9 +1016,7 @@
           submitPluginConversationAction(null, action).then((result) => {
             if (result?.ok !== false && result?.inboxItem?.id && result?.dispatchReady !== false) {
               markPluginConversationActionSubmitted(key, { inboxItemId: result.inboxItem.id });
-              if (typeof root.showPushToast === "function") {
-                root.showPushToast("已提交插件修复审批，等待 Owner 发卡", "success");
-              }
+              aiOpsRuntimeToast(runtimeFacade, "已提交插件修复审批，等待 Owner 发卡", { tone: "success" });
             } else {
               submittedPluginConversationActionKeys.delete(key);
             }
@@ -1158,10 +1254,12 @@
 }));
 
 if (typeof window !== "undefined" && window.HomeAIDiagnosticFeedback) {
+  const homeAiRuntimeFacade = window.HomeAiRuntimeFacade || null;
   window.homeAiDiagnosticFeedback = window.HomeAIDiagnosticFeedback.createAiOpsDiagnosticFeedbackController({
-    api: typeof api === "function" ? api : null,
+    api: homeAiRuntimeFacade?.api || (typeof api === "function" ? api : null),
     document,
-    state: typeof state === "object" ? state : {},
+    runtimeFacade: homeAiRuntimeFacade,
+    state: typeof state === "object" ? state : homeAiRuntimeFacade?.state?.get?.() || {},
     window,
   });
   window.homeAiDiagnosticFeedback.install();

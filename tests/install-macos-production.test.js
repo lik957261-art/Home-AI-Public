@@ -1804,18 +1804,28 @@ function testExecuteConfigureCronCreatesCanonicalStoreAndHelpers() {
   assert.equal(parsed.execution.ok, true);
   assert.equal(parsed.execution.report.ok, true);
   assert.equal(parsed.execution.report.businessJobsCreated, false);
+  assert.equal(parsed.execution.report.selfImprovingLoopJobConfigured, true);
   assert.equal(parsed.execution.report.launchdInstalled, false);
-  assert.equal(parsed.execution.report.jobCount, 0);
+  assert.equal(parsed.execution.report.jobCount, 1);
   assert.ok(parsed.execution.report.skillCount >= 1);
   const jobsPath = path.join(root, "data", "hermes-home", "cron", "jobs.json");
-  assert.deepEqual(JSON.parse(fs.readFileSync(jobsPath, "utf8")), { jobs: [] });
+  const jobsDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  assert.equal(jobsDoc.jobs.length, 1);
+  assert.equal(jobsDoc.jobs[0].id, "homeai_self_improving_loop");
+  assert.equal(jobsDoc.jobs[0].script, "homeai-self-improving-loop-cron.sh");
+  assert.equal(jobsDoc.jobs[0].no_agent, true);
+  assert.equal(jobsDoc.jobs[0].schedule.expr, "17 4 * * *");
   assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "scripts", "hermes-mobile-cron-dispatcher.py")), true);
   assert.equal(fs.statSync(path.join(root, "data", "hermes-home", "scripts", "hermes-mobile-cron-dispatcher.py")).mode & 0o777, 0o755);
   assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "scripts", "homeai-production-drift-audit-watchdog.sh")), true);
   assert.equal(fs.statSync(path.join(root, "data", "hermes-home", "scripts", "homeai-production-drift-audit-watchdog.sh")).mode & 0o777, 0o755);
+  assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "scripts", "homeai-self-improving-loop-cron.sh")), true);
+  assert.equal(fs.statSync(path.join(root, "data", "hermes-home", "scripts", "homeai-self-improving-loop-cron.sh")).mode & 0o777, 0o755);
   assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "skills", "productivity", "home-ai-todo-intake", "SKILL.md")), true);
   const plan = JSON.parse(fs.readFileSync(path.join(root, "data", "cron-config-plan.json"), "utf8"));
   assert.equal(plan.businessJobsCreated, false);
+  assert.equal(plan.selfImprovingLoopJob.ok, true);
+  assert.equal(plan.selfImprovingLoopJob.id, "homeai_self_improving_loop");
   assert.equal(plan.launchdInstalled, false);
   assert.equal(plan.environment.HERMES_MOBILE_NETWORK_MODE, "direct");
   const audit = spawnSync(process.execPath, [
@@ -1833,7 +1843,7 @@ function testExecuteConfigureCronCreatesCanonicalStoreAndHelpers() {
   assert.equal(audit.status, 0, audit.stdout || audit.stderr);
   const auditPayload = JSON.parse(audit.stdout);
   assert.equal(auditPayload.ok, true);
-  assert.equal(auditPayload.jobCount, 0);
+  assert.equal(auditPayload.jobCount, 1);
   const phase = parsed.phases.find((item) => item.id === "configure-cron");
   assert.equal(phase.status, "executed");
 }
@@ -1853,10 +1863,14 @@ function testExecuteConfigureCronPreservesExistingJobsStore() {
   ]));
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
   const jobs = JSON.parse(fs.readFileSync(jobsPath, "utf8")).jobs;
-  assert.equal(jobs.length, 1);
-  assert.equal(jobs[0].id, "existing");
-  assert.equal(parsed.execution.report.jobCount, 1);
+  assert.equal(jobs.length, 2);
+  assert.equal(jobs.some((job) => job.id === "existing"), true);
+  const selfLoopJob = jobs.find((job) => job.id === "homeai_self_improving_loop");
+  assert.equal(selfLoopJob.script, "homeai-self-improving-loop-cron.sh");
+  assert.equal(selfLoopJob.no_agent, true);
+  assert.equal(parsed.execution.report.jobCount, 2);
   assert.equal(parsed.execution.report.actions.some((item) => item.action === "jobs-store-exists"), true);
+  assert.equal(parsed.execution.report.actions.some((item) => item.action === "create-self-improving-loop-job"), true);
 }
 
 function testExecuteConfigureCronFailsClosedForInvalidNetworkMode() {

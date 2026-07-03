@@ -178,11 +178,13 @@ function createHarness(pluginId = "codex-mobile", origin = "https://codex.exampl
       def: EMBEDDED_PLUGIN_DEFS[${JSON.stringify(pluginId)}],
       embeddedPluginRecord,
       embeddedPluginResidentShellMatchesLaunchContext,
+      embeddedPluginStableEntrySignature,
       ensureEmbeddedPluginNavigationBridge,
       embeddedPluginRefreshRequiredEventType,
       requestEmbeddedPluginRefresh,
       renderEmbeddedPluginView,
-      scheduleEmbeddedPluginLaunchHealthCheck
+      scheduleEmbeddedPluginLaunchHealthCheck,
+      scheduleEmbeddedPluginNavigationHealthCheck
     };
   `, sandbox);
   const def = sandbox.__pluginRefreshHarness.def;
@@ -208,6 +210,7 @@ function createHarness(pluginId = "codex-mobile", origin = "https://codex.exampl
         kind: "embedded_app",
         workspaceId: "owner",
         entry: { url: `${origin}/?embed=hermes`, origin },
+        embedding: pluginId === "codex-mobile" ? { refreshOnVersionChange: true } : {},
         embed: { tokenStatus: "launch_token_issued" },
       };
       record.manifestAppearanceKey = "light/default";
@@ -276,7 +279,7 @@ function testFailedManifestIsNotReused() {
   );
 }
 
-function testCodexResidentFrameSurvivesExpiredLaunchManifest() {
+function testCodexResidentFrameSurvivesExpiredLaunchManifestWhileRefreshing() {
   const harness = createHarness();
   const shell = harness.makeShell("https://codex.example.test/?embed=hermes");
   const { def, record } = harness.setupManifest(shell);
@@ -292,18 +295,54 @@ function testCodexResidentFrameSurvivesExpiredLaunchManifest() {
 
   assert.equal(shell.removed, false);
   assert.equal(harness.host.hidden, false);
-  assert.deepEqual(harness.calls.api, []);
+  assert.equal(harness.calls.api.length, 1);
+  assert.match(
+    harness.calls.api[0],
+    /^\/api\/hermes-plugins\/codex-mobile\/manifest\?/,
+  );
   assert.equal(harness.calls.nav > 0, true);
 }
 
-function testFreshManifestEntryRebuildsNavigatedShell() {
+function testStableEntrySignatureStripsLaunchTokenOnly() {
   const harness = createHarness();
-  const oldShell = harness.makeShell("https://codex.example.test/?embed=hermes&codexPluginLaunch=old");
+  const { embeddedPluginStableEntrySignature } = harness.sandbox.__pluginRefreshHarness;
+  const base = "https://codex.example.test/?embed=hermes&codexPluginLaunch=old&workspaceId=owner&codexMobileBuild=build-a&pluginTheme=light";
+  const rotated = "https://codex.example.test/?codexPluginLaunch=new&pluginTheme=light&workspaceId=owner&embed=hermes&codexMobileBuild=build-a";
+  const changedBuild = "https://codex.example.test/?embed=hermes&codexPluginLaunch=new&workspaceId=owner&codexMobileBuild=build-b&pluginTheme=light";
+
+  assert.equal(embeddedPluginStableEntrySignature(base), embeddedPluginStableEntrySignature(rotated));
+  assert.notEqual(embeddedPluginStableEntrySignature(base), embeddedPluginStableEntrySignature(changedBuild));
+}
+
+function testFreshManifestTokenRotationPreservesLoadedShell() {
+  const harness = createHarness();
+  const oldEntry = "https://codex.example.test/?embed=hermes&codexPluginLaunch=old&workspaceId=owner&codexMobileBuild=build-a";
+  const oldShell = harness.makeShell(oldEntry);
+  const { def, record, shell } = harness.setupManifest(oldShell);
+  harness.sandbox.state.viewMode = "codex";
+  record.frameLoadedAt = 5500;
+  record.renderedEntryUrl = oldEntry;
+  record.manifest.entry.url = "https://codex.example.test/?embed=hermes&codexPluginLaunch=new&workspaceId=owner&codexMobileBuild=build-a";
+  record.manifestFetchedAt = 6000;
+  record.manifestFreshForFrame = true;
+  harness.sandbox.Date.now = () => 7000;
+
+  harness.sandbox.__pluginRefreshHarness.renderEmbeddedPluginView(def);
+
+  assert.equal(shell.removed, false);
+  assert.equal(harness.host.hidden, false);
+  assert.equal(harness.host.innerHTML.includes("codexPluginLaunch=new"), false);
+  assert.deepEqual(harness.calls.api, []);
+}
+
+function testFreshManifestBuildChangeRebuildsNavigatedShell() {
+  const harness = createHarness();
+  const oldShell = harness.makeShell("https://codex.example.test/?embed=hermes&codexPluginLaunch=old&workspaceId=owner&codexMobileBuild=build-a");
   const { def, record, shell } = harness.setupManifest(oldShell);
   harness.sandbox.state.viewMode = "codex";
   record.navigationLastAt = 5000;
-  record.renderedEntryUrl = "https://codex.example.test/?embed=hermes&codexPluginLaunch=old";
-  record.manifest.entry.url = "https://codex.example.test/?embed=hermes&codexPluginLaunch=new";
+  record.renderedEntryUrl = "https://codex.example.test/?embed=hermes&codexPluginLaunch=old&workspaceId=owner&codexMobileBuild=build-a";
+  record.manifest.entry.url = "https://codex.example.test/?embed=hermes&codexPluginLaunch=new&workspaceId=owner&codexMobileBuild=build-b";
   record.manifestFetchedAt = 6000;
   harness.sandbox.Date.now = () => 7000;
 
@@ -311,6 +350,25 @@ function testFreshManifestEntryRebuildsNavigatedShell() {
 
   assert.equal(shell.removed, true);
   assert.match(harness.host.innerHTML, /codexPluginLaunch=new/);
+  assert.match(harness.host.innerHTML, /codexMobileBuild=build-b/);
+}
+
+function testFreshManifestRouteChangeRebuildsLoadedShell() {
+  const harness = createHarness();
+  const oldShell = harness.makeShell("https://codex.example.test/?embed=hermes&codexPluginLaunch=old&workspaceId=owner&codexMobileBuild=build-a&pluginThreadId=thread-a");
+  const { def, record, shell } = harness.setupManifest(oldShell);
+  harness.sandbox.state.viewMode = "codex";
+  record.frameLoadedAt = 5500;
+  record.renderedEntryUrl = "https://codex.example.test/?embed=hermes&codexPluginLaunch=old&workspaceId=owner&codexMobileBuild=build-a&pluginThreadId=thread-a";
+  record.manifest.entry.url = "https://codex.example.test/?embed=hermes&codexPluginLaunch=new&workspaceId=owner&codexMobileBuild=build-a&pluginThreadId=thread-b";
+  record.manifestFetchedAt = 6000;
+  record.manifestFreshForFrame = true;
+  harness.sandbox.Date.now = () => 7000;
+
+  harness.sandbox.__pluginRefreshHarness.renderEmbeddedPluginView(def);
+
+  assert.equal(shell.removed, true);
+  assert.match(harness.host.innerHTML, /pluginThreadId=thread-b/);
 }
 
 function testRefreshIgnoresWrongOrigin() {
@@ -475,17 +533,45 @@ function testLaunchHealthRefreshUsesCooldown() {
   assert.equal(record.lastRefreshSuppressedAt, 305000);
 }
 
+function testNavigationHealthDoesNotRefreshLoadedShell() {
+  const harness = createHarness();
+  const { def, record, shell } = harness.setupManifest();
+  harness.sandbox.state.viewMode = "codex";
+  shell.classList = createClassList();
+  record.shellNode = shell;
+  record.loading = false;
+  record.checked = true;
+  harness.sandbox.Date.now = () => 500000;
+
+  harness.sandbox.__pluginRefreshHarness.scheduleEmbeddedPluginNavigationHealthCheck(def, shell.querySelector(".embedded-plugin-frame"), 500000);
+  assert.equal(harness.calls.timers.length, 1);
+  harness.calls.timers[0].callback();
+
+  assert.equal(harness.calls.api.length, 0);
+
+  shell.classList.add("is-loading");
+  harness.sandbox.Date.now = () => 501000;
+  harness.sandbox.__pluginRefreshHarness.scheduleEmbeddedPluginNavigationHealthCheck(def, shell.querySelector(".embedded-plugin-frame"), 501000);
+  harness.calls.timers[harness.calls.timers.length - 1].callback();
+
+  assert.equal(harness.calls.api.length, 1);
+}
+
 testRefreshIgnoresWrongOrigin();
 testLaunchManifestExpiresForTokenPlugins();
 testFailedManifestIsNotReused();
-testCodexResidentFrameSurvivesExpiredLaunchManifest();
+testCodexResidentFrameSurvivesExpiredLaunchManifestWhileRefreshing();
 testStandardResidentFrameSurvivesExpiredLaunchManifest();
-testFreshManifestEntryRebuildsNavigatedShell();
+testStableEntrySignatureStripsLaunchTokenOnly();
+testFreshManifestTokenRotationPreservesLoadedShell();
+testFreshManifestBuildChangeRebuildsNavigatedShell();
+testFreshManifestRouteChangeRebuildsLoadedShell();
 testRefreshRebuildsActivePluginWithBoundedRoute();
 testRefreshInvalidatesInactivePluginWithoutFetching();
 testRefreshRequiredBypassesWarmupButUsesCooldown();
 testRefreshRequiredIgnoredDuringManifestLoad();
 testRefreshRequiredBypassesFrameWarmup();
 testLaunchHealthRefreshUsesCooldown();
+testNavigationHealthDoesNotRefreshLoadedShell();
 
 console.log("embedded plugin refresh harness tests passed");

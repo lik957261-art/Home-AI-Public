@@ -190,6 +190,21 @@ const PLUGINS = [
     ],
   },
   {
+    id: "movie",
+    title: "Movie",
+    dirName: "Movie",
+    port: 4195,
+    pointerMode: "movie_owner_only",
+    commonPaths: ["/Users/example/path"],
+    macSourcePaths: ["/Users/example/path"],
+    launchdLabel: "com.hermesmobile.plugin.movie",
+    manifestPath: "/api/v1/hermes/plugin/manifest",
+    devRuntimeKeywords: ["node", "npm"],
+    optionalHttpProbes: [
+      { name: "mcp_schema", path: "/api/v1/movie/mcp/schemas", requireText: ["movie"] },
+    ],
+  },
+  {
     id: "codex-mobile",
     title: "Codex Mobile Web",
     dirName: "codex-mobile-web",
@@ -408,6 +423,7 @@ function checkAiOpsPointerFields(text, result) {
 
 function checkPointer(plugin, options) {
   if (plugin.type === "native_client") return checkNativeClientPointer(plugin, options);
+  if (plugin.pointerMode === "movie_owner_only") return checkMovieOwnerOnlyPointer(plugin, options);
   const workspacePath = resolvePluginWorkspacePath(plugin, options);
   const pointerPath = path.join(workspacePath, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
   const handoffPath = path.join(workspacePath, ".agent-context", "HANDOFF.md");
@@ -466,6 +482,56 @@ function checkPointer(plugin, options) {
   if (exists(handoffPath)) {
     const handoff = readText(handoffPath);
     result.handoffPointer = handoff.includes("Home AI Platform Contract Pointer") && Boolean(pointerContractVersion(handoff));
+  }
+  if (!result.handoffPointer) result.warnings.push("handoff_pointer_missing");
+  return result;
+}
+
+function checkMovieOwnerOnlyPointer(plugin, options) {
+  const workspacePath = resolvePluginWorkspacePath(plugin, options);
+  const pointerPath = path.join(workspacePath, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  const handoffPath = path.join(workspacePath, ".agent-context", "HANDOFF.md");
+  const result = {
+    plugin: plugin.id,
+    pointerMode: plugin.pointerMode,
+    workspacePath,
+    pointerPath,
+    pointerExists: exists(pointerPath),
+    handoffPointer: false,
+    issues: [],
+    warnings: [],
+  };
+  if (!result.pointerExists) {
+    result.issues.push("pointer_missing");
+    return result;
+  }
+  const text = readText(pointerPath);
+  for (const needle of [
+    "Home AI Platform Contract Pointer",
+    "plugin id: `movie`",
+    "repository path: `/Users/example/path`",
+    `production source path: \`${plugin.macSourcePaths[0]}\``,
+    "production data path: `/Users/example/path`",
+    `development URL/port: \`http://127.0.0.1:${plugin.port}\``,
+    `production URL/port: \`http://127.0.0.1:${plugin.port}\``,
+    `service identity: \`${plugin.launchdLabel}\``,
+    "MCP toolset/server id: `movie` / `movie`",
+    "mcp_movie_search_sources",
+    "mcp_movie_list_source_state",
+    "Owner",
+    "raw secrets",
+  ]) {
+    if (!text.includes(needle)) result.issues.push(`movie_pointer_missing_text:${needle}`);
+  }
+  for (const match of forbiddenSecretMatches(text)) {
+    result.issues.push(`pointer_secret_pattern:${match}`);
+  }
+  for (const pattern of FORBIDDEN_PLUGIN_RUNTIME_DOMAINS) {
+    if (pattern.test(text)) result.issues.push(`pointer_forbidden_runtime_domain:${pattern.source}`);
+  }
+  if (exists(handoffPath)) {
+    const handoff = readText(handoffPath);
+    result.handoffPointer = handoff.includes("Home AI") && /movie/i.test(handoff);
   }
   if (!result.handoffPointer) result.warnings.push("handoff_pointer_missing");
   return result;

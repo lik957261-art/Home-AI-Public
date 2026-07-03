@@ -47,6 +47,26 @@ only; native testing is handled by `/api/native/devices/test-notification`.
 - For Growth true task completion, Web Push should use `notifyLearningGrowthTaskComplete`: upsert summary-only Action Inbox items for the task workspace, Owner, and authorized workspace-policy recipients, then send per-principal notifications whose URLs point to each recipient workspace's Inbox item. If Inbox upsert fails, fall back to the original Growth task URL.
 - For ordinary active chat/topic task completion/failure receipts, Web Push should link directly to the relevant chat/topic/task route and should not upsert a default Inbox item. The user just initiated the request, so the push click itself is the completion surface. These payloads must use the terminal assistant receipt `messageId`, not the first message in the topic, so clicks scroll to the completion/failure receipt.
 - Ordinary task terminal receipts are idempotent per assistant receipt/tag. If duplicate terminal Gateway events arrive for the same assistant message, or a second producer calls the terminal notifier with the same task receipt tag after a successful send, Hermes Mobile must not send a second Web Push or enqueue a second external terminal delivery.
+- The Web Push sender is the final idempotency boundary for tagged payloads:
+  after a successful delivery for the same `messageType`, `tag`, and principal
+  set, a later producer call with the same tuple must return a bounded
+  `deduped` result without calling the underlying Web Push transport. Producers
+  should still dedupe before calling the sender, but repeated calls must not
+  produce repeated system notifications. A caller that intentionally needs a
+  repeated same-tag send must opt in explicitly with `allowDuplicateTag`.
+- Owner-gated plugin conversation repair requests use an Action Inbox row and a
+  Web Push tag derived from the same bounded request signature, not from a
+  transport-specific request id. A server completion submit and a client
+  fallback submit for the same bounded request may refresh the Inbox row but
+  must not produce two system notifications. After the equivalent approval is
+  terminal, a repeated request must not reopen it or send another Web Push; a new
+  approval requires a distinct bounded request signature.
+- If a producer omits explicit `principalId` / `principalIds` but the payload
+  carries a bounded `data.principalId`, `data.principalIds`, or
+  `data.workspaceId`, the Web Push sender treats that payload value as the
+  target principal set for both delivery filtering and duplicate-tag checks.
+  This prevents a second producer path from turning the same tagged Owner
+  approval into a broadcast and bypassing the sender-level idempotency boundary.
 - Passive or durable notifications should still use Inbox when later attention is needed: automation delivery/failure, manual Todo/reminder, permission/approval/review requests, and Growth/executor card completion.
 - Embedded plugins must delegate user notifications to Hermes Mobile instead of
   registering iframe-local Web Push subscriptions. Plugin backends post bounded
@@ -57,6 +77,9 @@ only; native testing is handled by `/api/native/devices/test-notification`.
   completion keeps one latest Inbox record per workspace by using a
   workspace-scoped dedupe key, but Web Push clicks go directly to the Codex
   plugin route so the task/thread can open without an intermediate Inbox step.
+  For Inbox-backed plugin notifications, a repeated callback with the same
+  dedupe key may update the row, but only a newly created or truly reopened row
+  sends another Web Push.
   This keeps local/LAN or proxy-only plugins usable even when their own
   HTTPS/Web Push origin is disabled.
 - Codex Mobile completion push is gated on terminal evidence. Hermes must not

@@ -7,6 +7,8 @@ const { execFileSync } = require("node:child_process");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const INSTALLER = path.join(REPO_ROOT, "scripts", "install-macos-production.sh");
+const PRODUCTION_APP_ROOT = "/Users/example/path";
+const PRODUCTION_SERVICE_USER = "hermes-host";
 
 const REHEARSAL_PHASES = [
   "create-directory-layout",
@@ -99,10 +101,47 @@ function artifactStatus(root) {
   }));
 }
 
+function currentUsername() {
+  try {
+    return os.userInfo().username || "";
+  } catch (_err) {
+    return "";
+  }
+}
+
+function productionServiceUserIssue(options = {}) {
+  const repoRoot = path.resolve(options.repoRoot || REPO_ROOT);
+  const productionRoot = path.resolve(options.productionAppRoot || PRODUCTION_APP_ROOT);
+  const username = options.username || currentUsername();
+  const allow = options.allowNonServiceUserProductionRehearsal === true
+    || process.env.HOMEAI_ALLOW_NON_SERVICE_USER_PRODUCTION_REHEARSAL === "1";
+  if (repoRoot !== productionRoot || allow || username === PRODUCTION_SERVICE_USER) return null;
+  return {
+    code: "production_rehearsal_requires_service_user",
+    currentUser: username,
+    requiredUser: PRODUCTION_SERVICE_USER,
+    productionAppRoot: productionRoot,
+  };
+}
+
 function buildReport(options = {}) {
   const issues = [];
+  const serviceUserIssue = productionServiceUserIssue(options);
+  if (serviceUserIssue) {
+    return {
+      ok: false,
+      schemaVersion: 1,
+      root: "",
+      temporaryRoot: false,
+      phaseCount: REHEARSAL_PHASES.length,
+      phases: [],
+      artifacts: [],
+      issues: [serviceUserIssue],
+    };
+  }
   const rootInfo = makeRoot(options);
   const phaseResults = [];
+  let report = null;
   try {
     for (const phase of REHEARSAL_PHASES) {
       const result = runPhase(rootInfo.root, phase);
@@ -118,11 +157,12 @@ function buildReport(options = {}) {
         issues.push({ code: "artifact_missing", path: artifact.path });
       }
     }
-    return {
+    report = {
       ok: issues.length === 0,
       schemaVersion: 1,
       root: rootInfo.root,
       temporaryRoot: rootInfo.temporary,
+      tempRemoved: false,
       phaseCount: REHEARSAL_PHASES.length,
       phases: phaseResults,
       artifacts,
@@ -132,7 +172,18 @@ function buildReport(options = {}) {
     if (rootInfo.temporary && !options.keepTemp) {
       fs.rmSync(rootInfo.root, { recursive: true, force: true });
     }
+    if (report) {
+      report.tempRemoved = rootInfo.temporary && !options.keepTemp
+        ? !fs.existsSync(rootInfo.root)
+        : false;
+      if (rootInfo.temporary && !options.keepTemp && !report.tempRemoved) {
+        issues.push({ code: "temporary_root_cleanup_failed" });
+        report.ok = false;
+        report.issues = issues;
+      }
+    }
   }
+  return report;
 }
 
 function main() {
@@ -159,4 +210,5 @@ module.exports = {
   REHEARSAL_PHASES,
   REQUIRED_ARTIFACTS,
   buildReport,
+  productionServiceUserIssue,
 };

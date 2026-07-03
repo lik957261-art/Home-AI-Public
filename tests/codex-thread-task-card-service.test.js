@@ -245,6 +245,212 @@ async function testHomeAiTargetPrefixSkipsDeployAndIntakeThreads() {
   assert.equal(calls.some((call) => String(call.url).includes("/api/threads/thread-home-deploy/task-cards")), false);
 }
 
+async function testHomeAiPrefixTargetStillUsesMainThreadWhenWorkerLanesExist() {
+  const calls = [];
+  const service = createCodexThreadTaskCardService({
+    baseUrl: "http://codex.local",
+    key: "secret",
+    sourceWorkspaceCwd: "/Users/example/path",
+    implementationThreadTitles: ["Home AI Worker Lane A", "Home AI Worker Lane B"],
+    fetch: async (url, options = {}) => {
+      calls.push({ url: String(url), options });
+      if (String(url).startsWith("http://codex.local/api/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            data: [
+              {
+                id: "thread-home-current",
+                title: "Home AI 06-30",
+                cwd: "/Users/example/path",
+                status: { type: "active" },
+                updatedAt: 500,
+              },
+              {
+                id: "thread-home-task-intake",
+                title: "Home AI Task Intake",
+                cwd: "/Users/example/path",
+                status: { type: "idle" },
+                updatedAt: 450,
+              },
+              {
+                id: "thread-worker-a",
+                title: "Home AI Worker Lane A",
+                cwd: "/Users/example/path",
+                status: { type: "idle" },
+                updatedAt: 300,
+              },
+              {
+                id: "thread-worker-b",
+                title: "Home AI Worker Lane B",
+                cwd: "/Users/example/path",
+                status: { type: "idle" },
+                updatedAt: 200,
+              },
+            ],
+          }),
+        };
+      }
+      if (String(url) === "http://codex.local/api/threads/thread-home-task-intake/task-cards") {
+        const body = JSON.parse(options.body || "{}");
+        assert.deepEqual(body.targetThreadIds, ["thread-home-current"]);
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            direct: true,
+            autoApprove: true,
+            workspaceDelegationEnabled: true,
+            cards: [{ id: "ttc_main_lane_1" }],
+          }),
+        };
+      }
+      return { ok: false, status: 404, text: async () => JSON.stringify({ error: "not_found" }) };
+    },
+  });
+
+  const result = await service.sendTaskCard({
+    title: "Repair Gateway",
+    body: "diagnostic repair request",
+    requestId: "diag-gateway-worker-lane",
+    reasoningEffort: "xhigh",
+    sourceThreadTitle: "Home AI Task Intake",
+    sourceThreadTitlePrefix: "Home AI Task Intake",
+    targetThreadTitlePrefix: "Home AI",
+    targetWorkspaceCwd: "/Users/example/path",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.sourceThreadId, "thread-home-task-intake");
+  assert.equal(result.targetThreadId, "thread-home-current");
+  assert.deepEqual(result.cardIds, ["ttc_main_lane_1"]);
+  assert.equal(calls.some((call) => String(call.url).includes("/api/threads/thread-worker-a/task-cards")), false);
+  assert.equal(calls.some((call) => String(call.url).includes("/api/threads/thread-worker-b/task-cards")), false);
+}
+
+async function testHomeAiWorkerKindTargetsImplementationLane() {
+  const calls = [];
+  const service = createCodexThreadTaskCardService({
+    baseUrl: "http://codex.local",
+    key: "secret",
+    sourceWorkspaceCwd: "/Users/example/path",
+    implementationThreadTitles: ["Home AI Worker Lane A", "Home AI Worker Lane B"],
+    fetch: async (url, options = {}) => {
+      calls.push({ url: String(url), options });
+      if (String(url).startsWith("http://codex.local/api/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            data: [
+              {
+                id: "thread-home-current",
+                title: "Home AI 06-30",
+                cwd: "/Users/example/path",
+                status: { type: "active" },
+                updatedAt: 500,
+              },
+              {
+                id: "thread-home-task-intake",
+                title: "Home AI Task Intake",
+                cwd: "/Users/example/path",
+                status: { type: "idle" },
+                updatedAt: 450,
+              },
+              {
+                id: "thread-worker-a",
+                title: "Home AI Worker Lane A",
+                cwd: "/Users/example/path",
+                status: { type: "active" },
+                updatedAt: 300,
+              },
+              {
+                id: "thread-worker-b",
+                title: "Home AI Worker Lane B",
+                cwd: "/Users/example/path",
+                status: { type: "idle" },
+                updatedAt: 200,
+              },
+            ],
+          }),
+        };
+      }
+      if (String(url) === "http://codex.local/api/threads/thread-home-task-intake/task-cards") {
+        const body = JSON.parse(options.body || "{}");
+        assert.deepEqual(body.targetThreadIds, ["thread-worker-b"]);
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            direct: true,
+            autoApprove: true,
+            workspaceDelegationEnabled: true,
+            cards: [{ id: "ttc_worker_lane_1" }],
+          }),
+        };
+      }
+      return { ok: false, status: 404, text: async () => JSON.stringify({ error: "not_found" }) };
+    },
+  });
+
+  const result = await service.sendTaskCard({
+    title: "Repair Gateway Worker",
+    body: "diagnostic repair request",
+    requestId: "diag-gateway-worker-lane",
+    reasoningEffort: "xhigh",
+    cardKind: "home_ai_worker",
+    sourceThreadTitle: "Home AI Task Intake",
+    sourceThreadTitlePrefix: "Home AI Task Intake",
+    targetThreadTitlePrefix: "Home AI",
+    targetWorkspaceCwd: "/Users/example/path",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.sourceThreadId, "thread-home-task-intake");
+  assert.equal(result.targetThreadId, "thread-worker-b");
+  assert.deepEqual(result.cardIds, ["ttc_worker_lane_1"]);
+  assert.equal(calls.some((call) => String(call.url).includes("/api/threads/thread-home-current/task-cards")), false);
+}
+
+async function testExplicitImplementationLaneRequiredFailsClosedWhenMissing() {
+  const service = createCodexThreadTaskCardService({
+    baseUrl: "http://codex.local",
+    key: "secret",
+    sourceWorkspaceCwd: "/Users/example/path",
+    implementationLaneRequired: true,
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        data: [
+          {
+            id: "thread-home-current",
+            title: "Home AI 06-30",
+            cwd: "/Users/example/path",
+            status: { type: "active" },
+            updatedAt: 500,
+          },
+          {
+            id: "thread-home-task-intake",
+            title: "Home AI Task Intake",
+            cwd: "/Users/example/path",
+            status: { type: "idle" },
+            updatedAt: 450,
+          },
+        ],
+      }),
+    }),
+  });
+
+  await assert.rejects(
+    () => service.findImplementationThread({ cwd: "/Users/example/path" }),
+    (err) => err.code === "home_ai_implementation_lane_not_found" && err.status === 503,
+  );
+}
+
 async function testExplicitMissingSourceTitleDoesNotFallbackToHomeAiThread() {
   const { calls, fetchImpl } = createFetchStub();
   const service = createCodexThreadTaskCardService({
@@ -375,6 +581,111 @@ async function testDefaultSourceDiscoverySkipsReservedDeployThread() {
   assert.equal(source.id, "thread-home-current");
 }
 
+async function testDefaultSourceDiscoverySkipsImplementationWorkerLanes() {
+  const service = createCodexThreadTaskCardService({
+    baseUrl: "http://codex.local",
+    key: "secret",
+    sourceWorkspaceCwd: "/Users/example/path",
+    implementationThreadTitles: ["Home AI Worker Lane A"],
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        data: [
+          {
+            id: "thread-worker-a",
+            title: "Home AI Worker Lane A",
+            cwd: "/Users/example/path",
+            status: "active",
+            updatedAt: 500,
+          },
+          {
+            id: "thread-home-current",
+            title: "Home AI 06-30",
+            cwd: "/Users/example/path",
+            status: "idle",
+            updatedAt: 100,
+          },
+        ],
+      }),
+    }),
+  });
+
+  const source = await service.findSourceThread();
+  assert.equal(source.id, "thread-home-current");
+}
+
+async function testTaskCardReasoningDefaultsToAtLeastMedium() {
+  const sentEfforts = [];
+  const service = createCodexThreadTaskCardService({
+    baseUrl: "http://codex.local",
+    key: "secret",
+    sourceWorkspaceCwd: "/Users/example/path",
+    fetch: async (url, options = {}) => {
+      if (String(url).startsWith("http://codex.local/api/threads?")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            data: [
+              {
+                id: "thread-home-current",
+                title: "Home AI 06-30",
+                cwd: "/Users/example/path",
+                status: "active",
+                updatedAt: 500,
+              },
+              {
+                id: "thread-plugin-audit",
+                title: "Plugin Workspace Audit",
+                cwd: "/Users/example/path",
+                status: "idle",
+                updatedAt: 100,
+              },
+            ],
+          }),
+        };
+      }
+      if (String(url) === "http://codex.local/api/threads/thread-home-current/task-cards") {
+        const body = JSON.parse(options.body || "{}");
+        sentEfforts.push(body.reasoningEffort);
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            ok: true,
+            direct: true,
+            autoApprove: true,
+            workspaceDelegationEnabled: true,
+            cards: [{ id: `ttc_reasoning_${sentEfforts.length}` }],
+          }),
+        };
+      }
+      return { ok: false, status: 404, text: async () => JSON.stringify({ error: "not_found" }) };
+    },
+  });
+
+  await service.sendTaskCard({
+    title: "Audit Without Effort",
+    body: "central audit request",
+    requestId: "audit-without-effort",
+  });
+  await service.sendTaskCard({
+    title: "Audit Low Effort",
+    body: "central audit request",
+    requestId: "audit-low-effort",
+    reasoningEffort: "low",
+  });
+  await service.sendTaskCard({
+    title: "Audit High Effort",
+    body: "central audit request",
+    requestId: "audit-high-effort",
+    reasoningEffort: "high",
+  });
+
+  assert.deepEqual(sentEfforts, ["medium", "medium", "high"]);
+}
+
 async function testDeploymentKindTargetsDedicatedDeployThread() {
   const { fetchImpl } = createFetchStub();
   const service = createCodexThreadTaskCardService({
@@ -481,7 +792,92 @@ async function testDeploymentKindCanUseConfiguredLanePoolAssignments() {
   assert.equal(calls.filter((call) => call.url.includes("/api/threads?")).length, 2);
 }
 
-async function testConfiguredDeployLaneAssignmentFailsClosedWhenLaneTerminal() {
+async function testDefaultDeployLaneAssignmentsRouteCodexAndMoviePlugins() {
+  const sentTargetIds = [];
+  const fetchImpl = async (url, options = {}) => {
+    if (String(url).startsWith("http://codex.local/api/threads?")) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          data: [
+            {
+              id: "thread-home-current",
+              title: "Home AI 06-30",
+              cwd: "/Users/example/path",
+              status: "active",
+              updatedAt: 500,
+            },
+            {
+              id: "thread-home-deploy",
+              title: "Home AI Deploy",
+              cwd: "/Users/example/path",
+              status: "idle",
+              updatedAt: 400,
+            },
+            {
+              id: "thread-codex-deploy",
+              title: "Codex Mobile Deploy Lane",
+              cwd: "/Users/example/path",
+              status: "idle",
+              updatedAt: 300,
+            },
+            {
+              id: "thread-movie-deploy",
+              title: "Movie Deploy Lane",
+              cwd: "/Users/example/path",
+              status: "idle",
+              updatedAt: 200,
+            },
+          ],
+        }),
+      };
+    }
+    if (String(url) === "http://codex.local/api/threads/thread-home-current/task-cards") {
+      const body = JSON.parse(options.body || "{}");
+      sentTargetIds.push(body.targetThreadIds[0]);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          direct: true,
+          autoApprove: true,
+          workspaceDelegationEnabled: true,
+          cards: [{ id: `ttc_deploy_${sentTargetIds.length}` }],
+        }),
+      };
+    }
+    return { ok: false, status: 404, text: async () => JSON.stringify({ error: "not_found" }) };
+  };
+  const service = createCodexThreadTaskCardService({
+    baseUrl: "http://codex.local",
+    key: "secret",
+    fetch: fetchImpl,
+    sourceWorkspaceCwd: "/Users/example/path",
+  });
+
+  const codex = await service.sendTaskCard({
+    title: "Deploy Codex Mobile",
+    body: "deployment readback request",
+    requestId: "deploy-codex-default-lane",
+    cardKind: "plugin_deployment",
+    pluginId: "codex-mobile-web",
+  });
+  const movie = await service.sendTaskCard({
+    title: "Deploy Movie",
+    body: "deployment readback request",
+    requestId: "deploy-movie-default-lane",
+    cardKind: "plugin_deployment",
+    pluginId: "movie",
+  });
+
+  assert.equal(codex.targetThreadId, "thread-codex-deploy");
+  assert.equal(movie.targetThreadId, "thread-movie-deploy");
+  assert.deepEqual(sentTargetIds, ["thread-codex-deploy", "thread-movie-deploy"]);
+}
+
+async function testConfiguredDeployLaneAssignmentFallsBackToDeployPoolWhenLaneTerminal() {
   const service = createCodexThreadTaskCardService({
     baseUrl: "http://codex.local",
     key: "secret",
@@ -512,10 +908,79 @@ async function testConfiguredDeployLaneAssignmentFailsClosedWhenLaneTerminal() {
     }),
   });
 
-  await assert.rejects(
-    () => service.findDeployThread({ pluginId: "movie" }),
-    (err) => err.code === "deploy_lane_assignment_not_found" && err.status === 503,
-  );
+  const result = await service.findDeployThread({ pluginId: "movie" });
+  assert.equal(result.id, "thread-home-deploy");
+  assert.equal(result.title, "Home AI Deploy");
+}
+
+async function testDeploymentKindInfersCodexMobileDeployLaneFromWorkspacePath() {
+  const sentTargetIds = [];
+  const fetchImpl = async (url, options = {}) => {
+    if (String(url).startsWith("http://codex.local/api/threads?")) {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          data: [
+            {
+              id: "thread-home-current",
+              title: "Home AI 06-30",
+              cwd: "/Users/example/path",
+              status: "active",
+              updatedAt: 500,
+            },
+            {
+              id: "thread-home-deploy",
+              title: "Home AI Deploy",
+              cwd: "/Users/example/path",
+              status: "idle",
+              updatedAt: 400,
+            },
+            {
+              id: "thread-codex-deploy",
+              title: "Codex Mobile Deploy Lane",
+              cwd: "/Users/example/path",
+              status: "idle",
+              updatedAt: 300,
+            },
+          ],
+        }),
+      };
+    }
+    if (String(url) === "http://codex.local/api/threads/thread-home-current/task-cards") {
+      const body = JSON.parse(options.body || "{}");
+      sentTargetIds.push(body.targetThreadIds[0]);
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          ok: true,
+          direct: true,
+          autoApprove: true,
+          workspaceDelegationEnabled: true,
+          cards: [{ id: "ttc_codex_inferred_deploy" }],
+        }),
+      };
+    }
+    return { ok: false, status: 404, text: async () => JSON.stringify({ error: "not_found" }) };
+  };
+  const service = createCodexThreadTaskCardService({
+    baseUrl: "http://codex.local",
+    key: "secret",
+    fetch: fetchImpl,
+    sourceWorkspaceCwd: "/Users/example/path",
+  });
+
+  const result = await service.sendTaskCard({
+    title: "Deploy prepared plugin",
+    body: "Routine production readback for /Users/example/path",
+    requestId: "deploy-codex-inferred-lane",
+    cardKind: "plugin_deployment",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.targetThreadId, "thread-codex-deploy");
+  assert.deepEqual(sentTargetIds, ["thread-codex-deploy"]);
 }
 
 async function testDeploymentKindRejectsTerminalReceiptCard() {
@@ -592,14 +1057,21 @@ async function testCompletedDeployThreadFailsClosed() {
   await testMissingAuditThreadFailsClosed();
   await testCanSendToWorkspaceThreadByTitlePrefix();
   await testHomeAiTargetPrefixSkipsDeployAndIntakeThreads();
+  await testHomeAiPrefixTargetStillUsesMainThreadWhenWorkerLanesExist();
+  await testHomeAiWorkerKindTargetsImplementationLane();
+  await testExplicitImplementationLaneRequiredFailsClosedWhenMissing();
   await testExplicitMissingSourceTitleDoesNotFallbackToHomeAiThread();
   await testSourceTitlePrefixCanResolveDedicatedIntakeThread();
   await testSameSourceAndTargetFailsBeforePostingTaskCard();
   await testCanSendToExplicitTargetThreadIdWithoutDiscoveringTarget();
   await testDefaultSourceDiscoverySkipsReservedDeployThread();
+  await testDefaultSourceDiscoverySkipsImplementationWorkerLanes();
+  await testTaskCardReasoningDefaultsToAtLeastMedium();
   await testDeploymentKindTargetsDedicatedDeployThread();
   await testDeploymentKindCanUseConfiguredLanePoolAssignments();
-  await testConfiguredDeployLaneAssignmentFailsClosedWhenLaneTerminal();
+  await testDefaultDeployLaneAssignmentsRouteCodexAndMoviePlugins();
+  await testConfiguredDeployLaneAssignmentFallsBackToDeployPoolWhenLaneTerminal();
+  await testDeploymentKindInfersCodexMobileDeployLaneFromWorkspacePath();
   await testDeploymentKindRejectsTerminalReceiptCard();
   await testCompletedDeployThreadFailsClosed();
   console.log("codex thread task-card service tests passed");

@@ -178,6 +178,7 @@ The current required signals are:
 - `deploy_lane_liveness`;
 - `task_card_dispatch`;
 - `plugin_proxy_latency`;
+- `composer_runtime_feedback`;
 - `media_preview_health`;
 - `gateway_document_tool_capability`;
 - `plugin_deploy_contract_closure`;
@@ -185,14 +186,50 @@ The current required signals are:
 - `native_bridge_capability`;
 - `notification_delivery`;
 - `plugin_manifest_health`;
+- `plugin_action_metadata_health`;
 - `audit_thread_liveness`;
 - `automation_cron_health`;
-- `production_self_diagnostics`.
+- `production_self_diagnostics`;
+- `public_upgrade_rehearsal`;
+- `install_upgrade_canary`;
+- `runtime_slo_coverage`.
+
+The same maintained matrix also has a generated 3A Runtime SLO model in
+`adapters/home-ai-runtime-slo-service.js`. `--runtime-slo-audit` must pass
+before a new self-check signal is accepted as closed; otherwise the signal is
+treated as telemetry without an owning 3A dimension, closure readback, or
+repair route.
 
 Current production collectors may read bounded JSON from
-`production-status-smoke.js`, `macos-automation-cron-audit.js`, and
-`production-self-diagnostics.js`, then submit only the normalized event payload
-through `POST /api/v1/home-ai/diagnostics/events`.
+`production-status-smoke.js`, `macos-automation-cron-audit.js`,
+`production-self-diagnostics.js`,
+`homeai-public-upgrade-rehearsal.js --execute --json`,
+`homeai-install-upgrade-canary.js --execute --json`,
+`homeai-self-improving-loop.js --runtime-slo-audit --json`,
+`mcp-tool-upgrade-closure-smoke.js --json`,
+`plugin-action-metadata-closure-smoke.js --json`, and
+`macos-web-push-production-audit.js --json`. They may also collect bounded
+thread/deploy-lane discovery, authenticated plugin manifest/proxy host probes,
+and explicit native-bridge runtime capability status. Replay-safe metadata
+payloads are allowed for tests and source-side reproduction. The loop then
+submits only the normalized event payload through
+`POST /api/v1/home-ai/diagnostics/events`.
+
+Production collection output must also include a bounded full signal report for
+the maintained matrix. Every signal is represented even when the current run
+did not collect evidence for it. `not_collected` rows are coverage context, not
+diagnostic failures; failed observed rows are still normalized into self-check
+diagnostic events and must close against the signal's required readbacks. Daily
+required focus signals must not remain silently `not_collected` in scheduled
+production collection. They must emit live evidence, an explicit bounded
+non-diagnostic skipped row such as `native_bridge_runtime_not_attached`, or a
+diagnostic-eligible failed row.
+
+Source-context reproduction runs must not misclassify protected production
+credential, manifest, VAPID, SQLite, or runtime telemetry read boundaries as
+product regressions. They must emit an observed non-diagnostic skipped row with
+a bounded reason. Scheduled production-context runs that cannot read their own
+required production state remain diagnostic-eligible failures.
 
 Self-check events may also carry `context.closure_readbacks`, a bounded list of
 machine-readable readback requirements such as selected Gateway schema,
@@ -201,6 +238,19 @@ native bridge result, production manifest readback, or return-card receipt
 state. Remediation task cards should preserve this list, and closure should
 fail or remain partially completed when the return card does not answer the
 required readbacks.
+
+When the self-check collector submits diagnostics, it must return a bounded
+submit-closure report. The report must prove that every submitted event has an
+accepted diagnostic case id, accepted event id, Owner-notification or
+self-check auto-dispatch state, optional task-card id, and the required
+closure readbacks copied from the signal definition. A submit path without
+case/event ids or closure readbacks is an incomplete loop, even if the HTTP
+request itself succeeded.
+
+The source-safe `self-check-diagnostic-submit-smoke` is the maintained harness
+for this invariant. It uses a temporary diagnostic store and fake task-card /
+Owner Action Inbox services, so it can prove auto-dispatch versus Owner-gated
+classification without sending real task cards or notifications.
 
 Self-check diagnostics are discovery and routing evidence only. They may
 auto-dispatch implementation task cards only when all of these are true:

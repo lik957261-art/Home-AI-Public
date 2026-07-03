@@ -424,12 +424,12 @@ function renderAccessKeyManager() {
   </section>` : "";
   const workspaceCreateForm = isOwnerAccessManager ? `<details class="access-key-section access-key-create-section" data-workspace-config-section>
     <summary class="access-key-section-summary">
-      <span>新建 / 编辑本地账号</span>
-      <span>本地工作区</span>
+      <span>基础配置 / 编辑账号</span>
+      <span>不含插件开通</span>
     </summary>
     <section class="access-key-create-workspace">
-      <div class="access-key-row-title">创建 / 配置用户工作区</div>
-      <div class="workspace-create-help">先填用户名，显示名、根目录和访问目录会自动预填。</div>
+      <div class="access-key-row-title">基础工作区配置</div>
+      <div class="workspace-create-help">这里只保存 Home AI 工作区基础配置；新账号需要使用上方“Owner 工作区开通”完成 Finance 等插件绑定。</div>
       <div class="access-key-create-grid">
         <label>
           <span>用户名</span>
@@ -453,7 +453,7 @@ function renderAccessKeyManager() {
         <span>额外接口 / toolsets</span>
         <input id="newWorkspaceToolsets" type="text" autocomplete="off" placeholder="可留空，逗号分隔">
       </label>
-      <button type="button" data-create-workspace>保存工作区</button>
+      <button type="button" data-create-workspace>保存基础配置</button>
     </section>
   </details>` : "";
   const localWorkspaceSection = renderWorkspaceSection("本地用户", localWorkspaces, { editable: true });
@@ -626,6 +626,29 @@ async function createWorkspaceFromAccessKeyManager() {
   const allowedRoots = splitConfigList($("newWorkspaceAllowedRoots")?.value || "");
   const allowedToolsets = splitConfigList($("newWorkspaceToolsets")?.value || "");
   if (!workspaceId) throw new Error("请输入用户 ID");
+  const canonicalWorkspaceId = slugWorkspaceOnboardingId(workspaceId) || workspaceId;
+  const workspaceExists = (state.workspaces || []).some((workspace) => (
+    String(workspace?.id || "") === workspaceId
+    || String(workspace?.id || "") === canonicalWorkspaceId
+  ));
+  if (!workspaceExists) {
+    rememberWorkspaceOnboardingDraft({
+      workspaceId: canonicalWorkspaceId,
+      displayName: label || workspaceId,
+      label: label || workspaceId,
+      pluginIds: WORKSPACE_ONBOARDING_PLUGIN_OPTIONS.map((item) => item.id),
+    });
+    state.workspaceOnboardingPlan = null;
+    state.workspaceOnboardingResult = null;
+    state.workspaceOnboardingRun = null;
+    state.workspaceOnboardingError = "新账号需要先完整开通，才能自动创建 Finance 等插件绑定。";
+    renderAccessKeyManager();
+    window.requestAnimationFrame(() => {
+      document.querySelector("[data-workspace-onboarding-section]")?.scrollIntoView({ block: "start", behavior: "smooth" });
+      $("workspaceOnboardingWorkspaceId")?.focus();
+    });
+    return;
+  }
   const result = await api("/api/workspaces", {
     method: "POST",
     body: JSON.stringify({ workspaceId, label, defaultWorkspace, allowedRoots, allowedToolsets }),

@@ -118,6 +118,50 @@ async function testNotifyFalseSkipsPush() {
   assert.equal(result.push, null);
 }
 
+async function testDuplicateInboxUpdateDoesNotSendDuplicatePush() {
+  const upsertCalls = [];
+  const seen = new Map();
+  const { calls, service } = createHarness({
+    actionInboxService: {
+      upsertSourceItem(input) {
+        upsertCalls.push(input);
+        const before = seen.get(input.dedupeKey);
+        const item = Object.assign({ id: before?.id || "ainb-plugin-duplicate-1" }, before || {}, input);
+        seen.set(input.dedupeKey, item);
+        return {
+          ok: true,
+          item,
+          event: { eventType: before ? "source_updated" : "source_created" },
+          created: !before,
+          updated: Boolean(before),
+          reopened: false,
+        };
+      },
+    },
+  });
+  const input = {
+    pluginId: "wardrobe",
+    workspaceId: "owner",
+    sourceId: "repair-request-1",
+    type: "plugin_conversation_repair_request",
+    title: "Wardrobe repair request",
+    summary: "Thumbnail artifact write needs repair.",
+    priority: "high",
+  };
+  const first = await service.postNotification(input);
+  const second = await service.postNotification(Object.assign({}, input, {
+    summary: "Thumbnail artifact write needs repair. Updated bounded evidence.",
+  }));
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(first.inboxItem.id, second.inboxItem.id);
+  assert.equal(upsertCalls.length, 2);
+  assert.equal(calls.push.length, 1);
+  assert.equal(first.push.sent, 1);
+  assert.equal(second.push, null);
+}
+
 async function testCodexTaskCompleteUsesWorkspaceScopedInboxRecord() {
   const { calls, service } = createHarness();
   const result = await service.postNotification({
@@ -243,6 +287,7 @@ async function run() {
   await testPluginOpenModeCanClickThroughToPluginTab();
   await testRequiresStableSourceIdAndRegisteredPlugin();
   await testNotifyFalseSkipsPush();
+  await testDuplicateInboxUpdateDoesNotSendDuplicatePush();
   await testCodexTaskCompleteUsesWorkspaceScopedInboxRecord();
   await testCodexTaskCompleteSuppressesPushUntilTerminalAndAnchored();
   await testPluginNotificationCanExplicitlySkipInbox();

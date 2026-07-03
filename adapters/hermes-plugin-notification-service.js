@@ -197,6 +197,16 @@ function pluginNotificationPushReadiness(event = {}) {
   return { ok: true };
 }
 
+function pluginNotificationShouldSendPush(event = {}, inboxResult = null) {
+  if (!event.createInbox) return true;
+  if (!inboxResult) return true;
+  if (inboxResult.created === true || inboxResult.reopened === true) return true;
+  if (inboxResult.created === false || inboxResult.updated === true) return false;
+  const eventType = clean(inboxResult.event?.eventType || inboxResult.event?.event_type, 80);
+  if (!eventType) return true;
+  return eventType === "source_created" || eventType === "reopened";
+}
+
 function errorResult(status, error) {
   return { ok: false, status, error };
 }
@@ -339,7 +349,8 @@ function createHermesPluginNotificationService(options = {}) {
     let push = null;
     const sendPush = sendPushNotification();
     const pushReadiness = pluginNotificationPushReadiness(event);
-    if (event.notify && typeof sendPush === "function" && pushReadiness.ok) {
+    const shouldSendPush = pluginNotificationShouldSendPush(event, inboxResult);
+    if (event.notify && shouldSendPush && typeof sendPush === "function" && pushReadiness.ok) {
       const contextLabel = notificationContextLabelFromPluginId(event.pluginId);
       push = await sendPush({
         title: notificationTitleWithContext(event.title || "插件通知", contextLabel, "插件通知"),

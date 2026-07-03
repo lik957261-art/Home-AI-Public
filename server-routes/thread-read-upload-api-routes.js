@@ -88,6 +88,7 @@ const THREAD_READ_UPLOAD_API_ROUTE_SPECS = Object.freeze([
     riskLevel: "medium",
     authMode: "access-key",
     authRequired: true,
+    ownerOnly: true,
     workspaceScoped: true,
     resourceTypes: ["thread", "artifact", "file", "directory"],
     tags: ["thread", "server-file", "artifact"],
@@ -119,6 +120,7 @@ function createThreadReadUploadApiRoutes(deps = {}) {
     "findThreadForRequest",
     "findWorkspace",
     "isDiscardableEmptyThread",
+    "isOwnerAuth",
     "makeId",
     "normalizeThread",
     "nowIso",
@@ -308,6 +310,10 @@ function createThreadReadUploadApiRoutes(deps = {}) {
 
   async function handleServerFileAttachment(req, res, url) {
     const auth = deps.authenticateRequest(req);
+    if (!deps.isOwnerAuth(auth)) {
+      deps.sendJson(res, 403, { error: "Owner access is required" });
+      return;
+    }
     const thread = deps.findThreadForRequest(req, routeIdFromPath(url.pathname, /^\/api\/threads\/([^/]+)\/server-file-attachments$/));
     if (!thread) {
       deps.sendJson(res, 404, { error: "Thread not found" });

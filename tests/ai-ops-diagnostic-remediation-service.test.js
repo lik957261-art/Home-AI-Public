@@ -104,6 +104,23 @@ function event(overrides = {}) {
 }
 
 {
+  const musicPlayback = baseCase({
+    case_id: "diagcase_music_playback",
+    plugin_id: "music",
+    diagnostic_type: "music_playback_failed",
+    category: "music_playback_failed",
+    route: "/?view=plugin&pluginId=music&pluginRoute=favorites",
+    summary: "Music playback failed repeatedly",
+  });
+  const plan = buildDiagnosticRemediationPlan({ case: musicPlayback, events: [event({ confidence: 0.88 })] });
+  assert.equal(plan.eligible, true);
+  assert.equal(plan.targetKind, "plugin");
+  assert.equal(plan.target.targetWorkspace, "/Users/example/path");
+  assert.equal(plan.taskCard.targetWorkspace, "/Users/example/path");
+  assert.doesNotMatch(plan.taskCard.body, /\/Users\/xuxin\/Documents\/Music/);
+}
+
+{
   const selfCheck = baseCase({
     case_id: "diagcase_self_check",
     plugin_id: "home-ai",

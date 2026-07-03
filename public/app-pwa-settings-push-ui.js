@@ -608,6 +608,13 @@ function renderSettingsOverlay() {
   const voiceSettingsError = voiceState?.settingsError
     ? `<div class="settings-preview-body">${escapeHtml(voiceState.settingsError)}</div>`
     : "";
+  const ownerConsoleAction = state.auth?.isOwner
+    ? `<div class="settings-row-title">系统</div>
+      <div class="settings-owner-actions">
+        <button class="settings-owner-console-button" type="button" data-settings-open-system-console>系统控制台</button>
+        <span>查看平台健康、资源压力和只读诊断信号。</span>
+      </div>`
+    : "";
   overlay.innerHTML = `<section class="access-key-sheet settings-sheet">
     <header class="access-key-header">
       <div>
@@ -638,6 +645,7 @@ function renderSettingsOverlay() {
         ${voiceBackendOptions}
       </div>
       ${voiceSettingsError}
+      ${ownerConsoleAction}
       <div class="settings-row-title">\u8d26\u53f7</div>
       <div class="settings-account-actions">
         <button class="settings-logout-button" type="button" data-settings-logout>\u9000\u51fa\u8d26\u53f7</button>
@@ -670,6 +678,11 @@ function renderSettingsOverlay() {
   });
   overlay.querySelectorAll("[data-voice-asr-backend-option]").forEach((button) => {
     button.addEventListener("click", () => setVoiceInputDefaultAsrBackendPreference(button.dataset.voiceAsrBackendOption || ""));
+  });
+  overlay.querySelector("[data-settings-open-system-console]")?.addEventListener("click", () => {
+    if (typeof openOwnerSystemConsoleSurface === "function") {
+      openOwnerSystemConsoleSurface().catch(showError);
+    }
   });
   overlay.querySelector("[data-settings-logout]")?.addEventListener("click", logoutCurrentAccount);
 }

@@ -46,8 +46,11 @@ task directory attachment, and automation deliverable access.
 - Composer may attach a file that already exists in a Directory-visible server
   folder. This path registers an artifact reference through
   `POST /api/threads/:id/server-file-attachments` and must not copy the file
-  through browser `dataBase64` upload. The route resolves the requested path
-  through the Directory browser boundary before registering the artifact.
+  through browser `dataBase64` upload. This server-file attachment path is
+  Owner-only until a per-workspace server-share root is productized. The route
+  must reject non-Owner callers before Directory path resolution and then
+  resolve the requested path through the Directory browser boundary before
+  registering the artifact.
 - Server-file Composer attachment is local-file only in the first version.
   Remote/WSL volume entries remain browsable when supported by Directory, but
   they must not be attached as thread artifacts until a productized streaming
@@ -266,6 +269,15 @@ instructions.
   same-origin ACL/download path used by the other viewers.
 - Markdown task and directory preview links keep the Hermes Markdown preview
   surface and must not be routed through native/original document preview.
+  The task preview interceptor must recognize Markdown from all bounded link
+  metadata sources used by deliverables (`data-artifact-name`, `download`,
+  `title`, `aria-label`, link text, and same-origin `name`/`filename` query
+  parameters), because some automation and task routes intentionally hide the
+  physical filename behind an opaque delivery URL.
+- PowerPoint task artifacts are first-class `presentation` documents in the
+  task artifact helper, not generic files. They should keep their MIME/name
+  metadata through task cards, preview links, native document bridge requests,
+  Web Share/download fallback, and PowerPoint-compatible validation/readback.
 - PDF, Word/DOC/DOCX, and PowerPoint/PPT/PPTX task and directory preview links
   must first use the explicit native-shell document bridge when the current
   iOS or Android shell advertises `HomeAINativeDocumentCapability.documentPreview`.
@@ -307,6 +319,11 @@ instructions.
   returns a bounded failure, they must show the native-preview error state
   rather than silently rendering Web preview. `webPreview=1` is the explicit
   debug escape hatch that forces the Web fallback.
+- Bridge-unavailable messaging must distinguish a missing native capability
+  from a transient preview timeout. If `HomeAINativeDocument` is not exposed on
+  a native-shell device, the user-facing message should explain that restarting
+  usually cannot repair the missing bridge and should direct the user to update
+  the native shell or use the explicit Web preview/download/share exits.
 - PDF mobile preview surfaces must expose a single preview-mode switch rather
   than a separate external-open action. In a native shell the switch first
   retries `HomeAINativeDocument.open()`; only bridge-unavailable/failure paths
@@ -329,9 +346,12 @@ instructions.
   `.pptx` generation through profile-local `pdf_create`, `docx_create`, and
   `pptx_create`. These tools write only inside the current allowed
   artifact/output roots and must return `MEDIA:<path>` for user-downloadable
-  deliverables. `pptx_create` must validate PowerPoint-compatible OpenXML
-  relationships before returning `MEDIA:<path>`, and `pptx_validate` is the
-  explicit re-check tool for existing in-scope PPTX decks. Health-plugin
+  deliverables. `pptx_create` must validate a PowerPoint-compatible OpenXML
+  package before returning `MEDIA:<path>`: slide relationships are necessary
+  but not sufficient; the deck must also include a normal presentation
+  properties/view properties/table styles set, complete theme color/font/format
+  scheme, slide master color map, layout, and relationship graph. `pptx_validate`
+  is the explicit re-check tool for existing in-scope PPTX decks. Health-plugin
   document workflows such as medication instructions, ECG summaries, checkup
   report organization, and presentation handouts can choose Markdown, PDF,
   Word, or PowerPoint output through the same delivery boundary; private health

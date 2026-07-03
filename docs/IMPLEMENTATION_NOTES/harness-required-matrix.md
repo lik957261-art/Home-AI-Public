@@ -1686,6 +1686,39 @@ Required harness dimensions:
 - Inbox multi-recipient fanout respects workspace authorization.
 - Files, previews, task outputs, and group-chat artifacts require the matching
   route/resource policy.
+- Native secure secret clipboard handoff accepts only authenticated
+  `X-Hermes-Web-Key` requests, clamps workspace/principal to auth context,
+  rejects audit read-only keys, returns only `secretRef` plus bounded metadata
+  on create, scopes resolve to workspace/target/purpose, and never exposes raw
+  secret values in normal API metadata, diagnostics, task cards, or docs.
+
+Focused checks for native secure secrets:
+
+```bash
+node --check adapters/native-secure-secret-broker-service.js
+node --check server-routes/native-secure-secret-api-routes.js
+node tests/native-secure-secret-broker-service.test.js
+node tests/native-secure-secret-api-routes.test.js
+node tests/mobile-api-dispatcher.test.js
+node tests/api-route-inventory.test.js
+node tests/architecture-refactor-boundary.test.js
+```
+
+Focused checks for native iOS shell version policy:
+
+```bash
+node --check adapters/native-ios-shell-version-policy-service.js
+node --check server-routes/native-ios-shell-api-routes.js
+node --check server-routes/mobile-api-platform-composition.js
+node --check server-routes/mobile-api-composition.js
+node --check server-routes/mobile-api-dispatcher.js
+node tests/native-ios-shell-version-policy-service.test.js
+node tests/native-ios-shell-api-routes.test.js
+node tests/mobile-api-platform-composition.test.js
+node tests/mobile-api-dispatcher.test.js
+node tests/api-route-inventory.test.js
+node tests/architecture-refactor-boundary.test.js
+```
 
 Primary docs:
 

@@ -154,6 +154,49 @@ function testVapidModeAndPublicOriginChecks() {
   assert.ok(report.issues.some((issue) => issue.code === "web_push_public_origin_not_https"));
 }
 
+function testUnreadablePrivateKeyFileCanUseRuntimeStatus() {
+  const root = makeRoot();
+  const dataDir = path.join(root, "data");
+  fs.writeFileSync(path.join(dataDir, "hermes-mobile.sqlite3"), "not-a-sqlite-db", "utf8");
+  fs.writeFileSync(path.join(dataDir, "state.json"), JSON.stringify({
+    pushSubscriptions: [subscription("prod", "https://prod.example.test")],
+    pushDeliveries: [{
+      id: "pushdel_state",
+      sentAt: new Date().toISOString(),
+      sent: 1,
+      failed: 0,
+      attempted: 1,
+    }],
+  }, null, 2));
+  fs.chmodSync(path.join(dataDir, "web-push-vapid.json"), 0o000);
+  try {
+    const report = buildReport({
+      root,
+      publicOrigin: "https://prod.example.test",
+      runtimePushStatus: {
+        checked: true,
+        ok: true,
+        source: "runtime-config",
+        status: 200,
+        enabled: true,
+        publicKeyPresent: true,
+        subscriptionCount: 1,
+      },
+    });
+    assert.equal(report.ok, true, JSON.stringify(report.issues, null, 2));
+    assert.equal(report.vapid.configured, true);
+    assert.equal(report.vapid.fileReadable, false);
+    assert.equal(report.vapid.runtimeConfigured, true);
+    assert.equal(report.runtimePushStatus.publicKeyPresent, true);
+    assert.equal(report.runtimePushStatus.privateKeyExposed, false);
+    assert.equal(report.stateSource, "state-json");
+    assert.equal(report.stateFallbackIssues[0]?.code, "web_push_sqlite_state_unreadable");
+    assert.equal(report.subscriptions.matchingOrigin, 1);
+  } finally {
+    fs.chmodSync(path.join(dataDir, "web-push-vapid.json"), 0o600);
+  }
+}
+
 function testCliJsonAndMarkdownAreBounded() {
   const root = makeRoot();
   fs.writeFileSync(path.join(root, "data", "state.json"), JSON.stringify({
@@ -241,6 +284,7 @@ testSqliteAuditPassesWithMatchingExternalSubscription();
 testStateJsonFallbackAndIosStandaloneClassification();
 testStrictExternalSubscriptionFailsWhenOnlyStaleSubscriptionsExist();
 testVapidModeAndPublicOriginChecks();
+testUnreadablePrivateKeyFileCanUseRuntimeStatus();
 testCliJsonAndMarkdownAreBounded();
 testSourceCheckRunsStrictProductionAuditPath();
 testCliFailureIsBounded();

@@ -16,7 +16,7 @@
       }
     }());
   </script>
-  <link rel="stylesheet" href="/styles.css?v=20260629-wardrobe-action-v969">
+  <link rel="stylesheet" href="/styles.css?v=20260703-codex-embed-vite-proxy-v1003">
   <style>
     :root {
       --paper: #f6f0e4;
@@ -318,11 +318,14 @@
   </main>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260629-wardrobe-action-v969"></script>
-  <script src="/app-task-preview-ui.js?v=20260629-wardrobe-action-v969"></script>
+  <script src="/markdown-renderer-client.js?v=20260703-codex-embed-vite-proxy-v1003"></script>
+  <script src="/app-api-client.js?v=20260703-codex-embed-vite-proxy-v1003"></script>
+  <script src="/app-runtime-facade-ui.js?v=20260703-codex-embed-vite-proxy-v1003"></script>
+  <script src="/app-task-preview-helpers-ui.js?v=20260703-codex-embed-vite-proxy-v1003"></script>
+  <script src="/app-task-preview-ui.js?v=20260703-codex-embed-vite-proxy-v1003"></script>
   <script>
     const params = new URLSearchParams(location.search);
-    const key = localStorage.getItem("hermesWebKey") || "";
+    const runtime = window.HomeAiRuntimeFacade || null;
     const statusEl = document.getElementById("status");
     const listEl = document.getElementById("list");
     const titleEl = document.getElementById("title");
@@ -341,12 +344,9 @@
         .replaceAll("'", "&#039;");
     }
 
-    function headers(extra = {}) {
-      return Object.assign(
-        { "Content-Type": "application/json" },
-        key ? { "X-Hermes-Web-Key": key } : {},
-        extra,
-      );
+    function directoryRuntimeApi() {
+      if (typeof runtime?.api === "function") return runtime.api;
+      throw new Error("目录接口未就绪");
     }
 
     function formatBytes(bytes) {
@@ -392,15 +392,17 @@
       return query;
     }
 
-    async function directoryApi(path, payload) {
-      const res = await fetch(path, {
-        method: "POST",
-        headers: headers(),
-        body: JSON.stringify(payload || {}),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
-      return body;
+    async function directoryApi(path, payload, options = {}) {
+      const method = options.method || "POST";
+      const requestOptions = {
+        method,
+        headers: Object.assign({ Accept: "application/json" }, options.headers || {}),
+      };
+      if (method !== "GET") {
+        requestOptions.body = JSON.stringify(payload || {});
+        requestOptions.headers["Content-Type"] = "application/json";
+      }
+      return directoryRuntimeApi()(path, requestOptions);
     }
 
     function entryKind(entry) {
@@ -464,12 +466,7 @@
     }
 
     async function loadDirectory() {
-      const res = await fetch(`/api/directories/preview?${currentDirectoryQuery().toString()}`, {
-        headers: key ? { "X-Hermes-Web-Key": key } : {},
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
-      return body;
+      return directoryApi(`/api/directories/preview?${currentDirectoryQuery().toString()}`, null, { method: "GET" });
     }
 
     function render(data) {

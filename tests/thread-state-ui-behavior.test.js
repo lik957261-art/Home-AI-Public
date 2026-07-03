@@ -74,6 +74,12 @@ const context = {
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-task-groups-ui.js"), "utf8"), context);
 vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-thread-state-ui.js"), "utf8"), context);
+vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-composer-refresh-scheduler.js"), "utf8"), context);
+vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-composer-current-thread-refresh-ui.js"), "utf8"), context);
+vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-composer-render-scheduler-ui.js"), "utf8"), context);
+vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-composer-viewport-ui.js"), "utf8"), context);
+vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-composer-message-invalidation-ui.js"), "utf8"), context);
+vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-composer-event-state-ui.js"), "utf8"), context);
 vm.runInContext(fs.readFileSync(path.join(repoRoot, "public", "app-events-composer-ui.js"), "utf8"), context);
 
 assert.deepEqual(context.taskGroupMessagesForThread({

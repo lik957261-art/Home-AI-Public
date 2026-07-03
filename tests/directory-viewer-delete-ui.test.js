@@ -38,6 +38,35 @@ function testDeleteFeedbackContract() {
   assert.match(html, /button\.textContent = previousText === "再点删除" \? "删除" : \(previousText \|\| "删除"\)/);
 }
 
+function testPreviewRuntimeFacadeScriptOrder() {
+  const expectedOrder = [
+    "/app-api-client.js",
+    "/app-runtime-facade-ui.js",
+    "/app-task-preview-helpers-ui.js",
+    "/app-task-preview-ui.js",
+  ];
+  const positions = expectedOrder.map((src) => html.indexOf(src));
+  for (const [index, src] of expectedOrder.entries()) {
+    assert.ok(positions[index] > -1, `${src} should be loaded by directory viewer`);
+  }
+  for (let index = 1; index < positions.length; index += 1) {
+    assert.ok(positions[index - 1] < positions[index], `${expectedOrder[index - 1]} should load before ${expectedOrder[index]}`);
+  }
+}
+
+function testDirectoryApiRuntimeFacadeBoundary() {
+  assert.match(html, /const runtime = window\.HomeAiRuntimeFacade \|\| null/);
+  assert.match(html, /function directoryRuntimeApi\(\)/);
+  assert.match(html, /return directoryRuntimeApi\(\)\(path, requestOptions\)/);
+  assert.match(html, /return directoryApi\(`\/api\/directories\/preview\?\$\{currentDirectoryQuery\(\)\.toString\(\)\}`,\s*null,\s*\{ method: "GET" \}\)/);
+  assert.match(html, /localStorage\.getItem\("hermesWebTheme"\)/);
+  assert.doesNotMatch(html, /localStorage\.getItem\("hermesWebKey"\)/);
+  assert.doesNotMatch(html, /X-Hermes-Web-Key/);
+  assert.doesNotMatch(html, /(?<![\w$.])fetch\s*\(/);
+}
+
 testInlineScriptSyntax();
 testDeleteFeedbackContract();
+testPreviewRuntimeFacadeScriptOrder();
+testDirectoryApiRuntimeFacadeBoundary();
 console.log("directory viewer delete UI tests passed");

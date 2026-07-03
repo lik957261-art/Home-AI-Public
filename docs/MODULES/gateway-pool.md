@@ -831,6 +831,14 @@ Hermes Mobile also projects stream wait states into the run-progress panel:
   trigger, not only as a local progress-panel update. This keeps the assistant
   receipt and thread `activeRunIds` synchronized even when the terminal
   `message.updated` event is delayed or missed by the foreground client.
+- Current-thread refresh scheduling is earliest-due wins. Once a terminal run
+  event has queued an immediate or earlier full-thread refresh, later delayed
+  refresh requests from final-message-done, message-updated, or summary events
+  must not clear or postpone that refresh. If a slower refresh is already
+  queued and a terminal event arrives, the terminal refresh may replace it.
+  This policy is owned by `public/app-composer-refresh-scheduler.js`; the
+  event-stream layer calls that module while keeping route snapshots, API fetch,
+  and rendering side effects in `public/app-events-composer-ui.js`.
 - The public `web_...` id must exist on the assistant message before
   `run.gateway_worker_queued`, `run.gateway_worker_starting`, and permission
   preflight events are broadcast. The inline panel should appear for queued or
@@ -1030,9 +1038,16 @@ implementation thread can move while archived historical threads remain
 searchable or visible in old Inbox rows. Plugin-owned targets may use stable
 thread ids where they are part of the current central thread map. For Home AI
 self-repair task-card dispatch, the Codex source thread is the dedicated
-`Home AI Task Intake` lane and the target remains the current `Home AI`
-implementation thread. Do not use `Home AI Platform Audit` as the source for
-these implementation repair cards; that thread is reserved for audit work.
+`Home AI Task Intake` lane and the target is a current Home AI implementation
+thread in the same app workspace. Codex Mobile routing must not choose
+`Home AI Worker Lane A/B/C` by itself for ordinary app-workspace
+implementation repairs. Those auxiliary lanes are execution resources for the
+main Home AI implementation thread to use explicitly after it has defined a
+non-overlapping module/file boundary, write lock, validation owner, and
+return-card path. The main Home AI thread remains responsible for conflict
+resolution, final integration, full validation, commit, deploy, and closure.
+Do not use `Home AI Platform Audit` as the source for these implementation
+repair cards; that thread is reserved for audit work.
 For Finance attachment changes, the accepted callable set includes
 `mcp_finance_add_transaction_attachment` in addition to
 `mcp_finance_create_transaction`. A deployment that updates the Finance plugin
@@ -1486,8 +1501,11 @@ startup scripts do not fail because of PowerShell/Bash quote expansion.
   Home AI file/image-readable root. Workspace-local `.hermes-cache/resources`
   can remain private to the MCP, but `photo_cache_dir` should point to
   `<HERMES_DATA_DIR>/artifacts/wardrobe-thumbnails/<workspaceId>` or an
-  equivalent allowed root. Do not solve thumbnail read failures by adding the
-  full `/Users/<hm-user>/HermesWorkspace` profile workspace to file-tool roots.
+  equivalent allowed root. Home AI provisioning must repair that thumbnail
+  artifact directory to a group-writable runtime boundary and prove bounded
+  temp-file-plus-rename write access. Do not solve thumbnail read failures by
+  adding the full `/Users/<hm-user>/HermesWorkspace` profile workspace to
+  file-tool roots.
 - Finance MCP is generated from the same source script. The generator checks the
   effective workspace root directly for `.hermes-finance/config.json` and a
   sibling `access-key.txt` or `workspace-key.txt`; it must not scan the user's

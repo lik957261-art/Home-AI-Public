@@ -20,7 +20,10 @@ try {
   fs.mkdirSync(path.join(tempRoot, "data", "hermes-home", "scripts"), { recursive: true });
   fs.writeFileSync(path.join(appRoot, "scripts", "homeai-disaster-backup-cron.sh"), "#!/usr/bin/env bash\necho ok\n");
   fs.writeFileSync(path.join(tempRoot, "data", "hermes-home", "scripts", "homeai-disaster-backup-cron.sh"), "#!/usr/bin/env bash\necho ok\n");
+  fs.writeFileSync(path.join(appRoot, "scripts", "homeai-self-improving-loop-cron.sh"), "#!/usr/bin/env bash\necho self loop\n");
+  fs.writeFileSync(path.join(tempRoot, "data", "hermes-home", "scripts", "homeai-self-improving-loop-cron.sh"), "#!/usr/bin/env bash\necho self loop\n");
   fs.chmodSync(path.join(tempRoot, "data", "hermes-home", "scripts", "homeai-disaster-backup-cron.sh"), 0o750);
+  fs.chmodSync(path.join(tempRoot, "data", "hermes-home", "scripts", "homeai-self-improving-loop-cron.sh"), 0o750);
   assert.deepEqual(auditRuntimeScripts(appRoot, path.join(tempRoot, "data", "hermes-home")), []);
 
   const skillDir = path.join(tempRoot, "data", "hermes-home", "skills", "productivity", "known-skill");
@@ -116,6 +119,15 @@ try {
   assert.equal(drift.ok, false);
   assert.ok(drift.sourceIssues.some((issue) => issue.code === "cron_runtime_script_drift"));
   fs.writeFileSync(path.join(tempRoot, "data", "hermes-home", "scripts", "homeai-disaster-backup-cron.sh"), "#!/usr/bin/env bash\necho ok\n");
+  fs.writeFileSync(path.join(tempRoot, "data", "hermes-home", "scripts", "homeai-self-improving-loop-cron.sh"), "#!/usr/bin/env bash\necho drift\n");
+  const selfLoopDrift = buildAudit({
+    root: tempRoot,
+    appRoot,
+    strictSource: true,
+  });
+  assert.equal(selfLoopDrift.ok, false);
+  assert.ok(selfLoopDrift.sourceIssues.some((issue) => issue.code === "cron_runtime_script_drift" && issue.script === "homeai-self-improving-loop-cron.sh"));
+  fs.writeFileSync(path.join(tempRoot, "data", "hermes-home", "scripts", "homeai-self-improving-loop-cron.sh"), "#!/usr/bin/env bash\necho self loop\n");
 
   const strictSource = buildAudit({
     root: tempRoot,

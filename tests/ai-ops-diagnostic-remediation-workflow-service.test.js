@@ -151,6 +151,79 @@ async function run() {
 }
 
 {
+  const items = new Map();
+  const pushes = [];
+  const service = createAiOpsDiagnosticRemediationWorkflowService({
+    diagnosticIntakeService: diagnosticService(),
+    actionInboxService: {
+      upsertSourceItem(input) {
+        const before = items.get(input.dedupeKey);
+        const item = Object.assign({ id: before?.id || "ainb_diag_dedupe" }, before || {}, input);
+        items.set(input.dedupeKey, item);
+        return {
+          ok: true,
+          item,
+          event: { eventType: before ? "source_updated" : "source_created" },
+          created: !before,
+          updated: Boolean(before),
+          reopened: false,
+        };
+      },
+    },
+    sendPushNotification(payload, options) {
+      pushes.push({ payload, options });
+      return { ok: true, sent: 1 };
+    },
+  });
+  const first = await service.notifyOwner({ case_id: "diagcase_wardrobe_retry" });
+  const second = await service.notifyOwner({ case_id: "diagcase_wardrobe_retry" });
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(first.notified, true);
+  assert.equal(second.notified, false);
+  assert.equal(first.inboxItem.id, second.inboxItem.id);
+  assert.equal(pushes.length, 1);
+}
+
+{
+  const items = new Map();
+  const pushes = [];
+  const service = createAiOpsDiagnosticRemediationWorkflowService({
+    diagnosticIntakeService: diagnosticService(),
+    actionInboxService: {
+      upsertSourceItem(input) {
+        const before = items.get(input.dedupeKey);
+        const terminalBefore = ["done", "dismissed", "archived"].includes(String(before?.status || ""));
+        const item = Object.assign({ id: before?.id || "ainb_diag_dismissed" }, before || {}, input, {
+          status: terminalBefore && !input.reopen ? before.status : input.status,
+        });
+        items.set(input.dedupeKey, item);
+        return {
+          ok: true,
+          item,
+          event: { eventType: before ? "source_updated" : "source_created" },
+          created: !before,
+          updated: Boolean(before),
+          reopened: Boolean(before && terminalBefore && input.reopen && item.status !== before.status),
+        };
+      },
+    },
+    sendPushNotification(payload, options) {
+      pushes.push({ payload, options });
+      return { ok: true, sent: 1 };
+    },
+  });
+  const first = await service.notifyOwner({ case_id: "diagcase_wardrobe_retry" });
+  assert.equal(first.notified, true);
+  items.set(first.inboxItem.dedupeKey, Object.assign({}, first.inboxItem, { status: "dismissed" }));
+  const repeated = await service.notifyOwner({ case_id: "diagcase_wardrobe_retry" });
+  assert.equal(repeated.ok, true);
+  assert.equal(repeated.notified, false);
+  assert.equal(repeated.inboxItem.status, "dismissed");
+  assert.equal(pushes.length, 1);
+}
+
+{
   const upserts = [];
   const sent = [];
   const ds = diagnosticService(selfCheckCase(), [selfCheckEvent()]);
@@ -220,9 +293,16 @@ async function run() {
 
 {
   const sent = [];
+  const completed = [];
   const ds = diagnosticService();
   const service = createAiOpsDiagnosticRemediationWorkflowService({
     diagnosticIntakeService: ds,
+    actionInboxService: {
+      completeItem(input) {
+        completed.push(input);
+        return { ok: true, item: { id: input.itemId, status: "done" } };
+      },
+    },
     taskCardService: {
       async sendTaskCard(input) {
         sent.push(input);
@@ -230,22 +310,110 @@ async function run() {
       },
     },
   });
-  const result = await service.dispatchTaskCard({ caseId: "diagcase_wardrobe_retry", actor: "owner" });
+  const result = await service.dispatchTaskCard({
+    caseId: "diagcase_wardrobe_retry",
+    itemId: "ainb_diag_1",
+    actor: "owner",
+  });
   assert.equal(result.ok, true);
   assert.equal(result.dispatched, true);
   assert.deepEqual(result.taskCardResult.cardIds, ["ttc_diag_1"]);
   assert.equal(sent[0].targetThreadTitle, "男装衣橱");
   assert.equal(sent[0].targetWorkspaceCwd, "/Users/example/path");
   assert.equal(sent[0].reasoningEffort, "xhigh");
+  assert.deepEqual(completed, [{
+    itemId: "ainb_diag_1",
+    actorWorkspaceId: "owner",
+    actorPrincipalId: "owner",
+    payload: {
+      reason: "diagnostic_remediation_task_card_sent",
+      taskCardIds: ["ttc_diag_1"],
+    },
+  }]);
+  assert.equal(result.inboxItem.status, "done");
+  assert.deepEqual(result.inboxCompletion, { ok: true, error: "" });
   assert.equal(ds.state.status, "card_sent");
   assert.equal(ds.state.lastUpdate.reason, "owner_triggered_task_card");
 }
 
 {
   const sent = [];
+  const completed = [];
+  const ds = diagnosticService();
+  const service = createAiOpsDiagnosticRemediationWorkflowService({
+    diagnosticIntakeService: ds,
+    actionInboxService: {
+      completeItem(input) {
+        completed.push(input);
+        throw new Error("inbox row already completed elsewhere");
+      },
+    },
+    taskCardService: {
+      async sendTaskCard(input) {
+        sent.push(input);
+        return { ok: true, cardIds: ["ttc_diag_1"] };
+      },
+    },
+  });
+  const result = await service.dispatchTaskCard({
+    caseId: "diagcase_wardrobe_retry",
+    itemId: "ainb_diag_1",
+    actor: "owner",
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.dispatched, true);
+  assert.deepEqual(result.taskCardIds, ["ttc_diag_1"]);
+  assert.equal(sent.length, 1);
+  assert.equal(completed.length, 1);
+  assert.equal(result.inboxItem, undefined);
+  assert.deepEqual(result.inboxCompletion, {
+    ok: false,
+    error: "inbox row already completed elsewhere",
+  });
+  assert.equal(ds.state.status, "card_sent");
+}
+
+{
+  const sent = [];
+  const completed = [];
+  const ds = diagnosticService();
+  const service = createAiOpsDiagnosticRemediationWorkflowService({
+    diagnosticIntakeService: ds,
+    actionInboxService: {
+      completeItem(input) {
+        completed.push(input);
+        return { ok: true, item: { id: input.itemId, status: "done" } };
+      },
+    },
+    taskCardService: {
+      async sendTaskCard(input) {
+        sent.push(input);
+        return { ok: false, status: 404, error: "target_thread_not_visible" };
+      },
+    },
+  });
+  const result = await service.dispatchTaskCard({ caseId: "diagcase_wardrobe_retry", actor: "owner" });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 502);
+  assert.equal(result.error, "diagnostic_remediation_task_card_dispatch_failed");
+  assert.equal(result.dispatchFailure.code, "target_thread_not_visible");
+  assert.equal(sent.length, 1);
+  assert.equal(completed.length, 0);
+  assert.equal(ds.state.status, "card_candidate");
+}
+
+{
+  const sent = [];
+  const completed = [];
   const ds = diagnosticService(caseRecord({ status: "card_sent" }), [event()]);
   const service = createAiOpsDiagnosticRemediationWorkflowService({
     diagnosticIntakeService: ds,
+    actionInboxService: {
+      completeItem(input) {
+        completed.push(input);
+        return { ok: true, item: { id: input.itemId, status: "done" } };
+      },
+    },
     taskCardService: {
       async sendTaskCard(input) {
         sent.push(input);
@@ -253,12 +421,20 @@ async function run() {
       },
     },
   });
-  const result = await service.dispatchTaskCard({ caseId: "diagcase_wardrobe_retry", actor: "owner" });
+  const result = await service.dispatchTaskCard({
+    caseId: "diagcase_wardrobe_retry",
+    itemId: "ainb_diag_already_sent",
+    actor: "owner",
+  });
   assert.equal(result.ok, true);
   assert.equal(result.dispatched, false);
   assert.equal(result.alreadyDispatched, true);
   assert.equal(result.reason, "diagnostic_remediation_task_card_already_sent");
   assert.equal(sent.length, 0);
+  assert.equal(completed.length, 1);
+  assert.equal(completed[0].payload.alreadyDispatched, true);
+  assert.equal(result.inboxItem.status, "done");
+  assert.deepEqual(result.inboxCompletion, { ok: true, error: "" });
 }
 
 {

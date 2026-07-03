@@ -5,6 +5,14 @@ a callable tool. A plugin service schema pass is not enough. The closure must
 prove the tool reached the model-callable Gateway layer and the Mobile
 schema-sensitive conversation boundary.
 
+This runbook is the MCP-schema layer of the broader plugin capability closure
+contract. After MCP callable proof passes, use
+`docs/PLATFORM_CONTRACTS/plugin-capability-closure-contract.md` and
+`scripts/plugin-capability-closure-smoke.js` to prove the manifest/schema,
+Home AI sync, Gateway registry, plugin conversation surface, UI/action
+projection, production smoke, and terminal return-card stages were not split
+across disconnected partial fixes.
+
 ## Required Layers
 
 Every MCP tool upgrade must verify these layers in order:
@@ -170,11 +178,18 @@ node scripts\mcp-tool-upgrade-closure-smoke.js `
   --doc-contains docs/RUNBOOKS/mcp-tool-upgrade-closure.md::mcp_finance_add_transaction_attachment
 ```
 
-Only an explicit `--skip-gateway` may skip the Gateway callable-schema layer.
-If `--skip-gateway` is absent, the harness must receive both `--manifest` and
-`--profile` and must fail closed when the selected production-capable profile is
-not named. This prevents a source/service-only smoke from being mistaken for
-full selected-profile closure.
+The no-argument daily smoke is a current source/default closure check. When no
+Gateway manifest/profile is provided, it reports
+`gateway_manifest_profile_not_provided_default_source_check` and must still use
+the current schema epoch/tool defaults. This keeps the maintained self-check
+command runnable as a drift detector.
+
+Full selected-profile Gateway closure must be requested explicitly with
+`--require-gateway`, `--macos-production-defaults`, or explicit `--manifest`
+plus `--profile` arguments. With `--require-gateway`, omitting manifest/profile
+fails closed. `--skip-gateway` remains the explicit source/service-only mode for
+plugin-owned schema repair work where the selected Gateway profile is out of
+scope.
 
 Full Gateway closure for a selected production-capable profile:
 

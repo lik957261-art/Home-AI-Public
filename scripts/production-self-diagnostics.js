@@ -198,6 +198,16 @@ const BASELINE_DIAGNOSTICS = [
     requiredFor: ["production diagnostics", "AI Ops remediation", "scheduled audits", "plugin monitoring"],
   },
   {
+    id: "install-upgrade-canary",
+    title: "Home AI install/upgrade canary diagnostic collector",
+    script: "scripts/homeai-self-improving-loop-cron.sh",
+    sourceHarness: "tests/homeai-self-improving-loop-script.test.js",
+    command: [
+      "<app>/scripts/homeai-self-improving-loop-cron.sh",
+    ],
+    requiredFor: ["fresh install", "public upgrade", "AI Ops remediation", "scheduled diagnostics"],
+  },
+  {
     id: "production-drift-reconcile",
     title: "Mac bounded production drift reconcile",
     script: "scripts/macos-production-drift-reconcile.js",

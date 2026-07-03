@@ -352,6 +352,58 @@ async function copyImageBlobToClipboard(blob) {
   return true;
 }
 
+function nativeOutboundShareAvailable() {
+  return Boolean(
+    window.HomeAINativeShareCapability?.outboundShare === true
+    && typeof window.HomeAINativeShare?.share === "function"
+  );
+}
+
+function nativeShareRequestId(prefix = "share") {
+  const safePrefix = String(prefix || "share").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "share";
+  return `${safePrefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`.slice(0, 96);
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result || "");
+      resolve(text.includes(",") ? text.slice(text.indexOf(",") + 1) : text);
+    };
+    reader.onerror = () => reject(reader.error || new Error("Failed to read share image"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function shareImageBlobWithNative(blob, options = {}) {
+  if (!nativeOutboundShareAvailable()) return false;
+  if (!blob || !Number.isFinite(blob.size) || blob.size <= 0) return false;
+  const mimeType = String(options.mimeType || blob.type || "image/png").trim() || "image/png";
+  if (mimeType !== "image/png") return false;
+  const filename = String(options.filename || `homeai-share-${Date.now().toString(36)}.png`)
+    .replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120) || "homeai-share.png";
+  try {
+    const result = await window.HomeAINativeShare.share({
+      type: "homeai.nativeShare.share",
+      version: 1,
+      requestId: nativeShareRequestId(options.requestPrefix || "native-share"),
+      sourceSurface: String(options.sourceSurface || "message_share_image").slice(0, 80),
+      title: String(options.title || "Home AI").slice(0, 120),
+      text: String(options.text || "").slice(0, 240),
+      filename,
+      mimeType,
+      dataBase64: await blobToBase64(blob),
+    });
+    return Boolean(result?.ok);
+  } catch (error) {
+    if (error?.name === "AbortError") throw error;
+    return false;
+  }
+}
+
 function openImageBlobPreview(blob, options = {}) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -370,8 +422,15 @@ async function shareMessageImage(messageId) {
   if (!message) throw new Error("Message not found");
   const blob = await renderMessageShareImageBlob(message);
   const title = messageShareTitle(message);
+  const filename = `homeai-reply-${Date.now().toString(36)}.png`;
+  if (await shareImageBlobWithNative(blob, {
+    title,
+    filename,
+    sourceSurface: "message_share_image",
+    requestPrefix: "reply-share",
+  })) return;
   if (typeof File !== "undefined" && navigator.share && navigator.canShare) {
-    const file = new File([blob], `hermes-reply-${Date.now().toString(36)}.png`, { type: "image/png" });
+    const file = new File([blob], filename, { type: "image/png" });
     if (navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], title });
       return;
@@ -634,8 +693,16 @@ async function renderLearningGrowthCardShareImageBlob(task = {}) {
 async function shareLearningGrowthCardImage(task = {}) {
   const blob = await renderLearningGrowthCardShareImageBlob(task);
   const title = String(task.title || task.taskCardId || task.id || "\u5b66\u4e60\u5361").trim();
+  const filename = `homeai-growth-card-${Date.now().toString(36)}.png`;
+  if (await shareImageBlobWithNative(blob, {
+    title,
+    text: "\u5b66\u4e60\u5361\u56fe\u7247",
+    filename,
+    sourceSurface: "learning_growth_card_share_image",
+    requestPrefix: "growth-card-share",
+  })) return;
   if (typeof File !== "undefined" && navigator.share && navigator.canShare) {
-    const file = new File([blob], `hermes-growth-card-${Date.now().toString(36)}.png`, { type: "image/png" });
+    const file = new File([blob], filename, { type: "image/png" });
     try {
       if (navigator.canShare({ files: [file] })) {
         try {

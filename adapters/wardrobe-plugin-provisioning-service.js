@@ -8,6 +8,7 @@ const DEFAULT_WARDROBE_REGISTRATION_PATH = "/api/v1/hermes/plugin/workspaces";
 const DEFAULT_WARDROBE_SCOPES = Object.freeze(["items:read", "items:write", "history:write", "sync:read"]);
 const DEFAULT_MAX_KEY_SEARCH_DEPTH = 6;
 const DEFAULT_WARDROBE_WORKSPACE_KEY_PREFIX = "wd_live_";
+const WARDROBE_PHOTO_CACHE_DIR_MODE = 0o770;
 const MIN_COMPLETE_WARDROBE_SKILL_BYTES = 2048;
 const REQUIRED_WARDROBE_SKILL_REFERENCE = "wardrobe-program-api.md";
 const REQUIRED_WARDROBE_SKILL_SCRIPT = "render_wardrobe_phone_pdf.py";
@@ -43,6 +44,17 @@ function safeWorkspaceId(value) {
   return text;
 }
 
+function safeMacUser(value) {
+  const text = stringValue(value).toLowerCase();
+  if (!/^hm-[a-z0-9][a-z0-9-]{0,62}$/.test(text)) return "";
+  return text;
+}
+
+function macUserForWorkspaceId(workspaceId) {
+  const safe = safeWorkspaceId(workspaceId).toLowerCase().replace(/_/g, "-");
+  return safe ? `hm-${safe}` : "";
+}
+
 function wardrobeWorkspaceIdForHermesWorkspace(workspaceId) {
   const safe = safeWorkspaceId(workspaceId);
   return safe ? `wardrobe:${safe}` : "";
@@ -75,6 +87,180 @@ function wardrobePhotoCacheDir(input = {}) {
   const workspaceId = safeWorkspaceId(input.workspaceId);
   if (!dataDir || !workspaceId) return "";
   return path.join(dataDir, "artifacts", "wardrobe-thumbnails", workspaceId);
+}
+
+function octalMode(mode) {
+  return `0${(Number(mode || 0) & 0o777).toString(8)}`;
+}
+
+function atomicWriteProbe(dir) {
+  const probeId = `${process.pid}-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
+  const tempPath = path.join(dir, `.homeai-wardrobe-thumbnail-probe-${probeId}.tmp`);
+  const finalPath = path.join(dir, `.homeai-wardrobe-thumbnail-probe-${probeId}.ok`);
+  try {
+    fs.writeFileSync(tempPath, "probe\n", { encoding: "utf8", mode: 0o660 });
+    fs.renameSync(tempPath, finalPath);
+    fs.unlinkSync(finalPath);
+    return { ok: true };
+  } catch (err) {
+    const cleanupErrors = [];
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch (cleanupErr) {
+      cleanupErrors.push(`temp:${boundedError(cleanupErr?.code || cleanupErr?.message || cleanupErr)}`);
+    }
+    try {
+      if (fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
+    } catch (cleanupErr) {
+      cleanupErrors.push(`final:${boundedError(cleanupErr?.code || cleanupErr?.message || cleanupErr)}`);
+    }
+    return {
+      ok: false,
+      error: boundedError(err?.code || err?.message || "wardrobe_photo_cache_probe_failed"),
+      cleanupErrors,
+    };
+  }
+}
+
+function ensureWardrobePhotoCacheDir(input = {}) {
+  const dir = wardrobePhotoCacheDir(input);
+  if (!dir) return { ok: false, error: "workspace_id_required" };
+  const parent = path.dirname(dir);
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: WARDROBE_PHOTO_CACHE_DIR_MODE });
+    const chmodWarnings = [];
+    for (const candidate of [parent, dir]) {
+      try {
+        fs.chmodSync(candidate, WARDROBE_PHOTO_CACHE_DIR_MODE);
+      } catch (err) {
+        chmodWarnings.push({
+          target: candidate === parent ? "wardrobe-thumbnails" : "workspace",
+          error: boundedError(err?.code || err?.message || err),
+        });
+      }
+    }
+    const stat = fs.statSync(dir);
+    const mode = stat.mode & 0o777;
+    const groupWritable = Boolean(mode & 0o020);
+    if (!groupWritable) {
+      return {
+        ok: false,
+        error: "wardrobe_photo_cache_dir_not_group_writable",
+        dir,
+        mode: octalMode(mode),
+      };
+    }
+    const probe = input.probeWrite === false ? { ok: true, skipped: true } : atomicWriteProbe(dir);
+    if (!probe.ok) {
+      return Object.assign({
+        ok: false,
+        error: "wardrobe_photo_cache_dir_unwritable",
+        dir,
+        mode: octalMode(mode),
+        groupWritable,
+      }, probe);
+    }
+    return {
+      ok: true,
+      dir,
+      mode: octalMode(mode),
+      groupWritable,
+      writeProbeOk: !probe.skipped,
+      writeProbeSkipped: Boolean(probe.skipped),
+      chmodWarnings,
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: boundedError(err?.code || err?.message || "wardrobe_photo_cache_dir_failed"),
+      dir,
+    };
+  }
+}
+
+function wardrobeRuntimeMacUsers(input = {}, gateway = {}) {
+  const out = [];
+  for (const value of [
+    input.macUser,
+    input.mac_user,
+    gateway.macUser,
+    gateway.osUser,
+    ...(Array.isArray(gateway.workerOsUsers) ? gateway.workerOsUsers : []),
+  ]) {
+    const user = safeMacUser(value);
+    if (user && !out.includes(user)) out.push(user);
+  }
+  const inferredUser = safeMacUser(macUserForWorkspaceId(input.workspaceId));
+  if (inferredUser && !out.includes(inferredUser)) out.push(inferredUser);
+  return out;
+}
+
+async function repairWardrobePhotoCacheRuntimeAccess(input = {}, options = {}) {
+  const local = ensureWardrobePhotoCacheDir(input);
+  if (!local.ok) return local;
+  const executor = options.systemProvisioningExecutor || input.systemProvisioningExecutor;
+  if (!executor || typeof executor.runStep !== "function") {
+    return {
+      ok: true,
+      photoCache: local,
+      runtimeProbeSkipped: true,
+      reason: "workspace_system_executor_unavailable",
+    };
+  }
+  const users = wardrobeRuntimeMacUsers(input, options.gateway || {});
+  if (!users.length) {
+    return {
+      ok: false,
+      error: "wardrobe_photo_cache_runtime_user_missing",
+      photoCacheDir: local.dir,
+    };
+  }
+  const macUser = users[0];
+  const result = await executor.runStep("repair_wardrobe_thumbnail_artifact_acl", {
+    workspaceId: safeWorkspaceId(input.workspaceId),
+    macUser,
+    paths: Object.assign(
+      {},
+      stringValue(input.liveRoot) ? { liveRoot: stringValue(input.liveRoot) } : {},
+      stringValue(input.dataRoot || input.dataDir) ? { dataRoot: stringValue(input.dataRoot || input.dataDir) } : {},
+    ),
+  });
+  if (!result || result.ok === false) {
+    return {
+      ok: false,
+      error: result?.error || "wardrobe_photo_cache_runtime_acl_failed",
+      photoCacheDir: local.dir,
+      macUser,
+    };
+  }
+  const writeProbeOk = Boolean(result.writeProbeOk);
+  if (!writeProbeOk) {
+    return {
+      ok: false,
+      error: "wardrobe_photo_cache_runtime_probe_failed",
+      photoCache: local,
+      photoCacheDir: local.dir,
+      macUser,
+      runtimeAcl: {
+        ok: false,
+        photoCacheDir: stringValue(result.photoCacheDir),
+        aclRepaired: Boolean(result.aclRepaired),
+        writeProbeOk: false,
+      },
+    };
+  }
+  return {
+    ok: true,
+    photoCache: local,
+    runtimeProbeOk: true,
+    runtimeProbeUser: stringValue(result.probeUser || macUser),
+    runtimeAcl: {
+      ok: true,
+      photoCacheDir: stringValue(result.photoCacheDir),
+      aclRepaired: Boolean(result.aclRepaired),
+      writeProbeOk,
+    },
+  };
 }
 
 function findWardrobeAccessKeyPath(input = {}, options = {}) {
@@ -224,8 +410,16 @@ function writeWardrobeWorkspaceConfig(input = {}) {
     fs.mkdirSync(path.dirname(configPath), { recursive: true });
     fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
     fs.mkdirSync(path.join(wardrobeWorkspaceRoot(input), ".hermes-cache"), { recursive: true });
-    if (config.photo_cache_dir) fs.mkdirSync(config.photo_cache_dir, { recursive: true });
-    return { ok: true, configPath, config };
+    const photoCache = ensureWardrobePhotoCacheDir(input);
+    if (!photoCache.ok) {
+      return {
+        ok: false,
+        error: photoCache.error || "wardrobe_photo_cache_dir_unwritable",
+        configPath,
+        photoCacheDir: config.photo_cache_dir,
+      };
+    }
+    return { ok: true, configPath, config, photoCache };
   } catch (_) {
     return { ok: false, error: "wardrobe_config_write_failed" };
   }
@@ -271,6 +465,71 @@ function readWardrobeWorkspaceConfig(input = {}, options = {}) {
   } catch (_) {
     return {};
   }
+}
+
+function repairWardrobeWorkspacePhotoCacheConfig(input = {}) {
+  const workspaceId = safeWorkspaceId(input.workspaceId);
+  if (!workspaceId) return { ok: false, error: "workspace_id_required" };
+  const configPath = findWardrobeConfigPath(input, input);
+  if (!configPath) return { ok: false, error: "wardrobe_config_missing" };
+  let config = {};
+  try {
+    config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  } catch (err) {
+    return { ok: false, error: boundedError(err?.code || err?.message || "wardrobe_config_read_failed") };
+  }
+  const expectedPhotoCacheDir = wardrobePhotoCacheDir(input);
+  const photoCache = ensureWardrobePhotoCacheDir(input);
+  if (!photoCache.ok) {
+    return {
+      ok: false,
+      error: photoCache.error || "wardrobe_photo_cache_dir_unwritable",
+      configPath,
+      photoCacheDir: expectedPhotoCacheDir,
+    };
+  }
+  const previousPhotoCacheDir = stringValue(config.photo_cache_dir);
+  const changed = previousPhotoCacheDir !== expectedPhotoCacheDir;
+  if (changed) {
+    config.photo_cache_dir = expectedPhotoCacheDir;
+    config.updated_at = typeof input.nowIso === "function" ? input.nowIso() : new Date().toISOString();
+    try {
+      fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+    } catch (err) {
+      return { ok: false, error: boundedError(err?.code || err?.message || "wardrobe_config_write_failed"), configPath };
+    }
+  }
+  return {
+    ok: true,
+    configPath,
+    changed,
+    previousPhotoCacheDirBasename: path.basename(previousPhotoCacheDir || ""),
+    photoCacheDir: expectedPhotoCacheDir,
+    photoCache,
+  };
+}
+
+async function repairWardrobeWorkspacePhotoCacheConfigAndRuntimeAccess(input = {}, options = {}) {
+  const configRepair = repairWardrobeWorkspacePhotoCacheConfig(input);
+  if (!configRepair.ok) return configRepair;
+  const runtimeAccess = await repairWardrobePhotoCacheRuntimeAccess(input, options);
+  if (!runtimeAccess.ok) {
+    return Object.assign({}, configRepair, {
+      ok: false,
+      error: runtimeAccess.error || "wardrobe_photo_cache_runtime_acl_failed",
+      photoCacheRuntimeAccess: runtimeAccess,
+    });
+  }
+  return Object.assign({}, configRepair, {
+    photoCacheRuntimeAccess: {
+      ok: true,
+      runtimeProbeOk: Boolean(runtimeAccess.runtimeProbeOk),
+      runtimeProbeSkipped: Boolean(runtimeAccess.runtimeProbeSkipped),
+      runtimeProbeUser: stringValue(runtimeAccess.runtimeProbeUser),
+      reason: stringValue(runtimeAccess.reason) || undefined,
+      runtimeAcl: runtimeAccess.runtimeAcl || undefined,
+    },
+  });
 }
 
 function shouldSkipSkillCopyEntry(entryName = "") {
@@ -604,10 +863,19 @@ function verifyLocalProvisioning(input = {}) {
   const skillDir = stringValue(input.skillDir) || (skillPath ? path.dirname(skillPath) : "");
   const expectedWardrobeWorkspaceId = wardrobeWorkspaceIdForHermesWorkspace(workspaceId);
   const skillBundle = skillDir ? validateWardrobeSkillBundle(skillDir) : { ok: false, missing: ["wardrobe-style-operations"] };
+  const photoCache = ensureWardrobePhotoCacheDir(input);
+  const expectedPhotoCacheDir = wardrobePhotoCacheDir(input);
   return {
     keyPresent: Boolean(keyPath && fs.existsSync(keyPath)),
     configPresent: Boolean(findWardrobeConfigPath(input, input)),
     configWorkspaceMatches: stringValue(config.workspace_id || config.workspaceId) === expectedWardrobeWorkspaceId,
+    configPhotoCacheMatches: stringValue(config.photo_cache_dir) === expectedPhotoCacheDir,
+    photoCacheDirWritable: Boolean(photoCache.ok),
+    photoCacheDirMode: stringValue(photoCache.mode),
+    photoCacheRuntimeWritable: input.photoCacheRuntimeAccess
+      ? Boolean(input.photoCacheRuntimeAccess.ok && (input.photoCacheRuntimeAccess.runtimeProbeOk || input.photoCacheRuntimeAccess.runtimeProbeSkipped))
+      : undefined,
+    photoCacheRuntimeProbeUser: input.photoCacheRuntimeAccess ? stringValue(input.photoCacheRuntimeAccess.runtimeProbeUser) : undefined,
     skillPresent: Boolean(skillPath && fs.existsSync(skillPath)),
     skillBundleComplete: Boolean(skillBundle.ok),
     skillBundle: publicSkillBundleValidation(skillBundle),
@@ -620,6 +888,7 @@ function createWardrobePluginProvisioningService(options = {}) {
   const dataDir = options.dataDir;
   const env = options.env || process.env;
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
+  const systemProvisioningExecutor = options.systemProvisioningExecutor || options.workspaceSystemProvisioningExecutor || null;
 
   async function provisionWorkspace(input = {}) {
     const workspaceId = safeWorkspaceId(input.workspaceId);
@@ -664,6 +933,21 @@ function createWardrobePluginProvisioningService(options = {}) {
         registrationStatus: "accepted",
       };
     }
+    const photoCacheRuntimeAccess = await repairWardrobePhotoCacheRuntimeAccess(baseInput, {
+      gateway,
+      systemProvisioningExecutor,
+    });
+    if (!photoCacheRuntimeAccess.ok) {
+      return {
+        ok: false,
+        error: photoCacheRuntimeAccess.error || "wardrobe_photo_cache_runtime_acl_failed",
+        keyCreated: key.created,
+        configWritten: true,
+        registrationStatus: "accepted",
+        gatewayProfiles: Array.isArray(gateway?.profiles) ? gateway.profiles : [],
+        gatewayMacUser: stringValue(gateway?.macUser || gateway?.osUser || gateway?.workerOsUsers?.[0]),
+      };
+    }
     const skill = installWardrobeSkill(Object.assign({}, baseInput, {
       skillStorePath: gateway?.skillStorePath,
     }));
@@ -679,8 +963,16 @@ function createWardrobePluginProvisioningService(options = {}) {
     const verification = verifyLocalProvisioning(Object.assign({}, baseInput, {
       skillPath: skill.skillPath,
       skillDir: skill.skillDir,
+      photoCacheRuntimeAccess,
     }));
-    const verified = verification.keyPresent && verification.configPresent && verification.configWorkspaceMatches && verification.skillPresent && verification.skillBundleComplete;
+    const verified = verification.keyPresent
+      && verification.configPresent
+      && verification.configWorkspaceMatches
+      && verification.configPhotoCacheMatches
+      && verification.photoCacheDirWritable
+      && verification.photoCacheRuntimeWritable !== false
+      && verification.skillPresent
+      && verification.skillBundleComplete;
     if (!verified) {
       return {
         ok: false,
@@ -707,6 +999,13 @@ function createWardrobePluginProvisioningService(options = {}) {
       gatewayMacUser: stringValue(gateway?.macUser || gateway?.osUser || gateway?.workerOsUsers?.[0]),
       gatewayRestartRequired: Boolean(gateway?.restartRequired),
       gatewayProfileBindingRefreshed: Boolean(gateway?.profileBindingRefreshed),
+      photoCacheRuntimeAccess: {
+        ok: true,
+        runtimeProbeOk: Boolean(photoCacheRuntimeAccess.runtimeProbeOk),
+        runtimeProbeSkipped: Boolean(photoCacheRuntimeAccess.runtimeProbeSkipped),
+        runtimeProbeUser: stringValue(photoCacheRuntimeAccess.runtimeProbeUser),
+        runtimeAcl: photoCacheRuntimeAccess.runtimeAcl || undefined,
+      },
       verification,
     };
   }
@@ -716,6 +1015,14 @@ function createWardrobePluginProvisioningService(options = {}) {
     installWardrobeSkill: (input = {}) => installWardrobeSkill(Object.assign({ dataDir, env }, input)),
     provisionWorkspace,
     registerWorkspace: (input = {}) => registerWardrobeWorkspace(Object.assign({ dataDir, env }, input), { fetch: fetchImpl }),
+    repairPhotoCacheConfig: (input = {}) => repairWardrobeWorkspacePhotoCacheConfigAndRuntimeAccess(
+      Object.assign({ dataDir, env }, input),
+      {
+        systemProvisioningExecutor,
+        gateway: input.gateway || input.gatewayProvisioning || {},
+      },
+    ),
+    repairPhotoCacheRuntimeAccess: (input = {}) => repairWardrobePhotoCacheRuntimeAccess(Object.assign({ dataDir, env }, input), { systemProvisioningExecutor }),
     verifyLocalProvisioning: (input = {}) => verifyLocalProvisioning(Object.assign({ dataDir, env }, input)),
   };
 }
@@ -724,8 +1031,10 @@ module.exports = {
   DEFAULT_WARDROBE_REGISTRATION_PATH,
   DEFAULT_WARDROBE_SCOPES,
   DEFAULT_WARDROBE_WORKSPACE_KEY_PREFIX,
+  WARDROBE_PHOTO_CACHE_DIR_MODE,
   createWardrobePluginProvisioningService,
   defaultWardrobeSkillText,
+  ensureWardrobePhotoCacheDir,
   findWardrobeAccessKeyPath,
   findWardrobeRegistrationAccessKeyPath,
   ensureWardrobeWorkspaceKey,
@@ -734,6 +1043,9 @@ module.exports = {
   installWardrobeSkill,
   readWardrobeWorkspaceConfig,
   readWardrobeRegistrationAccessKey,
+  repairWardrobeWorkspacePhotoCacheConfig,
+  repairWardrobeWorkspacePhotoCacheConfigAndRuntimeAccess,
+  repairWardrobePhotoCacheRuntimeAccess,
   registerWardrobeWorkspace,
   sha256Hex,
   validateWardrobeSkillBundle,

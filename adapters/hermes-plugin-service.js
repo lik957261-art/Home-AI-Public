@@ -1683,6 +1683,7 @@ function createHermesPluginService(options = {}) {
     env: options.env,
     fetch: fetchImpl,
     gatewayWorkspaceProvisioningService,
+    systemProvisioningExecutor,
     nowIso,
     repoRoot: options.repoRoot,
     wardrobeSkillTemplatePath: options.wardrobeSkillTemplatePath,
@@ -1732,11 +1733,11 @@ function createHermesPluginService(options = {}) {
       || stringValue(workspaceLabelForId(workspaceId))
       || workspaceId;
     if (id === "wardrobe") {
-      return wardrobeProvisioningService.provisionWorkspace({
+      return wardrobeProvisioningService.provisionWorkspace(Object.assign({
         workspaceId,
         displayName,
         wardrobeManifestUrl: plugin.manifestUrl,
-      });
+      }, stringValue(input.macUser || input.mac_user) ? { macUser: stringValue(input.macUser || input.mac_user) } : {}));
     }
     if (id === "email") {
       return emailProvisioningService.provisionWorkspace({
@@ -2120,6 +2121,9 @@ function createHermesPluginService(options = {}) {
         provisioningError: "",
       });
       if (id === "wardrobe") {
+        const photoCacheRuntimeAccess = provisioned.photoCacheRuntimeAccess && typeof provisioned.photoCacheRuntimeAccess === "object"
+          ? provisioned.photoCacheRuntimeAccess
+          : {};
         return Object.assign({}, saved, {
           provisioning: Object.assign({
             status: "active",
@@ -2129,6 +2133,9 @@ function createHermesPluginService(options = {}) {
             gatewayProfiles: Array.isArray(provisioned.gatewayProfiles) ? provisioned.gatewayProfiles : [],
             gatewayRestartRequired: Boolean(provisioned.gatewayRestartRequired),
             gatewayProfileBindingRefreshed: Boolean(provisioned.gatewayProfileBindingRefreshed),
+            photoCacheRuntimeProbeOk: Boolean(photoCacheRuntimeAccess.runtimeProbeOk),
+            photoCacheRuntimeProbeSkipped: Boolean(photoCacheRuntimeAccess.runtimeProbeSkipped),
+            photoCacheRuntimeProbeUser: stringValue(photoCacheRuntimeAccess.runtimeProbeUser),
             created: Boolean(provisioned.created),
           }, gatewayProvisioning),
         });

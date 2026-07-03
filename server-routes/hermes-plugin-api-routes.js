@@ -644,6 +644,11 @@ function createHermesPluginApiRoutes(deps = {}) {
           : pluginProxyResourcePath(pluginId, resourcePath, workspaceId)
       ));
     }
+    if (options.script === true && pluginId === "codex-mobile") {
+      out = out.replace(/(["'`])assets\/([^"'`\s)]*)/g, (_match, quote, resourcePath) => (
+        `${quote}${pluginProxyScriptResourcePath(pluginId, `/vite-shell/assets/${resourcePath}`)}`
+      ));
+    }
     return out
       .replace(/(href|src)=(["'])\/(?!\/|api\/hermes-plugins\/[^/]+\/proxy\/)([^"']*)/g, (_match, attr, quote, resourcePath) => (
         `${attr}=${quote}${pluginProxyResourcePath(pluginId, `/${resourcePath}`, workspaceId)}`
@@ -662,6 +667,11 @@ function createHermesPluginApiRoutes(deps = {}) {
       ))
       .replace(/(["'`])\/manifest\.webmanifest([^"'`\s)]*)/g, (_match, quote, suffix) => (
         `${quote}${pluginProxyResourcePath(pluginId, `/manifest.webmanifest${suffix || ""}`, workspaceId)}`
+      ))
+      .replace(/(["'`])\/vite-shell\/([^"'`\s)]*)/g, (_match, quote, resourcePath) => (
+        `${quote}${options.script === true
+          ? pluginProxyScriptResourcePath(pluginId, `/vite-shell/${resourcePath}`)
+          : pluginProxyResourcePath(pluginId, `/vite-shell/${resourcePath}`, workspaceId)}`
       ))
       .replace(/(["'`])\/icons\/([^"'`\s)]*)/g, (_match, quote, resourcePath) => (
         `${quote}${pluginProxyResourcePath(pluginId, `/icons/${resourcePath}`, workspaceId)}`

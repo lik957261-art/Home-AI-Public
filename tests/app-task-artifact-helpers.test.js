@@ -66,6 +66,7 @@ function message(id, role, extra = {}) {
         artifacts: [
           { id: "doc", name: "report.md", mime: "text/markdown" },
           { id: "word", name: "report.docx", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+          { id: "slides", name: "briefing.pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
           { id: "data", name: "data.json", mime: "application/json" },
         ],
       }),
@@ -75,6 +76,7 @@ function message(id, role, extra = {}) {
     "notes.txt",
     "report.md",
     "report.docx",
+    "briefing.pptx",
     "data.json",
   ]);
   assert.equal(helpers.latestTaskListDocument(group).name, "report.md");
@@ -82,7 +84,10 @@ function message(id, role, extra = {}) {
     "report.md",
     "data.json",
     "notes.txt",
+    "briefing.pptx",
   ]);
+  assert.equal(helpers.artifactKind({ name: "briefing.pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }), "presentation");
+  assert.equal(helpers.isTaskListPrimaryDocument({ name: "briefing.pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }), true);
   assert.equal(helpers.artifactDisplayName({ id: "a1", name: "raw.md", displayName: "Readable Report" }), "Readable Report");
 }
 

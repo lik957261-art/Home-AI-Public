@@ -17,6 +17,11 @@ const {
   parseToolsetEscalationRequest,
   sanitizeToolsetEscalationVisibleText,
 } = require("./gateway-run-toolset-escalation-service");
+const {
+  ACTION_KEY: WARDROBE_OUTFIT_WEAR_INTENT_ACTION_KEY,
+  attachPreparedIntentToMessage,
+  extractPreparedIntentFromOutputItemEvent,
+} = require("./wardrobe-outfit-wear-intent-action-service");
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -77,6 +82,33 @@ function createGatewayRunOutputEventService(options = {}) {
     });
   }
 
+  function recordWardrobeOutfitWearIntentMetadata(context, event, functionName) {
+    const { thread, runId, message } = context;
+    const intent = extractPreparedIntentFromOutputItemEvent(event, { functionName });
+    if (!intent) return null;
+    const existingKey = cleanString(message.pluginActions?.[WARDROBE_OUTFIT_WEAR_INTENT_ACTION_KEY]?.intent?.idempotency_key);
+    if (existingKey && existingKey === intent.idempotency_key) return null;
+    const updatedAt = nowIso();
+    const action = attachPreparedIntentToMessage(message, intent, { updatedAt });
+    if (!action) return null;
+    message.updatedAt = updatedAt;
+    thread.updatedAt = updatedAt;
+    addThreadEvent(thread, {
+      event: "run.wardrobe_outfit_wear_intent_metadata_attached",
+      timestamp: nowMs() / 1000,
+      runId: eventRunIdFor(context) || runId,
+      tool: "wardrobe_outfit_wear_intent",
+      preview: JSON.stringify({
+        status: action.status,
+        executable: action.executable,
+        itemCount: Array.isArray(intent.items) ? intent.items.length : 0,
+        source: "response.output_item",
+      }),
+      error: false,
+    });
+    return action;
+  }
+
   function recordOutputItemEvent(context, event) {
     const { thread, runId, eventName, message } = context;
     const eventRunId = eventRunIdFor(context);
@@ -89,6 +121,9 @@ function createGatewayRunOutputEventService(options = {}) {
         || runToolNameForCallId(thread, eventRunId, callId)
         || runToolNameForCallId(thread, runId, callId);
       preview = (name || callId) ? JSON.stringify({ name, callId }) : "";
+      if (recordWardrobeOutfitWearIntentMetadata(context, event, name)) {
+        broadcastMessageUpdated(thread, message);
+      }
     }
     addThreadEvent(thread, {
       event: eventName,

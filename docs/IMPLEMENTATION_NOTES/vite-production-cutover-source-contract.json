@@ -1,0 +1,44 @@
+{
+  "target": "home-ai-vite-production-cutover-source-change",
+  "ownerApproval": {
+    "requiredText": "批准 Home AI Vite 生产切换：允许创建生产 cutover 改动，并通过 Mac central deploy lane 部署和读回。"
+  },
+  "privacy": {
+    "confirmed": true,
+    "noSecrets": true
+  },
+  "cutoverSourceChange": {
+    "exists": true,
+    "failClosedDefault": "classic",
+    "explicitShellModeSwitch": true,
+    "rollbackSwitch": true,
+    "serviceWorkerCacheVersionPlan": true,
+    "viteAssetsManifestReadback": true,
+    "devPreviewMocksExcludedFromServer": true,
+    "ownerConsolePermissionPreserved": true,
+    "nonOwnerDenied": true,
+    "productionDefaultNotViteWithoutSwitch": true,
+    "boundedProductionReadbackRequired": true,
+    "deployLaneRequired": true,
+    "summary": "Home AI production shell mode defaults to classic unless config/home-ai-shell-mode.json or HOMEAI_FRONTEND_SHELL_MODE explicitly selects vite. Vite mode injects a production bootstrap module into the existing shell response, preserves the classic business runtime, records selected-shell headers, and keeps request-level classic rollback available for bounded readback."
+  },
+  "validationCommands": [
+    "npm run verify:vite-dev",
+    "npm run check:vite-readiness",
+    "node tests/vite-cutover-source-change-validator.test.js",
+    "node tests/vite-production-cutover-preflight.test.js",
+    "node tests/vite-production-readback-validator.test.js",
+    "npm run validate:vite-cutover-source -- --contract-json docs/IMPLEMENTATION_NOTES/vite-production-cutover-source-contract.json --require-ok",
+    "npm run validate:vite-cutover-readback -- --readback-json /tmp/home-ai-vite-production-readback.json --require-ok",
+    "npm run check",
+    "git diff --check"
+  ],
+  "changedBoundary": {
+    "shellModeConfig": "config/home-ai-shell-mode.json",
+    "runtimeService": "adapters/mobile-http-runtime-service.js",
+    "serverWiring": "mobile-server-runtime.js",
+    "viteEntry": "src/vite-app/production-bootstrap.mjs",
+    "builtEntry": "public/vite-islands/home-ai-production-bootstrap/home-ai-production-bootstrap.js",
+    "staticVersion": "20260703-vite-production-cutover-v1000"
+  }
+}

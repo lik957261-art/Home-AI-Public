@@ -716,6 +716,53 @@ async function testRunSmokesFailsForTargetToolsetIssues() {
   assert.equal(calls.some((call) => call.args[0]?.endsWith("macos-worker-filesystem-access-harness.js")), false);
 }
 
+async function testWardrobeThumbnailArtifactAclUsesBoundedWorkerProbe() {
+  const service = createWorkspaceSystemProvisioningExecutorService({
+    enabled: true,
+    dryRun: true,
+    platform: "darwin",
+    liveRoot: "/Users/example/path",
+    listenerUser: "hermes-host",
+    workerGroup: "hermes-workers",
+  });
+
+  const result = await service.runStep("repair_wardrobe_thumbnail_artifact_acl", {
+    workspaceId: "owner",
+    macUser: "hm-owner",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.aclRepaired, true);
+  assert.equal(result.photoCacheDir, "<root>/data/artifacts/wardrobe-thumbnails/owner");
+  assert.equal(result.probeUser, "hm-owner");
+  assert.equal(result.writeProbeOk, true);
+
+  const rendered = service.commandLog().map((entry) => `${entry.command} ${entry.args.join(" ")}`).join("\n");
+  assert.match(rendered, /\/bin\/mkdir -p \/Users\/hermes-host\/HermesMobile\/data\/artifacts\/wardrobe-thumbnails\/owner/);
+  assert.match(rendered, /\/usr\/sbin\/chown hermes-host:hermes-workers \/Users\/hermes-host\/HermesMobile\/data\/artifacts\/wardrobe-thumbnails\/owner/);
+  assert.doesNotMatch(rendered, /\/usr\/sbin\/chown -R .*\/Users\/hermes-host\/HermesMobile\/data\/artifacts/);
+  assert.match(rendered, /\/bin\/chmod 770 \/Users\/hermes-host\/HermesMobile\/data\/artifacts\/wardrobe-thumbnails\/owner/);
+  assert.match(rendered, /\/bin\/chmod \+a user:hm-owner allow .*add_file.*delete_child.* \/Users\/hermes-host\/HermesMobile\/data\/artifacts\/wardrobe-thumbnails\/owner/);
+  assert.match(rendered, /\/usr\/bin\/sudo -n -u hm-owner \/bin\/sh -c/);
+  assert.doesNotMatch(rendered, /\/Users\/hm-owner\/HermesWorkspace/);
+}
+
+async function testWardrobeThumbnailArtifactAclRejectsUnsafeUser() {
+  const service = createWorkspaceSystemProvisioningExecutorService({
+    enabled: true,
+    dryRun: true,
+    platform: "darwin",
+  });
+
+  const result = await service.runStep("repair_wardrobe_thumbnail_artifact_acl", {
+    workspaceId: "owner",
+    macUser: "root",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "mac_user_invalid");
+}
+
 async function run() {
   await testValidationHelpersAndDisabledStates();
   await testEnsureMacUserCreatesHiddenAccount();
@@ -730,6 +777,8 @@ async function run() {
   await testRunSmokesIgnoresUnrelatedProfileAuditIssues();
   await testRunSmokesFailsForTargetProfileAuditIssues();
   await testRunSmokesFailsForTargetToolsetIssues();
+  await testWardrobeThumbnailArtifactAclUsesBoundedWorkerProbe();
+  await testWardrobeThumbnailArtifactAclRejectsUnsafeUser();
   console.log("workspace system provisioning executor service tests passed");
 }
 

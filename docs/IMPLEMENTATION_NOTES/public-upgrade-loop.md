@@ -1,6 +1,6 @@
 # Public Upgrade Loop
 
-Last updated: 2026-06-30.
+Last updated: 2026-07-01.
 
 This note defines the maintained online-upgrade closure for a deployed Home AI
 instance operated from public/source repositories. It is intentionally narrower
@@ -150,11 +150,66 @@ root, runs source-only public preflight, then runs two target-side
   not Git checkouts, the plan must fail closed until `--adopt-non-git-sources`
   is explicit; with that gate, the plan must expose adopt/deploy/closure
   actions.
+- with a missing Hermes Agent managed runtime, the plan must fail closed until
+  the explicit Hermes Agent runtime repair gate is present; with that gate, the
+  plan must expose runtime repair and closure-validation actions.
 
 The rehearsal is source/plan-only. It does not pass `--execute` to
 `upgrade:public`, does not touch `/Users/example/path`, and does
 not read or print provider keys, OAuth state, access keys, cookies, launch
 tokens, or plugin private payloads.
+
+The Home AI Self-Improving Loop treats this as a daily smoke. The central
+deploy/upgrade closure gate is
+`docs/PLATFORM_CONTRACTS/deploy-upgrade-lane-closure-contract.md`; focused
+checks are:
+
+```bash
+node scripts/homeai-install-upgrade-canary.js --execute --json
+node tests/deploy-upgrade-lane-closure-service.test.js
+node tests/deploy-upgrade-lane-closure-smoke.test.js
+node scripts/deploy-upgrade-lane-closure-smoke.js --json
+```
+
+The install/upgrade canary is the maintained aggregate entrypoint for the
+source-safe portion of one-command install and public upgrade closure. Plan mode
+is:
+
+```bash
+npm run canary:install-upgrade -- --json
+```
+
+Source-safe execution is:
+
+```bash
+npm run canary:install-upgrade -- --execute --json
+```
+
+It aggregates public install source preflight, macOS fresh-install rehearsal,
+installer phase coverage, operator closure checklist, public upgrade rehearsal
+plan, deploy/upgrade lane closure smoke, plugin-provisioning coverage, and the
+Runtime SLO audit. It is intentionally not a production mutation command and
+does not run network clone rehearsal unless the explicit
+`--execute-public-rehearsal` gate is present.
+
+The canary is also the source-safe phase ledger for first-machine deployment
+and later one-command upgrade. Version `20260701-install-upgrade-canary-v2`
+fails closed unless the maintained phase set covers source preflight, initial
+Owner/key bootstrap, Home AI install, Hermes Agent runtime, Provider ingress,
+plugin registration, Gateway profile/tool schema, plugin MCP/schema smoke,
+public upgrade rehearsal, and production closure readback. Each phase declares
+bounded evidence keys and closure readbacks; reports must not include raw
+secrets, provider payloads, private plugin data, or command logs.
+
+When a real rehearsal output file is available, validate the same Provider,
+Hermes Agent, source-adoption, clone/deploy, and closure-validation coverage
+with:
+
+```bash
+node scripts/deploy-upgrade-lane-closure-smoke.js \
+  --rehearsal-json /path/to/rehearsal.json \
+  --json
+```
 
 When a new Mac is reachable over SSH, use the remote deployment smoke before
 attempting a mutating install or upgrade:

@@ -20,17 +20,23 @@ function closeAttachFileMenu() {
   menu.innerHTML = "";
 }
 
+function serverFileAttachmentOwnerOnly() {
+  return Boolean(state.auth?.isOwner);
+}
+
 function renderAttachFileMenu() {
   const menu = $("attachFileMenu");
   if (!menu) return;
+  const serverOption = serverFileAttachmentOwnerOnly()
+    ? `<button class="attach-file-option" type="button" data-attach-menu-server>
+    <span class="attach-file-option-icon server" aria-hidden="true"></span>
+    <span>服务器文件</span>
+  </button>`
+    : "";
   menu.innerHTML = `<button class="attach-file-option" type="button" data-attach-menu-system>
     <span class="attach-file-option-icon system" aria-hidden="true"></span>
     <span>系统文件</span>
-  </button>
-  <button class="attach-file-option" type="button" data-attach-menu-server>
-    <span class="attach-file-option-icon server" aria-hidden="true"></span>
-    <span>服务器文件</span>
-  </button>`;
+  </button>${serverOption}`;
   menu.querySelector("[data-attach-menu-system]")?.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -131,13 +137,15 @@ function renderNativeShareIntakePanel() {
     return;
   }
   const summary = nativeSharedFileSummary(files);
+  const canAttachServerFile = serverFileAttachmentOwnerOnly();
+  const attachLabel = canAttachServerFile ? "附加到当前对话" : "服务器文件附加仅限 Owner";
   panel.classList.remove("hidden");
   panel.innerHTML = `<div class="native-share-intake-copy">
       <strong>收到系统分享</strong>
-      <span>${escapeHtml(summary)} 已保存到服务器，可直接附加到当前对话。</span>
+      <span>${escapeHtml(summary)} 已保存到服务器，${canAttachServerFile ? "可直接附加到当前对话。" : "仅 Owner 可从服务器附加。"}</span>
     </div>
     <div class="native-share-intake-actions">
-      <button type="button" data-native-share-attach title="附加到当前对话" aria-label="附加到当前对话">附加</button>
+      <button type="button" data-native-share-attach title="${attachLabel}" aria-label="${attachLabel}"${canAttachServerFile ? "" : " disabled"}>${canAttachServerFile ? "附加" : "Owner专用"}</button>
       <button type="button" data-native-share-open-directory title="打开文件目录" aria-label="打开文件目录">目录</button>
       <button type="button" data-native-share-clear title="仅保存，不附加" aria-label="仅保存，不附加">保存</button>
     </div>`;
@@ -233,6 +241,7 @@ function systemShareDirectoryPath() {
 }
 
 async function openServerFileAttachmentPicker() {
+  if (!serverFileAttachmentOwnerOnly()) throw new Error("服务器文件选择仅限 Owner。");
   if (!state.currentThreadId && state.viewMode === "single") await loadSingleWindow();
   if (isDraftThread(state.currentThread)) await materializeCurrentThread();
   if (!state.currentThreadId) throw new Error("请先打开一个可发送的对话。");
@@ -254,6 +263,10 @@ async function openServerFileAttachmentPicker() {
 }
 
 async function attachServerFileToComposer(entry = {}) {
+  if (!serverFileAttachmentOwnerOnly()) {
+    showError(new Error("服务器文件附件仅限 Owner。"));
+    return false;
+  }
   const threadId = state.serverFileAttachmentTargetThreadId || state.currentThreadId || "";
   const filePath = String(entry.path || "").trim();
   if (!threadId || !filePath) return;

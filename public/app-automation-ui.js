@@ -24,6 +24,7 @@ function applyViewMode() {
   const directory = state.viewMode === "projects";
   const automation = state.viewMode === "automation";
   const inbox = state.viewMode === "inbox";
+  const systemConsole = state.viewMode === "system-console";
   const capabilities = false;
   const learning = false;
   const todos = state.viewMode === "todos";
@@ -51,6 +52,7 @@ function applyViewMode() {
   $("app")?.classList.toggle("todo-mode", todos);
   $("app")?.classList.toggle("inbox-mode", inbox);
   $("app")?.classList.toggle("automation-mode", automation);
+  $("app")?.classList.toggle("system-console-mode", systemConsole);
   $("app")?.classList.toggle("capability-mode", capabilities);
   $("app")?.classList.toggle("learning-mode", learning);
   $("app")?.classList.toggle("projects-mode", directory);
@@ -100,10 +102,10 @@ function applyViewMode() {
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
   $("directoryEntry")?.parentElement?.classList.add("hidden");
-  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira || music || movie);
-  $("newThread").disabled = single || tasks || automation || inbox || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira || music || movie;
+  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || systemConsole || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira || music || movie);
+  $("newThread").disabled = single || tasks || automation || inbox || systemConsole || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira || music || movie;
   $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : moira ? "Search 星盘" : music ? "Search music" : movie ? "Search movie" : "Search directories";
+  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : systemConsole ? "Search system status" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : moira ? "Search 星盘" : music ? "Search music" : movie ? "Search movie" : "Search directories";
   updateSearchButton();
 }
 
@@ -201,6 +203,10 @@ async function loadSelectedView(options = {}) {
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "inbox") {
     await loadActionInbox();
+    if (!currentViewStillSelected()) return;
+  } else if (state.viewMode === "system-console") {
+    if (typeof renderOwnerSystemConsoleView === "function") renderOwnerSystemConsoleView();
+    if (typeof loadOwnerSystemConsole === "function") await loadOwnerSystemConsole();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "wardrobe") {
     renderWardrobeView();

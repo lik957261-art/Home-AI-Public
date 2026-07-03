@@ -101,19 +101,22 @@ Deployment lanes are live operational queues, not one-shot completed
 conversations. At least one configured deploy lane must be discoverable and
 non-terminal before routine deployments are routed. A completed, archived,
 deleted, hidden, duplicate-title, or otherwise non-runnable configured lane is
-a platform routing defect. Ordinary Home AI must not execute the plugin
-deployment as a workaround; the lane must be repaired, recreated, or removed
-from the configured lane pool before routine plugin deployments are routed
-there again.
+a platform routing defect. If a plugin-specific dedicated lane such as
+`Codex Mobile Deploy Lane` or `Movie Deploy Lane` is unavailable, the router
+must fall back to another live lane in the configured pool before declaring the
+routine deploy blocked. Ordinary Home AI must not execute the plugin deployment as a workaround.
+When no runnable deploy lane exists, the lane pool must be repaired, recreated,
+or pruned before routine plugin deployments continue.
 
 When multiple lanes are configured, routing must be deterministic and bounded:
 same plugin id maps to the same configured lane while that lane is live; a
 plugin-specific assignment may pin high-volume plugins such as Codex Mobile or
 Movie to dedicated lanes; otherwise the card router may hash the plugin id over
-the available configured lanes. The actual deploy/restart for a single plugin
-or launchd label remains serialized by lane ownership; independent read-only
-readbacks may be parallelized inside a lane only after production mutation is
-complete.
+the available configured lanes. If the pinned lane is not live, fallback uses
+the same shared pool rather than hard-coding `Home AI Deploy`. The actual
+deploy/restart for a single plugin or launchd label remains serialized by lane
+ownership; independent read-only readbacks may be parallelized inside a lane
+only after production mutation is complete.
 
 Plugin deployment cards must not expose or require a sudo password file,
 password contents, SSH private key, or local operator secret path. If the
@@ -138,6 +141,15 @@ changes, same-origin proxy or launch-token bugs, workspace binding/provisioning
 bugs, Gateway schema or worker-profile changes, shared policy changes, or a
 production permission failure that proves the configured Home AI deploy lane
 pool cannot execute the existing bounded deploy contract.
+
+Host deploy post-sync repairs may close platform-owned plugin provisioning
+invariants. Home AI deploy plans must keep the
+`wardrobe-thumbnail-artifact-acl` repair for the Owner workspace so existing
+Wardrobe configs that point `photo_cache_dir` at the Home AI artifact root are
+made writable by the active `hm-owner` Gateway/MCP worker. The repair must use a
+bounded worker-user atomic write probe and must not expose private wardrobe
+records, item codes, image payloads, raw keys, cookies, launch tokens, or local
+operator secret paths in plan/readback output.
 
 If a plugin thread changes code but then discovers that deployment is blocked
 by a host/platform prerequisite, it must not end silently. It must return a
@@ -171,9 +183,11 @@ rollback: restore backup and restart labels
 If the source tree is dirty, the deploy plan must name the dirty files being
 deployed. It must not silently include unrelated dirty files.
 The plan must also expose `rsyncExcludes` and `productionOwner`; plugin plans
-must include `data/` in `rsyncExcludes` so runtime databases, attachment
-stores, and other plugin-owned user data are backed up but not overwritten or
-deleted by a normal source deploy.
+must include root-anchored `/data/` and `/runtime/` entries in
+`rsyncExcludes` so runtime databases, attachment stores, runtime caches, and
+other plugin-owned user data are backed up but not overwritten or deleted by a
+normal source deploy. These excludes must not match deployable nested source
+directories such as `services/runtime/`.
 
 ## Packaging And Sync Rules
 
@@ -529,9 +543,10 @@ movie ...` with the default `com.hermesmobile.plugin.movie` restart label and
 `http://127.0.0.1:4195/api/v1/hermes/plugin/manifest` health smoke.
 
 Music first production install follows the Owner-only special-plugin pattern.
-The source workspace may live outside the standard plugin checkout root during
-early development, but the central deploy script must still write to the
-standard production target:
+The canonical development source workspace is
+`/Users/example/path`, outside macOS user Documents
+privacy boundaries and inside the standard Hermes plugin checkout root. The
+central deploy script must still write to the standard production target:
 
 ```bash
 npm run --silent deploy:macos -- --plugin music --source /Users/example/path --restart none --sync-only --execute --json
@@ -588,11 +603,12 @@ validation. Listener and health validations retry briefly after restart so a
 normal launchd warm-up does not produce a false failed deployment. Plugin
 projects may wrap this script, but must not bypass it with a plugin-private
 production write path.
-For plugin targets, the script excludes `data/` and production-owned runtime
-dependency directories such as `.venv/` from source-to-production sync and
-restores `productionOwner` after sync; data migration, runtime reinstall, or
-repair is a separate reviewed operation, not part of an ordinary plugin source
-deploy.
+For plugin targets, the script excludes root-anchored `/data/` and `/runtime/`
+plus production-owned runtime dependency directories such as `.venv/` from
+source-to-production sync and restores `productionOwner` after sync; data
+migration, runtime reinstall, or repair is a separate reviewed operation, not
+part of an ordinary plugin source deploy. A deployable plugin source path such
+as `services/runtime/` remains in scope for ordinary source sync.
 
 Plugin `--execute` is intentionally stricter than plan mode. Except for plugins
 with a central default restart label, a plugin production write must provide at

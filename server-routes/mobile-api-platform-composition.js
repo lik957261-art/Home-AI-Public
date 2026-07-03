@@ -5,6 +5,8 @@ const { createOwnerElevationApiRoutes } = require("./owner-elevation-api-routes"
 const { createMobileApiFamilyProfileComposition } = require("./mobile-api-family-profile-composition");
 const { createNativeDeviceApiRoutes } = require("./native-device-api-routes");
 const { createNativeEnvironmentContextApiRoutes } = require("./native-environment-context-api-routes");
+const { createNativeIosShellApiRoutes } = require("./native-ios-shell-api-routes");
+const { createOwnerSystemConsoleApiRoutes } = require("./owner-system-console-api-routes");
 const { createPlatformCurrencyApiRoutes } = require("./platform-currency-api-routes");
 const { createPublicApiRoutes } = require("./public-api-routes");
 const { createPushApiRoutes } = require("./push-api-routes");
@@ -13,10 +15,22 @@ const { createRuntimeConfigApiRoutes } = require("./runtime-config-api-routes");
 const { createSystemApiRoutes } = require("./system-api-routes");
 const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
 const { createCurrentEnvironmentContextService } = require("../adapters/current-environment-context-service");
+const { createNativeIosShellVersionPolicyService } = require("../adapters/native-ios-shell-version-policy-service");
+const { createOwnerSystemConsoleService } = require("../adapters/owner-system-console-service");
 const { createPlatformCurrencyService } = require("../adapters/platform-currency-service");
+const { createSystemResourceStatusService } = require("../adapters/system-resource-status-service");
 
 function callBootTrace(deps, label) {
   if (typeof deps.bootTrace === "function") deps.bootTrace(label);
+}
+
+function ownerQualityEvidenceEnv(deps = {}) {
+  const env = Object.assign({}, deps.env || process.env);
+  const dataDir = deps.DATA_DIR || deps.dataDir;
+  if (dataDir && !env.HERMES_OWNER_3A_QUALITY_EVIDENCE_FILE && !env.HERMES_SELF_LOOP_QUALITY_EVIDENCE_OUTPUT) {
+    env.HERMES_WEB_DATA_DIR = env.HERMES_WEB_DATA_DIR || dataDir;
+  }
+  return env;
 }
 
 function createMobileApiPlatformComposition(deps = {}) {
@@ -27,6 +41,28 @@ function createMobileApiPlatformComposition(deps = {}) {
   });
   const currentEnvironmentContextService = deps.currentEnvironmentContextService || createCurrentEnvironmentContextService({
     dataDir: deps.dataDir,
+  });
+  const nativeIosShellVersionPolicyService = deps.nativeIosShellVersionPolicyService || createNativeIosShellVersionPolicyService({
+    env: deps.env || process.env,
+  });
+  const systemResourceStatusService = deps.systemResourceStatusService || createSystemResourceStatusService({
+    appRoot: deps.appRoot || deps.repoRoot || process.cwd(),
+    dataRoot: deps.DATA_DIR || deps.dataDir,
+    env: deps.env || process.env,
+    launchdLabels: deps.ownerSystemConsoleLaunchdLabels,
+    nowIso: deps.nowIso,
+    process: deps.process || process,
+    runCommand: deps.systemResourceRunCommand,
+    runtimeRoot: deps.runtimeRoot || deps.HERMES_RUNTIME_ROOT,
+    thresholds: deps.systemResourceThresholds,
+  });
+  const ownerSystemConsoleService = deps.ownerSystemConsoleService || createOwnerSystemConsoleService({
+    autonomousDeliveryCoordinatorService: deps.autonomousDeliveryCoordinatorService,
+    nowIso: deps.nowIso,
+    systemResourceStatusService,
+    qualityProgramEvidenceOptions: {
+      env: ownerQualityEvidenceEnv(deps),
+    },
   });
   const familyProfileComposition = createMobileApiFamilyProfileComposition(deps, { mobileStore });
   const { familyProfileApiRoutes } = familyProfileComposition.routes;
@@ -77,6 +113,12 @@ function createMobileApiPlatformComposition(deps = {}) {
     grantOwnerElevationOnce: deps.grantOwnerElevationOnce,
     grantOwnerElevation: deps.grantOwnerElevation,
     revokeOwnerElevation: deps.revokeOwnerElevation,
+  });
+
+  const ownerSystemConsoleApiRoutes = createOwnerSystemConsoleApiRoutes({
+    ownerSystemConsoleService,
+    requireOwner: deps.requireOwner,
+    sendJson: deps.sendJson,
   });
 
   const accessKeyApiRoutes = createAccessKeyApiRoutes({
@@ -135,6 +177,10 @@ function createMobileApiPlatformComposition(deps = {}) {
     sendJson: deps.sendJson,
     workspacePrincipal: deps.workspacePrincipal,
   });
+  const nativeIosShellApiRoutes = createNativeIosShellApiRoutes({
+    nativeIosShellVersionPolicyService,
+    sendJson: deps.sendJson,
+  });
 
   const workspaceApiRoutes = createWorkspaceApiRoutes({
     bootTrace: deps.bootTrace,
@@ -181,7 +227,9 @@ function createMobileApiPlatformComposition(deps = {}) {
       familyProfileApiRoutes,
       nativeDeviceApiRoutes,
       nativeEnvironmentContextApiRoutes,
+      nativeIosShellApiRoutes,
       ownerElevationApiRoutes,
+      ownerSystemConsoleApiRoutes,
       platformCurrencyApiRoutes,
       publicApiRoutes,
       pushApiRoutes,
@@ -196,7 +244,10 @@ function createMobileApiPlatformComposition(deps = {}) {
       familyProfileRepository,
       familyProfileService,
       currentEnvironmentContextService,
+      nativeIosShellVersionPolicyService,
+      ownerSystemConsoleService,
       platformCurrencyService,
+      systemResourceStatusService,
     },
   };
 }

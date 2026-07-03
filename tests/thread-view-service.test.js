@@ -403,6 +403,87 @@ function testCompactMessage(subject) {
   assert.equal(got.pluginActions.wardrobeOutfitWearIntent.status, "ready");
   assert.equal(got.pluginActions.wardrobeOutfitWearIntent.executable, true);
   assert.equal(got.pluginActions.wardrobeOutfitWearIntent.intent.items[0].code, "OUT-001");
+  assert.equal(got.pluginActionDiagnostics, null);
+
+  const missingIntentMetadata = compactMessage({
+    id: "missing-intent-metadata",
+    role: "assistant",
+    content: "Wardrobe recommendation",
+    status: "done",
+    runId: "run-missing-intent",
+    loadedTools: [{ name: "mcp_wardrobe_wardrobe_prepare_outfit_wear_intent" }],
+    actorWorkspaceId: "owner",
+    senderPrincipalId: "owner",
+    createdAt: "2026-05-14T10:10:00.000Z",
+  }, thread);
+  assert.equal(missingIntentMetadata.pluginActions, null);
+  assert.equal(missingIntentMetadata.pluginActionDiagnostics.wardrobeOutfitWearIntent.code, "intent_metadata_missing");
+
+  const filteredAction = compactMessage({
+    id: "filtered-intent-metadata",
+    role: "assistant",
+    content: "Wardrobe recommendation",
+    status: "done",
+    runId: "run-filtered-intent",
+    actorWorkspaceId: "owner",
+    senderPrincipalId: "owner",
+    createdAt: "2026-05-14T10:10:30.000Z",
+    pluginActions: {
+      wardrobeOutfitWearIntent: {
+        status: "ready",
+        executable: true,
+        intent: {
+          type: "outfit_wear_intent",
+          schema_version: 1,
+          plugin_id: "wardrobe",
+          principal_id: "owner",
+          workspace_id: "weixin_wuping",
+          wear_date: "2026-06-29",
+          timezone: "Asia/Shanghai",
+          items: [{ role: "Outer", code: "OUT-001" }],
+          source_message: { message_id: "filtered-intent-metadata", thread_id: "thread-view" },
+          idempotency_key: "wardrobe:outfit_wear_intent:filtered",
+          expires_at: "2099-06-30T00:00:00Z",
+        },
+      },
+    },
+  }, thread);
+  assert.equal(filteredAction.pluginActions, null);
+  assert.equal(filteredAction.pluginActionDiagnostics.wardrobeOutfitWearIntent.code, "renderer_filtered");
+  assert.equal(filteredAction.pluginActionDiagnostics.wardrobeOutfitWearIntent.reason, "workspace_mismatch");
+
+  const compatibilityAction = compactMessage({
+    id: "compatibility-intent-metadata",
+    role: "assistant",
+    content: "Wardrobe recommendation",
+    status: "done",
+    runId: "run-compatibility-intent",
+    actorWorkspaceId: "owner",
+    senderPrincipalId: "owner",
+    createdAt: "2026-05-14T10:10:45.000Z",
+    metadata: {
+      outfit_wear_intent: {
+        status: "ready",
+        executable: true,
+        intent: {
+          type: "outfit_wear_intent",
+          schema_version: 1,
+          plugin_id: "wardrobe",
+          principal_id: "owner",
+          workspace_id: "owner",
+          wear_date: "2026-06-29",
+          timezone: "Asia/Shanghai",
+          items: [{ role: "Outer", code: "OUT-002" }],
+          source_message: { message_id: "compatibility-intent-metadata", thread_id: "thread-view" },
+          idempotency_key: "wardrobe:outfit_wear_intent:compatibility",
+          expires_at: "2099-06-30T00:00:00Z",
+        },
+      },
+    },
+  }, thread);
+  assert.equal(compatibilityAction.pluginActions.wardrobeOutfitWearIntent.status, "ready");
+  assert.equal(compatibilityAction.pluginActions.wardrobeOutfitWearIntent.intent.items[0].code, "OUT-002");
+  assert.equal(compatibilityAction.pluginActionDiagnostics, null);
 
   const fallback = compactMessage({
     id: "orphan-external",

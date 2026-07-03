@@ -12,6 +12,7 @@ const { createMobileApiVoiceComposition } = require("./mobile-api-voice-composit
 const { createAiOpsDiagnosticApiRoutes } = require("./ai-ops-diagnostic-api-routes");
 const { createAutonomousDeliveryApiRoutes } = require("./autonomous-delivery-api-routes");
 const { createHomeAiTtsApiRoutes } = require("./home-ai-tts-api-routes");
+const { createNativeSecureSecretApiRoutes } = require("./native-secure-secret-api-routes");
 const { createPluginConversationActionApiRoutes } = require("./plugin-conversation-action-api-routes");
 const { createSingleWindowGroupChatApiRoutes } = require("./single-window-group-chat-api-routes");
 const { createThreadMessageRunApiRoutes } = require("./thread-message-run-api-routes");
@@ -25,6 +26,7 @@ const { createAiOpsDiagnosticRemediationWorkflowService } = require("../adapters
 const { createAutonomousDeliveryCoordinatorService } = require("../adapters/autonomous-delivery-coordinator-service");
 const { createCodexThreadTaskCardService } = require("../adapters/codex-thread-task-card-service");
 const { createHomeAiTtsService } = require("../adapters/home-ai-tts-service");
+const { createNativeSecureSecretBrokerService } = require("../adapters/native-secure-secret-broker-service");
 const { createPluginConversationActionBridgeService } = require("../adapters/plugin-conversation-action-bridge-service");
 const { createWardrobeOutfitWearIntentActionService } = require("../adapters/wardrobe-outfit-wear-intent-action-service");
 const { createWorkspaceOnboardingService } = require("../adapters/workspace-onboarding-service");
@@ -36,7 +38,9 @@ function createMobileApiComposition(deps = {}) {
     familyProfileApiRoutes,
     nativeDeviceApiRoutes,
     nativeEnvironmentContextApiRoutes,
+    nativeIosShellApiRoutes,
     ownerElevationApiRoutes,
+    ownerSystemConsoleApiRoutes,
     platformCurrencyApiRoutes,
     publicApiRoutes,
     pushApiRoutes,
@@ -51,7 +55,10 @@ function createMobileApiComposition(deps = {}) {
     familyProfileRepository,
     familyProfileService,
     currentEnvironmentContextService,
+    nativeIosShellVersionPolicyService,
+    ownerSystemConsoleService,
     platformCurrencyService,
+    systemResourceStatusService,
   } = platformComposition.services;
 
   const pluginComposition = createMobileApiPluginComposition(deps);
@@ -143,6 +150,7 @@ function createMobileApiComposition(deps = {}) {
     findThreadForRequest: (...args) => deps.getRuntimeStateThreadService().findThreadForRequest(...args),
     findWorkspace: deps.findWorkspace,
     isDiscardableEmptyThread: (...args) => deps.getRuntimeStateThreadService().isDiscardableEmptyThread(...args),
+    isOwnerAuth: deps.isOwnerAuth,
     makeId: deps.makeId,
     maxUploadBytes: deps.maxUploadBytes,
     normalizeThread: (...args) => deps.getRuntimeStateNormalizationService().normalizeThread(...args),
@@ -303,6 +311,16 @@ function createMobileApiComposition(deps = {}) {
     sendJson: deps.sendJson,
   });
   callBootTrace(deps, "home ai tts api routes ready");
+  const nativeSecureSecretBrokerService = deps.nativeSecureSecretBrokerService || createNativeSecureSecretBrokerService({
+    nowMs: deps.nowMs,
+  });
+  const nativeSecureSecretApiRoutes = createNativeSecureSecretApiRoutes({
+    nativeSecureSecretBrokerService,
+    readBody: deps.readBody,
+    requireWorkspaceAccess: deps.requireWorkspaceAccess,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "native secure secret api routes ready");
   const aiOpsDiagnosticIntakeService = deps.aiOpsDiagnosticIntakeService || createAiOpsDiagnosticIntakeService({
     dataDir: deps.DATA_DIR || deps.dataDir,
     env: deps.env || process.env,
@@ -403,7 +421,10 @@ function createMobileApiComposition(deps = {}) {
     noteReceiptApiRoutes,
     nativeDeviceApiRoutes,
     nativeEnvironmentContextApiRoutes,
+    nativeIosShellApiRoutes,
+    nativeSecureSecretApiRoutes,
     ownerElevationApiRoutes,
+    ownerSystemConsoleApiRoutes,
     publicApiRoutes,
     pushApiRoutes,
     requestClientVersion: deps.requestClientVersion,
@@ -434,6 +455,7 @@ function createMobileApiComposition(deps = {}) {
       codexMobileRecoveryService,
       codexThreadTaskCardService,
       currentEnvironmentContextService,
+      nativeIosShellVersionPolicyService,
       familyProfileInsightService,
       familyProfileProjectionService,
       familyProfileRepository,
@@ -441,6 +463,7 @@ function createMobileApiComposition(deps = {}) {
       financeLedgerJoinApprovalService,
       growthPluginFacadeService,
       learningGrowthSubmissionService,
+      ownerSystemConsoleService,
       platformCurrencyService,
       pluginWorkspaceAuditService,
       pluginConversationActionBridgeService,
@@ -453,6 +476,7 @@ function createMobileApiComposition(deps = {}) {
       hermesPluginNotificationService,
       homeAiTtsService,
       noteReceiptSaveService,
+      nativeSecureSecretBrokerService,
       pluginDirectoryContextBindingService,
       pluginTopicBindingService,
       pluginTopicContextSourceService,
@@ -461,6 +485,7 @@ function createMobileApiComposition(deps = {}) {
       voiceInputCorrectionService,
       voiceInputService,
       workspaceOnboardingService,
+      systemResourceStatusService,
     },
     routes: {
       accessKeyApiRoutes,
@@ -492,6 +517,9 @@ function createMobileApiComposition(deps = {}) {
       learningParentReviewApiRoutes,
       learningProgramApiRoutes,
       ownerElevationApiRoutes,
+      ownerSystemConsoleApiRoutes,
+      nativeSecureSecretApiRoutes,
+      nativeIosShellApiRoutes,
       publicApiRoutes,
       pushApiRoutes,
       resourceApiRoutes,

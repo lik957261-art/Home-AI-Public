@@ -134,10 +134,16 @@ function actionStateFromMessage(message = {}) {
     || message[ACTION_KEY]
     || message.outfit_wear_intent
     || message.outfitWearIntent
+    || message.metadata?.[ACTION_KEY]
     || message.metadata?.outfit_wear_intent
     || message.metadata?.outfitWearIntent
     || message.rawJson?.pluginActions?.[ACTION_KEY]
+    || message.rawJson?.pluginActions?.outfit_wear_intent
+    || message.rawJson?.plugin_actions?.[ACTION_KEY]
+    || message.rawJson?.plugin_actions?.outfit_wear_intent
+    || message.rawJson?.[ACTION_KEY]
     || message.rawJson?.outfit_wear_intent
+    || message.rawJson?.outfitWearIntent
     || null;
   if (!raw) return null;
   return normalizeActionState(raw);
@@ -196,11 +202,48 @@ function publicActionState(value = null, options = {}) {
   };
 }
 
+function publicActionFilterDiagnostic(value = null, options = {}) {
+  const state = value ? normalizeActionState(value) : null;
+  if (!state?.intent?.type) return "invalid_action_metadata";
+  if (state.status === "expired") return "expired";
+  if (state.status === "blocked") return state.error || state.reason || "blocked";
+  if (state.status === "ready") {
+    const validation = validateIntentForExecution(state.intent, options);
+    if (!validation.ok) return validation.error || validation.status || "not_executable";
+  }
+  return "";
+}
+
 function publicPluginActions(pluginActions = {}, options = {}) {
   const out = {};
   const wardrobe = publicActionState(pluginActions?.[ACTION_KEY] || pluginActions?.outfit_wear_intent, options);
   if (wardrobe) out[ACTION_KEY] = wardrobe;
   return Object.keys(out).length ? out : null;
+}
+
+function publicPluginActionsFromMessage(message = {}, options = {}) {
+  const out = {};
+  const wardrobe = publicActionState(actionStateFromMessage(message), options);
+  if (wardrobe) out[ACTION_KEY] = wardrobe;
+  return Object.keys(out).length ? out : null;
+}
+
+function publicPluginActionDiagnostics(message = {}, options = {}) {
+  const rawAction = actionStateFromMessage(message);
+  const diagnostics = {};
+  const action = rawAction ? publicActionState(rawAction, options) : null;
+  if (rawAction && !action) {
+    diagnostics[ACTION_KEY] = {
+      code: "renderer_filtered",
+      reason: publicActionFilterDiagnostic(rawAction, options),
+    };
+  } else if (!rawAction && options.prepareToolLoaded) {
+    diagnostics[ACTION_KEY] = {
+      code: "intent_metadata_missing",
+      reason: "prepare_tool_output_not_attached",
+    };
+  }
+  return Object.keys(diagnostics).length ? diagnostics : null;
 }
 
 function isPrepareToolName(name) {
@@ -226,6 +269,25 @@ function extractPreparedIntentFromCompletedResponse(event = {}) {
     if (intent) return normalizeIntent(intent);
   }
   return null;
+}
+
+function extractPreparedIntentFromOutputItemEvent(event = {}, options = {}) {
+  const item = event.item || event.output_item || event.outputItem || event;
+  if (cleanString(item?.type).toLowerCase() !== "function_call_output") return null;
+  const name = cleanString(
+    options.functionName
+      || options.toolName
+      || options.name
+      || item.name
+      || item.function?.name
+      || item.tool_name
+      || item.toolName,
+    180,
+  );
+  if (!isPrepareToolName(name)) return null;
+  const parsed = parseJsonObject(item.output || item.text || item.content || event.output || event.text || "");
+  const intent = findIntentCandidate(parsed);
+  return intent ? normalizeIntent(intent) : null;
 }
 
 function attachPreparedIntentToMessage(message, intent, options = {}) {
@@ -509,6 +571,8 @@ function createWardrobeOutfitWearIntentActionService(options = {}) {
     attachPreparedIntentToMessage,
     execute,
     extractPreparedIntentFromCompletedResponse,
+    extractPreparedIntentFromOutputItemEvent,
+    publicPluginActionDiagnostics,
     publicActionState,
     publicPluginActions,
     validateIntentForExecution,
@@ -526,8 +590,11 @@ module.exports = {
   createWardrobeOutfitWearIntentActionService,
   defaultCallWardrobeMcpTool,
   extractPreparedIntentFromCompletedResponse,
+  extractPreparedIntentFromOutputItemEvent,
   normalizeIntent,
+  publicPluginActionDiagnostics,
   publicActionState,
   publicPluginActions,
+  publicPluginActionsFromMessage,
   validateIntentForExecution,
 };

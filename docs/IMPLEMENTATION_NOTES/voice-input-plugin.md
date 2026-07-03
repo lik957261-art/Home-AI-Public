@@ -124,7 +124,12 @@ The host overlay is a Home AI shell surface:
 - cancellation: an explicit cancel affordance or pointer cancellation may
   discard the clip. If permission is still pending when the user releases the
   send button, the host cancels silently and must not create a too-short
-  recording failure;
+  recording failure. The pre-recording `pending` state is bounded: if the
+  long-press gesture does not advance into checking/requesting/recording within
+  the watchdog window, the host marks the gesture cancelled and hides the status
+  panel after the ordinary terminal-state delay. The status panel also exposes a
+  visible `取消` affordance so accidental iOS/WebView gesture starts are
+  recoverable without killing the native shell;
 - suppression: unavailable when fullscreen preview, unsupported composer state,
   in-flight send, unwritable draft, missing microphone permission, or disabled
   ASR backend is active;
@@ -218,8 +223,11 @@ Microphone permission timing:
   microphone permission, preparing microphone, recording, finalizing,
   transcribing, inserting, inserted, cancelled, no-speech, and failed. The
   panel is dismissed by explicit user interaction with the Composer or Send
-  button; successful insertion, too-short audio, permission delay, or ASR
-  failure must update the status instead of automatically closing the panel.
+  button, and it must expose a visible `取消` affordance while a gesture is
+  pending or active. Successful insertion, too-short audio, cancellation,
+  permission delay, or ASR failure must update the status and then enter a
+  bounded terminal-hide path; an accidental `waiting for long press` state must
+  not keep the panel visible indefinitely.
   It must not display full transcripts or act as a second transcript editor.
 - The keyboard-safe composer layout must not reuse normal bottom navigation or
   plugin navigation offsets while `keyboard-viewport-active` is set. In plugin
@@ -326,6 +334,19 @@ text reaches the existing Composer without whole-page re-rendering, final text
 replaces provisional text without duplication, and ordinary user editing/sending
 semantics remain unchanged.
 
+During the Vite migration, the browser-global part of this handshake belongs to
+`HomeAiRuntimeFacade.native`, not to the voice UI module. The ESM facade and the
+classic `public/app-runtime-facade-ui.js` bootstrap own native shell detection,
+voice bridge capability checks, `homeAI` bridge posting, remembered microphone
+grant/status-panel storage, request ids, and registration of
+`window.HomeAINativeVoiceInput` callbacks. `public/app-voice-input-ui.js` must
+consume those methods and must not directly read or write `localStorage`,
+`window.webkit.messageHandlers.homeAI`, `window.HomeAINativeVoiceInput`, or
+`window.HomeAINativeVoiceInputCapability` for that boundary. The remaining
+direct `AudioContext` lookup is a temporary capture-boundary exception guarded
+by `scripts/vite-global-usage-audit.js`; remove it after voice recording moves
+behind an imported Vite voice/audio adapter.
+
 ## Service Architecture
 
 Implementation should follow the service-first rule:
@@ -343,7 +364,7 @@ Implementation should follow the service-first rule:
   - owns upload/transcribe/correction API glue and calls services;
 - `public/app-voice-input-ui.js`
   - owns the composer send-button long-press gesture, host overlay, recorder
-    fallback, explicit iOS native bridge detection, `voiceInput.*` native
+    fallback, facade-mediated iOS native bridge use, `voiceInput.*` native
     messages, native status/partial/final callbacks, host composer insertion,
     and pending correction commit tracking;
 - `/Users/example/path AI/Home AI/HomeAIVoiceInputManager.swift`

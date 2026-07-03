@@ -137,6 +137,67 @@ Current native capabilities:
   main WKWebView frame. In a native shell, bridge absence, timeout, or bounded
   native failure must be shown as a visible native-preview error state instead
   of silently falling back to PDF.js or adapted Word Web preview.
+- `native_secure_secret_clipboard_handoff`: the native shell may provide a
+  deliberate user-triggered action such as "安全粘贴给 Codex/Home AI" for
+  temporary passwords or API keys. The shell must read `UIPasteboard` only
+  after that explicit tap, then POST the value to Home AI
+  `POST /api/native/secure-secrets` with `X-Hermes-Web-Key`. Home AI resolves
+  the workspace and actor from that Access Key; native must not send plugin
+  long-lived keys, launch tokens, cookies, or workspace override fields.
+
+  The request body is:
+
+  ```json
+  {
+    "source": "ios_clipboard",
+    "targetPlugin": "codex",
+    "purpose": "current_task",
+    "ttlSeconds": 600,
+    "value": "<clipboard text>"
+  }
+  ```
+
+  Home AI returns only a short-lived `secretRef`, expiry, target metadata,
+  byte count, and hash prefix. It must not echo the secret value in normal API
+  responses, logs, diagnostics, task cards, prompts, or UI metadata. The
+  initial server store is process-local and in-memory, with default ten-minute
+  TTL and one-time resolution. Expired, unauthorized, wrong-target, read-only
+  audit-key, and used-up requests fail closed with bounded error codes.
+
+  Codex is the initial target plugin. Its runtime may resolve a reference
+  through the scoped server route
+  `POST /api/native/secure-secrets/<secretRef>/resolve` with
+  `targetPlugin:"codex"`. The route is for trusted runtime/tool consumption,
+  not for model-visible chat text. If later plugins need this path, they must
+  add explicit target-plugin policy instead of receiving arbitrary clipboard
+  access.
+- `native_ios_shell_version_policy`: the native shell may check Home AI's
+  public-safe version policy before loading the PWA:
+  `GET /api/native/ios-shell/version-policy?platform=ios&buildNumber=<build>&version=<version>`.
+  This endpoint is intentionally pre-authenticated so it can run before the
+  native app has unlocked or supplied `X-Hermes-Web-Key`. The response is
+  bounded metadata only: `minimumBuild`, `latestBuild`, `updateRequired`,
+  `testFlightUrl`, and a short update message. It must not read workspace,
+  plugin, user-content, cookie, launch-token, or Access Key data.
+
+  Server defaults keep current TestFlight Build 35 usable:
+  `minimumBuild=35`, `latestBuild=35`, and
+  `testFlightUrl=https://testflight.apple.com/join/MTdEfYEt`. Future releases
+  may bump the policy through environment configuration after the corresponding
+  TestFlight build has propagated:
+
+  ```text
+  HOMEAI_NATIVE_IOS_MINIMUM_BUILD=<supported build>
+  HOMEAI_NATIVE_IOS_LATEST_BUILD=<latest build>
+  HOMEAI_NATIVE_IOS_TESTFLIGHT_URL=https://testflight.apple.com/join/MTdEfYEt
+  HOMEAI_NATIVE_IOS_UPDATE_MESSAGE=当前 Home AI 原生壳版本过旧，请更新 TestFlight 版本后继续使用。
+  ```
+
+  Release rule: do not set `HOMEAI_NATIVE_IOS_MINIMUM_BUILD` above the latest
+  broadly available TestFlight build. Older native builds that do not contain
+  this checker cannot be forced to show the native update-required screen; the
+  policy becomes enforceable starting with the first build that implements this
+  startup/login-time check.
 
 Near-term priority capabilities:
 
@@ -245,12 +306,54 @@ The panel may show bounded debug metadata such as provider, session suffix, and
 chunk/partial counts only under a debug flag. It must not display full
 transcript text, raw audio, Access Keys, plugin credentials, or private payloads.
 
+The development-only Vite voice preview mirrors this lifecycle through
+`src/vite-islands/voice-input-status/session-controller.mjs`. That controller
+models begin press, short-press cancellation, long-press threshold, release to
+stop, pending guard timeout, native terminal statuses, and terminal auto-hide
+with injected timers. It is Web-side development evidence only; it does not
+replace the native capture bridge or the production classic voice module.
+
 The bridge must account for ASR partial latency. If the ASR backend can only
 emit useful partial text at a cadence such as hundreds of milliseconds, the
 native shell should still keep audio capture and transport low-latency while
 Home AI writes bounded provisional text into the Composer and later replaces it
 with the final transcript. This improves perceived realtime behavior without
 trading away final transcript quality.
+
+### WebView Keyboard Focus Stability
+
+The Web app must not leave a hidden, detached, disabled, inert, zero-size, or
+layout-invisible editable element as `document.activeElement`. In iOS
+`WKWebView`, stale editable focus can reopen the system keyboard on unrelated
+touches even when no Composer is visible.
+
+`public/app-composer-draft-ui.js` owns the Web-side stale editable guard:
+
+- lifecycle events (`visibilitychange`, `pageshow`, `pagehide`) blur only stale
+  focused editables;
+- ordinary PWA/browser non-editable touches preserve a visible Composer focus
+  so standalone behavior is unchanged;
+- when the shell is explicitly marked with `nativeShell=ios`,
+  `data-native-shell="ios"`, or `localStorage.homeAI.nativeShell="ios"`,
+  non-editable touches blur the active editable unless the touch is inside that
+  editable;
+- stale detection includes disconnected nodes, disabled or aria-disabled
+  editables, hidden/aria-hidden/inert ancestors, `display:none`,
+  `visibility:hidden`, `pointer-events:none`, and zero layout rects.
+
+The native shell should still keep its defensive keyboard-focus guard. The Web
+guard removes known root causes in Home AI's document lifecycle; the native
+guard remains a last-resort protection for WebKit edge cases, plugin iframes,
+or future hidden editable regressions.
+
+The development-only Vite migration now mirrors this Web policy in
+`src/vite-app/runtime/focus-lifecycle-guard.mjs`. That ESM module is the future
+Vite-shell focus lifecycle boundary and is validated through the local
+`/vite-chat-runtime-preview/` page plus `tests/vite-focus-lifecycle-guard.test.js`.
+It does not replace the production classic Web guard or the native shell guard.
+The native defensive blur path should remain in place until a separately
+approved full Vite shell cutover has passed iOS keyboard, Composer, voice, and
+document-preview smoke coverage.
 
 ### Native Environment Context
 

@@ -390,11 +390,13 @@ fail does it return `sudo_authentication_failed`. Treat either final result as
 an authentication-boundary failure and repair the local operator
 credential/helper state before retrying; do not repeatedly rerun the deploy
 against production commands with unknown or stale credentials.
-Plugin deployment plans must show `data/` in `rsyncExcludes`, and ordinary
-plugin source deploys must not overwrite or delete production plugin `data/`
-directories. The central script restores the production target owner after
-sync: `hermes-host:staff` by default, with `xuxin:staff` for the Codex Mobile
-plugin because that launchd service runs as `xuxin`.
+Plugin deployment plans must show root-anchored `/data/` and `/runtime/` in
+`rsyncExcludes`, and ordinary plugin source deploys must not overwrite or
+delete production plugin data/runtime directories. Those root-anchored excludes
+must not exclude deployable nested source paths such as `services/runtime/`.
+The central script restores the production target owner after sync:
+`hermes-host:staff` by default, with `xuxin:staff` for the Codex Mobile plugin
+because that launchd service runs as `xuxin`.
 The `--plugin all` target expands to the bounded known plugin services and uses
 per-plugin default restart labels plus loopback manifest smokes. It does not
 accept a single `--source`, `--restart-label`, or `--health-url` override.

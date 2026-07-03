@@ -60,6 +60,8 @@ const cases = [
       /<key>FINANCE_MCP_DB_PATH<\/key>/,
       /finance\.sqlite3/,
       /<key>FINANCE_HERMES_OWNER_WORKSPACE_ID<\/key>\s*<string>owner<\/string>/,
+      /<key>FINANCE_RECURRING_AUTO_POST<\/key>\s*<string>1<\/string>/,
+      /<key>FINANCE_RECURRING_AUTO_POST_INTERVAL_MS<\/key>\s*<string>300000<\/string>/,
     ],
   },
   {
@@ -205,7 +207,20 @@ for (const item of cases) {
   assert.match(plist, /<key>FINANCE_HERMES_WORKSPACE_KEY_HASHES_JSON<\/key>/);
   assert.match(plist, new RegExp(expectedHash));
   assert.match(plist, /<key>FINANCE_HERMES_ALLOWED_WORKSPACES<\/key>\s*<string>owner<\/string>/);
+  assert.match(plist, /<key>FINANCE_RECURRING_AUTO_POST<\/key>\s*<string>1<\/string>/);
+  assert.match(plist, /<key>FINANCE_RECURRING_AUTO_POST_INTERVAL_MS<\/key>\s*<string>300000<\/string>/);
   assert.doesNotMatch(plist, /finance-secret/);
+  const payload = installer.safePayloadFor(options, {
+    pluginId: "finance",
+    sourceDir: "finance",
+    label: installer.DEFAULT_LABEL,
+    defaultPort: "8791",
+  }, installer.plan(options), plist);
+  assert.match(payload.plist, /<key>FINANCE_RECURRING_AUTO_POST<\/key>\s*<string>1<\/string>/);
+  assert.match(payload.plist, /<key>FINANCE_RECURRING_AUTO_POST_INTERVAL_MS<\/key>\s*<string>300000<\/string>/);
+  assert.doesNotMatch(payload.plist, /finance-secret/);
+  assert.doesNotMatch(payload.plist, new RegExp(expectedHash.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(payload.plist, /\[redacted:workspace-count=1\]/);
   assert.deepEqual(installer.financeWorkspaceKeyHashInfo(root).workspaceIds, ["owner"]);
 }
 

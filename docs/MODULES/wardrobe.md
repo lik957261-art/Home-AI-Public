@@ -1,6 +1,6 @@
 # Wardrobe Plugin
 
-Last updated: 2026-06-29.
+Last updated: 2026-07-01.
 
 This module describes the Hermes Mobile Wardrobe entry. The generic embedded
 plugin host contract is defined in `docs/MODULES/plugins.md`; this file records
@@ -79,15 +79,24 @@ The expected flow is:
 
 1. A Wardrobe plugin conversation run calls
    `mcp_wardrobe_wardrobe_prepare_outfit_wear_intent`.
-2. On `response.completed`, Home AI extracts the prepared
-   `outfit_wear_intent` from the matching function output and stores it under
-   the assistant message's `pluginActions.wardrobeOutfitWearIntent` metadata.
-3. `thread-view-service` exposes only the normalized public action state when
-   the intent is still valid for the effective workspace/principal and all
-   item codes are locked.
-4. `public/app-message-actions-ui.js` renders a compact `穿着入库` button near
-   the message Usage area. The button is a deterministic action; it does not
-   start another model run.
+2. Home AI captures the matching `function_call_output` for
+   `mcp_wardrobe_wardrobe_prepare_outfit_wear_intent` during
+   `response.output_item.*` handling, before event compaction removes raw tool
+   output, and stores only the normalized `outfit_wear_intent` under the
+   assistant message's `pluginActions.wardrobeOutfitWearIntent` metadata.
+   `response.completed.response.output` remains a compatibility extraction
+   path when the terminal response still carries output items.
+3. `thread-view-service` extracts the action from the full stored message,
+   including compatibility locations such as `pluginActions`, `plugin_actions`,
+   `metadata`, and `rawJson`, then exposes only the normalized public action
+   state when the intent is still valid for the effective workspace/principal
+   and all item codes are locked.
+4. `public/app-message-actions-ui.js` renders a compact `入库` button near the
+   message Usage area. The button is a deterministic action; it does not start
+   another model run. If the prepare tool was seen but no valid public action
+   can be exposed, the same area renders a disabled bounded status such as
+   `需重新生成`, `已过期`, or `不可入库` instead of silently leaving the Usage
+   row empty.
 5. `POST /api/plugin-conversation/actions/wardrobe/outfit-wear-intent` looks
    up the server-side message, validates the stored intent, and calls
    `wardrobe.execute_outfit_wear_intent` through the Wardrobe MCP wrapper.
@@ -103,6 +112,25 @@ intent is read from server-side message metadata. Missing MCP schema, expired
 intent, missing item codes, workspace mismatch, principal mismatch, and
 execution failures remain visible action states rather than silent model
 fallbacks.
+
+The public message projection also exposes bounded diagnostic codes when the
+action cannot render: `intent_metadata_missing` means the prepare tool was
+observed but no normalized intent was attached, `renderer_filtered` means
+stored metadata failed the workspace/principal/expiry/item-code projection
+checks, and the deterministic action route returns `action_bridge_unavailable`
+when the server-side action bridge is not wired. These diagnostics must not
+include raw prompts, provider payloads, wardrobe rows, item lists, image data,
+access keys, cookies, or launch tokens.
+
+Source-side closure for this reference action is covered by:
+
+```bash
+node scripts/plugin-action-metadata-closure-smoke.js --json
+```
+
+The smoke uses bounded fake intent data to verify metadata attachment,
+message persistence, public projection, visible diagnostics, deterministic MCP
+bridge execution, confirmation retry, and the no-model-run action boundary.
 
 ## Plugin Host
 
@@ -147,7 +175,18 @@ Current registration and production upstream rules:
   be cached under a Home AI file/image-readable root. New provisioning writes
   `photo_cache_dir` to `<HERMES_DATA_DIR>/artifacts/wardrobe-thumbnails/<workspaceId>`
   so `wardrobe.get_primary_thumbnail` returns paths the Gateway file/image
-  tools can consume without exposing the whole worker profile workspace.
+  tools can consume without exposing the whole worker profile workspace. The
+  provisioner repairs that directory and its `wardrobe-thumbnails` parent to
+  `0770`. When the macOS workspace system helper is available, provisioning
+  calls its narrow `repair_wardrobe_thumbnail_artifact_acl` action, grants the
+  active `hm-*` Wardrobe Gateway/MCP worker write ACL only on the thumbnail
+  artifact directory, and runs a bounded temp-file-plus-rename probe as that
+  worker user. A configured artifact thumbnail root is not accepted as
+  production closure unless the active worker identity can create, rename, and
+  clean up a probe file there. Existing workspace configs that still point at
+  `.hermes-cache/photos` must be repaired through the Wardrobe provisioning
+  service `repairPhotoCacheConfig()` path, which migrates config and then runs
+  the same active-worker runtime ACL/write probe before being treated as closed.
 - Production HTTPS PWA deployments should override the manifest URL with an
   HTTPS endpoint through environment configuration. An HTTPS Hermes page must
   not iframe an HTTP plugin entry; Chromium blocks that as mixed content and the

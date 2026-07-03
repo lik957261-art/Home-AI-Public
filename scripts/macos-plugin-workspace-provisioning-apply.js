@@ -358,7 +358,7 @@ async function apply(options = {}) {
     skillProfilesRoot: path.join(dataDir, "skill-profiles"),
     profileHomeRoot: "/Users",
   });
-  const systemProvisioningExecutor = createWorkspaceSystemProvisioningExecutorService({
+  const systemProvisioningExecutor = options.systemProvisioningExecutor || createWorkspaceSystemProvisioningExecutorService({
     liveRoot: root,
     enabled: true,
     useSudoWrites: false,
@@ -373,6 +373,7 @@ async function apply(options = {}) {
     plugins: pluginConfigForService(pluginRows),
     fetch: options.fetch || global.fetch,
     gatewayWorkspaceProvisioningService,
+    systemProvisioningExecutor,
     requireSystemGatewayRefresh: false,
   });
 

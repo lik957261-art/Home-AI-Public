@@ -1,0 +1,809 @@
+"use strict";
+
+function nativeKeyboardGeometry() {
+  const keyboard = navigator.virtualKeyboard;
+  const rect = keyboard?.boundingRect;
+  if (!rect || !Number.isFinite(rect.height) || rect.height <= 0) return null;
+  const top = Number.isFinite(rect.y) ? rect.y : rect.top;
+  if (!Number.isFinite(top) || top <= 0) return null;
+  return { top, height: rect.height };
+}
+
+function visualViewportKeyboardMetrics() {
+  const viewport = window.visualViewport;
+  if (!viewport) return null;
+  const layoutHeight = Math.max(
+    window.innerHeight || 0,
+    document.documentElement?.clientHeight || 0,
+    0,
+  );
+  const height = Math.round(viewport.height || 0);
+  if (!layoutHeight || !height) return null;
+  const offsetTop = Math.max(0, Math.round(viewport.offsetTop || 0));
+  const bottomInset = Math.max(0, Math.round(layoutHeight - height - offsetTop));
+  const keyboardLikely = bottomInset > 80 || height < layoutHeight * 0.82;
+  return { height, offsetTop, bottomInset, keyboardLikely };
+}
+
+function nativeShellEmbeddedPluginViewportActive() {
+  const root = document.documentElement;
+  const app = $("app");
+  return Boolean(
+    root?.classList?.contains("native-shell-ios")
+    && root.classList.contains("embedded-plugin-shell-active")
+    && app?.classList?.contains("embedded-plugin-host-active")
+  );
+}
+
+function stableKeyboardViewportMetrics(metrics) {
+  if (!metrics) return null;
+  if (!nativeShellEmbeddedPluginViewportActive()) {
+    state.keyboardViewportStableMetrics = null;
+    return metrics;
+  }
+  const previous = state.keyboardViewportStableMetrics || null;
+  const next = {
+    height: Math.max(0, Math.round(Number(metrics.height || 0))),
+    offsetTop: Math.max(0, Math.round(Number(metrics.offsetTop || 0))),
+    bottomInset: Math.max(0, Math.round(Number(metrics.bottomInset || 0))),
+    keyboardLikely: Boolean(metrics.keyboardLikely),
+  };
+  if (
+    previous
+    && previous.keyboardLikely === next.keyboardLikely
+    && Math.abs(previous.height - next.height) <= 3
+    && Math.abs(previous.offsetTop - next.offsetTop) <= 3
+    && Math.abs(previous.bottomInset - next.bottomInset) <= 3
+  ) {
+    return previous;
+  }
+  state.keyboardViewportStableMetrics = next;
+  return next;
+}
+
+function clearKeyboardViewportMetrics() {
+  const root = document.documentElement;
+  state.keyboardViewportActive = false;
+  state.keyboardContextMode = false;
+  state.keyboardContextTopPx = 0;
+  state.keyboardViewportStableMetrics = null;
+  root.classList.remove("keyboard-viewport-active");
+  root.style.removeProperty("--app-viewport-height");
+  root.style.removeProperty("--app-viewport-offset-top");
+  root.style.removeProperty("--keyboard-bottom-inset");
+  root.style.removeProperty("--keyboard-context-top");
+  $("composer")?.classList.remove("keyboard-context-mode");
+}
+
+function keyboardViewportShouldClearAfterOrientation() {
+  if (!state.keyboardViewportActive) return false;
+  const input = $("messageInput");
+  const composerActuallyFocused = Boolean(input && document.activeElement === input);
+  if (!state.composerFocused || !composerActuallyFocused) return true;
+  const metrics = stableKeyboardViewportMetrics(visualViewportKeyboardMetrics());
+  return !metrics?.keyboardLikely;
+}
+
+function updateKeyboardViewportMetrics() {
+  const root = document.documentElement;
+  const metrics = stableKeyboardViewportMetrics(visualViewportKeyboardMetrics());
+  const nativeEmbeddedPluginActive = nativeShellEmbeddedPluginViewportActive();
+  const active = Boolean(
+    isMobileLayout()
+    && metrics?.keyboardLikely
+    && (state.composerFocused || nativeEmbeddedPluginActive)
+  );
+  state.keyboardViewportActive = active;
+  root.classList.toggle("keyboard-viewport-active", active);
+  if (active) {
+    root.style.setProperty("--app-viewport-height", `${Math.max(240, metrics.height)}px`);
+    root.style.setProperty("--app-viewport-offset-top", `${metrics.offsetTop}px`);
+    root.style.setProperty("--keyboard-bottom-inset", `${metrics.bottomInset}px`);
+    if (window.scrollX || window.scrollY || document.documentElement.scrollTop || document.body.scrollTop) {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }
+  } else {
+    clearKeyboardViewportMetrics();
+  }
+  if (typeof scheduleEmbeddedPluginViewportBroadcast === "function") {
+    scheduleEmbeddedPluginViewportBroadcast(active ? "host_keyboard" : "host_keyboard_clear", 0);
+  }
+  return active;
+}
+
+function mobileBottomCssPx(name, defaultValue = 0) {
+  const value = window.getComputedStyle?.(document.documentElement)?.getPropertyValue(name);
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : defaultValue;
+}
+
+function clientLayoutDiagnosticSessionId() {
+  const key = "hermesClientLayoutDiagnosticSession";
+  try {
+    const existing = localStorage.getItem(key);
+    if (existing) return existing.slice(0, 80);
+    const id = `layout-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    localStorage.setItem(key, id);
+    return id;
+  } catch (_) {
+    return `layout-${Date.now().toString(36)}`;
+  }
+}
+
+function clientLayoutDiagnosticRect(node) {
+  const rect = node?.getBoundingClientRect?.();
+  if (!rect) return null;
+  return {
+    top: Math.round(rect.top),
+    right: Math.round(rect.right),
+    bottom: Math.round(rect.bottom),
+    left: Math.round(rect.left),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  };
+}
+
+function clientLayoutDiagnosticClassList(node) {
+  try {
+    return Array.from(node?.classList || []).slice(0, 32);
+  } catch (_) {
+    return [];
+  }
+}
+
+function clientLayoutDiagnosticMeasureLength(lengthValue) {
+  if (!document.body || !lengthValue) return null;
+  const probe = document.createElement("div");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText = [
+    "position:fixed",
+    "left:-10000px",
+    "top:0",
+    "width:1px",
+    `height:${lengthValue}`,
+    "padding:0",
+    "margin:0",
+    "border:0",
+    "pointer-events:none",
+    "visibility:hidden",
+  ].join(";");
+  try {
+    document.body.appendChild(probe);
+    return clientLayoutDiagnosticRect(probe);
+  } catch (_) {
+    return null;
+  } finally {
+    probe.remove?.();
+  }
+}
+
+function clientLayoutDiagnosticSafeAreaProbe() {
+  if (!document.body) return null;
+  const probe = document.createElement("div");
+  probe.setAttribute("aria-hidden", "true");
+  probe.style.cssText = [
+    "position:fixed",
+    "left:-10000px",
+    "top:0",
+    "width:1px",
+    "height:1px",
+    "padding-top:env(safe-area-inset-top)",
+    "padding-right:env(safe-area-inset-right)",
+    "padding-bottom:env(safe-area-inset-bottom)",
+    "padding-left:env(safe-area-inset-left)",
+    "margin:0",
+    "border:0",
+    "pointer-events:none",
+    "visibility:hidden",
+  ].join(";");
+  try {
+    document.body.appendChild(probe);
+    const styles = window.getComputedStyle?.(probe);
+    const number = (name) => {
+      const parsed = Number.parseFloat(styles?.getPropertyValue(name) || "");
+      return Number.isFinite(parsed) ? Math.round(parsed) : 0;
+    };
+    return {
+      top: number("padding-top"),
+      right: number("padding-right"),
+      bottom: number("padding-bottom"),
+      left: number("padding-left"),
+    };
+  } catch (_) {
+    return null;
+  } finally {
+    probe.remove?.();
+  }
+}
+
+function clientLayoutDiagnosticViewportUnits() {
+  return {
+    vh: clientLayoutDiagnosticMeasureLength("100vh"),
+    dvh: clientLayoutDiagnosticMeasureLength("100dvh"),
+    lvh: clientLayoutDiagnosticMeasureLength("100lvh"),
+    svh: clientLayoutDiagnosticMeasureLength("100svh"),
+  };
+}
+
+function clientLayoutDiagnosticChrome(app, main, bottomNav) {
+  const root = document.documentElement;
+  const statusMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  const bottomStyles = bottomNav ? window.getComputedStyle?.(bottomNav) : null;
+  const appStyles = app ? window.getComputedStyle?.(app) : null;
+  const mainStyles = main ? window.getComputedStyle?.(main) : null;
+  const bodyBefore = window.getComputedStyle?.(document.body, "::before");
+  return {
+    statusBarStyle: statusMeta?.getAttribute("content") || "",
+    themeColor: themeMeta?.getAttribute("content") || "",
+    dataTheme: root?.dataset?.theme || "",
+    effectiveTheme: root?.dataset?.effectiveTheme || "",
+    rootClasses: clientLayoutDiagnosticClassList(root),
+    bodyClasses: clientLayoutDiagnosticClassList(document.body),
+    appClasses: clientLayoutDiagnosticClassList(app),
+    mainClasses: clientLayoutDiagnosticClassList(main),
+    safeAreaProbe: clientLayoutDiagnosticSafeAreaProbe(),
+    viewportUnits: clientLayoutDiagnosticViewportUnits(),
+    bodyBefore: {
+      display: bodyBefore?.getPropertyValue("display") || "",
+      height: bodyBefore?.getPropertyValue("height") || "",
+      top: bodyBefore?.getPropertyValue("top") || "",
+      backgroundColor: bodyBefore?.getPropertyValue("background-color") || "",
+    },
+    appStyle: {
+      position: appStyles?.getPropertyValue("position") || "",
+      height: appStyles?.getPropertyValue("height") || "",
+      minHeight: appStyles?.getPropertyValue("min-height") || "",
+      paddingBottom: appStyles?.getPropertyValue("padding-bottom") || "",
+    },
+    mainStyle: {
+      position: mainStyles?.getPropertyValue("position") || "",
+      top: mainStyles?.getPropertyValue("top") || "",
+      bottom: mainStyles?.getPropertyValue("bottom") || "",
+      height: mainStyles?.getPropertyValue("height") || "",
+    },
+    bottomNavStyle: {
+      display: bottomStyles?.getPropertyValue("display") || "",
+      position: bottomStyles?.getPropertyValue("position") || "",
+      bottom: bottomStyles?.getPropertyValue("bottom") || "",
+      height: bottomStyles?.getPropertyValue("height") || "",
+      minHeight: bottomStyles?.getPropertyValue("min-height") || "",
+      paddingTop: bottomStyles?.getPropertyValue("padding-top") || "",
+      paddingBottom: bottomStyles?.getPropertyValue("padding-bottom") || "",
+      transform: bottomStyles?.getPropertyValue("transform") || "",
+    },
+  };
+}
+
+function clientLayoutDiagnosticCss() {
+  const styles = window.getComputedStyle?.(document.documentElement);
+  const pick = (name) => styles?.getPropertyValue(name)?.trim?.() || "";
+  return {
+    mobileBottomSafeArea: pick("--mobile-bottom-safe-area"),
+    mobileBottomContentSafeArea: pick("--mobile-bottom-nav-content-safe-area"),
+    mobileBottomNavHeight: pick("--mobile-bottom-nav-height"),
+    mobileBottomNavBottom: pick("--mobile-bottom-nav-bottom"),
+    mobileBottomNavBottomRuntime: pick("--mobile-bottom-nav-bottom-runtime"),
+    mobileBottomNavOffsetHeightRuntime: pick("--mobile-bottom-nav-offset-height-runtime"),
+    mobileBottomNavReservedHeightRuntime: pick("--mobile-bottom-nav-reserved-height-runtime"),
+    mobileBottomStackHeightRuntime: pick("--mobile-bottom-stack-height-runtime"),
+    mobileBottomNavOverflowClamp: pick("--mobile-bottom-nav-overflow-clamp"),
+    mobileBottomNavUnderflowClamp: pick("--mobile-bottom-nav-underflow-clamp"),
+    mobileBottomNavSurfaceUnderflowClamp: pick("--mobile-bottom-nav-surface-underflow-clamp"),
+    pluginContextBottomNavHeight: pick("--plugin-context-bottom-nav-height"),
+    pluginContextMainTop: pick("--plugin-context-main-top"),
+    pluginContextMainBottom: pick("--plugin-context-main-bottom"),
+  };
+}
+
+function captureClientLayoutDiagnostic(reason = "layout") {
+  const visual = window.visualViewport;
+  const app = $("app");
+  const main = app?.querySelector?.(".main");
+  const conversation = $("conversation");
+  const pluginFrame = document.querySelector(".embedded-plugin-frame.active, .wardrobe-plugin-frame");
+  const bottomNav = $("bottomNav");
+  return {
+    event: "client_layout",
+    reason: String(reason || "layout").slice(0, 80),
+    sessionId: clientLayoutDiagnosticSessionId(),
+    clientVersion: document.documentElement?.dataset?.clientVersion || "",
+    atClient: new Date().toISOString(),
+    viewMode: state.viewMode || "",
+    singleWindowMode: state.singleWindowMode || "",
+    pluginContextNavPluginId: state.pluginContextNavPluginId || "",
+    directoryPluginContextActive: Boolean(state.directoryPluginContextActive),
+    standalone: Boolean(window.matchMedia?.("(display-mode: standalone)")?.matches || navigator.standalone === true),
+    displayModeStandalone: Boolean(window.matchMedia?.("(display-mode: standalone)")?.matches),
+    userAgent: navigator.userAgent || "",
+    devicePixelRatio: Number(window.devicePixelRatio || 1) || 1,
+    screen: {
+      width: Math.round(window.screen?.width || 0),
+      height: Math.round(window.screen?.height || 0),
+      availWidth: Math.round(window.screen?.availWidth || 0),
+      availHeight: Math.round(window.screen?.availHeight || 0),
+    },
+    viewport: {
+      innerWidth: Math.round(window.innerWidth || 0),
+      innerHeight: Math.round(window.innerHeight || 0),
+      outerWidth: Math.round(window.outerWidth || 0),
+      outerHeight: Math.round(window.outerHeight || 0),
+      scrollX: Math.round(window.scrollX || 0),
+      scrollY: Math.round(window.scrollY || 0),
+      visualWidth: Math.round(visual?.width || 0),
+      visualHeight: Math.round(visual?.height || 0),
+      visualOffsetTop: Math.round(visual?.offsetTop || 0),
+      visualOffsetLeft: Math.round(visual?.offsetLeft || 0),
+      visualScale: Number.isFinite(visual?.scale) ? Number(visual.scale) : 1,
+      documentClientWidth: Math.round(document.documentElement?.clientWidth || 0),
+      documentClientHeight: Math.round(document.documentElement?.clientHeight || 0),
+      bodyClientHeight: Math.round(document.body?.clientHeight || 0),
+    },
+    chrome: clientLayoutDiagnosticChrome(app, main, bottomNav),
+    css: clientLayoutDiagnosticCss(),
+    rects: {
+      rootElement: clientLayoutDiagnosticRect(document.documentElement),
+      body: clientLayoutDiagnosticRect(document.body),
+      app: clientLayoutDiagnosticRect(app),
+      main: clientLayoutDiagnosticRect(main),
+      topbar: clientLayoutDiagnosticRect(document.querySelector(".topbar")),
+      conversation: clientLayoutDiagnosticRect(conversation),
+      bottomNav: clientLayoutDiagnosticRect(bottomNav),
+      topicPluginDock: clientLayoutDiagnosticRect($("topicPluginDock")),
+      embeddedPluginHost: clientLayoutDiagnosticRect(document.querySelector(".embedded-plugin-host.active, .wardrobe-plugin-host.active")),
+      pluginFrame: clientLayoutDiagnosticRect(pluginFrame),
+    },
+    bottomLayoutMetrics: window.__hermesMobileBottomLayoutMetrics || null,
+    bottomLayoutLastSettle: window.__hermesMobileBottomLayoutLastSettle || null,
+    pluginContextViewportMetrics: window.__hermesPluginContextViewportMetrics || null,
+  };
+}
+
+const CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MAX_PER_SESSION = 8;
+const CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MIN_INTERVAL_MS = 30000;
+
+function clientLayoutDiagnosticsVerboseEnabled() {
+  try {
+    const params = new URLSearchParams(window.location.search || "");
+    return params.get("layoutDebug") === "1"
+      || params.get("clientLayoutDiagnostics") === "1"
+      || localStorage.getItem("hermesLayoutDebug") === "1"
+      || localStorage.getItem("hermesClientLayoutDiagnostics") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function clientLayoutDiagnosticBudgetAvailable() {
+  if (clientLayoutDiagnosticsVerboseEnabled()) return true;
+  const sent = Number(state.clientLayoutDiagnosticSentCount || 0) || 0;
+  return sent < CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MAX_PER_SESSION;
+}
+
+function clientLayoutDiagnosticShouldSend(reason = "layout") {
+  if (clientLayoutDiagnosticsVerboseEnabled()) return true;
+  const sent = Number(state.clientLayoutDiagnosticSentCount || 0) || 0;
+  if (sent >= CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MAX_PER_SESSION) return false;
+  const now = Date.now();
+  const lastAt = Number(state.clientLayoutDiagnosticLastSentAt || 0) || 0;
+  if (lastAt && now - lastAt < CLIENT_LAYOUT_DIAGNOSTIC_DEFAULT_MIN_INTERVAL_MS) return false;
+  state.clientLayoutDiagnosticSentCount = sent + 1;
+  state.clientLayoutDiagnosticLastSentAt = now;
+  state.clientLayoutDiagnosticLastReason = String(reason || "layout").slice(0, 80);
+  return true;
+}
+
+function sendClientLayoutDiagnostic(reason = "layout") {
+  try {
+    if (!clientLayoutDiagnosticShouldSend(reason)) return null;
+    const payload = captureClientLayoutDiagnostic(reason);
+    const headers = {
+      "Content-Type": "application/json",
+      "X-Hermes-Web-Client-Version": payload.clientVersion || "",
+    };
+    if (state.key) headers["X-Hermes-Web-Key"] = state.key;
+    fetch("/api/client-layout-diagnostics", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      keepalive: true,
+      cache: "no-store",
+    }).catch(() => {});
+    return payload;
+  } catch (_) {
+    return null;
+  }
+}
+
+function scheduleClientLayoutDiagnostics(reason = "layout", delays = [0, 240, 900, 1800]) {
+  if (!clientLayoutDiagnosticBudgetAvailable()) return;
+  const uniqueDelays = [...new Set((delays || []).map((delay) => Math.max(0, Number(delay || 0) || 0)))];
+  uniqueDelays.forEach((delay) => {
+    window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
+        sendClientLayoutDiagnostic(`${reason}:${delay}`);
+      });
+    }, delay);
+  });
+}
+
+function updateMobileBottomNavReservation() {
+  const root = document.documentElement;
+  const app = $("app");
+  const nav = $("bottomNav");
+  const dock = $("topicPluginDock");
+  const dockSuppressedByKeyboard = () => Boolean(state.keyboardViewportActive || root.classList.contains("keyboard-viewport-active"));
+  const dockIsVisible = () => Boolean(
+    !dockSuppressedByKeyboard()
+    && app?.classList.contains("global-plugin-dock-mode")
+    && dock
+    && !dock.hidden
+    && window.getComputedStyle?.(dock).display !== "none"
+  );
+  const applyDockOnlyBottomStack = (reason = "nav_hidden") => {
+    const comfortInset = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-comfort-inset", 0)));
+    const dockExpanded = Boolean(dockIsVisible() && dock?.classList.contains("global-plugin-dock-expanded"));
+    const dockCollapsedHeight = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-height", 30)));
+    const dockCollapsedSafeLift = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-safe-lift", 0)));
+    const rawDockHeight = dockIsVisible()
+      ? Math.max(0, Math.ceil(dock.getBoundingClientRect?.().height || 0), Math.ceil(dock.scrollHeight || 0))
+      : 0;
+    const dockHeight = dockIsVisible()
+      ? (dockExpanded ? rawDockHeight : Math.max(24, dockCollapsedHeight + dockCollapsedSafeLift))
+      : 0;
+    const stackHeight = dockIsVisible() ? comfortInset + dockHeight + 2 : 0;
+    const metrics = {
+      reason,
+      viewportHeight: Math.max(Math.ceil(window.innerHeight || 0), Math.ceil(document.documentElement?.clientHeight || 0), Math.ceil(window.visualViewport?.height || 0)),
+      comfortInset,
+      navLaidOut: false,
+      navRect: null,
+      navBottom: comfortInset,
+      navOffset: comfortInset,
+      navReserve: 0,
+      dockVisible: dockIsVisible(),
+      dockExpanded,
+      dockCollapsedHeight,
+      dockCollapsedSafeLift,
+      rawDockHeight,
+      dockHeight,
+      dockBottom: comfortInset,
+      stackHeight,
+    };
+    window.__hermesMobileBottomLayoutMetrics = metrics;
+    root.style.removeProperty("--mobile-bottom-nav-bottom-runtime");
+    root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
+    root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
+    if (dockIsVisible()) {
+      root.style.setProperty("--topic-plugin-dock-bottom-runtime", `${comfortInset}px`);
+      root.style.setProperty("--topic-plugin-dock-reserved-height-runtime", `${stackHeight}px`);
+      root.style.setProperty("--mobile-bottom-stack-height-runtime", `${stackHeight}px`);
+    } else {
+      root.style.removeProperty("--topic-plugin-dock-bottom-runtime");
+      root.style.removeProperty("--topic-plugin-dock-reserved-height-runtime");
+      root.style.removeProperty("--mobile-bottom-stack-height-runtime");
+    }
+    renderMobileBottomLayoutDebug(metrics);
+    updatePluginContextViewportReservation();
+  };
+  const clearBottomStackMetrics = () => {
+    window.__hermesMobileBottomLayoutMetrics = null;
+    root.style.removeProperty("--mobile-bottom-nav-bottom-runtime");
+    root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
+    root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
+    root.style.removeProperty("--topic-plugin-dock-bottom-runtime");
+    root.style.removeProperty("--topic-plugin-dock-reserved-height-runtime");
+    root.style.removeProperty("--mobile-bottom-stack-height-runtime");
+  };
+  if (!nav || !isMobileLayout()) {
+    clearBottomStackMetrics();
+    updatePluginContextViewportReservation();
+    return;
+  }
+  if (nav.hidden || window.getComputedStyle?.(nav).display === "none") {
+    if (isMobileLayout() && dockIsVisible()) {
+      applyDockOnlyBottomStack("nav_hidden");
+      return;
+    }
+    clearBottomStackMetrics();
+    updatePluginContextViewportReservation();
+    return;
+  }
+  const rect = nav.getBoundingClientRect?.();
+  const rectHeight = Math.ceil(rect?.height || 0);
+  const rectWidth = Math.ceil(rect?.width || 0);
+  const navLaidOut = Boolean(rect && rectHeight > 0 && rectWidth > 0 && rect.bottom > 0);
+  const contentHeight = Math.ceil(nav.scrollHeight || 0);
+  const visualViewportHeight = Math.ceil(window.visualViewport?.height || 0);
+  const innerHeight = Math.ceil(window.innerHeight || 0);
+  const documentHeight = Math.ceil(document.documentElement?.clientHeight || 0);
+  const layoutViewportHeight = Math.max(innerHeight, documentHeight, visualViewportHeight);
+  const viewportHeight = layoutViewportHeight;
+  const comfortInset = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-comfort-inset", 0)));
+  const navBottomOverflowRaw = navLaidOut && viewportHeight ? Math.ceil(Math.max(0, rect.bottom - viewportHeight)) : 0;
+  const navBottomOverflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-overflow-clamp", 0)));
+  const navBottomOverflow = Math.min(navBottomOverflowRaw, navBottomOverflowClamp);
+  const currentNavBottom = Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-bottom-runtime", comfortInset));
+  const currentNavBottomDrop = navLaidOut ? Math.max(0, -currentNavBottom) : 0;
+  const navBottomGapRaw = navLaidOut && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.bottom + currentNavBottomDrop)) : 0;
+  const navBottomUnderflowRaw = Math.max(0, navBottomGapRaw - comfortInset);
+  const navBottomUnderflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-underflow-clamp", 0)));
+  const navBottomUnderflow = Math.min(navBottomUnderflowRaw, navBottomUnderflowClamp);
+  const standaloneSurface = Boolean(
+    window.matchMedia?.("(display-mode: standalone)")?.matches
+    || window.matchMedia?.("(display-mode: fullscreen)")?.matches
+    || navigator.standalone === true
+  );
+  const largeViewportHeight = Math.ceil(clientLayoutDiagnosticMeasureLength("100lvh")?.height || 0);
+  const safeAreaTop = Math.max(0, Math.ceil(clientLayoutDiagnosticSafeAreaProbe()?.top || 0));
+  const surfaceViewportHeight = standaloneSurface ? Math.max(viewportHeight, largeViewportHeight) : viewportHeight;
+  const surfaceUnderflowRaw = navLaidOut && surfaceViewportHeight > viewportHeight
+    ? Math.ceil(Math.max(0, surfaceViewportHeight - rect.bottom + currentNavBottomDrop))
+    : 0;
+  const surfaceUnderflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-surface-underflow-clamp", 0)));
+  const surfaceUnderflowSafeClamp = safeAreaTop > 0 ? Math.min(surfaceUnderflowClamp, safeAreaTop) : 0;
+  const surfaceUnderflowCandidate = Math.min(surfaceUnderflowRaw, surfaceUnderflowSafeClamp);
+  const surfaceUnderflow = 0;
+  const effectiveNavBottomUnderflow = navBottomUnderflow;
+  const navBottom = navBottomOverflow + comfortInset - effectiveNavBottomUnderflow;
+  const visibleOffset = navLaidOut && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - rect.top)) : rectHeight;
+  const offset = Math.max(44, rectHeight, contentHeight, visibleOffset || rectHeight);
+  const reserve = Math.max(76, navBottom + rectHeight + 10, navBottom + contentHeight + 10);
+  const navVisualLift = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-visual-lift", 0)));
+  const dockVisible = Boolean(
+    !dockSuppressedByKeyboard()
+    && app?.classList.contains("global-plugin-dock-mode")
+    && dock
+    && !dock.hidden
+    && window.getComputedStyle?.(dock).display !== "none"
+  );
+  const dockExpanded = Boolean(dockVisible && dock?.classList.contains("global-plugin-dock-expanded"));
+  const dockCollapsedHeight = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-height", 30)));
+  const dockCollapsedSafeLift = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-safe-lift", 0)));
+  const rawDockHeight = dockVisible
+    ? Math.max(0, Math.ceil(dock.getBoundingClientRect?.().height || 0), Math.ceil(dock.scrollHeight || 0))
+    : 0;
+  const dockHeight = dockVisible
+    ? (dockExpanded ? rawDockHeight : Math.max(24, dockCollapsedHeight + dockCollapsedSafeLift))
+    : 0;
+  const dockBottom = offset;
+  const stackHeight = dockVisible ? Math.max(reserve, dockBottom + dockHeight + 2) : reserve;
+  const bottomLayoutMetrics = {
+    viewportHeight,
+    visualViewportHeight,
+    innerHeight,
+    documentHeight,
+    layoutViewportHeight,
+    largeViewportHeight,
+    surfaceViewportHeight,
+    standaloneSurface,
+    safeAreaTop,
+    navBottomOverflowRaw,
+    navBottomOverflowClamp,
+    navBottomOverflow,
+    navBottomGapRaw,
+    navBottomUnderflowRaw,
+    navBottomUnderflowClamp,
+    navBottomUnderflow,
+    surfaceUnderflowRaw,
+    surfaceUnderflowClamp,
+    surfaceUnderflowSafeClamp,
+    surfaceUnderflowCandidate,
+    surfaceUnderflow,
+    effectiveNavBottomUnderflow,
+    navBottom,
+    comfortInset,
+    navLaidOut,
+    navRect: rect ? {
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    } : null,
+    navOffset: offset,
+    navReserve: reserve,
+    navVisualLift,
+    dockVisible,
+    dockExpanded,
+    dockCollapsedHeight,
+    dockCollapsedSafeLift,
+    rawDockHeight,
+    dockHeight,
+    dockBottom,
+    stackHeight,
+  };
+  window.__hermesMobileBottomLayoutMetrics = bottomLayoutMetrics;
+  root.style.setProperty("--mobile-bottom-nav-bottom-runtime", `${navBottom}px`);
+  root.style.setProperty("--mobile-bottom-nav-offset-height-runtime", `${offset}px`);
+  root.style.setProperty("--mobile-bottom-nav-reserved-height-runtime", `${reserve}px`);
+  if (dockVisible) {
+    root.style.setProperty("--topic-plugin-dock-bottom-runtime", `${dockBottom}px`);
+    root.style.setProperty("--topic-plugin-dock-reserved-height-runtime", `${stackHeight}px`);
+  } else {
+    root.style.removeProperty("--topic-plugin-dock-bottom-runtime");
+    root.style.removeProperty("--topic-plugin-dock-reserved-height-runtime");
+  }
+  root.style.setProperty("--mobile-bottom-stack-height-runtime", `${stackHeight}px`);
+  renderMobileBottomLayoutDebug(bottomLayoutMetrics);
+  updatePluginContextViewportReservation();
+}
+
+function settleMobileBottomNavReservation(reason = "layout", delays = [0, 40, 120, 260, 520, 1000, 1800]) {
+  if (!isMobileLayout()) return false;
+  const normalizedDelays = [...new Set((delays || [])
+    .map((delay) => Math.max(0, Number(delay || 0) || 0))
+    .filter((delay) => Number.isFinite(delay)))];
+  const run = (delay) => {
+    window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          updateMobileBottomNavReservation();
+          window.__hermesMobileBottomLayoutLastSettle = {
+            reason: String(reason || "layout").slice(0, 80),
+            delay,
+            at: Date.now(),
+            metrics: window.__hermesMobileBottomLayoutMetrics || null,
+          };
+          if ((delay === 0 || delay >= 240) && clientLayoutDiagnosticBudgetAvailable()) {
+            sendClientLayoutDiagnostic(`settle:${reason}:${delay}`);
+          }
+        });
+      });
+    }, delay);
+  };
+  normalizedDelays.forEach(run);
+  return true;
+}
+
+function mobileBottomLayoutDebugEnabled() {
+  try {
+    return new URLSearchParams(window.location.search || "").get("layoutDebug") === "1"
+      || localStorage.getItem("hermesLayoutDebug") === "1";
+  } catch (_) {
+    return false;
+  }
+}
+
+function renderMobileBottomLayoutDebug(metrics = {}) {
+  if (!mobileBottomLayoutDebugEnabled()) return;
+  let panel = document.getElementById("mobileBottomLayoutDebug");
+  if (!panel) {
+    panel = document.createElement("pre");
+    panel.id = "mobileBottomLayoutDebug";
+    panel.style.cssText = [
+      "position:fixed",
+      "left:8px",
+      "right:8px",
+      "top:8px",
+      "z-index:3000",
+      "max-height:38vh",
+      "overflow:auto",
+      "margin:0",
+      "padding:8px",
+      "border:1px solid rgba(31,43,51,.18)",
+      "border-radius:8px",
+      "background:rgba(248,249,248,.94)",
+      "color:#17212a",
+      "font:11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+      "white-space:pre-wrap",
+      "pointer-events:none",
+    ].join(";");
+    document.body.appendChild(panel);
+  }
+  const dock = $("topicPluginDock");
+  const grid = document.querySelector(".capability-quick-grid");
+  const quick = Array.from(document.querySelectorAll(".capability-quick-action"));
+  const rectOf = (node) => {
+    const rect = node?.getBoundingClientRect?.();
+    return rect ? {
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      height: Math.round(rect.height),
+    } : null;
+  };
+  panel.textContent = JSON.stringify({
+    version: document.documentElement.getAttribute("data-client-version"),
+    visualViewport: {
+      width: Math.round(window.visualViewport?.width || window.innerWidth || 0),
+      height: Math.round(window.visualViewport?.height || window.innerHeight || 0),
+      offsetTop: Math.round(window.visualViewport?.offsetTop || 0),
+    },
+    css: {
+      navBottom: getComputedStyle(document.documentElement).getPropertyValue("--mobile-bottom-nav-bottom-runtime").trim(),
+      navOffset: getComputedStyle(document.documentElement).getPropertyValue("--mobile-bottom-nav-offset-height-runtime").trim(),
+      dockBottom: getComputedStyle(document.documentElement).getPropertyValue("--topic-plugin-dock-bottom-runtime").trim(),
+      stack: getComputedStyle(document.documentElement).getPropertyValue("--mobile-bottom-stack-height-runtime").trim(),
+    },
+    measured: metrics,
+    quickCount: quick.length,
+    grid: rectOf(grid),
+    firstQuick: rectOf(quick[0]),
+    lastQuick: rectOf(quick[quick.length - 1]),
+    dock: rectOf(dock),
+    bottomNav: rectOf($("bottomNav")),
+  }, null, 2);
+}
+
+function updatePluginContextViewportReservation() {
+  const root = document.documentElement;
+  const app = $("app");
+  const nav = $("bottomNav");
+  const active = Boolean(
+    app?.classList.contains("plugin-context-nav-mode")
+    && !app.classList.contains("embedded-plugin-preview-fullscreen-active")
+    && (
+      app.classList.contains("wardrobe-plugin-host-active")
+      || app.classList.contains("embedded-plugin-host-active")
+    )
+  );
+  if (!active || !nav || nav.hidden || window.getComputedStyle?.(nav).display === "none") {
+    root.style.removeProperty("--plugin-context-main-bottom");
+    if (typeof scheduleEmbeddedPluginViewportBroadcast === "function") scheduleEmbeddedPluginViewportBroadcast("plugin_context_inactive", 0);
+    return;
+  }
+  const navRect = nav.getBoundingClientRect?.();
+  const navHeight = Math.ceil(navRect?.height || 0);
+  const appHeight = Math.ceil(app.getBoundingClientRect?.().height || 0);
+  const visualViewportHeight = Math.ceil(window.visualViewport?.height || 0);
+  const innerHeight = Math.ceil(window.innerHeight || 0);
+  const documentHeight = Math.ceil(document.documentElement?.clientHeight || 0);
+  const layoutViewportHeight = Math.max(innerHeight, documentHeight, visualViewportHeight);
+  const viewportHeight = layoutViewportHeight || appHeight || 0;
+  const viewportOverflowRaw = Math.max(0, appHeight - viewportHeight);
+  const viewportOverflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-overflow-clamp", 0)));
+  const viewportOverflow = Math.min(viewportOverflowRaw, viewportOverflowClamp);
+  const navVisibleTopInset = navRect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - navRect.top)) : navHeight;
+  const bottomInset = Math.max(0, navVisibleTopInset + viewportOverflow);
+  window.__hermesPluginContextViewportMetrics = {
+    visualViewportHeight,
+    innerHeight,
+    documentHeight,
+    layoutViewportHeight,
+    viewportHeight,
+    appHeight,
+    navHeight,
+    navVisibleTopInset,
+    navRect: navRect ? {
+      top: Math.round(navRect.top),
+      bottom: Math.round(navRect.bottom),
+      height: Math.round(navRect.height),
+    } : null,
+    viewportOverflowRaw,
+    viewportOverflowClamp,
+    viewportOverflow,
+    bottomInset,
+  };
+  if (bottomInset > 0) root.style.setProperty("--plugin-context-main-bottom", `${bottomInset}px`);
+  else root.style.removeProperty("--plugin-context-main-bottom");
+  if (typeof scheduleEmbeddedPluginViewportBroadcast === "function") scheduleEmbeddedPluginViewportBroadcast("plugin_context_viewport", 0);
+}
+
+function normalizeMobileViewportAfterViewChange() {
+  state.composerFocused = false;
+  if (typeof blurComposerInput === "function") blurComposerInput("view_change");
+  else if (typeof blurFocusedEditableIfStale === "function") blurFocusedEditableIfStale("view_change");
+  clearKeyboardViewportMetrics();
+  settleMobileBottomNavReservation("view_change", [0, 80, 240, 520]);
+}
+
+function refreshKeyboardViewportSoon(delay = 0) {
+  window.setTimeout(() => {
+    const active = updateKeyboardViewportMetrics();
+    if (active) scheduleConversationBottomStick();
+  }, Math.max(0, delay));
+}
+
+function refreshKeyboardViewportDuringFocus() {
+  [0, 80, 180, 360, 700, 1100].forEach(refreshKeyboardViewportSoon);
+}
+
+function updateKeyboardContextMetrics() {
+  const geometry = nativeKeyboardGeometry();
+  const top = geometry ? Math.max(8, Math.round(geometry.top - 44)) : 0;
+  state.keyboardContextTopPx = top;
+  state.keyboardContextMode = Boolean(state.composerFocused && isMobileLayout() && geometry);
+  document.documentElement.style.setProperty("--keyboard-context-top", `${top}px`);
+  $("composer")?.classList.toggle("keyboard-context-mode", state.keyboardContextMode);
+}

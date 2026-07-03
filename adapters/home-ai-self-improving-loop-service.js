@@ -1,5 +1,12 @@
 "use strict";
 
+const { summarizePublicUpgradeDailySmoke } = require("./deploy-upgrade-lane-closure-service");
+const {
+  observationsFromGatewayCapabilityAvailability,
+  observationsFromPluginProxyLatency,
+  observationsFromUiRuntimeHealth,
+} = require("./self-improving-runtime-health-observation-service");
+
 const DEFAULT_APP_WORKSPACE = "/Users/example/path";
 const DEFAULT_PLATFORM_AUDIT_THREAD_TITLE = "Home AI Platform Audit";
 const DEFAULT_PLUGIN_AUDIT_THREAD_TITLE = "Plugin Workspace Audit";
@@ -7,9 +14,44 @@ const DEFAULT_PLUGIN_AUDIT_THREAD_TITLE = "Plugin Workspace Audit";
 const SEVERITY_RANK = Object.freeze({ info: 0, H4: 1, H3: 2, H2: 3, H1: 4 });
 const SKIPPED_STATUSES = new Set(["skipped", "not_applicable", "blocked_by_context"]);
 
-const SIGNAL_MATRIX_VERSION = "20260629-self-improving-loop-v5";
+const SIGNAL_MATRIX_VERSION = "20260701-self-improving-loop-v13";
 
 const DEFAULT_SIGNALS = Object.freeze([
+  Object.freeze({
+    id: "system_resource_health",
+    title: "Host system resource and resident service health",
+    domain: "system_resource",
+    owner: "home-ai-platform",
+    severity: "H2",
+    source: "owner-system-console/system-resource-status-service",
+    expected: "CPU, memory, disk, uptime, and bounded resident launchd services remain within configured thresholds and visible through Owner Console",
+    threshold: "no degraded host resource state, repeated warning pressure, missing resource snapshot, or stopped critical resident service",
+    evidence: [
+      "overallStatus",
+      "cpuOverallPercent",
+      "cpuTopProcessLabels",
+      "cpuTopProcessTotalPercent",
+      "memoryPercentUsed",
+      "memoryPercentSource",
+      "memoryResidentPercentUsed",
+      "memoryPressureFreePercent",
+      "diskMaxPercentUsed",
+      "serviceIssueCount",
+      "failingSignalCount",
+    ],
+    closureReadbacks: [
+      "system_resource_status_snapshot",
+      "owner_system_console_api_readback",
+      "launchd_state_readback",
+      "post_fix_resource_probe",
+    ],
+    target: "Home AI",
+    checks: [
+      "node tests/system-resource-status-service.test.js",
+      "node tests/owner-system-console-service.test.js",
+      "node tests/home-ai-self-improving-loop-service.test.js",
+    ],
+  }),
   Object.freeze({
     id: "gateway_profile_health",
     title: "Gateway profile and worker health",
@@ -99,6 +141,30 @@ const DEFAULT_SIGNALS = Object.freeze([
     checks: [
       "node tests/plugin-proxy-timing-service.test.js",
       "node tests/hermes-plugin-api-routes.test.js",
+    ],
+  }),
+  Object.freeze({
+    id: "composer_runtime_feedback",
+    title: "Composer terminal receipt and viewport feedback health",
+    domain: "composer_runtime",
+    owner: "home-ai-static-client",
+    severity: "H2",
+    source: "app-composer-self-check-ui",
+    expected: "terminal assistant messages settle with visible receipt metadata, no duplicate local/server user echo, no stale active run, and no receipt refresh forcing scroll while user protection is active",
+    threshold: "no repeated metadata-only composer self-check report for missing terminal receipt, duplicate pending echo, stuck terminal active run, or protected-scroll bypass",
+    evidence: ["threadId", "messageId", "runId", "errorCode", "duplicateCount", "activeRunCount", "userScrollProtected"],
+    closureReadbacks: [
+      "composer_self_check_event",
+      "terminal_receipt_refresh_probe",
+      "pending_echo_dedup_probe",
+      "scroll_protection_probe",
+      "production_static_version_readback",
+    ],
+    target: "Home AI",
+    checks: [
+      "node tests/composer-self-check-ui.test.js",
+      "node tests/composer-message-invalidation-ui.test.js",
+      "node tests/composer-send-pending-feedback.test.js",
     ],
   }),
   Object.freeze({
@@ -232,6 +298,29 @@ const DEFAULT_SIGNALS = Object.freeze([
     ],
   }),
   Object.freeze({
+    id: "plugin_action_metadata_health",
+    title: "Plugin message action metadata and deterministic bridge health",
+    domain: "plugin_action_metadata",
+    owner: "home-ai-plugin-host",
+    severity: "H2",
+    source: "gateway-output-metadata-attachment/thread-view-service/plugin-conversation-action-bridge",
+    expected: "Gateway tool outputs that contain executable plugin intents are attached to message metadata, projected to the renderer, and executed through deterministic action bridge calls without a model turn",
+    threshold: "no actionable plugin intent is dropped, renderer-filtered, or blocked by missing bridge state when schema and principal/workspace checks pass",
+    evidence: ["pluginId", "actionKind", "missingMetadataCount", "rendererFilteredCount", "bridgeUnavailableCount"],
+    closureReadbacks: [
+      "gateway_output_metadata_attachment",
+      "thread_view_plugin_action_projection",
+      "message_action_render_probe",
+      "action_bridge_execution_probe",
+    ],
+    target: "Home AI",
+    checks: [
+      "node tests/thread-view-service.test.js",
+      "node tests/plugin-conversation-action-bridge-service.test.js",
+      "node tests/plugin-conversation-action-api-routes.test.js",
+    ],
+  }),
+  Object.freeze({
     id: "audit_thread_liveness",
     title: "Dedicated audit thread liveness",
     domain: "audit",
@@ -284,13 +373,13 @@ const DEFAULT_SIGNALS = Object.freeze([
   }),
   Object.freeze({
     id: "public_upgrade_rehearsal",
-    title: "Public repository upgrade rehearsal closure",
+    title: "Public repository upgrade daily smoke closure",
     domain: "public_upgrade",
     owner: "home-ai-deployment",
     severity: "H2",
     source: "homeai-public-upgrade-rehearsal",
-    expected: "published public repo can be cloned and target-side upgrade planning proves missing-source fail-closed and explicit clone/deploy closure",
-    threshold: "public rehearsal must pass source preflight, fail closed without clone gate, and produce clone/deploy/closure-validation actions with the clone gate",
+    expected: "published public repo can be cloned and target-side upgrade planning proves missing-source fail-closed, explicit clone/deploy closure, Hermes Agent runtime repair gating, source adoption gating, and Provider/closure validation",
+    threshold: "public rehearsal must pass source preflight, fail closed without clone/adoption/runtime gates, and produce clone/deploy/runtime-repair/source-adoption/closure-validation actions with explicit operator gates",
     evidence: [
       "pluginCount",
       "missingSourceBlockerCount",
@@ -298,6 +387,10 @@ const DEFAULT_SIGNALS = Object.freeze([
       "deployActionCount",
       "movieOperatorAuthenticated",
       "closureValidationPresent",
+      "hermesRuntimeRepairRequired",
+      "hermesRuntimeRepairGateOk",
+      "sourceAdoptionRequired",
+      "sourceAdoptionGateOk",
       "tempRemoved",
     ],
     closureReadbacks: [
@@ -310,11 +403,82 @@ const DEFAULT_SIGNALS = Object.freeze([
     checks: [
       "node tests/public-upgrade-rehearsal-service.test.js",
       "node tests/homeai-public-upgrade-rehearsal-script.test.js",
+      "node tests/deploy-upgrade-lane-closure-service.test.js",
+      "node tests/deploy-upgrade-lane-closure-smoke.test.js",
+      "node scripts/deploy-upgrade-lane-closure-smoke.js --json",
+    ],
+  }),
+  Object.freeze({
+    id: "install_upgrade_canary",
+    title: "Install and public upgrade canary closure",
+    domain: "install_upgrade",
+    owner: "home-ai-deployment",
+    severity: "H2",
+    source: "homeai-install-upgrade-canary",
+    expected: "source-safe install and upgrade closure phases pass as one bounded canary report",
+    threshold: "no required fresh-install, public-upgrade, plugin-provisioning, or Runtime SLO canary phase fails",
+    evidence: [
+      "phaseCount",
+      "passedPhaseCount",
+      "failedPhaseCount",
+      "freshInstallPassed",
+      "publicUpgradePassed",
+      "pluginProvisioningPassed",
+      "selfImprovingLoopPassed",
+      "closureStatus",
+      "cleanTargetCanaryStatus",
+    ],
+    closureReadbacks: [
+      "install_upgrade_canary_report",
+      "fresh_install_rehearsal_summary",
+      "deploy_upgrade_lane_closure_summary",
+      "runtime_slo_audit_summary",
+      "clean_target_lane_readback_when_available",
+    ],
+    target: "Home AI",
+    checks: [
+      "node tests/home-ai-install-upgrade-canary-service.test.js",
+      "node tests/homeai-install-upgrade-canary-script.test.js",
+      "node scripts/homeai-install-upgrade-canary.js --json",
+    ],
+  }),
+  Object.freeze({
+    id: "runtime_slo_coverage",
+    title: "3A Runtime SLO coverage and repair-routing health",
+    domain: "runtime_slo",
+    owner: "home-ai-platform",
+    severity: "H2",
+    source: "homeai-self-improving-loop runtime-slo-audit",
+    expected: "the maintained Runtime SLO model covers every self-check signal with owner, bounded evidence, closure readbacks, focused checks, and repair-card routing",
+    threshold: "no unmapped signal, duplicate signal, empty dimension, missing owner/evidence/readback/check, or missing H1/H2 repair routing",
+    evidence: ["modelVersion", "matrixVersion", "signalCount", "sloCount", "issueCount", "unmappedSignalCount", "duplicateSignalCount"],
+    closureReadbacks: [
+      "runtime_slo_audit_summary",
+      "signal_matrix_readback",
+      "diagnostic_event_probe",
+      "focused_slo_tests",
+    ],
+    target: "Home AI",
+    checks: [
+      "node tests/home-ai-runtime-slo-service.test.js",
+      "node tests/home-ai-self-improving-loop-service.test.js",
+      "node tests/homeai-self-improving-loop-script.test.js",
+      "node scripts/homeai-self-improving-loop.js --runtime-slo-audit --json",
     ],
   }),
 ]);
 
 const DEFAULT_INCIDENT_COVERAGE_REQUIREMENTS = Object.freeze([
+  Object.freeze({
+    id: "host_resource_pressure_regression",
+    title: "Host CPU, memory, disk, or resident service pressure becomes user-visible",
+    severity: "H1",
+    incidentClass: "availability_regression",
+    requiredSignals: ["system_resource_health"],
+    requiredEvidence: ["overallStatus", "cpuOverallPercent", "memoryPercentUsed", "diskMaxPercentUsed", "serviceIssueCount"],
+    requiredClosureReadbacks: ["system_resource_status_snapshot", "owner_system_console_api_readback", "post_fix_resource_probe"],
+    remediationGate: "self_check_auto_dispatch",
+  }),
   Object.freeze({
     id: "codex_proxy_latency_gap",
     title: "Codex Mobile embedded proxy latency gap",
@@ -395,6 +559,36 @@ const DEFAULT_INCIDENT_COVERAGE_REQUIREMENTS = Object.freeze([
     requiredClosureReadbacks: ["public_repo_remote_head", "source_rehearsal_execute", "production_rehearsal_execute"],
     remediationGate: "self_check_auto_dispatch",
   }),
+  Object.freeze({
+    id: "composer_runtime_feedback_regression",
+    title: "Composer terminal receipt, pending echo, or scroll protection feedback regressed",
+    severity: "H2",
+    incidentClass: "composer_runtime_regression",
+    requiredSignals: ["composer_runtime_feedback"],
+    requiredEvidence: ["threadId", "messageId", "errorCode"],
+    requiredClosureReadbacks: ["composer_self_check_event", "terminal_receipt_refresh_probe", "scroll_protection_probe"],
+    remediationGate: "self_check_auto_dispatch",
+  }),
+  Object.freeze({
+    id: "plugin_action_metadata_regression",
+    title: "Plugin deterministic action metadata is dropped before rendering",
+    severity: "H2",
+    incidentClass: "plugin_action_metadata_regression",
+    requiredSignals: ["plugin_action_metadata_health"],
+    requiredEvidence: ["pluginId", "actionKind", "missingMetadataCount"],
+    requiredClosureReadbacks: ["gateway_output_metadata_attachment", "thread_view_plugin_action_projection", "action_bridge_execution_probe"],
+    remediationGate: "self_check_auto_dispatch",
+  }),
+  Object.freeze({
+    id: "runtime_slo_coverage_regression",
+    title: "Runtime SLO model no longer covers maintained self-check signals",
+    severity: "H2",
+    incidentClass: "self_check_governance_regression",
+    requiredSignals: ["runtime_slo_coverage"],
+    requiredEvidence: ["modelVersion", "matrixVersion", "issueCount", "unmappedSignalCount", "duplicateSignalCount"],
+    requiredClosureReadbacks: ["runtime_slo_audit_summary", "signal_matrix_readback", "diagnostic_event_probe"],
+    remediationGate: "self_check_auto_dispatch",
+  }),
 ]);
 
 function cleanString(value, maxLength = 240) {
@@ -431,7 +625,7 @@ function boundedMetadata(value = {}, maxKeys = 24) {
     if (!safeKey) continue;
     if (/authorization|cookie|password|secret|token|access.?key|launch.?key|oauth|bearer|private.?key/i.test(safeKey)) {
       out[safeKey] = "[REDACTED]";
-    } else if (/path|url|body|content|prompt|completion|payload|screenshot|image/i.test(safeKey)) {
+    } else if (/path|url|body|content|message|prompt|completion|transcript|text|input|value|payload|screenshot|image/i.test(safeKey)) {
       out[safeKey] = "[REDACTED]";
     } else if (typeof raw === "number" || typeof raw === "boolean") {
       out[safeKey] = raw;
@@ -740,6 +934,23 @@ function observationFromStatusSmoke(payload = {}, options = {}) {
   if (!payload || typeof payload !== "object") {
     return observationForCommandFailure("gateway_profile_health", "production_status_smoke_missing_payload");
   }
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  if (payload.skipped === true) {
+    const errorCode = cleanString(payload.reason || payload.error || "production_status_smoke_skipped", 120);
+    const sourceSkip = collectorContext === "source";
+    return {
+      signalId: "gateway_profile_health",
+      status: sourceSkip ? "skipped" : "failed",
+      errorCode,
+      diagnosticEligible: !sourceSkip,
+      count: 0,
+      metadata: {
+        collectorContext,
+        skipped: true,
+        reason: safeToken(errorCode, "production_status_smoke_skipped", 120),
+      },
+    };
+  }
   const workerPolicyOk = Boolean(payload.gatewayWorkerPolicyContract?.ok);
   const maxActiveGlobal = Math.max(0, Number(options.maxActiveGlobal ?? 64) || 64);
   const activeGlobal = Number(payload.activeGlobal ?? 0) || 0;
@@ -753,6 +964,7 @@ function observationFromStatusSmoke(payload = {}, options = {}) {
     errorCode,
     count: activeGlobal,
     metadata: {
+      collectorContext,
       activeGlobal,
       clientVersion: payload.clientVersion || "",
       workerCount: payload.gatewayPool?.workerCount ?? "",
@@ -833,11 +1045,6 @@ function observationFromProductionDiagnostics(payload = {}) {
   };
 }
 
-function stepOfType(payload = {}, type) {
-  const steps = Array.isArray(payload.steps) ? payload.steps : [];
-  return steps.find((step) => step && step.type === type) || {};
-}
-
 function firstNumber(...values) {
   for (const value of values) {
     const parsed = Number(value);
@@ -850,67 +1057,873 @@ function observationFromPublicUpgradeRehearsal(payload = {}) {
   if (!payload || typeof payload !== "object") {
     return observationForCommandFailure("public_upgrade_rehearsal", "public_upgrade_rehearsal_missing_payload");
   }
-  const preflight = stepOfType(payload, "public-source-preflight");
-  const missingPlan = stepOfType(payload, "upgrade-plan-missing-sources-fail-closed");
-  const missingValidation = stepOfType(payload, "validate-missing-source-fail-closed");
-  const cloneGatePlan = stepOfType(payload, "upgrade-plan-with-operator-clone-gate");
-  const cloneGateValidation = stepOfType(payload, "validate-operator-clone-gate-plan");
-
-  const missingSourceBlockerCount = firstNumber(
-    missingValidation.detail?.missingSourceBlockerCount,
-    missingPlan.summary?.missingSourceBlockerCount,
-  );
-  const cloneActionCount = firstNumber(
-    cloneGateValidation.detail?.cloneActionCount,
-    cloneGatePlan.summary?.cloneActionCount,
-  );
-  const deployActionCount = firstNumber(
-    cloneGateValidation.detail?.deployActionCount,
-    cloneGatePlan.summary?.deployActionCount,
-  );
-  const pluginCount = firstNumber(
-    cloneGateValidation.detail?.pluginCount,
-    cloneGatePlan.summary?.pluginCount,
-    missingValidation.detail?.pluginCount,
-    missingPlan.summary?.pluginCount,
-  );
-  const movieOperatorAuthenticated = cloneGateValidation.detail?.movieOperatorAuthenticated === true
-    || cloneGatePlan.summary?.movieOperatorAuthenticated === true;
-  const closureValidationPresent = cloneGateValidation.detail?.closureValidationPresent === true
-    || cloneGatePlan.summary?.closureValidationPresent === true;
-
-  let errorCode = "";
-  if (payload.ok === false) errorCode = payload.error || "public_upgrade_rehearsal_failed";
-  else if (payload.tempRemoved !== true) errorCode = "public_upgrade_rehearsal_temp_not_removed";
-  else if (preflight.summary?.ok !== true && preflight.result?.ok !== true) errorCode = "public_upgrade_rehearsal_preflight_failed";
-  else if (missingValidation.ok !== true || missingSourceBlockerCount <= 0) errorCode = "public_upgrade_missing_source_fail_closed_missing";
-  else if (cloneGateValidation.ok !== true) errorCode = "public_upgrade_clone_gate_validation_failed";
-  else if (cloneActionCount <= 0) errorCode = "public_upgrade_clone_actions_missing";
-  else if (deployActionCount <= 0) errorCode = "public_upgrade_deploy_actions_missing";
-  else if (!movieOperatorAuthenticated) errorCode = "public_upgrade_movie_operator_auth_missing";
-  else if (!closureValidationPresent) errorCode = "public_upgrade_closure_validation_missing";
+  if (payload.skipped === true) {
+    const reason = cleanString(payload.reason || payload.error || "public_upgrade_rehearsal_skipped", 120);
+    return {
+      signalId: "public_upgrade_rehearsal",
+      status: "skipped",
+      errorCode: reason,
+      diagnosticEligible: false,
+      count: 0,
+      metadata: {
+        skipped: true,
+        reason: safeToken(reason, "public_upgrade_rehearsal_skipped", 120),
+      },
+    };
+  }
+  const dailySmoke = summarizePublicUpgradeDailySmoke(payload);
+  const errorCode = dailySmoke.error || "";
 
   return {
     signalId: "public_upgrade_rehearsal",
     status: errorCode ? "failed" : "ok",
     errorCode,
-    count: cloneActionCount + deployActionCount,
+    count: firstNumber(dailySmoke.metadata?.cloneActionCount) + firstNumber(dailySmoke.metadata?.deployActionCount),
+    metadata: dailySmoke.metadata || {},
+  };
+}
+
+function installUpgradeCanaryServiceUserBoundary(payload = {}) {
+  if (cleanString(payload.error || "", 160) === "production_rehearsal_requires_service_user") {
+    return true;
+  }
+  const issues = Array.isArray(payload.issues) ? payload.issues : [];
+  return issues.some((issue) => {
+    const code = cleanString(issue?.code || "", 120);
+    const error = cleanString(issue?.error || "", 160);
+    const phaseId = cleanString(issue?.phaseId || "", 160);
+    return phaseId === "macos_fresh_install_rehearsal"
+      && (error === "production_rehearsal_requires_service_user"
+        || code === "production_rehearsal_requires_service_user");
+  });
+}
+
+function observationFromInstallUpgradeCanary(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("install_upgrade_canary", "install_upgrade_canary_missing_payload");
+  }
+  const issues = Array.isArray(payload.issues) ? payload.issues : [];
+  const firstIssue = issues[0] || {};
+  const failedPhaseCount = firstNumber(payload.failedPhaseCount);
+  const categories = payload.categories && typeof payload.categories === "object" ? payload.categories : {};
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const serviceUserBoundary = installUpgradeCanaryServiceUserBoundary(payload);
+  const planOnly = cleanString(payload.mode || "", 40) === "plan";
+  const cleanTargetCanary = payload.cleanTargetCanary && typeof payload.cleanTargetCanary === "object"
+    ? payload.cleanTargetCanary
+    : {};
+  const cleanTargetEnvironment = payload.cleanTargetEnvironment && typeof payload.cleanTargetEnvironment === "object"
+    ? payload.cleanTargetEnvironment
+    : {};
+  const cleanTargetEnvironmentIssues = Array.isArray(cleanTargetEnvironment.issueCodes)
+    ? cleanTargetEnvironment.issueCodes.map((item) => safeToken(item, "", 120)).filter(Boolean).slice(0, 12)
+    : [];
+  const cleanTargetCanaryStatus = cleanString(cleanTargetCanary.status || "", 40);
+  const cleanTargetEnvironmentStatus = cleanString(cleanTargetEnvironment.status || "", 40);
+  const cleanTargetClosed = cleanTargetCanaryStatus === "passed" && cleanTargetCanary.noCompletionClaim === false;
+  if (payload.skipped === true || planOnly || (serviceUserBoundary && collectorContext === "source")) {
+    const errorCode = cleanString(
+      payload.reason
+        || payload.error
+        || (planOnly
+          ? "install_upgrade_canary_plan_only"
+          : (serviceUserBoundary ? "production_rehearsal_requires_service_user" : "install_upgrade_canary_skipped")),
+      120,
+    );
+    const explicitSkip = payload.skipped === true || planOnly;
+    return {
+      signalId: "install_upgrade_canary",
+      status: explicitSkip || collectorContext === "source" ? "skipped" : "failed",
+      errorCode,
+      diagnosticEligible: !explicitSkip && collectorContext !== "source",
+      count: firstNumber(payload.phaseCount),
+      metadata: {
+        collectorContext,
+        skipped: explicitSkip || collectorContext === "source",
+        reason: safeToken(errorCode, "install_upgrade_canary_skipped", 120),
+        serviceUserBoundary,
+        planOnly,
+        mode: cleanString(payload.mode || "", 40),
+        phaseCount: firstNumber(payload.phaseCount),
+        passedPhaseCount: firstNumber(payload.passedPhaseCount),
+        failedPhaseCount,
+        freshInstallPassed: categories.fresh_install?.ok === true,
+        publicUpgradePassed: categories.public_upgrade?.ok === true,
+        pluginProvisioningPassed: categories.plugin_provisioning?.ok === true,
+        selfImprovingLoopPassed: categories.self_improving_loop?.ok === true,
+        cleanTargetCanaryStatus,
+        cleanTargetEnvironmentStatus,
+        cleanTargetEnvironmentIssueCodes: cleanTargetEnvironmentIssues,
+        firstFailedPhase: cleanString(firstIssue.phaseId || "", 120),
+      },
+    };
+  }
+  let errorCode = "";
+  if (payload.ok !== true) errorCode = cleanString(firstIssue.code || payload.error || "install_upgrade_canary_failed", 120);
+  else if (failedPhaseCount > 0) errorCode = "install_upgrade_canary_phase_failed";
+
+  if (!errorCode && !cleanTargetClosed) {
+    const reason = cleanTargetEnvironmentStatus === "blocked"
+      ? "clean_target_environment_blocked"
+      : "clean_target_canary_not_closed";
+    return {
+      signalId: "install_upgrade_canary",
+      status: "skipped",
+      errorCode: reason,
+      diagnosticEligible: false,
+      count: firstNumber(payload.phaseCount),
+      metadata: {
+        collectorContext,
+        skipped: true,
+        reason,
+        mode: cleanString(payload.mode || "", 40),
+        phaseCount: firstNumber(payload.phaseCount),
+        passedPhaseCount: firstNumber(payload.passedPhaseCount),
+        failedPhaseCount,
+        freshInstallPassed: categories.fresh_install?.ok === true,
+        publicUpgradePassed: categories.public_upgrade?.ok === true,
+        pluginProvisioningPassed: categories.plugin_provisioning?.ok === true,
+        selfImprovingLoopPassed: categories.self_improving_loop?.ok === true,
+        cleanTargetCanaryStatus,
+        cleanTargetEnvironmentStatus,
+        cleanTargetEnvironmentIssueCodes: cleanTargetEnvironmentIssues,
+        firstFailedPhase: cleanString(firstIssue.phaseId || "", 120),
+      },
+    };
+  }
+
+  return {
+    signalId: "install_upgrade_canary",
+    status: errorCode ? "failed" : "ok",
+    errorCode,
+    count: firstNumber(payload.phaseCount),
     metadata: {
-      pluginCount,
-      missingSourceBlockerCount,
-      cloneActionCount,
-      deployActionCount,
-      movieOperatorAuthenticated,
-      closureValidationPresent,
-      tempRemoved: payload.tempRemoved === true,
-      stepCount: firstNumber(payload.stepCount),
-      preflightOk: preflight.summary?.ok === true || preflight.result?.ok === true,
+      collectorContext,
+      phaseCount: firstNumber(payload.phaseCount),
+      passedPhaseCount: firstNumber(payload.passedPhaseCount),
+      failedPhaseCount,
+      freshInstallPassed: categories.fresh_install?.ok === true,
+      publicUpgradePassed: categories.public_upgrade?.ok === true,
+      pluginProvisioningPassed: categories.plugin_provisioning?.ok === true,
+      selfImprovingLoopPassed: categories.self_improving_loop?.ok === true,
+      cleanTargetCanaryStatus,
+      cleanTargetEnvironmentStatus,
+      cleanTargetEnvironmentIssueCodes: cleanTargetEnvironmentIssues,
+      firstFailedPhase: cleanString(firstIssue.phaseId || "", 120),
+    },
+  };
+}
+
+function observationFromRuntimeSloAudit(payload = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("runtime_slo_coverage", "runtime_slo_audit_missing_payload");
+  }
+  const issueCount = firstNumber(payload.issueCount);
+  const unmappedSignalCount = firstNumber(payload.unmappedSignalCount);
+  const duplicateSignalCount = firstNumber(payload.duplicateSignalCount);
+  let errorCode = "";
+  if (payload.ok !== true) errorCode = cleanString(payload.error || "runtime_slo_audit_failed", 120);
+  else if (issueCount > 0) errorCode = "runtime_slo_audit_issues";
+  else if (unmappedSignalCount > 0) errorCode = "runtime_slo_unmapped_signals";
+  else if (duplicateSignalCount > 0) errorCode = "runtime_slo_duplicate_signals";
+
+  return {
+    signalId: "runtime_slo_coverage",
+    status: errorCode ? "failed" : "ok",
+    errorCode,
+    count: issueCount + unmappedSignalCount + duplicateSignalCount,
+    metadata: {
+      modelVersion: payload.modelVersion || "",
+      matrixVersion: payload.matrixVersion || "",
+      dimensionCount: firstNumber(payload.dimensionCount),
+      signalCount: firstNumber(payload.signalCount),
+      sloCount: firstNumber(payload.sloCount),
+      issueCount,
+      unmappedSignalCount,
+      duplicateSignalCount,
+      status: payload.status || "",
+    },
+  };
+}
+
+function summarizeSystemResourceSignals(payload = {}) {
+  const signals = Array.isArray(payload.signals) ? payload.signals : [];
+  const failingSignals = signals.filter((signal) => {
+    const status = safeToken(signal?.status || "", "", 40).toLowerCase();
+    return status && status !== "ok";
+  });
+  const warningSignals = failingSignals.filter((signal) => safeToken(signal?.status || "", "", 40).toLowerCase() === "warning");
+  const degradedSignals = failingSignals.filter((signal) => safeToken(signal?.status || "", "", 40).toLowerCase() === "degraded");
+  const unknownSignals = failingSignals.filter((signal) => safeToken(signal?.status || "", "", 40).toLowerCase() === "unknown");
+  return {
+    failingSignals,
+    warningSignals,
+    degradedSignals,
+    unknownSignals,
+    failingSignalIds: normalizedList(failingSignals.map((signal) => signal.signalId || signal.signal_id || signal.id), 12),
+    failingCategories: normalizedList(failingSignals.map((signal) => signal.category), 12),
+  };
+}
+
+function launchdIssueCounts(payload = {}) {
+  const services = Array.isArray(payload.launchd?.services)
+    ? payload.launchd.services
+    : (Array.isArray(payload.services) ? payload.services : []);
+  let stopped = 0;
+  let unknown = 0;
+  for (const service of services) {
+    const status = safeToken(service?.status || service?.state || "", "", 40).toLowerCase();
+    if (status === "stopped" || status === "warning" || status === "degraded") stopped += 1;
+    else if (!status || status === "unknown") unknown += 1;
+  }
+  return {
+    serviceCount: services.length,
+    stoppedServiceCount: stopped,
+    unknownServiceCount: unknown,
+    serviceIssueCount: stopped + unknown,
+  };
+}
+
+function observationFromSystemResourceStatus(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("system_resource_health", "system_resource_status_missing_payload");
+  }
+  const overallStatus = safeToken(payload.overallStatus || payload.status || "", "unknown", 40).toLowerCase();
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const {
+    failingSignals,
+    warningSignals,
+    degradedSignals,
+    unknownSignals,
+    failingSignalIds,
+    failingCategories,
+  } = summarizeSystemResourceSignals(payload);
+  const serviceCounts = launchdIssueCounts(payload);
+  let errorCode = "";
+  if (payload.ok === false && overallStatus === "degraded") errorCode = "system_resource_degraded";
+  else if (payload.ok === false) errorCode = cleanString(payload.error || "system_resource_status_failed", 120);
+  else if (overallStatus === "degraded") errorCode = "system_resource_degraded";
+  else if (overallStatus === "unknown") errorCode = "system_resource_unknown";
+  else if (degradedSignals.length) errorCode = "system_resource_degraded";
+  else if (unknownSignals.length) errorCode = "system_resource_unknown";
+  const sourceUnknownOnly = collectorContext === "source"
+    && errorCode === "system_resource_unknown"
+    && !["warning", "degraded"].includes(overallStatus);
+
+  return {
+    signalId: "system_resource_health",
+    status: sourceUnknownOnly ? "skipped" : (errorCode ? "failed" : "ok"),
+    errorCode,
+    severity: overallStatus === "degraded" ? "H1" : undefined,
+    diagnosticEligible: !sourceUnknownOnly,
+    count: failingSignals.length || serviceCounts.serviceIssueCount,
+    metadata: {
+      collectorContext,
+      overallStatus,
+      cpuOverallPercent: firstNumber(payload.cpu?.overallPercent),
+      cpuSustainedPercent: firstNumber(payload.cpu?.sustainedPercent),
+      cpuCoreCount: firstNumber(payload.cpu?.coreCount),
+      cpuAttributionAvailable: Boolean(payload.cpu?.processAttribution?.available),
+      cpuTopProcessCount: firstNumber(payload.cpu?.processAttribution?.topProcessCount),
+      cpuTopProcessTotalPercent: firstNumber(payload.cpu?.processAttribution?.topProcessTotalPercent),
+      cpuTopProcessLabels: normalizedList(
+        (Array.isArray(payload.cpu?.processAttribution?.topProcesses)
+          ? payload.cpu.processAttribution.topProcesses
+          : []
+        ).map((processRow) => processRow?.label),
+        8,
+      ).join(","),
+      memoryPercentUsed: firstNumber(payload.memory?.percentUsed),
+      memoryPercentSource: safeToken(payload.memory?.percentSource || "", "unknown", 80),
+      memoryResidentPercentUsed: firstNumber(payload.memory?.residentPercentUsed),
+      memoryPressureFreePercent: firstNumber(payload.memory?.pressure?.freePercent),
+      memoryPressureAvailable: Boolean(payload.memory?.pressure?.available),
+      memoryPressureStatus: safeToken(payload.memory?.pressure?.status || "", "unknown", 40),
+      swapPercentUsed: firstNumber(payload.memory?.swap?.percentUsed),
+      swapAvailable: Boolean(payload.memory?.swap?.available),
+      diskMaxPercentUsed: firstNumber(payload.disk?.maxPercentUsed),
+      diskMinAvailableGb: Math.round((firstNumber(payload.disk?.availableBytes) / (1024 ** 3)) * 10) / 10,
+      serviceCount: serviceCounts.serviceCount,
+      stoppedServiceCount: serviceCounts.stoppedServiceCount,
+      unknownServiceCount: serviceCounts.unknownServiceCount,
+      serviceIssueCount: serviceCounts.serviceIssueCount,
+      failingSignalCount: failingSignals.length,
+      warningSignalCount: warningSignals.length,
+      degradedSignalCount: degradedSignals.length,
+      unknownSignalCount: unknownSignals.length,
+      failingSignalIds: failingSignalIds.join(","),
+      failingCategories: failingCategories.join(","),
+    },
+  };
+}
+
+function failedPluginActionStages(payload = {}) {
+  const explicit = Array.isArray(payload.failedStages) ? payload.failedStages : [];
+  const fromStages = Array.isArray(payload.stages)
+    ? payload.stages.filter((stage) => stage?.ok === false).map((stage) => stage.id)
+    : [];
+  const fromFamilies = Array.isArray(payload.actionFamilies)
+    ? payload.actionFamilies.flatMap((family) => (
+      Array.isArray(family.failedStages)
+        ? family.failedStages.map((stage) => `${family.familyId || family.actionKind || "family"}:${stage}`)
+        : []
+    ))
+    : [];
+  return normalizedList([...explicit, ...fromStages, ...fromFamilies], 24);
+}
+
+function observationFromPluginActionMetadataClosure(payload = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("plugin_action_metadata_health", "plugin_action_metadata_closure_missing_payload");
+  }
+  const stages = failedPluginActionStages(payload);
+  const failedStageCount = firstNumber(payload.failedStageCount, stages.length);
+  const metadataMissingCount = stages.some((stage) => (
+    stage.endsWith("gateway_output_metadata_attachment")
+      || stage.endsWith("message_metadata_persistence")
+      || stage.endsWith("gateway_output_action_comment_parse")
+  )) ? 1 : 0;
+  const rendererFilteredCount = stages.some((stage) => (
+    stage.endsWith("thread_view_plugin_action_projection")
+      || stage.endsWith("plugin_action_projection_diagnostics")
+      || stage.endsWith("plugin_route_action_projection")
+      || stage.endsWith("route_snapshot_readback")
+  )) ? 1 : 0;
+  const bridgeUnavailableCount = stages.some((stage) => (
+    stage.endsWith("action_bridge_execution_probe")
+      || stage.endsWith("task_card_dispatch_bridge_probe")
+      || stage.endsWith("action_inbox_projection")
+      || stage.endsWith("owner_push_dedupe_boundary")
+      || stage.endsWith("no_model_run_action_boundary")
+  )) ? 1 : 0;
+  let errorCode = "";
+  if (payload.ok === false && bridgeUnavailableCount) errorCode = "plugin_action_bridge_unavailable";
+  else if (payload.ok === false && rendererFilteredCount) errorCode = "plugin_action_renderer_filtered";
+  else if (payload.ok === false && metadataMissingCount) errorCode = "plugin_action_metadata_missing";
+  else if (payload.ok === false) errorCode = cleanString(payload.error || "plugin_action_metadata_closure_failed", 120);
+  else if (failedStageCount > 0) errorCode = "plugin_action_metadata_closure_failed";
+
+  return {
+    signalId: "plugin_action_metadata_health",
+    status: errorCode ? "failed" : "ok",
+    errorCode,
+    count: failedStageCount,
+    metadata: {
+      pluginId: safeToken(payload.reference?.pluginId || payload.pluginId || (Array.isArray(payload.actionFamilies) ? "multiple" : "unknown"), "unknown", 80),
+      actionKind: safeToken(payload.reference?.actionKind || payload.actionKind || (Array.isArray(payload.actionFamilies) ? "multiple" : "unknown"), "unknown", 80),
+      missingMetadataCount: metadataMissingCount,
+      rendererFilteredCount,
+      bridgeUnavailableCount,
+      actionFamilyCount: firstNumber(payload.actionFamilyCount, payload.familyCount),
+      generalizedActionFamilyCount: firstNumber(payload.generalizedActionFamilyCount),
+      actionClassCount: firstNumber(payload.actionClassCount),
+      stageCount: firstNumber(payload.stageCount),
+      passedStageCount: firstNumber(payload.passedStageCount),
+      failedStageCount,
+      failedStages: stages.join(","),
+      modelVersion: cleanString(payload.modelVersion || "", 120),
+    },
+  };
+}
+
+function observationFromMcpSchemaClosure(payload = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("mcp_schema_closure", "mcp_schema_closure_missing_payload");
+  }
+  const errorCode = payload.ok === false
+    ? cleanString(payload.error || payload.code || "mcp_schema_closure_failed", 120)
+    : "";
+  const gatewayTools = normalizedList(payload.source?.gatewayTools || payload.gatewayTools || [], 32);
+  return {
+    signalId: "mcp_schema_closure",
+    status: errorCode ? "failed" : "ok",
+    errorCode,
+    count: firstNumber(payload.missingToolCount, payload.missingPropertyCount),
+    metadata: {
+      toolset: safeToken(payload.toolset || "", "", 80),
+      epoch: safeToken(payload.epoch || payload.source?.epoch || "", "", 120),
+      sourceGatewayToolCount: gatewayTools.length,
+      serviceSkipped: payload.service?.skipped === true,
+      serviceReason: safeToken(payload.service?.reason || "", "", 120),
+      gatewaySkipped: payload.gateway?.skipped === true,
+      gatewayReason: safeToken(payload.gateway?.reason || "", "", 120),
+      schemaPropertyMatchCount: Array.isArray(payload.schemaPropertyMatches) ? payload.schemaPropertyMatches.length : 0,
+    },
+  };
+}
+
+function observationFromDeployLaneDiscovery(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("deploy_lane_liveness", "deploy_lane_discovery_missing_payload");
+  }
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const skipped = payload.skipped === true;
+  const laneCount = firstNumber(payload.deployLaneCount, Array.isArray(payload.deployLanes) ? payload.deployLanes.length : 0);
+  let errorCode = "";
+  let diagnosticEligible = true;
+  let status = "";
+  if (skipped && collectorContext === "source") {
+    status = "skipped";
+    diagnosticEligible = false;
+    errorCode = cleanString(payload.reason || payload.error || "deploy_lane_discovery_skipped", 120);
+  } else if (payload.ok === false) errorCode = cleanString(payload.error || payload.code || "deploy_lane_discovery_failed", 120);
+  else if (laneCount < 1) errorCode = "deploy_lane_not_found";
+  return {
+    signalId: "deploy_lane_liveness",
+    status: status || (errorCode ? "failed" : "ok"),
+    errorCode,
+    diagnosticEligible,
+    count: laneCount,
+    metadata: {
+      collectorContext,
+      deployLaneCount: laneCount,
+      assignedRouteCount: firstNumber(payload.assignedRouteCount, Array.isArray(payload.assignedRoutes) ? payload.assignedRoutes.length : 0),
+      skipped,
+      reason: safeToken(payload.reason || "", "", 120),
+    },
+  };
+}
+
+function observationFromTaskCardDispatchState(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("task_card_dispatch", "task_card_dispatch_state_missing_payload");
+  }
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const skipped = payload.skipped === true;
+  let errorCode = "";
+  let status = "";
+  let diagnosticEligible = true;
+  if (skipped && collectorContext === "source") {
+    status = "skipped";
+    diagnosticEligible = false;
+    errorCode = cleanString(payload.reason || payload.error || "task_card_dispatch_probe_skipped", 120);
+  } else if (payload.ok === false) errorCode = cleanString(payload.error || payload.code || "task_card_dispatch_state_failed", 120);
+  else if (payload.sourceThreadRequired === true && payload.sourceThreadVisible === false) errorCode = "task_card_source_thread_not_visible";
+  else if (payload.targetThreadVisible === false) errorCode = "task_card_target_thread_not_visible";
+  return {
+    signalId: "task_card_dispatch",
+    status: status || (errorCode ? "failed" : "ok"),
+    errorCode,
+    diagnosticEligible,
+    count: firstNumber(payload.routeCount, payload.checkedRouteCount),
+    metadata: {
+      collectorContext,
+      dryRunOnly: payload.dryRunOnly !== false,
+      sourceThreadVisible: payload.sourceThreadVisible === true,
+      sourceThreadRequired: payload.sourceThreadRequired === true,
+      targetThreadVisible: payload.targetThreadVisible === true,
+      checkedRouteCount: firstNumber(payload.checkedRouteCount, payload.routeCount),
+      skipped,
+      reason: safeToken(payload.reason || "", "", 120),
+    },
+  };
+}
+
+function observationFromAuditThreadDiscovery(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("audit_thread_liveness", "audit_thread_discovery_missing_payload");
+  }
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const skipped = payload.skipped === true;
+  const platformVisible = payload.platformAuditVisible === true;
+  const pluginVisible = payload.pluginAuditVisible === true;
+  let errorCode = "";
+  let status = "";
+  let diagnosticEligible = true;
+  if (skipped && collectorContext === "source") {
+    status = "skipped";
+    diagnosticEligible = false;
+    errorCode = cleanString(payload.reason || payload.error || "audit_thread_discovery_skipped", 120);
+  } else if (payload.ok === false) errorCode = cleanString(payload.error || payload.code || "audit_thread_discovery_failed", 120);
+  else if (!platformVisible || !pluginVisible) errorCode = "audit_thread_not_found";
+  return {
+    signalId: "audit_thread_liveness",
+    status: status || (errorCode ? "failed" : "ok"),
+    errorCode,
+    diagnosticEligible,
+    count: firstNumber(payload.auditThreadCount, Number(platformVisible) + Number(pluginVisible)),
+    metadata: {
+      collectorContext,
+      platformAuditVisible: platformVisible,
+      pluginAuditVisible: pluginVisible,
+      auditThreadCount: firstNumber(payload.auditThreadCount, Number(platformVisible) + Number(pluginVisible)),
+      skipped,
+      reason: safeToken(payload.reason || "", "", 120),
+    },
+  };
+}
+
+function observationFromNotificationDelivery(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("notification_delivery", "notification_delivery_missing_payload");
+  }
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const skipped = payload.skipped === true;
+  const issues = Array.isArray(payload.issues) ? payload.issues : [];
+  let errorCode = "";
+  let status = "";
+  let diagnosticEligible = true;
+  if (skipped && collectorContext === "source") {
+    status = "skipped";
+    diagnosticEligible = false;
+    errorCode = cleanString(payload.reason || payload.error || "notification_delivery_audit_skipped", 120);
+  } else if (payload.ok === false) {
+    errorCode = cleanString(issues[0]?.code || payload.error || "notification_delivery_audit_failed", 120);
+  } else if (firstNumber(payload.deliveries?.failed) > 0) {
+    errorCode = "notification_delivery_failures_present";
+  }
+  return {
+    signalId: "notification_delivery",
+    status: status || (errorCode ? "failed" : "ok"),
+    errorCode,
+    diagnosticEligible,
+    count: issues.length,
+    metadata: {
+      collectorContext,
+      channel: "web_push",
+      attempted: firstNumber(payload.deliveries?.attempted),
+      sent: firstNumber(payload.deliveries?.sent),
+      failed: firstNumber(payload.deliveries?.failed),
+      recentSuccess: firstNumber(payload.deliveries?.recentSuccess),
+      activeSubscriptions: firstNumber(payload.subscriptions?.active),
+      matchingOrigin: firstNumber(payload.subscriptions?.matchingOrigin),
+      vapidConfigured: payload.vapid?.configured === true,
+      stateSource: safeToken(payload.stateSource || "", "", 80),
+      issueCount: issues.length,
+      skipped,
+      reason: safeToken(payload.reason || "", "", 120),
+    },
+  };
+}
+
+function observationFromPluginManifestHealth(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("plugin_manifest_health", "plugin_manifest_health_missing_payload");
+  }
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const skipped = payload.skipped === true;
+  const failedCount = firstNumber(payload.failedCount);
+  let errorCode = "";
+  let status = "";
+  let diagnosticEligible = true;
+  if (skipped && collectorContext === "source") {
+    status = "skipped";
+    diagnosticEligible = false;
+    errorCode = cleanString(payload.reason || payload.error || "plugin_manifest_probe_skipped", 120);
+  } else if (payload.ok === false) errorCode = cleanString(payload.error || payload.code || "plugin_manifest_probe_failed", 120);
+  else if (failedCount > 0) errorCode = "plugin_manifest_probe_failed";
+  return {
+    signalId: "plugin_manifest_health",
+    status: status || (errorCode ? "failed" : "ok"),
+    errorCode,
+    diagnosticEligible,
+    count: failedCount,
+    metadata: {
+      collectorContext,
+      pluginCount: firstNumber(payload.pluginCount),
+      availableCount: firstNumber(payload.availableCount),
+      failedCount,
+      actionCount: firstNumber(payload.actionCount),
+      maxElapsedMs: firstNumber(payload.maxElapsedMs),
+      skipped,
+      reason: safeToken(payload.reason || "", "", 120),
+    },
+  };
+}
+
+function observationFromPluginProxyLiveProbe(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("plugin_proxy_latency", "plugin_proxy_probe_missing_payload");
+  }
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const skipped = payload.skipped === true;
+  const failedCount = firstNumber(payload.failedCount);
+  const maxElapsedMs = firstNumber(payload.maxElapsedMs);
+  let errorCode = "";
+  let status = "";
+  let diagnosticEligible = true;
+  if (skipped && collectorContext === "source") {
+    status = "skipped";
+    diagnosticEligible = false;
+    errorCode = cleanString(payload.reason || payload.error || "plugin_proxy_probe_skipped", 120);
+  } else if (payload.ok === false) errorCode = cleanString(payload.error || payload.code || "plugin_proxy_probe_failed", 120);
+  else if (failedCount > 0) errorCode = "plugin_proxy_probe_failed";
+  else if (maxElapsedMs > 2000) errorCode = "plugin_proxy_latency_gap_detected";
+  return {
+    signalId: "plugin_proxy_latency",
+    status: status || (errorCode ? "failed" : "ok"),
+    errorCode,
+    diagnosticEligible,
+    count: maxElapsedMs,
+    metadata: {
+      collectorContext,
+      routeKind: "host_manifest_probe",
+      durationBucket: maxElapsedMs > 2000 ? "gt_2s" : "lt_2s",
+      pluginCount: firstNumber(payload.pluginCount),
+      failedCount,
+      maxElapsedMs,
+      skipped,
+      reason: safeToken(payload.reason || "", "", 120),
+    },
+  };
+}
+
+function observationFromPluginDeployContractClosure(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("plugin_deploy_contract_closure", "plugin_deploy_contract_closure_missing_payload");
+  }
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const skipped = payload.skipped === true;
+  const issues = Array.isArray(payload.issues) ? payload.issues : [];
+  const markerChecks = Array.isArray(payload.markerChecks) ? payload.markerChecks : [];
+  const missingMarkerCount = markerChecks.filter((item) => item?.ok === false).length;
+  const deployCard = payload.deployCard && typeof payload.deployCard === "object" ? payload.deployCard : {};
+  const deployLaneLock = payload.deployLaneLock && typeof payload.deployLaneLock === "object" ? payload.deployLaneLock : {};
+  let errorCode = "";
+  let status = "";
+  let diagnosticEligible = true;
+  if (skipped && collectorContext === "source") {
+    status = "skipped";
+    diagnosticEligible = false;
+    errorCode = cleanString(payload.reason || payload.error || "plugin_deploy_contract_closure_skipped", 120);
+  } else if (payload.ok === false) errorCode = cleanString(issues[0]?.code || payload.error || "plugin_deploy_contract_closure_failed", 120);
+  else if (deployCard.validRequestOk !== true) errorCode = "deploy_card_request_shape_invalid";
+  else if (deployCard.terminalReceiptRejected !== true) errorCode = "deploy_terminal_receipt_not_rejected";
+  else if (deployLaneLock.ok !== true) errorCode = "deploy_lane_lock_invalid";
+  else if (missingMarkerCount > 0) errorCode = "deploy_contract_source_marker_missing";
+  return {
+    signalId: "plugin_deploy_contract_closure",
+    status: status || (errorCode ? "failed" : "ok"),
+    errorCode,
+    diagnosticEligible,
+    count: issues.length + missingMarkerCount,
+    metadata: {
+      collectorContext,
+      validRequestOk: deployCard.validRequestOk === true,
+      terminalReceiptRejected: deployCard.terminalReceiptRejected === true,
+      deployLaneLockOk: deployLaneLock.ok === true,
+      issueCount: issues.length,
+      missingMarkerCount,
+      skipped,
+      reason: safeToken(payload.reason || "", "", 120),
+    },
+  };
+}
+
+function observationFromPluginProxyWorkspaceBoundary(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("plugin_proxy_workspace_boundary", "plugin_proxy_workspace_boundary_missing_payload");
+  }
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const skipped = payload.skipped === true;
+  const issues = Array.isArray(payload.issues) ? payload.issues : [];
+  let errorCode = "";
+  let status = "";
+  let diagnosticEligible = true;
+  if (skipped && collectorContext === "source") {
+    status = "skipped";
+    diagnosticEligible = false;
+    errorCode = cleanString(payload.reason || payload.error || "plugin_proxy_workspace_boundary_skipped", 120);
+  } else if (payload.ok === false) errorCode = cleanString(issues[0]?.code || payload.error || "plugin_proxy_workspace_boundary_failed", 120);
+  else if (payload.missingWorkspaceFailsClosed !== true) errorCode = "plugin_proxy_missing_workspace_not_fail_closed";
+  else if (payload.workspaceHeaderPropagated !== true) errorCode = "plugin_proxy_workspace_header_missing";
+  else if (payload.actorHeaderPropagated !== true) errorCode = "plugin_proxy_actor_header_missing";
+  else if (payload.browserAuthOverwritten !== true) errorCode = "plugin_proxy_browser_auth_not_overwritten";
+  return {
+    signalId: "plugin_proxy_workspace_boundary",
+    status: status || (errorCode ? "failed" : "ok"),
+    errorCode,
+    diagnosticEligible,
+    count: issues.length,
+    metadata: {
+      collectorContext,
+      routeKind: safeToken(payload.routeKind || "source_contract_smoke", "source_contract_smoke", 80),
+      missingWorkspaceFailsClosed: payload.missingWorkspaceFailsClosed === true,
+      workspaceHeaderPropagated: payload.workspaceHeaderPropagated === true,
+      actorHeaderPropagated: payload.actorHeaderPropagated === true,
+      browserAuthOverwritten: payload.browserAuthOverwritten === true,
+      checkCount: firstNumber(payload.checkCount),
+      issueCount: issues.length,
+      skipped,
+      reason: safeToken(payload.reason || "", "", 120),
+    },
+  };
+}
+
+function observationFromNativeBridgeCapability(payload = {}, options = {}) {
+  if (!payload || typeof payload !== "object") {
+    return observationForCommandFailure("native_bridge_capability", "native_bridge_capability_missing_payload");
+  }
+  const collectorContext = normalizeCollectorContext(options.collectorContext);
+  const skipped = payload.skipped === true;
+  let errorCode = "";
+  let status = "";
+  let diagnosticEligible = true;
+  if (skipped) {
+    status = "skipped";
+    diagnosticEligible = false;
+    errorCode = cleanString(payload.reason || "native_bridge_runtime_not_attached", 120);
+  } else if (payload.ok === false) errorCode = cleanString(payload.error || payload.code || "native_bridge_capability_failed", 120);
+  return {
+    signalId: "native_bridge_capability",
+    status: status || (errorCode ? "failed" : "ok"),
+    errorCode,
+    diagnosticEligible,
+    count: firstNumber(payload.capabilityCount),
+    metadata: {
+      collectorContext,
+      platform: safeToken(payload.platform || "", "", 80),
+      appVersion: safeToken(payload.appVersion || payload.app_version || "", "", 80),
+      capability: safeToken(payload.capability || "", "", 120),
+      capabilityCount: firstNumber(payload.capabilityCount),
+      skipped,
+      reason: safeToken(payload.reason || "", "", 120),
+    },
+  };
+}
+
+function observedSignalStatus(observations = []) {
+  const normalized = Array.isArray(observations) ? observations : [];
+  if (normalized.some((item) => item.status === "failed")) return "failed";
+  if (normalized.some((item) => item.status === "unknown")) return "unknown";
+  if (normalized.some((item) => item.status === "skipped")) return "skipped";
+  if (normalized.some((item) => item.status === "ok")) return "ok";
+  return "not_collected";
+}
+
+function buildProductionSignalReport(input = {}) {
+  const signals = Array.isArray(input.signals) && input.signals.length ? input.signals : DEFAULT_SIGNALS;
+  const observations = Array.isArray(input.observations) ? input.observations : [];
+  const bySignal = new Map();
+  for (const observation of observations) {
+    const signalId = safeToken(observation?.signalId || observation?.signal_id || "", "", 100);
+    if (!signalId) continue;
+    if (!bySignal.has(signalId)) bySignal.set(signalId, []);
+    bySignal.get(signalId).push({
+      status: safeToken(observation?.status || "unknown", "unknown", 80).toLowerCase(),
+      errorCode: safeToken(observation?.errorCode || observation?.error_code || "", "", 120),
+      diagnosticEligible: observation?.diagnosticEligible !== false && observation?.diagnostic_eligible !== false,
+    });
+  }
+  const rows = signals.map((signal) => {
+    const signalId = safeToken(signal.id, "unknown_signal", 100);
+    const signalObservations = bySignal.get(signalId) || [];
+    const status = signalObservations.length ? observedSignalStatus(signalObservations) : "not_collected";
+    return {
+      signalId,
+      status,
+      observed: signalObservations.length > 0,
+      observationCount: signalObservations.length,
+      failedObservationCount: signalObservations.filter((item) => item.status === "failed").length,
+      skippedObservationCount: signalObservations.filter((item) => item.status === "skipped" && item.diagnosticEligible === false).length,
+      errorCodes: signalObservations.map((item) => item.errorCode).filter(Boolean).slice(0, 8),
+      severity: normalizeSeverity(signal.severity, "H2"),
+      domain: safeToken(signal.domain || signalId, signalId, 80),
+      owner: cleanString(signal.owner || "", 120),
+      closureReadbackCount: normalizedList(signal.closureReadbacks || [], 32).length,
+    };
+  });
+  const notCollected = rows.filter((row) => !row.observed);
+  const observed = rows.filter((row) => row.observed);
+  return {
+    ok: true,
+    schemaVersion: 1,
+    matrixVersion: SIGNAL_MATRIX_VERSION,
+    signalCount: rows.length,
+    reportedSignalCount: rows.length,
+    observedSignalCount: observed.length,
+    notCollectedSignalCount: notCollected.length,
+    failedSignalCount: rows.filter((row) => row.status === "failed").length,
+    skippedSignalCount: rows.filter((row) => row.status === "skipped").length,
+    notCollectedSignalIds: notCollected.map((row) => row.signalId),
+    rows,
+    policy: {
+      reportsAllMaintainedSignals: true,
+      notCollectedIsDiagnosticContextOnly: true,
+      failuresCreateDiagnosticEvents: true,
+    },
+  };
+}
+
+function signalIdFromDiagnosticEvent(event = {}) {
+  return safeToken(
+    event?.context?.signal_id
+      || event?.context?.signalId
+      || event?.signal_id
+      || event?.signalId
+      || "",
+    "",
+    100,
+  );
+}
+
+function closureReadbacksFromDiagnosticEvent(event = {}) {
+  return normalizedList(
+    event?.context?.closure_readbacks
+      || event?.context?.closureReadbacks
+      || event?.closure_readbacks
+      || event?.closureReadbacks
+      || [],
+    16,
+  );
+}
+
+function buildDiagnosticSubmitClosureReport(input = {}) {
+  const enabled = Boolean(input.enabled);
+  const events = enabled && Array.isArray(input.events) ? input.events : [];
+  const submitResults = enabled && Array.isArray(input.submitResults) ? input.submitResults : [];
+  const rows = events.map((event, index) => {
+    const result = submitResults[index] || {};
+    const closureReadbacks = closureReadbacksFromDiagnosticEvent(event);
+    const submitOk = result.ok === true;
+    const hasCaseAndEvent = Boolean(result.case_id && result.event_id);
+    let status = "accepted";
+    if (!submitOk) status = "submit_failed";
+    else if (!hasCaseAndEvent) status = "accepted_missing_case_or_event_id";
+    else if (result.auto_dispatched) status = "auto_dispatched";
+    else if (result.owner_notified) status = "owner_notified";
+    return {
+      index,
+      signalId: signalIdFromDiagnosticEvent(event) || "unknown_signal",
+      status,
+      ok: submitOk && hasCaseAndEvent && closureReadbacks.length > 0,
+      case_id: cleanString(result.case_id || "", 160),
+      event_id: cleanString(result.event_id || "", 160),
+      owner_notified: Boolean(result.owner_notified),
+      auto_dispatched: Boolean(result.auto_dispatched),
+      task_card_id: cleanString(result.task_card_id || "", 160),
+      reason: cleanString(result.reason || "", 160),
+      closureReadbackCount: closureReadbacks.length,
+      closureReadbacks,
+    };
+  });
+  return {
+    enabled,
+    ok: rows.every((row) => row.ok),
+    schemaVersion: 1,
+    matrixVersion: SIGNAL_MATRIX_VERSION,
+    eventCount: rows.length,
+    acceptedCount: rows.filter((row) => row.ok).length,
+    autoDispatchedCount: rows.filter((row) => row.auto_dispatched).length,
+    ownerNotifiedCount: rows.filter((row) => row.owner_notified).length,
+    failedSubmitCount: rows.filter((row) => row.status === "submit_failed").length,
+    missingCaseOrEventIdCount: rows.filter((row) => row.status === "accepted_missing_case_or_event_id").length,
+    missingClosureReadbackCount: rows.filter((row) => row.closureReadbackCount === 0).length,
+    rows,
+    policy: {
+      requiresCaseAndEventIds: true,
+      requiresClosureReadbacks: true,
+      selfCheckMayAutoDispatch: true,
+      featureRequestsRemainOwnerGated: true,
     },
   };
 }
 
 function buildProductionObservations(input = {}) {
   const observations = [];
+  if (Object.prototype.hasOwnProperty.call(input, "systemResourceStatus")) {
+    observations.push(observationFromSystemResourceStatus(input.systemResourceStatus, input));
+  }
   if (Object.prototype.hasOwnProperty.call(input, "statusSmoke")) {
     observations.push(observationFromStatusSmoke(input.statusSmoke, input));
   }
@@ -923,12 +1936,60 @@ function buildProductionObservations(input = {}) {
   if (Object.prototype.hasOwnProperty.call(input, "publicUpgradeRehearsal")) {
     observations.push(observationFromPublicUpgradeRehearsal(input.publicUpgradeRehearsal));
   }
+  if (Object.prototype.hasOwnProperty.call(input, "installUpgradeCanary")) {
+    observations.push(observationFromInstallUpgradeCanary(input.installUpgradeCanary, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "runtimeSloAudit")) {
+    observations.push(observationFromRuntimeSloAudit(input.runtimeSloAudit));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "pluginActionMetadataClosure")) {
+    observations.push(observationFromPluginActionMetadataClosure(input.pluginActionMetadataClosure));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "mcpSchemaClosure")) {
+    observations.push(observationFromMcpSchemaClosure(input.mcpSchemaClosure));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "deployLaneDiscovery")) {
+    observations.push(observationFromDeployLaneDiscovery(input.deployLaneDiscovery, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "pluginDeployContractClosure")) {
+    observations.push(observationFromPluginDeployContractClosure(input.pluginDeployContractClosure, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "taskCardDispatchState")) {
+    observations.push(observationFromTaskCardDispatchState(input.taskCardDispatchState, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "auditThreadDiscovery")) {
+    observations.push(observationFromAuditThreadDiscovery(input.auditThreadDiscovery, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "notificationDelivery")) {
+    observations.push(observationFromNotificationDelivery(input.notificationDelivery, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "pluginManifestHealth")) {
+    observations.push(observationFromPluginManifestHealth(input.pluginManifestHealth, input));
+    observations.push(observationFromPluginProxyLiveProbe(input.pluginManifestHealth, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "pluginProxyWorkspaceBoundary")) {
+    observations.push(observationFromPluginProxyWorkspaceBoundary(input.pluginProxyWorkspaceBoundary, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "nativeBridgeCapability")) {
+    observations.push(observationFromNativeBridgeCapability(input.nativeBridgeCapability, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "pluginProxyLatency")) {
+    observations.push(...observationsFromPluginProxyLatency(input.pluginProxyLatency, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "gatewayCapabilityAvailability")) {
+    observations.push(...observationsFromGatewayCapabilityAvailability(input.gatewayCapabilityAvailability, input));
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "uiRuntimeHealth")) {
+    observations.push(...observationsFromUiRuntimeHealth(input.uiRuntimeHealth));
+  }
+  const signalReport = buildProductionSignalReport({ observations, signals: input.signals || DEFAULT_SIGNALS });
   return {
     ok: observations.every((item) => item.status === "ok" || (item.status === "skipped" && item.diagnosticEligible === false)),
     schemaVersion: 1,
     matrixVersion: SIGNAL_MATRIX_VERSION,
     observationCount: observations.length,
     skippedObservationCount: observations.filter((item) => item.status === "skipped" && item.diagnosticEligible === false).length,
+    signalReport,
     observations,
   };
 }
@@ -1053,14 +2114,33 @@ module.exports = {
   SIGNAL_MATRIX_VERSION,
   buildAuditRequestCards,
   buildCoverageAudit,
+  buildDiagnosticSubmitClosureReport,
   buildProductionObservations,
+  buildProductionSignalReport,
   buildSelfImprovingLoopReport,
   buildSignalMatrix,
   evaluateObservations,
   normalizeObservation,
   observationFromCronAudit,
+  observationFromInstallUpgradeCanary,
+  observationFromPluginDeployContractClosure,
+  observationFromPluginActionMetadataClosure,
+  observationFromPluginProxyWorkspaceBoundary,
+  observationFromAuditThreadDiscovery,
   observationFromPublicUpgradeRehearsal,
+  observationFromDeployLaneDiscovery,
+  observationFromMcpSchemaClosure,
+  observationFromNativeBridgeCapability,
+  observationFromNotificationDelivery,
+  observationFromPluginManifestHealth,
+  observationFromPluginProxyLiveProbe,
   observationFromProductionDiagnostics,
+  observationFromRuntimeSloAudit,
   observationFromStatusSmoke,
+  observationFromSystemResourceStatus,
+  observationFromTaskCardDispatchState,
+  observationsFromGatewayCapabilityAvailability,
+  observationsFromPluginProxyLatency,
+  observationsFromUiRuntimeHealth,
   cronAuditPermissionBlocked,
 };

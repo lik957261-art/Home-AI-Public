@@ -26,6 +26,76 @@ function stringList(value) {
     : (value ? [String(value).trim()].filter(Boolean) : []);
 }
 
+function normalizeText(value, max = 240) {
+  return String(value || "").trim().slice(0, Math.max(1, Number(max) || 240));
+}
+
+function pushMessageType(payload = {}) {
+  const data = payload && typeof payload.data === "object" ? payload.data : {};
+  return normalizeText(data.messageType || payload.messageType || "", 80);
+}
+
+function pushTag(payload = {}) {
+  return normalizeText(payload?.tag || "", 240);
+}
+
+function targetPrincipalsForPayload(payload = {}, opts = {}, normalizeStringList = defaultNormalizeStringList) {
+  const data = payload && typeof payload.data === "object" ? payload.data : {};
+  return normalizeStringList(
+    opts.principalIds
+    || opts.principalId
+    || payload.principalIds
+    || payload.principalId
+    || data.principalIds
+    || data.principalId
+    || data.workspaceId
+    || [],
+  );
+}
+
+function principalKey(values = []) {
+  return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))].sort().join(",");
+}
+
+function deliveryPayload(delivery = {}) {
+  return delivery && typeof delivery.payload === "object" ? delivery.payload : {};
+}
+
+function deliveryPayloadData(delivery = {}) {
+  const payload = deliveryPayload(delivery);
+  return payload && typeof payload.data === "object" ? payload.data : {};
+}
+
+function deliveryTag(delivery = {}) {
+  return normalizeText(delivery?.tag || deliveryPayload(delivery).tag || "", 240);
+}
+
+function deliveryMessageType(delivery = {}) {
+  const data = deliveryPayloadData(delivery);
+  return normalizeText(delivery?.messageType || data.messageType || deliveryPayload(delivery).messageType || "", 80);
+}
+
+function deliveryPrincipalKey(delivery = {}, normalizeStringList = defaultNormalizeStringList) {
+  const payload = deliveryPayload(delivery);
+  const data = deliveryPayloadData(delivery);
+  const principals = normalizeStringList(
+    delivery?.principalIds
+    || delivery?.principalId
+    || payload.principalIds
+    || payload.principalId
+    || data.principalIds
+    || data.principalId
+    || data.workspaceId
+    || [],
+  );
+  return principalKey(principals);
+}
+
+function deliverySentCount(delivery = {}) {
+  const result = delivery && typeof delivery.result === "object" ? delivery.result : {};
+  return Number(delivery?.sent || result.sent || 0);
+}
+
 function pushSubscriptionLooksLikeIphone(item = {}) {
   return pushSubscriptionLooksLikeMobile(item, ["iphone"]);
 }
@@ -92,10 +162,32 @@ function createWebPushSendService(options = {}) {
 
   async function sendPushNotification(payload, opts = {}) {
     if (!webPushConfig()) return { enabled: false, attempted: 0, sent: 0, failed: 0, removed: 0 };
-    const targetPrincipals = normalizeStringList(opts.principalIds || opts.principalId || []);
+    const targetPrincipals = targetPrincipalsForPayload(payload, opts, normalizeStringList);
+    const tag = pushTag(payload);
+    const messageType = pushMessageType(payload);
+    const targetPrincipalKey = principalKey(targetPrincipals);
     const suppressIosWebPushWorkspaceIds = new Set(normalizeStringList(opts.suppressIosWebPushWorkspaceIds || []));
     const suppressNativeWebPushWorkspaceIds = new Set(normalizeStringList(opts.suppressNativeWebPushWorkspaceIds || []));
     const store = currentState();
+    if (tag && messageType && !opts.allowDuplicateTag) {
+      const priorDelivery = (store.pushDeliveries || []).find((item) => (
+        deliveryTag(item) === tag
+        && deliveryMessageType(item) === messageType
+        && deliveryPrincipalKey(item, normalizeStringList) === targetPrincipalKey
+        && deliverySentCount(item) > 0
+      ));
+      if (priorDelivery) {
+        return {
+          enabled: true,
+          attempted: 0,
+          sent: 0,
+          failed: 0,
+          removed: 0,
+          deduped: true,
+          duplicateTag: tag,
+        };
+      }
+    }
     const subscriptions = (store.pushSubscriptions || []).filter((item) => {
       if (!item || item.disabledAt || !item.subscription?.endpoint) return false;
       if (!targetPrincipals.length) return true;

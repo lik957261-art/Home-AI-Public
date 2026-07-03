@@ -241,11 +241,13 @@ async function testOwnerDispatchesDiagnosticTaskCard() {
   });
   const routes = createAiOpsDiagnosticApiRoutes(deps);
   const res = makeResponse();
-  const req = makeReq("POST", "/api/v1/home-ai/diagnostics/cases/diagcase_test/task-card", {});
+  const req = makeReq("POST", "/api/v1/home-ai/diagnostics/cases/diagcase_test/task-card", {
+    itemId: "ainb_diag_1",
+  });
   await routes.handle(req, res, new URL(req.url, "http://localhost"), { auth: { principalId: "owner" } });
   assert.equal(res.statusCode, 200);
   assert.equal(jsonBody(res).taskCardResult.cardIds[0], "ttc_diag_1");
-  assert.deepEqual(dispatchCalls, [{ case_id: "diagcase_test", actor: "owner" }]);
+  assert.deepEqual(dispatchCalls, [{ case_id: "diagcase_test", actor: "owner", itemId: "ainb_diag_1" }]);
 }
 
 function testDependencyValidation() {

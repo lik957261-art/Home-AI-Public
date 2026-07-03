@@ -200,6 +200,120 @@ async function testIndexAndServiceWorkerRemainNoCache() {
   }
 }
 
+async function testAppShellDefaultsToClassicWhenSwitchMissing() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-mobile-http-"));
+  fs.writeFileSync(path.join(root, "index.html"), "<!doctype html><html><head></head><body>classic</body></html>\n", "utf8");
+  const service = createMobileHttpRuntimeService({
+    clientVersionInfo: () => ({}),
+    publicRoot: root,
+    shellModeConfigPath: path.join(root, "..", "missing-shell-mode.json"),
+    mimeByExt: { ".html": "text/html; charset=utf-8" },
+  });
+  const res = makeResponse();
+
+  await serveStatic(service, makeStaticRequest("/"), res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers["X-HomeAI-Shell-Mode"], "classic");
+  assert.equal(res.headers["X-HomeAI-Shell-Mode-Source"], "config");
+  assert.doesNotMatch(res.body.toString("utf8"), /data-home-ai-vite-production-bootstrap/);
+}
+
+async function testAppShellInjectsViteBootstrapWhenConfigured() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-mobile-http-"));
+  const configPath = path.join(root, "home-ai-shell-mode.json");
+  fs.writeFileSync(path.join(root, "index.html"), "<!doctype html><html lang=\"en\"><head></head><body>classic</body></html>\n", "utf8");
+  fs.writeFileSync(configPath, JSON.stringify({ shellMode: "vite" }), "utf8");
+  const service = createMobileHttpRuntimeService({
+    clientVersionInfo: () => ({}),
+    publicRoot: root,
+    shellModeConfigPath: configPath,
+    mimeByExt: { ".html": "text/html; charset=utf-8" },
+  });
+  const res = makeResponse();
+
+  await serveStatic(service, makeStaticRequest("/"), res);
+
+  const body = res.body.toString("utf8");
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers["X-HomeAI-Shell-Mode"], "vite");
+  assert.equal(res.headers["X-HomeAI-Shell-Mode-Source"], "config");
+  assert.equal(res.headers["X-HomeAI-Vite-Bootstrap"], "/vite-islands/home-ai-production-bootstrap/home-ai-production-bootstrap.js");
+  assert.match(body, /data-home-ai-shell-mode="vite"/);
+  assert.match(body, /name="home-ai-shell-mode" content="vite"/);
+  assert.match(body, /data-home-ai-vite-production-bootstrap="20260703-vite-production-cutover-v1"/);
+}
+
+async function testAppShellUsesFallbackConfigPath() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-mobile-http-"));
+  const configPath = path.join(root, "home-ai-shell-mode.json");
+  fs.writeFileSync(path.join(root, "index.html"), "<!doctype html><html><head></head><body>classic</body></html>\n", "utf8");
+  fs.writeFileSync(configPath, JSON.stringify({ shellMode: "vite" }), "utf8");
+  const service = createMobileHttpRuntimeService({
+    clientVersionInfo: () => ({}),
+    publicRoot: root,
+    shellModeConfigPaths: [path.join(root, "missing-runtime-shell-mode.json"), configPath],
+    mimeByExt: { ".html": "text/html; charset=utf-8" },
+  });
+  const res = makeResponse();
+
+  await serveStatic(service, makeStaticRequest("/"), res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers["X-HomeAI-Shell-Mode"], "vite");
+  assert.equal(res.headers["X-HomeAI-Shell-Mode-Source"], "config");
+  assert.match(res.body.toString("utf8"), /data-home-ai-vite-production-bootstrap/);
+}
+
+async function testAppShellRequestOverrideCanRollbackToClassic() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-mobile-http-"));
+  const configPath = path.join(root, "home-ai-shell-mode.json");
+  fs.writeFileSync(path.join(root, "index.html"), "<!doctype html><html><head></head><body>classic</body></html>\n", "utf8");
+  fs.writeFileSync(configPath, JSON.stringify({ shellMode: "vite" }), "utf8");
+  const service = createMobileHttpRuntimeService({
+    clientVersionInfo: () => ({}),
+    publicRoot: root,
+    shellModeConfigPath: configPath,
+    mimeByExt: { ".html": "text/html; charset=utf-8" },
+  });
+  const res = makeResponse();
+
+  await serveStatic(service, makeStaticRequest("/?homeAiShellMode=classic"), res);
+
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers["X-HomeAI-Shell-Mode"], "classic");
+  assert.equal(res.headers["X-HomeAI-Shell-Mode-Source"], "request");
+  assert.doesNotMatch(res.body.toString("utf8"), /data-home-ai-vite-production-bootstrap/);
+}
+
+async function testCompressedShellCacheDoesNotLeakBetweenModes() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-mobile-http-"));
+  const configPath = path.join(root, "home-ai-shell-mode.json");
+  fs.writeFileSync(
+    path.join(root, "index.html"),
+    `<!doctype html><html><head></head><body>${"classic".repeat(500)}</body></html>\n`,
+    "utf8",
+  );
+  fs.writeFileSync(configPath, JSON.stringify({ shellMode: "classic" }), "utf8");
+  const service = createMobileHttpRuntimeService({
+    clientVersionInfo: () => ({}),
+    publicRoot: root,
+    shellModeConfigPath: configPath,
+    mimeByExt: { ".html": "text/html; charset=utf-8" },
+  });
+
+  const classic = makeResponse();
+  await serveStatic(service, makeStaticRequest("/", { "accept-encoding": "gzip" }), classic);
+  assert.equal(classic.headers["X-HomeAI-Shell-Mode"], "classic");
+  assert.doesNotMatch(zlib.gunzipSync(classic.body).toString("utf8"), /home-ai-production-bootstrap/);
+
+  fs.writeFileSync(configPath, JSON.stringify({ shellMode: "vite" }), "utf8");
+  const vite = makeResponse();
+  await serveStatic(service, makeStaticRequest("/", { "accept-encoding": "gzip" }), vite);
+  assert.equal(vite.headers["X-HomeAI-Shell-Mode"], "vite");
+  assert.match(zlib.gunzipSync(vite.body).toString("utf8"), /home-ai-production-bootstrap/);
+}
+
 (async () => {
   await testReadBodyParsesJson();
   await testReadBodyReportsTooLargeWithoutDestroyingSocket();
@@ -209,6 +323,11 @@ async function testIndexAndServiceWorkerRemainNoCache() {
   await testVersionedStaticAssetsUseImmutableCacheAndBrotli();
   await testCompressedStaticAssetsAreCachedByFileVersion();
   await testIndexAndServiceWorkerRemainNoCache();
+  await testAppShellDefaultsToClassicWhenSwitchMissing();
+  await testAppShellInjectsViteBootstrapWhenConfigured();
+  await testAppShellUsesFallbackConfigPath();
+  await testAppShellRequestOverrideCanRollbackToClassic();
+  await testCompressedShellCacheDoesNotLeakBetweenModes();
   console.log("mobile-http-runtime-service tests passed");
 })().catch((err) => {
   console.error(err);

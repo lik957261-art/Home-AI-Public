@@ -104,6 +104,58 @@ function testSourceDedupeAndTerminalProtection() {
   }
 }
 
+function testSourceDedupePreservesExistingSourceRefOnSparseUpdate() {
+  const h = makeHarness();
+  try {
+    const first = h.service.upsertSourceItem({
+      workspaceId: "owner",
+      sourceType: "plugin_conversation",
+      sourceId: "pcr_home_ai_full",
+      itemType: "approval",
+      title: "Home AI repair",
+      summary: "Full server-side request.",
+      dedupeKey: "plugin-conversation-repair:home-ai:sig-a:owner",
+      sourceRef: {
+        sourceThreadId: "thread-1",
+        sourceTurnId: "assistant-1",
+        targetWorkspace: "/Users/example/path",
+      },
+      rawJson: {
+        pluginConversationActionBridge: {
+          request: {
+            sourceThreadId: "thread-1",
+            sourceTurnId: "assistant-1",
+          },
+        },
+      },
+    });
+    const second = h.service.upsertSourceItem({
+      workspaceId: "owner",
+      sourceType: "plugin_conversation",
+      sourceId: "pcr_home_ai_sparse",
+      itemType: "approval",
+      title: "Home AI repair",
+      summary: "Sparse client fallback request.",
+      dedupeKey: "plugin-conversation-repair:home-ai:sig-a:owner",
+      sourceRef: {
+        targetWorkspace: "/Users/example/path",
+      },
+      rawJson: {
+        pluginConversationActionBridge: {
+          request: {},
+        },
+      },
+    });
+    assert.equal(second.item.id, first.item.id);
+    assert.equal(second.item.sourceRef.sourceThreadId, "thread-1");
+    assert.equal(second.item.sourceRef.sourceTurnId, "assistant-1");
+    assert.equal(second.item.pluginConversationActionBridge.request.sourceThreadId, "thread-1");
+    assert.equal(second.item.pluginConversationActionBridge.request.sourceTurnId, "assistant-1");
+  } finally {
+    cleanup(h);
+  }
+}
+
 function testDefaultListHidesOrdinaryChatReceipts() {
   const h = makeHarness();
   try {
@@ -250,6 +302,7 @@ function testDefaultListSortsNewestItemsFirst() {
 
 testManualItemLifecycle();
 testSourceDedupeAndTerminalProtection();
+testSourceDedupePreservesExistingSourceRefOnSparseUpdate();
 testDefaultListHidesOrdinaryChatReceipts();
 testDefaultListHidesLowSignalScheduledAuditRows();
 testDefaultListSortsNewestItemsFirst();

@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   EMBEDDED_PLUGIN_PROXY_PATH_REGEX,
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,
+  PRE_AUTH_NATIVE_IOS_SHELL_PATHS,
   PRE_AUTH_SYSTEM_PATHS,
   createMobileApiDispatcher,
 } = require("../server-routes/mobile-api-dispatcher");
@@ -142,6 +143,42 @@ async function testClientVersionSystemRouteRunsBeforeBrowserAuth() {
   assert.deepEqual(routeCalls(calls).map((call) => call.key), ["publicApiRoutes", "systemApiRoutes"]);
   assert.equal(routeCalls(calls)[1].contextArgCount, 3);
   assert.equal(PRE_AUTH_SYSTEM_PATHS.has("/api/client-version"), true);
+}
+
+async function testNativeIosShellVersionPolicyRunsBeforeBrowserAuth() {
+  const { deps, calls } = makeDeps({
+    routeBehaviors: {
+      nativeIosShellApiRoutes: ({ url, context }) => ({
+        handled: url.pathname === "/api/native/ios-shell/version-policy" && !context,
+        status: 200,
+        writeJson: { ok: true, updateRequired: false },
+      }),
+    },
+  });
+  const dispatcher = createMobileApiDispatcher(deps);
+  const res = makeResponse();
+  const req = {
+    method: "GET",
+    url: "/api/native/ios-shell/version-policy?platform=ios&buildNumber=35",
+    headers: {},
+    authResult: { ok: false },
+  };
+
+  const result = await dispatcher.handleApi(req, res);
+
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(JSON.parse(res.body), { ok: true, updateRequired: false });
+  assert.equal(req.hermesRequestContext, undefined);
+  assert.deepEqual(calls.map((call) => call.type), [
+    "getUrl",
+    "attachClientVersionHeaders",
+    "route",
+    "route",
+  ]);
+  assert.deepEqual(routeCalls(calls).map((call) => call.key), ["publicApiRoutes", "nativeIosShellApiRoutes"]);
+  assert.equal(routeCalls(calls)[1].contextArgCount, 3);
+  assert.equal(PRE_AUTH_NATIVE_IOS_SHELL_PATHS.has("/api/native/ios-shell/version-policy"), true);
 }
 
 async function testUnauthorizedRequestStopsAfterAuthFailure() {
@@ -347,6 +384,7 @@ function testDependencyValidation() {
 async function run() {
   await testPublicRoutesRunBeforeAuthAndStopPipeline();
   await testClientVersionSystemRouteRunsBeforeBrowserAuth();
+  await testNativeIosShellVersionPolicyRunsBeforeBrowserAuth();
   await testUnauthorizedRequestStopsAfterAuthFailure();
   await testCodexPluginProxyRunsBeforeBrowserAuth();
   await testAuthenticatedPipelineOrderAndRequestContext();

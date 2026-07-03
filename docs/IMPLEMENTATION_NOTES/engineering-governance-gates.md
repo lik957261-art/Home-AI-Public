@@ -27,8 +27,11 @@ repository gate and must continue to run these checks in this order:
 - `node scripts/production-self-diagnostics.js`;
 - `node scripts/production-self-diagnostics-coverage-audit.js`;
 - `node scripts/productization-acceptance-matrix.js --verify-docs`;
-- `npm test`, including syntax checks, architecture boundary checks, security
-  invariants, and the privacy scan;
+- `npm test`, the local development gate with syntax checks, non-install Node
+  tests, security invariants, Python compile checks, and the privacy scan;
+- `npm run test:install-lane`, the explicit install/deploy/upgrade lane test
+  gate that is unsuitable for every local development pass but required for
+  productization closure;
 - `start-hermes-web` check-only startup validation for the current platform;
 - `git diff --check` and `git diff --cached --check`.
 
@@ -154,7 +157,8 @@ binding evidence. It covers only ordinary default business plugins and
 explicitly remains plan-only: no plugin keys, grants, launch tokens,
 plugin-owned rows, or bind/register calls are created by the plan phase. The
 `configure-cron` phase creates the official Hermes CRON scaffold, empty or
-preserved canonical `cron/jobs.json`, helper scripts, and source-controlled
+preserved canonical `cron/jobs.json`, helper scripts including
+`scripts/homeai-self-improving-loop-cron.sh`, and source-controlled
 productivity Skills without creating business jobs or loading launchd. The
 `install-launchd-services` phase stages the canonical core
 launchd plist files plus plugin plist files for the public plugin set: Codex
@@ -394,6 +398,7 @@ The accepted production self-diagnostic evidence ids are:
 - `macos-install-operator-closure`;
 - `production-self-diagnostics-coverage`;
 - `self-improving-loop`;
+- `install-upgrade-canary`;
 - `production-drift-reconcile`;
 - `production-drift-watchdog`;
 - `web-push-production-audit`;

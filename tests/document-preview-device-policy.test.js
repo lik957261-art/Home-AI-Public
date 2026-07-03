@@ -7,6 +7,7 @@ const vm = require("vm");
 
 const repoRoot = path.resolve(__dirname, "..");
 const source = fs.readFileSync(path.join(repoRoot, "public", "app-task-preview-ui.js"), "utf8");
+assert.doesNotMatch(source, /localStorage/);
 
 function createHarness({ width, height, coarsePointer, nativeDocumentBridge, nativeShell } = {}) {
   const assigned = [];
@@ -40,11 +41,24 @@ function createHarness({ width, height, coarsePointer, nativeDocumentBridge, nat
       replaceState() {},
       back() {},
     },
+    HomeAiRuntimeFacade: {
+      native: {
+        nativeShellParam() {
+          return nativeShell || "";
+        },
+      },
+    },
     localStorage: {
       getItem(key) {
-        if (key === "homeAI.nativeShell") return nativeShell || "";
+        if (key === "homeAI.nativeShell") throw new Error("task preview UI should read native shell through runtime facade");
         return "";
       },
+    },
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ text: "# Markdown Preview\n\nReady." }),
+      });
     },
     matchMedia(query) {
       return { matches: query === "(pointer: coarse)" ? Boolean(coarsePointer) : false };
@@ -159,6 +173,43 @@ function textLink() {
   };
 }
 
+function markdownDeliverableLink({ name = "report.md", mime = "text/plain", href = "/api/automations/deliverable?jobId=job_1&name=opaque" } = {}) {
+  return {
+    href: `http://127.0.0.1:8797${href}`,
+    textContent: name,
+    dataset: {
+      artifactName: name,
+      artifactMime: mime,
+      artifactSize: "256",
+    },
+    getAttribute(key) {
+      if (key === "download") return "";
+      if (key === "title") return "";
+      if (key === "aria-label") return "";
+      return key === "href" ? this.href : "";
+    },
+  };
+}
+
+function sparseMarkdownDeliverableLink() {
+  return {
+    href: "http://127.0.0.1:8797/api/automations/deliverable?jobId=job_1&filename=report.md",
+    textContent: "",
+    dataset: {
+      artifactName: "",
+      artifactMime: "text/plain",
+      artifactSize: "256",
+    },
+    getAttribute(key) {
+      if (key === "href") return this.href;
+      if (key === "download") return "report.md";
+      if (key === "title") return "";
+      if (key === "aria-label") return "";
+      return "";
+    },
+  };
+}
+
 function wordLink() {
   return {
     href: "http://127.0.0.1:8797/file-viewer.html?src=%2Fapi%2Ffiles%3FartifactId%3Dartifact_docx&name=report.docx&mime=application%2Fvnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -242,6 +293,29 @@ function presentationLink() {
   assert.deepEqual(nativeRequests, []);
   assert.deepEqual(assigned, []);
   assert.equal(appended.length, 1);
+}
+
+{
+  const { context, assigned, nativeRequests, appended } = createHarness({ width: 390, height: 844, coarsePointer: true });
+  const link = markdownDeliverableLink();
+  assert.equal(context.TaskDocumentPreviewUi.isMarkdownPreviewLink(link), true);
+  assert.equal(context.TaskDocumentPreviewUi.isDocumentPreviewLink(link), false);
+  assert.equal(context.TaskDocumentPreviewUi.shouldUseNativeDocumentPreview(link), false);
+  assert.equal(context.TaskDocumentPreviewUi.openMarkdownPreviewOverlay(link), true);
+  assert.deepEqual(nativeRequests, []);
+  assert.deepEqual(assigned, []);
+  assert.equal(appended.length, 1);
+}
+
+{
+  const { context } = createHarness({ width: 390, height: 844, coarsePointer: true });
+  assert.equal(context.TaskDocumentPreviewUi.isMarkdownPreviewLink(markdownDeliverableLink({
+    name: "delivery",
+    mime: "",
+    href: "/file-viewer.html?src=%2Fapi%2Ffiles%3FartifactId%3Dartifact_md&name=summary.markdown&mime=text%2Fplain",
+  })), true);
+  assert.equal(context.TaskDocumentPreviewUi.isMarkdownPreviewLink(sparseMarkdownDeliverableLink()), true);
+  assert.equal(context.TaskDocumentPreviewUi.isDocumentPreviewLink(sparseMarkdownDeliverableLink()), false);
 }
 
 {

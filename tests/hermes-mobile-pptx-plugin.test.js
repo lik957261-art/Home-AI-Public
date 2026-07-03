@@ -81,6 +81,9 @@ print(json.dumps({"created": created, "validated": validated, "names": names, "s
     assert.ok(fs.existsSync(outputPath));
     assert.ok(result.names.includes("[Content_Types].xml"));
     assert.ok(result.names.includes("ppt/presentation.xml"));
+    assert.ok(result.names.includes("ppt/presProps.xml"));
+    assert.ok(result.names.includes("ppt/viewProps.xml"));
+    assert.ok(result.names.includes("ppt/tableStyles.xml"));
     assert.ok(result.names.includes("ppt/slides/slide1.xml"));
     assert.ok(result.names.includes("ppt/slideLayouts/_rels/slideLayout1.xml.rels"));
     assert.ok(result.names.some((name) => name.startsWith("ppt/media/image1-") && name.endsWith(".png")));
@@ -91,6 +94,64 @@ print(json.dumps({"created": created, "validated": validated, "names": names, "s
     assert.equal(result.extracted.format, "powerpoint");
     assert.match(result.extracted.text, /Allergy materials brief|Overview/);
     assert.match(result.extracted.text, /Next steps/);
+  });
+}
+
+function testCreatesPowerPointCompatibleChineseThreeSlideDeck() {
+  withTempRoot((root) => {
+    const outputPath = path.join(root, "deliverable", "健康资料说明.pptx");
+    const script = `
+import importlib.util, json, zipfile
+from pathlib import Path
+spec = importlib.util.spec_from_file_location("hermes_mobile_pptx", ${JSON.stringify(pluginPath)})
+pptx = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(pptx)
+office_spec = importlib.util.spec_from_file_location("hermes_mobile_docx", ${JSON.stringify(officePluginPath)})
+office = importlib.util.module_from_spec(office_spec)
+office_spec.loader.exec_module(office)
+out = Path(${JSON.stringify(outputPath)})
+created = json.loads(pptx._pptx_create_handler({
+    "output_path": str(out),
+    "title": "凡凡过敏资料说明",
+    "slides": [
+        {"title": "资料概览", "body": "这是一份用于家庭沟通的三页演示文稿。", "bullets": ["仅包含已确认信息", "适合移动端分享"]},
+        {"title": "重点事项", "bullets": ["记录过敏来源", "区分症状和处理建议", "保留原始资料"]},
+        {"title": "后续动作", "body": "如需外部沟通，应先复核内容，再通过 PowerPoint 或系统分享发送。"}
+    ],
+    "theme": {"accent_color": "0F766E", "background_color": "FFFFFF", "text_color": "111827"}
+}))
+with zipfile.ZipFile(out) as archive:
+    names = sorted(archive.namelist())
+    theme = archive.read("ppt/theme/theme1.xml").decode("utf-8")
+    master = archive.read("ppt/slideMasters/slideMaster1.xml").decode("utf-8")
+    rels = archive.read("ppt/_rels/presentation.xml.rels").decode("utf-8")
+validated = json.loads(pptx._pptx_validate_handler({"file_path": str(out)}))
+extracted = json.loads(office._office_extract_text_handler({"file_path": str(out), "max_chars": 4000}))
+print(json.dumps({"created": created, "validated": validated, "extracted": extracted, "names": names, "theme": theme, "master": master, "rels": rels}, ensure_ascii=False))
+`;
+    const result = JSON.parse(runPython(script, {
+      HERMES_MOBILE_PPTX_ALLOWED_ROOTS: root,
+      HERMES_MOBILE_PPTX_OUTPUT_ROOTS: root,
+      HERMES_MOBILE_DOCX_ALLOWED_ROOTS: root,
+    }));
+    assert.equal(result.created.ok, true);
+    assert.equal(result.validated.ok, true);
+    assert.equal(result.validated.slide_count, 3);
+    assert.equal(result.created.slide_count, 3);
+    assert.deepEqual(result.validated.issues, []);
+    assert.ok(result.names.includes("ppt/presProps.xml"));
+    assert.ok(result.names.includes("ppt/viewProps.xml"));
+    assert.ok(result.names.includes("ppt/tableStyles.xml"));
+    assert.match(result.rels, /relationships\/presProps/);
+    assert.match(result.rels, /relationships\/viewProps/);
+    assert.match(result.rels, /relationships\/tableStyles/);
+    assert.match(result.theme, /<a:accent6>/);
+    assert.match(result.theme, /<a:folHlink>/);
+    assert.match(result.theme, /<a:fillStyleLst>[\s\S]*<a:gradFill/);
+    assert.match(result.master, /<p:clrMap /);
+    assert.equal(result.extracted.ok, true);
+    assert.match(result.extracted.text, /凡凡过敏资料说明|资料概览/);
+    assert.match(result.extracted.text, /后续动作/);
   });
 }
 
@@ -128,6 +189,41 @@ print(json.dumps({"created": created, "validated": validated}, ensure_ascii=Fals
     assert.equal(result.validated.tool, "pptx_validate");
     assert.ok(result.validated.issues.some((issue) => /layout_master_relationship_missing|missing_relationships:ppt\/slideLayouts\/_rels\/slideLayout1\.xml\.rels/.test(issue)));
     assert.doesNotMatch(JSON.stringify(result.validated), new RegExp(root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  });
+}
+
+function testCreateBlocksMediaLineWhenThemeIsTooMinimalForPowerPoint() {
+  withTempRoot((root) => {
+    const outputPath = path.join(root, "deliverable", "minimal-theme.pptx");
+    const script = `
+import importlib.util, json
+spec = importlib.util.spec_from_file_location("hermes_mobile_pptx", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+module._theme_xml = lambda colors: """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Too Minimal">
+  <a:themeElements>
+    <a:clrScheme name="Too Minimal"><a:dk1><a:srgbClr val="111827"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:accent1><a:srgbClr val="2563EB"/></a:accent1></a:clrScheme>
+    <a:fontScheme name="Too Minimal"><a:majorFont><a:latin typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Arial"/></a:minorFont></a:fontScheme>
+    <a:fmtScheme name="Too Minimal"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="9525"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme>
+  </a:themeElements>
+</a:theme>"""
+print(module._pptx_create_handler({
+    "output_path": ${JSON.stringify(outputPath)},
+    "title": "Blocked minimal theme",
+    "slides": [{"title": "Overview", "bullets": ["One"]}],
+}))
+`;
+    const result = JSON.parse(runPython(script, {
+      HERMES_MOBILE_PPTX_ALLOWED_ROOTS: root,
+      HERMES_MOBILE_PPTX_OUTPUT_ROOTS: root,
+    }));
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "pptx_compatibility_validation_failed");
+    assert.equal(result.validation.ok, false);
+    assert.ok(result.validation.issues.some((issue) => /theme_color_scheme_incomplete|theme_format_list_incomplete|theme_font_scheme_incomplete/.test(issue)));
+    assert.equal(result.media_line, undefined);
+    assert.equal(fs.existsSync(outputPath), false);
   });
 }
 
@@ -183,6 +279,8 @@ print(module._pptx_create_handler({"output_path": ${JSON.stringify(outside)}, "s
 }
 
 testCreatesReadablePptxWithImageAndMediaLine();
+testCreatesPowerPointCompatibleChineseThreeSlideDeck();
 testValidateRejectsMissingLayoutMasterRelationship();
+testCreateBlocksMediaLineWhenThemeIsTooMinimalForPowerPoint();
 testCreateBlocksMediaLineWhenCompatibilityValidationFails();
 testRejectsOutputOutsideAllowedRoots();

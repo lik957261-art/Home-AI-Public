@@ -252,28 +252,28 @@ read `.agent-context/HANDOFF.md` or lineage handoffs as audit context.
 
 Home AI Self-Improving Loop is the maintained observation collector and
 request-card generator for daily host/platform and plugin audit triggers. The
-scheduled job may run:
+macOS production deploy installs the scheduled wrapper at
+`/Users/example/path`;
+`scripts/macos-automation-cron-audit.js --strict-source` verifies that wrapper
+stays executable and source-synchronized. Fresh install and central production
+deploy must also ensure the canonical CRON job
+`homeai_self_improving_loop` exists as a `no_agent` script job that calls this
+wrapper. Installing the wrapper without the canonical job is not a closed
+Autonomy loop. The wrapper may run:
 
 ```bash
-node scripts/homeai-self-improving-loop.js \
-  --collect-production-observations \
-  --access-key-file <owner-web-key-file> \
-  --expected-version <client-version> \
-  --submit-diagnostics \
-  --create-audit-cards \
-  --audit-scope all \
-  --execute \
-  --json
+/Users/example/path
 ```
 
-That script may collect bounded production observations through maintained
-source scripts, submit metadata-only self-check events to AI Ops intake, resolve
-current audit threads, and send bounded request cards. It must not run the deep
-audits, inspect private plugin payloads, write findings, mutate workspaces,
-restart services, deploy, or send implementation repair cards from CRON-local
-analysis. If `Home AI Platform Audit` or `Plugin Workspace Audit` is
-unavailable, ambiguous, archived, deleted, or not discoverable, the job must
-fail visibly with a bounded task-card/thread error.
+The wrapper calls `scripts/homeai-self-improving-loop.js
+--collect-production-observations` with the production root and may submit
+metadata-only self-check events to AI Ops intake, resolve current audit threads,
+and send bounded request cards. It prints only bounded status/count JSON to CRON
+logs. It must not run the deep audits, inspect private plugin payloads, write
+findings, mutate workspaces, restart services, deploy, or send implementation
+repair cards from CRON-local analysis. If `Home AI Platform Audit` or
+`Plugin Workspace Audit` is unavailable, ambiguous, archived, deleted, or not
+discoverable, the job must fail visibly with a bounded task-card/thread error.
 
 On macOS production, the `com.hermesmobile.cron` LaunchDaemon runs as the
 service user `hermes-host`. The central deploy script must therefore install

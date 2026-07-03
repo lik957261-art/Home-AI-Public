@@ -31,6 +31,10 @@ Related route/provider boundaries:
 - Ordinary users must not receive other workspace keys, root paths, worker URLs, worker manifests, secret paths, runtime config, or integration credentials.
 - Request body fields such as `workspaceId`, `actorWorkspaceId`, or `principalId` are hints only. Server-side auth must clamp or reject them according to the authenticated principal.
 - Group chat and shared directories are explicit exceptions; they still require membership/share ACL checks.
+- Composer server-file attachment references are Owner-only because they point
+  at files that already exist on the server-side filesystem. Non-Owner sessions
+  should upload local/system files through the normal upload route unless a
+  future workspace-isolated server-share root has explicit ACL coverage.
 - Owner ordinary chat still uses low-permission workers unless an explicit Owner-maintenance path is requested.
 - Owner timed high-privilege approval must be visible to both model-run routing
   and route-level policy checks. Non-empty directory deletion is one of the
@@ -152,6 +156,17 @@ DACL inspection.
   Owner apply response. Plugin provisioners still create or verify their own
   workspace-local `.hermes-<plugin>` key/config and must not copy or derive
   credentials from the Home AI key.
+- Native secure secret handoff uses the same Home AI browser/API Access Key
+  transport. `POST /api/native/secure-secrets` resolves workspace and actor
+  from `X-Hermes-Web-Key`; request body workspace, actor, plugin-key, cookie,
+  or launch-token fields are not authority. The broker currently accepts only
+  explicit iOS clipboard source `ios_clipboard`, target plugin `codex`, and
+  purpose `current_task`. It stores the value only in process-local short-lived
+  memory, returns `secretRef` plus bounded metadata, and rejects audit
+  read-only keys because creating or resolving a secret is a write/use action.
+  General UI projections must never include the raw value; plaintext
+  resolution is limited to the scoped target-plugin runtime path and should not
+  be copied into model-visible chat or diagnostics.
 
 ## Family Profile Memory Projection
 

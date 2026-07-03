@@ -186,6 +186,16 @@ function statusForNewCase(severity, confidence) {
   return "inbox_waiting";
 }
 
+function diagnosticUsesStableRuntimeScope(input = {}) {
+  const sourceSurface = safeToken(input.sourceSurface || input.source_surface || input.surface || "", "", 80);
+  const diagnosticType = safeToken(input.diagnosticType || input.diagnostic_type || input.type || "", "", 100);
+  const category = safeToken(input.category || input.issueCategory || input.issue_category || diagnosticType, diagnosticType, 100);
+  return sourceSurface === "home-ai-self-check"
+    || diagnosticType === "self_check_signal_failed"
+    || diagnosticType.startsWith("self_check_")
+    || category.startsWith("self_check_");
+}
+
 function parseJsonRow(value, fallback) {
   try {
     return JSON.parse(value || "");
@@ -298,6 +308,7 @@ function createAiOpsDiagnosticIntakeService(options = {}) {
     });
     const pluginResourceHash = pluginId === "home-ai" ? "" : extractPluginDiagnosticResourceHash(payload, evidence);
     const errorClass = safeToken(payload.error_code || category, category, 120);
+    const stableRuntimeScope = diagnosticUsesStableRuntimeScope(input);
     const dedupeMaterial = {
       workspaceId,
       pluginId,
@@ -307,8 +318,8 @@ function createAiOpsDiagnosticIntakeService(options = {}) {
       errorClass,
       resourceHash: pluginResourceHash,
       route,
-      buildId,
-      threadHash,
+      buildId: stableRuntimeScope ? "" : buildId,
+      threadHash: stableRuntimeScope ? "" : threadHash,
     };
     const dedupeKey = sha256(JSON.stringify(dedupeMaterial)).slice(0, 32);
     const caseId = `diagcase_${dedupeKey.slice(0, 20)}`;

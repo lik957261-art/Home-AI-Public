@@ -7,8 +7,12 @@ const vm = require("vm");
 
 const repoRoot = path.resolve(__dirname, "..");
 const source = [
+  fs.readFileSync(path.join(repoRoot, "public", "app-composer-editor-ui.js"), "utf8"),
   fs.readFileSync(path.join(repoRoot, "public", "app-composer-send-ui.js"), "utf8"),
-  fs.readFileSync(path.join(repoRoot, "public", "app-event-stream-ui.js"), "utf8"),
+  fs.readFileSync(path.join(repoRoot, "public", "app-composer-viewport-ui.js"), "utf8"),
+  fs.readFileSync(path.join(repoRoot, "public", "app-composer-native-environment-ui.js"), "utf8"),
+  fs.readFileSync(path.join(repoRoot, "public", "app-composer-pending-send-ui.js"), "utf8"),
+  fs.readFileSync(path.join(repoRoot, "public", "app-composer-send-pipeline-ui.js"), "utf8"),
 ].join("\n");
 
 let renderCalls = 0;

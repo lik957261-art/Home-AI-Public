@@ -109,6 +109,80 @@ the workspace-scoped case API. It may create an Owner Action Inbox start item,
 but must not dispatch task cards automatically. Dispatch starts only after an
 Owner action on the Inbox item or an equivalent Owner-only API call.
 
+## Thread And Dispatch Governance
+
+The ordinary Home AI implementation thread is the coordinator for Home AI-owned
+delivery work. It keeps the current objective, chooses work boundaries,
+dispatches bounded slices, and merges returned evidence into the coordinator
+ledger and workspace handoff. It must not be replaced by an ad hoc scheduler
+thread unless a future platform contract explicitly moves that responsibility.
+
+Worker threads are durable Codex Mobile task-card targets, not temporary helper
+agents. The coordinator may use Worker threads even when the original work did
+not arrive as a task card, provided the work is independently returnable and has
+a bounded ownership surface. Valid Worker targets include plugin-owned
+implementation, routine deploy/readback lanes, dedicated audit threads,
+long-running bounded probes, and disjoint modules with non-overlapping files.
+
+Every Worker dispatch must include:
+
+- exact target workspace/thread;
+- allowed module, file, route, or deploy boundary;
+- expected validation or production readback evidence;
+- terminal return-card requirement;
+- requested reasoning effort, with default and effective effort no lower than
+  `medium`;
+- privacy boundary;
+- conflict rule for overlapping edits, missing prerequisite commits, shared
+  files, or unclear ownership.
+
+Worker lanes must not receive tasks that require private production
+service-user authority unless that lane explicitly exposes the required
+non-interactive capability. In particular, work that needs `hermes-host`
+execution/readback, private Home AI data-tree traversal, sudo-gated install
+phases, or operator clean-target mutation must route to a deploy/service lane
+or return `blocked` with bounded capability evidence. A normal Worker returning
+`Permission denied` for a private production path is a scheduling/capability
+boundary, not proof that the product runtime write path is broken.
+
+If a Worker hits a conflict, missing prerequisite, routing error, or ownership
+ambiguity, it must return `blocked`, `redirected`, or `partially_completed`
+with bounded evidence instead of overwriting local work or silently continuing.
+The coordinator decides whether to merge, reroute, sequence, use another live
+lane, or ask Owner for a product or risk decision.
+
+Deploy lanes are a pool, not a single hard-coded thread. Routine plugin
+deployment/readback should go to a live non-terminal deploy lane selected from
+the configured deploy lane pool, such as `Home AI Deploy`, `Home AI Deploy
+Lane A`, `Home AI Deploy Lane B`, `Home AI Deploy Lane C`,
+`Codex Mobile Deploy Lane`, or `Movie Deploy Lane`. Plugin-specific deploy
+lanes take precedence when discoverable: Codex Mobile plugin deployments route
+to `Codex Mobile Deploy Lane`, and Movie plugin deployments route to
+`Movie Deploy Lane`. If the dedicated lane is stuck, archived, hidden,
+terminal, or reports a transport error, the coordinator must fall back to
+another valid shared deploy lane or repair lane discovery before declaring the
+deployment blocked. Plugin implementation threads prepare source, tests,
+commits, deploy plans, restart labels, health URLs, and bounded readback
+expectations; they must not receive sudo password-file paths or execute
+production deployment directly.
+
+Duplicate task-card requests, duplicate Owner approval prompts, and duplicate
+Web Push notifications for the same source request are platform defects, not
+normal Owner workflow. The coordinator and notification producers must use
+stable idempotency keys derived from source request id, diagnostic case id,
+delivery case/slice id, workflow id, task-card id, or a bounded source
+signature. Owner should need to approve at most one equivalent request. If a
+duplicate is observed, the first equivalent approval/dispatch is authoritative;
+later equivalents should be suppressed, marked duplicate, or recorded as
+bounded defect evidence without re-notifying Owner.
+
+Sub-agents are temporary helpers inside the current turn. They have no durable
+task-card lifecycle, no source-thread return contract, no deployment authority,
+and no independent workspace ownership. Use sub-agents only for bounded
+analysis or review that the coordinator can fully inspect. Use Worker threads
+for cross-workspace mutation, deployment/readback, Owner-gated actions, or any
+work requiring a terminal return card.
+
 Manual start rules:
 
 - only Owner may start a case;
@@ -146,6 +220,12 @@ ledger without requiring manual case/slice lookup.
 The preferred observer integration is a bounded return-card event intake that
 accepts the original dispatched task-card id, the return-card id, terminal
 status, short summary, and safe thread/workflow metadata only.
+The coordinator must also expose a bounded Owner-only return-card Watchdog.
+The Watchdog identifies dispatched task cards that have no terminal return
+after the configured stale window and may mark those slices as
+`dispatchStatus=return_stale` with a bounded `return_card_watchdog_stale`
+event. It must not retry, redispatch, complete, or reject the work by itself.
+Late terminal returns must still be accepted by original task-card id.
 When a completed return does not require production deployment/readback, the
 coordinator may move the case to `verification_waiting` and create an Owner
 Action Inbox review projection. That Inbox row is only a decision/attention
@@ -165,13 +245,23 @@ Deployment/readback rules:
 - starting deployment/readback creates a separate `deployment_owner` slice and
   routes one task card to the configured Home AI deploy lane pool. The default
   lane is `Home AI Deploy`; deployments may use additional live non-terminal
-  lanes such as `Home AI Deploy Lane A/B/C`, `Codex Mobile Deploy Lane`, or
-  `Movie Deploy Lane` when configured. Plugin implementation threads prepare
+lanes such as `Home AI Deploy Lane A/B/C`, `Codex Mobile Deploy Lane`, or
+`Movie Deploy Lane` when configured. Plugin-specific deploy lanes take
+precedence over hash or shared-pool selection; Codex Mobile plugin deployments
+route to `Codex Mobile Deploy Lane`, and Movie plugin deployments route to
+`Movie Deploy Lane` when those live lanes are discoverable. Plugin
+implementation threads prepare
   source, tests, commit/push when applicable, deploy plan, and bounded readback
   expectations, but they do not receive sudo password-file paths and do not
   execute production deployment directly. The coordinator stores the deployment
   task-card id, completes the Inbox item, and moves the case to
-  `deployment_dispatched`;
+  `deployment_dispatched` only after task-card transport returns a concrete
+  card id;
+- if deployment/readback task-card transport throws, reports a routing or
+  permission error, or returns no concrete card id, the coordinator must keep
+  the case in `deployment_waiting`, mark the attempted deployment slice
+  `blocked` with `dispatchStatus=failed`, retain bounded `dispatchFailure`
+  evidence, and leave the Owner Inbox projection open;
 - deployment/readback task cards must use the established central/plugin
   deploy contract and return bounded production readback evidence;
 - completed deployment/readback returns annotate the original implementation
@@ -195,6 +285,11 @@ Owner-triggered verification rules:
 - verification start may include a bounded Owner prompt;
 - verification start must not auto-dispatch repair cards, deploy, or mutate
   production outside the target verification thread's return contract.
+- if verification task-card transport throws, reports a routing or permission
+  error, or returns no concrete card id, the coordinator must keep the case in
+  `verification_waiting`, mark the verification slice `blocked` with
+  `dispatchStatus=failed`, retain bounded `dispatchFailure` evidence, and leave
+  the Owner review item open.
 
 Verification return and closure rules:
 
@@ -235,7 +330,13 @@ Verification repair rules:
   call;
 - starting repair creates a separate repair slice routed to the original
   implementation workspace, stores the repair task-card id, and moves the case
-  to `repair_dispatched`;
+  to `repair_dispatched` only after task-card transport returns a concrete card
+  id;
+- if repair task-card transport throws, reports a routing or permission error,
+  or returns no concrete card id, the coordinator must keep the case in
+  `repair_waiting`, mark the repair slice `blocked` with
+  `dispatchStatus=failed`, retain bounded `dispatchFailure` evidence, and leave
+  the Owner repair item open;
 - repair return cards are normal implementation-slice returns and must pass
   through the same verification lane before closure;
 - high-risk repair remains blocked by high-risk authorization rules and must
@@ -285,6 +386,59 @@ If the return includes an evidence ledger path or artifact pointer, the
 coordinator may use the raw value transiently for local verification, then must
 discard it and persist only redacted evidence records, hash labels, required
 kind/status checks, record counts, and bounded issues.
+
+## Main Thread, Worker Thread, And Sub-Agent Rule
+
+The Home AI implementation thread is the central scheduler for Home AI-owned
+work. It owns decomposition, write-set boundaries, integration decisions,
+conflict resolution, final status, and the authoritative handoff. It may route
+bounded slices to Worker threads, but it must not outsource the scheduling
+judgment itself.
+
+Worker threads are durable Codex Mobile task-card continuations or dedicated
+workspace threads. Use a Worker when the slice has an owning workspace or lane,
+can return a terminal task card, and has a clear write-set boundary. Typical
+Worker slices include plugin-owned repairs, deployment/readback lanes,
+cross-workspace implementation, independent verification, and long-running
+bounded probes. Before dispatch, the main thread or coordinator must specify:
+
+- target thread/workspace and expected role;
+- allowed files or module boundary;
+- acceptance criteria and bounded evidence;
+- validation commands or readback probes;
+- privacy boundary;
+- conflict protocol if the Worker discovers overlapping edits or a missing
+  prerequisite.
+
+If a Worker would edit files that overlap with active main-thread changes, or
+depends on uncommitted main-thread state, the main thread must either stabilize
+that state first or keep the work local. Worker returns must report changed
+files, commits, checks, deployment/readback state, residual risks, and any
+conflict or blocker. The main thread then integrates the return into the
+ledger, handoff, and user-facing status.
+
+Worker dispatch is also the preferred path for independent assistance that did
+not originate as a task card when the target thread/workspace is visible and the
+work can be bounded. The main thread must still own write-set selection,
+sequencing, and final merge decisions. A Worker must not overwrite local changes
+from another session; if conflict evidence appears, it returns blocked or
+partially completed instead of attempting a local merge.
+
+Duplicate task-card creation or duplicate Web Push notifications for the same
+source request are platform defects, not Owner workflow. Dispatch must be
+idempotent by source request id, case/slice id, workflow id, and task-card id
+where available. If duplicate requests reach an Inbox or plugin topic, only one
+may be approved/executed; the duplicate must be marked as a routing or
+notification idempotency issue and repaired at the Home AI/Codex Mobile
+dispatch boundary.
+
+Sub-agents are transient same-turn helpers, not durable project owners. They do
+not replace Codex Mobile task cards, do not own a workspace lifecycle, do not
+send return cards, and must not be used to bypass workspace permissions,
+deployment-lane ownership, Owner approval, or task-card routing. Use sub-agents
+only for bounded read-only analysis, independent review, or small local
+investigation where the main thread can inspect and integrate the result before
+any commit, deployment, or return.
 
 ## Ownership And Audit Boundaries
 

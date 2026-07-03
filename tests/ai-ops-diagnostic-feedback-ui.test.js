@@ -76,9 +76,21 @@ function createFakeWindow() {
 function createFakeWindowWithTransportDiagnostics() {
   const windowRef = createFakeWindow();
   const transportCalls = [];
-  windowRef.fetch = async (url, options = {}) => {
-    transportCalls.push({ url, body: JSON.parse(options.body || "{}") });
-    return { ok: true, status: 202 };
+  windowRef.HomeAiRuntimeFacade = {
+    diagnostics: {
+      async sendClientLayoutDiagnostic(payload = {}, options = {}) {
+        transportCalls.push({ url: options.endpoint || "/api/client-layout-diagnostics", body: payload });
+        return { ok: true, status: 202 };
+      },
+    },
+    dedupe: {
+      has() {
+        return false;
+      },
+      mark() {
+        return true;
+      },
+    },
   };
   windowRef.transportCalls = transportCalls;
   return windowRef;
@@ -177,6 +189,13 @@ function testGestureDoesNotConflictWithTwoFingerShellGesture() {
   assert.equal(windowRef.scheduledTimer, null);
   documentRef.listeners.touchstart({ touches: touches(3) });
   assert.equal(typeof windowRef.scheduledTimer, "function");
+}
+
+function testOwnerSystemConsoleActionLivesInFeedbackMenu() {
+  assert.match(diagnosticUiSource, /data-ai-ops-open-system-console hidden>系统控制台<\/button>/);
+  assert.match(diagnosticUiSource, /stateRef\.auth\?\.isOwner && typeof windowRef\.openOwnerSystemConsoleSurface === "function"/);
+  assert.match(diagnosticUiSource, /openOwnerSystemConsoleSurface\(\{ trigger: "diagnostic_feedback_menu" \}\)/);
+  assert.doesNotMatch(diagnosticUiSource, /event\.target\?\.closest\?\.\("#bottomNav"\)/);
 }
 
 function testPluginDiagnosticBridgeIsPlatformOwned() {
@@ -726,6 +745,90 @@ async function testPluginDiagnosticReportNoFrameRejectionIsPersisted() {
   assert.doesNotMatch(JSON.stringify(windowRef.transportCalls), /Private Album Title/);
 }
 
+async function testRuntimeFacadeOwnsDiagnosticApiAndStateWhenPresent() {
+  const frameWindow = {};
+  const frame = {
+    contentWindow: frameWindow,
+    dataset: { pluginId: "music" },
+    getAttribute(name) {
+      return name === "src" ? "/plugins/music?pluginRoute=now-playing&workspaceId=owner&token=secret" : "";
+    },
+    closest() {
+      return { dataset: { pluginId: "music", workspaceId: "owner" } };
+    },
+    addEventListener() {},
+  };
+  const documentRef = createFakeDocument([frame]);
+  const windowRef = createFakeWindowWithTransportDiagnostics();
+  const apiCalls = [];
+  const eventCalls = [];
+  const statePatches = [];
+  const statusCalls = [];
+  const runtimeFacade = {
+    api: async (url, options = {}) => {
+      apiCalls.push({ url, body: JSON.parse(options.body || "{}") });
+      return {
+        ok: true,
+        case_id: "diagcase_runtime_facade",
+        status: "recorded",
+        owner_notification: { notified: true },
+      };
+    },
+    events: {
+      emit(type, detail = {}) {
+        eventCalls.push({ type, detail });
+      },
+    },
+    state: {
+      get() {
+        return {
+          selectedWorkspaceId: "owner",
+          viewMode: "plugin-music",
+          pluginContextNavPluginId: "music",
+        };
+      },
+      set(patch = {}) {
+        statePatches.push(patch);
+      },
+    },
+    feedback: {
+      status(message, detail = {}) {
+        statusCalls.push({ message, detail });
+      },
+    },
+  };
+  const controller = createAiOpsDiagnosticFeedbackController({
+    document: documentRef,
+    runtimeFacade,
+    window: windowRef,
+  });
+
+  const result = await controller.submitPluginDiagnosticReport(frame, {
+    type: "homeai.diagnostic.report",
+    pluginId: "music",
+    category: "music_playback_failed",
+    diagnostic_type: "playback_failed",
+    severity_hint: "H2",
+    error_code: "music_album_playback_request_failed",
+  });
+
+  assert.equal(result.case_id, "diagcase_runtime_facade");
+  assert.equal(apiCalls.length, 1);
+  assert.equal(apiCalls[0].url, "/api/v1/home-ai/diagnostics/events");
+  assert.equal(apiCalls[0].body.plugin_id, "music");
+  assert.equal(apiCalls[0].body.workspaceId, "owner");
+  assert.ok(statePatches.some((patch) => patch.aiOpsDiagnosticSubmissionStatus === "submitting"));
+  assert.ok(statePatches.some((patch) => (
+    patch.aiOpsDiagnosticSubmissionStatus === "submitted" &&
+    patch.aiOpsDiagnosticCaseId === "diagcase_runtime_facade"
+  )));
+  assert.ok(eventCalls.some((event) => event.type === "ai-ops-diagnostic:plugin-submit:start"));
+  assert.ok(eventCalls.some((event) => event.type === "ai-ops-diagnostic:plugin-submit:success"));
+  assert.ok(eventCalls.some((event) => event.type === "ai-ops-diagnostic:record"));
+  assert.equal(statusCalls.length, 0);
+  assert.doesNotMatch(JSON.stringify(apiCalls), /secret/);
+}
+
 function testDiagnosticPanelUsesSolidSurface() {
   assert.match(stylesCss, /\.ai-ops-diagnostic-panel \{[\s\S]*?background: #fbfcfa;/);
   assert.match(stylesCss, /:root\[data-theme="dark"\] \.ai-ops-diagnostic-panel \{[\s\S]*?background: #171d20;/);
@@ -738,6 +841,7 @@ async function run() {
   testPayloadIsBoundedAndRedacted();
   testPluginContextPayloadIsBounded();
   testGestureDoesNotConflictWithTwoFingerShellGesture();
+  testOwnerSystemConsoleActionLivesInFeedbackMenu();
   testPluginDiagnosticBridgeIsPlatformOwned();
   testPluginConversationActionCommentParserRequiresJson();
   await testOwnerTaskRequestCommentCreatesHomeAiApproval();
@@ -748,6 +852,7 @@ async function run() {
   await testPluginDiagnosticReportAutoSubmitsBoundedEvent();
   await testPluginDiagnosticReportTransportFailureIsPersisted();
   await testPluginDiagnosticReportNoFrameRejectionIsPersisted();
+  await testRuntimeFacadeOwnsDiagnosticApiAndStateWhenPresent();
   testDiagnosticPanelUsesSolidSurface();
 
   console.log("AI Ops diagnostic feedback UI tests passed");

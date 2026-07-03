@@ -112,6 +112,32 @@ function itemSourceRef(item = {}) {
   return objectValue(item.sourceRef || item.source_ref);
 }
 
+function mergeObjectPreservingNonEmpty(existing = {}, incoming = {}) {
+  const out = Object.assign({}, objectValue(existing));
+  for (const [key, value] of Object.entries(objectValue(incoming))) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      if (!Object.keys(value).length && out[key] && typeof out[key] === "object") continue;
+      out[key] = mergeObjectPreservingNonEmpty(objectValue(out[key]), value);
+      continue;
+    }
+    if (value === "" || value == null) {
+      if (!(key in out)) out[key] = value;
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
+function rawJsonForMerge(item = {}) {
+  const source = objectValue(item);
+  const raw = Object.assign({}, objectValue(source.rawJson || source.raw_json));
+  if (source.pluginConversationActionBridge && typeof source.pluginConversationActionBridge === "object") {
+    raw.pluginConversationActionBridge = source.pluginConversationActionBridge;
+  }
+  return raw;
+}
+
 function isAuditAutomationItem(item = {}) {
   const sourceType = clean(item.sourceType || item.source_type, 80).toLowerCase();
   if (sourceType !== "automation") return false;
@@ -242,13 +268,15 @@ function createActionInboxService(options = {}) {
       ? store.getActionInboxItemByDedupe(workspaceId, dedupeKey)
       : null;
     const terminalBefore = ["done", "dismissed", "archived"].includes(String(before?.status || ""));
+    const sourceRef = mergeObjectPreservingNonEmpty(before?.sourceRef || before?.source_ref, input.sourceRef || input.source_ref);
+    const rawJson = mergeObjectPreservingNonEmpty(rawJsonForMerge(before), input.rawJson || input.raw_json);
     const item = store.upsertActionInboxItem({
       id: before?.id || clean(input.id || input.itemId, 160) || makeId("ainb"),
       workspaceId,
       assigneeWorkspaceId: clean(input.assigneeWorkspaceId || input.assignee_workspace_id || workspaceId, 120) || workspaceId,
       sourceType,
       sourceId,
-      sourceRef: objectValue(input.sourceRef || input.source_ref),
+      sourceRef,
       itemType,
       status: terminalBefore && !input.reopen ? before.status : status,
       priority: normalizePriority(input.priority),
@@ -262,7 +290,7 @@ function createActionInboxService(options = {}) {
       completedAt: terminalBefore ? before.completedAt : clean(input.completedAt || input.completed_at, 80),
       dismissedAt: terminalBefore ? before.dismissedAt : clean(input.dismissedAt || input.dismissed_at, 80),
       lastEventAt: now,
-      rawJson: objectValue(input.rawJson || input.raw_json),
+      rawJson,
       createdAt: before?.createdAt || input.createdAt || now,
       updatedAt: now,
     });

@@ -4,7 +4,11 @@ const {
   createDirectoryTopicIndexService,
   receiptSummaryTitleFromText,
 } = require("./directory-topic-index-service");
-const { publicPluginActions } = require("./wardrobe-outfit-wear-intent-action-service");
+const {
+  GATEWAY_PREPARE_TOOL: WARDROBE_OUTFIT_WEAR_INTENT_PREPARE_TOOL,
+  publicPluginActionDiagnostics,
+  publicPluginActionsFromMessage,
+} = require("./wardrobe-outfit-wear-intent-action-service");
 
 function defaultCompactText(value, maxChars) {
   const text = String(value || "");
@@ -117,6 +121,7 @@ function createThreadViewService(deps = {}) {
   const singleWindowGroupChatTaskGroupId = String(deps.singleWindowGroupChatTaskGroupId || "group-chat");
   const singleWindowProjectId = String(deps.singleWindowProjectId || "single-window");
   const compactText = typeof deps.compactText === "function" ? deps.compactText : defaultCompactText;
+  const pluginActionNowIso = typeof deps.nowIso === "function" ? deps.nowIso : null;
   const normalizeTaskGroupMeta = typeof deps.normalizeTaskGroupMeta === "function"
     ? deps.normalizeTaskGroupMeta
     : normalizeTaskGroupMetaFallback;
@@ -607,6 +612,13 @@ function createThreadViewService(deps = {}) {
   function compactMessage(message = {}, thread = null) {
     const resolvedThread = thread || findThreadForMessage(message);
     const gatewayRouting = message.runOptions?.gatewayRouting || {};
+    const publicLoadedTools = loadedToolsForPublicMessage(message, resolvedThread);
+    const pluginActionOptions = {
+      workspaceId: message.actorWorkspaceId || message.senderWorkspaceId || resolvedThread?.workspaceId || "",
+      principalId: message.senderPrincipalId || message.actorPrincipalId || message.actorWorkspaceId || message.senderWorkspaceId || resolvedThread?.workspaceId || "",
+      prepareToolLoaded: publicLoadedTools.some((tool) => tool.name === WARDROBE_OUTFIT_WEAR_INTENT_PREPARE_TOOL),
+    };
+    if (pluginActionNowIso) pluginActionOptions.nowIso = pluginActionNowIso();
     return {
       id: message.id,
       role: message.role,
@@ -638,7 +650,7 @@ function createThreadViewService(deps = {}) {
       revokedByLabel: message.revokedByLabel || "",
       usage: message.usage || null,
       loadedSkills: loadedSkillsForPublicMessage(message),
-      loadedTools: loadedToolsForPublicMessage(message, resolvedThread),
+      loadedTools: publicLoadedTools,
       model: message.model || message.modelName || message.runOptions?.model || "",
       modelProvider: message.modelProvider || message.model_provider || message.provider || message.runOptions?.provider || "",
       error: message.error || null,
@@ -661,10 +673,8 @@ function createThreadViewService(deps = {}) {
       toolsetEscalationToolsets: Array.isArray(message.toolsetEscalationToolsets) ? message.toolsetEscalationToolsets : [],
       toolsetEscalationReason: message.toolsetEscalationReason || "",
       toolsetEscalationSource: message.toolsetEscalationSource || "",
-      pluginActions: publicPluginActions(message.pluginActions || {}, {
-        workspaceId: message.actorWorkspaceId || message.senderWorkspaceId || resolvedThread?.workspaceId || "",
-        principalId: message.senderPrincipalId || message.actorPrincipalId || message.actorWorkspaceId || message.senderWorkspaceId || resolvedThread?.workspaceId || "",
-      }),
+      pluginActions: publicPluginActionsFromMessage(message, pluginActionOptions),
+      pluginActionDiagnostics: publicPluginActionDiagnostics(message, pluginActionOptions),
       truncated: typeof message.content === "string" && message.content.length > maxApiTextChars,
     };
   }

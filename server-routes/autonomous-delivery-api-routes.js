@@ -154,6 +154,36 @@ const AUTONOMOUS_DELIVERY_API_ROUTE_SPECS = Object.freeze([
     tags: ["autonomous-delivery", "return-card", "task-card", "owner"],
   },
   {
+    id: "autonomous-delivery-return-watchdog-summary",
+    method: "GET",
+    path: "/api/autonomous-delivery/return-watchdog",
+    group: "autonomous-delivery",
+    moduleKey: "autonomous-delivery",
+    handlerKey: "returnWatchdogSummary",
+    summary: "Read bounded Owner-only return-card watchdog state for dispatched task cards.",
+    riskLevel: "owner",
+    authMode: "access-key",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["autonomous-delivery", "codex-task-card"],
+    tags: ["autonomous-delivery", "return-card", "watchdog", "owner"],
+  },
+  {
+    id: "autonomous-delivery-return-watchdog-run",
+    method: "POST",
+    path: "/api/autonomous-delivery/return-watchdog",
+    group: "autonomous-delivery",
+    moduleKey: "autonomous-delivery",
+    handlerKey: "runReturnWatchdog",
+    summary: "Owner-triggered return-card watchdog pass that marks stale dispatched task cards without retrying them.",
+    riskLevel: "owner",
+    authMode: "access-key",
+    authRequired: true,
+    ownerOnly: true,
+    resourceTypes: ["autonomous-delivery", "codex-task-card"],
+    tags: ["autonomous-delivery", "return-card", "watchdog", "owner"],
+  },
+  {
     id: "autonomous-delivery-return-card-event",
     method: "POST",
     path: "/api/autonomous-delivery/return-card-events",
@@ -244,6 +274,14 @@ function taskCardIdFromReturnPath(pathname = "") {
 
 function workspaceFromRequest(url, body, auth) {
   return clean(body?.workspaceId || body?.workspace_id || url.searchParams.get("workspaceId") || auth?.workspaceId || "owner", 120) || "owner";
+}
+
+function watchdogInputFromUrl(url, auth, owner) {
+  return {
+    workspaceId: clean(url.searchParams.get("workspaceId") || auth?.workspaceId || owner?.workspaceId || owner?.workspace_id || "", 120),
+    staleAfterMs: Number(url.searchParams.get("staleAfterMs") || 0) || undefined,
+    limit: Number(url.searchParams.get("limit") || 0) || undefined,
+  };
 }
 
 function createAutonomousDeliveryApiRoutes(deps = {}) {
@@ -425,6 +463,44 @@ function createAutonomousDeliveryApiRoutes(deps = {}) {
     return { handled: true, status: res.statusCode || 200 };
   }
 
+  async function handleReturnWatchdogSummary(req, res, url, context = {}) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return { handled: true, status: res.statusCode || 403 };
+    const watchdogInput = watchdogInputFromUrl(url, context.auth, owner);
+    if (!watchdogInput.workspaceId) {
+      deps.sendJson(res, 400, { ok: false, error: "workspace_id_required" });
+      return { handled: true, status: 400 };
+    }
+    const result = service.returnWatchdogSummary(Object.assign(watchdogInput, {
+      auth: context.auth,
+    }));
+    responseFromResult(deps, res, result, 200);
+    return { handled: true, status: res.statusCode || 200 };
+  }
+
+  async function handleRunReturnWatchdog(req, res, url, context = {}) {
+    const owner = deps.requireOwner(req, res);
+    if (!owner) return { handled: true, status: res.statusCode || 403 };
+    const body = await deps.readBody(req, 32 * 1024).catch((err) => ({ __error: err }));
+    if (body.__error) {
+      deps.sendJson(res, body.__error.status || 400, safeErrorPayload(body.__error));
+      return { handled: true, status: body.__error.status || 400 };
+    }
+    const watchdogInput = Object.assign(watchdogInputFromUrl(url, context.auth, owner), body);
+    if (!watchdogInput.workspaceId) {
+      deps.sendJson(res, 400, { ok: false, error: "workspace_id_required" });
+      return { handled: true, status: 400 };
+    }
+    const result = service.runReturnWatchdog(Object.assign(watchdogInput, {
+      actor: clean(context.auth?.principalId || owner?.principalId || owner?.actor || "", 120),
+      auth: context.auth,
+    }));
+    if (responseFromResult(deps, res, result, 200) && result.markedCount > 0 && typeof deps.broadcast === "function") {
+      deps.broadcast({ type: "actionInbox.updated", workspaceId: result.workspaceId || watchdogInput.workspaceId, reason: "return_watchdog" });
+    }
+    return { handled: true, status: res.statusCode || 200 };
+  }
+
   async function handle(req, res, url, context = {}) {
     const match = registry.match({ method: req.method, path: url.pathname });
     if (!match) return { handled: false };
@@ -438,6 +514,8 @@ function createAutonomousDeliveryApiRoutes(deps = {}) {
     if (match.id === "autonomous-delivery-deployment-start") return handleStartDeployment(req, res, url, context);
     if (match.id === "autonomous-delivery-repair-start") return handleStartRepair(req, res, url, context);
     if (match.id === "autonomous-delivery-task-card-return") return handleTaskCardReturn(req, res, url, context);
+    if (match.id === "autonomous-delivery-return-watchdog-summary") return handleReturnWatchdogSummary(req, res, url, context);
+    if (match.id === "autonomous-delivery-return-watchdog-run") return handleRunReturnWatchdog(req, res, url, context);
     if (match.id === "autonomous-delivery-return-card-event") return handleReturnCardEvent(req, res, url, context);
     return { handled: false };
   }

@@ -39,7 +39,12 @@ the change is part of a dedicated infrastructure rename.
     fixed multi-column layouts that make `Low`/`High` provider text overlap or
     overflow horizontally.
 - API wrapper: `public/app-api-client.js`
-- Event stream: `public/app-event-stream-ui.js`, `public/app-events-composer-ui.js`
+- Event stream: `public/app-event-stream-ui.js`,
+  `public/app-events-composer-ui.js`
+  - `app-event-stream-ui.js` owns EventSource connection glue only.
+  - `app-events-composer-ui.js` owns event fanout only; message state upsert,
+    render invalidation, send orchestration, native environment snapshot, and
+    upload handling live in focused Composer modules.
 - Device-local display settings: `public/app-pwa-settings-push-ui.js`
   - Theme mode is stored in `localStorage.hermesWebTheme` as `system`, `light`,
     or `dark`.
@@ -186,7 +191,17 @@ the change is part of a dedicated infrastructure rename.
 
 ## Chat And Topics
 
-- Composer: `public/app-chat-composer-ui.js`, `public/app-composer-send-ui.js`, `public/app-composer-context-ui.js`, `public/app-composer-source-ui.js`
+- Composer: `public/app-chat-composer-ui.js`,
+  `public/app-composer-draft-ui.js`, `public/app-composer-editor-ui.js`,
+  `public/app-composer-context-ui.js`, `public/app-composer-source-ui.js`,
+  `public/app-composer-send-ui.js`,
+  `public/app-composer-send-pipeline-ui.js`,
+  `public/app-composer-pending-send-ui.js`,
+  `public/app-composer-viewport-ui.js`,
+  `public/app-composer-message-invalidation-ui.js`,
+  `public/app-composer-native-environment-ui.js`,
+  `public/app-composer-self-check-ui.js`,
+  `public/app-composer-attachments-ui.js`
 - Thread list/message rendering: `public/app-thread-list-ui.js`, `public/app-thread-message-ui.js`, `public/app-thread-card-message-ui.js`
 - Task group UI: `public/app-task-groups-ui.js`, `public/app-task-preview-ui.js`
 - Capability Entry Hub product direction:

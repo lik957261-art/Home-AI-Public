@@ -19,6 +19,25 @@ const DEFAULT_DEPLOY_THREAD_TITLES = Object.freeze([
   "Codex Mobile Deploy Lane",
   "Movie Deploy Lane",
 ]);
+const DEFAULT_DEPLOY_LANE_ASSIGNMENTS = Object.freeze({
+  "codex-mobile": "Codex Mobile Deploy Lane",
+  "codex-mobile-web": "Codex Mobile Deploy Lane",
+  movie: "Movie Deploy Lane",
+});
+const DEPLOY_PLUGIN_INFERENCE_PATTERNS = Object.freeze([
+  ["codex-mobile-web", /codex[-_ ]?mobile[-_ ]?web|codex[-_ ]?mobile|plugins\/codex-mobile-web/i],
+  ["movie", /(?:^|[^a-z0-9])movie(?:[^a-z0-9]|$)|\/Movie(?:\/|$)|plugins\/movie/i],
+]);
+const DEFAULT_HOME_AI_IMPLEMENTATION_THREAD_TITLES = Object.freeze([
+  "Home AI Worker Lane A",
+  "Home AI Worker Lane B",
+  "Home AI Worker Lane C",
+]);
+const DEFAULT_TASK_CARD_REASONING_EFFORT = "medium";
+const TASK_CARD_REASONING_EFFORTS = Object.freeze(["low", "medium", "high", "xhigh"]);
+const TASK_CARD_REASONING_EFFORT_RANK = Object.freeze(Object.fromEntries(
+  TASK_CARD_REASONING_EFFORTS.map((effort, index) => [effort, index]),
+));
 
 function clean(value, max = 200) {
   return String(value || "").trim().slice(0, max);
@@ -125,6 +144,29 @@ function isDeployKind(kind) {
   return text === "deployment" || text === "deploy" || text === "plugin_deployment" || text === "plugin-deployment";
 }
 
+function isImplementationKind(kind) {
+  const text = clean(kind, 80).toLowerCase();
+  return [
+    "home_ai_worker",
+    "home-ai-worker",
+    "home_ai_implementation",
+    "home-ai-implementation",
+    "implementation",
+    "implementation_worker",
+    "implementation-worker",
+  ].includes(text);
+}
+
+function normalizeTaskCardReasoningEffort(value) {
+  const effort = clean(value, 40).toLowerCase();
+  if (!Object.prototype.hasOwnProperty.call(TASK_CARD_REASONING_EFFORT_RANK, effort)) {
+    return DEFAULT_TASK_CARD_REASONING_EFFORT;
+  }
+  return TASK_CARD_REASONING_EFFORT_RANK[effort] < TASK_CARD_REASONING_EFFORT_RANK[DEFAULT_TASK_CARD_REASONING_EFFORT]
+    ? DEFAULT_TASK_CARD_REASONING_EFFORT
+    : effort;
+}
+
 function parseDeployLaneAssignments(value) {
   if (!value) return {};
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -139,6 +181,35 @@ function parseDeployLaneAssignments(value) {
   } catch (_) {
     return {};
   }
+}
+
+function inferDeployPluginId(input = {}) {
+  const explicit = clean(
+    input.pluginId
+      || input.plugin
+      || input.plugin_id
+      || input.deployPluginId
+      || input.deploy_plugin_id
+      || input.targetPlugin
+      || input.target_plugin,
+    120,
+  ).toLowerCase();
+  if (explicit) return explicit;
+  const haystack = [
+    input.title,
+    input.summary,
+    input.body,
+    input.bodyMarkdown,
+    input.sourceWorkspaceCwd,
+    input.sourceWorkspace,
+    input.targetWorkspaceCwd,
+    input.targetWorkspace,
+    input.targetWorkspacePath,
+  ].map((item) => String(item || "")).join("\n");
+  for (const [pluginId, pattern] of DEPLOY_PLUGIN_INFERENCE_PATTERNS) {
+    if (pattern.test(haystack)) return pluginId;
+  }
+  return "";
 }
 
 function stableHash(value) {
@@ -166,6 +237,14 @@ function activeScore(thread) {
   if (status === "pending" || status === "queued") return 3;
   if (status === "idle" || !status) return 2;
   return 1;
+}
+
+function implementationLoadScore(thread) {
+  const status = threadStatusOf(thread);
+  if (status === "idle" || !status) return 0;
+  if (status === "pending" || status === "queued") return 1;
+  if (status === "active" || status === "running") return 2;
+  return 3;
 }
 
 function sortedThreads(threads) {
@@ -221,12 +300,27 @@ function createCodexThreadTaskCardService(options = {}) {
   const deployLaneTitles = deployThreadTitles.length
     ? deployThreadTitles
     : [defaultDeployThreadTitle, ...DEFAULT_DEPLOY_THREAD_TITLES.filter((title) => title !== defaultDeployThreadTitle)];
-  const deployLaneAssignments = parseDeployLaneAssignments(options.deployLaneAssignments || env.HOMEAI_DEPLOY_LANE_ASSIGNMENTS);
+  const deployLaneAssignments = Object.assign(
+    {},
+    DEFAULT_DEPLOY_LANE_ASSIGNMENTS,
+    parseDeployLaneAssignments(options.deployLaneAssignments || env.HOMEAI_DEPLOY_LANE_ASSIGNMENTS),
+  );
+  const implementationThreadTitles = cleanList(
+    options.implementationThreadTitles || env.HOMEAI_IMPLEMENTATION_THREAD_TITLES,
+    160,
+  );
+  const implementationLaneTitles = implementationThreadTitles.length
+    ? implementationThreadTitles
+    : [...DEFAULT_HOME_AI_IMPLEMENTATION_THREAD_TITLES];
+  const implementationLaneRequired = /^(1|true|yes)$/i.test(String(
+    options.implementationLaneRequired ?? env.HOMEAI_IMPLEMENTATION_LANE_REQUIRED ?? "",
+  ));
   const requestTimeoutMs = Math.max(1000, Number(options.timeoutMs || env.HOMEAI_CODEX_TASK_CARD_TIMEOUT_MS || 15000));
   const homeAiReservedTargetTitles = new Set([
     defaultPluginAuditThreadTitle,
     defaultPlatformAuditThreadTitle,
     ...deployLaneTitles,
+    ...implementationLaneTitles,
     DEFAULT_HOME_AI_TASK_INTAKE_THREAD_TITLE,
     clean(env.HOMEAI_CODEX_SOURCE_THREAD_TITLE || "", 160),
     sourceThreadTitlePrefix,
@@ -302,7 +396,7 @@ function createCodexThreadTaskCardService(options = {}) {
     const explicitTitle = clean(input.title, 160);
     const allowedTitles = explicitTitle ? [explicitTitle] : deployLaneTitles;
     const allowedTitleSet = new Set(allowedTitles);
-    const pluginKey = clean(input.pluginId || input.plugin || input.plugin_id || input.deployPluginId || input.deploy_plugin_id || "", 120).toLowerCase();
+    const pluginKey = inferDeployPluginId(input);
     const byTitle = explicitTitle
       ? await listThreads({ search: explicitTitle, limit: 100 })
       : await listThreads({ cwd, limit: 200 });
@@ -332,15 +426,57 @@ function createCodexThreadTaskCardService(options = {}) {
     const assignedTitle = pluginKey ? deployLaneAssignments[pluginKey] : "";
     if (assignedTitle) {
       const assigned = sorted.find((thread) => threadTitleOf(thread) === assignedTitle);
-      if (!assigned) {
-        throw createError(503, "deploy_lane_assignment_not_found", "Configured plugin deployment lane is not currently discoverable", { pluginId: pluginKey, deployThreadTitle: assignedTitle, cwd });
-      }
-      return assigned;
+      if (assigned) return assigned;
     }
     if (pluginKey && sorted.length > 1) {
       return sorted[stableHash(pluginKey) % sorted.length];
     }
     return sorted[0];
+  }
+
+  async function findImplementationThread(input = {}) {
+    const cwd = normalizePath(input.cwd || sourceWorkspaceCwd);
+    const allowedTitles = implementationLaneTitles;
+    const allowedTitleSet = new Set(allowedTitles);
+    const byWorkspace = await listThreads({ cwd, limit: 200 });
+    const matches = byWorkspace.filter((thread) => {
+      const title = threadTitleOf(thread);
+      if (!allowedTitleSet.has(title)) return false;
+      if (isCompletedThread(thread)) return false;
+      return !cwd || normalizePath(threadCwdOf(thread)) === cwd;
+    });
+    if (!matches.length) {
+      if (implementationLaneRequired) {
+        throw createError(503, "home_ai_implementation_lane_not_found", "Home AI implementation worker lane is not currently discoverable", {
+          implementationThreadTitles: allowedTitles,
+          cwd,
+        });
+      }
+      return null;
+    }
+    const duplicates = new Map();
+    for (const thread of matches) {
+      const title = threadTitleOf(thread);
+      duplicates.set(title, (duplicates.get(title) || 0) + 1);
+    }
+    const duplicateTitle = [...duplicates.entries()].find(([, count]) => count > 1)?.[0] || "";
+    if (duplicateTitle) {
+      throw createError(409, "home_ai_implementation_lane_ambiguous", "Multiple Home AI implementation worker lanes match the same title", {
+        implementationThreadTitle: duplicateTitle,
+        cwd,
+        matchCount: duplicates.get(duplicateTitle),
+      });
+    }
+    const sorted = [...matches].sort((left, right) => {
+      const loadDiff = implementationLoadScore(left) - implementationLoadScore(right);
+      if (loadDiff) return loadDiff;
+      return threadUpdatedAt(left) - threadUpdatedAt(right);
+    });
+    const bestScore = implementationLoadScore(sorted[0]);
+    const best = sorted.filter((thread) => implementationLoadScore(thread) === bestScore);
+    const requestKey = clean(input.requestKey || input.requestId || input.request_id || input.title || "", 240);
+    if (requestKey && best.length > 1) return best[stableHash(requestKey) % best.length];
+    return best[0];
   }
 
   async function findTargetThread(input = {}) {
@@ -356,10 +492,27 @@ function createCodexThreadTaskCardService(options = {}) {
         status: "configured",
       };
     }
+    if (isImplementationKind(input.kind) && !title) {
+      const workerThread = await findImplementationThread({
+        cwd: cwd || sourceWorkspaceCwd,
+        requestKey: input.requestKey || input.requestId || input.request_id || input.title,
+      });
+      if (workerThread) return workerThread;
+    }
     if (isDeployKind(input.kind) && !title && !titlePrefix) {
       return findDeployThread({
         cwd: cwd || sourceWorkspaceCwd,
         pluginId: input.pluginId || input.plugin || input.plugin_id,
+        deployPluginId: input.deployPluginId || input.deploy_plugin_id,
+        targetPlugin: input.targetPlugin || input.target_plugin,
+        title: input.title,
+        summary: input.summary,
+        body: input.body || input.bodyMarkdown,
+        sourceWorkspaceCwd: input.sourceWorkspaceCwd,
+        sourceWorkspace: input.sourceWorkspace,
+        targetWorkspaceCwd: input.targetWorkspaceCwd,
+        targetWorkspace: input.targetWorkspace,
+        targetWorkspacePath: input.targetWorkspacePath,
       });
     }
     if (!title && !titlePrefix && !cwd) {
@@ -415,10 +568,17 @@ function createCodexThreadTaskCardService(options = {}) {
     }
     const effectiveTitlePrefix = explicitTitlePrefix || sourceThreadTitlePrefix;
     const byWorkspace = await listThreads(cwd ? { cwd, limit: 120 } : { search: effectiveTitlePrefix, limit: 120 });
-    const reservedTitles = new Set([defaultPluginAuditThreadTitle, defaultPlatformAuditThreadTitle, defaultDeployThreadTitle]);
+    const homeAiPrefixSourceDiscovery = [DEFAULT_HOME_AI_SOURCE_TITLE_PREFIX, sourceThreadTitlePrefix].includes(effectiveTitlePrefix);
+    const reservedTitles = new Set([
+      defaultPluginAuditThreadTitle,
+      defaultPlatformAuditThreadTitle,
+      ...deployLaneTitles,
+      ...implementationLaneTitles,
+      DEFAULT_HOME_AI_TASK_INTAKE_THREAD_TITLE,
+    ]);
     const candidates = byWorkspace.filter((thread) => {
       const title = threadTitleOf(thread);
-      if (reservedTitles.has(title)) return false;
+      if (homeAiPrefixSourceDiscovery && reservedTitles.has(title)) return false;
       if (!title.startsWith(effectiveTitlePrefix)) return false;
       return !cwd || normalizePath(threadCwdOf(thread)) === cwd;
     });
@@ -448,6 +608,16 @@ function createCodexThreadTaskCardService(options = {}) {
       titlePrefix: input.targetThreadTitlePrefix,
       cwd: input.targetWorkspaceCwd,
       pluginId: input.pluginId || input.plugin || input.plugin_id || input.targetPlugin || input.target_plugin,
+      deployPluginId: input.deployPluginId || input.deploy_plugin_id,
+      targetPlugin: input.targetPlugin || input.target_plugin,
+      summary: input.summary,
+      body: input.body || input.bodyMarkdown,
+      sourceWorkspaceCwd: input.sourceWorkspaceCwd,
+      sourceWorkspace: input.sourceWorkspace,
+      targetWorkspaceCwd: input.targetWorkspaceCwd,
+      targetWorkspace: input.targetWorkspace,
+      targetWorkspacePath: input.targetWorkspacePath,
+      requestKey: input.requestId || input.request_id || input.title,
     });
     if (threadIdOf(sourceThread) === threadIdOf(targetThread)) {
       throw createError(409, "task_card_source_target_same_thread", "Task-card source thread must be different from target thread", {
@@ -467,8 +637,7 @@ function createCodexThreadTaskCardService(options = {}) {
       autoApprove: true,
       pending: false,
     };
-    const reasoningEffort = clean(input.reasoningEffort || input.reasoning_effort, 40).toLowerCase();
-    if (reasoningEffort) body.reasoningEffort = reasoningEffort;
+    body.reasoningEffort = normalizeTaskCardReasoningEffort(input.reasoningEffort || input.reasoning_effort);
     if (!body.title) throw createError(400, "task_card_title_required", "Task-card title is required");
     if (!body.body) throw createError(400, "task_card_body_required", "Task-card body is required");
     if (isDeployKind(taskKind) && isTerminalReceiptCard(body)) {
@@ -498,6 +667,7 @@ function createCodexThreadTaskCardService(options = {}) {
   return Object.freeze({
     findAuditThread,
     findDeployThread,
+    findImplementationThread,
     findTargetThread,
     findSourceThread,
     listThreads,
@@ -510,6 +680,8 @@ module.exports = {
   DEFAULT_PLATFORM_AUDIT_THREAD_TITLE,
   DEFAULT_DEPLOY_THREAD_TITLE,
   DEFAULT_DEPLOY_THREAD_TITLES,
+  DEFAULT_DEPLOY_LANE_ASSIGNMENTS,
+  DEFAULT_HOME_AI_IMPLEMENTATION_THREAD_TITLES,
   createCodexThreadTaskCardService,
   isTerminalReceiptCard,
   parseThreadList,

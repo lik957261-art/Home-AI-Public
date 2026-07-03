@@ -14,6 +14,8 @@ const {
 } = require("./plugin-launchd-service-helper");
 
 const DEFAULT_LABEL = "com.hermesmobile.plugin.finance";
+const RECURRING_AUTO_POST_ENABLED = "1";
+const RECURRING_AUTO_POST_INTERVAL_MS = "300000";
 const SPEC = Object.freeze({
   pluginId: "finance",
   sourceDir: "finance",
@@ -153,6 +155,8 @@ function plistFor(options = {}) {
       FINANCE_HERMES_OWNER_WORKSPACE_ID: "owner",
       FINANCE_HERMES_ALLOWED_WORKSPACES: launchEnv.allowedWorkspaces,
       FINANCE_HERMES_WORKSPACE_KEY_HASHES_JSON: launchEnv.workspaceKeyHashesJson,
+      FINANCE_RECURRING_AUTO_POST: RECURRING_AUTO_POST_ENABLED,
+      FINANCE_RECURRING_AUTO_POST_INTERVAL_MS: RECURRING_AUTO_POST_INTERVAL_MS,
     },
     stdoutLog: currentPlan.logPaths[0],
     stderrLog: currentPlan.logPaths[1],
@@ -250,6 +254,8 @@ if (require.main === module) {
 
 module.exports = {
   DEFAULT_LABEL,
+  RECURRING_AUTO_POST_ENABLED,
+  RECURRING_AUTO_POST_INTERVAL_MS,
   financeLaunchEnv,
   financeWorkspaceKeyHash,
   financeWorkspaceKeyHashInfo,
@@ -257,4 +263,5 @@ module.exports = {
   parseArgs,
   plan,
   plistFor,
+  safePayloadFor,
 };

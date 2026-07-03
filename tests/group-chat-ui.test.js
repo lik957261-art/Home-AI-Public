@@ -33,7 +33,7 @@ assert.match(appJs, /function unreadChatScopeCount\(thread, scope\)/);
 assert.match(appJs, /if \(!\(single && state\.singleWindowMode === "chat"\)\) renderChatScopeHeader\(null\);/);
 assert.match(appJs, /const CHAT_SCOPE_SESSION_STARTED_AT = Date\.now\(\)/);
 assert.match(appJs, /return Number\.isFinite\(value\) && value > 0 \? value : CHAT_SCOPE_SESSION_STARTED_AT/);
-assert.match(appJs, /Missing read markers intentionally fall back to the page-load timestamp/);
+assert.match(appJs, /Missing read markers initialize from the page-load timestamp/);
 assert.doesNotMatch(appJs, /setChatScopeReadAt\(scope, latest \|\| Date\.now\(\)\)/);
 assert.match(appJs, /hermesChatScopeRead:/);
 assert.match(appJs, /chat-scope-header-badge/);

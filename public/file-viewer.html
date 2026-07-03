@@ -1285,8 +1285,8 @@
       document.documentElement.dataset.nativeDocumentStatus = "failed";
       document.body.classList.add("office-document-mode");
       const message = error === "native_document_result_timeout"
-        ? "系统预览没有返回结果，请重启 Home AI 原生壳后再试。"
-        : "系统预览桥接不可用，请更新或重启 Home AI 原生壳后再试。你仍然可以用系统打开方式、分享或下载继续查看。";
+        ? "系统预览没有返回结果，请关闭系统预览后重试；如果持续出现，请更新或重启 Home AI 原生壳。"
+        : "系统预览桥接不可用。此设备的 Home AI 原生壳没有暴露文档预览桥，重启通常不能修复；请更新原生壳，或使用下方 Web 预览、下载/分享继续查看。";
       previewStatus.classList.remove("hidden");
       previewStatus.replaceChildren();
       const text = document.createElement("span");
@@ -1307,7 +1307,7 @@
       share.addEventListener("click", () => shareOriginalFile());
       const web = document.createElement("a");
       web.href = `${location.pathname}?${new URLSearchParams(Object.assign(Object.fromEntries(params), { webPreview: "1" })).toString()}`;
-      web.textContent = "Web 调试预览";
+      web.textContent = "Web 预览";
       actions.append(openIn, share, web);
       previewStatus.append(text, actions);
       document.getElementById("textPreview").classList.add("hidden");

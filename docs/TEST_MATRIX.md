@@ -7,14 +7,150 @@ Use this matrix to pick focused tests before broader gates. Always add syntax ch
 ## Full Gates
 
 - Broad product gate: `npm.cmd run productization:check`
-- Standard test gate: `npm test`
+- Standard local test gate: `npm test`
+- Install/deploy lane gate: `npm run test:install-lane`
+- Legacy aggregate gate when a single process must run both lanes:
+  `npm run test:all`
 - Architecture boundary: `node tests\architecture-refactor-boundary.test.js`
 - Privacy scan: `node scripts\privacy-scan.js --all-files`
 - Diff hygiene: `git diff --check`
 - Engineering governance: `node scripts\engineering-governance-check.js`
 - Fallback governance: `node scripts\fallback-governance-check.js --json`
 
+`npm test` is the normal local development gate. It excludes install, upgrade,
+production-smoke, and deployment-lane tests that are not appropriate for every
+developer machine. Run `npm run test:install-lane` from an install/deploy lane,
+release lane, or explicit operator validation context. `npm run
+productization:check` runs both lanes in order.
+
+For long-running 3A work, prefer module-sized batches: run focused checks while
+building a coherent module, then run `npm test` once for that module before
+commit/deploy. Do not run the install/deploy lane gate from an ordinary local
+implementation thread unless the current task explicitly owns install,
+upgrade, production-smoke, or deploy-lane validation.
+
 Use full gates before public release, broad shared-service/runtime changes, permission/security/persistence changes, or when requested.
+
+## Vite Frontend Development Gate
+
+The Vite full-frontend migration is a development-environment target until
+Owner review approves a separate production cutover plan. Ordinary local
+implementation threads should run the source/readiness and focused Vite gates,
+not install/deploy lane tests:
+
+```bash
+npm run build:vite
+node tests/mobile-http-runtime-service.test.js
+node tests/vite-production-bootstrap.test.js
+npm run validate:vite-cutover-source -- --contract-json docs/IMPLEMENTATION_NOTES/vite-production-cutover-source-contract.json --require-ok
+npm run verify:vite-dev
+npm run check:vite-readiness
+node tests/vite-owner-review-report.test.js
+npm run review:vite-cutover
+node tests/vite-development-readiness-check.test.js
+node tests/vite-production-cutover-preflight.test.js
+npm run plan:vite-cutover
+node tests/vite-production-cutover-handoff-packet.test.js
+npm run packet:vite-cutover
+node tests/vite-owner-approval-request.test.js
+npm run request:vite-cutover-approval
+node tests/vite-goal-state-audit.test.js
+npm run audit:vite-goal
+node tests/vite-cutover-source-change-validator.test.js
+npm run validate:vite-cutover-source
+node tests/vite-production-readback-validator.test.js
+node tests/vite-dev-preview-routes-smoke.test.js
+npm run audit:vite-globals -- --json
+node tests/vite-global-usage-audit.test.js
+node tests/vite-dev-real-backend-parity-smoke.test.js
+node tests/vite-chat-runtime-island.test.js
+node tests/vite-plugin-host-model.test.js
+node tests/vite-plugin-host-island.test.js
+node tests/vite-voice-audio-capture-adapter.test.js
+git diff --check
+```
+
+`node tests/mobile-http-runtime-service.test.js` covers the server-side
+selected-shell switch, including fail-closed classic behavior, Vite bootstrap
+injection, request-level rollback override, and compression-cache separation
+between classic and Vite shell responses.
+
+`node tests/vite-production-bootstrap.test.js` covers the dedicated Vite
+production bootstrap entry, verifies that it preserves the classic runtime
+facade, installs the focus lifecycle guard, exposes bounded
+`HomeAiViteProduction` readback, and produces the built
+`public/vite-islands/home-ai-production-bootstrap/` artifact after
+`npm run build:vite`.
+
+`npm run validate:vite-cutover-source -- --contract-json
+docs/IMPLEMENTATION_NOTES/vite-production-cutover-source-contract.json
+--require-ok` is the source-change contract gate for the transitional
+production bootstrap. It proves the switch, rollback path, fail-closed default,
+dev-mock exclusion, bounded production-readback requirement, and deploy-lane
+boundary before production execution.
+
+`npm run check:vite-readiness` is source-only and verifies preview routes,
+source modules, focused tests, docs, built preview artifacts, and that the
+classic production shell has not been switched to Vite. It does not authorize
+`deploy:macos --execute`, Service Worker production cache migration, clean
+target install/upgrade canaries, or production readback claims.
+
+`npm run verify:vite-dev` is the source-only development acceptance report. It
+runs the Vite build, global audit, mobile Playwright preview-route smoke, real
+local backend parity smoke, readiness gate, Owner review report, blocked
+cutover preflight, blocked handoff packet, repository static check, local full
+test gate, readback validator contract, and diff hygiene check. The local full
+test gate still skips install/deploy lane tests.
+It clears the cutover approval environment for the run and must keep
+`productionWrites=false`, `deployExecuted=false`, and
+`productionDeployAuthorized=false`. When it passes, the
+`ownerApprovalRequest` field should be `ready_to_request_owner_approval` and
+should include the exact Owner approval text for the next boundary without
+creating a production source change, deployment, or Worker card.
+
+`npm run review:vite-cutover` is the source-only Owner review report. It
+combines readiness and cutover preflight evidence into a bounded payload, keeps
+`productionWrites=false`, `deployExecuted=false`, and
+`productionDeployAuthorized=false`, and is not an approval record. Its
+`requiredProductionReadback` field must stay structured and include shell mode,
+Service Worker/cache version, Vite assets, Owner Console permission, Plugin
+Host proxy, Markdown/PPTX delivery, voice pending cancel, chat/SSE/task-topic,
+Wardrobe Usage action, and rollback evidence.
+
+`npm run plan:vite-cutover` is also source-only. It fails closed without the
+exact Owner approval text from
+`docs/IMPLEMENTATION_NOTES/vite-production-cutover-review.md`; with that text
+it returns only a plan to create a separate fail-closed cutover source change,
+not permission to deploy from an ordinary implementation thread.
+
+`npm run packet:vite-cutover` is the source-only handoff packet gate. It does
+not send a Worker card or execute deployment. With exact Owner approval it can
+produce only a non-sendable deploy-lane draft until the separate cutover source
+change exists and passes validation.
+The draft must expose the Home AI deploy lane pool, a
+`cutover_source_change_validated` pre-send gate, and a required post-deploy
+`validate:vite-cutover-readback` command.
+
+`npm run request:vite-cutover-approval` is the source-only Owner approval
+request gate. It confirms development acceptance, Owner review readiness, and
+the blocked handoff-packet boundary, then emits the exact approval text without
+creating a production source change, Worker card, or deployment.
+
+`npm run audit:vite-goal` is the source-only final-state audit. It must report
+`goal_incomplete` before bounded evidence proves development acceptance, exact
+Owner approval, source-change validation, deploy-lane packet state, and
+production readback. It performs no deploy and sends no task card.
+
+`npm run validate:vite-cutover-source` is the source-only cutover source-change
+validator. Current default mode must stay blocked with
+`cutover_source_change_not_created`; after exact Owner approval, a separate
+cutover source-change contract JSON must pass with `--require-ok` before any
+production deploy-lane card is sent.
+
+`npm run validate:vite-cutover-readback` is the source-only post-deploy
+readback validator. It must pass on the deploy-lane JSON return before the Vite
+production cutover can be considered closed; it does not itself connect to
+production or execute deployment.
 
 ## Home AI TTS
 
@@ -35,6 +171,26 @@ CosyVoice, Piper, or another model runtime, add a local smoke that generates a
 short Chinese/English mixed narration file without printing raw user scripts,
 secrets, or long logs.
 
+## Growth Host Residual Boundary
+
+Growth business behavior is plugin-owned. Host changes that touch Growth
+provisioning, plugin launch/proxy/facade, legacy Growth URL compatibility,
+Growth Web Push/Action Inbox routing, or any remaining `learning-*`,
+`growth-*`, `study-*`, or `assessment-*` host files must run:
+
+```bash
+node scripts/growth-host-residual-boundary-check.js --json
+node tests/growth-host-residual-boundary-check.test.js
+node tests/growth-plugin-provisioning-service.test.js
+node tests/growth-plugin-facade-service.test.js
+node tests/growth-plugin-facade-api-routes.test.js
+```
+
+The host residual count may go down as legacy code is deleted or migrated to
+`/Users/example/path`, but it must not go up.
+New learner-program, card-authoring, submission/evaluation/reflection, mastery,
+or Growth UI behavior belongs in the Growth plugin workspace, not in the host.
+
 ## Engineering Governance Gate
 
 Changes to CI, deployment behavior, production diagnostics, public release
@@ -44,6 +200,7 @@ behavior, or productization rules must run:
 node scripts/engineering-governance-check.js --json
 node scripts/fallback-governance-check.js --json
 node scripts/public-install-preflight.js --source-only --json
+node scripts/homeai-install-upgrade-canary.js --json
 node scripts/plugin-provisioning-coverage-audit.js
 node scripts/macos-install-phase-coverage-audit.js
 node scripts/macos-fresh-install-rehearsal.js
@@ -117,11 +274,104 @@ production diagnostic checklist with command templates. `node
 scripts/productization-acceptance-matrix.js --markdown` prints the acceptance
 matrix template for implementation notes, pull requests, or handoffs.
 
+## Runtime Boundary Closure Gate
+
+Changes that cross Gateway run events, message projection, deterministic plugin
+message actions, or fallback registration must keep the central runtime
+boundary contract synchronized:
+
+```bash
+node tests/home-ai-runtime-boundary-contract.test.js
+node tests/architecture-code-test-harness-map.test.js
+node tests/architecture-refactor-boundary.test.js
+node tests/gateway-run-output-event-service.test.js
+node tests/gateway-run-event-service.test.js
+node tests/thread-view-service.test.js
+node tests/wardrobe-outfit-wear-intent-action-service.test.js
+node tests/plugin-action-metadata-closure-service.test.js
+node tests/plugin-action-metadata-closure-smoke.test.js
+node tests/plugin-conversation-action-api-routes.test.js
+node scripts/plugin-action-metadata-closure-smoke.js --json
+node scripts/fallback-governance-check.js --json
+git diff --check
+```
+
+The guard verifies the Run Pipeline Boundary, Message Projection Boundary,
+Plugin Action Bridge Boundary, and Fallback Registry Boundary are linked from
+the docs index, architecture boundary, architecture-code-test-harness map, test
+matrix, current Wardrobe deterministic action implementation, source-side
+action metadata closure smoke, and active fallback registry.
+
+## Composer Event And Receipt Gate
+
+Changes to Composer event fanout, current-thread refresh, terminal receipt
+visibility, user-scroll protection, or Composer self-checks must keep
+`docs/IMPLEMENTATION_NOTES/composer-event-contract.md` synchronized and run:
+
+```bash
+node tests/composer-event-contract.test.js
+node tests/composer-module-boundary.test.js
+node tests/composer-message-invalidation-ui.test.js
+node tests/composer-refresh-scheduler.test.js
+node tests/composer-self-check-ui.test.js
+node tests/current-thread-refresh-scheduling.test.js
+node tests/thread-state-ui-behavior.test.js
+node tests/run-progress-ui-behavior.test.js
+node tests/architecture-code-test-harness-map.test.js
+node tests/architecture-refactor-boundary.test.js
+git diff --check
+```
+
+The harness must prove that a terminal summary can trigger a delayed detail
+refresh, the refreshed terminal receipt metadata becomes visible, and protected
+user scroll prevents forced bottom scrolling.
+
 Use the matrix for every product-facing change: Owner behavior, non-Owner
 behavior, public fresh install, public update, migration/restore,
 backup/rollback, permission boundaries, UI/PWA cache behavior, and production
 self-diagnostic coverage. Mark non-applicable dimensions explicitly instead of
 silently omitting them.
+
+## Plugin Capability Closure Gate
+
+Changes to plugin capabilities that cross manifest/MCP schema, Home AI
+profile/schema sync, Gateway callable registry, plugin conversation surfaces,
+UI/action metadata, production smoke, or task-card return closure must keep
+`docs/PLATFORM_CONTRACTS/plugin-capability-closure-contract.md` synchronized
+and run:
+
+```bash
+node tests/plugin-capability-closure-smoke.test.js
+node tests/plugin-action-metadata-closure-service.test.js
+node tests/plugin-action-metadata-closure-smoke.test.js
+node tests/architecture-code-test-harness-map.test.js
+node tests/architecture-refactor-boundary.test.js
+node scripts/plugin-action-metadata-closure-smoke.js --json
+git diff --check
+```
+
+For source-only closure evidence, run:
+
+```bash
+node scripts/plugin-capability-closure-smoke.js --source-only
+```
+
+MCP callable/schema changes must additionally run:
+
+```bash
+node tests/mcp-tool-upgrade-closure-harness.test.js
+node tests/gateway-run-instruction-service.test.js
+```
+
+Deterministic message-action capabilities must additionally run the relevant
+run-output, projection, action-route, and UI tests, such as:
+
+```bash
+node tests/gateway-run-output-event-service.test.js
+node tests/thread-view-service.test.js
+node tests/plugin-conversation-action-api-routes.test.js
+node tests/task-list-ui.test.js
+```
 
 The Productization Acceptance Matrix dimensions are:
 
@@ -170,6 +420,7 @@ node tests\ai-ops-control-plane-cli.test.js
 node tests\ai-ops-diagnostic-intake-service.test.js
 node tests\ai-ops-diagnostic-remediation-service.test.js
 node tests\ai-ops-diagnostic-remediation-workflow-service.test.js
+node tests\task-card-dispatch-result-service.test.js
 node tests\ai-ops-diagnostic-api-routes.test.js
 node tests\ai-ops-diagnostic-feedback-ui.test.js
 node tests\plugin-conversation-action-bridge-service.test.js
@@ -193,6 +444,34 @@ node --check server-routes\plugin-conversation-action-api-routes.js
 node --check public\app-ai-ops-diagnostics-ui.js
 node --check scripts\ai-ops-control-plane.js
 node --check scripts\fallback-governance-check.js
+node scripts\fallback-governance-check.js --json
+git diff --check
+```
+
+Owner System Console changes must run the service, resource, route, and static
+UI checks together because the console is an Owner-only operational surface.
+Quality evidence changes must prove that executed clean-target canary steps can
+close `clean_target_live_canary`, while aggregated canary summaries without
+step evidence cannot:
+
+```powershell
+node --check adapters\owner-3a-quality-evidence-service.js
+node --check adapters\owner-3a-quality-program-service.js
+node --check adapters\owner-system-console-service.js
+node --check adapters\system-resource-status-service.js
+node --check server-routes\owner-system-console-api-routes.js
+node --check public\app-owner-system-console-ui.js
+node tests\owner-3a-quality-evidence-service.test.js
+node tests\owner-3a-quality-program-service.test.js
+node tests\owner-system-console-service.test.js
+node tests\system-resource-status-service.test.js
+node tests\owner-system-console-api-routes.test.js
+node tests\owner-system-console-ui.test.js
+node tests\mobile-api-platform-composition.test.js
+node tests\mobile-api-dispatcher.test.js
+node tests\task-list-ui.test.js
+node tests\architecture-refactor-boundary.test.js
+node tests\architecture-code-test-harness-map.test.js
 node scripts\fallback-governance-check.js --json
 git diff --check
 ```
@@ -229,6 +508,9 @@ Diagnostic remediation loop changes must additionally prove:
 - Owner-triggered dispatch re-reads the bounded case/events, rebuilds the
   remediation plan, sends the card through the Codex task-card interface, and
   records the case transition to `card_sent`;
+- Owner-triggered dispatch must not mark a case `card_sent`, complete its
+  approval row, or send a duplicate approval push unless task-card transport
+  returns at least one concrete task-card id;
 - plugin-runtime errors route to the owning plugin workspace, while Gateway,
   toolset, MCP/schema, host proxy, permission, manifest, static cache, and
   embedded-shell errors route to Home AI ownership;
@@ -245,6 +527,10 @@ Plugin conversation repair-request changes must additionally prove:
   arbitrary request body fields;
 - Owner-triggered dispatch can attach an optional Owner prompt and appends it
   to the task card under `Owner Additional Prompt`;
+- Owner-triggered dispatch keeps the approval item open and returns a bounded
+  failure when task-card transport fails or returns no concrete task-card id;
+- an equivalent request after successful dispatch keeps the terminal approval
+  terminal, does not send a second task card, and does not send another Web Push;
 - non-Owner workspaces cannot dispatch cards or attach Owner prompts;
 - the Action Inbox UI exposes `发修复卡`, `稍后`, and `删除` for
   `sourceType=plugin_conversation` repair requests;
@@ -331,6 +617,50 @@ currently receives `deepLink` in APNs payloads but does not route the `WKWebView
 on notification tap; tests should not claim tap-to-route completion until the
 native bridge is implemented.
 
+For native secure secret clipboard handoff server-side changes, run:
+
+```bash
+node --check adapters/native-secure-secret-broker-service.js
+node --check server-routes/native-secure-secret-api-routes.js
+node --check server-routes/mobile-api-composition.js
+node --check server-routes/mobile-api-dispatcher.js
+node tests/native-secure-secret-broker-service.test.js
+node tests/native-secure-secret-api-routes.test.js
+node tests/mobile-api-dispatcher.test.js
+node tests/api-route-inventory.test.js
+node tests/architecture-refactor-boundary.test.js
+```
+
+Coverage must prove native requests are authenticated only with
+`X-Hermes-Web-Key`, workspace/actor come from auth context rather than request
+body overrides, audit read-only keys are denied, create responses expose only
+`secretRef` plus bounded metadata, resolve is workspace/target/purpose scoped,
+expired/used-up refs fail closed, and no raw secret appears in normal response
+metadata. iOS shell changes still require the native Xcode checks documented in
+the Native iOS shell row.
+
+For native iOS shell version policy server-side changes, run:
+
+```bash
+node --check adapters/native-ios-shell-version-policy-service.js
+node --check server-routes/native-ios-shell-api-routes.js
+node --check server-routes/mobile-api-platform-composition.js
+node --check server-routes/mobile-api-composition.js
+node --check server-routes/mobile-api-dispatcher.js
+node tests/native-ios-shell-version-policy-service.test.js
+node tests/native-ios-shell-api-routes.test.js
+node tests/mobile-api-platform-composition.test.js
+node tests/mobile-api-dispatcher.test.js
+node tests/api-route-inventory.test.js
+node tests/architecture-refactor-boundary.test.js
+```
+
+Coverage must prove the endpoint is public-safe and pre-auth, current Build 35
+is not locked out by default, older builds require update only after an
+explicit minimum-build bump, malformed build numbers fail closed with bounded
+metadata, and the returned TestFlight URL is constrained to
+`https://testflight.apple.com/join/<code>`.
+
 For native environment context snapshot and Gateway `current_environment` tool
 changes, run:
 
@@ -393,7 +723,42 @@ unauthenticated `/api/client-version?clientVersion=<new-version>` returns
 `?v=<client-version>` query string. If a production sync missed a script and the
 same version was already exposed, the corrective deploy must bump the static
 version again. Focused checks: `node tests\task-list-ui.test.js` and
-`node tests\static-cache-version-harness.test.js`.
+`node tests\static-cache-version-harness.test.js`. Composer module-boundary,
+current-thread refresh, event fanout, streaming, model/mention, editor, mobile
+viewport, Composer self-check, native environment, attachment, pending-send, or send changes also run
+`node tests\composer-module-boundary.test.js`,
+`node tests\composer-refresh-scheduler.test.js`,
+`node tests\current-thread-refresh-scheduling.test.js`, and
+`node tests\composer-message-invalidation-ui.test.js`. Composer self-check
+changes also run `node tests\composer-self-check-ui.test.js`,
+`node tests\self-improving-runtime-health-observation-service.test.js`, and
+`node tests\home-ai-self-improving-loop-service.test.js`. Self-improving loop
+signal, Runtime SLO, diagnostic closure, or production observation changes also
+run `node tests\home-ai-runtime-slo-service.test.js`,
+`node tests\home-ai-self-improving-loop-service.test.js`,
+`node tests\homeai-self-improving-loop-script.test.js`, and
+`node scripts\homeai-self-improving-loop.js --runtime-slo-audit --json`.
+When production observation changes touch Owner Console system resources, also
+run `node tests\system-resource-status-service.test.js` and
+`node tests\owner-system-console-service.test.js`.
+When production observation changes touch plugin deterministic-action health,
+also run `node tests\plugin-action-metadata-closure-service.test.js`,
+`node tests\plugin-action-metadata-closure-smoke.test.js`, and
+`node scripts\plugin-action-metadata-closure-smoke.js --json`. The default
+smoke is the aggregate multi-family closure; use
+`--action wardrobe-outfit-wear-intent` only when verifying the single Wardrobe
+reference path.
+Diagnostic submit-closure changes also run
+`node tests\self-check-diagnostic-submit-smoke-service.test.js`,
+`node tests\self-check-diagnostic-submit-smoke-script.test.js`, and
+`node scripts\self-check-diagnostic-submit-smoke.js --json`. Send pipeline changes
+also run `node tests\composer-send-pending-feedback.test.js`; native environment
+context changes run `node tests\native-environment-context-ui.test.js`; file
+attachment ownership changes run `node tests\server-file-attachment-ui.test.js`.
+Together these prove the pure policy modules, event-layer wrapper, message
+projection invalidation path, duplicate-send lock, optimistic rollback,
+attachment upload, self-check auto-dispatch eligibility, and earliest-due terminal receipt refresh behavior preserve
+user scroll protection.
 Production UI/static deploys must also prove the real client loaded the new
 version after refresh, not only that source files contain the version string.
 The minimum accepted evidence is a browser/Playwright or installed-PWA read of
@@ -958,13 +1323,55 @@ explicit Hermes Agent update gating, changed/freshly cloned plugin deployment,
 dependency install gating, missing Hermes Agent virtualenv repair through
 `install-official-hermes-runtime`, profile/provider audit, and closure
 validation.
+The deploy/upgrade lane closure gate must additionally prove
+`docs/PLATFORM_CONTRACTS/deploy-upgrade-lane-closure-contract.md`,
+`adapters/deploy-upgrade-lane-closure-service.js`, and
+`scripts/deploy-upgrade-lane-closure-smoke.js`: routine plugin deploy cards are
+structured request cards with `cardKind=plugin_deployment` and
+`pluginId=<plugin-id>`, terminal receipt-shaped cards fail closed, deploy-lane
+lock records are bounded and phase-valid, and public upgrade daily smoke covers
+Home AI source preflight, plugin clone/deploy closure, Hermes Agent runtime
+repair gating, Provider/profile closure validation, source-adoption gating, and
+temporary-root cleanup.
+The install/upgrade canary must additionally prove
+`adapters/home-ai-install-upgrade-canary-service.js` and
+`scripts/homeai-install-upgrade-canary.js`: plan mode is non-mutating,
+source-safe execute mode runs the maintained fresh-install and upgrade closure
+phases, public repository clone rehearsal is gated by
+`--execute-public-rehearsal`, the phase ledger covers source preflight,
+Owner/key bootstrap, Home AI install, Hermes Agent runtime, Provider ingress,
+plugin registration, Gateway/tool schema, plugin MCP/schema smoke, public
+upgrade rehearsal, and production closure readback. Source-safe `--execute`
+reports must keep `executionClass=source_safe_rehearsal`,
+`closureStatus=partial`, and `cleanTargetCanary.status=not_run` unless a
+dedicated install/deploy lane supplies bounded `--clean-target-readback-json`
+evidence. The report must include bounded step evidence for temporary-root
+fresh-install and upgrade rehearsal/execute cleanup so Owner Console can
+distinguish source-safe rehearsal from an aggregate phase summary, but Owner 3A
+evidence must still keep clean-target closure `partial` until the lane readback
+itself is passed. It must contain only bounded phase summaries rather than raw
+command logs.
+Self-improving loop collector tests must also prove that
+`production_rehearsal_requires_service_user` is a skipped, non-diagnostic
+`install_upgrade_canary` observation in source context and remains a failed
+diagnostic in production context.
 Focused checks:
+`npm run test:install-lane`,
+`node tests\home-ai-install-upgrade-canary-service.test.js`,
+`node tests\homeai-install-upgrade-canary-script.test.js`,
+`node scripts\homeai-install-upgrade-canary.js --json`,
+`bash -n scripts/homeai-self-improving-loop-cron.sh`,
+`node tests\macos-automation-cron-audit.test.js`,
+`node tests\production-self-diagnostics.test.js`,
 `node tests\public-release-closure-service.test.js`,
 `node tests\homeai-public-release-closure-script.test.js`,
 `node tests\public-remote-deploy-smoke-service.test.js`,
 `node tests\homeai-public-remote-deploy-smoke-script.test.js`,
 `node tests\public-upgrade-rehearsal-service.test.js`,
 `node tests\homeai-public-upgrade-rehearsal-script.test.js`,
+`node tests\deploy-upgrade-lane-closure-service.test.js`,
+`node tests\deploy-upgrade-lane-closure-smoke.test.js`,
+`node scripts\deploy-upgrade-lane-closure-smoke.js --json`,
 `node tests\public-upgrade-orchestrator-service.test.js`,
 `node tests\homeai-public-upgrade-script.test.js`,
 `node tests\public-plugin-sources.test.js`,
@@ -2259,6 +2666,12 @@ harnesses must also cover orientation recovery: after landscape/portrait changes
 the client must clear stale keyboard viewport state when the composer is no
 longer actually focused, clear temporary conversation scroll-layer reset state,
 recompute bottom navigation reservation, and recalculate long-reply arrows.
+Native iOS shell keyboard-focus changes must also run
+`node tests/keyboard-focus-guard-ui.test.js`: the Web app must clear hidden,
+detached, inert, disabled, or zero-layout focused editables, while ordinary PWA
+non-editable touches preserve a visible Composer focus and iOS native-shell
+non-editable touches release the active editable to prevent stale WKWebView
+keyboard resurrection.
 
 Static client UI tests must cover device-local theme settings when the settings
 sheet changes: `system` / `light` / `dark` options render in the settings menu,
@@ -2319,6 +2732,12 @@ reading shell rather than nested table-like card grids. Assertions should cover
 `app-learning-growth-task-ui`, `app-learning-program-ui`, `app-share-image-ui`,
 and CSS rules that prevent card detail sections and structured questions from
 compressing mobile text width.
+
+Image-share pipeline changes must run `node tests\share-image-ui.test.js`.
+Android/iOS native-shell image share changes must prove the Web side attempts
+`HomeAINativeShare.share()` before Web Share, clipboard, or download fallback
+and that browser/PWA fallback behavior remains available when the bridge is not
+advertised.
 
 Action Inbox harnesses must cover the low-click delivery and Todo semantics:
 Automation delivery rows with `sourceRef.latestDeliverable` must render a
@@ -2439,6 +2858,10 @@ panel height-bounded in the same message body, and return to the full receipt
 renderer after terminal message update. UI fallback tests must assert unnamed
 function events are omitted instead of rendering generic labels such as
 `Function` or duplicated labels such as `Function Function`.
+Terminal message invalidation must also prove that a final assistant message
+arriving while streaming is active queues a current-thread receipt refresh in
+the same page, and that the refresh requests `stickToBottom=false` while the
+five-second user-scroll protection window is active.
 Terminal assistant receipts must collapse completed run-progress details into a
 footer tag similar to Usage/Skill; opening the tag shows historical rows from
 the first retained event, remains scrollable and inside the portrait viewport,
@@ -2552,7 +2975,7 @@ OpenAI-Codex quota failover changes also require
 | Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js`, `node tests\playwright-visual-smoke-harness.test.js`, `node scripts\playwright-visual-smoke.js`. Host-owned mobile bottom chrome changes must also prove runtime measured bottom-stack CSS variables, adjacent Dock/bottom-nav rects, no clipping, no overlap on the target production origin, and for global Dock handle changes `npm run ios:pwa:visual -- --scenario global-plugin-dock-gesture-stability`. |
 | Host voice input | Current focused checks: `node tests\voice-input-service.test.js`, `node tests\voice-input-asr-provider.test.js`, `node tests\voice-input-correction-service.test.js`, `node tests\voice-input-api-routes.test.js`, `node tests\voice-input-ui.test.js`, `node tests\architecture-refactor-boundary.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\macos-production-deploy-script.test.js`, `node tests\local-asr-service-installer.test.js`, `node tests\task-list-ui.test.js`, `node tests\static-cache-version-harness.test.js`, and `node scripts\privacy-scan.js`. Local browser smoke should verify Home AI native composer long-press, streaming partial text in the active native composer when FunASR streaming is configured, final text replacing provisional text without duplication, whole-clip fallback when streaming fails, Kanban/todo creation, Automation create/edit, todo comment/revision, Growth teaching quick-check insertion, missing-ASR visible disabled state, no native text selection/callout, no ordinary-submit side effect, and no page errors. Real-device/PWA closure still needs `npm run ios:pwa:visual -- --scenario voice-input-overlay-composer --debug-url http://127.0.0.1:19073/` and, after embedded Codex adopts the bridge, `npm run ios:pwa:visual -- --scenario voice-input-overlay-plugin-composer --plugin-id codex-mobile --plugin-thread-id <thread-id> --debug-url http://127.0.0.1:19073/`. Harness must prove host-owned microphone permission/overlay, send-button tap-vs-long-press behavior, permission prompt release-cancel, release-to-transcribe, no native text selection/callout, silent close for too-short recordings, missing-ASR disabled state, conservative correction learning after final send, wrong-origin/stale-session rejection, no keyboard simulation, host draft auto-insertion into every registered native composer, streaming HTTP chunk routes, and protocol-based draft insertion into active plugin composers. Native-shell voice work must additionally prove the shell does not show a separate transcript editor as the primary input surface, composition sessions reject stale/out-of-order partials, provisional text patches only the active Composer range, final text replaces the provisional range without duplication, and user edits inside the provisional range are not overwritten. |
 | Native iOS shell | `node tests\plugin-workspace-platform-contract-check.test.js`, `node scripts\plugin-workspace-platform-contract-check.js --target home-ai-native-ios --json`, `node tests\architecture-code-test-harness-map.test.js`, and from `/Users/example/path AI`: `xcodebuild -project 'Home AI.xcodeproj' -scheme 'Home AI' -destination 'generic/platform=iOS Simulator' build`. Native APNs server-side changes also run the Native Notifications checks above. Native voice-input bridge changes also run the Host Voice Input checks plus the Xcode build. System share/receive changes must prove authenticated workspace/thread/directory/plugin target validation and no plugin credential storage in the native shell. WebView stability bridge changes must prove bounded native-to-Web health/layout events without moving product UI ownership into native code. Any native-shell compatibility change must also prove the standalone PWA/browser path without `nativeShell=ios` keeps the existing UI, navigation, composer, plugin, and permission behavior. Apple Watch and Bluetooth/BLE remain deferred and require a new product requirement plus focused validation plan before any implementation work. |
-| Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-todo-service.test.js`, `node tests\action-inbox-todo-skill-doc.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\autonomous-delivery-coordinator-service.test.js`, `node tests\autonomous-delivery-api-routes.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js`. Manual Product Reality audit UI must prove the user action sends a central audit request card and does not present a local CRON/Automation background job as the execution path. Autonomous Delivery Loop UI must prove `新建交付 Loop` posts the Owner objective to case creation, case creation only creates an Owner start item, Owner start has visible pending/failure feedback, each slice stores bounded AI Ops required-check/evidence projection, task cards include selected checks, verification review exposes Owner-triggered `开始验证` with visible pending/failure feedback, implementation/repair returns that require production evidence expose Owner-triggered `部署读回` with visible pending/failure feedback and no local deploy side effect, failed verification returns expose Owner-triggered `发修复卡` with visible pending/failure feedback and no auto-dispatch, completed verification returns create Owner-triggered `完成闭环` closure feedback instead of recursive verification requests, return metadata can trigger local AI Ops evidence-ledger verification while storing only pass/fail, record count, bounded issues, and hash-only artifact references, Owner closure creates a `查看报告` final-report row with AI Ops check/evidence summaries plus ledger verification summaries without dispatching another task card, and no task-card dispatch happens before Owner action. Legacy plugin audit projection tests remain summary-only when that diagnostic path is exercised: no full report bodies, raw diffs, executor logs, prompts, secrets, tokens, push endpoints, raw evidence ledger paths, raw artifact paths, or private filesystem paths in Inbox records. |
+| Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-todo-service.test.js`, `node tests\action-inbox-todo-skill-doc.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\task-card-dispatch-result-service.test.js`, `node tests\autonomous-delivery-coordinator-service.test.js`, `node tests\autonomous-delivery-api-routes.test.js`, `node tests\owner-system-console-service.test.js`, `node tests\owner-system-console-ui.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js`. Manual Product Reality audit UI must prove the user action sends a central audit request card and does not present a local CRON/Automation background job as the execution path. Autonomous Delivery Loop UI must prove `新建交付 Loop` posts the Owner objective to case creation, case creation only creates an Owner start item, Owner start has visible pending/failure feedback, each slice stores bounded AI Ops required-check/evidence projection, task cards include selected checks, implementation slices targeting the same workspace are not concurrently dispatched and instead record `dispatchStatus=deferred_conflict`, task-card routing failures are recorded as `dispatchStatus=failed` instead of sent worker tasks, Owner System Console shows unresolved dispatch conflicts/failures as a read-only Autonomy signal with bounded counts/codes and no retry side effect, verification review exposes Owner-triggered `开始验证` with visible pending/failure feedback, implementation/repair returns that require production evidence expose Owner-triggered `部署读回` with visible pending/failure feedback and no local deploy side effect, failed verification returns expose Owner-triggered `发修复卡` with visible pending/failure feedback and no auto-dispatch, Owner review rows stay open when task-card transport fails or returns no concrete card id, completed verification returns create Owner-triggered `完成闭环` closure feedback instead of recursive verification requests, return metadata can trigger local AI Ops evidence-ledger verification while storing only pass/fail, record count, bounded issues, and hash-only artifact references, Owner closure creates a `查看报告` final-report row with AI Ops check/evidence summaries plus ledger verification summaries without dispatching another task card, and no task-card dispatch happens before Owner action. Legacy plugin audit projection tests remain summary-only when that diagnostic path is exercised: no full report bodies, raw diffs, executor logs, prompts, secrets, tokens, push endpoints, raw evidence ledger paths, raw artifact paths, or private filesystem paths in Inbox records. |
 | Embedded plugin host / Wardrobe, Codex, Finance, Email, Health, Note, Growth, and Moira plugin tabs | `node tests\hermes-plugin-authorization-service.test.js`, `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\codex-mobile-recovery-service.test.js`, `node tests\codex-mobile-recovery-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-viewport-stability.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node scripts\macos-wardrobe-binding-production-smoke.js` on Mac production after Wardrobe binding repairs, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\health-plugin-provisioning-service.test.js` when Health behavior changes, `node tests\note-plugin-provisioning-service.test.js` when Note behavior changes, `node tests\growth-plugin-provisioning-service.test.js` when Growth pluginization behavior changes, `node tests\moira-plugin-provisioning-service.test.js` when Moira provisioning behavior changes, `node tests\mcp-tool-upgrade-closure-harness.test.js` and `node scripts\mcp-tool-upgrade-closure-smoke.js` when plugin MCP tools change, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. Codex Mobile host recovery must prove `401` and healthy listeners do not execute the restart script, while listener-missing or stopped-LaunchDaemon states can list homes, dry-run, and execute a selected profile through Owner-only routes. Moira development host insertion must additionally run `npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id moira --debug-url http://127.0.0.1:19073/ --app-url "http://<mac-lan-ip>:8899/?view=moira&pluginRoute=new_chart&pluginContextNavPluginId=moira" --expected-client-version 20260612-plugin-system-nav-v717` and record the artifact/evidence id in the Moira pointer doc. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. Plugin-manager projection must also prove Owner records can be persisted, Owner workspace-local key/config discovery is reflected as already enabled, and failed Owner provisioning remains a retryable diagnostic instead of reverting to a plain unopened button. |
 | Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\app-plugin-topics-ui.test.js`, `node tests\static-cache-version-harness.test.js`, and `node tests\playwright-visual-smoke-harness.test.js`. Service/runtime phases: `node tests\plugin-topic-usage-service.test.js`, `node tests\plugin-topic-usage-api-routes.test.js`, `node tests\plugin-capability-probe-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-instruction-service.test.js`, `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app launch from the global bottom Dock, the built-in Directory icon in that Dock, the Dock `常用` quick-action card, touch long-press/context quick-action menus including explicit `换位` drag-reorder mode, bounded move controls, and `pluginDrawerMenuGesture=touch-longpress`, global Dock handle mistouch/open/close gesture stability through `global-plugin-dock-gesture-stability`, native quick-action/menu/strip/action-route gesture proof through `plugin-drawer-action-gestures`, including Chat bottom-tab and top-level plugin App surfaces, usage-backed frequent quick actions with no trailing source badges, same-action repeated usage promotion such as `wardrobe:style` moving ahead by count/recency, immediate Dock/menu redraw after local usage writes, a six-entry quick-action cap in the `常用` menu, runtime measured bottom-stack placement for the collapsed and expanded Dock states, primary bottom nav, and plugin pages where primary bottom nav remains visible, and the absence of mid-page plugin desktop icons. Usage-backed quick actions plus manual Dock/drawer `pluginOrder` and pinned bottom-tab order must be server-persisted through `/api/plugin-topic-usage` per workspace; localStorage is only a first-paint/offline cache and client reset must preserve that cache. Cold-start tests must prove server preferences preserve known plugin ids such as `codex-mobile` while manifest availability is still loading, then restore pinned bottom tabs and drawer order as soon as the plugin becomes available without another server round trip. The standalone Capability page is retired: Dock `常用` carries quick actions, the root Topics page carries plugin conversation shortcuts, Directory-bound topic collections, and ordinary topic cards, and daily app launch stays in the global bottom Dock. The same harness must cover the Directory capability with no generic mini-button stack, bottom Dock icons without nested framed panels, six visible Dock entry slots before horizontal scrolling, host primary bottom navigation with Chat, Inbox, and Topics plus optional workspace-scoped pinned plugin tabs up to six total, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, plugin-topic detail toolbars showing only the active directory chip with no plugin-topic dropdown, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, preventing plugin topic detail loads from overwriting the task-list root cache, prioritizing plugin-context home before ordinary task-detail back for plugin topic details, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving ordinary system bottom navigation on plugin app pages while retaining plugin-context state for back/route restoration, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
 | Directory-bound topic collections | Planned: `node tests\directory-topic-binding-service.test.js`, `node tests\directory-topic-context-service.test.js`, `node tests\directory-topic-api-routes.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\context-assembly-service.test.js`, and `node tests\task-list-ui.test.js`; current frontend projection is also covered by `node tests\app-plugin-topics-ui.test.js`, `node tests\directory-plugin-navigation-ui.test.js`, `node tests\directory-run-scope-service.test.js`, `node tests\gateway-run-request-builder-service.test.js`, and `node tests\gateway-run-instruction-service.test.js`. Harness must cover multiple topics per directory, one default topic per directory, default-topic reassignment without deleting secondary topics, explicit open-directory/open-default-topic/open-topic-picker actions, workspace isolation, cleaned/selected/bounded directory context, target-workspace Gateway/MCP scope for directory-bound runs, and exclusion of fixed plugin topics from directory collections. Frontend harness must also prove the topic list can render its first frame before directory-topic aggregation runs, that directory collections are visually attached below the Capability Entry Hub quick-action area, that only the first three most recently updated directory collections default expanded while older collections default collapsed, that manual collapse/expand overrides persist in device-local storage, that the directory header keeps the folder icon on the left with bound topic chips below, that background aggregation/API refresh preserves the user's current topic-list scroll position, that deferred directory-topic rendering waits while scroll/swipe gestures are active, that built-in Directory plugin back returns from route-root to the Directory root listing before restoring the outer route, and that task-list vertical pan is not captured by sidebar right-swipe handling, because directory route extraction may scan many existing messages on large accounts. |

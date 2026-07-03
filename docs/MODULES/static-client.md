@@ -14,6 +14,18 @@ The static client owns PWA UI, client routing, service worker cache behavior, an
 - `tests/task-list-ui.test.js`
 - focused UI tests such as `tests/app-learning-growth-ui.test.js`
 
+Owner-only operational UI follows the same static shell rules. The first
+System Console MVP lives in `public/app-owner-system-console-ui.js`, is loaded
+through `public/index.html` and `public/service-worker.js`, and is covered by
+`tests/owner-system-console-ui.test.js` plus `tests/task-list-ui.test.js`.
+Its Owner-visible copy defaults to Chinese while stable operator terms such as
+`Gateway`, `Plugin`, `Runtime`, `SLO`, and `Canary` may remain English. Owner
+reachability is also part of the shell contract: Settings may expose an
+explicit button, and the existing global three-finger long-press feedback menu
+must show an Owner-only `系统控制台` action when the current session is Owner.
+The three-finger gesture remains the feedback-menu gesture; do not add a
+separate competing bottom-navigation long-press route for the console.
+
 ## Frontend Build Direction
 
 The existing primary PWA shell remains the stable ordered `public/app-*.js`
@@ -24,6 +36,531 @@ service-worker registration, or global navigation. The central rule lives in
 `docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md` under
 `Frontend Build Boundary`; Vite-built output must still obey this module's
 static version, service-worker cache, deployment, and harness rules.
+
+The first production Vite cutover is a transitional bootstrap, not the final
+full-shell replacement. The Home AI listener still serves the classic
+`public/index.html` business shell, and Vite mode injects only the built
+production bootstrap module at
+`public/vite-islands/home-ai-production-bootstrap/home-ai-production-bootstrap.js`.
+That module installs bounded Vite readback state and the focus lifecycle guard
+while preserving the classic runtime. Shell selection is owned by
+`adapters/mobile-http-runtime-service.js`, `mobile-server-runtime.js`, and
+`config/home-ai-shell-mode.json`. Production reads the runtime config root
+first, then falls back to the app-local config file so deploys do not depend on
+hand-editing a private data config path. If the config/env/request mode is
+missing or invalid, the server fails closed to `classic`; rollback is changing
+the mode back to `classic` and restarting Home AI.
+
+The Owner System Console Vite migration pilot remains an island boundary:
+`npm run build:vite` builds the island from
+`src/vite-islands/owner-system-console/` into `public/vite-islands/`, and the
+manual built preview page is `public/vite-preview/owner-system-console.html`.
+For source development, `npm run dev:vite` serves the island at
+`/vite-owner-system-console-preview/`. Island preview pages must not be treated
+as a replacement for the production shell unless a separate source-change
+contract and production readback prove that specific boundary.
+
+The full primary-shell migration target is
+`docs/IMPLEMENTATION_NOTES/vite-full-frontend-migration-target.md`. It is a
+development-environment objective only: it may build and validate a Vite app
+preview, but it does not authorize changing production `/` away from the
+classic shell.
+
+The current full-app Vite preview host lives in `src/vite-app/`, builds to
+`public/vite-islands/home-ai-app-preview/`, and can be opened after
+`npm run build:vite` at `public/vite-preview/home-ai-app.html`. During
+`npm run dev:vite`, it is served at `/vite-app-preview/`. This page is not
+referenced by `public/index.html` or `public/service-worker.js`.
+
+The production bootstrap entry lives at
+`src/vite-app/production-bootstrap.mjs`. It is a separate Vite build input from
+the development full-app preview and must not import preview-only API mocks or
+replace the classic global facade. It exposes bounded status through
+`window.HomeAiViteProduction.status()` for production readback and keeps
+`window.HomeAiRuntimeFacade` owned by the classic shell until later ESM slices
+take over the corresponding workflows.
+
+The Vite migration runtime facade lives at
+`src/vite-app/runtime/home-ai-runtime-facade.mjs`. It is the explicit import
+boundary for Vite modules that need API, auth/access-key, event, feedback,
+route, diagnostic transport, dedupe state, or native-shell bridge access.
+During the migration it may be attached as
+`window.HomeAiRuntimeFacade` for classic compatibility, but new code must not
+create new unmanaged `window.state` or boot-order globals. The focused guard is
+`tests/vite-runtime-facade.test.js`.
+
+The classic static shell also loads `public/app-runtime-facade-ui.js` after
+`app-api-client.js`. That bootstrap attaches a minimal `HomeAiRuntimeFacade`
+for ordered static-script consumers before Owner Console and AI Ops modules
+run. It owns temporary classic-shell `fetch`, `localStorage`, and cookie access
+for diagnostic keepalive delivery, dedupe state, access-key cookie sync, and
+`HermesAppApiClient` delegation until the full shell imports the ESM facade
+directly.
+
+The Owner System Console is the first runtime-facade consumer in the migration:
+the Vite island uses `runtime.api` / `runtime.events` / `runtime.state`, and the
+classic `public/app-owner-system-console-ui.js` module optionally uses
+`window.HomeAiRuntimeFacade.api` when that compatibility facade is present. If
+the facade is absent, the classic module must continue to use the existing
+static-shell `api()` helper and preserve the Owner-only gate. Its view-mode
+activation uses `runtime.route.setViewMode()` / `runtime.route.getViewMode()`;
+the ESM facade and classic bootstrap own the temporary
+`localStorage.hermesWebViewMode` browser boundary, not the Owner Console
+module. The Owner Console Vite island's pure rendering/error model lives in
+`src/vite-islands/owner-system-console/model.mjs`; that model owns bounded
+Chinese UI copy, status labels, HTML escaping, and non-Owner permission error
+rendering while `main.mjs` stays as runtime/DOM glue.
+
+During local Vite development only, `vite.config.js` serves metadata-only mock
+responses for selected Vite preview API paths through
+`adapters/vite-dev-preview-api-mock-service.js`. This keeps
+`/vite-owner-system-console-preview/` and `/vite-navigation-shell-preview/`
+console-clean without a running Home AI backend. The mock response is marked
+with `X-HomeAI-Vite-Dev-Mock` and must not be used as production Owner
+permission/readback evidence or wired into `server.js`.
+
+AI Ops diagnostic feedback is the second runtime-facade consumer in the
+migration. The classic `public/app-ai-ops-diagnostics-ui.js` module prefers the
+facade for diagnostic API submission, event fanout, state projection, and
+feedback status/toast events. It keeps classic fallback behavior while the
+ordered shell remains active. Its client-layout diagnostic keepalive transport
+now goes through `runtime.diagnostics.sendClientLayoutDiagnostic`, and plugin
+conversation repair request dedupe now goes through `runtime.dedupe`; the AI
+Ops module no longer owns direct `fetch` or `localStorage` for those paths.
+
+Host Voice Input is now also a runtime-facade consumer in the migration. The
+classic `public/app-voice-input-ui.js` module uses
+`window.HomeAiRuntimeFacade.native` for native voice-shell detection, native
+bridge availability, `homeAI` native message posting, remembered microphone
+grant/status-panel storage, request ids, and native callback registration. The
+voice module must not directly own `localStorage`,
+`window.webkit.messageHandlers.homeAI.postMessage`,
+`window.HomeAINativeVoiceInputCapability`, or
+`window.HomeAINativeVoiceInput` for those boundaries. Its remaining direct
+`AudioContext` selection is an explicit temporary audio-capture boundary until
+voice recording is moved behind an imported Vite adapter.
+
+The development-only Vite Voice Input status island lives in
+`src/vite-islands/voice-input-status/`, with dev route
+`/vite-voice-input-status-preview/` and built preview page
+`public/vite-preview/voice-input-status.html`. Its model module owns bounded
+Chinese status labels, pending-gesture guard timing, cancelability, terminal
+auto-hide timing, duration formatting, and native-status normalization. This is
+not a full voice runtime replacement: it does not call microphone APIs, start
+`MediaRecorder`, write Composer text, or change the production classic voice
+module. It is a Phase 5 preparation boundary so future voice runtime migration
+can import a pure status model instead of copying classic-shell state rules.
+The same island now imports
+`src/vite-islands/voice-input-status/session-controller.mjs`, which owns pure
+begin-press, short-press cancel, long-press threshold, release-to-stop, pending
+guard timeout, native terminal status, and terminal auto-hide transitions with
+injected timers. The preview exposes `开始长按`, `达到阈值`, `松手`,
+`pending 超时`, and `自动隐藏` controls so the stale pre-recording pending
+state can be tested locally without microphone, ASR, or production shell IO.
+The voice island now also imports
+`src/vite-islands/voice-input-status/audio-capture-adapter.mjs`, a browser
+global-free ESM adapter for injected microphone capability checks, recorder
+session wrapping, held-stream cleanup, PCM16 downsampling, base64 conversion,
+and streaming chunk buffer policy. The dev preview renders only fixture
+readiness for this adapter and never asks for microphone permission. Production
+recording remains owned by `public/app-voice-input-ui.js` until a later
+voice-runtime slice explicitly wires this adapter into the classic fallback or
+full Vite shell and passes live local voice harnesses.
+
+Task/document preview helpers are also runtime-facade consumers in the
+migration. `public/app-task-preview-helpers-ui.js` prefers
+`window.HomeAiRuntimeFacade.api` for preview JSON requests and
+`window.HomeAiRuntimeFacade.documentPreview.fetchBlob()` for authenticated blob
+reads used by save/share/download actions. `public/app-task-preview-ui.js`
+must read Markdown preview text through the helper API path instead of creating
+its own authenticated `fetch`. The preview helper must also avoid direct
+`localStorage.hermesWebWorkspace` access; workspace selection is read from
+`runtime.state.selectedWorkspaceId`, classic `state.selectedWorkspaceId`, then
+the bounded `owner` fallback. The preview UI must avoid direct
+`localStorage.homeAI.nativeShell` access; native-shell return routing uses
+`runtime.native.nativeShellParam()` while preserving the existing `ios` and
+`android` URL/dataset fallback behavior. Directory viewer now loads
+`app-api-client.js`, `app-runtime-facade-ui.js`,
+`app-task-preview-helpers-ui.js`, and `app-task-preview-ui.js` in that order.
+Directory viewer's inline directory load/create/upload/delete calls now use
+`window.HomeAiRuntimeFacade.api`; the viewer no longer reads `hermesWebKey`,
+constructs `X-Hermes-Web-Key`, or calls `fetch()` directly for directory API
+operations. Its early `hermesWebTheme` read remains a narrow first-paint theme
+bootstrap until the viewer is migrated to an imported Vite entry. Its
+temporary `TaskDocumentPreviewUi` access is tracked as the classic preview
+overlay bridge until the viewer and preview UI are imported modules. The
+preview helper no longer owns a direct authenticated `fetch` fallback or
+constructs `X-Hermes-Web-Key`; missing facade/API wiring must fail as a
+bounded preview-not-ready state.
+
+The development-only Vite Document Preview island lives in
+`src/vite-islands/document-preview/`, with dev route
+`/vite-document-preview-preview/` and built preview page
+`public/vite-preview/document-preview.html`. Its pure model owns
+Markdown/image/document classification, Markdown preview API routing, same
+origin viewer/native URL construction, mobile in-app overlay policy, native
+shell/open-in strategy selection, and PPT/PPTX native request metadata with
+`kind=powerpoint`. The island is read-only fixture evidence for Markdown,
+PPTX, DOCX, PDF, image, and unsupported external files. It does not download or
+share files, does not call native document bridges, and does not replace the
+production classic preview overlay.
+
+The development-only Vite Plugin Host island lives in
+`src/vite-islands/plugin-host/`, with dev route
+`/vite-plugin-host-preview/` and built preview page
+`public/vite-preview/plugin-host.html`. Its model owns bounded embedded-plugin
+manifest normalization, Owner permission fail-closed state, launch-token
+redaction, iframe eligibility, same-origin and mixed-content checks, manifest
+freshness, and refresh evidence. The island reads sampled plugin manifests only
+through `HomeAiRuntimeFacade.api` and the Vite dev mock. It does not replace
+the production resident iframe host and does not bundle plugin-owned UIs into
+the Home AI shell.
+
+The AI Ops feedback menu is also the first Phase 3 low-risk Vite island. Its
+source lives in `src/vite-islands/ai-ops-feedback/`, the Vite dev route is
+`/vite-ai-ops-feedback-preview/`, and the built dev preview page is
+`public/vite-preview/ai-ops-feedback.html`. The island uses the runtime facade
+and posts only bounded diagnostic metadata; it strips unsafe route parameters
+before submission and shows the Owner-only `系统控制台` action only when the
+Owner capability is available. This preview is not referenced by
+`public/index.html` or `public/service-worker.js`, so it does not change the
+production three-finger feedback menu or static cache version by itself.
+
+The Phase 4 navigation shell island lives in
+`src/vite-islands/navigation-shell/`, with dev route
+`/vite-navigation-shell-preview/` and built preview page
+`public/vite-preview/navigation-shell.html`. Its model owns view-mode alias
+normalization, primary-tab metadata, Owner-only console tab gating, cached
+topic/task shell status, directory topic collection grouping, task-root render
+signatures, and classic fallback route construction. Its compatibility adapter
+selects a root thread from the runtime state snapshot, preferring the classic
+`taskListThread` cache when available, without directly reading classic
+`window.state`. The task/topic root HTML block is rendered by
+`src/vite-islands/navigation-shell/task-topic-root-renderer.mjs` so preview
+mounting and topic-root row rendering can advance independently. Row activation
+is modeled by `src/vite-islands/navigation-shell/task-topic-action-model.mjs`,
+which produces route patches and classic fallback hrefs for directory, regular,
+and plugin topic rows. The first read-only task/topic data boundary is isolated
+in `src/vite-islands/navigation-shell/task-topic-data-source.mjs`; it builds
+the existing `GET /api/threads/:id?messageMode=tasks` request and loads it only
+through `HomeAiRuntimeFacade.api`. It is used for both root and selected-topic
+refresh, records bounded read status/source, selected `taskGroupId`, message
+mode, and message count, and is triggered by topic-row activation plus browser
+history restoration in the development preview. The selected-topic detail model
+in `src/vite-islands/navigation-shell/task-topic-selected-view-model.mjs`
+renders only bounded role/status/text-preview and attachment/artifact/tool-call
+counts from the scoped read payload. It preserves real thread-read pagination
+metadata by separating total messages, loaded messages, `hasMoreBefore`, and
+oldest/newest message ids, and it keeps root reads explicit instead of showing
+arbitrary task messages as selected-topic detail. It is still read-only
+development preview coverage and does not replace chat detail, Composer, SSE,
+or message actions.
+`src/vite-islands/navigation-shell/task-topic-cache-reconciliation-model.mjs`
+keeps the root task/topic cache and selected-topic detail cache separate:
+root reads update `taskListThread` plus `taskListRootCache`, while selected
+topic reads update `taskTopicSelectedThread` plus
+`taskTopicSelectedCache` and must not overwrite the root topic list. Browser
+back to the task root clears the selected-topic detail cache so stale message
+payloads are not replayed as the root shell.
+`tests/vite-navigation-thread-view-payload-compat.test.js` ties this boundary
+to the backend `thread-view-service` `compactThreadWithMessagePage()` payload,
+so the Vite model is not validated only against the local dev mock.
+In Vite dev server mode,
+`adapters/vite-dev-preview-api-mock-service.js` returns a metadata-only
+`thread_vite_navigation_preview` fixture so `/vite-navigation-shell-preview/`
+can validate the path without a running backend. That mock must not be wired
+into `server.js` and is not production permission or readback evidence.
+Development-preview URL/history synchronization is isolated in
+`src/vite-islands/navigation-shell/route-sync-model.mjs`; it accepts only
+bounded non-secret query parameters, updates the Vite preview URL through the
+runtime facade route bridge, and is not production route evidence. This is not
+the production navigation replacement:
+`public/app-automation-ui.js`,
+`public/app-wire-start-ui.js`, and `public/app-thread-list-ui.js` remain the
+classic navigation/render owners until later parity slices move cached
+topic/task rendering and selected-view refresh into imported modules.
+
+The first Phase 5 message-action slice lives in
+`src/vite-islands/message-action-panel/`, with dev route
+`/vite-message-action-panel-preview/` and built preview page
+`public/vite-preview/message-action-panel.html`. It is a read-only projection
+for Usage/footer message actions. The initial model covers Wardrobe
+`outfit_wear_intent` action metadata and diagnostics from the same public
+message fields used by `public/app-message-actions-ui.js`, including ready,
+stored/readback-verified, confirmation, error, expired, and missing-intent
+states. It renders Chinese labels such as `入库`, `已入库 #... · 已验证`, and
+`需重新生成`, but it does not execute MCP tools, call the
+plugin-conversation action route, or replace the classic message footer.
+Production execution and confirmation remain classic until a later Phase 5
+cutover slice adds live send/confirm/error/readback harness coverage.
+
+The current Phase 5 development slice adds that first parity harness for the
+Wardrobe action without changing production ownership. The island now includes
+`src/vite-islands/message-action-panel/action-client.mjs`, which builds the
+same plugin-conversation action request body as the classic bridge and calls it
+only through `HomeAiRuntimeFacade.api`. During `npm run dev:vite`, the Vite
+middleware handles `POST
+/api/plugin-conversation/actions/wardrobe/outfit-wear-intent` with a
+metadata-only mock: `create_only` returns `needs_confirmation`, and the
+follow-up `replace` request returns `stored` with `readbackVerified=true`.
+The mock does not call Wardrobe MCP and must not be used as production
+readback evidence. `npm run build:vite` emits a `built read-only` static
+preview so opening `public/vite-preview/message-action-panel.html` cannot
+accidentally call the real action route. The production action owner remains
+`public/app-message-actions-ui.js` until a later cutover moves live action
+execution, Composer, and SSE into the Vite shell.
+
+The current Phase 5 chat runtime slice lives in
+`src/vite-islands/chat-runtime/`, with dev route
+`/vite-chat-runtime-preview/` and built preview page
+`public/vite-preview/chat-runtime.html`. Its model covers bounded
+`message.delta` patching, terminal assistant message refresh requests,
+`thread.updated` terminal-summary refresh, run-event projection,
+scope-mismatch diagnostics, streaming-buffer truncation, and user-scroll
+protection. Its adapter parses MessageEvent-style `data` frames, classifies
+chat versus non-chat events, delegates recognized chat events into the model,
+and records bounded diagnostics for invalid JSON or unrelated events. The
+preview now also includes `live-event-source-client.mjs`, which builds the
+classic-compatible `/api/events` URL and owns injected EventSource lifecycle
+status. The preview keeps a fake injected EventSource to validate deterministic
+open/message/reconnect/close and adapter handoff, and now also exposes a
+runtime-facade EventSource creation path for development verification.
+`HomeAiRuntimeFacade.eventStream` owns browser EventSource construction in both
+the ESM facade and the classic compatibility facade; the chat island must not
+instantiate `EventSource` directly. This does not send Composer messages, write
+attachments, or replace `public/app-event-stream-ui.js` and the classic
+Composer modules. Production streaming remains classic until real transport
+behavior and Composer parity are validated in a later development slice.
+
+The Vite dev server now provides bounded SSE evidence for that runtime-facade
+path at `/api/events?clientVersion=20260702-vite-chat-runtime-dev-v1`. The
+HTTP/SSE glue lives in `vite.config.js`; the fixture frame shape lives in
+`adapters/vite-dev-preview-api-mock-service.js`. The endpoint returns
+`text/event-stream` chat runtime frames for the preview thread only, does not
+echo access keys, and does not proxy or read production event traffic. The
+event stream adapter accepts browser-native `MessageEvent.data` prototype
+accessors as well as plain test objects, so local fake EventSource and real
+browser EventSource evidence exercise the same parser. This is still
+development-only and must not be used as production SSE cutover evidence.
+
+The chat runtime island has now entered the Composer/Chat detail ESM
+encapsulation stage for development only. `chat-detail-model.mjs` owns bounded
+message-row projection, task-group filtering, and usage/action flags.
+`composer-model.mjs` owns pure Composer action state and optimistic local-send
+row planning. `/vite-chat-runtime-preview/` exposes a `Composer ESM` strip that
+can simulate and clear local pending rows, but it must not call Home AI APIs,
+submit real Composer messages, upload attachments, or replace classic
+Composer/send/cancel modules until a later parity slice proves real runtime
+behavior.
+
+The current development-only boundary includes
+`src/vite-islands/chat-runtime/composer-api-client.mjs` and
+`src/vite-islands/chat-runtime/composer-controller.mjs`. The API client
+constructs the classic Composer send and interrupt requests for
+`POST /api/threads/:threadId/messages` and
+`POST /api/threads/:threadId/interrupt`, but executes them only through
+`HomeAiRuntimeFacade.api`. The controller composes that API client with the
+pure Composer model and owns dev-preview send/interrupt state transitions:
+optimistic rows, status projection, result thread merge, attachment
+consumption, token cleanup, and failure rollback. `vite.config.js` maps those
+requests to the Vite dev mock only for `thread_vite_chat_runtime_preview`. The
+built static preview page must keep the dev-mock send/stop controls disabled
+and must not emit real thread message or interrupt requests.
+`tests/vite-chat-composer-backend-contract.test.js` now backs this with a
+source-only contract harness against the real thread message create route and
+thread interrupt route, using injected fetch plus an in-memory disposable
+thread. That test proves route payload/header/readback alignment without
+starting production, without touching Owner data, and without replacing the
+remaining required live backend/SSE, upload, voice, focus, native-shell, and
+Owner acceptance evidence. `tests/vite-chat-composer-controller.test.js`
+guards the controller as browser-global-free and verifies success, blocked
+send, rollback, interrupt, and deduplicated readback merge behavior.
+
+The chat runtime now also has a development-only thread readback controller:
+`src/vite-islands/chat-runtime/thread-readback-controller.mjs`. It builds the
+classic `GET /api/threads/:threadId` readback request through injected
+`HomeAiRuntimeFacade.api`, consumes terminal-event `refreshRequests`, replaces
+the chat runtime thread with bounded readback state, clears the refresh queue
+after success, and records bounded diagnostics on failure. The source dev
+route exposes a `回读线程` control; the built static preview keeps real
+readback disabled by the same source-route guard used for dev-mock send/stop.
+`adapters/vite-dev-preview-api-mock-service.js` serves a metadata-only
+readback payload for `thread_vite_chat_runtime_preview`, while the local
+backend proxy can forward the same thread-read route to an isolated local
+Home AI backend. `tests/vite-chat-thread-readback-controller.test.js` guards
+the controller boundary and readback state merge.
+
+For local development only, Vite can now proxy bounded chat runtime parity
+routes to a real local Home AI dev server. The proxy is off by default and
+requires both `HOMEAI_VITE_DEV_BACKEND_PROXY=1` and
+`HOMEAI_VITE_DEV_BACKEND_BASE=http://127.0.0.1:<port>`. It is implemented in
+`adapters/vite-dev-backend-proxy-service.js` and wired in `vite.config.js`
+before the dev mocks. Eligible routes are `/api/events`, thread read,
+Composer send/interrupt, upload, and server-file attachment. If proxy mode is
+requested without a valid backend base URL, those routes return bounded `502`
+JSON instead of silently using mock evidence. The proxy is development-only,
+must not be wired into `server.js`, and is not production cutover evidence.
+Focused coverage lives in `tests/vite-dev-backend-proxy-service.test.js`,
+`tests/vite-dev-backend-proxy-integration.test.js`, and
+`tests/vite-dev-real-backend-parity-smoke.test.js`. The real-backend smoke
+uses a temporary data dir, a temporary Gateway Pool manifest, and a local fake
+Gateway worker. It verifies real SSE snapshot delivery through Vite, no-Gateway
+group-chat `plain` message persistence, AI Composer send through the real
+Gateway runner path, and interrupt through the real active-stream stop path.
+The fake Gateway fixture implements only bounded local `/health`,
+`/health/detailed`, `/v1/capabilities`, `/v1/responses`, and `/v1/runs/:id/stop`
+protocol behavior. It must not be treated as production Gateway, provider, or
+model-quality evidence.
+
+The chat runtime island now also owns a development-only attachment/upload
+state boundary in `src/vite-islands/chat-runtime/attachment-model.mjs` and
+`src/vite-islands/chat-runtime/attachment-upload-client.mjs`. The model
+normalizes pending artifacts, server-file attachment metadata, native share
+intake, upload request shape, bounded Composer artifact payloads, basename-only
+display labels, and remove/clear transforms without browser globals or direct
+network/file IO. The upload client accepts an injected
+`HomeAiRuntimeFacade.api` client and an injected file reader, then builds the
+classic `/api/threads/:threadId/uploads` request without owning `FileReader`,
+DOM state, auth headers, storage, or transport. `/vite-chat-runtime-preview/`
+renders an `附件 ESM` strip with metadata-only fixture controls for system file
+upload, server-file attachment, and native share, plus a development-only file
+picker that reads a local fixture in the preview glue layer and sends it to the
+Vite dev mock. Attachment-only Composer sends are valid in the model and can
+be sent to the Vite dev mock on the source dev route; successful dev-mock send
+consumes pending artifacts. Production attachments remain owned by
+`public/app-composer-attachments-ui.js` and `public/app-upload-sidebar-ui.js`
+until a later slice adds production upload route cutover, server-file attach,
+native share bridge, and Owner acceptance evidence under the Vite shell.
+
+`tests/vite-chat-attachment-upload-backend-contract.test.js` now exercises the
+Vite upload client against the real
+`server-routes/thread-read-upload-api-routes.js` upload route through an
+injected runtime API, in-memory disposable thread, and injected route
+dependencies. It proves bounded source-level parity for request shape,
+basename sanitization, artifact registration/readback, backend rejection
+propagation, and no raw base64 echo in artifact payloads. It remains
+development/source contract evidence only and does not replace the classic
+attachment UI, use Owner files, or authorize production Vite cutover.
+
+The server-file attachment path now has a parallel Vite ESM client at
+`src/vite-islands/chat-runtime/attachment-server-file-client.mjs`. It keeps
+server-file attachment behind injected `HomeAiRuntimeFacade.api`, never reads
+or re-uploads bytes, never constructs `dataBase64`, and normalizes artifacts as
+`server_file`. The classic production UI exposes this server-file selection only
+to Owner sessions, and the backend route rejects non-Owner callers before file
+path resolution; ordinary workspace users should use system file upload until a
+workspace-isolated server-share root is productized. The Vite dev mock handles
+`/api/threads/:threadId/server-file-attachments` for
+`thread_vite_chat_runtime_preview` only, returning bounded artifact metadata
+without source path echo. `tests/vite-chat-server-file-attachment-client.test.js`
+and `tests/vite-chat-server-file-attachment-backend-contract.test.js` cover the
+pure client and real route contract. Production remains classic until live
+native iOS shell smoke, authenticated backend parity, cutover planning, and
+Owner acceptance evidence are completed under the Vite shell.
+
+The native-share bridge now has a development-only Vite ESM intake client at
+`src/vite-islands/chat-runtime/attachment-native-share-client.mjs`. The runtime
+facade owns `HomeAINativeShare` callback registration through
+`registerNativeShareCallbacks()` and consumes `__homeAIPendingNativeShare` with
+bounded count-only events. The chat runtime preview installs the receiver,
+accepts `HomeAINativeShare.receive({ files })`, dedupes workspace/path pairs,
+and converts attached rows to `native_share` artifacts. The client does not
+read browser globals, storage, transport, `FileReader`, or Owner files; it only
+uses injected `runtime.native`, state readers/writers, and the shared
+attachment model. This is local development evidence and does not authorize a
+production shell or Service Worker cutover.
+
+The current Phase 5 focus lifecycle guard slice lives at
+`src/vite-app/runtime/focus-lifecycle-guard.mjs`. It is injected and
+browser-global free, and it mirrors the classic stale-editable policy from
+`public/app-composer-draft-ui.js`: stale hidden, detached, disabled, inert,
+zero-rect, or invisible active editables blur on lifecycle checks; ordinary
+PWA non-editable touches preserve a visible Composer focus; explicit iOS
+native-shell non-editable touches outside the active editable force a blur.
+`/vite-chat-runtime-preview/` installs this guard and shows a `Focus guard`
+status row plus a `清理焦点` manual cleanup button. This is local Vite
+development evidence only. Production still uses the classic Web guard and
+must keep native iOS defensive keyboard-focus protection until a future
+full-shell cutover is separately approved.
+
+Phase 2 global usage is now guarded by
+`scripts/vite-global-usage-audit.js` and
+`tests/vite-global-usage-audit.test.js`. Any classic module added to the Vite
+runtime-facade migration target set must either remove direct unmanaged
+`window.*` / `globalThis.*` / storage / fetch usage or register a narrow
+allowlist entry with an owner, reason, and removal trigger. The current audited
+classic modules are `public/app-runtime-facade-ui.js`,
+`public/app-owner-system-console-ui.js`, and
+`public/app-ai-ops-diagnostics-ui.js`. The Owner Console view-mode write has
+already moved behind the runtime facade route/state bridge; new classic
+consumers must follow the same pattern instead of adding direct storage or
+transport ownership. `public/app-voice-input-ui.js`,
+`public/app-task-preview-helpers-ui.js`, `public/app-task-preview-ui.js`, and
+`public/directory-viewer.html` are also in the audited target set for the
+runtime-facade migration slices.
+
+The development readiness gate is
+`scripts/vite-development-readiness-check.js`; run it as
+`npm run check:vite-readiness` after `npm run build:vite`, then run
+`node tests/vite-dev-preview-routes-smoke.test.js` for a mobile Playwright
+smoke of all Vite preview routes. This is a development-environment objective
+only and does not authorize changing production `/` away from the classic shell.
+The gate verifies required Vite preview routes, source modules, focused tests,
+documentation boundaries, built preview artifacts, and the rule that
+`public/index.html` and
+`public/service-worker.js` must not reference `/vite-preview/`,
+`/vite-islands/`, or `/vite-*-preview/` routes before a separate Owner-approved
+production cutover target exists.
+`npm run verify:vite-dev` is the maintained source-only development acceptance
+report. It runs the Vite build, global audit, mobile Playwright preview-route
+smoke, real local backend parity smoke, readiness gate, Owner review report,
+blocked cutover preflight, blocked handoff packet, repository static check,
+readback validator contract, local full test gate, and diff hygiene check. The
+local full test gate still skips install/deploy lane tests. It clears the
+cutover approval environment for the run and must report
+`productionWrites=false`, `deployExecuted=false`, and
+`productionDeployAuthorized=false`. A passing report also includes
+`ownerApprovalRequest.status=ready_to_request_owner_approval` with the exact
+Owner approval text for the next boundary, while still creating no production
+source change, deployment, or Worker card.
+The Owner review package for that later boundary is
+`docs/IMPLEMENTATION_NOTES/vite-production-cutover-review.md`; it is not a
+deployment receipt or approval record.
+`npm run review:vite-cutover` is the maintained source-only Owner review
+report. It composes readiness and cutover preflight evidence, records
+`productionWrites=false`, `deployExecuted=false`, and
+`productionDeployAuthorized=false`, and must not be treated as a deploy-lane
+request.
+The source-only cutover preflight is `npm run plan:vite-cutover`. It must
+report `productionWrites=false` and `deployExecuted=false`; without the exact
+Owner approval text from the review package it must fail closed with
+`owner_approval_required`.
+`npm run packet:vite-cutover` is the maintained source-only handoff packet for
+the post-approval boundary. It creates no task card, performs no production
+writes, and with exact Owner approval still outputs only a non-sendable
+deploy-lane draft until the separate fail-closed cutover source change exists
+and passes validation.
+The draft targets the Home AI deploy lane pool and must not be converted into a
+real card until the source-change validator passes with a bounded contract JSON.
+`npm run request:vite-cutover-approval` is the maintained source-only Owner
+approval request package. It runs/collects the development acceptance evidence,
+confirms Owner review readiness and the blocked handoff-packet boundary, and
+emits the exact approval text without creating a production source change,
+Worker card, or deployment.
+`npm run audit:vite-goal` is the maintained source-only goal-state audit. It
+requires bounded development acceptance, cutover source-change, and production
+readback evidence before it can report `goal_complete_verified`; default mode
+must report `goal_incomplete` before Owner approval and production readback.
+`npm run validate:vite-cutover-source` is the maintained source-only validator
+for the future production cutover source-change contract. Default current-repo
+mode remains blocked until the separate cutover source change exists. After
+exact Owner approval, it must pass with `--contract-json <file> --require-ok`
+before a deploy-lane card is sent.
+`npm run validate:vite-cutover-readback` is the maintained source-only
+post-deploy readback validator. It accepts a bounded deploy-lane JSON payload
+through `--readback-json`, verifies every required Vite cutover readback id,
+requires privacy confirmation, and performs no production connection or
+deployment.
 
 ## Version Rule
 
@@ -108,6 +645,96 @@ current text is empty or still matches the sent text. This protects iOS/PWA and
 embedded-plugin sessions from late input/composition events that can restore the
 old value after the initial clear, while preserving a different draft the user
 typed during the in-flight request.
+
+## Composer Runtime Modules
+
+Composer and conversation event-stream behavior remains part of the ordered
+static shell, but deterministic policy must stay in focused modules instead of
+returning to large catch-all entrypoints.
+
+The event/receipt protocol is defined in
+`docs/IMPLEMENTATION_NOTES/composer-event-contract.md`. Changes to Composer
+events, terminal receipts, current-thread refresh, scroll protection, or
+Composer self-checks must update that contract and run
+`node tests/composer-event-contract.test.js`.
+
+Current ordered Composer-adjacent modules:
+
+- `public/app-chat-composer-ui.js`: composer shell/action button and shared
+  view helpers.
+- `public/app-chat-scope-ui.js`: group-chat/chat-scope membership, read-state,
+  and unread helpers.
+- `public/app-composer-source-ui.js`: local/search source mode selection.
+- `public/app-composer-model-ui.js`: model/AI mention parsing and selected
+  model/provider derivation.
+- `public/app-composer-editor-ui.js`: text extraction, caret management,
+  composition fallback, paste handling, autosize, and key handling.
+- `public/app-composer-draft-ui.js`: composer focus suppression, foreground /
+  background draft handling, pending-thread foreground refresh, focus replay,
+  and draft-existence checks.
+- `public/app-mobile-layout-ui.js`: mobile viewport, keyboard, bottom-nav,
+  plugin-context viewport reservation, and client layout diagnostics. This is
+  intentionally outside the Composer namespace because other host/plugin
+  surfaces depend on the same viewport behavior.
+- `public/app-composer-context-ui.js`: compact composer context-chip rendering
+  only.
+- `public/app-composer-refresh-scheduler.js`: pure current-thread refresh
+  scheduling policy.
+- `public/app-composer-current-thread-refresh-ui.js`: route snapshotting,
+  current-thread refresh API orchestration, and topic-root refresh scheduling.
+- `public/app-composer-render-scheduler-ui.js`: current-thread render
+  coalescing.
+- `public/app-composer-streaming-message-ui.js`: bounded streaming assistant
+  content updates.
+- `public/app-composer-viewport-ui.js`: Composer-specific bottom-follow
+  decisions, terminal receipt stick-to-bottom policy, and send-time bottom lock.
+  It must honor the five-second user-scroll protection window.
+- `public/app-composer-self-check-ui.js`: metadata-only Composer runtime
+  self-check reporting for terminal receipt gaps, stale active-run state,
+  duplicate local/server user echoes, and protected-scroll bypass. It submits
+  only `home-ai-self-check` / `self_check_signal_failed` diagnostics so the AI
+  Ops self-check remediation gate can auto-dispatch repair cards; it must not
+  include message bodies, prompts, attachment contents, raw URLs, cookies, or
+  access keys.
+- `public/app-composer-message-invalidation-ui.js`: deterministic message
+  projection invalidation. Active assistant messages patch the visible
+  streaming receipt in place; terminal assistant messages also queue an
+  immediate current-thread receipt refresh so Usage/Skill/action footer state is
+  not stranded until route re-entry. The refresh must respect the five-second
+  user-scroll protection window, must not force the conversation back to the
+  bottom after an intentional scroll, and schedules the bounded Composer
+  self-check after terminal assistant messages.
+- `public/app-composer-event-state-ui.js`: event-driven thread summary,
+  current-thread message, and chat-scope cache upsert helpers.
+- `public/app-events-composer-ui.js`: event fanout only.
+- `public/app-event-stream-ui.js`: EventSource connection glue only.
+- `public/app-composer-send-ui.js`: send-result routing, Owner elevation policy,
+  and group mention menu helpers.
+- `public/app-composer-native-environment-ui.js`: native iOS environment
+  snapshot bridge, bounded refresh, and send-time environment context lookup.
+- `public/app-composer-pending-send-ui.js`: local optimistic user/assistant
+  pending message projection and rollback.
+- `public/app-composer-send-pipeline-ui.js`: one-message send orchestration:
+  preflight, request body assembly, duplicate-send lock, native context attach,
+  API POST, result handling, elevated retry, and final cleanup.
+- `public/app-composer-attachments-ui.js`: system file upload to pending
+  artifacts. Server-file attachment references remain in the upload/sidebar
+  module and must not re-upload bytes.
+- `public/app-share-image-ui.js`: reply and Growth-card image rendering plus
+  share delivery. In Android/iOS native shells, generated PNG shares should
+  prefer `HomeAINativeShareCapability.outboundShare` /
+  `HomeAINativeShare.share()` before Web Share, clipboard, or download
+  fallback. The native request may include only bounded share metadata and the
+  generated image bytes; it must not include access keys, cookies, launch
+  tokens, raw local paths, provider payloads, or message/thread logs.
+
+`tests/composer-module-boundary.test.js` locks these boundaries. Future
+Composer work should extend the focused module that owns the behavior, or add a
+new small ordered `public/app-composer-*.js` module with a matching boundary
+test. Do not put mobile viewport/layout logic back into Composer context, do
+not put streaming/render/refresh policy back into the event fanout module, and
+do not put send, upload, native environment, optimistic pending-message, or
+self-check diagnostic policy back into `public/app-event-stream-ui.js`.
 
 ## Constraints
 
@@ -496,7 +1123,11 @@ typed during the in-flight request.
   visible while voice capture/transcription or a real assistant run is active,
   but terminal states such as inserted/cancelled/no-speech/failed voice input or
   a completed assistant turn must not leave a status dot floating over the
-  global receipt-navigation slot.
+  global receipt-navigation slot. Voice pre-recording `pending` is also bounded:
+  missed pointer/touch end events, page lifecycle changes, or a stuck iOS
+  WebView gesture must cancel and auto-hide instead of leaving the expanded
+  status panel visible indefinitely. The expanded voice status panel must expose
+  a direct `取消` control while a capture lifecycle is active.
 - Active assistant replies must not stream the full growing answer directly into
   the visible receipt. While status is `queued` or `running`, the message should
   show a fixed-line streaming receipt preview with hidden overflow and keep the

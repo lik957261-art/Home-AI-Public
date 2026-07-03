@@ -288,6 +288,7 @@ function normalizedRouteView(value, fallback = "") {
   if (view === "inbox" || view === "action-inbox" || view === "actions") return "inbox";
   if (view === "capability" || view === "capabilities" || view === "ability" || view === "abilities") return "tasks";
   if (view === "automation" || view === "automations" || view === "cron") return "automation";
+  if (view === "system-console" || view === "owner-console" || view === "console" || view === "system") return "system-console";
   if (view === "learning" || view === "coins" || view === "rewards" || view === "redeem") return "learning";
   if (view === "wardrobe" || view === "closet" || view === "outfit") return "wardrobe";
   if (view === "codex" || view === "codex-mobile") return "codex";

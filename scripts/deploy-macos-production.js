@@ -207,6 +207,12 @@ const PLUGIN_HEALTH_URLS = Object.freeze({
   wardrobe: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
 });
 
+const CODEX_MOBILE_LISTENER_STARTUP_GATE = Object.freeze({
+  type: "codex-mobile-listener-startup-gate",
+  server: "http://127.0.0.1:8787",
+  script: "scripts/codex-mobile-runtime-self-check-loop.js",
+});
+
 const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
   wardrobe: Object.freeze([
     Object.freeze({
@@ -401,6 +407,12 @@ const WEB_PUSH_VAPID_PERMISSION_REPAIR = Object.freeze({
   fileMode: "600",
 });
 
+const WARDROBE_THUMBNAIL_ARTIFACT_ACL_REPAIR = Object.freeze({
+  type: "wardrobe-thumbnail-artifact-acl",
+  targetWorkspace: "owner",
+  macUser: "hm-owner",
+});
+
 const GATEWAY_LAUNCHCTL_SUDOERS_REPAIR = Object.freeze({
   type: "gateway-launchctl-sudoers",
   sudoersPath: "/etc/sudoers.d/homeai-gateway-launchctl",
@@ -413,6 +425,11 @@ const GATEWAY_MACOS_LAUNCHER_REPAIR = Object.freeze({
   targetRelativePath: "gateway-worker/macos-launch-gateway-profile.sh",
   owner: "root:hermes-workers",
   fileMode: "755",
+});
+
+const OWNER_3A_QUALITY_EVIDENCE_SEED = Object.freeze({
+  type: "owner-3a-quality-evidence-seed",
+  relativePath: "data/hermes-home/self-improving-loop/owner-3a-quality-evidence.json",
 });
 
 const RSYNC_EXCLUDES = [
@@ -441,11 +458,13 @@ const BACKUP_RSYNC_EXCLUDES = [
   ".codegraph/",
   ".codex/",
   ".agent-context/",
+  "gateway-runtime-overrides/__pycache__/",
+  "workspace/public-export/",
 ];
 
 const PLUGIN_RSYNC_EXCLUDES = [
-  "data/",
-  "runtime/",
+  "/data/",
+  "/runtime/",
 ];
 
 const SURFACES = new Set(["full", "static"]);
@@ -455,7 +474,13 @@ const HOME_AI_STATIC_SYNC_ROOTS = [
 ];
 
 const HOME_AI_PROOF_FILES = [
+  "adapters/ai-ops-diagnostic-intake-service.js",
   "adapters/automation-cron-profile-service.js",
+  "adapters/owner-3a-quality-evidence-service.js",
+  "adapters/owner-3a-quality-program-service.js",
+  "adapters/owner-system-console-service.js",
+  "adapters/plugin-action-metadata-closure-service.js",
+  "adapters/web-push-send-service.js",
   "cron_bridge.py",
   "mobile-server-runtime.js",
   "package.json",
@@ -464,8 +489,13 @@ const HOME_AI_PROOF_FILES = [
   "public/directory-viewer.html",
   "server-routes/automation-api-routes.js",
   "server-routes/mobile-api-composition.js",
+  "server-routes/mobile-api-platform-composition.js",
+  "server-routes/owner-system-console-api-routes.js",
   "scripts/deploy-macos-production.js",
+  "scripts/homeai-install-upgrade-canary.js",
+  "scripts/homeai-self-improving-loop.js",
   "scripts/install-macos-production.sh",
+  "scripts/plugin-action-metadata-closure-smoke.js",
   "scripts/macos-automation-cron-audit.js",
   "scripts/plugin-workspace-audit-runner.js",
   "scripts/production-status-smoke.js",
@@ -473,6 +503,7 @@ const HOME_AI_PROOF_FILES = [
   "scripts/macos-production-profile-audit.js",
   "scripts/macos-production-drift-reconcile.js",
   "scripts/homeai-production-drift-audit-watchdog.sh",
+  "scripts/homeai-self-improving-loop-cron.sh",
   "scripts/gateway-mcp-runtime-call-smoke.js",
   "scripts/mcp-tool-upgrade-closure-smoke.js",
 ];
@@ -654,12 +685,38 @@ function gitStatusEntries(source) {
   });
 }
 
+function normalizeRsyncPathFragment(value) {
+  return String(value || "").replace(/\\/g, "/").replace(/^\.\/+/, "").replace(/^\/+/, "");
+}
+
 function rsyncExcludePatternApplies(pattern, relPath) {
   if (!pattern || !relPath) return false;
-  if (pattern.endsWith("/")) return relPath === pattern.slice(0, -1) || relPath.startsWith(pattern);
-  if (pattern.startsWith("*.")) return relPath.endsWith(pattern.slice(1));
-  if (pattern.endsWith("*")) return relPath.startsWith(pattern.slice(0, -1));
-  return relPath === pattern || relPath.startsWith(`${pattern}/`);
+  const rawPattern = String(pattern || "").replace(/\\/g, "/");
+  const anchored = rawPattern.startsWith("/");
+  const cleanPattern = normalizeRsyncPathFragment(rawPattern);
+  const cleanPath = normalizeRsyncPathFragment(relPath);
+  if (!cleanPattern || !cleanPath) return false;
+
+  if (cleanPattern.endsWith("/")) {
+    const directoryPattern = cleanPattern.slice(0, -1);
+    if (!directoryPattern) return false;
+    if (anchored) return cleanPath === directoryPattern || cleanPath.startsWith(`${directoryPattern}/`);
+    return cleanPath === directoryPattern
+      || cleanPath.startsWith(`${directoryPattern}/`)
+      || cleanPath.includes(`/${directoryPattern}/`)
+      || cleanPath.endsWith(`/${directoryPattern}`);
+  }
+  if (cleanPattern.startsWith("*.")) return cleanPath.endsWith(cleanPattern.slice(1));
+  if (cleanPattern.endsWith("*")) {
+    const prefix = cleanPattern.slice(0, -1);
+    if (anchored || prefix.includes("/")) return cleanPath.startsWith(prefix);
+    return cleanPath.startsWith(prefix) || cleanPath.includes(`/${prefix}`);
+  }
+  if (anchored || cleanPattern.includes("/")) return cleanPath === cleanPattern || cleanPath.startsWith(`${cleanPattern}/`);
+  return cleanPath === cleanPattern
+    || cleanPath.startsWith(`${cleanPattern}/`)
+    || cleanPath.includes(`/${cleanPattern}/`)
+    || cleanPath.endsWith(`/${cleanPattern}`);
 }
 
 function isRsyncExcluded(relPath, excludes = RSYNC_EXCLUDES) {
@@ -710,7 +767,7 @@ function rsyncExcludesForTarget(options) {
 }
 
 function postSyncRepairsForTarget(options) {
-  if (options.target === "home-ai") return [CODEX_MOBILE_LOG_REPAIR, WEB_PUSH_VAPID_PERMISSION_REPAIR, GATEWAY_LAUNCHCTL_SUDOERS_REPAIR, GATEWAY_MACOS_LAUNCHER_REPAIR];
+  if (options.target === "home-ai") return [CODEX_MOBILE_LOG_REPAIR, WEB_PUSH_VAPID_PERMISSION_REPAIR, WARDROBE_THUMBNAIL_ARTIFACT_ACL_REPAIR, GATEWAY_LAUNCHCTL_SUDOERS_REPAIR, GATEWAY_MACOS_LAUNCHER_REPAIR];
   if (options.target === "plugin:codex-mobile-web") return [CODEX_MOBILE_LOG_REPAIR, CODEX_MOBILE_SELECTED_MUX_REFRESH];
   if (options.target === "plugin:finance") return [FINANCE_LAUNCHD_WORKSPACE_KEY_HASH_REPAIR];
   if (options.target === "plugin:music") return [MUSIC_RUNTIME_COVER_PERMISSION_REPAIR];
@@ -834,6 +891,10 @@ function buildPlan(options) {
       ],
       failOnAnyIssue: true,
     });
+    validation.push({
+      type: OWNER_3A_QUALITY_EVIDENCE_SEED.type,
+      outputFile: posixJoin(options.macRoot, OWNER_3A_QUALITY_EVIDENCE_SEED.relativePath),
+    });
   }
   if (proofFiles.length) {
     validation.push({
@@ -846,6 +907,13 @@ function buildPlan(options) {
   }
   if (healthUrl) {
     validation.push({ type: "health-url", command: ["/usr/bin/curl", "-fsS", "--max-time", "10", healthUrl] });
+  }
+  if (!options.syncOnly && options.target === "plugin:codex-mobile-web") {
+    validation.push({
+      type: CODEX_MOBILE_LISTENER_STARTUP_GATE.type,
+      command: buildCodexMobileListenerStartupGateCommand(options, target),
+      failOnUnavailable: true,
+    });
   }
   if (!options.syncOnly) {
     validation.push({
@@ -961,6 +1029,29 @@ function sudoPasswordFileCandidates(passwordFile = "") {
 
 function shQuote(value) {
   return `'${String(value || "").replace(/'/g, "'\\''")}'`;
+}
+
+function buildCodexMobileListenerStartupGateCommand(options, productionPath) {
+  const node = posixJoin(options.macRoot, PINNED_NODE);
+  const script = CODEX_MOBILE_LISTENER_STARTUP_GATE.script;
+  const shellCommand = [
+    `cd ${shQuote(productionPath)}`,
+    "&&",
+    "exec",
+    shQuote(node),
+    shQuote(script),
+    "--server",
+    shQuote(CODEX_MOBILE_LISTENER_STARTUP_GATE.server),
+    "--gate-mode",
+    "deploy",
+    "--browser-mode",
+    "full",
+    "--browser-startup-only",
+    "--skip-api",
+    "--skip-client-events",
+    "--json",
+  ].join(" ");
+  return ["/bin/sh", "-lc", shellCommand];
 }
 
 function xmlEscape(value) {
@@ -1513,6 +1604,79 @@ function runSudo(command, args, password, input) {
     throw err;
   }
   return result;
+}
+
+function runSudoAllowFailure(command, args, password, input) {
+  const sudoArgs = password
+    ? ["-S", "-p", "", command, ...args]
+    : ["-n", command, ...args];
+  return spawnSync("/usr/bin/sudo", sudoArgs, {
+    input: password ? `${password}\n${input || ""}` : (input || ""),
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+}
+
+function buildSystemLaunchdReloadScript(label, plistPath) {
+  return [
+    "set +e",
+    `label=${shQuote(label)}`,
+    `plist=${shQuote(plistPath)}`,
+    "/bin/launchctl bootout system \"$plist\" >/dev/null 2>&1",
+    "bootout_status=$?",
+    "label_bootout_status=0",
+    "/bin/launchctl print \"system/$label\" >/dev/null 2>&1",
+    "loaded_after_plist_bootout=$?",
+    "if [ \"$loaded_after_plist_bootout\" -eq 0 ]; then",
+    "  /bin/launchctl bootout \"system/$label\" >/dev/null 2>&1",
+    "  label_bootout_status=$?",
+    "fi",
+    "/bin/launchctl bootstrap system \"$plist\" >/dev/null 2>&1",
+    "bootstrap_status=$?",
+    "fallback_kickstart_status=0",
+    "already_loaded=0",
+    "if [ \"$bootstrap_status\" -ne 0 ]; then",
+    "  /bin/launchctl print \"system/$label\" >/dev/null 2>&1",
+    "  print_status=$?",
+    "  if [ \"$print_status\" -eq 0 ]; then",
+    "    already_loaded=1",
+    "    /bin/launchctl kickstart -k \"system/$label\" >/dev/null 2>&1",
+    "    fallback_kickstart_status=$?",
+    "    if [ \"$fallback_kickstart_status\" -ne 0 ]; then",
+    "      /bin/launchctl print \"system/$label\" >/dev/null 2>&1",
+    "      fallback_print_status=$?",
+    "      if [ \"$fallback_print_status\" -ne 0 ]; then",
+    "        printf '{\"ok\":false,\"label\":\"%s\",\"bootoutStatus\":%s,\"labelBootoutStatus\":%s,\"bootstrapStatus\":%s,\"alreadyLoaded\":%s,\"fallbackKickstartStatus\":%s,\"fallbackPrintStatus\":%s}\\n' \"$label\" \"$bootout_status\" \"$label_bootout_status\" \"$bootstrap_status\" \"$already_loaded\" \"$fallback_kickstart_status\" \"$fallback_print_status\"",
+    "        exit \"$fallback_kickstart_status\"",
+    "      fi",
+    "    fi",
+    "  else",
+    "    printf '{\"ok\":false,\"label\":\"%s\",\"bootoutStatus\":%s,\"labelBootoutStatus\":%s,\"bootstrapStatus\":%s,\"alreadyLoaded\":%s,\"fallbackKickstartStatus\":%s,\"fallbackPrintStatus\":%s}\\n' \"$label\" \"$bootout_status\" \"$label_bootout_status\" \"$bootstrap_status\" \"$already_loaded\" \"$fallback_kickstart_status\" \"$print_status\"",
+    "    exit \"$bootstrap_status\"",
+    "  fi",
+    "fi",
+    "fallback_print_status=${fallback_print_status:-0}",
+    "printf '{\"ok\":true,\"label\":\"%s\",\"bootoutStatus\":%s,\"labelBootoutStatus\":%s,\"bootstrapStatus\":%s,\"alreadyLoaded\":%s,\"fallbackKickstartStatus\":%s,\"fallbackPrintStatus\":%s}\\n' \"$label\" \"$bootout_status\" \"$label_bootout_status\" \"$bootstrap_status\" \"$already_loaded\" \"$fallback_kickstart_status\" \"$fallback_print_status\"",
+    "exit 0",
+  ].join("\n");
+}
+
+function reloadSystemLaunchdService(label, plistPath, password) {
+  const result = runSudo("/bin/bash", ["-lc", buildSystemLaunchdReloadScript(label, plistPath)], password);
+  const raw = String(result.stdout || "").trim();
+  try {
+    return JSON.parse(raw);
+  } catch (_) {
+    return {
+      ok: true,
+      label,
+      bootoutStatus: 0,
+      labelBootoutStatus: 0,
+      bootstrapStatus: 0,
+      alreadyLoaded: 0,
+      fallbackKickstartStatus: 0,
+    };
+  }
 }
 
 function verifySudoAuthentication(password) {
@@ -2072,10 +2236,12 @@ function installHomeAiCronBuiltinSkills(plan, password) {
 function installHomeAiCronRuntimeScripts(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const sourceScript = posixJoin(plan.productionPath, "scripts", "homeai-disaster-backup-cron.sh");
+  const sourceSelfLoopScript = posixJoin(plan.productionPath, "scripts", "homeai-self-improving-loop-cron.sh");
   const sourceVisualScript = posixJoin(plan.productionPath, "scripts", "homeai-visual-polish-audit-cron.sh");
   const sourceDriftAuditScript = posixJoin(plan.productionPath, "scripts", "homeai-production-drift-audit-watchdog.sh");
   const targetRoot = posixJoin(plan.macRoot, "data", "hermes-home", "scripts");
   const targetScript = posixJoin(targetRoot, "homeai-disaster-backup-cron.sh");
+  const targetSelfLoopScript = posixJoin(targetRoot, "homeai-self-improving-loop-cron.sh");
   const targetDriftAuditScript = posixJoin(targetRoot, "homeai-production-drift-audit-watchdog.sh");
   const visualScripts = [
     "homeai-visual-polish-host.sh",
@@ -2103,6 +2269,16 @@ function installHomeAiCronRuntimeScripts(plan, password) {
     PRODUCTION_SERVICE_USER,
     "-g",
     PRODUCTION_SERVICE_GROUP,
+    sourceSelfLoopScript,
+    targetSelfLoopScript,
+  ], password);
+  runSudo("/usr/bin/install", [
+    "-m",
+    "750",
+    "-o",
+    PRODUCTION_SERVICE_USER,
+    "-g",
+    PRODUCTION_SERVICE_GROUP,
     sourceDriftAuditScript,
     targetDriftAuditScript,
   ], password);
@@ -2122,7 +2298,101 @@ function installHomeAiCronRuntimeScripts(plan, password) {
     type: "home-ai-cron-runtime-scripts",
     sourceScript,
     targetRoot,
-    installed: ["homeai-disaster-backup-cron.sh", "homeai-production-drift-audit-watchdog.sh", ...visualScripts],
+    installed: [
+      "homeai-disaster-backup-cron.sh",
+      "homeai-self-improving-loop-cron.sh",
+      "homeai-production-drift-audit-watchdog.sh",
+      ...visualScripts,
+    ],
+  };
+}
+
+function installHomeAiSelfImprovingLoopCronJob(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const jobsPath = posixJoin(plan.macRoot, "data", "hermes-home", "cron", "jobs.json");
+  const job = {
+    id: "homeai_self_improving_loop",
+    name: "Home AI 自我改进闭环",
+    script: "homeai-self-improving-loop-cron.sh",
+    schedule: "17 4 * * *",
+    firstDelayMinutes: 2,
+  };
+  const script = `
+const fs = require("fs");
+const path = ${JSON.stringify(jobsPath)};
+const item = ${JSON.stringify(job)};
+const now = Date.now();
+const doc = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf8")) : { jobs: [] };
+if (!Array.isArray(doc.jobs)) doc.jobs = [];
+function nextRun(minutes) {
+  return new Date(now + minutes * 60000).toISOString();
+}
+const existing = doc.jobs.find((entry) => entry && entry.id === item.id);
+const base = existing || {};
+const configured = Object.assign({}, base, {
+  id: item.id,
+  name: item.name,
+  prompt: "Home AI platform self-improving loop no_agent script job. Collects bounded self-check observations, submits eligible diagnostics, and sends audit request cards.",
+  skills: [],
+  skill: null,
+  model: null,
+  provider: null,
+  base_url: null,
+  script: item.script,
+  no_agent: true,
+  profile: null,
+  owner_principal_id: "owner",
+  access_policy_context: null,
+  context_from: null,
+  schedule: { kind: "cron", expr: item.schedule, display: item.schedule },
+  schedule_display: item.schedule,
+  repeat: base.repeat && typeof base.repeat === "object" ? base.repeat : { times: null, completed: 0 },
+  enabled: true,
+  state: "scheduled",
+  paused_at: null,
+  paused_reason: null,
+  created_at: base.created_at || new Date(now).toISOString(),
+  next_run_at: base.next_run_at || nextRun(item.firstDelayMinutes),
+  last_run_at: base.last_run_at || null,
+  last_status: base.last_status || null,
+  last_error: base.last_error || null,
+  last_delivery_error: base.last_delivery_error || null,
+  deliver: "local",
+  origin: null,
+  enabled_toolsets: [],
+  workdir: null,
+  updated_at: new Date(now).toISOString(),
+});
+const index = doc.jobs.findIndex((entry) => entry && entry.id === item.id);
+if (index >= 0) doc.jobs[index] = configured;
+else doc.jobs.push(configured);
+fs.mkdirSync(require("path").dirname(path), { recursive: true });
+const tmp = path + ".tmp";
+fs.writeFileSync(tmp, JSON.stringify(doc, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+fs.renameSync(tmp, path);
+fs.chmodSync(path, 0o600);
+console.log(JSON.stringify({ ok: true, action: existing ? "updated" : "created", jobCount: doc.jobs.length }));
+`;
+  const result = runSudo(node, ["-e", script], password);
+  runSudo("/usr/sbin/chown", [`${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, jobsPath], password);
+  runSudo("/bin/chmod", ["600", jobsPath], password);
+  let action = "unknown";
+  let jobCount = 0;
+  try {
+    const parsed = JSON.parse(result.stdout || "{}");
+    action = parsed.action || action;
+    jobCount = Number(parsed.jobCount || 0);
+  } catch (_) {
+    action = "unknown";
+  }
+  return {
+    type: "home-ai-self-improving-loop-cron-job",
+    id: job.id,
+    script: job.script,
+    schedule: job.schedule,
+    action,
+    jobCount,
   };
 }
 
@@ -2446,14 +2716,14 @@ function installHomeAiCronLaunchd(plan, password) {
   runSudo("/bin/chmod", ["640", paths.stdoutLog, paths.stderrLog], password);
   installRootOwnedTextFile(paths.plistPath, plist, password, "644", "root:wheel");
   runSudo("/usr/bin/plutil", ["-lint", paths.plistPath], password);
-  runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(paths.plistPath)} >/dev/null 2>&1 || true`], password);
-  runSudo("/bin/launchctl", ["bootstrap", "system", paths.plistPath], password);
+  const reload = reloadSystemLaunchdService(HOME_AI_CRON_LABEL, paths.plistPath, password);
   return {
     type: "home-ai-cron-launchd-install",
     label: HOME_AI_CRON_LABEL,
     plistPath: paths.plistPath,
     jobsPath: paths.jobsPath,
     startIntervalSeconds: HOME_AI_CRON_START_INTERVAL_SECONDS,
+    reload,
   };
 }
 
@@ -2473,13 +2743,13 @@ function installHomeAiBridgeHostLaunchd(plan, password) {
   runSudo("/bin/chmod", ["640", paths.stdoutLog, paths.stderrLog], password);
   installRootOwnedTextFile(paths.plistPath, plist, password, "644", "root:wheel");
   runSudo("/usr/bin/plutil", ["-lint", paths.plistPath], password);
-  runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(paths.plistPath)} >/dev/null 2>&1 || true`], password);
-  runSudo("/bin/launchctl", ["bootstrap", "system", paths.plistPath], password);
+  const reload = reloadSystemLaunchdService(HOME_AI_BRIDGE_HOST_LABEL, paths.plistPath, password);
   return {
     type: "home-ai-bridge-host-launchd-install",
     label: HOME_AI_BRIDGE_HOST_LABEL,
     plistPath: paths.plistPath,
     port: HOME_AI_BRIDGE_HOST_PORT,
+    reload,
   };
 }
 
@@ -2495,14 +2765,16 @@ function installHomeAiNasBackupMountLaunchd(plan, password) {
   runSudo("/bin/chmod", ["755", paths.mountScript], password);
   installRootOwnedTextFile(paths.plistPath, plist, password, "644", "root:wheel");
   runSudo("/usr/bin/plutil", ["-lint", paths.plistPath], password);
-  runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(paths.plistPath)} >/dev/null 2>&1 || true`], password);
-  runSudo("/bin/launchctl", ["bootstrap", "system", paths.plistPath], password);
-  runSudo("/bin/launchctl", ["kickstart", "-k", `system/${HOME_AI_NAS_BACKUP_MOUNT_LABEL}`], password);
+  const reload = reloadSystemLaunchdService(HOME_AI_NAS_BACKUP_MOUNT_LABEL, paths.plistPath, password);
+  const kickstart = runSudoAllowFailure("/bin/launchctl", ["kickstart", "-k", `system/${HOME_AI_NAS_BACKUP_MOUNT_LABEL}`], password);
   return {
     type: "home-ai-nas-backup-mount-launchd-install",
     label: HOME_AI_NAS_BACKUP_MOUNT_LABEL,
     plistPath: paths.plistPath,
     startIntervalSeconds: HOME_AI_NAS_BACKUP_MOUNT_START_INTERVAL_SECONDS,
+    reload,
+    kickstartStatus: Number(kickstart.status || 0),
+    kickstartWarning: kickstart.status === 0 ? "" : cleanString(kickstart.stderr || "nas_backup_mount_kickstart_failed", 200),
   };
 }
 
@@ -2520,15 +2792,17 @@ function installHomeAiProductionDriftAuditLaunchd(plan, password) {
   runSudo("/bin/chmod", ["755", paths.script], password);
   installRootOwnedTextFile(paths.plistPath, plist, password, "644", "root:wheel");
   runSudo("/usr/bin/plutil", ["-lint", paths.plistPath], password);
-  runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(paths.plistPath)} >/dev/null 2>&1 || true`], password);
-  runSudo("/bin/launchctl", ["bootstrap", "system", paths.plistPath], password);
-  runSudo("/bin/launchctl", ["kickstart", "-k", `system/${HOME_AI_PRODUCTION_DRIFT_AUDIT_LABEL}`], password);
+  const reload = reloadSystemLaunchdService(HOME_AI_PRODUCTION_DRIFT_AUDIT_LABEL, paths.plistPath, password);
+  const kickstart = runSudoAllowFailure("/bin/launchctl", ["kickstart", "-k", `system/${HOME_AI_PRODUCTION_DRIFT_AUDIT_LABEL}`], password);
   return {
     type: "home-ai-production-drift-audit-launchd-install",
     label: HOME_AI_PRODUCTION_DRIFT_AUDIT_LABEL,
     plistPath: paths.plistPath,
     startIntervalSeconds: HOME_AI_PRODUCTION_DRIFT_AUDIT_START_INTERVAL_SECONDS,
     outputDir: paths.outputDir,
+    reload,
+    kickstartStatus: Number(kickstart.status || 0),
+    kickstartWarning: kickstart.status === 0 ? "" : cleanString(kickstart.stderr || "production_drift_audit_kickstart_failed", 200),
   };
 }
 
@@ -2611,6 +2885,14 @@ function redactSensitiveOutput(value = "") {
     .replace(/(<key>(?:[A-Z0-9_]+_)?WORKSPACE_KEY_HASHES_JSON<\/key>\s*<string>)([^<]*)(<\/string>)/g, "$1[redacted]$3");
 }
 
+function cleanString(value = "", limit = 240) {
+  return redactSensitiveOutput(value)
+    .replace(/[^\S\r\n]+/g, " ")
+    .replace(/[\r\n]+/g, " ")
+    .trim()
+    .slice(0, limit);
+}
+
 function runValidation(check, password, options) {
   const [command, ...args] = check.command;
   const maxAttempts = shouldRetryValidation(check.type) ? options.validationRetries : 1;
@@ -2671,6 +2953,255 @@ function runIssuePrefixAuditValidation(check, password, fallbackPrefix = "") {
   };
 }
 
+function runOwner3aQualityEvidenceSeedValidation(check, plan, password) {
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const appDir = plan.productionPath;
+  const outputFile = check.outputFile || posixJoin(plan.macRoot, OWNER_3A_QUALITY_EVIDENCE_SEED.relativePath);
+  const owner = `${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`;
+  const script = `
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+const [node, appDir, outputFile, owner] = process.argv.slice(1);
+const env = Object.assign({}, process.env, {
+  HERMES_SELF_LOOP_SUBMIT_DIAGNOSTICS: "0",
+  HERMES_SELF_LOOP_CREATE_AUDIT_CARDS: "0",
+});
+const seedTempDir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-owner-3a-quality-evidence."));
+fs.chmodSync(seedTempDir, 0o700);
+const seedTempFile = path.join(seedTempDir, "owner-3a-quality-evidence.json");
+function cleanChildOutput(value) {
+  return String(value || "")
+    .replace(/((?:token|secret|key|password)(?:["'\\s:=]+))[^"'\\s,}]+/gi, "$1<redacted>")
+    .replace(/[\\r\\n\\t ]+/g, " ")
+    .trim()
+    .slice(0, 600);
+}
+function boundedToken(value) {
+  return String(value || "").replace(/[^A-Za-z0-9_.:-]+/g, "_").slice(0, 120);
+}
+function run(args, options = {}) {
+  const result = spawnSync(node, args, {
+    cwd: appDir,
+    encoding: "utf8",
+    maxBuffer: 8 * 1024 * 1024,
+    env,
+  });
+  if (result.status !== 0 && options.allowFailure !== true) {
+    const code = path.basename(String(args[0] || "command")).replace(/[^A-Za-z0-9_.:-]+/g, "_");
+    throw new Error(code + "_failed:" + cleanChildOutput(result.stderr || result.stdout || ""));
+  }
+  return result.stdout || "{}";
+}
+function mustRun(command, args) {
+  const result = spawnSync(command, args, { encoding: "utf8" });
+  if (result.status !== 0) {
+    const code = path.basename(command).replace(/[^A-Za-z0-9_.:-]+/g, "_");
+    throw new Error(code + "_failed");
+  }
+}
+const outputDir = path.dirname(outputFile);
+const canary = run([path.join(appDir, "scripts", "homeai-install-upgrade-canary.js"), "--json"]);
+const plugin = run([path.join(appDir, "scripts", "plugin-action-metadata-closure-smoke.js"), "--json"]);
+const loop = run([
+  path.join(appDir, "scripts", "homeai-self-improving-loop.js"),
+  "--collect-production-observations",
+  "--skip-status-smoke",
+  "--skip-system-resource-status",
+  "--skip-cron-audit",
+  "--skip-production-diagnostics",
+  "--skip-public-upgrade-rehearsal",
+  "--skip-runtime-slo-audit",
+  "--skip-mcp-schema-closure",
+  "--skip-thread-liveness",
+  "--skip-plugin-manifest-health",
+  "--skip-notification-delivery",
+  "--skip-native-bridge-capability",
+  "--gateway-capability-availability-json",
+  JSON.stringify({ ok: true, skipped: true, reason: "gateway_document_tool_capability_seed_skipped" }),
+  "--install-upgrade-canary-json",
+  canary,
+  "--plugin-action-metadata-closure-json",
+  plugin,
+  "--quality-evidence-output",
+  seedTempFile,
+  "--json",
+], { allowFailure: true });
+const payload = JSON.parse(loop || "{}");
+const saved = JSON.parse(fs.readFileSync(seedTempFile, "utf8"));
+const diagnosticEvents = Array.isArray(payload.evaluation?.diagnosticEvents) ? payload.evaluation.diagnosticEvents : [];
+const evaluatedSignals = Array.isArray(payload.evaluation?.signals) ? payload.evaluation.signals : [];
+const summary = {
+  ok: payload.qualityEvidenceOutputWritten === true,
+  selfLoopOk: payload.ok === true,
+  evidenceVersion: String(saved.evidenceVersion || ""),
+  status: String(saved.status || ""),
+  noCompletionClaim: saved.policy && saved.policy.noCompletionClaim === true,
+  installUpgradeCanaryObservedStatus: String(saved.extraEvidence?.installUpgradeCanaryObservedStatus || ""),
+  installUpgradeCanaryMode: String(saved.extraEvidence?.installUpgradeCanary?.mode || ""),
+  cleanInstallCanaryStatus: String(saved.extraEvidence?.cleanInstallCanaryStatus || ""),
+  diagnosticEventCount: diagnosticEvents.length,
+  diagnosticEventCodes: diagnosticEvents
+    .map((item) => boundedToken(item?.errorCode || item?.error_code || item?.category || item?.signalId))
+    .filter(Boolean)
+    .slice(0, 5),
+  nonOkSignals: evaluatedSignals
+    .filter((signal) => signal && signal.status && signal.status !== "ok")
+    .map((signal) => ({
+      id: boundedToken(signal.id || signal.signalId),
+      status: boundedToken(signal.status),
+      errorCode: boundedToken(signal.errorCode),
+    }))
+    .slice(0, 5),
+  outputWritten: payload.qualityEvidenceOutputWritten === true,
+};
+if (
+  !summary.ok
+  || summary.evidenceVersion !== "20260701-owner-3a-quality-evidence-v2"
+  || !["ok", "partial", "warning", "degraded", "blocked", "stale", "unknown"].includes(summary.status)
+  || summary.noCompletionClaim !== true
+  || summary.installUpgradeCanaryObservedStatus !== "partial"
+  || summary.installUpgradeCanaryMode !== "plan"
+  || summary.cleanInstallCanaryStatus
+  || summary.diagnosticEventCount !== 0
+) {
+  throw new Error("owner_3a_quality_evidence_seed_invariant_failed:" + JSON.stringify(summary));
+}
+fs.mkdirSync(outputDir, { recursive: true });
+fs.copyFileSync(seedTempFile, outputFile);
+mustRun("/usr/sbin/chown", [owner, outputDir, outputFile]);
+mustRun("/bin/chmod", ["700", outputDir]);
+mustRun("/bin/chmod", ["600", outputFile]);
+try {
+  fs.rmSync(seedTempDir, { recursive: true, force: true });
+} catch (_) {
+  // Best-effort cleanup; the production evidence file has already been installed.
+}
+console.log(JSON.stringify(summary));
+`;
+  const result = runSudo(node, ["-e", script, node, appDir, outputFile, owner], password);
+  let summary = null;
+  try {
+    summary = JSON.parse(result.stdout || "{}");
+  } catch (_err) {
+    throw new Error("owner_3a_quality_evidence_seed_json_invalid");
+  }
+  if (summary.ok !== true) throw new Error("owner_3a_quality_evidence_seed_failed");
+  return {
+    type: OWNER_3A_QUALITY_EVIDENCE_SEED.type,
+    status: result.status,
+    outputFile: compactProductionPath(outputFile, plan.macRoot),
+    evidenceVersion: summary.evidenceVersion || "",
+    qualityEvidenceStatus: summary.status || "",
+    selfLoopOk: summary.selfLoopOk === true,
+    noCompletionClaim: summary.noCompletionClaim === true,
+    installUpgradeCanaryObservedStatus: summary.installUpgradeCanaryObservedStatus || "",
+    installUpgradeCanaryMode: summary.installUpgradeCanaryMode || "",
+    cleanInstallCanaryStatus: summary.cleanInstallCanaryStatus || "",
+    diagnosticEventCount: Number(summary.diagnosticEventCount || 0),
+    diagnosticEventCodes: boundedStringArray(summary.diagnosticEventCodes, 5),
+    nonOkSignals: Array.isArray(summary.nonOkSignals) ? summary.nonOkSignals.slice(0, 5) : [],
+  };
+}
+
+function boundedStringArray(value, limit = 20) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item || "").trim()).filter(Boolean).slice(0, limit);
+}
+
+function boundedJobNames(value, limit = 20) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    if (typeof item === "string") return item;
+    return item?.name || item?.id || item?.job || "";
+  }).map((item) => String(item || "").trim()).filter(Boolean).slice(0, limit);
+}
+
+function finiteNumber(value, defaultValue = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : defaultValue;
+}
+
+function collectCodexMobileListenerStartupIssueCodes(payload = {}) {
+  const explicit = [
+    ...boundedStringArray(payload.actionableIssueCodes),
+    ...boundedStringArray(payload.issueCodes),
+    ...boundedStringArray(payload.blockingIssueCodes),
+  ];
+  const issueCodes = Array.isArray(payload.issues)
+    ? payload.issues.map((item) => item?.code || item?.issueCode || item?.id || "").filter(Boolean)
+    : [];
+  return [...new Set(explicit.concat(issueCodes).map((item) => String(item || "").trim()).filter(Boolean))].slice(0, 20);
+}
+
+function codexMobileListenerStartupGateSummary(payload = {}, status = 0) {
+  const jobs = payload.jobs && typeof payload.jobs === "object" ? payload.jobs : {};
+  const gate = payload.gate && typeof payload.gate === "object" ? payload.gate : {};
+  const issueCodes = collectCodexMobileListenerStartupIssueCodes(Object.assign({}, payload, {
+    actionableIssueCodes: payload.actionableIssueCodes || gate.actionableIssueCodes,
+    issueCodes: payload.issueCodes || gate.issueCodes,
+    blockingIssueCodes: payload.blockingIssueCodes || gate.blockingIssueCodes,
+  }));
+  const executionFailureCount = finiteNumber(
+    payload.executionFailureCount ?? gate.executionFailureCount ?? payload.executionFailures?.length,
+    0,
+  );
+  return {
+    type: CODEX_MOBILE_LISTENER_STARTUP_GATE.type,
+    status,
+    ok: payload.ok === true,
+    deployPass: (payload.deployPass ?? gate.deployPass) === true,
+    browserStartupOnly: payload.browserStartupOnly !== false,
+    browserMode: String(payload.browserMode || "full"),
+    issueCount: finiteNumber(payload.issueCount ?? gate.issueCount ?? payload.issues?.length, 0),
+    blockingIssueCount: finiteNumber(payload.blockingIssueCount ?? gate.blockingIssueCount ?? payload.blockingIssues?.length, 0),
+    executionFailureCount,
+    actionableIssueCodes: issueCodes,
+    enabledJobs: boundedJobNames(payload.enabledJobs || jobs.enabled || gate.checkNames),
+    skippedJobs: boundedJobNames(payload.skippedJobs || jobs.skipped),
+    clientBuildId: String(payload.clientBuildId || payload.publicConfig?.clientBuildId || ""),
+    shellCacheName: String(payload.shellCacheName || payload.publicConfig?.shellCacheName || ""),
+  };
+}
+
+function assertCodexMobileListenerStartupGatePass(summary = {}) {
+  if (summary.status === 0 && summary.ok === true && summary.deployPass === true) return;
+  const code = summary.actionableIssueCodes?.[0]
+    || (summary.executionFailureCount > 0 ? "browser_startup_smoke_unavailable" : "")
+    || "codex_mobile_listener_startup_gate_failed";
+  const err = new Error(`${CODEX_MOBILE_LISTENER_STARTUP_GATE.type}_failed:${code}`);
+  err.status = summary.status;
+  err.stderr = JSON.stringify({
+    ok: Boolean(summary.ok),
+    deployPass: Boolean(summary.deployPass),
+    issueCount: summary.issueCount,
+    blockingIssueCount: summary.blockingIssueCount,
+    executionFailureCount: summary.executionFailureCount,
+    actionableIssueCodes: summary.actionableIssueCodes,
+  });
+  throw err;
+}
+
+function runCodexMobileListenerStartupGateValidation(check, password) {
+  const [command, ...args] = check.command;
+  const result = runSudoAllowFailure(command, args, password);
+  let payload = null;
+  try {
+    payload = JSON.parse(redactSensitiveOutput(result.stdout || "{}"));
+  } catch (_err) {
+    payload = {
+      ok: false,
+      deployPass: false,
+      executionFailureCount: 1,
+      actionableIssueCodes: ["browser_startup_smoke_unavailable"],
+    };
+  }
+  const summary = codexMobileListenerStartupGateSummary(payload, result.status ?? 1);
+  assertCodexMobileListenerStartupGatePass(summary);
+  return summary;
+}
+
 function sha256File(filePath) {
   return crypto.createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
@@ -2703,7 +3234,7 @@ function runFileHashValidation(plan, password) {
 }
 
 function buildRsyncArgs(excludes, source, target) {
-  const args = ["-a", "--delete"];
+  const args = ["-a", "--delete", "--checksum"];
   for (const item of excludes || []) args.push("--exclude", item);
   args.push(source, target);
   return args;
@@ -3141,6 +3672,71 @@ function repairWebPushVapidPermissions(plan, password) {
   };
 }
 
+function compactProductionPath(value = "", root = "") {
+  const raw = String(value || "");
+  const normalizedRoot = normalizePath(root || "");
+  if (!raw || !normalizedRoot) return raw;
+  const normalized = normalizePath(raw);
+  if (normalized === normalizedRoot) return "<root>";
+  if (normalized.startsWith(`${normalizedRoot}/`)) return `<root>/${normalized.slice(normalizedRoot.length + 1)}`;
+  return raw;
+}
+
+function wardrobeThumbnailArtifactAclRepairValidation(plan, repair, result) {
+  let parsed = {};
+  try {
+    parsed = JSON.parse(String(result?.stdout || "{}"));
+  } catch (_err) {
+    throw new Error("wardrobe_thumbnail_artifact_acl_repair_output_invalid");
+  }
+  const writeProbeOk = Boolean(parsed.writeProbeOk);
+  if (!writeProbeOk) {
+    const err = new Error(parsed.error || "wardrobe_thumbnail_artifact_acl_repair_probe_failed");
+    err.status = result?.status ?? 1;
+    throw err;
+  }
+  return {
+    type: repair.type,
+    status: result?.status ?? 0,
+    targetWorkspace: repair.targetWorkspace,
+    macUser: repair.macUser,
+    aclRepaired: Boolean(parsed.aclRepaired),
+    photoCacheDir: compactProductionPath(parsed.photoCacheDir || "", plan.macRoot),
+    probeUser: parsed.probeUser || "",
+    writeProbeOk,
+  };
+}
+
+function repairWardrobeThumbnailArtifactAcl(plan, password) {
+  const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === WARDROBE_THUMBNAIL_ARTIFACT_ACL_REPAIR.type);
+  if (!repair) return null;
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const executorModule = posixJoin(plan.productionPath, "adapters", "workspace-system-provisioning-executor-service.js");
+  const script = [
+    "const { createWorkspaceSystemProvisioningExecutorService } = require(process.argv[1]);",
+    "const liveRoot = process.argv[2];",
+    "const dataRoot = process.argv[3];",
+    "const workspaceId = process.argv[4];",
+    "const macUser = process.argv[5];",
+    "(async () => {",
+    "  const service = createWorkspaceSystemProvisioningExecutorService({ liveRoot, enabled: true, platform: 'darwin', useSudoWrites: false });",
+    "  const result = await service.runStep('repair_wardrobe_thumbnail_artifact_acl', { workspaceId, macUser, paths: { liveRoot, dataRoot } });",
+    "  console.log(JSON.stringify({ ok: Boolean(result && result.ok), error: result && result.error || '', aclRepaired: Boolean(result && result.aclRepaired), photoCacheDir: result && result.photoCacheDir || '', probeUser: result && result.probeUser || '', writeProbeOk: Boolean(result && result.writeProbeOk) }));",
+    "  if (!result || !result.ok || !result.writeProbeOk) process.exit(1);",
+    "})().catch((error) => { console.error(JSON.stringify({ ok: false, error: error && error.message ? error.message : String(error) })); process.exit(1); });",
+  ].join("\n");
+  const result = runSudo(node, [
+    "-e",
+    script,
+    executorModule,
+    plan.macRoot,
+    posixJoin(plan.macRoot, "data"),
+    repair.targetWorkspace,
+    repair.macUser,
+  ], password);
+  return wardrobeThumbnailArtifactAclRepairValidation(plan, repair, result);
+}
+
 function installGatewayLaunchctlSudoers(plan, password) {
   const repair = (plan.postSyncRepairs || []).find((item) => item && item.type === GATEWAY_LAUNCHCTL_SUDOERS_REPAIR.type);
   if (!repair) return null;
@@ -3321,6 +3917,7 @@ function executePlan(plan, options) {
   const visualAnalysisProfile = installHomeAiVisualAnalysisProfile(plan, password);
   const cronBuiltinSkills = installHomeAiCronBuiltinSkills(plan, password);
   const cronRuntimeScripts = installHomeAiCronRuntimeScripts(plan, password);
+  const selfImprovingLoopCronJob = installHomeAiSelfImprovingLoopCronJob(plan, password);
   const productionDriftAuditInstall = installHomeAiProductionDriftAuditLaunchd(plan, password);
   const visualPolishTaskCardConfig = installHomeAiVisualPolishTaskCardConfig(plan, password);
   const visualPolishCronJobs = installHomeAiVisualPolishCronJobs(plan, password);
@@ -3329,6 +3926,7 @@ function executePlan(plan, options) {
   const backupGatewayTelemetryAclRepair = repairHomeAiBackupGatewayTelemetryAcls(plan, password);
   const codexSharedAuthRepair = repairCodexSharedAuthPermissions(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
+  const wardrobeThumbnailArtifactAclRepair = repairWardrobeThumbnailArtifactAcl(plan, password);
   const gatewayLaunchctlSudoers = installGatewayLaunchctlSudoers(plan, password);
   const gatewayMacosLauncher = installGatewayMacosLauncher(plan, password);
   const gatewayLaunchdServices = installHomeAiGatewayLaunchdServices(plan, password);
@@ -3343,14 +3941,16 @@ function executePlan(plan, options) {
     && codexMobileLogRepair.launchdPlistPath
     && plan.restartLabels.includes(codexMobileLogRepair.launchdLabel)
   ) {
-    runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(codexMobileLogRepair.launchdPlistPath)} >/dev/null 2>&1 || true`], password);
-    runSudo("/bin/launchctl", ["bootstrap", "system", codexMobileLogRepair.launchdPlistPath], password);
+    codexMobileLogRepair.reload = reloadSystemLaunchdService(
+      codexMobileLogRepair.launchdLabel,
+      codexMobileLogRepair.launchdPlistPath,
+      password,
+    );
     reloadedLabels.add(codexMobileLogRepair.launchdLabel);
   }
   if (listenerVoiceInputEnv && plan.restartLabels.includes(HOME_AI_LISTENER_LABEL)) {
     const plistPath = `/Library/LaunchDaemons/${HOME_AI_LISTENER_LABEL}.plist`;
-    runSudo("/bin/sh", ["-c", `/bin/launchctl bootout system ${shQuote(plistPath)} >/dev/null 2>&1 || true`], password);
-    runSudo("/bin/launchctl", ["bootstrap", "system", plistPath], password);
+    listenerVoiceInputEnv.reload = reloadSystemLaunchdService(HOME_AI_LISTENER_LABEL, plistPath, password);
     reloadedLabels.add(HOME_AI_LISTENER_LABEL);
   }
   if (
@@ -3386,6 +3986,7 @@ function executePlan(plan, options) {
   if (visualAnalysisProfile) validations.push(Object.assign({ status: 0 }, visualAnalysisProfile));
   if (cronBuiltinSkills) validations.push(Object.assign({ status: 0 }, cronBuiltinSkills));
   if (cronRuntimeScripts) validations.push(Object.assign({ status: 0 }, cronRuntimeScripts));
+  if (selfImprovingLoopCronJob) validations.push(Object.assign({ status: 0 }, selfImprovingLoopCronJob));
   if (visualPolishTaskCardConfig) validations.push(Object.assign({ status: 0 }, visualPolishTaskCardConfig));
   if (visualPolishCronJobs) validations.push(Object.assign({ status: 0 }, visualPolishCronJobs));
   if (visualDebugLaunchAgent) validations.push(Object.assign({ status: 0 }, visualDebugLaunchAgent));
@@ -3393,6 +3994,7 @@ function executePlan(plan, options) {
   if (backupGatewayTelemetryAclRepair) validations.push(backupGatewayTelemetryAclRepair);
   if (codexSharedAuthRepair) validations.push(codexSharedAuthRepair);
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
+  if (wardrobeThumbnailArtifactAclRepair) validations.push(wardrobeThumbnailArtifactAclRepair);
   if (gatewayLaunchctlSudoers) validations.push(gatewayLaunchctlSudoers);
   if (gatewayMacosLauncher) validations.push(gatewayMacosLauncher);
   if (gatewayLaunchdServices) validations.push(gatewayLaunchdServices);
@@ -3400,6 +4002,8 @@ function executePlan(plan, options) {
   if (deployBackupPrune) validations.push(deployBackupPrune);
   for (const check of plan.validation) {
     if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));
+    else if (check.type === OWNER_3A_QUALITY_EVIDENCE_SEED.type) validations.push(runOwner3aQualityEvidenceSeedValidation(check, plan, password));
+    else if (check.type === CODEX_MOBILE_LISTENER_STARTUP_GATE.type) validations.push(runCodexMobileListenerStartupGateValidation(check, password));
     else if (check.type === "codex-auth-profile-audit") validations.push(runIssuePrefixAuditValidation(check, password, CODEX_AUTH_AUDIT_ISSUE_PREFIX));
     else if (check.type === "home-ai-production-drift-audit") validations.push(runIssuePrefixAuditValidation(check, password));
     else validations.push(runValidation(check, password, options));
@@ -3464,6 +4068,7 @@ module.exports = {
   DEPLOY_BACKUP_RETENTION_DAYS,
   PLUGIN_TARGETS,
   PLUGIN_DEPLOY_ORDER,
+  CODEX_MOBILE_LISTENER_STARTUP_GATE,
   RSYNC_EXCLUDES,
   parseArgs,
   buildPlan,
@@ -3476,6 +4081,8 @@ module.exports = {
   codexMobileMuxRefreshReasonRequiresForce,
   codexMobileMuxRepairStateRequiresRefresh,
   codexMobileSelectedMuxRefreshDecision,
+  codexMobileListenerStartupGateSummary,
+  assertCodexMobileListenerStartupGatePass,
   runValidation,
   buildHomeAiCronProfileAliasPlan,
   buildPluginWorkspaceAuditTargetJson,
@@ -3483,6 +4090,7 @@ module.exports = {
   buildHomeAiCronLaunchdPlist,
   buildHomeAiNasBackupMountLaunchdPlist,
   buildHomeAiProductionDriftAuditLaunchdPlist,
+  buildSystemLaunchdReloadScript,
   cronProfileAliasRowsFromManifest,
   buildHomeAiVisualAnalysisProfileConfig,
   buildRsyncArgs,
@@ -3499,6 +4107,8 @@ module.exports = {
   repairMusicRuntimeCoverPermissions,
   installFinanceLaunchdWorkspaceKeyHashes,
   installHomeAiGatewayLaunchdServices,
+  compactProductionPath,
+  wardrobeThumbnailArtifactAclRepairValidation,
   redactSensitiveOutput,
   deployDirtyFiles,
   isDeploySurfaceIncluded,

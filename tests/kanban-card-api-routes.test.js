@@ -503,7 +503,7 @@ async function testListTargetBypassesCacheAndForwardsTargetId() {
 }
 
 async function testLearningGrowthSubmissionUsesCommentCapabilityAndService() {
-  const { routes, calls } = makeRoutes();
+  const { routes, calls } = makeRoutes({ allowLegacyGrowthFallback: true });
   const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-submission?workspaceId=query-workspace", {
     body: { workspaceId: "child", text: "draft", author: "learner" },
   });
@@ -521,6 +521,16 @@ async function testLearningGrowthSubmissionUsesCommentCapabilityAndService() {
     { type: "todos.updated", workspaceId: "child", todoId: "t_growth", action: "learning-growth-submission" },
   ]);
   assert.equal(got.body.status, "submitted");
+}
+
+async function testLearningGrowthSubmissionDefaultsToPluginOwnedWithoutProxy() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-submission?workspaceId=child", {
+    body: { text: "draft", author: "learner" },
+  });
+  assert.equal(got.res.statusCode, 410);
+  assert.equal(got.body.error, "growth_plugin_owned");
+  assert.deepEqual(calls.growthSubmit, []);
 }
 
 async function testLearningGrowthSubmissionPrefersGrowthPluginProxy() {
@@ -559,6 +569,7 @@ async function testLearningGrowthSubmissionPrefersGrowthPluginProxy() {
 
 async function testLearningGrowthSubmissionFallsBackWhenGrowthPluginBindingMissing() {
   const { routes, calls } = makeRoutes({
+    allowLegacyGrowthFallback: true,
     growthPluginSubmissionProxyService: {
       submitTask(input) {
         calls.growthProxy.push(input);
@@ -605,6 +616,7 @@ async function testLearningGrowthSubmissionDoesNotFallbackWhenLegacyDisabled() {
 
 async function testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback() {
   const { routes, calls } = makeRoutes({
+    allowLegacyGrowthFallback: true,
     learningGrowthSubmissionService: null,
     learningGrowthWritingSubmissionService: {
       submitWriting(input) {
@@ -643,7 +655,7 @@ async function testLearningGrowthSubmissionWithdrawUsesCommentCapabilityAndServi
 }
 
 async function testLearningGrowthReflectionUsesCommentCapabilityAndService() {
-  const { routes, calls } = makeRoutes();
+  const { routes, calls } = makeRoutes({ allowLegacyGrowthFallback: true });
   const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-reflection?workspaceId=query-workspace", {
     body: {
       workspaceId: "child",
@@ -676,6 +688,16 @@ async function testLearningGrowthReflectionUsesCommentCapabilityAndService() {
   assert.equal(got.body.reflection.status, "accepted");
 }
 
+async function testLearningGrowthReflectionDefaultsToPluginOwnedWithoutProxy() {
+  const { routes, calls } = makeRoutes();
+  const got = await request(routes, "POST", "/api/kanban/cards/t_growth/learning-growth-reflection?workspaceId=child", {
+    body: { transcript: "I changed my answer.", author: "learner" },
+  });
+  assert.equal(got.res.statusCode, 410);
+  assert.equal(got.body.error, "growth_plugin_owned");
+  assert.deepEqual(calls.growthReflection, []);
+}
+
 async function testLearningGrowthReflectionPrefersGrowthPluginProxy() {
   const { routes, calls } = makeRoutes({
     growthPluginSubmissionProxyService: {
@@ -706,6 +728,7 @@ async function testLearningGrowthReflectionPrefersGrowthPluginProxy() {
 
 async function testLearningGrowthReflectionFallsBackWhenGrowthPluginBindingMissing() {
   const { routes, calls } = makeRoutes({
+    allowLegacyGrowthFallback: true,
     growthPluginSubmissionProxyService: {
       submitReflection(input) {
         calls.growthProxy.push(input);
@@ -1085,12 +1108,14 @@ function testDependencyValidation() {
   await testOwnerListIncludesManagedLearningGrowthCardsWithCompositeCache();
   await testListTargetBypassesCacheAndForwardsTargetId();
   await testLearningGrowthSubmissionUsesCommentCapabilityAndService();
+  await testLearningGrowthSubmissionDefaultsToPluginOwnedWithoutProxy();
   await testLearningGrowthSubmissionPrefersGrowthPluginProxy();
   await testLearningGrowthSubmissionFallsBackWhenGrowthPluginBindingMissing();
   await testLearningGrowthSubmissionDoesNotFallbackWhenLegacyDisabled();
   await testLearningGrowthSubmissionKeepsLegacyWritingServiceFallback();
   await testLearningGrowthSubmissionWithdrawUsesCommentCapabilityAndService();
   await testLearningGrowthReflectionUsesCommentCapabilityAndService();
+  await testLearningGrowthReflectionDefaultsToPluginOwnedWithoutProxy();
   await testLearningGrowthReflectionPrefersGrowthPluginProxy();
   await testLearningGrowthReflectionFallsBackWhenGrowthPluginBindingMissing();
   await testLearningGrowthReflectionDoesNotFallbackWhenLegacyDisabled();

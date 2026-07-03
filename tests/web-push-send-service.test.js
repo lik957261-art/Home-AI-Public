@@ -174,6 +174,150 @@ async function testNativeSuppressesAndroidPhoneWebPushWhenNativeSucceeded() {
   assert.equal(state.pushSubscriptions[1].lastSuccessAt, "2026-06-08T00:00:00.000Z");
 }
 
+async function testRepeatedTaggedNotificationIsDedupedAfterSuccessfulSend() {
+  const { calls, service, state } = createHarness();
+  state.pushSubscriptions.push(pushSubscription("endpoint-owner", ["owner"]));
+  const payload = {
+    title: "Repair request",
+    tag: "homeai-diagnostic-remediation-diagcase_1",
+    data: {
+      workspaceId: "owner",
+      messageType: "ai_ops_diagnostic_remediation",
+      diagnosticCaseId: "diagcase_1",
+    },
+  };
+  const first = await service.sendPushNotification(payload, {
+    principalId: "owner",
+    ttl: 30,
+    urgency: "high",
+  });
+  const second = await service.sendPushNotification(payload, {
+    principalId: "owner",
+    ttl: 30,
+    urgency: "high",
+  });
+  assert.deepEqual(first, { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0 });
+  assert.equal(second.enabled, true);
+  assert.equal(second.deduped, true);
+  assert.equal(second.duplicateTag, "homeai-diagnostic-remediation-diagcase_1");
+  assert.equal(second.attempted, 0);
+  assert.equal(second.sent, 0);
+  assert.equal(calls.sends.length, 1);
+  assert.equal(state.pushDeliveries.length, 1);
+}
+
+async function testRepeatedTaggedNotificationDedupesLegacyDeliveryShape() {
+  const { calls, service, state } = createHarness();
+  state.pushSubscriptions.push(pushSubscription("endpoint-owner", ["owner"]));
+  state.pushDeliveries.push({
+    payload: {
+      tag: "legacy-tag",
+      data: {
+        workspaceId: "owner",
+        messageType: "legacy_message",
+      },
+    },
+    principalIds: ["owner"],
+    result: {
+      sent: 1,
+    },
+  });
+  const repeated = await service.sendPushNotification({
+    title: "Legacy duplicate",
+    tag: "legacy-tag",
+    data: {
+      workspaceId: "owner",
+      messageType: "legacy_message",
+    },
+  }, {
+    principalId: "owner",
+  });
+  assert.equal(repeated.enabled, true);
+  assert.equal(repeated.deduped, true);
+  assert.equal(repeated.attempted, 0);
+  assert.equal(calls.sends.length, 0);
+  assert.equal(state.pushDeliveries.length, 1);
+}
+
+async function testRepeatedTaggedNotificationDerivesPrincipalFromPayloadWorkspace() {
+  const { calls, service, state } = createHarness();
+  state.pushSubscriptions.push(
+    pushSubscription("endpoint-owner", ["owner"]),
+    pushSubscription("endpoint-child", ["child"]),
+  );
+  const payload = {
+    title: "Repair request",
+    tag: "homeai-plugin-conversation-home-ai-stable-request",
+    data: {
+      workspaceId: "owner",
+      messageType: "plugin_conversation_repair_request",
+      stableRequestKey: "stable-request",
+    },
+  };
+  const first = await service.sendPushNotification(payload, {
+    principalId: "owner",
+    ttl: 30,
+    urgency: "high",
+  });
+  const second = await service.sendPushNotification(payload);
+
+  assert.deepEqual(first, { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0 });
+  assert.equal(second.enabled, true);
+  assert.equal(second.deduped, true);
+  assert.equal(second.duplicateTag, "homeai-plugin-conversation-home-ai-stable-request");
+  assert.equal(second.attempted, 0);
+  assert.equal(second.sent, 0);
+  assert.equal(calls.sends.length, 1);
+  assert.equal(calls.sends[0].subscription.endpoint, "endpoint-owner");
+  assert.equal(state.pushDeliveries.length, 1);
+}
+
+async function testRepeatedTaggedNotificationIgnoresFailedPriorDelivery() {
+  const { calls, service, state } = createHarness();
+  state.pushSubscriptions.push(pushSubscription("endpoint-owner", ["owner"]));
+  state.pushDeliveries.push({
+    tag: "retry-tag",
+    messageType: "retry_message",
+    principalIds: ["owner"],
+    sent: 0,
+    failed: 1,
+  });
+  const retry = await service.sendPushNotification({
+    title: "Retry after failed send",
+    tag: "retry-tag",
+    data: {
+      workspaceId: "owner",
+      messageType: "retry_message",
+    },
+  }, {
+    principalId: "owner",
+  });
+  assert.deepEqual(retry, { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0 });
+  assert.equal(calls.sends.length, 1);
+  assert.equal(state.pushDeliveries.length, 2);
+}
+
+async function testRepeatedTaggedNotificationCanOptIntoDuplicateSend() {
+  const { calls, service, state } = createHarness();
+  state.pushSubscriptions.push(pushSubscription("endpoint-owner", ["owner"]));
+  const payload = {
+    title: "Manual push test",
+    tag: "manual-test-tag",
+    data: {
+      workspaceId: "owner",
+      messageType: "manual_push_test",
+    },
+  };
+  await service.sendPushNotification(payload, { principalId: "owner" });
+  const repeated = await service.sendPushNotification(payload, {
+    principalId: "owner",
+    allowDuplicateTag: true,
+  });
+  assert.deepEqual(repeated, { enabled: true, attempted: 1, sent: 1, failed: 0, removed: 0 });
+  assert.equal(calls.sends.length, 2);
+  assert.equal(state.pushDeliveries.length, 2);
+}
+
 function testRemoveAndDisabledConfig() {
   const { calls, service, state } = createHarness({
     serviceOptions: { webPushConfig: () => null },
@@ -198,6 +342,11 @@ testStatusAndActivePrincipals();
 testSendFiltersSkipsFailuresAndRecordsDelivery()
   .then(testBothChannelSkipsIphoneWebPushWhenNativeSucceeded)
   .then(testNativeSuppressesAndroidPhoneWebPushWhenNativeSucceeded)
+  .then(testRepeatedTaggedNotificationIsDedupedAfterSuccessfulSend)
+  .then(testRepeatedTaggedNotificationDedupesLegacyDeliveryShape)
+  .then(testRepeatedTaggedNotificationDerivesPrincipalFromPayloadWorkspace)
+  .then(testRepeatedTaggedNotificationIgnoresFailedPriorDelivery)
+  .then(testRepeatedTaggedNotificationCanOptIntoDuplicateSend)
   .then(testRemoveAndDisabledConfig)
   .then(() => {
     console.log("web-push-send-service tests passed");

@@ -197,13 +197,17 @@ function wireUi() {
       return;
     }
     handleAppForegrounded();
-    checkClientVersion("visible").catch(() => {});
+    if (typeof systemFilePickerForegroundSuppressed !== "function" || !systemFilePickerForegroundSuppressed()) {
+      checkClientVersion("visible").catch(() => {});
+    }
   });
   window.addEventListener("pagehide", handleAppBackgrounded);
   window.addEventListener("pageshow", handleAppForegrounded);
   window.addEventListener("focus", () => {
     handleAppForegrounded();
-    checkClientVersion("focus").catch(() => {});
+    if (typeof systemFilePickerForegroundSuppressed !== "function" || !systemFilePickerForegroundSuppressed()) {
+      checkClientVersion("focus").catch(() => {});
+    }
   });
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();
@@ -780,12 +784,15 @@ function wireUi() {
   $("chatSearchPrev")?.addEventListener("click", () => moveChatSearch(-1));
   $("chatSearchNext")?.addEventListener("click", () => moveChatSearch(1));
   $("fileInput").addEventListener("change", (event) => {
+    event.preventDefault?.();
+    event.stopPropagation?.();
     const input = event.target;
     const files = [...input.files];
     input.value = "";
+    if (typeof markSystemFilePickerReturned === "function") markSystemFilePickerReturned(8000);
     if (!files.length) return;
     uploadFiles(files).catch(showError);
-  });
+  }, { capture: true });
 }
 
 async function start() {

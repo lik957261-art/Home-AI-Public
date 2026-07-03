@@ -20,6 +20,47 @@ This file records durable product rules that implementation must preserve.
   update, permission-boundary, and diagnostic coverage for applicable failure
   modes.
 
+## Delivery Coordination
+
+- Home AI-owned delivery work is coordinated by the ordinary Home AI
+  implementation thread. It owns decomposition, sequencing, write-set
+  boundaries, Worker dispatch decisions, returned-evidence merge, and final
+  status. Creating a separate scheduler thread is not normal product behavior
+  unless a future platform contract explicitly moves that responsibility.
+- Worker threads are durable Codex Mobile task-card targets with terminal
+  return-card contracts. The coordinator may use them for plugin-owned
+  implementation, routine deploy/readback lanes, dedicated audits,
+  long-running bounded probes, and disjoint module slices, including assistance
+  that did not originate as a task card. Each Worker card must name the target
+  workspace/thread, allowed module or files, expected checks/readback, privacy
+  boundary, terminal return requirement, and conflict protocol.
+- Worker threads must not overwrite overlapping local changes or guess around
+  missing prerequisite commits. If a Worker sees shared-file contention,
+  unclear ownership, a stale source ref, or task-card routing failure, it must
+  return `blocked`, `redirected`, or `partially_completed` with bounded
+  evidence. The Home AI coordinator then chooses whether to merge, sequence,
+  reroute, or ask Owner for a product/risk decision.
+- Sub-agents are temporary same-turn helpers only. They may support bounded
+  read-only analysis or review that the coordinator can inspect in the same
+  turn, but they do not own workspace lifecycle, deployment authority,
+  Owner-gated actions, task-card routing, or terminal return cards.
+- Home AI deploy lanes are a pool, not a single hard-coded thread. Routine
+  plugin production deployment/readback should be routed to a live
+  non-terminal deploy lane such as `Home AI Deploy` or configured Lane A/B/C
+  targets. If one lane is stuck, hidden, archived, terminal, or rejects
+  transport, the coordinator should try another valid lane or repair lane
+  discovery before declaring the routine deployment blocked.
+- Duplicate repair cards, duplicate Owner approval prompts, and duplicate Web
+  Push notifications for the same source request are idempotency defects, not
+  normal workflow. Owner should approve at most one equivalent request. Later
+  equivalents must be suppressed, marked duplicate, or recorded as bounded
+  defect evidence for dispatch/Web Push repair.
+- Long 3A or platform-quality work should be batched by coherent module. Run
+  focused checks while building the module, then run the normal local gate
+  once before commit/deploy. Install, upgrade, production-smoke, and deploy
+  lane tests must run from an install/deploy/release lane or explicit operator
+  validation context, not as routine local implementation-thread tests.
+
 ## Multi-User And Multi-Task Platform
 
 - Every user-visible operation must resolve an authenticated actor, effective workspace, resource boundary, access policy, and task surface before model/tool execution.

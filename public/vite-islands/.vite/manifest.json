@@ -1,0 +1,102 @@
+{
+  "_focus-lifecycle-guard.js": {
+    "file": "focus-lifecycle-guard/chunks/focus-lifecycle-guard.js",
+    "name": "focus-lifecycle-guard"
+  },
+  "_home-ai-runtime-facade.js": {
+    "file": "home-ai-runtime-facade/chunks/home-ai-runtime-facade.js",
+    "name": "home-ai-runtime-facade"
+  },
+  "src/vite-app/main.mjs": {
+    "file": "home-ai-app-preview/home-ai-app-preview.js",
+    "name": "home-ai-app-preview",
+    "src": "src/vite-app/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js"
+    ]
+  },
+  "src/vite-app/production-bootstrap.mjs": {
+    "file": "home-ai-production-bootstrap/home-ai-production-bootstrap.js",
+    "name": "home-ai-production-bootstrap",
+    "src": "src/vite-app/production-bootstrap.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js",
+      "_focus-lifecycle-guard.js"
+    ]
+  },
+  "src/vite-islands/ai-ops-feedback/main.mjs": {
+    "file": "ai-ops-feedback/ai-ops-feedback.js",
+    "name": "ai-ops-feedback",
+    "src": "src/vite-islands/ai-ops-feedback/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js"
+    ]
+  },
+  "src/vite-islands/chat-runtime/main.mjs": {
+    "file": "chat-runtime/chat-runtime.js",
+    "name": "chat-runtime",
+    "src": "src/vite-islands/chat-runtime/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js",
+      "_focus-lifecycle-guard.js"
+    ]
+  },
+  "src/vite-islands/document-preview/main.mjs": {
+    "file": "document-preview/document-preview.js",
+    "name": "document-preview",
+    "src": "src/vite-islands/document-preview/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js"
+    ]
+  },
+  "src/vite-islands/message-action-panel/main.mjs": {
+    "file": "message-action-panel/message-action-panel.js",
+    "name": "message-action-panel",
+    "src": "src/vite-islands/message-action-panel/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js"
+    ]
+  },
+  "src/vite-islands/navigation-shell/main.mjs": {
+    "file": "navigation-shell/navigation-shell.js",
+    "name": "navigation-shell",
+    "src": "src/vite-islands/navigation-shell/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js"
+    ]
+  },
+  "src/vite-islands/owner-system-console/main.mjs": {
+    "file": "owner-system-console/owner-system-console.js",
+    "name": "owner-system-console",
+    "src": "src/vite-islands/owner-system-console/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js"
+    ]
+  },
+  "src/vite-islands/plugin-host/main.mjs": {
+    "file": "plugin-host/plugin-host.js",
+    "name": "plugin-host",
+    "src": "src/vite-islands/plugin-host/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js"
+    ]
+  },
+  "src/vite-islands/voice-input-status/main.mjs": {
+    "file": "voice-input-status/voice-input-status.js",
+    "name": "voice-input-status",
+    "src": "src/vite-islands/voice-input-status/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js"
+    ]
+  }
+}

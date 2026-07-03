@@ -1,0 +1,5 @@
+{
+  "shellMode": "vite",
+  "cutoverVersion": "20260703-vite-production-cutover-v1",
+  "rollback": "Set shellMode to classic or set HOMEAI_FRONTEND_SHELL_MODE=classic, then restart Home AI."
+}

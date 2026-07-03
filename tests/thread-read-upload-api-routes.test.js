@@ -146,6 +146,9 @@ function makeRoutes(overrides = {}) {
     isDiscardableEmptyThread(thread) {
       return Boolean(thread.discardable);
     },
+    isOwnerAuth(auth) {
+      return Boolean(auth?.isOwner || auth?.role === "owner" || auth?.workspaceId === "owner");
+    },
     makeId(prefix) {
       idCounter += 1;
       return `${prefix}_${idCounter}`;
@@ -294,6 +297,7 @@ async function testRouteMetadataAndFallthrough() {
   assert.equal(routes.match({ method: "GET", path: "/api/threads/thread-a/messages" }).id, "thread-messages-list");
   assert.equal(routes.match({ method: "POST", path: "/api/threads/thread-a/uploads" }).id, "thread-uploads-create");
   assert.equal(routes.match({ method: "POST", path: "/api/threads/thread-a/server-file-attachments" }).id, "thread-server-file-attachments-create");
+  assert.equal(routes.match({ method: "POST", path: "/api/threads/thread-a/server-file-attachments" }).ownerOnly, true);
   assert.equal(routes.match({ method: "POST", path: "/api/threads/thread-a/messages" }), null);
   assert.equal(routes.summary({ public: true }).byModule.thread, 3);
   assert.equal(routes.summary({ public: true }).byModule["thread-message"], 1);
@@ -408,6 +412,17 @@ async function testThreadUpload() {
 
 async function testThreadServerFileAttachment() {
   const { routes, calls } = makeRoutes();
+  const nonOwner = await request(routes, "POST", "/api/threads/thread-a/server-file-attachments", {
+    auth: { ok: true, workspaceId: "child-a", isOwner: false },
+    body: {
+      path: "微信导入/report.pdf",
+      workspaceId: "child-a",
+    },
+  });
+  assert.equal(nonOwner.res.statusCode, 403);
+  assert.deepEqual(nonOwner.body, { error: "Owner access is required" });
+  assert.equal(calls.resolve.length, 0);
+
   const got = await request(routes, "POST", "/api/threads/thread-a/server-file-attachments", {
     auth: { ok: true, workspaceId: "owner" },
     body: {

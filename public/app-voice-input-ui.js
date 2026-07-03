@@ -9,12 +9,21 @@ const VOICE_INPUT_STREAMING_CHUNK_TARGET_MS = 300;
 const VOICE_INPUT_STATUS_PANEL_KEY = "homeAiVoiceInputStatusPanel";
 const VOICE_INPUT_PROVISIONAL_REVEAL_MAX_CHARS = 14;
 const VOICE_INPUT_PARTIAL_STATUS_RENDER_MS = 260;
+const VOICE_INPUT_PENDING_GUARD_MS = VOICE_INPUT_LONG_PRESS_MS + 1100;
 const VOICE_INPUT_TERMINAL_STATUS_HIDE_MS = Object.freeze({
   inserted: 1400,
   cancelled: 1400,
   no_speech: 1800,
   failed: 4200,
 });
+
+function voiceInputRuntimeNative() {
+  try {
+    return window.HomeAiRuntimeFacade?.native || null;
+  } catch (_) {
+    return null;
+  }
+}
 
 function ensureVoiceInputState() {
   if (!state.voiceInput || typeof state.voiceInput !== "object") {
@@ -47,28 +56,21 @@ function voiceInputStatusLabel(status = ensureVoiceInputState().status) {
 }
 
 function voiceInputNativeShellActive() {
+  const native = voiceInputRuntimeNative();
+  if (typeof native?.isVoiceInputShellActive === "function") return native.isVoiceInputShellActive();
   try {
     const params = new URLSearchParams(window.location.search || "");
     return params.get("nativeShell") === "ios"
-      || document.documentElement?.dataset?.nativeShell === "ios"
-      || localStorage.getItem("homeAI.nativeShell") === "ios";
+      || document.documentElement?.dataset?.nativeShell === "ios";
   } catch (_) {
     return document.documentElement?.dataset?.nativeShell === "ios";
   }
 }
 
 function voiceInputNativeBridgeAvailable() {
-  if (!voiceInputNativeShellActive()) return false;
-  try {
-    const capability = window.HomeAINativeVoiceInputCapability || {};
-    const declared = capability.voiceCapture === true
-      || document.documentElement?.dataset?.nativeVoiceInput === "1"
-      || localStorage.getItem("homeAI.nativeVoiceInput") === "1";
-    if (!declared) return false;
-    return typeof window.webkit?.messageHandlers?.homeAI?.postMessage === "function";
-  } catch (_) {
-    return false;
-  }
+  const native = voiceInputRuntimeNative();
+  if (typeof native?.isVoiceInputBridgeAvailable === "function") return native.isVoiceInputBridgeAvailable();
+  return false;
 }
 
 function voiceInputPostNativeBridge(type, fields = {}) {
@@ -80,9 +82,13 @@ function voiceInputPostNativeBridge(type, fields = {}) {
     requestId: voice.nativeRequestId || voiceInputRequestId("voice_native"),
   }, fields);
   voice.nativeRequestId = payload.requestId;
+  const native = voiceInputRuntimeNative();
   try {
-    window.webkit.messageHandlers.homeAI.postMessage(payload);
-    return true;
+    if (typeof native?.postHomeAiMessage === "function" && native.postHomeAiMessage(payload)) {
+      return true;
+    }
+    console.warn("[voice-input] native bridge unavailable");
+    return false;
   } catch (err) {
     console.warn("[voice-input] native bridge post failed", err?.message || err);
     return false;
@@ -90,26 +96,26 @@ function voiceInputPostNativeBridge(type, fields = {}) {
 }
 
 function voiceInputStatusPanelExpanded() {
+  const native = voiceInputRuntimeNative();
+  if (typeof native?.voiceInputStatusPanelExpanded === "function") return native.voiceInputStatusPanelExpanded();
   try {
     const params = new URLSearchParams(window.location.search || "");
     const query = params.get("voiceStatusPanel");
     if (query === "0") return false;
     if (query === "1") return true;
-    const stored = localStorage.getItem(VOICE_INPUT_STATUS_PANEL_KEY);
-    if (stored === "0") return false;
-    if (stored === "1") return true;
   } catch (_) {}
   return voiceInputNativeShellActive();
 }
 
 function voiceInputDebugStatusEnabled() {
+  const native = voiceInputRuntimeNative();
+  if (typeof native?.voiceInputDebugStatusEnabled === "function") return native.voiceInputDebugStatusEnabled();
   try {
     const params = new URLSearchParams(window.location.search || "");
     if (params.get("voiceStatusDebug") === "1") return true;
-    return localStorage.getItem("homeAiVoiceInputStatusDebug") === "1";
   } catch (_) {
-    return false;
   }
+  return false;
 }
 
 function voiceInputStatusDetail(voice = ensureVoiceInputState()) {
@@ -144,6 +150,8 @@ function voiceInputStatusMeta(voice = ensureVoiceInputState()) {
 }
 
 function voiceInputRequestId(prefix = "voice") {
+  const native = voiceInputRuntimeNative();
+  if (typeof native?.requestId === "function") return native.requestId(prefix);
   if (window.crypto?.randomUUID) return `${prefix}_${window.crypto.randomUUID()}`;
   return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
@@ -604,23 +612,19 @@ function voiceInputFormatDuration(ms) {
 }
 
 function voiceInputRememberMicGranted() {
-  try {
-    localStorage.setItem(VOICE_INPUT_MIC_GRANTED_KEY, "1");
-  } catch (_) {}
+  const native = voiceInputRuntimeNative();
+  if (typeof native?.rememberVoiceInputMicGranted === "function") native.rememberVoiceInputMicGranted();
 }
 
 function voiceInputForgetMicGranted() {
-  try {
-    localStorage.removeItem(VOICE_INPUT_MIC_GRANTED_KEY);
-  } catch (_) {}
+  const native = voiceInputRuntimeNative();
+  if (typeof native?.forgetVoiceInputMicGranted === "function") native.forgetVoiceInputMicGranted();
 }
 
 function voiceInputMicWasGranted() {
-  try {
-    return localStorage.getItem(VOICE_INPUT_MIC_GRANTED_KEY) === "1";
-  } catch (_) {
-    return false;
-  }
+  const native = voiceInputRuntimeNative();
+  if (typeof native?.voiceInputMicWasGranted === "function") return native.voiceInputMicWasGranted();
+  return false;
 }
 
 async function voiceInputMicrophonePermissionState() {
@@ -830,7 +834,25 @@ function ensureVoiceInputOverlay() {
       <span class="voice-input-status-detail" data-voice-status-detail></span>
       <span class="voice-input-status-meta" data-voice-status-meta hidden></span>
     </span>
+    <button type="button" class="voice-input-status-cancel" data-voice-status-cancel aria-label="取消语音输入" title="取消">取消</button>
   `;
+  const cancelButton = overlay.querySelector("[data-voice-status-cancel]");
+  cancelButton?.addEventListener("pointerdown", (event) => {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    event.stopImmediatePropagation?.();
+  });
+  cancelButton?.addEventListener("touchstart", (event) => {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    event.stopImmediatePropagation?.();
+  }, { passive: false });
+  cancelButton?.addEventListener("click", (event) => {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+    event.stopImmediatePropagation?.();
+    voiceInputDismissStatusPanel();
+  });
   document.body.appendChild(overlay);
   return overlay;
 }
@@ -868,6 +890,43 @@ function scheduleVoiceInputTerminalHide(status) {
   }, delayMs);
 }
 
+function clearVoiceInputPendingGuard(voice = ensureVoiceInputState()) {
+  if (!voice.pendingGuardTimer) return;
+  clearTimeout(voice.pendingGuardTimer);
+  voice.pendingGuardTimer = 0;
+}
+
+function voiceInputCancelPendingGesture(statusDetail = "语音手势已取消") {
+  const voice = ensureVoiceInputState();
+  if (voice.pressTimer) clearTimeout(voice.pressTimer);
+  voice.pressTimer = 0;
+  clearVoiceInputPendingGuard(voice);
+  voice.pointerId = 0;
+  voice.pointerButton = null;
+  voice.pointerComposer = null;
+  voice.stopButtonPressActive = false;
+  voice.stopButtonLongPressTriggered = false;
+  voice.touchFallbackActive = false;
+  document.body?.classList?.remove("voice-input-press-active");
+  if (voice.status === "pending") {
+    setVoiceInputStatus("cancelled", { statusDetail });
+  } else {
+    refreshVoiceInputSendButton();
+  }
+}
+
+function scheduleVoiceInputPendingGuard(status) {
+  const voice = ensureVoiceInputState();
+  clearVoiceInputPendingGuard(voice);
+  if (String(status || "") !== "pending") return;
+  voice.pendingGuardTimer = setTimeout(() => {
+    const current = ensureVoiceInputState();
+    current.pendingGuardTimer = 0;
+    if (current.status !== "pending") return;
+    voiceInputCancelPendingGesture("未检测到持续按住");
+  }, VOICE_INPUT_PENDING_GUARD_MS);
+}
+
 function voiceInputRestoreAttachMicIndicator() {
   const attach = $("attachFile");
   if (!attach?.classList?.contains("voice-input-attach-indicator")) return;
@@ -899,6 +958,7 @@ function renderVoiceInputOverlay() {
   const title = overlay.querySelector("[data-voice-status-title]");
   const detail = overlay.querySelector("[data-voice-status-detail]");
   const meta = overlay.querySelector("[data-voice-status-meta]");
+  const cancelButton = overlay.querySelector("[data-voice-status-cancel]");
   voiceInputRenderAttachMicIndicator(voice);
   overlay.hidden = !voiceInputRecordingVisible(voice);
   overlay.classList.toggle("voice-input-overlay-active", !overlay.hidden);
@@ -915,6 +975,9 @@ function renderVoiceInputOverlay() {
     meta.textContent = metaText;
     meta.hidden = !debug || !metaText;
   }
+  if (cancelButton) {
+    cancelButton.hidden = !["pending", "checking", "requesting", "preparing", "recording", "finalizing", "transcribing"].includes(voice.status);
+  }
   overlay.setAttribute("aria-label", voiceInputStatusLabel(voice.status));
   overlay.setAttribute("title", [voiceInputStatusLabel(voice.status), voiceInputStatusDetail(voice)].filter(Boolean).join(" · "));
   refreshVoiceInputSendButton();
@@ -924,8 +987,10 @@ function closeVoiceInputOverlay() {
   const voice = ensureVoiceInputState();
   if (voice.embeddedFinalInsert?.timer) clearTimeout(voice.embeddedFinalInsert.timer);
   if (voice.maxTimer) clearTimeout(voice.maxTimer);
+  if (voice.pressTimer) clearTimeout(voice.pressTimer);
   if (voice.recordingTicker) clearInterval(voice.recordingTicker);
   clearVoiceInputTerminalHideTimer(voice);
+  clearVoiceInputPendingGuard(voice);
   voice.embeddedFinalInsert = null;
   voice.status = "idle";
   voice.error = "";
@@ -941,6 +1006,7 @@ function closeVoiceInputOverlay() {
   voice.nativeStatus = null;
   voice.partialCount = 0;
   voice.maxTimer = 0;
+  voice.pressTimer = 0;
   voice.recordingTicker = 0;
   voiceInputResetProvisionalComposer();
   document.body?.classList?.remove("voice-input-press-active");
@@ -951,18 +1017,21 @@ function setVoiceInputStatus(status, fields = {}) {
   const voice = ensureVoiceInputState();
   if (voice.dismissedByUser && status !== "idle" && !fields.forceVisible) return;
   clearVoiceInputTerminalHideTimer(voice);
+  clearVoiceInputPendingGuard(voice);
   Object.assign(voice, fields, {
     status,
     panelVisible: status !== "idle" || Boolean(fields.panelVisible),
     statusUpdatedAt: Date.now(),
   });
   renderVoiceInputOverlay();
+  scheduleVoiceInputPendingGuard(status);
   scheduleVoiceInputTerminalHide(status);
 }
 
 function voiceInputOpenStatusPanel(status = "pending", fields = {}) {
   const voice = ensureVoiceInputState();
   clearVoiceInputTerminalHideTimer(voice);
+  clearVoiceInputPendingGuard(voice);
   Object.assign(voice, fields, {
     dismissedByUser: false,
     panelVisible: true,
@@ -971,6 +1040,7 @@ function voiceInputOpenStatusPanel(status = "pending", fields = {}) {
   });
   if (!voice.panelOpenedAt) voice.panelOpenedAt = Date.now();
   renderVoiceInputOverlay();
+  scheduleVoiceInputPendingGuard(status);
   scheduleVoiceInputTerminalHide(status);
 }
 
@@ -1041,12 +1111,22 @@ function bindVoiceInputPressSelectionGuards() {
   document.addEventListener("click", suppressVoiceInputClickEvent, true);
   window.addEventListener("pagehide", () => {
     const voice = ensureVoiceInputState();
+    if (voice.status === "pending" || voice.pressTimer) {
+      voiceInputCancelPendingGesture("页面切换，语音手势已取消");
+    }
     if (voice.recorder && voice.recorder.state !== "inactive") {
       try {
         voice.recorder.stop();
       } catch (_) {}
     }
   });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) return;
+    const voice = ensureVoiceInputState();
+    if (voice.status === "pending" || voice.pressTimer) {
+      voiceInputCancelPendingGesture("页面切换，语音手势已取消");
+    }
+  }, { capture: true });
 }
 
 function scheduleVoiceInputClickSuppressionClear() {
@@ -1356,6 +1436,9 @@ function endVoiceInputStopButtonPress(event, options = {}) {
   event?.stopPropagation?.();
   event?.stopImmediatePropagation?.();
   voiceInputClearSelection();
+  if (!longPress && voice.status === "pending") {
+    setVoiceInputStatus("cancelled", { statusDetail: "语音手势已取消" });
+  }
   if (longPress && ["checking", "requesting", "preparing", "recording", "finalizing"].includes(voice.status)) {
     stopVoiceInputRecording();
     return;
@@ -1821,6 +1904,9 @@ function endVoiceInputPressGesture(event, options = {}) {
   voice.pointerComposer = null;
   if (voice.pressTimer) {
     voiceInputClearPressTimer();
+    if (voice.status === "pending") {
+      setVoiceInputStatus("cancelled", { statusDetail: "语音手势已取消" });
+    }
     return;
   }
   if (voice.suppressNextClick && voice.suppressClickButton === button) {
@@ -2026,10 +2112,9 @@ function updateVoiceInputFromNative(payload = {}, fallbackStatus = "pending") {
 }
 
 function initializeNativeVoiceInputBridge() {
-  const existing = window.HomeAINativeVoiceInput && typeof window.HomeAINativeVoiceInput === "object"
-    ? window.HomeAINativeVoiceInput
-    : {};
-  window.HomeAINativeVoiceInput = Object.assign(existing, {
+  const native = voiceInputRuntimeNative();
+  if (typeof native?.registerVoiceInputCallbacks !== "function") return;
+  native.registerVoiceInputCallbacks({
     capabilityResult(payload = {}) {
       updateVoiceInputFromNative(payload, payload.available === false ? "failed" : "pending");
       return true;

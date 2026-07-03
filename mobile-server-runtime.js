@@ -196,9 +196,14 @@ const mobileRuntimeSystemStatusFacadeService = createMobileRuntimeSystemStatusFa
 const { appUpdateStatus, applyAppUpdate, clientVersionInfo, defaultReasoningInfo, readClientVersion, runtimeModelConfigInfo } = mobileRuntimeSystemStatusFacadeService;
 const httpRuntimeService = createMobileHttpRuntimeService({
   clientVersionInfo,
+  envShellMode: () => process.env.HOMEAI_FRONTEND_SHELL_MODE || process.env.HERMES_WEB_FRONTEND_SHELL_MODE || "",
   maxBodyBytes: MAX_BODY_BYTES,
   mimeByExt: MIME_BY_EXT,
   publicRoot: PUBLIC_ROOT,
+  shellModeConfigPaths: [
+    path.join(LOCAL_CONFIG_ROOT, "home-ai-shell-mode.json"),
+    path.join(TOOL_ROOT, "config", "home-ai-shell-mode.json"),
+  ],
 });
 const getUrl = (...args) => httpRuntimeService.getUrl(...args);
 const requestClientVersion = (...args) => httpRuntimeService.requestClientVersion(...args);

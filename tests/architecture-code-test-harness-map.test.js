@@ -54,6 +54,8 @@ assert.ok(
 const requiredExistingReferences = [
   "docs/ARCHITECTURE.md",
   "docs/ARCHITECTURE_BOUNDARY.md",
+  "docs/PLATFORM_CONTRACTS/home-ai-runtime-boundary-contract.md",
+  "docs/PLATFORM_CONTRACTS/plugin-capability-closure-contract.md",
   "docs/API_ROUTE_REFERENCE.md",
   "docs/TEST_MATRIX.md",
   "docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md",
@@ -74,15 +76,24 @@ const requiredExistingReferences = [
   "docs/MODULES/runtime-state-backup.md",
   "docs/IMPLEMENTATION_NOTES/harness-required-matrix.md",
   "docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md",
+  "docs/IMPLEMENTATION_NOTES/owner-system-console.md",
   "docs/PLATFORM_CONTRACTS/diagnostic-remediation-loop-contract.md",
   "docs/PLATFORM_CONTRACTS/autonomous-delivery-loop-contract.md",
   "docs/IMPLEMENTATION_NOTES/autonomous-delivery-loop.md",
   "docs/IMPLEMENTATION_NOTES/plugin-capability-activation.md",
   "docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md",
+  "docs/IMPLEMENTATION_NOTES/composer-event-contract.md",
   "adapters/api-route-registry.js",
   "adapters/ai-operations-control-plane-service.js",
   "adapters/ai-ops-diagnostic-remediation-service.js",
   "adapters/ai-ops-diagnostic-remediation-workflow-service.js",
+  "adapters/task-card-dispatch-result-service.js",
+  "adapters/home-ai-runtime-slo-service.js",
+  "adapters/owner-3a-quality-evidence-service.js",
+  "adapters/owner-3a-quality-program-service.js",
+  "adapters/owner-system-console-service.js",
+  "adapters/system-resource-status-service.js",
+  "adapters/self-check-diagnostic-submit-smoke-service.js",
   "adapters/plugin-conversation-action-bridge-service.js",
   "adapters/codex-thread-task-card-service.js",
   "adapters/autonomous-delivery-intake-service.js",
@@ -162,6 +173,7 @@ const requiredExistingReferences = [
   "server-routes/runtime-config-api-routes.js",
   "server-routes/hermes-plugin-api-routes.js",
   "server-routes/action-inbox-api-routes.js",
+  "server-routes/owner-system-console-api-routes.js",
   "server-routes/plugin-conversation-action-api-routes.js",
   "server-routes/autonomous-delivery-api-routes.js",
   "public/index.html",
@@ -170,6 +182,7 @@ const requiredExistingReferences = [
   "public/styles.css",
   "public/app-dialog-ui.js",
   "public/app-embedded-plugin-ui.js",
+  "public/app-owner-system-console-ui.js",
   "public/app-run-progress-ui.js",
   "public/app-thread-state-ui.js",
   "scripts/start-gateway-pool.ps1",
@@ -180,9 +193,15 @@ const requiredExistingReferences = [
   "scripts/authenticated-navigation-flow-smoke.js",
   "scripts/android-pwa-plugin-dock-smoke.js",
   "scripts/ai-ops-control-plane.js",
+  "scripts/self-check-diagnostic-submit-smoke.js",
   "scripts/autonomous-delivery-loop.js",
+  "scripts/plugin-capability-closure-smoke.js",
+  "scripts/mcp-tool-upgrade-closure-smoke.js",
   "scripts/fallback-governance-check.js",
   "tests/architecture-refactor-boundary.test.js",
+  "tests/home-ai-runtime-boundary-contract.test.js",
+  "tests/plugin-capability-closure-smoke.test.js",
+  "tests/composer-event-contract.test.js",
   "tests/no-browser-native-dialogs.test.js",
   "tests/ai-operations-control-plane-service.test.js",
   "tests/autonomous-delivery-intake-service.test.js",
@@ -191,6 +210,16 @@ const requiredExistingReferences = [
   "tests/ai-ops-control-plane-cli.test.js",
   "tests/ai-ops-diagnostic-remediation-service.test.js",
   "tests/ai-ops-diagnostic-remediation-workflow-service.test.js",
+  "tests/task-card-dispatch-result-service.test.js",
+  "tests/home-ai-runtime-slo-service.test.js",
+  "tests/owner-3a-quality-evidence-service.test.js",
+  "tests/owner-3a-quality-program-service.test.js",
+  "tests/owner-system-console-service.test.js",
+  "tests/system-resource-status-service.test.js",
+  "tests/owner-system-console-api-routes.test.js",
+  "tests/owner-system-console-ui.test.js",
+  "tests/self-check-diagnostic-submit-smoke-service.test.js",
+  "tests/self-check-diagnostic-submit-smoke-script.test.js",
   "tests/plugin-conversation-action-bridge-service.test.js",
   "tests/plugin-conversation-action-api-routes.test.js",
   "tests/codex-thread-task-card-service.test.js",
@@ -282,11 +311,11 @@ const requiredSurfaces = [
   "Architecture boundary and API registry",
   "Workspace, auth, access policy, and public projection",
   "Gateway Pool, run lifecycle, provider routing, runtime worker settings, and profile materialization",
-  "Plugin host, plugin topics, and lazy plugin MCP activation",
+  "Plugin host, plugin topics, lazy plugin MCP activation, plugin capability closure, and plugin-owned deterministic message actions",
   "Product plugin provisioning and workspace-local MCP bindings",
   "Fallback governance, root-cause classification, and mitigation/closure registry",
   "Autonomous Delivery Loop, intent intake, user-decision gates, coordinator ledger, Owner manual start, task-card dispatch, and closure coordination",
-  "AI Operations Control Plane, context packs, lane allocation, required checks, root-cause governance, evidence ledger, incident cassettes, diagnostic intake, plugin conversation repair requests, and Owner-gated remediation",
+  "AI Operations Control Plane, context packs, lane allocation, required checks, root-cause governance, evidence ledger, incident cassettes, diagnostic intake, plugin conversation repair requests, Runtime SLO coverage, self-check submit closure smoke, and Owner-gated remediation",
   "Static PWA shell, navigation, cache, visual stability, and installed-app metadata",
   "Chat, threads, group chat, and context assembly",
   "Action Inbox, Automation, Web Push, Owner-gated plugin conversation approvals, and delivery routing",
@@ -298,6 +327,29 @@ const requiredSurfaces = [
 
 for (const surface of requiredSurfaces) {
   assertDocContains(mapText, surface);
+}
+
+const requiredRuntimeBoundaryReferences = [
+  "Run Pipeline Boundary",
+  "Message Projection Boundary",
+  "Plugin Action Bridge Boundary",
+  "Fallback Registry Boundary",
+  "home-ai-runtime-boundary-contract",
+];
+
+for (const reference of requiredRuntimeBoundaryReferences) {
+  assertDocContains(mapText, reference);
+}
+
+const requiredPluginCapabilityClosureReferences = [
+  "plugin-capability-closure-contract",
+  "scripts/plugin-capability-closure-smoke.js",
+  "tests/plugin-capability-closure-smoke.test.js",
+  "scripts/mcp-tool-upgrade-closure-smoke.js",
+];
+
+for (const reference of requiredPluginCapabilityClosureReferences) {
+  assertDocContains(mapText, reference);
 }
 
 const requiredClientRiskRows = [

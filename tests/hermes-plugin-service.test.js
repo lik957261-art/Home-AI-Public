@@ -1938,6 +1938,7 @@ async function testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBindi
   const registrationKey = `wd_${"live"}_${"g".repeat(40)}`;
   const calls = [];
   const gatewayCalls = [];
+  const systemCalls = [];
   const service = createHermesPluginService({
     dataDir: dir,
     env: {},
@@ -1955,6 +1956,18 @@ async function testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBindi
           profileBindingRefreshed: true,
           skillStorePath,
         };
+      },
+    },
+    systemProvisioningExecutor: {
+      runStep(action, context) {
+        systemCalls.push({ action, context });
+        return Promise.resolve({
+          ok: true,
+          aclRepaired: true,
+          writeProbeOk: true,
+          probeUser: context.macUser,
+          photoCacheDir: `<root>/data/artifacts/wardrobe-thumbnails/${context.workspaceId}`,
+        });
       },
     },
     fetch(url, options = {}) {
@@ -1984,13 +1997,28 @@ async function testWardrobeGrantProvisionsWorkspaceKeySkillGatewayAndLaunchBindi
     workspaceId: "weixin_wardrobe_new",
     displayName: "Wardrobe New",
     actor: "owner",
+    macUser: "hm-wardrobe-new",
   });
   assert.equal(grant.ok, true);
   assert.equal(grant.record.provisioningStatus, "active");
   assert.equal(grant.provisioning.wardrobeWorkspaceId, "wardrobe:weixin_wardrobe_new");
   assert.deepEqual(grant.provisioning.gatewayProfiles, ["lowgw31", "lowgw32", "deepseekgw31"]);
   assert.equal(grant.provisioning.gatewayRestartRequired, true);
-  assert.deepEqual(gatewayCalls, [{ workspaceId: "weixin_wardrobe_new", refreshProfileBinding: true }]);
+  assert.equal(grant.provisioning.photoCacheRuntimeProbeOk, true);
+  assert.equal(grant.provisioning.photoCacheRuntimeProbeSkipped, false);
+  assert.equal(grant.provisioning.photoCacheRuntimeProbeUser, "hm-wardrobe-new");
+  assert.deepEqual(gatewayCalls, [{ workspaceId: "weixin_wardrobe_new", refreshProfileBinding: true, macUser: "hm-wardrobe-new" }]);
+  assert.deepEqual(systemCalls[0], {
+    action: "repair_wardrobe_thumbnail_artifact_acl",
+    context: {
+      workspaceId: "weixin_wardrobe_new",
+      macUser: "hm-wardrobe-new",
+      paths: { dataRoot: dir },
+    },
+  });
+  assert.equal(systemCalls[1].action, "ensure_launchd_services");
+  assert.equal(systemCalls[1].context.workspaceId, "weixin_wardrobe_new");
+  assert.equal(systemCalls[1].context.macUser, "hm-wardrobe-new");
   const keyPath = path.join(dir, "drive", "users", "weixin_wardrobe_new", ".hermes-wardrobe", "access-key.txt");
   const configPath = path.join(dir, "drive", "users", "weixin_wardrobe_new", ".hermes-wardrobe", "config.json");
   const skillDir = path.join(dir, "skill-profiles", "weixin_wardrobe_new", "skills", "productivity", "wardrobe-style-operations");

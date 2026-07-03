@@ -1,0 +1,274 @@
+"use strict";
+
+const COMPOSER_SEND_TIMEOUT_MS = 30000;
+
+function currentClientNotificationChannel() {
+  try {
+    const root = typeof document !== "undefined" ? document.documentElement : null;
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search || "") : null;
+    const nativeShell = params?.get("nativeShell") === "ios"
+      || root?.dataset?.nativeShell === "ios"
+      || root?.classList?.contains("native-shell-ios")
+      || (typeof localStorage !== "undefined" && localStorage.getItem("homeAI.nativeShell") === "ios");
+    return nativeShell ? "native_ios_apns" : "web_push";
+  } catch (_) {
+    return "web_push";
+  }
+}
+
+async function sendMessage(event) {
+  event?.preventDefault?.();
+  if (state.composerComposing) {
+    state.composerSendAfterComposition = true;
+    $("messageInput")?.blur();
+    scheduleComposerSendAfterCompositionFallback();
+    return;
+  }
+  if (isChatSearchMode()) {
+    performChatSearch();
+    return;
+  }
+  if (isComposerStopMode()) {
+    const button = $("sendMessage");
+    button.disabled = true;
+    try {
+      await interruptRun();
+    } finally {
+      button.disabled = false;
+      updateComposerAction();
+    }
+    return;
+  }
+  if (!state.currentThreadId && state.viewMode === "single") await loadSingleWindow();
+  if (!state.currentThreadId) return;
+  let text = getComposerText().trim();
+  const originalText = text;
+  const ownerElevationOnceTag = ownerElevationComposerAvailable() ? ownerElevationOnceTagInfo(text) : null;
+  let ownerElevationOnceRequested = false;
+  if (ownerElevationOnceTag) {
+    text = stripOwnerElevationOnceTags(text);
+  }
+  if (!text && !state.pendingArtifacts.length) {
+    if (ownerElevationOnceTag) clearOwnerElevationOnce();
+    return;
+  }
+  if (typeof voiceLearningModeActive === "function" && voiceLearningModeActive()) {
+    if (ownerElevationOnceTag) clearOwnerElevationOnce();
+    await handleVoiceLearningComposerSend(text);
+    return;
+  }
+  const directoryTopicDraftSend = typeof isDirectoryTopicDraftActive === "function"
+    ? isDirectoryTopicDraftActive()
+    : state.viewMode === "tasks"
+      && !state.currentTaskGroupId
+      && Boolean(state.pendingTaskDirectory?.projectId)
+      && Boolean(state.directoryReturnRoute);
+  if (directoryTopicDraftSend && state.directoryTopicDraftSendInFlight) {
+    return;
+  }
+  if (directoryTopicDraftSend) {
+    state.directoryTopicDraftSendInFlight = true;
+  }
+  const aiMention = composerAiMentionInfo(text);
+  const searchSourceFields = composerSearchSourceBodyFields(text);
+  const chatGptProRequested = Boolean(aiMention.chatGptPro);
+  if (chatGptProRequested && !ownerElevationComposerAvailable() && !ownerElevationActive()) {
+    showError(new Error("ChatGPT Pro requires Owner high-privilege approval."));
+    return;
+  }
+  if (isDraftThread(state.currentThread)) await materializeCurrentThread();
+  if (!state.currentThreadId) {
+    if (ownerElevationOnceTag) clearOwnerElevationOnce();
+    return;
+  }
+  if (ownerElevationOnceTag) {
+    clearOwnerElevationOnce();
+    const ok = await activateOwnerElevationOnce({ confirm: false });
+    if (!ok) return;
+    ownerElevationOnceRequested = true;
+  }
+  let chatGptProOnceApproved = false;
+  if (chatGptProRequested && !ownerElevationActive() && !ownerElevationOnceTag) {
+    clearOwnerElevationOnce();
+    const ok = await activateOwnerElevationOnce({
+      message: "Approve ChatGPT Pro tool routing for this message only? This sends the run to the Owner maintenance Gateway and exposes only the ChatGPT Pro tool for the approved request.",
+    });
+    if (!ok) return;
+    ownerElevationOnceRequested = true;
+    chatGptProOnceApproved = true;
+  }
+  if (state.composerSendInFlight) return;
+  state.composerSendInFlight = true;
+  closeGroupMentionMenu();
+  $("sendMessage").disabled = true;
+  let requestBody = null;
+  let createsNewTask = false;
+  let consumedPendingDirectory = false;
+  let optimisticSend = null;
+  let sendThreadId = "";
+  let sendRouteSnapshot = null;
+  try {
+    sendThreadId = state.currentThreadId || state.currentThread?.id || "";
+    sendRouteSnapshot = typeof currentThreadRouteSnapshot === "function" ? currentThreadRouteSnapshot() : null;
+    const body = {
+      text,
+      artifacts: state.pendingArtifacts,
+      workspaceId: state.selectedWorkspaceId,
+      notificationChannel: currentClientNotificationChannel(),
+    };
+    if (searchSourceFields) Object.assign(body, searchSourceFields);
+    if (ownerElevationActive() || ownerElevationOnceTag || chatGptProOnceApproved) {
+      body.maintenanceMode = true;
+      body.maintenance_mode = true;
+      body.elevationScope = chatGptProRequested ? "chatgpt_pro_generate" : "owner_high_privilege";
+      if (ownerElevationOnceTag || chatGptProOnceApproved) {
+        body.ownerElevationOnceToken = state.ownerElevationOnceToken;
+      }
+    }
+    if (chatGptProRequested) {
+      body.chatGptProGenerate = true;
+      body.chatgpt_pro_generate = true;
+      body.requiredTool = "chatgpt_pro_generate";
+    }
+    if (state.viewMode === "single") {
+      body.singleWindowMode = state.singleWindowMode === "chat" ? "chat" : "task";
+      if (state.singleWindowMode === "chat") {
+        body.taskGroupId = isGroupChatView()
+          ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
+          : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
+        body.messageLimit = CHAT_MESSAGE_INITIAL_LIMIT;
+      } else if (state.currentTaskGroupId) {
+        body.taskGroupId = state.currentTaskGroupId;
+        body.messageLimit = typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30;
+      }
+      if (isGroupChatView()) body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
+    }
+    if (state.viewMode === "tasks" && state.currentTaskGroupId) {
+      body.taskGroupId = state.currentTaskGroupId;
+      const pluginTopicDef = typeof pluginTopicDefForGroupId === "function"
+        ? pluginTopicDefForGroupId(state.currentTaskGroupId)
+        : null;
+      if (pluginTopicDef) {
+        const directory = typeof pluginTopicDeliveryAttachment === "function" ? pluginTopicDeliveryAttachment(pluginTopicDef) : null;
+        if (directory?.projectId) body.directory = directory;
+        const instruction = typeof pluginTopicInstruction === "function" ? pluginTopicInstruction(pluginTopicDef) : "";
+        if (instruction) body.instructions = [body.instructions || "", instruction].filter(Boolean).join("\n\n");
+      }
+      const sharedTopicGroup = selectedSharedTopicGroup();
+      if (sharedTopicGroup) {
+        body.singleWindowMode = "chat";
+        body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
+        body.messageLimit = typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30;
+      }
+    }
+    const reasoningEffort = selectedComposerReasoningEffort(text);
+    if (reasoningEffort) body.reasoning_effort = reasoningEffort;
+    const model = selectedComposerModel(text);
+    if (model) body.model = model;
+    const provider = selectedComposerProvider(text);
+    if (provider) body.provider = provider;
+    await refreshNativeEnvironmentSnapshotForSend();
+    const environmentContext = await requestNativeEnvironmentContextForSend(body, text);
+    if (environmentContext) body.environmentContext = environmentContext;
+    const quotedReply = activeQuotedReplyForSend();
+    if (quotedReply) {
+      body.taskGroupId = quotedReply.taskGroupId;
+      body.replyToMessageId = quotedReply.messageId;
+    }
+    createsNewTask = state.viewMode === "tasks" && !body.taskGroupId;
+    consumedPendingDirectory = directoryTopicDraftSend && Boolean(state.pendingTaskDirectory?.projectId);
+    if (createsNewTask) {
+      const directory = directoryTopicDraftSend ? state.pendingTaskDirectory : null;
+      if (directory?.projectId) body.directory = directory;
+    }
+    requestBody = body;
+    const serializedBody = JSON.stringify(body);
+    const sizeError = composerRequestSizeError(text, serializedBody);
+    if (sizeError) {
+      showError(new Error(sizeError));
+      return;
+    }
+    setComposerText("");
+    suppressComposerAutoFocus(1800);
+    blurComposerInput();
+    lockComposerSendToBottom();
+    optimisticSend = appendOptimisticSendMessages(body, text);
+    const result = await api(`/api/threads/${encodeURIComponent(sendThreadId)}/messages`, {
+      method: "POST",
+      body: serializedBody,
+      timeoutMs: COMPOSER_SEND_TIMEOUT_MS,
+    });
+    clearOptimisticSendMessages(optimisticSend, { render: false });
+    handleSendMessageResult(result, createsNewTask, consumedPendingDirectory, {
+      threadId: sendThreadId,
+      routeSnapshot: sendRouteSnapshot,
+    });
+    if (typeof commitPendingVoiceInputFinalText === "function") commitPendingVoiceInputFinalText(text, body);
+    clearComposerAfterSuccessfulSend(originalText);
+  } catch (err) {
+    const clearedOptimisticSend = clearOptimisticSendMessages(optimisticSend, { render: true });
+    if (
+      clearedOptimisticSend
+      && typeof requestCurrentThreadRefresh === "function"
+      && (typeof currentThreadRouteMatches !== "function" || currentThreadRouteMatches(sendRouteSnapshot))
+    ) {
+      requestCurrentThreadRefresh({ stickToBottom: true, delayMs: 500, routeSnapshot: sendRouteSnapshot });
+    }
+    if (shouldOfferOwnerElevation(err) && requestBody) {
+      const prompt = ownerElevationConfirmMessage(err);
+      const ok = await openOwnerElevationApprovalDialog({
+        title: "Owner Approval",
+        message: prompt,
+        detail: err.elevationReason || "",
+      });
+      if (ok) {
+        try {
+          let onceToken = "";
+          if (!ownerElevationActive()) {
+            await activateOwnerElevationOnce({ confirm: false });
+            onceToken = state.ownerElevationOnceToken;
+            ownerElevationOnceRequested = true;
+          }
+          const elevatedBody = Object.assign({}, requestBody, {
+            maintenanceMode: true,
+            maintenance_mode: true,
+            elevationScope: err.elevationScope || err.code || "shared_skill_write",
+          });
+          if (requestBody.chatGptProGenerate || requestBody.chatgpt_pro_generate) {
+            elevatedBody.elevationScope = "chatgpt_pro_generate";
+          }
+          if (onceToken) elevatedBody.ownerElevationOnceToken = onceToken;
+          const serializedElevatedBody = JSON.stringify(elevatedBody);
+          const elevatedSizeError = composerRequestSizeError(elevatedBody.text || "", serializedElevatedBody);
+          if (elevatedSizeError) throw new Error(elevatedSizeError);
+          const result = await api(`/api/threads/${encodeURIComponent(sendThreadId)}/messages`, {
+            method: "POST",
+            body: serializedElevatedBody,
+          });
+          handleSendMessageResult(result, createsNewTask, consumedPendingDirectory, {
+            threadId: sendThreadId,
+            routeSnapshot: sendRouteSnapshot,
+          });
+          if (typeof commitPendingVoiceInputFinalText === "function") commitPendingVoiceInputFinalText(elevatedBody.text || "", elevatedBody);
+          clearComposerAfterSuccessfulSend(elevatedBody.text || originalText);
+          return;
+        } catch (elevatedErr) {
+          setComposerText(originalText);
+          showError(elevatedErr);
+          return;
+        }
+      }
+      setComposerText(originalText);
+      showError(new Error("已取消 Owner 提权，未执行这次越权请求。"));
+      return;
+    }
+    setComposerText(originalText);
+    showError(err);
+  } finally {
+    if (ownerElevationOnceRequested) clearOwnerElevationOnce();
+    state.composerSendInFlight = false;
+    if (directoryTopicDraftSend) state.directoryTopicDraftSendInFlight = false;
+    $("sendMessage").disabled = false;
+    updateComposerAction();
+  }
+}

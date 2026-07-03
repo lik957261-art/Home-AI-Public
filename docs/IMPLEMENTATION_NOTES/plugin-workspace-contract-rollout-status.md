@@ -28,6 +28,8 @@ Included in this pass:
 - Health
 - Growth
 - Music
+- Movie, as Owner-only special embedded app plugin with existing
+  `20260626-v6` pointer shape
 - Codex Mobile Web, only for the Home AI embedded plugin variant registered as
   `codex-mobile`
 - Home AI Native iOS Shell, as managed native client target
@@ -36,7 +38,7 @@ Included in this pass:
 Still excluded in this pass:
 
 - Candidate or adjacent workspaces that are not currently standard inserted
-  plugins for this pass.
+  plugins or explicitly listed Owner-only special plugins for this pass.
 - Independently deployed Codex Mobile Web instances that are not installed
   through the Home AI plugin manifest/proxy/launch-token boundary and do not
   deploy under the Home AI Mac production plugin root.
@@ -156,7 +158,7 @@ plugin-service probes.
 | Email | Windows Email workspace | `main` at `75a1ea0`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1 for messages, threads, attachments, and accounts; exact deploy command stabilization; `ios_visual_harness_command` required for embedded UI or account switching changes. |
 | Health | Windows Health workspace | `main` at `3495ae8`; existing unrelated dirty tree | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Business Reference Contract V1; `ios_visual_harness_command` required for embedded UI or mobile navigation changes. |
 | Growth | Mac Growth plugin workspace | New plugin workspace at `/Users/example/path`; production deployment pending | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Built-in Growth extraction is in progress. The plugin currently reads the Home AI `/api/growth/v1/*` facade, imports bounded snapshots with readback, delivers bounded events through the Home AI notification endpoint when configured, and exposes read-only MCP schemas plus execute. Production Mac probe is deferred until the service is installed. |
-| Music | Mac Music plugin workspace | New plugin workspace at `/Users/example/path`; production deployment pending | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Pending | Roon statistics, SQLite favorite/tag cache, and Music MCP recommendation context. `ios_visual_harness_command` is required before production UI closure; production Mac probe is deferred until the service is installed. |
+| Music | Mac Music plugin workspace | Canonical plugin workspace at `/Users/example/path`; production deployment pending | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Pending | Roon statistics, SQLite favorite/tag cache, and Music MCP recommendation context. `ios_visual_harness_command` is required before production UI closure; production Mac probe is deferred until the service is installed. |
 | Codex Mobile Web | Mac Codex Mobile plugin workspace | `main` at `bc82703` plus local Mac hotfix work when pointer was added | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Owner-critical Home AI embedded plugin insertion only; not normal workspace-grantable plugin visibility and not a rule for independent Codex Mobile deployments. `ios_visual_harness_command` is required for embedded keyboard, gesture, cache, and PWA reproduction loops. |
 | Home AI Native iOS Shell | Xcode native workspace | `/Users/example/path AI` on `main`; platform pointer and native voice overlay docs exist | `docs/HOME_AI_PLATFORM_CONTRACT.md` added | Added | Managed native client, not embedded business plugin. Platform checker validates bundle ids, App Group, native capabilities, HTTPS/Home AI auth boundary, AI Ops flow, and Xcode build command. Native changes close with Xcode build plus target checker; APNs and voice bridge changes also run their module checks. |
 

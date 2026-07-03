@@ -106,6 +106,9 @@ function configureComposer(options = {}) {
   }
   if (!enabled && typeof clearKeyboardViewportMetrics === "function") clearKeyboardViewportMetrics();
   setComposerEditorEnabled(visuallyEnabled);
+  if ((!visuallyEnabled || (Boolean(hidden) && !searchMode)) && typeof blurFocusedEditableIfStale === "function") {
+    blurFocusedEditableIfStale("composer_hidden_or_disabled");
+  }
   setComposerPlaceholder(searchMode ? "搜索聊天" : composerPlaceholder(options.placeholder || "Message Home AI..."));
   $("attachFile").disabled = searchMode ? false : !visuallyEnabled;
   $("sendMessage").disabled = searchMode ? !currentChatSearchDraft() : !visuallyEnabled;

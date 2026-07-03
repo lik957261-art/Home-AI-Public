@@ -642,20 +642,67 @@ function renderMessageGatewayDiagnostic(message) {
 }
 
 function wardrobeOutfitWearActionState(message = {}) {
-  return message?.pluginActions?.wardrobeOutfitWearIntent || message?.pluginActions?.outfit_wear_intent || null;
+  return message?.pluginActions?.wardrobeOutfitWearIntent
+    || message?.pluginActions?.outfit_wear_intent
+    || message?.plugin_actions?.wardrobeOutfitWearIntent
+    || message?.plugin_actions?.outfit_wear_intent
+    || message?.wardrobeOutfitWearIntent
+    || message?.outfit_wear_intent
+    || message?.outfitWearIntent
+    || message?.metadata?.wardrobeOutfitWearIntent
+    || message?.metadata?.outfit_wear_intent
+    || message?.metadata?.outfitWearIntent
+    || message?.rawJson?.pluginActions?.wardrobeOutfitWearIntent
+    || message?.rawJson?.pluginActions?.outfit_wear_intent
+    || message?.rawJson?.plugin_actions?.wardrobeOutfitWearIntent
+    || message?.rawJson?.plugin_actions?.outfit_wear_intent
+    || message?.rawJson?.wardrobeOutfitWearIntent
+    || message?.rawJson?.outfit_wear_intent
+    || message?.rawJson?.outfitWearIntent
+    || null;
+}
+
+function wardrobeOutfitWearActionDiagnostic(message = {}) {
+  return message?.pluginActionDiagnostics?.wardrobeOutfitWearIntent
+    || message?.pluginActionDiagnostics?.outfit_wear_intent
+    || message?.plugin_action_diagnostics?.wardrobeOutfitWearIntent
+    || message?.plugin_action_diagnostics?.outfit_wear_intent
+    || null;
 }
 
 function wardrobeOutfitWearActionLabel(action = {}) {
   const status = String(action.status || "").trim();
   if (status === "running") return "写入中";
   if (status === "needs_confirmation") return "确认替换";
-  if (status === "stored") return "已入库";
+  if (status === "stored") {
+    const outfitId = String(action.outfitId || action.outfit_id || "").trim();
+    const verified = action.readbackVerified || action.readback_verified;
+    return `已入库${outfitId ? ` #${outfitId}` : ""}${verified ? " · 已验证" : ""}`;
+  }
   if (status === "error") return "写入失败";
-  return "穿着入库";
+  return "入库";
+}
+
+function wardrobeOutfitWearDiagnosticLabel(diagnostic = {}) {
+  const reason = String(diagnostic.reason || diagnostic.code || "").trim();
+  if (reason === "expired") return "已过期";
+  if (reason === "prepare_tool_output_not_attached" || diagnostic.code === "intent_metadata_missing") return "需重新生成";
+  return "不可入库";
 }
 
 function renderWardrobeOutfitWearAction(message = {}) {
   const action = wardrobeOutfitWearActionState(message);
+  const diagnostic = wardrobeOutfitWearActionDiagnostic(message);
+  if (!action && diagnostic) {
+    const reason = String(diagnostic.reason || diagnostic.code || "intent_unavailable").trim();
+    const title = reason === "expired"
+      ? "衣橱入库动作已过期，请重新生成搭配建议"
+      : "这条消息暂时没有可执行的衣橱入库动作";
+    return `<button class="message-wardrobe-action" type="button" data-wardrobe-outfit-status="blocked" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" disabled>
+      <svg class="message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 7.5 12 4l4 3.5"></path><path d="M6.5 8.5 9 7l3 2 3-2 2.5 1.5L16 20H8L6.5 8.5Z"></path><path d="M9 15h6"></path></svg>
+      <span>${escapeHtml(wardrobeOutfitWearDiagnosticLabel(diagnostic))}</span>
+    </button>`;
+  }
   if (!action || action.kind !== "outfit_wear_intent") return "";
   const status = String(action.status || "").trim();
   if (!["ready", "running", "needs_confirmation", "stored", "error"].includes(status)) return "";
@@ -664,7 +711,7 @@ function renderWardrobeOutfitWearAction(message = {}) {
   const wearDate = String(intent.wear_date || intent.wearDate || "").trim();
   const itemCount = Array.isArray(intent.items) ? intent.items.length : 0;
   const title = status === "stored"
-    ? `已写入衣橱穿着记录${action.outfitId ? ` #${action.outfitId}` : ""}`
+    ? `已写入衣橱穿着记录${action.outfitId ? ` #${action.outfitId}` : ""}${action.readbackVerified ? " · 已回读验证" : ""}`
     : `写入衣橱穿着记录${wearDate ? ` ${wearDate}` : ""}${itemCount ? ` · ${itemCount}件` : ""}`;
   const statusAttr = status ? ` data-wardrobe-outfit-status="${escapeHtml(status)}"` : "";
   const label = wardrobeOutfitWearActionLabel(action);
@@ -799,7 +846,8 @@ function handleTopNavActivation(event, options = {}) {
 function openAttachFilePicker() {
   const input = $("fileInput");
   if (!input) return;
-  state.attachFilePickerActivationAt = Date.now();
+  if (typeof markSystemFilePickerOpened === "function") markSystemFilePickerOpened();
+  else state.attachFilePickerActivationAt = Date.now();
   input.value = "";
   input.click();
 }

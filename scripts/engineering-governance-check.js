@@ -134,6 +134,20 @@ function checkCiGate(issues) {
   requireText(
     issues,
     "scripts/productization-check.js",
+    /runNpm\(\["run",\s*"test:install-lane"\]\)/,
+    "productization_missing_install_lane_test",
+    "productization-check.js must run npm run test:install-lane",
+  );
+  requireText(
+    issues,
+    "scripts/run-checks.js",
+    /INSTALL_AND_DEPLOY_LANE_TESTS[\s\S]+--test-install-lane[\s\S]+--test-all/,
+    "run_checks_missing_install_lane_split",
+    "run-checks.js must keep install/deploy lane tests outside the default local npm test gate",
+  );
+  requireText(
+    issues,
+    "scripts/productization-check.js",
     /startupCheck\(\)/,
     "productization_missing_startup_check",
     "productization-check.js must run startupCheck()",

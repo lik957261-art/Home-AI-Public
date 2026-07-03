@@ -167,6 +167,7 @@ const ALLOWED_ACTIONS = new Set([
   "ensure_workspace_roots",
   "ensure_workspace_acl",
   "repair_workspace_acl",
+  "repair_wardrobe_thumbnail_artifact_acl",
   "ensure_launchd_services",
   "run_workspace_onboarding_smokes",
 ]);
@@ -491,6 +492,12 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     privileged("/bin/chmod", [mode, dir]);
   }
 
+  function ensureDirectoryEntry(dir, mode = "700", owner = "") {
+    privileged("/bin/mkdir", ["-p", dir]);
+    if (owner) privileged("/usr/sbin/chown", [owner, dir]);
+    privileged("/bin/chmod", [mode, dir]);
+  }
+
   function completePluginBinding(root, binding) {
     if (!root || !binding?.dir) return false;
     const allRequired = (binding.required || []).every((file) => {
@@ -661,6 +668,57 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
   function chmodAcl(user, target, permissions, recursive = false) {
     const acl = `user:${user} allow ${permissions}`;
     privileged("/bin/chmod", [recursive ? "-R" : "", "+a", acl, target].filter(Boolean));
+  }
+
+  function runAsUser(user, commandName, args = [], commandOptions = {}) {
+    return checked("/usr/bin/sudo", ["-n", "-u", user, commandName, ...args], commandOptions);
+  }
+
+  function probeAtomicWriteAsUser(user, dir) {
+    const script = [
+      "set -eu",
+      "dir=\"$1\"",
+      "probe=\".homeai-wardrobe-thumbnail-runtime-probe-$$-$(date +%s).tmp\"",
+      "tmp=\"$dir/$probe\"",
+      "final=\"$dir/${probe%.tmp}.ok\"",
+      "umask 007",
+      "printf 'probe\\n' > \"$tmp\"",
+      "mv \"$tmp\" \"$final\"",
+      "rm -f \"$final\"",
+    ].join("\n");
+    runAsUser(user, "/bin/sh", ["-c", script, "homeai-wardrobe-thumbnail-runtime-probe", dir]);
+    return { ok: true, probeUser: user };
+  }
+
+  function repairWardrobeThumbnailArtifactAcl(context = {}) {
+    const platformFailure = ensureMacPlatform();
+    if (platformFailure) return platformFailure;
+    const fields = contextFields(context);
+    if (fields.error) return { ok: false, error: fields.error };
+    const artifactRoot = path.posix.join(fields.dataRoot, "artifacts");
+    const thumbnailRoot = path.posix.join(artifactRoot, "wardrobe-thumbnails");
+    const workspaceThumbnailRoot = path.posix.join(thumbnailRoot, fields.workspaceId);
+    const parentPerms = "list,search,readattr,readextattr,readsecurity";
+    const runtimeDirPerms = "list,add_file,search,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit";
+
+    ensureDirectoryEntry(artifactRoot, "750", `${listenerUser}:staff`);
+    ensureDirectoryEntry(thumbnailRoot, "770", `${listenerUser}:${workerGroup}`);
+    ensureDirectoryEntry(workspaceThumbnailRoot, "770", `${listenerUser}:${workerGroup}`);
+    for (const user of [...new Set([fields.macUser, listenerUser])]) {
+      if (safeMacUser(user) || user === listenerUser) {
+        chmodAcl(user, artifactRoot, parentPerms);
+        chmodAcl(user, thumbnailRoot, runtimeDirPerms);
+        chmodAcl(user, workspaceThumbnailRoot, runtimeDirPerms);
+      }
+    }
+    const probe = probeAtomicWriteAsUser(fields.macUser, workspaceThumbnailRoot);
+    return {
+      ok: true,
+      aclRepaired: true,
+      photoCacheDir: compactPath(workspaceThumbnailRoot, fields.root),
+      probeUser: probe.probeUser,
+      writeProbeOk: true,
+    };
   }
 
   function grantGatewayWorkerSecretAcls(fields, worker, manifestPath) {
@@ -1294,6 +1352,7 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
       if (normalizedAction === "ensure_mac_user") return ensureMacUser(context);
       if (normalizedAction === "ensure_workspace_roots") return ensureWorkspaceRoots(context);
       if (normalizedAction === "ensure_workspace_acl" || normalizedAction === "repair_workspace_acl") return repairWorkspaceAcl(context);
+      if (normalizedAction === "repair_wardrobe_thumbnail_artifact_acl") return repairWardrobeThumbnailArtifactAcl(context);
       if (normalizedAction === "ensure_launchd_services") return ensureLaunchdServices(context);
       if (normalizedAction === "run_workspace_onboarding_smokes") return runWorkspaceOnboardingSmokes(context);
     } catch (err) {

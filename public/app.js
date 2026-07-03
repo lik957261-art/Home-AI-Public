@@ -733,6 +733,8 @@ const state = {
   suppressComposerFocusUntil: 0,
   suppressTransientActivationUntil: 0,
   attachFilePickerActivationAt: 0,
+  attachFilePickerNativePending: false,
+  attachFilePickerForegroundSuppressUntil: 0,
   topNavActivationAt: 0,
   privateChatThread: null,
   groupChatOpen: localStorage.getItem("hermesWebGroupChatOpen") === "1",

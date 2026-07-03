@@ -1,6 +1,6 @@
 # AI Operations Control Plane
 
-Last updated: 2026-06-25.
+Last updated: 2026-07-01.
 
 ## Purpose
 
@@ -38,6 +38,58 @@ metadata, includes selected docs/checks in dispatched task-card bodies, records
 redacted return evidence metadata, and projects check/evidence summaries into
 the final Owner report.
 
+The Home AI implementation thread remains the central dispatcher for
+Autonomous Delivery work. It may dispatch bounded implementation slices to
+workspace worker threads, but it must serialize implementation slices that
+target the same workspace. If a target workspace already has an active
+`dispatching` or `dispatched` implementation slice, the next slice remains
+`pending` with `dispatchStatus=deferred_conflict` and bounded
+`dispatchConflict` metadata. A task-card service failure, including a visible
+thread/routing error or a successful response with no returned `ttc_*` id, must
+mark the slice `blocked` with `dispatchStatus=failed`; it must not be treated
+as a sent worker task. Verification, deployment/readback, and repair slices
+remain Owner-triggered phases and do not bypass this main-thread coordination
+boundary.
+
+The Owner System Console reads the coordinator's dispatch-control summary as a
+read-only Autonomy signal. It surfaces unresolved `deferred_conflict`, `failed`,
+`dispatching`, and sent implementation slices with bounded ids and failure or
+conflict codes. The console does not retry, resolve, or dispatch cards directly;
+it points Owner back to Action Inbox, where existing Owner-gated actions keep
+the coordinator as the single state owner.
+
+The Owner System Console also exposes a read-only 3A quality-program snapshot.
+That snapshot does not execute tests, dispatch cards, or claim the full 3A goal
+is complete. It rolls up existing SLO metadata, system status, Autonomous
+Delivery dispatch state, and explicit canary/action evidence into the five
+long-running workstreams: Runtime SLO and Diagnostic Closure, Fresh
+Install/Upgrade Canary, Gateway Output to Message Action Contract,
+Self-Improving Loop Closure, and Architecture Governance Hardening. Missing
+generalized deterministic-action evidence remains visible as a `partial`
+program gap. Clean-target canary evidence is accepted only from an executed
+install/upgrade canary report that proves temporary-root install and upgrade
+rehearsal/execute cleanup with zero failed phases and no production writes.
+Plan-only install/upgrade canary reports are visible bounded evidence, but they
+remain `partial`, keep the quality snapshot's no-completion-claim policy, and
+map to a non-diagnostic skipped self-check observation instead of an install
+failure or closure claim.
+The daily self-improving loop persists bounded Owner Console evidence to
+`data/hermes-home/self-improving-loop/owner-3a-quality-evidence.json` by
+default. The console reads that file through
+`adapters/owner-3a-quality-evidence-service.js`; it does not run the
+install/upgrade canary or plugin action metadata aggregate closure during page
+load.
+
+Task-card transport success is a data contract, not just an absence of an
+exception. AI Ops remediation workflow, plugin conversation repair dispatch,
+and Autonomous Delivery follow-up dispatches must normalize task-card results
+through `adapters/task-card-dispatch-result-service.js`. A response is
+successful only when it has `ok !== false` and includes at least one returned
+`ttc_*` card id. Missing ids, routing errors, permission errors, or thrown
+exceptions leave the source case/slice and Action Inbox approval open with a
+bounded failure code; they must not mark diagnostic cases as `card_sent`,
+complete approval rows, or manufacture placeholder task-card ids.
+
 The diagnostic intake runtime is service-backed and route-module backed. Runtime
 diagnostics enter a platform inbox first. Eligible H1/H2 diagnostic cases can
 then be converted into deterministic remediation plans under
@@ -52,17 +104,56 @@ repair requests, embedded plugin reports, and other request-like cases remain
 Owner-gated; Owner must explicitly trigger dispatch from the notification or
 diagnostic case action. AI Ops does not directly edit code or deploy
 production.
+Owner notifications created from these plans are dedupe-keyed Action Inbox
+projections. Producers may send Web Push only when the dedupe-keyed Inbox item
+is newly created or explicitly reopened; repeated updates to the same open item
+must not send another approval Web Push.
+Home AI self-check diagnostics use a stable runtime dedupe scope. Their
+diagnostic case key is based on the owning workspace, plugin, source surface,
+diagnostic type, category, error class, bounded resource hash, and safe route;
+it intentionally does not include transient build ids or thread hashes. This
+keeps the same failing self-check signal from creating duplicate repair
+approval rows and duplicate Web Push notifications when it is submitted by two
+runtime paths or across adjacent build/readback runs.
+
+The classic diagnostic feedback UI in
+`public/app-ai-ops-diagnostics-ui.js` participates in the Vite runtime-facade
+migration. When `window.HomeAiRuntimeFacade` is present, diagnostic event
+submission uses `runtime.api`, feedback lifecycle and plugin diagnostic
+submission publish bounded runtime events, and submission state is projected
+through `runtime.state`. Plugin diagnostic transport evidence is delivered
+through `runtime.diagnostics.sendClientLayoutDiagnostic`, and duplicate plugin
+conversation repair approval suppression is stored through `runtime.dedupe`.
+The module keeps classic fallback behavior while the ordered static shell
+remains active, but it no longer owns direct `fetch` or `localStorage` access
+for those migration paths. The temporary browser API ownership lives in
+`public/app-runtime-facade-ui.js` and is tracked by
+`scripts/vite-global-usage-audit.js` until the full shell imports the ESM
+runtime facade directly.
+
+The AI Ops feedback menu also has a development-only Vite island preview at
+`/vite-ai-ops-feedback-preview/`, implemented under
+`src/vite-islands/ai-ops-feedback/`. It uses the same runtime-facade boundary
+for API, state, events, route, feedback status, and native capability metadata.
+Its payload builder strips unsafe route parameters and submits only bounded
+diagnostic metadata. This preview does not replace the production classic
+three-finger feedback menu; production cutover remains a separate Owner-approved
+target after Vite development parity is proven.
 
 Home AI Self-Improving Loop is layered on top of AI Ops. It is implemented
 in `adapters/home-ai-self-improving-loop-service.js` and
-`scripts/homeai-self-improving-loop.js`. The loop owns the maintained
-self-check signal matrix, converts bounded observations into diagnostic event
-payloads, can submit those metadata-only events to AI Ops intake, and creates
-daily audit request cards for the dedicated audit threads. It does not perform
-deep audits locally, restart services as closure, or modify code. Once a
-self-check event is submitted, the AI Ops remediation workflow may
-auto-dispatch the resulting repair task card only through the strict
-self-check diagnostic gate; daily audit request cards remain request-only.
+`scripts/homeai-self-improving-loop.js`; the generated 3A Runtime SLO model is
+implemented in `adapters/home-ai-runtime-slo-service.js`; runtime-health
+observation conversion is isolated in
+`adapters/self-improving-runtime-health-observation-service.js`. The loop owns
+the maintained self-check signal matrix, maps the matrix into Availability,
+Accuracy, and Autonomy SLOs, converts bounded observations into diagnostic
+event payloads, can submit those metadata-only events to AI Ops intake, and
+creates daily audit request cards for the dedicated audit threads. It does not
+perform deep audits locally, restart services as closure, or modify code. Once
+a self-check event is submitted, the AI Ops remediation workflow may
+auto-dispatch the resulting repair task card only through the strict self-check
+diagnostic gate; daily audit request cards remain request-only.
 
 ## Core Commands
 
@@ -253,19 +344,50 @@ manual explanation. It is implemented as a Home AI platform service, not as
 plugin-local model logic.
 
 Self-check diagnostics use the same intake boundary. The maintained signal
-matrix version `20260629-self-improving-loop-v5` covers Gateway profile health,
+matrix version `20260701-self-improving-loop-v13` covers host system resource
+health, Gateway profile health,
 MCP/schema closure, deploy lane liveness, task-card dispatch, plugin proxy
-latency, native bridge capability, notification delivery, plugin manifest
-health, audit-thread liveness, Automation cron health, production
-self-diagnostic inventory health, and published public-upgrade rehearsal
-closure. Current production collectors read bounded outputs from
-`production-status-smoke.js`, `macos-automation-cron-audit.js`,
-`production-self-diagnostics.js`, and
-`homeai-public-upgrade-rehearsal.js --execute --json`. Each self-check event
-must include only bounded metadata such as signal id, owner, route kind, error
-code, duration bucket, counts, build id, and short hashes. It must not include
-raw URLs, paths, keys, cookies, launch tokens, screenshots, payload bodies,
-database rows, full prompts, or long logs.
+latency, Composer terminal receipt / pending echo / scroll-protection feedback,
+media preview health, low-permission Gateway document tool capability, native
+bridge capability, notification delivery, plugin manifest health, plugin action
+metadata projection/execution health, audit-thread liveness, Automation cron
+health, production self-diagnostic inventory health, and published
+public-upgrade rehearsal closure, including the source-safe install/upgrade
+canary and Runtime SLO coverage audit. Current production collectors read bounded
+outputs from `production-status-smoke.js`,
+`macos-automation-cron-audit.js`, `production-self-diagnostics.js`,
+`homeai-public-upgrade-rehearsal.js --execute --json`, and
+`homeai-install-upgrade-canary.js --execute --json` as source-safe rehearsal
+evidence; the loop also runs
+`homeai-self-improving-loop.js --runtime-slo-audit --json` and converts a failed
+audit into a `runtime_slo_coverage` self-check event. Production scheduling uses
+the installed `homeai-self-improving-loop-cron.sh` wrapper so the same collector
+can submit bounded diagnostics and audit request cards without printing raw
+command output. Clean install/upgrade completion still requires bounded
+install/deploy-lane `cleanTargetCanary` readback; the source-safe canary alone
+must remain `closureStatus=partial`. Replay-safe payloads remain available for
+plugin proxy latency, Gateway capability availability, UI runtime health, and
+Runtime SLO audit. The
+production collection output also includes a full `signalReport` row for every
+maintained matrix signal. `not_collected` rows are coverage context for the
+current run and do not create diagnostics by themselves; failed observed rows
+continue through normal self-check event creation. When the collector submits
+diagnostics, it must also return `diagnosticSubmitClosure` with bounded
+case/event ids, Owner notification or self-check auto-dispatch state, optional
+task-card id, and the signal's required closure readbacks. A submit result that
+lacks a case id, event id, or closure readbacks is not accepted as a closed
+submission path. Each self-check event must include only bounded metadata such
+as signal id, owner, route kind, error code, duration bucket, counts, build id,
+plugin/action ids, and short hashes. It must not include raw URLs, paths, keys,
+cookies, launch tokens, screenshots, media bytes, payload bodies, database rows,
+full prompts, or long logs.
+
+The source-safe `self-check-diagnostic-submit-smoke` validates this submit
+contract without mutating production: it uses a temporary diagnostic store,
+fake task-card dispatch, and fake Owner Action Inbox delivery to prove H1/H2
+self-check diagnostics can auto-dispatch repair cards when eligible, including
+`system_resource_health` host pressure regressions, while feature/capability
+requests remain Owner-gated.
 
 The default hidden client trigger is a three-finger long press. The two-finger
 long press remains reserved for native shell settings. The same Home AI sheet is
@@ -284,6 +406,18 @@ strings to safe keys, whitelists bounded fields, and submits the event through
 the same diagnostic intake route. These automatic reports may create Owner
 notifications when the remediation gate passes, but task-card dispatch remains
 Owner-triggered.
+
+The Home AI static client may submit strict self-check events directly for
+Composer runtime invariants, using `plugin_id=home-ai`,
+`source_surface=home-ai-self-check`,
+`diagnostic_type=self_check_signal_failed`, and
+`category=self_check_composer_runtime`. This path is limited to bounded
+metadata such as error code, message/run ids, counts, static client version, and
+whether scroll protection was active. It must not include message content,
+prompts, attachment contents, screenshots, raw URLs, cookies, launch tokens, or
+access keys. These events pass the same self-check remediation gate and may
+auto-dispatch a Codex repair task card; feature requests and capability gaps
+remain Owner-gated.
 
 Trusted plugin reports may include bounded `counts`, `context`, and
 `breadcrumbs[].fields`. Home AI preserves only whitelisted numeric/boolean count
@@ -439,10 +573,15 @@ Client trigger:
   hidden `homeai-plugin-conversation-action` HTML comment containing exact JSON.
   The client scans only recent completed assistant messages, strips the hidden
   block from display, deduplicates submission locally, and forwards it through
-  the same `POST /api/plugin-conversation/actions` bridge. The assistant must
-  not claim successful submission or invent `t_*`, `ainb_*`, or `ttc_*` ids; a
-  real submitted approval has an `ainb_*` id and a real Codex task card has a
-  `ttc_*` id after Owner dispatch.
+  the same `POST /api/plugin-conversation/actions` bridge. Gateway run
+  completion also submits the hidden comment server-side, so the bridge must
+  treat a server-completion submit plus a client fallback submit as one bounded
+  approval when plugin id, request type, title, and compact problem summary
+  match. The duplicate update preserves the richer source thread/turn metadata
+  and does not send a second Web Push. The assistant must not claim successful
+  submission or invent `t_*`, `ainb_*`, or `ttc_*` ids; a real submitted
+  approval has an `ainb_*` id and a real Codex task card has a `ttc_*` id after
+  Owner dispatch.
 - accepted conversation-action evidence is limited to bounded scalar/list
   fields such as catalog key, label, aliases, status/error code, source kind, and
   counts. Raw records, health logs, private workout text, raw provider payloads,

@@ -245,6 +245,7 @@ function createAiOpsDiagnosticApiRoutes(deps = {}) {
       return { handled: true, status: 503 };
     }
     try {
+      const body = await deps.readBody(req).catch(() => ({}));
       const actor = cleanString(
         context.auth?.principalId || context.auth?.workspaceId || owner?.principalId || owner?.workspaceId || "authenticated",
         80,
@@ -252,6 +253,7 @@ function createAiOpsDiagnosticApiRoutes(deps = {}) {
       const result = await deps.aiOpsDiagnosticRemediationWorkflowService.dispatchTaskCard({
         case_id: caseIdFromPath(url.pathname, "/task-card"),
         actor,
+        itemId: body.itemId || body.item_id || body.inboxItemId || body.inbox_item_id,
       });
       if (!result?.ok) {
         deps.sendJson(res, Number(result?.status || 400), {

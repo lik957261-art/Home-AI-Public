@@ -4,9 +4,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const DEFAULT_EPOCH = "20260606-finance-reference-mcp-v1";
-const DEFAULT_GATEWAY_TOOL = "mcp_finance_add_transaction_attachment";
-const DEFAULT_SERVICE_TOOL = "finance.add_transaction_attachment";
+const DEFAULT_EPOCH = "20260629-wardrobe-wear-intent-v970";
+const DEFAULT_GATEWAY_TOOL = "mcp_wardrobe_wardrobe_execute_outfit_wear_intent";
+const DEFAULT_SERVICE_TOOL = "wardrobe.execute_outfit_wear_intent";
+const FINANCE_ATTACHMENT_SERVICE_TOOL = "finance.add_transaction_attachment";
+const FINANCE_ATTACHMENT_GATEWAY_TOOL = "mcp_finance_add_transaction_attachment";
 
 function argValue(name, fallback = "") {
   const index = process.argv.indexOf(name);
@@ -314,6 +316,13 @@ function checkGatewaySchema(options) {
     return { ok: true, skipped: true, reason: "skip_gateway_requested" };
   }
   if (!options.manifest || !options.profile) {
+    if (!options.requireGateway) {
+      return {
+        ok: true,
+        skipped: true,
+        reason: "gateway_manifest_profile_not_provided_default_source_check",
+      };
+    }
     const missing = [];
     if (!options.manifest) missing.push("--manifest");
     if (!options.profile) missing.push("--profile");
@@ -375,11 +384,11 @@ async function main() {
   const repoRoot = path.resolve(argValue("--repo-root", macosProductionDefaults ? path.join(macRoot, "app") : path.resolve(__dirname, "..")));
   const serviceTools = cleanList(argValues("--require-service-tool"), [DEFAULT_SERVICE_TOOL]);
   const gatewayTools = cleanList(argValues("--gateway-tool"), [DEFAULT_GATEWAY_TOOL]);
-  const defaultServiceToolProperties = serviceTools.includes(DEFAULT_SERVICE_TOOL)
-    ? [`${DEFAULT_SERVICE_TOOL}:file_path`, `${DEFAULT_SERVICE_TOOL}:upload_path`]
+  const defaultServiceToolProperties = serviceTools.includes(FINANCE_ATTACHMENT_SERVICE_TOOL)
+    ? [`${FINANCE_ATTACHMENT_SERVICE_TOOL}:file_path`, `${FINANCE_ATTACHMENT_SERVICE_TOOL}:upload_path`]
     : [];
-  const defaultGatewayToolProperties = gatewayTools.includes(DEFAULT_GATEWAY_TOOL)
-    ? [`${DEFAULT_GATEWAY_TOOL}:file_path`, `${DEFAULT_GATEWAY_TOOL}:upload_path`]
+  const defaultGatewayToolProperties = gatewayTools.includes(FINANCE_ATTACHMENT_GATEWAY_TOOL)
+    ? [`${FINANCE_ATTACHMENT_GATEWAY_TOOL}:file_path`, `${FINANCE_ATTACHMENT_GATEWAY_TOOL}:upload_path`]
     : [];
   const schemaPropertyMatches = cleanList(argValues("--require-schema-property-match"), [])
     .map(parseSchemaPropertyMatch);
@@ -395,7 +404,7 @@ async function main() {
   ]);
   const options = {
     repoRoot,
-    toolset: argValue("--toolset", "finance"),
+    toolset: argValue("--toolset", "wardrobe"),
     epoch: argValue("--epoch", DEFAULT_EPOCH),
     instructionFile: path.resolve(repoRoot, argValue("--instruction-file", "adapters/gateway-run-instruction-service.js")),
     runtimeFile: path.resolve(repoRoot, argValue("--runtime-file", "mobile-server-runtime.js")),
@@ -410,6 +419,7 @@ async function main() {
     schemaPropertyMatches,
     docContains: argValues("--doc-contains"),
     skipGateway: hasFlag("--skip-gateway"),
+    requireGateway: hasFlag("--require-gateway"),
     skipGatewaySchema: hasFlag("--skip-gateway-schema"),
     allowLiveGatewaySubstitute: hasFlag("--allow-live-gateway-substitute"),
     allowMcpLogEvidence: hasFlag("--allow-mcp-log-evidence"),

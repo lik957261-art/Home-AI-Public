@@ -1,6 +1,6 @@
 # Embedded App Plugins
 
-Last updated: 2026-06-18.
+Last updated: 2026-07-03.
 
 This module describes the Hermes Mobile embedded-app plugin contract. A plugin
 is an external product surface mounted inside Hermes Mobile. Hermes owns the
@@ -131,10 +131,11 @@ entry URL, and, when available, post `homeai-plugin-ready` with `pluginId`,
 `pluginVersion`, and `cacheKey` after the iframe has loaded. A manifest that
 declares `embedding.refreshOnVersionChange=true` or
 `navigation.refreshOnVersionChange=true` is not treated as permanently fresh:
-the host re-reads the manifest on a short bounded TTL, preserves the resolved
+the host re-reads the manifest on a short bounded TTL, preserves the currently
+loaded resident iframe while that refresh is in flight, preserves the resolved
 versioned entry URL through the same-origin proxy, and recreates the resident
-iframe when the resolved entry URL changes. If the plugin-ready version
-disagrees with the current manifest version, the host records bounded
+iframe only when the stable resolved entry URL changes. If the plugin-ready
+version disagrees with the current manifest version, the host records bounded
 diagnostic metadata and requests one refresh for that mismatch signature. This
 is a runtime plugin contract; routine Movie cache/version updates should use
 this protocol, not Codex task cards. Task cards are for repairing a broken host
@@ -156,10 +157,14 @@ successful launch. Switching to another Home AI tab, opening the global plugin
 Dock, or backgrounding and foregrounding the installed PWA must hide/show the
 existing host shell instead of recreating the iframe. The host may discard a
 resident iframe only when the effective workspace changes, appearance launch
-context changes, the resolved entry URL changes, page security blocks the
-embed, or the plugin explicitly emits its bounded `*.plugin.refresh_required`
-event. This host-level persistence protects plugin SPA routes, scroll position,
-and in-progress UI state during ordinary navigation; plugin projects still own
+context changes, the stable resolved entry target changes, page security blocks
+the embed, or the plugin explicitly emits its bounded `*.plugin.refresh_required`
+event. For launch-token plugins, stable target comparison strips one-time
+launch/session/token parameters such as `launch`, `codexPluginLaunch`, `token`,
+`key`, and `access_key`, but keeps durable build and route parameters such as
+`codexMobileBuild`, workspace, appearance, and plugin route ids. This
+host-level persistence protects plugin SPA routes, scroll position, and
+in-progress UI state during ordinary navigation; plugin projects still own
 durable draft persistence for OS process kills or full PWA reloads.
 Plugin manifest loading, iframe creation, bounded refresh, and recovery/restart
 checks must not block Home AI primary navigation. Clicking a pinned plugin tab
@@ -168,6 +173,15 @@ actual `loadSelectedView()` work must be scheduled asynchronously and guarded by
 the current view-load sequence so that a later click on Chat, Inbox, Topics, or
 another plugin wins. A slow or stuck plugin must never leave the bottom tabs,
 topic list, or other host-owned controls unresponsive.
+
+The Vite migration includes a development-only Plugin Host island under
+`src/vite-islands/plugin-host/`. It models host-side manifest/iframe readiness,
+Owner permission denial, launch-token redaction, refresh evidence, and embed
+blocking for sampled plugins. It is not a plugin UI build system and must not
+pull plugin-owned frontend code into the Home AI host bundle. Production plugin
+launch still uses the classic resident iframe host until a separately approved
+Vite production cutover proves equivalent manifest, proxy, launch-token,
+refresh, and non-Owner denial readback.
 
 Home AI plugin workspace audit is host-owned. The plugin registry may expose a
 workspace path reference and display metadata for authorized audit targets, but
@@ -861,6 +875,13 @@ plugin workspace instead of falling back to the Owner workspace. This protects
 Owner-account workspace switching when an embedded plugin frontend suppresses or
 omits `Referer`.
 
+Codex Mobile Vite shell script responses are also plugin-owned JavaScript
+resources: quoted `/vite-shell/...` imports and Vite relative `assets/...`
+dependency arrays must be rewritten under
+`/api/hermes-plugins/codex-mobile/proxy/...` without appending a workspace query
+to the script literal itself. Otherwise the proxied iframe can load the host
+shell while its module shards escape to the Home AI root namespace.
+
 When the Hermes workspace selector changes, the host must discard all embedded
 plugin iframes, cached manifests, launch freshness state, and plugin list state
 before loading the selected workspace. Same-origin embedded apps such as Finance
@@ -870,17 +891,19 @@ fresh launch entry for that effective workspace.
 
 For launch-token plugins, a cached manifest/launch context is intentionally
 short-lived. The host may preserve an iframe across ordinary tab switches only
-when the current iframe was rendered from the same effective entry URL. Codex
-has an additional resident-frame exception described above: an already-mounted
-Codex iframe can be reattached after manifest expiry as long as its rendered
-workspace, appearance, and entry still match the active host context. If a
-fresh manifest or launch returns a different browser-facing entry, including a
-different plugin version query such as Finance's `v=...`, the host must discard
-the old iframe shell and render the new entry. `preserve_iframe_state`,
-navigation timestamps, or refresh cooldowns must not keep a stale iframe alive
-after the plugin has advertised a new entry. Plugin `refresh_required`
-postMessages may still be accepted from the currently mounted frame origin so a
-plugin can ask the host to refresh even when the cached manifest has expired.
+when the current iframe was rendered from the same stable effective entry URL.
+Codex has an additional resident-frame exception described above: an
+already-mounted Codex iframe can be reattached after manifest expiry as long as
+its rendered workspace, appearance, and stable entry still match the active host
+context. A freshly minted launch token alone is not a different entry. If a
+fresh manifest or launch returns a different browser-facing build, route,
+workspace, appearance, or other durable entry parameter, including a different
+plugin version query such as Finance's `v=...`, the host must discard the old
+iframe shell and render the new entry. `preserve_iframe_state`, navigation
+timestamps, or refresh cooldowns must not keep a stale iframe alive after the
+plugin has advertised a new entry. Plugin `refresh_required` postMessages may
+still be accepted from the currently mounted frame origin so a plugin can ask
+the host to refresh even when the cached manifest has expired.
 
 Plugin-bound topics also define model-side MCP requirements. The host maps
 `plugin:<id>` task groups to the plugin's toolset, for example
@@ -1230,6 +1253,12 @@ handoffs, screenshots, or logs. A plugin deploy that includes Finance's
 fail-closed embedded launch contract must refresh and reload the Finance
 launchd plist before restarting the service; runtime self-registration is not a
 valid production fallback.
+The same Home AI-owned launchd installer also explicitly enables Finance
+backend recurring auto-post in production with
+`FINANCE_RECURRING_AUTO_POST=1` and the maintained
+`FINANCE_RECURRING_AUTO_POST_INTERVAL_MS=300000`, so due recurring rules are
+owned by the backend scheduler and startup/restart catch-up rather than by page
+refresh or a hand-edited production plist.
 
 On Windows production, low Gateway profiles are generated inside WSL. If the
 Finance service runs on Windows, the Finance MCP API base passed to the WSL
@@ -1706,7 +1735,8 @@ Hermes Mobile then:
 - stores only bounded route metadata in `sourceRef` when an Inbox item is
   created;
 - sends Web Push through the Hermes PWA subscription when `notify` is not
-  `false`;
+  `false`, but for Inbox-backed notifications only when the upsert creates a
+  new row or reopens a terminal row;
 - returns the generated Inbox item id when one exists, plus delivery summary,
   without exposing push endpoints or plugin secrets.
 

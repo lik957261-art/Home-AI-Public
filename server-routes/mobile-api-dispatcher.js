@@ -4,14 +4,20 @@ const EMBEDDED_PLUGIN_PROXY_PATH_REGEX = /^\/api\/hermes-plugins\/[^/]+\/proxy(?
 const PRE_AUTH_SYSTEM_PATHS = Object.freeze(new Set([
   "/api/client-version",
 ]));
+const PRE_AUTH_NATIVE_IOS_SHELL_PATHS = Object.freeze(new Set([
+  "/api/native/ios-shell/version-policy",
+]));
 
 const MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE = Object.freeze([
   Object.freeze({ key: "systemApiRoutes", passAuth: false }),
   Object.freeze({ key: "ownerElevationApiRoutes", passAuth: false }),
+  Object.freeze({ key: "ownerSystemConsoleApiRoutes", passAuth: false }),
   Object.freeze({ key: "runtimeConfigApiRoutes", passAuth: false }),
   Object.freeze({ key: "pushApiRoutes", passAuth: false }),
   Object.freeze({ key: "nativeDeviceApiRoutes", passAuth: false }),
   Object.freeze({ key: "nativeEnvironmentContextApiRoutes", passAuth: false }),
+  Object.freeze({ key: "nativeIosShellApiRoutes", passAuth: false }),
+  Object.freeze({ key: "nativeSecureSecretApiRoutes", passAuth: true }),
   Object.freeze({ key: "workspaceApiRoutes", passAuth: true }),
   Object.freeze({ key: "workspaceOnboardingApiRoutes", passAuth: true }),
   Object.freeze({ key: "platformCurrencyApiRoutes", passAuth: true }),
@@ -130,6 +136,11 @@ function createMobileApiDispatcher(deps = {}) {
       if (routeWasHandled(systemResult)) return systemResult;
     }
 
+    if (PRE_AUTH_NATIVE_IOS_SHELL_PATHS.has(url.pathname)) {
+      const nativePolicyResult = await deps.nativeIosShellApiRoutes.handle(req, res, url);
+      if (routeWasHandled(nativePolicyResult)) return nativePolicyResult;
+    }
+
     const auth = authenticateRequest(req);
     if (!auth.ok) {
       sendJson(res, 401, { error: "Unauthorized" });
@@ -163,5 +174,6 @@ module.exports = {
   MOBILE_API_AUTHENTICATED_ROUTE_KEYS,
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,
   PRE_AUTH_SYSTEM_PATHS,
+  PRE_AUTH_NATIVE_IOS_SHELL_PATHS,
   createMobileApiDispatcher,
 };

@@ -295,6 +295,67 @@ function embeddedPluginUsesLaunchToken(manifest) {
   return manifest?.embed?.tokenStatus === "launch_token_issued" || /[?&](?:launch|codexPluginLaunch)=/.test(entryUrl);
 }
 
+const EMBEDDED_PLUGIN_VOLATILE_ENTRY_PARAMS = new Set([
+  "launch",
+  "codexpluginlaunch",
+  "token",
+  "key",
+  "accesskey",
+  "apikey",
+  "pluginkey",
+  "plugintoken",
+  "launchtoken",
+  "session",
+  "sessionkey",
+  "sessiontoken",
+  "authtoken",
+  "bearertoken",
+]);
+
+function embeddedPluginEntryParamKey(name = "") {
+  return String(name || "").toLowerCase().replace(/[-_]/g, "");
+}
+
+function embeddedPluginEntryParamIsVolatile(name = "") {
+  return EMBEDDED_PLUGIN_VOLATILE_ENTRY_PARAMS.has(embeddedPluginEntryParamKey(name));
+}
+
+function embeddedPluginStableEntrySignature(entryUrl = "") {
+  const raw = String(entryUrl || "").trim();
+  if (!raw) return "";
+  try {
+    const parsed = new URL(raw, window.location?.href || undefined);
+    const stableParams = [];
+    parsed.searchParams.forEach((value, key) => {
+      if (!embeddedPluginEntryParamIsVolatile(key)) stableParams.push([key, value]);
+    });
+    stableParams.sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+      const keyCompare = leftKey.localeCompare(rightKey);
+      return keyCompare || leftValue.localeCompare(rightValue);
+    });
+    parsed.search = "";
+    stableParams.forEach(([key, value]) => parsed.searchParams.append(key, value));
+    return `${parsed.origin}${parsed.pathname}${parsed.search}${parsed.hash || ""}`;
+  } catch (_) {
+    return raw;
+  }
+}
+
+function embeddedPluginEntryUrlsStableEquivalent(left = "", right = "") {
+  const leftSignature = embeddedPluginStableEntrySignature(left);
+  const rightSignature = embeddedPluginStableEntrySignature(right);
+  return Boolean(leftSignature && rightSignature && leftSignature === rightSignature);
+}
+
+function embeddedPluginFrameUsesEntry(frame, entryUrl = "") {
+  const frameSrc = String(frame?.getAttribute?.("src") || "");
+  return Boolean(frameSrc && (frameSrc === entryUrl || embeddedPluginEntryUrlsStableEquivalent(frameSrc, entryUrl)));
+}
+
+function embeddedPluginRenderedEntryMatches(left = "", right = "") {
+  return Boolean(left && (left === right || embeddedPluginEntryUrlsStableEquivalent(left, right)));
+}
+
 function embeddedPluginRefreshesOnVersionChange(manifest) {
   return Boolean(
     manifest?.embedding?.refreshOnVersionChange
@@ -455,7 +516,7 @@ function embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appea
   if (!record.checked || record.loading || !record.shellNode || !record.renderedEntryUrl) return false;
   const shell = currentEmbeddedPluginShell(def);
   const frame = shell?.querySelector?.(".embedded-plugin-frame");
-  if (!frame || frame.getAttribute("src") !== record.renderedEntryUrl) return false;
+  if (!frame || !embeddedPluginFrameUsesEntry(frame, record.renderedEntryUrl)) return false;
   const renderedWorkspaceId = String(record.renderedWorkspaceId || record.manifest?.workspaceId || "").trim();
   const renderedAppearanceKey = String(record.renderedAppearanceKey || record.manifestAppearanceKey || "").trim();
   return Boolean(
@@ -1261,7 +1322,7 @@ function attachEmbeddedPluginShell(def, entryUrl) {
   const shell = currentEmbeddedPluginShell(def);
   if (!shell) return false;
   const frame = shell.querySelector(".embedded-plugin-frame");
-  if (!frame || frame.getAttribute("src") !== entryUrl) return false;
+  if (!frame || !embeddedPluginFrameUsesEntry(frame, entryUrl)) return false;
   if (shell.parentNode !== embeddedPluginHost(def)) embeddedPluginHost(def).appendChild(shell);
   setEmbeddedPluginHostVisible(def, true);
   const record = embeddedPluginRecord(def.id);
@@ -1370,6 +1431,7 @@ function scheduleEmbeddedPluginNavigationHealthCheck(def, frame, observedAt = Da
     const shell = currentEmbeddedPluginShell(def);
     if (shell?.querySelector(".embedded-plugin-frame") !== frame) return;
     if (Number(record.navigationLastAt || 0) > 0) return;
+    if (shell?.classList && !shell.classList.contains("is-loading")) return;
     const now = Date.now();
     const cooldownMs = Math.max(0, Number(def?.navigationHealthCooldownMs || 60000));
     if (cooldownMs > 0 && now - Number(record.lastNoNavigationRefreshAt || 0) < cooldownMs) return;
@@ -1538,12 +1600,12 @@ function renderEmbeddedPluginView(def) {
   const workspaceId = state.selectedWorkspaceId || "owner";
   const appearanceKey = embeddedPluginAppearanceKey();
   const pluginManifest = embeddedPluginCurrentManifest(def);
-  if (!pluginManifest
-    && !embeddedPluginResidentShellRequiresFreshManifest(def, record.manifest)
-    && embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appearanceKey)
-  ) {
+  if (!pluginManifest && embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appearanceKey)) {
     record.frameOrigin = record.frameOrigin || embeddedPluginEntryOrigin(def, record.manifest);
     if (attachEmbeddedPluginShell(def, record.renderedEntryUrl)) {
+      if (embeddedPluginResidentShellRequiresFreshManifest(def, record.manifest) && !record.loading) {
+        loadEmbeddedPluginManifest(def, { force: true }).catch(showError);
+      }
       updateNavigationControls();
       ensureVerticalScrollAffordance();
       return;
@@ -1554,14 +1616,15 @@ function renderEmbeddedPluginView(def) {
     record.frameOrigin = embeddedPluginEntryOrigin(def, pluginManifest);
     const currentShell = currentEmbeddedPluginShell(def);
     const currentFrame = currentShell?.querySelector(".embedded-plugin-frame");
-    const currentFrameUsesEntry = Boolean(currentFrame && currentFrame.getAttribute("src") === entryUrl);
-    const currentShellWasRenderedForEntry = Boolean(record.renderedEntryUrl && record.renderedEntryUrl === entryUrl);
+    const currentFrameUsesEntry = Boolean(currentFrame && embeddedPluginFrameUsesEntry(currentFrame, entryUrl));
+    const currentShellWasRenderedForEntry = embeddedPluginRenderedEntryMatches(record.renderedEntryUrl, entryUrl);
     const currentShellUsesCurrentEntry = Boolean(currentFrameUsesEntry || currentShellWasRenderedForEntry);
+    const currentShellLoaded = Boolean(Number(record.frameLoadedAt || 0) || Number(record.navigationLastAt || 0));
     const launchFrameCanBePreserved = !embeddedPluginUsesLaunchToken(pluginManifest)
       || !currentShell
       || (currentShellUsesCurrentEntry && (
         embeddedPluginLaunchTokenFreshForFrame(def)
-        || Number(record.navigationLastAt || 0) > 0
+        || currentShellLoaded
       ));
     const mustReplaceStaleLaunchFrame = Boolean(currentShell && !currentShellUsesCurrentEntry);
     if (!launchFrameCanBePreserved && !mustReplaceStaleLaunchFrame) {

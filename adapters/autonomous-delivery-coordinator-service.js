@@ -13,6 +13,11 @@ const {
   redactSensitiveValue,
   verifyEvidenceLedger,
 } = require("./ai-operations-control-plane-service");
+const {
+  cardIdsFromTaskCardResult,
+  exceptionTaskCardResult,
+  normalizeTaskCardDispatchResult,
+} = require("./task-card-dispatch-result-service");
 
 const APP_WORKSPACE = "/Users/example/path";
 const OWNER_WORKSPACE_ID = "owner";
@@ -73,6 +78,15 @@ const TERMINAL_SLICE_STATUSES = Object.freeze([
   "rejected",
   "partially_completed",
 ]);
+const ACTIVE_DISPATCH_STATUSES = Object.freeze(["dispatching", "dispatched"]);
+const DISPATCH_CONTROL_ATTENTION_STATUSES = Object.freeze([
+  "deferred_conflict",
+  "failed",
+  "dispatching",
+  "sent",
+  "return_stale",
+]);
+const DEFAULT_RETURN_WATCHDOG_STALE_MS = 4 * 60 * 60 * 1000;
 const UNSAFE_EVIDENCE_METADATA_KEY_RE = /body|text|prompt|message|url|uri|path|file|filename|cookie|token|secret|password|oauth|access[_ -]?key|launch[_ -]?key|authorization|provider|screenshot|upload|raw|log/i;
 
 function clean(value, max = 500) {
@@ -552,6 +566,12 @@ function publicSliceRecord(row = {}) {
     "auditThreadTitle",
     "verificationTaskCardId",
     "verificationTaskCardIds",
+    "dispatchConflict",
+    "dispatchFailure",
+    "verificationDispatchFailure",
+    "deploymentDispatchFailure",
+    "repairDispatchFailure",
+    "returnWatchdog",
   ]) {
     if (row[key] !== undefined) returnFields[key] = row[key];
   }
@@ -618,16 +638,23 @@ function taskCardBodyForSlice(deliveryCase = {}, slice = {}, ownerPrompt = "") {
 
 function taskCardForSlice(deliveryCase = {}, slice = {}, target = {}, ownerPrompt = "") {
   const label = clean(target.label || slice.targetWorkspaceId || "Home AI", 120);
-  return {
+  const taskCard = {
     title: clean(`Delivery Loop: ${label} ${slice.sliceKey || slice.sliceId}`, 90),
     summary: clean(`${deliveryCase.caseId} ${slice.sliceKey}: ${deliveryCase.objective}`, 260),
     body: taskCardBodyForSlice(deliveryCase, slice, ownerPrompt),
     targetThreadTitle: target.targetThreadTitle || "",
+    targetThreadTitlePrefix: target.targetThreadTitlePrefix || "",
     targetWorkspace: target.targetWorkspace || slice.targetWorkspacePath || "",
     workflowMode: "manual",
     reasoningEffort: deliveryCase.risk === "low" ? "medium" : "high",
     requestId: `autonomous-delivery-${deliveryCase.caseId}-${slice.sliceKey || slice.sliceId}`,
   };
+  if (isHomeAiTargetSlice(slice) && isImplementationSlice(slice)) {
+    taskCard.cardKind = "home_ai_worker";
+    taskCard.targetThreadTitle = "";
+    taskCard.targetThreadTitlePrefix = "";
+  }
+  return taskCard;
 }
 
 function isHomeAiTargetSlice(slice = {}) {
@@ -691,6 +718,148 @@ function isImplementationSlice(slice = {}) {
   ].includes(clean(slice.ownerLayer || "", 120));
 }
 
+function isActiveImplementationSlice(slice = {}) {
+  return isImplementationSlice(slice) && ACTIVE_DISPATCH_STATUSES.includes(clean(slice.status || "", 80));
+}
+
+function dispatchConflictKeyForSlice(slice = {}) {
+  const targetWorkspaceId = safeToken(slice.targetWorkspaceId || "", "", 120).toLowerCase();
+  if (targetWorkspaceId) return `workspace:${targetWorkspaceId}`;
+  const targetWorkspacePath = clean(slice.targetWorkspacePath || "", 800);
+  if (targetWorkspacePath) return `path:${shortHash(targetWorkspacePath, 16)}`;
+  return "";
+}
+
+function boundedDispatchConflict(slice = {}, activeSlice = {}, code = "workspace_dispatch_conflict") {
+  return {
+    code,
+    targetWorkspaceId: clean(slice.targetWorkspaceId || activeSlice.targetWorkspaceId || "", 120),
+    activeSliceId: clean(activeSlice.sliceId || "", 180),
+    activeCaseId: clean(activeSlice.caseId || "", 160),
+    activeStatus: clean(activeSlice.status || "", 80),
+    activeDispatchStatus: clean(activeSlice.dispatchStatus || "", 80),
+    activeTaskCardId: clean(activeSlice.taskCardId || "", 160),
+  };
+}
+
+function firstDispatchFailure(slice = {}) {
+  for (const key of [
+    "dispatchFailure",
+    "verificationDispatchFailure",
+    "deploymentDispatchFailure",
+    "repairDispatchFailure",
+  ]) {
+    const failure = objectValue(slice[key]);
+    if (Object.keys(failure).length) return failure;
+  }
+  return {};
+}
+
+function dispatchControlActionForSlice(slice = {}) {
+  const dispatchStatus = clean(slice.dispatchStatus || "", 80);
+  if (dispatchStatus === "deferred_conflict") return "wait_for_active_slice_then_retry_from_action_inbox";
+  if (dispatchStatus === "failed") return "inspect_routing_failure_then_retry_from_action_inbox";
+  if (dispatchStatus === "dispatching") return "observe_dispatch_completion";
+  if (dispatchStatus === "return_stale") return "inspect_missing_return_then_record_terminal_return_or_reroute";
+  if (dispatchStatus === "sent") return "observe_return_card";
+  return "observe";
+}
+
+function dispatchControlItemForSlice(slice = {}) {
+  const conflict = objectValue(slice.dispatchConflict);
+  const failure = firstDispatchFailure(slice);
+  return {
+    caseId: clean(slice.caseId || "", 160),
+    sliceId: clean(slice.sliceId || "", 160),
+    sliceKey: clean(slice.sliceKey || "", 160),
+    ownerLayer: clean(slice.ownerLayer || "", 120),
+    targetWorkspaceId: clean(slice.targetWorkspaceId || "", 120),
+    status: clean(slice.status || "", 80),
+    dispatchStatus: clean(slice.dispatchStatus || "", 80),
+    blockedReason: clean(slice.blockedReason || "", 160),
+    taskCardId: clean(slice.taskCardId || "", 160),
+    conflictCode: clean(conflict.code || "", 120),
+    activeCaseId: clean(conflict.activeCaseId || "", 160),
+    activeSliceId: clean(conflict.activeSliceId || "", 160),
+    activeTaskCardId: clean(conflict.activeTaskCardId || "", 160),
+    failureCode: clean(failure.code || failure.error || "", 120),
+    returnWatchdogCode: clean(objectValue(slice.returnWatchdog).code || "", 120),
+    recommendedAction: dispatchControlActionForSlice(slice),
+    actionRequiresOwnerConfirmation: ["deferred_conflict", "failed", "return_stale"].includes(clean(slice.dispatchStatus || "", 80)),
+    updatedAt: clean(slice.updatedAt || "", 80),
+  };
+}
+
+function dispatchControlStatus(counts = {}) {
+  if (Number(counts.failed || 0) > 0) return "degraded";
+  if (Number(counts.returnStale || 0) > 0) return "degraded";
+  if (Number(counts.deferredConflict || 0) > 0) return "warning";
+  return "ok";
+}
+
+function parseIsoMs(value) {
+  const parsed = Date.parse(clean(value || "", 100));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function boundedReturnWatchdogStaleMs(input = {}, options = {}) {
+  const raw = input.staleAfterMs ?? input.stale_after_ms ?? options.returnWatchdogStaleMs ?? DEFAULT_RETURN_WATCHDOG_STALE_MS;
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric) || numeric < 0) return DEFAULT_RETURN_WATCHDOG_STALE_MS;
+  return Math.min(30 * 24 * 60 * 60 * 1000, numeric);
+}
+
+function returnWatchdogCandidate(slice = {}) {
+  const dispatchStatus = clean(slice.dispatchStatus || "", 80);
+  if (!["sent", "return_stale"].includes(dispatchStatus)) return false;
+  if (!clean(slice.taskCardId || "", 160)) return false;
+  if (clean(slice.returnCardId || "", 160)) return false;
+  if (TERMINAL_SLICE_STATUSES.includes(clean(slice.status || "", 80))) return false;
+  return true;
+}
+
+function returnWatchdogItemForSlice(slice = {}, nowMs = Date.now(), staleAfterMs = DEFAULT_RETURN_WATCHDOG_STALE_MS) {
+  const referenceMs = parseIsoMs(slice.updatedAt) || parseIsoMs(slice.startedAt) || parseIsoMs(slice.createdAt);
+  const ageMs = referenceMs ? Math.max(0, nowMs - referenceMs) : 0;
+  const alreadyMarked = clean(slice.dispatchStatus || "", 80) === "return_stale";
+  const stale = alreadyMarked || (referenceMs && ageMs >= staleAfterMs);
+  return {
+    caseId: clean(slice.caseId || "", 160),
+    sliceId: clean(slice.sliceId || "", 160),
+    sliceKey: clean(slice.sliceKey || "", 160),
+    ownerLayer: clean(slice.ownerLayer || "", 120),
+    targetWorkspaceId: clean(slice.targetWorkspaceId || "", 120),
+    dispatchStatus: clean(slice.dispatchStatus || "", 80),
+    taskCardId: clean(slice.taskCardId || "", 160),
+    ageMs,
+    ageMinutes: Math.floor(ageMs / 60000),
+    staleAfterMs,
+    stale: Boolean(stale),
+    alreadyMarked,
+    code: stale ? "return_card_missing_after_sla" : "return_card_waiting",
+    recommendedAction: stale
+      ? "inspect_missing_return_then_record_terminal_return_or_reroute"
+      : "observe_return_card",
+    updatedAt: clean(slice.updatedAt || "", 80),
+    startedAt: clean(slice.startedAt || "", 80),
+  };
+}
+
+function activeImplementationConflicts(currentStore, candidateSlices = []) {
+  if (!currentStore || typeof currentStore.listAutonomousDeliverySlices !== "function") return new Map();
+  const targetKeys = new Set(candidateSlices.map(dispatchConflictKeyForSlice).filter(Boolean));
+  if (!targetKeys.size) return new Map();
+  const conflicts = new Map();
+  const activeSlices = currentStore.listAutonomousDeliverySlices({ limit: 500 })
+    .filter(isActiveImplementationSlice);
+  for (const activeSlice of activeSlices) {
+    const key = dispatchConflictKeyForSlice(activeSlice);
+    if (!key || !targetKeys.has(key) || conflicts.has(key)) continue;
+    conflicts.set(key, activeSlice);
+  }
+  return conflicts;
+}
+
 function isDeploymentSlice(slice = {}) {
   return clean(slice.ownerLayer || "", 120) === "deployment_owner"
     || clean(slice.sliceKey || "", 160).includes("_deploy_readback_");
@@ -725,6 +894,7 @@ function sliceRawJsonForUpdate(slice = {}, extra = {}) {
     "returnCardId",
     "originalTaskCardId",
     "returnCardEvent",
+    "returnWatchdog",
   ]) {
     if (slice[key] !== undefined && slice[key] !== "") preserved[key] = slice[key];
   }
@@ -1385,10 +1555,24 @@ function deploymentReasonForReturn(input = {}, slice = {}) {
 }
 
 function cardIdsFromResult(result = {}) {
-  if (Array.isArray(result.cardIds)) return result.cardIds.map((item) => clean(item, 160)).filter(Boolean);
-  if (Array.isArray(result.taskCardIds)) return result.taskCardIds.map((item) => clean(item, 160)).filter(Boolean);
-  if (result.cardId) return [clean(result.cardId, 160)].filter(Boolean);
-  return [];
+  return cardIdsFromTaskCardResult(result);
+}
+
+function taskCardDispatchContextForSlice(slice = {}, target = {}) {
+  return {
+    targetWorkspaceId: clean(slice.targetWorkspaceId || "", 120),
+    targetWorkspace: clean(target.targetWorkspace || slice.targetWorkspacePath || "", 600),
+    targetThreadId: clean(target.targetThreadId || "", 180),
+    targetThreadTitle: clean(target.targetThreadTitle || target.targetThreadTitlePrefix || "", 180),
+  };
+}
+
+function rawJsonWithDispatchFailure(rawJson = {}, failure = {}, key = "dispatchFailure") {
+  const out = Object.assign({}, objectValue(rawJson), {
+    dispatchFailure: failure,
+  });
+  if (key && key !== "dispatchFailure") out[key] = failure;
+  return out;
 }
 
 function boundedReturnEvent(input = {}) {
@@ -1546,6 +1730,138 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
     return { ok: true, cases, source: { name: "autonomous_delivery_coordinator", storage: "sqlite" } };
   }
 
+  function dispatchControlSummary(input = {}) {
+    const currentStore = requireStore();
+    const workspaceId = clean(input.workspaceId || input.workspace_id || OWNER_WORKSPACE_ID, 120) || OWNER_WORKSPACE_ID;
+    const limit = Math.max(1, Math.min(50, Number(input.limit || 20) || 20));
+    const slices = currentStore.listAutonomousDeliverySlices({ limit: 500 })
+      .map(publicSliceRecord)
+      .filter((slice) => !workspaceId || slice.workspaceId === workspaceId)
+      .filter((slice) => DISPATCH_CONTROL_ATTENTION_STATUSES.includes(clean(slice.dispatchStatus || "", 80)));
+    const counts = {
+      deferredConflict: slices.filter((slice) => slice.dispatchStatus === "deferred_conflict").length,
+      failed: slices.filter((slice) => slice.dispatchStatus === "failed").length,
+      dispatching: slices.filter((slice) => slice.dispatchStatus === "dispatching").length,
+      sent: slices.filter((slice) => slice.dispatchStatus === "sent").length,
+      returnStale: slices.filter((slice) => slice.dispatchStatus === "return_stale").length,
+    };
+    const status = dispatchControlStatus(counts);
+    const items = slices
+      .sort((a, b) => {
+        const rank = (slice) => {
+          if (slice.dispatchStatus === "failed") return 0;
+          if (slice.dispatchStatus === "return_stale") return 1;
+          if (slice.dispatchStatus === "deferred_conflict") return 2;
+          if (slice.dispatchStatus === "dispatching") return 3;
+          return 3;
+        };
+        return rank(a) - rank(b) || String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
+      })
+      .slice(0, limit)
+      .map(dispatchControlItemForSlice);
+    return {
+      ok: status === "ok",
+      schemaVersion: 1,
+      generatedAt: nowIso(options),
+      status,
+      workspaceId,
+      counts,
+      itemCount: items.length,
+      items,
+      source: { name: "autonomous_delivery_coordinator", storage: "sqlite" },
+      policy: {
+        ownerVisible: true,
+        readOnlySummary: true,
+        retryViaActionInbox: true,
+        boundedMetadataOnly: true,
+      },
+    };
+  }
+
+  function returnWatchdogSummary(input = {}) {
+    const currentStore = requireStore();
+    const workspaceId = clean(input.workspaceId || input.workspace_id || OWNER_WORKSPACE_ID, 120) || OWNER_WORKSPACE_ID;
+    const limit = Math.max(1, Math.min(100, Number(input.limit || 50) || 50));
+    const staleAfterMs = boundedReturnWatchdogStaleMs(input, options);
+    const now = nowIso(options);
+    const nowMs = parseIsoMs(now) || Date.now();
+    const items = currentStore.listAutonomousDeliverySlices({ limit: 500 })
+      .map(publicSliceRecord)
+      .filter((slice) => !workspaceId || slice.workspaceId === workspaceId)
+      .filter(returnWatchdogCandidate)
+      .map((slice) => returnWatchdogItemForSlice(slice, nowMs, staleAfterMs));
+    const staleItems = items.filter((item) => item.stale);
+    const counts = {
+      tracked: items.length,
+      waiting: items.length - staleItems.length,
+      stale: staleItems.length,
+      alreadyMarked: items.filter((item) => item.alreadyMarked).length,
+    };
+    return {
+      ok: true,
+      schemaVersion: 1,
+      generatedAt: now,
+      status: counts.stale ? "degraded" : "ok",
+      workspaceId,
+      staleAfterMs,
+      counts,
+      itemCount: Math.min(items.length, limit),
+      items: items
+        .sort((a, b) => Number(b.stale) - Number(a.stale) || b.ageMs - a.ageMs)
+        .slice(0, limit),
+      source: { name: "autonomous_delivery_coordinator", storage: "sqlite" },
+      policy: {
+        ownerVisible: true,
+        boundedMetadataOnly: true,
+        noAutoRetry: true,
+        terminalReturnStillAcceptedByTaskCardId: true,
+      },
+    };
+  }
+
+  function runReturnWatchdog(input = {}) {
+    const currentStore = requireStore();
+    const dryRun = input.dryRun === true || input.dry_run === true;
+    const summary = returnWatchdogSummary(input);
+    if (dryRun) return Object.assign({}, summary, { dryRun: true, markedCount: 0, marked: [] });
+    const now = nowIso(options);
+    const marked = [];
+    for (const item of summary.items.filter((candidate) => candidate.stale && !candidate.alreadyMarked)) {
+      const slice = publicSliceRecord(currentStore.listAutonomousDeliverySlices({ caseId: item.caseId, limit: 500 })
+        .find((candidate) => candidate.sliceId === item.sliceId) || {});
+      if (!slice.sliceId || clean(slice.dispatchStatus || "", 80) !== "sent") continue;
+      const watchdog = {
+        code: item.code,
+        staleAfterMs: summary.staleAfterMs,
+        ageMs: item.ageMs,
+        detectedAt: now,
+        taskCardId: item.taskCardId,
+        policy: "no_auto_retry",
+      };
+      const updated = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
+        status: slice.status || "dispatched",
+        dispatchStatus: "return_stale",
+        blockedReason: "return_card_watchdog_stale",
+        updatedAt: now,
+        rawJson: sliceRawJsonForUpdate(slice, {
+          returnWatchdog: watchdog,
+        }),
+      })));
+      appendEvent(item.caseId, "return_card_watchdog_stale", {
+        sliceId: item.sliceId,
+        sliceKey: item.sliceKey,
+        taskCardId: item.taskCardId,
+        ageMinutes: item.ageMinutes,
+      }, input.auth || {});
+      marked.push(dispatchControlItemForSlice(updated));
+    }
+    return Object.assign({}, returnWatchdogSummary(input), {
+      dryRun: false,
+      markedCount: marked.length,
+      marked,
+    });
+  }
+
   function dispatchableSlices(deliveryCase, slices = []) {
     if (deliveryCase.risk === "high") return [];
     return slices.filter((slice) => {
@@ -1586,17 +1902,50 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
       return { ok: false, status: 409, error: "autonomous_delivery_no_dispatchable_slices" };
     }
     const dispatched = [];
+    const deferred = [];
+    const failed = [];
+    const blocked = [];
+    const activeConflicts = activeImplementationConflicts(currentStore, ready);
+    const reservedTargets = new Set();
     for (const slice of ready.slice(0, Math.max(1, Math.min(5, Number(input.maxSlices || input.max_slices || 3) || 3)))) {
       const target = targetForWorkspace(slice.targetWorkspaceId, targets);
       if (!target) {
-        currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
+        const blockedSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
           status: "blocked",
           dispatchStatus: "blocked",
           blockedReason: "target_workspace_unknown",
           updatedAt: now,
-        }));
+        })));
+        blocked.push({ slice: blockedSlice, reason: "target_workspace_unknown" });
         continue;
       }
+      const conflictKey = dispatchConflictKeyForSlice(slice);
+      const activeConflict = conflictKey ? activeConflicts.get(conflictKey) : null;
+      if (activeConflict || (conflictKey && reservedTargets.has(conflictKey))) {
+        const conflict = activeConflict
+          ? boundedDispatchConflict(slice, activeConflict)
+          : boundedDispatchConflict(slice, {}, "workspace_dispatch_batch_conflict");
+        const deferredSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
+          status: "pending",
+          dispatchStatus: "deferred_conflict",
+          blockedReason: "workspace_dispatch_conflict",
+          rawJson: sliceRawJsonForUpdate(slice, {
+            dispatchConflict: conflict,
+          }),
+          updatedAt: now,
+        })));
+        deferred.push({ slice: deferredSlice, conflict });
+        appendEvent(caseId, "slice_dispatch_deferred", {
+          sliceId: slice.sliceId,
+          sliceKey: slice.sliceKey,
+          reason: conflict.code,
+          targetWorkspaceId: conflict.targetWorkspaceId,
+          activeSliceId: conflict.activeSliceId,
+          activeTaskCardId: conflict.activeTaskCardId,
+        }, input.auth || {});
+        continue;
+      }
+      if (conflictKey) reservedTargets.add(conflictKey);
       const taskCard = taskCardForSlice(deliveryCase, slice, target, ownerPrompt);
       currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
         status: "dispatching",
@@ -1605,11 +1954,39 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
         updatedAt: now,
         startedAt: now,
       }));
-      const sent = await Promise.resolve(taskCardService.sendTaskCard(Object.assign({}, taskCard, {
-        sourceWorkspaceCwd: APP_WORKSPACE,
-        targetWorkspaceCwd: taskCard.targetWorkspace,
-      })));
-      const cardIds = cardIdsFromResult(sent);
+      let sent;
+      try {
+        sent = await Promise.resolve(taskCardService.sendTaskCard(Object.assign({}, taskCard, {
+          sourceWorkspaceCwd: APP_WORKSPACE,
+          targetWorkspaceCwd: taskCard.targetWorkspace,
+        })));
+      } catch (err) {
+        sent = exceptionTaskCardResult(err);
+      }
+      const dispatchResult = normalizeTaskCardDispatchResult(sent, taskCardDispatchContextForSlice(slice, target));
+      const cardIds = dispatchResult.cardIds;
+      if (!dispatchResult.ok) {
+        const dispatchFailure = dispatchResult.failure;
+        const failedSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
+          status: "blocked",
+          dispatchStatus: "failed",
+          blockedReason: dispatchFailure.code,
+          taskCard,
+          rawJson: sliceRawJsonForUpdate(slice, {
+            dispatchFailure,
+          }),
+          updatedAt: nowIso(options),
+          startedAt: now,
+        })));
+        failed.push({ slice: failedSlice, failure: dispatchFailure });
+        appendEvent(caseId, "slice_dispatch_failed", {
+          sliceId: slice.sliceId,
+          sliceKey: slice.sliceKey,
+          reason: dispatchFailure.code,
+          targetWorkspaceId: dispatchFailure.targetWorkspaceId,
+        }, input.auth || {});
+        continue;
+      }
       const updated = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
         status: "dispatched",
         dispatchStatus: "sent",
@@ -1624,6 +2001,34 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
         sliceKey: slice.sliceKey,
         taskCardIds: cardIds,
       }, input.auth || {});
+    }
+    if (!dispatched.length) {
+      const nextCase = publicCaseRecord(currentStore.upsertAutonomousDeliveryCase(Object.assign({}, deliveryCase, {
+        status: failed.length || blocked.length ? "blocked" : deliveryCase.status,
+        updatedAt: nowIso(options),
+        rawJson: Object.assign({}, deliveryCase.rawJson || {}, {
+          dispatchDeferredCount: deferred.length,
+          dispatchFailedCount: failed.length,
+          dispatchBlockedCount: blocked.length,
+        }),
+      })));
+      appendEvent(caseId, "case_dispatch_not_started", {
+        deferredCount: deferred.length,
+        failedCount: failed.length,
+        blockedCount: blocked.length,
+      }, input.auth || {});
+      return {
+        ok: false,
+        status: failed.length ? 502 : 409,
+        error: failed.length
+          ? "autonomous_delivery_task_card_dispatch_failed"
+          : "autonomous_delivery_workspace_dispatch_conflict",
+        case: nextCase,
+        dispatched,
+        deferred,
+        failed,
+        blocked,
+      };
     }
     const nextCase = publicCaseRecord(currentStore.upsertAutonomousDeliveryCase(Object.assign({}, deliveryCase, {
       status: "running",
@@ -1644,7 +2049,7 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
       })).catch(() => null);
     }
     appendEvent(caseId, "case_started", { dispatchedCount: dispatched.length }, input.auth || {});
-    return { ok: true, case: nextCase, dispatched, autoDispatched: false };
+    return { ok: true, case: nextCase, dispatched, deferred, failed, blocked, autoDispatched: false };
   }
 
   async function startVerification(input = {}) {
@@ -1729,12 +2134,56 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
     const taskCard = verificationTaskCardForSlice(loaded.case, Object.assign({}, parentSlice, {
       aiOps: verificationSlice.aiOps,
     }), target, ownerPrompt);
-    const sent = await Promise.resolve(taskCardService.sendTaskCard(Object.assign({}, taskCard, {
-      sourceWorkspaceCwd: APP_WORKSPACE,
-      targetWorkspaceCwd: APP_WORKSPACE,
-      auditKind: target.auditKind,
-    })));
-    const cardIds = cardIdsFromResult(sent);
+    let sent;
+    try {
+      sent = await Promise.resolve(taskCardService.sendTaskCard(Object.assign({}, taskCard, {
+        sourceWorkspaceCwd: APP_WORKSPACE,
+        targetWorkspaceCwd: APP_WORKSPACE,
+        auditKind: target.auditKind,
+      })));
+    } catch (err) {
+      sent = exceptionTaskCardResult(err);
+    }
+    const dispatchResult = normalizeTaskCardDispatchResult(sent, {
+      targetWorkspaceId: verificationSlice.targetWorkspaceId,
+      targetWorkspace: APP_WORKSPACE,
+      targetThreadTitle: target.targetThreadTitle,
+    });
+    const cardIds = dispatchResult.cardIds;
+    if (!dispatchResult.ok) {
+      const dispatchFailure = dispatchResult.failure;
+      verificationSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, verificationSlice, {
+        status: "blocked",
+        dispatchStatus: "failed",
+        blockedReason: dispatchFailure.code,
+        taskCard,
+        rawJson: rawJsonWithDispatchFailure(rawJson, dispatchFailure, "verificationDispatchFailure"),
+        updatedAt: nowIso(options),
+        startedAt: verificationSlice.startedAt || now,
+      })));
+      const nextCase = publicCaseRecord(currentStore.upsertAutonomousDeliveryCase(Object.assign({}, loaded.case, {
+        status: "verification_waiting",
+        updatedAt: nowIso(options),
+      })));
+      appendEvent(caseId, "verification_dispatch_failed", {
+        sliceId,
+        verificationSliceId,
+        auditKind: target.auditKind,
+        reason: dispatchFailure.code,
+      }, input.auth || {});
+      return {
+        ok: false,
+        status: 502,
+        error: "autonomous_delivery_task_card_dispatch_failed",
+        case: nextCase,
+        parentSlice,
+        verificationSlice,
+        taskCardResult: sent,
+        dispatchFailure,
+        taskCardIds: [],
+        autoDispatched: false,
+      };
+    }
     verificationSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, verificationSlice, {
       status: "dispatched",
       dispatchStatus: "sent",
@@ -2112,12 +2561,51 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
     }));
     const ownerPrompt = cleanBlock(input.ownerPrompt || input.owner_prompt || "", 1200);
     const taskCard = deploymentTaskCardForSlice(loaded.case, deploymentSlice, parentSlice, deploymentTarget, ownerPrompt);
-    const sent = await Promise.resolve(taskCardService.sendTaskCard(Object.assign({}, taskCard, {
-      sourceWorkspaceCwd: APP_WORKSPACE,
-      targetWorkspaceCwd: taskCard.targetWorkspace,
-      auditKind: "deployment",
-    })));
-    const cardIds = cardIdsFromResult(sent);
+    let sent;
+    try {
+      sent = await Promise.resolve(taskCardService.sendTaskCard(Object.assign({}, taskCard, {
+        sourceWorkspaceCwd: APP_WORKSPACE,
+        targetWorkspaceCwd: taskCard.targetWorkspace,
+        auditKind: "deployment",
+      })));
+    } catch (err) {
+      sent = exceptionTaskCardResult(err);
+    }
+    const dispatchResult = normalizeTaskCardDispatchResult(sent, taskCardDispatchContextForSlice(deploymentSlice, deploymentTarget));
+    const cardIds = dispatchResult.cardIds;
+    if (!dispatchResult.ok) {
+      const dispatchFailure = dispatchResult.failure;
+      deploymentSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, deploymentSlice, {
+        status: "blocked",
+        dispatchStatus: "failed",
+        blockedReason: dispatchFailure.code,
+        taskCard,
+        rawJson: rawJsonWithDispatchFailure(rawJson, dispatchFailure, "deploymentDispatchFailure"),
+        updatedAt: nowIso(options),
+        startedAt: deploymentSlice.startedAt || now,
+      })));
+      const nextCase = publicCaseRecord(currentStore.upsertAutonomousDeliveryCase(Object.assign({}, loaded.case, {
+        status: "deployment_waiting",
+        updatedAt: nowIso(options),
+      })));
+      appendEvent(caseId, "deployment_readback_dispatch_failed", {
+        parentSliceId,
+        deploymentSliceId,
+        reason: dispatchFailure.code,
+      }, input.auth || {});
+      return {
+        ok: false,
+        status: 502,
+        error: "autonomous_delivery_task_card_dispatch_failed",
+        case: nextCase,
+        parentSlice,
+        deploymentSlice,
+        taskCardResult: sent,
+        dispatchFailure,
+        taskCardIds: [],
+        autoDispatched: false,
+      };
+    }
     deploymentSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, deploymentSlice, {
       status: "dispatched",
       dispatchStatus: "sent",
@@ -2266,11 +2754,52 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
     }));
     const ownerPrompt = cleanBlock(input.ownerPrompt || input.owner_prompt || "", 1200);
     const taskCard = repairTaskCardForSlice(loaded.case, repairSlice, verificationSlice, parentSlice, target, ownerPrompt);
-    const sent = await Promise.resolve(taskCardService.sendTaskCard(Object.assign({}, taskCard, {
-      sourceWorkspaceCwd: APP_WORKSPACE,
-      targetWorkspaceCwd: taskCard.targetWorkspace,
-    })));
-    const cardIds = cardIdsFromResult(sent);
+    let sent;
+    try {
+      sent = await Promise.resolve(taskCardService.sendTaskCard(Object.assign({}, taskCard, {
+        sourceWorkspaceCwd: APP_WORKSPACE,
+        targetWorkspaceCwd: taskCard.targetWorkspace,
+      })));
+    } catch (err) {
+      sent = exceptionTaskCardResult(err);
+    }
+    const dispatchResult = normalizeTaskCardDispatchResult(sent, taskCardDispatchContextForSlice(repairSlice, target));
+    const cardIds = dispatchResult.cardIds;
+    if (!dispatchResult.ok) {
+      const dispatchFailure = dispatchResult.failure;
+      repairSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, repairSlice, {
+        status: "blocked",
+        dispatchStatus: "failed",
+        blockedReason: dispatchFailure.code,
+        taskCard,
+        rawJson: rawJsonWithDispatchFailure(rawJson, dispatchFailure, "repairDispatchFailure"),
+        updatedAt: nowIso(options),
+        startedAt: repairSlice.startedAt || now,
+      })));
+      const nextCase = publicCaseRecord(currentStore.upsertAutonomousDeliveryCase(Object.assign({}, loaded.case, {
+        status: "repair_waiting",
+        updatedAt: nowIso(options),
+      })));
+      appendEvent(caseId, "repair_dispatch_failed", {
+        parentSliceId: parentSlice.sliceId,
+        verificationSliceId,
+        repairSliceId,
+        reason: dispatchFailure.code,
+      }, input.auth || {});
+      return {
+        ok: false,
+        status: 502,
+        error: "autonomous_delivery_task_card_dispatch_failed",
+        case: nextCase,
+        parentSlice,
+        verificationSlice,
+        repairSlice,
+        taskCardResult: sent,
+        dispatchFailure,
+        taskCardIds: [],
+        autoDispatched: false,
+      };
+    }
     repairSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, repairSlice, {
       status: "dispatched",
       dispatchStatus: "sent",
@@ -2358,11 +2887,14 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
   return Object.freeze({
     closeCase,
     createCase,
+    dispatchControlSummary,
     getCase,
     listCases,
     recordReturn,
     recordReturnCardEvent,
     recordReturnForTaskCard,
+    returnWatchdogSummary,
+    runReturnWatchdog,
     startCase,
     startDeployment,
     startVerification,

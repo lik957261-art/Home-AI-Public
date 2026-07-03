@@ -28,6 +28,13 @@ const skippedDirectoryNames = new Set([
   "logs",
   "tmp",
 ]);
+const skippedInactiveDirectoryNameFragments = [
+  "-deploy-clean",
+  "-archive",
+  "-archived",
+  "-backup",
+  "-bak",
+];
 const scannedExtensions = new Set([".js", ".mjs", ".cjs", ".html"]);
 const forbiddenDialogRe = /(?:\bwindow\s*\.\s*(alert|confirm|prompt)\s*\(|(?<![\w$.])(alert|confirm|prompt)\s*\()/g;
 const beforeUnloadRe = /\b(?:window\s*\.\s*)?(?:onbeforeunload|addEventListener\s*\(\s*["']beforeunload["'])/g;
@@ -98,7 +105,9 @@ function stripJsCommentsAndStrings(source) {
 }
 
 function shouldSkipDirectory(dirPath) {
-  return skippedDirectoryNames.has(path.basename(dirPath));
+  const base = path.basename(dirPath);
+  return skippedDirectoryNames.has(base)
+    || skippedInactiveDirectoryNameFragments.some((fragment) => base.includes(fragment));
 }
 
 function collectFiles(root) {
@@ -173,5 +182,7 @@ assert.match(mobileContract, /openAppConfirmDialog/);
 assert.match(workspaceContract, /In-App Dialog Requirement/);
 assert.match(workspaceContract, /tests\/no-browser-native-dialogs\.test\.js/);
 assert.match(workspaceContract, /HOMEAI_SCAN_ADJACENT_PLUGIN_DIALOGS=1/);
+assert.equal(shouldSkipDirectory("/Users/example/path"), true);
+assert.equal(shouldSkipDirectory("/Users/example/path"), false);
 
 console.log(`no browser-native dialogs harness passed; scanned roots: ${scannedRoots.join(", ")}`);

@@ -28,6 +28,32 @@ Production hotfixes may restore the current service first, but closure requires
 converting the repair into public-safe install/runtime behavior or recording the
 remaining gap as an explicit follow-up.
 
+## Project-Level Operating Rules
+
+Delivery-thread governance is a project rule, not a conversation preference.
+For Home AI-owned delivery work, the ordinary Home AI implementation thread is
+the coordinator: it owns decomposition, write-set boundaries, Worker dispatch,
+integration, conflict resolution, and final status. Worker threads are durable
+Codex Mobile task-card targets with terminal return-card contracts. They are
+appropriate for plugin-owned work, deploy/readback lanes, audit lanes,
+long-running bounded probes, and disjoint module slices, including assistance
+that did not originate as a task card. Sub-agents are temporary same-turn
+helpers only; they are not durable Workers, do not own workspace lifecycle, and
+must not replace task-card returns or deployment lanes.
+
+Duplicate repair cards, duplicate Owner approval prompts, and duplicate Web
+Push notifications for the same source request are idempotency defects. The
+Owner should approve at most one equivalent request; repeated equivalents must
+be suppressed, marked duplicate, or routed as bounded defect evidence.
+
+Authoritative rule:
+`docs/PLATFORM_CONTRACTS/autonomous-delivery-loop-contract.md` under
+`Thread And Dispatch Governance` and
+`Main Thread, Worker Thread, And Sub-Agent Rule`.
+Implementation details:
+`docs/IMPLEMENTATION_NOTES/autonomous-delivery-loop.md` under
+`Main Thread Scheduling And Worker Use`.
+
 ## Cross-Cutting Reference Docs
 
 - API route/auth reference: `docs/API_ROUTE_REFERENCE.md`
@@ -40,11 +66,18 @@ remaining gap as an explicit follow-up.
   `docs/IMPLEMENTATION_NOTES/visual-polish-controller.md`
 - Mac development-to-production deployment contract:
   `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`
+- Deploy and upgrade lane closure contract:
+  `docs/PLATFORM_CONTRACTS/deploy-upgrade-lane-closure-contract.md`
 - GitHub shared source account contract and runbook:
   `docs/PLATFORM_CONTRACTS/github-shared-source-account-contract.md`,
   `docs/RUNBOOKS/github-shared-source-account.md`
 - Root-cause architecture contract:
   `docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md`
+- Home AI runtime boundary contract:
+  `docs/PLATFORM_CONTRACTS/home-ai-runtime-boundary-contract.md`
+- Plugin capability closure contract:
+  `docs/PLATFORM_CONTRACTS/plugin-capability-closure-contract.md`,
+  `scripts/plugin-capability-closure-smoke.js`
 - Fallback governance contract and registry:
   `docs/PLATFORM_CONTRACTS/fallback-governance-contract.md`,
   `docs/IMPLEMENTATION_NOTES/fallback-registry.md`,
@@ -59,10 +92,35 @@ remaining gap as an explicit follow-up.
   `scripts/deep-product-reality-batch-ledger-validator.js`
 - Frontend tab/state map: `docs/FRONTEND_STATE_MAP.md`
 - Runtime and learning SQLite data dictionary: `docs/DATA_DICTIONARY.md`
+- Composer event and receipt contract:
+  `docs/IMPLEMENTATION_NOTES/composer-event-contract.md`
 - Gateway Pool manifest reference: `docs/GATEWAY_PROFILE_MANIFEST_REFERENCE.md`
 - AI Operations Control Plane and diagnostic intake:
   `docs/MODULES/ai-operations-control-plane.md`,
   `docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md`
+- Owner System Console:
+  `docs/IMPLEMENTATION_NOTES/owner-system-console.md`
+- Vite production cutover review:
+  `docs/IMPLEMENTATION_NOTES/vite-production-cutover-review.md`,
+  `scripts/vite-development-acceptance-report.js`,
+  `scripts/vite-owner-review-report.js`,
+  `scripts/vite-production-cutover-preflight.js`,
+  `scripts/vite-production-cutover-handoff-packet.js`,
+  `scripts/vite-owner-approval-request.js`,
+  `scripts/vite-goal-state-audit.js`,
+  `scripts/vite-cutover-source-change-validator.js`,
+  `scripts/vite-production-readback-validator.js`,
+  `docs/IMPLEMENTATION_NOTES/vite-production-cutover-source-contract.json`,
+  `tests/vite-development-acceptance-report.test.js`,
+  `tests/vite-owner-review-report.test.js`,
+  `tests/vite-production-cutover-preflight.test.js`,
+  `tests/mobile-http-runtime-service.test.js`,
+  `tests/vite-production-bootstrap.test.js`,
+  `tests/vite-production-cutover-handoff-packet.test.js`,
+  `tests/vite-owner-approval-request.test.js`,
+  `tests/vite-goal-state-audit.test.js`,
+  `tests/vite-cutover-source-change-validator.test.js`,
+  `tests/vite-production-readback-validator.test.js`
 - Diagnostic remediation loop:
   `docs/PLATFORM_CONTRACTS/diagnostic-remediation-loop-contract.md`
 - Autonomous Delivery Loop:
@@ -77,7 +135,8 @@ remaining gap as an explicit follow-up.
   `scripts/homeai-public-release-closure.js`,
   `scripts/homeai-public-remote-deploy-smoke.js`,
   `scripts/homeai-public-upgrade-rehearsal.js`,
-  `scripts/homeai-public-upgrade.js`
+  `scripts/homeai-public-upgrade.js`,
+  `scripts/deploy-upgrade-lane-closure-smoke.js`
 - NAS deployment plan: `docs/IMPLEMENTATION_NOTES/nas-deployment-plan.md`
 - macOS production deployment plan: `docs/IMPLEMENTATION_NOTES/macos-production-deployment-plan.md`
 - NAS first-start deploy harness: `tests/nas-deploy-harness.test.js`
@@ -129,7 +188,8 @@ remaining gap as an explicit follow-up.
 - Workspace onboarding orchestration:
   `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`
 - Directory, files, previews, and shared roots: `docs/MODULES/directory-files.md`
-- Native iOS shell: `docs/MODULES/native-ios-shell.md`
+- Native iOS shell: `docs/MODULES/native-ios-shell.md`,
+  `docs/IMPLEMENTATION_NOTES/native-secure-secret-broker.md`
 - Native Android shell: `docs/MODULES/native-android-shell.md`
 - Web Push delivery and deep links: `docs/MODULES/web-push.md`,
   `scripts/macos-web-push-production-audit.js`
@@ -242,6 +302,11 @@ remaining gap as an explicit follow-up.
 - Web Push deep-link routing: `docs/IMPLEMENTATION_NOTES/web-push-deeplink-routing.md`
 - Action Inbox implementation plan: `docs/IMPLEMENTATION_NOTES/action-inbox.md`
 - Topic context layered compaction implementation: `docs/IMPLEMENTATION_NOTES/topic-context-layered-compaction.md`
+- Vite migration pilot: `docs/IMPLEMENTATION_NOTES/vite-migration.md`
+- Full frontend Vite migration target:
+  `docs/IMPLEMENTATION_NOTES/vite-full-frontend-migration-target.md`
+- Static client boot inventory:
+  `docs/IMPLEMENTATION_NOTES/static-client-boot-inventory.md`
 
 ## Documentation Rule
 

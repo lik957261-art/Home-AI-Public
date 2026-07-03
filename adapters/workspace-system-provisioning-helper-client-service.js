@@ -7,6 +7,7 @@ const ALLOWED_ACTIONS = new Set([
   "ensure_workspace_roots",
   "ensure_workspace_acl",
   "repair_workspace_acl",
+  "repair_wardrobe_thumbnail_artifact_acl",
   "ensure_launchd_services",
   "run_workspace_onboarding_smokes",
 ]);

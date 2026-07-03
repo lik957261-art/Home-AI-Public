@@ -117,12 +117,41 @@ function nativePointerFor(client) {
   ].join("\n");
 }
 
+function moviePointerFor(plugin) {
+  return [
+    "# Home AI Platform Contract Pointer",
+    "",
+    "Home AI platform contract version: `20260626-v6`",
+    "",
+    "Canonical Home AI contract source:",
+    "- `/Users/example/path`",
+    "- `/Users/example/path`",
+    "- `/Users/example/path`",
+    "",
+    "Plugin-local facts:",
+    "- plugin id: `movie`",
+    "- repository path: `/Users/example/path`",
+    `- production source path: \`${plugin.macSourcePaths[0]}\``,
+    "- production data path: `/Users/example/path`",
+    `- development URL/port: \`http://127.0.0.1:${plugin.port}\``,
+    `- production URL/port: \`http://127.0.0.1:${plugin.port}\``,
+    `- service identity: \`${plugin.launchdLabel}\``,
+    "- MCP toolset/server id: `movie` / `movie`.",
+    "- Expected Gateway callables after Home AI schema sync:",
+    "  - `mcp_movie_search_sources`",
+    "  - `mcp_movie_list_source_state`",
+    "- Movie is Owner-only and must not become workspace-grantable for non-Owner users.",
+    "",
+    "Do not record raw secrets or credentials here.",
+  ].join("\n");
+}
+
 function makeFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-plugin-contract-"));
   const repo = path.join(root, "Agent");
   write(path.join(repo, "docs", "IMPLEMENTATION_NOTES", "plugin-workspace-contract-rollout-status.md"), [
     "# Plugin Workspace Contract Rollout Status",
-    "Finance Wardrobe Note Email Health Growth Moira Music Codex Mobile Web Home AI Native iOS Shell",
+    "Finance Wardrobe Note Email Health Growth Moira Music Movie Codex Mobile Web Home AI Native iOS Shell",
     "plugin-workspace-platform-contract.md",
     "plugin-mobile-ui-visual-contract.md",
     "root-cause-architecture-contract.md",
@@ -154,7 +183,10 @@ function makeFixture() {
   write(path.join(repo, "docs", "MODULES", "native-ios-shell.md"), "home-ai-native-ios\nmanaged_native_client\n");
   for (const plugin of PLUGINS) {
     const workspace = path.join(root, plugin.dirName);
-    write(path.join(workspace, "docs", "HOME_AI_PLATFORM_CONTRACT.md"), pointerFor(plugin));
+    write(
+      path.join(workspace, "docs", "HOME_AI_PLATFORM_CONTRACT.md"),
+      plugin.pointerMode === "movie_owner_only" ? moviePointerFor(plugin) : pointerFor(plugin),
+    );
     write(path.join(workspace, ".agent-context", "HANDOFF.md"), `## Home AI Platform Contract Pointer\n${CONTRACT_VERSION}\n`);
   }
   for (const client of NATIVE_CLIENTS) {
@@ -189,7 +221,7 @@ function testFixturePasses() {
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.ok, true);
-  assert.deepEqual(parsed.checkedPlugins, ["finance", "wardrobe", "note", "email", "health", "growth", "moira", "music", "codex-mobile"]);
+  assert.deepEqual(parsed.checkedPlugins, ["finance", "wardrobe", "note", "email", "health", "growth", "moira", "music", "movie", "codex-mobile"]);
   assert.deepEqual(parsed.checkedNativeClients, ["home-ai-native-ios"]);
   assert.deepEqual(parsed.checkedTargets, PLATFORM_TARGETS.map((target) => target.id));
   assert.deepEqual(parsed.excludedPlugins, []);
@@ -347,6 +379,16 @@ function testRepositoryContractIsCurrentlyClosed() {
   assert.equal(pointerCount, PLATFORM_TARGETS.length);
 }
 
+function testMovieOwnerOnlyPointerIsCoveredWithoutStandardGrantFields() {
+  const fixture = makeFixture();
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "movie", "--json"]);
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, true);
+  assert.deepEqual(parsed.checkedPlugins, ["movie"]);
+  assert.equal(parsed.plugins[0].pointerMode, "movie_owner_only");
+}
+
 function testScriptDoesNotHandleSecretsOrSudo() {
   const script = fs.readFileSync(scriptPath, "utf8");
   assert.doesNotMatch(script, /password-file|sudo\s+-S|Access Key/i);
@@ -370,6 +412,7 @@ testPointerRequiresDeclaredDevRuntimePrerequisites();
 testNativePointerRequiresManagedClientFields();
 testLegacyPointerVersionIsAcceptedDuringFallbackGovernanceRollout();
 testRepositoryContractIsCurrentlyClosed();
+testMovieOwnerOnlyPointerIsCoveredWithoutStandardGrantFields();
 testScriptDoesNotHandleSecretsOrSudo();
 
 console.log("plugin workspace platform contract checker tests passed");

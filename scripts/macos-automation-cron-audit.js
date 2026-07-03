@@ -98,7 +98,10 @@ function sha256(filePath) {
 
 function auditRuntimeScripts(appRoot, hermesHome) {
   const issues = [];
-  const scripts = ["homeai-disaster-backup-cron.sh"];
+  const scripts = [
+    "homeai-disaster-backup-cron.sh",
+    "homeai-self-improving-loop-cron.sh",
+  ];
   for (const name of scripts) {
     const source = path.join(appRoot, "scripts", name);
     const installed = path.join(hermesHome, "scripts", name);

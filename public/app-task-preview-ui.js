@@ -17,6 +17,7 @@
     copyPreviewLink,
     sharePreviewLink,
     fetchPreviewBlob,
+    fetchPreviewText,
     savePreviewImageToAlbum,
     closePreviewMenus,
     bindPreviewMoreMenu,
@@ -264,14 +265,30 @@
   function isMarkdownPreviewLink(link) {
     const mime = String(link?.dataset?.artifactMime || "").toLowerCase();
     if (mime.includes("markdown") || mime === "text/x-markdown") return true;
+    const nameCandidates = [
+      link?.dataset?.artifactName,
+      link?.getAttribute?.("download"),
+      link?.getAttribute?.("title"),
+      link?.getAttribute?.("aria-label"),
+      link?.textContent,
+    ].map((value) => String(value || "").trim()).filter(Boolean);
+    if (nameCandidates.some((name) => /\.(md|markdown)(?:[?#]|$)/i.test(name.toLowerCase()))) return true;
     const href = String(link?.href || link?.getAttribute?.("href") || "");
     if (!href) return false;
     try {
       const url = new URL(href, global.location.origin);
       if (url.pathname === "/markdown-viewer.html") return true;
-      return /\.md(?:[?#]|$)/i.test(url.pathname);
+      const paramNames = [
+        url.searchParams.get("name"),
+        url.searchParams.get("filename"),
+        url.searchParams.get("fileName"),
+        url.searchParams.get("download"),
+      ].map((value) => String(value || "").toLowerCase());
+      if (paramNames.some((name) => /\.(md|markdown)(?:[?#]|$)/i.test(name))) return true;
+      const source = String(url.searchParams.get("src") || "").toLowerCase();
+      return /\.(md|markdown)(?:[?#]|$)/i.test(url.pathname) || /\.(md|markdown)(?:[?#]|$)/i.test(source);
     } catch (_) {
-      return /\.md(?:[?#]|$)/i.test(href);
+      return /\.(md|markdown)(?:[?#]|$)/i.test(href);
     }
   }
 
@@ -342,6 +359,8 @@
   }
 
   function currentNativeShellParam() {
+    const runtimeValue = global.HomeAiRuntimeFacade?.native?.nativeShellParam?.();
+    if (runtimeValue === "ios" || runtimeValue === "android") return runtimeValue;
     try {
       const params = new URLSearchParams(global.location?.search || "");
       const queryValue = params.get("nativeShell") || "";
@@ -350,10 +369,6 @@
     const root = global.document?.documentElement;
     const datasetValue = root?.dataset?.nativeShell || "";
     if (datasetValue === "ios" || datasetValue === "android") return datasetValue;
-    try {
-      const storedValue = global.localStorage?.getItem("homeAI.nativeShell") || "";
-      if (storedValue === "ios" || storedValue === "android") return storedValue;
-    } catch (_) {}
     return "";
   }
 
@@ -831,14 +846,8 @@ window.addEventListener("load", function () {
   async function fetchMarkdownText(previewUrl, cache) {
     if (cache.text !== null) return cache.text;
     if (!cache.promise) {
-      const headers = {};
-      const key = global.localStorage?.getItem("hermesWebKey") || "";
-      if (key) headers["X-Hermes-Web-Key"] = key;
-      cache.promise = fetch(previewUrl, { headers })
-        .then((res) => res.json().catch(() => ({})).then((body) => {
-          if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
-          return String(body.text || "");
-        }))
+      cache.promise = fetchPreviewText(previewUrl)
+        .then((text) => String(text || ""))
         .then((text) => {
           cache.text = text;
           return text;
@@ -1084,8 +1093,8 @@ window.addEventListener("load", function () {
     const title = String(link?.dataset?.artifactName || link?.getAttribute?.("aria-label") || "文件预览").trim();
     const mime = link?.dataset?.artifactMime || "";
     const message = error === "native_document_result_timeout"
-      ? "系统预览没有返回结果，请重启 Home AI 原生壳后再试。"
-      : "系统预览桥接不可用，请更新或重启 Home AI 原生壳后再试。你仍然可以用系统打开方式、分享或下载继续查看。";
+      ? "系统预览没有返回结果，请关闭系统预览后重试；如果持续出现，请更新或重启 Home AI 原生壳。"
+      : "系统预览桥接不可用。此设备的 Home AI 原生壳没有暴露文档预览桥，重启通常不能修复；请更新原生壳，或使用下方 Web 预览、下载/分享继续查看。";
     const overlay = document.createElement("div");
     overlay.id = "taskDocumentPreviewOverlay";
     overlay.className = "task-document-preview-overlay task-document-preview-native-error";
@@ -1108,7 +1117,7 @@ window.addEventListener("load", function () {
               <button type="button" data-native-document-open-in>用其他 App 打开</button>
               <button type="button" data-native-document-share>下载或分享</button>
               <button type="button" data-native-document-copy>复制链接</button>
-              <button type="button" data-native-document-web>Web 调试预览</button>
+              <button type="button" data-native-document-web>Web 预览</button>
             </div>
           </div>
         </div>

@@ -573,6 +573,57 @@ function testOutputItemEventsStoreReadableSummariesOnly() {
   assert.equal(thread.events.at(-1).preview, "{\"name\":\"productivity/write\"}");
 }
 
+function testOutputItemFunctionResultStoresWardrobeOutfitWearIntentMetadata() {
+  const { message, service, thread } = makeHarness();
+  const intent = {
+    type: "outfit_wear_intent",
+    schema_version: 1,
+    plugin_id: "wardrobe",
+    principal_id: "owner",
+    workspace_id: "owner",
+    wear_date: "2026-06-30",
+    timezone: "Asia/Shanghai",
+    items: [{ role: "Outer", code: "OUT-001" }],
+    source_message: { message_id: "assistant_1", thread_id: "thread_1", run_id: "public_run" },
+    idempotency_key: "wardrobe:outfit_wear_intent:event-shape",
+    expires_at: "2099-06-30T00:00:00Z",
+  };
+
+  service.applyHermesRunEvent({
+    event: "response.output_item.added",
+    run_id: "public_run",
+    item: {
+      type: "function_call",
+      name: "mcp_wardrobe_wardrobe_prepare_outfit_wear_intent",
+      call_id: "call_prepare_1",
+      arguments: "{\"private\":\"raw argument should not be stored\"}",
+    },
+  });
+  service.applyHermesRunEvent({
+    event: "response.output_item.done",
+    run_id: "public_run",
+    item: {
+      type: "function_call_output",
+      call_id: "call_prepare_1",
+      output: JSON.stringify({ structuredContent: { intent } }),
+    },
+  });
+  const completed = service.applyHermesRunEvent({
+    event: "response.completed",
+    run_id: "public_run",
+    response: { id: "public_run" },
+    output: "已准备穿着入库动作。",
+  });
+
+  assert.equal(completed.action, "completed");
+  assert.equal(message.pluginActions.wardrobeOutfitWearIntent.status, "ready");
+  assert.equal(message.pluginActions.wardrobeOutfitWearIntent.intent.idempotency_key, intent.idempotency_key);
+  assert.equal(thread.events.some((item) => item.event === "run.wardrobe_outfit_wear_intent_metadata_attached"), true);
+  const functionOutputEvent = thread.events.find((item) => item.tool === "function_call_output");
+  assert.equal(functionOutputEvent.preview, "{\"name\":\"mcp_wardrobe_wardrobe_prepare_outfit_wear_intent\",\"callId\":\"call_prepare_1\"}");
+  assert(!functionOutputEvent.preview.includes("OUT-001"));
+}
+
 function testOutputItemEventsUseAliasedResponseRunId() {
   const { calls, message, service, thread } = makeHarness();
   service.applyHermesRunEvent({
@@ -1196,6 +1247,7 @@ testCompletedRunBackfillsLoadedToolsWithoutDefaultSkill();
 testHostedSearchOutputItemBackfillsToolTag();
 testCompletedRunUsageKeepsRequestedModelMetadata();
 testOutputItemEventsStoreReadableSummariesOnly();
+testOutputItemFunctionResultStoresWardrobeOutfitWearIntentMetadata();
 testOutputItemEventsUseAliasedResponseRunId();
 testFinalMessageTelemetryDoesNotStoreResponseText();
 testFailedAndCancelledRunsUseTerminalHelpers();

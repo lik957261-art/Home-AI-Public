@@ -82,6 +82,8 @@ assert.match(script, /--require-workspace-key-hashes/);
 assert.match(script, /music-runtime-cover-permissions/);
 assert.match(script, /cover-plan-cache/);
 assert.match(script, /cover-backups/);
+assert.match(script, /wardrobe-thumbnail-artifact-acl/);
+assert.match(script, /repair_wardrobe_thumbnail_artifact_acl/);
 assert.match(script, /gateway-launchctl-sudoers/);
 assert.match(script, /\/etc\/sudoers\.d\/homeai-gateway-launchctl/);
 assert.match(script, /visudo -cf/);
@@ -117,6 +119,8 @@ assert.match(script, /HOME_AI_VISUAL_DEBUG_LABEL/);
 assert.match(script, /buildHomeAiBridgeHostLaunchdPlist/);
 assert.match(script, /buildHomeAiCronLaunchdPlist/);
 assert.match(script, /buildHomeAiNasBackupMountLaunchdPlist/);
+assert.match(script, /const kickstart = runSudoAllowFailure\("\/bin\/launchctl", \["kickstart", "-k", `system\/\$\{HOME_AI_NAS_BACKUP_MOUNT_LABEL\}`\], password\)/);
+assert.match(script, /kickstartWarning/);
 assert.match(script, /buildHomeAiVisualDebugLaunchAgentPlist/);
 assert.match(script, /home-ai-bridge-host-launchd-install/);
 assert.match(script, /home-ai-cron-launchd-install/);
@@ -125,7 +129,9 @@ assert.match(script, /home-ai-visual-debug-launch-agent-install/);
 assert.match(script, /home-ai-cron-profile-aliases/);
 assert.match(script, /home-ai-cron-builtin-skills/);
 assert.match(script, /home-ai-cron-runtime-scripts/);
+assert.match(script, /home-ai-self-improving-loop-cron-job/);
 assert.match(script, /homeai-disaster-backup-cron\.sh/);
+assert.match(script, /homeai-self-improving-loop-cron\.sh/);
 assert.match(script, /homeai-visual-polish-audit-cron\.sh/);
 assert.match(script, /homeai-visual-polish-host\.sh/);
 assert.match(script, /homeai-visual-polish-music\.sh/);
@@ -133,7 +139,9 @@ assert.match(script, /homeai-visual-polish-global\.sh/);
 assert.match(script, /home-ai-visual-polish-cron-jobs/);
 assert.match(script, /home-ai-visual-polish-task-card-config/);
 assert.match(script, /installHomeAiVisualPolishCronJobs/);
+assert.match(script, /installHomeAiSelfImprovingLoopCronJob/);
 assert.match(script, /installHomeAiVisualPolishTaskCardConfig/);
+assert.match(script, /homeai_self_improving_loop/);
 assert.match(script, /HOMEAI_INSTALL_VISUAL_POLISH_CRON_JOBS/);
 assert.match(script, /installEnabled: false/);
 assert.match(script, /homeai_visual_host/);
@@ -189,6 +197,8 @@ assert.match(script, /homeai-nas-backup-mount-watchdog\.sh/);
 assert.match(script, /com\.hermesmobile\.nas-backup-mount/);
 assert.match(script, /homeai-production-drift-audit-watchdog\.sh/);
 assert.match(script, /com\.hermesmobile\.production-drift-audit/);
+assert.match(script, /production_drift_audit_kickstart_failed/);
+assert.match(script, /kickstartWarning: kickstart\.status === 0/);
 assert.match(script, /macos-production-drift-reconcile\.js/);
 assert.match(script, /home-ai-production-drift-reconcile/);
 assert.match(script, /production-status-smoke\.js/);
@@ -205,11 +215,40 @@ assert.match(script, /targetSlugs = /);
 assert.match(script, /function shouldRetryValidation/);
 assert.match(script, /home-ai-status-smoke/);
 assert.match(script, /health-url/);
+assert.match(script, /codex-mobile-listener-startup-gate/);
+assert.match(script, /codex-mobile-runtime-self-check-loop\.js/);
+assert.match(script, /--browser-startup-only/);
 assert.match(script, /codex-auth-profile-audit/);
 assert.match(script, /CODEX_AUTH_AUDIT_ISSUE_PREFIX/);
 assert.match(script, /home-ai-production-drift-audit/);
 assert.match(script, /failOnAnyIssue/);
 assert.match(script, /runIssuePrefixAuditValidation/);
+assert.match(script, /OWNER_3A_QUALITY_EVIDENCE_SEED/);
+assert.match(script, /owner-3a-quality-evidence-seed/);
+assert.match(script, /owner-3a-quality-evidence\.json/);
+assert.match(script, /runOwner3aQualityEvidenceSeedValidation/);
+assert.match(script, /seedTempFile/);
+assert.match(script, /homeai-owner-3a-quality-evidence/);
+assert.match(script, /fs\.mkdtempSync\(path\.join\(os\.tmpdir\(\), "homeai-owner-3a-quality-evidence\."\)\)/);
+assert.match(script, /fs\.chmodSync\(seedTempDir, 0o700\)/);
+assert.match(script, /fs\.copyFileSync\(seedTempFile, outputFile\)/);
+assert.match(script, /fs\.rmSync\(seedTempDir, \{ recursive: true, force: true \}\)/);
+assert.match(script, /options\.allowFailure !== true/);
+assert.match(script, /\], \{ allowFailure: true \}\);/);
+assert.match(script, /selfLoopOk: payload\.ok === true/);
+assert.match(script, /selfLoopOk: summary\.selfLoopOk === true/);
+assert.match(script, /diagnosticEventCodes/);
+assert.match(script, /nonOkSignals/);
+assert.match(script, /boundedToken\(item\?\.errorCode \|\| item\?\.error_code \|\| item\?\.category \|\| item\?\.signalId\)/);
+assert.match(script, /HERMES_SELF_LOOP_SUBMIT_DIAGNOSTICS: "0"/);
+assert.match(script, /HERMES_SELF_LOOP_CREATE_AUDIT_CARDS: "0"/);
+assert.match(script, /homeai-install-upgrade-canary\.js/);
+assert.match(script, /plugin-action-metadata-closure-smoke\.js/);
+assert.match(script, /--quality-evidence-output/);
+assert.match(script, /gateway_document_tool_capability_seed_skipped/);
+assert.match(script, /installUpgradeCanaryObservedStatus !== "partial"/);
+assert.match(script, /installUpgradeCanaryMode !== "plan"/);
+assert.match(script, /cleanInstallCanaryStatus/);
 assert.match(script, /home-ai-production-drift-audit-launchd-install/);
 assert.match(script, /repairCodexSharedAuthPermissions/);
 assert.match(script, /shouldRepairCodexSharedAuthPermissions/);
@@ -227,6 +266,7 @@ assert.match(script, /HERMES_WEB_PLUGIN_WORKSPACE_AUDIT_CODEX_COMMAND/);
 assert.match(script, /HERMES_MOBILE_PLUGIN_WORKSPACE_AUDIT_CODEX_HOME/);
 assert.match(script, /Atomics\.wait/);
 assert.match(script, /attempt/);
+assert.match(script, /function cleanString/);
 assert.match(script, /backups", "deploy/);
 assert.match(script, /rsyncExcludes/);
 assert.match(script, /BACKUP_RSYNC_EXCLUDES/);
@@ -375,6 +415,7 @@ assert.match(autonomousDeliveryLoopContract, /routes one task card to the config
 assert.match(autonomousDeliveryLoopContract, /do not receive sudo\s+password-file paths/);
 assert.match(deploymentDoc, /--sync-only/);
 assert.match(deploymentDoc, /Backup rsync uses a narrower exclude list/);
+assert.match(deploymentDoc, /volatile derived production-app paths/);
 assert.match(deploymentDoc, /gateway-worker\/<plugin>-mcp/);
 assert.match(deploymentDoc, /gateway-worker\/moira-mcp/);
 assert.match(productionAccess, /--sync-only/);
@@ -417,20 +458,46 @@ assert.match(payload.plan.backupPath, /20260608T000000Z-home-ai-harness$/);
 assert.ok(payload.plan.rsyncExcludes.includes("AGENTS.md"));
 assert.ok(payload.plan.rsyncExcludes.includes(".git"));
 assert.ok(payload.plan.rsyncExcludes.includes(".codegraph/"));
+assert.ok(deployScript.BACKUP_RSYNC_EXCLUDES.includes("gateway-runtime-overrides/__pycache__/"));
+assert.ok(deployScript.BACKUP_RSYNC_EXCLUDES.includes("workspace/public-export/"));
+const backupRsyncArgs = deployScript.buildRsyncArgs(
+  deployScript.BACKUP_RSYNC_EXCLUDES,
+  "/prod/app/",
+  "/backup/app/",
+);
+function assertRsyncExclude(args, pattern) {
+  const index = args.indexOf(pattern);
+  assert.ok(index > 0, `missing rsync exclude ${pattern}`);
+  assert.equal(args[index - 1], "--exclude");
+}
+assertRsyncExclude(backupRsyncArgs, "gateway-runtime-overrides/__pycache__/");
+assertRsyncExclude(backupRsyncArgs, "workspace/public-export/");
 assert.equal(payload.plan.productionOwner, "hermes-host:staff");
 assert.deepEqual(payload.plan.restartLabels, ["com.hermesmobile.bridge-host", "com.hermesmobile.cron", "com.hermesmobile.listener", "com.hermesmobile.workspace-system-helper"]);
 assert.ok(payload.plan.expectedClientVersion);
 assert.ok(payload.plan.proofFiles.includes("scripts/deploy-macos-production.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/install-macos-production.sh"));
+assert.ok(payload.plan.proofFiles.includes("adapters/ai-ops-diagnostic-intake-service.js"));
 assert.ok(payload.plan.proofFiles.includes("adapters/automation-cron-profile-service.js"));
+assert.ok(payload.plan.proofFiles.includes("adapters/owner-3a-quality-evidence-service.js"));
+assert.ok(payload.plan.proofFiles.includes("adapters/owner-3a-quality-program-service.js"));
+assert.ok(payload.plan.proofFiles.includes("adapters/owner-system-console-service.js"));
+assert.ok(payload.plan.proofFiles.includes("adapters/plugin-action-metadata-closure-service.js"));
+assert.ok(payload.plan.proofFiles.includes("adapters/web-push-send-service.js"));
 assert.ok(payload.plan.proofFiles.includes("cron_bridge.py"));
 assert.ok(payload.plan.proofFiles.includes("server-routes/automation-api-routes.js"));
+assert.ok(payload.plan.proofFiles.includes("server-routes/mobile-api-platform-composition.js"));
+assert.ok(payload.plan.proofFiles.includes("server-routes/owner-system-console-api-routes.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-automation-cron-audit.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/plugin-workspace-audit-runner.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-gateway-start-script-bridge-env-repair.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-production-profile-audit.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/macos-production-drift-reconcile.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/homeai-production-drift-audit-watchdog.sh"));
+assert.ok(payload.plan.proofFiles.includes("scripts/homeai-install-upgrade-canary.js"));
+assert.ok(payload.plan.proofFiles.includes("scripts/homeai-self-improving-loop.js"));
+assert.ok(payload.plan.proofFiles.includes("scripts/plugin-action-metadata-closure-smoke.js"));
+assert.ok(payload.plan.proofFiles.includes("scripts/homeai-self-improving-loop-cron.sh"));
 assert.ok(payload.plan.proofFiles.includes("scripts/gateway-mcp-runtime-call-smoke.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/mcp-tool-upgrade-closure-smoke.js"));
 assert.equal(payload.plan.cronProfileAliases.type, "home-ai-cron-profile-aliases");
@@ -453,6 +520,12 @@ const driftAudit = payload.plan.validation.find((item) => item.type === "home-ai
 assert.ok(driftAudit);
 assert.ok(driftAudit.command.some((item) => String(item).endsWith("macos-production-profile-audit.js")));
 assert.ok(driftAudit.command.includes("--no-strict"));
+const owner3aEvidenceSeed = payload.plan.validation.find((item) => item.type === "owner-3a-quality-evidence-seed");
+assert.ok(owner3aEvidenceSeed);
+assert.equal(
+  owner3aEvidenceSeed.outputFile,
+  "/Users/example/path",
+);
 assert.match(script, /HOMEAI_TTS_PROVIDER/);
 assert.match(script, /HOMEAI_TTS_COSYVOICE_PYTHON/);
 assert.match(script, /HOMEAI_TTS_COSYVOICE_MODEL_DIR/);
@@ -514,6 +587,21 @@ assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_TRANSPORT<\/key>\s*<string>
 assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_SSH_TARGET<\/key>\s*<string>xuxinxp@192\.168\.10\.99<\/string>/);
 assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_SSH_DESTINATION<\/key>\s*<string>\/volume1\/备份\/HomeAI-Production-Backups\/mac-production<\/string>/);
 assert.match(cronPlist, /<key>HOMEAI_DISASTER_BACKUP_SSH_OPTIONS<\/key>\s*<string>-p 2222 -i \/Users\/hermes-host\/\.ssh\/homeai_nas_backup_ed25519<\/string>/);
+
+const launchdReloadScript = deployScript.buildSystemLaunchdReloadScript(
+  "com.hermesmobile.bridge-host",
+  "/Library/LaunchDaemons/com.hermesmobile.bridge-host.plist",
+);
+assert.match(launchdReloadScript, /launchctl bootout system "\$plist"/);
+assert.match(launchdReloadScript, /launchctl bootout "system\/\$label"/);
+assert.match(launchdReloadScript, /launchctl bootstrap system "\$plist"/);
+assert.match(launchdReloadScript, /launchctl print "system\/\$label"/);
+assert.match(launchdReloadScript, /already_loaded=1/);
+assert.match(launchdReloadScript, /launchctl kickstart -k "system\/\$label"/);
+assert.match(launchdReloadScript, /labelBootoutStatus/);
+assert.match(launchdReloadScript, /fallbackKickstartStatus/);
+assert.match(launchdReloadScript, /fallbackPrintStatus/);
+assert.match(launchdReloadScript, /exit "\$bootstrap_status"/);
 
 const pluginWorkspaceAuditTargets = JSON.parse(deployScript.buildPluginWorkspaceAuditTargetJson("/Users/example/path"));
 assert.equal(pluginWorkspaceAuditTargets["home-ai"], "/Users/example/path");
@@ -678,16 +766,68 @@ assert.equal(
   deployScript.shouldRepairCodexSharedAuthPermissions(pluginPayload.plan),
   true,
 );
-assert.ok(pluginPayload.plan.rsyncExcludes.includes("data/"));
+assert.ok(pluginPayload.plan.rsyncExcludes.includes("/data/"));
+assert.ok(pluginPayload.plan.rsyncExcludes.includes("/runtime/"));
 assert.ok(pluginPayload.plan.rsyncExcludes.includes(".git"));
 assert.ok(pluginPayload.plan.rsyncExcludes.includes(".venv/"));
 assert.ok(deployScript.BACKUP_RSYNC_EXCLUDES.includes(".codegraph/"));
-assert.equal(deployScript.BACKUP_RSYNC_EXCLUDES.includes("data/"), false);
-assert.equal(deployScript.BACKUP_RSYNC_EXCLUDES.includes("runtime/"), false);
+assert.equal(deployScript.BACKUP_RSYNC_EXCLUDES.includes("/data/"), false);
+assert.equal(deployScript.BACKUP_RSYNC_EXCLUDES.includes("/runtime/"), false);
 assert.equal(deployScript.BACKUP_RSYNC_EXCLUDES.includes(".venv/"), false);
 assert.deepEqual(
   deployScript.buildRsyncArgs([".codegraph/", ".codex/"], "/prod/plugin/", "/backup/plugin/"),
-  ["-a", "--delete", "--exclude", ".codegraph/", "--exclude", ".codex/", "/prod/plugin/", "/backup/plugin/"],
+  ["-a", "--delete", "--checksum", "--exclude", ".codegraph/", "--exclude", ".codex/", "/prod/plugin/", "/backup/plugin/"],
+);
+assert.deepEqual(
+  deployScript.buildRsyncArgs(pluginPayload.plan.rsyncExcludes, "/dev/plugin/", "/prod/plugin/")
+    .slice(0, 9),
+  ["-a", "--delete", "--checksum", "--exclude", ".git", "--exclude", ".git/", "--exclude", ".codegraph/"],
+);
+assert.ok(
+  deployScript.buildRsyncArgs(pluginPayload.plan.rsyncExcludes, "/dev/plugin/", "/prod/plugin/")
+    .includes("/runtime/"),
+);
+assert.equal(
+  deployScript.isDeploySurfaceIncluded("services/runtime/runtime-job-scheduler-service.js", {
+    target: "plugin:codex-mobile-web",
+    surface: "full",
+  }),
+  true,
+);
+assert.equal(
+  deployScript.isDeploySurfaceIncluded("runtime/cache-state.json", {
+    target: "plugin:codex-mobile-web",
+    surface: "full",
+  }),
+  false,
+);
+assert.equal(
+  deployScript.isDeploySurfaceIncluded("data/plugin.sqlite", {
+    target: "plugin:codex-mobile-web",
+    surface: "full",
+  }),
+  false,
+);
+assert.equal(
+  deployScript.isDeploySurfaceIncluded("services/data/schema.js", {
+    target: "plugin:codex-mobile-web",
+    surface: "full",
+  }),
+  true,
+);
+assert.equal(
+  deployScript.isDeploySurfaceIncluded(".agent-context/HANDOFF.md", {
+    target: "plugin:codex-mobile-web",
+    surface: "full",
+  }),
+  false,
+);
+assert.equal(
+  deployScript.isDeploySurfaceIncluded("src/node_modules/pkg/index.js", {
+    target: "plugin:codex-mobile-web",
+    surface: "full",
+  }),
+  false,
 );
 
 const emailPluginRun = spawnSync(process.execPath, [
@@ -712,6 +852,10 @@ assert.ok(emailPluginPayload.plan.validation.some((item) => (
   item.type === "production-file-hashes"
   && item.files.includes("dist/web/index.html")
 )));
+assert.equal(
+  emailPluginPayload.plan.validation.some((item) => item.type === deployScript.CODEX_MOBILE_LISTENER_STARTUP_GATE.type),
+  false,
+);
 
 const codexSelectedMuxPluginRun = spawnSync(process.execPath, [
   scriptPath,
@@ -731,6 +875,23 @@ const codexSelectedMuxPluginRun = spawnSync(process.execPath, [
 assert.equal(codexSelectedMuxPluginRun.status, 0, codexSelectedMuxPluginRun.stderr);
 const codexSelectedMuxPluginPayload = JSON.parse(codexSelectedMuxPluginRun.stdout);
 assert.equal(codexSelectedMuxPluginPayload.plan.target, "plugin:codex-mobile-web");
+const codexListenerStartupGate = codexSelectedMuxPluginPayload.plan.validation.find((item) => (
+  item.type === deployScript.CODEX_MOBILE_LISTENER_STARTUP_GATE.type
+));
+assert.ok(codexListenerStartupGate);
+assert.deepEqual(codexListenerStartupGate.command.slice(0, 2), ["/bin/sh", "-lc"]);
+assert.match(codexListenerStartupGate.command[2], /cd '\/Users\/hermes-host\/HermesMobile\/plugins\/codex-mobile-web'/);
+assert.match(codexListenerStartupGate.command[2], /scripts\/codex-mobile-runtime-self-check-loop\.js/);
+assert.match(codexListenerStartupGate.command[2], /--server 'http:\/\/127\.0\.0\.1:8787'/);
+assert.match(codexListenerStartupGate.command[2], /--gate-mode deploy/);
+assert.match(codexListenerStartupGate.command[2], /--browser-mode full/);
+assert.match(codexListenerStartupGate.command[2], /--browser-startup-only/);
+assert.match(codexListenerStartupGate.command[2], /--skip-api/);
+assert.match(codexListenerStartupGate.command[2], /--skip-client-events/);
+assert.match(codexListenerStartupGate.command[2], /--json/);
+const codexValidationTypes = codexSelectedMuxPluginPayload.plan.validation.map((item) => item.type);
+assert.ok(codexValidationTypes.indexOf("health-url") < codexValidationTypes.indexOf(deployScript.CODEX_MOBILE_LISTENER_STARTUP_GATE.type));
+assert.ok(codexValidationTypes.indexOf(deployScript.CODEX_MOBILE_LISTENER_STARTUP_GATE.type) < codexValidationTypes.indexOf("codex-auth-profile-audit"));
 assert.deepEqual(
   codexSelectedMuxPluginPayload.plan.postSyncRepairs.map((item) => item.type),
   ["codex-mobile-log-permissions", "codex-mobile-selected-mux-refresh"],
@@ -757,6 +918,47 @@ assert.deepEqual(
     reason: "codex-mobile-v538-selected-mux-runtime",
   }),
   { required: true, reason: "deploy_reason_forces_selected_mux_refresh" },
+);
+const listenerStartupGatePass = deployScript.codexMobileListenerStartupGateSummary({
+  ok: true,
+  gate: {
+    deployPass: true,
+    checkNames: ["browser-runtime"],
+  },
+  browserMode: "full",
+  browserStartupOnly: true,
+  issueCount: 0,
+  blockingIssueCount: 0,
+  executionFailureCount: 0,
+  skippedJobs: ["api", "client-events"],
+  clientBuildId: "0.1.11|codex-mobile-shell-v614",
+  shellCacheName: "codex-mobile-shell-v614",
+}, 0);
+deployScript.assertCodexMobileListenerStartupGatePass(listenerStartupGatePass);
+assert.deepEqual(listenerStartupGatePass.actionableIssueCodes, []);
+assert.deepEqual(listenerStartupGatePass.enabledJobs, ["browser-runtime"]);
+assert.deepEqual(listenerStartupGatePass.skippedJobs, ["api", "client-events"]);
+
+const listenerStartupGateBlocking = deployScript.codexMobileListenerStartupGateSummary({
+  ok: false,
+  deployPass: false,
+  issueCount: 1,
+  blockingIssueCount: 1,
+  actionableIssueCodes: ["browser_startup_exception"],
+}, 0);
+assert.throws(
+  () => deployScript.assertCodexMobileListenerStartupGatePass(listenerStartupGateBlocking),
+  /codex-mobile-listener-startup-gate_failed:browser_startup_exception/,
+);
+
+const listenerStartupGateUnavailable = deployScript.codexMobileListenerStartupGateSummary({
+  ok: false,
+  deployPass: false,
+  executionFailureCount: 1,
+}, 1);
+assert.throws(
+  () => deployScript.assertCodexMobileListenerStartupGatePass(listenerStartupGateUnavailable),
+  /codex-mobile-listener-startup-gate_failed:browser_startup_smoke_unavailable/,
 );
 assert.deepEqual(
   deployScript.codexMobileSelectedMuxRefreshDecision({
@@ -846,7 +1048,8 @@ assert.equal(moviePluginPayload.plan.productionPath, "/Users/example/path");
 assert.deepEqual(moviePluginPayload.plan.restartLabels, ["com.hermesmobile.plugin.movie"]);
 assert.equal(moviePluginPayload.plan.healthUrl, "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest");
 assert.deepEqual(moviePluginPayload.plan.proofFiles, ["public/index.html"]);
-assert.ok(moviePluginPayload.plan.rsyncExcludes.includes("data/"));
+assert.ok(moviePluginPayload.plan.rsyncExcludes.includes("/data/"));
+assert.ok(moviePluginPayload.plan.rsyncExcludes.includes("/runtime/"));
 assert.equal(moviePluginPayload.plan.postSyncMirrors.length, 2);
 assert.deepEqual(
   moviePluginPayload.plan.postSyncMirrors.map((item) => [item.kind || "file", item.target]),
@@ -990,6 +1193,53 @@ assert.equal(homeAiRepairPlan[0].profileFile, "/Users/example/path");
 assert.equal(homeAiRepairPlan[1].type, "web-push-vapid-permissions");
 assert.equal(homeAiRepairPlan[1].relativePath, "data/web-push-vapid.json");
 assert.equal(homeAiRepairPlan[1].fileMode, "600");
+assert.equal(homeAiRepairPlan[2].type, "wardrobe-thumbnail-artifact-acl");
+assert.equal(homeAiRepairPlan[2].targetWorkspace, "owner");
+assert.equal(homeAiRepairPlan[2].macUser, "hm-owner");
+const wardrobeRepairValidation = deployScript.wardrobeThumbnailArtifactAclRepairValidation(
+  { macRoot: "/Users/example/path" },
+  homeAiRepairPlan[2],
+  {
+    status: 0,
+    stdout: JSON.stringify({
+      ok: true,
+      aclRepaired: true,
+      photoCacheDir: "/Users/example/path",
+      probeUser: "hm-owner",
+      writeProbeOk: true,
+    }),
+  },
+);
+assert.deepEqual(wardrobeRepairValidation, {
+  type: "wardrobe-thumbnail-artifact-acl",
+  status: 0,
+  targetWorkspace: "owner",
+  macUser: "hm-owner",
+  aclRepaired: true,
+  photoCacheDir: "<root>/data/artifacts/wardrobe-thumbnails/owner",
+  probeUser: "hm-owner",
+  writeProbeOk: true,
+});
+assert.equal(
+  deployScript.compactProductionPath("/Users/example/path", "/Users/example/path"),
+  "<root>/data/secrets/owner-web-key.secret",
+);
+assert.throws(
+  () => deployScript.wardrobeThumbnailArtifactAclRepairValidation(
+    { macRoot: "/Users/example/path" },
+    homeAiRepairPlan[2],
+    { status: 1, stdout: JSON.stringify({ ok: false, error: "wardrobe_photo_cache_runtime_probe_failed", writeProbeOk: false }) },
+  ),
+  /wardrobe_photo_cache_runtime_probe_failed/,
+);
+assert.throws(
+  () => deployScript.wardrobeThumbnailArtifactAclRepairValidation(
+    { macRoot: "/Users/example/path" },
+    homeAiRepairPlan[2],
+    { status: 0, stdout: "not-json" },
+  ),
+  /wardrobe_thumbnail_artifact_acl_repair_output_invalid/,
+);
 const codexRepairPlan = deployScript.postSyncRepairsForTarget({ target: "plugin:codex-mobile-web" });
 assert.equal(codexRepairPlan[0].type, "codex-mobile-log-permissions");
 assert.equal(codexRepairPlan[0].runtimeRoot, "/Users/example/path");
@@ -1201,6 +1451,30 @@ assert.equal(
   deployScript.shouldRepairCodexSharedAuthPermissions(growthSyncOnlyPayload.plan),
   false,
 );
+
+const codexSyncOnlyRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "codex-mobile-web",
+  "--dev-root",
+  fixtureDevRoot,
+  "--restart",
+  "none",
+  "--sync-only",
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "first-install",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(codexSyncOnlyRun.status, 0, codexSyncOnlyRun.stderr);
+const codexSyncOnlyPayload = JSON.parse(codexSyncOnlyRun.stdout);
+assert.equal(codexSyncOnlyPayload.plan.syncOnly, true);
+assert.equal(codexSyncOnlyPayload.plan.runtimeValidationSkipped, true);
+assert.deepEqual(codexSyncOnlyPayload.plan.validation, []);
 
 assert.equal(
   deployScript.shouldRepairCodexSharedAuthPermissions(staticPayload.plan),
