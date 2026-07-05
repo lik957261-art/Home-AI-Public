@@ -4,7 +4,6 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const childProcess = require("node:child_process");
 const { DatabaseSync } = require("node:sqlite");
 
 const repoRoot = path.resolve(__dirname, "..");
@@ -23,16 +22,13 @@ function writeFile(file, content = "") {
 
 function makeSqlite(file) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const code = [
-    "import sqlite3, sys",
-    "db = sqlite3.connect(sys.argv[1])",
-    "db.execute('create table t(id integer primary key, value text)')",
-    "db.execute('insert into t(value) values (?)', ('ok',))",
-    "db.commit()",
-    "db.close()",
-  ].join("\n");
-  const result = childProcess.spawnSync("/usr/bin/python3", ["-c", code, file], { encoding: "utf8" });
-  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const db = new DatabaseSync(file);
+  try {
+    db.exec("create table t(id integer primary key, value text)");
+    db.prepare("insert into t(value) values (?)").run("ok");
+  } finally {
+    db.close();
+  }
 }
 
 function makeHomeAiRuntimeSqlite(file) {

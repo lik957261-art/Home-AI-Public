@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${HOMEAI_PRODUCTION_ROOT:-/Users/example/path"
+ROOT="${HOMEAI_PRODUCTION_ROOT:-/Users/example/path}"
 NODE_BIN="${HOMEAI_PRODUCTION_NODE:-$ROOT/runtime/node-current/bin/node}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_SCRIPT="${HOMEAI_DISASTER_BACKUP_SCRIPT:-${SCRIPT_DIR}/create-macos-disaster-backup.js}"
-STAGING="${HOMEAI_DISASTER_BACKUP_STAGING:-/Users/example/path"
-DEFAULT_NFS_DESTINATION="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path"
+STAGING="${HOMEAI_DISASTER_BACKUP_STAGING:-/Users/example/path/HomeAI-Disaster-Staging/mac-production}"
+DEFAULT_NFS_DESTINATION="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path/HomeAI-Production-Backups/mac-production}"
 DESTINATION="${HOMEAI_DISASTER_BACKUP_DESTINATION:-$DEFAULT_NFS_DESTINATION}"
 LABEL="${HOMEAI_DISASTER_BACKUP_LABEL:-daily-nfs}"
-SUDO_PASSWORD_FILE="${HOMEAI_MAC_SUDO_PASSWORD_FILE:-/Users/example/path"
+SUDO_PASSWORD_FILE="${HOMEAI_MAC_SUDO_PASSWORD_FILE:-/Users/example/path/data/secrets/mac-sudo-password.txt}"
 OPERATOR_USER="${HOMEAI_DISASTER_BACKUP_OPERATOR_USER:-$(id -un)}"
 USE_SUDO="${HOMEAI_DISASTER_BACKUP_USE_SUDO:-1}"
 TRANSPORT="${HOMEAI_DISASTER_BACKUP_TRANSPORT:-auto}"

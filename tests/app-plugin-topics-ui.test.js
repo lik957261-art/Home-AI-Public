@@ -107,10 +107,12 @@ assert.match(runActionBody, /openPluginTopicApp\(def\.id, \{ recordUsage: false,
 assert.match(topicCardsBody, /filter\(\(def\) => !def\.builtinKind && def\.id !== "codex-mobile"\)/);
 assert.match(topicCardsBody, /data-plugin-topic-open-topic/);
 assert.match(topicCardsBody, /plugin-topic-icon-entry" type="button" data-plugin-topic-open-app/);
+assert.match(topicCardsBody, /plugin-topic-row-body" type="button" data-plugin-topic-open-app/);
+assert.match(topicCardsBody, /plugin-topic-chat-entry" type="button" data-plugin-topic-open-topic/);
 assert.doesNotMatch(topicCardsBody, /data-plugin-topic-toggle/);
 assert.doesNotMatch(topicCardsBody, /data-plugin-claimed-topic-open/);
 assert.match(topicCardsBody, /plugin-topic-list/);
-assert.match(topicCardsBody, /plugin-topic-row-chevron-placeholder/);
+assert.doesNotMatch(topicCardsBody, /plugin-topic-row-chevron-placeholder/);
 assert.match(pluginTopicsUi, /function pluginTopicRecentMessageEntries/);
 assert.match(pluginTopicsUi, /function pluginTopicMessagePreviewText/);
 assert.match(pluginTopicsUi, /function topicReceiptSummaryTitleFromText/);
@@ -207,6 +209,7 @@ assert.match(stylesCss, /\.plugin-topic-card \{[\s\S]*?border-bottom: 1px solid 
 assert.match(stylesCss, /\.plugin-topic-card-main,[\s\S]*?\.plugin-topic-card-main-row \{[\s\S]*?grid-template-columns: 56px minmax\(0, 1fr\) 16px;/);
 assert.match(stylesCss, /\.plugin-topic-icon-entry \{[\s\S]*?width: 56px;/);
 assert.match(stylesCss, /\.plugin-topic-row-body \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\);/);
+assert.match(stylesCss, /\.plugin-topic-chat-entry \{[\s\S]*?width: 34px;[\s\S]*?place-items: center;/);
 assert.match(stylesCss, /\.plugin-topic-text \{[\s\S]*?display: grid;[\s\S]*?grid-template-columns: max-content 1px minmax\(0, 1fr\);[\s\S]*?align-items: center;/);
 assert.match(stylesCss, /\.plugin-topic-separator \{[\s\S]*?width: 1px;[\s\S]*?align-self: stretch;[\s\S]*?background: color-mix/);
 assert.match(stylesCss, /\.plugin-topic-subtitle \{[\s\S]*?white-space: normal;/);

@@ -9,6 +9,7 @@ const path = require("node:path");
 
 const DEFAULT_ROOT = "/Users/example/path";
 const DEFAULT_OPERATOR_HOME = "/Users/example/path";
+const DEFAULT_SQLITE3_COMMAND = "/usr/bin/sqlite3";
 const SQLITE_EXT_RE = /\.(sqlite|sqlite3|db)$/i;
 
 const COMMON_RSYNC_EXCLUDES = [
@@ -207,6 +208,10 @@ function runCommand(command, args, options) {
     throw err;
   }
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+}
+
+function sqliteCliQuote(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
 }
 
 function rsyncDirectory(step, source, target, options, extraExcludes = []) {
@@ -451,28 +456,22 @@ function sqliteSnapshot(step, source, target, options) {
   }
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-sqlite-backup-"));
   const tempTarget = path.join(tempDir, path.basename(target));
-  const code = [
-    "import sqlite3, sys",
-    "src, dst = sys.argv[1], sys.argv[2]",
-    "source = sqlite3.connect(src)",
-    "target = sqlite3.connect(dst)",
-    "try:",
-    "    source.backup(target)",
-    "    cur = target.execute('PRAGMA quick_check')",
-    "    result = cur.fetchone()[0]",
-    "    if result != 'ok':",
-    "        raise SystemExit('quick_check failed: ' + str(result))",
-    "finally:",
-    "    target.close()",
-    "    source.close()",
-  ].join("\n");
+  const sqlite3 = process.env.HOMEAI_SQLITE3_COMMAND || DEFAULT_SQLITE3_COMMAND;
   try {
-    const result = childProcess.spawnSync("/usr/bin/python3", ["-c", code, source, tempTarget], {
+    const result = childProcess.spawnSync(sqlite3, [source, `.backup ${sqliteCliQuote(tempTarget)}`], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
     if (result.status !== 0) {
       throw new Error(`sqlite backup failed for ${source}: ${result.stderr || result.stdout || ""}`.trim());
+    }
+    const check = childProcess.spawnSync(sqlite3, [tempTarget, "PRAGMA quick_check;"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const quickCheck = String(check.stdout || "").trim();
+    if (check.status !== 0 || quickCheck !== "ok") {
+      throw new Error(`sqlite backup quick_check failed for ${source}: ${check.stderr || quickCheck || ""}`.trim());
     }
     fs.copyFileSync(tempTarget, target);
   } finally {

@@ -78,6 +78,10 @@ const SKIP_TEXT_PREFIXES = [
   "public/vendor/",
 ];
 
+const SKIP_PATH_PREFIXES = [
+  "runtime/hermes-agent-official/venv/",
+];
+
 function parseArgs(argv) {
   const out = {
     root: DEFAULT_ROOT,
@@ -107,6 +111,7 @@ function gitFiles(root) {
     });
     return output.split("\0")
       .filter(Boolean)
+      .filter((relativePath) => !shouldSkipRelativePath(relativePath))
       .filter((relativePath) => fs.existsSync(path.join(root, relativePath)))
       .sort();
   } catch (_) {
@@ -121,6 +126,7 @@ function allFiles(root) {
       if (entry.isDirectory() && SKIP_DIRS.has(entry.name)) continue;
       const fullPath = path.join(dir, entry.name);
       const relativePath = path.relative(root, fullPath).replaceAll("\\", "/");
+      if (shouldSkipRelativePath(relativePath)) continue;
       if (entry.isDirectory()) {
         visit(fullPath);
       } else if (entry.isFile()) {
@@ -130,6 +136,11 @@ function allFiles(root) {
   }
   visit(root);
   return result.sort();
+}
+
+function shouldSkipRelativePath(relativePath) {
+  const normalized = relativePath.replaceAll("\\", "/");
+  return SKIP_PATH_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
 function isTextFile(relativePath) {

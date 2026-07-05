@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${HERMES_MOBILE_ROOT:-/Users/example/path"
+ROOT="${HERMES_MOBILE_ROOT:-/Users/example/path}"
 APP_DIR="${HERMES_MOBILE_APP_DIR:-$ROOT/app}"
 NODE="${HERMES_MOBILE_NODE_EXE:-$ROOT/runtime/node-current/bin/node}"
 OUT_DIR="${HOMEAI_PRODUCTION_DRIFT_AUDIT_OUTPUT_DIR:-$ROOT/data/production-drift-audit}"

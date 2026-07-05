@@ -8,6 +8,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -257,6 +258,16 @@ def _command(name: str, fallback: str) -> str:
     return fallback
 
 
+def _subprocess_env(command: list[str]) -> dict[str, str]:
+    env = os.environ.copy()
+    executable = Path(str(command[0] if command else "")).name.lower()
+    if "swift" in executable and not env.get("CLANG_MODULE_CACHE_PATH"):
+        cache_dir = Path(tempfile.gettempdir()) / "hermes-mobile-swift-module-cache"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        env["CLANG_MODULE_CACHE_PATH"] = str(cache_dir)
+    return env
+
+
 def _run_json(command: list[str], stdin_payload: dict[str, Any] | None = None) -> dict[str, Any]:
     try:
         completed = subprocess.run(
@@ -264,6 +275,7 @@ def _run_json(command: list[str], stdin_payload: dict[str, Any] | None = None) -
             input=json.dumps(stdin_payload or {}, ensure_ascii=False) if stdin_payload is not None else None,
             text=True,
             capture_output=True,
+            env=_subprocess_env(command),
             timeout=SCRIPT_TIMEOUT_SECONDS,
             check=False,
         )
@@ -281,6 +293,23 @@ def _run_json(command: list[str], stdin_payload: dict[str, Any] | None = None) -
     return {"ok": False, "error": f"pdf_helper_exit_{completed.returncode}"}
 
 
+def _run_command(command: list[str]) -> tuple[int, str, str]:
+    try:
+        completed = subprocess.run(
+            command,
+            text=True,
+            capture_output=True,
+            env=_subprocess_env(command),
+            timeout=SCRIPT_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except FileNotFoundError:
+        return 127, "", "command_not_found"
+    except subprocess.TimeoutExpired:
+        return 124, "", "command_timeout"
+    return completed.returncode, completed.stdout or "", completed.stderr or ""
+
+
 def _extract_text(path: Path, max_pages: int, max_chars: int) -> dict[str, Any]:
     node = _command("HERMES_MOBILE_NODE_COMMAND", "node")
     helper = _helper_path("pdf_extract_text.mjs")
@@ -290,20 +319,94 @@ def _extract_text(path: Path, max_pages: int, max_chars: int) -> dict[str, Any]:
     )
 
 
+def _pdf_page_count(path: Path) -> int | None:
+    pdfinfo = _command("HERMES_MOBILE_PDFINFO_COMMAND", "pdfinfo")
+    if not shutil.which(pdfinfo) and not Path(pdfinfo).exists():
+        return None
+    code, stdout, _stderr = _run_command([pdfinfo, str(path)])
+    if code != 0:
+        return None
+    match = re.search(r"^Pages:\s*(\d+)\s*$", stdout, re.MULTILINE)
+    if not match:
+        return None
+    try:
+        return int(match.group(1))
+    except Exception:
+        return None
+
+
+def _render_pages_with_pdftoppm(path: Path, output_dir: Path, start_page: int, max_pages: int, scale: float) -> dict[str, Any]:
+    pdftoppm = _command("HERMES_MOBILE_PDFTOPPM_COMMAND", "pdftoppm")
+    if not shutil.which(pdftoppm) and not Path(pdftoppm).exists():
+        return {"ok": False, "error": "pdf_renderer_unavailable"}
+    page_count = _pdf_page_count(path)
+    if page_count is not None:
+        if page_count <= 0:
+            return {"ok": False, "error": "pdf_has_no_pages"}
+        if start_page > page_count:
+            return {"ok": False, "error": "pdf_start_page_out_of_range"}
+        last_page = min(page_count, start_page + max_pages - 1)
+    else:
+        last_page = start_page + max_pages - 1
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        return {"ok": False, "error": "pdf_output_dir_create_failed"}
+
+    prefix = output_dir / "page"
+    dpi = str(max(36, min(288, int(round(72 * scale)))))
+    command = [
+        pdftoppm,
+        "-png",
+        "-r",
+        dpi,
+        "-f",
+        str(start_page),
+        "-l",
+        str(last_page),
+        str(path),
+        str(prefix),
+    ]
+    code, _stdout, stderr = _run_command(command)
+    if code != 0:
+        detail = (stderr or "").strip().splitlines()
+        return {"ok": False, "error": "pdf_render_pages_failed", "detail": detail[-1] if detail else f"pdftoppm_exit_{code}"}
+
+    rendered_files = sorted(output_dir.glob("page-*.png"))
+    pages: list[dict[str, Any]] = []
+    for image_path in rendered_files:
+        match = re.search(r"-(\d+)\.png$", image_path.name)
+        page_number = int(match.group(1)) if match else start_page + len(pages)
+        pages.append({"page": page_number, "path": str(image_path)})
+    if not pages:
+        return {"ok": False, "error": "pdf_render_pages_produced_no_images"}
+    return {
+        "ok": True,
+        "source": "pdftoppm",
+        "pageCount": page_count if page_count is not None else None,
+        "startPage": start_page,
+        "pagesRendered": len(pages),
+        "outputDir": str(output_dir),
+        "pages": pages,
+    }
+
+
 def _render_pages(path: Path, output_dir: Path, start_page: int, max_pages: int, scale: float) -> dict[str, Any]:
     swift = _command("HERMES_MOBILE_SWIFT_COMMAND", "/usr/bin/swift")
-    if not shutil.which(swift) and not Path(swift).exists():
-        return {"ok": False, "error": "pdf_renderer_unavailable"}
-    helper = _helper_path("render_pdf_pages.swift")
-    return _run_json([
-        swift,
-        str(helper),
-        str(path),
-        str(output_dir),
-        str(start_page),
-        str(max_pages),
-        str(scale),
-    ])
+    if shutil.which(swift) or Path(swift).exists():
+        helper = _helper_path("render_pdf_pages.swift")
+        result = _run_json([
+            swift,
+            str(helper),
+            str(path),
+            str(output_dir),
+            str(start_page),
+            str(max_pages),
+            str(scale),
+        ])
+        if result.get("ok"):
+            return result
+    return _render_pages_with_pdftoppm(path, output_dir=output_dir, start_page=start_page, max_pages=max_pages, scale=scale)
 
 
 def _pdf_extract_text_handler(args: dict[str, Any], **_: Any) -> str:

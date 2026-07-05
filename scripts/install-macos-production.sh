@@ -1490,7 +1490,7 @@ NODE
 }
 
 run_gateway_launchd_services_phase() {
-  node - "$ROOT" "$APPLY_LAUNCHD_SERVICES" "$LAUNCH_DAEMONS_DIR" "$LAUNCHCTL_COMMAND" <<'NODE'
+  node - "$ROOT" "$APPLY_LAUNCHD_SERVICES" "$LAUNCH_DAEMONS_DIR" "$LAUNCHCTL_COMMAND" "$APP_SOURCE" <<'NODE'
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
@@ -1499,6 +1499,7 @@ const root = path.resolve(process.argv[2]);
 const applyLaunchd = process.argv[3] === "1";
 const launchDaemonsDir = path.resolve(process.argv[4] || "/Library/LaunchDaemons");
 const launchctlCommand = process.argv[5] || "/bin/launchctl";
+const appSource = path.resolve(process.argv[6] || path.join(root, "app"));
 const dataDir = path.join(root, "data");
 const manifestPath = path.join(dataDir, "gateway-pool-manifest-mac.json");
 const stagingDir = path.join(dataDir, "launchd-staging", "gateway");
@@ -1653,7 +1654,13 @@ function ensureConfigPluginEnabled(configPath, pluginName) {
 }
 
 function syncProfilePlugin(profileDir, osUser, pluginName) {
-  const source = path.join(root, "app", "gateway-plugins", pluginName);
+  const source = [
+    path.join(root, "app", "gateway-plugins", pluginName),
+    path.join(appSource, "gateway-plugins", pluginName),
+  ].find((candidate) => (
+    fs.existsSync(path.join(candidate, "plugin.yaml"))
+    && fs.existsSync(path.join(candidate, "__init__.py"))
+  )) || "";
   if (!fs.existsSync(path.join(source, "plugin.yaml")) || !fs.existsSync(path.join(source, "__init__.py"))) {
     issues.push({ code: "gateway_profile_plugin_source_missing", plugin: pluginName, path: rel(source) });
     return;
@@ -2335,11 +2342,17 @@ try {
   if (issues.length === 0 && sourceMode === "clone") {
     for (const plugin of planPlugins) {
       if (fs.existsSync(plugin.targetDir)) {
-        const entries = fs.readdirSync(plugin.targetDir).filter((entry) => entry !== ".DS_Store");
         if (!fs.existsSync(path.join(plugin.targetDir, ".git"))) {
           issues.push({ code: "plugin_target_exists_not_git_checkout", id: plugin.id, path: rel(plugin.targetDir) });
-          continue;
         }
+      }
+    }
+  }
+
+  if (issues.length === 0 && sourceMode === "clone") {
+    for (const plugin of planPlugins) {
+      if (fs.existsSync(plugin.targetDir)) {
+        const entries = fs.readdirSync(plugin.targetDir).filter((entry) => entry !== ".DS_Store");
         actions.push({ action: "checkout-exists", id: plugin.id, path: rel(plugin.targetDir), entryCount: entries.length });
         continue;
       }

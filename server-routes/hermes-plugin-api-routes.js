@@ -215,10 +215,32 @@ function createHermesPluginApiRoutes(deps = {}) {
     }
   }
 
+  function accessKeyCookieForRequest(req) {
+    const rawValue = req?.headers?.["x-hermes-web-key"];
+    const accessKey = String(Array.isArray(rawValue) ? rawValue[0] : rawValue || "").trim();
+    if (!accessKey) return "";
+    const proto = String(req?.headers?.["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+    const secure = proto === "https" || req?.socket?.encrypted ? "; Secure" : "";
+    return `hermes_web_key=${encodeURIComponent(accessKey)}; Path=/; Max-Age=31536000; SameSite=Lax${secure}`;
+  }
+
+  function withAccessKeyCookie(req, headers = {}) {
+    const cookie = accessKeyCookieForRequest(req);
+    if (!cookie) return headers;
+    const next = Object.assign({}, headers);
+    const existing = next["Set-Cookie"];
+    next["Set-Cookie"] = Array.isArray(existing)
+      ? [...existing, cookie]
+      : existing
+        ? [existing, cookie]
+        : cookie;
+    return next;
+  }
+
   async function handleList(req, res, url) {
     const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url));
     if (!workspaceId) return;
-    deps.sendJson(res, 200, {
+    sendJsonWithHeaders(res, 200, {
       ok: true,
       workspaceId,
       plugins: deps.hermesPluginService.list({
@@ -228,7 +250,7 @@ function createHermesPluginApiRoutes(deps = {}) {
         id: item.id,
         manifestPath: `/api/hermes-plugins/${encodeURIComponent(item.id)}/manifest`,
       })),
-    });
+    }, withAccessKeyCookie(req));
   }
 
   function requestedPluginId(url) {
@@ -965,7 +987,7 @@ function createHermesPluginApiRoutes(deps = {}) {
       res,
       200,
       Object.assign({ workspaceId }, manifest),
-      cleanupCookies.length ? { "Set-Cookie": cleanupCookies } : {},
+      withAccessKeyCookie(req, cleanupCookies.length ? { "Set-Cookie": cleanupCookies } : {}),
     );
   }
 

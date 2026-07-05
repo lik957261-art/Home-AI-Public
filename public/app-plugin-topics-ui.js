@@ -182,6 +182,7 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
   }),
   Object.freeze({
     id: "music",
+    enabled: false,
     viewMode: "music",
     label: "\u97f3\u4e50",
     subtitle: "Roon \u64ad\u653e\u8bb0\u5f55\u3001\u6536\u85cf\u548c\u542c\u6b4c\u504f\u597d",
@@ -200,6 +201,7 @@ const PLUGIN_TOPIC_DEFS = Object.freeze([
   }),
   Object.freeze({
     id: "movie",
+    enabled: false,
     viewMode: "movie",
     label: "\u5f71\u9662",
     subtitle: "\u5f71\u9662\u72b6\u6001\u3001\u8bbe\u5907\u548c\u9065\u63a7\u754c\u9762",
@@ -636,6 +638,7 @@ async function refreshPluginContextTopicHomeAfterColdRestore(restoreScrollTop = 
 
 function pluginTopicNavigationAvailable(def) {
   if (!def?.id) return false;
+  if (def.enabled === false) return false;
   if (def.builtinKind === "directory") return true;
   if (def.id === "wardrobe") {
     return typeof wardrobePluginNavigationAvailable === "function" && wardrobePluginNavigationAvailable();
@@ -2448,14 +2451,16 @@ function renderPluginTopicCards(options = {}) {
             <button class="plugin-topic-icon-entry" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
               <span class="plugin-topic-app-icon ${escapeHtml(def.appIconClass || def.id)}" data-plugin-icon="${escapeHtml(def.appIconGlyph || "")}" aria-hidden="true"></span>
             </button>
-            <button class="plugin-topic-row-body" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}">
+            <button class="plugin-topic-row-body" type="button" data-plugin-topic-open-app="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u63d2\u4ef6`)}">
               <span class="plugin-topic-text">
                 <span class="plugin-topic-title">${escapeHtml(def.label)}</span>
                 <span class="plugin-topic-separator" aria-hidden="true"></span>
                 <span class="plugin-topic-subtitle">${escapeHtml(pluginTopicRowMeta(def, options))}</span>
               </span>
             </button>
-            <span class="plugin-topic-row-chevron-placeholder" aria-hidden="true"></span>
+            <button class="plugin-topic-chat-entry" type="button" data-plugin-topic-open-topic="${escapeHtml(def.id)}" aria-label="${escapeHtml(`\u6253\u5f00${def.label}\u8bdd\u9898`)}">
+              <span class="plugin-topic-action-icon chat" aria-hidden="true"></span>
+            </button>
           </div>
         </article>
       `;

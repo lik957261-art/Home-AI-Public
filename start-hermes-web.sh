@@ -23,6 +23,24 @@ if ! command -v "$node_bin" >/dev/null 2>&1; then
   exit 1
 fi
 
+env_file="$script_dir/.env"
+if [[ -f "$env_file" ]]; then
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || continue
+    key="${line%%=*}"
+    value="${line#*=}"
+    value="${value%$'\r'}"
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+      value="${value:1:${#value}-2}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+      value="${value:1:${#value}-2}"
+    fi
+    export "$key=$value"
+  done < "$env_file"
+fi
+
 server_js="$script_dir/server.js"
 if [[ ! -f "$server_js" ]]; then
   echo "server.js was not found at $server_js" >&2

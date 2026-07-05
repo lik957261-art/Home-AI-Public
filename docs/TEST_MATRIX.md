@@ -683,6 +683,7 @@ write repairs must stop the listener before the SQLite transaction, use
 bound-directory smoke, so stale in-memory runtime state or a newer `state.json`
 snapshot cannot overwrite repaired metadata.
 Source changes to this closure contract must run
+`node scripts\macos-production-closure-validation.js --root <mac-root> --json`,
 `node tests\macos-production-closure-validation-harness.test.js`,
 `node tests\macos-plugin-directory-production-smoke-harness.test.js`,
 `node tests\macos-bound-directory-preview-smoke-harness.test.js`, and

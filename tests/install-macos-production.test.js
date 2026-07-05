@@ -1092,7 +1092,7 @@ function testExecutePluginWorkspaceProvisioningPlanDoesNotCreateSecretsOrGrants(
   assert.equal(parsed.execution.report.workspaceCount, 2);
   const planPath = path.join(root, "data", "plugin-workspace-provisioning-plan.json");
   const plan = JSON.parse(fs.readFileSync(planPath, "utf8"));
-  assert.deepEqual(plan.defaultBusinessPluginIds.sort(), ["email", "finance", "growth", "health", "note", "wardrobe"]);
+  assert.deepEqual(plan.defaultBusinessPluginIds.sort(), ["email", "finance", "growth", "health", "moira", "note", "wardrobe"]);
   assert.ok(plan.excludedSpecialPluginIds.includes("codex-mobile-web"));
   assert.ok(plan.excludedSpecialPluginIds.includes("music"));
   assert.equal(plan.createsPluginKeys, false);
@@ -1101,7 +1101,7 @@ function testExecutePluginWorkspaceProvisioningPlanDoesNotCreateSecretsOrGrants(
   assert.equal(fs.existsSync(path.join(root, "data", "plugin-workspace-authorizations.json")), false);
   assert.equal(fs.existsSync(path.join(root, "data", "drive", "users", "owner", ".hermes-finance", "access-key.txt")), false);
   const owner = plan.workspaces.find((workspace) => workspace.workspaceId === "owner");
-  assert.equal(owner.defaultBusinessPluginCount, 6);
+  assert.equal(owner.defaultBusinessPluginCount, 7);
   assert.ok(owner.plugins.every((plugin) => plugin.currentStatus === "pending"));
 }
 
@@ -1256,8 +1256,8 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
   fs.writeFileSync(codexProfileFile, JSON.stringify({
     activeProfileId: "previous",
     profiles: [
-      { id: "default", label: "Default", codexHome: "/Users/example/path" },
-      { id: "previous", label: "Previous", codexHome: "/Users/example/path" },
+      { id: "default", label: "Default", codexHome: "/Users/xuxin/.codex" },
+      { id: "previous", label: "Previous", codexHome: "/Users/xuxin/.codex-homes/previous" },
     ],
   }, null, 2));
   const parsed = JSON.parse(runWithEnv([

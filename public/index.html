@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en" data-client-version="20260626-in-app-dialog-contract-v954">
+<html lang="en" data-client-version="20260629-plugin-row-open-app-v958">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Home AI</title>
-  <meta name="hermes-web-client-version" content="20260626-in-app-dialog-contract-v954">
+  <meta name="hermes-web-client-version" content="20260629-plugin-row-open-app-v958">
   <meta name="application-name" content="Home AI">
   <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f7f8f7">
   <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#101214">
@@ -91,6 +91,27 @@
       border-radius: inherit;
       animation: boot-splash-progress 1100ms cubic-bezier(0.2, 0, 0.1, 1) infinite;
     }
+    .boot-retry {
+      justify-self: center;
+      width: auto;
+      min-width: 72px;
+      min-height: 34px;
+      margin-top: 4px;
+      padding: 7px 14px;
+      color: #23323a;
+      background: #dfe8e4;
+      border: 1px solid rgba(144, 166, 170, 0.36);
+      border-radius: 8px;
+      box-shadow: none;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .boot-retry[href] {
+      display: inline-grid;
+      place-items: center;
+    }
     @media (max-width: 1099px), (pointer: coarse) and (max-width: 1366px) {
       .boot-splash {
         place-content: start center;
@@ -154,6 +175,30 @@
     }
     html[data-effective-theme="dark"] .boot-splash-bar {
       background: rgba(255, 255, 255, 0.12);
+    }
+    html[data-boot-recovery="1"],
+    html[data-boot-recovery="1"] body,
+    html[data-boot-recovery="1"] .boot-splash {
+      background: #f7f8f7 !important;
+      color: #23323a !important;
+      color-scheme: light !important;
+    }
+    html[data-boot-recovery="1"] .boot-splash-mark {
+      color: #23323a !important;
+      background: #dfe8e4 !important;
+      border-color: rgba(144, 166, 170, 0.36) !important;
+    }
+    html[data-boot-recovery="1"] .boot-splash-title {
+      color: #23323a !important;
+    }
+    html[data-boot-recovery="1"] .boot-splash-text {
+      color: #4c5e65 !important;
+    }
+    html[data-boot-recovery="1"] .boot-splash-meta {
+      color: #697a80 !important;
+    }
+    html[data-boot-recovery="1"] .boot-splash-bar {
+      background: rgba(31, 43, 51, 0.10) !important;
     }
   </style>
   <script>
@@ -323,8 +368,8 @@
       } catch (_) {}
     }());
   </script>
-  <link rel="preload" href="/styles.css?v=20260626-in-app-dialog-contract-v954" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="/styles.css?v=20260626-in-app-dialog-contract-v954"></noscript>
+  <link rel="preload" href="/styles.css?v=20260629-plugin-row-open-app-v958" as="style" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link rel="stylesheet" href="/styles.css?v=20260629-plugin-row-open-app-v958"></noscript>
 </head>
 <body>
   <main id="bootSplash" class="boot-splash" role="status" aria-live="polite">
@@ -332,10 +377,10 @@
     <div class="boot-splash-copy">
       <div class="boot-splash-title">Home AI</div>
       <div id="bootSplashText" class="boot-splash-text">正在载入工作区</div>
-      <div id="bootSplashMeta" class="boot-splash-meta">client 20260626-in-app-dialog-contract-v954</div>
+      <div id="bootSplashMeta" class="boot-splash-meta">client 20260629-plugin-row-open-app-v958</div>
       <button id="bootRetry" class="boot-retry hidden" type="button">重试</button>
       <button id="bootResetClient" class="boot-retry hidden" type="button">重置客户端</button>
-      <a id="bootHardReset" class="boot-retry hidden" href="/client-reset.html?reason=boot_timeout">硬重置客户端</a>
+      <a id="bootHardReset" class="boot-retry hidden" href="/?resetClient=1&hard=1&reason=boot_timeout">硬重置客户端</a>
     </div>
     <div class="boot-splash-bar" aria-hidden="true"><span></span></div>
   </main>
@@ -345,6 +390,76 @@
       window.__hermesBootTouched = Date.now();
       var bootClientVersion = document.documentElement?.dataset?.clientVersion || "";
       var bootRecoveryKey = "hermesBootSoftReload:" + (bootClientVersion || "unknown");
+      function bootSplashVisible() {
+        var splash = document.getElementById("bootSplash");
+        return Boolean(splash && !splash.classList.contains("hidden") && !window.__hermesBootCompleted);
+      }
+      function bootRecoveryUrl(reason, hard) {
+        var url = new URL(window.location.href);
+        url.searchParams.set("resetClient", "1");
+        if (hard) url.searchParams.set("hard", "1");
+        url.searchParams.set("_hmv", String(Date.now()));
+        url.searchParams.set("reason", reason || "boot_recovery");
+        if (!url.searchParams.has("source")) url.searchParams.set("source", "pwa");
+        return url;
+      }
+      function forceVisibleRecoveryChrome() {
+        document.documentElement.dataset.bootRecovery = "1";
+        document.documentElement.style.backgroundColor = "#f7f8f7";
+        document.documentElement.style.colorScheme = "light";
+        if (document.body) {
+          document.body.style.backgroundColor = "#f7f8f7";
+          document.body.style.color = "#23323a";
+          document.body.style.colorScheme = "light";
+        }
+      }
+      function revealBootRecovery(reason, message) {
+        if (window.__hermesBootCompleted) return;
+        forceVisibleRecoveryChrome();
+        var splash = document.getElementById("bootSplash");
+        var retry = document.getElementById("bootRetry");
+        var reset = document.getElementById("bootResetClient");
+        var hardReset = document.getElementById("bootHardReset");
+        var text = document.getElementById("bootSplashText");
+        var meta = document.getElementById("bootSplashMeta");
+        if (splash) splash.classList.remove("hidden");
+        if (retry) {
+          retry.classList.remove("hidden");
+          retry.onclick = function () {
+            var url = new URL(window.location.href);
+            url.searchParams.set("_hmv", String(Date.now()));
+            url.searchParams.set("reason", reason || "boot_retry");
+            window.location.replace(url.href);
+          };
+        }
+        if (reset) {
+          reset.classList.remove("hidden");
+          reset.onclick = function () {
+            window.location.replace(bootRecoveryUrl(reason || "boot_watchdog_reset", true).href);
+          };
+        }
+        if (hardReset) {
+          hardReset.classList.remove("hidden");
+          hardReset.setAttribute("href", bootRecoveryUrl(reason || "boot_watchdog_hard", true).href);
+        }
+        if (text) text.textContent = message || "启动超时，请重置客户端后重试";
+        if (meta) meta.textContent = "client " + bootClientVersion + " · recovery";
+      }
+      function revealBootRecoveryIfPending(reason, message) {
+        if (!bootSplashVisible()) return;
+        revealBootRecovery(reason, message);
+      }
+      window.__hermesRevealBootRecovery = revealBootRecovery;
+      window.addEventListener("error", function () {
+        window.setTimeout(function () {
+          revealBootRecoveryIfPending("boot_script_error", "启动遇到异常，请重置客户端后重试");
+        }, 600);
+      });
+      window.addEventListener("unhandledrejection", function () {
+        window.setTimeout(function () {
+          revealBootRecoveryIfPending("boot_promise_error", "启动遇到异常，请重置客户端后重试");
+        }, 600);
+      });
       window.setTimeout(function () {
         if (window.__hermesBootCompleted) return;
         try {
@@ -357,15 +472,7 @@
         } catch (_) {}
       }, 8500);
       window.setTimeout(function () {
-        if (window.__hermesBootCompleted) return;
-        var retry = document.getElementById("bootRetry");
-        var reset = document.getElementById("bootResetClient");
-        var hardReset = document.getElementById("bootHardReset");
-        var meta = document.getElementById("bootSplashMeta");
-        if (retry) retry.classList.remove("hidden");
-        if (reset) reset.classList.remove("hidden");
-        if (hardReset) hardReset.classList.remove("hidden");
-        if (meta) meta.textContent = "client 20260626-in-app-dialog-contract-v954 · boot fallback";
+        revealBootRecoveryIfPending("boot_watchdog_timeout", "启动超时，请重置客户端后重试");
       }, 12000);
       function isStandaloneAppWindow() {
         return Boolean(
@@ -742,87 +849,87 @@
   </div>
 
   <script src="/fixed-viewport.js?v=20260505-1135"></script>
-  <script src="/markdown-renderer-client.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-task-artifact-helpers.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-story-helpers.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-reading-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-coins-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-program-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-growth-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-growth-task-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-growth-reflection-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-api-client.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-dialog-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-shell-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-task-groups-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-navigation-view-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-chat-composer-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-composer-source-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-composer-context-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-run-progress-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-navigation-search-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-task-preview-helpers-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-task-preview-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-sidebar-task-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-message-skill-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-message-actions-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-route-snapshot-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-platform-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-platform-status-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-ai-ops-diagnostics-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-pwa-settings-push-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-pwa-push-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-workspace-admin-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-access-key-manager-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-tts-profile-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-plugin-admin-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-share-image-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-draft-thread-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-directory-automation-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-shared-directory-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-embedded-plugin-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-wardrobe-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-plugin-topics-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-directory-topics-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-action-inbox-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-automation-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-native-growth-submission-controller.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-growth-ai-controller.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-growth-reward-controller.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-growth-settings-controller.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-growth-teaching-controller.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-learning-growth-controller.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-automation-controller-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-automation-actions-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-thread-state-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-group-topic-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-core-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-story-core-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-todo-core-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-render-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-list-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-learning-panel-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-recorder-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-todo-detail-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-actions-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-composer-actions-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-card-actions-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-kanban-study-actions-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-thread-message-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-thread-list-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-thread-directory-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-thread-card-message-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-long-message-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-rich-text-directory-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-message-usage-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-events-composer-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-event-stream-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-upload-sidebar-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-composer-send-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-voice-input-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-voice-learning-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-wire-start-ui.js?v=20260626-in-app-dialog-contract-v954"></script>
-  <script src="/app-start.js?v=20260626-in-app-dialog-contract-v954"></script>
+  <script src="/markdown-renderer-client.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-task-artifact-helpers.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-story-helpers.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-reading-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-coins-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-program-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-growth-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-growth-task-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-growth-reflection-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-api-client.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-dialog-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-shell-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-task-groups-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-navigation-view-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-chat-composer-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-composer-source-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-composer-context-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-run-progress-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-navigation-search-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-task-preview-helpers-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-task-preview-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-sidebar-task-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-message-skill-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-message-actions-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-route-snapshot-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-platform-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-platform-status-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-ai-ops-diagnostics-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-pwa-settings-push-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-pwa-push-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-workspace-admin-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-access-key-manager-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-tts-profile-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-plugin-admin-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-share-image-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-draft-thread-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-directory-automation-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-shared-directory-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-embedded-plugin-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-wardrobe-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-plugin-topics-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-directory-topics-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-action-inbox-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-automation-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-native-growth-submission-controller.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-growth-ai-controller.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-growth-reward-controller.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-growth-settings-controller.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-growth-teaching-controller.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-learning-growth-controller.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-automation-controller-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-automation-actions-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-thread-state-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-group-topic-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-core-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-story-core-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-todo-core-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-render-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-list-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-learning-panel-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-recorder-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-todo-detail-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-actions-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-composer-actions-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-card-actions-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-kanban-study-actions-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-thread-message-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-thread-list-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-thread-directory-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-thread-card-message-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-long-message-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-rich-text-directory-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-message-usage-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-events-composer-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-event-stream-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-upload-sidebar-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-composer-send-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-voice-input-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-voice-learning-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-wire-start-ui.js?v=20260629-plugin-row-open-app-v958"></script>
+  <script src="/app-start.js?v=20260629-plugin-row-open-app-v958"></script>
 </body>
 </html>

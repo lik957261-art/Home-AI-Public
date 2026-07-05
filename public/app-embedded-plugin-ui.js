@@ -434,7 +434,8 @@ function embeddedPluginAppearanceKey(appearance = embeddedPluginAppearanceForLau
 
 function embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appearanceKey = embeddedPluginAppearanceKey()) {
   const fetchedAt = Number(record?.manifestFetchedAt || 0);
-  const maxAgeMs = Number.isFinite(Number(record?.manifestMaxAgeMs)) ? Number(record.manifestMaxAgeMs) : 60000;
+  const configuredMaxAgeMs = Number(record?.manifestMaxAgeMs);
+  const maxAgeMs = Number.isFinite(configuredMaxAgeMs) && configuredMaxAgeMs > 0 ? configuredMaxAgeMs : 60000;
   const manifestAgeFresh = fetchedAt > 0 && Date.now() - fetchedAt < maxAgeMs;
   const freshEnough = (!embeddedPluginUsesLaunchToken(record?.manifest) && !embeddedPluginRefreshesOnVersionChange(record?.manifest))
     || manifestAgeFresh;

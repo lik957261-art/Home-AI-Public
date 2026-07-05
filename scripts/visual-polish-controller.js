@@ -9,7 +9,7 @@ const path = require("node:path");
 
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:19073/";
 const DEFAULT_OUTPUT_ROOT = path.join(process.cwd(), "tmp", "visual-polish-runs");
-const DEFAULT_CODEX_TASK_CARD_SCRIPT = "/Users/example/path";
+const DEFAULT_CODEX_TASK_CARD_SCRIPT = "/Users/hermes-host/HermesMobile/plugins/codex-mobile-web/scripts/create-thread-task-card.js";
 const DEFAULT_PLUGINS = [
   "finance",
   "music",

@@ -6684,7 +6684,7 @@ button.directory-alias-chip {
   min-width: 0;
   min-height: 48px;
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) 16px;
+  grid-template-columns: 56px minmax(0, 1fr) 34px;
   align-items: center;
   gap: 9px;
   padding: 5px 2px;
@@ -6703,7 +6703,8 @@ button.directory-alias-chip {
 
 .plugin-topic-row-toggle,
 .plugin-topic-icon-entry,
-.plugin-topic-row-body {
+.plugin-topic-row-body,
+.plugin-topic-chat-entry {
   min-width: 0;
   min-height: 48px;
   padding: 0;
@@ -6736,9 +6737,18 @@ button.directory-alias-chip {
   align-items: center;
 }
 
+.plugin-topic-chat-entry {
+  width: 34px;
+  min-width: 34px;
+  display: grid;
+  place-items: center;
+  opacity: 0.78;
+}
+
 .plugin-topic-row-toggle:active,
 .plugin-topic-icon-entry:active,
 .plugin-topic-row-body:active,
+.plugin-topic-chat-entry:active,
 .plugin-topic-actions button:active {
   transform: translateY(1px);
 }

@@ -3,9 +3,9 @@ set -euo pipefail
 
 NAS_HOST="${HOMEAI_NAS_HOST:-192.168.10.99}"
 NAS_NFS_EXPORT="${HOMEAI_NAS_NFS_EXPORT:-/volume1/备份}"
-MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path"
+MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path/HomeAI-Production-Backups/mac-production}"
 DESTINATION_SUBDIR="${HOMEAI_NAS_BACKUP_SUBDIR:-HomeAI-Production-Backups/mac-production}"
-SUDO_PASSWORD_FILE="${HOMEAI_MAC_SUDO_PASSWORD_FILE:-/Users/example/path"
+SUDO_PASSWORD_FILE="${HOMEAI_MAC_SUDO_PASSWORD_FILE:-/Users/example/path/data/secrets/mac-sudo-password.txt}"
 
 usage() {
   cat <<'USAGE'

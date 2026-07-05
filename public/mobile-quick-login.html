@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Home AI 快速登录</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+      background: #111719;
+      color: #eff7f4;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      background:
+        linear-gradient(135deg, rgba(180, 224, 216, 0.09), transparent 32%),
+        #111719;
+    }
+    main {
+      width: min(420px, 100%);
+      display: grid;
+      gap: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    p {
+      margin: 0;
+      color: #bbcac5;
+      font-size: 15px;
+      line-height: 1.55;
+    }
+    .panel {
+      border: 1px solid rgba(214, 234, 228, 0.18);
+      border-radius: 8px;
+      padding: 18px;
+      background: rgba(255, 255, 255, 0.045);
+    }
+    .status {
+      font-size: 16px;
+      color: #eff7f4;
+    }
+    form {
+      display: none;
+      gap: 12px;
+    }
+    input {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid rgba(214, 234, 228, 0.2);
+      border-radius: 8px;
+      padding: 0 14px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #eff7f4;
+      font-size: 16px;
+    }
+    button {
+      width: 100%;
+      min-height: 48px;
+      border: 0;
+      border-radius: 8px;
+      background: #c7e3dc;
+      color: #10201d;
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .error {
+      color: #ffb4a8;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Home AI 快速登录</h1>
+    <section class="panel">
+      <p id="status" class="status">正在保存 Access Key...</p>
+      <form id="manualForm" autocomplete="off">
+        <input id="manualKey" type="password" autocomplete="current-password" placeholder="粘贴 Access Key">
+        <button type="submit">保存并打开 Home AI</button>
+      </form>
+    </section>
+    <p>这个页面只把 Key 保存到当前设备的 Home AI 浏览器存储里，不会在页面上回显明文。</p>
+  </main>
+  <script>
+    "use strict";
+
+    const statusEl = document.getElementById("status");
+    const formEl = document.getElementById("manualForm");
+    const keyEl = document.getElementById("manualKey");
+
+    function paramsFromHash() {
+      const raw = String(window.location.hash || "").replace(/^#/, "");
+      return new URLSearchParams(raw);
+    }
+
+    function incomingKey() {
+      const search = new URLSearchParams(window.location.search || "");
+      const hash = paramsFromHash();
+      return String(
+        hash.get("key")
+        || hash.get("k")
+        || hash.get("accessKey")
+        || hash.get("hermesWebKey")
+        || search.get("key")
+        || search.get("k")
+        || search.get("accessKey")
+        || search.get("hermesWebKey")
+        || ""
+      ).trim();
+    }
+
+    function redirectHome() {
+      const url = new URL("/", window.location.origin);
+      url.searchParams.set("nativeShell", "ios");
+      url.searchParams.set("source", "quick-login");
+      url.searchParams.set("_hmv", String(Date.now()));
+      window.location.replace(url.href);
+    }
+
+    function saveLocalKey(key) {
+      localStorage.setItem("hermesWebKey", key);
+      document.cookie = `hermes_web_key=${encodeURIComponent(key)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+    }
+
+    async function saveAndLogin(key) {
+      const value = String(key || "").trim();
+      if (!value) {
+        statusEl.textContent = "请粘贴 Access Key。";
+        formEl.style.display = "grid";
+        keyEl.focus();
+        return;
+      }
+      statusEl.textContent = "正在验证 Access Key...";
+      const response = await fetch("/api/login", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: value }),
+      });
+      if (!response.ok) throw new Error("Access Key 验证失败");
+      saveLocalKey(value);
+      statusEl.textContent = "已保存，正在打开 Home AI...";
+      history.replaceState(null, "", "/mobile-quick-login.html");
+      window.setTimeout(redirectHome, 250);
+    }
+
+    formEl.addEventListener("submit", (event) => {
+      event.preventDefault();
+      saveAndLogin(keyEl.value).catch((err) => {
+        statusEl.textContent = err?.message || "保存失败";
+        statusEl.classList.add("error");
+        formEl.style.display = "grid";
+      });
+    });
+
+    saveAndLogin(incomingKey()).catch((err) => {
+      statusEl.textContent = err?.message || "保存失败";
+      statusEl.classList.add("error");
+      formEl.style.display = "grid";
+    });
+  </script>
+</body>
+</html>

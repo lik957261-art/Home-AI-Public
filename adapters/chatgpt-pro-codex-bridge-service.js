@@ -42,6 +42,28 @@ function joinConfiguredPath(root, ...segments) {
   return pathApi.join(value, ...segments);
 }
 
+function pathApiForConfiguredPath(...values) {
+  return values.some((value) => /^[A-Za-z]:[\\/]/.test(String(value || "")) || /^\\\\/.test(String(value || "")))
+    ? path.win32
+    : path.posix;
+}
+
+function isSameOrNestedPath(candidate, root) {
+  const rawCandidate = String(candidate || "").trim();
+  const rawRoot = String(root || "").trim();
+  if (!rawCandidate || !rawRoot) return false;
+  const pathApi = pathApiForConfiguredPath(rawCandidate, rawRoot);
+  const normalizedCandidate = pathApi.resolve(rawCandidate);
+  const normalizedRoot = pathApi.resolve(rawRoot);
+  const suffix = normalizedRoot.endsWith(pathApi.sep) ? "" : pathApi.sep;
+  return normalizedCandidate === normalizedRoot || normalizedCandidate.startsWith(`${normalizedRoot}${suffix}`);
+}
+
+function defaultCodexMobileOutputDir(env = process.env) {
+  const home = env.HOME || env.USERPROFILE || "";
+  return home ? joinConfiguredPath(home, ".codex-mobile-web", "outputs", "chatgpt-pro") : "";
+}
+
 function defaultStatePath(env = process.env) {
   const dataDir = env.HERMES_MOBILE_DATA_DIR || env.HERMES_WEB_DATA_DIR || "";
   if (dataDir) return joinConfiguredPath(dataDir, "chatgpt-pro-bridge-state.json");
@@ -57,12 +79,24 @@ function defaultOutputDir(env = process.env) {
   if (process.platform === "win32") {
     return "C:\\ProgramData\\HermesMobile\\data\\tmp\\chatgpt-pro";
   }
+  const codexMobileOutputDir = defaultCodexMobileOutputDir(env);
+  if (codexMobileOutputDir) return codexMobileOutputDir;
   return path.join("/tmp", "hermes-mobile-chatgpt-pro");
+}
+
+function safeOutputDir(configuredOutputDir, env = process.env, workspace = "") {
+  const fallback = defaultOutputDir(env);
+  const outputDir = String(configuredOutputDir || "").trim();
+  if (!outputDir) return fallback;
+  if (isSameOrNestedPath(outputDir, workspace)) {
+    return defaultCodexMobileOutputDir(env) || fallback;
+  }
+  return outputDir;
 }
 
 function defaultWorkspace(env = process.env, platform = process.platform) {
   const devRoot = env.HERMES_MOBILE_DEV_ROOT || env.HERMES_WEB_DEV_ROOT || "";
-  if (devRoot) return joinConfiguredPath(devRoot, "app");
+  if (devRoot) return devRoot;
   if (platform === "win32") return "C:\\Users\\xuxin\\Documents\\Agent";
   if (platform === "darwin") return "/Users/example/path";
   return process.cwd();
@@ -212,7 +246,11 @@ function createChatGptProCodexBridgeService(options = {}) {
   const workspace = options.workspace || env.HERMES_MOBILE_CHATGPT_PRO_WORKSPACE || env.HERMES_WEB_CHATGPT_PRO_WORKSPACE || defaultWorkspace(env);
   const threadName = options.threadName || env.HERMES_MOBILE_CHATGPT_PRO_THREAD_NAME || DEFAULT_THREAD_NAME;
   const statePath = options.statePath || env.HERMES_MOBILE_CHATGPT_PRO_STATE_PATH || env.HERMES_WEB_CHATGPT_PRO_STATE_PATH || defaultStatePath(env);
-  const outputDir = options.outputDir || env.HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR || env.HERMES_WEB_CHATGPT_PRO_OUTPUT_DIR || defaultOutputDir(env);
+  const outputDir = safeOutputDir(
+    options.outputDir || env.HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR || env.HERMES_WEB_CHATGPT_PRO_OUTPUT_DIR || "",
+    env,
+    workspace,
+  );
   const timeoutMs = Math.max(30000, Number(options.timeoutMs || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_TIMEOUT_MS || DEFAULT_TIMEOUT_MS));
   const pollIntervalMs = Math.max(1000, Number(options.pollIntervalMs || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_POLL_MS || DEFAULT_POLL_INTERVAL_MS));
   const model = options.model || env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MODEL || "gpt-5.5";

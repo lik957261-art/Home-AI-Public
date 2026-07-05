@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="${HERMES_MOBILE_APP_DIR:-/Users/example/path"
-MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path"
+APP_DIR="${HERMES_MOBILE_APP_DIR:-/Users/example/path}"
+MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path}"
 DESTINATION="${HOMEAI_DISASTER_BACKUP_DESTINATION:-${MOUNT_POINT%/}/HomeAI-Production-Backups/mac-production}"
-STAGING="${HOMEAI_DISASTER_BACKUP_STAGING:-/Users/example/path"
+STAGING="${HOMEAI_DISASTER_BACKUP_STAGING:-/Users/example/path/HomeAI-Disaster-Staging/mac-production}"
 LABEL="${HOMEAI_DISASTER_BACKUP_LABEL:-daily-nfs-$(date -u +%Y%m%dT%H%M%SZ)}"
 TRANSPORT="${HOMEAI_DISASTER_BACKUP_TRANSPORT:-auto}"
 SSH_TARGET="${HOMEAI_DISASTER_BACKUP_SSH_TARGET:-}"

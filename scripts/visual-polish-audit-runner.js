@@ -16,8 +16,8 @@ const {
 const DEFAULT_OUTPUT_ROOT = "/Users/example/path";
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:19073/";
 const DEFAULT_APP_URL = "http://127.0.0.1:8797/?source=pwa";
-const PRODUCTION_TASK_CARD_SCRIPT = "/Users/example/path";
-const DEV_TASK_CARD_SCRIPT = "/Users/example/path";
+const PRODUCTION_TASK_CARD_SCRIPT = "/Users/hermes-host/HermesMobile/plugins/codex-mobile-web/scripts/create-thread-task-card.js";
+const DEV_TASK_CARD_SCRIPT = "/Users/hermes-dev/HermesMobileDev/plugins/codex-mobile-web/scripts/create-thread-task-card.js";
 
 function clean(value, max = 1000) {
   return String(value ?? "").trim().slice(0, max);

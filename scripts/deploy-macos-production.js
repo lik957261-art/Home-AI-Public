@@ -5,10 +5,11 @@ const crypto = require("node:crypto");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { resolveCodexMobileProfileRuntime } = require("./codex-mobile-profile-runtime");
+const { defaultRuntimeRoot, resolveCodexMobileProfileRuntime } = require("./codex-mobile-profile-runtime");
 
 const DEFAULT_DEV_ROOT = "/Users/example/path";
 const DEFAULT_MAC_ROOT = "/Users/example/path";
+const DEFAULT_CODEX_MOBILE_RUNTIME_ROOT = defaultRuntimeRoot();
 const DEFAULT_BASE_URL = "http://127.0.0.1:8797";
 const PINNED_NODE = "runtime/node-current/bin/node";
 const DEFAULT_PRODUCTION_OWNER = "hermes-host:staff";
@@ -47,15 +48,15 @@ const HOME_AI_CHATGPT_PRO_CODEX_MOBILE_URL = process.env.HERMES_MOBILE_CHATGPT_P
 const HOME_AI_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE = process.env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE
   || process.env.HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE
   || process.env.CODEX_MOBILE_KEY_FILE
-  || "/Users/example/path";
+  || path.posix.join(DEFAULT_CODEX_MOBILE_RUNTIME_ROOT, "access_key");
 const HOME_AI_CHATGPT_PRO_OUTPUT_DIR = process.env.HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR
   || process.env.HERMES_WEB_CHATGPT_PRO_OUTPUT_DIR
-  || "/Users/example/path";
+  || path.posix.join(DEFAULT_CODEX_MOBILE_RUNTIME_ROOT, "outputs", "chatgpt-pro");
 const HOME_AI_DISASTER_BACKUP_TRANSPORT = process.env.HOMEAI_DISASTER_BACKUP_TRANSPORT || "auto";
 const HOME_AI_DISASTER_BACKUP_SSH_TARGET = process.env.HOMEAI_DISASTER_BACKUP_SSH_TARGET || "xuxinxp@192.168.10.99";
 const HOME_AI_DISASTER_BACKUP_SSH_DESTINATION = process.env.HOMEAI_DISASTER_BACKUP_SSH_DESTINATION || "/volume1/备份/HomeAI-Production-Backups/mac-production";
 const HOME_AI_DISASTER_BACKUP_SSH_OPTIONS = process.env.HOMEAI_DISASTER_BACKUP_SSH_OPTIONS
-  || "-p 2222 -i /Users/example/path";
+  || "-p 2222 -i /Users/hermes-host/.ssh/homeai_nas_backup_ed25519";
 const HOME_AI_VOICE_INPUT_ASR_URL = "http://127.0.0.1:8002/v1/audio/transcriptions";
 const HOME_AI_VOICE_INPUT_STREAMING_URL = "http://127.0.0.1:8002/v1/audio/transcriptions/stream";
 const HOME_AI_VOICE_INPUT_ASR_BACKEND = "funasr-local";
@@ -304,9 +305,9 @@ const CODEX_MOBILE_LOG_REPAIR = Object.freeze({
   serviceGroup: "staff",
   launchdLabel: "com.hermesmobile.plugin.codex-mobile",
   launchdPlistPath: "/Library/LaunchDaemons/com.hermesmobile.plugin.codex-mobile.plist",
-  runtimeLogRoot: "/Users/example/path",
-  runtimeRoot: "/Users/example/path",
-  profileFile: "/Users/example/path",
+  runtimeLogRoot: DEFAULT_CODEX_MOBILE_RUNTIME_ROOT,
+  runtimeRoot: DEFAULT_CODEX_MOBILE_RUNTIME_ROOT,
+  profileFile: path.posix.join(DEFAULT_CODEX_MOBILE_RUNTIME_ROOT, "codex-profiles.json"),
   muxMode: "persistent-owned-shared",
   requireSharedAppServer: "1",
   persistOwnedMux: "1",

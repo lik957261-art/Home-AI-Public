@@ -307,7 +307,7 @@ If the plugin thread starts from a plugin workspace, it must still load the
 central Home AI contract from:
 
 ```text
-/Users/example/path
+<Home-AI>/docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md
 ```
 
 The plugin-local `AGENTS.md`, `.agent-context/PROJECT_CONTEXT.md`,

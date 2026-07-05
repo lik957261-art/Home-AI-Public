@@ -334,7 +334,7 @@ function testRepositoryContractIsCurrentlyClosed() {
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.central.issues.length, 0);
   const pointerCount = parsed.plugins.filter((plugin) => plugin.pointerExists).length;
-  if (pointerCount === 0 && process.env.GITHUB_ACTIONS === "true") {
+  if (pointerCount === 0) {
     assert.equal(result.status, 1, result.stderr || result.stdout);
     assert.deepEqual(
       parsed.issues,

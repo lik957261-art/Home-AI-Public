@@ -180,6 +180,7 @@ async function testMacEnvironmentDefaultsAreUsedForCodexMobileRequest() {
       HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_URL: "http://codex-web.local",
       HERMES_WEB_CHATGPT_PRO_WORKSPACE: "/Users/example/path",
       HERMES_WEB_CHATGPT_PRO_OUTPUT_DIR: "/Users/example/path",
+      HOME: "/Users/example-operator",
     },
     fetch: fakeFetch,
     key: "test-key",
@@ -193,7 +194,7 @@ async function testMacEnvironmentDefaultsAreUsedForCodexMobileRequest() {
   assert.match(newMessageCall.url, /^http:\/\/codex-web\.local\//);
   const body = JSON.parse(newMessageCall.options.body);
   assert.equal(body.cwd, "/Users/example/path");
-  assert.match(body.text, /\/Users\/xuxin\/\.codex-mobile-web\/outputs\/chatgpt-pro/);
+  assert.match(body.text, /\/Users\/example-operator\/\.codex-mobile-web\/outputs\/chatgpt-pro/);
 }
 
 function testDefaultOutputDirStaysOutsideWorkspace() {

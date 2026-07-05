@@ -174,6 +174,14 @@ gate.
 
 Use the focused harnesses when investigating one subsystem:
 
+- `scripts/macos-production-closure-validation.js` for the full closure gate;
+- `scripts/macos-plugin-directory-production-smoke.js` for plugin delivery
+  directories;
+- `scripts/macos-bound-directory-preview-smoke.js` for directory-bound topic
+  preview and UI route simulation;
+- `scripts/macos-wardrobe-binding-production-smoke.js` for Wardrobe binding,
+  origin, proxy, and bootstrap checks.
+
 ```bash
 sudo /Users/example/path \
   /Users/example/path \

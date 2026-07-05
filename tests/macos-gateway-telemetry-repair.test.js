@@ -24,7 +24,7 @@ const paths = telemetryPathsForWorker({
   profile: "hm-owner-openai-1",
   osUser: "hm-owner",
 });
-assert.equal(paths.profileDir, "/Users/example/path");
+assert.equal(paths.profileDir, "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1");
 assert.equal(paths.stateDbPath.endsWith("/state.db"), true);
 assert.equal(paths.responseStoreDbPath.endsWith("/response_store.db"), true);
 
@@ -70,8 +70,8 @@ try {
   assert.equal(written.wrote, true);
   assert.ok(written.backup.includes("gateway-pool-manifest-mac.json"));
   const updated = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-  assert.equal(updated.workers[0].telemetryStateDbPath, "/Users/example/path");
-  assert.equal(updated.workers[1].telemetryResponseStoreDbPath, "/Users/example/path");
+  assert.equal(updated.workers[0].telemetryStateDbPath, "/Users/hm-owner/HermesWorkspace/.hermes-gateway/profiles/hm-owner-openai-1/state.db");
+  assert.equal(updated.workers[1].telemetryResponseStoreDbPath, "/Users/hm-wuping/HermesWorkspace/.hermes-gateway/profiles/hm-wuping-openai-1/response_store.db");
   assert.ok(written.warnings.includes("telemetry_state_db_missing:hm-owner-openai-1"));
   assert.equal(written.ok, true);
 } finally {

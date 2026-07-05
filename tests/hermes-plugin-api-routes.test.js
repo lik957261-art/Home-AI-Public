@@ -191,6 +191,25 @@ async function testListRouteUsesEffectiveWorkspaceForOwnerSwitch() {
   assert.deepEqual(parseBody(res).plugins, []);
 }
 
+async function testPluginRoutesRefreshWebKeyCookieForIframeNavigation() {
+  const { routes } = makeRoutes();
+  const listReq = { method: "GET", headers: { "x-hermes-web-key": "home-owner-key", "x-forwarded-proto": "https" } };
+  const listRes = makeResponse();
+  await routes.handle(listReq, listRes, makeUrl("/api/hermes-plugins?workspaceId=owner"));
+  assert.equal(
+    listRes.headers["Set-Cookie"],
+    "hermes_web_key=home-owner-key; Path=/; Max-Age=31536000; SameSite=Lax; Secure",
+  );
+
+  const manifestReq = { method: "GET", headers: { "x-hermes-web-key": "home-owner-key", "x-forwarded-proto": "https" } };
+  const manifestRes = makeResponse();
+  await routes.handle(manifestReq, manifestRes, makeUrl("/api/hermes-plugins/health/manifest?workspaceId=owner"));
+  assert.equal(
+    manifestRes.headers["Set-Cookie"],
+    "hermes_web_key=home-owner-key; Path=/; Max-Age=31536000; SameSite=Lax; Secure",
+  );
+}
+
 async function testAdminListRouteRequiresOwner() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
@@ -2075,6 +2094,7 @@ async function run() {
   await testGrantAndRevokeRoutesRequireOwner();
   await testListRoute();
   await testListRouteUsesEffectiveWorkspaceForOwnerSwitch();
+  await testPluginRoutesRefreshWebKeyCookieForIframeNavigation();
   await testWardrobeManifestRoute();
   await testMoiraManifestRouteForwardsPluginRoute();
   await testCodexManifestRoute();

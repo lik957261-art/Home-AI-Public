@@ -189,6 +189,8 @@ issue. These issues mean profile-local automation tools such as
 
 Then run an actual DOCX extraction smoke against at least the affected profile:
 
+Use `scripts/macos-file-plugin-docx-root-smoke.js` for this check.
+
 ```bash
 sudo /Users/example/path \
   /Users/example/path \

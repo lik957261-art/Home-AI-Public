@@ -11,8 +11,8 @@ const codexProfileFile = path.join(codexRuntimeRoot, "codex-profiles.json");
 fs.writeFileSync(codexProfileFile, JSON.stringify({
   activeProfileId: "previous",
   profiles: [
-    { id: "default", label: "Default", codexHome: "/Users/example/path" },
-    { id: "previous", label: "Previous", codexHome: "/Users/example/path" },
+    { id: "default", label: "Default", codexHome: "/Users/xuxin/.codex" },
+    { id: "previous", label: "Previous", codexHome: "/Users/xuxin/.codex-homes/previous" },
   ],
 }, null, 2));
 

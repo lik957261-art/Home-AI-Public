@@ -800,6 +800,19 @@ workspace-private file access goes through per-workspace broker processes.
 It also includes `scripts/production-self-diagnostics-coverage-audit.js`, which
 keeps the self-diagnostic inventory synchronized across script entries, source
 harnesses, bounded command templates, and durable documentation references.
+The inventory includes `scripts/macos-gateway-manifest-toolset-smoke.js`, which
+checks active macOS Gateway manifests for the expected low-permission toolsets
+before Gateway worker profile drift is treated as closed.
+The inventory also includes
+`scripts/macos-file-plugin-docx-root-smoke.js`,
+`scripts/macos-plugin-directory-production-smoke.js`,
+`scripts/macos-bound-directory-preview-smoke.js`,
+`scripts/macos-wardrobe-binding-production-smoke.js`,
+`scripts/plugin-workspace-audit-runner.js`, and
+`scripts/macos-production-closure-validation.js`. These keep file-plugin roots,
+plugin delivery directories, bound directory previews, Wardrobe bindings,
+plugin workspace audits, and the final Mac production closure harness visible
+in deployment evidence instead of relying on ad hoc manual checks.
 The same self-diagnostic inventory includes
 `scripts/grok-auth-metadata-smoke.js` as the bounded Grok/xAI OAuth metadata
 check. Run it with the effective Grok profile auth file and shared auth file
@@ -935,10 +948,10 @@ Mac file-plugin root repair is considered closed.
 Mac production also must explicitly connect the listener workspace catalog to
 the live Weixin route data:
 
-- `HERMES_WEB_WORKSPACE_USERS_PATH=/Users/example/path`
-- `HERMES_MOBILE_WORKSPACE_USERS_PATH=/Users/example/path`
-- `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH=/Users/example/path`
-- `HERMES_MOBILE_WORKSPACE_ROUTE_MAP_PATH=/Users/example/path`
+- `HERMES_WEB_WORKSPACE_USERS_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-users.json`
+- `HERMES_MOBILE_WORKSPACE_USERS_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-users.json`
+- `HERMES_WEB_WORKSPACE_ROUTE_MAP_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-routing-map.json`
+- `HERMES_MOBILE_WORKSPACE_ROUTE_MAP_PATH=/Users/hermes-host/HermesMobile/data/config/access-control/weixin-routing-map.json`
 
 Without these explicit LaunchDaemon variables, the runtime catalog checks
 `/Users/example/path` by

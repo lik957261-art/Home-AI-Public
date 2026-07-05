@@ -1323,8 +1323,8 @@ async function testFinanceGrantRefreshesGatewayProfilesAfterProvisioning() {
   assert.equal(systemCalls[0].action, "ensure_launchd_services");
   assert.equal(systemCalls[0].context.workspaceId, "weixin_stephen");
   assert.equal(systemCalls[0].context.macUser, "hm-stephen");
-  assert.equal(systemCalls[0].context.paths.workspaceDataRoot, "/Users/example/path");
-  assert.equal(systemCalls[0].context.paths.workerWorkspaceRoot, "/Users/example/path");
+  assert.equal(systemCalls[0].context.paths.workspaceDataRoot, "/Users/example/path/data/drive/users/weixin_stephen");
+  assert.equal(systemCalls[0].context.paths.workerWorkspaceRoot, "/Users/hm-stephen/HermesWorkspace");
   assert.equal(systemCalls[0].context.gateway.kickstart, true);
   assert.equal(systemCalls[0].context.gateway.manifestPath, "/Users/example/path");
   assert.deepEqual(systemCalls[0].context.gateway.profiles, ["hm-stephen-openai-1", "deepseekgw7"]);
@@ -2174,6 +2174,7 @@ async function testManifestRetriesAfterRecoverableLaunchFailure() {
 async function testLaunchEntryUsesServerSideWorkspaceKey() {
   const calls = [];
   const service = createHermesPluginService({
+    dataDir: fs.mkdtempSync(path.join(os.tmpdir(), "hermes-wardrobe-launch-")),
     plugins: [{ id: "wardrobe", manifestUrl: "https://wardrobe.example.test/api/v1/hermes/plugin/manifest" }],
     wardrobeAccessKeyPath: __filename,
     fetch(url, options = {}) {
@@ -3000,8 +3001,9 @@ function testFindEmailAccessKeyPath() {
 }
 
 function testFindHealthAccessKeyPath() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-health-key-path-"));
   assert.equal(findHealthAccessKeyPath({ healthAccessKeyPath: __filename }), __filename);
-  assert.equal(findHealthAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+  assert.equal(findHealthAccessKeyPath({ workspaceId: "owner" }, { dataDir: dir, env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
 }
 
 function testFindGrowthAccessKeyPath() {
@@ -3022,14 +3024,15 @@ function testFindMoiraAccessKeyPath() {
   }), "utf8");
 
   assert.equal(findMoiraAccessKeyPath({ moiraAccessKeyPath: __filename }), __filename);
-  assert.equal(findMoiraAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+  assert.equal(findMoiraAccessKeyPath({ workspaceId: "owner" }, { dataDir: dir, env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
   assert.equal(findMoiraAccessKeyPath({ workspaceId: "weixin_wuping" }, { dataDir: dir, env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), workspaceKeyPath);
-  assert.equal(findMoiraAccessKeyPath({ workspaceId: "weixin_other" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+  assert.equal(findMoiraAccessKeyPath({ workspaceId: "weixin_other" }, { dataDir: dir, env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
 }
 
 function testFindNoteAccessKeyPath() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hermes-note-key-path-"));
   assert.equal(findNoteAccessKeyPath({ noteAccessKeyPath: __filename }), __filename);
-  assert.equal(findNoteAccessKeyPath({ workspaceId: "owner" }, { env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
+  assert.equal(findNoteAccessKeyPath({ workspaceId: "owner" }, { dataDir: dir, env: { HERMES_WEB_AUTH_KEY_PATH: __filename } }), "");
 }
 
 async function testReviewFinanceLedgerJoinRequestUsesDedicatedFinanceEndpoint() {

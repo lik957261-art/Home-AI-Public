@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { execFileSync } = require("node:child_process");
+const { spawnSync } = require("node:child_process");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 const INSTALLER = path.join(REPO_ROOT, "scripts", "install-macos-production.sh");
@@ -66,7 +66,7 @@ function runPhase(root, phase) {
     ...process.env,
     HOMEAI_LAUNCH_DAEMONS_DIR: path.join(root, "launchd-system"),
   };
-  const stdout = execFileSync("bash", [
+  const result = spawnSync("bash", [
     INSTALLER,
     "--execute",
     "--phase",
@@ -80,7 +80,13 @@ function runPhase(root, phase) {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
-  const parsed = JSON.parse(stdout);
+  if (result.error) throw result.error;
+  let parsed;
+  try {
+    parsed = JSON.parse(result.stdout || "{}");
+  } catch (error) {
+    throw new Error(`phase_output_invalid:${phase}:${String(result.stderr || result.stdout || error).slice(0, 240)}`);
+  }
   return {
     phase,
     ok: Boolean(parsed.ok),

@@ -12,6 +12,7 @@ AGENTS.md
 .hermes_web_secret_key
 
 workspace/
+runtime/
 logs/
 outbox/
 tmp/
