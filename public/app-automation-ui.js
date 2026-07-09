@@ -1,4 +1,28 @@
 "use strict";
+const AUTOMATION_VIEW_MODEL_ESM_PATH = "/vite-islands/automation-view-model/automation-view-model.js";
+let automationViewModelPromise = null;
+let automationViewModel = null;
+function importAutomationViewModel() {
+  if (automationViewModel) return Promise.resolve(automationViewModel);
+  if (!automationViewModelPromise) {
+    automationViewModelPromise = import(AUTOMATION_VIEW_MODEL_ESM_PATH)
+      .then((model) => {
+        automationViewModel = model || null;
+        return automationViewModel;
+      })
+      .catch(() => null);
+  }
+  return automationViewModelPromise;
+}
+function currentAutomationViewModel() {
+  return automationViewModel;
+}
+function automationViewModelFunction(name) {
+  const model = currentAutomationViewModel();
+  const fn = model && model[name];
+  return typeof fn === "function" ? fn : null;
+}
+if (typeof window !== "undefined") importAutomationViewModel().catch(() => null);
 
 function renderSubprojects() {
   const subprojectSelect = $("subprojectSelect");
@@ -19,25 +43,67 @@ function renderSubprojects() {
 }
 
 function applyViewMode() {
-  const single = state.viewMode === "single";
-  const tasks = state.viewMode === "tasks";
-  const directory = state.viewMode === "projects";
-  const automation = state.viewMode === "automation";
-  const inbox = state.viewMode === "inbox";
-  const systemConsole = state.viewMode === "system-console";
-  const capabilities = false;
-  const learning = false;
-  const todos = state.viewMode === "todos";
-  const wardrobe = state.viewMode === "wardrobe";
-  const codex = state.viewMode === "codex";
-  const finance = state.viewMode === "finance";
-  const email = state.viewMode === "email";
-  const health = state.viewMode === "health";
-  const note = state.viewMode === "note";
-  const growth = state.viewMode === "growth";
-  const moira = state.viewMode === "moira";
-  const music = state.viewMode === "music";
-  const movie = state.viewMode === "movie";
+  const flagsPlan = automationViewModelFunction("automationViewModeFlagsPlan");
+  const flags = flagsPlan ? flagsPlan(state) : {
+    single: state.viewMode === "single",
+    tasks: state.viewMode === "tasks",
+    directory: state.viewMode === "projects",
+    automation: state.viewMode === "automation",
+    inbox: state.viewMode === "inbox",
+    systemConsole: state.viewMode === "system-console",
+    workspaceConsole: state.viewMode === "workspace-console",
+    capabilities: false,
+    learning: false,
+    todos: state.viewMode === "todos",
+    wardrobe: state.viewMode === "wardrobe",
+    codex: state.viewMode === "codex",
+    finance: state.viewMode === "finance",
+    email: state.viewMode === "email",
+    health: state.viewMode === "health",
+    note: state.viewMode === "note",
+    growth: state.viewMode === "growth",
+    moira: state.viewMode === "moira",
+    music: state.viewMode === "music",
+    movie: state.viewMode === "movie",
+    singleWindowMode: state.singleWindowMode,
+  };
+  const {
+    single,
+    tasks,
+    directory,
+    automation,
+    inbox,
+    systemConsole,
+    workspaceConsole,
+    capabilities,
+    learning,
+    todos,
+    wardrobe,
+    codex,
+    finance,
+    email,
+    health,
+    note,
+    growth,
+    moira,
+    music,
+    movie,
+  } = flags;
+  const ownerWorkspaceConsoleAvailable = Boolean(state.auth?.isOwner);
+  if ($("bottomWorkspaceMode")) {
+    $("bottomWorkspaceMode").hidden = !ownerWorkspaceConsoleAvailable;
+    $("bottomWorkspaceMode").setAttribute("aria-hidden", ownerWorkspaceConsoleAvailable ? "false" : "true");
+  }
+  if (workspaceConsole && !ownerWorkspaceConsoleAvailable) {
+    state.viewMode = "inbox";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    if (typeof loadSelectedView === "function") {
+      queueMicrotask(() => loadSelectedView().catch((err) => {
+        if (typeof showError === "function") showError(err?.message || err || "工作区控制台不可用");
+      }));
+    }
+    return;
+  }
   if (typeof updateWardrobeNavigationAvailability === "function") updateWardrobeNavigationAvailability();
   if (typeof updateCodexPluginNavigationAvailability === "function") updateCodexPluginNavigationAvailability();
   if (typeof updateFinancePluginNavigationAvailability === "function") updateFinancePluginNavigationAvailability();
@@ -53,6 +119,7 @@ function applyViewMode() {
   $("app")?.classList.toggle("inbox-mode", inbox);
   $("app")?.classList.toggle("automation-mode", automation);
   $("app")?.classList.toggle("system-console-mode", systemConsole);
+  $("app")?.classList.toggle("workspace-console-mode", workspaceConsole);
   $("app")?.classList.toggle("capability-mode", capabilities);
   $("app")?.classList.toggle("learning-mode", learning);
   $("app")?.classList.toggle("projects-mode", directory);
@@ -71,6 +138,7 @@ function applyViewMode() {
   $("taskManagementMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("bottomChatMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("bottomInboxMode")?.classList.toggle("active", inbox);
+  $("bottomWorkspaceMode")?.classList.toggle("active", workspaceConsole);
   $("bottomTasksMode")?.classList.toggle("active", tasks || (single && state.singleWindowMode === "task"));
   $("singleMode")?.classList.toggle("active", single && state.singleWindowMode === "chat");
   $("singleTaskMode")?.classList.toggle("active", single && state.singleWindowMode === "task");
@@ -102,21 +170,33 @@ function applyViewMode() {
   $("routeFields").classList.add("hidden");
   $("directoryEntry")?.classList.add("hidden");
   $("directoryEntry")?.parentElement?.classList.add("hidden");
-  $("newThread").classList.toggle("hidden", single || tasks || automation || inbox || systemConsole || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira || music || movie);
-  $("newThread").disabled = single || tasks || automation || inbox || systemConsole || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira || music || movie;
-  $("newThread").textContent = todos ? "新建看板卡片" : "新建话题";
-  $("threadSearch").placeholder = single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : systemConsole ? "Search system status" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : moira ? "Search 星盘" : music ? "Search music" : movie ? "Search movie" : "Search directories";
+  const newThreadPlan = automationViewModelFunction("automationNewThreadPlan");
+  const newThreadState = newThreadPlan ? newThreadPlan(flags) : {
+    hidden: single || tasks || automation || inbox || systemConsole || workspaceConsole || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira || music || movie,
+    disabled: single || tasks || automation || inbox || systemConsole || workspaceConsole || capabilities || learning || directory || todos || wardrobe || codex || finance || email || health || note || growth || moira || music || movie,
+    text: todos ? "新建看板卡片" : "新建话题",
+  };
+  $("newThread").classList.toggle("hidden", Boolean(newThreadState.hidden));
+  $("newThread").disabled = Boolean(newThreadState.disabled);
+  $("newThread").textContent = newThreadState.text;
+  const placeholderPlan = automationViewModelFunction("automationThreadSearchPlaceholderPlan");
+  $("threadSearch").placeholder = placeholderPlan
+    ? placeholderPlan(flags)
+    : (single ? (state.singleWindowMode === "chat" ? "Search chat" : "Search topic stream") : tasks ? "Search topics" : inbox ? "Search inbox" : todos ? "Search Kanban" : automation ? "Search automations" : systemConsole ? "Search system status" : workspaceConsole ? "Search workspaces" : learning || growth ? "Search growth" : wardrobe ? "Search wardrobe" : email ? "Search email" : health ? "Search health" : note ? "Search notes" : moira ? "Search 星盘" : music ? "Search music" : movie ? "Search movie" : "Search directories");
   updateSearchButton();
+  if (typeof updateTopMoreControls === "function") updateTopMoreControls();
 }
 
 async function loadSelectedView(options = {}) {
-  if (state.viewMode === "capabilities") {
-    state.viewMode = "tasks";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
-  }
-  if (state.viewMode === "learning") {
-    state.viewMode = "growth";
-    localStorage.setItem("hermesWebViewMode", state.viewMode);
+  const redirectPlan = automationViewModelFunction("automationLegacyViewRedirectPlan");
+  const redirect = redirectPlan ? redirectPlan(state.viewMode) : {
+    viewMode: state.viewMode === "capabilities" ? "tasks" : (state.viewMode === "learning" ? "growth" : state.viewMode),
+    redirected: state.viewMode === "capabilities" || state.viewMode === "learning",
+    storageKey: "hermesWebViewMode",
+  };
+  if (redirect.redirected) {
+    state.viewMode = redirect.viewMode;
+    localStorage.setItem(redirect.storageKey || "hermesWebViewMode", redirect.storageValue || state.viewMode);
   }
   const viewLoadId = (state.viewLoadSeq || 0) + 1;
   state.viewLoadSeq = viewLoadId;
@@ -197,9 +277,12 @@ async function loadSelectedView(options = {}) {
       if (!currentViewStillSelected()) return;
     }
   } else if (state.viewMode === "automation") {
-    await loadAutomations(state.automationRouteTargetPending
-      ? { detail: "full", refresh: true, ignoreSearch: true, routeTarget: true }
-      : {});
+    const loadOptionsPlan = automationViewModelFunction("automationLoadOptionsPlan");
+    await loadAutomations(loadOptionsPlan
+      ? loadOptionsPlan(state.automationRouteTargetPending)
+      : (state.automationRouteTargetPending
+        ? { detail: "full", refresh: true, ignoreSearch: true, routeTarget: true }
+        : {}));
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "inbox") {
     await loadActionInbox();
@@ -207,6 +290,10 @@ async function loadSelectedView(options = {}) {
   } else if (state.viewMode === "system-console") {
     if (typeof renderOwnerSystemConsoleView === "function") renderOwnerSystemConsoleView();
     if (typeof loadOwnerSystemConsole === "function") await loadOwnerSystemConsole();
+    if (!currentViewStillSelected()) return;
+  } else if (state.viewMode === "workspace-console") {
+    if (typeof renderWorkspaceConsoleView === "function") renderWorkspaceConsoleView();
+    if (typeof loadWorkspaceConsole === "function") await loadWorkspaceConsole();
     if (!currentViewStillSelected()) return;
   } else if (state.viewMode === "wardrobe") {
     renderWardrobeView();

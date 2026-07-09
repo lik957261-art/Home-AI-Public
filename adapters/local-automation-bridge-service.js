@@ -53,6 +53,17 @@ function createLocalAutomationBridgeService(options = {}) {
     return job.status || "scheduled";
   }
 
+  function isPausedJob(job) {
+    return Boolean(
+      job
+      && (
+        job.enabled === false
+        || String(job.state || "").toLowerCase() === "paused"
+        || Boolean(job.pausedAt || job.paused_at)
+      ),
+    );
+  }
+
   function publicJob(job, detail = "full") {
     const schedule = scheduleText(job || {});
     const payload = {
@@ -201,6 +212,14 @@ function createLocalAutomationBridgeService(options = {}) {
       job.enabled = action === "resume";
       job.state = job.enabled ? "scheduled" : "paused";
       job.status = job.state;
+      if (job.enabled) {
+        job.pausedAt = "";
+        job.pausedReason = "";
+      } else {
+        job.pausedAt = nowIso();
+        job.pausedReason = String(payload.reason || "hermes_web").trim() || "hermes_web";
+        job.nextRunAt = "";
+      }
       job.updatedAt = nowIso();
       if (!payload.dry_run) store.importAutomationJob(job);
       return {
@@ -210,17 +229,25 @@ function createLocalAutomationBridgeService(options = {}) {
       };
     }
     if (action === "run") {
-      job.enabled = true;
-      job.state = "scheduled";
-      job.status = "scheduled";
-      job.nextRunAt = nowIso();
+      const paused = isPausedJob(job);
+      if (paused) {
+        job.enabled = false;
+        job.state = "paused";
+        job.status = "paused";
+        job.nextRunAt = "";
+      } else {
+        job.enabled = true;
+        job.state = "scheduled";
+        job.status = "scheduled";
+        job.nextRunAt = nowIso();
+      }
       job.manualRunRequestedAt = nowIso();
       job.updatedAt = nowIso();
       if (!payload.dry_run) store.importAutomationJob(job);
       return {
         ok: true,
         job: publicJob(job),
-        source: source("sqlite_automations", "sqlite", { action: "run", runMode: "next_tick" }),
+        source: source("sqlite_automations", "sqlite", { action: "run", runMode: "next_tick", scheduleResumed: !paused }),
       };
     }
     if (action === "update") {
@@ -290,6 +317,14 @@ function createLocalAutomationBridgeService(options = {}) {
       job.enabled = action === "resume";
       job.state = job.enabled ? "scheduled" : "paused";
       job.status = job.state;
+      if (job.enabled) {
+        job.pausedAt = "";
+        job.pausedReason = "";
+      } else {
+        job.pausedAt = nowIso();
+        job.pausedReason = String(payload.reason || "hermes_web").trim() || "hermes_web";
+        job.nextRunAt = "";
+      }
       job.updatedAt = nowIso();
       if (!payload.dry_run) saveLocalAutomationStore(store);
       return {
@@ -299,17 +334,25 @@ function createLocalAutomationBridgeService(options = {}) {
       };
     }
     if (action === "run") {
-      job.enabled = true;
-      job.state = "scheduled";
-      job.status = "scheduled";
-      job.nextRunAt = nowIso();
+      const paused = isPausedJob(job);
+      if (paused) {
+        job.enabled = false;
+        job.state = "paused";
+        job.status = "paused";
+        job.nextRunAt = "";
+      } else {
+        job.enabled = true;
+        job.state = "scheduled";
+        job.status = "scheduled";
+        job.nextRunAt = nowIso();
+      }
       job.manualRunRequestedAt = nowIso();
       job.updatedAt = nowIso();
       if (!payload.dry_run) saveLocalAutomationStore(store);
       return {
         ok: true,
         job: publicJob(job),
-        source: source("local_automations", "local", { action: "run", runMode: "next_tick" }),
+        source: source("local_automations", "local", { action: "run", runMode: "next_tick", scheduleResumed: !paused }),
       };
     }
     if (action === "update") {

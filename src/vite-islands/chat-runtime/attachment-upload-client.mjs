@@ -12,14 +12,20 @@ function cleanString(value, max = 4000) {
     .slice(0, Math.max(1, Number(max) || 4000));
 }
 
+function cleanBase64(value = "") {
+  return String(value == null ? "" : value)
+    .replace(/\u00a0/g, " ")
+    .trim();
+}
+
 function isObject(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 function base64FromDataUrl(value = "") {
-  const text = cleanString(value, 240000);
-  const match = text.match(/^data:([^;,]+)?(?:;[^,]*)?;base64,(.*)$/i);
-  if (match) return cleanString(match[2] || "", 240000);
+  const text = cleanBase64(value);
+  const match = text.match(/^data:([^;,]+)?(?:;[^,]*)?;base64,([\s\S]*)$/i);
+  if (match) return cleanBase64(match[2] || "");
   return text;
 }
 
@@ -35,7 +41,7 @@ function normalizeUploadFile(file = {}, options = {}) {
     mime: type,
     size: Number.isFinite(size) && size > 0 ? size : 0,
     workspaceId: cleanString(source.workspaceId || options.workspaceId || "owner", 120) || "owner",
-    dataBase64: cleanString(source.dataBase64 || "", 240000),
+    dataBase64: cleanBase64(source.dataBase64 || ""),
   });
 }
 
@@ -83,6 +89,14 @@ function normalizeUploadedArtifact(result = {}, fallback = {}) {
   });
 }
 
+function publicUploadResult(result = {}, artifact = null) {
+  return Object.freeze({
+    ok: result?.ok !== false,
+    source: cleanString(result?.source || "", 120),
+    artifact,
+  });
+}
+
 async function uploadComposerFile(input = {}) {
   const api = requireInjectedApi(input.api);
   const file = normalizeUploadFile(input.file || input, input);
@@ -103,6 +117,7 @@ async function uploadComposerFile(input = {}) {
     body: JSON.stringify(request.body),
     timeoutMs: Number(input.timeoutMs || DEFAULT_UPLOAD_TIMEOUT_MS),
   });
+  const artifact = normalizeUploadedArtifact(result, file);
   return Object.freeze({
     ok: true,
     source: cleanString(result?.source || "runtime_api", 120),
@@ -114,8 +129,8 @@ async function uploadComposerFile(input = {}) {
       workspaceId: request.body.workspaceId,
       dataBase64Length: request.body.dataBase64.length,
     }),
-    artifact: normalizeUploadedArtifact(result, file),
-    raw: result,
+    artifact,
+    raw: publicUploadResult(result, artifact),
   });
 }
 

@@ -1,9 +1,45 @@
 "use strict";
 
+const ROUTE_SNAPSHOT_MODEL_ESM_PATH = "/vite-islands/route-snapshot-model/route-snapshot-model.js";
+let routeSnapshotModel = null;
+let routeSnapshotModelPromise = null;
+
+function importRouteSnapshotModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (routeSnapshotModel) return Promise.resolve(routeSnapshotModel);
+  if (!routeSnapshotModelPromise) {
+    const importer = typeof rootRef.__homeAiImportRouteSnapshotModel === "function"
+      ? rootRef.__homeAiImportRouteSnapshotModel
+      : (path) => import(path);
+    routeSnapshotModelPromise = Promise.resolve()
+      .then(() => importer(ROUTE_SNAPSHOT_MODEL_ESM_PATH))
+      .then((model) => {
+        routeSnapshotModel = model || null;
+        return routeSnapshotModel;
+      })
+      .catch((error) => {
+        routeSnapshotModelPromise = null;
+        throw error;
+      });
+  }
+  return routeSnapshotModelPromise;
+}
+
+function currentRouteSnapshotModel() {
+  return routeSnapshotModel;
+}
+
+if (typeof window !== "undefined") {
+  importRouteSnapshotModel().catch(() => null);
+}
+
 const HERMES_ROUTE_SNAPSHOT_KEY = "hermesWebRouteSnapshot";
 const HERMES_ROUTE_SNAPSHOT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function boundedRouteSnapshotValue(value = "", max = 180) {
+  const model = currentRouteSnapshotModel();
+  if (typeof model?.boundedRouteSnapshotValuePlan === "function") {
+    return model.boundedRouteSnapshotValuePlan(value, max);
+  }
   return String(value || "").trim().slice(0, max);
 }
 
@@ -47,6 +83,15 @@ function embeddedPluginReturnRouteSnapshotForView(viewMode = "") {
 
 function appendEmbeddedPluginReturnRouteSnapshotParams(params, route = null) {
   if (!params || !route) return false;
+  const model = currentRouteSnapshotModel();
+  if (typeof model?.embeddedPluginReturnRouteSnapshotEntries === "function") {
+    const plan = model.embeddedPluginReturnRouteSnapshotEntries(route);
+    if (!plan?.ok || !Array.isArray(plan.entries)) return false;
+    plan.entries.forEach(([key, value]) => {
+      if (key && value) params.set(key, value);
+    });
+    return true;
+  }
   const viewMode = boundedRouteSnapshotValue(route.viewMode || "");
   if (!viewMode) return false;
   params.set("returnView", viewMode);
@@ -82,6 +127,10 @@ function appendEmbeddedPluginReturnRouteSnapshotParams(params, route = null) {
 function embeddedPluginReturnRouteFromSnapshotParams(params, routeView = "") {
   if (!params) return null;
   const normalizedView = normalizedRouteView(routeView || "", "");
+  const model = currentRouteSnapshotModel();
+  if (typeof model?.embeddedPluginReturnRouteFromSnapshotParamsPlan === "function") {
+    return model.embeddedPluginReturnRouteFromSnapshotParamsPlan(params, { normalizedView });
+  }
   const returnView = normalizedRouteView(params.get("returnView") || "", "");
   if (!returnView) {
     return normalizedView === "codex" ? { viewMode: "tasks", singleWindowMode: "chat" } : null;
@@ -199,6 +248,10 @@ function scheduleAppRouteSnapshot(reason = "state", delay = 160) {
 
 function routeParamsHaveExplicitLaunchTarget(params) {
   if (!params) return false;
+  const model = currentRouteSnapshotModel();
+  if (typeof model?.routeParamsHaveExplicitLaunchTargetPlan === "function") {
+    return model.routeParamsHaveExplicitLaunchTargetPlan(params);
+  }
   return [
     "view",
     "viewMode",

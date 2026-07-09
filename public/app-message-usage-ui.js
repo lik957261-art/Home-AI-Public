@@ -1,5 +1,37 @@
 "use strict";
 
+const MESSAGE_USAGE_MODEL_ESM_PATH = "/vite-islands/message-usage-model/message-usage-model.js";
+let messageUsageModel = null;
+let messageUsageModelPromise = null;
+
+function importMessageUsageModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (messageUsageModel) return Promise.resolve(messageUsageModel);
+  if (!messageUsageModelPromise) {
+    const importer = typeof rootRef.__homeAiImportMessageUsageModel === "function"
+      ? rootRef.__homeAiImportMessageUsageModel
+      : (path) => import(path);
+    messageUsageModelPromise = Promise.resolve()
+      .then(() => importer(MESSAGE_USAGE_MODEL_ESM_PATH))
+      .then((model) => {
+        messageUsageModel = model || null;
+        return messageUsageModel;
+      })
+      .catch((error) => {
+        messageUsageModelPromise = null;
+        throw error;
+      });
+  }
+  return messageUsageModelPromise;
+}
+
+function currentMessageUsageModel() {
+  return messageUsageModel;
+}
+
+if (typeof window !== "undefined") {
+  importMessageUsageModel().catch(() => null);
+}
+
 function renderArtifacts(artifacts) {
   return `<div class="artifacts">${displayArtifacts(artifacts).map((artifact) => `<div class="artifact-row">
     <a class="artifact-card doc-${escapeHtml(artifactKind(artifact))}" href="${escapeHtml(artifactHref(artifact))}" target="_self" data-task-doc data-artifact-mime="${escapeHtml(artifact?.mime || "")}" data-artifact-name="${escapeHtml(artifactDisplayName(artifact))}">
@@ -14,6 +46,12 @@ function renderArtifacts(artifacts) {
 }
 
 function iconForArtifact(artifact) {
+  const model = currentMessageUsageModel();
+  const plan = model?.artifactIconPlan?.({
+    artifactKind: artifactKind(artifact),
+    mime: artifact?.mime,
+  });
+  if (plan) return plan;
   const kind = artifactKind(artifact);
   if (kind === "pdf") return "PDF";
   if (kind === "word") return "DOC";
@@ -24,6 +62,8 @@ function iconForArtifact(artifact) {
 }
 
 function iconForMime(mime) {
+  const plan = currentMessageUsageModel()?.iconForMimePlan?.(mime);
+  if (plan) return plan;
   if (/pdf/i.test(mime || "")) return "PDF";
   if (/image/i.test(mime || "")) return "IMG";
   if (/video/i.test(mime || "")) return "VID";
@@ -32,10 +72,14 @@ function iconForMime(mime) {
 }
 
 function uniqueUsageLabels(values) {
+  const plan = currentMessageUsageModel()?.uniqueUsageLabels?.(values);
+  if (plan) return plan;
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
 function normalizeUsageModelCalls(usage = {}) {
+  const plan = currentMessageUsageModel()?.normalizeUsageModelCalls?.(usage);
+  if (plan) return Array.from(plan);
   const rows = [
     usage.api_call_model_routes,
     usage.api_call_models,
@@ -50,6 +94,13 @@ function normalizeUsageModelCalls(usage = {}) {
 }
 
 function usageModelLabel(usage = {}, message = {}, apiCallRows = []) {
+  const plan = currentMessageUsageModel()?.usageModelLabelPlan?.({
+    usage,
+    message,
+    apiCallRows,
+    defaultModelLabel: state.defaultModel || state.assistantLabel || "",
+  });
+  if (plan) return plan.label || "";
   const modelRows = normalizeUsageModelCalls(usage);
   const direct = String(
     usage.model
@@ -68,6 +119,8 @@ function usageModelLabel(usage = {}, message = {}, apiCallRows = []) {
 }
 
 function usageProviderLabel(usage = {}, message = {}) {
+  const plan = currentMessageUsageModel()?.usageProviderLabelPlan?.({ usage, message });
+  if (plan) return plan.label || null;
   const provider = String(
     usage.provider
     || usage.model_provider
@@ -81,6 +134,13 @@ function usageProviderLabel(usage = {}, message = {}) {
 }
 
 function usageReasoningLabel(usage = {}, message = {}, apiCallRows = []) {
+  const modelPlan = currentMessageUsageModel()?.usageReasoningLabelPlan?.({
+    usage,
+    message,
+    apiCallRows,
+    defaultReasoningEffort: state.defaultReasoningEffort || "medium",
+  });
+  if (modelPlan?.tokens) return modelPlan.tokens.map((item) => reasoningEffortLabel(item)).join(", ");
   const modelRows = normalizeUsageModelCalls(usage);
   const direct = String(
     usage.reasoning_effort
@@ -100,6 +160,37 @@ function usageReasoningLabel(usage = {}, message = {}, apiCallRows = []) {
 }
 
 function renderUsage(usage, message = {}) {
+  const model = currentMessageUsageModel();
+  const usagePlan = model?.usageDetailsViewPlan?.({
+    usage,
+    message,
+    defaultModelLabel: state.defaultModel || state.assistantLabel || "",
+    defaultReasoningEffort: state.defaultReasoningEffort || "medium",
+  });
+  if (usagePlan) {
+    if (!usagePlan.visible) return "";
+    const rows = Array.isArray(usagePlan.rows) ? usagePlan.rows : [];
+    const apiCallRows = Array.isArray(usagePlan.apiCallRows) ? usagePlan.apiCallRows : [];
+    const detailRows = rows.map((row) => {
+      const value = row.label === "Reasoning" && Array.isArray(usagePlan.reasoningTokens)
+        ? usagePlan.reasoningTokens.map((item) => reasoningEffortLabel(item)).join(", ")
+        : row.value;
+      return `<div class="usage-row"><span>${escapeHtml(row.label)}</span><strong>${formatUsageValue(value)}</strong></div>`;
+    }).join("");
+    const apiDetails = apiCallRows.length ? `<div class="usage-api-calls">
+    <div class="usage-api-title">API calls</div>
+    ${apiCallRows.map((call, index) => `<div class="usage-api-row">
+      <div class="usage-api-main">#${index + 1} ${escapeHtml([call.model, call.reasoningEffort].filter(Boolean).join(" / ") || "API call")}</div>
+      <div class="usage-api-meta">
+        <span>in ${formatTokenCount(call.input)}</span>
+        <span>cached ${formatTokenCount(call.cachedInput)}</span>
+        <span>out ${formatTokenCount(call.output)}</span>
+        <span>total ${formatTokenCount(call.total)}</span>
+      </div>
+    </div>`).join("")}
+  </div>` : "";
+    return `<details class="usage" title="Usage: ${formatTokenCount(usagePlan.total)} tokens"><summary aria-label="Usage: ${formatTokenCount(usagePlan.total)} tokens"><svg class="message-footer-summary-icon message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 19h16"></path><path d="M7 16V9"></path><path d="M12 16V5"></path><path d="M17 16v-4"></path></svg><span class="message-footer-summary-label">Usage</span></summary><div class="usage-details">${detailRows}${apiDetails}</div></details>`;
+  }
   const normalized = normalizeUsage(usage);
   const total = normalized.total || 0;
   if (!total) return "";
@@ -135,10 +226,12 @@ function renderUsage(usage, message = {}) {
       </div>
     </div>`).join("")}
   </div>` : "";
-  return `<details class="usage" title="Usage: ${formatTokenCount(total)} tokens"><summary aria-label="Usage: ${formatTokenCount(total)} tokens">Usage</summary><div class="usage-details">${detailRows}${apiDetails}</div></details>`;
+  return `<details class="usage" title="Usage: ${formatTokenCount(total)} tokens"><summary aria-label="Usage: ${formatTokenCount(total)} tokens"><svg class="message-footer-summary-icon message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 19h16"></path><path d="M7 16V9"></path><path d="M12 16V5"></path><path d="M17 16v-4"></path></svg><span class="message-footer-summary-label">Usage</span></summary><div class="usage-details">${detailRows}${apiDetails}</div></details>`;
 }
 
 function numericUsageValue(...values) {
+  const plan = currentMessageUsageModel()?.numericUsageValue?.(...values);
+  if (plan !== undefined) return plan;
   for (const value of values) {
     const number = Number(value);
     if (Number.isFinite(number)) return number;
@@ -147,6 +240,8 @@ function numericUsageValue(...values) {
 }
 
 function normalizeUsage(usage = {}) {
+  const plan = currentMessageUsageModel()?.normalizeUsage?.(usage);
+  if (plan) return plan;
   const inputDetails = usage.input_tokens_details || usage.prompt_tokens_details || {};
   const outputDetails = usage.output_tokens_details || usage.completion_tokens_details || {};
   const input = numericUsageValue(usage.input_tokens, usage.prompt_tokens, usage.input, usage.prompt);
@@ -200,6 +295,8 @@ function normalizeUsage(usage = {}) {
 }
 
 function normalizeUsageApiCalls(usage = {}) {
+  const plan = currentMessageUsageModel()?.normalizeUsageApiCalls?.(usage);
+  if (plan) return Array.from(plan);
   const rows = [
     usage.api_call_usage_routes,
     usage.api_call_usage,
@@ -231,6 +328,8 @@ function normalizeUsageApiCalls(usage = {}) {
 }
 
 function normalizeUsageCost(usage = {}) {
+  const plan = currentMessageUsageModel()?.normalizeUsageCost?.(usage);
+  if (plan !== undefined) return plan;
   const status = String(usage.cost_status || usage.billing_status || "").trim().toLowerCase();
   const mode = String(usage.billing_mode || "").trim().toLowerCase();
   const actual = numericCostValue(usage.actual_cost_usd, usage.api_cost_usd, usage.cost_usd);
@@ -243,6 +342,8 @@ function normalizeUsageCost(usage = {}) {
 }
 
 function numericCostValue(...values) {
+  const plan = currentMessageUsageModel()?.numericCostValue?.(...values);
+  if (plan !== undefined) return plan;
   for (const value of values) {
     if (value === null || value === undefined || value === "") continue;
     const number = Number(value);
@@ -252,11 +353,16 @@ function numericCostValue(...values) {
 }
 
 function formatTokenCount(value) {
+  const plan = currentMessageUsageModel()?.formatTokenCount?.(value);
+  if (plan) return plan;
   const number = Number(value || 0);
   return Number.isFinite(number) ? number.toLocaleString() : "0";
 }
 
 function formatUsageValue(value) {
+  const plan = currentMessageUsageModel()?.formatUsageValuePlan?.(value);
+  if (plan?.type === "text") return escapeHtml(plan.text);
+  if (plan?.text) return plan.text;
   if (typeof value === "string") return escapeHtml(value);
   return formatTokenCount(value);
 }

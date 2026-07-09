@@ -119,7 +119,18 @@ async function testNativeFailureFallsThrough() {
   assert.equal(calls.nativeShare.length, 1);
 }
 
+function testClassicAdapterUsesOptionalEsmModel() {
+  assert.match(shareImageUi, /SHARE_IMAGE_ESM_MODEL_PATH/);
+  assert.match(shareImageUi, /\/vite-islands\/share-image-model\/share-image-model\.js/);
+  assert.match(shareImageUi, /__homeAiImportShareImageModel/);
+  assert.match(shareImageUi, /function importShareImageModel/);
+  assert.match(shareImageUi, /createNativeOutboundShareRequest/);
+  assert.match(shareImageUi, /classicStripInlineMarkdownForShare/);
+  assert.match(shareImageUi, /window\.HomeAINativeShare\.share\(request\)/);
+}
+
 async function run() {
+  testClassicAdapterUsesOptionalEsmModel();
   await testNativeOutboundShareRequest();
   await testNoBridgeReturnsFalse();
   await testNativeFailureFallsThrough();

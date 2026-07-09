@@ -3,6 +3,11 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const {
+  mediaAccountPublicFields,
+  normalizeAllowedOwnerSpecialPlugins,
+  normalizeMediaAccountType,
+} = require("./restricted-media-account-service");
 
 function defaultNormalizeStringList(value) {
   if (Array.isArray(value)) return value.map((item) => String(item || "").trim()).filter(Boolean);
@@ -200,6 +205,10 @@ function createLocalWorkspaceStoreService(options = {}) {
       allowedRoots: safeAllowedRoots.length ? safeAllowedRoots : [defaultWorkspace],
       allowedToolsets: normalizeStringList(input.allowedToolsets || input.allowed_toolsets || previous.allowedToolsets || []),
       connectorProfiles: normalizeStringMap(input.connectorProfiles || input.connector_profiles || previous.connectorProfiles || {}),
+      accountType: normalizeMediaAccountType(input) || normalizeMediaAccountType(previous),
+      allowedOwnerSpecialPlugins: normalizeAllowedOwnerSpecialPlugins(input).length
+        ? normalizeAllowedOwnerSpecialPlugins(input)
+        : normalizeAllowedOwnerSpecialPlugins(previous),
     };
   }
 
@@ -212,6 +221,7 @@ function createLocalWorkspaceStoreService(options = {}) {
     const allowedRoots = normalizeStringList(source.allowedRoots || source.allowed_roots || defaultWorkspace);
     if (rootConflictsWithProtected(defaultWorkspace)) return null;
     const safeAllowedRoots = filterRoots(allowedRoots) || allowedRoots;
+    const mediaFields = mediaAccountPublicFields(source);
     return {
       id,
       label,
@@ -221,6 +231,8 @@ function createLocalWorkspaceStoreService(options = {}) {
       aliases: normalizeStringList(source.aliases),
       allowedToolsets: normalizeStringList(source.allowedToolsets || source.allowed_toolsets),
       connectorProfiles: normalizeStringMap(source.connectorProfiles || source.connector_profiles),
+      accountType: mediaFields.accountType,
+      allowedOwnerSpecialPlugins: mediaFields.allowedOwnerSpecialPlugins,
       createdAt: String(source.createdAt || ""),
       updatedAt: String(source.updatedAt || source.createdAt || ""),
       createdBy: String(source.createdBy || "owner"),
@@ -297,6 +309,8 @@ function createLocalWorkspaceStoreService(options = {}) {
       allowedRoots: defaults.allowedRoots,
       allowedToolsets: defaults.allowedToolsets,
       connectorProfiles: defaults.connectorProfiles,
+      accountType: defaults.accountType,
+      allowedOwnerSpecialPlugins: defaults.allowedOwnerSpecialPlugins,
       createdAt: previous.createdAt || now,
       updatedAt: now,
       createdBy: previous.createdBy || actor || "owner",

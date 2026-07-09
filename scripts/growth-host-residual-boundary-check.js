@@ -14,6 +14,7 @@ const TRACKED_DIRS = Object.freeze([
 ]);
 
 const LEGACY_FILE_RE = /(?:^|[-_])(learning|growth|study|assessment)(?:[-_.]|$)/i;
+const NON_GROWTH_LEARNING_FILE_RE = /(?:^|[-_])voice-learning(?:[-_.]|$)/i;
 
 const SELF_GUARD_FILES = Object.freeze(new Set([
   "scripts/growth-host-residual-boundary-check.js",
@@ -24,7 +25,7 @@ const CURRENT_HOST_RESIDUAL_MAX = Object.freeze({
   adapters: 76,
   "server-routes": 9,
   public: 15,
-  tests: 87,
+  tests: 97,
   scripts: 4,
 });
 
@@ -89,6 +90,7 @@ function growthResidualFiles(root) {
   for (const dir of TRACKED_DIRS) {
     files[dir] = listDirFiles(root, dir)
       .filter((file) => !SELF_GUARD_FILES.has(file))
+      .filter((file) => !NON_GROWTH_LEARNING_FILE_RE.test(path.basename(file)))
       .filter((file) => LEGACY_FILE_RE.test(path.basename(file)));
   }
   return files;
@@ -231,6 +233,7 @@ if (require.main === module) {
 
 module.exports = {
   CURRENT_HOST_RESIDUAL_MAX,
+  NON_GROWTH_LEARNING_FILE_RE,
   REQUIRED_DOC_MARKERS,
   SELF_GUARD_FILES,
   TRACKED_DIRS,

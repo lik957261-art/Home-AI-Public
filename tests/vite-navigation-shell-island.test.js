@@ -111,7 +111,7 @@ async function test(name, fn) {
     );
   });
 
-  await test("model creates classic fallback and cache status without DOM access", async () => {
+  await test("model creates production route href and cache status without DOM access", async () => {
     const model = await loadModel();
     assert.equal(
       model.classicFallbackHref({
@@ -143,7 +143,7 @@ async function test(name, fn) {
     });
     assert.equal(viewModel.viewMode, "tasks");
     assert.equal(viewModel.surface, "topics");
-    assert.equal(viewModel.productionDefaultShell, "classic");
+    assert.equal(viewModel.productionDefaultShell, "vite");
     assert.equal(viewModel.migrationStatus, "development_preview");
     assert.equal(viewModel.cache.status, "available");
     assert.equal(viewModel.cache.cacheCount, 2);
@@ -187,7 +187,8 @@ async function test(name, fn) {
     assert.match(output, /已加载/);
     assert.match(output, /更多历史/);
     assert.match(output, /taskTopicSelectedThread/);
-    assert.match(output, /classic shell/);
+    assert.match(output, /生产 Shell/);
+    assert.doesNotMatch(output, /classic shell/);
     assert.match(output, /HomeAIViteNavigationShellPreview/);
   });
 

@@ -15,6 +15,8 @@ Required bounded fields:
 - `cardKind=plugin_deployment`
 - `pluginId=<plugin-id>`
 - `deployReason=<bounded reason>`
+- `sourceRole=home_ai_main|owner_main|central_deploy_coordinator|explicit_deploy_orchestrator`
+- `centralCoordinatorRef=<case/card/ref>` for coordinator-origin deploys
 - target lane selected by the deploy lane pool
 
 Fail closed when any of these are true:
@@ -26,9 +28,46 @@ Fail closed when any of these are true:
 - `cardKind` is missing or not `plugin_deployment`;
 - `pluginId` is missing or not a bounded plugin id;
 - `deployReason` is missing.
+- `sourceRole` is missing or not an authorized central deploy source role.
 
 Terminal receipts may record completed work, but they must not be accepted as
 new deployment requests.
+
+## Source Role And Central Governance Gate
+
+Deploy lanes accept production deployment cards only from central deploy
+owners: `home_ai_main`, `owner_main`, `central_deploy_coordinator`, or
+`explicit_deploy_orchestrator`.
+
+Worker-origin roles such as `plugin_worker`, `home_ai_worker`,
+`repair_worker`, `audit_worker`, `loop_worker`, and `plugin_source_thread` must
+return `deployRequest` metadata to their source/coordinator instead of creating
+Deploy Lane cards directly. The deploy-card validator fails closed with bounded
+issue codes including:
+
+- `deploy_card_requires_central_coordinator`
+- `worker_direct_deploy_forbidden`
+- `deploy_source_role_not_authorized`
+
+Terminal return markers such as `deploy_needed=true`, `deploy_requested`, or
+`blocked_by_deploy_readback` are source-coordinator follow-up signals. They
+must create a `pendingSourceAction` and feed central deploy aggregation before a
+Deploy Lane card exists; they are not accepted as deploy-lane dispatch
+authority.
+
+An emergency direct deploy requires auditable override metadata:
+
+- `centralOverride=true`
+- `overrideReason`
+- `ownerApprovalRef` or `centralCoordinatorRef`
+- clean `dirtyState`
+- `sourceRef`
+- validation summary
+- required readback
+
+The deploy lane report must include bounded source-role/coordinator/override
+metadata and must not include secrets, sudo password paths, cookies, launch
+tokens, endpoint bodies, private thread bodies, raw logs, or private payloads.
 
 ## Deploy Lane Lock Record
 

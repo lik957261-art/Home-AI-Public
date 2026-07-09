@@ -250,6 +250,9 @@ async function testWorkspaceRotateAndRevokeParametersAndStatusCodes() {
       options: {
         dryRun: false,
         actor: "owner-principal",
+        actorWorkspaceId: "owner",
+        actorPrincipalId: "owner-principal",
+        reason: "access_key_manager",
       },
     },
   ]);
@@ -265,14 +268,29 @@ async function testWorkspaceRotateAndRevokeParametersAndStatusCodes() {
   });
   assert.equal(dryRun.res.statusCode, 200);
   assert.equal(calls.rotateWorkspace[1].workspaceId, "child-b");
-  assert.deepEqual(calls.rotateWorkspace[1].options, { dryRun: true, actor: "owner-principal" });
+  assert.deepEqual(calls.rotateWorkspace[1].options, {
+    dryRun: true,
+    actor: "owner-principal",
+    actorWorkspaceId: "owner",
+    actorPrincipalId: "owner-principal",
+    reason: "access_key_manager",
+  });
   assert.equal(dryRun.body.dryRun, true);
 
   const revoked = await request(routes, "DELETE", "/api/access-keys/workspace/child-a", {
     dryRun: false,
   });
   assert.equal(revoked.res.statusCode, 200);
-  assert.deepEqual(calls.revokeWorkspace[0], { workspaceId: "child-a", options: { dryRun: false } });
+  assert.deepEqual(calls.revokeWorkspace[0], {
+    workspaceId: "child-a",
+    options: {
+      dryRun: false,
+      actor: "owner-principal",
+      actorWorkspaceId: "owner",
+      actorPrincipalId: "owner-principal",
+      reason: "access_key_manager",
+    },
+  });
   assert.deepEqual(revoked.body, {
     ok: true,
     result: {
@@ -295,7 +313,16 @@ async function testWorkspaceRotateAndRevokeParametersAndStatusCodes() {
     dry_run: "true",
   });
   assert.equal(revokeDryRun.res.statusCode, 200);
-  assert.deepEqual(calls.revokeWorkspace[1], { workspaceId: "child b", options: { dryRun: true } });
+  assert.deepEqual(calls.revokeWorkspace[1], {
+    workspaceId: "child b",
+    options: {
+      dryRun: true,
+      actor: "owner-principal",
+      actorWorkspaceId: "owner",
+      actorPrincipalId: "owner-principal",
+      reason: "access_key_manager",
+    },
+  });
   assert.equal(revokeDryRun.body.result.dryRun, true);
 }
 

@@ -17,6 +17,9 @@ const OWNER_WORKSPACE_ID = "owner";
 const NOTIFICATION_TYPE = "plugin_conversation.repair_request";
 
 const PLUGIN_ALIASES = Object.freeze({
+  codex_mobile: "codex-mobile",
+  codex_mobile_web: "codex-mobile",
+  "codex-mobile-web": "codex-mobile",
   healthy: "health",
   homeai: "home-ai",
   home_ai: "home-ai",
@@ -114,6 +117,66 @@ function isHomeAiTarget(recordOrPluginId = {}) {
   return pluginId === "home-ai";
 }
 
+function recordSearchText(record = {}) {
+  return [
+    record.pluginId,
+    record.pluginLabel,
+    record.requestType,
+    record.title,
+    record.summary,
+    record.suggestedChange,
+    record.acceptance,
+    record.privacyBoundary,
+    compactEvidence(record.evidence, 1200),
+  ].map((value) => clean(value, 1400)).filter(Boolean).join(" ").toLowerCase();
+}
+
+function isCodexThreadRepairPlugin(record = {}, text = "") {
+  const pluginId = normalizePluginId(record.pluginId || record.plugin_id);
+  if (pluginId === "codex-mobile") return true;
+  if (pluginId !== "home-ai") return false;
+  return /\bcodex(?: mobile| web)?\b/.test(text)
+    || /\btask[-_\s]?card\b/.test(text)
+    || /\btarget[-_\s]?thread\b/.test(text)
+    || /\bsource[-_\s]?thread\b/.test(text);
+}
+
+function hasCodexThreadRepairMismatchTerms(text = "") {
+  return /thread[-_\s]?mismatch/.test(text)
+    || /target[-_\s]?thread[-_\s]?mismatch/.test(text)
+    || /source[-_\s]?thread[-_\s]?id[^.]{0,80}target[-_\s]?thread[-_\s]?id[^.]{0,80}mismatch/.test(text)
+    || /wrong[-_\s]?thread/.test(text)
+    || /task[-_\s]?card[-_\s]?(routing|route|target|thread)/.test(text)
+    || /(routing|route)[-_\s]?mismatch/.test(text)
+    || /deploy[-_\s]?lane[-_\s]?routing/.test(text)
+    || /target[-_\s]?thread[-_\s]?not[-_\s]?visible/.test(text)
+    || /target[-_\s]?thread[-_\s]?archived/.test(text)
+    || /stale[-_\s]?target[-_\s]?thread/.test(text)
+    || /thread[-_\s]?lifecycle/.test(text);
+}
+
+function hasCodexThreadRepairHighRiskTerms(text = "") {
+  const normalized = clean(text, 5000).toLowerCase();
+  const withoutSafeDeployLaneRouting = normalized.replace(/deploy[-_\s]?lane[-_\s]?routing/g, "safe_routing");
+  return /\bproduction\b/.test(normalized)
+    || /\bdeploy(?:ment|ed|s|ing)?\b/.test(withoutSafeDeployLaneRouting)
+    || /\bsecret\b|\btoken\b|\baccess[-_\s]?key\b|\bapi[-_\s]?key\b|\bpassword\b|\bcookie\b/.test(normalized)
+    || /\bdatabase\b|\bdb\b|\bsqlite\b|\bdata[-_\s]?(import|migration|repair|backfill|mutation|write)\b/.test(normalized)
+    || /\bphysical[-_\s]?device\b|\bprojector\b|\btrinnov\b|\bmadvr\b|\bmagnetar\b|\bplayback\b|\bshutdown\b|\bpower[-_\s]?(on|off)\b/.test(normalized)
+    || /\bfinance\b|\btransaction\b|\bledger\b|\bpayment\b/.test(normalized)
+    || /\bwardrobe\b[^.]{0,80}\b(private|personal|data|photo|image|closet)\b/.test(normalized);
+}
+
+function isAutoDispatchableCodexThreadRepair(record = {}) {
+  const text = recordSearchText(record);
+  return Boolean(
+    text
+    && isCodexThreadRepairPlugin(record, text)
+    && hasCodexThreadRepairMismatchTerms(text)
+    && !hasCodexThreadRepairHighRiskTerms(text)
+  );
+}
+
 function requestSignature(input = {}) {
   return hash([
     normalizePluginId(input.pluginId || input.plugin_id),
@@ -177,6 +240,11 @@ function requestRecord(input = {}, target = {}, options = {}) {
     sourceWorkspaceId: clean(input.workspaceId || input.workspace_id || input.sourceWorkspaceId || input.source_workspace_id || "owner", 120) || "owner",
     sourceThreadId: clean(input.sourceThreadId || input.source_thread_id, 180),
     sourceTurnId: clean(input.sourceTurnId || input.source_turn_id, 180),
+    replyToThreadId: clean(input.replyToThreadId || input.reply_to_thread_id || input.returnTargetThreadId || input.return_target_thread_id || input.coordinatorThreadId || input.coordinator_thread_id, 180),
+    replyToThreadTitle: clean(input.replyToThreadTitle || input.reply_to_thread_title || input.returnTargetThreadTitle || input.return_target_thread_title || input.coordinatorThreadTitle || input.coordinator_thread_title, 180),
+    replyToThreadTitlePrefix: clean(input.replyToThreadTitlePrefix || input.reply_to_thread_title_prefix || input.returnTargetThreadTitlePrefix || input.return_target_thread_title_prefix || input.coordinatorThreadTitlePrefix || input.coordinator_thread_title_prefix, 180),
+    replyToWorkspaceId: clean(input.replyToWorkspaceId || input.reply_to_workspace_id || input.returnTargetWorkspaceId || input.return_target_workspace_id || input.coordinatorWorkspaceId || input.coordinator_workspace_id, 180),
+    replyToCardId: clean(input.replyToCardId || input.reply_to_card_id || input.originalTaskCardId || input.original_task_card_id, 180),
     title: clean(input.title || input.summary || `${target.label || pluginId} repair request`, 180),
     summary: cleanBlock(input.summary || input.problem || input.userSummary || input.user_summary || "", 900),
     suggestedChange: cleanBlock(input.suggestedChange || input.suggested_change || input.recommendedChange || input.recommended_change || "", 1800),
@@ -257,6 +325,11 @@ function taskCardForRecord(record, target) {
     sourceThreadId: clean(target.sourceThreadId, 180),
     sourceThreadTitle: clean(target.sourceThreadTitle, 180),
     sourceThreadTitlePrefix: clean(target.sourceThreadTitlePrefix, 180),
+    replyToThreadId: clean(record.replyToThreadId || target.replyToThreadId, 180),
+    replyToThreadTitle: clean(record.replyToThreadTitle || target.replyToThreadTitle, 180),
+    replyToThreadTitlePrefix: clean(record.replyToThreadTitlePrefix || target.replyToThreadTitlePrefix, 180),
+    replyToWorkspaceId: clean(record.replyToWorkspaceId || target.replyToWorkspaceId, 180),
+    replyToCardId: clean(record.replyToCardId || target.replyToCardId, 180),
     targetThreadId: clean(target.targetThreadId, 180),
     targetThreadTitle: clean(target.targetThreadTitle, 180),
     targetThreadTitlePrefix: clean(target.targetThreadTitlePrefix, 180),
@@ -270,6 +343,7 @@ function taskCardForRecord(record, target) {
 function ownerNotificationForRecord(record, target) {
   const taskCard = taskCardForRecord(record, target);
   const homeAiTarget = isHomeAiTarget(record);
+  const autoDispatchableCodexThreadRepair = isAutoDispatchableCodexThreadRepair(record);
   return {
     workspaceId: OWNER_WORKSPACE_ID,
     assigneeWorkspaceId: OWNER_WORKSPACE_ID,
@@ -284,7 +358,7 @@ function ownerNotificationForRecord(record, target) {
       record.summary || record.suggestedChange || "",
       `目标：${targetThreadLabel(target) || target.targetWorkspace || "unknown"}`,
     ].filter(Boolean).join("\n"),
-    actionLabel: "发修复卡",
+    actionLabel: autoDispatchableCodexThreadRepair ? "自动发修复卡" : "发修复卡",
     dedupeKey: pluginConversationDedupeKey(record),
     reopen: false,
     sourceRef: {
@@ -295,11 +369,21 @@ function ownerNotificationForRecord(record, target) {
       sourceWorkspaceId: record.sourceWorkspaceId,
       sourceThreadId: record.sourceThreadId,
       sourceTurnId: record.sourceTurnId,
+      replyToThreadId: record.replyToThreadId,
+      replyToThreadTitle: record.replyToThreadTitle,
+      replyToThreadTitlePrefix: record.replyToThreadTitlePrefix,
+      replyToWorkspaceId: record.replyToWorkspaceId,
+      replyToCardId: record.replyToCardId,
       severity: record.severity,
       requestType: record.requestType,
       sourceThreadIdForTaskCard: clean(target.sourceThreadId, 180),
       sourceThreadTitleForTaskCard: clean(target.sourceThreadTitle, 180),
       sourceThreadTitlePrefixForTaskCard: clean(target.sourceThreadTitlePrefix, 180),
+      replyToThreadIdForTaskCard: clean(record.replyToThreadId || target.replyToThreadId, 180),
+      replyToThreadTitleForTaskCard: clean(record.replyToThreadTitle || target.replyToThreadTitle, 180),
+      replyToThreadTitlePrefixForTaskCard: clean(record.replyToThreadTitlePrefix || target.replyToThreadTitlePrefix, 180),
+      replyToWorkspaceIdForTaskCard: clean(record.replyToWorkspaceId || target.replyToWorkspaceId, 180),
+      replyToCardIdForTaskCard: clean(record.replyToCardId || target.replyToCardId, 180),
       targetThreadId: clean(target.targetThreadId, 180),
       targetThreadTitle: targetThreadLabel(target),
       targetThreadTitlePrefix: target.targetThreadTitlePrefix || "",
@@ -309,6 +393,15 @@ function ownerNotificationForRecord(record, target) {
       pluginConversationActionBridge: {
         request: record,
         taskCard,
+        autoDispatch: autoDispatchableCodexThreadRepair ? {
+          policy: "codex_thread_routing_mismatch_repair_v1",
+          eligible: true,
+          ownerPromptRequired: false,
+        } : {
+          policy: "owner_gated_plugin_conversation_repair_v1",
+          eligible: false,
+          ownerPromptRequired: true,
+        },
       },
     },
   };
@@ -366,6 +459,16 @@ function dispatchTaskCardTarget(baseTaskCard = {}, sourceRef = {}, pluginTargets
   if (target.sourceThreadId && !next.sourceThreadId) next.sourceThreadId = target.sourceThreadId;
   if (target.sourceThreadTitle && !next.sourceThreadTitle) next.sourceThreadTitle = target.sourceThreadTitle;
   if (target.sourceThreadTitlePrefix && !next.sourceThreadTitlePrefix) next.sourceThreadTitlePrefix = target.sourceThreadTitlePrefix;
+  if (sourceRef.replyToThreadIdForTaskCard && !next.replyToThreadId) next.replyToThreadId = sourceRef.replyToThreadIdForTaskCard;
+  else if (target.replyToThreadId && !next.replyToThreadId) next.replyToThreadId = target.replyToThreadId;
+  if (sourceRef.replyToThreadTitleForTaskCard && !next.replyToThreadTitle) next.replyToThreadTitle = sourceRef.replyToThreadTitleForTaskCard;
+  else if (target.replyToThreadTitle && !next.replyToThreadTitle) next.replyToThreadTitle = target.replyToThreadTitle;
+  if (sourceRef.replyToThreadTitlePrefixForTaskCard && !next.replyToThreadTitlePrefix) next.replyToThreadTitlePrefix = sourceRef.replyToThreadTitlePrefixForTaskCard;
+  else if (target.replyToThreadTitlePrefix && !next.replyToThreadTitlePrefix) next.replyToThreadTitlePrefix = target.replyToThreadTitlePrefix;
+  if (sourceRef.replyToWorkspaceIdForTaskCard && !next.replyToWorkspaceId) next.replyToWorkspaceId = sourceRef.replyToWorkspaceIdForTaskCard;
+  else if (target.replyToWorkspaceId && !next.replyToWorkspaceId) next.replyToWorkspaceId = target.replyToWorkspaceId;
+  if (sourceRef.replyToCardIdForTaskCard && !next.replyToCardId) next.replyToCardId = sourceRef.replyToCardIdForTaskCard;
+  else if (target.replyToCardId && !next.replyToCardId) next.replyToCardId = target.replyToCardId;
   if (target.targetThreadId && !next.targetThreadId) next.targetThreadId = target.targetThreadId;
   if (target.targetThreadTitlePrefix) {
     next.targetThreadTitlePrefix = target.targetThreadTitlePrefix;
@@ -394,9 +497,44 @@ function createPluginConversationActionBridgeService(options = {}) {
       return { ok: false, status: 503, error: "action_inbox_service_unavailable" };
     }
     const record = requestRecord(Object.assign({}, input, { pluginId }), target, options);
+    const autoDispatchableCodexThreadRepair = isAutoDispatchableCodexThreadRepair(record);
     const notification = ownerNotificationForRecord(record, target);
     const inboxResult = await Promise.resolve(actionInboxService.upsertSourceItem(notification));
     if (!inboxResult?.ok) return inboxResult || { ok: false, status: 500, error: "action_inbox_upsert_failed" };
+    if (autoDispatchableCodexThreadRepair) {
+      const autoDispatch = await dispatchTaskCard({
+        itemId: inboxResult.item?.id || "",
+        actor: "home-ai-auto-dispatch",
+      });
+      if (!autoDispatch?.ok) {
+        return Object.assign({}, autoDispatch, {
+          autoDispatched: false,
+          autoDispatchAttempted: true,
+          autoDispatchPolicy: "codex_thread_routing_mismatch_repair_v1",
+          request: record,
+          inboxItem: autoDispatch?.inboxItem || inboxResult.item,
+          event: inboxResult.event,
+          notified: false,
+          push: null,
+        });
+      }
+      return {
+        ok: true,
+        notified: false,
+        request: record,
+        inboxItem: autoDispatch.inboxItem || inboxResult.item,
+        event: inboxResult.event,
+        push: null,
+        dispatchReady: true,
+        autoDispatched: autoDispatch.dispatched !== false,
+        autoDispatchAttempted: true,
+        autoDispatchPolicy: "codex_thread_routing_mismatch_repair_v1",
+        alreadyDispatched: Boolean(autoDispatch.alreadyDispatched),
+        taskCardIds: autoDispatch.taskCardIds || [],
+        taskCardResult: autoDispatch.taskCardResult,
+        priorDispatch: autoDispatch.priorDispatch || null,
+      };
+    }
     const ownerPushRequired = shouldNotifyOwner(inboxResult);
     let push = null;
     if (sendPushNotification && ownerPushRequired) {
@@ -542,6 +680,7 @@ module.exports = {
   NOTIFICATION_TYPE,
   OWNER_WORKSPACE_ID,
   createPluginConversationActionBridgeService,
+  isAutoDispatchableCodexThreadRepair,
   ownerNotificationForRecord,
   pluginConversationDedupeKey,
   taskCardForRecord,

@@ -1,5 +1,50 @@
 "use strict";
 
+const KANBAN_RECORDER_MODEL_ESM_PATH = "/vite-islands/kanban-recorder-model/kanban-recorder-model.js";
+let kanbanRecorderModel = null;
+let kanbanRecorderModelPromise = null;
+
+function kanbanRecorderRoot() {
+  if (typeof window !== "undefined") return window;
+  if (typeof globalThis !== "undefined") return globalThis;
+  return {};
+}
+
+function importKanbanRecorderModel() {
+  if (kanbanRecorderModel) return Promise.resolve(kanbanRecorderModel);
+  if (!kanbanRecorderModelPromise) {
+    const root = kanbanRecorderRoot();
+    const importer = typeof root.__homeAiImportKanbanRecorderModel === "function"
+      ? root.__homeAiImportKanbanRecorderModel
+      : (() => import(KANBAN_RECORDER_MODEL_ESM_PATH));
+    kanbanRecorderModelPromise = importer
+      ? Promise.resolve()
+        .then(() => importer(KANBAN_RECORDER_MODEL_ESM_PATH))
+        .then((model) => {
+          kanbanRecorderModel = model || null;
+          return kanbanRecorderModel;
+        })
+        .catch((error) => {
+          kanbanRecorderModelPromise = null;
+          console.warn("Kanban recorder ESM model unavailable", error);
+          return null;
+        })
+      : Promise.resolve(null);
+  }
+  return kanbanRecorderModelPromise;
+}
+
+function currentKanbanRecorderModel() {
+  return kanbanRecorderModel;
+}
+
+if (typeof window !== "undefined") importKanbanRecorderModel();
+
+function kanbanRecorderModelFunction(name) {
+  const fn = currentKanbanRecorderModel()?.[name];
+  return typeof fn === "function" ? fn : null;
+}
+
 function kanbanReadingMediaRecorderApi() {
   if (typeof window !== "undefined" && typeof window.MediaRecorder === "function") return window.MediaRecorder;
   if (typeof MediaRecorder !== "undefined" && typeof MediaRecorder === "function") return MediaRecorder;
@@ -35,6 +80,8 @@ function preferredKanbanReadingRecorderMimeType() {
 }
 
 function kanbanReadingRecordingExtension(mime = "") {
+  const modelFn = kanbanRecorderModelFunction("recordingExtensionPlan");
+  if (modelFn) return modelFn(mime);
   const value = String(mime || "").toLowerCase();
   if (value.includes("mpeg") || value.includes("mp3")) return "mp3";
   if (value.includes("mp4") || value.includes("m4a")) return "m4a";
@@ -44,9 +91,11 @@ function kanbanReadingRecordingExtension(mime = "") {
 }
 
 function kanbanReadingRecordingFile(todoId, blob, mime = "") {
-  const extension = kanbanReadingRecordingExtension(mime);
-  const safeId = String(todoId || "card").replace(/[^a-zA-Z0-9_-]+/g, "").slice(-24) || "card";
-  const filename = `reading-recording-${safeId}-${Date.now()}.${extension}`;
+  const modelFn = kanbanRecorderModelFunction("recordingFileNamePlan");
+  const nowMs = Date.now();
+  const filename = modelFn
+    ? modelFn({ prefix: "reading-recording", id: todoId, fallbackId: "card", mime, nowMs })
+    : `reading-recording-${String(todoId || "card").replace(/[^a-zA-Z0-9_-]+/g, "").slice(-24) || "card"}-${nowMs}.${kanbanReadingRecordingExtension(mime)}`;
   try {
     if (typeof File === "function") return new File([blob], filename, { type: mime || blob.type || "audio/webm" });
   } catch (_) {
@@ -58,6 +107,8 @@ function kanbanReadingRecordingFile(todoId, blob, mime = "") {
 }
 
 function kanbanReadingRecordingDuration(recording = {}) {
+  const modelFn = kanbanRecorderModelFunction("recordingDurationMsPlan");
+  if (modelFn) return modelFn(recording, Date.now());
   const stored = Number(recording.elapsedMs || 0) || 0;
   if (recording.status === "recording" && recording.startedAt) {
     return Math.max(0, stored + Date.now() - Number(recording.startedAt || 0));
@@ -66,6 +117,8 @@ function kanbanReadingRecordingDuration(recording = {}) {
 }
 
 function formatKanbanReadingRecordingDuration(ms) {
+  const modelFn = kanbanRecorderModelFunction("recordingDurationLabelPlan");
+  if (modelFn) return modelFn(ms);
   const totalSeconds = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = String(totalSeconds % 60).padStart(2, "0");
@@ -73,6 +126,8 @@ function formatKanbanReadingRecordingDuration(ms) {
 }
 
 function kanbanReadingRecordingPermissionMessage(err) {
+  const modelFn = kanbanRecorderModelFunction("recordingPermissionMessagePlan");
+  if (modelFn) return modelFn(err);
   const name = String(err?.name || "");
   if (["NotAllowedError", "PermissionDeniedError", "SecurityError"].includes(name)) return "麦克风权限未开启，请允许权限后重试。";
   if (["NotFoundError", "DevicesNotFoundError", "NotReadableError", "TrackStartError"].includes(name)) return "未找到可用麦克风，请检查设备后重试。";
@@ -82,6 +137,17 @@ function kanbanReadingRecordingPermissionMessage(err) {
 function kanbanReadingRecordingStatusText(todoId) {
   const recording = state.todoReadingRecorders?.[todoId] || {};
   const duration = formatKanbanReadingRecordingDuration(kanbanReadingRecordingDuration(recording));
+  const modelFn = kanbanRecorderModelFunction("recordingStatusTextPlan");
+  if (modelFn) {
+    return modelFn(recording, {
+      supported: supportsKanbanReadingRecorder(),
+      durationLabel: duration,
+      idleText: "点击红色录音按钮开始。",
+      stoppingText: "正在生成录音...",
+      readyPrefix: "已录好待提交",
+      errorFallback: "录音不可用，请重试。",
+    });
+  }
   if (recording.status === "requesting") return "正在请求麦克风权限...";
   if (recording.status === "recording") return `正在录音 ${duration}`;
   if (recording.status === "stopping") return "正在生成录音...";
@@ -143,14 +209,21 @@ function finishKanbanReadingRecording(todoId, recording) {
   clearKanbanReadingRecordingTimer(recording);
   stopKanbanReadingRecordingTracks(recording);
   if (recording.cancelled) return;
-  const chunks = (recording.chunks || []).filter((chunk) => chunk && chunk.size > 0);
-  const elapsedMs = Number(recording.elapsedMs || 0) || kanbanReadingRecordingDuration(recording);
+  const modelFn = kanbanRecorderModelFunction("recordingFinishPlan");
+  const plan = modelFn ? modelFn(recording, { nowMs: Date.now(), noAudioError: "未录到声音，请重试。" }) : null;
+  const chunks = plan ? plan.chunks : (recording.chunks || []).filter((chunk) => chunk && chunk.size > 0);
+  const elapsedMs = plan ? plan.elapsedMs : (Number(recording.elapsedMs || 0) || kanbanReadingRecordingDuration(recording));
+  if (plan && !plan.ok) {
+    state.todoReadingRecorders[todoId] = plan.errorPatch;
+    renderTodosAfterReadingRecorderChange();
+    return;
+  }
   if (!chunks.length) {
     state.todoReadingRecorders[todoId] = { status: "error", error: "未录到声音，请重试。", elapsedMs };
     renderTodosAfterReadingRecorderChange();
     return;
   }
-  const mime = recording.recorder?.mimeType || recording.mimeType || chunks[0]?.type || "audio/webm";
+  const mime = plan?.mimeType || recording.recorder?.mimeType || recording.mimeType || chunks[0]?.type || "audio/webm";
   const blob = new Blob(chunks, { type: mime });
   const file = kanbanReadingRecordingFile(todoId, blob, mime);
   const url = typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
@@ -168,11 +241,13 @@ function finishKanbanReadingRecording(todoId, recording) {
 
 function failKanbanReadingRecording(todoId, err) {
   const recording = state.todoReadingRecorders?.[todoId] || {};
-  const elapsedMs = kanbanReadingRecordingDuration(recording);
+  const modelFn = kanbanRecorderModelFunction("recordingErrorPatchPlan");
+  const patch = modelFn ? modelFn(recording, err, { nowMs: Date.now() }) : null;
+  const elapsedMs = patch ? patch.elapsedMs : kanbanReadingRecordingDuration(recording);
   recording.cancelled = true;
   clearKanbanReadingRecordingTimer(recording);
   stopKanbanReadingRecordingTracks(recording);
-  state.todoReadingRecorders[todoId] = {
+  state.todoReadingRecorders[todoId] = patch || {
     status: "error",
     elapsedMs,
     error: kanbanReadingRecordingPermissionMessage(err),
@@ -264,9 +339,11 @@ function cancelKanbanReadingRecording(todoId) {
 }
 
 function learningGrowthReflectionRecordingFile(todoId, blob, mime = "") {
-  const extension = kanbanReadingRecordingExtension(mime);
-  const safeId = String(todoId || "card").replace(/[^a-zA-Z0-9_-]+/g, "").slice(-24) || "card";
-  const filename = `growth-reflection-${safeId}-${Date.now()}.${extension}`;
+  const modelFn = kanbanRecorderModelFunction("recordingFileNamePlan");
+  const nowMs = Date.now();
+  const filename = modelFn
+    ? modelFn({ prefix: "growth-reflection", id: todoId, fallbackId: "card", mime, nowMs })
+    : `growth-reflection-${String(todoId || "card").replace(/[^a-zA-Z0-9_-]+/g, "").slice(-24) || "card"}-${nowMs}.${kanbanReadingRecordingExtension(mime)}`;
   try {
     if (typeof File === "function") return new File([blob], filename, { type: mime || blob.type || "audio/webm" });
   } catch (_) {
@@ -285,6 +362,17 @@ function ensureLearningGrowthReflectionRecorderState() {
 function learningGrowthReflectionRecordingStatusText(todoId) {
   const recording = state.todoLearningGrowthReflectionRecorders?.[todoId] || {};
   const duration = formatKanbanReadingRecordingDuration(kanbanReadingRecordingDuration(recording));
+  const modelFn = kanbanRecorderModelFunction("recordingStatusTextPlan");
+  if (modelFn) {
+    return modelFn(recording, {
+      supported: supportsKanbanReadingRecorder(),
+      durationLabel: duration,
+      idleText: "录音说明今天的主要错误、原因和下次检查方法。",
+      stoppingText: "正在生成复盘录音...",
+      readyPrefix: "已录好复盘",
+      errorFallback: "复盘录音不可用，请重试。",
+    });
+  }
   if (recording.status === "requesting") return "正在请求麦克风权限...";
   if (recording.status === "recording") return `正在录音 ${duration}`;
   if (recording.status === "stopping") return "正在生成复盘录音...";
@@ -312,14 +400,21 @@ function finishLearningGrowthReflectionRecording(todoId, recording) {
   clearKanbanReadingRecordingTimer(recording);
   stopKanbanReadingRecordingTracks(recording);
   if (recording.cancelled) return;
-  const chunks = (recording.chunks || []).filter((chunk) => chunk && chunk.size > 0);
-  const elapsedMs = Number(recording.elapsedMs || 0) || kanbanReadingRecordingDuration(recording);
+  const modelFn = kanbanRecorderModelFunction("recordingFinishPlan");
+  const plan = modelFn ? modelFn(recording, { nowMs: Date.now(), noAudioError: "未录到声音，请重试。" }) : null;
+  const chunks = plan ? plan.chunks : (recording.chunks || []).filter((chunk) => chunk && chunk.size > 0);
+  const elapsedMs = plan ? plan.elapsedMs : (Number(recording.elapsedMs || 0) || kanbanReadingRecordingDuration(recording));
+  if (plan && !plan.ok) {
+    state.todoLearningGrowthReflectionRecorders[todoId] = plan.errorPatch;
+    renderTodosAfterReadingRecorderChange();
+    return;
+  }
   if (!chunks.length) {
     state.todoLearningGrowthReflectionRecorders[todoId] = { status: "error", error: "未录到声音，请重试。", elapsedMs };
     renderTodosAfterReadingRecorderChange();
     return;
   }
-  const mime = recording.recorder?.mimeType || recording.mimeType || chunks[0]?.type || "audio/webm";
+  const mime = plan?.mimeType || recording.recorder?.mimeType || recording.mimeType || chunks[0]?.type || "audio/webm";
   const blob = new Blob(chunks, { type: mime });
   const file = learningGrowthReflectionRecordingFile(todoId, blob, mime);
   const url = typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
@@ -338,11 +433,13 @@ function finishLearningGrowthReflectionRecording(todoId, recording) {
 function failLearningGrowthReflectionRecording(todoId, err) {
   ensureLearningGrowthReflectionRecorderState();
   const recording = state.todoLearningGrowthReflectionRecorders?.[todoId] || {};
-  const elapsedMs = kanbanReadingRecordingDuration(recording);
+  const modelFn = kanbanRecorderModelFunction("recordingErrorPatchPlan");
+  const patch = modelFn ? modelFn(recording, err, { nowMs: Date.now() }) : null;
+  const elapsedMs = patch ? patch.elapsedMs : kanbanReadingRecordingDuration(recording);
   recording.cancelled = true;
   clearKanbanReadingRecordingTimer(recording);
   stopKanbanReadingRecordingTracks(recording);
-  state.todoLearningGrowthReflectionRecorders[todoId] = {
+  state.todoLearningGrowthReflectionRecorders[todoId] = patch || {
     status: "error",
     elapsedMs,
     error: kanbanReadingRecordingPermissionMessage(err),
@@ -437,9 +534,11 @@ function cancelLearningGrowthReflectionRecording(todoId) {
 }
 
 function learningNativeGrowthSubmissionRecordingFile(taskCardId, blob, mime = "") {
-  const extension = kanbanReadingRecordingExtension(mime);
-  const safeId = String(taskCardId || "task").replace(/[^a-zA-Z0-9_-]+/g, "").slice(-24) || "task";
-  const filename = `growth-retell-${safeId}-${Date.now()}.${extension}`;
+  const modelFn = kanbanRecorderModelFunction("recordingFileNamePlan");
+  const nowMs = Date.now();
+  const filename = modelFn
+    ? modelFn({ prefix: "growth-retell", id: taskCardId, fallbackId: "task", mime, nowMs })
+    : `growth-retell-${String(taskCardId || "task").replace(/[^a-zA-Z0-9_-]+/g, "").slice(-24) || "task"}-${nowMs}.${kanbanReadingRecordingExtension(mime)}`;
   try {
     if (typeof File === "function") return new File([blob], filename, { type: mime || blob.type || "audio/webm" });
   } catch (_) {
@@ -468,6 +567,17 @@ function renderLearningGrowthAfterNativeRecorderChange() {
 function learningNativeGrowthSubmissionRecordingStatusText(taskCardId) {
   const recording = state.learningNativeGrowthSubmissionRecorders?.[taskCardId] || {};
   const duration = formatKanbanReadingRecordingDuration(kanbanReadingRecordingDuration(recording));
+  const modelFn = kanbanRecorderModelFunction("recordingStatusTextPlan");
+  if (modelFn) {
+    return modelFn(recording, {
+      supported: supportsKanbanReadingRecorder(),
+      durationLabel: duration,
+      idleText: "\u9605\u8bfb\u6750\u6599\u540e\u5f55\u4e00\u6bb5\u82f1\u8bed\u590d\u8ff0\u3002",
+      stoppingText: "\u6b63\u5728\u751f\u6210\u590d\u8ff0\u5f55\u97f3...",
+      readyPrefix: "\u5df2\u5f55\u597d\u590d\u8ff0",
+      errorFallback: "\u590d\u8ff0\u5f55\u97f3\u4e0d\u53ef\u7528\uff0c\u8bf7\u91cd\u8bd5\u3002",
+    });
+  }
   if (recording.status === "requesting") return "\u6b63\u5728\u8bf7\u6c42\u9ea6\u514b\u98ce\u6743\u9650...";
   if (recording.status === "recording") return `\u6b63\u5728\u5f55\u97f3 ${duration}`;
   if (recording.status === "stopping") return "\u6b63\u5728\u751f\u6210\u590d\u8ff0\u5f55\u97f3...";
@@ -498,14 +608,21 @@ function finishLearningNativeGrowthSubmissionRecording(taskCardId, recording) {
   clearKanbanReadingRecordingTimer(recording);
   stopKanbanReadingRecordingTracks(recording);
   if (recording.cancelled) return;
-  const chunks = (recording.chunks || []).filter((chunk) => chunk && chunk.size > 0);
-  const elapsedMs = Number(recording.elapsedMs || 0) || kanbanReadingRecordingDuration(recording);
+  const modelFn = kanbanRecorderModelFunction("recordingFinishPlan");
+  const plan = modelFn ? modelFn(recording, { nowMs: Date.now(), noAudioError: "\u672a\u5f55\u5230\u58f0\u97f3\uff0c\u8bf7\u91cd\u8bd5\u3002" }) : null;
+  const chunks = plan ? plan.chunks : (recording.chunks || []).filter((chunk) => chunk && chunk.size > 0);
+  const elapsedMs = plan ? plan.elapsedMs : (Number(recording.elapsedMs || 0) || kanbanReadingRecordingDuration(recording));
+  if (plan && !plan.ok) {
+    state.learningNativeGrowthSubmissionRecorders[taskCardId] = plan.errorPatch;
+    renderLearningGrowthAfterNativeRecorderChange();
+    return;
+  }
   if (!chunks.length) {
     state.learningNativeGrowthSubmissionRecorders[taskCardId] = { status: "error", error: "\u672a\u5f55\u5230\u58f0\u97f3\uff0c\u8bf7\u91cd\u8bd5\u3002", elapsedMs };
     renderLearningGrowthAfterNativeRecorderChange();
     return;
   }
-  const mime = recording.recorder?.mimeType || recording.mimeType || chunks[0]?.type || "audio/webm";
+  const mime = plan?.mimeType || recording.recorder?.mimeType || recording.mimeType || chunks[0]?.type || "audio/webm";
   const blob = new Blob(chunks, { type: mime });
   const file = learningNativeGrowthSubmissionRecordingFile(taskCardId, blob, mime);
   const url = typeof URL !== "undefined" && typeof URL.createObjectURL === "function"
@@ -524,11 +641,13 @@ function finishLearningNativeGrowthSubmissionRecording(taskCardId, recording) {
 function failLearningNativeGrowthSubmissionRecording(taskCardId, err) {
   ensureLearningNativeGrowthSubmissionRecorderState();
   const recording = state.learningNativeGrowthSubmissionRecorders?.[taskCardId] || {};
-  const elapsedMs = kanbanReadingRecordingDuration(recording);
+  const modelFn = kanbanRecorderModelFunction("recordingErrorPatchPlan");
+  const patch = modelFn ? modelFn(recording, err, { nowMs: Date.now() }) : null;
+  const elapsedMs = patch ? patch.elapsedMs : kanbanReadingRecordingDuration(recording);
   recording.cancelled = true;
   clearKanbanReadingRecordingTimer(recording);
   stopKanbanReadingRecordingTracks(recording);
-  state.learningNativeGrowthSubmissionRecorders[taskCardId] = {
+  state.learningNativeGrowthSubmissionRecorders[taskCardId] = patch || {
     status: "error",
     elapsedMs,
     error: kanbanReadingRecordingPermissionMessage(err),
@@ -628,7 +747,9 @@ async function submitRecordedReadingSubmission(todoId, notes = "") {
   const file = recording.file;
   await submitReadingSubmission(todoId, file, notes);
   const latest = state.todoReadingRecorders?.[todoId];
-  if (latest?.file === file) {
+  const modelFn = kanbanRecorderModelFunction("shouldClearSubmittedRecordingPlan");
+  const shouldClear = modelFn ? modelFn(latest, file) : latest?.file === file;
+  if (shouldClear) {
     revokeKanbanReadingRecordingUrl(latest);
     delete state.todoReadingRecorders[todoId];
   }

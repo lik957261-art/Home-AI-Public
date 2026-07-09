@@ -106,7 +106,7 @@ function createHarness(options = {}) {
 }
 
 async function testCreateHealthCatalogGapCreatesOwnerApprovalOnly() {
-  const { calls, pushes, service } = createHarness();
+  const { calls, pushes, service, taskCards } = createHarness();
   const result = await service.createRequest({
     pluginId: "healthy",
     workspaceId: "weixin_fanfan",
@@ -123,6 +123,7 @@ async function testCreateHealthCatalogGapCreatesOwnerApprovalOnly() {
   });
   assert.equal(result.ok, true);
   assert.equal(result.autoDispatched, false);
+  assert.equal(taskCards.length, 0);
   assert.equal(result.inboxItem.workspaceId, "owner");
   assert.equal(result.inboxItem.assigneeWorkspaceId, "owner");
   assert.equal(result.inboxItem.sourceType, "plugin_conversation");
@@ -137,6 +138,142 @@ async function testCreateHealthCatalogGapCreatesOwnerApprovalOnly() {
   assert.equal(calls.filter((call) => call.type === "upsertSourceItem").length, 1);
   assert.equal(pushes.length, 1);
   assert.equal(pushes[0].payload.data.messageType, "plugin_conversation_repair_request");
+}
+
+async function testCodexMobileThreadMismatchAutoDispatchesWithoutOwnerPrompt() {
+  const { calls, pushes, service, taskCards } = createHarness();
+  const result = await service.createRequest({
+    pluginId: "codex-mobile-web",
+    workspaceId: "owner",
+    requestType: "thread_mismatch_repair",
+    severity: "H2",
+    title: "Repair Codex Mobile target thread mismatch",
+    summary: "Codex Mobile task-card routing reports target_thread_not_visible after a sourceThreadId targetThreadId mismatch.",
+    suggestedChange: "Refresh the task-card routing metadata and repair the wrong thread dispatch path.",
+    acceptance: "A bounded task-card routing repair reaches the current Codex Mobile implementation thread and returns a terminal card.",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.notified, false);
+  assert.equal(result.autoDispatched, true);
+  assert.equal(result.autoDispatchAttempted, true);
+  assert.equal(result.autoDispatchPolicy, "codex_thread_routing_mismatch_repair_v1");
+  assert.deepEqual(result.taskCardIds, ["ttc_plugin_conversation_1"]);
+  assert.equal(pushes.length, 0);
+  assert.equal(taskCards.length, 1);
+  assert.equal(taskCards[0].requestId, `plugin-conversation-codex-mobile-${result.request.dedupeSignature}`);
+  assert.equal(taskCards[0].targetWorkspace, "/Users/example/path");
+  assert.notEqual(taskCards[0].targetThreadId, "019eee6c-a6f5-7b20-bfb4-f96ccb6431b3");
+  assert.equal(taskCards[0].targetThreadTitle, undefined);
+  assert.equal(taskCards[0].targetThreadTitlePrefix, "codex mobile");
+  assert.match(taskCards[0].body, /target_thread_not_visible/);
+  assert.doesNotMatch(taskCards[0].body, /Owner Additional Prompt/);
+  assert.equal(result.inboxItem.status, "done");
+  const upsertCall = calls.find((call) => call.type === "upsertSourceItem");
+  assert.equal(upsertCall.input.actionLabel, "自动发修复卡");
+  assert.equal(upsertCall.input.rawJson.pluginConversationActionBridge.autoDispatch.eligible, true);
+  const completeCall = calls.find((call) => call.type === "completeItem");
+  assert.equal(completeCall.input.actorPrincipalId, "home-ai-auto-dispatch");
+  assert.equal(completeCall.input.payload.reason, "plugin_conversation_task_card_sent");
+}
+
+async function testDuplicateCodexThreadMismatchAutoDispatchReturnsPriorTaskCard() {
+  const { pushes, service, taskCards } = createHarness();
+  const input = {
+    pluginId: "codex-mobile",
+    workspaceId: "owner",
+    requestType: "thread_mismatch_repair",
+    title: "Codex Mobile task-card routing mismatch",
+    summary: "Codex Mobile reports wrong thread for task-card routing after target_thread_archived.",
+    suggestedChange: "Repair the task-card routing mismatch using bounded metadata only.",
+  };
+  const first = await service.createRequest(Object.assign({}, input, {
+    requestId: "pcr_codex_first_thread_mismatch",
+  }));
+  const second = await service.createRequest(Object.assign({}, input, {
+    requestId: "pcr_codex_second_thread_mismatch",
+  }));
+
+  assert.equal(first.ok, true);
+  assert.equal(second.ok, true);
+  assert.equal(first.autoDispatched, true);
+  assert.equal(second.autoDispatchAttempted, true);
+  assert.equal(second.alreadyDispatched, true);
+  assert.deepEqual(second.taskCardIds, ["ttc_plugin_conversation_1"]);
+  assert.equal(first.inboxItem.id, second.inboxItem.id);
+  assert.equal(second.inboxItem.status, "done");
+  assert.equal(taskCards.length, 1);
+  assert.equal(pushes.length, 0);
+}
+
+async function testHighRiskCodexThreadMismatchRemainsOwnerGated() {
+  const { pushes, service, taskCards } = createHarness();
+  const result = await service.createRequest({
+    pluginId: "codex-mobile",
+    workspaceId: "owner",
+    requestType: "thread_mismatch_repair",
+    title: "Codex Mobile thread mismatch plus production deploy",
+    summary: "Codex Mobile has a thread mismatch, then deploy production and rotate the secret token.",
+    suggestedChange: "Deploy production changes and repair data import state.",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.autoDispatched, false);
+  assert.equal(result.notified, true);
+  assert.equal(result.inboxItem.status, "open");
+  assert.equal(result.inboxItem.actionLabel, "发修复卡");
+  assert.equal(taskCards.length, 0);
+  assert.equal(pushes.length, 1);
+}
+
+async function testHomeAiCodexThreadMismatchAutoDispatchRequiresCodexText() {
+  const { pushes, service, taskCards } = createHarness();
+  const result = await service.createRequest({
+    pluginId: "home-ai",
+    workspaceId: "owner",
+    requestType: "routing_repair",
+    title: "Codex Mobile task-card thread mismatch",
+    summary: "Home AI observed a Codex Mobile task-card routing mismatch with stale_target_thread.",
+    suggestedChange: "Create a bounded task-card routing repair for the current Codex Mobile thread lifecycle.",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.autoDispatched, true);
+  assert.equal(result.notified, false);
+  assert.equal(taskCards.length, 1);
+  assert.equal(taskCards[0].targetWorkspace, "/Users/example/path");
+  assert.equal(pushes.length, 0);
+}
+
+async function testCodexThreadMismatchDispatchFailureLeavesApprovalOpen() {
+  const sent = [];
+  const harness = createHarness({
+    taskCardService: {
+      async sendTaskCard(input) {
+        sent.push(input);
+        return { ok: false, status: 404, error: "target_thread_not_visible" };
+      },
+    },
+  });
+  const result = await harness.service.createRequest({
+    pluginId: "codex-mobile",
+    requestType: "thread_mismatch_repair",
+    title: "Codex Mobile target thread mismatch",
+    summary: "Codex Mobile task-card routing failed with target_thread_not_visible.",
+    suggestedChange: "Repair the wrong thread routing metadata.",
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 502);
+  assert.equal(result.error, "plugin_conversation_task_card_dispatch_failed");
+  assert.equal(result.autoDispatchAttempted, true);
+  assert.equal(result.autoDispatched, false);
+  assert.equal(result.dispatchFailure.code, "target_thread_not_visible");
+  assert.deepEqual(result.taskCardIds, []);
+  assert.equal(sent.length, 1);
+  assert.equal(harness.items.get(result.inboxItem.id).status, "open");
+  assert.equal(harness.calls.some((call) => call.type === "completeItem"), false);
+  assert.equal(harness.pushes.length, 0);
 }
 
 async function testDispatchAttachesOwnerPromptAndCompletesItem() {
@@ -211,12 +348,14 @@ async function testCreateHomeAiCapabilityGapTargetsHomeAiThread() {
   assert.equal(result.inboxItem.sourceRef.pluginId, "home-ai");
   assert.equal(result.inboxItem.sourceRef.sourceThreadTitleForTaskCard, "Home AI Task Intake");
   assert.equal(result.inboxItem.sourceRef.sourceThreadTitlePrefixForTaskCard, "Home AI Task Intake");
+  assert.equal(result.inboxItem.sourceRef.replyToThreadTitlePrefixForTaskCard, "Home AI");
   assert.equal(result.inboxItem.sourceRef.targetThreadTitle, "Home AI");
   assert.equal(result.inboxItem.sourceRef.targetThreadTitlePrefix, "Home AI");
   assert.equal(result.inboxItem.sourceRef.targetWorkspace, "/Users/example/path");
   const taskCard = result.inboxItem.rawJson.pluginConversationActionBridge.taskCard;
   assert.equal(taskCard.sourceThreadTitle, "Home AI Task Intake");
   assert.equal(taskCard.sourceThreadTitlePrefix, "Home AI Task Intake");
+  assert.equal(taskCard.replyToThreadTitlePrefix, "Home AI");
   assert.equal(taskCard.targetThreadTitle, "");
   assert.equal(taskCard.targetThreadTitlePrefix, "Home AI");
   assert.equal(taskCard.targetWorkspace, "/Users/example/path");
@@ -394,9 +533,35 @@ async function testDispatchUpgradesLegacyHomeAiTargetToCurrentPrefix() {
   assert.equal(harness.taskCards.length, 1);
   assert.equal(harness.taskCards[0].sourceThreadTitle, "Home AI Task Intake");
   assert.equal(harness.taskCards[0].sourceThreadTitlePrefix, "Home AI Task Intake");
+  assert.equal(harness.taskCards[0].replyToThreadTitlePrefix, "Home AI");
   assert.equal(harness.taskCards[0].targetThreadTitle, undefined);
   assert.equal(harness.taskCards[0].targetThreadTitlePrefix, "Home AI");
   assert.equal(harness.taskCards[0].targetWorkspace, "/Users/example/path");
+}
+
+async function testDispatchPreservesExplicitCoordinatorReplyTarget() {
+  const harness = createHarness();
+  const created = await harness.service.createRequest({
+    pluginId: "health",
+    requestType: "catalog_gap",
+    title: "Add push_up exercise",
+    summary: "Missing push-up action.",
+    suggestedChange: "Add push_up.",
+    replyToThreadId: "thread-home-coordinator",
+    replyToThreadTitle: "Home AI 07-05",
+    replyToWorkspaceId: "/Users/example/path",
+    replyToCardId: "ttc_original_owner_request",
+  });
+  const result = await harness.service.dispatchTaskCard({ itemId: created.inboxItem.id });
+
+  assert.equal(result.ok, true);
+  assert.equal(harness.taskCards.length, 1);
+  assert.equal(harness.taskCards[0].replyToThreadId, "thread-home-coordinator");
+  assert.equal(harness.taskCards[0].replyToThreadTitle, "Home AI 07-05");
+  assert.equal(harness.taskCards[0].replyToWorkspaceId, "/Users/example/path");
+  assert.equal(harness.taskCards[0].replyToCardId, "ttc_original_owner_request");
+  assert.equal(created.inboxItem.sourceRef.replyToThreadIdForTaskCard, "thread-home-coordinator");
+  assert.equal(created.inboxItem.sourceRef.replyToCardIdForTaskCard, "ttc_original_owner_request");
 }
 
 async function testUnknownPluginIsRejected() {
@@ -484,6 +649,11 @@ async function testDispatchRecoversTaskCardMissingTargetThreadFromDefaultTarget(
 
 async function run() {
   await testCreateHealthCatalogGapCreatesOwnerApprovalOnly();
+  await testCodexMobileThreadMismatchAutoDispatchesWithoutOwnerPrompt();
+  await testDuplicateCodexThreadMismatchAutoDispatchReturnsPriorTaskCard();
+  await testHighRiskCodexThreadMismatchRemainsOwnerGated();
+  await testHomeAiCodexThreadMismatchAutoDispatchRequiresCodexText();
+  await testCodexThreadMismatchDispatchFailureLeavesApprovalOpen();
   await testDispatchAttachesOwnerPromptAndCompletesItem();
   await testDispatchReadsSerializedTopLevelBridge();
   await testCreateHomeAiCapabilityGapTargetsHomeAiThread();
@@ -493,6 +663,7 @@ async function run() {
   await testRepeatedDispatchDoesNotSendDuplicateTaskCard();
   await testEquivalentRequestAfterDispatchDoesNotReopenOrRepush();
   await testDispatchUpgradesLegacyHomeAiTargetToCurrentPrefix();
+  await testDispatchPreservesExplicitCoordinatorReplyTarget();
   await testUnknownPluginIsRejected();
   await testIncompleteTargetDoesNotCreateUndispatchableInboxItem();
   await testMissingTaskCardServiceBlocksDispatch();

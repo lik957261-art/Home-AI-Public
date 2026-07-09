@@ -1,29 +1,86 @@
 "use strict";
 
+const KANBAN_CARD_ACTIONS_MODEL_ESM_PATH = "/vite-islands/kanban-card-actions-model/kanban-card-actions-model.js";
+let kanbanCardActionsModel = null;
+let kanbanCardActionsModelPromise = null;
+
+function importKanbanCardActionsModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (kanbanCardActionsModel) return Promise.resolve(kanbanCardActionsModel);
+  if (!kanbanCardActionsModelPromise) {
+    const importer = typeof rootRef.__homeAiImportKanbanCardActionsModel === "function"
+      ? rootRef.__homeAiImportKanbanCardActionsModel
+      : (path) => import(path);
+    kanbanCardActionsModelPromise = Promise.resolve()
+      .then(() => importer(KANBAN_CARD_ACTIONS_MODEL_ESM_PATH))
+      .then((model) => {
+        kanbanCardActionsModel = model || null;
+        return kanbanCardActionsModel;
+      })
+      .catch((error) => {
+        kanbanCardActionsModelPromise = null;
+        throw error;
+      });
+  }
+  return kanbanCardActionsModelPromise;
+}
+
+function currentKanbanCardActionsModel() {
+  return kanbanCardActionsModel;
+}
+
+function kanbanCardActionsModelFunction(name) {
+  const model = currentKanbanCardActionsModel();
+  return model && typeof model[name] === "function" ? model[name] : null;
+}
+
+if (typeof window !== "undefined") {
+  importKanbanCardActionsModel().catch(() => null);
+}
+
+function kanbanCardActionRequest(todoId, action, extra = {}) {
+  const modelFn = kanbanCardActionsModelFunction("kanbanActionRequestPlan");
+  return modelFn ? modelFn({ todoId, action, body: extra }) : { todoId, action, method: "POST", bodyExtra: extra || {} };
+}
+
+function kanbanCardActionRequestBody(todoId, action, extra = {}) {
+  const plan = kanbanCardActionRequest(todoId, action, extra);
+  return kanbanCardActionBody(todoId, plan.bodyExtra || {});
+}
+
+function applyKanbanStatusStoragePatch(patch = {}) {
+  Object.entries(patch || {}).forEach(([key, value]) => localStorage.setItem(key, value));
+}
+
 async function createTodoFromForm(root) {
-  const content = root.querySelector("#todoContent")?.value?.trim() || "";
-  const dueValue = root.querySelector("#todoDue")?.value || "";
+  const modelFn = kanbanCardActionsModelFunction("todoCreatePayloadPlan");
   const kanban = isKanbanTodoSource();
-  if (!content) throw new Error("Kanban card content is required");
-  if (!kanban && !dueValue) throw new Error("Todo due time is required");
-  const dueTime = dueValue.replace("T", " ");
+  const plan = modelFn ? modelFn({
+    workspaceId: state.selectedWorkspaceId,
+    assignee: root.querySelector("#todoAssignee")?.value || defaultTodoAssignee(),
+    content: root.querySelector("#todoContent")?.value || "",
+    dueValue: root.querySelector("#todoDue")?.value || "",
+    recurrence: root.querySelector("#todoRecurrence")?.value || "none",
+    recurrenceDays: root.querySelector("#todoRecurrenceDays")?.value || "",
+    isKanban: kanban,
+  }) : null;
+  if (plan && !plan.ok) throw new Error(plan.error || "Kanban card content is required");
+  const payload = plan?.payload || {
+    workspaceId: state.selectedWorkspaceId,
+    assignee: root.querySelector("#todoAssignee")?.value || defaultTodoAssignee(),
+    content: root.querySelector("#todoContent")?.value?.trim() || "",
+    dueTime: (root.querySelector("#todoDue")?.value || "").replace("T", " "),
+    recurrence: root.querySelector("#todoRecurrence")?.value || "none",
+    recurrenceDays: root.querySelector("#todoRecurrenceDays")?.value || "",
+  };
+  if (!payload.content) throw new Error("Kanban card content is required");
+  if (!kanban && !payload.dueTime) throw new Error("Todo due time is required");
   await api(boardCollectionApiPath(), {
     method: "POST",
-    body: JSON.stringify({
-      workspaceId: state.selectedWorkspaceId,
-      assignee: root.querySelector("#todoAssignee")?.value || defaultTodoAssignee(),
-      content,
-      dueTime,
-      recurrence: root.querySelector("#todoRecurrence")?.value || "none",
-      recurrenceDays: root.querySelector("#todoRecurrenceDays")?.value || "",
-    }),
+    body: JSON.stringify(payload),
   });
   clearTodoListCache();
-  state.todoCreateOpen = false;
-  if (kanban) {
-    state.todoKanbanStatus = "todo";
-    localStorage.setItem("hermesTodoKanbanStatus", "todo");
-  }
+  Object.assign(state, plan?.statePatch || { todoCreateOpen: false });
+  applyKanbanStatusStoragePatch(plan?.storagePatch || (kanban ? { hermesTodoKanbanStatus: "todo" } : {}));
   await loadTodos();
 }
 
@@ -34,7 +91,7 @@ async function completeTodo(todoId, comment = "") {
   const commentText = String(comment || state.todoCommentDrafts?.[todoId] || "").trim();
   await api(boardActionApiPath(todoId, "complete"), {
     method: "POST",
-    body: kanbanCardActionBody(todoId, commentText ? { comment: commentText } : {}),
+    body: kanbanCardActionRequestBody(todoId, "complete", commentText ? { comment: commentText } : {}),
   });
   clearTodoListCache(kanbanCardWorkspaceId(todoId));
   delete state.todoCommentDrafts[todoId];
@@ -151,7 +208,7 @@ async function blockTodo(todoId) {
   if (card && !kanbanCan(card, "canManage")) throw new Error("No permission to block this card");
   await api(boardActionApiPath(todoId, "block"), {
     method: "POST",
-    body: kanbanCardActionBody(todoId, {
+    body: kanbanCardActionRequestBody(todoId, "block", {
       reason: "Blocked from Home AI Kanban view.",
     }),
   });
@@ -183,7 +240,7 @@ async function commentTodo(todoId, comment) {
   if (!text) throw new Error("请先填写评论内容");
   await api(boardActionApiPath(todoId, "comment"), {
     method: "POST",
-    body: kanbanCardActionBody(todoId, {
+    body: kanbanCardActionRequestBody(todoId, "comment", {
       comment: text,
     }),
   });
@@ -215,10 +272,14 @@ function renderLearningGrowthSubmissionProgressPanel(todoId) {
   const progress = state.todoLearningGrowthSubmissionProgress?.[todoId];
   if (!progress?.startAt) return "";
   const elapsed = Math.max(0, Math.floor((Date.now() - progress.startAt) / 1000));
-  let activeIndex = 0;
-  LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS.forEach((step, index) => { if (elapsed >= step.at) activeIndex = index; });
-  const rows = LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS.map((step, index) => {
-    const status = index < activeIndex ? " done" : (index === activeIndex ? " active" : " pending");
+  const modelFn = kanbanCardActionsModelFunction("learningGrowthProgressRowsPlan");
+  const progressRows = modelFn ? modelFn({ elapsedSeconds: elapsed, steps: LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS }) : LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS.map((step, index) => {
+    let activeIndex = 0;
+    LEARNING_GROWTH_SUBMISSION_PROGRESS_STEPS.forEach((item, itemIndex) => { if (elapsed >= item.at) activeIndex = itemIndex; });
+    return Object.assign({}, step, { status: index < activeIndex ? "done" : (index === activeIndex ? "active" : "pending") });
+  });
+  const rows = progressRows.map((step) => {
+    const status = ` ${step.status || "pending"}`;
     return `<div class="run-progress-row${status}">
       <span class="run-progress-dot" aria-hidden="true"></span>
       <span class="run-progress-main">${escapeHtml(step.title)}</span>
@@ -275,6 +336,28 @@ function setLearningGrowthSubmissionFeedback(todoId, feedback = {}, options = {}
   form?.querySelectorAll("textarea, button").forEach((item) => { item.disabled = Boolean(options.disabled); });
 }
 
+function fallbackLearningGrowthSubmissionSuccessFeedback(response = {}) {
+  const score = response?.evaluation?.score;
+  const reward = response?.reward;
+  const nextStep = response?.evaluation?.nextStep || "";
+  const reportReady = Boolean(response?.evaluation?.report?.url || response?.evaluation?.report?.path || response?.evaluation?.report?.name);
+  return {
+    kind: "success",
+    message: response?.evaluation
+      ? `AI \u53cd\u9988\u5df2\u5b8c\u6210${score == null ? "" : `\uff0c\u8bc4\u5206 ${score}/100`}${nextStep === "rewrite_and_reflect" ? "\uff0c\u8bf7\u7ee7\u7eed\u4fee\u6539\u548c\u590d\u76d8" : ""}${nextStep === "spoken_reflection_required" ? "\uff0c\u8bf7\u5f55\u97f3\u590d\u76d8\u540e\u518d\u7ed3\u7b97" : ""}${nextStep === "completed" ? "\uff0c\u5df2\u751f\u6210\u6700\u7ec8\u7ed3\u8bba" : ""}${reportReady ? "\uff0cMarkdown \u62a5\u544a\u5df2\u751f\u6210" : ""}${reward?.status === "settled" ? `\uff0c\u5df2\u7ed3\u7b97 ${reward.coinAmount || 0} \u91d1\u5e01` : ""}\u3002`
+      : "\u5df2\u6536\u5230\u4f5c\u7b54\uff0c\u6b63\u5728\u7b49\u5f85 AI \u53cd\u9988\u6216\u5bb6\u957f\u590d\u6838\u3002",
+  };
+}
+
+function fallbackLearningGrowthReflectionFeedback(response = {}) {
+  return {
+    kind: response?.reflection?.status === "accepted" ? "success" : "info",
+    message: response?.reflection?.status === "accepted"
+      ? `\u8bed\u97f3\u590d\u76d8\u5df2\u901a\u8fc7\uff0c\u6700\u7ec8\u8bc4\u5206 ${response?.evaluation?.score ?? 0}/100${response?.reward?.status === "settled" ? `\uff0c\u5df2\u7ed3\u7b97 ${response.reward.coinAmount || 0} \u91d1\u5e01` : ""}\u3002`
+      : "\u8bed\u97f3\u590d\u76d8\u5df2\u63d0\u4ea4\uff0c\u8bf7\u6839\u636e\u53cd\u9988\u91cd\u65b0\u8865\u5145\u9519\u8bef\u3001\u539f\u56e0\u548c\u4e0b\u6b21\u7ec3\u4e60\u8ba1\u5212\u3002",
+  };
+}
+
 async function submitLearningGrowthTask(todoId, text) {
   if (!todoId) return;
   const restoreScrollTop = $("conversation")?.scrollTop || 0;
@@ -300,22 +383,16 @@ async function submitLearningGrowthTask(todoId, text) {
   try {
     const response = await api(boardActionApiPath(todoId, "learning-growth-submission"), {
       method: "POST",
-      body: kanbanCardActionBody(todoId, {
+      body: kanbanCardActionRequestBody(todoId, "learning-growth-submission", {
         text: submission,
       }),
     });
     clearTodoListCache(kanbanCardWorkspaceId(todoId));
     delete state.todoLearningGrowthSubmissionDrafts[todoId];
-    const score = response?.evaluation?.score;
-    const reward = response?.reward;
-    const nextStep = response?.evaluation?.nextStep || "";
-    const reportReady = Boolean(response?.evaluation?.report?.url || response?.evaluation?.report?.path || response?.evaluation?.report?.name);
-    state.todoLearningGrowthSubmissionFeedback[todoId] = {
-      kind: "success",
-      message: response?.evaluation
-        ? `AI \u53cd\u9988\u5df2\u5b8c\u6210${score == null ? "" : `\uff0c\u8bc4\u5206 ${score}/100`}${nextStep === "rewrite_and_reflect" ? "\uff0c\u8bf7\u7ee7\u7eed\u4fee\u6539\u548c\u590d\u76d8" : ""}${nextStep === "spoken_reflection_required" ? "\uff0c\u8bf7\u5f55\u97f3\u590d\u76d8\u540e\u518d\u7ed3\u7b97" : ""}${nextStep === "completed" ? "\uff0c\u5df2\u751f\u6210\u6700\u7ec8\u7ed3\u8bba" : ""}${reportReady ? "\uff0cMarkdown \u62a5\u544a\u5df2\u751f\u6210" : ""}${reward?.status === "settled" ? `\uff0c\u5df2\u7ed3\u7b97 ${reward.coinAmount || 0} \u91d1\u5e01` : ""}\u3002`
-        : "\u5df2\u6536\u5230\u4f5c\u7b54\uff0c\u6b63\u5728\u7b49\u5f85 AI \u53cd\u9988\u6216\u5bb6\u957f\u590d\u6838\u3002",
-    };
+    const feedbackFn = kanbanCardActionsModelFunction("learningGrowthSubmissionSuccessFeedbackPlan");
+    state.todoLearningGrowthSubmissionFeedback[todoId] = feedbackFn
+      ? feedbackFn(response)
+      : fallbackLearningGrowthSubmissionSuccessFeedback(response);
     await loadTodos({ skipCache: true, freshServer: true, targetId: todoId });
     state.selectedTodoId = todoId;
     showPushToast("\u6210\u957f\u4efb\u52a1\u4f5c\u7b54\u5df2\u63d0\u4ea4", "success");
@@ -346,7 +423,7 @@ async function submitLearningGrowthReflection(todoId) {
     const file = recording.file;
     const response = await api(boardActionApiPath(todoId, "learning-growth-reflection"), {
       method: "POST",
-      body: kanbanCardActionBody(todoId, {
+      body: kanbanCardActionRequestBody(todoId, "learning-growth-reflection", {
         filename: file.name || `growth-reflection-${todoId}.webm`,
         type: file.type || recording.mimeType || "audio/webm",
         dataBase64: await fileToBase64(file),
@@ -359,12 +436,10 @@ async function submitLearningGrowthReflection(todoId) {
       if (latest.url && typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function") URL.revokeObjectURL(latest.url);
       delete state.todoLearningGrowthReflectionRecorders[todoId];
     }
-    state.todoLearningGrowthSubmissionFeedback[todoId] = {
-      kind: response?.reflection?.status === "accepted" ? "success" : "info",
-      message: response?.reflection?.status === "accepted"
-        ? `\u8bed\u97f3\u590d\u76d8\u5df2\u901a\u8fc7\uff0c\u6700\u7ec8\u8bc4\u5206 ${response?.evaluation?.score ?? 0}/100${response?.reward?.status === "settled" ? `\uff0c\u5df2\u7ed3\u7b97 ${response.reward.coinAmount || 0} \u91d1\u5e01` : ""}\u3002`
-        : "\u8bed\u97f3\u590d\u76d8\u5df2\u63d0\u4ea4\uff0c\u8bf7\u6839\u636e\u53cd\u9988\u91cd\u65b0\u8865\u5145\u9519\u8bef\u3001\u539f\u56e0\u548c\u4e0b\u6b21\u7ec3\u4e60\u8ba1\u5212\u3002",
-    };
+    const feedbackFn = kanbanCardActionsModelFunction("learningGrowthReflectionFeedbackPlan");
+    state.todoLearningGrowthSubmissionFeedback[todoId] = feedbackFn
+      ? feedbackFn(response)
+      : fallbackLearningGrowthReflectionFeedback(response);
     await loadTodos({ skipCache: true, freshServer: true, targetId: todoId });
     state.selectedTodoId = todoId;
     showPushToast("\u6210\u957f\u4efb\u52a1\u590d\u76d8\u5df2\u63d0\u4ea4", "success");

@@ -77,10 +77,16 @@ Current native capabilities:
   Health plugin proxy. The native app sends Home AI auth plus the current
   selected/effective workspace on every Health write request, either as
   `workspaceId`/`workspace_id` on the same-origin proxy URL or as
-  `x-hermes-plugin-workspace-id`. Home AI clamps that workspace through normal
-  access checks and injects plugin authorization server-side. Missing or
-  ambiguous workspace context must fail closed; Home AI must not infer Owner as
-  the Health data workspace from Owner authentication.
+  `x-hermes-plugin-workspace-id`, and sends the HealthKit/source workspace as
+  `x-hermes-apple-health-source-workspace-id` or
+  `x-hermes-healthkit-owner-workspace-id`. Home AI clamps the effective
+  workspace through normal access checks and injects plugin authorization
+  server-side only after the Apple Health guard passes. Missing or ambiguous
+  workspace context must fail closed; Home AI must not infer Owner as the
+  Health data workspace from Owner authentication. Default sync mode is
+  `personal`; personal writes fail with `apple_health_workspace_mismatch` when
+  source and effective workspaces differ. `guardian` sync is reserved for a
+  future explicit family-care flow and currently fails closed.
 - `apns_device_registration`: APNs device token registration through
   `POST /api/native/devices/register`. Native clients should omit
   `workspaceId` and let Home AI resolve the authenticated workspace from the
@@ -337,6 +343,11 @@ touches even when no Composer is visible.
   `data-native-shell="ios"`, or `localStorage.homeAI.nativeShell="ios"`,
   non-editable touches blur the active editable unless the touch is inside that
   editable;
+- a second touch/long-press on an already-focused Composer textarea opens a
+  bounded native paste-preserve window. If `WKWebView` emits a textarea `blur`
+  during that window, the Web guard may refocus the still-visible, enabled
+  Composer once so the paste menu can complete. Hidden, detached, disabled,
+  stale, outside-window, or non-Composer inputs are not protected;
 - stale detection includes disconnected nodes, disabled or aria-disabled
   editables, hidden/aria-hidden/inert ancestors, `display:none`,
   `visibility:hidden`, `pointer-events:none`, and zero layout rects.

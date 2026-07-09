@@ -154,6 +154,11 @@ async function testApplyRunsWorkspaceGatewaySystemAndPlugins() {
     actor: "owner-principal",
   }]);
   assert.equal(calls.keys[0].workspaceId, "xulu");
+  assert.deepEqual(calls.keys[0].options, {
+    actor: "owner-principal",
+    preserveExisting: true,
+    reason: "workspace_onboarding",
+  });
   assert.deepEqual(calls.gateway, [{ workspaceId: "xulu", refreshProfileBinding: true, macUser: "hm-xulu" }]);
   assert.deepEqual(calls.executor.map((call) => call.action), [
     "ensure_mac_user",
@@ -165,6 +170,39 @@ async function testApplyRunsWorkspaceGatewaySystemAndPlugins() {
   assert.deepEqual(calls.grants.map((call) => call.pluginId), ["wardrobe", "note"]);
   assert.deepEqual(calls.grants.map((call) => call.skipGatewayRefresh), [true, true]);
   assert.equal(result.steps.find((step) => step.id === "plugin.wardrobe").provisioning.accessKey, true);
+}
+
+async function testApplyPreservesExistingWorkspaceAccessKeyOnRetry() {
+  const { calls, service } = makeService({
+    rotateWorkspaceAccessKey(workspaceId, options) {
+      calls.keys.push({ workspaceId, options });
+      return {
+        key: "",
+        preservedExisting: true,
+        record: { workspaceId, hasKey: true, updatedAt: "2026-06-08T00:00:00.000Z" },
+      };
+    },
+  });
+  const result = await service.applyOnboarding({
+    workspaceId: "twh",
+    label: "TWH",
+    pluginIds: ["wardrobe"],
+  }, { actor: "owner-principal" });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.credentials.homeAiAccessKey, undefined);
+  assert.deepEqual(calls.keys, [{
+    workspaceId: "twh",
+    options: {
+      actor: "owner-principal",
+      preserveExisting: true,
+      reason: "workspace_onboarding",
+    },
+  }]);
+  const step = result.steps.find((item) => item.id === "home_ai.access_key");
+  assert.equal(step.accessKeyCreated, false);
+  assert.equal(step.accessKeyPreserved, true);
+  assert.equal(step.accessKeyStatus.hasKey, true);
 }
 
 async function testPluginFailureIsBoundedAndDoesNotStopLaterPlugins() {
@@ -184,12 +222,49 @@ async function testPluginFailureIsBoundedAndDoesNotStopLaterPlugins() {
   assert.equal(result.steps.find((step) => step.id === "plugin.note").status, "ok");
 }
 
+async function testValidationFailurePreservesBoundedSystemDiagnostics() {
+  const { service } = makeService({
+    systemProvisioningExecutor: {
+      runStep(action, context) {
+        if (action === "run_workspace_onboarding_smokes") {
+          return {
+            ok: false,
+            error: "worker_acl_harness_failed",
+            acl: {
+              status: 1,
+              smokeOk: false,
+              stdout: "{\"ok\":false}",
+              stderr: "",
+            },
+            ignoredIssues: ["legacy_workspace_acl_issue"],
+          };
+        }
+        return { ok: true, action, workspaceId: context.workspaceId };
+      },
+    },
+  });
+  const result = await service.applyOnboarding({
+    workspaceId: "twh",
+    pluginIds: ["note"],
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "provisioning_failed");
+  const validation = result.steps.find((step) => step.id === "validation.smokes");
+  assert.equal(validation.status, "failed");
+  assert.equal(validation.error, "worker_acl_harness_failed");
+  assert.equal(validation.acl.status, 1);
+  assert.deepEqual(validation.ignoredIssues, ["legacy_workspace_acl_issue"]);
+}
+
 async function run() {
   testPlanNormalizesWorkspaceAndSteps();
   testPlanDefaultsToAllDeployableWorkspacePlugins();
   await testApplyBlocksBeforeSideEffectsWithoutSystemExecutor();
   await testApplyRunsWorkspaceGatewaySystemAndPlugins();
+  await testApplyPreservesExistingWorkspaceAccessKeyOnRetry();
   await testPluginFailureIsBoundedAndDoesNotStopLaterPlugins();
+  await testValidationFailurePreservesBoundedSystemDiagnostics();
   console.log("workspace onboarding service tests passed");
 }
 

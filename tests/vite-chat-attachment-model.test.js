@@ -122,6 +122,22 @@ async function test(name, fn) {
     assert.equal(upload.body.dataBase64, "YWJj");
   });
 
+  await test("upload requests preserve large image base64 without text truncation", async () => {
+    const model = await loadAttachmentModel();
+    const largeBase64 = "B".repeat(320000);
+    const upload = model.createUploadRequest({
+      threadId: "thread_image",
+      workspaceId: "owner",
+      file: { name: "camera.jpg", type: "image/jpeg", dataBase64: largeBase64 },
+    });
+
+    assert.equal(upload.ok, true);
+    assert.equal(upload.body.filename, "camera.jpg");
+    assert.equal(upload.body.type, "image/jpeg");
+    assert.equal(upload.body.dataBase64.length, largeBase64.length);
+    assert.equal(upload.body.dataBase64, largeBase64);
+  });
+
   await test("add and remove helpers preserve normalized immutable rows", async () => {
     const model = await loadAttachmentModel();
     const added = model.addPendingArtifact([], {

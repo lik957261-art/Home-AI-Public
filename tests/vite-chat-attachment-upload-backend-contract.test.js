@@ -248,6 +248,9 @@ async function test(name, fn) {
     assert.equal(upload.artifact.id, "artifact-vite-upload-contract");
     assert.equal(upload.artifact.name, "report_.md");
     assert.equal(upload.artifact.source, "system_upload");
+    assert.equal(upload.artifact.path, undefined);
+    assert.equal(upload.raw.artifact.path, undefined);
+    assert.doesNotMatch(JSON.stringify(upload), /\/tmp\/home-ai-vite-upload-contract/);
     assert.equal(calls.mkdir[0], "/tmp/home-ai-vite-upload-contract");
     assert.equal(calls.write[0].text, "# Vite upload\n");
     assert.match(calls.write[0].filePath, /\/tmp\/home-ai-vite-upload-contract\/\d+-a1b2c3-report_\.md$/);

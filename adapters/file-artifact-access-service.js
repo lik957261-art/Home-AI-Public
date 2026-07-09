@@ -139,7 +139,6 @@ function createFileArtifactAccessService(options = {}) {
       mime: artifact.mime,
       size: artifact.size,
       url: `/api/artifacts/${encodeURIComponent(artifact.id)}`,
-      path: artifact.path,
       workspaceId: artifact.workspaceId,
     };
   }

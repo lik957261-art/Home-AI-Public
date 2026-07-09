@@ -52,8 +52,8 @@ const REQUIRED_PRODUCTION_READBACK_CHECKS = Object.freeze([
   },
   {
     id: "selected_shell_mode",
-    summary: "Production shell route reports the selected classic or Vite mode.",
-    evidence: ["shellMode", "routeStatus"],
+    summary: "Production shell route reports Vite-only mode and ignores Classic runtime override requests.",
+    evidence: ["shellMode=vite", "shellModePolicy=vite-only", "classicOverrideIgnored"],
     privacy: "metadata_only",
   },
   {
@@ -105,9 +105,9 @@ const REQUIRED_PRODUCTION_READBACK_CHECKS = Object.freeze([
     privacy: "no_item_payloads",
   },
   {
-    id: "rollback_switch",
-    summary: "Rollback switch or rollback deploy returns production to the classic shell in a bounded plan.",
-    evidence: ["rollbackMode", "classicShellReadback"],
+    id: "source_deploy_rollback_plan",
+    summary: "Emergency recovery uses Git/source history and deployment backups, not a Classic runtime switch.",
+    evidence: ["sourceRef", "deployBackup", "rollbackDeploymentPlan"],
     privacy: "metadata_only",
   },
 ]);
@@ -234,7 +234,7 @@ function runViteProductionCutoverPreflight(options = {}) {
         "Only then route the central Mac deploy/readback plan through an appropriate deploy lane.",
       ]
       : [
-        "Keep production on the classic shell.",
+        "Keep production source and deployment state unchanged.",
         "Do not send a deploy-lane card for Vite production cutover.",
         "Request explicit Owner approval using the required approval text.",
       ],

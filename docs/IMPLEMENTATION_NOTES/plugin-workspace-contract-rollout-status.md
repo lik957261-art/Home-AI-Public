@@ -1,16 +1,18 @@
 # Plugin Workspace Contract Rollout Status
 
-Last updated: 2026-06-18.
-Home AI platform contract version: `20260623-v5`.
+Last updated: 2026-07-08.
+Home AI platform contract version: `20260708-v8`.
 
-`20260623-v5` adds the fallback governance contract
-`docs/PLATFORM_CONTRACTS/fallback-governance-contract.md`, the fallback
-registry `docs/IMPLEMENTATION_NOTES/fallback-registry.md`, and task-card
-intake/reply ownership rules. During rollout, the central checker accepts
-`20260618-v4` plugin-local pointers as legacy with warnings, while v5 pointers
-must include the fallback governance references. Plugin-local pointers should
-adopt v5 through their own workspace task flow; Home AI does not rewrite plugin
-workspaces across the boundary.
+`20260708-v8` adds strict Worker pool lifecycle, per-task-card
+heartbeat/Watchdog, and Chinese terminal receipt pointers on top of the v7
+plugin main-thread preflight rules. During rollout, the central checker accepts
+`20260707-v7`,
+`20260626-v6`, `20260623-v5`, and `20260618-v4` plugin-local pointers as legacy
+with warnings, while v8 pointers must include the plugin main preflight command,
+plugin Worker dispatch policy, and plugin Worker pool lifecycle policy fields.
+Plugin-local pointers and `AGENTS.md` files should adopt v8 through their own
+workspace task flow; Home AI does not rewrite plugin workspaces across the
+boundary.
 
 ## Scope
 
@@ -50,6 +52,8 @@ credentials were changed by this rollout status update.
 
 - `docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md`
 - `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
+- `docs/PLATFORM_CONTRACTS/autonomous-delivery-loop-contract.md`
+- `docs/PLATFORM_CONTRACTS/worker-pool-lifecycle-contract.md`
 - `docs/RUNBOOKS/macos-production-access.md`
 - `docs/RUNBOOKS/mcp-tool-upgrade-closure.md`
 - `docs/RUNBOOKS/macos-ios-simulator-appium.md`
@@ -57,6 +61,8 @@ credentials were changed by this rollout status update.
 - `docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md`
 - `scripts/ai-ops-control-plane.js`
 - `tests/ai-ops-control-plane-cli.test.js`
+- `scripts/main-thread-routing-preflight.js`
+- `tests/main-thread-routing-preflight-service.test.js`
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-v1.md`
 - `docs/IMPLEMENTATION_NOTES/reference-memory-graph-harness-plan.md`
 - `scripts/ios-pwa-visual-harness.js`
@@ -123,6 +129,33 @@ Control Plane entrypoint and flow. Plugin threads must run control-plane
 work, must use `required-checks` for changed files, must allocate a visual lane
 before mutating Appium/Simulator actions, and must append bounded evidence
 instead of relying on narrative handoff.
+
+For v8 plugin pointers, the checker also requires
+`plugin_main_preflight_command`, `plugin_worker_dispatch_policy`, and
+`plugin_worker_pool_lifecycle_policy`. Plugin main/source threads must run:
+
+```powershell
+node /Users/example/path --source-thread-role plugin_main --task "<task>" --changed-file <path> --mode classify
+```
+
+When the result is `classification=plugin_worker`, the plugin thread must
+dispatch a bounded `plugin_worker` task card with terminal return, Chinese
+Owner-visible receipt, privacy, conflict, and validation fields, or record a
+bounded blocker for the missing lane. Task Intake, deploy lanes, audit lanes,
+Loop lanes, and the current plugin source thread are not valid Worker
+replacements.
+
+Plugin main/source threads must resolve the stable `plugin_worker` Worker pool
+before creating a new Worker lane. Reuse available compatible lanes, mark the
+lane busy while a task card is active, require per-task-card heartbeat, activate
+the Watchdog for that task card after `1800000ms` (30 minutes) without
+heartbeat, keep Watchdog batches bounded to 8 cards, allow at most one
+automatic resume for the same execution lease by default, release it after
+terminal return, and treat task-title Worker names as `worker_lane_sprawl`. New
+Worker creation is allowed only for bounded reasons such as `missing_role_lane`,
+`pool_exhausted`, or `no_legal_lane`. Existing task-title Worker threads should
+be renamed or metadata-normalized by the lifecycle owner when the safe tool
+surface supports it; they should not be deleted merely to hide sprawl.
 
 The shared visual toolchain correction is now part of the central contract.
 Every plugin thread must use the Home AI live iOS PWA debug server, checked

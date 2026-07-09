@@ -1,5 +1,35 @@
 "use strict";
 
+const MOBILE_LAYOUT_MODEL_ESM_PATH = "/vite-islands/mobile-layout-model/mobile-layout-model.js";
+let mobileLayoutModel = null;
+let mobileLayoutModelPromise = null;
+
+function importMobileLayoutModel(rootRef = window) {
+  if (mobileLayoutModel) return Promise.resolve(mobileLayoutModel);
+  if (!mobileLayoutModelPromise) {
+    const importer = typeof rootRef.__homeAiImportMobileLayoutModel === "function"
+      ? rootRef.__homeAiImportMobileLayoutModel
+      : (path) => import(path);
+    mobileLayoutModelPromise = Promise.resolve()
+      .then(() => importer(MOBILE_LAYOUT_MODEL_ESM_PATH))
+      .then((model) => {
+        mobileLayoutModel = model || null;
+        return mobileLayoutModel;
+      })
+      .catch((error) => {
+        mobileLayoutModelPromise = null;
+        throw error;
+      });
+  }
+  return mobileLayoutModelPromise;
+}
+
+function currentMobileLayoutModel() {
+  return mobileLayoutModel;
+}
+
+importMobileLayoutModel().catch(() => null);
+
 function nativeKeyboardGeometry() {
   const keyboard = navigator.virtualKeyboard;
   const rect = keyboard?.boundingRect;
@@ -20,6 +50,10 @@ function visualViewportKeyboardMetrics() {
   const height = Math.round(viewport.height || 0);
   if (!layoutHeight || !height) return null;
   const offsetTop = Math.max(0, Math.round(viewport.offsetTop || 0));
+  const model = currentMobileLayoutModel();
+  if (typeof model?.visualViewportKeyboardMetricsPlan === "function") {
+    return model.visualViewportKeyboardMetricsPlan({ layoutHeight, viewportHeight: height, offsetTop });
+  }
   const bottomInset = Math.max(0, Math.round(layoutHeight - height - offsetTop));
   const keyboardLikely = bottomInset > 80 || height < layoutHeight * 0.82;
   return { height, offsetTop, bottomInset, keyboardLikely };
@@ -42,6 +76,12 @@ function stableKeyboardViewportMetrics(metrics) {
     return metrics;
   }
   const previous = state.keyboardViewportStableMetrics || null;
+  const model = currentMobileLayoutModel();
+  if (typeof model?.stableKeyboardViewportMetricsPlan === "function") {
+    const plan = model.stableKeyboardViewportMetricsPlan({ previous, metrics, active: true });
+    state.keyboardViewportStableMetrics = plan.metrics;
+    return plan.metrics;
+  }
   const next = {
     height: Math.max(0, Math.round(Number(metrics.height || 0))),
     offsetTop: Math.max(0, Math.round(Number(metrics.offsetTop || 0))),
@@ -88,11 +128,16 @@ function updateKeyboardViewportMetrics() {
   const root = document.documentElement;
   const metrics = stableKeyboardViewportMetrics(visualViewportKeyboardMetrics());
   const nativeEmbeddedPluginActive = nativeShellEmbeddedPluginViewportActive();
-  const active = Boolean(
-    isMobileLayout()
-    && metrics?.keyboardLikely
-    && (state.composerFocused || nativeEmbeddedPluginActive)
-  );
+  const model = currentMobileLayoutModel();
+  const activePlan = typeof model?.keyboardViewportActivePlan === "function"
+    ? model.keyboardViewportActivePlan({
+      mobileLayout: isMobileLayout(),
+      keyboardLikely: Boolean(metrics?.keyboardLikely),
+      composerFocused: Boolean(state.composerFocused),
+      nativeEmbeddedPluginActive,
+    })
+    : { active: Boolean(isMobileLayout() && metrics?.keyboardLikely && (state.composerFocused || nativeEmbeddedPluginActive)) };
+  const active = Boolean(activePlan.active);
   state.keyboardViewportActive = active;
   root.classList.toggle("keyboard-viewport-active", active);
   if (active) {
@@ -444,6 +489,22 @@ function updateMobileBottomNavReservation() {
   );
   const applyDockOnlyBottomStack = (reason = "nav_hidden") => {
     const comfortInset = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-comfort-inset", 0)));
+    const dockMinGrabBottom = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-min-grab-bottom", 44)));
+    const dockComposerClearance = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-composer-clearance", 8)));
+    const viewportHeight = Math.max(Math.ceil(window.innerHeight || 0), Math.ceil(document.documentElement?.clientHeight || 0), Math.ceil(window.visualViewport?.height || 0));
+    const composer = $("composer");
+    const composerRect = composer?.getBoundingClientRect?.();
+    const composerVisible = Boolean(
+      composer
+      && !composer.hidden
+      && composerRect
+      && Math.ceil(composerRect.height || 0) > 0
+      && Math.ceil(composerRect.bottom || 0) > 0
+      && window.getComputedStyle?.(composer).display !== "none"
+    );
+    const composerTopInset = composerVisible && viewportHeight
+      ? Math.ceil(Math.max(0, viewportHeight - composerRect.top))
+      : 0;
     const dockExpanded = Boolean(dockIsVisible() && dock?.classList.contains("global-plugin-dock-expanded"));
     const dockCollapsedHeight = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-height", 30)));
     const dockCollapsedSafeLift = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-safe-lift", 0)));
@@ -453,23 +514,30 @@ function updateMobileBottomNavReservation() {
     const dockHeight = dockIsVisible()
       ? (dockExpanded ? rawDockHeight : Math.max(24, dockCollapsedHeight + dockCollapsedSafeLift))
       : 0;
-    const stackHeight = dockIsVisible() ? comfortInset + dockHeight + 2 : 0;
+    const dockBottom = dockIsVisible()
+      ? Math.max(comfortInset, dockMinGrabBottom, composerTopInset ? composerTopInset + dockComposerClearance : 0)
+      : comfortInset;
+    const stackHeight = dockIsVisible() ? dockBottom + dockHeight + 2 : 0;
     const metrics = {
       reason,
-      viewportHeight: Math.max(Math.ceil(window.innerHeight || 0), Math.ceil(document.documentElement?.clientHeight || 0), Math.ceil(window.visualViewport?.height || 0)),
+      viewportHeight,
       comfortInset,
       navLaidOut: false,
       navRect: null,
       navBottom: comfortInset,
       navOffset: comfortInset,
       navReserve: 0,
+      dockMinGrabBottom,
+      dockComposerClearance,
+      composerVisible,
+      composerTopInset,
       dockVisible: dockIsVisible(),
       dockExpanded,
       dockCollapsedHeight,
       dockCollapsedSafeLift,
       rawDockHeight,
       dockHeight,
-      dockBottom: comfortInset,
+      dockBottom,
       stackHeight,
     };
     window.__hermesMobileBottomLayoutMetrics = metrics;
@@ -477,7 +545,7 @@ function updateMobileBottomNavReservation() {
     root.style.removeProperty("--mobile-bottom-nav-offset-height-runtime");
     root.style.removeProperty("--mobile-bottom-nav-reserved-height-runtime");
     if (dockIsVisible()) {
-      root.style.setProperty("--topic-plugin-dock-bottom-runtime", `${comfortInset}px`);
+      root.style.setProperty("--topic-plugin-dock-bottom-runtime", `${dockBottom}px`);
       root.style.setProperty("--topic-plugin-dock-reserved-height-runtime", `${stackHeight}px`);
       root.style.setProperty("--mobile-bottom-stack-height-runtime", `${stackHeight}px`);
     } else {
@@ -562,13 +630,14 @@ function updateMobileBottomNavReservation() {
   const dockExpanded = Boolean(dockVisible && dock?.classList.contains("global-plugin-dock-expanded"));
   const dockCollapsedHeight = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-height", 30)));
   const dockCollapsedSafeLift = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-collapsed-safe-lift", 0)));
+  const dockMinGrabBottom = Math.max(0, Math.ceil(mobileBottomCssPx("--topic-plugin-dock-min-grab-bottom", 44)));
   const rawDockHeight = dockVisible
     ? Math.max(0, Math.ceil(dock.getBoundingClientRect?.().height || 0), Math.ceil(dock.scrollHeight || 0))
     : 0;
   const dockHeight = dockVisible
     ? (dockExpanded ? rawDockHeight : Math.max(24, dockCollapsedHeight + dockCollapsedSafeLift))
     : 0;
-  const dockBottom = offset;
+  const dockBottom = dockVisible ? Math.max(offset, dockMinGrabBottom) : offset;
   const stackHeight = dockVisible ? Math.max(reserve, dockBottom + dockHeight + 2) : reserve;
   const bottomLayoutMetrics = {
     viewportHeight,
@@ -607,6 +676,7 @@ function updateMobileBottomNavReservation() {
     navVisualLift,
     dockVisible,
     dockExpanded,
+    dockMinGrabBottom,
     dockCollapsedHeight,
     dockCollapsedSafeLift,
     rawDockHeight,
@@ -755,7 +825,22 @@ function updatePluginContextViewportReservation() {
   const viewportOverflowClamp = Math.max(0, Math.ceil(mobileBottomCssPx("--mobile-bottom-nav-overflow-clamp", 0)));
   const viewportOverflow = Math.min(viewportOverflowRaw, viewportOverflowClamp);
   const navVisibleTopInset = navRect && viewportHeight ? Math.ceil(Math.max(0, viewportHeight - navRect.top)) : navHeight;
-  const bottomInset = Math.max(0, navVisibleTopInset + viewportOverflow);
+  const model = currentMobileLayoutModel();
+  const insetPlan = typeof model?.pluginContextViewportBottomInsetPlan === "function"
+    ? model.pluginContextViewportBottomInsetPlan({
+      active,
+      navVisible: true,
+      navHeight,
+      appHeight,
+      visualViewportHeight,
+      innerHeight,
+      documentHeight,
+      navTop: navRect?.top || 0,
+      navBottom: navRect?.bottom || 0,
+      viewportOverflowClamp,
+    })
+    : null;
+  const bottomInset = insetPlan ? insetPlan.bottomInset : Math.max(0, navVisibleTopInset + viewportOverflow);
   window.__hermesPluginContextViewportMetrics = {
     visualViewportHeight,
     innerHeight,
@@ -764,15 +849,15 @@ function updatePluginContextViewportReservation() {
     viewportHeight,
     appHeight,
     navHeight,
-    navVisibleTopInset,
-    navRect: navRect ? {
+    navVisibleTopInset: insetPlan ? insetPlan.navVisibleTopInset : navVisibleTopInset,
+    navRect: insetPlan?.navRect || (navRect ? {
       top: Math.round(navRect.top),
       bottom: Math.round(navRect.bottom),
       height: Math.round(navRect.height),
-    } : null,
-    viewportOverflowRaw,
+    } : null),
+    viewportOverflowRaw: insetPlan ? insetPlan.viewportOverflowRaw : viewportOverflowRaw,
     viewportOverflowClamp,
-    viewportOverflow,
+    viewportOverflow: insetPlan ? insetPlan.viewportOverflow : viewportOverflow,
     bottomInset,
   };
   if (bottomInset > 0) root.style.setProperty("--plugin-context-main-bottom", `${bottomInset}px`);

@@ -1,10 +1,63 @@
 "use strict";
 
+const DIRECTORY_AUTOMATION_MODEL_ESM_PATH = "/vite-islands/directory-automation-model/directory-automation-model.js";
+let directoryAutomationModel = null;
+let directoryAutomationModelPromise = null;
+
+function importDirectoryAutomationModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (directoryAutomationModel) return Promise.resolve(directoryAutomationModel);
+  if (!directoryAutomationModelPromise) {
+    const importer = typeof rootRef.__homeAiImportDirectoryAutomationModel === "function"
+      ? rootRef.__homeAiImportDirectoryAutomationModel
+      : (path) => import(path);
+    directoryAutomationModelPromise = Promise.resolve()
+      .then(() => importer(DIRECTORY_AUTOMATION_MODEL_ESM_PATH))
+      .then((model) => {
+        directoryAutomationModel = model || null;
+        return directoryAutomationModel;
+      })
+      .catch((error) => {
+        directoryAutomationModelPromise = null;
+        throw error;
+      });
+  }
+  return directoryAutomationModelPromise;
+}
+
+function currentDirectoryAutomationModel() {
+  return directoryAutomationModel;
+}
+
+if (typeof window !== "undefined") {
+  importDirectoryAutomationModel().catch(() => null);
+}
+
+function directoryAutomationHelpers() {
+  return {
+    artifactHref,
+    artifactKind,
+    comparableDirectoryPath,
+    directoryAliasKey,
+    directoryRouteDisplayPath,
+    formatBytes,
+    formatTime,
+    logicalDirectoryDisplayPath,
+    ownerDriveRootIndexForParts,
+    pathMatchesDirectoryRoot,
+    relativeDisplayTailForDirectory,
+    ownerRootFallbackLabel: state.displayConfig?.ownerRootFallbackLabel,
+  };
+}
+
 function sharedProjectOwnerLabel(project) {
+  const plan = currentDirectoryAutomationModel()?.sharedProjectOwnerLabel?.(project);
+  if (plan !== undefined) return plan;
   return String(project?.sharedByLabel || project?.createdByLabel || project?.sharedBy || project?.createdBy || "").trim();
 }
 
 function sharedProjectRootOwnerLabel(project) {
+  const plan = currentDirectoryAutomationModel()?.sharedProjectRootOwnerLabel?.(project, directoryAutomationHelpers());
+  if (plan !== undefined) return plan;
   const root = String(project?.root || "").replaceAll("\\", "/");
   const parts = root.split("/").filter(Boolean);
   const volumeIndex = parts.findIndex((part) => part.toLowerCase() === "volume1");
@@ -15,10 +68,14 @@ function sharedProjectRootOwnerLabel(project) {
 }
 
 function projectDisplayLabel(project) {
+  const plan = currentDirectoryAutomationModel()?.projectDisplayLabel?.(project);
+  if (plan !== undefined) return plan;
   return project?.label || project?.id || "Project";
 }
 
 function routeLabelParts(label) {
+  const plan = currentDirectoryAutomationModel()?.routeLabelParts?.(label);
+  if (plan !== undefined) return plan;
   return String(label || "")
     .split(/\s*\/\s*/g)
     .map((part) => part.trim())
@@ -26,12 +83,19 @@ function routeLabelParts(label) {
 }
 
 function routeChildParts(child) {
+  const plan = currentDirectoryAutomationModel()?.routeChildParts?.(child);
+  if (plan !== undefined) return plan;
   const parts = routeLabelParts(child?.label || child?.id);
   const subProject = parts[0] || child?.label || child?.id || "Item";
   return { subProject };
 }
 
 function routeGroups(project = currentProject()) {
+  const plan = currentDirectoryAutomationModel()?.routeGroupsPlan?.({
+    project,
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   const groups = new Map();
   for (const child of project?.children || []) {
     const parts = routeChildParts(child);
@@ -55,6 +119,8 @@ function routeGroups(project = currentProject()) {
 }
 
 function selectDefaultRouteItem(group) {
+  const plan = currentDirectoryAutomationModel()?.selectDefaultRouteItem?.(group);
+  if (plan !== undefined) return plan;
   if (!group) return "";
   return group.rootChild?.id || "";
 }
@@ -118,6 +184,11 @@ async function openCurrentDirectoryEntry() {
 }
 
 function directoryRouteOptions(project = currentProject()) {
+  const plan = currentDirectoryAutomationModel()?.directoryRouteOptionsPlan?.({
+    project,
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   return routeGroups(project)
     .map((group) => ({ id: selectDefaultRouteItem(group), label: group.label }))
     .filter((item) => item.id);
@@ -140,10 +211,17 @@ function resetDirectoryPath(path = "", options = {}) {
 }
 
 function directoryActivePath() {
+  const plan = currentDirectoryAutomationModel()?.directoryActivePathPlan?.({
+    directoryPreview: state.directoryPreview,
+    directoryPath: state.directoryPath,
+  });
+  if (plan !== undefined) return plan;
   return state.directoryPreview?.path || state.directoryPath || "";
 }
 
 function directoryParentPath(pathText) {
+  const plan = currentDirectoryAutomationModel()?.directoryParentPathPlan?.(pathText);
+  if (plan !== undefined) return plan;
   const normalized = String(pathText || "").trim().replaceAll("\\", "/").replace(/\/+$/g, "");
   if (!normalized || normalized === "/") return "";
   const parts = normalized.split("/");
@@ -152,6 +230,12 @@ function directoryParentPath(pathText) {
 }
 
 function directoryRootCreateBasePath() {
+  const plan = currentDirectoryAutomationModel()?.directoryRootCreateBasePathPlan?.({
+    workspace: currentWorkspace(),
+    rootProjects: directoryRootProjects(),
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   const workspace = currentWorkspace();
   const workspaceRoot = String(workspace?.defaultWorkspace || "").trim();
   const rootProjects = directoryRootProjects().filter((project) => {
@@ -180,10 +264,24 @@ function directoryRootCreateBasePath() {
 }
 
 function directoryCreateBasePath() {
+  const plan = currentDirectoryAutomationModel()?.directoryCreateBasePathPlan?.({
+    activePath: directoryActivePath(),
+    workspace: currentWorkspace(),
+    rootProjects: directoryRootProjects(),
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   return directoryActivePath() || directoryRootCreateBasePath();
 }
 
 function matchingDirectoryProject(pathText) {
+  const plan = currentDirectoryAutomationModel()?.matchingDirectoryProjectPlan?.({
+    pathText,
+    selectedProject: currentProject(),
+    projects: state.projects || [],
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   const active = String(pathText || "").trim();
   if (!active) return null;
   const selected = currentProject();
@@ -219,6 +317,16 @@ function directoryRootForPath(pathText, fallbackPath = "") {
 }
 
 function isDirectoryAtRouteRoot(pathText = directoryActivePath()) {
+  const plan = currentDirectoryAutomationModel()?.isDirectoryAtRouteRootPlan?.({
+    pathText,
+    directoryRootPath: state.directoryRootPath,
+    projects: state.projects || [],
+    selectedProject: currentProject(),
+    workspace: currentWorkspace(),
+    currentTarget: currentDirectoryTarget(),
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   const target = directoryBoundaryTarget(pathText);
   if (!target?.root) return true;
   const active = comparableDirectoryPath(pathText);
@@ -227,6 +335,16 @@ function isDirectoryAtRouteRoot(pathText = directoryActivePath()) {
 }
 
 function directoryBoundaryTarget(pathText = directoryActivePath()) {
+  const plan = currentDirectoryAutomationModel()?.directoryBoundaryTargetPlan?.({
+    pathText,
+    directoryRootPath: state.directoryRootPath,
+    projects: state.projects || [],
+    selectedProject: currentProject(),
+    workspace: currentWorkspace(),
+    currentTarget: currentDirectoryTarget(),
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   const active = String(pathText || "").trim();
   if (!active) return null;
   if (state.directoryRootPath && pathMatchesDirectoryRoot(active, state.directoryRootPath)) {
@@ -251,6 +369,16 @@ function directoryBoundaryTarget(pathText = directoryActivePath()) {
 }
 
 function parentDirectoryPath(pathText = directoryActivePath()) {
+  const plan = currentDirectoryAutomationModel()?.parentDirectoryPathPlan?.({
+    pathText,
+    directoryRootPath: state.directoryRootPath,
+    projects: state.projects || [],
+    selectedProject: currentProject(),
+    workspace: currentWorkspace(),
+    currentTarget: currentDirectoryTarget(),
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   const target = directoryBoundaryTarget(pathText);
   const active = String(pathText || "").trim().replaceAll("\\", "/").replace(/\/+$/g, "");
   if (!active || !target?.root || isDirectoryAtRouteRoot(pathText)) return "";
@@ -459,6 +587,14 @@ function syncDirectoryRouteFromPath(pathText) {
 
 function directoryAttachmentFromRoute(projectId, subprojectId = "", pathText = "", label = "") {
   const project = (state.projects || []).find((item) => item.id === projectId);
+  const plan = currentDirectoryAutomationModel()?.directoryAttachmentFromRoutePlan?.({
+    project,
+    subprojectId,
+    pathText,
+    label,
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   if (!project?.root) return null;
   const child = subprojectId ? (project.children || []).find((item) => item.id === subprojectId) : null;
   const routeRoot = child?.root || project.root;
@@ -478,6 +614,12 @@ function directoryAttachmentFromRoute(projectId, subprojectId = "", pathText = "
 }
 
 function directoryAttachmentForFilter(filter = state.taskDirectoryFilter) {
+  const plan = currentDirectoryAutomationModel()?.directoryAttachmentForFilterPlan?.({
+    filter,
+    projects: state.projects || [],
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   if (!filter?.projectId) return null;
   if (filter.directory?.projectId && (filter.directory.root || filter.directory.path)) {
     return filter.directory;
@@ -486,6 +628,12 @@ function directoryAttachmentForFilter(filter = state.taskDirectoryFilter) {
 }
 
 function directoryBreadcrumbItems() {
+  const plan = currentDirectoryAutomationModel()?.directoryBreadcrumbItemsPlan?.({
+    activePath: directoryActivePath(),
+    projects: state.projects || [],
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   const items = [{ label: "目录", path: "" }];
   const active = directoryActivePath();
   if (!active) return items;
@@ -541,26 +689,48 @@ function renderDirectoryControls() {
 }
 
 function directoryEntryKind(entry) {
+  const plan = currentDirectoryAutomationModel()?.directoryEntryKindPlan?.({
+    entry,
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   if (entry?.type === "directory") return "dir";
   return artifactKind({ name: entry?.name, mime: entry?.mime });
 }
 
 function directoryEntryHref(entry) {
+  const plan = currentDirectoryAutomationModel()?.directoryEntryHrefPlan?.({
+    entry,
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   if (entry?.type === "directory") return "#";
   return artifactHref({ url: entry?.url, name: entry?.name, mime: entry?.mime, size: entry?.size });
 }
 
 function directoryEntryDocumentAttrs(entry) {
+  const plan = currentDirectoryAutomationModel()?.directoryEntryDocumentAttrsPlan?.({ entry });
+  if (plan !== undefined) {
+    if (!plan.enabled) return "";
+    return ` data-task-doc data-artifact-name="${escapeHtml(plan.name || "item")}" data-artifact-mime="${escapeHtml(plan.mime || "")}"`;
+  }
   if (entry?.type === "directory") return "";
   return ` data-task-doc data-artifact-name="${escapeHtml(entry?.name || "item")}" data-artifact-mime="${escapeHtml(entry?.mime || "")}"`;
 }
 
 function directoryEntryMeta(entry) {
+  const plan = currentDirectoryAutomationModel()?.directoryEntryMetaPlan?.({
+    entry,
+    helpers: directoryAutomationHelpers(),
+  });
+  if (plan !== undefined) return plan;
   if (entry?.type === "directory") return formatTime(entry?.mtime);
   return [formatBytes(entry?.size), formatTime(entry?.mtime)].filter(Boolean).join(" | ");
 }
 
 function directorySearchMatches(entry, search) {
+  const plan = currentDirectoryAutomationModel()?.directorySearchMatchesPlan?.({ entry, search });
+  if (plan !== undefined) return plan;
   if (!search) return true;
   return [
     entry?.name,
@@ -571,6 +741,8 @@ function directorySearchMatches(entry, search) {
 }
 
 function isDirectorySharedRootProject(project) {
+  const plan = currentDirectoryAutomationModel()?.isDirectorySharedRootProjectPlan?.(project);
+  if (plan !== undefined) return plan;
   const source = String(project?.source || "");
   return Boolean(project?.shared)
     || source === "hermes-web-shared-directory"
@@ -604,6 +776,8 @@ function directoryRootProjects() {
 }
 
 function directoryRootProjectLabel(project) {
+  const plan = currentDirectoryAutomationModel()?.directoryRootProjectLabelPlan?.(project);
+  if (plan !== undefined) return plan;
   if (project?.id === "sync") return "同步文件夹";
   if (project?.id === "download") return "下载";
   return projectDisplayLabel(project);
@@ -614,6 +788,8 @@ function renderDirectorySharedBadge(project) {
 }
 
 function isShareableRootProject(project) {
+  const plan = currentDirectoryAutomationModel()?.isShareableRootProjectPlan?.(project);
+  if (plan !== undefined) return plan;
   if (!project?.root || project.hidden || project.singleWindow || project.shared) return false;
   if (["general", "sync", "download"].includes(String(project.id || ""))) return false;
   const source = String(project.source || "");
@@ -624,6 +800,8 @@ function isShareableRootProject(project) {
 }
 
 function canDeleteDirectoryRootProject(project) {
+  const plan = currentDirectoryAutomationModel()?.canDeleteDirectoryRootProjectPlan?.(project);
+  if (plan !== undefined) return plan;
   if (!project?.root || project.hidden || project.singleWindow || project.shared) return false;
   if (["general", "sync", "download"].includes(String(project.id || ""))) return false;
   const source = String(project.source || "");

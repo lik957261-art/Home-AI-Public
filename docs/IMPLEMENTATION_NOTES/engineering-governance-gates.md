@@ -255,6 +255,8 @@ The maintained baseline diagnostics are:
 - `scripts/homeai-production-drift-audit-watchdog.sh`;
 - `scripts/macos-web-push-production-audit.js`;
 - `scripts/macos-worker-filesystem-access-harness.js`;
+- `scripts/macos-worker-filesystem-access-harness.js --workspace-catalog-targets`
+  for provisioned workspace target ACL smokes;
 - `scripts/macos-gateway-manifest-toolset-smoke.js`;
 - `scripts/gateway-tool-schema-smoke.js` for document/file tools callable
   schema (`docx_create`, `docx_extract_text`, `office_extract_text`,
@@ -403,6 +405,7 @@ The accepted production self-diagnostic evidence ids are:
 - `production-drift-watchdog`;
 - `web-push-production-audit`;
 - `worker-filesystem-access`;
+- `workspace-target-acl`;
 - `gateway-manifest-toolset`;
 - `gateway-document-file-tools-schema`;
 - `plugin-directory`;

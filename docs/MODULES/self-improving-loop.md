@@ -59,7 +59,7 @@ The current required signals are:
 | `gateway_profile_health` | Home AI Gateway | Production Gateway worker/profile status and worker policy health. |
 | `mcp_schema_closure` | Home AI Gateway/toolset | Plugin service schema, selected Gateway profile schema, and dispatcher registry agreement. |
 | `deploy_lane_liveness` | Home AI platform | Live configured Home AI deploy lane pool discovery for routine plugin deployments. |
-| `task_card_dispatch` | Home AI platform | Owner-gated real task-card dispatch and legacy `t_*` repair-card prevention. |
+| `task_card_dispatch` | Home AI platform | Owner-gated real task-card dispatch, stable duplicate suppression, Worker/deploy lane routing, return-card Watchdog visibility, and legacy `t_*` repair-card prevention. |
 | `plugin_proxy_latency` | Home AI plugin host | Host proxy latency gap and route-kind timing for embedded plugin requests. |
 | `composer_runtime_feedback` | Home AI static client | Terminal receipt gaps, duplicate local/server user echoes, stuck terminal active runs, and receipt scroll-protection bypasses. |
 | `media_preview_health` | Home AI media preview / native shell | PDF, Word, PPT, and generated-image preview/open/share fallback health. |
@@ -192,7 +192,11 @@ Production collection also runs first-class daily focus collectors for:
   but these Codex task-card targets are implementation-workspace threads; the
   collector therefore tries an explicit `--thread-cwd`, environment-provided
   source app root, the current app root, and the canonical implementation app
-  cwd before classifying a lane or audit thread as missing;
+  cwd before classifying a lane or audit thread as missing. The
+  `task_card_dispatch` signal also consumes bounded Autonomous Delivery
+  dispatch-control and delivery-loop summaries so duplicate-suppressed cases,
+  Worker-lane routing gaps, and stale return-card Watchdog rows are visible as
+  daily self-check evidence rather than repeated Owner approval prompts;
 - `plugin_manifest_health` and `plugin_proxy_latency`: authenticated Home AI
   host manifest/proxy probes for the current product-facing plugin set;
 - `gateway_document_tool_capability`: Gateway file-tool schema smoke when the
@@ -262,6 +266,12 @@ Diagnostic metadata for `system_resource_health` must include the selected
 memory percentage source, resident percentage, pressure free percentage, and
 pressure status so repair cards can distinguish real pressure from resident
 memory/cache accounting.
+
+Codex Mobile runtime RSS-only pressure follows the same pressure-aware rule:
+when host memory pressure and swap remain healthy, high resident RSS from known
+Codex Mobile roles is retained as warning evidence rather than a degraded H1.
+CPU-degraded Codex Mobile roles, degraded log size/growth, or unhealthy host
+memory pressure remain degraded and diagnostic-eligible.
 
 Evaluate bounded observations:
 

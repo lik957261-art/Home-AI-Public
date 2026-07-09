@@ -1,5 +1,35 @@
 "use strict";
 
+const PWA_PUSH_STATUS_ESM_MODEL_PATH = "/vite-islands/pwa-push-status-model/pwa-push-status-model.js";
+let pwaPushStatusLoadedEsmModel = null;
+let pwaPushStatusModelImportPromise = null;
+
+function currentPwaPushStatusModel() {
+  return pwaPushStatusLoadedEsmModel || null;
+}
+
+function importPwaPushStatusModel(rootRef = window) {
+  if (pwaPushStatusLoadedEsmModel) return Promise.resolve(pwaPushStatusLoadedEsmModel);
+  if (!pwaPushStatusModelImportPromise) {
+    const importer = typeof rootRef.__homeAiImportPwaPushStatusModel === "function"
+      ? rootRef.__homeAiImportPwaPushStatusModel
+      : (modulePath) => import(modulePath);
+    pwaPushStatusModelImportPromise = Promise.resolve()
+      .then(() => importer(PWA_PUSH_STATUS_ESM_MODEL_PATH))
+      .then((module) => {
+        pwaPushStatusLoadedEsmModel = module || null;
+        if (typeof renderClientVersion === "function") renderClientVersion();
+        if (typeof updatePwaInstallControls === "function") updatePwaInstallControls();
+        if (typeof updatePushButton === "function") updatePushButton();
+        return pwaPushStatusLoadedEsmModel;
+      })
+      .catch(() => null);
+  }
+  return pwaPushStatusModelImportPromise;
+}
+
+importPwaPushStatusModel().catch(() => null);
+
 function normalizeClientVersion(value) {
   return String(value || "").trim();
 }
@@ -17,8 +47,20 @@ function renderClientVersion() {
   if (!badge) return;
   const version = normalizeClientVersion(state.clientVersion);
   const serverVersion = normalizeClientVersion(state.serverClientVersion);
-  const clientRefreshAvailable = Boolean(version && serverVersion && serverVersion !== version);
   const update = state.appUpdate || {};
+  const plan = currentPwaPushStatusModel()?.clientVersionBadgePlan?.({
+    clientVersion: version,
+    serverClientVersion: serverVersion,
+    appUpdate: update,
+  });
+  if (plan) {
+    badge.textContent = plan.text || "";
+    badge.title = plan.title || "";
+    badge.classList.toggle("update-available", Boolean(plan.updateAvailable));
+    badge.toggleAttribute("data-update-available", Boolean(plan.updateAvailable));
+    return;
+  }
+  const clientRefreshAvailable = Boolean(version && serverVersion && serverVersion !== version);
   const updateAvailable = Boolean(update.updateAvailable);
   badge.textContent = clientRefreshAvailable ? "刷新" : (updateAvailable ? "更新" : (version ? `v${compactClientVersion(version)}` : ""));
   const pluginCount = Array.isArray(update.plugins) ? update.plugins.filter((plugin) => plugin?.updateAvailable).length : 0;

@@ -7,7 +7,46 @@
     root.HermesLearningGrowthTaskUi = factory();
   }
 }(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const LEARNING_GROWTH_TASK_MODEL_ESM_PATH = "/vite-islands/learning-growth-task-model/learning-growth-task-model.js";
+  let learningGrowthTaskModel = null;
+  let learningGrowthTaskModelPromise = null;
+
+  function importLearningGrowthTaskModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+    if (learningGrowthTaskModel) return Promise.resolve(learningGrowthTaskModel);
+    if (!learningGrowthTaskModelPromise) {
+      const importer = typeof rootRef.__homeAiImportLearningGrowthTaskModel === "function"
+        ? rootRef.__homeAiImportLearningGrowthTaskModel
+        : (path) => import(path);
+      learningGrowthTaskModelPromise = Promise.resolve()
+        .then(() => importer(LEARNING_GROWTH_TASK_MODEL_ESM_PATH))
+        .then((model) => {
+          learningGrowthTaskModel = model || null;
+          return learningGrowthTaskModel;
+        })
+        .catch((error) => {
+          learningGrowthTaskModelPromise = null;
+          throw error;
+        });
+    }
+    return learningGrowthTaskModelPromise;
+  }
+
+  function currentLearningGrowthTaskModel() {
+    return learningGrowthTaskModel;
+  }
+
+  function learningGrowthTaskModelFunction(name) {
+    const model = currentLearningGrowthTaskModel();
+    return model && typeof model[name] === "function" ? model[name] : null;
+  }
+
+  if (typeof window !== "undefined") {
+    importLearningGrowthTaskModel().catch(() => null);
+  }
+
   function taskModel(todo = {}) {
+    const modelFn = learningGrowthTaskModelFunction("taskModel");
+    if (modelFn) return modelFn(todo);
     const model = todo?.learningTaskModel || null;
     if (model && typeof model === "object") return model;
     const summary = todo?.learningGrowthTaskModel || null;
@@ -15,6 +54,8 @@
   }
 
   function activityLabel(value) {
+    const modelFn = learningGrowthTaskModelFunction("activityLabel");
+    if (modelFn) return modelFn(value);
     const activity = String(value || "").trim();
     if (activity === "writing") return "\u5199\u4f5c";
     if (activity === "reading") return "\u9605\u8bfb";
@@ -30,6 +71,8 @@
   }
 
   function nextActionLabel(action) {
+    const modelFn = learningGrowthTaskModelFunction("nextActionLabel");
+    if (modelFn) return modelFn(action);
     const value = String(action || "").trim();
     if (value === "submit_first_attempt") return "\u63d0\u4ea4\u7b2c\u4e00\u6b21\u4f5c\u7b54";
     if (value === "wait_for_feedback") return "\u7b49\u5f85 AI \u6279\u6539";
@@ -41,6 +84,8 @@
   }
 
   function submissionPrompt(evaluation = {}, todo = {}) {
+    const modelFn = learningGrowthTaskModelFunction("submissionPrompt");
+    if (modelFn) return modelFn(evaluation, todo);
     const nextStep = String(evaluation.nextStep || "");
     if (nextStep === "rewrite_and_reflect") return "\u6309 AI \u6279\u6539\u5199\u4e0b\u4fee\u6539\u540e\u7684\u7248\u672c\uff0c\u4fdd\u7559\u660e\u663e\u4fee\u6539\uff0c\u7136\u540e\u63d0\u4ea4\u3002";
     if (nextStep === "revise_and_resubmit") return "\u6309\u6279\u6539\u62a5\u544a\u518d\u6539\u4e00\u7248\uff0c\u7136\u540e\u63d0\u4ea4\u3002";
@@ -71,12 +116,16 @@
     weekly_challenge: Object.freeze({ minWords: 80, minChars: 450 }),
   });
 
-  function positiveInt(value, fallback) {
+  function positiveInt(value, defaultValue) {
+    const modelFn = learningGrowthTaskModelFunction("positiveInt");
+    if (modelFn) return modelFn(value, defaultValue);
     const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : defaultValue;
   }
 
   function submissionStage(evaluation = {}, todo = {}) {
+    const modelFn = learningGrowthTaskModelFunction("submissionStage");
+    if (modelFn) return modelFn(evaluation, todo);
     const explicit = String(evaluation.stage || evaluation.submissionStage || todo?.learningGrowthSubmissionStage || "").trim().toLowerCase();
     if (["final", "rewrite", "revision", "resubmission"].includes(explicit)) return "final";
     if (["draft", "first_draft", "initial"].includes(explicit)) return "draft";
@@ -86,6 +135,8 @@
   }
 
   function submissionGuard(modelOrTodo = {}, evaluation = {}) {
+    const modelFn = learningGrowthTaskModelFunction("submissionGuard");
+    if (modelFn) return modelFn(modelOrTodo, evaluation);
     const model = taskModel(modelOrTodo) || (modelOrTodo && typeof modelOrTodo === "object" ? modelOrTodo : {});
     const activity = String(model.activityType || "").trim().toLowerCase();
     const base = DEFAULT_SUBMISSION_GUARDS[activity] || DEFAULT_SUBMISSION_GUARDS.default;
@@ -101,6 +152,8 @@
   }
 
   function submissionTextStats(text) {
+    const modelFn = learningGrowthTaskModelFunction("submissionTextStats");
+    if (modelFn) return modelFn(text);
     const value = String(text || "").trim();
     const words = value.match(/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g) || [];
     return {
@@ -110,6 +163,8 @@
   }
 
   function validateSubmissionText(text, guard = {}) {
+    const modelFn = learningGrowthTaskModelFunction("validateSubmissionText");
+    if (modelFn) return modelFn(text, guard);
     const stats = submissionTextStats(text);
     const minWords = positiveInt(guard.minWords, 0);
     const minChars = positiveInt(guard.minChars, 0);
@@ -123,6 +178,8 @@
   }
 
   function submissionRequirementLabel(guard = {}, stats = null) {
+    const modelFn = learningGrowthTaskModelFunction("submissionRequirementLabel");
+    if (modelFn) return modelFn(guard, stats);
     const minWords = positiveInt(guard.minWords, 0);
     const minChars = positiveInt(guard.minChars, 0);
     const prefix = `\u81f3\u5c11 ${minWords} \u4e2a\u82f1\u6587\u8bcd / ${minChars} \u4e2a\u6709\u6548\u5b57\u7b26`;
@@ -137,6 +194,8 @@
   }
 
   function canWithdrawSubmission(submitted = {}, todo = {}, evaluation = {}) {
+    const modelFn = learningGrowthTaskModelFunction("canWithdrawSubmission");
+    if (modelFn) return modelFn(submitted, todo, evaluation);
     const submittedAt = Date.parse(submitted.submittedAt || todo?.learningGrowthSubmissionAt || "");
     if (!Number.isFinite(submittedAt)) return false;
     const reward = evaluation.reward || {};
@@ -151,6 +210,8 @@
   }
 
   function reportHistory(todo = {}, evaluation = {}) {
+    const modelFn = learningGrowthTaskModelFunction("reportHistory");
+    if (modelFn) return modelFn(todo, evaluation);
     const raw = Array.isArray(evaluation.reportHistory) && evaluation.reportHistory.length
       ? evaluation.reportHistory
       : (Array.isArray(todo.learningGrowthReportHistory) && todo.learningGrowthReportHistory.length ? todo.learningGrowthReportHistory : []);
@@ -167,6 +228,8 @@
   }
 
   function outcomeText(evaluation = {}, interactionState = {}) {
+    const modelFn = learningGrowthTaskModelFunction("outcomeText");
+    if (modelFn) return modelFn(evaluation, interactionState);
     const status = String(evaluation.status || "").trim();
     const nextStep = String(evaluation.nextStep || interactionState.nextStep || "").trim();
     const passLine = Number(evaluation.finalPassingScore || evaluation.passingScore || interactionState.finalPassingScore || 80) || 80;
@@ -200,6 +263,8 @@
   }
 
   function deterministicScoreText(evaluation = {}) {
+    const modelFn = learningGrowthTaskModelFunction("deterministicScoreText");
+    if (modelFn) return modelFn(evaluation);
     const score = Number(evaluation.score);
     if (!Number.isFinite(score)) return "\u672a\u8fd4\u56de\u786e\u5b9a\u5206\u6570";
     const maxScore = Number(evaluation.maxScore || evaluation.totalScore || 100);
@@ -210,16 +275,19 @@
   }
 
   function renderFeedbackHistory(todo = {}, evaluation = {}) {
-    const outcome = outcomeText(evaluation, todo.learningGrowthInteractionState || {});
-    const history = reportHistory(todo, evaluation);
+    const plan = learningGrowthTaskModelFunction("feedbackHistoryPlan")?.(todo, evaluation) || null;
+    const outcome = plan?.outcome || outcomeText(evaluation, todo.learningGrowthInteractionState || {});
+    const history = plan?.history || reportHistory(todo, evaluation);
     const renderer = typeof globalThis !== "undefined" && typeof globalThis.renderKanbanOutputLinks === "function" ? globalThis.renderKanbanOutputLinks : null;
     const links = history.length ? (renderer ? renderer(history, "todo-detail-outputs compact todo-learning-growth-report-history-links") : `<div class="todo-detail-outputs compact todo-learning-growth-report-history-links">${history.map((item) => `<span>${escapeHtmlLocal(item.name || "\u6279\u6539\u6587\u4ef6")}</span>`).join("")}</div>`) : "";
-    const count = history.length ? `<span>${escapeHtmlLocal(`${history.length} \u6b21\u6279\u6539`)}</span>` : "";
-    const score = deterministicScoreText(evaluation);
+    const count = history.length ? `<span>${escapeHtmlLocal(plan?.historyCountLabel || `${history.length} \u6b21\u6279\u6539`)}</span>` : "";
+    const score = plan?.scoreText || deterministicScoreText(evaluation);
     return `<div class="todo-learning-growth-outcome is-${escapeHtmlLocal(outcome.kind)}"><div class="todo-learning-growth-outcome-head"><strong>${escapeHtmlLocal(outcome.title)}</strong><span class="todo-learning-growth-score-pill" data-learning-growth-feedback-score>${escapeHtmlLocal(score)}</span></div><p>${escapeHtmlLocal(outcome.body)}</p></div>${history.length ? `<div class="todo-learning-growth-report-history"><div class="todo-learning-growth-report-history-head"><strong>${escapeHtmlLocal("\u6279\u6539\u5386\u53f2")}</strong>${count}</div>${links}</div>` : ""}`;
   }
 
   function growthCardRole(task = {}) {
+    const modelFn = learningGrowthTaskModelFunction("growthCardRole");
+    if (modelFn) return modelFn(task);
     const role = String(task.cardRole || task.card_role || task.learningGrowthCardRole || "").trim().toLowerCase().replace(/[-\s]+/g, "_");
     if (role === "teaching" || role === "practice" || role === "integration_practice" || role === "stage_assessment") return role;
     const type = String(task.taskCardType || task.task_card_type || task.taskModel?.taskCardType || "").trim().toLowerCase();
@@ -229,10 +297,14 @@
   }
 
   function isTeachingCardRole(role) {
+    const modelFn = learningGrowthTaskModelFunction("isTeachingCardRole");
+    if (modelFn) return modelFn(role);
     return role === "teaching" || role === "practice" || role === "integration_practice";
   }
 
   function growthCardRoleLabel(role) {
+    const modelFn = learningGrowthTaskModelFunction("growthCardRoleLabel");
+    if (modelFn) return modelFn(role);
     if (role === "teaching") return "教学卡";
     if (role === "practice") return "练习卡";
     if (role === "integration_practice") return "综合练习";
@@ -241,6 +313,8 @@
   }
 
   function teachingFlow(task = {}) {
+    const modelFn = learningGrowthTaskModelFunction("teachingFlow");
+    if (modelFn) return modelFn(task);
     const flow = task.teachingFlow && typeof task.teachingFlow === "object" ? task.teachingFlow : {};
     const model = task.taskModel && typeof task.taskModel === "object" ? task.taskModel : {};
     const lesson = flow.lesson && typeof flow.lesson === "object" ? flow.lesson : {};
@@ -277,6 +351,91 @@
         instruction: quick.instruction || quick.prompt || "用 1-3 句话说明你刚才学会了什么，或者写一个最小答案。",
         completionCriteria: criteria.slice(0, 5),
       },
+    };
+  }
+
+  function experienceSignalActionsPlan(task = {}, state = {}) {
+    const modelFn = learningGrowthTaskModelFunction("experienceSignalActionsPlan");
+    if (modelFn) return modelFn(task, state);
+    const cardId = String(task.taskCardId || task.id || "");
+    if (String(task.status || "").trim().toLowerCase() !== "completed") {
+      return { show: false, cardId, selected: "", busy: "", locked: false, actions: [] };
+    }
+    const summary = task.experienceSummary && typeof task.experienceSummary === "object" ? task.experienceSummary : {};
+    const submitted = state.learningGrowthExperienceSignalSubmitted?.[cardId] || "";
+    const busy = state.learningGrowthExperienceSignalBusy?.[cardId] || "";
+    const selected = String(summary.latestSignalType || submitted || "").trim();
+    const locked = Boolean(selected || busy);
+    return {
+      show: true,
+      cardId,
+      selected,
+      busy,
+      locked,
+      actions: [
+        { type: "too_easy", label: "太简单", isPending: busy === "too_easy", isSelected: selected === "too_easy" || busy === "too_easy" },
+        { type: "right_level", label: "正合适", isPending: busy === "right_level", isSelected: selected === "right_level" || busy === "right_level" },
+        { type: "too_hard", label: "有点难", isPending: busy === "too_hard", isSelected: selected === "too_hard" || busy === "too_hard" },
+      ],
+    };
+  }
+
+  function teachingFeedbackPlan(task = {}, state = {}) {
+    const modelFn = learningGrowthTaskModelFunction("teachingFeedbackPlan");
+    if (modelFn) return modelFn(task, state);
+    const summary = task.experienceSummary || {};
+    const reward = Number(task.learningGrowthRewardCoins || task.latestRewardSettlement?.coinAmount || task.rewardPolicy?.maxCoins || 0) || 0;
+    const completed = String(task.status || "").trim().toLowerCase() === "completed";
+    return {
+      show: completed || Boolean(summary.latestAt || summary.lastCompletionAt),
+      completed,
+      reward,
+      title: completed ? "本卡已完成" : "学习反馈已记录",
+      body: reward ? `奖励 ${reward} 金币；这张卡只作为低压力学习证据，不当作正式能力测验。` : "这张卡只作为低压力学习证据，不当作正式能力测验。",
+      experiencePrompt: completed ? "\u5b8c\u6210\u540e\uff0c\u9009\u4e00\u4e2a\u611f\u53d7\uff0c\u5e2e\u6211\u4e0b\u6b21\u628a\u96be\u5ea6\u8c03\u5f97\u66f4\u5408\u9002\u3002" : "",
+      experienceActions: experienceSignalActionsPlan(task, state),
+    };
+  }
+
+  function teachingCardDetailPlan(task = {}, options = {}) {
+    const modelFn = learningGrowthTaskModelFunction("teachingCardDetailPlan");
+    if (modelFn) return modelFn(task, options);
+    const cardId = String(task.taskCardId || task.id || "");
+    const state = options.state || {};
+    const completed = String(task.status || "").trim().toLowerCase() === "completed";
+    const role = growthCardRole(task);
+    return {
+      cardId,
+      role,
+      roleLabel: growthCardRoleLabel(role),
+      flow: teachingFlow(task),
+      state,
+      draft: Object.assign({}, state.learningGrowthTeachingDrafts?.[cardId] || {}),
+      step: state.learningGrowthTeachingStepByCardId?.[cardId] || (completed ? "quick_check" : "lesson"),
+      busy: Boolean(state.learningGrowthTeachingCheckBusy?.[cardId]),
+      duration: task.expectedDurationMinutes || {},
+      reward: Number(task.rewardPolicy?.maxCoins || task.configuredRewardCoins || task.defaultRewardCoins || 100) || 100,
+      completed,
+      feedback: teachingFeedbackPlan(task, state),
+    };
+  }
+
+  function learningGrowthTaskSubmissionPlan(input = {}) {
+    const modelFn = learningGrowthTaskModelFunction("learningGrowthTaskSubmissionPlan");
+    if (modelFn) return modelFn(input);
+    const todo = input.todo || {};
+    const evaluation = input.evaluation || {};
+    const text = input.text || "";
+    const guard = submissionGuard(todo, evaluation);
+    const stats = submissionTextStats(text);
+    return {
+      taskModel: taskModel(todo),
+      prompt: submissionPrompt(evaluation, todo),
+      guard,
+      stats,
+      validation: validateSubmissionText(text, guard),
+      requirementLabel: submissionRequirementLabel(guard, stats),
+      nextActionLabel: nextActionLabel(evaluation.nextAction || evaluation.nextStep || ""),
     };
   }
 
@@ -342,50 +501,36 @@
   }
 
   function renderTeachingFeedbackSection(task = {}, state = {}) {
-    const summary = task.experienceSummary || {};
-    const reward = Number(task.learningGrowthRewardCoins || task.latestRewardSettlement?.coinAmount || task.rewardPolicy?.maxCoins || 0) || 0;
-    const completed = String(task.status || "").trim().toLowerCase() === "completed";
-    if (!completed && !summary.latestAt && !summary.lastCompletionAt) return "";
+    const plan = teachingFeedbackPlan(task, state);
+    if (!plan.show) return "";
     return `<section class="learning-growth-teaching-feedback" data-learning-growth-teaching-feedback>
-      <strong>${escapeHtmlLocal(completed ? "本卡已完成" : "学习反馈已记录")}</strong>
-      <p>${escapeHtmlLocal(reward ? `奖励 ${reward} 金币；这张卡只作为低压力学习证据，不当作正式能力测验。` : "这张卡只作为低压力学习证据，不当作正式能力测验。")}</p>
-      ${completed ? `<p class="learning-growth-experience-prompt">${escapeHtmlLocal("\u5b8c\u6210\u540e\uff0c\u9009\u4e00\u4e2a\u611f\u53d7\uff0c\u5e2e\u6211\u4e0b\u6b21\u628a\u96be\u5ea6\u8c03\u5f97\u66f4\u5408\u9002\u3002")}</p>${renderExperienceSignalActions(task, state)}` : ""}
+      <strong>${escapeHtmlLocal(plan.title)}</strong>
+      <p>${escapeHtmlLocal(plan.body)}</p>
+      ${plan.completed ? `<p class="learning-growth-experience-prompt">${escapeHtmlLocal(plan.experiencePrompt)}</p>${renderExperienceSignalActions(task, state)}` : ""}
     </section>`;
   }
 
   function renderExperienceSignalActions(task = {}, state = {}) {
-    const cardId = String(task.taskCardId || task.id || "");
-    if (String(task.status || "").trim().toLowerCase() !== "completed") return "";
-    const summary = task.experienceSummary && typeof task.experienceSummary === "object" ? task.experienceSummary : {};
-    const submitted = state.learningGrowthExperienceSignalSubmitted?.[cardId] || "";
-    const busy = state.learningGrowthExperienceSignalBusy?.[cardId] || "";
-    const selected = String(summary.latestSignalType || submitted || "").trim();
-    const locked = Boolean(selected || busy);
-    const actions = [
-      ["too_easy", "太简单"],
-      ["right_level", "正合适"],
-      ["too_hard", "有点难"],
-    ];
-    return `<div class="learning-growth-experience-actions" data-learning-growth-experience-actions="${escapeHtmlLocal(cardId)}">
-      ${actions.map(([type, label]) => {
-        const isPending = busy === type;
-        const isSelected = selected === type || isPending;
-        return `<button type="button" class="${isSelected ? "is-selected" : ""}${isPending ? " is-pending" : ""}" data-learning-growth-experience-signal="${escapeHtmlLocal(cardId)}" data-signal-type="${escapeHtmlLocal(type)}" aria-pressed="${isSelected ? "true" : "false"}" ${locked ? "disabled" : ""}>${escapeHtmlLocal(isPending ? "记录中" : label)}</button>`;
+    const plan = experienceSignalActionsPlan(task, state);
+    if (!plan.show) return "";
+    return `<div class="learning-growth-experience-actions" data-learning-growth-experience-actions="${escapeHtmlLocal(plan.cardId)}">
+      ${plan.actions.map((action) => {
+        return `<button type="button" class="${action.isSelected ? "is-selected" : ""}${action.isPending ? " is-pending" : ""}" data-learning-growth-experience-signal="${escapeHtmlLocal(plan.cardId)}" data-signal-type="${escapeHtmlLocal(action.type)}" aria-pressed="${action.isSelected ? "true" : "false"}" ${plan.locked ? "disabled" : ""}>${escapeHtmlLocal(action.isPending ? "记录中" : action.label)}</button>`;
       }).join("")}
     </div>`;
   }
 
   function renderTeachingCardDetail(task = {}, options = {}) {
-    const cardId = String(task.taskCardId || task.id || "");
-    const role = growthCardRole(task);
-    const flow = teachingFlow(task);
-    const state = options.state || {};
-    const draft = Object.assign({}, state.learningGrowthTeachingDrafts?.[cardId] || {});
-    const step = state.learningGrowthTeachingStepByCardId?.[cardId]
-      || (String(task.status || "").trim().toLowerCase() === "completed" ? "quick_check" : "lesson");
-    const busy = Boolean(state.learningGrowthTeachingCheckBusy?.[cardId]);
-    const duration = task.expectedDurationMinutes || {};
-    const reward = Number(task.rewardPolicy?.maxCoins || task.configuredRewardCoins || task.defaultRewardCoins || 100) || 100;
+    const plan = teachingCardDetailPlan(task, options);
+    const cardId = plan.cardId;
+    const role = plan.role;
+    const flow = plan.flow;
+    const state = plan.state || {};
+    const draft = plan.draft || {};
+    const step = plan.step;
+    const busy = Boolean(plan.busy);
+    const duration = plan.duration || {};
+    const reward = Number(plan.reward || 100) || 100;
     return `<section class="learning-growth-answer-card learning-growth-card-detail-shell learning-growth-teaching-card" data-learning-growth-answer-card data-learning-growth-teaching-card="${escapeHtmlLocal(cardId)}" data-learning-growth-card-role="${escapeHtmlLocal(role)}" data-learning-executable-task-id="${escapeHtmlLocal(cardId)}">
       <div class="learning-growth-card-detail-hero learning-growth-teaching-hero">
         <div class="learning-growth-teaching-head learning-growth-card-detail-head">
@@ -403,22 +548,39 @@
   }
 
   return {
+    LEARNING_GROWTH_TASK_MODEL_ESM_PATH,
     activityLabel,
     canWithdrawSubmission,
+    currentLearningGrowthTaskModel,
+    deterministicScoreText,
+    experienceSignalActionsPlan,
+    feedbackHistoryPlan: (todo, evaluation) => learningGrowthTaskModelFunction("feedbackHistoryPlan")?.(todo, evaluation) || {
+      outcome: outcomeText(evaluation, todo?.learningGrowthInteractionState || {}),
+      history: reportHistory(todo, evaluation),
+      historyCountLabel: reportHistory(todo, evaluation).length ? `${reportHistory(todo, evaluation).length} \u6b21\u6279\u6539` : "",
+      scoreText: deterministicScoreText(evaluation),
+    },
     growthCardRole,
+    growthCardRoleLabel,
+    importLearningGrowthTaskModel,
     isTeachingCardRole,
+    learningGrowthTaskSubmissionPlan,
+    nextActionLabel,
+    outcomeText,
     renderFeedbackHistory,
     renderGrowthCardRoleBadge,
     renderLearningGrowthCardShareButton,
     renderTeachingCardDetail,
     reportHistory,
-    nextActionLabel,
     submissionGuard,
     submissionPrompt,
     submissionRequirementLabel,
     submissionStage,
     submissionTextStats,
     taskModel,
+    teachingCardDetailPlan,
+    teachingFeedbackPlan,
+    teachingFlow,
     validateSubmissionText,
   };
 }));

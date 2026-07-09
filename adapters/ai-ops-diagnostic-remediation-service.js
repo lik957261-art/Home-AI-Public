@@ -23,8 +23,8 @@ const DEFAULT_PLUGIN_TARGETS = Object.freeze({
   }),
   music: Object.freeze({
     label: "Music",
-    targetThreadId: "019ef42b-2cb8-7332-ab17-033ec5b48947",
-    targetThreadTitle: "Music 06-23",
+    targetThreadId: "019f1b35-25df-7941-9398-e4172a04fc88",
+    targetThreadTitle: "Music",
     targetWorkspace: "/Users/example/path",
   }),
   growth: Object.freeze({
@@ -52,8 +52,8 @@ const DEFAULT_PLUGIN_TARGETS = Object.freeze({
   }),
   moira: Object.freeze({
     label: "Moira",
-    targetThreadId: "019ec3c0-86d2-7852-a9ea-e4c703262cdc",
-    targetThreadTitle: "星盘 06-14",
+    targetThreadId: "019eee78-681b-7db0-b314-aafc85f624cd",
+    targetThreadTitle: "星盘 06-22",
     targetWorkspace: "/Users/example/path",
   }),
   movie: Object.freeze({
@@ -66,6 +66,7 @@ const DEFAULT_PLUGIN_TARGETS = Object.freeze({
     label: "Home AI",
     sourceThreadTitle: HOME_AI_TASK_INTAKE_THREAD_TITLE,
     sourceThreadTitlePrefix: HOME_AI_TASK_INTAKE_THREAD_TITLE,
+    replyToThreadTitlePrefix: "Home AI",
     targetThreadTitlePrefix: "Home AI",
     targetWorkspace: APP_WORKSPACE,
   }),
@@ -73,13 +74,13 @@ const DEFAULT_PLUGIN_TARGETS = Object.freeze({
     label: "Home AI",
     sourceThreadTitle: HOME_AI_TASK_INTAKE_THREAD_TITLE,
     sourceThreadTitlePrefix: HOME_AI_TASK_INTAKE_THREAD_TITLE,
+    replyToThreadTitlePrefix: "Home AI",
     targetThreadTitlePrefix: "Home AI",
     targetWorkspace: APP_WORKSPACE,
   }),
   "codex-mobile": Object.freeze({
     label: "Codex Mobile Web",
-    targetThreadId: "019eee6c-a6f5-7b20-bfb4-f96ccb6431b3",
-    targetThreadTitle: "codex mobile 06-22",
+    targetThreadTitlePrefix: "codex mobile",
     targetWorkspace: "/Users/example/path",
   }),
 });
@@ -88,12 +89,14 @@ const HOME_AI_TARGET = Object.freeze({
   label: "Home AI",
   sourceThreadTitle: HOME_AI_TASK_INTAKE_THREAD_TITLE,
   sourceThreadTitlePrefix: HOME_AI_TASK_INTAKE_THREAD_TITLE,
+  replyToThreadTitlePrefix: "Home AI",
   targetThreadTitlePrefix: "Home AI",
   targetWorkspace: APP_WORKSPACE,
 });
 
 const HOME_AI_OWNED_RE = /gateway|toolset|mcp|schema|workspace.?binding|grant|provision|host.?proxy|same.?origin|launch.?token|plugin.?manifest|static.?cache|service.?worker|embedded.?shell|iframe.?host|authorization|permission/i;
 const HIGH_RISK_RE = /physical|device.?control|projector|shutter|power.?off|delete|destructive|migration|payment|credential|secret|key.?rotation/i;
+const OWNER_GATED_REQUEST_RE = /capability.?gap|feature.?request|user.?request|owner.?request|approval.?request|manual.?approval|deploy.?request|deployment.?request|release.?readiness|release.?gate|cutover|public.?release|product.?request|conversation.?repair/i;
 
 function cleanString(value, maxLength = 240) {
   return String(value == null ? "" : value)
@@ -167,6 +170,26 @@ function isSelfCheckDiagnosticCase(caseRecord = {}) {
     && cleanString(caseRecord?.source_surface || caseRecord?.sourceSurface, 120) === "home-ai-self-check"
     && cleanString(caseRecord?.diagnostic_type || caseRecord?.diagnosticType, 160) === "self_check_signal_failed"
     && cleanString(caseRecord?.category, 160).startsWith("self_check_");
+}
+
+function ownerGatedRequestText(caseRecord = {}) {
+  return [
+    caseRecord?.source_surface || caseRecord?.sourceSurface,
+    caseRecord?.diagnostic_type || caseRecord?.diagnosticType,
+    caseRecord?.category,
+    caseRecord?.summary,
+    caseRecord?.route,
+  ].map((item) => cleanString(item, 240)).join(" ");
+}
+
+function isOwnerGatedDiagnosticRequest(caseRecord = {}) {
+  return OWNER_GATED_REQUEST_RE.test(ownerGatedRequestText(caseRecord));
+}
+
+function dispatchPolicyForCase(caseRecord = {}) {
+  if (isSelfCheckDiagnosticCase(caseRecord)) return "auto_self_check";
+  if (isOwnerGatedDiagnosticRequest(caseRecord)) return "owner_gated";
+  return "auto_diagnostic";
 }
 
 function owningLayerForCase(caseRecord) {
@@ -299,13 +322,17 @@ function buildDiagnosticRemediationPlan(input = {}) {
   const targetInfo = targetForLayer(caseRecord, input.targets || {});
   const eligibility = remediationEligible(caseRecord, events);
   const reasoningEffort = severityRank(packet.severity) >= severityRank("H2") ? "xhigh" : "high";
-  const autoDispatchEligible = eligibility.eligible && isSelfCheckDiagnosticCase(caseRecord);
+  const dispatchPolicy = eligibility.eligible ? dispatchPolicyForCase(caseRecord) : "owner_gated";
+  const autoDispatchEligible = eligibility.eligible && dispatchPolicy !== "owner_gated";
   const taskCard = targetInfo.target ? {
     title: taskTitle(packet, targetInfo),
     summary: taskSummary(packet, targetInfo),
     body: taskBody(packet, targetInfo, input),
     sourceThreadTitle: targetInfo.target.sourceThreadTitle,
     sourceThreadTitlePrefix: targetInfo.target.sourceThreadTitlePrefix,
+    replyToThreadId: targetInfo.target.replyToThreadId,
+    replyToThreadTitle: targetInfo.target.replyToThreadTitle,
+    replyToThreadTitlePrefix: targetInfo.target.replyToThreadTitlePrefix,
     targetThreadId: targetInfo.target.targetThreadId,
     targetThreadTitle: targetInfo.target.targetThreadTitle,
     targetThreadTitlePrefix: targetInfo.target.targetThreadTitlePrefix,
@@ -331,7 +358,7 @@ function buildDiagnosticRemediationPlan(input = {}) {
       returnCardRequired: true,
       executeAutomatically: autoDispatchEligible,
       ownerApprovalRequired: !autoDispatchEligible,
-      policy: autoDispatchEligible ? "auto_self_check" : "owner_gated",
+      policy: dispatchPolicy,
     } : null,
   };
 }
@@ -340,7 +367,9 @@ module.exports = {
   DEFAULT_PLUGIN_TARGETS,
   HOME_AI_TARGET,
   buildDiagnosticRemediationPlan,
+  dispatchPolicyForCase,
   evidencePacket,
+  isOwnerGatedDiagnosticRequest,
   isSelfCheckDiagnosticCase,
   owningLayerForCase,
   remediationEligible,

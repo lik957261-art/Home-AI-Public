@@ -5,7 +5,11 @@ const {
   DEEPSEEK_PROVIDER,
   DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES,
   DEEPSEEK_WORKER_PROFILES,
+  DEFAULT_MOA_MODEL,
   GROK_PROVIDER,
+  MOA_OWNER_MAINTENANCE_WORKER_PROFILES,
+  MOA_PROVIDER,
+  OPENAI_CODEX_PROVIDER,
   modelLooksLikeDeepSeek,
   modelLooksLikeGrok,
   resolveGatewayModelRoute,
@@ -79,6 +83,25 @@ function testDeepSeekOwnerMaintenanceRoutesThroughHighPermissionProfile() {
   });
 }
 
+function testMoaRoutesThroughOwnerMaintenanceOpenAiProfile() {
+  const result = resolveGatewayModelRoute({ model: "default", provider: "moa" });
+  assert.equal(result.ok, true);
+  assert.equal(result.route.model, DEFAULT_MOA_MODEL);
+  assert.equal(result.route.provider, MOA_PROVIDER);
+  assert.deepEqual(result.route.gatewayRouting, {
+    provider: OPENAI_CODEX_PROVIDER,
+    securityLevel: "owner-maintenance",
+    maintenance: true,
+    allowMaintenance: true,
+    preferred_worker_profiles: MOA_OWNER_MAINTENANCE_WORKER_PROFILES,
+  });
+  assert.deepEqual(MOA_OWNER_MAINTENANCE_WORKER_PROFILES, ["officialclean1"]);
+
+  const unsupported = resolveGatewayModelRoute({ model: "experimental", provider: "moa" });
+  assert.equal(unsupported.ok, false);
+  assert.equal(unsupported.code, "unsupported_moa_model");
+}
+
 function testNaturalLanguageGrokRequestOverridesDefaultModelRoute() {
   assert.equal(textRequestsGrokModel("请使用 Grok 回答这个问题"), true);
   assert.equal(textRequestsGrokModel("用Grok分析一下"), true);
@@ -104,5 +127,6 @@ testGrokModelInfersProviderButRejectsUnsupportedNames();
 testDefaultModelDoesNotForceProviderRoute();
 testDeepSeekRoutesThroughDirectProviderWorkerProfile();
 testDeepSeekOwnerMaintenanceRoutesThroughHighPermissionProfile();
+testMoaRoutesThroughOwnerMaintenanceOpenAiProfile();
 testNaturalLanguageGrokRequestOverridesDefaultModelRoute();
 console.log("gateway-model-routing-service tests passed");

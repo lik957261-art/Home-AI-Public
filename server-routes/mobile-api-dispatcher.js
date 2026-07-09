@@ -1,6 +1,7 @@
 "use strict";
 
 const EMBEDDED_PLUGIN_PROXY_PATH_REGEX = /^\/api\/hermes-plugins\/[^/]+\/proxy(?:\/|$)/;
+const REMOTE_MANAGED_WORKSPACE_PATH_REGEX = /^\/api\/remote-managed-workspaces(?:\/|$)/;
 const PRE_AUTH_SYSTEM_PATHS = Object.freeze(new Set([
   "/api/client-version",
 ]));
@@ -12,6 +13,7 @@ const MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE = Object.freeze([
   Object.freeze({ key: "systemApiRoutes", passAuth: false }),
   Object.freeze({ key: "ownerElevationApiRoutes", passAuth: false }),
   Object.freeze({ key: "ownerSystemConsoleApiRoutes", passAuth: false }),
+  Object.freeze({ key: "workspaceConsoleApiRoutes", passAuth: false }),
   Object.freeze({ key: "runtimeConfigApiRoutes", passAuth: false }),
   Object.freeze({ key: "pushApiRoutes", passAuth: false }),
   Object.freeze({ key: "nativeDeviceApiRoutes", passAuth: false }),
@@ -26,6 +28,8 @@ const MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE = Object.freeze([
   Object.freeze({ key: "resourceApiRoutes", passAuth: true }),
   Object.freeze({ key: "hermesPluginApiRoutes", passAuth: true }),
   Object.freeze({ key: "codexMobileRecoveryApiRoutes", passAuth: true }),
+  Object.freeze({ key: "pluginDailyProgressRollupApiRoutes", passAuth: true }),
+  Object.freeze({ key: "remoteManagedWorkspaceApiRoutes", passAuth: true }),
   Object.freeze({ key: "pluginTopicApiRoutes", passAuth: true }),
   Object.freeze({ key: "pluginTopicContextApiRoutes", passAuth: true }),
   Object.freeze({ key: "pluginTopicUsageApiRoutes", passAuth: true }),
@@ -141,6 +145,11 @@ function createMobileApiDispatcher(deps = {}) {
       if (routeWasHandled(nativePolicyResult)) return nativePolicyResult;
     }
 
+    if (REMOTE_MANAGED_WORKSPACE_PATH_REGEX.test(url.pathname) && deps.remoteManagedWorkspaceApiRoutes?.handleNode) {
+      const remoteManagedWorkspaceResult = await deps.remoteManagedWorkspaceApiRoutes.handleNode(req, res, url);
+      if (routeWasHandled(remoteManagedWorkspaceResult)) return remoteManagedWorkspaceResult;
+    }
+
     const auth = authenticateRequest(req);
     if (!auth.ok) {
       sendJson(res, 401, { error: "Unauthorized" });
@@ -175,5 +184,6 @@ module.exports = {
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,
   PRE_AUTH_SYSTEM_PATHS,
   PRE_AUTH_NATIVE_IOS_SHELL_PATHS,
+  REMOTE_MANAGED_WORKSPACE_PATH_REGEX,
   createMobileApiDispatcher,
 };

@@ -152,6 +152,24 @@ function createThreadReadUploadApiRoutes(deps = {}) {
   const threadMessageSearchLimit = Math.max(10, Number(deps.threadMessageSearchLimit || 120) || 120);
   const maxUploadBytes = Math.max(1, Number(deps.maxUploadBytes || 100 * 1024 * 1024) || 100 * 1024 * 1024);
 
+  function publicUploadArtifact(artifact = {}) {
+    const source = artifact && typeof artifact === "object" ? artifact : {};
+    const id = String(source.id || source.artifactId || "");
+    const name = String(source.name || source.filename || "upload.bin");
+    const mime = String(source.mime || source.type || "");
+    const size = Number(source.size || source.sizeBytes || 0);
+    return {
+      id,
+      name,
+      filename: String(source.filename || name),
+      mime,
+      type: String(source.type || mime),
+      size: Number.isFinite(size) && size > 0 ? size : 0,
+      url: String(source.url || (id ? `/api/artifacts/${encodeURIComponent(id)}` : "")),
+      workspaceId: String(source.workspaceId || ""),
+    };
+  }
+
   async function handleThreadsList(req, res, url) {
     deps.pruneEmptyThreads();
     const workspaceId = url.searchParams.get("workspaceId") || "";
@@ -305,7 +323,7 @@ function createThreadReadUploadApiRoutes(deps = {}) {
     deps.writeFileSync(filePath, buffer);
     const artifact = deps.registerUploadArtifact(thread, null, filePath, filename, { workspaceId: uploadTarget.workspaceId });
     deps.saveState();
-    deps.sendJson(res, 201, { artifact });
+    deps.sendJson(res, 201, { artifact: publicUploadArtifact(artifact) });
   }
 
   async function handleServerFileAttachment(req, res, url) {
@@ -359,7 +377,7 @@ function createThreadReadUploadApiRoutes(deps = {}) {
       { workspaceId },
     );
     deps.saveState();
-    deps.sendJson(res, 201, { artifact });
+    deps.sendJson(res, 201, { artifact: publicUploadArtifact(artifact) });
   }
 
   async function handle(req, res, url, context = {}) {

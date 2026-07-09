@@ -90,6 +90,25 @@ function pluginDeliveryDirectoryForMessage(message = {}) {
   };
 }
 
+function deliveryRootsForPluginDirectory(directory = null, windowsPathToWsl = (value) => value) {
+  if (!directory) return [];
+  const rawRoots = defaultDedupe([directory.root, directory.path]);
+  return defaultDedupe(rawRoots.flatMap((root) => [
+    cleanString(root),
+    cleanString(windowsPathToWsl(root)),
+  ]));
+}
+
+function mergePluginDeliveryRootsIntoPolicy(policy = {}, directory = null, windowsPathToWsl = (value) => value) {
+  const roots = deliveryRootsForPluginDirectory(directory, windowsPathToWsl);
+  if (!roots.length) return policy;
+  return Object.assign({}, policy, {
+    allowed_roots: defaultDedupe([...(policy.allowed_roots || policy.allowedRoots || []), ...roots]),
+    delivery_roots: defaultDedupe([...(policy.delivery_roots || policy.deliveryRoots || []), ...roots]),
+    cache_roots: defaultDedupe([...(policy.cache_roots || policy.cacheRoots || []), ...roots]),
+  });
+}
+
 function skillEntryForPreload(item = {}) {
   const skillPath = cleanString(item.path || item.skillPath || item.name || item.id);
   if (!skillPath || item.missing) return null;
@@ -312,6 +331,10 @@ function createGatewayRunRequestBuilderService(options = {}) {
     let basePolicy = buildAccessPolicy(routePolicy, {}, project, policyHardeningOptions);
     const groupChat = buildGroupChatRunContext(thread, userMessage, objectValue(basePolicy));
     basePolicy = sanitizePolicy(groupChat.policy, policyHardeningOptions);
+    basePolicy = sanitizePolicy(
+      mergePluginDeliveryRootsIntoPolicy(basePolicy, pluginDeliveryDirectory, windowsPathToWsl),
+      policyHardeningOptions,
+    );
     let runPolicy = runOptions.access_policy_context && typeof runOptions.access_policy_context === "object"
       ? sanitizePolicy(mergeAccessPolicyOverride(basePolicy, runOptions.access_policy_context), policyHardeningOptions)
       : basePolicy;

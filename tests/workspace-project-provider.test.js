@@ -63,6 +63,8 @@ function run() {
         access_mode: route.access_mode || user.access_mode || "restricted",
         default_workspace: user.default_workspace || route.default_workspace || "",
         connector_profiles: Object.assign({}, route.connector_profiles || {}, user.connector_profiles || {}),
+        account_type: user.account_type || route.account_type || "",
+        allowed_owner_special_plugins: user.allowed_owner_special_plugins || route.allowed_owner_special_plugins || [],
       };
     },
     fallbackOwnerPolicy() {
@@ -82,6 +84,8 @@ function run() {
       defaultWorkspace: "/workspace/local",
       allowedRoots: ["/workspace/local"],
       connectorProfiles: { google: "local_user", gmail: "local_user" },
+      accountType: "media",
+      allowedOwnerSpecialPlugins: ["music", "movie"],
     }],
     projectsForWorkspace(workspace, projectEntries) {
       return [{
@@ -108,8 +112,13 @@ function run() {
   assert.equal(catalog.workspaces[1].showTaskId, false);
   assert.equal(catalog.workspaces[2].id, "local_user");
   assert.equal(catalog.workspaces[2].source, "local-workspace");
+  assert.equal(catalog.workspaces[2].accountType, "media");
+  assert.equal(catalog.workspaces[2].restrictedMedia, true);
+  assert.deepEqual(catalog.workspaces[2].allowedOwnerSpecialPlugins, ["music", "movie"]);
   assert.equal(catalog.workspaces[2].policy.default_workspace, "/workspace/local");
   assert.deepEqual(catalog.workspaces[2].policy.connector_profiles, { google: "local_user", gmail: "local_user" });
+  assert.equal(catalog.workspaces[2].policy.account_type, "media");
+  assert.deepEqual(catalog.workspaces[2].policy.allowed_owner_special_plugins, ["music", "movie"]);
   assert.equal(catalog.projects.length, 3);
   assert.equal(reads, 3);
 

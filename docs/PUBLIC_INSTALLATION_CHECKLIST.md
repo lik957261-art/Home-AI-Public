@@ -808,6 +808,12 @@ Do not tell external installers to kill arbitrary `node`, `python`, or `wsl` pro
   checks, public upgrade harness checks, and provisioning coverage before any
   optional public-repository sync.
 - Do not publish `.agent-context`, runtime data, SQLite DBs, logs, uploads, backups, keys, OAuth state, push endpoints, worker manifests with real API keys, or private reports.
+- Public docs should be curated install/product docs, not the private Owner
+  operations ledger. Keep task-card returns, internal handoffs, private
+  deployment readbacks, and local device/library overlays out of the public
+  export. If a plugin such as Music or Movie needs local adaptation, publish a
+  fixture-safe adapter contract and setup instructions rather than the Owner's
+  private implementation.
 - Run privacy scan and productization checks according to the release scope.
 
 ## Public Online Updates

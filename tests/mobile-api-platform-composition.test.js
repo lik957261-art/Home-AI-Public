@@ -33,6 +33,7 @@ function createDeps(options = {}) {
       bootTrace: (label) => bootTraceLabels.push(label),
       clientVersionInfo: () => ({ version: "test" }),
       compactText: (value) => String(value || ""),
+      codexMobileAtLoopStatusService: options.codexMobileAtLoopStatusService,
       createInitialOwnerKey: () => ({ key: "test" }),
       deleteLocalWorkspace: () => ({ ok: true }),
       dataDir: options.dataDir,
@@ -131,6 +132,7 @@ function testCompositionContract() {
     "workspaceApiRoutes",
   ]);
   assert.deepEqual(Object.keys(composition.services).sort(), [
+    "codexMobileAtLoopStatusService",
     "currentEnvironmentContextService",
     "familyProfileInsightService",
     "familyProfileProjectionService",
@@ -211,6 +213,9 @@ async function testOwnerConsoleQualityEvidenceUsesCompositionDataDir() {
   const { deps } = createDeps({
     dataDir,
     env: {},
+    codexMobileAtLoopStatusService: {
+      status: () => ({ status: "ok", counts: {}, items: [], policy: { readOnlySummary: true } }),
+    },
     systemResourceStatusService: {
       collect: () => ({ schemaVersion: 1, overallStatus: "ok", signals: [] }),
     },

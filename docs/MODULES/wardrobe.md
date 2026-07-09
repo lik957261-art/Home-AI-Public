@@ -91,12 +91,14 @@ The expected flow is:
    `metadata`, and `rawJson`, then exposes only the normalized public action
    state when the intent is still valid for the effective workspace/principal
    and all item codes are locked.
-4. `public/app-message-actions-ui.js` renders a compact `入库` button near the
-   message Usage area. The button is a deterministic action; it does not start
-   another model run. If the prepare tool was seen but no valid public action
-   can be exposed, the same area renders a disabled bounded status such as
-   `需重新生成`, `已过期`, or `不可入库` instead of silently leaving the Usage
-   row empty.
+4. `public/app-message-actions-ui.js` renders a compact icon-only button near
+   the message Usage area. The button is a deterministic action; it does not
+   start another model run. If the prepare tool was seen but no valid public
+   action can be exposed, the same area renders a disabled icon-only button
+   instead of silently leaving the Usage row empty. Diagnostic states such as
+   `需重新生成`, `已过期`, or `不可入库` remain available through tooltip,
+   accessibility, and bounded diagnostic metadata, but they must not be visible
+   inline text that widens or wraps the Usage row.
 5. `POST /api/plugin-conversation/actions/wardrobe/outfit-wear-intent` looks
    up the server-side message, validates the stored intent, and calls
    `wardrobe.execute_outfit_wear_intent` through the Wardrobe MCP wrapper.

@@ -1,32 +1,89 @@
 "use strict";
 
+const CHAT_COMPOSER_NATIVE_ENVIRONMENT_MODEL_ESM_PATH = "/vite-islands/chat-composer-native-environment-model/chat-composer-native-environment-model.js";
 const NATIVE_ENVIRONMENT_SNAPSHOT_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
+let chatComposerNativeEnvironmentModel = null;
+let chatComposerNativeEnvironmentModelPromise = null;
 let nativeEnvironmentSnapshotRefreshInFlight = null;
 let nativeEnvironmentSnapshotLastUploadedAt = 0;
 let nativeEnvironmentSnapshotAutoRefreshInstalled = false;
 
+function importChatComposerNativeEnvironmentModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (chatComposerNativeEnvironmentModel) return Promise.resolve(chatComposerNativeEnvironmentModel);
+  if (!chatComposerNativeEnvironmentModelPromise) {
+    const importer = typeof rootRef.__homeAiImportComposerNativeEnvironmentModel === "function"
+      ? rootRef.__homeAiImportComposerNativeEnvironmentModel
+      : (path) => import(path);
+    chatComposerNativeEnvironmentModelPromise = Promise.resolve()
+      .then(() => importer(CHAT_COMPOSER_NATIVE_ENVIRONMENT_MODEL_ESM_PATH))
+      .then((model) => {
+        chatComposerNativeEnvironmentModel = model || null;
+        return chatComposerNativeEnvironmentModel;
+      })
+      .catch((error) => {
+        chatComposerNativeEnvironmentModelPromise = null;
+        throw error;
+      });
+  }
+  return chatComposerNativeEnvironmentModelPromise;
+}
+
+function currentChatComposerNativeEnvironmentModel() {
+  return chatComposerNativeEnvironmentModel;
+}
+
+importChatComposerNativeEnvironmentModel().catch(() => null);
+
+function nativeEnvironmentBridgeAvailabilityInput() {
+  const capability = window.HomeAINativeEnvironmentCapability || {};
+  const bridge = window.HomeAINativeEnvironment || {};
+  const root = document.documentElement;
+  const params = new URLSearchParams(window.location.search || "");
+  return {
+    nativeShellQuery: params.get("nativeShell"),
+    documentNativeShell: root?.dataset?.nativeShell,
+    documentNativeShellClass: root?.classList?.contains("native-shell-ios") === true,
+    storageNativeShell: localStorage.getItem("homeAI.nativeShell"),
+    capabilityEnvironmentContext: capability.environmentContext === true,
+    capabilityNativeEnvironmentContext: capability.nativeEnvironmentContext === true,
+    documentNativeEnvironmentContext: root?.dataset?.nativeEnvironmentContext,
+    storageNativeEnvironmentContext: localStorage.getItem("homeAI.nativeEnvironmentContext"),
+    hasGetContext: typeof bridge.getContext === "function",
+  };
+}
+
 function nativeEnvironmentContextBridgeAvailable() {
   try {
-    const capability = window.HomeAINativeEnvironmentCapability || {};
-    const bridge = window.HomeAINativeEnvironment || {};
-    const root = document.documentElement;
-    const params = new URLSearchParams(window.location.search || "");
-    const nativeShell = params.get("nativeShell") === "ios"
-      || root?.dataset?.nativeShell === "ios"
-      || root?.classList?.contains("native-shell-ios")
-      || localStorage.getItem("homeAI.nativeShell") === "ios";
-    const enabled = capability.environmentContext === true
-      || capability.nativeEnvironmentContext === true
-      || root?.dataset?.nativeEnvironmentContext === "1"
-      || localStorage.getItem("homeAI.nativeEnvironmentContext") === "1"
-      || typeof bridge.getContext === "function";
-    return Boolean(nativeShell && enabled && typeof bridge.getContext === "function");
+    const input = nativeEnvironmentBridgeAvailabilityInput();
+    const model = currentChatComposerNativeEnvironmentModel();
+    if (typeof model?.nativeEnvironmentBridgeAvailabilityPlan === "function") {
+      return model.nativeEnvironmentBridgeAvailabilityPlan(input).available === true;
+    }
+    return Boolean(
+      (input.nativeShellQuery === "ios"
+        || input.documentNativeShell === "ios"
+        || input.documentNativeShellClass === true
+        || input.storageNativeShell === "ios")
+      && (input.capabilityEnvironmentContext === true
+        || input.capabilityNativeEnvironmentContext === true
+        || input.documentNativeEnvironmentContext === "1"
+        || input.storageNativeEnvironmentContext === "1"
+        || input.hasGetContext === true)
+      && input.hasGetContext === true,
+    );
   } catch (_) {
     return false;
   }
 }
 
 function nativeEnvironmentContextTargetAt(text = "") {
+  const model = currentChatComposerNativeEnvironmentModel();
+  if (typeof model?.nativeEnvironmentContextTargetAtPlan === "function") {
+    return model.nativeEnvironmentContextTargetAtPlan({
+      text,
+      nowMs: Date.now(),
+    }).targetAt;
+  }
   const value = String(text || "");
   const now = new Date();
   const target = new Date(now.getTime());
@@ -48,6 +105,10 @@ function nativeEnvironmentContextTargetAt(text = "") {
 }
 
 function nativeEnvironmentContextPurpose(body = {}, text = "") {
+  const model = currentChatComposerNativeEnvironmentModel();
+  if (typeof model?.nativeEnvironmentContextPurposePlan === "function") {
+    return model.nativeEnvironmentContextPurposePlan({ body, text }).purpose;
+  }
   const taskGroupId = String(body.taskGroupId || "");
   if (taskGroupId === "plugin:wardrobe" || /(?:\bwardrobe\b|\boutfit\b|\u8863\u6a71|\u7a7f\u642d|\u914d\u4e00?\u5957|\u7a7f\u4ec0\u4e48)/i.test(text)) {
     return "wardrobe_outfit";
@@ -60,9 +121,13 @@ function nativeEnvironmentContextPurpose(body = {}, text = "") {
 
 async function requestNativeEnvironmentContextForSend(body = {}, text = "") {
   if (!nativeEnvironmentContextBridgeAvailable()) return null;
-  const purpose = nativeEnvironmentContextPurpose(body, text);
+  const model = currentChatComposerNativeEnvironmentModel();
+  const plan = typeof model?.createNativeEnvironmentContextRequestPlan === "function"
+    ? model.createNativeEnvironmentContextRequestPlan({ body, text, nowMs: Date.now() })
+    : null;
+  const purpose = plan ? plan.purpose : nativeEnvironmentContextPurpose(body, text);
   if (!purpose) return null;
-  const request = {
+  const request = plan?.request || {
     targetAt: nativeEnvironmentContextTargetAt(text),
     forceRefresh: false,
     precise: false,
@@ -96,8 +161,19 @@ async function refreshNativeEnvironmentSnapshotForSend(options = {}) {
   if (!nativeEnvironmentContextBridgeAvailable()) return null;
   const forceUpload = options.forceUpload === true || options.force === true;
   const now = Date.now();
-  if (!forceUpload && nativeEnvironmentSnapshotLastUploadedAt > 0
-    && now - nativeEnvironmentSnapshotLastUploadedAt < NATIVE_ENVIRONMENT_SNAPSHOT_REFRESH_INTERVAL_MS) {
+  const model = currentChatComposerNativeEnvironmentModel();
+  const refreshPlan = typeof model?.nativeEnvironmentSnapshotRefreshPlan === "function"
+    ? model.nativeEnvironmentSnapshotRefreshPlan({
+      forceUpload,
+      force: options.force === true,
+      nowMs: now,
+      lastUploadedAt: nativeEnvironmentSnapshotLastUploadedAt,
+      intervalMs: NATIVE_ENVIRONMENT_SNAPSHOT_REFRESH_INTERVAL_MS,
+      inFlight: false,
+    })
+    : null;
+  if (refreshPlan ? refreshPlan.shouldRefresh !== true : (!forceUpload && nativeEnvironmentSnapshotLastUploadedAt > 0
+    && now - nativeEnvironmentSnapshotLastUploadedAt < NATIVE_ENVIRONMENT_SNAPSHOT_REFRESH_INTERVAL_MS)) {
     return null;
   }
   if (nativeEnvironmentSnapshotRefreshInFlight) return nativeEnvironmentSnapshotRefreshInFlight;
@@ -112,7 +188,15 @@ async function refreshNativeEnvironmentSnapshotForSend(options = {}) {
   nativeEnvironmentSnapshotRefreshInFlight = (async () => {
     const context = await Promise.race([bridgePromise, timeoutPromise]);
     if (!context || typeof context !== "object") return null;
-    const body = {
+    const uploadPlan = typeof model?.nativeEnvironmentSnapshotUploadBodyPlan === "function"
+      ? model.nativeEnvironmentSnapshotUploadBodyPlan({
+        workspaceId: nativeEnvironmentSnapshotWorkspaceId(),
+        deviceId: "native-ios-current",
+        context,
+        purpose: options.purpose || "model_tool_snapshot",
+      })
+      : null;
+    const body = uploadPlan?.body || {
       workspaceId: nativeEnvironmentSnapshotWorkspaceId(),
       deviceId: "native-ios-current",
       environmentContext: Object.assign({}, context, { purpose: context.purpose || options.purpose || "model_tool_snapshot" }),

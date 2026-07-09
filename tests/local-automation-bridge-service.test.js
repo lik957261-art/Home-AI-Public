@@ -124,6 +124,7 @@ async function testLocalListCreateMutateAndDelete() {
   const pause = await service.runBridge({ action: "pause", job_id: "enabled", owner_principal_id: "owner-a" });
   assert.equal(pause.job.enabled, false);
   assert.equal(pause.job.status, "paused");
+  assert.equal(json.data().jobs.find((job) => job.id === "enabled").pausedReason, "hermes_web");
 
   const update = await service.runBridge({
     action: "update",
@@ -137,9 +138,11 @@ async function testLocalListCreateMutateAndDelete() {
 
   const run = await service.runBridge({ action: "run", job_id: "enabled", owner_principal_id: "owner-a" });
   assert.equal(run.ok, true);
-  assert.equal(run.job.status, "scheduled");
+  assert.equal(run.job.status, "paused");
   assert.equal(run.source.action, "run");
-  assert.equal(json.data().jobs.find((job) => job.id === "enabled").nextRunAt, "2026-05-15T01:00:00.000Z");
+  assert.equal(run.source.scheduleResumed, false);
+  assert.equal(json.data().jobs.find((job) => job.id === "enabled").nextRunAt, "");
+  assert.equal(json.data().jobs.find((job) => job.id === "enabled").manualRunRequestedAt, "2026-05-15T01:00:00.000Z");
 
   const wrongOwner = await service.runBridge({ action: "delete", job_id: "enabled", owner_principal_id: "owner-b" });
   assert.deepEqual(wrongOwner, { ok: false, error: "Automation job is not owned by this workspace" });
@@ -157,12 +160,13 @@ async function testSqliteListCreateAndDryRun() {
       { id: "old", name: "Old", enabled: true, ownerPrincipalId: "owner-a", updatedAt: "2026-01-01T00:00:00Z" },
       { id: "new", name: "New", enabled: true, ownerPrincipalId: "owner-a", updatedAt: "2026-01-02T00:00:00Z" },
       { id: "other", name: "Other", enabled: true, ownerPrincipalId: "owner-b", updatedAt: "2026-01-03T00:00:00Z" },
+      { id: "paused", name: "Paused", enabled: false, state: "paused", pausedAt: "2026-01-04T00:00:00Z", ownerPrincipalId: "owner-a" },
     ],
   });
 
   const listed = await service.runBridge({ action: "list", include_disabled: true, owner_principal_id: "owner-a" });
-  assert.deepEqual(listed.jobs.map((job) => job.id), ["old", "new"]);
-  assert.deepEqual(listed.source, { name: "sqlite_automations", available: true, pathKind: "sqlite", jobCount: 2 });
+  assert.deepEqual(listed.jobs.map((job) => job.id), ["old", "new", "paused"]);
+  assert.deepEqual(listed.source, { name: "sqlite_automations", available: true, pathKind: "sqlite", jobCount: 3 });
 
   const dryRun = await service.runBridge({
     action: "create",
@@ -190,7 +194,17 @@ async function testSqliteListCreateAndDryRun() {
   const run = await service.runBridge({ action: "run", job_id: "old", owner_principal_id: "owner-a" });
   assert.equal(run.ok, true);
   assert.equal(run.source.runMode, "next_tick");
+  assert.equal(run.source.scheduleResumed, true);
   assert.equal(sqlite.imported.at(-1).nextRunAt, "2026-05-15T01:00:00.000Z");
+
+  const pausedRun = await service.runBridge({ action: "run", job_id: "paused", owner_principal_id: "owner-a" });
+  assert.equal(pausedRun.ok, true);
+  assert.equal(pausedRun.job.status, "paused");
+  assert.equal(pausedRun.source.scheduleResumed, false);
+  assert.equal(sqlite.imported.at(-1).id, "paused");
+  assert.equal(sqlite.imported.at(-1).enabled, false);
+  assert.equal(sqlite.imported.at(-1).state, "paused");
+  assert.equal(sqlite.imported.at(-1).nextRunAt, "");
 
   const missing = await service.runBridge({ action: "pause", job_id: "missing", owner_principal_id: "owner-a" });
   assert.deepEqual(missing, { ok: false, error: "Automation job not found" });

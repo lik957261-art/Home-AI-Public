@@ -6,6 +6,10 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { resolveCodexMobileProfileRuntime } = require("./codex-mobile-profile-runtime");
+const {
+  UI_VISUAL_LOCAL_VALIDATION_REQUIRED,
+  buildUiVisualLocalValidation,
+} = require("../adapters/ui-visual-local-validation-service");
 
 const DEFAULT_DEV_ROOT = "/Users/example/path";
 const DEFAULT_MAC_ROOT = "/Users/example/path";
@@ -175,6 +179,27 @@ function defaultSudoPasswordFileCandidates() {
   ].filter(Boolean);
 }
 
+function parseJsonArgument(value, label = "json") {
+  const raw = String(value || "").trim();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`${label}_invalid_json:${err.message || String(err)}`);
+  }
+}
+
+function readJsonFile(filePath, label = "json-file") {
+  const target = String(filePath || "").trim();
+  if (!target) return {};
+  try {
+    return parseJsonArgument(fs.readFileSync(target, "utf8"), label);
+  } catch (err) {
+    if (String(err?.message || "").includes("_invalid_json:")) throw err;
+    throw new Error(`${label}_read_failed:${err.message || String(err)}`);
+  }
+}
+
 const PLUGIN_ALIASES = Object.freeze({
   codex: "codex-mobile-web",
   "codex-mobile": "codex-mobile-web",
@@ -211,6 +236,11 @@ const CODEX_MOBILE_LISTENER_STARTUP_GATE = Object.freeze({
   type: "codex-mobile-listener-startup-gate",
   server: "http://127.0.0.1:8787",
   script: "scripts/codex-mobile-runtime-self-check-loop.js",
+});
+const CODEX_MOBILE_BEHAVIOR_GATE = Object.freeze({
+  type: "codex-mobile-behavior-gate",
+  server: CODEX_MOBILE_LISTENER_STARTUP_GATE.server,
+  script: CODEX_MOBILE_LISTENER_STARTUP_GATE.script,
 });
 
 const PLUGIN_GATEWAY_MCP_MIRRORS = Object.freeze({
@@ -504,6 +534,8 @@ const HOME_AI_PROOF_FILES = [
   "scripts/macos-production-drift-reconcile.js",
   "scripts/homeai-production-drift-audit-watchdog.sh",
   "scripts/homeai-self-improving-loop-cron.sh",
+  "scripts/plugin-daily-progress-rollup.js",
+  "scripts/plugin-daily-progress-rollup-cron.sh",
   "scripts/gateway-mcp-runtime-call-smoke.js",
   "scripts/mcp-tool-upgrade-closure-smoke.js",
 ];
@@ -538,6 +570,11 @@ function parseArgs(argv) {
     validationDelayMs: 2000,
     syncOnly: false,
     deployBackupRetentionDays: DEPLOY_BACKUP_RETENTION_DAYS,
+    codexMobileSubmitThreadId: process.env.HOMEAI_CODEX_MOBILE_DEPLOY_SUBMIT_THREAD_ID || "",
+    changedFiles: [],
+    uiImpact: false,
+    uiVisualEvidence: {},
+    uiVisualEvidencePath: "",
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -558,6 +595,11 @@ function parseArgs(argv) {
     else if (arg === "--validation-retries") out.validationRetries = Number(argv[++index] || out.validationRetries);
     else if (arg === "--validation-delay-ms") out.validationDelayMs = Number(argv[++index] || out.validationDelayMs);
     else if (arg === "--deploy-backup-retention-days") out.deployBackupRetentionDays = Number(argv[++index] || out.deployBackupRetentionDays);
+    else if (arg === "--codex-mobile-submit-thread-id") out.codexMobileSubmitThreadId = argv[++index] || "";
+    else if (arg === "--changed-file" || arg === "--changedFile") out.changedFiles.push(argv[++index] || "");
+    else if (arg === "--ui-impact" || arg === "--visible-ui-impact") out.uiImpact = true;
+    else if (arg === "--ui-visual-evidence" || arg === "--ui-validation-evidence") out.uiVisualEvidencePath = argv[++index] || "";
+    else if (arg === "--ui-visual-evidence-json" || arg === "--ui-validation-evidence-json") out.uiVisualEvidence = parseJsonArgument(argv[++index] || "{}", arg);
     else if (arg === "--sync-only") out.syncOnly = true;
     else if (arg === "--execute") out.execute = true;
     else if (arg === "--json") out.json = true;
@@ -584,6 +626,10 @@ function parseArgs(argv) {
         "  --reason <slug>             Backup name slug",
         "  --validation-retries <n>    Retries for listener/health validation, default 12",
         "  --validation-delay-ms <n>   Delay between validation retries, default 2000",
+        "  --codex-mobile-submit-thread-id <id>  Controlled Codex thread id for deploy submit self-check",
+        "  --changed-file <path>       Changed file for pre-deploy UI visual/local validation; repeatable",
+        "  --ui-impact                 Require UI visual/local validation for visible backend/projection changes",
+        "  --ui-visual-evidence <file> Local test + visual evidence JSON for UI-affecting deploys",
         "  --sync-only                 Plugin first-install source sync only; no restart or runtime validation",
         "  --json                      Print bounded JSON",
       ].join("\n"));
@@ -603,12 +649,17 @@ function parseArgs(argv) {
   if (out.target === "plugins:all" && out.source) throw new Error("all_plugins_source_override_unsupported");
   if (out.target === "plugins:all" && out.healthUrl) throw new Error("all_plugins_health_url_override_unsupported");
   if (out.target === "plugins:all" && out.restartLabels.length) throw new Error("all_plugins_restart_label_override_unsupported");
+  if (out.target !== "plugin:codex-mobile-web" && out.target !== "plugins:all" && out.codexMobileSubmitThreadId) {
+    throw new Error("codex_mobile_submit_thread_requires_codex_mobile_target");
+  }
   if (out.syncOnly && !(out.target.startsWith("plugin:") || out.target === "plugins:all")) throw new Error("sync_only_requires_plugin_target");
   if (out.syncOnly) {
     out.restartMode = "none";
     out.healthUrl = "";
   }
+  if (out.uiVisualEvidencePath) out.uiVisualEvidence = readJsonFile(out.uiVisualEvidencePath, "--ui-visual-evidence");
   out.restartLabels = out.restartLabels.filter(Boolean);
+  out.changedFiles = out.changedFiles.filter(Boolean);
   if (!Number.isFinite(out.validationRetries) || out.validationRetries < 1) out.validationRetries = 1;
   if (!Number.isFinite(out.validationDelayMs) || out.validationDelayMs < 0) out.validationDelayMs = 0;
   return out;
@@ -735,6 +786,33 @@ function deployDirtyFiles(source, options) {
     .slice(0, 120);
 }
 
+function lastCommitChangedFiles(source, options) {
+  const show = spawnSync("git", ["show", "--name-only", "--format=", "HEAD"], {
+    cwd: source,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (show.status !== 0) return [];
+  return show.stdout
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .filter((relPath) => isDeploySurfaceIncluded(relPath, options))
+    .slice(0, 160);
+}
+
+function changedFilesForUiVisualValidation(source, options, relevantDirtyFiles = []) {
+  if (Array.isArray(options.changedFiles) && options.changedFiles.length) {
+    return options.changedFiles
+      .map((item) => String(item || "").trim())
+      .filter(Boolean)
+      .filter((relPath) => isDeploySurfaceIncluded(relPath, options))
+      .slice(0, 160);
+  }
+  if (relevantDirtyFiles.length) return relevantDirtyFiles.slice(0, 160);
+  return lastCommitChangedFiles(source, options);
+}
+
 function ignoredDirtyFiles(source, options) {
   return gitStatusEntries(source)
     .map((entry) => entry.path)
@@ -840,6 +918,12 @@ function buildPlan(options) {
   const healthUrl = options.syncOnly ? "" : (options.healthUrl || defaultHealthUrlForTarget(options.target));
   const relevantDirtyFiles = deployDirtyFiles(source, options);
   const ignoredDirty = ignoredDirtyFiles(source, options);
+  const uiVisualChangedFiles = changedFilesForUiVisualValidation(source, options, relevantDirtyFiles);
+  const uiVisualLocalValidation = buildUiVisualLocalValidation({
+    changedFiles: uiVisualChangedFiles,
+    evidence: options.uiVisualEvidence,
+    uiImpact: options.uiImpact,
+  });
   const expectedVersion = extractClientVersionFromSource(source);
   const proofFiles = proofFilesForPlan(source, options);
   const rsyncExcludes = rsyncExcludesForTarget(options);
@@ -913,6 +997,16 @@ function buildPlan(options) {
       type: CODEX_MOBILE_LISTENER_STARTUP_GATE.type,
       command: buildCodexMobileListenerStartupGateCommand(options, target),
       failOnUnavailable: true,
+      scope: "listener_startup",
+      startupOnly: true,
+    });
+    validation.push({
+      type: CODEX_MOBILE_BEHAVIOR_GATE.type,
+      command: buildCodexMobileBehaviorGateCommand(options, target),
+      failOnUnavailable: true,
+      scope: "thread_detail_render_events",
+      startupOnly: false,
+      submitExercise: codexMobileBehaviorSubmitExercisePlan(options),
     });
   }
   if (!options.syncOnly) {
@@ -946,6 +1040,7 @@ function buildPlan(options) {
     reason: options.reason,
     deployDirtyFiles: relevantDirtyFiles,
     ignoredDirtyFiles: ignoredDirty,
+    uiVisualLocalValidation,
     expectedClientVersion: expectedVersion,
     backupPath,
     restartLabels: labels,
@@ -998,6 +1093,12 @@ function assertExecutablePlan(plan, options) {
   }
   if (plan.deployDirtyFiles.length && !options.allowDirty) {
     throw new Error(`deploy_source_dirty_requires_allow_dirty:${plan.deployDirtyFiles.join(",")}`);
+  }
+  if (plan.uiVisualLocalValidation?.required && plan.uiVisualLocalValidation.ok !== true) {
+    const issueCodes = plan.uiVisualLocalValidation.issueCodes?.length
+      ? plan.uiVisualLocalValidation.issueCodes.join(",")
+      : UI_VISUAL_LOCAL_VALIDATION_REQUIRED;
+    throw new Error(`${UI_VISUAL_LOCAL_VALIDATION_REQUIRED}:${issueCodes}`);
   }
 }
 
@@ -1054,6 +1155,52 @@ function buildCodexMobileListenerStartupGateCommand(options, productionPath) {
   return ["/bin/sh", "-lc", shellCommand];
 }
 
+function codexMobileBehaviorSubmitExercisePlan(options = {}) {
+  const threadId = String(options.codexMobileSubmitThreadId || "").trim();
+  if (threadId) {
+    return {
+      mode: "automatic",
+      configured: true,
+      threadId,
+      privacy: "controlled_thread_id_only",
+    };
+  }
+  return {
+    mode: "manual",
+    configured: false,
+    reason: "controlled_submit_thread_not_configured",
+    operatorCommandHint: "--codex-mobile-submit-thread-id <controlled-thread-id>",
+  };
+}
+
+function buildCodexMobileBehaviorGateCommand(options, productionPath) {
+  const node = posixJoin(options.macRoot, PINNED_NODE);
+  const script = CODEX_MOBILE_BEHAVIOR_GATE.script;
+  const submitPlan = codexMobileBehaviorSubmitExercisePlan(options);
+  const shellParts = [
+    `cd ${shQuote(productionPath)}`,
+    "&&",
+    "exec",
+    shQuote(node),
+    shQuote(script),
+    "--server",
+    shQuote(CODEX_MOBILE_BEHAVIOR_GATE.server),
+    "--gate-mode",
+    "deploy",
+    "--browser-mode",
+    "full",
+  ];
+  if (submitPlan.mode === "automatic" && submitPlan.threadId) {
+    shellParts.push(
+      "--browser-exercise-submit",
+      "--browser-submit-thread-id",
+      shQuote(submitPlan.threadId),
+    );
+  }
+  shellParts.push("--json");
+  return ["/bin/sh", "-lc", shellParts.join(" ")];
+}
+
 function xmlEscape(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -1088,6 +1235,39 @@ function homeAiCronPaths(macRoot) {
 
 function gatewayPoolManifestPath(macRoot) {
   return posixJoin(normalizePath(macRoot || DEFAULT_MAC_ROOT), "data", "gateway-pool-manifest-mac.json");
+}
+
+function gatewayManifestWorkerUsers(manifest = {}) {
+  const workers = Array.isArray(manifest.workers) ? manifest.workers : [];
+  const users = [];
+  for (const worker of workers) {
+    if (!worker || worker.enabled === false) continue;
+    const user = String(worker.osUser || worker.os_user || "").trim();
+    if (/^[A-Za-z0-9._-]+$/.test(user) && !users.includes(user)) users.push(user);
+  }
+  return users.sort();
+}
+
+function repairGatewayManifestWorkerReadAcl(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const manifestPath = gatewayPoolManifestPath(plan.macRoot);
+  let manifest = {};
+  try {
+    manifest = readGatewayManifestForCronProfiles(manifestPath, password);
+  } catch (_err) {
+    return null;
+  }
+  const users = gatewayManifestWorkerUsers(manifest);
+  if (!users.length) return null;
+  for (const user of users) {
+    applyAclOnce(manifestPath, `user:${user} allow read,readattr,readextattr,readsecurity`, password, false);
+  }
+  return {
+    type: "gateway-manifest-worker-read-acl",
+    status: 0,
+    manifestPath,
+    userCount: users.length,
+  };
 }
 
 function buildPluginWorkspaceAuditTargetJson(macRoot) {
@@ -2237,11 +2417,15 @@ function installHomeAiCronRuntimeScripts(plan, password) {
   if (plan.target !== "home-ai" || plan.surface === "static") return null;
   const sourceScript = posixJoin(plan.productionPath, "scripts", "homeai-disaster-backup-cron.sh");
   const sourceSelfLoopScript = posixJoin(plan.productionPath, "scripts", "homeai-self-improving-loop-cron.sh");
+  const sourcePluginDailyRollupScript = posixJoin(plan.productionPath, "scripts", "plugin-daily-progress-rollup-cron.sh");
+  const sourceCodexMobilePrAutomationScript = posixJoin(plan.productionPath, "scripts", "codex-mobile-pr-automation-cron.sh");
   const sourceVisualScript = posixJoin(plan.productionPath, "scripts", "homeai-visual-polish-audit-cron.sh");
   const sourceDriftAuditScript = posixJoin(plan.productionPath, "scripts", "homeai-production-drift-audit-watchdog.sh");
   const targetRoot = posixJoin(plan.macRoot, "data", "hermes-home", "scripts");
   const targetScript = posixJoin(targetRoot, "homeai-disaster-backup-cron.sh");
   const targetSelfLoopScript = posixJoin(targetRoot, "homeai-self-improving-loop-cron.sh");
+  const targetPluginDailyRollupScript = posixJoin(targetRoot, "plugin-daily-progress-rollup-cron.sh");
+  const targetCodexMobilePrAutomationScript = posixJoin(targetRoot, "codex-mobile-pr-automation-cron.sh");
   const targetDriftAuditScript = posixJoin(targetRoot, "homeai-production-drift-audit-watchdog.sh");
   const visualScripts = [
     "homeai-visual-polish-host.sh",
@@ -2279,6 +2463,26 @@ function installHomeAiCronRuntimeScripts(plan, password) {
     PRODUCTION_SERVICE_USER,
     "-g",
     PRODUCTION_SERVICE_GROUP,
+    sourcePluginDailyRollupScript,
+    targetPluginDailyRollupScript,
+  ], password);
+  runSudo("/usr/bin/install", [
+    "-m",
+    "750",
+    "-o",
+    PRODUCTION_SERVICE_USER,
+    "-g",
+    PRODUCTION_SERVICE_GROUP,
+    sourceCodexMobilePrAutomationScript,
+    targetCodexMobilePrAutomationScript,
+  ], password);
+  runSudo("/usr/bin/install", [
+    "-m",
+    "750",
+    "-o",
+    PRODUCTION_SERVICE_USER,
+    "-g",
+    PRODUCTION_SERVICE_GROUP,
     sourceDriftAuditScript,
     targetDriftAuditScript,
   ], password);
@@ -2301,9 +2505,216 @@ function installHomeAiCronRuntimeScripts(plan, password) {
     installed: [
       "homeai-disaster-backup-cron.sh",
       "homeai-self-improving-loop-cron.sh",
+      "plugin-daily-progress-rollup-cron.sh",
+      "codex-mobile-pr-automation-cron.sh",
       "homeai-production-drift-audit-watchdog.sh",
       ...visualScripts,
     ],
+  };
+}
+
+function isPausedCronJob(job = {}) {
+  return Boolean(
+    job
+    && (
+      job.enabled === false
+      || String(job.state || "").toLowerCase() === "paused"
+      || Boolean(job.paused_at)
+    ),
+  );
+}
+
+function cronJobScheduleStateForUpsert(base = {}, nextRunAt = "") {
+  if (isPausedCronJob(base)) {
+    return {
+      enabled: false,
+      state: "paused",
+      paused_at: base.paused_at || null,
+      paused_reason: base.paused_reason || null,
+      next_run_at: null,
+    };
+  }
+  return {
+    enabled: true,
+    state: "scheduled",
+    paused_at: null,
+    paused_reason: null,
+    next_run_at: base.next_run_at || nextRunAt,
+  };
+}
+
+function installCodexMobilePrAutomationCronJob(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const jobsPath = posixJoin(plan.macRoot, "data", "hermes-home", "cron", "jobs.json");
+  const job = {
+    id: "codex_mobile_pr_automation_hourly",
+    name: "Codex Mobile PR Automation",
+    script: "codex-mobile-pr-automation-cron.sh",
+    schedule: "0 * * * *",
+    firstDelayMinutes: 7,
+  };
+  const script = `
+const fs = require("fs");
+const path = ${JSON.stringify(jobsPath)};
+const item = ${JSON.stringify(job)};
+const now = Date.now();
+const doc = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf8")) : { jobs: [] };
+if (!Array.isArray(doc.jobs)) doc.jobs = [];
+function nextRun(minutes) {
+  return new Date(now + minutes * 60000).toISOString();
+}
+const isPausedCronJob = ${isPausedCronJob.toString()};
+const cronJobScheduleStateForUpsert = ${cronJobScheduleStateForUpsert.toString()};
+const existing = doc.jobs.find((entry) => entry && entry.id === item.id);
+const base = existing || {};
+const configured = Object.assign({}, base, {
+  id: item.id,
+  name: item.name,
+  prompt: "Home AI Owner hourly Codex Mobile PR automation planner no_agent script job. Resolves the planner from Codex Mobile origin/main or a clean source worktree, writes bounded state, and plans next task-card actions only.",
+  skills: [],
+  skill: null,
+  model: null,
+  provider: null,
+  base_url: null,
+  script: item.script,
+  no_agent: true,
+  profile: null,
+  owner_principal_id: "owner",
+  access_policy_context: null,
+  context_from: null,
+  schedule: { kind: "cron", expr: item.schedule, display: item.schedule },
+  schedule_display: item.schedule,
+  repeat: base.repeat && typeof base.repeat === "object" ? base.repeat : { times: null, completed: 0 },
+  created_at: base.created_at || new Date(now).toISOString(),
+  last_run_at: base.last_run_at || null,
+  last_status: base.last_status || null,
+  last_error: base.last_error || null,
+  last_delivery_error: base.last_delivery_error || null,
+  deliver: "local",
+  origin: null,
+  enabled_toolsets: [],
+  workdir: null,
+  updated_at: new Date(now).toISOString(),
+}, cronJobScheduleStateForUpsert(base, nextRun(item.firstDelayMinutes)));
+const index = doc.jobs.findIndex((entry) => entry && entry.id === item.id);
+if (index >= 0) doc.jobs[index] = configured;
+else doc.jobs.push(configured);
+fs.mkdirSync(require("path").dirname(path), { recursive: true });
+const tmp = path + ".tmp";
+fs.writeFileSync(tmp, JSON.stringify(doc, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+fs.renameSync(tmp, path);
+fs.chmodSync(path, 0o600);
+console.log(JSON.stringify({ ok: true, action: existing ? "updated" : "created", jobCount: doc.jobs.length }));
+`;
+  const result = runSudo(node, ["-e", script], password);
+  runSudo("/usr/sbin/chown", [`${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, jobsPath], password);
+  runSudo("/bin/chmod", ["600", jobsPath], password);
+  let action = "unknown";
+  let jobCount = 0;
+  try {
+    const parsed = JSON.parse(result.stdout || "{}");
+    action = parsed.action || action;
+    jobCount = Number(parsed.jobCount || 0);
+  } catch (_) {
+    action = "unknown";
+  }
+  return {
+    type: "codex-mobile-pr-automation-cron-job",
+    id: job.id,
+    script: job.script,
+    schedule: job.schedule,
+    action,
+    jobCount,
+  };
+}
+
+function installPluginDailyProgressRollupCronJob(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const node = posixJoin(plan.macRoot, PINNED_NODE);
+  const jobsPath = posixJoin(plan.macRoot, "data", "hermes-home", "cron", "jobs.json");
+  const job = {
+    id: "plugin_daily_progress_rollup",
+    name: "插件每日进展汇总",
+    script: "plugin-daily-progress-rollup-cron.sh",
+    schedule: "30 23 * * *",
+    firstDelayMinutes: 5,
+  };
+  const script = `
+const fs = require("fs");
+const path = ${JSON.stringify(jobsPath)};
+const item = ${JSON.stringify(job)};
+const now = Date.now();
+const doc = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf8")) : { jobs: [] };
+if (!Array.isArray(doc.jobs)) doc.jobs = [];
+function nextRun(minutes) {
+  return new Date(now + minutes * 60000).toISOString();
+}
+const existing = doc.jobs.find((entry) => entry && entry.id === item.id);
+const base = existing || {};
+const configured = Object.assign({}, base, {
+  id: item.id,
+  name: item.name,
+  prompt: "Home AI platform plugin daily progress rollup no_agent script job. Dispatches bounded plugin summary cards and generates the Owner-visible overall governance report.",
+  skills: [],
+  skill: null,
+  model: null,
+  provider: null,
+  base_url: null,
+  script: item.script,
+  no_agent: true,
+  profile: null,
+  owner_principal_id: "owner",
+  access_policy_context: null,
+  context_from: null,
+  schedule: { kind: "cron", expr: item.schedule, display: item.schedule },
+  schedule_display: item.schedule,
+  repeat: base.repeat && typeof base.repeat === "object" ? base.repeat : { times: null, completed: 0 },
+  enabled: true,
+  state: "scheduled",
+  paused_at: null,
+  paused_reason: null,
+  created_at: base.created_at || new Date(now).toISOString(),
+  next_run_at: base.next_run_at || nextRun(item.firstDelayMinutes),
+  last_run_at: base.last_run_at || null,
+  last_status: base.last_status || null,
+  last_error: base.last_error || null,
+  last_delivery_error: base.last_delivery_error || null,
+  deliver: "local",
+  origin: null,
+  enabled_toolsets: [],
+  workdir: null,
+  updated_at: new Date(now).toISOString(),
+});
+const index = doc.jobs.findIndex((entry) => entry && entry.id === item.id);
+if (index >= 0) doc.jobs[index] = configured;
+else doc.jobs.push(configured);
+fs.mkdirSync(require("path").dirname(path), { recursive: true });
+const tmp = path + ".tmp";
+fs.writeFileSync(tmp, JSON.stringify(doc, null, 2) + "\\n", { encoding: "utf8", mode: 0o600 });
+fs.renameSync(tmp, path);
+fs.chmodSync(path, 0o600);
+console.log(JSON.stringify({ ok: true, action: existing ? "updated" : "created", jobCount: doc.jobs.length }));
+`;
+  const result = runSudo(node, ["-e", script], password);
+  runSudo("/usr/sbin/chown", [`${PRODUCTION_SERVICE_USER}:${PRODUCTION_SERVICE_GROUP}`, jobsPath], password);
+  runSudo("/bin/chmod", ["600", jobsPath], password);
+  let action = "unknown";
+  let jobCount = 0;
+  try {
+    const parsed = JSON.parse(result.stdout || "{}");
+    action = parsed.action || action;
+    jobCount = Number(parsed.jobCount || 0);
+  } catch (_) {
+    action = "unknown";
+  }
+  return {
+    type: "plugin-daily-progress-rollup-cron-job",
+    id: job.id,
+    script: job.script,
+    schedule: job.schedule,
+    action,
+    jobCount,
   };
 }
 
@@ -2846,6 +3257,17 @@ function repairHomeAiBackupGatewayTelemetryAcls(plan, password) {
   };
 }
 
+function repairHomeAiBackupDeployStateAcls(plan, password) {
+  if (plan.target !== "home-ai" || plan.surface === "static") return null;
+  const deployStateRoot = posixJoin(plan.macRoot, "data", "deploy-state");
+  applyAclIfExists(deployStateRoot, HOME_AI_BACKUP_ARTIFACT_READ_ACL, password, true);
+  return {
+    type: "home-ai-backup-deploy-state-acl-repair",
+    status: 0,
+    deployStateRoot,
+  };
+}
+
 function repairGatewayStartScriptBridgeEnv(plan, password) {
   if (plan.target !== "home-ai" || plan.surface !== "full") return null;
   const node = path.join(plan.macRoot, PINNED_NODE);
@@ -3165,6 +3587,37 @@ function codexMobileListenerStartupGateSummary(payload = {}, status = 0) {
   };
 }
 
+function codexMobileBehaviorGateSummary(payload = {}, status = 0, check = {}) {
+  const jobs = payload.jobs && typeof payload.jobs === "object" ? payload.jobs : {};
+  const gate = payload.gate && typeof payload.gate === "object" ? payload.gate : {};
+  const issueCodes = collectCodexMobileListenerStartupIssueCodes(Object.assign({}, payload, {
+    actionableIssueCodes: payload.actionableIssueCodes || gate.actionableIssueCodes,
+    issueCodes: payload.issueCodes || gate.issueCodes,
+    blockingIssueCodes: payload.blockingIssueCodes || gate.blockingIssueCodes,
+  }));
+  const executionFailureCount = finiteNumber(
+    payload.executionFailureCount ?? gate.executionFailureCount ?? payload.executionFailures?.length,
+    0,
+  );
+  return {
+    type: CODEX_MOBILE_BEHAVIOR_GATE.type,
+    status,
+    ok: payload.ok === true,
+    deployPass: (payload.deployPass ?? gate.deployPass) === true,
+    browserStartupOnly: payload.browserStartupOnly === true,
+    browserMode: String(payload.browserMode || "full"),
+    issueCount: finiteNumber(payload.issueCount ?? gate.issueCount ?? payload.issues?.length, 0),
+    blockingIssueCount: finiteNumber(payload.blockingIssueCount ?? gate.blockingIssueCount ?? payload.blockingIssues?.length, 0),
+    executionFailureCount,
+    actionableIssueCodes: issueCodes,
+    enabledJobs: boundedJobNames(payload.enabledJobs || jobs.enabled || gate.checkNames),
+    skippedJobs: boundedJobNames(payload.skippedJobs || jobs.skipped),
+    clientBuildId: String(payload.clientBuildId || payload.publicConfig?.clientBuildId || ""),
+    shellCacheName: String(payload.shellCacheName || payload.publicConfig?.shellCacheName || ""),
+    submitExercise: check.submitExercise || {},
+  };
+}
+
 function assertCodexMobileListenerStartupGatePass(summary = {}) {
   if (summary.status === 0 && summary.ok === true && summary.deployPass === true) return;
   const code = summary.actionableIssueCodes?.[0]
@@ -3179,6 +3632,32 @@ function assertCodexMobileListenerStartupGatePass(summary = {}) {
     blockingIssueCount: summary.blockingIssueCount,
     executionFailureCount: summary.executionFailureCount,
     actionableIssueCodes: summary.actionableIssueCodes,
+  });
+  throw err;
+}
+
+function assertCodexMobileBehaviorGatePass(summary = {}) {
+  if (
+    summary.status === 0
+    && summary.ok === true
+    && summary.deployPass === true
+    && summary.browserStartupOnly !== true
+  ) return;
+  const code = summary.actionableIssueCodes?.[0]
+    || (summary.browserStartupOnly === true ? "codex_mobile_behavior_gate_startup_only" : "")
+    || (summary.executionFailureCount > 0 ? "codex_mobile_behavior_smoke_unavailable" : "")
+    || "codex_mobile_behavior_gate_failed";
+  const err = new Error(`${CODEX_MOBILE_BEHAVIOR_GATE.type}_failed:${code}`);
+  err.status = summary.status;
+  err.stderr = JSON.stringify({
+    ok: Boolean(summary.ok),
+    deployPass: Boolean(summary.deployPass),
+    browserStartupOnly: Boolean(summary.browserStartupOnly),
+    issueCount: summary.issueCount,
+    blockingIssueCount: summary.blockingIssueCount,
+    executionFailureCount: summary.executionFailureCount,
+    actionableIssueCodes: summary.actionableIssueCodes,
+    submitExerciseMode: summary.submitExercise?.mode || "",
   });
   throw err;
 }
@@ -3199,6 +3678,25 @@ function runCodexMobileListenerStartupGateValidation(check, password) {
   }
   const summary = codexMobileListenerStartupGateSummary(payload, result.status ?? 1);
   assertCodexMobileListenerStartupGatePass(summary);
+  return summary;
+}
+
+function runCodexMobileBehaviorGateValidation(check, password) {
+  const [command, ...args] = check.command;
+  const result = runSudoAllowFailure(command, args, password);
+  let payload = null;
+  try {
+    payload = JSON.parse(redactSensitiveOutput(result.stdout || "{}"));
+  } catch (_err) {
+    payload = {
+      ok: false,
+      deployPass: false,
+      executionFailureCount: 1,
+      actionableIssueCodes: ["codex_mobile_behavior_smoke_unavailable"],
+    };
+  }
+  const summary = codexMobileBehaviorGateSummary(payload, result.status ?? 1, check);
+  assertCodexMobileBehaviorGatePass(summary);
   return summary;
 }
 
@@ -3918,18 +4416,22 @@ function executePlan(plan, options) {
   const cronBuiltinSkills = installHomeAiCronBuiltinSkills(plan, password);
   const cronRuntimeScripts = installHomeAiCronRuntimeScripts(plan, password);
   const selfImprovingLoopCronJob = installHomeAiSelfImprovingLoopCronJob(plan, password);
+  const codexMobilePrAutomationCronJob = installCodexMobilePrAutomationCronJob(plan, password);
+  const pluginDailyProgressRollupCronJob = installPluginDailyProgressRollupCronJob(plan, password);
   const productionDriftAuditInstall = installHomeAiProductionDriftAuditLaunchd(plan, password);
   const visualPolishTaskCardConfig = installHomeAiVisualPolishTaskCardConfig(plan, password);
   const visualPolishCronJobs = installHomeAiVisualPolishCronJobs(plan, password);
   const visualDebugLaunchAgent = installHomeAiVisualDebugLaunchAgent(plan, password);
   const backupArtifactAclRepair = repairHomeAiBackupArtifactAcls(plan, password);
   const backupGatewayTelemetryAclRepair = repairHomeAiBackupGatewayTelemetryAcls(plan, password);
+  const backupDeployStateAclRepair = repairHomeAiBackupDeployStateAcls(plan, password);
   const codexSharedAuthRepair = repairCodexSharedAuthPermissions(plan, password);
   const gatewayStartScriptBridgeEnvRepair = repairGatewayStartScriptBridgeEnv(plan, password);
   const wardrobeThumbnailArtifactAclRepair = repairWardrobeThumbnailArtifactAcl(plan, password);
   const gatewayLaunchctlSudoers = installGatewayLaunchctlSudoers(plan, password);
   const gatewayMacosLauncher = installGatewayMacosLauncher(plan, password);
   const gatewayLaunchdServices = installHomeAiGatewayLaunchdServices(plan, password);
+  const gatewayManifestWorkerReadAcl = repairGatewayManifestWorkerReadAcl(plan, password);
   const productionDriftReconcile = reconcileHomeAiProductionDrift(plan, password);
   const deployBackupPrune = pruneDeployBackups(plan, options, password);
 
@@ -3987,23 +4489,28 @@ function executePlan(plan, options) {
   if (cronBuiltinSkills) validations.push(Object.assign({ status: 0 }, cronBuiltinSkills));
   if (cronRuntimeScripts) validations.push(Object.assign({ status: 0 }, cronRuntimeScripts));
   if (selfImprovingLoopCronJob) validations.push(Object.assign({ status: 0 }, selfImprovingLoopCronJob));
+  if (codexMobilePrAutomationCronJob) validations.push(Object.assign({ status: 0 }, codexMobilePrAutomationCronJob));
+  if (pluginDailyProgressRollupCronJob) validations.push(Object.assign({ status: 0 }, pluginDailyProgressRollupCronJob));
   if (visualPolishTaskCardConfig) validations.push(Object.assign({ status: 0 }, visualPolishTaskCardConfig));
   if (visualPolishCronJobs) validations.push(Object.assign({ status: 0 }, visualPolishCronJobs));
   if (visualDebugLaunchAgent) validations.push(Object.assign({ status: 0 }, visualDebugLaunchAgent));
   if (backupArtifactAclRepair) validations.push(backupArtifactAclRepair);
   if (backupGatewayTelemetryAclRepair) validations.push(backupGatewayTelemetryAclRepair);
+  if (backupDeployStateAclRepair) validations.push(backupDeployStateAclRepair);
   if (codexSharedAuthRepair) validations.push(codexSharedAuthRepair);
   if (gatewayStartScriptBridgeEnvRepair) validations.push(gatewayStartScriptBridgeEnvRepair);
   if (wardrobeThumbnailArtifactAclRepair) validations.push(wardrobeThumbnailArtifactAclRepair);
   if (gatewayLaunchctlSudoers) validations.push(gatewayLaunchctlSudoers);
   if (gatewayMacosLauncher) validations.push(gatewayMacosLauncher);
   if (gatewayLaunchdServices) validations.push(gatewayLaunchdServices);
+  if (gatewayManifestWorkerReadAcl) validations.push(gatewayManifestWorkerReadAcl);
   if (productionDriftReconcile) validations.push(productionDriftReconcile);
   if (deployBackupPrune) validations.push(deployBackupPrune);
   for (const check of plan.validation) {
     if (check.type === "production-file-hashes") validations.push(runFileHashValidation(plan, password));
     else if (check.type === OWNER_3A_QUALITY_EVIDENCE_SEED.type) validations.push(runOwner3aQualityEvidenceSeedValidation(check, plan, password));
     else if (check.type === CODEX_MOBILE_LISTENER_STARTUP_GATE.type) validations.push(runCodexMobileListenerStartupGateValidation(check, password));
+    else if (check.type === CODEX_MOBILE_BEHAVIOR_GATE.type) validations.push(runCodexMobileBehaviorGateValidation(check, password));
     else if (check.type === "codex-auth-profile-audit") validations.push(runIssuePrefixAuditValidation(check, password, CODEX_AUTH_AUDIT_ISSUE_PREFIX));
     else if (check.type === "home-ai-production-drift-audit") validations.push(runIssuePrefixAuditValidation(check, password));
     else validations.push(runValidation(check, password, options));
@@ -4069,6 +4576,7 @@ module.exports = {
   PLUGIN_TARGETS,
   PLUGIN_DEPLOY_ORDER,
   CODEX_MOBILE_LISTENER_STARTUP_GATE,
+  CODEX_MOBILE_BEHAVIOR_GATE,
   RSYNC_EXCLUDES,
   parseArgs,
   buildPlan,
@@ -4082,7 +4590,10 @@ module.exports = {
   codexMobileMuxRepairStateRequiresRefresh,
   codexMobileSelectedMuxRefreshDecision,
   codexMobileListenerStartupGateSummary,
+  codexMobileBehaviorGateSummary,
   assertCodexMobileListenerStartupGatePass,
+  assertCodexMobileBehaviorGatePass,
+  codexMobileBehaviorSubmitExercisePlan,
   runValidation,
   buildHomeAiCronProfileAliasPlan,
   buildPluginWorkspaceAuditTargetJson,
@@ -4091,12 +4602,16 @@ module.exports = {
   buildHomeAiNasBackupMountLaunchdPlist,
   buildHomeAiProductionDriftAuditLaunchdPlist,
   buildSystemLaunchdReloadScript,
+  isPausedCronJob,
+  cronJobScheduleStateForUpsert,
   cronProfileAliasRowsFromManifest,
   buildHomeAiVisualAnalysisProfileConfig,
   buildRsyncArgs,
+  gatewayManifestWorkerUsers,
   shouldRepairCodexSharedAuthPermissions,
   repairHomeAiBackupArtifactAcls,
   repairHomeAiBackupGatewayTelemetryAcls,
+  repairHomeAiBackupDeployStateAcls,
   pruneDeployBackups,
   parseDeployBackupName,
   selectDeployBackupsToPrune,
@@ -4111,5 +4626,7 @@ module.exports = {
   wardrobeThumbnailArtifactAclRepairValidation,
   redactSensitiveOutput,
   deployDirtyFiles,
+  lastCommitChangedFiles,
+  changedFilesForUiVisualValidation,
   isDeploySurfaceIncluded,
 };

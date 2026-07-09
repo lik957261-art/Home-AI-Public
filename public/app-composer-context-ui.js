@@ -1,10 +1,46 @@
 "use strict";
 
+const CHAT_COMPOSER_CONTEXT_MODEL_ESM_PATH = "/vite-islands/chat-composer-context-model/chat-composer-context-model.js";
+let chatComposerContextModel = null;
+let chatComposerContextModelPromise = null;
+
+function importChatComposerContextModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (chatComposerContextModel) return Promise.resolve(chatComposerContextModel);
+  if (!chatComposerContextModelPromise) {
+    const importer = typeof rootRef.__homeAiImportChatComposerContextModel === "function"
+      ? rootRef.__homeAiImportChatComposerContextModel
+      : (path) => import(path);
+    chatComposerContextModelPromise = Promise.resolve()
+      .then(() => importer(CHAT_COMPOSER_CONTEXT_MODEL_ESM_PATH))
+      .then((model) => {
+        chatComposerContextModel = model || null;
+        return chatComposerContextModel;
+      })
+      .catch((error) => {
+        chatComposerContextModelPromise = null;
+        throw error;
+      });
+  }
+  return chatComposerContextModelPromise;
+}
+
+function currentChatComposerContextModel() {
+  return chatComposerContextModel;
+}
+
+if (typeof window !== "undefined") {
+  importChatComposerContextModel().catch(() => null);
+}
+
 function isMinimalWindowView() {
   return isTaskDetailView() || isTodoDetailView() || isSkillDetailView();
 }
 
 function activeThreadRunIds(thread = state.currentThread) {
+  const model = currentChatComposerContextModel();
+  if (typeof model?.createActiveThreadRunIdsPlan === "function") {
+    return model.createActiveThreadRunIdsPlan({ thread }).runIds;
+  }
   if (!thread) return [];
   return thread.activeRunIds || (thread.activeRunId ? [thread.activeRunId] : []);
 }
@@ -16,6 +52,10 @@ function activeTaskRunIds() {
   const messages = typeof taskGroupMessagesForThread === "function"
     ? taskGroupMessagesForThread(state.currentThread, state.currentTaskGroupId, selected?.messages || [])
     : (selected?.messages || []);
+  const model = currentChatComposerContextModel();
+  if (typeof model?.createActiveComposerRunIdsPlan === "function") {
+    return model.createActiveComposerRunIdsPlan({ messages, assistantOnly: false }).runIds;
+  }
   return messages
     .filter((message) => ["queued", "running"].includes(message.status))
     .map((message) => message.runId)
@@ -24,7 +64,12 @@ function activeTaskRunIds() {
 
 function activeComposerRunIds() {
   if (isTaskDetailView()) return activeTaskRunIds();
-  return composerStatusMessages()
+  const messages = composerStatusMessages();
+  const model = currentChatComposerContextModel();
+  if (typeof model?.createActiveComposerRunIdsPlan === "function") {
+    return model.createActiveComposerRunIdsPlan({ messages }).runIds;
+  }
+  return messages
     .filter((message) => (
       message?.role === "assistant"
       && ["queued", "running"].includes(String(message.status || ""))
@@ -39,6 +84,10 @@ function composerWorkspaceLabel() {
 }
 
 function composerPermissionLabel() {
+  const model = currentChatComposerContextModel();
+  if (typeof model?.composerPermissionLabelPlan === "function") {
+    return model.composerPermissionLabelPlan({ auth: state.auth }).label;
+  }
   if (state.auth?.isOwner) return "Owner";
   if (state.auth?.workspaceId) return "\u4f4e\u6743\u9650";
   return "\u672a\u767b\u5f55";
@@ -49,7 +98,12 @@ function composerTargetLabel() {
 }
 
 function activeComposerAssistantMessage() {
-  return [...composerStatusMessages()].reverse().find((message) => (
+  const messages = composerStatusMessages();
+  const model = currentChatComposerContextModel();
+  if (typeof model?.activeComposerAssistantMessagePlan === "function") {
+    return model.activeComposerAssistantMessagePlan({ messages }).message;
+  }
+  return [...messages].reverse().find((message) => (
     message?.role === "assistant"
     && ["queued", "running"].includes(message.status)
   )) || null;
@@ -67,7 +121,7 @@ function composerModelReasoningLabel() {
   if (active) {
     const model = String(active.model || active.runOptions?.model || state.defaultModel || assistantDisplayLabel()).trim();
     const effort = String(active.reasoningEffort || active.reasoning_effort || active.runOptions?.reasoning_effort || state.defaultReasoningEffort || "").trim();
-    return [model, composerReasoningCompactText(effort)].filter(Boolean).join(" · ");
+    return classicComposerModelReasoningLabel(model, composerReasoningCompactText(effort));
   }
   const text = getComposerText();
   const mentionInfo = composerAiMentionInfo(text);
@@ -76,7 +130,15 @@ function composerModelReasoningLabel() {
     : selectedDefaultComposerModelOption();
   const model = String(selected.label || selected.model || state.defaultModel || assistantDisplayLabel()).trim();
   const effort = selectedComposerReasoningEffort(text) || state.defaultReasoningEffort || "";
-  return [model, composerReasoningCompactText(effort)].filter(Boolean).join(" · ");
+  return classicComposerModelReasoningLabel(model, composerReasoningCompactText(effort));
+}
+
+function classicComposerModelReasoningLabel(model, reasoning) {
+  const esmModel = currentChatComposerContextModel();
+  if (typeof esmModel?.composerModelReasoningLabelPlan === "function") {
+    return esmModel.composerModelReasoningLabelPlan({ model, reasoning }).label;
+  }
+  return [model, reasoning].filter(Boolean).join(" · ");
 }
 
 function composerModelLabel() {
@@ -179,6 +241,10 @@ function composerStatusMessages() {
 }
 
 function composerRunCounts() {
+  const model = currentChatComposerContextModel();
+  if (typeof model?.composerRunCountsPlan === "function") {
+    return model.composerRunCountsPlan({ messages: composerStatusMessages() }).counts;
+  }
   const counts = { queued: 0, running: 0 };
   composerStatusMessages().forEach((message) => {
     if (message?.status === "running") counts.running += 1;
@@ -196,6 +262,20 @@ function refreshComposerContextSoon(delay = 0) {
 
 function composerContextItems(counts = composerRunCounts()) {
   if (isChatSearchMode()) return [];
+  const model = currentChatComposerContextModel();
+  if (typeof model?.composerContextItemsPlan === "function") {
+    return model.composerContextItemsPlan({
+      chatSearchMode: isChatSearchMode(),
+      workspaceLabel: composerWorkspaceLabel(),
+      permissionLabel: composerPermissionLabel(),
+      gatewayPermissionLabel: composerGatewayPermissionLabel(),
+      searchSourceLabel: composerSearchSourceLabel(),
+      directoryLabel: composerDirectoryLabel(),
+      pendingArtifactCount: state.pendingArtifacts.length,
+      quotedReply: Boolean(state.quotedReply),
+      counts,
+    }).items;
+  }
   const items = [];
   const workspaceLabel = composerWorkspaceLabel();
   if (workspaceLabel) {
@@ -217,6 +297,22 @@ function composerContextItems(counts = composerRunCounts()) {
 }
 
 function shouldShowComposerContext(items, counts) {
+  const model = currentChatComposerContextModel();
+  if (typeof model?.shouldShowComposerContextPlan === "function") {
+    return model.shouldShowComposerContextPlan({
+      items,
+      counts,
+      chatSearchMode: isChatSearchMode(),
+      viewMode: state.viewMode,
+      composerFocused: state.composerFocused,
+      hasDraft: composerHasDraft(),
+      pendingArtifactCount: state.pendingArtifacts.length,
+      activeRunSearchSource: Boolean(activeRunSearchSourceInfo()),
+      quotedReply: Boolean(state.quotedReply),
+      pendingTaskDirectoryProjectId: state.pendingTaskDirectory?.projectId || "",
+      taskDirectoryFilterProjectId: isTaskListView() ? (state.taskDirectoryFilter?.projectId || "") : "",
+    }).visible;
+  }
   if (!items.length || isChatSearchMode()) return false;
   if (state.viewMode !== "single" && state.viewMode !== "tasks") return false;
   return Boolean(

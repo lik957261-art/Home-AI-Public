@@ -51,6 +51,9 @@ const composerNavGap = pxVariable("--bottom-region-composer-nav-gap");
 const composerReserve = pxVariable("--plugin-topic-composer-reserved-height");
 const topicDockHeight = pxVariable("--topic-plugin-dock-height");
 const topicDockCollapsedHeight = pxVariable("--topic-plugin-dock-collapsed-height");
+const topicDockHandleHitHeight = pxVariable("--topic-plugin-dock-handle-hit-height");
+const topicDockMinGrabBottom = pxVariable("--topic-plugin-dock-min-grab-bottom");
+const topicDockComposerClearance = pxVariable("--topic-plugin-dock-composer-clearance");
 const topicDockCollapsedSafeLift = pxVariable("--topic-plugin-dock-collapsed-safe-lift");
 
 assert.equal(cssVariable("--plugin-topic-composer-bottom-offset"), "calc(var(--mobile-bottom-nav-bottom) + var(--plugin-context-bottom-nav-height) + var(--mobile-bottom-nav-visual-lift) + var(--bottom-region-composer-nav-gap))");
@@ -60,6 +63,9 @@ assert.equal(navComfortInset, 18, "new installed PWA bottom nav should keep an 1
 assert.equal(navOverflowClamp, 0, "PWA bottom overflow must be diagnostic-only by default");
 assert.equal(navUnderflowClamp, 24, "PWA bottom underflow correction should be bounded");
 assert.ok(navSurfaceUnderflowClamp >= 53, "PWA surface underflow correction should cover iOS safe-top viewport splits");
+assert.equal(topicDockHandleHitHeight, 40, "collapsed plugin Dock handle must keep a reliable mobile touch target");
+assert.equal(topicDockMinGrabBottom, 56, "collapsed plugin Dock handle must stay above the bottom screen edge");
+assert.equal(topicDockComposerClearance, 8, "collapsed plugin Dock handle must not overlap the plugin-topic Composer");
 assert.ok(composerNavGap >= 8, "composer/nav gap should remain visually separated after bottom tab lift");
 assert.ok(topicDockHeight >= 70, "topic dock height should be represented in the bottom stack reserve");
 assert.ok(topicDockCollapsedHeight >= 24 && topicDockCollapsedHeight < topicDockHeight, "collapsed Dock handle should reserve less space than the expanded Dock");
@@ -243,7 +249,11 @@ assert.match(appMobileLayoutJs, /const navBottom = navBottomOverflow \+ comfortI
 assert.match(appMobileLayoutJs, /window\.__hermesMobileBottomLayoutMetrics = null;/);
 assert.match(appMobileLayoutJs, /const applyDockOnlyBottomStack = \(reason = "nav_hidden"\) => \{/);
 assert.match(appMobileLayoutJs, /if \(isMobileLayout\(\) && dockIsVisible\(\)\) \{[\s\S]*?applyDockOnlyBottomStack\("nav_hidden"\);[\s\S]*?return;/);
-assert.match(appMobileLayoutJs, /root\.style\.setProperty\("--topic-plugin-dock-bottom-runtime", `\$\{comfortInset\}px`\)/);
+assert.match(appMobileLayoutJs, /const dockMinGrabBottom = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--topic-plugin-dock-min-grab-bottom", 44\)\)\)/);
+assert.match(appMobileLayoutJs, /const dockComposerClearance = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--topic-plugin-dock-composer-clearance", 8\)\)\)/);
+assert.match(appMobileLayoutJs, /const composerTopInset = composerVisible && viewportHeight[\s\S]*?\? Math\.ceil\(Math\.max\(0, viewportHeight - composerRect\.top\)\)[\s\S]*?: 0;/);
+assert.match(appMobileLayoutJs, /Math\.max\(comfortInset, dockMinGrabBottom, composerTopInset \? composerTopInset \+ dockComposerClearance : 0\)/);
+assert.match(appMobileLayoutJs, /root\.style\.setProperty\("--topic-plugin-dock-bottom-runtime", `\$\{dockBottom\}px`\)/);
 assert.match(appMobileLayoutJs, /app\?\.classList\.contains\("global-plugin-dock-mode"\)/);
 assert.match(appMobileLayoutJs, /const dockSuppressedByKeyboard = \(\) => Boolean\(state\.keyboardViewportActive \|\| root\.classList\.contains\("keyboard-viewport-active"\)\)/);
 assert.match(appMobileLayoutJs, /const dockIsVisible = \(\) => Boolean\([\s\S]*?!dockSuppressedByKeyboard\(\)[\s\S]*?app\?\.classList\.contains\("global-plugin-dock-mode"\)/);
@@ -252,7 +262,7 @@ assert.match(appMobileLayoutJs, /const dockCollapsedHeight = Math\.max\(0, Math\
 assert.match(appMobileLayoutJs, /const dockCollapsedSafeLift = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--topic-plugin-dock-collapsed-safe-lift", 0\)\)\)/);
 assert.match(appMobileLayoutJs, /const rawDockHeight = dockVisible/);
 assert.match(appMobileLayoutJs, /dockExpanded \? rawDockHeight : Math\.max\(24, dockCollapsedHeight \+ dockCollapsedSafeLift\)/);
-assert.match(appMobileLayoutJs, /const dockBottom = offset/);
+assert.match(appMobileLayoutJs, /const dockBottom = dockVisible \? Math\.max\(offset, dockMinGrabBottom\) : offset/);
 assert.match(appMobileLayoutJs, /const stackHeight = dockVisible \? Math\.max\(reserve, dockBottom \+ dockHeight \+ 2\) : reserve/);
 assert.match(appMobileLayoutJs, /const layoutViewportHeight = Math\.max\(innerHeight, documentHeight, visualViewportHeight\)/);
 assert.match(appMobileLayoutJs, /const viewportHeight = layoutViewportHeight \|\| appHeight \|\| 0/);
@@ -260,7 +270,7 @@ assert.match(appMobileLayoutJs, /const viewportOverflowRaw = Math\.max\(0, appHe
 assert.match(appMobileLayoutJs, /const viewportOverflowClamp = Math\.max\(0, Math\.ceil\(mobileBottomCssPx\("--mobile-bottom-nav-overflow-clamp", 0\)\)\)/);
 assert.match(appMobileLayoutJs, /const viewportOverflow = Math\.min\(viewportOverflowRaw, viewportOverflowClamp\)/);
 assert.match(appMobileLayoutJs, /const navVisibleTopInset = navRect && viewportHeight \? Math\.ceil\(Math\.max\(0, viewportHeight - navRect\.top\)\) : navHeight/);
-assert.match(appMobileLayoutJs, /const bottomInset = Math\.max\(0, navVisibleTopInset \+ viewportOverflow\)/);
+assert.match(appMobileLayoutJs, /const bottomInset = insetPlan \? insetPlan\.bottomInset : Math\.max\(0, navVisibleTopInset \+ viewportOverflow\)/);
 assert.match(appMobileLayoutJs, /window\.__hermesPluginContextViewportMetrics = \{/);
 assert.doesNotMatch(appMobileLayoutJs, /const viewportHeight = Math\.ceil\(window\.visualViewport\?\.height \|\| window\.innerHeight/);
 assert.doesNotMatch(appMobileLayoutJs, /const comfortInset = 12/);

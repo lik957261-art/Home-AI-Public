@@ -10,19 +10,58 @@
   const VIEW_MODE_STORAGE_KEY = "hermesWebViewMode";
   const VOICE_INPUT_MIC_GRANTED_KEY = "homeAiVoiceInputMicGranted";
   const VOICE_INPUT_STATUS_PANEL_KEY = "homeAiVoiceInputStatusPanel";
+  const RUNTIME_FACADE_COMPAT_MODEL_ESM_PATH = "/vite-islands/runtime-facade-compat-model/runtime-facade-compat-model.js";
+  let runtimeFacadeCompatModel = null;
+  let runtimeFacadeCompatModelPromise = null;
 
   function noop() {}
 
+  function importRuntimeFacadeCompatModel(rootRef = root) {
+    if (runtimeFacadeCompatModel) return Promise.resolve(runtimeFacadeCompatModel);
+    if (!runtimeFacadeCompatModelPromise) {
+      const importer = typeof rootRef.__homeAiImportRuntimeFacadeCompatModel === "function"
+        ? rootRef.__homeAiImportRuntimeFacadeCompatModel
+        : (path) => import(path);
+      runtimeFacadeCompatModelPromise = Promise.resolve()
+        .then(() => importer(RUNTIME_FACADE_COMPAT_MODEL_ESM_PATH))
+        .then((model) => {
+          runtimeFacadeCompatModel = model || null;
+          return runtimeFacadeCompatModel;
+        })
+        .catch((error) => {
+          runtimeFacadeCompatModelPromise = null;
+          throw error;
+        });
+    }
+    return runtimeFacadeCompatModelPromise;
+  }
+
+  function currentRuntimeFacadeCompatModel() {
+    return runtimeFacadeCompatModel;
+  }
+
+  function runtimeFacadeCompatModelFunction(name) {
+    const model = currentRuntimeFacadeCompatModel();
+    return model && typeof model[name] === "function" ? model[name] : null;
+  }
+
+  importRuntimeFacadeCompatModel().catch(() => null);
+
   function safeString(value) {
-    return String(value == null ? "" : value);
+    const modelFn = runtimeFacadeCompatModelFunction("safeRuntimeStringPlan");
+    return modelFn ? modelFn(value) : String(value == null ? "" : value);
   }
 
   function normalizeNativeShellParam(value) {
+    const modelFn = runtimeFacadeCompatModelFunction("normalizeNativeShellParamPlan");
+    if (modelFn) return modelFn(value);
     const normalized = safeString(value).trim().toLowerCase();
     return normalized === "ios" || normalized === "android" ? normalized : "";
   }
 
   function nativeShareFileCount(payload) {
+    const modelFn = runtimeFacadeCompatModelFunction("nativeShareFileCountPlan");
+    if (modelFn) return modelFn(payload);
     if (Array.isArray(payload)) return payload.length;
     if (Array.isArray(payload?.files)) return payload.files.length;
     return 0;
@@ -100,6 +139,11 @@
   }
 
   function createSearchParams(search) {
+    const modelFn = runtimeFacadeCompatModelFunction("searchParamEntriesPlan");
+    if (modelFn) {
+      const pairs = new Map(modelFn(search));
+      return Object.freeze({ get: (key) => pairs.get(safeString(key)) || "" });
+    }
     const pairs = new Map();
     const text = safeString(search || "").replace(/^\?/, "");
     for (const part of text.split("&")) {
@@ -203,6 +247,8 @@
   function createDedupe(events) {
     const storage = getStorage();
     function storageKey(scope, key) {
+      const modelFn = runtimeFacadeCompatModelFunction("runtimeScopedStorageKeyPlan");
+      if (modelFn) return modelFn({ scope, key });
       const safeScope = safeString(scope || "dedupe").replace(/[^\w.-]/g, "").slice(0, 80) || "dedupe";
       const safeKey = safeString(key || "").replace(/[^\w.-]/g, "").slice(0, 180);
       return `homeai.${safeScope}.${safeKey}`;
@@ -242,12 +288,14 @@
     const storage = getStorage();
     return Object.freeze({
       current() {
-        return Object.freeze({
+        const modelFn = runtimeFacadeCompatModelFunction("routeSnapshotPlan");
+        const snapshotInput = {
           href: safeString(root.location?.href || ""),
           pathname: safeString(root.location?.pathname || "/"),
           search: safeString(root.location?.search || ""),
           hash: safeString(root.location?.hash || ""),
-        });
+        };
+        return modelFn ? modelFn(snapshotInput) : Object.freeze(snapshotInput);
       },
       getViewMode(fallback) {
         try {
@@ -573,12 +621,14 @@
     route: createRoute(events, state),
     state,
     snapshot() {
-      return Object.freeze({
+      const modelFn = runtimeFacadeCompatModelFunction("runtimeSnapshotPlan");
+      const snapshotInput = {
         version: VERSION,
         mode: "classic-shell-compat",
         hasAccessKey: auth.hasAccessKey(),
         route: this.route.current(),
-      });
+      };
+      return modelFn ? modelFn(snapshotInput) : Object.freeze(snapshotInput);
     },
   });
 

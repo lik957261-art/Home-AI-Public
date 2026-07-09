@@ -53,6 +53,7 @@ assert.match(script, /mobile_bridge_env_missing/);
 assert.match(script, /mobile_bridge_key_path_missing/);
 assert.match(script, /installed_gateway_launchd_untracked/);
 assert.match(script, /installed_gateway_start_script_root_mismatch/);
+assert.match(script, /enabledWorkers = workers\.filter\(\(worker\) => worker\.enabled !== false\)/);
 assert.match(script, /installed_gateway_mobile_bridge_env_missing/);
 assert.match(script, /HERMES_MOBILE_BRIDGE_HOST_URL/);
 assert.match(script, /HERMES_MOBILE_BRIDGE_HOST_KEY_PATH/);

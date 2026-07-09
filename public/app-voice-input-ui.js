@@ -10,12 +10,62 @@ const VOICE_INPUT_STATUS_PANEL_KEY = "homeAiVoiceInputStatusPanel";
 const VOICE_INPUT_PROVISIONAL_REVEAL_MAX_CHARS = 14;
 const VOICE_INPUT_PARTIAL_STATUS_RENDER_MS = 260;
 const VOICE_INPUT_PENDING_GUARD_MS = VOICE_INPUT_LONG_PRESS_MS + 1100;
+const VOICE_INPUT_SESSION_CONTROLLER_ESM_PATH = "/vite-islands/voice-input-session-controller/voice-input-session-controller.js";
+const VOICE_INPUT_AUDIO_CAPTURE_ADAPTER_ESM_PATH = "/vite-islands/voice-input-audio-capture-adapter/voice-input-audio-capture-adapter.js";
 const VOICE_INPUT_TERMINAL_STATUS_HIDE_MS = Object.freeze({
   inserted: 1400,
   cancelled: 1400,
   no_speech: 1800,
   failed: 4200,
 });
+let voiceInputSessionControllerModule = null;
+let voiceInputSessionControllerPromise = null;
+let voiceInputAudioCaptureAdapterModule = null;
+let voiceInputAudioCaptureAdapterPromise = null;
+
+function importVoiceInputSessionController(rootRef = typeof window !== "undefined" ? window : null) {
+  if (voiceInputSessionControllerModule) return Promise.resolve(voiceInputSessionControllerModule);
+  if (!voiceInputSessionControllerPromise) {
+    const importer = rootRef?.__homeAiImportVoiceInputSessionController;
+    const load = typeof importer === "function"
+      ? importer(VOICE_INPUT_SESSION_CONTROLLER_ESM_PATH)
+      : import(VOICE_INPUT_SESSION_CONTROLLER_ESM_PATH);
+    voiceInputSessionControllerPromise = Promise.resolve(load).then((module) => {
+      voiceInputSessionControllerModule = module || null;
+      return voiceInputSessionControllerModule;
+    }).catch(() => {
+      voiceInputSessionControllerPromise = null;
+      return null;
+    });
+  }
+  return voiceInputSessionControllerPromise;
+}
+
+function currentVoiceInputSessionControllerModule() {
+  return voiceInputSessionControllerModule;
+}
+
+function importVoiceInputAudioCaptureAdapter(rootRef = typeof window !== "undefined" ? window : null) {
+  if (voiceInputAudioCaptureAdapterModule) return Promise.resolve(voiceInputAudioCaptureAdapterModule);
+  if (!voiceInputAudioCaptureAdapterPromise) {
+    const importer = rootRef?.__homeAiImportVoiceInputAudioCaptureAdapter;
+    const load = typeof importer === "function"
+      ? importer(VOICE_INPUT_AUDIO_CAPTURE_ADAPTER_ESM_PATH)
+      : import(VOICE_INPUT_AUDIO_CAPTURE_ADAPTER_ESM_PATH);
+    voiceInputAudioCaptureAdapterPromise = Promise.resolve(load).then((module) => {
+      voiceInputAudioCaptureAdapterModule = module || null;
+      return voiceInputAudioCaptureAdapterModule;
+    }).catch(() => {
+      voiceInputAudioCaptureAdapterPromise = null;
+      return null;
+    });
+  }
+  return voiceInputAudioCaptureAdapterPromise;
+}
+
+function currentVoiceInputAudioCaptureAdapterModule() {
+  return voiceInputAudioCaptureAdapterModule;
+}
 
 function voiceInputRuntimeNative() {
   try {
@@ -36,6 +86,11 @@ function ensureVoiceInputState() {
 }
 
 function voiceInputStatusLabel(status = ensureVoiceInputState().status) {
+  const model = currentVoiceInputSessionControllerModule();
+  if (typeof model?.statusLabel === "function") {
+    const label = model.statusLabel(status);
+    if (label) return label;
+  }
   const labels = {
     idle: "按住发送录音",
     pending: "继续按住开始录音",
@@ -424,6 +479,10 @@ function voiceInputEmbeddedComposerAvailable(def) {
 }
 
 function voiceInputPreferredMimeType() {
+  const model = currentVoiceInputAudioCaptureAdapterModule();
+  if (typeof model?.preferredRecordingMimeType === "function") {
+    return model.preferredRecordingMimeType(typeof MediaRecorder === "undefined" ? null : MediaRecorder);
+  }
   if (typeof MediaRecorder === "undefined") return "";
   const candidates = [
     "audio/webm;codecs=opus",
@@ -441,14 +500,20 @@ function voiceInputPreferredMimeType() {
 }
 
 function voiceInputStreamingConfigured(serviceStatus) {
+  const model = currentVoiceInputAudioCaptureAdapterModule();
+  if (typeof model?.streamingConfigured === "function") return model.streamingConfigured(serviceStatus);
   return Boolean(serviceStatus?.provider?.streaming?.configured);
 }
 
 function voiceInputStreamingSampleRate(serviceStatus) {
+  const model = currentVoiceInputAudioCaptureAdapterModule();
+  if (typeof model?.normalizeStreamingSampleRate === "function") return model.normalizeStreamingSampleRate(serviceStatus);
   return Math.max(8000, Number(serviceStatus?.provider?.streaming?.sampleRate || 16000) || 16000);
 }
 
 function voiceInputBytesToBase64(bytes) {
+  const model = currentVoiceInputAudioCaptureAdapterModule();
+  if (typeof model?.bytesToBase64 === "function") return model.bytesToBase64(bytes);
   const input = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || []);
   let binary = "";
   const chunkSize = 0x8000;
@@ -459,6 +524,8 @@ function voiceInputBytesToBase64(bytes) {
 }
 
 function voiceInputDownsampleToPcm16(input, sourceRate, targetRate) {
+  const model = currentVoiceInputAudioCaptureAdapterModule();
+  if (typeof model?.downsampleToPcm16 === "function") return model.downsampleToPcm16(input, sourceRate, targetRate);
   const source = input instanceof Float32Array ? input : new Float32Array(input || []);
   const fromRate = Math.max(1, Number(sourceRate || targetRate || 16000) || 16000);
   const toRate = Math.max(8000, Number(targetRate || 16000) || 16000);
@@ -641,6 +708,8 @@ async function voiceInputMicrophonePermissionState() {
 }
 
 function voiceInputStreamIsLive(stream) {
+  const model = currentVoiceInputAudioCaptureAdapterModule();
+  if (typeof model?.streamIsLive === "function") return model.streamIsLive(stream);
   try {
     const tracks = stream?.getAudioTracks?.() || stream?.getTracks?.() || [];
     return tracks.some((track) => track && track.readyState !== "ended");
@@ -858,6 +927,8 @@ function ensureVoiceInputOverlay() {
 }
 
 function voiceInputOverlayActiveStatus(status) {
+  const model = currentVoiceInputSessionControllerModule();
+  if (typeof model?.isActiveStatus === "function") return model.isActiveStatus(status);
   return ["pending", "checking", "requesting", "preparing", "recording", "finalizing", "transcribing", "inserting"].includes(String(status || ""));
 }
 
@@ -866,6 +937,8 @@ function voiceInputRecordingVisible(voice = ensureVoiceInputState()) {
 }
 
 function voiceInputTerminalHideDelay(status) {
+  const model = currentVoiceInputSessionControllerModule();
+  if (typeof model?.terminalHideDelay === "function") return model.terminalHideDelay(status);
   return VOICE_INPUT_TERMINAL_STATUS_HIDE_MS[String(status || "")] || 0;
 }
 
@@ -2155,6 +2228,8 @@ function initializeNativeVoiceInputBridge() {
 }
 
 function initializeVoiceInputUi() {
+  importVoiceInputSessionController().catch(() => null);
+  importVoiceInputAudioCaptureAdapter().catch(() => null);
   bindVoiceInputPressSelectionGuards();
   bindVoiceInputStatusPanelDismissGuards();
   initializeNativeVoiceInputBridge();

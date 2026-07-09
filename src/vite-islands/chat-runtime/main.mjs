@@ -29,6 +29,9 @@ import {
   uploadComposerFiles,
 } from "./attachment-upload-client.mjs";
 import {
+  createAttachmentFileInputController,
+} from "./attachment-file-input-controller.mjs";
+import {
   attachServerFileToComposer,
 } from "./attachment-server-file-client.mjs";
 import {
@@ -49,6 +52,8 @@ let mountedTarget = null;
 let mountSubscriptions = [];
 let previewFocusGuard = null;
 let nativeShareReceiverInstalled = false;
+let attachmentFileInputController = null;
+let selectedAttachmentFileSnapshot = [];
 
 const runtime = browserRoot.HomeAiRuntimeFacade || createHomeAiRuntimeFacade({
   root: browserRoot,
@@ -59,6 +64,10 @@ const runtime = browserRoot.HomeAiRuntimeFacade || createHomeAiRuntimeFacade({
     chatRuntimePreview: true,
   },
   attachClassicCompatibility: true,
+});
+
+attachmentFileInputController = createAttachmentFileInputController({
+  events: runtime.events,
 });
 
 const initialThread = Object.freeze({
@@ -232,6 +241,10 @@ function attachmentUploadStatus() {
     count: 0,
     error: "",
   };
+}
+
+function selectedFileInputMetadata() {
+  return attachmentFileInputController?.getSelectedMetadata?.() || [];
 }
 
 function threadReadbackStatus() {
@@ -903,11 +916,12 @@ function attachmentPanel() {
       </div>
       <label class="cr-attachment-file-picker">
         <span>开发文件</span>
-        <input type="file" multiple data-cr-attachment-file-input>
+        <input type="file" multiple accept="image/*,application/pdf,text/*,.md,.txt,.pdf,.doc,.docx,.ppt,.pptx" data-cr-attachment-file-input>
       </label>
       ${attachmentNativeRows()}
       <ul class="cr-attachment-list">${attachmentRows()}</ul>
       <p class="cr-composer-status">upload：${escapeHtml(uploadStatus.status)} · ${escapeHtml(uploadStatus.message || "尚未上传")}${uploadStatus.error ? ` · ${escapeHtml(uploadStatus.error)}` : ""}</p>
+      <p class="cr-composer-status">selected：${escapeHtml(String(selectedFileInputMetadata().length))} · ${escapeHtml(selectedFileInputMetadata().map((file) => file.name).join(", ") || "未选择")}</p>
       <p class="cr-composer-status">bounded evidence：${escapeHtml(attachments.boundedEvidence.join(" · "))}</p>
     </section>
   `;
@@ -1144,7 +1158,7 @@ function renderShell(root) {
           <div>
             <p class="cr-eyebrow">Vite island 开发预览</p>
             <h1 class="cr-title">Chat Runtime 事件模型</h1>
-            <p class="cr-subtitle">模拟 SSE message.delta、terminal message 和 thread.updated。当前页面只使用注入式 fake EventSource，不发送消息，不替换 classic shell。</p>
+            <p class="cr-subtitle">模拟 SSE message.delta、terminal message 和 thread.updated。当前页面只使用注入式 fake EventSource，不发送消息，不替换生产根 shell。</p>
           </div>
           <div class="cr-badges">${badges(model)}</div>
         </header>
@@ -1277,10 +1291,24 @@ function wire(root) {
     renderShell(root);
     wire(root);
   });
+  const fileInput = root.querySelector("[data-cr-attachment-file-input]");
+  attachmentFileInputController = createAttachmentFileInputController({
+    events: runtime.events,
+    initialFiles: selectedAttachmentFileSnapshot,
+    onSelection(payload = {}) {
+      selectedAttachmentFileSnapshot = attachmentFileInputController.getSelectedFiles();
+      setAttachmentUploadStatus({
+        status: payload.status || "selected",
+        message: payload.count ? `已选择 ${payload.count} 个文件，等待上传` : "未选择文件",
+        count: payload.count || 0,
+      });
+    },
+  });
+  attachmentFileInputController.bind(fileInput);
   root.querySelector("[data-cr-attachment-upload-selected]")?.addEventListener("click", async () => {
-    const input = root.querySelector("[data-cr-attachment-file-input]");
-    await uploadSelectedFilesToDevMock(input?.files || []);
-    if (input) input.value = "";
+    await uploadSelectedFilesToDevMock(attachmentFileInputController.getSelectedFiles());
+    attachmentFileInputController.clearSelection("uploaded");
+    selectedAttachmentFileSnapshot = [];
     renderShell(root);
     wire(root);
   });
@@ -1300,6 +1328,8 @@ function wire(root) {
     wire(root);
   });
   root.querySelector("[data-cr-attachment-clear]")?.addEventListener("click", () => {
+    selectedAttachmentFileSnapshot = [];
+    attachmentFileInputController.clearSelection("clear_attachments");
     clearPreviewAttachments();
     renderShell(root);
     wire(root);

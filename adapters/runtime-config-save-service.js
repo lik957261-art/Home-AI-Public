@@ -12,6 +12,7 @@ function hasOwn(object, key) {
 
 function createRuntimeConfigSaveService(options = {}) {
   const mergeGatewayWorkerRuntimeSettings = optionFunction(options, "mergeGatewayWorkerRuntimeSettings");
+  const mergeMoaConfig = optionFunction(options, "mergeMoaConfig");
   const normalizeRuntimeConfig = optionFunction(options, "normalizeRuntimeConfig");
   const normalizeRuntimeModelSelection = optionFunction(options, "normalizeRuntimeModelSelection");
   const nowIso = optionFunction(options, "nowIso");
@@ -29,6 +30,10 @@ function createRuntimeConfigSaveService(options = {}) {
         { strict: true },
       )
       : previous.gatewayWorkerSettings;
+    const hasMoaConfig = hasOwn(sourceInput, "moaConfig") || hasOwn(sourceInput, "moa_config") || hasOwn(sourceInput, "moa");
+    const moaConfig = hasMoaConfig
+      ? mergeMoaConfig(previous.moaConfig, sourceInput.moaConfig ?? sourceInput.moa_config ?? sourceInput.moa ?? {})
+      : previous.moaConfig;
     return normalizeRuntimeConfig(Object.assign({}, previous, sourceInput, {
       hermesApiBase: validateHermesApiBase(sourceInput.hermesApiBase ?? sourceInput.hermes_api_base ?? previous.hermesApiBase),
       hermesApiKeyPath: String(sourceInput.hermesApiKeyPath ?? sourceInput.hermes_api_key_path ?? previous.hermesApiKeyPath ?? "").trim(),
@@ -39,6 +44,7 @@ function createRuntimeConfigSaveService(options = {}) {
         defaultReasoningEffort: sourceInput.defaultReasoningEffort ?? sourceInput.default_reasoning_effort ?? previous.defaultReasoningEffort,
       }),
       gatewayWorkerSettings,
+      moaConfig,
       webPushSubject: validateWebPushSubject(sourceInput.webPushSubject ?? sourceInput.web_push_subject ?? previous.webPushSubject),
       webPushVapidPath: String(sourceInput.webPushVapidPath ?? sourceInput.web_push_vapid_path ?? previous.webPushVapidPath ?? "").trim(),
       updatedAt: nowIso(),

@@ -10,6 +10,7 @@ long model/tool job cannot block later scheduler ticks.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import logging
 import os
@@ -44,7 +45,11 @@ LOCAL_NO_PROXY_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 
 def _hermes_home() -> Path:
-    return Path(os.environ.get("HERMES_HOME") or Path.home() / ".hermes").expanduser()
+    return Path(
+        os.environ.get("HERMES_HOME")
+        or os.environ.get("HERMES_WEB_HERMES_HOME")
+        or Path.home() / ".hermes"
+    ).expanduser()
 
 
 def _state_dir() -> Path:
@@ -92,6 +97,123 @@ def _read_json(path: Path) -> dict[str, Any] | None:
         return json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
+
+
+def _jobs_path_candidates() -> list[Path]:
+    raw_items = [
+        os.environ.get("HERMES_WEB_CRON_JOBS_PATH"),
+        os.environ.get("HERMES_CRON_JOBS_PATH"),
+        str(_hermes_home() / "cron" / "jobs.json"),
+        os.environ.get("HERMES_WEB_CRON_JOBS_FALLBACK_PATH"),
+    ]
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for raw in raw_items:
+        if not raw:
+            continue
+        path = Path(os.path.expanduser(str(raw))).resolve()
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        paths.append(path)
+    return paths
+
+
+def _jobs_path_for_write() -> Path:
+    candidates = _jobs_path_candidates()
+    for path in candidates:
+        if path.exists():
+            return path
+    return candidates[0] if candidates else _hermes_home() / "cron" / "jobs.json"
+
+
+def _load_jobs_document() -> tuple[Path, dict[str, Any]]:
+    for path in _jobs_path_candidates():
+        if not path.exists():
+            continue
+        parsed = _read_json(path)
+        if isinstance(parsed, dict):
+            jobs = parsed.get("jobs")
+            if not isinstance(jobs, list):
+                parsed["jobs"] = []
+            return path, parsed
+    return _jobs_path_for_write(), {"jobs": []}
+
+
+def _save_jobs_document(path: Path, document: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=".jobs.", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(document, handle, ensure_ascii=False, indent=2)
+            handle.write("\n")
+        os.replace(tmp_name, path)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    finally:
+        if os.path.exists(tmp_name):
+            os.unlink(tmp_name)
+
+
+def _is_paused_job(job: dict[str, Any]) -> bool:
+    return (
+        bool(job)
+        and (
+            job.get("enabled") is False
+            or str(job.get("state") or "").strip().lower() == "paused"
+            or bool(job.get("paused_at"))
+        )
+    )
+
+
+def _has_manual_run_request(job: dict[str, Any]) -> bool:
+    return bool(str(job.get("manual_run_requested_at") or "").strip())
+
+
+def _manual_paused_jobs() -> list[dict[str, Any]]:
+    _path, document = _load_jobs_document()
+    jobs = document.get("jobs") if isinstance(document, dict) else []
+    if not isinstance(jobs, list):
+        return []
+    return [
+        job
+        for job in jobs
+        if isinstance(job, dict) and _is_paused_job(job) and _has_manual_run_request(job)
+    ]
+
+
+def _job_for_manual_paused_run(job: dict[str, Any]) -> dict[str, Any]:
+    prepared = dict(job)
+    prepared["enabled"] = True
+    prepared["state"] = "scheduled"
+    prepared["next_run_at"] = _now_iso()
+    return prepared
+
+
+def _clear_manual_paused_run_request(job_id: str) -> None:
+    path, document = _load_jobs_document()
+    jobs = document.get("jobs") if isinstance(document, dict) else []
+    if not isinstance(jobs, list):
+        return
+    changed = False
+    for job in jobs:
+        if not isinstance(job, dict) or str(job.get("id") or "") != job_id:
+            continue
+        if "manual_run_requested_at" in job:
+            del job["manual_run_requested_at"]
+            changed = True
+        if _is_paused_job(job):
+            job["enabled"] = False
+            job["state"] = "paused"
+            job["next_run_at"] = None
+        job["updated_at"] = _now_iso()
+        changed = True
+        break
+    if changed:
+        _save_jobs_document(path, document)
 
 
 def _is_job_running(job_id: str) -> bool:
@@ -271,12 +393,151 @@ def _proxy_endpoint_available(proxy_url: str) -> bool:
 def _job_requires_model_proxy(job: dict[str, Any]) -> bool:
     if str(job.get("kind") or "").strip() == "plugin_workspace_audit":
         return False
-    if bool(job.get("no_agent")):
+    if bool(job.get("no_agent") or job.get("noAgent")):
         return False
     network_mode = str(os.environ.get("HERMES_MOBILE_NETWORK_MODE") or "").strip().lower()
     if network_mode == "direct":
         return False
     return True
+
+
+def _clean_yaml_scalar(value: str) -> str:
+    text = str(value or "").strip()
+    if not text or text in {"~", "null", "Null", "NULL"}:
+        return ""
+    if (text.startswith('"') and text.endswith('"')) or (text.startswith("'") and text.endswith("'")):
+        text = text[1:-1]
+    return text.strip()
+
+
+def _safe_profile_name(profile: str) -> str:
+    profile_id = str(profile or "").strip()
+    if not profile_id or "/" in profile_id or "\\" in profile_id or profile_id in {".", ".."}:
+        return ""
+    return profile_id
+
+
+def _profile_home(profile: str) -> Path | None:
+    profile_id = _safe_profile_name(profile)
+    if not profile_id:
+        return None
+    path = _hermes_home() / "profiles" / profile_id
+    try:
+        if not path.exists():
+            return None
+    except OSError:
+        return None
+    return path
+
+
+def _profile_model_config(profile: str) -> dict[str, str]:
+    profile_id = _safe_profile_name(profile)
+    if not profile_id:
+        return {}
+    path = _hermes_home() / "profiles" / profile_id / "config.yaml"
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return {}
+
+    model_indent = -1
+    values: dict[str, str] = {}
+    for raw_line in lines:
+        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            continue
+        indent = len(raw_line) - len(raw_line.lstrip(" "))
+        text = raw_line.strip()
+        if model_indent >= 0 and indent <= model_indent:
+            model_indent = -1
+        if text == "model:":
+            model_indent = indent
+            continue
+        if ":" not in text:
+            continue
+        key, raw_value = text.split(":", 1)
+        key = key.strip()
+        value = _clean_yaml_scalar(raw_value)
+        if model_indent >= 0 and indent > model_indent:
+            if key in {"default", "provider", "base_url", "baseUrl"} and value:
+                values[key] = value
+            continue
+        if key in {"model.default", "model.provider", "model.base_url", "model.baseUrl"} and value:
+            values[key.split(".", 1)[1]] = value
+    return values
+
+
+def _job_with_profile_model_defaults(job: dict[str, Any]) -> dict[str, Any]:
+    profile = str(job.get("profile") or "").strip()
+    if not profile or bool(job.get("no_agent") or job.get("noAgent")):
+        return job
+    needs_model = not str(job.get("model") or "").strip()
+    needs_provider = not str(job.get("provider") or job.get("model_provider") or job.get("modelProvider") or "").strip()
+    needs_base_url = not str(job.get("base_url") or job.get("baseUrl") or "").strip()
+    if not (needs_model or needs_provider or needs_base_url):
+        return job
+
+    model_config = _profile_model_config(profile)
+    if not model_config:
+        return job
+
+    next_job = dict(job)
+    if needs_model and model_config.get("default"):
+        next_job["model"] = model_config["default"]
+    if needs_provider and model_config.get("provider"):
+        next_job["provider"] = model_config["provider"]
+    base_url = model_config.get("base_url") or model_config.get("baseUrl") or ""
+    if needs_base_url and base_url:
+        next_job["base_url"] = base_url
+    return next_job
+
+
+def _profile_home_for_job(job: dict[str, Any]) -> Path | None:
+    if bool(job.get("no_agent") or job.get("noAgent")):
+        return None
+    profile = str(job.get("profile") or "").strip()
+    if not profile:
+        return None
+    return _profile_home(profile)
+
+
+@contextlib.contextmanager
+def _official_cron_profile_home_context(job: dict[str, Any]):
+    profile_home = _profile_home_for_job(job)
+    if not profile_home:
+        yield
+        return
+
+    previous_home = os.environ.get("HERMES_HOME")
+    override_module = None
+    previous_override = None
+    override_set = False
+    try:
+        try:
+            import hermes_constants  # type: ignore
+
+            setter = getattr(hermes_constants, "set_hermes_home_override", None)
+            getter = getattr(hermes_constants, "get_hermes_home_override", None)
+            if callable(setter):
+                override_module = hermes_constants
+                previous_override = getter() if callable(getter) else None
+                setter(str(profile_home))
+                override_set = True
+        except Exception:
+            override_module = None
+            override_set = False
+
+        os.environ["HERMES_HOME"] = str(profile_home)
+        yield
+    finally:
+        if previous_home is None:
+            os.environ.pop("HERMES_HOME", None)
+        else:
+            os.environ["HERMES_HOME"] = previous_home
+        if override_set and override_module is not None:
+            try:
+                getattr(override_module, "set_hermes_home_override")(previous_override)
+            except Exception:
+                pass
 
 
 def _ensure_model_proxy_for_job(job: dict[str, Any]) -> str:
@@ -438,15 +699,21 @@ def dispatch_due_jobs() -> int:
     from cron.jobs import advance_next_run, get_due_jobs
 
     due_jobs = get_due_jobs()
-    if not due_jobs:
+    manual_paused_jobs = _manual_paused_jobs()
+    if not due_jobs and not manual_paused_jobs:
         print("mobile cron dispatcher: no jobs due")
         return 0
 
     dispatched = 0
-    for job in due_jobs:
+    seen_job_ids: set[str] = set()
+    for job in [*due_jobs, *manual_paused_jobs]:
         job_id = str(job.get("id") or "").strip()
         if not job_id:
             continue
+        if job_id in seen_job_ids:
+            continue
+        seen_job_ids.add(job_id)
+        manual_paused_run = _is_paused_job(job) and _has_manual_run_request(job)
         if _is_job_running(job_id):
             print(f"mobile cron dispatcher: skip running job {job_id}")
             continue
@@ -463,7 +730,8 @@ def dispatch_due_jobs() -> int:
             continue
 
         try:
-            advance_next_run(job_id)
+            if not manual_paused_run:
+                advance_next_run(job_id)
             log_path = _job_log_path(job_id)
             env = _cron_child_env()
             env["HERMES_MOBILE_CRON_RUNNER_LOG_PATH"] = str(log_path)
@@ -564,6 +832,10 @@ def run_one_job(job_id: str) -> int:
         _clear_lock(job_id)
         return 1
 
+    manual_paused_run = _is_paused_job(job) and _has_manual_run_request(job)
+    if manual_paused_run:
+        job = _job_for_manual_paused_run(job)
+
     print(f"mobile cron runner: start job {job_id} name={job.get('name', '')!r}")
     try:
         if str(job.get("kind") or "").strip() == "plugin_workspace_audit":
@@ -574,7 +846,8 @@ def run_one_job(job_id: str) -> int:
             print(f"mobile cron runner: finish plugin workspace audit job {job_id} success={success}")
             return 0 if success else 1
 
-        proxy_error = _ensure_model_proxy_for_job(job)
+        prepared_job = _job_with_profile_model_defaults(job)
+        proxy_error = _ensure_model_proxy_for_job(prepared_job)
         if proxy_error:
             print(f"mobile cron runner: proxy check failed job {job_id}: {proxy_error}")
             mark_job_run(job_id, False, proxy_error)
@@ -582,8 +855,9 @@ def run_one_job(job_id: str) -> int:
 
         from cron.scheduler import SILENT_MARKER, _deliver_result, run_job
 
-        prepared_job = _job_with_prepared_data_context(job)
-        success, output, final_response, error = run_job(prepared_job)
+        prepared_job = _job_with_prepared_data_context(prepared_job)
+        with _official_cron_profile_home_context(prepared_job):
+            success, output, final_response, error = run_job(prepared_job)
         output_file = save_job_output(job_id, output)
         print(f"mobile cron runner: output saved {output_file}")
 
@@ -595,7 +869,8 @@ def run_one_job(job_id: str) -> int:
         delivery_error = None
         if should_deliver:
             try:
-                delivery_error = _deliver_result(job, deliver_content, adapters=None, loop=None)
+                with _official_cron_profile_home_context(prepared_job):
+                    delivery_error = _deliver_result(prepared_job, deliver_content, adapters=None, loop=None)
             except Exception as exc:
                 delivery_error = str(exc)
                 print(f"mobile cron runner: delivery failed {delivery_error}")
@@ -620,6 +895,11 @@ def run_one_job(job_id: str) -> int:
             print(f"mobile cron runner: mark failed job {job_id}: {mark_exc}")
         return 1
     finally:
+        if manual_paused_run:
+            try:
+                _clear_manual_paused_run_request(job_id)
+            except Exception as exc:
+                print(f"mobile cron runner: failed to clear manual run request job {job_id}: {exc}")
         _clear_lock(job_id)
 
 

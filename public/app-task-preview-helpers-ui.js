@@ -1,6 +1,46 @@
 "use strict";
 
 (function initTaskDocumentPreviewHelpers(global) {
+  const TASK_PREVIEW_HELPERS_MODEL_ESM_PATH = "/vite-islands/task-preview-helpers-model/task-preview-helpers-model.js";
+  const TASK_PREVIEW_DEFAULT_WORKSPACE_ID = "own" + "er";
+  let taskPreviewHelpersModel = null;
+  let taskPreviewHelpersModelPromise = null;
+
+  function usableTaskPreviewHelpersModel(model) {
+    return Boolean(
+      model
+      && typeof model.previewShareUrlPlan === "function"
+      && typeof model.workspaceIdPlan === "function"
+      && typeof model.generatedBaseNamePlan === "function"
+      && typeof model.previewStatusPlan === "function"
+      && typeof model.previewMoreMenuTogglePlan === "function"
+      && typeof model.previewOverlayOpenPlan === "function"
+      && typeof model.previewBackSwipeSurfacePlan === "function"
+    );
+  }
+
+  function currentTaskPreviewHelpersModel() {
+    return taskPreviewHelpersModel;
+  }
+
+  async function importTaskPreviewHelpersModel() {
+    if (taskPreviewHelpersModel) return taskPreviewHelpersModel;
+    if (!taskPreviewHelpersModelPromise) {
+      const importer = typeof global.__homeAiImportTaskPreviewHelpersModel === "function"
+        ? global.__homeAiImportTaskPreviewHelpersModel
+        : (path) => import(path);
+      taskPreviewHelpersModelPromise = importer(TASK_PREVIEW_HELPERS_MODEL_ESM_PATH)
+        .then((model) => {
+          taskPreviewHelpersModel = usableTaskPreviewHelpersModel(model) ? model : null;
+          return taskPreviewHelpersModel;
+        })
+        .catch(() => null);
+    }
+    return taskPreviewHelpersModelPromise;
+  }
+
+  importTaskPreviewHelpersModel();
+
   function escapeValue(value) {
     if (typeof global.escapeHtml === "function") return global.escapeHtml(value);
     return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
@@ -19,6 +59,10 @@
   function previewShareUrl(value) {
     const runtime = runtimeFacade();
     if (runtime?.documentPreview?.absoluteUrl) return runtime.documentPreview.absoluteUrl(value);
+    const model = currentTaskPreviewHelpersModel();
+    if (model?.previewShareUrlPlan) {
+      return model.previewShareUrlPlan(value, { baseHref: global.location?.href || "" });
+    }
     try {
       return new URL(value, global.location.href).href;
     } catch (_) {
@@ -29,11 +73,19 @@
   function currentWorkspaceId() {
     const runtime = runtimeFacade();
     const runtimeWorkspace = runtime?.state?.get?.("selectedWorkspaceId");
-    if (runtimeWorkspace) return runtimeWorkspace;
+    let classicWorkspace = "";
     try {
-      if (typeof state !== "undefined" && state?.selectedWorkspaceId) return state.selectedWorkspaceId;
+      if (typeof state !== "undefined" && state?.selectedWorkspaceId) classicWorkspace = state.selectedWorkspaceId;
     } catch (_) {}
-    return "owner";
+    const model = currentTaskPreviewHelpersModel();
+    if (model?.workspaceIdPlan) {
+      return model.workspaceIdPlan({
+        runtimeWorkspaceId: runtimeWorkspace,
+        classicWorkspaceId: classicWorkspace,
+        fallbackWorkspaceId: TASK_PREVIEW_DEFAULT_WORKSPACE_ID,
+      });
+    }
+    return runtimeWorkspace || classicWorkspace || TASK_PREVIEW_DEFAULT_WORKSPACE_ID;
   }
 
   async function previewApi(path, options = {}) {
@@ -53,6 +105,8 @@
   }
 
   function generatedBaseName(title, extension) {
+    const model = currentTaskPreviewHelpersModel();
+    if (model?.generatedBaseNamePlan) return model.generatedBaseNamePlan(title, extension);
     const raw = String(title || "hermes-document").trim() || "hermes-document";
     const withoutQuery = raw.split(/[?#]/)[0] || "hermes-document";
     const base = withoutQuery.replace(/\.[a-z0-9]+$/i, "").replace(/[\\/:*?"<>|]+/g, "-").trim() || "hermes-document";
@@ -60,10 +114,28 @@
   }
 
   function canShareFiles(files) {
+    const model = currentTaskPreviewHelpersModel();
+    if (model?.canShareFilesPlan) {
+      let canShareResult = false;
+      if (navigator.canShare) {
+        try {
+          canShareResult = navigator.canShare({ files });
+        } catch (_) {
+          canShareResult = false;
+        }
+      }
+      return model.canShareFilesPlan({
+        hasShare: Boolean(navigator.share),
+        hasCanShare: Boolean(navigator.canShare),
+        canShareResult,
+      });
+    }
     return Boolean(navigator.share && (!navigator.canShare || navigator.canShare({ files })));
   }
 
   function isUserCancelledShare(err) {
+    const model = currentTaskPreviewHelpersModel();
+    if (model?.isUserCancelledSharePlan) return model.isUserCancelledSharePlan({ name: err?.name || "" });
     const name = String(err?.name || "");
     return name === "AbortError" || name === "NotAllowedError";
   }
@@ -82,10 +154,19 @@
   function transientPreviewStatus(root, message, kind = "") {
     const node = root?.querySelector?.("[data-preview-status]");
     if (!node) return;
-    node.textContent = message || "";
-    node.hidden = !message;
-    node.classList.toggle("error", kind === "error");
-    node.classList.toggle("success", kind === "success");
+    const model = currentTaskPreviewHelpersModel();
+    const plan = model?.previewStatusPlan
+      ? model.previewStatusPlan(message, kind)
+      : {
+        text: message || "",
+        hidden: !message,
+        isError: kind === "error",
+        isSuccess: kind === "success",
+      };
+    node.textContent = plan.text || "";
+    node.hidden = Boolean(plan.hidden);
+    node.classList.toggle("error", Boolean(plan.isError));
+    node.classList.toggle("success", Boolean(plan.isSuccess));
   }
 
   async function copyPreviewLink(url) {
@@ -158,11 +239,18 @@
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const nextOpen = !wrap.classList.contains("open");
+      const model = currentTaskPreviewHelpersModel();
+      const plan = model?.previewMoreMenuTogglePlan
+        ? model.previewMoreMenuTogglePlan({ currentlyOpen: wrap.classList.contains("open") })
+        : {
+          open: !wrap.classList.contains("open"),
+          ariaExpanded: !wrap.classList.contains("open") ? "true" : "false",
+          menuHidden: wrap.classList.contains("open"),
+        };
       closePreviewMenus(wrap);
-      wrap.classList.toggle("open", nextOpen);
-      button.setAttribute("aria-expanded", nextOpen ? "true" : "false");
-      menu.hidden = !nextOpen;
+      wrap.classList.toggle("open", Boolean(plan.open));
+      button.setAttribute("aria-expanded", plan.ariaExpanded || "false");
+      menu.hidden = Boolean(plan.menuHidden);
     });
     root.querySelectorAll("[data-preview-action]").forEach((item) => item.addEventListener("click", async (event) => {
       event.preventDefault();
@@ -180,6 +268,14 @@
   }
 
   function hasArtifactPreviewOverlay() {
+    const model = currentTaskPreviewHelpersModel();
+    if (model?.previewOverlayOpenPlan) {
+      return model.previewOverlayOpenPlan({
+        hasImageOverlay: Boolean(document.getElementById("taskImagePreviewOverlay")),
+        hasDocumentOverlay: Boolean(document.getElementById("taskDocumentPreviewOverlay")),
+        hasMarkdownOverlay: Boolean(document.getElementById("taskMarkdownPreviewOverlay")),
+      });
+    }
     return Boolean(
       document.getElementById("taskImagePreviewOverlay")
       || document.getElementById("taskDocumentPreviewOverlay")
@@ -188,6 +284,26 @@
   }
 
   function previewBackSwipeSurface() {
+    const model = currentTaskPreviewHelpersModel();
+    const selectors = [
+      ".task-markdown-preview-shell",
+      ".task-document-preview-shell",
+      ".task-image-preview-stage",
+      "#taskMarkdownPreviewOverlay",
+      "#taskDocumentPreviewOverlay",
+      "#taskImagePreviewOverlay",
+    ];
+    if (model?.previewBackSwipeSurfacePlan) {
+      const availableSelectors = {};
+      const nodes = {};
+      selectors.forEach((selector) => {
+        const node = document.querySelector(selector);
+        availableSelectors[selector] = Boolean(node);
+        nodes[selector] = node;
+      });
+      const selector = model.previewBackSwipeSurfacePlan({ availableSelectors });
+      return selector ? nodes[selector] || null : null;
+    }
     return document.querySelector(".task-markdown-preview-shell")
       || document.querySelector(".task-document-preview-shell")
       || document.querySelector(".task-image-preview-stage")
@@ -197,7 +313,10 @@
   }
 
   global.TaskDocumentPreviewHelpers = {
+    TASK_PREVIEW_HELPERS_MODEL_ESM_PATH,
     escapeValue,
+    importTaskPreviewHelpersModel,
+    currentTaskPreviewHelpersModel,
     previewShareUrl,
     currentWorkspaceId,
     previewApi,

@@ -1,5 +1,37 @@
 "use strict";
 
+const THREAD_STATE_MODEL_ESM_PATH = "/vite-islands/thread-state-model/thread-state-model.js";
+let threadStateModel = null;
+let threadStateModelPromise = null;
+
+function importThreadStateModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (threadStateModel) return Promise.resolve(threadStateModel);
+  if (!threadStateModelPromise) {
+    const importer = typeof rootRef.__homeAiImportThreadStateModel === "function"
+      ? rootRef.__homeAiImportThreadStateModel
+      : (path) => import(path);
+    threadStateModelPromise = Promise.resolve()
+      .then(() => importer(THREAD_STATE_MODEL_ESM_PATH))
+      .then((model) => {
+        threadStateModel = model || null;
+        return threadStateModel;
+      })
+      .catch((error) => {
+        threadStateModelPromise = null;
+        throw error;
+      });
+  }
+  return threadStateModelPromise;
+}
+
+function currentThreadStateModel() {
+  return threadStateModel;
+}
+
+if (typeof window !== "undefined") {
+  importThreadStateModel().catch(() => null);
+}
+
 function summarizeThread(thread) {
   const messages = thread?.messages || [];
   const last = [...messages].reverse().find((msg) => msg.content);
@@ -134,12 +166,24 @@ function mergeCurrentThread(incomingThread) {
 }
 
 function currentSingleWindowMessageMode() {
+  const model = currentThreadStateModel();
+  if (typeof model?.currentSingleWindowMessageModePlan === "function") {
+    return model.currentSingleWindowMessageModePlan({ state }).messageMode;
+  }
   return state.viewMode === "single" && state.singleWindowMode === "chat"
     ? "chat"
     : (state.viewMode === "tasks" || (state.viewMode === "single" && state.singleWindowMode === "task") ? "tasks" : "");
 }
 
 function singleWindowRequestStillCurrent(request = {}) {
+  const model = currentThreadStateModel();
+  if (typeof model?.singleWindowRequestStillCurrentPlan === "function") {
+    return model.singleWindowRequestStillCurrentPlan({
+      state,
+      request,
+      currentMessageMode: currentSingleWindowMessageMode(),
+    }).stillCurrent;
+  }
   if (state.singleWindowRequestSeq !== request.seq) return false;
   if (String(state.selectedWorkspaceId || "") !== request.workspaceId) return false;
   if (String(state.viewMode || "") !== request.viewMode) return false;
@@ -174,6 +218,10 @@ function mainConversationSurfaceCache() {
 }
 
 function singleWindowSurfaceCacheKeyForRequest(request = {}) {
+  const model = currentThreadStateModel();
+  if (typeof model?.singleWindowSurfaceCacheKeyPlan === "function") {
+    return model.singleWindowSurfaceCacheKeyPlan({ state, request }).key;
+  }
   const workspaceId = String(request.workspaceId || state.selectedWorkspaceId || "owner").trim() || "owner";
   const messageMode = String(request.messageMode || "").trim();
   if (messageMode === "chat") {
@@ -187,6 +235,13 @@ function singleWindowSurfaceCacheKeyForRequest(request = {}) {
 }
 
 function currentMainConversationSurfaceCacheKey() {
+  const model = currentThreadStateModel();
+  if (typeof model?.currentMainConversationSurfaceCacheKeyPlan === "function") {
+    return model.currentMainConversationSurfaceCacheKeyPlan({
+      state,
+      directoryTopicDraftActive: typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive(),
+    }).key;
+  }
   const workspaceId = String(state.selectedWorkspaceId || "owner").trim() || "owner";
   if (state.viewMode === "single" && state.singleWindowMode === "chat") {
     const chatScope = state.groupChatOpen ? "group" : "private";
@@ -401,6 +456,13 @@ function mainConversationSurfaceThreadSignature(key = "", thread = state.current
 }
 
 function mainConversationSurfaceRequestForCurrentView() {
+  const model = currentThreadStateModel();
+  if (typeof model?.mainConversationSurfaceRequestPlan === "function") {
+    return model.mainConversationSurfaceRequestPlan({
+      state,
+      messageMode: currentSingleWindowMessageMode(),
+    }).request;
+  }
   const messageMode = currentSingleWindowMessageMode();
   if (!(messageMode === "chat" || (messageMode === "tasks" && !state.currentTaskGroupId))) return null;
   const groupChat = Boolean(state.viewMode === "single" && state.singleWindowMode === "chat" && state.groupChatOpen);
@@ -505,10 +567,15 @@ function renderCachedSingleWindowThreadForCurrentViewShell(options = {}) {
 }
 
 function renderSingleWindowChatPendingShell(options = {}) {
-  if (!(state.viewMode === "single" && state.singleWindowMode === "chat")) return false;
+  const model = currentThreadStateModel();
+  const plan = typeof model?.singleWindowPendingShellPlan === "function"
+    ? model.singleWindowPendingShellPlan({ state, options })
+    : null;
+  if (plan && !plan.applies) return false;
+  if (!plan && !(state.viewMode === "single" && state.singleWindowMode === "chat")) return false;
   const conversation = $("conversation");
   if (!conversation) return false;
-  if (!options.pendingRecovery) {
+  if (plan ? plan.resetRecoveryAttempts : !options.pendingRecovery) {
     state.singleWindowChatPendingRecoveryAttempts = 0;
   }
   renderThreads();
@@ -527,21 +594,26 @@ function renderSingleWindowChatPendingShell(options = {}) {
   if (typeof ensureVerticalScrollAffordance === "function") ensureVerticalScrollAffordance(conversation);
   if (typeof scheduleMessageScrollButtonVisibility === "function") scheduleMessageScrollButtonVisibility(conversation);
   startupPerfMark("single-window-chat-pending-shell", {
-    reason: String(options.reason || "no-cache").slice(0, 80),
+    reason: String(plan?.reason || options.reason || "no-cache").slice(0, 80),
   });
-  if (typeof scheduleSingleWindowChatPendingRecovery === "function") {
-    scheduleSingleWindowChatPendingRecovery(options.reason || "pending-shell");
+  if ((plan ? plan.shouldScheduleRecovery : true) && typeof scheduleSingleWindowChatPendingRecovery === "function") {
+    scheduleSingleWindowChatPendingRecovery(plan?.reason || options.reason || "pending-shell");
   }
   return true;
 }
 
 function renderSingleWindowChatErrorShell(err = null) {
-  if (!(state.viewMode === "single" && state.singleWindowMode === "chat")) return false;
+  const model = currentThreadStateModel();
+  const plan = typeof model?.singleWindowErrorShellPlan === "function"
+    ? model.singleWindowErrorShellPlan({ state, error: err })
+    : null;
+  if (plan && !plan.applies) return false;
+  if (!plan && !(state.viewMode === "single" && state.singleWindowMode === "chat")) return false;
   const conversation = $("conversation");
   if (!conversation) return false;
   delete conversation.dataset.chatRenderSignature;
-  const status = err?.status || err?.statusCode || err?.code || "";
-  const suffix = status ? ` (${escapeHtml(status)})` : "";
+  const status = plan?.status || err?.status || err?.statusCode || err?.code || "";
+  const suffix = plan ? escapeHtml(plan.statusSuffix || "") : (status ? ` (${escapeHtml(status)})` : "");
   conversation.innerHTML = `<div class="empty-state">聊天加载失败${suffix}<br><button type="button" class="secondary" data-retry-single-window-chat>重试</button></div>`;
   conversation.querySelector("[data-retry-single-window-chat]")?.addEventListener("click", () => {
     loadSingleWindow({ skipSingleWindowCache: true, reason: "manual_retry" }).catch(showError);
@@ -567,6 +639,22 @@ function singleWindowChatPendingShellVisible() {
   if (!conversation) return false;
   if (conversation.querySelector("[data-message-id]")) return false;
   return /正在载入聊天/.test(String(conversation.textContent || ""));
+}
+
+function groupChatOpenLocalStoragePlan(open) {
+  const model = currentThreadStateModel();
+  if (typeof model?.groupChatOpenStoragePlan === "function") {
+    return model.groupChatOpenStoragePlan(open);
+  }
+  return {
+    key: "hermesWebGroupChatOpen",
+    value: open ? "1" : "0",
+  };
+}
+
+function setGroupChatOpenStorage(open) {
+  const plan = groupChatOpenLocalStoragePlan(open);
+  localStorage.setItem(plan.key, plan.value);
 }
 
 function scheduleSingleWindowChatPendingRecovery(reason = "pending-shell", delayMs = 2200) {
@@ -602,14 +690,22 @@ function scheduleSingleWindowChatPendingRecovery(reason = "pending-shell", delay
 }
 
 async function loadSingleWindow(options = {}) {
-  const request = {
-    seq: state.singleWindowRequestSeq + 1,
-    workspaceId: String(state.selectedWorkspaceId || ""),
-    viewMode: String(state.viewMode || ""),
-    singleWindowMode: String(state.singleWindowMode || ""),
-    taskGroupId: String(state.currentTaskGroupId || ""),
-    messageMode: currentSingleWindowMessageMode(),
-  };
+  const model = currentThreadStateModel();
+  const requestPlan = typeof model?.singleWindowRequestPlan === "function"
+    ? model.singleWindowRequestPlan({
+      state,
+      options,
+      messageMode: currentSingleWindowMessageMode(),
+    })
+    : null;
+  const request = Object.assign({}, requestPlan?.request || {
+      seq: state.singleWindowRequestSeq + 1,
+      workspaceId: String(state.selectedWorkspaceId || ""),
+      viewMode: String(state.viewMode || ""),
+      singleWindowMode: String(state.singleWindowMode || ""),
+      taskGroupId: String(state.currentTaskGroupId || ""),
+      messageMode: currentSingleWindowMessageMode(),
+    });
   state.singleWindowRequestSeq = request.seq;
   const groupChat = Boolean(options.groupChat ?? (
     state.viewMode === "single"
@@ -637,18 +733,31 @@ async function loadSingleWindow(options = {}) {
   state.singleWindowLoadInFlightSeq = request.seq;
   let result;
   try {
-    result = await startupPerfStep("single-window-api", () => api("/api/single-window", {
-      method: "POST",
-      body: JSON.stringify({
-        workspaceId: request.workspaceId,
-        groupChat,
-        messageMode,
-        taskGroupId: messageMode === "tasks" ? request.taskGroupId : "",
-        messageLimit: messageMode === "tasks"
-          ? (request.taskGroupId ? taskDetailMessageInitialLimit() : TASK_MESSAGE_INITIAL_LIMIT)
-          : CHAT_MESSAGE_INITIAL_LIMIT,
-      }),
-      timeoutMs: 12000,
+    const apiPlan = typeof model?.singleWindowRequestBodyPlan === "function"
+      ? model.singleWindowRequestBodyPlan({
+        request,
+        chatMessageLimit: CHAT_MESSAGE_INITIAL_LIMIT,
+        taskMessageLimit: TASK_MESSAGE_INITIAL_LIMIT,
+        taskDetailMessageLimit: request.taskGroupId ? taskDetailMessageInitialLimit() : TASK_MESSAGE_INITIAL_LIMIT,
+      })
+      : {
+        path: "/api/single-window",
+        method: "POST",
+        body: {
+          workspaceId: request.workspaceId,
+          groupChat,
+          messageMode,
+          taskGroupId: messageMode === "tasks" ? request.taskGroupId : "",
+          messageLimit: messageMode === "tasks"
+            ? (request.taskGroupId ? taskDetailMessageInitialLimit() : TASK_MESSAGE_INITIAL_LIMIT)
+            : CHAT_MESSAGE_INITIAL_LIMIT,
+        },
+        timeoutMs: 12000,
+      };
+    result = await startupPerfStep("single-window-api", () => api(apiPlan.path || "/api/single-window", {
+      method: apiPlan.method || "POST",
+      body: JSON.stringify(apiPlan.body || {}),
+      timeoutMs: apiPlan.timeoutMs || 12000,
     }));
   } catch (err) {
     if (messageMode === "chat" && singleWindowChatPendingShellVisible()) {
@@ -682,7 +791,7 @@ async function loadSingleWindow(options = {}) {
   rememberChatScopeThread(state.currentThread);
   if (groupChat && !currentUserCanUseGroupChatThread(state.currentThread)) {
     state.groupChatOpen = false;
-    localStorage.setItem("hermesWebGroupChatOpen", "0");
+    setGroupChatOpenStorage(false);
   }
   state.currentThreadId = state.currentThread.id;
   state.threads = [summarizeThread(state.currentThread)];
@@ -691,24 +800,47 @@ async function loadSingleWindow(options = {}) {
   const afterRefreshSignature = refreshSurfaceKey && typeof mainConversationSurfaceThreadSignature === "function"
     ? mainConversationSurfaceThreadSignature(refreshSurfaceKey, state.currentThread)
     : "";
-  const skipUnchangedChatRender = messageMode === "chat"
-    && beforeRefreshSignature
-    && beforeRefreshSignature === afterRefreshSignature
-    && $("conversation")?.querySelector("[data-message-id]");
-  const skipUnchangedTaskRender = messageMode === "tasks"
-    && !state.currentTaskGroupId
-    && beforeRefreshSignature
-    && beforeRefreshSignature === afterRefreshSignature
-    && $("conversation")?.querySelector(".directory-topic-launcher, [data-open-task], .empty-state");
-  const restoreTaskListScrollTop = options.preserveTaskListScroll
-    && messageMode === "tasks"
-    && !state.currentTaskGroupId
-    ? (
-      Number.isFinite(Number(options.restoreTaskListScrollTop))
-        ? Math.max(0, Number(options.restoreTaskListScrollTop) || 0)
-        : $("conversation")?.scrollTop || 0
-    )
+  const renderPlan = typeof model?.singleWindowRefreshRenderPlan === "function"
+    ? model.singleWindowRefreshRenderPlan({
+      messageMode,
+      currentTaskGroupId: state.currentTaskGroupId,
+      beforeRefreshSignature,
+      afterRefreshSignature,
+      hasRenderedChatMessages: Boolean($("conversation")?.querySelector("[data-message-id]")),
+      hasRenderedTaskRoot: Boolean($("conversation")?.querySelector(".directory-topic-launcher, [data-open-task], .empty-state")),
+      preserveTaskListScroll: Boolean(options.preserveTaskListScroll),
+      restoreTaskListScrollTop: options.restoreTaskListScrollTop,
+      currentScrollTop: $("conversation")?.scrollTop || 0,
+    })
     : null;
+  const skipUnchangedChatRender = renderPlan
+    ? renderPlan.skipUnchangedChatRender
+    : (
+      messageMode === "chat"
+      && beforeRefreshSignature
+      && beforeRefreshSignature === afterRefreshSignature
+      && $("conversation")?.querySelector("[data-message-id]")
+    );
+  const skipUnchangedTaskRender = renderPlan
+    ? renderPlan.skipUnchangedTaskRender
+    : (
+      messageMode === "tasks"
+      && !state.currentTaskGroupId
+      && beforeRefreshSignature
+      && beforeRefreshSignature === afterRefreshSignature
+      && $("conversation")?.querySelector(".directory-topic-launcher, [data-open-task], .empty-state")
+    );
+  const restoreTaskListScrollTop = renderPlan
+    ? renderPlan.restoreTaskListScrollTop
+    : (options.preserveTaskListScroll
+      && messageMode === "tasks"
+      && !state.currentTaskGroupId
+      ? (
+        Number.isFinite(Number(options.restoreTaskListScrollTop))
+          ? Math.max(0, Number(options.restoreTaskListScrollTop) || 0)
+          : $("conversation")?.scrollTop || 0
+      )
+      : null);
   state.mainConversationSurfaceRestoredKey = "";
   state.mainConversationSurfaceRestoredSignature = "";
   if (skipUnchangedChatRender || skipUnchangedTaskRender) {
@@ -740,7 +872,7 @@ async function selectChatScope(scope) {
   state.currentTaskGroupId = "";
   if (String(scope || "").trim().toLowerCase() !== "group") {
     state.groupChatOpen = false;
-    localStorage.setItem("hermesWebGroupChatOpen", "0");
+    setGroupChatOpenStorage(false);
     await loadSingleWindow({ groupChat: false });
     return;
   }
@@ -749,22 +881,22 @@ async function selectChatScope(scope) {
     return;
   }
   state.groupChatOpen = true;
-  localStorage.setItem("hermesWebGroupChatOpen", "1");
+  setGroupChatOpenStorage(true);
   try {
     await loadSingleWindow({ groupChat: true });
   } catch (err) {
     state.groupChatOpen = false;
-    localStorage.setItem("hermesWebGroupChatOpen", "0");
+    setGroupChatOpenStorage(false);
     throw err;
   }
   if (currentUserCanUseGroupChatThread(state.currentThread)) {
     state.groupChatOpen = true;
-    localStorage.setItem("hermesWebGroupChatOpen", "1");
+    setGroupChatOpenStorage(true);
     renderCurrentThread({ stickToBottom: true });
     return;
   }
   state.groupChatOpen = false;
-  localStorage.setItem("hermesWebGroupChatOpen", "0");
+  setGroupChatOpenStorage(false);
   throw new Error("Group chat is not available for this workspace yet.");
 }
 

@@ -5,9 +5,11 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const CONTRACT_VERSION = "20260623-v5";
-const LEGACY_CONTRACT_VERSIONS = ["20260618-v4"];
+const CONTRACT_VERSION = "20260708-v8";
+const LEGACY_CONTRACT_VERSIONS = ["20260707-v7", "20260626-v6", "20260623-v5", "20260618-v4"];
 const SUPPORTED_CONTRACT_VERSIONS = [CONTRACT_VERSION, ...LEGACY_CONTRACT_VERSIONS];
+const DEFAULT_MAC_PRODUCTION_ROOT = process.env.HOMEAI_MAC_PRODUCTION_ROOT || "/Users/example/path";
+const DEFAULT_MAC_SSH_ALIAS = "homeai-mac";
 
 const REQUIRED_CENTRAL_DOCS = [
   "plugin-workspace-platform-contract.md",
@@ -18,6 +20,11 @@ const REQUIRED_CENTRAL_DOCS = [
   "ai-operations-control-plane.md",
   "reference-memory-graph-v1.md",
   "reference-memory-graph-harness-plan.md",
+];
+
+const REQUIRED_CURRENT_CENTRAL_DOCS = [
+  "autonomous-delivery-loop-contract.md",
+  "worker-pool-lifecycle-contract.md",
 ];
 
 const REQUIRED_FALLBACK_GOVERNANCE_DOCS = [
@@ -44,6 +51,9 @@ const REQUIRED_POINTER_TEXT = [
   "`ai_ops_control_plane_command`",
   "`ai_ops_required_flow`",
   "`ai_ops_evidence_ledger`",
+  "`plugin_main_preflight_command`",
+  "`plugin_worker_dispatch_policy`",
+  "`plugin_worker_pool_lifecycle_policy`",
   "`ios_live_debug_available`",
   "`ios_visual_harness_command`",
   "`plugin_manifest_actions_status`",
@@ -254,7 +264,9 @@ function parseArgs(argv) {
     plugins: [],
     probeMac: false,
     requireMacOk: false,
-    sshAlias: "homeai-mac",
+    sshAlias: "",
+    sshAliasExplicit: false,
+    macProductionRoot: DEFAULT_MAC_PRODUCTION_ROOT,
     timeoutMs: 10_000,
     json: false,
   };
@@ -266,7 +278,10 @@ function parseArgs(argv) {
     else if (arg === "--target") out.plugins.push(...splitCsv(argv[++index] || ""));
     else if (arg === "--probe-mac") out.probeMac = true;
     else if (arg === "--require-mac-ok") out.requireMacOk = true;
-    else if (arg === "--ssh-alias") out.sshAlias = argv[++index] || out.sshAlias;
+    else if (arg === "--ssh-alias") {
+      out.sshAlias = argv[++index] || out.sshAlias;
+      out.sshAliasExplicit = true;
+    }
     else if (arg === "--timeout-ms") out.timeoutMs = readPositiveInt(argv[++index], out.timeoutMs);
     else if (arg === "--json") out.json = true;
     else if (arg === "--help") {
@@ -301,7 +316,8 @@ function printHelp() {
     "  --repo-root <dir>      Home AI repository root.",
     "  --probe-mac            Run read-only Mac source/launchd/HTTP probes through SSH.",
     "  --require-mac-ok       Fail when a read-only Mac probe fails.",
-    "  --ssh-alias <alias>    SSH alias for Mac production, or `local` for same-host probes. Default: homeai-mac.",
+    "  --ssh-alias <alias>    SSH alias for Mac production, or `local` for same-host probes.",
+    "                         Default: auto-select `local` when the Mac production root is readable, otherwise homeai-mac.",
     "  --json                 Print bounded JSON.",
   ].join("\n"));
 }
@@ -333,9 +349,19 @@ function pointerContractVersion(text) {
 function requiredCentralDocsForPointer(text) {
   const version = pointerContractVersion(text);
   if (version === CONTRACT_VERSION) {
-    return [...REQUIRED_CENTRAL_DOCS, ...REQUIRED_FALLBACK_GOVERNANCE_DOCS];
+    return [...REQUIRED_CENTRAL_DOCS, ...REQUIRED_CURRENT_CENTRAL_DOCS, ...REQUIRED_FALLBACK_GOVERNANCE_DOCS];
   }
   return REQUIRED_CENTRAL_DOCS;
+}
+
+function requiredPointerTextForPointer(text) {
+  const version = pointerContractVersion(text);
+  if (version === CONTRACT_VERSION) return REQUIRED_POINTER_TEXT;
+  return REQUIRED_POINTER_TEXT.filter((item) => ![
+    "`plugin_main_preflight_command`",
+    "`plugin_worker_dispatch_policy`",
+    "`plugin_worker_pool_lifecycle_policy`",
+  ].includes(item));
 }
 
 function checkPointerContractVersion(text, result) {
@@ -421,6 +447,77 @@ function checkAiOpsPointerFields(text, result) {
   }
 }
 
+function checkPluginMainRoutingPointerFields(text, result) {
+  const version = pointerContractVersion(text);
+  const preflightCommand = pointerFieldText(text, "plugin_main_preflight_command");
+  const dispatchPolicy = pointerFieldText(text, "plugin_worker_dispatch_policy");
+  const shouldCheck = version === CONTRACT_VERSION || preflightCommand || dispatchPolicy;
+  if (!shouldCheck) return;
+  if (
+    !/main-thread-routing-preflight\.js/.test(preflightCommand)
+    || !/--source-thread-role\s+plugin_main/.test(preflightCommand)
+    || !/--mode\s+classify/.test(preflightCommand)
+  ) {
+    result.issues.push("plugin_main_preflight_command_missing");
+  }
+  const policy = dispatchPolicy.toLowerCase();
+  for (const required of ["plugin_worker", "terminal return", "privacy", "conflict"]) {
+    if (!policy.includes(required)) {
+      result.issues.push(`plugin_worker_dispatch_policy_missing:${required}`);
+    }
+  }
+  if (version === CONTRACT_VERSION && !/(chinese|zh-cn|中文)/i.test(dispatchPolicy)) {
+    result.issues.push("plugin_worker_dispatch_policy_missing:chinese_terminal_receipt");
+  }
+  if (/\b(use|fallback|fall back|route|send|dispatch)\b[\s\S]{0,80}\b(task intake|deploy lane|audit lane|loop lane|current thread|source thread)\b/.test(policy)) {
+    result.issues.push("plugin_worker_dispatch_policy_allows_forbidden_fallback");
+  }
+}
+
+function checkPluginWorkerPoolLifecyclePointerFields(text, result) {
+  const version = pointerContractVersion(text);
+  const lifecyclePolicy = pointerFieldText(text, "plugin_worker_pool_lifecycle_policy");
+  const shouldCheck = version === CONTRACT_VERSION || lifecyclePolicy;
+  if (!shouldCheck) return;
+  if (!lifecyclePolicy) {
+    result.issues.push("plugin_worker_pool_lifecycle_policy_missing:plugin_worker");
+    return;
+  }
+  const policy = lifecyclePolicy.toLowerCase();
+  for (const required of [
+    "plugin_worker",
+    "worker pool",
+    "resolve-before-create",
+    "stable",
+    "available",
+    "busy",
+    "terminal return",
+    "task-title",
+    "sprawl",
+    "heartbeat",
+    "watchdog",
+  ]) {
+    if (!policy.includes(required)) {
+      result.issues.push(`plugin_worker_pool_lifecycle_policy_missing:${required}`);
+    }
+  }
+  if (!/(missing_role_lane|pool_exhausted|no legal lane)/.test(policy)) {
+    result.issues.push("plugin_worker_pool_lifecycle_policy_missing:create_reason");
+  }
+  if (!/(1800000|1\s*800\s*000|30\s*min|30\s*minutes|thirty\s*minutes|30\s*分钟|三十分钟)/.test(policy)) {
+    result.issues.push("plugin_worker_pool_lifecycle_policy_missing:watchdog_timeout");
+  }
+  if (!/batch/.test(policy) || !/(^|\D)8(\D|$)/.test(policy)) {
+    result.issues.push("plugin_worker_pool_lifecycle_policy_missing:watchdog_batch_limit");
+  }
+  if (!/(max(?:imum)?\s+auto[- ]?resume|auto[- ]?resume\s+max|最多\s*1\s*次)/.test(policy) || !/(^|\D)1(\D|$)/.test(policy)) {
+    result.issues.push("plugin_worker_pool_lifecycle_policy_missing:watchdog_max_auto_resume");
+  }
+  if (!/(chinese|zh-cn|中文)/i.test(lifecyclePolicy)) {
+    result.issues.push("plugin_worker_pool_lifecycle_policy_missing:chinese_terminal_receipt");
+  }
+}
+
 function checkPointer(plugin, options) {
   if (plugin.type === "native_client") return checkNativeClientPointer(plugin, options);
   if (plugin.pointerMode === "movie_owner_only") return checkMovieOwnerOnlyPointer(plugin, options);
@@ -442,7 +539,7 @@ function checkPointer(plugin, options) {
   }
   const text = readText(pointerPath);
   checkPointerContractVersion(text, result);
-  for (const missing of includesAll(text, REQUIRED_POINTER_TEXT)) {
+  for (const missing of includesAll(text, requiredPointerTextForPointer(text))) {
     result.issues.push(`pointer_missing_text:${missing}`);
   }
   for (const missing of includesAll(text, requiredCentralDocsForPointer(text))) {
@@ -469,6 +566,8 @@ function checkPointer(plugin, options) {
     result.issues.push("ios_visual_harness_command_missing");
   }
   checkAiOpsPointerFields(text, result);
+  checkPluginMainRoutingPointerFields(text, result);
+  checkPluginWorkerPoolLifecyclePointerFields(text, result);
   const runtimePrerequisites = pointerFieldText(text, "dev_runtime_prerequisites").toLowerCase();
   for (const keyword of plugin.devRuntimeKeywords || []) {
     if (!runtimePrerequisites.includes(String(keyword).toLowerCase())) {
@@ -506,6 +605,7 @@ function checkMovieOwnerOnlyPointer(plugin, options) {
     return result;
   }
   const text = readText(pointerPath);
+  checkPointerContractVersion(text, result);
   for (const needle of [
     "Home AI Platform Contract Pointer",
     "plugin id: `movie`",
@@ -522,6 +622,33 @@ function checkMovieOwnerOnlyPointer(plugin, options) {
     "raw secrets",
   ]) {
     if (!text.includes(needle)) result.issues.push(`movie_pointer_missing_text:${needle}`);
+  }
+  const version = pointerContractVersion(text);
+  if (version === CONTRACT_VERSION || /plugin worker pool lifecycle policy/i.test(text)) {
+    const lower = text.toLowerCase();
+    for (const needle of [
+      "plugin worker pool lifecycle policy",
+      "plugin_worker",
+      "worker pool",
+      "resolve-before-create",
+      "stable",
+      "available",
+      "busy",
+      "terminal return",
+      "chinese",
+      "task-title",
+      "sprawl",
+      "heartbeat",
+      "watchdog",
+    ]) {
+      if (!lower.includes(needle)) result.issues.push(`movie_pointer_missing_text:${needle}`);
+    }
+    if (!/(missing_role_lane|pool_exhausted|no legal lane)/i.test(text)) {
+      result.issues.push("movie_pointer_missing_text:create_reason");
+    }
+    if (!/(1800000|1\s*800\s*000|30\s*min|30\s*minutes|thirty\s*minutes|30\s*分钟|三十分钟)/i.test(text)) {
+      result.issues.push("movie_pointer_missing_text:watchdog_timeout");
+    }
   }
   for (const match of forbiddenSecretMatches(text)) {
     result.issues.push(`pointer_secret_pattern:${match}`);
@@ -696,6 +823,8 @@ function checkCentralDocs(options, targets) {
   for (const required of [
     "plugin-workspace-platform-contract.md",
     "plugin-mobile-ui-visual-contract.md",
+    "autonomous-delivery-loop-contract.md",
+    "worker-pool-lifecycle-contract.md",
     "root-cause-architecture-contract.md",
     "fallback-governance-contract.md",
     "fallback-registry.md",
@@ -710,6 +839,20 @@ function checkCentralDocs(options, targets) {
     "ai_ops_control_plane_command",
     "ai_ops_required_flow",
     "ai_ops_evidence_ledger",
+    "main-thread-routing-preflight.js",
+    "plugin_main_preflight_command",
+    "plugin_worker_dispatch_policy",
+    "plugin_worker_pool_lifecycle_policy",
+    "resolve-before-create",
+    "Worker pool",
+    "sprawl",
+    "terminalReturnLanguageZhCn",
+    "taskCardHeartbeatRequired",
+    "taskCardWatchdogTimeoutMs",
+    "taskCardWatchdogBatchLimit",
+    "taskCardWatchdogMaxAutoResume",
+    "1800000",
+    "Chinese receipt",
     "npm run ios:pwa:visual",
     "ios_visual_harness_command",
     "native-ios-shell.md",
@@ -724,6 +867,26 @@ function checkCentralDocs(options, targets) {
 
 function isLocalProbeAlias(alias) {
   return /^(local|localhost|127\.0\.0\.1)$/i.test(String(alias || "").trim());
+}
+
+function effectiveMacProbeOptions(options = {}) {
+  const explicitAlias = String(options.sshAlias || "").trim();
+  const localRoot = String(options.macProductionRoot || DEFAULT_MAC_PRODUCTION_ROOT || "").trim();
+  const localRootReadable = Boolean(localRoot && exists(localRoot));
+  const sshAlias = explicitAlias || (localRootReadable ? "local" : DEFAULT_MAC_SSH_ALIAS);
+  const mode = isLocalProbeAlias(sshAlias) ? "local" : "ssh";
+  return Object.assign({}, options, {
+    sshAlias,
+    macProbe: {
+      enabled: options.probeMac === true,
+      requireOk: options.requireMacOk === true,
+      sshAlias,
+      mode,
+      defaultSelection: explicitAlias ? "explicit" : (localRootReadable ? "local_root_readable" : "ssh_alias_fallback"),
+      localRoot,
+      localRootReadable,
+    },
+  });
 }
 
 function sshRun(alias, args, timeoutMs) {
@@ -844,10 +1007,11 @@ function macProbe(plugin, options) {
 }
 
 function buildReport(options) {
+  const probeOptions = effectiveMacProbeOptions(options);
   const targets = selectedTargets(options);
   const pointerChecks = targets.map((plugin) => checkPointer(plugin, options));
   const central = checkCentralDocs(options, targets);
-  const mac = options.probeMac ? targets.map((plugin) => macProbe(plugin, options)) : [];
+  const mac = probeOptions.probeMac ? targets.map((plugin) => macProbe(plugin, probeOptions)) : [];
   const issues = [
     ...central.issues.map((issue) => `central:${issue}`),
     ...pointerChecks.flatMap((check) => check.issues.map((issue) => `${check.plugin}:${issue}`)),
@@ -862,6 +1026,7 @@ function buildReport(options) {
     checkedNativeClients: targets.filter((target) => target.type === "native_client").map((client) => client.id),
     checkedTargets: targets.map((target) => target.id),
     excludedPlugins: [],
+    macProbe: probeOptions.macProbe,
     central,
     plugins: pointerChecks,
     mac,

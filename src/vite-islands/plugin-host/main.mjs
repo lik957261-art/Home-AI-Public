@@ -1,6 +1,9 @@
 import cssText from "./style.css?inline";
 import { createHomeAiRuntimeFacade } from "../../vite-app/runtime/home-ai-runtime-facade.mjs";
-import { buildPluginHostViewModel } from "./model.mjs";
+import {
+  buildPluginHostViewModel,
+  decidePluginIframeLifecycleAction,
+} from "./model.mjs";
 
 const PREVIEW_VERSION = "20260703-vite-plugin-host-dev-v1";
 const browserRoot = typeof window !== "undefined" ? window : globalThis;
@@ -132,6 +135,18 @@ function statusModel() {
   };
 }
 
+function lifecycleScenario() {
+  return currentState().pluginHostLifecycleScenario || {
+    reason: "manifest_refresh",
+    loaded: true,
+    shellLoading: false,
+    currentUrl: "/api/hermes-plugins/codex-mobile/proxy/?workspaceId=owner&launch=old-token",
+    nextUrl: "/api/hermes-plugins/codex-mobile/proxy/?workspaceId=owner&launch=new-token",
+    loadingStartedAt: 0,
+    now: 15000,
+  };
+}
+
 function pluginTabs(activeId) {
   return pluginDefinitions.map((definition) => `
     <button
@@ -185,6 +200,28 @@ function renderIframePane(model) {
   `;
 }
 
+function lifecyclePanel(model) {
+  const decision = decidePluginIframeLifecycleAction(Object.assign({
+    pluginId: model.pluginId,
+    manifest: { id: model.pluginId, entry: { url: model.iframe.src } },
+  }, lifecycleScenario()));
+  return `
+    <section class="php-lifecycle" aria-label="Plugin iframe lifecycle evidence">
+      <div>
+        <strong>iframe lifecycle：${escapeHtml(decision.action)}</strong>
+        <small>${escapeHtml(decision.explanation)}</small>
+      </div>
+      <div class="php-toolbar compact">
+        <button type="button" data-lifecycle-scenario="token_refresh">token refresh</button>
+        <button type="button" data-lifecycle-scenario="loaded_timeout">loaded timeout</button>
+        <button type="button" data-lifecycle-scenario="loading_timeout">loading timeout</button>
+        <button type="button" data-lifecycle-scenario="entry_change">entry change</button>
+      </div>
+      <p class="php-status info">${escapeHtml(decision.boundedEvidence.join(" · "))}</p>
+    </section>
+  `;
+}
+
 function renderShell(root) {
   const definition = selectedDefinition();
   const manifest = selectedManifest(definition);
@@ -213,6 +250,7 @@ function renderShell(root) {
         </div>
         <p class="php-status ${escapeHtml(status.level)}">${escapeHtml(status.text)}${status.detail ? ` · ${escapeHtml(status.detail)}` : ""}</p>
         ${renderIframePane(model)}
+        ${lifecyclePanel(model)}
         <dl class="php-evidence">${evidenceRows(model)}</dl>
       </div>
     </div>
@@ -255,6 +293,54 @@ function bindActions(root) {
         pluginHostManifest: null,
       });
       setStatus("info", "已切换 Plugin，等待读取 manifest");
+      renderShell(root);
+      return;
+    }
+    const lifecycleButton = event.target?.closest?.("[data-lifecycle-scenario]");
+    if (lifecycleButton) {
+      const scenario = lifecycleButton.getAttribute("data-lifecycle-scenario");
+      const baseUrl = "/api/hermes-plugins/codex-mobile/proxy/?workspaceId=owner";
+      const scenarios = {
+        token_refresh: {
+          reason: "manifest_refresh",
+          loaded: true,
+          shellLoading: false,
+          currentUrl: `${baseUrl}&launch=old-token`,
+          nextUrl: `${baseUrl}&launch=new-token`,
+          loadingStartedAt: 0,
+          now: 15000,
+        },
+        loaded_timeout: {
+          reason: "navigation_health_timeout",
+          loaded: true,
+          shellLoading: false,
+          currentUrl: `${baseUrl}&launch=stable`,
+          nextUrl: `${baseUrl}&launch=stable`,
+          loadingStartedAt: 0,
+          now: 30000,
+        },
+        loading_timeout: {
+          reason: "navigation_health_timeout",
+          loaded: false,
+          shellLoading: true,
+          currentUrl: `${baseUrl}&launch=stable`,
+          nextUrl: `${baseUrl}&launch=stable`,
+          loadingStartedAt: 0,
+          now: 30000,
+          healthTimeoutMs: 12000,
+        },
+        entry_change: {
+          reason: "manifest_refresh",
+          loaded: true,
+          shellLoading: false,
+          currentUrl: `${baseUrl}&pluginRoute=thread-list&launch=old-token`,
+          nextUrl: `${baseUrl}&pluginRoute=quota&launch=new-token`,
+          loadingStartedAt: 0,
+          now: 30000,
+        },
+      };
+      runtime.state?.set?.({ pluginHostLifecycleScenario: scenarios[scenario] || scenarios.token_refresh });
+      setStatus("info", "iframe lifecycle scenario 已更新", scenario);
       renderShell(root);
       return;
     }

@@ -161,6 +161,12 @@ function createHermesPluginApiRoutes(deps = {}) {
   if (deps.hermesPluginNotificationService && typeof deps.hermesPluginNotificationService.postNotification !== "function") {
     throw new Error("hermes plugin api routes require hermesPluginNotificationService.postNotification");
   }
+  if (
+    deps.hermesPluginNotificationAuthService
+    && typeof deps.hermesPluginNotificationAuthService.authorizePluginNotificationRequest !== "function"
+  ) {
+    throw new Error("hermes plugin api routes require hermesPluginNotificationAuthService.authorizePluginNotificationRequest");
+  }
 
   const registry = createApiRouteRegistry(HERMES_PLUGIN_API_ROUTE_SPECS);
 
@@ -198,8 +204,15 @@ function createHermesPluginApiRoutes(deps = {}) {
     return ownerAuthorized(auth) && String(workspaceId || "owner") === "owner";
   }
 
-  function requestedWorkspaceId(url) {
-    return url?.searchParams?.get("workspaceId") || "owner";
+  function pluginServiceAuthInput(auth) {
+    return auth?.restrictedMedia === true ? { auth } : {};
+  }
+
+  function requestedWorkspaceId(url, auth = null) {
+    return url?.searchParams?.get("workspaceId")
+      || url?.searchParams?.get("workspace_id")
+      || auth?.workspaceId
+      || "owner";
   }
 
   function originFromRequest(req) {
@@ -223,14 +236,16 @@ function createHermesPluginApiRoutes(deps = {}) {
   }
 
   async function handleList(req, res, url) {
-    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url));
+    const auth = requestAuth(req);
+    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url, auth));
     if (!workspaceId) return;
     deps.sendJson(res, 200, {
       ok: true,
       workspaceId,
       plugins: deps.hermesPluginService.list({
         workspaceId,
-        ownerAuthorized: ownerAuthorizedForWorkspace(requestAuth(req), workspaceId),
+        ownerAuthorized: ownerAuthorizedForWorkspace(auth, workspaceId),
+        ...pluginServiceAuthInput(auth),
       }).map((item) => ({
         id: item.id,
         manifestPath: `/api/hermes-plugins/${encodeURIComponent(item.id)}/manifest`,
@@ -315,10 +330,87 @@ function createHermesPluginApiRoutes(deps = {}) {
     return !["GET", "HEAD", "OPTIONS"].includes(method);
   }
 
+  function requestHeader(req, name) {
+    const expected = String(name || "").toLowerCase();
+    for (const [key, value] of Object.entries(req?.headers || {})) {
+      if (String(key).toLowerCase() === expected) return value;
+    }
+    return "";
+  }
+
+  function boundedWorkspaceId(value = "") {
+    return String(value || "").trim().slice(0, 120);
+  }
+
+  function isAppleHealthWriteProxyRequest(req, url, pluginId = "") {
+    if (pluginId !== "health") return false;
+    const method = String(req?.method || "GET").toUpperCase();
+    if (["GET", "HEAD", "OPTIONS"].includes(method)) return false;
+    const prefix = pluginProxyPrefix(pluginId);
+    const pathname = String(url?.pathname || "");
+    const upstreamPath = pathname.startsWith(prefix) ? pathname.slice(prefix.length) || "/" : pathname;
+    return /\/apple-health(?:\/|$)/.test(upstreamPath);
+  }
+
+  function resolvedAppleHealthSyncMode(req, url) {
+    const params = pluginProxySearchParams(url);
+    const raw = requestHeader(req, "x-hermes-apple-health-sync-mode")
+      || params.get("appleHealthSyncMode")
+      || params.get("apple_health_sync_mode")
+      || "personal";
+    const value = String(raw || "").trim().toLowerCase();
+    if (!value || value === "personal") return "personal";
+    if (value === "guardian") return "guardian";
+    return "";
+  }
+
+  function appleHealthSourceWorkspace(req, url, auth) {
+    const params = pluginProxySearchParams(url);
+    return boundedWorkspaceId(
+      requestHeader(req, "x-hermes-apple-health-source-workspace-id")
+      || requestHeader(req, "x-hermes-healthkit-owner-workspace-id")
+      || params.get("appleHealthSourceWorkspaceId")
+      || params.get("apple_health_source_workspace_id")
+      || params.get("healthKitOwnerWorkspaceId")
+      || params.get("healthkit_owner_workspace_id")
+      || auth?.workspaceId
+      || "",
+    );
+  }
+
+  function appleHealthProxyGuardResult(req, url, auth, effectiveWorkspaceId) {
+    const actorWorkspaceId = boundedWorkspaceId(auth?.workspaceId || "");
+    const appleHealthSourceWorkspaceId = appleHealthSourceWorkspace(req, url, auth);
+    const appleHealthSyncMode = resolvedAppleHealthSyncMode(req, url);
+    const effectiveWorkspace = boundedWorkspaceId(effectiveWorkspaceId);
+    const base = {
+      actorWorkspaceId,
+      effectiveWorkspaceId: effectiveWorkspace,
+      appleHealthSourceWorkspaceId,
+      appleHealthSyncMode: appleHealthSyncMode || boundedWorkspaceId(
+        requestHeader(req, "x-hermes-apple-health-sync-mode")
+        || pluginProxySearchParams(url).get("appleHealthSyncMode")
+        || pluginProxySearchParams(url).get("apple_health_sync_mode")
+        || "",
+      ),
+    };
+    if (!appleHealthSyncMode) {
+      return { ok: false, error: "apple_health_sync_mode_invalid", metadata: base };
+    }
+    if (appleHealthSyncMode === "guardian") {
+      return { ok: false, error: "apple_health_guardian_sync_not_supported", metadata: base };
+    }
+    if (!appleHealthSourceWorkspaceId || appleHealthSourceWorkspaceId !== effectiveWorkspace) {
+      return { ok: false, error: "apple_health_workspace_mismatch", metadata: base };
+    }
+    return { ok: true, metadata: base };
+  }
+
   function pluginProxyWorkspaceAuthorized(pluginId, workspaceId, auth) {
     const visiblePlugins = deps.hermesPluginService.list({
       workspaceId,
       ownerAuthorized: ownerAuthorizedForWorkspace(auth, workspaceId),
+      ...pluginServiceAuthInput(auth),
     });
     return Array.isArray(visiblePlugins) && visiblePlugins.some((plugin) => plugin?.id === pluginId);
   }
@@ -589,10 +681,33 @@ function createHermesPluginApiRoutes(deps = {}) {
     return `${pluginProxyPrefix(pluginId)}${normalizedStatic}${dynamicPart}`;
   }
 
-  function pluginProxyScriptResourcePath(pluginId = "", resourcePath = "") {
+  function pluginProxyScriptResourcePath(pluginId = "", resourcePath = "", workspaceId = "") {
     const path = String(resourcePath || "");
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-    return `${pluginProxyPrefix(pluginId)}${normalizedPath}`;
+    const proxyPath = `${pluginProxyPrefix(pluginId)}${normalizedPath}`;
+    return workspaceId ? withProxyWorkspaceId(proxyPath, workspaceId) : proxyPath;
+  }
+
+  function currentProxyScriptPath(options = {}) {
+    const targetUrl = String(options.targetUrl || options.upstreamUrl || "");
+    if (!targetUrl) return "/";
+    try {
+      return new URL(targetUrl).pathname || "/";
+    } catch (_) {
+      return "/";
+    }
+  }
+
+  function pluginProxyRelativeScriptResourcePath(pluginId = "", resourcePath = "", workspaceId = "", options = {}) {
+    const path = String(resourcePath || "");
+    if (!path.startsWith("./") && !path.startsWith("../")) return path;
+    try {
+      const base = new URL(currentProxyScriptPath(options), "http://plugin.local");
+      const resolved = new URL(path, base);
+      return pluginProxyScriptResourcePath(pluginId, `${resolved.pathname}${resolved.search}${resolved.hash}`, workspaceId);
+    } catch (_) {
+      return path;
+    }
   }
 
   function pluginProxyQuotedApiResourcePath(pluginId = "", resourcePath = "", workspaceId = "", options = {}) {
@@ -604,6 +719,9 @@ function createHermesPluginApiRoutes(deps = {}) {
         const dynamicPart = path.slice(templateIndex);
         const normalizedStatic = staticPart.startsWith("/") ? staticPart : `/${staticPart}`;
         return `${pluginProxyPrefix(pluginId)}${normalizedStatic}${dynamicPart}`;
+      }
+      if (pluginId === "codex-mobile" && /^\/api\/v1\/hermes\/plugin\/session(?:[/?#]|$)/.test(path)) {
+        return pluginProxyScriptResourcePath(pluginId, path, workspaceId);
       }
       return pluginProxyScriptResourcePath(pluginId, path);
     }
@@ -640,14 +758,21 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (upstreamOrigin) {
       out = out.replace(new RegExp(`${escapeRegExp(upstreamOrigin)}(/[^\\s"'\\\`<>)]*)`, "g"), (_match, resourcePath) => (
         options.script === true
-          ? pluginProxyScriptResourcePath(pluginId, resourcePath)
+          ? pluginProxyScriptResourcePath(pluginId, resourcePath, workspaceId)
           : pluginProxyResourcePath(pluginId, resourcePath, workspaceId)
       ));
     }
     if (options.script === true && pluginId === "codex-mobile") {
       out = out.replace(/(["'`])assets\/([^"'`\s)]*)/g, (_match, quote, resourcePath) => (
-        `${quote}${pluginProxyScriptResourcePath(pluginId, `/vite-shell/assets/${resourcePath}`)}`
+        `${quote}${pluginProxyScriptResourcePath(pluginId, `/vite-shell/assets/${resourcePath}`, workspaceId)}`
       ));
+      out = out
+        .replace(/(\bimport\s*\(\s*)(["'`])(\.{1,2}\/[^"'`\s)]+)\2/g, (_match, prefix, quote, resourcePath) => (
+          `${prefix}${quote}${pluginProxyRelativeScriptResourcePath(pluginId, resourcePath, workspaceId, options)}${quote}`
+        ))
+        .replace(/(\bfrom\s*)(["'`])(\.{1,2}\/[^"'`\s;]+)\2/g, (_match, prefix, quote, resourcePath) => (
+          `${prefix}${quote}${pluginProxyRelativeScriptResourcePath(pluginId, resourcePath, workspaceId, options)}${quote}`
+        ));
     }
     return out
       .replace(/(href|src)=(["'])\/(?!\/|api\/hermes-plugins\/[^/]+\/proxy\/)([^"']*)/g, (_match, attr, quote, resourcePath) => (
@@ -670,7 +795,7 @@ function createHermesPluginApiRoutes(deps = {}) {
       ))
       .replace(/(["'`])\/vite-shell\/([^"'`\s)]*)/g, (_match, quote, resourcePath) => (
         `${quote}${options.script === true
-          ? pluginProxyScriptResourcePath(pluginId, `/vite-shell/${resourcePath}`)
+          ? pluginProxyScriptResourcePath(pluginId, `/vite-shell/${resourcePath}`, workspaceId)
           : pluginProxyResourcePath(pluginId, `/vite-shell/${resourcePath}`, workspaceId)}`
       ))
       .replace(/(["'`])\/icons\/([^"'`\s)]*)/g, (_match, quote, resourcePath) => (
@@ -893,6 +1018,15 @@ function createHermesPluginApiRoutes(deps = {}) {
       ? "owner"
       : deps.requireWorkspaceAccess(req, res, workspaceRequest.workspaceId);
     if (!workspaceId) return;
+    let appleHealthMetadata = null;
+    if (isAppleHealthWriteProxyRequest(req, url, pluginId)) {
+      const guard = appleHealthProxyGuardResult(req, url, auth, workspaceId);
+      if (!guard.ok) {
+        deps.sendJson(res, 400, Object.assign({ ok: false, error: guard.error }, guard.metadata));
+        return;
+      }
+      appleHealthMetadata = guard.metadata;
+    }
     if (!publicOAuthCallback && !pluginProxyWorkspaceAuthorized(pluginId, workspaceId, auth)) {
       deps.sendJson(res, 403, { ok: false, error: "plugin_workspace_not_authorized" });
       return;
@@ -921,6 +1055,11 @@ function createHermesPluginApiRoutes(deps = {}) {
     if (upstreamCookie) headers.cookie = upstreamCookie;
     headers["x-hermes-plugin-workspace-id"] = workspaceId;
     headers["x-hermes-plugin-actor-workspace-id"] = String(auth?.workspaceId || "");
+    if (pluginId === "health") headers["x-hermes-plugin-effective-workspace-id"] = workspaceId;
+    if (appleHealthMetadata) {
+      headers["x-hermes-apple-health-source-workspace-id"] = appleHealthMetadata.appleHealthSourceWorkspaceId;
+      headers["x-hermes-apple-health-sync-mode"] = appleHealthMetadata.appleHealthSyncMode;
+    }
     headers["x-hermes-plugin-actor-role"] = ownerAuthorized(auth) ? "owner" : "workspace";
     if (typeof deps.hermesPluginService?.pluginProxyAuthorizationHeader === "function") {
       const authorization = deps.hermesPluginService.pluginProxyAuthorizationHeader({ pluginId, workspaceId });
@@ -1020,7 +1159,10 @@ function createHermesPluginApiRoutes(deps = {}) {
       timing?.end?.("upstream_body");
       timing?.start?.("transform");
       const isScript = /javascript|ecmascript/i.test(contentType || "");
-      let rewritten = rewritePluginProxyText(text, pluginId, upstreamBase, workspaceId, { script: isScript });
+      let rewritten = rewritePluginProxyText(text, pluginId, upstreamBase, workspaceId, {
+        script: isScript,
+        targetUrl,
+      });
       if (/text\/css/i.test(contentType || "")) rewritten = rewritePluginProxyCssText(rewritten, pluginId);
       timing?.end?.("transform");
       outHeaders = addPluginProxyTimingHeader(outHeaders, timing, {
@@ -1072,7 +1214,8 @@ function createHermesPluginApiRoutes(deps = {}) {
   }
 
   async function handleManifest(req, res, url) {
-    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url));
+    const auth = requestAuth(req);
+    const workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspaceId(url, auth));
     if (!workspaceId) return;
     const pluginId = requestedPluginId(url);
     if (!pluginId) {
@@ -1090,7 +1233,8 @@ function createHermesPluginApiRoutes(deps = {}) {
     const manifest = await deps.hermesPluginService.manifest(Object.assign({
       id: pluginId,
       workspaceId,
-      ownerAuthorized: ownerAuthorizedForWorkspace(requestAuth(req), workspaceId),
+      ownerAuthorized: ownerAuthorizedForWorkspace(auth, workspaceId),
+      ...pluginServiceAuthInput(auth),
       appOrigin: url?.searchParams?.get("appOrigin") || "",
       appearance: {
         theme: url?.searchParams?.get("appearanceTheme") || "",
@@ -1199,13 +1343,27 @@ function createHermesPluginApiRoutes(deps = {}) {
       deps.sendJson(res, 404, { ok: false, error: "plugin_not_found" });
       return;
     }
+    let auth = context.auth || requestAuth(req);
     const body = await readJsonBody(req);
-    const workspaceId = deps.requireWorkspaceAccess(req, res, body.workspaceId || body.workspace_id || requestedWorkspaceId(url));
-    if (!workspaceId) return;
+    const requestedWorkspace = body.workspaceId || body.workspace_id || requestedWorkspaceId(url, auth);
+    let workspaceId = "";
+    const pluginNotificationAuth = deps.hermesPluginNotificationAuthService?.authorizePluginNotificationRequest({
+      pluginId,
+      workspaceId: requestedWorkspace,
+      req,
+      auth,
+    });
+    if (pluginNotificationAuth?.ok) {
+      workspaceId = pluginNotificationAuth.workspaceId;
+      auth = pluginNotificationAuth.auth;
+    } else {
+      workspaceId = deps.requireWorkspaceAccess(req, res, requestedWorkspace);
+      if (!workspaceId) return;
+    }
     const result = await deps.hermesPluginNotificationService.postNotification(Object.assign({}, body, {
       pluginId,
       workspaceId,
-      auth: context.auth || requestAuth(req),
+      auth,
     }));
     if (!result?.ok) {
       deps.sendJson(res, Number(result?.status || 400), {

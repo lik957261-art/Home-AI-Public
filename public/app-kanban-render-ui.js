@@ -1,5 +1,38 @@
 "use strict";
 
+const KANBAN_RENDER_MODEL_ESM_PATH = "/vite-islands/kanban-render-model/kanban-render-model.js";
+let kanbanRenderModelPromise = null;
+let kanbanRenderModel = null;
+
+function importKanbanRenderModel() {
+  if (kanbanRenderModelPromise) return kanbanRenderModelPromise;
+  const importer = typeof window.__homeAiImportKanbanRenderModel === "function"
+    ? window.__homeAiImportKanbanRenderModel
+    : (path) => import(path);
+  kanbanRenderModelPromise = importer(KANBAN_RENDER_MODEL_ESM_PATH)
+    .then((module) => {
+      kanbanRenderModel = module;
+      return module;
+    })
+    .catch((err) => {
+      kanbanRenderModelPromise = null;
+      console.warn("[HomeAI] Kanban render ESM model unavailable; using classic fallbacks.", err);
+      return null;
+    });
+  return kanbanRenderModelPromise;
+}
+
+function currentKanbanRenderModel() {
+  return kanbanRenderModel;
+}
+
+function kanbanRenderModelFunction(name) {
+  const model = currentKanbanRenderModel();
+  return typeof model?.[name] === "function" ? model[name] : null;
+}
+
+void importKanbanRenderModel();
+
 
 function renderTodoList() {
   const list = $("threadList");
@@ -147,15 +180,20 @@ function restoreTodoDetailDraftFocus(focus = null) {
 }
 
 function renderKanbanComposerMessage(message) {
-  const role = String(message?.role || "assistant");
-  const label = role === "user" ? "\u4f60" : "Home AI";
+  const modelFn = kanbanRenderModelFunction("kanbanComposerMessagePlan");
+  const plan = modelFn ? modelFn(message) : null;
+  const role = plan?.role || String(message?.role || "assistant");
+  const label = plan?.label || (role === "user" ? "\u4f60" : "Home AI");
+  const content = plan?.content || message?.content || "";
   return `<article class="kanban-composer-message ${escapeHtml(role)}">
     <strong>${escapeHtml(label)}</strong>
-    <p>${escapeHtml(message?.content || "").replace(/\n/g, "<br>")}</p>
+    <p>${escapeHtml(content).replace(/\n/g, "<br>")}</p>
   </article>`;
 }
 
 function kanbanPlanDependencyLabels(card, plan) {
+  const modelFn = kanbanRenderModelFunction("kanbanPlanDependencyLabels");
+  if (modelFn) return modelFn(card, plan);
   const cards = Array.isArray(plan?.cards) ? plan.cards : [];
   const byId = new Map(cards.map((item, index) => [String(item.clientId || `card-${index + 1}`), item]));
   return (Array.isArray(card?.dependsOn) ? card.dependsOn : [])
@@ -166,35 +204,51 @@ function kanbanPlanDependencyLabels(card, plan) {
 function renderKanbanPlanDraft(plan) {
   const cards = Array.isArray(plan?.cards) ? plan.cards : [];
   const disabled = state.kanbanPlanCreating ? " disabled" : "";
-  const cardItems = cards.map((card, index) => {
-    const deps = kanbanPlanDependencyLabels(card, plan);
-    const status = card.initialRunnable
-      ? "\u9996\u6279\u6267\u884c"
-      : deps.length
-        ? "\u7b49\u5f85\u4f9d\u8d56"
-        : "\u7b49\u5f85\u5e76\u884c\u4f4d";
-    const deliverables = Array.isArray(card.deliverables) ? card.deliverables.filter(Boolean).slice(0, 4) : [];
-    const acceptance = Array.isArray(card.acceptance) ? card.acceptance.filter(Boolean).slice(0, 4) : [];
+  const maxParallel = normalizeKanbanComposerMaxParallel(plan?.maxParallel || state.kanbanComposerMaxParallel);
+  const modelFn = kanbanRenderModelFunction("kanbanPlanDraftViewPlan");
+  const viewPlan = modelFn ? modelFn(plan, {
+    maxParallel,
+    disabled: state.kanbanPlanCreating,
+  }) : null;
+  const cardPlans = Array.isArray(viewPlan?.cards)
+    ? viewPlan.cards
+    : cards.map((card, index) => {
+      const deps = kanbanPlanDependencyLabels(card, plan);
+      const status = card.initialRunnable
+        ? "\u9996\u6279\u6267\u884c"
+        : deps.length
+          ? "\u7b49\u5f85\u4f9d\u8d56"
+          : "\u7b49\u5f85\u5e76\u884c\u4f4d";
+      return {
+        number: index + 1,
+        title: card.title || `Card ${index + 1}`,
+        description: card.description || "",
+        deps,
+        status,
+        deliverables: Array.isArray(card.deliverables) ? card.deliverables.filter(Boolean).slice(0, 4) : [],
+        acceptance: Array.isArray(card.acceptance) ? card.acceptance.filter(Boolean).slice(0, 4) : [],
+      };
+    });
+  const cardItems = cardPlans.map((card) => {
     return `<article class="kanban-plan-card">
       <div class="kanban-plan-card-head">
-        <span>${index + 1}</span>
-        <strong>${escapeHtml(card.title || `Card ${index + 1}`)}</strong>
-        <em>${escapeHtml(status)}</em>
+        <span>${escapeHtml(String(card.number || ""))}</span>
+        <strong>${escapeHtml(card.title || "")}</strong>
+        <em>${escapeHtml(card.status || "")}</em>
       </div>
       ${card.description ? `<p>${escapeHtml(card.description)}</p>` : ""}
-      ${deps.length ? `<small>${escapeHtml("\u4f9d\u8d56\uff1a" + deps.join(" / "))}</small>` : ""}
-      ${deliverables.length ? `<ul>${deliverables.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
-      ${acceptance.length ? `<small>${escapeHtml("\u9a8c\u6536\uff1a" + acceptance.join(" / "))}</small>` : ""}
+      ${card.deps?.length ? `<small>${escapeHtml("\u4f9d\u8d56\uff1a" + card.deps.join(" / "))}</small>` : ""}
+      ${card.deliverables?.length ? `<ul>${card.deliverables.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}
+      ${card.acceptance?.length ? `<small>${escapeHtml("\u9a8c\u6536\uff1a" + card.acceptance.join(" / "))}</small>` : ""}
     </article>`;
   }).join("");
-  const maxParallel = normalizeKanbanComposerMaxParallel(plan?.maxParallel || state.kanbanComposerMaxParallel);
   return `<section class="kanban-plan-draft">
     <div class="kanban-plan-draft-head">
       <div>
         <strong>\u591a Agent \u62c6\u89e3\u8349\u6848</strong>
-        <span>${escapeHtml(plan?.summary || "")}</span>
+        <span>${escapeHtml(viewPlan?.summary || plan?.summary || "")}</span>
       </div>
-      <small>\u6700\u5927\u5e76\u884c ${maxParallel}</small>
+      <small>\u6700\u5927\u5e76\u884c ${viewPlan?.maxParallel || maxParallel}</small>
     </div>
     <div class="kanban-plan-card-list">${cardItems}</div>
     <div class="kanban-plan-actions">
@@ -205,6 +259,12 @@ function renderKanbanPlanDraft(plan) {
 }
 
 function renderKanbanReasoningOptions(selected = "") {
+  const modelFn = kanbanRenderModelFunction("kanbanReasoningOptionPlans");
+  if (modelFn) {
+    return modelFn(TASK_REASONING_OPTIONS, configuredReasoningOptions(), selected, defaultReasoningLabel())
+      .map((item) => `<option value="${escapeHtml(item.value)}"${item.selected ? " selected" : ""}>${escapeHtml(item.label)}</option>`)
+      .join("");
+  }
   const known = new Map();
   const add = (item) => {
     const value = String(item?.value || "").trim().toLowerCase();
@@ -223,12 +283,20 @@ function renderKanbanReasoningOptions(selected = "") {
 function renderKanbanMultiAgentControls(disabled = false) {
   const attr = disabled ? " disabled" : "";
   const maxParallel = normalizeKanbanComposerMaxParallel(state.kanbanComposerMaxParallel);
+  const modelFn = kanbanRenderModelFunction("kanbanMultiAgentControlsPlan");
+  const plan = modelFn ? modelFn({
+    reasoningEffort: state.kanbanComposerReasoningEffort,
+  }, {
+    disabled,
+    maxParallel,
+    maxAllowed: KANBAN_MULTI_AGENT_MAX_PARALLEL,
+  }) : null;
   const rawReasoningEffort = String(state.kanbanComposerReasoningEffort || "").trim().toLowerCase();
-  const reasoningEffort = ["low", "medium", "high", "xhigh"].includes(rawReasoningEffort) ? rawReasoningEffort : "";
+  const reasoningEffort = plan?.reasoningEffort || (["low", "medium", "high", "xhigh"].includes(rawReasoningEffort) ? rawReasoningEffort : "");
   return `<div class="kanban-multi-agent-controls">
     <label>
       <span>\u6700\u5927 Agent \u6570</span>
-      <input id="kanbanComposerMaxParallel" class="todo-input" type="number" min="1" max="${KANBAN_MULTI_AGENT_MAX_PARALLEL}" step="1" value="${escapeHtml(String(maxParallel))}"${attr}>
+      <input id="kanbanComposerMaxParallel" class="todo-input" type="number" min="1" max="${plan?.maxAllowed || KANBAN_MULTI_AGENT_MAX_PARALLEL}" step="1" value="${escapeHtml(String(plan?.maxParallel || maxParallel))}"${attr}>
     </label>
     <label>
       <span>\u63a8\u7406\u7b49\u7ea7</span>
@@ -260,32 +328,46 @@ function renderKanbanComposerDocumentPanel(disabled = false) {
 }
 
 function renderKanbanComposerProgress() {
-  if (!state.kanbanComposerBusy && !state.kanbanPlanCreating) return "";
   const steps = kanbanComposerProgressSteps();
+  const modelFn = kanbanRenderModelFunction("kanbanComposerProgressPlan");
+  const plan = modelFn ? modelFn({
+    busy: state.kanbanComposerBusy,
+    planCreating: state.kanbanPlanCreating,
+    step: state.kanbanComposerProgressStep,
+    startedAt: state.kanbanComposerProgressStartedAt,
+    kind: state.kanbanComposerProgressKind,
+  }, {
+    steps,
+    now: Date.now(),
+  }) : null;
+  if (!plan && !state.kanbanComposerBusy && !state.kanbanPlanCreating) return "";
   const current = Math.max(0, Math.min(steps.length - 1, Number(state.kanbanComposerProgressStep || 0)));
-  const elapsed = state.kanbanComposerProgressStartedAt
+  const elapsed = plan?.elapsed || (state.kanbanComposerProgressStartedAt
     ? Math.max(1, Math.round((Date.now() - state.kanbanComposerProgressStartedAt) / 1000))
-    : 0;
-  const title = state.kanbanComposerProgressKind === "reading"
+    : 0);
+  const title = plan?.title || (state.kanbanComposerProgressKind === "reading"
     ? "正在创建学习计划"
     : (state.kanbanComposerProgressKind === "assessment"
       ? "正在创建考试计划"
-      : (state.kanbanComposerProgressKind === "create" ? "\u6b63\u5728\u521b\u5efa\u5e76\u542f\u52a8\u4efb\u52a1" : "\u6b63\u5728\u62c6\u89e3\u4efb\u52a1"));
+      : (state.kanbanComposerProgressKind === "create" ? "\u6b63\u5728\u521b\u5efa\u5e76\u542f\u52a8\u4efb\u52a1" : "\u6b63\u5728\u62c6\u89e3\u4efb\u52a1")));
+  const stepPlans = plan?.steps || steps.map((step, index) => {
+    const stateClass = index < current ? "done" : (index === current ? "active" : "");
+    return { label: step, number: index + 1, stateClass };
+  });
   return `<section class="kanban-create-progress" aria-live="polite">
     <div class="kanban-create-progress-head">
       <strong>${title}</strong>
       <span>${elapsed}s</span>
     </div>
     <ol>
-      ${steps.map((step, index) => {
-        const stateClass = index < current ? " done" : (index === current ? " active" : "");
-        return `<li class="${stateClass.trim()}"><span>${index + 1}</span><em>${escapeHtml(step)}</em></li>`;
-      }).join("")}
+      ${stepPlans.map((step) => `<li class="${escapeHtml(step.stateClass || "")}"><span>${escapeHtml(String(step.number || ""))}</span><em>${escapeHtml(step.label || "")}</em></li>`).join("")}
     </ol>
   </section>`;
 }
 
 function kanbanComposerMode() {
+  const modelFn = kanbanRenderModelFunction("kanbanComposerModePlan");
+  if (modelFn) return modelFn(state.kanbanComposerMode, state.kanbanComposerMultiAgent);
   if (state.kanbanComposerMode === "reading") return "study";
   if (["single", "multi", "study", "assessment"].includes(state.kanbanComposerMode)) return state.kanbanComposerMode;
   return state.kanbanComposerMultiAgent ? "multi" : "single";
@@ -522,29 +604,37 @@ function renderKanbanComposerPanel() {
   const draft = state.kanbanPlanDraft ? renderKanbanPlanDraft(state.kanbanPlanDraft) : "";
   if (!state.todoCreateOpen && !busy) return "";
   const mode = kanbanComposerMode();
-  const singleActive = mode === "single";
-  const multiActive = mode === "multi";
-  const studyActive = mode === "study";
-  const assessmentActive = mode === "assessment";
-  const programmingStudyActive = studyActive && isKanbanProgrammingStudyTemplate(state.kanbanReadingDraft?.studyTemplate);
+  const modelFn = kanbanRenderModelFunction("kanbanComposerPanelModePlan");
+  const modePlan = modelFn ? modelFn({
+    mode,
+    multiAgent: state.kanbanComposerMultiAgent,
+    programmingStudy: isKanbanProgrammingStudyTemplate(state.kanbanReadingDraft?.studyTemplate),
+    hasPlanDraft: Boolean(state.kanbanPlanDraft),
+    maxAgents: KANBAN_MULTI_AGENT_MAX_PARALLEL,
+  }) : null;
+  const singleActive = modePlan?.singleActive ?? mode === "single";
+  const multiActive = modePlan?.multiActive ?? mode === "multi";
+  const studyActive = modePlan?.studyActive ?? mode === "study";
+  const assessmentActive = modePlan?.assessmentActive ?? mode === "assessment";
+  const programmingStudyActive = modePlan?.programmingStudyActive ?? (studyActive && isKanbanProgrammingStudyTemplate(state.kanbanReadingDraft?.studyTemplate));
   const modeButton = (mode, label, active) => `<button class="kanban-create-mode-button${active ? " active" : ""}" type="button" data-kanban-composer-mode="${mode}" aria-pressed="${active ? "true" : "false"}"${busy ? " disabled" : ""}>${label}</button>`;
-  const submitLabel = assessmentActive
+  const submitLabel = modePlan?.submitLabel || (assessmentActive
     ? "\u521b\u5efa\u8003\u8bd5\u8ba1\u5212"
     : (studyActive
       ? (programmingStudyActive ? "\u521b\u5efa\u7f16\u7a0b\u6d4b\u9a8c\u8ba1\u5212" : "\u521b\u5efa\u5b66\u4e60\u8ba1\u5212")
       : (multiActive
         ? (state.kanbanPlanDraft ? "\u91cd\u65b0\u62c6\u89e3" : "\u62c6\u89e3\u4efb\u52a1")
-        : "\u521b\u5efa\u4efb\u52a1"));
-  const placeholder = assessmentActive
+        : "\u521b\u5efa\u4efb\u52a1")));
+  const placeholder = modePlan?.placeholder || (assessmentActive
     ? "\u8865\u5145\u8003\u8bd5\u8303\u56f4\u3001\u9898\u578b\u6bd4\u4f8b\u3001\u6559\u6750\u7ae0\u8282\u6216\u8584\u5f31\u70b9"
     : (studyActive
       ? (programmingStudyActive ? "\u8865\u5145\u7f16\u7a0b\u9879\u76ee\u3001\u8bfe\u5802\u91cd\u70b9\u3001\u7ec3\u4e60\u8303\u56f4\u6216\u51fa\u9898\u8981\u6c42\uff0c\u6216\u7559\u7a7a" : "\u8865\u5145\u5b66\u4e60\u8303\u56f4\u3001\u5206\u6bb5\u8981\u6c42\u3001\u8bc4\u4ef7\u91cd\u70b9\uff0c\u6216\u7559\u7a7a")
-      : "\u8f93\u5165\u4efb\u52a1\u9700\u6c42");
-  const caption = assessmentActive
+      : "\u8f93\u5165\u4efb\u52a1\u9700\u6c42"));
+  const caption = modePlan?.caption || (assessmentActive
     ? "\u56fa\u5b9a\u6b63\u5f0f\u8003\u8bd5\u6a21\u677f\uff1b\u672a\u8fbe\u901a\u8fc7\u7ebf\u4f1a\u4fdd\u7559\u91cd\u8003"
     : (studyActive
       ? (programmingStudyActive ? "\u6309\u5b66\u4e60\u8ba1\u5212\u65e5\u671f\u5f00\u653e\u7f16\u7a0b\u6d4b\u9a8c\u5361\uff1b\u6bcf\u5f20\u5361\u5f00\u653e\u540e\u586b\u5199\u672c\u6b21\u8981\u6c42\u518d\u51fa\u9898" : "\u6bcf\u6b21\u5b66\u4e60\u4e00\u5f20\u5361\u7247\uff0c\u6bcf\u65e5\u5c0f\u6d4b\u901a\u8fc7\u540e\u5b8c\u6210\uff1b\u6700\u540e\u6709\u7efc\u5408\u8003\u8bd5")
-      : (multiActive ? `\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}` : "\u76f4\u63a5\u8fdb\u5165 todo"));
+      : (multiActive ? `\u6700\u5927\u5e76\u884c ${KANBAN_MULTI_AGENT_MAX_PARALLEL}` : "\u76f4\u63a5\u8fdb\u5165 todo")));
   return `<section class="kanban-composer-panel">
     <form id="kanbanComposerForm" class="kanban-composer-form">
       <div class="kanban-create-mode" role="group" aria-label="\u4efb\u52a1\u521b\u5efa\u65b9\u5f0f">
@@ -557,7 +647,7 @@ function renderKanbanComposerPanel() {
       ${assessmentActive ? renderKanbanAssessmentFields(busy) : ""}
       ${multiActive ? renderKanbanMultiAgentControls(busy) : ""}
       ${renderKanbanComposerDocumentPanel(busy)}
-      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="${studyActive || assessmentActive ? "4" : "7"}" placeholder="${escapeHtml(placeholder)}"${busy ? " disabled" : ""}>${escapeHtml(state.kanbanComposerText)}</textarea>
+      <textarea id="kanbanComposerText" class="kanban-composer-input" rows="${escapeHtml(modePlan?.rows || (studyActive || assessmentActive ? "4" : "7"))}" placeholder="${escapeHtml(placeholder)}"${busy ? " disabled" : ""}>${escapeHtml(state.kanbanComposerText)}</textarea>
       <div class="kanban-composer-toolbar">
         <span class="kanban-create-mode-caption">${escapeHtml(caption)}</span>
         <span class="kanban-composer-buttons">

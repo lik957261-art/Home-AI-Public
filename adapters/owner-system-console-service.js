@@ -77,6 +77,24 @@ function worstStatus(values = []) {
   ), "ok");
 }
 
+function isAdvisoryOnlySignal(signal = {}) {
+  return signal.signalId === "codex_mobile_runtime_pressure"
+    && normalizeStatus(signal.status, "unknown") === "warning"
+    && signal.boundedEvidence?.advisoryOnly === true;
+}
+
+function dayToDaySystemStatus(systemStatus = {}) {
+  const signals = Array.isArray(systemStatus.signals) ? systemStatus.signals : [];
+  const resourceStatuses = signals
+    .filter((signal) => /^(host_|process|service|gateway|plugin|deploy)/.test(signal.category || ""))
+    .filter((signal) => !isAdvisoryOnlySignal(signal))
+    .map((signal) => signal.status);
+  const resourceWorst = worstStatus(resourceStatuses);
+  const rawOverall = normalizeStatus(systemStatus.overallStatus || systemStatus.status, "unknown");
+  if (rawOverall === "warning" && statusRank(resourceWorst) < statusRank("warning")) return "ok";
+  return worstStatus([rawOverall, resourceWorst]);
+}
+
 function severityForStatus(status) {
   return STATUS_TO_SEVERITY[normalizeStatus(status)] || "H3";
 }
@@ -155,13 +173,78 @@ function normalizeAutonomousDeliveryControl(raw = {}, generatedAt = "") {
     ok: status === "ok",
     schemaVersion: Number(source.schemaVersion || 1),
     status,
-    workspaceId: cleanString(source.workspaceId || "owner", 120) || "owner",
+    workspaceId: cleanString(source.workspaceId, 120),
     counts,
     itemCount: Number(source.itemCount ?? items.length) || 0,
     items,
     lastCheckedAt: cleanString(source.lastCheckedAt || generatedAt, 80),
     source: cleanString(source.source?.name || source.source || "autonomous-delivery-coordinator", 120),
     policy: boundedEvidence(source.policy || {}),
+  };
+}
+
+function normalizeAutonomousDeliveryLoop(raw = {}, generatedAt = "") {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const counts = boundedEvidence(source.counts || {});
+  const status = normalizeStatus(source.status || (
+    Number(counts.blocked || 0) > 0 ? "degraded" : "ok"
+  ), "unknown");
+  const items = Array.isArray(source.items)
+    ? source.items.slice(0, 20).map((item) => boundedEvidence(item))
+    : [];
+  return {
+    ok: status === "ok",
+    schemaVersion: Number(source.schemaVersion || 1),
+    status,
+    workspaceId: cleanString(source.workspaceId, 120),
+    counts,
+    itemCount: Number(source.itemCount ?? items.length) || 0,
+    items,
+    lastCheckedAt: cleanString(source.lastCheckedAt || source.generatedAt || generatedAt, 80),
+    source: cleanString(source.source?.name || source.source || "autonomous-delivery-case-ledger", 120),
+    policy: boundedEvidence(source.policy || {}),
+  };
+}
+
+function normalizeLoopEngineeringStatus(raw = {}, generatedAt = "") {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const counts = boundedEvidence(source.counts || {});
+  const blocked = Number(counts.blocked || 0) || 0;
+  const items = Array.isArray(source.items)
+    ? source.items.slice(0, 20).map((item) => boundedEvidence(item))
+    : [];
+  const hasActiveBlockedItem = items.some((item) => normalizeStatus(item.status, "unknown") === "blocked"
+    && item.nextRoute !== "codex_mobile_runtime_repair"
+    && item.blockedReason !== "codex_at_loop_status_unreachable"
+    && item.blockedReason !== "codex_at_loop_status_timeout"
+    && item.blockedReason !== "codex_at_loop_status_http_failed"
+    && item.blockedReason !== "codex_at_loop_status_disabled");
+  const hasActiveBlockedEvidence = Boolean(
+    source.policy?.currentActiveBlockedEvidence
+    || source.policy?.activeBlockedEvidence
+    || source.currentActiveBlockedEvidence
+    || source.activeBlockedEvidence
+    || hasActiveBlockedItem
+  );
+  const rawStatus = normalizeStatus(source.status || (blocked > 0 ? "blocked" : "ok"), "unknown");
+  const status = rawStatus === "blocked" && !hasActiveBlockedEvidence ? "warning" : rawStatus;
+  const normalizedCounts = Object.assign({}, counts, {
+    blocked: status === "blocked" ? blocked : 0,
+    advisoryBlocked: status === "blocked" ? 0 : blocked,
+  });
+  return {
+    ok: status === "ok",
+    schemaVersion: Number(source.schemaVersion || 1),
+    status,
+    counts: normalizedCounts,
+    itemCount: Number(source.itemCount ?? items.length) || 0,
+    items,
+    lastCheckedAt: cleanString(source.lastCheckedAt || source.generatedAt || generatedAt, 80),
+    source: cleanString(source.source?.name || source.source || "loop-engineering-plan-service", 120),
+    policy: boundedEvidence(Object.assign({}, source.policy || {}, {
+      activeBlockedEvidence: hasActiveBlockedEvidence,
+      advisoryBlockedCount: normalizedCounts.advisoryBlocked,
+    })),
   };
 }
 
@@ -194,6 +277,70 @@ function autonomousDeliverySignal(control = {}, generatedAt = "") {
   });
 }
 
+function autonomousDeliveryLoopSignal(loop = {}, generatedAt = "") {
+  const status = normalizeStatus(loop.status, "unknown");
+  const counts = loop.counts || {};
+  const blocked = Number(counts.blocked || 0) || 0;
+  const waitingReturn = Number(counts.waitingReturn || 0) || 0;
+  const duplicateSuppressed = Number(counts.duplicateSuppressed || 0) || 0;
+  const verifiedClosed = Number(counts.verifiedClosed || 0) || 0;
+  const summary = status === "ok"
+    ? "Autonomous Delivery 闭环 ledger 当前没有阻塞或等待回卡的 case。"
+    : `Autonomous Delivery 闭环需要关注：阻塞 ${blocked}，等待回卡 ${waitingReturn}，已抑制重复 ${duplicateSuppressed}。`;
+  return normalizeSignal({
+    signalId: "owner_console_autonomous_delivery_loop",
+    label: "Autonomous Delivery 闭环",
+    category: "diagnostic",
+    status,
+    severity: severityForStatus(status),
+    summary,
+    boundedEvidence: {
+      blocked,
+      waitingReturn,
+      duplicateSuppressed,
+      verifiedClosed,
+      itemCount: loop.itemCount || 0,
+    },
+    lastCheckedAt: loop.lastCheckedAt || generatedAt,
+    source: "autonomous-delivery-case-ledger",
+    recommendedAction: status === "ok" ? "observe" : "open_system_console_delivery_loop",
+    actionRequiresOwnerConfirmation: status !== "ok",
+  });
+}
+
+function loopEngineeringSignal(loopEngineering = {}, generatedAt = "") {
+  const status = normalizeStatus(loopEngineering.status, "unknown");
+  const counts = loopEngineering.counts || {};
+  const open = Number(counts.open || 0) || 0;
+  const blocked = Number(counts.blocked || 0) || 0;
+  const advisoryBlocked = Number(counts.advisoryBlocked || 0) || 0;
+  const waitingReturn = Number(counts.waitingReturn || 0) || 0;
+  const summary = status === "ok"
+    ? `Loop Engineering runtime 已接通：打开 ${open}，等待回卡 ${waitingReturn}。`
+    : (status === "blocked"
+        ? `运行阻塞：Loop Engineering 有当前阻塞 ${blocked}，等待回卡 ${waitingReturn}。`
+        : `信息性提醒：Loop Engineering 投影待确认 ${advisoryBlocked}，等待回卡 ${waitingReturn}。`);
+  return normalizeSignal({
+    signalId: "owner_console_loop_engineering_runtime",
+    label: "Loop Engineering runtime",
+    category: "diagnostic",
+    status,
+    severity: severityForStatus(status),
+    summary,
+    boundedEvidence: {
+      open,
+      blocked,
+      advisoryBlocked,
+      waitingReturn,
+      itemCount: loopEngineering.itemCount || 0,
+    },
+    lastCheckedAt: loopEngineering.lastCheckedAt || generatedAt,
+    source: "codex-mobile-at-loop-status",
+    recommendedAction: status === "ok" ? "observe" : "inspect_codex_mobile_at_loop_runtime",
+    actionRequiresOwnerConfirmation: status !== "ok",
+  });
+}
+
 function dimensionSignal(status, fields) {
   return normalizeSignal(Object.assign({
     status,
@@ -204,17 +351,20 @@ function dimensionSignal(status, fields) {
   }, fields));
 }
 
-function buildDimensions({ systemStatus, runtimeSloModel, autonomousDeliveryControl, generatedAt }) {
+function buildDimensions({ systemStatus, runtimeSloModel, autonomousDeliveryControl, autonomousDeliveryLoop, loopEngineeringStatus, generatedAt }) {
   const resourceStatuses = Array.isArray(systemStatus?.signals)
     ? systemStatus.signals
       .filter((signal) => /^(host_|process|service|gateway|plugin|deploy)/.test(signal.category || ""))
+      .filter((signal) => !isAdvisoryOnlySignal(signal))
       .map((signal) => signal.status)
     : [];
-  const availability = worstStatus([systemStatus?.overallStatus || "unknown", ...resourceStatuses]);
+  const availability = worstStatus([dayToDaySystemStatus(systemStatus), ...resourceStatuses]);
   const accuracy = runtimeSloModel?.ok ? "ok" : "degraded";
   const autonomy = worstStatus([
     runtimeSloModel?.policy?.selfCheckAutomationMayAutoDispatch ? "ok" : "warning",
     autonomousDeliveryControl?.status || "unknown",
+    autonomousDeliveryLoop?.status || "unknown",
+    loopEngineeringStatus?.status || "unknown",
   ]);
   return [
     dimensionSignal(availability, {
@@ -253,6 +403,11 @@ function buildDimensions({ systemStatus, runtimeSloModel, autonomousDeliveryCont
         autonomousDeliveryStatus: autonomousDeliveryControl?.status || "unknown",
         autonomousDeliveryFailedCount: autonomousDeliveryControl?.counts?.failed || 0,
         autonomousDeliveryDeferredConflictCount: autonomousDeliveryControl?.counts?.deferredConflict || 0,
+        autonomousDeliveryLoopStatus: autonomousDeliveryLoop?.status || "unknown",
+        autonomousDeliveryWaitingReturnCount: autonomousDeliveryLoop?.counts?.waitingReturn || 0,
+        autonomousDeliveryDuplicateSuppressedCount: autonomousDeliveryLoop?.counts?.duplicateSuppressed || 0,
+        loopEngineeringRuntimeStatus: loopEngineeringStatus?.status || "unknown",
+        loopEngineeringWaitingReturnCount: loopEngineeringStatus?.counts?.waitingReturn || 0,
       },
       generatedAt,
       recommendedAction: autonomy === "ok" ? "observe" : "open_action_inbox_autonomous_delivery",
@@ -263,6 +418,7 @@ function buildDimensions({ systemStatus, runtimeSloModel, autonomousDeliveryCont
 
 function criticalSignals(signals = [], maxItems = 12) {
   return signals
+    .filter((signal) => !isAdvisoryOnlySignal(signal))
     .filter((signal) => statusRank(signal.status) >= statusRank("warning"))
     .sort((a, b) => statusRank(b.status) - statusRank(a.status))
     .slice(0, maxItems);
@@ -302,6 +458,16 @@ function createDefaultSystemResourceStatusService(options = {}) {
 function createOwnerSystemConsoleService(options = {}) {
   const nowIso = typeof options.nowIso === "function" ? options.nowIso : () => new Date().toISOString();
   const systemResourceStatusService = createDefaultSystemResourceStatusService(options);
+  function effectiveOwnerWorkspaceId(context = {}) {
+    const ownerAuth = context.ownerAuth && typeof context.ownerAuth === "object" ? context.ownerAuth : {};
+    const candidate = ownerAuth.effectiveWorkspaceId
+      || ownerAuth.workspaceId
+      || ownerAuth.workspace?.id
+      || context.effectiveWorkspaceId
+      || context.workspaceId
+      || options.ownerWorkspaceId;
+    return cleanString(candidate, 120);
+  }
   const collectSystemStatus = typeof options.collectSystemStatus === "function"
     ? options.collectSystemStatus
     : async () => {
@@ -330,12 +496,14 @@ function createOwnerSystemConsoleService(options = {}) {
     : buildRuntimeSloModel;
   const collectAutonomousDeliveryControl = typeof options.collectAutonomousDeliveryControl === "function"
     ? options.collectAutonomousDeliveryControl
-    : async () => {
+    : async (context = {}) => {
+      const workspaceId = effectiveOwnerWorkspaceId(context);
       if (
-        options.autonomousDeliveryCoordinatorService
+        workspaceId
+        && options.autonomousDeliveryCoordinatorService
         && typeof options.autonomousDeliveryCoordinatorService.dispatchControlSummary === "function"
       ) {
-        return options.autonomousDeliveryCoordinatorService.dispatchControlSummary({ workspaceId: "owner" });
+        return options.autonomousDeliveryCoordinatorService.dispatchControlSummary({ workspaceId });
       }
       return {
         schemaVersion: 1,
@@ -345,6 +513,34 @@ function createOwnerSystemConsoleService(options = {}) {
         policy: { readOnlySummary: true, collectorConfigured: false },
       };
     };
+  const collectAutonomousDeliveryLoop = typeof options.collectAutonomousDeliveryLoop === "function"
+    ? options.collectAutonomousDeliveryLoop
+    : async (context = {}) => {
+      const workspaceId = effectiveOwnerWorkspaceId(context);
+      if (
+        workspaceId
+        && options.autonomousDeliveryCoordinatorService
+        && typeof options.autonomousDeliveryCoordinatorService.deliveryLoopStatusSummary === "function"
+      ) {
+        return options.autonomousDeliveryCoordinatorService.deliveryLoopStatusSummary({ workspaceId });
+      }
+      return {
+        schemaVersion: 1,
+        status: "ok",
+        counts: {},
+        items: [],
+        policy: { readOnlySummary: true, collectorConfigured: false },
+      };
+    };
+  const collectLoopEngineeringStatus = typeof options.collectLoopEngineeringStatus === "function"
+    ? options.collectLoopEngineeringStatus
+    : async () => ({
+      schemaVersion: 1,
+      status: "ok",
+      counts: {},
+      items: [],
+      policy: { readOnlySummary: true, collectorConfigured: false },
+    });
   const qualityProgramBuilder = typeof options.qualityProgramBuilder === "function"
     ? options.qualityProgramBuilder
     : buildOwner3AQualityProgramSnapshot;
@@ -360,34 +556,58 @@ function createOwnerSystemConsoleService(options = {}) {
     return normalizeSystemStatus(raw, generatedAt);
   }
 
-  async function overview() {
+  async function overview(requestContext = {}) {
     const generatedAt = nowIso();
-    const [rawSystemStatus, runtimeSloModel, rawAutonomousDeliveryControl, rawQualityProgramEvidence] = await Promise.all([
+    const collectorContext = Object.assign({}, requestContext, {
+      effectiveWorkspaceId: effectiveOwnerWorkspaceId(requestContext),
+    });
+    const [
+      rawSystemStatus,
+      runtimeSloModel,
+      rawAutonomousDeliveryControl,
+      rawAutonomousDeliveryLoop,
+      rawLoopEngineeringStatus,
+      rawQualityProgramEvidence,
+    ] = await Promise.all([
       collectSystemStatus(),
       Promise.resolve(runtimeSloModelBuilder({ nowIso: () => generatedAt })),
-      Promise.resolve(collectAutonomousDeliveryControl()),
+      Promise.resolve(collectAutonomousDeliveryControl(collectorContext)),
+      Promise.resolve(collectAutonomousDeliveryLoop(collectorContext)),
+      Promise.resolve(collectLoopEngineeringStatus(collectorContext)),
       Promise.resolve(collectQualityProgramEvidence()),
     ]);
     const normalizedSystemStatus = normalizeSystemStatus(rawSystemStatus, generatedAt);
     const autonomousDeliveryControl = normalizeAutonomousDeliveryControl(rawAutonomousDeliveryControl, generatedAt);
+    const autonomousDeliveryLoop = normalizeAutonomousDeliveryLoop(rawAutonomousDeliveryLoop, generatedAt);
+    const loopEngineeringStatus = normalizeLoopEngineeringStatus(rawLoopEngineeringStatus, generatedAt);
     const qualityProgramEvidence = sanitizeOwner3AQualityEvidence(rawQualityProgramEvidence);
+    const dayToDayStatus = dayToDaySystemStatus(normalizedSystemStatus);
+    const qualityProgramSystemStatus = Object.assign({}, normalizedSystemStatus, {
+      status: dayToDayStatus,
+      overallStatus: dayToDayStatus,
+    });
     const qualityProgram = qualityProgramBuilder({
       autonomousDeliveryControl,
+      autonomousDeliveryLoop,
       extraEvidence: qualityProgramEvidence.extraEvidence || {},
       nowIso: () => generatedAt,
       runtimeSloModel,
-      systemStatus: normalizedSystemStatus,
+      systemStatus: qualityProgramSystemStatus,
     });
     const dimensions = buildDimensions({
       systemStatus: normalizedSystemStatus,
       runtimeSloModel,
       autonomousDeliveryControl,
+      autonomousDeliveryLoop,
+      loopEngineeringStatus,
       generatedAt,
     });
     const allSignals = [
       ...dimensions,
       ...(Array.isArray(normalizedSystemStatus.signals) ? normalizedSystemStatus.signals : []),
       autonomousDeliverySignal(autonomousDeliveryControl, generatedAt),
+      autonomousDeliveryLoopSignal(autonomousDeliveryLoop, generatedAt),
+      loopEngineeringSignal(loopEngineeringStatus, generatedAt),
     ];
     const overallStatus = worstStatus(dimensions.map((dimension) => dimension.status));
     const critical = criticalSignals(allSignals);
@@ -401,6 +621,8 @@ function createOwnerSystemConsoleService(options = {}) {
       dimensions,
       systemStatus: normalizedSystemStatus,
       autonomousDeliveryControl,
+      autonomousDeliveryLoop,
+      loopEngineeringStatus,
       qualityProgramEvidence,
       qualityProgram,
       criticalSignals: critical,
@@ -434,7 +656,9 @@ module.exports = {
   CONSOLE_PAGES,
   OWNER_SYSTEM_CONSOLE_VERSION,
   createOwnerSystemConsoleService,
+  normalizeAutonomousDeliveryLoop,
   normalizeAutonomousDeliveryControl,
+  normalizeLoopEngineeringStatus,
   normalizeSignal,
   normalizeSystemStatus,
   severityForStatus,

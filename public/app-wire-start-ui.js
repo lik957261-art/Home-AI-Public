@@ -1,5 +1,97 @@
 "use strict";
 
+const CHAT_ATTACHMENT_FILE_INPUT_CONTROLLER_ESM_PATH = "/vite-islands/chat-attachment-file-input-controller/chat-attachment-file-input-controller.js";
+const WIRE_START_SHELL_START_MODEL_ESM_PATH = "/vite-islands/shell-start-model/shell-start-model.js";
+let chatAttachmentFileInputControllerModel = null;
+let chatAttachmentFileInputControllerModelPromise = null;
+let wireStartShellStartModel = null;
+let wireStartShellStartModelPromise = null;
+
+function importChatAttachmentFileInputController(rootRef = window) {
+  if (chatAttachmentFileInputControllerModel) return Promise.resolve(chatAttachmentFileInputControllerModel);
+  if (!chatAttachmentFileInputControllerModelPromise) {
+    const importer = typeof rootRef.__homeAiImportChatAttachmentFileInputController === "function"
+      ? rootRef.__homeAiImportChatAttachmentFileInputController
+      : (path) => import(path);
+    chatAttachmentFileInputControllerModelPromise = Promise.resolve()
+      .then(() => importer(CHAT_ATTACHMENT_FILE_INPUT_CONTROLLER_ESM_PATH))
+      .then((model) => {
+        chatAttachmentFileInputControllerModel = model || null;
+        return chatAttachmentFileInputControllerModel;
+      })
+      .catch((error) => {
+        chatAttachmentFileInputControllerModelPromise = null;
+        throw error;
+      });
+  }
+  return chatAttachmentFileInputControllerModelPromise;
+}
+
+function currentChatAttachmentFileInputController() {
+  return chatAttachmentFileInputControllerModel;
+}
+
+function importWireStartShellStartModel(rootRef = window) {
+  if (wireStartShellStartModel) return Promise.resolve(wireStartShellStartModel);
+  if (!wireStartShellStartModelPromise) {
+    const importer = typeof rootRef.__homeAiImportShellStartModel === "function"
+      ? rootRef.__homeAiImportShellStartModel
+      : (path) => import(path);
+    wireStartShellStartModelPromise = Promise.resolve()
+      .then(() => importer(WIRE_START_SHELL_START_MODEL_ESM_PATH))
+      .then((model) => {
+        wireStartShellStartModel = model || null;
+        return wireStartShellStartModel;
+      })
+      .catch((error) => {
+        wireStartShellStartModelPromise = null;
+        throw error;
+      });
+  }
+  return wireStartShellStartModelPromise;
+}
+
+function currentWireStartShellStartModel() {
+  return wireStartShellStartModel;
+}
+
+async function publicConfigBootstrapPlan(config = {}) {
+  const needsCookieSession = Boolean(config.authRequired && !state.key);
+  const hasCookieSessionValue = needsCookieSession
+    ? await hasCookieSession().catch(() => false)
+    : false;
+  const model = currentWireStartShellStartModel();
+  if (typeof model?.publicConfigBootstrapPlan === "function") {
+    return model.publicConfigBootstrapPlan({
+      setupRequired: Boolean(config.setupRequired),
+      authRequired: Boolean(config.authRequired),
+      hasKey: Boolean(state.key),
+      hasCookieSession: hasCookieSessionValue,
+    });
+  }
+  if (config.setupRequired) return { action: "show_setup", shouldBootstrap: false };
+  if (config.authRequired && !state.key && !hasCookieSessionValue) return { action: "show_login", shouldBootstrap: false };
+  return { action: "bootstrap_workspace", shouldBootstrap: true };
+}
+
+function classicAttachmentFileInputSelection(event) {
+  const input = event.target;
+  const controllerModule = currentChatAttachmentFileInputController();
+  if (typeof controllerModule?.createAttachmentFileInputController === "function") {
+    const controller = controllerModule.createAttachmentFileInputController({ input });
+    controller.handleChange(event);
+    return controller.getSelectedFiles();
+  }
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  const files = [...(input.files || [])];
+  input.value = "";
+  return files;
+}
+
+importChatAttachmentFileInputController().catch(() => null);
+importWireStartShellStartModel().catch(() => null);
+
 function preparePrimaryNavigationChange() {
   state.primaryNavigationSeq = (Number(state.primaryNavigationSeq || 0) || 0) + 1;
   if (typeof hideActivePluginHostsForPrimaryNavigation === "function") hideActivePluginHostsForPrimaryNavigation();
@@ -277,6 +369,12 @@ function wireUi() {
     clearQuotedReply({ render: false });
     clearTaskDirectoryFilter({ render: false });
     state.selectedWorkspaceId = event.target.value;
+    if (typeof resetAccountScopedRuntimeState === "function") {
+      resetAccountScopedRuntimeState("workspace_select_change", {
+        preserveAuth: true,
+        preserveWorkspaces: true,
+      });
+    }
     if (typeof resetEmbeddedPluginsForWorkspaceChange === "function") resetEmbeddedPluginsForWorkspaceChange();
     state.privateChatThread = null;
     state.groupChatThread = null;
@@ -371,6 +469,21 @@ function wireUi() {
     preparePrimaryNavigationChange();
     clearQuotedReply({ render: false });
     state.viewMode = "inbox";
+    localStorage.setItem("hermesWebViewMode", state.viewMode);
+    state.currentTaskGroupId = "";
+    state.currentThread = null;
+    state.currentThreadId = "";
+    await loadSelectedView();
+  });
+  $("bottomWorkspaceMode")?.addEventListener("click", async () => {
+    if (!state.auth?.isOwner) {
+      if (typeof showError === "function") showError("工作区控制台仅限 Owner 使用");
+      return;
+    }
+    preparePrimaryNavigationChange();
+    clearQuotedReply({ render: false });
+    if (typeof normalizeMobileViewportAfterViewChange === "function") normalizeMobileViewportAfterViewChange();
+    state.viewMode = "workspace-console";
     localStorage.setItem("hermesWebViewMode", state.viewMode);
     state.currentTaskGroupId = "";
     state.currentThread = null;
@@ -784,12 +897,8 @@ function wireUi() {
   $("chatSearchPrev")?.addEventListener("click", () => moveChatSearch(-1));
   $("chatSearchNext")?.addEventListener("click", () => moveChatSearch(1));
   $("fileInput").addEventListener("change", (event) => {
-    event.preventDefault?.();
-    event.stopPropagation?.();
-    const input = event.target;
-    const files = [...input.files];
-    input.value = "";
-    if (typeof markSystemFilePickerReturned === "function") markSystemFilePickerReturned(8000);
+    const files = classicAttachmentFileInputSelection(event);
+    if (typeof markSystemFilePickerReturned === "function") markSystemFilePickerReturned(120000);
     if (!files.length) return;
     uploadFiles(files).catch(showError);
   }, { capture: true });
@@ -812,17 +921,16 @@ async function start() {
       "载入公开配置超时",
     ));
     state.setupRequired = Boolean(config.setupRequired);
-    if (state.setupRequired) {
+    const plan = await publicConfigBootstrapPlan(config);
+    if (plan.action === "show_setup") {
       finishStartupPerf("setup-required");
       showSetup();
       return;
     }
-    if (config.authRequired && !state.key) {
-      if (!(await hasCookieSession().catch(() => false))) {
-        finishStartupPerf("login-required");
-        showLogin();
-        return;
-      }
+    if (plan.action === "show_login") {
+      finishStartupPerf("login-required");
+      showLogin();
+      return;
     }
     setBootSplashText("Loading workspace");
     await startupPerfStep("bootstrap-with-retry", () => withTimeout(bootstrapWithRetry(), 26000, "Workspace bootstrap timed out"));
@@ -846,17 +954,16 @@ async function startFromBootRecovery() {
     "Public config load timed out",
   ));
   state.setupRequired = Boolean(config.setupRequired);
-  if (state.setupRequired) {
+  const plan = await publicConfigBootstrapPlan(config);
+  if (plan.action === "show_setup") {
     finishStartupPerf("setup-required");
     showSetup();
     return;
   }
-  if (config.authRequired && !state.key) {
-    if (!(await hasCookieSession().catch(() => false))) {
-      finishStartupPerf("login-required");
-      showLogin();
-      return;
-    }
+  if (plan.action === "show_login") {
+    finishStartupPerf("login-required");
+    showLogin();
+    return;
   }
   setBootSplashText("Loading workspace");
   await startupPerfStep("bootstrap-with-retry", () => withTimeout(bootstrapWithRetry(), 26000, "Workspace bootstrap timed out"));

@@ -12,6 +12,7 @@ const {
   runtimeModelFamilies,
   runtimeModelOptions,
 } = require("./runtime-config-model-service");
+const { mergeMoaConfig, normalizeMoaConfig, officialMoaConfig } = require("./runtime-config-moa-service");
 const { createRuntimeConfigPublicProjectionService } = require("./runtime-config-public-projection-service");
 const { createRuntimeConfigSaveService } = require("./runtime-config-save-service");
 const { createRuntimeConfigWorkerPolicyContractService } = require("./runtime-config-worker-policy-contract-service");
@@ -31,6 +32,7 @@ function normalizeRuntimeConfig(value) {
   const webPushSubject = String(source.webPushSubject || source.web_push_subject || "").trim();
   const webPushVapidPath = String(source.webPushVapidPath || source.web_push_vapid_path || "").trim();
   const model = normalizeRuntimeModelSelection(source);
+  const moaConfig = normalizeMoaConfig(source.moaConfig || source.moa_config || source.moa || {});
   const gatewayWorkerSettings = normalizeGatewayWorkerRuntimeSettings(source.gatewayWorkerSettings || source.gateway_worker_settings || {});
   return {
     schemaVersion: 1,
@@ -40,6 +42,7 @@ function normalizeRuntimeConfig(value) {
     defaultModel: model.defaultModel,
     defaultModelProvider: model.defaultModelProvider,
     defaultReasoningEffort: model.defaultReasoningEffort,
+    moaConfig,
     gatewayWorkerSettings,
     webPushSubject,
     webPushVapidPath,
@@ -119,11 +122,13 @@ function createRuntimeConfigProvider(options = {}) {
     load,
     runtimeModelFamilies,
     runtimeModelOptions,
+    officialMoaConfig,
   });
   const saveService = createRuntimeConfigSaveService({
     mergeGatewayWorkerRuntimeSettings,
     normalizeRuntimeConfig,
     normalizeRuntimeModelSelection,
+    mergeMoaConfig,
     nowIso,
     validateHermesApiBase,
     validateWebPushSubject,
@@ -167,6 +172,7 @@ function createRuntimeConfigProvider(options = {}) {
     load,
     loadHermesApiKey: keyService.loadHermesApiKey,
     normalize: normalizeRuntimeConfig,
+    officialMoaConfig: (config) => officialMoaConfig(config?.moaConfig || load().moaConfig),
     publicConfig,
     save,
     validateHermesApiBase,

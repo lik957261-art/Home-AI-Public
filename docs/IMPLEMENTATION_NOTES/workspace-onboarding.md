@@ -14,6 +14,11 @@ not a Codex-operated manual runbook. The target flow is:
    business plugin set: Wardrobe, Health, Finance, Email, Note, and Growth.
    Codex plugin edition is special/Owner-oriented and is not part of this
    ordinary workspace onboarding default.
+   Restricted media accounts are a separate narrow workspace type: selecting
+   `account_type: media` in the Access Key manager creates a Home AI workspace
+   key whose plugin projection is limited to Music and Movie. It does not grant
+   the ordinary business plugin set and does not make Music/Movie ordinary
+   workspace-grantable plugins.
 2. Home AI returns a dry-run provisioning plan.
 3. Owner confirms apply.
 4. Home AI creates the workspace record and one-time browser Access Key.
@@ -164,6 +169,14 @@ accounts are repair targets too; creating the user is not enough. The group is
 how isolated workers traverse the shared production runtime without granting
 access to a developer home directory.
 
+`repair_workspace_acl` repairs the target workspace data root, the target Skill
+profile root, and the target worker's write access to the shared
+`data/uploads` root used by upload/file handoff. The uploads ACL is applied to
+the root directory only, not recursively to historical uploaded files. This
+keeps the repair aligned with the target-only ACL harness, which validates both
+the workspace drive root and shared upload staging access for the new `hm-*`
+worker.
+
 The root helper must run from the production app tree and listen on a local
 Unix socket such as:
 
@@ -217,12 +230,15 @@ workflow must prove:
   fall back to Owner;
 - wrong-header and wrong-workspace auth probes fail closed.
 
-The onboarding validation step is target-scoped for profile and Gateway
-toolset failures: `macos-production-profile-audit.js` and
-`macos-gateway-manifest-toolset-smoke.js` can still observe global production
-metadata, but the onboarding executor only fails the new workspace when the
-issues target that workspace or one of its newly materialized Gateway profiles.
-Unrelated historical profile/plugin/toolset issues are preserved as bounded
+The onboarding validation step is target-scoped for profile, Gateway toolset,
+and worker filesystem ACL failures. `macos-production-profile-audit.js`,
+`macos-gateway-manifest-toolset-smoke.js`, and
+`macos-worker-filesystem-access-harness.js` can still observe global production
+metadata in their ordinary standalone modes, but the onboarding executor must
+invoke the ACL harness with the target workspace id and `hm-*` user. It only
+fails the new workspace when issues target that workspace, its newly
+materialized Gateway profiles, or its own worker filesystem boundary.
+Unrelated historical profile/plugin/toolset/ACL issues are preserved as bounded
 ignored diagnostics and must be handled by the normal production-closure
 backlog, not by failing a new family workspace that is otherwise correctly
 provisioned.

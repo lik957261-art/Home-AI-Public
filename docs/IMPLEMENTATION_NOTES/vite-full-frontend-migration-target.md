@@ -31,16 +31,26 @@ The development migration target is complete when:
 
 - a Vite-built Home AI app preview can run the full primary shell in local
   development without using the classic ordered script chain;
-- the classic shell remains available as a fallback during development;
+- the production runtime shell remains Vite-only; local development can use
+  source history and local preview routes for comparison, not a Classic runtime
+  fallback;
+- `config/home-ai-shell-mode.json` remains `vite` with the approved production
+  cutover version, and `npm run check:vite-readiness` fails if the config asks
+  for Classic or omits the cutover version;
 - chat navigation, Composer, SSE/event streaming, task/topic views, Owner
   System Console, feedback menu, voice input, document preview, file delivery,
   plugin iframe hosting, PWA update flow, and iOS native shell bridge scenarios
   pass focused local harnesses;
+- plugin iframe hosting includes a Vite-side resident iframe lifecycle model
+  that preserves already loaded iframes on token-only refreshes, preserves
+  visible/loaded iframes during navigation-health timeout checks, and recovers
+  only still-loading timed-out iframes in development harnesses;
 - the Vite app does not reach into unmanaged global shell state except through
   documented compatibility adapters that have removal tickets;
-- static cache/version behavior is test-covered for both classic fallback and
-  Vite preview assets;
-- rollback is a routing/config switch in development, not a source revert;
+- static cache/version behavior is test-covered for Vite preview assets and the
+  Vite-only production root shell;
+- rollback for production shell mistakes is source/deploy rollback through Git
+  history and deployment backups, not a same-runtime Classic switch;
 - a separate production cutover proposal can be generated with concrete
   readback and rollback evidence.
 - a separate production cutover source-change contract can be validated with
@@ -50,10 +60,34 @@ The development migration target is complete when:
   which must stay `goal_incomplete` until bounded development acceptance,
   Owner approval, source-change validation, and production readback evidence
   are all supplied.
+- a source-only development acceptance packet can be generated with
+  `npm run packet:vite-dev`; the packet must include scope, migrated
+  development surfaces, remaining production surfaces, an Audit Packet, a
+  Delta Matrix, validation summary, and risk register.
+- the source-only development target can be audited with
+  `npm run audit:vite-dev-goal`; this proves the development migration target
+  only and must not be treated as production cutover approval or production
+  readback evidence.
+- source-only browser user-journey smoke can be run with
+  `npm run smoke:vite-dev-user-journeys`; it must cover Composer send,
+  file/camera attachment without main-frame refresh, server-file attachment,
+  native/system share attachment, Codex iframe rendering, Owner System Console,
+  PDF/PPTX document preview policy, and voice pending cancel in the Vite dev
+  preview.
+- Dialog Sheet confirm/prompt/message behavior has an ESM island with a Vite
+  dev preview and focused model/runtime harness coverage before any production
+  dialog owner is replaced.
+- Toast/status feedback behavior has an ESM island with a Vite dev preview and
+  focused model/runtime harness coverage before any production PWA toast owner
+  is replaced.
+- PWA/Web Push status behavior has an ESM island with a Vite dev preview and
+  focused capability/button-plan harness coverage before any production
+  Service Worker, install, or push owner is replaced.
 
 ## Migration Principles
 
-- Keep the classic shell runnable until Vite parity is demonstrated.
+- Keep legacy compatibility owners test-covered until Vite parity is
+  demonstrated.
 - Prefer ES modules and explicit imports over broad globals.
 - Move shared frontend state behind a typed or documented client runtime facade
   before bundling modules.
@@ -65,6 +99,160 @@ The development migration target is complete when:
 - Preserve Owner-only permission behavior exactly. A Vite route must fail closed
   with bounded UI when access is missing.
 - Keep all phase outputs inspectable through local dev URLs and focused tests.
+
+## Post-Cutover ESM Completion Plan
+
+The production Vite cutover is currently a transitional bootstrap. It proves
+that production can select and read back a Vite-built bootstrap while preserving
+the classic business shell. It does not complete the ESM migration of chat,
+Composer, task/topic navigation, plugin iframe hosting, document preview,
+voice recording, attachments, PWA cache/update, or Service Worker behavior.
+
+The next ESM work should proceed in small replacement slices. Each slice must
+have an importable module, a classic compatibility adapter, focused tests, a
+Vite preview or fixture harness when visual/user-flow behavior is involved,
+and a rollback path that leaves the previous classic owner intact until the
+slice is proven.
+
+### Stage A - Stabilize Post-Cutover Operations
+
+Goal: make the current Vite-only production shell state easy to verify and roll
+back through source/deploy recovery.
+
+Tasks:
+
+- Keep `config/home-ai-shell-mode.json` as the explicit Vite-only shell config.
+- Use `npm run check:vite-production` for post-cutover status checks.
+- Keep `npm run check:vite-readiness` as the development-target gate for future
+  ESM slices, not as a production health check.
+- Preserve Classic request probes such as `?homeAiShellMode=classic` only to
+  verify that they are ignored. Document source/deploy rollback through
+  Git/source history and deployment backups.
+
+Acceptance:
+
+- `npm run check:vite-production -- --base <home-ai-origin> --require-ok`
+  passes in production or staging.
+- The classic request override returns no production Vite bootstrap.
+- The status command reports `productionWrites=false` and
+  `deployExecuted=false`.
+
+### Stage B - ESM Ownership Inventory And Allowlist Burn-Down
+
+Goal: turn remaining classic globals into a tracked migration backlog.
+
+Tasks:
+
+- Regenerate and update the static client boot inventory.
+- Generate the staged ESM backlog:
+
+  ```sh
+  npm run plan:vite-esm -- --write
+  ```
+
+  This writes `docs/IMPLEMENTATION_NOTES/vite-esm-migration-backlog.md` from
+  the current boot inventory and Vite global-usage audit. The backlog is
+  source-only evidence; it reports `productionWrites=false` and
+  `deployExecuted=false`.
+- Expand `scripts/vite-global-usage-audit.js` to cover each classic module as
+  it enters migration scope.
+- Assign every remaining `window.*`, `localStorage`, direct `fetch`,
+  `document.cookie`, native bridge, Service Worker, and file input boundary to
+  either the runtime facade or a specific module migration ticket.
+- Fail new unmanaged globals unless an explicit temporary owner is documented.
+
+Acceptance:
+
+- `node tests/vite-esm-migration-backlog.test.js` passes.
+- The generated backlog script count and script-order hash match
+  `docs/IMPLEMENTATION_NOTES/static-client-boot-inventory.md`.
+- Stage C candidates are limited to explicit low-risk adapter files; broad
+  Stage D workflow files must not be pulled into Stage C only because they
+  contain confirm/delete/status function names.
+
+Suggested order:
+
+1. Composer send/input controller.
+2. Attachment selection and upload controller.
+3. Task/topic route and cached root renderer.
+4. Chat thread readback and message list renderer.
+5. SSE/run-status event projection.
+6. Plugin host iframe lifecycle adapter.
+7. Document/file preview adapter.
+8. Voice session and audio capture adapter.
+9. PWA install/update and Service Worker cache policy.
+
+### Stage C - Low-Risk Production Adapter Replacements
+
+Goal: replace isolated ordered-shell surfaces with imported ESM modules while
+keeping the production compatibility document as the host.
+
+Candidate first replacements:
+
+- Owner System Console renderer.
+- Toast/status feedback renderer.
+- Dialog sheet/prompt/confirm renderer.
+- AI Ops feedback menu and Owner console shortcut.
+- PWA/Web Push status button model.
+
+Acceptance per replacement:
+
+- The production compatibility adapter imports or delegates to the same ESM
+  model used by the Vite preview.
+- Focused compatibility UI tests and island tests both pass.
+- Non-Owner and unauthenticated paths fail closed with bounded UI.
+- Static cache version and Service Worker behavior are unchanged unless the
+  slice explicitly owns a cache change.
+
+### Stage D - Core Workflow ESM Modules
+
+Goal: migrate primary user workflows behind importable controllers while the
+production compatibility document still provides the container.
+
+Priority order:
+
+1. Attachment/camera/file selection because it has recent iOS refresh
+   regressions and clear controller boundaries.
+2. Composer send and run-status projection.
+3. Task/topic navigation and cached root rendering.
+4. Chat message list/readback.
+5. Plugin host resident iframe lifecycle.
+6. Document/file preview and native bridge strategy.
+7. Voice recording lifecycle.
+
+Acceptance per workflow:
+
+- The ESM controller owns business state transitions; the classic adapter only
+  mounts DOM and forwards events.
+- The workflow passes both source-only model tests and at least one DOM/browser
+  harness for mobile viewport behavior when applicable.
+- Existing production readback or smoke coverage remains valid.
+- Rollback is disabling that adapter/import, not reverting unrelated source.
+
+### Stage E - Full Vite Shell Replacement
+
+Goal: replace the classic ordered script chain as the production business shell.
+
+Entry criteria:
+
+- All core workflows above have ESM controllers and classic adapters with
+  green harness coverage.
+- `public/index.html` ordered script dependencies are reduced to bootstrap,
+  compatibility shims, or removed.
+- Service Worker and static-cache policy explicitly cover the Vite shell,
+  hashed assets, rollback cache, and update prompt behavior.
+- PWA/iOS native shell scenarios pass local and production/staging readback:
+  keyboard focus, camera/file upload without main-frame refresh, system share,
+  document preview/open-in, voice pending cancel, plugin iframe persistence,
+  Codex embed, Owner Console, and chat/SSE.
+
+Exit criteria:
+
+- A new source-change contract proves the full Vite shell, not only the
+  transitional bootstrap.
+- Central Mac deploy/readback verifies the Vite business shell in production.
+- No same-runtime Classic fallback remains reachable; recovery uses the
+  source/deploy rollback plan.
 
 ## Phase 0 - Inventory And Dependency Graph
 
@@ -114,7 +302,7 @@ git diff --check
 ## Phase 1 - Vite App Preview Host
 
 Goal: create a full-app Vite preview host that can run locally next to the
-classic shell.
+Vite-only production root shell.
 
 Tasks:
 
@@ -122,18 +310,19 @@ Tasks:
 - Add a dev-only preview HTML route, for example
   `src/vite-app/index.html`, and a built preview page under `public/` only if
   needed for static server validation.
-- Keep `public/index.html` unchanged as the default shell.
+- Keep the production root shell Vite-only while using preview routes for local
+  development.
 - Add a route or static path that makes the preview easy to open in local
   development without changing production `/`.
 - Add build metadata for preview artifacts: build id, source ref if available,
-  asset manifest path, and classic fallback state.
+  asset manifest path, and Vite-only shell state.
 
 Acceptance:
 
 - `npm run dev:vite` opens a Vite app preview.
 - `npm run build:vite` emits deterministic preview assets.
-- The classic shell remains default and is not imported by the Vite preview as
-  raw ordered script tags.
+- The production root shell remains Vite-only and is not imported by the Vite
+  preview as raw ordered script tags.
 - Preview failure shows a bounded error state instead of a blank page.
 
 Implementation artifacts:
@@ -153,6 +342,7 @@ Suggested validation:
 npm run build:vite
 node tests/vite-app-preview-host.test.js
 node tests/vite-owner-system-console-island.test.js
+node tests/vite-development-acceptance-packet.test.js
 node tests/static-cache-version-harness.test.js
 npm run check
 git diff --check
@@ -167,8 +357,9 @@ Tasks:
 - Introduce a frontend runtime facade for API client, auth/access-key handling,
   app state, event bus, toast/feedback, route state, and native bridge calls.
 - Refactor low-risk modules to consume the facade while still running in the
-  classic shell.
-- Add tests that prove the facade works in both classic and Vite preview modes.
+  production compatibility document.
+- Add tests that prove the facade works in both compatibility and Vite preview
+  modes.
 - Track remaining global reads/writes with an allowlist and owner.
 
 Acceptance:
@@ -182,6 +373,8 @@ Implementation artifacts:
 
 - Runtime facade source:
   `src/vite-app/runtime/home-ai-runtime-facade.mjs`.
+- Runtime state/event bus source:
+  `src/vite-app/runtime/runtime-state-event-bus.mjs`.
 - Global usage audit:
   `scripts/vite-global-usage-audit.js`.
 - Global usage audit test:
@@ -195,6 +388,8 @@ Implementation artifacts:
   This is the only Phase 2 compatibility global introduced by the Vite
   migration.
 - Guard test: `tests/vite-runtime-facade.test.js`.
+- State/event bus guard test:
+  `tests/vite-runtime-state-event-bus.test.js`.
 
 Current compatibility allowlist:
 
@@ -207,14 +402,18 @@ Current compatibility allowlist:
   hook for the Owner System Console island.
 - `window.HomeAIViteAiOpsFeedbackPreview`: development preview control hook for
   the AI Ops feedback menu island.
+- `window.HomeAIViteToastStatusPreview`: development preview control hook for
+  the Toast / Status feedback island.
+- `window.HomeAIVitePwaPushStatusPreview`: development preview control hook for
+  the PWA / Web Push status island.
 - Runtime-facade-owned auth/API globals: `localStorage`, `document.cookie`,
   `fetch`, `X-Hermes-Web-Key`, and `X-Hermes-Web-Client-Version` are allowed
   only inside `src/vite-app/runtime/home-ai-runtime-facade.mjs`.
-- Classic runtime-facade bootstrap browser boundary: `fetch`, `localStorage`,
+- Compatibility runtime-facade bootstrap browser boundary: `fetch`, `localStorage`,
   `X-Hermes-Web-Key`, and `document.cookie` are allowed only inside
-  `public/app-runtime-facade-ui.js` while the production classic shell still
+  `public/app-runtime-facade-ui.js` while the production ordered shell still
   loads ordered static scripts. This bootstrap attaches
-  `window.HomeAiRuntimeFacade` before migrated classic consumers run, so those
+  `window.HomeAiRuntimeFacade` before migrated compatibility consumers run, so those
   consumers do not own direct browser storage or keepalive transport calls.
 - Classic Owner Console view-mode persistence now goes through
   `runtime.route.setViewMode()` / `runtime.route.getViewMode()`. The ESM
@@ -385,6 +584,7 @@ Candidate surfaces:
 - AI Ops Diagnostics panels.
 - Settings subpanels that do not own Composer or streaming state.
 - Feedback menu rendering and Owner-only console shortcut.
+- Toast/status feedback rendering.
 - Static utility panels with API-only data dependencies.
 
 Tasks:
@@ -396,7 +596,7 @@ Tasks:
 
 Acceptance:
 
-- Each migrated surface runs in both classic fallback and Vite preview.
+- Each migrated surface runs in both the compatibility adapter and Vite preview.
 - No migrated surface relies on implicit script order.
 - Non-Owner access is denied with bounded UI where applicable.
 
@@ -466,8 +666,8 @@ Tasks:
   rendering into Vite modules.
 - Keep chat detail rendering behind a compatibility mount until Phase 5.
 - Preserve cached-render behavior for topic roots and task lists.
-- Add a fallback path that can re-open the same route through the classic shell
-  during development.
+- Add compatibility route patches that can re-open the same route through the
+  production root shell during development.
 
 Acceptance:
 
@@ -504,12 +704,12 @@ view-mode aliases, primary-tab selection, Owner-only console tab gating,
 cached topic/task shell status, directory topic collection grouping, task-root
 render signatures, imported task/topic root HTML rendering, classic
 `taskListThread` cache compatibility, row-level topic action models,
-development-preview URL/history synchronization, a first read-only thread data
-boundary for root and selected-topic refresh, and a classic fallback URL.
+development-preview URL/history synchronization, and a first read-only thread
+data boundary for root and selected-topic refresh.
 The compatibility adapter consumes the runtime state snapshot provided to the
 Vite model; it must not read classic `window.state` directly. The row action
 model maps directory, regular, and plugin topic rows to bounded route patches
-and classic fallback hrefs; the development preview applies those patches to
+and compatibility hrefs; the development preview applies those patches to
 runtime state and Vite preview URL/history only. The data source builds the
 existing read-only `GET /api/threads/:id?messageMode=tasks` request and loads it
 only through the runtime facade API bridge; it does not construct auth headers
@@ -724,6 +924,12 @@ models for the next migration boundary:
   browser-boundary exclusion, successful optimistic send/readback merge,
   blocked empty send, API failure rollback, interrupt projection, and
   deduplicated result merge.
+- `attachment-file-input-controller.mjs` owns the development file/camera input
+  lifecycle before live production upload migration. It snapshots selected
+  Files, stops the change event so a surrounding form cannot navigate the main
+  frame, clears `input.value` immediately for repeated mobile camera picks, and
+  exposes only bounded metadata/evidence to the preview. It is covered by
+  `tests/vite-chat-attachment-file-input-controller.test.js`.
 - `thread-readback-controller.mjs` is the terminal-event readback boundary. It
   builds the classic `GET /api/threads/:threadId` route through injected
   `HomeAiRuntimeFacade.api`, consumes the chat runtime model's
@@ -847,7 +1053,11 @@ hidden, detached, disabled, inert, zero-rect, or otherwise invisible active
 editables are blurred on lifecycle checks; ordinary browser/PWA non-editable
 touches preserve a visible Composer focus; and explicit iOS native-shell
 markers force blur of the active editable on non-editable touches outside that
-editable. `/vite-chat-runtime-preview/` installs the guard in development and
+editable. It also mirrors the native Composer paste window: a second
+touch/long-press on the already-focused Composer textarea can recover from a
+`blur` by refocusing the still-visible, enabled Composer once, while hidden,
+disabled, stale, outside-window, and external-click paths remain unprotected.
+`/vite-chat-runtime-preview/` installs the guard in development and
 shows a `Focus guard` status plus a `清理焦点` manual cleanup control for local
 smoke evidence. This is not a production ownership transfer; the classic Web
 guard remains active in `public/app-composer-draft-ui.js` and the native iOS
@@ -968,15 +1178,22 @@ Tasks:
 
 - Define Vite asset cache policy: hashed assets, no-cache HTML, Service Worker
   update behavior, and preview asset cleanup.
+- Model Web Push/PWA status and button-plan behavior as fixture-only ESM state
+  before any live notification permission, subscription, or Service Worker
+  ownership moves.
 - Update static cache harnesses for Vite preview without changing production
   default shell.
 - Validate iOS native bridge markers, safe area, keyboard, upload, voice, and
   document preview behavior in a local PWA/debug environment.
-- Define rollback switch and cache-bust behavior for a future production cutover.
+- Define source/deploy rollback and cache-bust behavior for future shell/cache
+  changes.
 
 Acceptance:
 
 - Classic and Vite preview cache rules are both test-covered.
+- `npm run check:vite-cache-policy` passes as source-only evidence and reports
+  `productionCutoverCacheReady=false` until a separate cutover change adopts
+  content-fingerprinted production assets and Service Worker policy.
 - Killing and reopening the PWA after a development version bump does not load
   stale incompatible assets.
 - iOS native shell behavior matches classic parity for the selected scenarios.
@@ -985,6 +1202,8 @@ Suggested validation:
 
 ```sh
 npm run build:vite
+node tests/vite-preview-cache-policy-check.test.js
+npm run check:vite-cache-policy
 node tests/static-cache-version-harness.test.js
 node tests/mobile-bottom-region-layout.test.js
 node tests/native-environment-context-ui.test.js
@@ -1002,11 +1221,11 @@ Tasks:
 
 - Run full local syntax and focused UI gates.
 - Run Playwright or equivalent local browser checks on desktop and mobile
-  viewports for both classic fallback and Vite preview.
+  viewports for the Vite-only root and Vite preview.
 - Run iOS/PWA visual harnesses for keyboard, Composer, plugin host, document
   preview, and voice input.
 - Produce a bounded parity report with pass/fail status, residual risks,
-  rollback switch, and production cutover prerequisites.
+  source/deploy rollback plan, and production cutover prerequisites.
 - Produce the maintained source-only Owner review report with
   `npm run review:vite-cutover`.
 - Produce the maintained source-only cutover handoff packet with
@@ -1030,7 +1249,10 @@ Suggested validation:
 
 ```sh
 npm run build:vite
+npm run check:vite-cache-policy
 npm run verify:vite-dev
+npm run audit:vite-dev-goal
+npm run smoke:vite-dev-user-journeys
 npm run check:vite-readiness
 node tests/vite-owner-review-report.test.js
 npm run review:vite-cutover
@@ -1039,6 +1261,7 @@ npm run plan:vite-cutover
 node tests/vite-production-cutover-handoff-packet.test.js
 npm run packet:vite-cutover
 node tests/vite-dev-preview-routes-smoke.test.js
+node tests/vite-dev-user-journeys-smoke.test.js
 node tests/vite-plugin-host-model.test.js
 node tests/vite-plugin-host-island.test.js
 npm run check
@@ -1066,7 +1289,11 @@ The check verifies that Vite package scripts, preview routes, backend-proxy
 configuration, source modules, focused tests, documentation boundaries, and
 built preview assets are present. It also verifies that `public/index.html` and
 `public/service-worker.js` do not reference `/vite-preview/`,
-`/vite-islands/`, or source-only `/vite-*-preview/` routes.
+`/vite-islands/`, or source-only `/vite-*-preview/` routes. The companion
+`npm run check:vite-cache-policy` verifies preview HTML and manifest asset
+readback while preserving `productionCutoverCacheReady=false`; this is expected
+for the development target because current deterministic preview entry names
+are not yet production content-fingerprinted cache keys.
 
 The maintained one-command development acceptance report is:
 
@@ -1075,9 +1302,9 @@ npm run verify:vite-dev
 ```
 
 It runs the Vite build, global audit, mobile Playwright preview-route smoke,
-real local backend parity smoke, readiness gate, Owner review report, blocked
-cutover preflight, blocked handoff packet, readback validator contract,
-repository static check, local full test gate, and diff hygiene check. The
+real local backend parity smoke, readiness gate, cache-policy gate, Owner review
+report, blocked cutover preflight, blocked handoff packet, readback validator
+contract, repository static check, local full test gate, and diff hygiene check. The
 local full test gate still skips install/deploy lane tests.
 It is source-only, clears the cutover approval environment for the run, and
 must report `productionWrites=false`, `deployExecuted=false`, and
@@ -1085,6 +1312,18 @@ must report `productionWrites=false`, `deployExecuted=false`, and
 `ownerApprovalRequest.status=ready_to_request_owner_approval` with the exact
 approval text for the next boundary. That request does not create a production
 source change, deploy-lane card, or deployment.
+
+The maintained source-only development goal audit is:
+
+```sh
+npm run audit:vite-dev-goal
+```
+
+It consumes or generates the development acceptance packet and verifies only
+the development objective: migrated Vite development surfaces, remaining
+production boundary, Audit Packet / Delta Matrix, validation command coverage,
+source-only privacy policy, and future production cutover sequence. It is not
+an Owner approval record, deploy-lane packet, or production readback claim.
 
 No production cutover is authorized by this development migration target. A
 passing readiness check only means the development preview is ready for Owner
@@ -1183,11 +1422,12 @@ After Phase 8 passes, use
 review package, then create a separate production cutover target only after
 explicit Owner approval. That target must include:
 
-- exact default-shell switch mechanism;
+- exact Vite-only shell serving mechanism;
 - static version and Service Worker cache plan;
 - production deploy/readback commands through the central Mac deployment
   contract;
-- rollback command and proof that classic fallback remains available;
+- source/deploy rollback command and proof that Classic runtime fallback remains
+  retired;
 - Owner approval requirement;
 - privacy-preserving production browser and iOS readback.
 

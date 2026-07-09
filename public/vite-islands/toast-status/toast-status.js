@@ -1,0 +1,49 @@
+import{n as e}from"../home-ai-runtime-facade/chunks/home-ai-runtime-facade.js";var t=`.homeai-vite-toast-status{color:#152033;background:#f7f8fb;min-height:100vh;font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}.vts-shell{width:min(960px,100vw - 32px);margin:0 auto;padding:28px 0 40px}.vts-topbar{justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:20px;display:flex}.vts-eyebrow{color:#607086;text-transform:uppercase;margin:0 0 6px;font-size:12px;font-weight:700}.vts-title{letter-spacing:0;margin:0;font-size:30px;line-height:1.15}.vts-subtitle{color:#536276;max-width:680px;margin:8px 0 0;font-size:15px;line-height:1.55}.vts-grid{grid-template-columns:minmax(0,1.2fr) minmax(280px,.8fr);align-items:stretch;gap:16px;display:grid}.vts-panel,.vts-phone{background:#fff;border:1px solid #d9e0ea;border-radius:8px;box-shadow:0 1px 2px #0f172a0d}.vts-panel{padding:16px}.vts-panel-title{margin:0 0 12px;font-size:16px}.vts-controls{flex-wrap:wrap;gap:8px;display:flex}.vts-button{color:#1f2a3b;min-height:38px;font:inherit;cursor:pointer;background:#fff;border:1px solid #c7d2e2;border-radius:7px;padding:0 12px;font-weight:650}.vts-button.primary{color:#fff;background:#2f6fed;border-color:#2f6fed}.vts-button.danger{color:#b42318;border-color:#b42318}.vts-phone{background:#eef2f7;min-height:460px;position:relative;overflow:hidden}.vts-chat{min-height:460px;padding:18px}.vts-bubble{color:#263447;background:#fff;border-radius:8px;max-width:78%;margin:10px 0;padding:10px 12px;line-height:1.45}.vts-bubble.self{background:#dbeafe;margin-left:auto}.vts-status{color:#46566c;background:#fffffff0;border:1px solid #d7dfeb;border-radius:7px;align-items:center;gap:8px;min-height:34px;padding:8px 10px;font-size:13px;display:flex;position:absolute;bottom:74px;left:12px;right:12px}.vts-status strong{color:#1f2a3b}.vts-toast{color:#fff;background:#1f2937;border-radius:8px;justify-content:space-between;align-items:center;gap:10px;min-height:42px;padding:10px 12px;font-size:14px;display:flex;position:absolute;bottom:24px;left:12px;right:12px;box-shadow:0 12px 24px #0f172a2e}.vts-toast.success{background:#166534}.vts-toast.warning{background:#92400e}.vts-toast.error{background:#991b1b}.vts-toast.hidden{display:none}.vts-toast-action{color:#fff;font:inherit;cursor:pointer;background:0 0;border:1px solid #ffffffb3;border-radius:6px;flex:none;padding:5px 8px;font-size:13px;font-weight:700}.vts-history{gap:8px;margin:14px 0 0;padding:0;list-style:none;display:grid}.vts-history li{color:#526173;border-top:1px solid #edf1f6;grid-template-columns:84px minmax(0,1fr);gap:10px;padding:8px 0;font-size:13px;display:grid}.vts-code{color:#1f2a3b;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}@media (max-width:760px){.vts-shell{width:min(100vw - 24px,560px);padding-top:18px}.vts-topbar{display:block}.vts-grid{grid-template-columns:1fr}}`,n=`20260704-vite-toast-status-model-v1`,r=new Set([`info`,`success`,`warning`,`error`]),i=1e4,a=4200,o=6500;function s(e,t=1e3){return String(e??``).slice(0,Math.max(1,Number(t)||1e3))}function c(e,t=`info`){let n=t===`success`?a:o,r=Number(e);return!Number.isFinite(r)||r<=0?n:Math.min(i,Math.max(800,Math.round(r)))}function l(e=`info`){let t=s(e,40).trim().toLowerCase();return r.has(t)?t:`info`}function u(e,t={},r=Date.now()){let i=l(t.tone||t.kind||`info`),a=c(t.durationMs,i),o=s(t.actionLabel||``,80).trim(),u=s(t.actionId||``,80).trim(),d=s(t.ariaLabel||e||``,160).trim();return{version:n,id:s(t.id||`toast_${Number(r)||Date.now()}`,80),message:s(e||t.message||``,1e3),tone:i,visible:!0,actionable:!!(o||u),actionLabel:o,actionId:u,ariaLabel:d,createdAt:Number(r)||Date.now(),durationMs:a,expiresAt:(Number(r)||Date.now())+a,dismissedAt:null,clickCount:0}}function d(e={},t=Date.now()){return{...e,visible:!1,dismissedAt:Number(t)||Date.now()}}function f(e={},t=Date.now()){return{...d(e,t),clickCount:Number(e.clickCount||0)+1}}function p(e,t={},r=Date.now()){return{version:n,message:s(e||t.message||``,1e3),tone:l(t.tone||t.kind||`info`),detail:s(t.detail||``,1e3),updatedAt:Number(r)||Date.now()}}function m(e={}){let t=Number(e.now)||Date.now(),r=u(e.toastMessage||`已保存`,{tone:e.toastTone||`success`,actionLabel:e.actionLabel||``,actionId:e.actionId||``},t);return{version:n,toast:r,status:p(e.statusMessage||`连接正常`,{tone:e.statusTone||`info`,detail:e.statusDetail||``},t),history:[r],lastAction:``}}function h(e={},t=u(``),n=3){let r=[t,...Array.isArray(e.history)?e.history:[]].slice(0,Math.max(1,Number(n)||3));return{...e,toast:t,history:r,lastAction:`toast`}}function g(e={},t=p(``)){return{...e,status:t,lastAction:`status`}}var _=`20260704-vite-toast-status-preview-v1`,v=typeof window<`u`?window:globalThis,y=v.HomeAiRuntimeFacade||e({root:v,mode:`vite-toast-status-preview`,clientVersion:_,appState:{toastStatusPreview:!0},attachClassicCompatibility:!0});function b(e){return String(e??``).replace(/&/g,`&amp;`).replace(/</g,`&lt;`).replace(/>/g,`&gt;`).replace(/"/g,`&quot;`).replace(/'/g,`&#39;`)}function x(e){if(e.querySelector(`style[data-homeai-vite-toast-status-style]`))return;let n=document.createElement(`style`);n.setAttribute(`data-homeai-vite-toast-status-style`,`true`),n.textContent=t,e.prepend(n)}function S(){return y.state?.get?.().toastStatusPreviewState||m({toastMessage:`已保存到 Home AI`,toastTone:`success`,statusMessage:`连接正常`,statusDetail:`runtime facade feedback channel`})}function C(e,t=`toast-status-preview:update`,n={}){return y.state?.set?.({toastStatusPreviewState:e}),y.events?.emit?.(t,{visible:!!e.toast?.visible,toastTone:e.toast?.tone||``,statusTone:e.status?.tone||``,lastAction:e.lastAction||``,...n}),e}function w(e,t={}){let n=u(e,t),r=h(S(),n);return y.feedback?.toast?.(n.message,{tone:n.tone,actionId:n.actionId,actionLabel:n.actionLabel}),C(r,`feedback:toast`,{action:`toast`})}function T(e,t={}){let n=p(e,t),r=g(S(),n);return y.feedback?.status?.(n.message,{tone:n.tone,detail:n.detail}),C(r,`feedback:status`,{action:`status`})}function E(){let e=S();return C({...e,toast:d(e.toast),lastAction:`dismiss`},`toast-status-preview:dismiss`,{action:`dismiss`})}function D(){let e=S();return C({...e,toast:f(e.toast),lastAction:`toast_action`},`toast-status-preview:action`,{action:`toast_action`})}function O(e){let t=e?.visible===!1?` hidden`:``;return`
+    <div class="vts-toast ${b(e?.tone||`info`)}${t}" role="status" aria-live="polite" aria-label="${b(e?.ariaLabel||e?.message||``)}" data-vts-toast>
+      <span>${b(e?.message||``)}</span>
+      ${e?.actionable?`<button type="button" class="vts-toast-action" data-vts-action>${b(e.actionLabel||`查看`)}</button>`:``}
+    </div>
+  `}function k(e=[]){return e.map(e=>`
+    <li>
+      <span class="vts-code">${b(e.tone)}</span>
+      <span>${b(e.message)}${e.actionable?` / ${b(e.actionLabel||e.actionId)}`:``}</span>
+    </li>
+  `).join(``)}function A(e){let t=S();e.innerHTML=`
+    <div class="homeai-vite-toast-status">
+      <div class="vts-shell">
+        <header class="vts-topbar">
+          <div>
+            <p class="vts-eyebrow">Vite island 开发预览</p>
+            <h1 class="vts-title">Toast / Status</h1>
+            <p class="vts-subtitle">预览 runtime facade 的 toast 与 status 反馈通道。此页只验证 ESM 状态模型和开发态 UI，不替换 classic PWA toast。</p>
+          </div>
+        </header>
+        <section class="vts-grid">
+          <article class="vts-panel">
+            <h2 class="vts-panel-title">反馈动作</h2>
+            <div class="vts-controls" aria-label="Toast status actions">
+              <button type="button" class="vts-button primary" data-vts-demo="success">Success toast</button>
+              <button type="button" class="vts-button" data-vts-demo="warning">Warning toast</button>
+              <button type="button" class="vts-button danger" data-vts-demo="error">Error toast</button>
+              <button type="button" class="vts-button" data-vts-demo="action">Action toast</button>
+              <button type="button" class="vts-button" data-vts-demo="status">Status</button>
+              <button type="button" class="vts-button" data-vts-demo="dismiss">Dismiss</button>
+            </div>
+            <ul class="vts-history" aria-label="Toast history">${k(t.history)}</ul>
+          </article>
+          <section class="vts-phone" aria-label="Mobile preview">
+            <div class="vts-chat">
+              <p class="vts-bubble">请把调试输出保持为 bounded metadata。</p>
+              <p class="vts-bubble self">收到。Toast 与 status 只通过 runtime facade 投影。</p>
+            </div>
+            <div class="vts-status" data-vts-status>
+              <strong>${b(t.status?.tone||`info`)}</strong>
+              <span>${b(t.status?.message||``)}</span>
+              ${t.status?.detail?`<span class="vts-code">${b(t.status.detail)}</span>`:``}
+            </div>
+            ${O(t.toast)}
+          </section>
+        </section>
+      </div>
+    </div>
+  `,x(e)}function j(e){e.querySelectorAll(`[data-vts-demo]`).forEach(t=>{t.addEventListener(`click`,()=>{let n=t.dataset.vtsDemo||`success`;n===`dismiss`?E():n===`status`?T(`开发预览已连接`,{tone:`info`,detail:`feedback:status`}):n===`action`?w(`有一条可查看的结果`,{tone:`info`,actionLabel:`查看`,actionId:`open-result`}):w(n===`error`?`操作失败，已保留现场`:n===`warning`?`需要确认后继续`:`已保存到 Home AI`,{tone:n}),A(e),j(e)})}),e.querySelector(`[data-vts-action]`)?.addEventListener(`click`,()=>{D(),A(e),j(e)})}function M(e=document.querySelector(`[data-homeai-vite-toast-status]`)){return e?(x(e),y.state?.get?.().toastStatusPreviewState||C(S(),`toast-status-preview:init`,{action:`init`}),A(e),j(e),{refresh(){A(e),j(e)},showToast(t,n){w(t,n),A(e),j(e)},setStatus(t,n){T(t,n),A(e),j(e)}}):null}v.HomeAIViteToastStatusPreview=Object.freeze({version:_,mount:M,showToast:w,setStatus:T,state:S}),document.readyState===`loading`?document.addEventListener(`DOMContentLoaded`,()=>M(),{once:!0}):M();export{M as mount};

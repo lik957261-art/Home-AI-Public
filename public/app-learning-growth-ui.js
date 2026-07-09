@@ -7,6 +7,43 @@
     root.HermesLearningGrowthUi = factory(root.HermesLearningCoinsUi, root.HermesLearningProgramUi);
   }
 }(typeof globalThis !== "undefined" ? globalThis : this, function (CoinsUi, ProgramUi) {
+  const LEARNING_GROWTH_MODEL_ESM_PATH = "/vite-islands/learning-growth-model/learning-growth-model.js";
+  let learningGrowthModel = null;
+  let learningGrowthModelPromise = null;
+
+  function importLearningGrowthModel(rootRef = (typeof globalThis !== "undefined" ? globalThis : null)) {
+    if (learningGrowthModel) return Promise.resolve(learningGrowthModel);
+    if (!learningGrowthModelPromise) {
+      const importer = typeof rootRef?.__homeAiImportLearningGrowthModel === "function"
+        ? rootRef.__homeAiImportLearningGrowthModel
+        : (path) => import(path);
+      learningGrowthModelPromise = Promise.resolve()
+        .then(() => importer(LEARNING_GROWTH_MODEL_ESM_PATH))
+        .then((model) => {
+          learningGrowthModel = model || null;
+          return learningGrowthModel;
+        })
+        .catch((error) => {
+          learningGrowthModelPromise = null;
+          throw error;
+        });
+    }
+    return learningGrowthModelPromise;
+  }
+
+  function currentLearningGrowthModel() {
+    return learningGrowthModel;
+  }
+
+  function learningGrowthModelFunction(name) {
+    const model = currentLearningGrowthModel();
+    return model && typeof model[name] === "function" ? model[name] : null;
+  }
+
+  if (typeof window !== "undefined") {
+    importLearningGrowthModel().catch(() => null);
+  }
+
   function defaultEscapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -25,10 +62,14 @@
   }
 
   function asArray(value) {
+    const modelFn = learningGrowthModelFunction("asArrayPlan");
+    if (modelFn) return modelFn(value);
     return Array.isArray(value) ? value : [];
   }
 
   function statusText(status) {
+    const modelFn = learningGrowthModelFunction("statusTextPlan");
+    if (modelFn) return modelFn(status);
     const value = String(status || "");
     if (value === "active") return "\u5df2\u63a5\u5165";
     if (value === "ready") return "\u5df2\u5c31\u7eea";
@@ -76,6 +117,8 @@
   }
 
   function countPendingTasks(programs = {}) {
+    const modelFn = learningGrowthModelFunction("countPendingTasksPlan");
+    if (modelFn) return modelFn(programs);
     const dailyPending = Number(programs.dailyPlan?.summary?.pendingTasks);
     if (Number.isFinite(dailyPending) && dailyPending >= 0) return dailyPending;
     const taskCards = Array.isArray(programs.taskCards) ? programs.taskCards : [];
@@ -83,6 +126,8 @@
   }
 
   function countReflectionOrReview(programs = {}, owner = false) {
+    const modelFn = learningGrowthModelFunction("countReflectionOrReviewPlan");
+    if (modelFn) return modelFn(programs, owner);
     const counts = programs.launchOperations?.counts || {};
     if (owner) {
       return Number(counts.pendingPlanReviews || 0)
@@ -103,12 +148,16 @@
   }
 
   function formatGrowthCoins(value) {
+    const modelFn = learningGrowthModelFunction("formatGrowthCoinsPlan");
+    if (modelFn) return modelFn(value);
     if (CoinsUi && typeof CoinsUi.formatCoins === "function") return CoinsUi.formatCoins(value);
     const amount = Number(value || 0);
     return `${Number.isFinite(amount) ? amount : 0} \u91d1\u5e01`;
   }
 
   function averageCoinsForWindow(coins = {}, metrics = {}, days = 7) {
+    const modelFn = learningGrowthModelFunction("averageCoinsForWindowPlan");
+    if (modelFn) return modelFn(coins, metrics, days);
     const totalField = days === 30 ? "thirtyDayCoins" : "sevenDayCoins";
     const total = Number(metrics?.[totalField] ?? coins?.growth?.[totalField] ?? 0);
     return Number.isFinite(total) ? Math.round(total / days) : 0;
@@ -133,6 +182,8 @@
   }
 
   function boardLaneTitle(id, fallback = "") {
+    const modelFn = learningGrowthModelFunction("boardLaneTitlePlan");
+    if (modelFn) return modelFn(id, fallback);
     const value = String(id || "");
     if (value === "today") return "\u4eca\u65e5";
     if (value === "ready") return "\u5f53\u524d";
@@ -145,6 +196,8 @@
   }
 
   function boardStatusText(card = {}) {
+    const modelFn = learningGrowthModelFunction("boardStatusTextPlan");
+    if (modelFn) return modelFn(card);
     const nextAction = String(card.nextAction || card.primaryAction || "");
     if (nextAction === "submit") return "\u672a\u63d0\u4ea4";
     if (nextAction === "waiting_feedback") return "\u5df2\u63d0\u4ea4\uff0c\u7b49\u5f85 AI";
@@ -155,12 +208,16 @@
   }
 
   function taskRewardCapCoins(task = {}) {
+    const modelFn = learningGrowthModelFunction("taskRewardCapCoinsPlan");
+    if (modelFn) return modelFn(task);
     const policy = task.rewardPolicy || {};
     const value = Number(task.rewardCapCoins || policy.maxCoins || policy.rewardCapCoins || 100);
     return Number.isFinite(value) && value > 0 ? Math.round(value) : 100;
   }
 
   function cardRewardText(card = {}) {
+    const modelFn = learningGrowthModelFunction("cardRewardTextPlan");
+    if (modelFn) return modelFn(card);
     const settlement = card.latestRewardSettlement || card.rewardSettlement || null;
     const coinAmount = Number(settlement?.coinAmount || 0);
     const amount = Number.isFinite(coinAmount) && coinAmount > 0 ? Math.round(coinAmount) : 0;
@@ -171,6 +228,8 @@
   }
 
   function cardOpenTimeText(card = {}) {
+    const modelFn = learningGrowthModelFunction("cardOpenTimeTextPlan");
+    if (modelFn) return modelFn(card);
     const value = String(card.openedAt || card.generatedAt || card.availableAt || card.createdAt || card.plannedDate || "").trim();
     if (!value) return "";
     const ms = Date.parse(value);
@@ -184,6 +243,8 @@
   }
 
   function cardPublishedAgeText(card = {}) {
+    const modelFn = learningGrowthModelFunction("cardPublishedAgeTextPlan");
+    if (modelFn) return modelFn(card);
     const decay = card.rewardDecay || {};
     if (decay.ageLabel) return decay.ageLabel;
     const value = String(card.openedAt || card.generatedAt || card.availableAt || card.createdAt || card.plannedDate || "").trim();
@@ -197,11 +258,15 @@
   }
 
   function isCompletedBoardCard(card = {}) {
+    const modelFn = learningGrowthModelFunction("isCompletedBoardCardPlan");
+    if (modelFn) return modelFn(card);
     const status = String(card.status || card.executionStatus || card.laneId || card.nextAction || card.primaryAction || "").trim().toLowerCase();
     return ["completed", "complete", "done", "settled", "completed_recent"].includes(status);
   }
 
   function rewardDecayClass(card = {}) {
+    const modelFn = learningGrowthModelFunction("rewardDecayClassPlan");
+    if (modelFn) return modelFn(card);
     const severity = String(card.rewardDecay?.severity || "");
     if (severity === "warning") return " is-reward-warning";
     if (severity === "danger") return " is-reward-danger";
@@ -209,6 +274,8 @@
   }
 
   function rewardDecayText(card = {}) {
+    const modelFn = learningGrowthModelFunction("rewardDecayTextPlan");
+    if (modelFn) return modelFn(card);
     const decay = card.rewardDecay || {};
     if (!decay.applies) return "";
     if (decay.severity === "warning" || decay.severity === "danger") {
@@ -221,6 +288,15 @@
   }
 
   function boardRewardDecayRule(board = {}) {
+    const modelFn = learningGrowthModelFunction("boardRewardDecayRulePlan");
+    if (modelFn) {
+      const plan = modelFn(board);
+      if (!plan?.applies) return "";
+      return `<div class="learning-growth-board-decay-rule${plan.severityClass || ""}">
+        <strong>超时规则</strong>
+        <span>发布 48 小时后每日扣 5%，72 小时后每日扣 10%。</span>
+      </div>`;
+    }
     const cards = Array.isArray(board.cards) ? board.cards : [];
     if (!cards.some((card) => card?.rewardDecay?.applies)) return "";
     const hasDanger = cards.some((card) => String(card?.rewardDecay?.severity || "") === "danger");
@@ -276,11 +352,13 @@
 
   function renderLearningGrowthBoard(board = {}, options = {}) {
     const escapeHtml = optionFn(options, "escapeHtml", defaultEscapeHtml);
+    const modelFn = learningGrowthModelFunction("learningGrowthBoardViewPlan");
+    const boardPlan = modelFn ? modelFn(board, options) : null;
     const cards = Array.isArray(board.cards) ? board.cards : [];
     const cardById = new Map(cards.map((card) => [String(card.taskCardId || ""), card]));
     const lanes = Array.isArray(board.lanes) ? board.lanes : [];
-    if (!lanes.length) return `<section class="learning-growth-board"><div class="learning-coin-empty">\u6682\u65e0\u6210\u957f\u4efb\u52a1\u3002</div></section>`;
-    const laneModels = lanes.map((lane) => {
+    if (boardPlan?.empty || (!boardPlan && !lanes.length)) return `<section class="learning-growth-board"><div class="learning-coin-empty">\u6682\u65e0\u6210\u957f\u4efb\u52a1\u3002</div></section>`;
+    const laneModels = boardPlan?.lanes || lanes.map((lane) => {
       const laneCards = (Array.isArray(lane.cards) ? lane.cards : [])
         .map((id) => cardById.get(String(id || "")))
         .filter(Boolean);
@@ -292,15 +370,15 @@
     });
     const requestedLane = String(options.activeGrowthBoardLane || "").trim();
     const visibleLaneModels = laneModels.filter((lane) => lane.count > 0);
-    const displayLaneModels = visibleLaneModels.length ? visibleLaneModels : laneModels;
+    const displayLaneModels = boardPlan?.lanes || (visibleLaneModels.length ? visibleLaneModels : laneModels);
     const fallbackLane = displayLaneModels.find((lane) => lane.count > 0)?.id || displayLaneModels[0]?.id || "";
-    const activeLaneId = displayLaneModels.some((lane) => lane.id === requestedLane) ? requestedLane : fallbackLane;
+    const activeLaneId = boardPlan?.activeLaneId || (displayLaneModels.some((lane) => lane.id === requestedLane) ? requestedLane : fallbackLane);
     return `<section class="learning-growth-board" data-learning-growth-board>
       <div class="learning-growth-board-status-filter" role="tablist" aria-label="\u6210\u957f\u4efb\u52a1\u72b6\u6001">
         ${displayLaneModels.map((lane) => {
           const active = lane.id === activeLaneId;
           return `<button type="button" class="learning-growth-board-status-chip${active ? " active" : ""}" role="tab" aria-selected="${active ? "true" : "false"}" data-learning-growth-board-filter="${escapeHtml(lane.id)}">
-            <strong>${escapeHtml(boardLaneTitle(lane.id, lane.title))}</strong>
+            <strong>${escapeHtml(lane.title || boardLaneTitle(lane.id, lane.title))}</strong>
             <span>${escapeHtml(String(lane.count))}</span>
           </button>`;
         }).join("")}
@@ -320,6 +398,8 @@
   }
 
   function readinessStatusText(status) {
+    const modelFn = learningGrowthModelFunction("readinessStatusTextPlan");
+    if (modelFn) return modelFn(status);
     const value = String(status || "");
     if (value === "operational_ready") return "Operational ready";
     if (value === "system_ready") return "System ready";
@@ -423,24 +503,26 @@
       launchOperations: overview.launchOperations,
       learnerId: overview.learner?.id || options.learnerId,
     });
+    const modelFn = learningGrowthModelFunction("ownerSettingsOverviewPlan");
+    const modelPlan = modelFn ? modelFn({ overview, options }) : null;
     const coins = options.coins || overview.coins || {};
     const growth = coins.growth || {};
     const counts = data.launchOperations?.counts || {};
     const cards = asArray(overview.board?.cards);
-    const completed = cards.filter((card) => /complete|completed|done/i.test(String(card?.status || card?.nextAction || ""))).length;
-    const activeTasks = cards.filter((card) => !/complete|completed|done/i.test(String(card?.status || card?.nextAction || ""))).length;
-    const earned = Number(growth.totalEarnedCoins || coins.balances?.earnedCoins || 0);
-    const sevenDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 7);
-    const thirtyDayAverage = averageCoinsForWindow(coins, overview.metrics || {}, 30);
+    const completed = modelPlan ? modelPlan.completed : cards.filter((card) => /complete|completed|done/i.test(String(card?.status || card?.nextAction || ""))).length;
+    const activeTasks = modelPlan ? modelPlan.activeTasks : cards.filter((card) => !/complete|completed|done/i.test(String(card?.status || card?.nextAction || ""))).length;
+    const earned = modelPlan ? modelPlan.earned : Number(growth.totalEarnedCoins || coins.balances?.earnedCoins || 0);
+    const sevenDayAverage = modelPlan ? modelPlan.sevenDayAverage : averageCoinsForWindow(coins, overview.metrics || {}, 7);
+    const thirtyDayAverage = modelPlan ? modelPlan.thirtyDayAverage : averageCoinsForWindow(coins, overview.metrics || {}, 30);
     return `<section class="learning-settings-overview" data-learning-settings-overview>
       <div class="learning-settings-kpi-grid">
-        <span><small>执行者</small><strong>${escapeHtml(overview.learner?.displayName || overview.learner?.id || options.learnerId || "执行者")}</strong></span>
+        <span><small>执行者</small><strong>${escapeHtml(modelPlan?.learnerLabel || overview.learner?.displayName || overview.learner?.id || options.learnerId || "执行者")}</strong></span>
         <span><small>当前任务</small><strong>${escapeHtml(String(activeTasks))}</strong></span>
         <span><small>已完成</small><strong>${escapeHtml(String(completed || counts.completedTasks || 0))}</strong></span>
         <span><small>累计金币</small><strong>${escapeHtml(String(Math.round(earned || 0)))}</strong></span>
         <span><small>7日均值</small><strong>${escapeHtml(String(sevenDayAverage))}</strong></span>
         <span><small>30日均值</small><strong>${escapeHtml(String(thirtyDayAverage))}</strong></span>
-        <span><small>待结算</small><strong>${escapeHtml(String(counts.pendingRewardSettlements || 0))}</strong></span>
+        <span><small>待结算</small><strong>${escapeHtml(String(modelPlan?.pendingRewardSettlements ?? (counts.pendingRewardSettlements || 0)))}</strong></span>
       </div>
       ${programUi.renderLaunchOperationsPanel(data.launchOperations || overview.launchOperations || {}, Object.assign({}, programOptions, { compactOwnerSettings: true }))}
     </section>`;
@@ -612,6 +694,8 @@
   }
 
   function masteryStatusText(status = "") {
+    const modelFn = learningGrowthModelFunction("masteryStatusTextPlan");
+    if (modelFn) return modelFn(status);
     const key = String(status || "").trim();
     if (key === "mastered") return "\u5df2\u638c\u63e1";
     if (key === "practicing") return "\u7ec3\u4e60\u4e2d";
@@ -622,6 +706,8 @@
   }
 
   function masteryStrategyText(strategy = "") {
+    const modelFn = learningGrowthModelFunction("masteryStrategyTextPlan");
+    if (modelFn) return modelFn(strategy);
     const key = String(strategy || "").trim();
     if (key === "repair") return "\u4fee\u590d";
     if (key === "stretch") return "\u62d3\u5c55";
@@ -632,6 +718,8 @@
   }
 
   function masteryDomainText(domain = "") {
+    const modelFn = learningGrowthModelFunction("masteryDomainTextPlan");
+    if (modelFn) return modelFn(domain);
     const key = String(domain || "").trim();
     if (key === "english") return "\u82f1\u8bed";
     if (key === "math") return "\u6570\u5b66";
@@ -783,6 +871,8 @@
   }
 
   function uniqueRewardTasks(overview = {}) {
+    const modelFn = learningGrowthModelFunction("uniqueRewardTasksPlan");
+    if (modelFn) return modelFn(overview);
     const seen = new Set();
     return [
       ...asArray(overview.board?.cards),
@@ -797,10 +887,14 @@
   }
 
   function taskSeriesKey(task = {}) {
+    const modelFn = learningGrowthModelFunction("taskSeriesKeyPlan");
+    if (modelFn) return modelFn(task);
     return String(task.sequenceGroupId || task.programId || task.templateId || task.taskModel?.templateId || task.taskCardId || task.id || "").trim();
   }
 
   function taskSeriesLabel(series = {}) {
+    const modelFn = learningGrowthModelFunction("taskSeriesLabelPlan");
+    if (modelFn) return modelFn(series);
     if (series.templateId === "english-speaking-retell-v1") return "\u82f1\u8bed\u9605\u8bfb\u590d\u8ff0";
     if (series.templateId === "english-short-writing-v1") return "\u82f1\u8bed\u77ed\u5199\u4f5c";
     if (series.templateId === "english-vocabulary-active-use-v1") return "\u82f1\u8bed\u8bcd\u6c47\u6d3b\u7528";
@@ -808,6 +902,8 @@
   }
 
   function rewardTaskSeries(overview = {}) {
+    const modelFn = learningGrowthModelFunction("rewardTaskSeriesPlan");
+    if (modelFn) return modelFn(overview);
     const groups = new Map();
     uniqueRewardTasks(overview).forEach((task) => {
       const key = taskSeriesKey(task);
@@ -1062,15 +1158,17 @@
       workspaceId: overview.learner?.workspaceId || options.workspaceId || "",
     })) : "";
     const programUi = options.programUi || ProgramUi;
+    const summaryFn = learningGrowthModelFunction("learningGrowthSummaryPlan");
+    const summaryPlan = summaryFn ? summaryFn({ overview, options }) : null;
     const availableCoins = Number(coins.balances?.availableCoins || 0);
     const historicalCoins = Number(metrics.totalEarnedCoins
       || coins.growth?.totalEarnedCoins
       || coins.balances?.earnedCoins
       || availableCoins
       || 0);
-    const coinText = String(Number.isFinite(historicalCoins) ? Math.round(historicalCoins) : 0);
-    const sevenDayAverage = averageCoinsForWindow(coins, metrics, 7);
-    const thirtyDayAverage = averageCoinsForWindow(coins, metrics, 30);
+    const coinText = summaryPlan?.coinText || String(Number.isFinite(historicalCoins) ? Math.round(historicalCoins) : 0);
+    const sevenDayAverage = summaryPlan ? summaryPlan.sevenDayAverage : averageCoinsForWindow(coins, metrics, 7);
+    const thirtyDayAverage = summaryPlan ? summaryPlan.thirtyDayAverage : averageCoinsForWindow(coins, metrics, 30);
     const coinsUi = options.coinsUi || CoinsUi;
     if (owner && options.state?.learningGrowthSettingsOpen) {
       return renderOwnerSettingsPage(programUi, coinsUi, overview, options);
@@ -1078,7 +1176,7 @@
     return `<div class="learning-growth-view learning-growth-board-page" data-learning-product="fanfan-growth" data-learning-role="${owner ? "owner" : "executor"}">
       <section class="learning-growth-board-summary" data-learning-growth-board-summary>
         <div class="learning-growth-board-summary-metrics" aria-label="\u6210\u957f\u6982\u89c8">
-          <span><small>\u6267\u884c\u8005</small><b>${escapeHtml(learnerLabel)}</b></span>
+          <span><small>\u6267\u884c\u8005</small><b>${escapeHtml(summaryPlan?.learnerLabel || learnerLabel)}</b></span>
           <span><small>\u7d2f\u8ba1\u91d1\u5e01</small><b>${escapeHtml(coinText)}</b></span>
           <span><small>7\u65e5\u5747\u503c</small><b>${escapeHtml(String(sevenDayAverage))}</b></span>
           <span><small>30\u65e5\u5747\u503c</small><b>${escapeHtml(String(thirtyDayAverage))}</b></span>
@@ -1089,6 +1187,8 @@
   }
 
   return {
+    currentLearningGrowthModel,
+    importLearningGrowthModel,
     renderCapabilityCards,
     renderLearningGrowthTabs,
     renderLearningGrowthBoard,

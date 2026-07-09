@@ -169,6 +169,9 @@ function testVoiceLearningComposerMode() {
   assert.match(sendPipelineUi, /if \(typeof voiceLearningModeActive === "function" && voiceLearningModeActive\(\)\) \{[\s\S]*await handleVoiceLearningComposerSend\(text\);[\s\S]*return;[\s\S]*\}/);
   assert.match(voiceLearningUi, /function openVoiceLearningPanel\(\)/);
   assert.match(voiceLearningUi, /function handleVoiceLearningComposerSend\(text\)/);
+  assert.match(voiceLearningUi, /const VOICE_LEARNING_MODEL_ESM_PATH = "\/vite-islands\/voice-learning-model\/voice-learning-model\.js"/);
+  assert.match(voiceLearningUi, /function importVoiceLearningModel\(rootRef = typeof window !== "undefined" \? window : null\)/);
+  assert.match(voiceLearningUi, /function currentVoiceLearningModel\(\)/);
   assert.match(voiceLearningUi, /\/api\/voice-input\/learn-sent-text/);
   assert.match(voiceLearningUi, /receiptMode: "phrasebook"/);
   assert.doesNotMatch(voiceLearningUi, /\/api\/threads\/[^"']*\/messages/);

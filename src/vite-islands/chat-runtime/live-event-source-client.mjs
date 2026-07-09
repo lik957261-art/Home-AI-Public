@@ -29,6 +29,64 @@ function buildChatEventSourceUrl(input = {}) {
   return query ? `${endpoint}?${query}` : endpoint;
 }
 
+function chatEventSourceConnectionPlan(input = {}) {
+  const url = buildChatEventSourceUrl(input);
+  return Object.freeze({
+    version: CHAT_LIVE_EVENT_SOURCE_CLIENT_VERSION,
+    endpoint: cleanString(input.endpoint || "/api/events", 400),
+    url,
+    hasKey: Boolean(cleanString(input.key || "", 800)),
+    hasClientVersion: Boolean(cleanString(input.clientVersion || input.client_version || "", 160)),
+  });
+}
+
+function chatEventConnectionStatusPlan(input = {}) {
+  const status = cleanString(input.status || "", 80).toLowerCase();
+  const text = status === "reconnecting"
+    ? "Reconnecting"
+    : (status === "connected" ? "Home AI OK" : cleanString(input.text || status || "Connecting", 120));
+  return Object.freeze({
+    version: CHAT_LIVE_EVENT_SOURCE_CLIENT_VERSION,
+    status: status || "connecting",
+    text,
+  });
+}
+
+function chatEventFramePayloadPlan(frame = {}) {
+  const data = typeof frame?.data === "string" ? frame.data : "";
+  if (!data) {
+    return Object.freeze({
+      version: CHAT_LIVE_EVENT_SOURCE_CLIENT_VERSION,
+      ok: false,
+      payload: null,
+      diagnostic: boundedTransportDiagnostic("event_stream_empty_frame", {
+        detail: "empty message data",
+      }),
+      errorMessage: "event_stream_empty_frame",
+    });
+  }
+  try {
+    const payload = JSON.parse(data);
+    return Object.freeze({
+      version: CHAT_LIVE_EVENT_SOURCE_CLIENT_VERSION,
+      ok: true,
+      payload,
+      diagnostic: null,
+      errorMessage: "",
+    });
+  } catch (error) {
+    return Object.freeze({
+      version: CHAT_LIVE_EVENT_SOURCE_CLIENT_VERSION,
+      ok: false,
+      payload: null,
+      diagnostic: boundedTransportDiagnostic("event_stream_invalid_json", {
+        detail: error?.message || "invalid event frame",
+      }),
+      errorMessage: error?.message || "invalid event frame",
+    });
+  }
+}
+
 function normalizeStatus(patch = {}) {
   return Object.freeze({
     version: CHAT_LIVE_EVENT_SOURCE_CLIENT_VERSION,
@@ -202,5 +260,8 @@ function createChatEventSourceClient(options = {}) {
 export {
   CHAT_LIVE_EVENT_SOURCE_CLIENT_VERSION,
   buildChatEventSourceUrl,
+  chatEventConnectionStatusPlan,
+  chatEventFramePayloadPlan,
+  chatEventSourceConnectionPlan,
   createChatEventSourceClient,
 };

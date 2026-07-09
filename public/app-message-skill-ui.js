@@ -1,8 +1,49 @@
 "use strict";
 
+const MESSAGE_SKILL_MODEL_ESM_PATH = "/vite-islands/message-skill-model/message-skill-model.js";
+let messageSkillModel = null;
+let messageSkillModelPromise = null;
+
 const MESSAGE_SKILL_HIDDEN_FALLBACKS = new Set(["response", "response-grounding-baseline"]);
 
+function importMessageSkillModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (messageSkillModel) return Promise.resolve(messageSkillModel);
+  if (!messageSkillModelPromise) {
+    const importer = typeof rootRef.__homeAiImportMessageSkillModel === "function"
+      ? rootRef.__homeAiImportMessageSkillModel
+      : (path) => import(path);
+    messageSkillModelPromise = Promise.resolve()
+      .then(() => importer(MESSAGE_SKILL_MODEL_ESM_PATH))
+      .then((model) => {
+        messageSkillModel = model || null;
+        return messageSkillModel;
+      })
+      .catch((error) => {
+        messageSkillModelPromise = null;
+        throw error;
+      });
+  }
+  return messageSkillModelPromise;
+}
+
+function currentMessageSkillModel() {
+  return messageSkillModel;
+}
+
+if (typeof window !== "undefined") {
+  importMessageSkillModel().catch(() => null);
+}
+
+function messageSkillModelHelpers() {
+  return {
+    skillEntryFromText: typeof skillEntryFromText === "function" ? skillEntryFromText : null,
+    skillTitle: typeof skillTitle === "function" ? skillTitle : null,
+  };
+}
+
 function parseMessageSkillObject(value) {
+  const plan = currentMessageSkillModel()?.parseMessageSkillObject?.(value);
+  if (plan) return plan;
   const text = String(value || "").trim();
   if (!text) return null;
   try {
@@ -22,6 +63,8 @@ function parseMessageSkillObject(value) {
 }
 
 function normalizeMessageSkillPath(value) {
+  const plan = currentMessageSkillModel()?.normalizeMessageSkillPath?.(value);
+  if (plan) return plan;
   let text = String(value || "").trim();
   if (!text) return "";
   const parsed = parseMessageSkillObject(text);
@@ -38,6 +81,8 @@ function normalizeMessageSkillPath(value) {
 }
 
 function messageSkillEntry(raw) {
+  const plan = currentMessageSkillModel()?.messageSkillEntry?.(raw, messageSkillModelHelpers());
+  if (plan) return plan;
   if (!raw) return null;
   const rawObject = typeof raw === "object" && !Array.isArray(raw) ? raw : null;
   const path = normalizeMessageSkillPath(rawObject
@@ -68,6 +113,8 @@ function addMessageSkill(map, raw) {
 }
 
 function messageDirectSkillArrays(message = {}) {
+  const plan = currentMessageSkillModel()?.messageDirectSkillArrays?.(message);
+  if (plan) return Array.from(plan);
   const usage = message.usage && typeof message.usage === "object" ? message.usage : {};
   return [
     message.loadedSkills,
@@ -81,6 +128,8 @@ function messageDirectSkillArrays(message = {}) {
 }
 
 function messageRunSkillIds(message = {}) {
+  const plan = currentMessageSkillModel()?.messageRunSkillIds?.(message);
+  if (plan) return new Set(plan);
   const usage = message.usage && typeof message.usage === "object" ? message.usage : {};
   return new Set([
     message.runId,
@@ -90,12 +139,16 @@ function messageRunSkillIds(message = {}) {
 }
 
 function messageSkillEventPayload(event = {}) {
+  const plan = currentMessageSkillModel()?.messageSkillEventPayload?.(event);
+  if (plan) return plan;
   if (String(event.tool || "").trim().toLowerCase() !== "skill_view") return null;
   const preview = event.preview || event.arguments || event.input || event.text || "";
   return parseMessageSkillObject(preview) || preview;
 }
 
 function messageToolNameFromValue(value) {
+  const plan = currentMessageSkillModel()?.messageToolNameFromValue?.(value);
+  if (plan) return plan;
   const parsed = parseMessageSkillObject(value);
   const raw = parsed
     ? (parsed.name || parsed.tool || parsed.function || parsed.functionName || parsed.function_name || "")
@@ -115,6 +168,8 @@ function addMessageTool(map, raw) {
 }
 
 function collectMessageSkills(message = {}, thread = state.currentThread) {
+  const plan = currentMessageSkillModel()?.collectMessageSkills?.(message, thread, messageSkillModelHelpers());
+  if (plan) return Array.from(plan);
   const byPath = new Map();
   for (const rows of messageDirectSkillArrays(message)) {
     rows.forEach((item) => addMessageSkill(byPath, item));
@@ -135,6 +190,8 @@ function collectMessageSkills(message = {}, thread = state.currentThread) {
 }
 
 function collectMessageTools(message = {}, thread = state.currentThread) {
+  const plan = currentMessageSkillModel()?.collectMessageTools?.(message, thread);
+  if (plan) return Array.from(plan);
   const byName = new Map();
   const directRows = [
     message.loadedTools,
@@ -175,15 +232,17 @@ function renderMessageToolItem(tool) {
 }
 
 function renderMessageSkillPanel(message = {}, thread = state.currentThread) {
-  const skills = collectMessageSkills(message, thread);
-  const tools = collectMessageTools(message, thread);
-  if (!skills.length && !tools.length) return "";
-  const labelParts = [];
-  if (skills.length) labelParts.push(skills.length === 1 ? "1 skill" : `${skills.length} skills`);
-  if (tools.length) labelParts.push(tools.length === 1 ? "1 tool" : `${tools.length} tools`);
-  const label = labelParts.join(", ");
-  const summary = skills.length && tools.length ? "Skill · Tool" : (skills.length ? "Skill" : "Tool");
-  return `<details class="message-skills" title="${escapeHtml(label)}"><summary aria-label="${escapeHtml(label)}">${escapeHtml(summary)}</summary><div class="message-skill-details">
+  const panelPlan = currentMessageSkillModel()?.messageSkillPanelPlan?.(message, thread, messageSkillModelHelpers());
+  const skills = panelPlan ? Array.from(panelPlan.skills || []) : collectMessageSkills(message, thread);
+  const tools = panelPlan ? Array.from(panelPlan.tools || []) : collectMessageTools(message, thread);
+  if (panelPlan && !panelPlan.visible) return "";
+  if (!panelPlan && !skills.length && !tools.length) return "";
+  const label = panelPlan?.label || [
+    skills.length ? (skills.length === 1 ? "1 skill" : `${skills.length} skills`) : "",
+    tools.length ? (tools.length === 1 ? "1 tool" : `${tools.length} tools`) : "",
+  ].filter(Boolean).join(", ");
+  const summary = panelPlan?.summary || (skills.length && tools.length ? "Skill · Tool" : (skills.length ? "Skill" : "Tool"));
+  return `<details class="message-skills" title="${escapeHtml(label)}"><summary aria-label="${escapeHtml(label)}"><svg class="message-footer-summary-icon message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v5"></path><path d="M12 16v5"></path><path d="M4.2 7.5l4.3 2.5"></path><path d="M15.5 14l4.3 2.5"></path><path d="M19.8 7.5 15.5 10"></path><path d="M8.5 14l-4.3 2.5"></path><circle cx="12" cy="12" r="4"></circle></svg><span class="message-footer-summary-label">${escapeHtml(summary)}</span></summary><div class="message-skill-details">
     ${skills.map(renderMessageSkillItem).join("")}
     ${tools.map(renderMessageToolItem).join("")}
   </div></details>`;

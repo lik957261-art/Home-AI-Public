@@ -1,5 +1,35 @@
 "use strict";
 
+const PLATFORM_MODEL_ESM_PATH = "/vite-islands/platform-model/platform-model.js";
+let platformModel = null;
+let platformModelPromise = null;
+
+function importPlatformModel(rootRef = typeof window !== "undefined" ? window : null) {
+  if (platformModel) return Promise.resolve(platformModel);
+  if (!platformModelPromise) {
+    const importer = rootRef?.__homeAiImportPlatformModel;
+    const load = typeof importer === "function"
+      ? importer(PLATFORM_MODEL_ESM_PATH)
+      : import(PLATFORM_MODEL_ESM_PATH);
+    platformModelPromise = Promise.resolve(load).then((module) => {
+      platformModel = module || null;
+      return platformModel;
+    }).catch(() => {
+      platformModelPromise = null;
+      return null;
+    });
+  }
+  return platformModelPromise;
+}
+
+function currentPlatformModel() {
+  return platformModel;
+}
+
+if (typeof window !== "undefined") {
+  importPlatformModel().catch(() => null);
+}
+
 const hermesApiClient = AppApiClient.createApiClient({
   getAccessKey: () => state.key,
   getClientVersion: () => state.clientVersion,
@@ -12,7 +42,91 @@ const hermesApiClient = AppApiClient.createApiClient({
 async function api(path, options = {}) {
   return hermesApiClient(path, options);
 }
-function clearStoredAccessKey() {
+
+function resetAccountScopedRuntimeState(reason = "auth_boundary", options = {}) {
+  const preserveAuth = Boolean(options.preserveAuth);
+  const preserveWorkspaces = Boolean(options.preserveWorkspaces);
+  const preserveProjects = Boolean(options.preserveProjects);
+  const preservedGeneratedAccessKey = options.preserveGeneratedAccessKey ? state.generatedAccessKey : null;
+  const preservedAccessKeyRequiresLogin = options.preserveAccessKeyRequiresLogin ? state.accessKeyRequiresLogin : false;
+  try {
+    if (state.currentThreadRefreshTimer && typeof window !== "undefined" && typeof window.clearTimeout === "function") {
+      window.clearTimeout(state.currentThreadRefreshTimer);
+    }
+  } catch (error) {
+    state.resetAccountScopedRuntimeClearTimerError = error?.message || String(error);
+  }
+  if (!preserveAuth) state.auth = null;
+  if (!preserveWorkspaces) state.workspaces = [];
+  if (!preserveProjects) state.projects = [];
+  Object.assign(state, {
+    threads: [],
+    currentThread: null,
+    currentThreadId: "",
+    currentTaskGroupId: "",
+    currentThreadRefreshInFlight: false,
+    currentThreadRefreshInFlightSeq: 0,
+    currentThreadRefreshPending: false,
+    currentThreadRefreshPendingOptions: null,
+    currentThreadRefreshTimer: 0,
+    currentThreadRefreshDueAt: 0,
+    currentThreadRefreshSeq: (Number(state.currentThreadRefreshSeq || 0) || 0) + 1,
+    singleWindowRequestSeq: (Number(state.singleWindowRequestSeq || 0) || 0) + 1,
+    mainConversationSurfaceCache: {},
+    mainConversationSurfaceActiveKey: "",
+    mainConversationSurfaceRestoredKey: "",
+    mainConversationSurfaceRestoredSignature: "",
+    pendingMainConversationSurfacePark: null,
+    privateChatThread: null,
+    groupChatThread: null,
+    groupChatThreadId: "",
+    groupChatAvailable: false,
+    taskListThread: null,
+    taskListThreadId: "",
+    caseTopicThreads: [],
+    todos: [],
+    todoWorkspaceId: "",
+    todoAssignees: [],
+    todoSource: "",
+    todoKanbanBoard: "",
+    todoCompletedLoaded: false,
+    selectedTodoId: "",
+    todoCreateOpen: false,
+    todoCardDetails: {},
+    automations: [],
+    automationSource: null,
+    selectedAutomationId: "",
+    automationCreateOpen: false,
+    automationEditOpen: false,
+    actionInboxItems: [],
+    actionInboxCounts: null,
+    actionInboxSource: null,
+    selectedActionInboxItemId: "",
+    actionInboxDetail: null,
+    actionInboxCreateOpen: false,
+    directoryThreadId: "",
+    directoryThreadWorkspaceId: "",
+    directoryReturnRoute: null,
+    directoryPluginContextActive: false,
+    directoryPreview: null,
+    sharedDirectories: [],
+    embeddedPlugins: {},
+    pluginAdminPlugins: [],
+    generatedAccessKey: preservedGeneratedAccessKey,
+    accessKeyRequiresLogin: preservedAccessKeyRequiresLogin,
+    resetAccountScopedRuntimeReason: String(reason || "auth_boundary").slice(0, 120),
+  });
+  if (typeof clearQuotedReply === "function") clearQuotedReply({ render: false });
+  if (typeof clearTaskDirectoryFilter === "function") clearTaskDirectoryFilter({ render: false });
+  if (typeof resetEmbeddedPluginsForWorkspaceChange === "function") resetEmbeddedPluginsForWorkspaceChange();
+  if (typeof renderCurrentThread === "function") renderCurrentThread();
+}
+
+function clearStoredAccessKey(options = {}) {
+  resetAccountScopedRuntimeState("clear_stored_access_key", {
+    preserveGeneratedAccessKey: Boolean(options.preserveGeneratedAccessKey),
+    preserveAccessKeyRequiresLogin: Boolean(options.preserveAccessKeyRequiresLogin),
+  });
   state.key = "";
   try {
     localStorage.removeItem("hermesWebKey");
@@ -91,6 +205,10 @@ function hideBootSplash() {
 function startupErrorMessage(err) {
   const message = String(err?.message || err || "").trim();
   const stage = String(state.startupStage || "").trim();
+  const model = currentPlatformModel();
+  if (typeof model?.startupErrorMessagePlan === "function") {
+    return model.startupErrorMessagePlan({ message, stage });
+  }
   const stageText = stage ? `（${stage}）` : "";
   if (/unauthorized/i.test(message)) return message;
   if (/failed to fetch|network|load failed|request timed out|timeout/i.test(message)) {
@@ -120,15 +238,29 @@ function startupAutoResetKey() {
 function shouldAutoResetClientAfterStartupFailure(err) {
   const message = String(err?.message || err || "");
   if (/unauthorized/i.test(message)) return false;
+  let targetVersion = "";
   if (typeof clientVersionTargetFromUrl === "function") {
-    const targetVersion = clientVersionTargetFromUrl();
+    targetVersion = clientVersionTargetFromUrl();
     if (targetVersion && targetVersion === normalizeClientVersion(state.clientVersion)) return false;
   }
+  let alreadyReset = false;
   try {
-    return sessionStorage.getItem(startupAutoResetKey()) !== "1";
+    alreadyReset = sessionStorage.getItem(startupAutoResetKey()) === "1";
   } catch (_) {
     return false;
   }
+  const model = currentPlatformModel();
+  if (typeof model?.startupAutoResetPlan === "function") {
+    return Boolean(model.startupAutoResetPlan({
+      message,
+      targetVersion,
+      clientVersion: typeof normalizeClientVersion === "function"
+        ? normalizeClientVersion(state.clientVersion)
+        : state.clientVersion,
+      alreadyReset,
+    })?.shouldReset);
+  }
+  return !alreadyReset;
 }
 
 function maybeAutoResetClientAfterStartupFailure(err) {
@@ -248,6 +380,7 @@ async function login(key) {
   }).then(async (res) => {
     if (!res.ok) throw new Error("Access key is not valid");
   });
+  resetAccountScopedRuntimeState("login_key_change");
   storeAccessKey(key);
   showBootSplash("正在打开 Home AI");
   try {
@@ -283,12 +416,17 @@ async function bootstrap() {
   if (typeof refreshPushSubscriptionAfterStartup === "function") refreshPushSubscriptionAfterStartup();
 }
 
-function normalizedRouteView(value, fallback = "") {
+function normalizedRouteView(value, defaultView = "") {
+  const model = currentPlatformModel();
+  if (typeof model?.normalizedRouteViewPlan === "function") {
+    return model.normalizedRouteViewPlan(value, defaultView);
+  }
   const view = String(value || "").trim().toLowerCase();
   if (view === "inbox" || view === "action-inbox" || view === "actions") return "inbox";
   if (view === "capability" || view === "capabilities" || view === "ability" || view === "abilities") return "tasks";
   if (view === "automation" || view === "automations" || view === "cron") return "automation";
   if (view === "system-console" || view === "owner-console" || view === "console" || view === "system") return "system-console";
+  if (view === "workspace-console" || view === "workspace" || view === "workspaces") return "workspace-console";
   if (view === "learning" || view === "coins" || view === "rewards" || view === "redeem") return "learning";
   if (view === "wardrobe" || view === "closet" || view === "outfit") return "wardrobe";
   if (view === "codex" || view === "codex-mobile") return "codex";
@@ -302,10 +440,14 @@ function normalizedRouteView(value, fallback = "") {
   if (view === "directory" || view === "directories" || view === "projects") return "projects";
   if (view === "task" || view === "tasks") return "tasks";
   if (view === "single" || view === "stream") return "single";
-  return fallback;
+  return defaultView;
 }
 
 function pluginContextIdFromTaskGroupId(taskGroupId = "") {
+  const model = currentPlatformModel();
+  if (typeof model?.pluginContextIdFromTaskGroupIdPlan === "function") {
+    return model.pluginContextIdFromTaskGroupIdPlan(taskGroupId);
+  }
   const match = String(taskGroupId || "").trim().match(/^plugin:(.+)$/);
   return match ? match[1].trim() : "";
 }
@@ -318,12 +460,20 @@ function routePluginContextId(params, routeView = "", taskGroupId = "") {
     || params.get("pluginContext")
     || "",
   ).trim();
-  const candidates = [
-    explicit,
-    pluginContextIdFromTaskGroupId(taskGroupId),
-    params.get("pluginId") || "",
-    routeView,
-  ].map((value) => String(value || "").trim()).filter(Boolean);
+  const model = currentPlatformModel();
+  const candidates = typeof model?.routePluginContextCandidatesPlan === "function"
+    ? model.routePluginContextCandidatesPlan({
+      explicit,
+      taskGroupId,
+      pluginId: params.get("pluginId") || "",
+      routeView,
+    })
+    : [
+      explicit,
+      pluginContextIdFromTaskGroupId(taskGroupId),
+      params.get("pluginId") || "",
+      routeView,
+    ].map((value) => String(value || "").trim()).filter(Boolean);
   const knownPluginTopics = new Set(["wardrobe", "finance", "email", "health", "note", "growth", "moira"]);
   for (const candidate of candidates) {
     const id = candidate === "codex-mobile" || candidate === "codex" ? "" : candidate;
@@ -334,10 +484,32 @@ function routePluginContextId(params, routeView = "", taskGroupId = "") {
     }
     if (knownPluginTopics.has(id)) return id;
   }
+  if (typeof model?.routePluginContextIdPlan === "function") {
+    return model.routePluginContextIdPlan({
+      explicit,
+      taskGroupId,
+      pluginId: params.get("pluginId") || "",
+      routeView,
+      knownPluginTopics: [...knownPluginTopics],
+    });
+  }
   return "";
 }
 
 function sameOriginRouteUrl(value) {
+  const model = currentPlatformModel();
+  if (typeof model?.sameOriginRouteUrlPlan === "function") {
+    const plan = model.sameOriginRouteUrlPlan({
+      value,
+      origin: window.location.origin,
+    });
+    if (!plan?.ok || !plan.href) return null;
+    try {
+      return new URL(plan.href);
+    } catch (_) {
+      return null;
+    }
+  }
   try {
     const parsed = new URL(value || "/", window.location.origin);
     return parsed.origin === window.location.origin ? parsed : null;
@@ -347,6 +519,10 @@ function sameOriginRouteUrl(value) {
 }
 
 function normalizeHermesAppShellPath(pathname = "") {
+  const model = currentPlatformModel();
+  if (typeof model?.normalizeHermesAppShellPathPlan === "function") {
+    return model.normalizeHermesAppShellPathPlan(pathname);
+  }
   const value = String(pathname || "/").trim() || "/";
   if (value === "/" || value === "/index.html") return "/";
   const clean = value.split(/[?#]/)[0] || "/";
@@ -355,6 +531,13 @@ function normalizeHermesAppShellPath(pathname = "") {
 }
 
 function hermesAppShellPath(pathname = "") {
+  const model = currentPlatformModel();
+  if (typeof model?.hermesAppShellPathPlan === "function") {
+    return model.hermesAppShellPathPlan({
+      currentPathname: window.location?.pathname || "/",
+      pathname,
+    });
+  }
   const current = normalizeHermesAppShellPath(window.location?.pathname || "/");
   const requestedValue = String(pathname || "").trim();
   if (!requestedValue || requestedValue === "/" || requestedValue === "/index.html") return current;
@@ -363,6 +546,14 @@ function hermesAppShellPath(pathname = "") {
 }
 
 function hermesAppShellRouteForParams(params, options = {}) {
+  const model = currentPlatformModel();
+  if (typeof model?.hermesAppShellRouteForSearchPlan === "function") {
+    return model.hermesAppShellRouteForSearchPlan({
+      currentPathname: window.location?.pathname || "/",
+      pathname: options.pathname,
+      search: new URLSearchParams(params || "").toString(),
+    });
+  }
   const nextParams = new URLSearchParams(params || "");
   if (!nextParams.has("source")) nextParams.set("source", "pwa");
   const search = nextParams.toString();
@@ -435,8 +626,6 @@ function hermesRouteStandaloneAppWindow() {
 function hermesRouteMobileBrowserShell() {
   if (hermesRouteStandaloneAppWindow()) return false;
   const ua = navigator.userAgent || "";
-  const mobileUa = /iPad|iPhone|iPod|Android|Mobile/i.test(ua)
-    || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
   const coarsePointer = window.matchMedia?.("(pointer: coarse)")?.matches || false;
   const touchCapable = (navigator.maxTouchPoints || 0) > 0 || "ontouchstart" in window;
   const widths = [
@@ -445,6 +634,19 @@ function hermesRouteMobileBrowserShell() {
     window.screen?.width,
     window.screen?.availWidth,
   ].map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0);
+  const model = currentPlatformModel();
+  if (typeof model?.mobileBrowserShellDetectionPlan === "function") {
+    return model.mobileBrowserShellDetectionPlan({
+      standalone: false,
+      userAgent: ua,
+      maxTouchPoints: navigator.maxTouchPoints || 0,
+      coarsePointer,
+      touchCapable,
+      widths,
+    });
+  }
+  const mobileUa = /iPad|iPhone|iPod|Android|Mobile/i.test(ua)
+    || (/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1);
   const narrowViewport = widths.length ? Math.min(...widths) <= 900 : false;
   return Boolean(mobileUa || coarsePointer || touchCapable || narrowViewport);
 }
@@ -465,6 +667,15 @@ function mobileBrowserShellDiagnosticText() {
   const mode = hermesRouteStandaloneAppWindow() ? "standalone" : "browser";
   const width = Math.round(Number(window.innerWidth || window.visualViewport?.width || window.screen?.width || 0) || 0);
   const touch = Number(navigator.maxTouchPoints || 0) || 0;
+  const model = currentPlatformModel();
+  if (typeof model?.mobileBrowserShellDiagnosticTextPlan === "function") {
+    return model.mobileBrowserShellDiagnosticTextPlan({
+      clientVersion: state.clientVersion || "",
+      standalone: mode === "standalone",
+      width,
+      maxTouchPoints: touch,
+    });
+  }
   return `client=${state.clientVersion || ""} mode=${mode} width=${width} touch=${touch}`;
 }
 
@@ -553,6 +764,10 @@ function showHermesAppWindowRequiredMessage() {
 
 function routeParamsHaveHermesOwnedDetailTarget(params) {
   if (!params) return false;
+  const model = currentPlatformModel();
+  if (typeof model?.routeParamsHaveHermesOwnedDetailTargetPlan === "function") {
+    return model.routeParamsHaveHermesOwnedDetailTargetPlan(params);
+  }
   const targetKeys = [
     "automationId",
     "inboxItemId",

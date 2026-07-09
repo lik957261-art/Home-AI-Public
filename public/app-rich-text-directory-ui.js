@@ -1,7 +1,54 @@
 "use strict";
 
+const RICH_TEXT_DIRECTORY_MODEL_ESM_PATH = "/vite-islands/rich-text-directory-model/rich-text-directory-model.js";
+let richTextDirectoryModel = null;
+let richTextDirectoryModelPromise = null;
+
+function importRichTextDirectoryModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (richTextDirectoryModel) return Promise.resolve(richTextDirectoryModel);
+  if (!richTextDirectoryModelPromise) {
+    const importer = typeof rootRef.__homeAiImportRichTextDirectoryModel === "function"
+      ? rootRef.__homeAiImportRichTextDirectoryModel
+      : (path) => import(path);
+    richTextDirectoryModelPromise = Promise.resolve()
+      .then(() => importer(RICH_TEXT_DIRECTORY_MODEL_ESM_PATH))
+      .then((model) => {
+        richTextDirectoryModel = model || null;
+        return richTextDirectoryModel;
+      })
+      .catch((error) => {
+        richTextDirectoryModelPromise = null;
+        throw error;
+      });
+  }
+  return richTextDirectoryModelPromise;
+}
+
+function currentRichTextDirectoryModel() {
+  return richTextDirectoryModel;
+}
+
+if (typeof window !== "undefined") {
+  importRichTextDirectoryModel().catch(() => null);
+}
+
 const ASSISTANT_STREAMING_RECEIPT_PREVIEW_MAX_CHARS = 900;
 const ASSISTANT_STREAMING_RECEIPT_PREVIEW_MAX_LINES = 6;
+
+function richTextDirectoryModelInput(extra = {}) {
+  return {
+    projects: typeof state !== "undefined" ? (state?.projects || []) : [],
+    workspace: typeof currentWorkspace === "function" ? currentWorkspace() : null,
+    ownerDriveRootNames: configuredOwnerDriveRootNames(),
+    currentOrigin: typeof location !== "undefined" && location?.origin ? location.origin : "",
+    baseOrigin: inlineMarkdownImageBaseOrigin(),
+    workspaceId: inlineMarkdownImageWorkspaceId(),
+    placeholderSrc: HERMES_INLINE_IMAGE_PLACEHOLDER_SRC,
+    genericOwnerTopicRouteIds: typeof GENERIC_OWNER_TOPIC_ROUTE_IDS !== "undefined" ? [...GENERIC_OWNER_TOPIC_ROUTE_IDS] : [],
+    genericOwnerTopicRoutePrefixes: typeof GENERIC_OWNER_TOPIC_ROUTE_PREFIXES !== "undefined" ? [...GENERIC_OWNER_TOPIC_ROUTE_PREFIXES] : [],
+    ...extra,
+  };
+}
 
 function assistantReceiptMessageIsActive(message = {}) {
   if (typeof assistantMessageIsActive === "function") return assistantMessageIsActive(message);
@@ -22,6 +69,8 @@ function renderText(text, message = {}) {
 }
 
 function cleanDisplayText(value) {
+  const plan = currentRichTextDirectoryModel()?.cleanDisplayTextPlan?.(value);
+  if (plan !== undefined) return plan;
   return String(value || "")
     .replace(/<!--\s*homeai-note(?:-[a-z]+)?[\s\S]*?-->/gi, "")
     .replace(/<!--\s*homeai-plugin-conversation-action\b[\s\S]*?-->/gi, "")
@@ -33,6 +82,11 @@ function cleanDisplayText(value) {
 }
 
 function streamingReceiptPreviewText(value) {
+  const plan = currentRichTextDirectoryModel()?.streamingReceiptPreviewTextPlan?.(value, {
+    maxChars: ASSISTANT_STREAMING_RECEIPT_PREVIEW_MAX_CHARS,
+    maxLines: ASSISTANT_STREAMING_RECEIPT_PREVIEW_MAX_LINES,
+  });
+  if (plan !== undefined) return plan;
   const text = String(value || "").trim();
   if (!text) return "";
   const charWindow = text.length > ASSISTANT_STREAMING_RECEIPT_PREVIEW_MAX_CHARS
@@ -68,6 +122,8 @@ const HERMES_INLINE_IMAGE_OBJECT_URL_CACHE_LIMIT = 48;
 const inlineMarkdownImageObjectUrlCache = new Map();
 
 function sanitizeInlineMarkdownImageSrc(src) {
+  const plan = currentRichTextDirectoryModel()?.sanitizeInlineMarkdownImageSrcPlan?.(src);
+  if (plan !== undefined) return plan;
   const renderer = typeof globalThis !== "undefined" ? globalThis.HermesMarkdownRenderer : null;
   if (renderer && typeof renderer.sanitizeImageSrc === "function") return renderer.sanitizeImageSrc(src);
   const raw = String(src ?? "").trim();
@@ -127,6 +183,8 @@ function normalizePluginInlineMarkdownImageSrc(parsed, sameOrigin) {
 }
 
 function normalizeInlineMarkdownImageSrc(src) {
+  const plan = currentRichTextDirectoryModel()?.normalizeInlineMarkdownImageSrcPlan?.(src, richTextDirectoryModelInput());
+  if (plan !== undefined) return plan;
   const safeSrc = sanitizeInlineMarkdownImageSrc(src);
   if (safeSrc === "#") return "#";
   try {
@@ -145,6 +203,8 @@ function normalizeInlineMarkdownImageSrc(src) {
 }
 
 function inlineMarkdownImageRequiresAuthenticatedFetch(src) {
+  const plan = currentRichTextDirectoryModel()?.inlineMarkdownImageRequiresAuthenticatedFetchPlan?.(src, richTextDirectoryModelInput());
+  if (plan !== undefined) return plan;
   try {
     const origin = inlineMarkdownImageBaseOrigin();
     const parsed = new URL(src, origin);
@@ -156,6 +216,15 @@ function inlineMarkdownImageRequiresAuthenticatedFetch(src) {
 }
 
 function renderInlineMarkdownImage(alt, src, title = "") {
+  const plan = currentRichTextDirectoryModel()?.inlineMarkdownImagePlan?.(richTextDirectoryModelInput({ alt, src, title }));
+  if (plan !== undefined) {
+    if (!plan?.visible) return "";
+    const titleAttr = plan.title ? ` title="${escapeMarkdownAttribute(plan.title)}"` : "";
+    const authAttrs = plan.authenticatedFetch
+      ? ` data-hermes-inline-image-src="${escapeMarkdownAttribute(plan.src)}" data-hermes-inline-image-state="${escapeMarkdownAttribute(plan.state || "pending")}"`
+      : "";
+    return `<img class="hermes-markdown-image" src="${escapeMarkdownAttribute(plan.displaySrc)}" alt="${escapeMarkdownAttribute(plan.alt)}"${titleAttr} loading="lazy" decoding="async"${authAttrs}>`;
+  }
   const safeSrc = normalizeInlineMarkdownImageSrc(src);
   if (safeSrc === "#") return "";
   const authenticatedFetch = inlineMarkdownImageRequiresAuthenticatedFetch(safeSrc);
@@ -173,6 +242,8 @@ const INLINE_IMAGE_MIME_PATTERN = /^image\/(?:png|jpe?g|webp|gif|avif)$/i;
 const INLINE_IMAGE_TRAILING_PUNCTUATION_PATTERN = /[)\]},.，。！？!?:;；：、]+$/;
 
 function splitInlineImageUrlCandidate(value) {
+  const plan = currentRichTextDirectoryModel()?.splitInlineImageUrlCandidatePlan?.(value);
+  if (plan !== undefined) return plan;
   const raw = String(value || "");
   const match = raw.match(INLINE_IMAGE_TRAILING_PUNCTUATION_PATTERN);
   if (!match) return { url: raw, trailing: "" };
@@ -183,6 +254,8 @@ function splitInlineImageUrlCandidate(value) {
 }
 
 function inlineImageUrlLooksRenderable(value) {
+  const plan = currentRichTextDirectoryModel()?.inlineImageUrlLooksRenderablePlan?.(value, richTextDirectoryModelInput());
+  if (plan !== undefined) return plan;
   const safeSrc = normalizeInlineMarkdownImageSrc(value);
   if (safeSrc === "#") return false;
   try {
@@ -335,6 +408,8 @@ function renderInlineMarkdown(value) {
 const ASSISTANT_RECEIPT_LABEL_PATTERN = /^(结论|关键结论|重点|重点结论|摘要|总结|结果|处理结果|状态|当前状态|已完成|完成|修复|变更|改动|修改|处理|影响|影响范围|验证|验证结果|测试|测试结果|本地验证|生产验证|部署|生产|已部署|文件|代码|路径|下一步|后续|后续步骤|建议|待办|待确认|风险|注意|限制|原因|诊断|发现|问题|说明|summary|result|status|done|completed|changed?|impact|validation|tests?|deploy(?:ed|ment)?|files?|paths?|next|todo|risk|warning|note|diagnosis|issue)\s*[：:]\s*(.*)$/i;
 
 function assistantReceiptLabelForText(value) {
+  const plan = currentRichTextDirectoryModel()?.assistantReceiptLabelForTextPlan?.(value);
+  if (plan !== undefined) return plan;
   const lines = String(value || "").split(/\n/);
   const match = String(lines[0] || "").trim().match(ASSISTANT_RECEIPT_LABEL_PATTERN);
   if (!match) return null;
@@ -344,6 +419,8 @@ function assistantReceiptLabelForText(value) {
 }
 
 function assistantReceiptTone(label) {
+  const plan = currentRichTextDirectoryModel()?.assistantReceiptTonePlan?.(label);
+  if (plan !== undefined) return plan;
   const value = String(label || "").toLowerCase();
   if (/风险|注意|限制|warning|risk/.test(value)) return "warn";
   if (/问题|issue/.test(value)) return "danger";
@@ -489,6 +566,8 @@ function renderRichText(text, options = {}) {
 }
 
 function extractDirectoryAliases(text) {
+  const plan = currentRichTextDirectoryModel()?.extractDirectoryAliasesPlan?.(text);
+  if (plan !== undefined) return plan;
   const aliases = [];
   const lines = String(text || "").split(/\r?\n/);
   const cleaned = [];
@@ -512,12 +591,16 @@ function extractDirectoryAliases(text) {
 }
 
 function parentDirectoryFromFilePath(pathText) {
+  const plan = currentRichTextDirectoryModel()?.parentDirectoryFromFilePathPlan?.(pathText);
+  if (plan !== undefined) return plan;
   const value = String(pathText || "").trim().replace(/^`+|`+$/g, "");
   if (!value) return "";
   return value.replace(/[\\/][^\\/]+$/g, "");
 }
 
 function extractMediaDirectoryAliases(text, messageId = "") {
+  const plan = currentRichTextDirectoryModel()?.extractMediaDirectoryAliasesPlan?.({ text, messageId });
+  if (plan !== undefined) return plan;
   const aliases = [];
   const mediaPattern = /^MEDIA:\s*(`?)(.+?)\1\s*$/gm;
   let match = null;
@@ -537,6 +620,8 @@ function extractMediaDirectoryAliases(text, messageId = "") {
 }
 
 function parseDirectoryAliasEntries(block) {
+  const plan = currentRichTextDirectoryModel()?.parseDirectoryAliasEntriesPlan?.(block);
+  if (plan !== undefined) return plan;
   const blockHasExplicitPath = String(block || "").includes("=");
   return String(block || "")
     .split(/[;；]/)
@@ -551,6 +636,8 @@ function parseDirectoryAliasEntries(block) {
 }
 
 function cleanDirectoryAliasLabel(value) {
+  const plan = currentRichTextDirectoryModel()?.cleanDirectoryAliasLabelPlan?.(value);
+  if (plan !== undefined) return plan;
   return String(value || "")
     .replace(/^[-*]\s*/, "")
     .replace(/^目录别名\s*[:：]\s*/, "")
@@ -565,11 +652,15 @@ function isSkillLibraryAliasEntry(entry) {
 }
 
 function shortDirectoryAliasLabel(label) {
+  const plan = currentRichTextDirectoryModel()?.shortDirectoryAliasLabelPlan?.(label);
+  if (plan !== undefined) return plan;
   const parts = String(label || "").split("/").map((part) => part.trim()).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : String(label || "").trim();
 }
 
 function directoryAliasKey(value) {
+  const plan = currentRichTextDirectoryModel()?.directoryAliasKeyPlan?.(value);
+  if (plan !== undefined) return plan;
   return String(value || "")
     .replace(/^`+|`+$/g, "")
     .replace(/\s*\/\s*/g, "/")
@@ -578,6 +669,8 @@ function directoryAliasKey(value) {
 }
 
 function comparableDirectoryPath(value) {
+  const plan = currentRichTextDirectoryModel()?.comparableDirectoryPathPlan?.(value);
+  if (plan !== undefined) return plan;
   return String(value || "")
     .trim()
     .replaceAll("\\", "/")
@@ -598,11 +691,18 @@ function ownerDriveRootIndexForParts(parts) {
 }
 
 function pathContainsOwnerDriveRoot(rawPath) {
+  const plan = currentRichTextDirectoryModel()?.pathContainsOwnerDriveRootPlan?.({
+    rawPath,
+    ownerDriveRootNames: configuredOwnerDriveRootNames(),
+  });
+  if (plan !== undefined) return plan;
   const parts = String(rawPath || "").trim().replaceAll("\\", "/").split("/").filter(Boolean);
   return ownerDriveRootIndexForParts(parts) >= 0;
 }
 
 function pathMatchesDirectoryRoot(candidatePath, rootPath) {
+  const plan = currentRichTextDirectoryModel()?.pathMatchesDirectoryRootPlan?.(candidatePath, rootPath);
+  if (plan !== undefined) return plan;
   const candidate = comparableDirectoryPath(candidatePath);
   const root = comparableDirectoryPath(rootPath);
   if (!candidate || !root) return false;
@@ -610,6 +710,8 @@ function pathMatchesDirectoryRoot(candidatePath, rootPath) {
 }
 
 function relativeDisplayTailForDirectory(rawPath, rootPath) {
+  const plan = currentRichTextDirectoryModel()?.relativeDisplayTailForDirectoryPlan?.(rawPath, rootPath);
+  if (plan !== undefined) return plan;
   const raw = String(rawPath || "").trim().replaceAll("\\", "/");
   const root = String(rootPath || "").trim().replaceAll("\\", "/").replace(/\/+$/g, "");
   if (raw && root && raw.toLowerCase().startsWith(`${root.toLowerCase()}/`)) {
@@ -624,6 +726,12 @@ function relativeDisplayTailForDirectory(rawPath, rootPath) {
 }
 
 function logicalUserPathFallback(rawPath, fallbackLabel = "") {
+  const plan = currentRichTextDirectoryModel()?.logicalUserPathFallbackPlan?.({
+    rawPath,
+    fallbackLabel,
+    ownerDriveRootNames: configuredOwnerDriveRootNames(),
+  });
+  if (plan !== undefined) return plan;
   const normalized = String(rawPath || "").trim().replaceAll("\\", "/");
   const parts = normalized.split("/").filter(Boolean);
   const lowerParts = parts.map((part) => part.toLowerCase());
@@ -641,6 +749,8 @@ function logicalUserPathFallback(rawPath, fallbackLabel = "") {
 }
 
 function projectLabelCandidates(project, parentLabel = "") {
+  const plan = currentRichTextDirectoryModel()?.projectLabelCandidatesPlan?.({ project, parentLabel });
+  if (plan !== undefined) return plan;
   const labels = [
     project?.label,
     ...(project?.aliases || []),
@@ -654,6 +764,8 @@ function projectLabelCandidates(project, parentLabel = "") {
 }
 
 function directoryProjectCandidates() {
+  const plan = currentRichTextDirectoryModel()?.directoryProjectCandidatesPlan?.({ projects: state.projects || [] });
+  if (plan !== undefined) return plan;
   const candidates = [];
   for (const project of state.projects || []) {
     if (!project || project.hidden) continue;
@@ -678,6 +790,12 @@ function directoryProjectCandidates() {
 }
 
 function directoryRouteDisplayPath(route, fallbackLabel = "") {
+  const plan = currentRichTextDirectoryModel()?.directoryRouteDisplayPathPlan?.({
+    route,
+    fallbackLabel,
+    projects: state.projects || [],
+  });
+  if (plan !== undefined) return plan;
   const project = (state.projects || []).find((item) => item.id === route?.projectId);
   const child = route?.subprojectId ? (project?.children || []).find((item) => item.id === route.subprojectId) : null;
   const projectLabel = project ? projectDisplayLabel(project) : (route?.label || fallbackLabel || "");
@@ -686,6 +804,11 @@ function directoryRouteDisplayPath(route, fallbackLabel = "") {
 }
 
 function logicalDirectoryDisplayPath(rawPath, fallbackLabel = "") {
+  const plan = currentRichTextDirectoryModel()?.logicalDirectoryDisplayPathPlan?.(richTextDirectoryModelInput({
+    rawPath,
+    fallbackLabel,
+  }));
+  if (plan !== undefined) return plan;
   const value = String(rawPath || "").trim();
   if (!value) return fallbackLabel || "";
   const matches = directoryProjectCandidates()
@@ -706,6 +829,8 @@ function logicalDirectoryDisplayPath(rawPath, fallbackLabel = "") {
 }
 
 function rewriteDirectoryPathsForDisplay(text) {
+  const plan = currentRichTextDirectoryModel()?.rewriteDirectoryPathsForDisplayPlan?.(richTextDirectoryModelInput({ text }));
+  if (plan !== undefined) return plan;
   const pathPattern = /(?:[A-Za-z]:[\\/]|\/mnt\/[A-Za-z]\/|\\\\wsl(?:\.localhost|\$)?\\[^\\\s]+\\|\/\/wsl(?:\.localhost|\$)?\/[^/\s]+\/)[^\s`<>"']+/gi;
   return String(text || "").replace(pathPattern, (match) => {
     const suffixMatch = match.match(/[)\].,;:，。；、）】》]+$/);
@@ -717,6 +842,8 @@ function rewriteDirectoryPathsForDisplay(text) {
 }
 
 function isGenericDefaultDirectoryAlias(alias) {
+  const plan = currentRichTextDirectoryModel()?.isGenericDefaultDirectoryAliasPlan?.(alias);
+  if (plan !== undefined) return plan;
   const label = directoryAliasKey(alias?.label);
   return [
     "默认目录",
@@ -729,6 +856,8 @@ function isGenericDefaultDirectoryAlias(alias) {
 }
 
 function isOperationalTaskDirectoryAlias(alias, route = null) {
+  const plan = currentRichTextDirectoryModel()?.isOperationalTaskDirectoryAliasPlan?.({ alias, route });
+  if (plan !== undefined) return plan;
   const label = directoryAliasKey(alias?.label || "");
   const pathValue = comparableDirectoryPath(alias?.path || route?.root || "");
   return Boolean(
@@ -743,6 +872,8 @@ function isOperationalTaskDirectoryAlias(alias, route = null) {
 }
 
 function isGenericCurrentBoundDirectoryAlias(alias) {
+  const plan = currentRichTextDirectoryModel()?.isGenericCurrentBoundDirectoryAliasPlan?.(alias);
+  if (plan !== undefined) return plan;
   const label = directoryAliasKey(alias?.label);
   return [
     "\u5f53\u524d\u7ed1\u5b9a\u76ee\u5f55",
@@ -801,6 +932,11 @@ function semanticDirectoryRouteForMessage(message) {
 }
 
 function resolveDirectoryProjectRoute(alias) {
+  const plan = currentRichTextDirectoryModel()?.resolveDirectoryProjectRoutePlan?.({
+    alias,
+    candidates: directoryProjectCandidates(),
+  });
+  if (plan !== undefined) return plan;
   const aliasLabel = directoryAliasKey(alias?.label);
   const aliasPath = alias?.path || alias?.root || "";
   const candidates = directoryProjectCandidates();
@@ -850,12 +986,16 @@ function resolveDirectoryProjectRoute(alias) {
 }
 
 function isGenericOwnerTopicRoute(route) {
+  const plan = currentRichTextDirectoryModel()?.isGenericOwnerTopicRoutePlan?.(richTextDirectoryModelInput({ route }));
+  if (plan !== undefined) return plan;
   const projectId = String(route?.projectId || "");
   return GENERIC_OWNER_TOPIC_ROUTE_IDS.has(projectId)
     || GENERIC_OWNER_TOPIC_ROUTE_PREFIXES.some((prefix) => projectId.startsWith(prefix));
 }
 
 function isContextAnchorDirectoryRoute(route) {
+  const plan = currentRichTextDirectoryModel()?.isContextAnchorDirectoryRoutePlan?.(richTextDirectoryModelInput({ route }));
+  if (plan !== undefined) return plan;
   if (!route?.root) return false;
   if (route.subprojectId) return false;
   if (route.projectId === "single-window") return false;
@@ -864,6 +1004,8 @@ function isContextAnchorDirectoryRoute(route) {
 }
 
 function coalesceDirectoryAliasItems(items) {
+  const plan = currentRichTextDirectoryModel()?.coalesceDirectoryAliasItemsPlan?.(richTextDirectoryModelInput({ items }));
+  if (plan !== undefined) return plan;
   const anchors = (items || []).filter((item) => isContextAnchorDirectoryRoute(item.route));
   if (!anchors.length) return items || [];
   return (items || []).filter((item) => {
@@ -873,6 +1015,8 @@ function coalesceDirectoryAliasItems(items) {
 }
 
 function uniqueDirectoryAliasItems(items) {
+  const plan = currentRichTextDirectoryModel()?.uniqueDirectoryAliasItemsPlan?.(items);
+  if (plan !== undefined) return plan;
   const unique = new Map();
   for (const item of items || []) {
     const route = item.route || {};
@@ -888,6 +1032,30 @@ function uniqueDirectoryAliasItems(items) {
 function renderDirectoryAliases(aliases, message, options = {}) {
   const items = directoryAliasItemsForAliases(aliases, message, { coalesce: options.reference ? false : undefined });
   if (!items.length) return "";
+  const modelPlans = currentRichTextDirectoryModel()?.directoryAliasChipPlans?.(richTextDirectoryModelInput({
+    items,
+    reference: options.reference,
+  }));
+  if (modelPlans !== undefined) {
+    return `<div class="directory-aliases">${modelPlans.map((plan) => {
+      const reference = Boolean(plan.reference);
+      const chipClass = `directory-alias-chip${reference ? " directory-alias-chip-reference" : ""}`;
+      if (plan.kind === "route") {
+        return `<span class="${chipClass} directory-alias-chip-mapped" title="${escapeHtml(plan.title)}">
+          <span class="directory-alias-text">${escapeHtml(plan.label)}</span>
+          <button class="directory-alias-open learning-growth-board-artifact-link" type="button" data-directory-project data-project-id="${escapeHtml(plan.projectId)}" data-subproject-id="${escapeHtml(plan.subprojectId || "")}" data-directory-path="${escapeHtml(plan.directoryPath)}" aria-label="打开目录">
+            <span class="directory-alias-icon learning-growth-board-artifact-icon" aria-hidden="true"></span>
+          </button>
+        </span>`;
+      }
+      return `<span class="${chipClass}" title="${escapeHtml(plan.title)}">
+        <span class="directory-alias-text">${escapeHtml(plan.label)}</span>
+        <button class="directory-alias-open learning-growth-board-artifact-link" type="button" data-directory-path-open data-directory-path="${escapeHtml(plan.directoryPath)}" data-directory-label="${escapeHtml(plan.directoryLabel || "")}" aria-label="打开目录">
+          <span class="directory-alias-icon learning-growth-board-artifact-icon" aria-hidden="true"></span>
+        </button>
+      </span>`;
+    }).join("")}</div>`;
+  }
   return `<div class="directory-aliases">${items.map(({ displayAlias, route }) => {
     let directoryPath = displayAlias.path || route?.root || "";
     if (route?.root && directoryPath && !pathMatchesDirectoryRoot(directoryPath, route.root)) directoryPath = route.root;

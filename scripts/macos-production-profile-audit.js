@@ -931,8 +931,9 @@ function buildAudit(options) {
   const issueSet = new Set();
   const warnings = [];
   const requiredWarmProfiles = ownerRequiredWarmProfiles(workers, options);
-  const manifestLaunchdLabels = new Set(workers.map((worker) => String(worker.launchdLabel || "").trim()).filter(Boolean));
-  const manifestLaunchdStartScripts = new Map(workers.map((worker) => {
+  const enabledWorkers = workers.filter((worker) => worker.enabled !== false);
+  const manifestLaunchdLabels = new Set(enabledWorkers.map((worker) => String(worker.launchdLabel || "").trim()).filter(Boolean));
+  const manifestLaunchdStartScripts = new Map(enabledWorkers.map((worker) => {
     const label = String(worker.launchdLabel || "").trim();
     const profile = String(worker.profile || worker.name || "").trim();
     if (!label || !profile) return null;

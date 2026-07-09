@@ -4,6 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { chromium } = require("playwright");
 
+const DIRECTORY_TOPIC_COMPOSER_LONG_INPUT_SHRINK_SCENARIO = "directory-topic-composer-long-input-shrink";
+
 function argValue(name, fallback = "") {
   const index = process.argv.indexOf(name);
   if (index >= 0 && index + 1 < process.argv.length) return process.argv[index + 1];
@@ -121,8 +123,196 @@ async function clickTargetView(page, view) {
   return true;
 }
 
+function scenarioToken(value) {
+  return String(value || "").trim().toLowerCase().replace(/_/g, "-");
+}
+
+async function measureDirectoryTopicComposer(page) {
+  return page.evaluate(() => {
+    function round(value) {
+      return Math.round(Number(value || 0) * 100) / 100;
+    }
+    function rect(selector) {
+      const el = document.querySelector(selector);
+      if (!el) return { present: false, visible: false };
+      const style = window.getComputedStyle(el);
+      const box = el.getBoundingClientRect();
+      const visible = !el.hidden
+        && style.display !== "none"
+        && style.visibility !== "hidden"
+        && Number(style.opacity || "1") !== 0
+        && box.width > 0
+        && box.height > 0;
+      return {
+        present: true,
+        visible,
+        top: round(box.top),
+        right: round(box.right),
+        bottom: round(box.bottom),
+        left: round(box.left),
+        width: round(box.width),
+        height: round(box.height),
+        overflowY: style.overflowY,
+        maxHeight: style.maxHeight,
+      };
+    }
+    function overlaps(a, b) {
+      if (!a?.visible || !b?.visible) return false;
+      return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    }
+    const input = document.querySelector("#messageInput");
+    const editor = rect("#messageInput");
+    const composer = rect("#composer");
+    const bottomNav = rect("#bottomNav");
+    return {
+      editor,
+      composer,
+      bottomNav,
+      composerBottomNavOverlap: overlaps(composer, bottomNav),
+      valueLength: Number(input?.value?.length || 0),
+      scrollHeight: round(input?.scrollHeight || 0),
+      inlineHeight: String(input?.style?.height || ""),
+      appClass: String(document.querySelector("#app")?.className || "").slice(0, 240),
+    };
+  });
+}
+
+function assertScenario(name, pass, code, details = {}) {
+  return {
+    name,
+    pass: Boolean(pass),
+    code: pass ? "" : code,
+    details,
+  };
+}
+
+async function runDirectoryTopicComposerLongInputShrinkScenario(page) {
+  const longInput = Array.from({ length: 26 }, (_, index) => `visual-smoke-${index + 1}`).join(" ");
+  const shortInput = "short visual smoke";
+  await page.evaluate(() => {
+    const app = document.getElementById("app");
+    const composer = document.getElementById("composer");
+    const conversation = document.getElementById("conversation");
+    const input = document.getElementById("messageInput");
+    const dock = document.getElementById("topicPluginDock");
+    if (app) {
+      app.classList.add("main-back-visible", "plugin-context-nav-mode", "plugin-topic-detail-mode");
+      app.classList.remove(
+        "task-list-mode",
+        "capability-mode",
+        "embedded-plugin-host-active",
+        "wardrobe-plugin-host-active",
+        "reading-fullscreen-mode",
+        "global-plugin-dock-mode",
+        "global-plugin-dock-expanded-mode",
+        "global-plugin-dock-collapsed-mode",
+      );
+    }
+    if (dock) {
+      dock.hidden = true;
+      dock.setAttribute("aria-hidden", "true");
+      dock.style.display = "none";
+    }
+    document.documentElement.style.removeProperty("--topic-plugin-dock-bottom-runtime");
+    document.documentElement.style.removeProperty("--topic-plugin-dock-reserved-height-runtime");
+    document.documentElement.style.removeProperty("--mobile-bottom-stack-height-runtime");
+    if (typeof window.updateMobileBottomNavReservation === "function") {
+      window.updateMobileBottomNavReservation();
+    }
+    if (typeof window.configureComposer === "function") {
+      window.configureComposer({ enabled: true, placeholder: "Reply in this topic..." });
+    }
+    if (composer) {
+      composer.hidden = false;
+      composer.setAttribute("aria-hidden", "false");
+      composer.style.display = "";
+    }
+    if (input) {
+      input.disabled = false;
+      input.dataset.disabled = "";
+      input.setAttribute("aria-disabled", "false");
+      input.placeholder = input.placeholder || "Reply in this topic...";
+      input.dataset.placeholder = input.dataset.placeholder || "Reply in this topic...";
+    }
+    if (conversation && !conversation.querySelector("[data-visual-smoke-directory-topic]")) {
+      const marker = document.createElement("div");
+      marker.dataset.visualSmokeDirectoryTopic = "true";
+      marker.className = "message assistant";
+      marker.textContent = "visual smoke directory topic shell";
+      conversation.appendChild(marker);
+    }
+  });
+  const input = page.locator("#messageInput").first();
+  await input.waitFor({ state: "visible", timeout: 5000 });
+  await input.fill("");
+  await input.focus();
+  await page.waitForTimeout(120);
+  const before = await measureDirectoryTopicComposer(page);
+  await input.fill(longInput);
+  await page.waitForTimeout(180);
+  const long = await measureDirectoryTopicComposer(page);
+  await input.fill(shortInput);
+  await page.waitForTimeout(180);
+  const short = await measureDirectoryTopicComposer(page);
+  await input.fill("");
+  await page.waitForTimeout(180);
+  const cleared = await measureDirectoryTopicComposer(page);
+  await input.blur();
+  await page.waitForTimeout(120);
+  const blurred = await measureDirectoryTopicComposer(page);
+  const compactCeiling = Math.max(56, before.editor.height + 10);
+  const maxLongEditorHeight = 128;
+  const assertions = [
+    assertScenario("directory_topic_composer_visible", before.editor.visible && before.composer.visible, "directory_topic_composer_not_visible", {
+      beforeEditorHeight: before.editor.height,
+      beforeComposerHeight: before.composer.height,
+    }),
+    assertScenario("long_input_editor_bounded", long.editor.height <= maxLongEditorHeight, "directory_topic_composer_long_editor_too_tall", {
+      longEditorHeight: long.editor.height,
+      maxLongEditorHeight,
+    }),
+    assertScenario("long_input_expands_editor", long.editor.height > before.editor.height + 8, "directory_topic_composer_long_input_did_not_expand", {
+      beforeEditorHeight: before.editor.height,
+      longEditorHeight: long.editor.height,
+    }),
+    assertScenario("short_input_shrinks_editor", short.editor.height <= compactCeiling, "directory_topic_composer_short_input_stale_height", {
+      shortEditorHeight: short.editor.height,
+      compactCeiling,
+    }),
+    assertScenario("clear_input_shrinks_editor", cleared.editor.height <= compactCeiling, "directory_topic_composer_clear_input_stale_height", {
+      clearedEditorHeight: cleared.editor.height,
+      compactCeiling,
+    }),
+    assertScenario("blur_keeps_editor_compact", blurred.editor.height <= compactCeiling, "directory_topic_composer_blur_stale_height", {
+      blurredEditorHeight: blurred.editor.height,
+      compactCeiling,
+    }),
+    assertScenario("composer_bottom_nav_not_overlapping", !long.composerBottomNavOverlap && !cleared.composerBottomNavOverlap, "directory_topic_composer_bottom_nav_overlap", {
+      longOverlap: long.composerBottomNavOverlap,
+      clearedOverlap: cleared.composerBottomNavOverlap,
+    }),
+    assertScenario("composer_shell_bounded_after_clear", cleared.composer.height <= Math.max(76, before.composer.height + 18), "directory_topic_composer_shell_stale_height", {
+      beforeComposerHeight: before.composer.height,
+      clearedComposerHeight: cleared.composer.height,
+    }),
+  ];
+  return {
+    name: DIRECTORY_TOPIC_COMPOSER_LONG_INPUT_SHRINK_SCENARIO,
+    ok: assertions.every((item) => item.pass),
+    metrics: {
+      before,
+      longInput: long,
+      shortInput: short,
+      clearedInput: cleared,
+      blurredInput: blurred,
+    },
+    assertions,
+  };
+}
+
 async function main() {
   const url = argValue("--url", process.env.HERMES_VISUAL_SMOKE_URL || "http://127.0.0.1:8797/?_hmv=visual-smoke");
+  const scenario = scenarioToken(argValue("--scenario", process.env.HERMES_VISUAL_SMOKE_SCENARIO || ""));
   const screenshotPath = argValue("--screenshot", process.env.HERMES_VISUAL_SMOKE_SCREENSHOT
     || path.join(process.cwd(), "tmp", "visual-smoke.png"));
   const accessKeyPath = argValue("--access-key-path", process.env.HERMES_VISUAL_SMOKE_ACCESS_KEY_PATH || process.env.HERMES_WEB_AUTH_KEY_PATH || "");
@@ -209,6 +399,10 @@ async function main() {
       await page.waitForTimeout(800);
     }
     const viewClicked = await clickTargetView(page, view);
+    let scenarioResult = null;
+    if (scenario === DIRECTORY_TOPIC_COMPOSER_LONG_INPUT_SHRINK_SCENARIO) {
+      scenarioResult = await runDirectoryTopicComposerLongInputShrinkScenario(page);
+    }
     let pluginDrawerMenuOpened = false;
     let pluginDrawerMenuGesture = "";
     if (openPluginDrawerMenu) {
@@ -551,6 +745,17 @@ async function main() {
       openPluginDrawerQuickMenu,
       pluginDrawerMenuOpened,
     });
+    if (scenarioResult) {
+      layout.scenario = scenarioResult;
+      for (const assertion of scenarioResult.assertions.filter((item) => !item.pass)) {
+        layout.failures.push({
+          code: assertion.code || assertion.name || "visual_scenario_assertion_failed",
+          scenario,
+          assertion: assertion.name,
+          details: assertion.details || {},
+        });
+      }
+    }
     await page.screenshot({ path: screenshotPath, fullPage: true });
     if (strictLayout && layout.failures.length > 0) {
       const error = new Error(`visual smoke layout failures: ${layout.failures.map((failure) => failure.code).join(", ")}`);
@@ -559,6 +764,8 @@ async function main() {
     }
     console.log(JSON.stringify({
       ok: true,
+      scenario,
+      assertions: scenarioResult?.assertions || [],
       url: safeUrlForOutput(url),
       title,
       clientVersion,

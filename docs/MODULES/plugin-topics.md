@@ -126,6 +126,27 @@ or raw plugin credentials.
   mistouches and horizontal swipes must not expand the Dock, an upward swipe on
   the handle expands it, and a downward swipe on the handle collapses it. The
   bottom navigation must not move during the gesture.
+- The collapsed handle must keep a minimum bottom grab clearance and a touch
+  target larger than the visual dot, so bottom-navigation or safe-area
+  recalculation cannot leave the switch gesture trapped at the screen edge.
+- When the plugin-context switch handle is visible on a plugin topic chat, it
+  must sit above the Composer and must not overlap the input field or Send
+  control.
+- The same collapsed Dock handle is also the plugin-context switch gesture on
+  plugin-owned contexts. When the user is on a top-level plugin app surface or
+  on that plugin's fixed `plugin:<pluginId>` conversation detail, a clear
+  downward gesture on the handle switches between the app and its conversation:
+  app surface goes to the matching plugin conversation, and plugin conversation
+  returns to the app. Non-plugin contexts keep the ordinary expand/collapse
+  behavior. The gesture must use the existing distance, velocity, and vertical
+  direction thresholds so short mistouches, horizontal swipes, bottom-tab taps,
+  iOS system gestures, and plugin iframe scrolling are not captured.
+- The expanded Dock must expose a visible fallback card for the current plugin
+  context when such a switch is available. Its accessible labels are
+  `打开当前插件对话` from the app surface and `返回当前插件` from the conversation
+  surface. The visible compact labels are `对话` and `插件`; do not add a
+  second centered button, do not replace or hide pinned bottom tabs, and do not
+  render the visible text `话题` for this fallback.
 - Dock and pinned bottom-tab reordering are explicit menu actions. A normal
   horizontal swipe must scroll the Dock or leave bottom navigation alone. The
   daily long-press/context gesture opens the action menu; selecting `换位`
@@ -371,6 +392,12 @@ or raw plugin credentials.
   path. Even when a
   plugin-topic message carries a delivery `directoryRoute`, Gateway run context
   must treat `taskDirectory` as absent for normal plugin work.
+- A validated plugin-topic delivery `directoryRoute` may still be merged into
+  that run's `allowed_roots`, `delivery_roots`, and `cache_roots` so generated
+  `MEDIA:<path>.md` receipts can be registered and previewed through Home AI's
+  file/artifact resolver. This is a preview/delivery authorization only; it
+  must not make the delivery directory a scanned context source or ordinary
+  directory-bound topic.
 - Plugin-topic run context is plugin-first: configured plugin MCP/toolsets and
   exact plugin Skill paths are mandatory run context. Wardrobe is currently
   configured as `wardrobe`, `vision`, `file`, and `skills` with required Skill
@@ -400,6 +427,10 @@ or raw plugin credentials.
 - A standard plugin file directory is created for user-facing outputs and
   cleaned summaries. The current frontend path is `插件/<plugin title>` under the
   effective workspace directory.
+- Gateway-generated user-facing Markdown deliverables in this plugin directory
+  must be readable by the Home AI preview server after artifact authorization.
+  The Gateway runtime override finalizes eligible `.md`/`.markdown` files as
+  mode `0644` while leaving secret/auth/key/token/cache/private paths private.
 - Directory files are supporting context; structured plugin MCP remains the
   primary source for live domain data. They must not trigger
   `productivity/directory-context-cleaning` for routine plugin-topic runs unless

@@ -28,6 +28,11 @@ Related route/provider boundaries:
 
 - Owner can manage global configuration, local workspaces, and workspace Access Keys.
 - A workspace key maps to exactly one workspace identity for ordinary API access.
+- A restricted media workspace is an explicit account type (`account_type:
+  media`) whose Home AI browser/API key remains a non-Owner workspace key. Its
+  plugin surface is clamped to the configured Owner-special media plugins,
+  currently `music` and `movie`; it must not inherit Owner/admin APIs or
+  ordinary workspace plugin grants.
 - Ordinary users must not receive other workspace keys, root paths, worker URLs, worker manifests, secret paths, runtime config, or integration credentials.
 - Request body fields such as `workspaceId`, `actorWorkspaceId`, or `principalId` are hints only. Server-side auth must clamp or reject them according to the authenticated principal.
 - Group chat and shared directories are explicit exceptions; they still require membership/share ACL checks.
@@ -92,8 +97,23 @@ DACL inspection.
   must use the app-owned dialog layer, not browser-native `alert`/`confirm`/
   `prompt`, because native shells and embedded WebViews may block or suppress
   browser dialogs.
+- Workspace onboarding and retry paths must ensure a Home AI workspace Access
+  Key without rotating an existing key. Only explicit Owner Access Key Manager
+  rotate/replace actions may invalidate an existing workspace key.
+- Workspace Access Key rotate, preserve-existing, revoke, and delete actions
+  must emit metadata-only audit events with actor, target workspace, action,
+  reason, and whether a previous key existed. Audit events must never include
+  raw keys, key hashes, cookies, launch tokens, or endpoint bodies.
 - Stored key material, API keys, OAuth tokens, VAPID private keys, push endpoints, and secret file contents must not be exposed in browser projections or docs.
 - Revoking or rotating the current account key should force clients back to login rather than silently continuing.
+- Browser clients must clear account-scoped volatile projections before using a
+  newly authenticated key, clearing a rejected key, correcting a selected
+  workspace from the server catalog, or switching workspaces. Cleared state
+  includes current thread ids, thread/detail caches, single-window surface
+  caches, directory/plugin context, todos, automations, action inbox, and
+  embedded plugin instances. The only exception is the Access Key Manager
+  relogin path, which may preserve the just-generated one-time key display and
+  relogin flag.
 - Public/reverse-proxied deployments should disable URL query Access Keys with
   `HERMES_MOBILE_DISABLE_QUERY_ACCESS_KEY=1` or
   `HERMES_WEB_DISABLE_QUERY_ACCESS_KEY=1`. Browser clients should authenticate
@@ -152,10 +172,12 @@ DACL inspection.
   plugin-private config discovery all key off the effective workspace root.
 - Workspace onboarding may create a Home AI workspace Access Key and selected
   plugin workspace bindings in one Owner-confirmed workflow, but those remain
-  separate credential domains. The one-time Home AI key is returned only in the
-  Owner apply response. Plugin provisioners still create or verify their own
-  workspace-local `.hermes-<plugin>` key/config and must not copy or derive
-  credentials from the Home AI key.
+  separate credential domains. The one-time Home AI key is returned only when
+  onboarding creates a new key; retrying onboarding for a workspace that already
+  has a Home AI key must preserve the existing key and return no raw key.
+  Plugin provisioners still create or verify their own workspace-local
+  `.hermes-<plugin>` key/config and must not copy or derive credentials from
+  the Home AI key.
 - Native secure secret handoff uses the same Home AI browser/API Access Key
   transport. `POST /api/native/secure-secrets` resolves workspace and actor
   from `X-Hermes-Web-Key`; request body workspace, actor, plugin-key, cookie,

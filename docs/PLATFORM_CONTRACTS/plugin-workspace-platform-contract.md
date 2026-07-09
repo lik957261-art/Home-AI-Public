@@ -1,6 +1,6 @@
 # Plugin Workspace Platform Contract
 
-Contract version: `20260626-v6`.
+Contract version: `20260708-v8`.
 
 ## Purpose
 
@@ -20,6 +20,8 @@ contracts:
 
 - `docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md`
 - `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
+- `docs/PLATFORM_CONTRACTS/autonomous-delivery-loop-contract.md`
+- `docs/PLATFORM_CONTRACTS/worker-pool-lifecycle-contract.md`
 - `docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md`
 - `docs/PLATFORM_CONTRACTS/github-shared-source-account-contract.md`
 - `docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md`
@@ -94,11 +96,13 @@ If a plugin does not have `docs/`, use the smallest local equivalent such as
 The pointer file must include:
 
 ```text
-Home AI platform contract version: 20260626-v6
+Home AI platform contract version: 20260708-v8
 
 Canonical Home AI contract source:
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md
+- <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/autonomous-delivery-loop-contract.md
+- <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/worker-pool-lifecycle-contract.md
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/macos-dev-to-production-deployment-contract.md
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/github-shared-source-account-contract.md
 - <path-to-Home-AI>/docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md
@@ -135,6 +139,9 @@ Plugin-local facts:
 - AI Operations Control Plane command
 - AI Operations required flow
 - AI Operations evidence ledger path
+- plugin main preflight command
+- plugin Worker dispatch policy
+- plugin Worker pool lifecycle policy
 - iOS visual harness command
 - plugin manifest actions status
 - GitHub shared source account status
@@ -142,6 +149,43 @@ Plugin-local facts:
 
 The pointer file must not contain raw passwords, access keys, OAuth tokens,
 cookies, launch tokens, full private payloads, or long logs.
+
+Each plugin `AGENTS.md` must include a short local pointer to the same fields:
+
+```text
+Plugin main/source threads must run the Home AI routing preflight before
+non-trivial implementation, investigation, review, Harness, deploy-routing, or
+cross-thread dispatch work:
+
+node /Users/example/path --source-thread-role plugin_main --task "<task>" --changed-file <path> --mode classify
+
+If the preflight returns `classification=plugin_worker`, dispatch a bounded
+`plugin_worker` card or return `blocked` with the missing lane. Do not use Task
+Intake, deploy lanes, audit lanes, Loop lanes, or the current plugin source
+thread as a Worker fallback. The Worker terminal return-card body and
+Owner-visible receipt must be written in Chinese (`zh-CN`).
+
+Before creating any plugin Worker thread, resolve/list the stable `plugin_worker`
+Worker pool for the plugin workspace. Reuse an available compatible lane, mark
+the lane busy while a task card is active, require per-task-card heartbeat,
+activate the Watchdog for that task card after `1800000ms` (30 minutes)
+without heartbeat, keep Watchdog batches bounded to 8 cards, allow at most one
+automatic resume for the same execution lease by default, and release it after
+terminal return. Do not create task-title Worker threads such as one-off
+diagnostic or fix-title lanes when a stable pool lane exists.
+```
+
+The plugin-local `docs/HOME_AI_PLATFORM_CONTRACT.md` table must also include:
+
+```text
+| `plugin_main_preflight_command` | `cd /Users/example/path && node scripts/main-thread-routing-preflight.js --source-thread-role plugin_main --task "<task>" --changed-file <path> --mode classify` |
+| `plugin_worker_dispatch_policy` | `When classification is plugin_worker, dispatch a plugin_worker card with terminal return, Chinese receipt, privacy boundary, conflict rule, expected validation, and no Task Intake/deploy/audit/Loop/current-thread fallback.` |
+| `plugin_worker_pool_lifecycle_policy` | `Use the stable plugin_worker Worker pool with resolve-before-create; reuse available lanes, mark lanes busy while a task card is active, require per-task-card heartbeat, activate the Watchdog for that task card after 1800000ms without heartbeat, batch limit 8, maximum auto-resume 1, release them after terminal return with Chinese receipt, reject task-title Worker names as sprawl, and create only for missing_role_lane, pool_exhausted, or no legal lane.` |
+```
+
+Plugins may replace the command with a plugin-local equivalent only after that
+equivalent produces the same bounded classifications and fail-closed forbidden
+fallback behavior.
 
 ## GitHub Shared Source Account And Plugin Push
 
@@ -192,6 +236,13 @@ For Mac production read-only evidence:
 node scripts\plugin-workspace-platform-contract-check.js --probe-mac --require-mac-ok --json
 ```
 
+The checker selects the Mac probe transport deterministically. If the local
+Mac production root `/Users/example/path` is readable from the
+current process, the default command uses same-host `local` probes. Otherwise
+it falls back to the `homeai-mac` SSH alias. Use `--ssh-alias <alias>` only to
+override that default explicitly; the JSON output includes `macProbe.sshAlias`,
+`macProbe.mode`, and `macProbe.defaultSelection` for audit evidence.
+
 The checker validates:
 
 - the standard inserted plugin set plus Owner-only special insertions:
@@ -206,6 +257,13 @@ The checker validates:
   MCP wrappers and Node/npm for Node service plugins;
 - declared AI Operations Control Plane intake command, required flow, and
   evidence ledger path;
+- declared plugin main-thread routing preflight command and plugin Worker
+  dispatch policy;
+- declared plugin Worker pool lifecycle policy, including resolve-before-create,
+  stable lane reuse, busy/available lease state, task-title sprawl rejection,
+  per-task-card heartbeat, `1800000ms` task-card Watchdog recovery, batch limit
+  `8`, max auto-resume `1`, bounded create reasons, and Chinese terminal return
+  receipts;
 - `.agent-context/HANDOFF.md` pointer adoption;
 - no raw-looking secrets in the pointer and central rollout docs;
 - declared `ios_visual_harness_command` using the Home AI checked
@@ -241,7 +299,12 @@ explicitly when issuing Health write requests. Home AI may use Owner
 authentication to authorize the operation, but it must not use Owner as the
 Health data workspace unless the request explicitly targets Owner. Missing or
 ambiguous Health write workspace context must fail closed before plugin key
-injection or upstream proxying.
+injection or upstream proxying. Apple Health sync mode defaults to `personal`.
+For personal sync, Home AI must derive or receive the HealthKit/source
+workspace and reject the write with `apple_health_workspace_mismatch` when that
+source workspace differs from the selected/effective workspace. Guardian or
+family-care sync must be explicitly marked as `guardian`; until a dedicated
+guardian flow exists, Home AI must fail closed instead of reusing personal sync.
 
 Codex Mobile Web remains special for Owner-only visibility and permission
 policy. It is not a normal workspace-grantable business plugin, but it must
@@ -620,10 +683,55 @@ Required plugin behavior:
 
 - run AI Operations `intake` before visual-debug work and use the returned lane
   instruction as the first boundary;
+- use the Home AI central visual QA entrypoints and central target, device,
+  browser, viewport, lane, and credential-source configuration for plugin-owned
+  mobile/visual verification;
+- use the plugin-facing central broker for ordinary planning, preflight, and
+  execution:
+
+  ```bash
+  cd /Users/example/path
+  npm run visual:central -- --surface embedded-plugin --plugin-id <plugin-id> --scenario embedded-plugin-shell --json
+  npm run visual:central -- --surface embedded-plugin --plugin-id <plugin-id> --scenario embedded-plugin-shell --ios --preflight-only --json
+  ```
+
+  The broker is `scripts/central-visual-harness-broker.js`. It selects the
+  checked Home AI Playwright, authenticated-navigation, or iOS PWA visual
+  Harness and redacts sensitive path arguments in its command preview.
+- plugin-local visual implementation is allowed only when it is exposed through
+  a central-compatible package script and brokered by Home AI:
+
+  ```bash
+  cd /Users/example/path
+  npm run visual:central -- --plugin-id <plugin-id> --scenario embedded-plugin-shell --delegate-local --json
+  npm run visual:central -- --plugin-id <plugin-id> --scenario embedded-plugin-shell --delegate-local --execute --json
+  npm run visual:central -- --plugin-id <plugin-id> --scenario embedded-plugin-shell --verify-evidence <json-file> --json
+  ```
+
+  The plugin-local script must emit bounded central-compatible JSON with
+  `ok`, `status`, `schemaVersion`, `pluginId`, `scenario`, `surface`,
+  `harnessKind`, `mode`, `viewport`, `baseUrlOrigin` or equivalent origin
+  label, and bounded `assertions` or `checks`. The broker injects normalized
+  `--scenario`, `--plugin-id`, `--base-url`, `--workspace-id`, `--viewport`,
+  and access-key path arguments when present. It rejects missing, non-JSON, or
+  privacy-unsafe evidence as `plugin_visual_evidence_invalid`, and reports a
+  missing compatible script as `plugin_visual_harness_missing` /
+  `blocked_central_visual_harness_unavailable`.
 - use `npm run ios:pwa:debug` from the Home AI workspace for interactive iOS
   PWA visual loops;
 - use `npm run ios:pwa:visual` from the Home AI workspace for final bounded
-  evidence when the issue has a supported scenario;
+  evidence when the broker selects an iOS PWA visual scenario;
+- do not use unstructured plugin-local Playwright, browser, private key-path,
+  viewport, coordinate, Appium, or one-off visual scripts as final signoff.
+  Central-compatible plugin-local evidence may support source/static and early
+  layout confidence, but plugin return cards must distinguish it from real Home
+  AI visual signoff whenever the scenario crosses a host/plugin iframe, PWA,
+  auth/session, native keyboard/composer, picker, or visible-row
+  synchronization boundary;
+- if the central visual entrypoint or lane is unavailable, return
+  `blocked_central_visual_harness_unavailable` or delegate a Home AI
+  visual/readback task. A plugin-local visual pass that the broker cannot
+  validate is not a substitute for the missing central Harness;
 - never drive another plugin thread's active Simulator lane;
 - treat `debug_lane_locked` as a hard stop for that lane and allocate a
   different Simulator/debug server before continuing;
@@ -661,11 +769,22 @@ canonical recovery sequence remains in
 `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md` and
 `docs/RUNBOOKS/macos-ios-simulator-appium.md`.
 
+The reason for this centralization is operational, not stylistic: prior
+contracts required visual evidence but did not make central Harness routing and
+signoff explicit enough. Plugin threads therefore treated Playwright/Appium as
+local setup; when local Playwright was absent or local scripts failed, evidence
+often degraded into skipped visual validation. The platform direction is to
+make plugin task cards name the exact `npm run visual:central -- ...` command
+or delegated visual lane, and to treat missing central Harness access as an
+explicit blocker rather than as permission to invent local acceptance criteria.
+
 Minimum plugin pointer fields for visual-toolchain availability:
 
 ```text
 ios_live_debug_available: yes | no
 ios_visual_harness_command: cd /Users/example/path && npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id <plugin-id> --debug-url http://127.0.0.1:19073/
+central_visual_harness_command: cd /Users/example/path && npm run visual:central -- --surface embedded-plugin --plugin-id <plugin-id> --scenario embedded-plugin-shell --json
+central_compatible_plugin_visual_command: cd /Users/example/path && npm run visual:central -- --plugin-id <plugin-id> --scenario embedded-plugin-shell --delegate-local --json
 visual_toolchain_contract: 20260610-visual-toolchain-shared-lane
 visual_toolchain_owner: Home AI platform
 ```

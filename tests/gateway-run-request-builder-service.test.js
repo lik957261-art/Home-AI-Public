@@ -142,7 +142,13 @@ function testBuildRunRequestAddsPluginRequirementsAndRouting() {
       connector_profiles: { base: { type: "profile" } },
     }),
   });
-  const request = service.buildRunRequest(baseThread(), baseUser(), { id: "assistant_1" }, {
+  const request = service.buildRunRequest(baseThread(), baseUser({
+    directoryRoute: {
+      label: "Wardrobe delivery",
+      root: "C:\\delivery\\wardrobe",
+      path: "C:\\delivery\\wardrobe",
+    },
+  }), { id: "assistant_1" }, {
     actorWorkspaceId: "owner",
     gatewayRouting: { maintenance: true },
     model: "gpt-test",
@@ -180,6 +186,12 @@ function testBuildRunRequestAddsPluginRequirementsAndRouting() {
   assert.equal(JSON.parse(request.body.instructions.split("\n\n")[0]).environmentContext.source, "homeai_native_ios");
   assert.equal(request.body.access_policy_context.environmentContext, undefined);
   assert.equal(request.body.environmentContext, undefined);
+  assert.ok(request.runPolicy.allowed_roots.includes("/mnt/c/delivery/wardrobe"));
+  assert.ok(request.runPolicy.allowed_roots.includes("C:\\delivery\\wardrobe"));
+  assert.ok(request.runPolicy.delivery_roots.includes("/mnt/c/delivery/wardrobe"));
+  assert.ok(request.runPolicy.delivery_roots.includes("C:\\delivery\\wardrobe"));
+  assert.ok(request.runPolicy.cache_roots.includes("/mnt/c/delivery/wardrobe"));
+  assert.ok(request.runPolicy.cache_roots.includes("C:\\delivery\\wardrobe"));
   assert.deepEqual(request.gatewayRouting.requiredToolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.deepEqual(request.gatewayRouting.requiredSkills, ["productivity/wardrobe-style-operations"]);
   assert.equal(request.gatewayRouting.skillWorkspaceId, "owner");
@@ -357,6 +369,34 @@ function testBuildGroupChatRunContextMergesDeliveryRoots() {
   assert.deepEqual(calls.mkdirs, [{ target: "C:\\Hermes\\group", options: { recursive: true } }]);
 }
 
+function testMoaRunKeepsExternalProviderButRoutesGatewayInternally() {
+  const { service } = createBuilder();
+  const request = service.buildRunRequest(
+    baseThread({ workspaceId: "owner", projectId: "owner-home" }),
+    baseUser({ content: "@MOA smoke", senderWorkspaceId: "owner", taskGroupId: "moa-smoke" }),
+    { id: "assistant_1" },
+    {
+      actorWorkspaceId: "owner",
+      model: "default",
+      provider: "moa",
+      gatewayRouting: {
+        provider: "openai-codex",
+        securityLevel: "owner-maintenance",
+        maintenance: true,
+        allowMaintenance: true,
+        preferred_worker_profiles: ["officialclean1"],
+      },
+    },
+  );
+
+  assert.equal(request.body.model, "default");
+  assert.equal(request.body.provider, "moa");
+  assert.equal(request.gatewayRouting.provider, "openai-codex");
+  assert.equal(request.gatewayRouting.modelProvider, "moa");
+  assert.equal(request.gatewayRouting.securityLevel, "owner-maintenance");
+  assert.deepEqual(request.gatewayRouting.preferred_worker_profiles, ["officialclean1"]);
+}
+
 testWorkspaceHelpersStayStable();
 testBuildRunRequestAddsPluginRequirementsAndRouting();
 testLatestUserHttpLinkRemainsFullInput();
@@ -365,5 +405,6 @@ testMoiraPluginTopicRequiresMoiraToolsetWhenAuthorized();
 testMoviePluginTopicRequiresMovieToolsetWhenAuthorized();
 testDirectoryBoundRunUsesTargetWorkspaceForGatewayAndPolicy();
 testBuildGroupChatRunContextMergesDeliveryRoots();
+testMoaRunKeepsExternalProviderButRoutesGatewayInternally();
 
 console.log("gateway run request builder service tests passed");

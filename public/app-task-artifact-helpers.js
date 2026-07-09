@@ -7,6 +7,38 @@
     root.HermesTaskArtifactHelpers = factory();
   }
 }(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const TASK_ARTIFACT_HELPER_MODEL_ESM_PATH = "/vite-islands/task-artifact-helper-model/task-artifact-helper-model.js";
+  let taskArtifactHelperModel = null;
+  let taskArtifactHelperModelPromise = null;
+
+  function importTaskArtifactHelperModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+    if (taskArtifactHelperModel) return Promise.resolve(taskArtifactHelperModel);
+    if (!taskArtifactHelperModelPromise) {
+      const importer = typeof rootRef.__homeAiImportTaskArtifactHelperModel === "function"
+        ? rootRef.__homeAiImportTaskArtifactHelperModel
+        : (path) => import(path);
+      taskArtifactHelperModelPromise = Promise.resolve()
+        .then(() => importer(TASK_ARTIFACT_HELPER_MODEL_ESM_PATH))
+        .then((model) => {
+          taskArtifactHelperModel = model || null;
+          return taskArtifactHelperModel;
+        })
+        .catch((error) => {
+          taskArtifactHelperModelPromise = null;
+          throw error;
+        });
+    }
+    return taskArtifactHelperModelPromise;
+  }
+
+  function currentTaskArtifactHelperModel() {
+    return taskArtifactHelperModel;
+  }
+
+  if (typeof window !== "undefined") {
+    importTaskArtifactHelperModel().catch(() => null);
+  }
+
   function messageTimelineTimestamp(message) {
     if (!message) return "";
     if (message.completedAt) return message.completedAt;
@@ -287,6 +319,10 @@
   }
 
   function isTaskListPrimaryDocument(artifact) {
+    const model = currentTaskArtifactHelperModel();
+    if (typeof model?.isTaskListPrimaryDocument === "function") {
+      return model.isTaskListPrimaryDocument(artifact);
+    }
     const kind = artifactKind(artifact);
     if (kind === "pdf" || kind === "word" || kind === "spreadsheet" || kind === "presentation") return true;
     const name = String(artifact?.name || artifact?.id || "").toLowerCase();
@@ -294,6 +330,10 @@
   }
 
   function isMarkdownArtifact(artifact) {
+    const model = currentTaskArtifactHelperModel();
+    if (typeof model?.isMarkdownArtifact === "function") {
+      return model.isMarkdownArtifact(artifact);
+    }
     const name = String(artifact?.name || artifact?.id || "").toLowerCase();
     const mime = String(artifact?.mime || "").toLowerCase();
     return mime.includes("markdown") || name.endsWith(".md");
@@ -301,6 +341,10 @@
 
   function latestTaskListDocument(group) {
     const artifacts = taskArtifacts(group);
+    const model = currentTaskArtifactHelperModel();
+    if (typeof model?.latestTaskListDocumentPlan === "function") {
+      return model.latestTaskListDocumentPlan(artifacts);
+    }
     const markdownDocuments = artifacts.filter(isMarkdownArtifact);
     const candidates = markdownDocuments.length ? markdownDocuments : artifacts.filter(isTaskListPrimaryDocument);
     return candidates[candidates.length - 1] || null;
@@ -374,6 +418,10 @@
   }
 
   function artifactKind(artifact) {
+    const model = currentTaskArtifactHelperModel();
+    if (typeof model?.artifactKind === "function") {
+      return model.artifactKind(artifact);
+    }
     const name = String(artifact?.name || artifact?.id || "").toLowerCase();
     const mime = String(artifact?.mime || "").toLowerCase();
     if (mime.includes("pdf") || name.endsWith(".pdf")) return "pdf";
@@ -416,14 +464,26 @@
   }
 
   function artifactDisplayName(artifact) {
+    const model = currentTaskArtifactHelperModel();
+    if (typeof model?.artifactDisplayName === "function") {
+      return model.artifactDisplayName(artifact);
+    }
     return String(artifact?.displayName || artifact?.title || artifact?.label || artifact?.name || artifact?.id || "document").trim();
   }
 
   function artifactStem(artifact) {
+    const model = currentTaskArtifactHelperModel();
+    if (typeof model?.artifactStem === "function") {
+      return model.artifactStem(artifact);
+    }
     return artifactDisplayName(artifact).replace(/\.[^.]+$/, "").toLowerCase();
   }
 
   function artifactDisplayRank(artifact) {
+    const model = currentTaskArtifactHelperModel();
+    if (typeof model?.artifactDisplayRank === "function") {
+      return model.artifactDisplayRank(artifact);
+    }
     const kind = artifactKind(artifact);
     if (kind === "markdown") return 0;
     if (kind === "text") return 1;
@@ -432,6 +492,10 @@
   }
 
   function displayArtifacts(artifacts) {
+    const model = currentTaskArtifactHelperModel();
+    if (typeof model?.displayArtifacts === "function") {
+      return Array.from(model.displayArtifacts(artifacts));
+    }
     const items = Array.isArray(artifacts) ? artifacts.filter(Boolean) : [];
     const markdownStems = new Set(items.filter(isMarkdownArtifact).map(artifactStem).filter(Boolean));
     return items
@@ -447,6 +511,9 @@
   }
 
   return Object.freeze({
+    TASK_ARTIFACT_HELPER_MODEL_ESM_PATH,
+    importTaskArtifactHelperModel,
+    currentTaskArtifactHelperModel,
     formatBytes,
     compactDisplayText,
     compactTopicTitle,

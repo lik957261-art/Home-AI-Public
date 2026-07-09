@@ -1,5 +1,37 @@
 "use strict";
 
+const CHAT_COMPOSER_SOURCE_MODEL_ESM_PATH = "/vite-islands/chat-composer-source-model/chat-composer-source-model.js";
+let chatComposerSourceModel = null;
+let chatComposerSourceModelPromise = null;
+
+function importChatComposerSourceModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (chatComposerSourceModel) return Promise.resolve(chatComposerSourceModel);
+  if (!chatComposerSourceModelPromise) {
+    const importer = typeof rootRef.__homeAiImportChatComposerSourceModel === "function"
+      ? rootRef.__homeAiImportChatComposerSourceModel
+      : (path) => import(path);
+    chatComposerSourceModelPromise = Promise.resolve()
+      .then(() => importer(CHAT_COMPOSER_SOURCE_MODEL_ESM_PATH))
+      .then((model) => {
+        chatComposerSourceModel = model || null;
+        return chatComposerSourceModel;
+      })
+      .catch((error) => {
+        chatComposerSourceModelPromise = null;
+        throw error;
+      });
+  }
+  return chatComposerSourceModelPromise;
+}
+
+function currentChatComposerSourceModel() {
+  return chatComposerSourceModel;
+}
+
+if (typeof window !== "undefined") {
+  importChatComposerSourceModel().catch(() => null);
+}
+
 const COMPOSER_SEARCH_SOURCE_LOCAL = "local";
 const COMPOSER_SEARCH_SOURCE_OPTIONS = Object.freeze([
   Object.freeze({
@@ -29,6 +61,10 @@ const COMPOSER_SEARCH_SOURCE_VISIBLE_OPTIONS = Object.freeze(
 );
 
 function normalizeComposerSearchSource(value) {
+  const model = currentChatComposerSourceModel();
+  if (typeof model?.normalizeComposerSearchSourceValue === "function") {
+    return model.normalizeComposerSearchSourceValue(value);
+  }
   const raw = String(value || "").trim().toLowerCase().replace(/[\s_\-:：]+/g, "");
   if (raw === "web"
     || raw === "websearch"
@@ -49,12 +85,26 @@ function normalizeComposerSearchSource(value) {
 }
 
 function composerSearchSourceOption(source) {
+  const model = currentChatComposerSourceModel();
+  if (typeof model?.composerSearchSourceOptionPlan === "function") {
+    return model.composerSearchSourceOptionPlan({
+      source,
+      options: COMPOSER_SEARCH_SOURCE_OPTIONS,
+    });
+  }
   const normalized = normalizeComposerSearchSource(source);
   return COMPOSER_SEARCH_SOURCE_OPTIONS.find((option) => option.source === normalized)
     || COMPOSER_SEARCH_SOURCE_OPTIONS[0];
 }
 
 function composerSearchSourceCommand(text = "") {
+  const model = currentChatComposerSourceModel();
+  if (typeof model?.composerSearchSourceCommandPlan === "function") {
+    return model.composerSearchSourceCommandPlan({
+      text,
+      options: COMPOSER_SEARCH_SOURCE_OPTIONS,
+    });
+  }
   const value = String(text || "").replace(/\u00a0/g, " ");
   if (!value.trim()) return null;
   const boundary = "(?=$|[\\s)\\]}\\u3000\\uff09\\uff3d\\u3011\\uff0c,.;:!?\\uFF0C\\u3002\\uFF1B\\uFF1A\\uFF01\\uFF1F\\u3001])";
@@ -69,6 +119,13 @@ function composerSearchSourceCommand(text = "") {
 }
 
 function composerSearchSourceAutoHint(text = "") {
+  const model = currentChatComposerSourceModel();
+  if (typeof model?.composerSearchSourceAutoHintPlan === "function") {
+    return model.composerSearchSourceAutoHintPlan({
+      text,
+      options: COMPOSER_SEARCH_SOURCE_OPTIONS,
+    });
+  }
   const value = String(text || "").replace(/\u00a0/g, " ");
   if (!value.trim()) return null;
   const patterns = [
@@ -86,6 +143,14 @@ function composerSearchSourceAutoHint(text = "") {
 }
 
 function selectedComposerSearchSourceInfo(text = getComposerText()) {
+  const model = currentChatComposerSourceModel();
+  if (typeof model?.selectedComposerSearchSourceInfoPlan === "function") {
+    return model.selectedComposerSearchSourceInfoPlan({
+      text,
+      manualSource: state.composerSearchSource,
+      options: COMPOSER_SEARCH_SOURCE_OPTIONS,
+    });
+  }
   const manual = composerSearchSourceOption(state.composerSearchSource);
   const manualExplicit = manual.source !== COMPOSER_SEARCH_SOURCE_LOCAL;
   const auto = manualExplicit ? null : (composerSearchSourceCommand(text) || composerSearchSourceAutoHint(text));
@@ -154,10 +219,17 @@ function toggleComposerSourceMenu() {
 }
 
 function chooseComposerSearchSource(source) {
+  const model = currentChatComposerSourceModel();
+  const plan = typeof model?.chooseComposerSearchSourcePlan === "function"
+    ? model.chooseComposerSearchSourcePlan({
+      currentSource: state.composerSearchSource,
+      source,
+    })
+    : null;
   const normalized = normalizeComposerSearchSource(source);
-  state.composerSearchSource = state.composerSearchSource === normalized
+  state.composerSearchSource = plan?.nextSource || (state.composerSearchSource === normalized
     ? COMPOSER_SEARCH_SOURCE_LOCAL
-    : normalized;
+    : normalized);
   closeComposerSourceMenu();
   updateComposerSourceControl();
   renderComposerContext();
@@ -174,27 +246,54 @@ function updateComposerSourceControl() {
   if (!control) return;
   const searchMode = isChatSearchMode();
   const canUse = !searchMode && (state.viewMode === "single" || state.viewMode === "tasks");
-  control.hidden = searchMode;
-  control.setAttribute("aria-disabled", canUse ? "false" : "true");
-  if (!canUse) closeComposerSourceMenu();
   const info = selectedComposerSearchSourceInfo();
-  control.classList.toggle("active", info.manualExplicit);
-  control.classList.toggle("auto-detected", info.autoDetected);
-  control.setAttribute("title", info.autoDetected
-    ? `\u5df2\u81ea\u52a8\u8bc6\u522b\u672c\u53e5\u4fe1\u6e90\uff1a${info.label}`
-    : `\u672c\u53e5\u4fe1\u6e90\uff1a${info.label}`);
+  const model = currentChatComposerSourceModel();
+  const controlPlan = typeof model?.composerSourceControlPlan === "function"
+    ? model.composerSourceControlPlan({
+      searchMode,
+      viewMode: state.viewMode,
+      info,
+    })
+    : {
+      hidden: searchMode,
+      canUse,
+      active: info.manualExplicit,
+      autoDetected: info.autoDetected,
+      title: info.autoDetected
+        ? `\u5df2\u81ea\u52a8\u8bc6\u522b\u672c\u53e5\u4fe1\u6e90\uff1a${info.label}`
+        : `\u672c\u53e5\u4fe1\u6e90\uff1a${info.label}`,
+    };
+  control.hidden = controlPlan.hidden;
+  control.setAttribute("aria-disabled", controlPlan.canUse ? "false" : "true");
+  if (!controlPlan.canUse) closeComposerSourceMenu();
+  control.classList.toggle("active", controlPlan.active);
+  control.classList.toggle("auto-detected", controlPlan.autoDetected);
+  control.setAttribute("title", controlPlan.title);
   control.querySelectorAll("[data-composer-source-toggle]").forEach((button) => {
     const source = normalizeComposerSearchSource(button.dataset.composerSourceToggle);
-    const active = source === info.source && info.manualExplicit;
-    const autoDetected = source === info.source && info.autoDetected;
-    button.disabled = !canUse;
-    button.classList.toggle("active", active);
-    button.classList.toggle("auto-detected", autoDetected);
-    button.setAttribute("aria-pressed", active ? "true" : "false");
-    button.setAttribute("title", active
-      ? `\u5df2\u9009\u4e2d${composerSearchSourceOption(source).label}\uff0c\u518d\u70b9\u56de\u5230\u672c\u5730\u6570\u636e`
-      : (autoDetected
-        ? `\u5df2\u4ece\u6587\u672c\u81ea\u52a8\u8bc6\u522b${composerSearchSourceOption(source).label}\uff1b\u70b9\u51fb\u540e\u6539\u4e3a\u624b\u52a8\u9501\u5b9a`
-      : `\u672c\u53e5\u4f7f\u7528${composerSearchSourceOption(source).label}`));
+    const option = composerSearchSourceOption(source);
+    const buttonPlan = typeof model?.composerSourceToggleButtonPlan === "function"
+      ? model.composerSourceToggleButtonPlan({
+        source,
+        info,
+        option,
+        canUse: controlPlan.canUse,
+      })
+      : {
+        disabled: !controlPlan.canUse,
+        active: source === info.source && info.manualExplicit,
+        autoDetected: source === info.source && info.autoDetected,
+        ariaPressed: source === info.source && info.manualExplicit ? "true" : "false",
+        title: source === info.source && info.manualExplicit
+          ? `\u5df2\u9009\u4e2d${option.label}\uff0c\u518d\u70b9\u56de\u5230\u672c\u5730\u6570\u636e`
+          : (source === info.source && info.autoDetected
+            ? `\u5df2\u4ece\u6587\u672c\u81ea\u52a8\u8bc6\u522b${option.label}\uff1b\u70b9\u51fb\u540e\u6539\u4e3a\u624b\u52a8\u9501\u5b9a`
+            : `\u672c\u53e5\u4f7f\u7528${option.label}`),
+      };
+    button.disabled = buttonPlan.disabled;
+    button.classList.toggle("active", buttonPlan.active);
+    button.classList.toggle("auto-detected", buttonPlan.autoDetected);
+    button.setAttribute("aria-pressed", buttonPlan.ariaPressed);
+    button.setAttribute("title", buttonPlan.title);
   });
 }

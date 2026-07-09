@@ -2,6 +2,35 @@
 
 const noteReceiptSaveInFlightIds = new Set();
 const noteReceiptSavedByMessageId = new Map();
+const SHARE_IMAGE_ESM_MODEL_PATH = "/vite-islands/share-image-model/share-image-model.js";
+let shareImageModel = null;
+let shareImageModelPromise = null;
+
+function importShareImageModel(rootRef = window) {
+  if (shareImageModel) return Promise.resolve(shareImageModel);
+  if (!shareImageModelPromise) {
+    const importer = typeof rootRef.__homeAiImportShareImageModel === "function"
+      ? rootRef.__homeAiImportShareImageModel
+      : (path) => import(path);
+    shareImageModelPromise = Promise.resolve()
+      .then(() => importer(SHARE_IMAGE_ESM_MODEL_PATH))
+      .then((model) => {
+        shareImageModel = model || null;
+        return shareImageModel;
+      })
+      .catch((error) => {
+        shareImageModelPromise = null;
+        throw error;
+      });
+  }
+  return shareImageModelPromise;
+}
+
+function currentShareImageModel() {
+  return shareImageModel;
+}
+
+importShareImageModel().catch(() => null);
 
 function messageShareText(message) {
   if (!message) return "";
@@ -32,7 +61,7 @@ function messageShareTitle(message) {
   return "Home AI";
 }
 
-function stripInlineMarkdownForShare(value) {
+function classicStripInlineMarkdownForShare(value) {
   return String(value || "")
     .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
@@ -46,18 +75,26 @@ function stripInlineMarkdownForShare(value) {
     .trim();
 }
 
+function stripInlineMarkdownForShare(value) {
+  const model = currentShareImageModel();
+  if (typeof model?.stripInlineMarkdownForShare === "function") return model.stripInlineMarkdownForShare(value);
+  return classicStripInlineMarkdownForShare(value);
+}
+
 function shareImageBlocksFromText(text) {
+  const model = currentShareImageModel();
+  if (typeof model?.shareImageBlocksFromText === "function") return model.shareImageBlocksFromText(text);
   const blocks = [];
   const lines = String(text || "").split(/\r?\n/);
   let paragraph = [];
   let codeLines = null;
   const flushParagraph = () => {
     if (!paragraph.length) return;
-    blocks.push({ type: "paragraph", text: stripInlineMarkdownForShare(paragraph.join(" ")) });
+    blocks.push({ type: "paragraph", text: classicStripInlineMarkdownForShare(paragraph.join(" ")) });
     paragraph = [];
   };
   const pushTextBlock = (type, value, extra = {}) => {
-    const textValue = stripInlineMarkdownForShare(value);
+    const textValue = classicStripInlineMarkdownForShare(value);
     if (textValue) blocks.push(Object.assign({ type, text: textValue }, extra));
   };
 
@@ -353,15 +390,22 @@ async function copyImageBlobToClipboard(blob) {
 }
 
 function nativeOutboundShareAvailable() {
-  return Boolean(
-    window.HomeAINativeShareCapability?.outboundShare === true
-    && typeof window.HomeAINativeShare?.share === "function"
-  );
+  const model = currentShareImageModel();
+  const input = {
+    outboundShare: window.HomeAINativeShareCapability?.outboundShare === true,
+    hasShareFunction: typeof window.HomeAINativeShare?.share === "function",
+  };
+  if (typeof model?.nativeOutboundShareAvailable === "function") return model.nativeOutboundShareAvailable(input);
+  return Boolean(input.outboundShare && input.hasShareFunction);
 }
 
 function nativeShareRequestId(prefix = "share") {
+  const nowMs = Date.now();
+  const randomText = Math.random().toString(36).slice(2, 8);
+  const model = currentShareImageModel();
+  if (typeof model?.nativeShareRequestId === "function") return model.nativeShareRequestId(prefix, { nowMs, randomText });
   const safePrefix = String(prefix || "share").replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "") || "share";
-  return `${safePrefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`.slice(0, 96);
+  return `${safePrefix}-${nowMs.toString(36)}-${randomText}`.slice(0, 96);
 }
 
 function blobToBase64(blob) {
@@ -386,7 +430,8 @@ async function shareImageBlobWithNative(blob, options = {}) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 120) || "homeai-share.png";
   try {
-    const result = await window.HomeAINativeShare.share({
+    const dataBase64 = await blobToBase64(blob);
+    let request = {
       type: "homeai.nativeShare.share",
       version: 1,
       requestId: nativeShareRequestId(options.requestPrefix || "native-share"),
@@ -395,8 +440,29 @@ async function shareImageBlobWithNative(blob, options = {}) {
       text: String(options.text || "").slice(0, 240),
       filename,
       mimeType,
-      dataBase64: await blobToBase64(blob),
-    });
+      dataBase64,
+    };
+    try {
+      const model = await importShareImageModel();
+      if (typeof model?.createNativeOutboundShareRequest === "function") {
+        const planned = model.createNativeOutboundShareRequest({
+          size: blob.size,
+          mimeType,
+          dataBase64,
+          filename,
+          requestPrefix: options.requestPrefix || "native-share",
+          sourceSurface: options.sourceSurface || "message_share_image",
+          title: options.title || "Home AI",
+          text: options.text || "",
+          nowMs: Date.now(),
+          randomText: Math.random().toString(36).slice(2, 8),
+        });
+        if (planned?.ok && planned.request) request = planned.request;
+      }
+    } catch (_error) {
+      // Keep the classic native-share request path when the optional ESM model is unavailable.
+    }
+    const result = await window.HomeAINativeShare.share(request);
     return Boolean(result?.ok);
   } catch (error) {
     if (error?.name === "AbortError") throw error;

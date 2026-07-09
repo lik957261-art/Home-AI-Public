@@ -8,16 +8,64 @@
   }
 }(typeof globalThis !== "undefined" ? globalThis : this, function () {
   const DEFAULT_STATUS_ORDER = Object.freeze(["triage", "todo", "ready", "running", "blocked", "done", "archived"]);
+  const KANBAN_STORY_HELPERS_MODEL_ESM_PATH = "/vite-islands/kanban-story-helpers-model/kanban-story-helpers-model.js";
+  let kanbanStoryHelpersModel = null;
+  let kanbanStoryHelpersModelPromise = null;
 
   function noop() {}
 
+  function storyHelpersRoot() {
+    if (typeof window !== "undefined") return window;
+    if (typeof globalThis !== "undefined") return globalThis;
+    return {};
+  }
+
+  function importKanbanStoryHelpersModel() {
+    if (kanbanStoryHelpersModel) return Promise.resolve(kanbanStoryHelpersModel);
+    if (!kanbanStoryHelpersModelPromise) {
+      const root = storyHelpersRoot();
+      const importer = typeof root.__homeAiImportKanbanStoryHelpersModel === "function"
+        ? root.__homeAiImportKanbanStoryHelpersModel
+        : (() => import(KANBAN_STORY_HELPERS_MODEL_ESM_PATH));
+      kanbanStoryHelpersModelPromise = importer
+        ? Promise.resolve()
+          .then(() => importer(KANBAN_STORY_HELPERS_MODEL_ESM_PATH))
+          .then((model) => {
+            kanbanStoryHelpersModel = model || null;
+            return kanbanStoryHelpersModel;
+          })
+          .catch((error) => {
+            kanbanStoryHelpersModelPromise = null;
+            console.warn("Kanban story helpers ESM model unavailable", error);
+            return null;
+          })
+        : Promise.resolve(null);
+    }
+    return kanbanStoryHelpersModelPromise;
+  }
+
+  function currentKanbanStoryHelpersModel() {
+    return kanbanStoryHelpersModel;
+  }
+
+  if (typeof window !== "undefined") importKanbanStoryHelpersModel();
+
+  function storyHelpersModelFunction(name) {
+    const fn = currentKanbanStoryHelpersModel()?.[name];
+    return typeof fn === "function" ? fn : null;
+  }
+
   function defaultCompactDisplayText(value, max = 180) {
+    const modelFn = storyHelpersModelFunction("compactDisplayTextPlan");
+    if (modelFn) return modelFn(value, max);
     const text = String(value || "").replace(/\s+/g, " ").trim();
     if (!text || text.length <= max) return text;
     return `${text.slice(0, max - 1)}...`;
   }
 
   function defaultTodoSortTimestamp(todo) {
+    const modelFn = storyHelpersModelFunction("todoSortTimestampPlan");
+    if (modelFn) return modelFn(todo);
     const candidates = [
       todo?.kanbanCompletedAt,
       todo?.completedAt,
@@ -39,6 +87,8 @@
   }
 
   function caseTemplate(todo) {
+    const modelFn = storyHelpersModelFunction("caseTemplatePlan");
+    if (modelFn) return modelFn(todo);
     return String(todo?.kanbanCaseTemplate || todo?.kanbanStudyKind || "").trim().toLowerCase();
   }
 
@@ -79,6 +129,8 @@
   }
 
   function defaultAssessmentExamCompleted(todo) {
+    const modelFn = storyHelpersModelFunction("assessmentExamCompletedPlan");
+    if (modelFn) return modelFn(todo);
     const workflow = defaultTodoWorkflowState(todo);
     if (workflow && (workflow.kind === "assessment" || workflow.kind === "final-assessment")) return Boolean(workflow.completed);
     const summary = defaultAssessmentExamSummary(todo);
@@ -87,6 +139,8 @@
   }
 
   function defaultNormalizedKanbanStatus(todo) {
+    const modelFn = storyHelpersModelFunction("normalizedKanbanStatusPlan");
+    if (modelFn) return modelFn(todo);
     const status = String(todo?.kanbanStatus || todo?.kanban_status || "").trim().toLowerCase();
     if (defaultIsAssessmentCard(todo) && status === "done" && !defaultAssessmentExamCompleted(todo)) return "blocked";
     if (DEFAULT_STATUS_ORDER.includes(status)) return status;
@@ -386,11 +440,15 @@
   }
 
   function arrayFromKanbanField(value, limit = 8) {
+    const modelFn = storyHelpersModelFunction("arrayFromKanbanFieldPlan");
+    if (modelFn) return modelFn(value, limit);
     const raw = Array.isArray(value) ? value : value ? [value] : [];
     return raw.map((item) => String(item || "").trim()).filter(Boolean).slice(0, limit);
   }
 
   function kanbanDescriptionSection(description, heading) {
+    const modelFn = storyHelpersModelFunction("kanbanDescriptionSectionPlan");
+    if (modelFn) return modelFn(description, heading);
     const text = String(description || "");
     const marker = `${heading}:\n`;
     const start = text.indexOf(marker);
@@ -401,6 +459,8 @@
   }
 
   function kanbanDescriptionList(description, heading, limit = 8) {
+    const modelFn = storyHelpersModelFunction("kanbanDescriptionListPlan");
+    if (modelFn) return modelFn(description, heading, limit);
     return kanbanDescriptionSection(description, heading)
       .split(/\r?\n/)
       .map((line) => line.replace(/^\s*[-*]\s*/, "").trim())
@@ -409,6 +469,8 @@
   }
 
   function parsedKanbanPlanDescription(todo) {
+    const modelFn = storyHelpersModelFunction("parsedKanbanPlanDescriptionPlan");
+    if (modelFn) return modelFn(todo);
     const description = String(todo?.description || "");
     if (!description) return {};
     const summary = description.match(/(?:^|\n)Multi-Agent plan:\s*([^\n]+)/)?.[1]?.trim() || "";
@@ -423,6 +485,8 @@
   }
 
   function kanbanCardCaseInfo(todo) {
+    const modelFn = storyHelpersModelFunction("kanbanCardCaseInfoPlan");
+    if (modelFn) return modelFn(todo);
     const parsed = parsedKanbanPlanDescription(todo);
     const sourceText = String(todo?.kanbanCaseSourceText || parsed.sourceText || "").trim();
     const summary = String(todo?.kanbanCaseSummary || parsed.summary || sourceText || todo?.content || todo?.id || "").trim();
@@ -508,6 +572,8 @@
   }
 
   function kanbanStoryCaseKey(group) {
+    const modelFn = storyHelpersModelFunction("kanbanStoryCaseKeyPlan");
+    if (modelFn) return modelFn(group);
     const first = (group?.cards || [])[0]?.todo || {};
     return [
       String(group?.mode || "case"),
@@ -548,6 +614,14 @@
 
   function kanbanArchiveStatusSummary(group, options = {}) {
     const context = deps(options);
+    const modelFn = storyHelpersModelFunction("kanbanArchiveStatusSummaryPlan");
+    if (modelFn) {
+      return modelFn(group, {
+        statusOrder: context.statusOrder,
+        normalizedKanbanStatus: context.normalizedKanbanStatus,
+        kanbanStatusMeta: context.kanbanStatusMeta,
+      });
+    }
     const counts = new Map();
     for (const item of group.cards || []) {
       const status = context.normalizedKanbanStatus(item.todo);
@@ -567,6 +641,15 @@
 
   function kanbanArchiveConclusion(group, options = {}) {
     const context = deps(options);
+    const modelFn = storyHelpersModelFunction("kanbanArchiveConclusionPlan");
+    if (modelFn) {
+      return modelFn(group, {
+        compactDisplayText: context.compactDisplayText,
+        normalizedKanbanStatus: context.normalizedKanbanStatus,
+        todoSortTimestamp: context.todoSortTimestamp,
+        feedbackForTodo: (todo) => kanbanCardStoryFeedback(todo, context),
+      });
+    }
     const result = [...(group.cards || [])]
       .sort((left, right) => context.todoSortTimestamp(right.todo) - context.todoSortTimestamp(left.todo))
       .map((item) => kanbanCardStoryFeedback(item.todo, context))
@@ -640,5 +723,7 @@
     kanbanCardStoryFeedback,
     kanbanCardNeedsStoryDetail,
     kanbanCardStoryFeedbackLine,
+    importKanbanStoryHelpersModel,
+    currentKanbanStoryHelpersModel,
   });
 }));

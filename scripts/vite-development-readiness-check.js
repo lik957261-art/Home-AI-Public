@@ -9,7 +9,11 @@ const REQUIRED_PACKAGE_SCRIPTS = Object.freeze([
   "dev:vite",
   "build:vite",
   "audit:vite-globals",
+  "check:vite-cache-policy",
   "verify:vite-dev",
+  "packet:vite-dev",
+  "audit:vite-dev-goal",
+  "smoke:vite-dev-user-journeys",
   "review:vite-cutover",
   "plan:vite-cutover",
   "packet:vite-cutover",
@@ -29,6 +33,9 @@ const REQUIRED_DEV_ROUTES = Object.freeze([
   "/vite-message-action-panel-preview/",
   "/vite-plugin-host-preview/",
   "/vite-document-preview-preview/",
+  "/vite-dialog-sheet-preview/",
+  "/vite-toast-status-preview/",
+  "/vite-pwa-push-status-preview/",
 ]);
 
 const REQUIRED_CONFIG_MARKERS = Object.freeze([
@@ -50,6 +57,7 @@ const REQUIRED_SOURCE_FILES = Object.freeze([
   "src/vite-app/index.html",
   "src/vite-app/main.mjs",
   "src/vite-app/runtime/home-ai-runtime-facade.mjs",
+  "src/vite-app/runtime/runtime-state-event-bus.mjs",
   "src/vite-app/runtime/focus-lifecycle-guard.mjs",
   "src/vite-islands/owner-system-console/main.mjs",
   "src/vite-islands/ai-ops-feedback/main.mjs",
@@ -60,16 +68,26 @@ const REQUIRED_SOURCE_FILES = Object.freeze([
   "src/vite-islands/message-action-panel/main.mjs",
   "src/vite-islands/plugin-host/main.mjs",
   "src/vite-islands/plugin-host/model.mjs",
+  "src/vite-islands/dialog-sheet/main.mjs",
+  "src/vite-islands/dialog-sheet/model.mjs",
+  "src/vite-islands/toast-status/main.mjs",
+  "src/vite-islands/toast-status/model.mjs",
+  "src/vite-islands/pwa-push-status/main.mjs",
+  "src/vite-islands/pwa-push-status/model.mjs",
   "src/vite-islands/chat-runtime/main.mjs",
   "src/vite-islands/chat-runtime/composer-api-client.mjs",
   "src/vite-islands/chat-runtime/composer-controller.mjs",
   "src/vite-islands/chat-runtime/thread-readback-controller.mjs",
   "src/vite-islands/chat-runtime/live-event-source-client.mjs",
   "src/vite-islands/chat-runtime/event-stream-adapter.mjs",
+  "src/vite-islands/chat-runtime/attachment-file-input-controller.mjs",
   "src/vite-islands/chat-runtime/attachment-upload-client.mjs",
   "src/vite-islands/chat-runtime/attachment-server-file-client.mjs",
   "src/vite-islands/chat-runtime/attachment-native-share-client.mjs",
   "scripts/vite-development-acceptance-report.js",
+  "scripts/vite-development-acceptance-packet.js",
+  "scripts/vite-development-goal-audit.js",
+  "scripts/vite-preview-cache-policy-check.js",
   "scripts/vite-production-cutover-handoff-packet.js",
   "scripts/vite-owner-approval-request.js",
   "scripts/vite-goal-state-audit.js",
@@ -80,6 +98,7 @@ const REQUIRED_SOURCE_FILES = Object.freeze([
 const REQUIRED_TEST_FILES = Object.freeze([
   "tests/vite-app-preview-host.test.js",
   "tests/vite-runtime-facade.test.js",
+  "tests/vite-runtime-state-event-bus.test.js",
   "tests/vite-global-usage-audit.test.js",
   "tests/vite-owner-system-console-island.test.js",
   "tests/vite-ai-ops-feedback-island.test.js",
@@ -90,16 +109,24 @@ const REQUIRED_TEST_FILES = Object.freeze([
   "tests/vite-message-action-panel-island.test.js",
   "tests/vite-plugin-host-island.test.js",
   "tests/vite-plugin-host-model.test.js",
+  "tests/vite-dialog-sheet-island.test.js",
+  "tests/vite-toast-status-island.test.js",
+  "tests/vite-pwa-push-status-island.test.js",
   "tests/vite-chat-runtime-island.test.js",
   "tests/vite-chat-composer-api-client.test.js",
   "tests/vite-chat-composer-backend-contract.test.js",
   "tests/vite-chat-composer-controller.test.js",
   "tests/vite-chat-thread-readback-controller.test.js",
+  "tests/vite-chat-attachment-file-input-controller.test.js",
   "tests/vite-dev-backend-proxy-service.test.js",
   "tests/vite-dev-backend-proxy-integration.test.js",
   "tests/vite-dev-real-backend-parity-smoke.test.js",
   "tests/vite-dev-preview-routes-smoke.test.js",
+  "tests/vite-dev-user-journeys-smoke.test.js",
   "tests/vite-development-acceptance-report.test.js",
+  "tests/vite-development-acceptance-packet.test.js",
+  "tests/vite-development-goal-audit.test.js",
+  "tests/vite-preview-cache-policy-check.test.js",
   "tests/vite-owner-review-report.test.js",
   "tests/vite-production-cutover-preflight.test.js",
   "tests/vite-production-cutover-handoff-packet.test.js",
@@ -119,6 +146,9 @@ const REQUIRED_BUILT_ASSETS = Object.freeze([
   "public/vite-islands/navigation-shell/navigation-shell.js",
   "public/vite-islands/message-action-panel/message-action-panel.js",
   "public/vite-islands/plugin-host/plugin-host.js",
+  "public/vite-islands/dialog-sheet/dialog-sheet.js",
+  "public/vite-islands/toast-status/toast-status.js",
+  "public/vite-islands/pwa-push-status/pwa-push-status.js",
   "public/vite-islands/chat-runtime/chat-runtime.js",
   "public/vite-preview/home-ai-app.html",
   "public/vite-preview/owner-system-console.html",
@@ -128,6 +158,9 @@ const REQUIRED_BUILT_ASSETS = Object.freeze([
   "public/vite-preview/navigation-shell.html",
   "public/vite-preview/message-action-panel.html",
   "public/vite-preview/plugin-host.html",
+  "public/vite-preview/dialog-sheet.html",
+  "public/vite-preview/toast-status.html",
+  "public/vite-preview/pwa-push-status.html",
   "public/vite-preview/chat-runtime.html",
 ]);
 
@@ -140,6 +173,9 @@ const REQUIRED_MANIFEST_KEYS = Object.freeze([
   "src/vite-islands/navigation-shell/main.mjs",
   "src/vite-islands/message-action-panel/main.mjs",
   "src/vite-islands/plugin-host/main.mjs",
+  "src/vite-islands/dialog-sheet/main.mjs",
+  "src/vite-islands/toast-status/main.mjs",
+  "src/vite-islands/pwa-push-status/main.mjs",
   "src/vite-islands/chat-runtime/main.mjs",
 ]);
 
@@ -159,8 +195,13 @@ const PRODUCTION_SHELL_FORBIDDEN_PATTERNS = Object.freeze([
   { id: "vite-navigation-preview-route", pattern: /\/vite-navigation-shell-preview\// },
   { id: "vite-message-action-preview-route", pattern: /\/vite-message-action-panel-preview\// },
   { id: "vite-plugin-host-preview-route", pattern: /\/vite-plugin-host-preview\// },
+  { id: "vite-dialog-sheet-preview-route", pattern: /\/vite-dialog-sheet-preview\// },
+  { id: "vite-toast-status-preview-route", pattern: /\/vite-toast-status-preview\// },
+  { id: "vite-pwa-push-status-preview-route", pattern: /\/vite-pwa-push-status-preview\// },
   { id: "vite-chat-runtime-preview-route", pattern: /\/vite-chat-runtime-preview\// },
 ]);
+
+const RUNTIME_SHELL_MODE_CONFIG = "config/home-ai-shell-mode.json";
 
 const REQUIRED_DOC_MARKERS = Object.freeze([
   {
@@ -171,6 +212,8 @@ const REQUIRED_DOC_MARKERS = Object.freeze([
       "No production cutover is authorized by this development migration target",
       "Owner review",
       "npm run verify:vite-dev",
+      "npm run packet:vite-dev",
+      "npm run smoke:vite-dev-user-journeys",
       "npm run review:vite-cutover",
       "npm run packet:vite-cutover",
       "npm run request:vite-cutover-approval",
@@ -185,6 +228,8 @@ const REQUIRED_DOC_MARKERS = Object.freeze([
       "npm run dev:vite",
       "npm run build:vite",
       "npm run verify:vite-dev",
+      "npm run packet:vite-dev",
+      "npm run smoke:vite-dev-user-journeys",
       "npm run review:vite-cutover",
       "npm run packet:vite-cutover",
       "npm run request:vite-cutover-approval",
@@ -199,13 +244,15 @@ const REQUIRED_DOC_MARKERS = Object.freeze([
     markers: [
       "development-environment objective only",
       "npm run verify:vite-dev",
+      "npm run packet:vite-dev",
+      "npm run smoke:vite-dev-user-journeys",
       "npm run packet:vite-cutover",
       "npm run request:vite-cutover-approval",
       "npm run audit:vite-goal",
       "npm run validate:vite-cutover-source",
       "npm run validate:vite-cutover-readback",
-      "does not authorize changing",
-      "production `/` away from the classic shell",
+      "does not authorize bypassing",
+      "production Vite-only root shell",
       "scripts/vite-global-usage-audit.js",
     ],
   },
@@ -214,6 +261,8 @@ const REQUIRED_DOC_MARKERS = Object.freeze([
     markers: [
       "npm run review:vite-cutover",
       "npm run verify:vite-dev",
+      "npm run packet:vite-dev",
+      "npm run smoke:vite-dev-user-journeys",
       "npm run plan:vite-cutover",
       "npm run packet:vite-cutover",
       "npm run request:vite-cutover-approval",
@@ -405,6 +454,42 @@ function checkProductionShellExclusion(repoRoot) {
   });
 }
 
+function checkRuntimeShellModeDefault(repoRoot) {
+  let config;
+  try {
+    config = readJson(repoRoot, RUNTIME_SHELL_MODE_CONFIG);
+  } catch (error) {
+    return makeCheck("runtime_shell_mode_default", "fail", "Home AI shell-mode config could not be read", {
+      file: RUNTIME_SHELL_MODE_CONFIG,
+      error: error.message,
+    });
+  }
+  const shellMode = String(config.shellMode || "").trim().toLowerCase();
+  const cutoverVersion = String(config.cutoverVersion || "").trim();
+  if (shellMode === "vite" && /vite-production-cutover/.test(cutoverVersion)) {
+    return makeCheck("runtime_shell_mode_default", "pass", "Source shell-mode config selects the approved production Vite cutover", {
+      file: RUNTIME_SHELL_MODE_CONFIG,
+      shellMode,
+      cutoverVersion,
+      postCutover: true,
+    });
+  }
+  if (shellMode !== "vite") {
+    return makeCheck("runtime_shell_mode_default", "fail", "Home AI runtime is Vite-only; source shell-mode config must select Vite", {
+      file: RUNTIME_SHELL_MODE_CONFIG,
+      shellMode,
+      expected: "vite",
+      cutoverVersion,
+    });
+  }
+  return makeCheck("runtime_shell_mode_default", "fail", "Vite-only shell config must include the approved production cutover version", {
+    file: RUNTIME_SHELL_MODE_CONFIG,
+    shellMode,
+    expectedCutoverVersion: "vite-production-cutover",
+    cutoverVersion,
+  });
+}
+
 function checkDocs(repoRoot) {
   const missing = [];
   for (const doc of REQUIRED_DOC_MARKERS) {
@@ -447,6 +532,7 @@ function runViteDevelopmentReadinessCheck(options = {}) {
     checkRequiredFiles(repoRoot, "source_files", "Vite source", REQUIRED_SOURCE_FILES),
     checkRequiredFiles(repoRoot, "test_files", "Vite focused test", REQUIRED_TEST_FILES),
     checkProductionShellExclusion(repoRoot),
+    checkRuntimeShellModeDefault(repoRoot),
     checkDocs(repoRoot),
     checkBuiltAssets(repoRoot, requireBuiltAssets),
   ];
@@ -510,6 +596,7 @@ module.exports = {
   REQUIRED_BUILT_ASSETS,
   REQUIRED_DEV_ROUTES,
   REQUIRED_PACKAGE_SCRIPTS,
+  RUNTIME_SHELL_MODE_CONFIG,
   REQUIRED_SOURCE_FILES,
   REQUIRED_TEST_FILES,
   runViteDevelopmentReadinessCheck,

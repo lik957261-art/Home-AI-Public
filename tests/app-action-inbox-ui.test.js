@@ -12,6 +12,13 @@ const styles = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf
 const sandbox = {
   URL,
   URLSearchParams,
+  Promise,
+  window: {
+    __homeAiImportActionInboxModel() {
+      return Promise.resolve(null);
+    },
+    location: { origin: "http://localhost", pathname: "/" },
+  },
   state: {
     actionInboxStatusFilter: "open",
     selectedActionInboxItemId: "",

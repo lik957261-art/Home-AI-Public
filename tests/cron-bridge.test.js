@@ -93,6 +93,35 @@ function main() {
   assert.ok(triggeredJob.next_run_at);
   assert.ok(new Date(triggeredJob.next_run_at).getTime() <= Date.now());
 
+  triggeredDoc.jobs.push({
+    id: "paused_job",
+    name: "Paused job",
+    enabled: false,
+    state: "paused",
+    owner_principal_id: "owner",
+    paused_at: "2026-07-09T00:00:00.000Z",
+    paused_reason: "owner_pause",
+    next_run_at: "2026-07-09T01:00:00.000Z",
+    schedule: { kind: "cron", expr: "0 9 * * *", display: "0 9 * * *" },
+    repeat: { times: null, completed: 0 },
+  });
+  fs.writeFileSync(jobsPath, JSON.stringify(triggeredDoc, null, 2));
+  const pausedRun = runBridge(baseEnv, { action: "run", job_id: "paused_job", owner_principal_id: "owner" });
+  assert.equal(pausedRun.ok, true);
+  assert.equal(pausedRun.source.action, "run");
+  assert.equal(pausedRun.source.runMode, "next_tick");
+  assert.equal(pausedRun.source.scheduleResumed, false);
+  assert.equal(pausedRun.job.enabled, false);
+  assert.equal(pausedRun.job.state, "paused");
+  const pausedDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  const pausedJob = pausedDoc.jobs.find((job) => job.id === "paused_job");
+  assert.equal(pausedJob.enabled, false);
+  assert.equal(pausedJob.state, "paused");
+  assert.equal(pausedJob.paused_at, "2026-07-09T00:00:00.000Z");
+  assert.equal(pausedJob.paused_reason, "owner_pause");
+  assert.equal(pausedJob.next_run_at, null);
+  assert.ok(pausedJob.manual_run_requested_at);
+
   const deniedRun = runBridge(baseEnv, { action: "run", job_id: "job_1", owner_principal_id: "other" }, 2);
   assert.equal(deniedRun.ok, false);
 

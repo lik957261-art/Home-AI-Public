@@ -101,6 +101,8 @@ function auditRuntimeScripts(appRoot, hermesHome) {
   const scripts = [
     "homeai-disaster-backup-cron.sh",
     "homeai-self-improving-loop-cron.sh",
+    "plugin-daily-progress-rollup-cron.sh",
+    "codex-mobile-pr-automation-cron.sh",
   ];
   for (const name of scripts) {
     const source = path.join(appRoot, "scripts", name);

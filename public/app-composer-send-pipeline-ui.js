@@ -1,19 +1,198 @@
 "use strict";
 
 const COMPOSER_SEND_TIMEOUT_MS = 30000;
+const CHAT_COMPOSER_SEND_PIPELINE_MODEL_ESM_PATH = "/vite-islands/chat-composer-send-pipeline-model/chat-composer-send-pipeline-model.js";
+let chatComposerSendPipelineModel = null;
+let chatComposerSendPipelineModelPromise = null;
+
+function importChatComposerSendPipelineModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (chatComposerSendPipelineModel) return Promise.resolve(chatComposerSendPipelineModel);
+  if (!chatComposerSendPipelineModelPromise) {
+    const importer = typeof rootRef.__homeAiImportComposerSendPipelineModel === "function"
+      ? rootRef.__homeAiImportComposerSendPipelineModel
+      : (path) => import(path);
+    chatComposerSendPipelineModelPromise = Promise.resolve()
+      .then(() => importer(CHAT_COMPOSER_SEND_PIPELINE_MODEL_ESM_PATH))
+      .then((model) => {
+        chatComposerSendPipelineModel = model || null;
+        return chatComposerSendPipelineModel;
+      })
+      .catch((error) => {
+        chatComposerSendPipelineModelPromise = null;
+        throw error;
+      });
+  }
+  return chatComposerSendPipelineModelPromise;
+}
+
+function currentChatComposerSendPipelineModel() {
+  return chatComposerSendPipelineModel;
+}
+
+importChatComposerSendPipelineModel().catch(() => null);
 
 function currentClientNotificationChannel() {
   try {
     const root = typeof document !== "undefined" ? document.documentElement : null;
     const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search || "") : null;
-    const nativeShell = params?.get("nativeShell") === "ios"
-      || root?.dataset?.nativeShell === "ios"
-      || root?.classList?.contains("native-shell-ios")
-      || (typeof localStorage !== "undefined" && localStorage.getItem("homeAI.nativeShell") === "ios");
-    return nativeShell ? "native_ios_apns" : "web_push";
+    const input = {
+      nativeShellQuery: params?.get("nativeShell") || "",
+      documentNativeShell: root?.dataset?.nativeShell || "",
+      documentNativeShellClass: root?.classList?.contains("native-shell-ios") === true,
+      storageNativeShell: typeof localStorage !== "undefined" ? localStorage.getItem("homeAI.nativeShell") : "",
+    };
+    const model = currentChatComposerSendPipelineModel();
+    if (typeof model?.composerClientNotificationChannel === "function") {
+      return model.composerClientNotificationChannel(input);
+    }
+    return input.nativeShellQuery === "ios"
+      || input.documentNativeShell === "ios"
+      || input.documentNativeShellClass
+      || input.storageNativeShell === "ios"
+      ? "native_ios_apns"
+      : "web_push";
   } catch (_) {
     return "web_push";
   }
+}
+
+function classicComposerSendRequestPlan(input = {}) {
+  const model = currentChatComposerSendPipelineModel();
+  if (typeof model?.createClassicComposerSendRequestPlan === "function") {
+    return model.createClassicComposerSendRequestPlan(input);
+  }
+  const body = {
+    text: input.text,
+    artifacts: input.pendingArtifacts,
+    workspaceId: input.workspaceId,
+    notificationChannel: input.notificationChannel,
+  };
+  if (input.searchSourceFields) Object.assign(body, input.searchSourceFields);
+  const ownerModelElevationRequired = Boolean(input.ownerModelElevationRequired ?? input.aiMention?.ownerElevationRequired ?? input.chatGptProRequested);
+  const ownerModelOnceApproved = Boolean(input.ownerModelOnceApproved || input.chatGptProOnceApproved) && ownerModelElevationRequired;
+  if (input.ownerElevationActive || input.ownerElevationOnceTag || ownerModelOnceApproved) {
+    body.maintenanceMode = true;
+    body.maintenance_mode = true;
+    body.elevationScope = input.chatGptProRequested ? "chatgpt_pro_generate" : "owner_high_privilege";
+    if (input.ownerElevationOnceTag || ownerModelOnceApproved) {
+      body.ownerElevationOnceToken = input.ownerElevationOnceToken;
+    }
+  }
+  if (input.chatGptProRequested) {
+    body.chatGptProGenerate = true;
+    body.chatgpt_pro_generate = true;
+    body.requiredTool = "chatgpt_pro_generate";
+  }
+  if (input.viewMode === "single") {
+    body.singleWindowMode = input.singleWindowMode === "chat" ? "chat" : "task";
+    if (input.singleWindowMode === "chat") {
+      body.taskGroupId = input.groupChatView
+        ? input.singleWindowGroupChatTaskGroupId
+        : input.singleWindowChatTaskGroupId;
+      body.messageLimit = input.chatMessageInitialLimit;
+    } else if (input.currentTaskGroupId) {
+      body.taskGroupId = input.currentTaskGroupId;
+      body.messageLimit = input.taskDetailMessageInitialLimit;
+    }
+    if (input.groupChatView) body.messageKind = input.aiMention?.mentionsAi ? "ai" : "plain";
+  }
+  if (input.viewMode === "tasks" && input.currentTaskGroupId) {
+    body.taskGroupId = input.currentTaskGroupId;
+    if (input.pluginTopicDirectory?.projectId) body.directory = input.pluginTopicDirectory;
+    if (input.pluginTopicInstruction) body.instructions = [body.instructions || "", input.pluginTopicInstruction].filter(Boolean).join("\n\n");
+    if (input.sharedTopicGroup) {
+      body.singleWindowMode = "chat";
+      body.messageKind = input.aiMention?.mentionsAi ? "ai" : "plain";
+      body.messageLimit = input.taskDetailMessageInitialLimit;
+    }
+  }
+  if (input.reasoningEffort) body.reasoning_effort = input.reasoningEffort;
+  if (input.model) body.model = input.model;
+  if (input.provider) body.provider = input.provider;
+  if (input.environmentContext) body.environmentContext = input.environmentContext;
+  if (input.quotedReply) {
+    body.taskGroupId = input.quotedReply.taskGroupId;
+    body.replyToMessageId = input.quotedReply.messageId;
+  }
+  const createsNewTask = input.viewMode === "tasks" && !body.taskGroupId;
+  const consumedPendingDirectory = input.directoryTopicDraftSend && Boolean(input.pendingTaskDirectory?.projectId);
+  if (createsNewTask && input.pendingTaskDirectory?.projectId) body.directory = input.pendingTaskDirectory;
+  return {
+    body,
+    createsNewTask,
+    consumedPendingDirectory,
+    serializedBody: JSON.stringify(body),
+  };
+}
+
+function classicElevatedComposerSendBodyPlan(input = {}) {
+  const model = currentChatComposerSendPipelineModel();
+  if (typeof model?.createElevatedRetryBody === "function") return model.createElevatedRetryBody(input);
+  const requestBody = input.requestBody || {};
+  const elevatedBody = Object.assign({}, requestBody, {
+    maintenanceMode: true,
+    maintenance_mode: true,
+    elevationScope: input.elevationScope || "shared_skill_write",
+  });
+  if (requestBody.chatGptProGenerate || requestBody.chatgpt_pro_generate) {
+    elevatedBody.elevationScope = "chatgpt_pro_generate";
+  }
+  if (input.ownerElevationOnceToken) elevatedBody.ownerElevationOnceToken = input.ownerElevationOnceToken;
+  return {
+    body: elevatedBody,
+    serializedBody: JSON.stringify(elevatedBody),
+  };
+}
+
+function composerSendPipelinePlanInput(input = {}) {
+  const taskDetailLimit = typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30;
+  const groupChatView = isGroupChatView();
+  let sharedTopicGroup = null;
+  let pluginTopicDirectory = null;
+  let pluginTopicInstructionValue = "";
+  if (state.viewMode === "tasks" && state.currentTaskGroupId) {
+    sharedTopicGroup = typeof selectedSharedTopicGroup === "function" ? selectedSharedTopicGroup() : null;
+    const pluginTopicDef = typeof pluginTopicDefForGroupId === "function"
+      ? pluginTopicDefForGroupId(state.currentTaskGroupId)
+      : null;
+    if (pluginTopicDef) {
+      pluginTopicDirectory = typeof pluginTopicDeliveryAttachment === "function" ? pluginTopicDeliveryAttachment(pluginTopicDef) : null;
+      pluginTopicInstructionValue = typeof pluginTopicInstruction === "function" ? pluginTopicInstruction(pluginTopicDef) : "";
+    }
+  }
+  return {
+    text: input.text,
+    pendingArtifacts: state.pendingArtifacts,
+    workspaceId: state.selectedWorkspaceId,
+    notificationChannel: input.notificationChannel || currentClientNotificationChannel(),
+    searchSourceFields: input.searchSourceFields,
+    aiMention: input.aiMention,
+    chatGptProRequested: input.chatGptProRequested,
+    ownerModelElevationRequired: input.ownerModelElevationRequired,
+    ownerModelOnceApproved: input.ownerModelOnceApproved,
+    ownerElevationActive: ownerElevationActive(),
+    ownerElevationOnceTag: Boolean(input.ownerElevationOnceTag),
+    chatGptProOnceApproved: Boolean(input.chatGptProOnceApproved),
+    ownerElevationOnceToken: state.ownerElevationOnceToken,
+    viewMode: state.viewMode,
+    singleWindowMode: state.singleWindowMode,
+    currentTaskGroupId: state.currentTaskGroupId,
+    groupChatView,
+    singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+    singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+    chatMessageInitialLimit: CHAT_MESSAGE_INITIAL_LIMIT,
+    taskDetailMessageInitialLimit: taskDetailLimit,
+    pluginTopicDirectory,
+    pluginTopicInstruction: pluginTopicInstructionValue,
+    sharedTopicGroup,
+    reasoningEffort: input.reasoningEffort,
+    model: input.model,
+    provider: input.provider,
+    environmentContext: input.environmentContext,
+    quotedReply: input.quotedReply,
+    directoryTopicDraftSend: input.directoryTopicDraftSend,
+    pendingTaskDirectory: state.pendingTaskDirectory,
+  };
 }
 
 async function sendMessage(event) {
@@ -72,8 +251,10 @@ async function sendMessage(event) {
   const aiMention = composerAiMentionInfo(text);
   const searchSourceFields = composerSearchSourceBodyFields(text);
   const chatGptProRequested = Boolean(aiMention.chatGptPro);
-  if (chatGptProRequested && !ownerElevationComposerAvailable() && !ownerElevationActive()) {
-    showError(new Error("ChatGPT Pro requires Owner high-privilege approval."));
+  const ownerModelElevationRequired = Boolean(aiMention.ownerElevationRequired);
+  const ownerModelApprovalLabel = aiMention.moa ? "Hermes Agent MoA" : (chatGptProRequested ? "ChatGPT Pro" : "This model");
+  if (ownerModelElevationRequired && !ownerElevationComposerAvailable() && !ownerElevationActive()) {
+    showError(new Error(`${ownerModelApprovalLabel} requires Owner high-privilege approval.`));
     return;
   }
   if (isDraftThread(state.currentThread)) await materializeCurrentThread();
@@ -88,14 +269,19 @@ async function sendMessage(event) {
     ownerElevationOnceRequested = true;
   }
   let chatGptProOnceApproved = false;
-  if (chatGptProRequested && !ownerElevationActive() && !ownerElevationOnceTag) {
+  let ownerModelOnceApproved = false;
+  if (ownerModelElevationRequired && !ownerElevationActive() && !ownerElevationOnceTag) {
     clearOwnerElevationOnce();
+    const approvalMessage = aiMention.moa
+      ? "Approve Hermes Agent MoA routing for this message only? This sends the run to the Owner maintenance Gateway while preserving provider=moa and model=default for Hermes Agent."
+      : "Approve ChatGPT Pro tool routing for this message only? This sends the run to the Owner maintenance Gateway and exposes only the ChatGPT Pro tool for the approved request.";
     const ok = await activateOwnerElevationOnce({
-      message: "Approve ChatGPT Pro tool routing for this message only? This sends the run to the Owner maintenance Gateway and exposes only the ChatGPT Pro tool for the approved request.",
+      message: approvalMessage,
     });
     if (!ok) return;
     ownerElevationOnceRequested = true;
-    chatGptProOnceApproved = true;
+    ownerModelOnceApproved = true;
+    chatGptProOnceApproved = chatGptProRequested;
   }
   if (state.composerSendInFlight) return;
   state.composerSendInFlight = true;
@@ -110,79 +296,37 @@ async function sendMessage(event) {
   try {
     sendThreadId = state.currentThreadId || state.currentThread?.id || "";
     sendRouteSnapshot = typeof currentThreadRouteSnapshot === "function" ? currentThreadRouteSnapshot() : null;
-    const body = {
-      text,
-      artifacts: state.pendingArtifacts,
-      workspaceId: state.selectedWorkspaceId,
-      notificationChannel: currentClientNotificationChannel(),
-    };
-    if (searchSourceFields) Object.assign(body, searchSourceFields);
-    if (ownerElevationActive() || ownerElevationOnceTag || chatGptProOnceApproved) {
-      body.maintenanceMode = true;
-      body.maintenance_mode = true;
-      body.elevationScope = chatGptProRequested ? "chatgpt_pro_generate" : "owner_high_privilege";
-      if (ownerElevationOnceTag || chatGptProOnceApproved) {
-        body.ownerElevationOnceToken = state.ownerElevationOnceToken;
-      }
-    }
-    if (chatGptProRequested) {
-      body.chatGptProGenerate = true;
-      body.chatgpt_pro_generate = true;
-      body.requiredTool = "chatgpt_pro_generate";
-    }
-    if (state.viewMode === "single") {
-      body.singleWindowMode = state.singleWindowMode === "chat" ? "chat" : "task";
-      if (state.singleWindowMode === "chat") {
-        body.taskGroupId = isGroupChatView()
-          ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID
-          : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
-        body.messageLimit = CHAT_MESSAGE_INITIAL_LIMIT;
-      } else if (state.currentTaskGroupId) {
-        body.taskGroupId = state.currentTaskGroupId;
-        body.messageLimit = typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30;
-      }
-      if (isGroupChatView()) body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
-    }
-    if (state.viewMode === "tasks" && state.currentTaskGroupId) {
-      body.taskGroupId = state.currentTaskGroupId;
-      const pluginTopicDef = typeof pluginTopicDefForGroupId === "function"
-        ? pluginTopicDefForGroupId(state.currentTaskGroupId)
-        : null;
-      if (pluginTopicDef) {
-        const directory = typeof pluginTopicDeliveryAttachment === "function" ? pluginTopicDeliveryAttachment(pluginTopicDef) : null;
-        if (directory?.projectId) body.directory = directory;
-        const instruction = typeof pluginTopicInstruction === "function" ? pluginTopicInstruction(pluginTopicDef) : "";
-        if (instruction) body.instructions = [body.instructions || "", instruction].filter(Boolean).join("\n\n");
-      }
-      const sharedTopicGroup = selectedSharedTopicGroup();
-      if (sharedTopicGroup) {
-        body.singleWindowMode = "chat";
-        body.messageKind = aiMention.mentionsAi ? "ai" : "plain";
-        body.messageLimit = typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30;
-      }
-    }
     const reasoningEffort = selectedComposerReasoningEffort(text);
-    if (reasoningEffort) body.reasoning_effort = reasoningEffort;
-    const model = selectedComposerModel(text);
-    if (model) body.model = model;
+    const selectedModel = selectedComposerModel(text);
     const provider = selectedComposerProvider(text);
-    if (provider) body.provider = provider;
+    const basePlanInput = composerSendPipelinePlanInput({
+      text,
+      aiMention,
+      searchSourceFields,
+      chatGptProRequested,
+      ownerModelElevationRequired,
+      ownerModelOnceApproved,
+      ownerElevationOnceTag,
+      chatGptProOnceApproved,
+      reasoningEffort,
+      model: selectedModel,
+      provider,
+      directoryTopicDraftSend,
+    });
+    let requestPlan = classicComposerSendRequestPlan(basePlanInput);
+    let body = Object.assign({}, requestPlan.body);
     await refreshNativeEnvironmentSnapshotForSend();
     const environmentContext = await requestNativeEnvironmentContextForSend(body, text);
-    if (environmentContext) body.environmentContext = environmentContext;
     const quotedReply = activeQuotedReplyForSend();
-    if (quotedReply) {
-      body.taskGroupId = quotedReply.taskGroupId;
-      body.replyToMessageId = quotedReply.messageId;
-    }
-    createsNewTask = state.viewMode === "tasks" && !body.taskGroupId;
-    consumedPendingDirectory = directoryTopicDraftSend && Boolean(state.pendingTaskDirectory?.projectId);
-    if (createsNewTask) {
-      const directory = directoryTopicDraftSend ? state.pendingTaskDirectory : null;
-      if (directory?.projectId) body.directory = directory;
-    }
+    requestPlan = classicComposerSendRequestPlan(Object.assign({}, basePlanInput, {
+      environmentContext,
+      quotedReply,
+    }));
+    body = Object.assign({}, requestPlan.body);
+    createsNewTask = requestPlan.createsNewTask;
+    consumedPendingDirectory = requestPlan.consumedPendingDirectory;
     requestBody = body;
-    const serializedBody = JSON.stringify(body);
+    const serializedBody = requestPlan.serializedBody || JSON.stringify(body);
     const sizeError = composerRequestSizeError(text, serializedBody);
     if (sizeError) {
       showError(new Error(sizeError));
@@ -229,16 +373,13 @@ async function sendMessage(event) {
             onceToken = state.ownerElevationOnceToken;
             ownerElevationOnceRequested = true;
           }
-          const elevatedBody = Object.assign({}, requestBody, {
-            maintenanceMode: true,
-            maintenance_mode: true,
+          const elevatedBodyPlan = classicElevatedComposerSendBodyPlan({
+            requestBody,
             elevationScope: err.elevationScope || err.code || "shared_skill_write",
+            ownerElevationOnceToken: onceToken,
           });
-          if (requestBody.chatGptProGenerate || requestBody.chatgpt_pro_generate) {
-            elevatedBody.elevationScope = "chatgpt_pro_generate";
-          }
-          if (onceToken) elevatedBody.ownerElevationOnceToken = onceToken;
-          const serializedElevatedBody = JSON.stringify(elevatedBody);
+          const elevatedBody = Object.assign({}, elevatedBodyPlan.body);
+          const serializedElevatedBody = elevatedBodyPlan.serializedBody || JSON.stringify(elevatedBody);
           const elevatedSizeError = composerRequestSizeError(elevatedBody.text || "", serializedElevatedBody);
           if (elevatedSizeError) throw new Error(elevatedSizeError);
           const result = await api(`/api/threads/${encodeURIComponent(sendThreadId)}/messages`, {

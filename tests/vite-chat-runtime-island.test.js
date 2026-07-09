@@ -60,6 +60,7 @@ async function test(name, fn) {
     assert.match(source, /composer-controller\.mjs/);
     assert.match(source, /thread-readback-controller\.mjs/);
     assert.match(source, /attachment-model\.mjs/);
+    assert.match(source, /attachment-file-input-controller\.mjs/);
     assert.match(source, /attachment-upload-client\.mjs/);
     assert.match(source, /attachment-server-file-client\.mjs/);
     assert.match(source, /attachment-native-share-client\.mjs/);
@@ -80,6 +81,8 @@ async function test(name, fn) {
     assert.match(source, /data-cr-attachment-add-upload/);
     assert.match(source, /data-cr-attachment-upload-selected/);
     assert.match(source, /data-cr-attachment-file-input/);
+    assert.match(source, /selectedFileInputMetadata/);
+    assert.match(source, /createAttachmentFileInputController/);
     assert.match(source, /createEditableFocusLifecycleGuard/);
     assert.match(source, /blurPreviewFocusedEditable/);
     assert.match(source, /chat-runtime-preview:focus-guard/);
@@ -118,6 +121,11 @@ async function test(name, fn) {
       "run npm run build:vite before this test",
     );
     const output = read("public/vite-islands/chat-runtime/chat-runtime.js");
+    assert.ok(
+      exists("public/vite-islands/chat-live-event-source-client/chat-live-event-source-client.js"),
+      "run npm run build:vite before this test",
+    );
+    const liveClientOutput = read("public/vite-islands/chat-live-event-source-client/chat-live-event-source-client.js");
     assert.match(output, /Chat Runtime 事件模型/);
     assert.match(output, /message\.delta/);
     assert.match(output, /thread\.updated/);
@@ -135,13 +143,15 @@ async function test(name, fn) {
     assert.match(output, /附件 ESM/);
     assert.match(output, /模拟系统文件/);
     assert.match(output, /上传选择文件/);
+    assert.match(output, /已选择/);
+    assert.match(output, /chat-attachment-file-input-controller/);
     assert.match(output, /开发文件/);
     assert.match(output, /模拟服务器文件/);
     assert.match(output, /收到系统分享/);
     assert.match(output, /系统分享桥/);
     assert.match(output, /Focus guard/);
     assert.match(output, /清理焦点/);
-    assert.match(output, /event_source_reconnecting/);
+    assert.match(liveClientOutput, /event_source_reconnecting/);
     assert.match(output, /刷新请求/);
     assert.match(output, /HomeAIViteChatRuntimePreview/);
   });

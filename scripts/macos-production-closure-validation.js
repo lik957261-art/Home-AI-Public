@@ -421,6 +421,7 @@ function compactAcl(acl) {
     checkedCount: rows.length,
     failedCount: rows.filter((row) => row.status === "failed").length,
     denyCheckCount: rows.filter((row) => row.expectedDenied).length,
+    targetWorkspaceCount: Number(acl.targetWorkspaceCount || 0),
   };
 }
 
@@ -681,6 +682,11 @@ async function runClosure(options) {
     "--root", options.root,
     "--json",
   ]));
+  const workspaceTargetAcl = compactAcl(await runNodeJson("workspace-target-acl", options, "macos-worker-filesystem-access-harness.js", [
+    "--root", options.root,
+    "--workspace-catalog-targets",
+    "--json",
+  ]));
 
   const pluginDirectory = options.skipPluginDirectory ? null : compactPluginDirectory(await runNodeJson("plugin-directory", options, "macos-plugin-directory-production-smoke.js", [
     "--root", options.root,
@@ -771,6 +777,8 @@ async function runClosure(options) {
     && runtimePython.ok
     && acl.ok
     && acl.failedCount === 0
+    && workspaceTargetAcl.ok
+    && workspaceTargetAcl.failedCount === 0
     && (!pluginDirectory || (pluginDirectory.ok && pluginDirectory.rows.every((row) => row.ok || row.skipped)))
     && (!boundDirectory || (boundDirectory.path.ok && boundDirectory.uiRoute.ok))
     && (!wardrobeBinding || (wardrobeBinding.ok && wardrobeBinding.bindings.every((row) => row.ok) && wardrobeBinding.workspaces.every((row) => row.ok)))
@@ -797,12 +805,14 @@ async function runClosure(options) {
       automationCron: options.skipAutomationCron ? "skipped" : "included",
       deepseek: options.skipDeepseek ? "skipped" : (providerAuthPending ? "skipped_provider_auth_pending" : "included"),
       ownerConcurrency: options.skipConcurrency ? "skipped" : (providerAuthPending ? "skipped_provider_auth_pending" : "included"),
+      workspaceTargetAcl: "included",
     },
     oauthAuthProcess: "absent",
     status,
     profileAudit,
     runtimePython,
     acl,
+    workspaceTargetAcl,
     pluginDirectory,
     boundDirectory,
     wardrobeBinding,

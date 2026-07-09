@@ -1,6 +1,42 @@
 "use strict";
 
+const THREAD_DIRECTORY_MODEL_ESM_PATH = "/vite-islands/thread-directory-model/thread-directory-model.js";
+let threadDirectoryModel = null;
+let threadDirectoryModelPromise = null;
+
+function importThreadDirectoryModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (threadDirectoryModel) return Promise.resolve(threadDirectoryModel);
+  if (!threadDirectoryModelPromise) {
+    const importer = typeof rootRef.__homeAiImportThreadDirectoryModel === "function"
+      ? rootRef.__homeAiImportThreadDirectoryModel
+      : (path) => import(path);
+    threadDirectoryModelPromise = Promise.resolve()
+      .then(() => importer(THREAD_DIRECTORY_MODEL_ESM_PATH))
+      .then((model) => {
+        threadDirectoryModel = model || null;
+        return threadDirectoryModel;
+      })
+      .catch((error) => {
+        threadDirectoryModelPromise = null;
+        throw error;
+      });
+  }
+  return threadDirectoryModelPromise;
+}
+
+function currentThreadDirectoryModel() {
+  return threadDirectoryModel;
+}
+
+if (typeof window !== "undefined") {
+  importThreadDirectoryModel().catch(() => null);
+}
+
 function messageDirectoryAliases(message) {
+  const model = currentThreadDirectoryModel();
+  if (typeof model?.messageDirectoryAliasesPlan === "function") {
+    return model.messageDirectoryAliasesPlan(message).aliases || [];
+  }
   const aliases = [];
   if (Array.isArray(message?.directoryAliases)) aliases.push(...message.directoryAliases);
   if (message?.directoryRoute) aliases.push(message.directoryRoute);
@@ -26,14 +62,34 @@ function extractedTaskDirectoryAliases(group) {
 function messageExtractedDirectoryAliases(message) {
   const aliases = [];
   const extracted = extractDirectoryAliases(message?.content || "");
+  const mediaAliases = extractMediaDirectoryAliases(message?.content || "", message?.id || "");
+  const model = currentThreadDirectoryModel();
+  if (typeof model?.messageExtractedDirectoryAliasesPlan === "function") {
+    return model.messageExtractedDirectoryAliasesPlan({
+      messageId: message?.id || "",
+      extractedAliases: extracted.aliases || [],
+      mediaAliases,
+    }).aliases || [];
+  }
   for (const alias of extracted.aliases || []) {
     aliases.push(Object.assign({ messageId: message?.id || "", source: "extracted" }, alias));
   }
-  aliases.push(...extractMediaDirectoryAliases(message?.content || "", message?.id || ""));
+  aliases.push(...mediaAliases);
   return aliases;
 }
 
 function explicitTaskDirectoryAliases(group) {
+  const model = currentThreadDirectoryModel();
+  if (typeof model?.explicitTaskDirectoryAliasesPlan === "function") {
+    const messageAliases = [];
+    for (const message of group?.messages || []) {
+      messageAliases.push(...messageDirectoryAliases(message).map((alias) => Object.assign({ messageId: message.id }, alias)));
+    }
+    return model.explicitTaskDirectoryAliasesPlan({
+      groupDirectoryRoute: group?.directoryRoute || null,
+      messageAliases,
+    }).aliases || [];
+  }
   const aliases = [];
   if (group?.directoryRoute) aliases.push(Object.assign({ source: "bound" }, group.directoryRoute));
   for (const message of group?.messages || []) {
@@ -43,6 +99,10 @@ function explicitTaskDirectoryAliases(group) {
 }
 
 function uniqueAliases(aliases) {
+  const model = currentThreadDirectoryModel();
+  if (typeof model?.uniqueAliasesPlan === "function") {
+    return model.uniqueAliasesPlan(aliases).aliases || [];
+  }
   const unique = new Map();
   for (const alias of aliases || []) {
     const key = `${alias.label || ""}|${alias.path || ""}|${alias.source || ""}|${alias.referenceKind || ""}`;
@@ -70,6 +130,10 @@ function aliasFromDirectoryItem(item, extra = {}) {
 }
 
 function isDeliveryDirectoryAlias(alias, route = null) {
+  const model = currentThreadDirectoryModel();
+  if (typeof model?.isDeliveryDirectoryAliasPlan === "function") {
+    return Boolean(model.isDeliveryDirectoryAliasPlan({ alias, route }).delivery);
+  }
   const label = directoryAliasKey(alias?.label || "");
   const pathValue = comparableDirectoryPath(alias?.path || route?.root || "");
   const projectId = String(route?.projectId || alias?.projectId || "");
@@ -94,6 +158,16 @@ function isTaskBindingDirectoryItem(item) {
 }
 
 function usableTaskBindingAliases(aliases) {
+  const model = currentThreadDirectoryModel();
+  if (typeof model?.usableTaskBindingAliasesPlan === "function") {
+    return model.usableTaskBindingAliasesPlan({
+      aliases: (aliases || []).map((alias) => Object.assign({}, alias, {
+        delivery: isDeliveryDirectoryAlias(alias),
+        genericDefault: isGenericDefaultDirectoryAlias(alias),
+        operational: isOperationalTaskDirectoryAlias(alias),
+      })),
+    }).aliases || [];
+  }
   return (aliases || []).filter((alias) => (
     alias
     && !alias.referenceKind
@@ -176,6 +250,10 @@ function taskDirectoryRoutes(group) {
 }
 
 function taskDirectoryRouteMatchesFilter(route, filter = state.taskDirectoryFilter) {
+  const model = currentThreadDirectoryModel();
+  if (typeof model?.taskDirectoryRouteMatchesFilterPlan === "function") {
+    return Boolean(model.taskDirectoryRouteMatchesFilterPlan({ route, filter }).matches);
+  }
   if (!filter || !route) return true;
   if (String(route.projectId || "") !== String(filter.projectId || "")) return false;
   if (!filter.subprojectId) return true;
@@ -190,19 +268,31 @@ function taskMatchesDirectoryFilter(group) {
 function taskDirectoryFilterLabel(filter = state.taskDirectoryFilter) {
   if (!filter) return "";
   if (filter.label) return filter.label;
+  const model = currentThreadDirectoryModel();
   const project = state.projects.find((item) => item.id === filter.projectId);
   const subproject = (project?.children || []).find((item) => item.id === filter.subprojectId);
   if (project && subproject) {
-    return directoryRouteDisplayPath(
+    const displayPath = directoryRouteDisplayPath(
       { projectId: project.id, subprojectId: subproject.id, label: projectDisplayLabel(project), root: subproject.root || project.root },
       `${projectDisplayLabel(project)} / ${subproject.label || subproject.id}`
     );
+    if (typeof model?.taskDirectoryFilterLabelPlan === "function") {
+      return model.taskDirectoryFilterLabelPlan({ filter, displayPath }).label;
+    }
+    return displayPath;
   }
   if (project) {
-    return directoryRouteDisplayPath(
+    const displayPath = directoryRouteDisplayPath(
       { projectId: project.id, subprojectId: "", label: projectDisplayLabel(project), root: project.root },
       projectDisplayLabel(project)
     );
+    if (typeof model?.taskDirectoryFilterLabelPlan === "function") {
+      return model.taskDirectoryFilterLabelPlan({ filter, displayPath }).label;
+    }
+    return displayPath;
+  }
+  if (typeof model?.taskDirectoryFilterLabelPlan === "function") {
+    return model.taskDirectoryFilterLabelPlan({ filter }).label;
   }
   return filter.projectId || "";
 }
@@ -210,35 +300,50 @@ function taskDirectoryFilterLabel(filter = state.taskDirectoryFilter) {
 function setTaskDirectoryFilter(projectId, subprojectId = "", label = "") {
   if (!projectId) return;
   const attachment = directoryAttachmentFromRoute(projectId, subprojectId || "", "", label || "");
-  state.taskDirectoryFilter = { projectId, subprojectId: subprojectId || "", label: label || "", directory: attachment };
+  const model = currentThreadDirectoryModel();
+  const plan = typeof model?.setTaskDirectoryFilterPlan === "function"
+    ? model.setTaskDirectoryFilterPlan({ projectId, subprojectId, label, directory: attachment })
+    : null;
+  if (plan && !plan.ok) return;
+  state.taskDirectoryFilter = plan?.patch?.taskDirectoryFilter || { projectId, subprojectId: subprojectId || "", label: label || "", directory: attachment };
   state.pendingTaskDirectory = null;
   state.pendingTaskReasoningEffort = "";
   state.pendingTaskReasoningExplicit = false;
-  state.viewMode = "tasks";
-  localStorage.setItem("hermesWebViewMode", state.viewMode);
-  state.currentTaskGroupId = "";
-  closeTopMoreMenu();
-  if (isMobileLayout()) closeSidebar();
+  state.viewMode = plan?.patch?.viewMode || "tasks";
+  localStorage.setItem(plan?.storage?.key || "hermesWebViewMode", plan?.storage?.value || state.viewMode);
+  state.currentTaskGroupId = plan?.patch?.currentTaskGroupId || "";
+  if (plan?.closeTopMoreMenu ?? true) closeTopMoreMenu();
+  if ((plan?.closeSidebarWhenMobile ?? true) && isMobileLayout()) closeSidebar();
   renderThreads();
-  renderCurrentThread({ stickToBottom: true });
+  renderCurrentThread(plan?.renderCurrentThreadOptions || { stickToBottom: true });
 }
 
 function clearTaskDirectoryFilter(options = {}) {
+  const model = currentThreadDirectoryModel();
+  const plan = typeof model?.clearTaskDirectoryFilterPlan === "function"
+    ? model.clearTaskDirectoryFilterPlan(options)
+    : null;
   state.taskDirectoryFilter = null;
   state.pendingTaskDirectory = null;
   state.pendingTaskReasoningEffort = "";
   state.pendingTaskReasoningExplicit = false;
-  closeTopMoreMenu();
-  if (options.render !== false) {
+  if (plan?.closeTopMoreMenu ?? true) closeTopMoreMenu();
+  if (plan?.render ?? (options.render !== false)) {
     renderThreads();
-    renderCurrentThread({ stickToBottom: true });
+    renderCurrentThread(plan?.renderCurrentThreadOptions || { stickToBottom: true });
   }
 }
 
 function renderTaskDirectoryFilterBanner() {
-  if (!state.taskDirectoryFilter) return "";
+  const model = currentThreadDirectoryModel();
+  const plan = typeof model?.taskDirectoryFilterBannerViewPlan === "function"
+    ? model.taskDirectoryFilterBannerViewPlan({ active: Boolean(state.taskDirectoryFilter), label: taskDirectoryFilterLabel() })
+    : null;
+  if (plan && !plan.visible) return "";
+  if (!plan && !state.taskDirectoryFilter) return "";
+  const label = plan?.label || taskDirectoryFilterLabel();
   return `<div class="task-filter-banner">
-    <span class="task-filter-label">资料目录：${escapeHtml(taskDirectoryFilterLabel())}</span>
+    <span class="task-filter-label">资料目录：${escapeHtml(label)}</span>
     <span class="task-filter-actions">
       <button type="button" data-clear-task-directory-filter>清除</button>
     </span>
@@ -265,6 +370,10 @@ function wireTaskDirectoryFilterControls(root) {
 }
 
 function taskDirectoryContext(group) {
+  const model = currentThreadDirectoryModel();
+  if (typeof model?.taskDirectoryContextPlan === "function") {
+    return model.taskDirectoryContextPlan(group).context;
+  }
   return {
     taskGroupId: group?.id || "",
     content: (group?.messages || []).map((message) => message.content || "").join("\n"),
@@ -274,24 +383,32 @@ function taskDirectoryContext(group) {
 function renderTaskDirectoryBadges(group, options = {}) {
   const context = taskDirectoryContext(group);
   const rendered = renderDirectoryAliases(taskDirectoryAliases(group), context);
-  if (!rendered && options.empty) {
+  const model = currentThreadDirectoryModel();
+  const plan = typeof model?.taskDirectoryBadgesViewPlan === "function"
+    ? model.taskDirectoryBadgesViewPlan({ rendered, empty: options.empty, compact: options.compact })
+    : null;
+  if ((plan?.empty ?? (!rendered && options.empty))) {
     return `<div class="task-card-directories task-card-directories-empty"><span>未绑定目录</span></div>`;
   }
-  if (!rendered) return "";
-  return `<div class="task-card-directories${options.compact ? " compact" : ""}">${rendered}</div>`;
+  if (!(plan?.visible ?? Boolean(rendered))) return "";
+  return `<div class="task-card-directories${(plan?.compact ?? options.compact) ? " compact" : ""}">${plan?.rendered || rendered}</div>`;
 }
 
 function renderTaskDetailToolbar(group) {
   const toolbar = $("taskDetailToolbar");
   if (!toolbar) return;
-  const sharedTopic = Boolean(group?.sharedTopic);
   const context = Object.assign({ toolbar: true }, taskDirectoryContext(group));
   const aliasButtons = renderDirectoryAliases(taskDirectoryAliases(group), context);
+  const model = currentThreadDirectoryModel();
+  const plan = typeof model?.taskDetailToolbarViewPlan === "function"
+    ? model.taskDetailToolbarViewPlan({ group, aliasButtons })
+    : null;
+  const sharedTopic = plan?.sharedTopic ?? Boolean(group?.sharedTopic);
   toolbar.innerHTML = `
     <div class="task-toolbar-meta">
-      <div class="task-toolbar-directories">${aliasButtons || ""}</div>
+      <div class="task-toolbar-directories">${plan?.aliasButtons || aliasButtons || ""}</div>
     </div>
-    ${sharedTopic ? "" : `<div class="task-more-wrap">
+    ${sharedTopic || plan?.showMoreMenu === false ? "" : `<div class="task-more-wrap">
       <button class="task-more-button" type="button" data-task-more aria-label="Topic menu" aria-expanded="false">...</button>
       <div class="task-more-menu" hidden>
         <button class="task-more-delete" type="button" data-rename-current-task>改名</button>

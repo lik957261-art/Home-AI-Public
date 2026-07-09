@@ -12,15 +12,19 @@ thread after the development evidence has been reviewed.
 
 ## Current State
 
-- Development-only Vite migration readiness has passed local gates.
-- The production business shell remains the classic `public/index.html`
-  ordered static script chain.
-- `public/vite-preview/` and `public/vite-islands/` are preview artifacts only
-  until a separate cutover change explicitly wires a production route or shell
-  switch.
+- Development-only Vite migration readiness passed local gates before the
+  2026-07-04 cutover.
+- Production now selects the transitional Vite bootstrap when the explicit shell
+  mode is `vite`. The classic ordered static script chain still owns the
+  business shell behind that bootstrap.
+- `public/vite-preview/` remains preview-only. The production bootstrap asset
+  under `public/vite-islands/home-ai-production-bootstrap/` is production
+  referenced, but other island/preview artifacts are not production shell
+  replacements until a separate source-change contract wires them.
 - The maintained readiness command is:
 
 ```sh
+npm run check:vite-cache-policy
 npm run check:vite-readiness
 ```
 
@@ -30,47 +34,51 @@ That command reports:
 - `ownerApprovalRequired=true`
 - `productionDeployAuthorized=false`
 
-## 2026-07-03 Source Cutover Change
+After the cutover, this development readiness command is expected to reject a
+source default of `vite`. Use `npm run check:vite-production` for steady-state
+post-cutover checks.
 
-Owner approval for creating and deploying a production Vite cutover source
-change was given in the active implementation thread. The implemented cutover
-is deliberately transitional: it does not replace the full Home AI business UI
-with the development preview host. Instead, the Home AI listener serves the
-existing classic shell and, when the selected shell mode is `vite`, injects the
-Vite-built production bootstrap module:
+The cache-policy command is also source-only. It must report
+`productionCutoverCacheReady=false` during the development target and may list
+`vite_entry_assets_not_content_fingerprinted` as an open cutover residual. That
+residual blocks automatic production cache-readiness claims, but it does not
+fail development preview validation.
+
+## 2026-07-03 Source Cutover Boundary
+
+The Vite cutover source boundary is deliberately transitional: it does not
+replace the full Home AI business UI with the development preview host.
+The Home AI listener serves the ordered business shell document and always
+injects the Vite-built production bootstrap module:
 
 ```text
 public/vite-islands/home-ai-production-bootstrap/home-ai-production-bootstrap.js
 ```
 
-The bootstrap preserves the classic runtime, attaches bounded Vite production
-readback state under `window.HomeAiViteProduction`, installs the Vite focus
-lifecycle guard, and marks the selected shell mode with bounded HTML metadata.
-This is a production bootstrap and readback cutover, not completion of the
-full ESM replacement of chat, Composer, Plugin Host, document preview, and
-task-topic navigation.
+The bootstrap preserves existing business-runtime compatibility code, attaches
+bounded Vite production readback state under `window.HomeAiViteProduction`,
+installs the Vite focus lifecycle guard, and marks the selected shell mode with
+bounded HTML metadata. This is a production bootstrap and readback cutover, not
+completion of the full ESM replacement of chat, Composer, Plugin Host,
+document preview, and task-topic navigation.
 
-The shell mode is selected in this order:
+The runtime shell is Vite-only. Request overrides, runtime environment values,
+or local config values that ask for `classic` are ignored and must still return
+`X-HomeAI-Shell-Mode=vite` plus
+`X-HomeAI-Shell-Mode-Policy=vite-only`.
 
-1. Request override: `homeAiShellMode=vite|classic` or
-   `shellMode=vite|classic`, used only for bounded readback/rollback checks.
-2. Runtime environment:
-   `HOMEAI_FRONTEND_SHELL_MODE` or `HERMES_WEB_FRONTEND_SHELL_MODE`.
-3. Local config file: `config/home-ai-shell-mode.json`.
-4. Fail-closed default: `classic` when no explicit mode can be read.
-
-Current source config selects `vite` for production cutover:
+Current source config has been switched to `vite` only after the separate
+Owner cutover instruction:
 
 ```json
 {
   "shellMode": "vite",
-  "cutoverVersion": "20260703-vite-production-cutover-v1"
+  "cutoverVersion": "20260706-vite-production-cutover-v1120"
 }
 ```
 
-Rollback does not require a source revert: set the config or environment mode
-back to `classic`, restart Home AI, and verify the shell response headers and
-HTML no longer include the production bootstrap module.
+Rollback is not a runtime shell switch. Emergency recovery uses Git/source
+history and deployment backups, followed by the normal deploy/readback path.
 
 The bounded source-change contract is:
 
@@ -102,6 +110,35 @@ tests. It clears the cutover approval environment for the run and records
 Owner approval text required for the next boundary. That field is a request
 package only; it still records no production writes, no deployment, and no
 deploy-lane card.
+
+The maintained development-goal audit command is:
+
+```sh
+npm run audit:vite-dev-goal
+```
+
+It is a source-only completion audit for the development target. It must report
+that the migrated development surfaces, remaining production boundary, Audit
+Packet / Delta Matrix, validation command coverage, privacy boundary, and
+future cutover sequence are present. It is not production approval and cannot
+replace source-change validation, deploy-lane execution, or production
+readback.
+
+The development route set includes `/vite-dialog-sheet-preview/` for the
+Dialog Sheet ESM island. That route is source-only evidence for prompt,
+confirm, and message-sheet state modeling; it is not production dialog cutover
+evidence by itself.
+
+The development route set also includes `/vite-toast-status-preview/` for the
+Toast / Status ESM island. That route is source-only evidence for feedback
+toast/status state modeling and runtime-facade event projection; it is not
+production PWA feedback cutover evidence by itself.
+
+The development route set also includes `/vite-pwa-push-status-preview/` for
+the PWA / Web Push Status ESM island. That route is source-only evidence for
+capability normalization and top-bar push-button state modeling; it is not
+production Service Worker, notification-permission, subscription, or device
+delivery cutover evidence by itself.
 
 The maintained source-only production cutover preflight is:
 
@@ -148,6 +185,23 @@ connect to production or perform deployment; it checks that the returned JSON
 contains every required readback id, each row is passed/verified with bounded
 evidence, and privacy confirmation is present.
 
+The maintained post-cutover production status check is:
+
+```sh
+npm run check:vite-production -- --base http://127.0.0.1:8797 \
+  --readback-json <deploy-readback.json> --require-ok
+```
+
+This command is the steady-state operational check after production has already
+selected Vite. It is read-only. It verifies source config, built production
+bootstrap, Vite manifest, live root shell mode, Classic override rejection,
+public config reachability, Owner Console unauthenticated denial, and optional
+readback-packet validity. It must not deploy, restart, mutate production data,
+read Owner keys, or replace the bounded deploy-lane readback required for shell
+changes. It exists so later audits do not reuse `check:vite-readiness`, which
+remains the development-target gate and now also enforces the source Vite-only
+cutover config.
+
 The maintained source-only final goal-state audit is:
 
 ```sh
@@ -166,16 +220,13 @@ The maintained source-only cutover source-change validator is:
 npm run validate:vite-cutover-source -- --contract-json <cutover-source-change-contract.json>
 ```
 
-Default current-repo mode must remain blocked with
-`cutover_source_change_not_created` until exact Owner approval exists and a
-separate cutover source change is created. With a bounded contract JSON, the
-validator requires the future source change to prove fail-closed classic
-default behavior, an explicit shell-mode switch, rollback switch, Service
-Worker/cache version plan, Vite manifest/readback evidence, exclusion of dev
-preview mocks from production, Owner Console permission preservation,
-non-Owner denial, deploy-lane routing, required validation commands, and
-privacy confirmation. It does not mutate files, deploy, or connect to
-production.
+With a bounded contract JSON, the validator requires source changes to prove a
+Vite-only runtime default, Classic switch removal/ignore behavior,
+source/deploy rollback planning, Service Worker/cache version plan, Vite
+manifest/readback evidence, exclusion of dev preview mocks from production,
+Owner Console permission preservation, non-Owner denial, deploy-lane routing,
+required validation commands, and privacy confirmation. It does not mutate
+files, deploy, or connect to production.
 
 The maintained source-only handoff packet command is:
 
@@ -233,8 +284,12 @@ requesting or acting on Owner approval:
 
 ```sh
 npm run build:vite
+npm run check:vite-cache-policy
 npm run audit:vite-globals -- --json
 npm run verify:vite-dev
+npm run packet:vite-dev
+npm run audit:vite-dev-goal
+npm run smoke:vite-dev-user-journeys
 npm run check:vite-readiness
 node tests/vite-owner-review-report.test.js
 npm run review:vite-cutover
@@ -250,6 +305,9 @@ node tests/vite-cutover-source-change-validator.test.js
 npm run validate:vite-cutover-source
 node tests/vite-production-readback-validator.test.js
 node tests/vite-development-readiness-check.test.js
+node tests/vite-preview-cache-policy-check.test.js
+node tests/vite-development-acceptance-packet.test.js
+node tests/vite-dev-user-journeys-smoke.test.js
 node tests/vite-dev-preview-routes-smoke.test.js
 node tests/vite-plugin-host-model.test.js
 node tests/vite-plugin-host-island.test.js
@@ -269,11 +327,16 @@ deployment, or production Service Worker cutover closure.
 A production cutover implementation must be a separate change after Owner
 approval. It must include:
 
-- a single explicit routing/config switch for classic shell versus Vite shell;
-- a fail-closed default that keeps classic shell active unless the switch is
-  enabled;
+- Vite-only runtime shell behavior at `/`, `/index.html`, and
+  `/hermes-mobile/`;
+- ignored Classic request, environment, and config switches that cannot select
+  a Classic shell;
 - static cache and Service Worker version behavior for the selected shell;
-- a rollback path that can restore the classic shell without a source revert;
+- content-fingerprinted Vite production entry assets or an equivalent bounded
+  cache-busting policy that closes the current
+  `vite_entry_assets_not_content_fingerprinted` residual;
+- a source/deploy rollback path using Git/source history and deployment
+  backups, not a runtime Classic switch;
 - Owner-only System Console access preserved exactly;
 - non-Owner permission denial preserved exactly;
 - iOS native shell focus, document preview, voice input, upload, and safe-area
@@ -324,8 +387,8 @@ The deploy return must include bounded evidence for:
 - Markdown preview, PPTX/document preview, voice pending-cancel, chat send,
   SSE readback, task/topic navigation, and Wardrobe 入库 action all pass
   bounded smoke/readback;
-- rollback switch or rollback deploy returns the classic shell when exercised
-  in a bounded validation plan.
+- source/deploy rollback planning is recorded as bounded metadata for main
+  thread/deploy-lane review.
 
 The maintained source-only checklist ids are:
 
@@ -340,7 +403,7 @@ The maintained source-only checklist ids are:
 - `voice_pending_cancel`
 - `chat_sse_task_topic`
 - `wardrobe_usage_action`
-- `rollback_switch`
+- `source_deploy_rollback_plan`
 
 Do not include secrets, access keys, cookies, launch tokens, private message
 bodies, private plugin records, database rows, screenshots with private data,

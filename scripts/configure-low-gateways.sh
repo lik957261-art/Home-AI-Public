@@ -1841,7 +1841,8 @@ ${mcp_server_lines%$'\n'}"
     --value "email_workspace=$profile_email_workspace" \
     --value "email_mcp_api_base_url=$email_mcp_api_base_url" \
     --value "outlook_graph_enabled=${outlook_toolset_block:+1}" \
-    --value "outlook_graph_mcp_path=$outlook_graph_mcp_path"; then
+    --value "outlook_graph_mcp_path=$outlook_graph_mcp_path" \
+    --value "moa_config_json=${HERMES_MOBILE_MOA_CONFIG_JSON:-}"; then
   cat > "$profile_link/config.yaml" <<YAML
 model:
   default: ${profile_default_model}

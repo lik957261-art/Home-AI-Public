@@ -23,7 +23,7 @@ const DEFAULT_CONTENT_SECURITY_POLICY = [
 
 const DEFAULT_SHELL_MODE_CONFIG_FILE = "home-ai-shell-mode.json";
 const DEFAULT_VITE_PRODUCTION_BOOTSTRAP = "/vite-islands/home-ai-production-bootstrap/home-ai-production-bootstrap.js";
-const VITE_PRODUCTION_CUTOVER_VERSION = "20260703-vite-production-cutover-v1";
+const VITE_PRODUCTION_CUTOVER_VERSION = "20260706-vite-production-cutover-v1120";
 
 function envFlag(value) {
   return /^(1|true|yes|on)$/i.test(String(value || "").trim());
@@ -31,15 +31,22 @@ function envFlag(value) {
 
 function normalizeShellMode(value) {
   const normalized = String(value || "").trim().toLowerCase();
-  return normalized === "vite" ? "vite" : "classic";
+  return normalized === "vite" ? "vite" : "";
+}
+
+function normalizeShellModeToken(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "vite") return "vite";
+  if (normalized === "classic") return "unsupported";
+  return "";
 }
 
 function parseShellModeConfig(text) {
   try {
     const parsed = JSON.parse(String(text || "{}"));
-    return normalizeShellMode(parsed.shellMode || parsed.mode || parsed.selectedShellMode);
+    return normalizeShellModeToken(parsed.shellMode || parsed.mode || parsed.selectedShellMode);
   } catch (_) {
-    return "classic";
+    return "";
   }
 }
 
@@ -188,12 +195,12 @@ function createMobileHttpRuntimeService(options = {}) {
 
   function explicitShellMode() {
     const value = typeof options.shellMode === "function" ? options.shellMode() : options.shellMode;
-    if (value) return normalizeShellMode(value);
+    if (value) return normalizeShellModeToken(value);
     if (typeof options.envShellMode === "function") {
       const envValue = options.envShellMode();
-      if (envValue) return normalizeShellMode(envValue);
+      if (envValue) return normalizeShellModeToken(envValue);
     } else if (options.envShellMode) {
-      return normalizeShellMode(options.envShellMode);
+      return normalizeShellModeToken(options.envShellMode);
     }
     return "";
   }
@@ -207,21 +214,25 @@ function createMobileHttpRuntimeService(options = {}) {
         continue;
       }
     }
-    return "classic";
+    return "";
   }
 
   function requestShellModeOverride(url) {
     const requested = url.searchParams.get("homeAiShellMode") || url.searchParams.get("shellMode");
-    if (requested === "vite" || requested === "classic") return requested;
-    return "";
+    return normalizeShellModeToken(requested);
   }
 
   function shellModeForRequest(url) {
     const requestMode = requestShellModeOverride(url);
-    if (requestMode) return { mode: requestMode, source: "request" };
+    if (requestMode === "vite") return { mode: "vite", source: "request" };
+    if (requestMode === "unsupported") return { mode: "vite", source: "request_ignored" };
     const explicit = explicitShellMode();
-    if (explicit) return { mode: explicit, source: "runtime" };
-    return { mode: configShellMode(), source: "config" };
+    if (explicit === "vite") return { mode: "vite", source: "runtime" };
+    if (explicit === "unsupported") return { mode: "vite", source: "runtime_ignored" };
+    const configured = configShellMode();
+    if (configured === "vite") return { mode: "vite", source: "config" };
+    if (configured === "unsupported") return { mode: "vite", source: "config_ignored" };
+    return { mode: "vite", source: "vite-only" };
   }
 
   function isAppShellPathname(pathname) {
@@ -340,20 +351,13 @@ function createMobileHttpRuntimeService(options = {}) {
       }
       if (isAppShellPathname(pathname)) {
         const shellSelection = shellModeForRequest(url);
-        const selectedMode = normalizeShellMode(shellSelection.mode);
-        if (selectedMode === "vite") {
-          const transformed = Buffer.from(injectViteProductionBootstrap(data.toString("utf8"), shellSelection));
-          sendStaticData(req, res, url, target, transformed, null, {
-            "X-HomeAI-Shell-Mode": "vite",
-            "X-HomeAI-Shell-Mode-Source": shellSelection.source || "config",
-            "X-HomeAI-Vite-Cutover": VITE_PRODUCTION_CUTOVER_VERSION,
-            "X-HomeAI-Vite-Bootstrap": viteProductionBootstrapPath,
-          });
-          return;
-        }
-        sendStaticData(req, res, url, target, data, stat, {
-          "X-HomeAI-Shell-Mode": "classic",
-          "X-HomeAI-Shell-Mode-Source": shellSelection.source || "config",
+        const transformed = Buffer.from(injectViteProductionBootstrap(data.toString("utf8"), shellSelection));
+        sendStaticData(req, res, url, target, transformed, null, {
+          "X-HomeAI-Shell-Mode": "vite",
+          "X-HomeAI-Shell-Mode-Policy": "vite-only",
+          "X-HomeAI-Shell-Mode-Source": shellSelection.source || "vite-only",
+          "X-HomeAI-Vite-Cutover": VITE_PRODUCTION_CUTOVER_VERSION,
+          "X-HomeAI-Vite-Bootstrap": viteProductionBootstrapPath,
         });
         return;
       }

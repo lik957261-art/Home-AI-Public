@@ -20,6 +20,26 @@ function numberArg(name, fallback) {
   return Math.floor(value);
 }
 
+function safeWorkspaceId(value = "") {
+  const candidate = String(value || "").trim().toLowerCase();
+  return /^[a-z0-9][a-z0-9_-]{0,79}$/.test(candidate) ? candidate : "";
+}
+
+function safeMacUser(value = "") {
+  const candidate = String(value || "").trim().toLowerCase();
+  return /^hm-[a-z0-9][a-z0-9-]{0,62}$/.test(candidate) ? candidate : "";
+}
+
+function macUserForWorkspaceId(workspaceId = "") {
+  const suffix = String(workspaceId || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return suffix ? `hm-${suffix}` : "";
+}
+
 function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`;
 }
@@ -223,12 +243,105 @@ function defaultDenyChecks(root) {
   ];
 }
 
+function targetWorkspaceChecks(root, workspaceId, macUser) {
+  const safeWorkspace = safeWorkspaceId(workspaceId);
+  const safeUser = safeMacUser(macUser);
+  if (!safeWorkspace || !safeUser) return [];
+  const dataDir = path.join(root, "data");
+  const drive = path.join(dataDir, "drive");
+  const uploads = path.join(dataDir, "uploads");
+  return [
+    {
+      user: safeUser,
+      label: `${safeWorkspace}-drive`,
+      paths: [path.join(drive, "users", safeWorkspace), uploads],
+      required: true,
+    },
+  ];
+}
+
+function targetWorkspaceDenyChecks(root, workspaceId, macUser) {
+  const safeWorkspace = safeWorkspaceId(workspaceId);
+  const safeUser = safeMacUser(macUser);
+  if (!safeWorkspace || !safeUser) return [];
+  const skillProfiles = path.join(root, "data", "skill-profiles");
+  return [
+    {
+      user: safeUser,
+      label: `${safeWorkspace}-deny-owner-skill-store`,
+      paths: [path.join(skillProfiles, "owner-full", "skills"), path.join(skillProfiles, "owner-full", "memories")],
+    },
+  ];
+}
+
+function readJsonFile(filePath, defaultValue = {}) {
+  try {
+    if (!fs.existsSync(filePath)) return defaultValue;
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch (_err) {
+    return defaultValue;
+  }
+}
+
+function macUserFromWorkspaceRecord(record = {}) {
+  const explicit = safeMacUser(
+    record.macUser
+      || record.mac_user
+      || record.workerMacUser
+      || record.worker_mac_user
+      || record.system?.macUser
+      || record.system?.mac_user
+      || record.provisioning?.macUser
+      || record.provisioning?.mac_user,
+  );
+  if (explicit) return explicit;
+  const workerHome = String(record.workerHome || record.worker_home || record.paths?.workerHome || "").trim();
+  const match = workerHome.match(/\/Users\/(hm-[a-z0-9-]+)(?:\/|$)/i);
+  if (match) return safeMacUser(match[1]);
+  return macUserForWorkspaceId(record.id || record.workspaceId || record.workspace_id);
+}
+
+function catalogWorkspaceTargets(root) {
+  const catalog = readJsonFile(path.join(root, "data", "workspaces.json"), { workspaces: [] });
+  const records = Array.isArray(catalog.workspaces) ? catalog.workspaces : [];
+  const targets = [];
+  const seen = new Set();
+  for (const record of records) {
+    const workspaceId = safeWorkspaceId(record?.id || record?.workspaceId || record?.workspace_id);
+    if (!workspaceId || workspaceId === "owner") continue;
+    const macUser = safeMacUser(macUserFromWorkspaceRecord(record));
+    if (!macUser) continue;
+    const key = `${workspaceId}:${macUser}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    targets.push({ workspaceId, macUser });
+  }
+  return targets.sort((a, b) => `${a.workspaceId}:${a.macUser}`.localeCompare(`${b.workspaceId}:${b.macUser}`));
+}
+
+function catalogWorkspaceChecks(root, targets = catalogWorkspaceTargets(root)) {
+  return targets.flatMap((target) => targetWorkspaceChecks(root, target.workspaceId, target.macUser));
+}
+
+function catalogWorkspaceDenyChecks(root, targets = catalogWorkspaceTargets(root)) {
+  return targets.flatMap((target) => targetWorkspaceDenyChecks(root, target.workspaceId, target.macUser));
+}
+
+function missingWorkerUserStatus(check = {}, options = {}) {
+  return check.required && !options.workspaceCatalogTargets ? "failed" : "skipped";
+}
+
 function main() {
   const root = path.resolve(argValue("--root", process.env.HERMES_MOBILE_ROOT || "/Users/example/path"));
   const json = hasArg("--json");
   const writeSmoke = !hasArg("--no-write-smoke");
+  const targetOnly = hasArg("--target-only");
+  const workspaceCatalogTargets = hasArg("--workspace-catalog-targets");
+  const targetWorkspaceId = safeWorkspaceId(argValue("--workspace-id", ""));
+  const targetMacUser = safeMacUser(argValue("--mac-user", ""));
   const driveWriteScanLimit = numberArg("--drive-write-scan-limit", 200);
   const results = [];
+  const catalogTargets = workspaceCatalogTargets ? catalogWorkspaceTargets(root) : [];
   let failed = false;
 
   if (process.platform !== "darwin") {
@@ -241,11 +354,28 @@ function main() {
     process.exit(2);
   }
 
-  for (const check of defaultChecks(root)) {
+  if (targetOnly && (!targetWorkspaceId || !targetMacUser)) {
+    console.error("target-only macos_worker_filesystem_access_harness requires --workspace-id and --mac-user.");
+    process.exit(2);
+  }
+
+  const positiveChecks = workspaceCatalogTargets
+    ? catalogWorkspaceChecks(root, catalogTargets)
+    : targetOnly
+    ? targetWorkspaceChecks(root, targetWorkspaceId, targetMacUser)
+    : defaultChecks(root);
+  const denyChecks = workspaceCatalogTargets
+    ? catalogWorkspaceDenyChecks(root, catalogTargets)
+    : targetOnly
+    ? targetWorkspaceDenyChecks(root, targetWorkspaceId, targetMacUser)
+    : defaultDenyChecks(root);
+
+  for (const check of positiveChecks) {
     const exists = userExists(check.user);
     if (!exists) {
-      results.push({ user: check.user, label: check.label, status: check.required ? "failed" : "skipped", reason: "worker_user_missing" });
-      if (check.required) failed = true;
+      const status = missingWorkerUserStatus(check, { workspaceCatalogTargets });
+      results.push({ user: check.user, label: check.label, status, reason: "worker_user_missing" });
+      if (check.required && !workspaceCatalogTargets) failed = true;
       continue;
     }
     for (const targetPath of check.paths) {
@@ -279,7 +409,7 @@ function main() {
     }
   }
 
-  for (const check of defaultDenyChecks(root)) {
+  for (const check of denyChecks) {
     const exists = userExists(check.user);
     if (!exists) {
       results.push({ user: check.user, label: check.label, status: "skipped", reason: "worker_user_missing" });
@@ -313,22 +443,34 @@ function main() {
     }
   }
 
-  const driveWriteScan = scanDriveDirectoriesMissingOwnerWrite(root, { limit: driveWriteScanLimit });
-  if (driveWriteScan.status === "failed") failed = true;
-  results.push({
-    user: "hermes-host",
-    label: "drive-directory-owner-write",
-    path: driveWriteScan.path,
-    status: driveWriteScan.status,
-    reason: driveWriteScan.reason || "",
-    scanned: driveWriteScan.scanned,
-    findingCount: driveWriteScan.findings.length,
-    truncated: driveWriteScan.truncated,
-    findings: driveWriteScan.findings,
-  });
+  if (!workspaceCatalogTargets) {
+    const driveWriteScan = scanDriveDirectoriesMissingOwnerWrite(root, { limit: driveWriteScanLimit });
+    if (driveWriteScan.status === "failed") failed = true;
+    results.push({
+      user: "hermes-host",
+      label: "drive-directory-owner-write",
+      path: driveWriteScan.path,
+      status: driveWriteScan.status,
+      reason: driveWriteScan.reason || "",
+      scanned: driveWriteScan.scanned,
+      findingCount: driveWriteScan.findings.length,
+      truncated: driveWriteScan.truncated,
+      findings: driveWriteScan.findings,
+    });
+  }
 
   if (json) {
-    console.log(JSON.stringify({ ok: !failed, root: compactPath(root, root), results }, null, 2));
+    console.log(JSON.stringify({
+      ok: !failed,
+      root: compactPath(root, root),
+      targetOnly,
+      workspaceCatalogTargets,
+      targetWorkspaceCount: catalogTargets.length,
+      targetWorkspaces: catalogTargets,
+      targetWorkspaceId,
+      targetMacUser,
+      results,
+    }, null, 2));
   } else {
     console.log(`macos_worker_filesystem_access_harness ok=${!failed}`);
     for (const item of results) {
@@ -356,7 +498,17 @@ if (require.main === module) {
 
 module.exports = {
   compactPath,
+  catalogWorkspaceChecks,
+  catalogWorkspaceDenyChecks,
+  catalogWorkspaceTargets,
   defaultChecks,
   defaultDenyChecks,
+  macUserForWorkspaceId,
+  macUserFromWorkspaceRecord,
+  missingWorkerUserStatus,
+  safeMacUser,
+  safeWorkspaceId,
   scanDriveDirectoriesMissingOwnerWrite,
+  targetWorkspaceChecks,
+  targetWorkspaceDenyChecks,
 };

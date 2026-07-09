@@ -172,7 +172,7 @@ function buildViteOwnerApprovalRequest(options = {}) {
       ]
       : [
         "Fix the blocked reasons before requesting Owner approval.",
-        "Keep production on the classic shell.",
+        "Keep current production deployment state unchanged.",
         "Do not create a production cutover source change or deploy-lane card.",
       ],
   };

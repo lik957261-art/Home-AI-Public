@@ -11,6 +11,7 @@ const source = fs.readFileSync(path.join(repoRoot, "public", "app-composer-draft
 function createElement(tagName, attrs = {}) {
   const element = {
     tagName: tagName.toUpperCase(),
+    id: attrs.id || "",
     nodeType: 1,
     hidden: Boolean(attrs.hidden),
     disabled: Boolean(attrs.disabled),
@@ -24,6 +25,7 @@ function createElement(tagName, attrs = {}) {
     attrs: Object.assign({}, attrs.attrs || {}),
     matches(selector) {
       const tag = this.tagName.toLowerCase();
+      if (selector.includes("#sendMessage") && this.id === "sendMessage") return true;
       if (selector.includes("textarea") && tag === "textarea") return true;
       if (selector.includes("input") && tag === "input") return true;
       if (selector.includes("select") && tag === "select") return true;
@@ -33,7 +35,12 @@ function createElement(tagName, attrs = {}) {
       return false;
     },
     closest(selector) {
-      return this.matches(selector) ? this : null;
+      let element = this;
+      while (element) {
+        if (element.matches?.(selector)) return element;
+        element = element.parentElement;
+      }
+      return null;
     },
     contains(target) {
       if (target === this) return true;
@@ -67,14 +74,23 @@ function createElement(tagName, attrs = {}) {
 
 function createHarness(options = {}) {
   const listeners = {};
+  let nowMs = Number.isFinite(options.nowMs) ? options.nowMs : 1000;
+  function MockDate(...args) {
+    return args.length ? new Date(...args) : new Date(nowMs);
+  }
+  MockDate.now = () => nowMs;
+  MockDate.parse = Date.parse;
+  MockDate.UTC = Date.UTC;
   const body = createElement("body");
   const documentElement = createElement("html", {
     dataset: options.nativeShellDataset ? { nativeShell: "ios" } : {},
   });
   const composer = createElement("div");
   const input = createElement("textarea", { parentElement: composer });
-  composer.children.push(input);
+  const composerChrome = createElement("div", { parentElement: composer });
+  composer.children.push(input, composerChrome);
   const nonEditable = createElement("button");
+  const sendButton = createElement("button", { id: "sendMessage" });
   const appRoot = createElement("div", {
     dataset: options.nativeShellDataset ? { nativeShell: "ios" } : {},
   });
@@ -88,10 +104,10 @@ function createHarness(options = {}) {
       listeners[type].push(handler);
     },
   };
-  for (const element of [body, documentElement, composer, input, nonEditable, appRoot]) element.ownerDocument = document;
+  for (const element of [body, documentElement, composer, input, composerChrome, nonEditable, sendButton, appRoot]) element.ownerDocument = document;
   const context = {
     console,
-    Date,
+    Date: MockDate,
     URLSearchParams,
     state: {
       composerFocused: false,
@@ -101,6 +117,7 @@ function createHarness(options = {}) {
     document,
     window: {
       __homeAiStaleEditableFocusGuardInstalled: false,
+      __homeAiComposerFocusGuardEvents: [],
       location: { search: options.nativeShellQuery ? "?nativeShell=ios" : "" },
       localStorage: {
         getItem(key) {
@@ -121,6 +138,8 @@ function createHarness(options = {}) {
     clearTodoAutoRefresh() {},
     persistAppRouteSnapshot() {},
     refreshPendingCurrentThreadOnForeground() {},
+    refreshKeyboardViewportDuringFocus() { context.refreshedKeyboardDuringFocus = (context.refreshedKeyboardDuringFocus || 0) + 1; },
+    refreshComposerContextSoon() { context.refreshedComposerContext = (context.refreshedComposerContext || 0) + 1; },
     scheduleTodoAutoRefresh() {},
     loadActionInbox() { return Promise.resolve(); },
     showError(error) { throw error; },
@@ -133,7 +152,19 @@ function createHarness(options = {}) {
   };
   vm.createContext(context);
   vm.runInContext(source, context, { filename: "app-composer-draft-ui.js" });
-  return { context, document, listeners, composer, input, nonEditable };
+  return {
+    context,
+    document,
+    listeners,
+    composer,
+    input,
+    composerChrome,
+    nonEditable,
+    sendButton,
+    advance(ms) {
+      nowMs += ms;
+    },
+  };
 }
 
 function testBlursFocusedComposerWhenComposerIsHidden() {
@@ -176,6 +207,121 @@ function testNativeShellPointerGuardBlursVisibleComposerOnNonEditableTouch() {
   assert.equal(input.blurCount, 1);
   assert.equal(context.state.composerFocused, false);
   assert.equal(context.clearedKeyboard, 1);
+}
+
+function testNativeShellPointerGuardPreservesComposerInternalLongPressTarget() {
+  const { context, document, listeners, composer, input, composerChrome } = createHarness({ nativeShellQuery: true });
+  composer.hidden = false;
+  input.disabled = false;
+  document.activeElement = input;
+  context.state.composerFocused = true;
+
+  for (const handler of listeners.pointerdown || []) handler({ target: composerChrome });
+
+  assert.equal(input.blurCount, 0);
+  assert.equal(context.state.composerFocused, true);
+  assert.equal(context.clearedKeyboard || 0, 0);
+}
+
+function testNativeShellPasteMenuContinuationPreservesComposerFocusBriefly() {
+  const { context, document, listeners, composer, input, advance } = createHarness({ nativeShellQuery: true });
+  composer.hidden = false;
+  input.disabled = false;
+  document.activeElement = input;
+  context.state.composerFocused = true;
+
+  for (const handler of listeners.touchstart || []) handler({ target: input });
+  assert.equal(input.blurCount, 0);
+  assert.equal(context.state.composerFocused, true);
+
+  advance(700);
+  for (const handler of listeners.pointerdown || []) handler({ target: document.body });
+
+  assert.equal(input.blurCount, 0);
+  assert.equal(context.state.composerFocused, true);
+  assert.equal(context.clearedKeyboard || 0, 0);
+
+  advance(1900);
+  for (const handler of listeners.pointerdown || []) handler({ target: document.body });
+
+  assert.equal(input.blurCount, 1);
+  assert.equal(context.state.composerFocused, false);
+  assert.equal(context.clearedKeyboard, 1);
+}
+
+function testNativeShellFocusedTextareaSecondLongPressBlurRefocusesComposer() {
+  const { context, document, listeners, composer, input } = createHarness({ nativeShellQuery: true });
+  composer.hidden = false;
+  input.disabled = false;
+  document.activeElement = input;
+  context.state.composerFocused = true;
+
+  for (const handler of listeners.touchstart || []) handler({ target: input });
+  assert.equal(input.blurCount, 0);
+
+  document.activeElement = document.body;
+  context.state.composerFocused = false;
+  for (const handler of listeners.blur || []) handler({ target: input });
+
+  assert.equal(input.focusCount, 1);
+  assert.equal(document.activeElement, input);
+  assert.equal(context.state.composerFocused, true);
+  assert.equal(context.refreshedKeyboardDuringFocus, 1);
+  assert.equal(context.refreshedComposerContext, 1);
+  assert.deepEqual(
+    context.window.__homeAiComposerFocusGuardEvents.map((event) => event.type),
+    ["native_composer_paste_blur_preserved", "native_composer_paste_refocused"],
+  );
+}
+
+function testNativeShellFocusedTextareaSecondLongPressDoesNotRefocusStaleComposer() {
+  const { context, document, listeners, composer, input } = createHarness({ nativeShellQuery: true });
+  composer.hidden = false;
+  input.disabled = false;
+  document.activeElement = input;
+  context.state.composerFocused = true;
+
+  for (const handler of listeners.touchstart || []) handler({ target: input });
+  composer.hidden = true;
+  document.activeElement = document.body;
+  context.state.composerFocused = false;
+  for (const handler of listeners.blur || []) handler({ target: input });
+
+  assert.equal(input.focusCount, 0);
+  assert.equal(document.activeElement, document.body);
+  assert.equal(context.state.composerFocused, false);
+  assert.deepEqual(context.window.__homeAiComposerFocusGuardEvents, []);
+}
+
+function testNativeShellPasteMenuContinuationDoesNotPreserveHiddenComposer() {
+  const { context, document, listeners, composer, input, composerChrome, advance } = createHarness({ nativeShellQuery: true });
+  composer.hidden = false;
+  input.disabled = false;
+  document.activeElement = input;
+  context.state.composerFocused = true;
+
+  for (const handler of listeners.touchstart || []) handler({ target: composerChrome });
+  composer.hidden = true;
+  advance(700);
+  for (const handler of listeners.pointerdown || []) handler({ target: document.body });
+
+  assert.equal(input.blurCount, 1);
+  assert.equal(context.state.composerFocused, false);
+  assert.equal(context.clearedKeyboard, 1);
+}
+
+function testNativeShellPointerGuardDoesNotPreBlurSendButtonActivation() {
+  const { context, document, listeners, composer, input, sendButton } = createHarness({ nativeShellQuery: true });
+  composer.hidden = false;
+  input.disabled = false;
+  document.activeElement = input;
+  context.state.composerFocused = true;
+
+  for (const handler of listeners.pointerdown || []) handler({ target: sendButton });
+
+  assert.equal(input.blurCount, 0);
+  assert.equal(context.state.composerFocused, true);
+  assert.equal(context.clearedKeyboard || 0, 0);
 }
 
 function testPointerGuardBlursHiddenFocusedComposer() {
@@ -222,6 +368,12 @@ function testFocusComposerSoonRequiresVisibleEnabledInput() {
 testBlursFocusedComposerWhenComposerIsHidden();
 testPointerGuardDoesNotBlurVisibleComposer();
 testNativeShellPointerGuardBlursVisibleComposerOnNonEditableTouch();
+testNativeShellPointerGuardPreservesComposerInternalLongPressTarget();
+testNativeShellPasteMenuContinuationPreservesComposerFocusBriefly();
+testNativeShellFocusedTextareaSecondLongPressBlurRefocusesComposer();
+testNativeShellFocusedTextareaSecondLongPressDoesNotRefocusStaleComposer();
+testNativeShellPasteMenuContinuationDoesNotPreserveHiddenComposer();
+testNativeShellPointerGuardDoesNotPreBlurSendButtonActivation();
 testPointerGuardBlursHiddenFocusedComposer();
 testZeroRectEditableIsTreatedAsStale();
 testFocusComposerSoonRequiresVisibleEnabledInput();

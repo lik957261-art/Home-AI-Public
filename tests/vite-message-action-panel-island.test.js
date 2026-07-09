@@ -82,11 +82,12 @@ async function test(name, fn) {
     );
     const output = read("public/vite-islands/message-action-panel/message-action-panel.js");
     assert.match(output, /消息动作面板/);
-    assert.match(output, /入库/);
-    assert.match(output, /确认替换/);
     assert.match(output, /built read-only/);
-    assert.match(output, /需重新生成/);
     assert.match(output, /HomeAIViteMessageActionPanelPreview/);
+    const modelOutput = read("public/vite-islands/model/chunks/model.js");
+    assert.match(modelOutput, /入库/);
+    assert.match(modelOutput, /确认替换/);
+    assert.match(modelOutput, /需重新生成/);
   });
 
   if (process.exitCode) process.exit(process.exitCode);

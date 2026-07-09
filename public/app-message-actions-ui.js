@@ -1,5 +1,37 @@
 "use strict";
 
+const MESSAGE_ACTIONS_MODEL_ESM_PATH = "/vite-islands/message-actions-model/message-actions-model.js";
+let messageActionsModel = null;
+let messageActionsModelPromise = null;
+
+function importMessageActionsModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (messageActionsModel) return Promise.resolve(messageActionsModel);
+  if (!messageActionsModelPromise) {
+    const importer = typeof rootRef.__homeAiImportMessageActionsModel === "function"
+      ? rootRef.__homeAiImportMessageActionsModel
+      : (path) => import(path);
+    messageActionsModelPromise = Promise.resolve()
+      .then(() => importer(MESSAGE_ACTIONS_MODEL_ESM_PATH))
+      .then((model) => {
+        messageActionsModel = model || null;
+        return messageActionsModel;
+      })
+      .catch((error) => {
+        messageActionsModelPromise = null;
+        throw error;
+      });
+  }
+  return messageActionsModelPromise;
+}
+
+function currentMessageActionsModel() {
+  return messageActionsModel;
+}
+
+if (typeof window !== "undefined") {
+  importMessageActionsModel().catch(() => null);
+}
+
 const CONVERSATION_USER_SCROLL_PROTECT_MS = 5000;
 
 function conversationBottomOffset(el = $("conversation")) {
@@ -589,12 +621,23 @@ function scrollMessageIntoView(messageId, position = "start") {
 }
 
 function renderMessageScrollButton(message, position) {
-  if (message?.role !== "assistant" || !message?.id) return "";
-  const end = position === "end";
-  return `<button class="message-scroll-button hidden" type="button" data-scroll-message="${escapeHtml(message.id)}" data-scroll-position="${end ? "end" : "start"}" aria-label="${end ? "Jump to reply end" : "Jump to reply start"}" title="${end ? "End" : "Start"}" aria-hidden="true" tabindex="-1"><span class="message-scroll-glyph">${end ? "&#8595;" : "&#8593;"}</span></button>`;
+  const model = currentMessageActionsModel();
+  const plan = typeof model?.messageScrollButtonPlan === "function"
+    ? model.messageScrollButtonPlan(message, position)
+    : null;
+  if (plan ? !plan.visible : (message?.role !== "assistant" || !message?.id)) return "";
+  const end = plan ? plan.position === "end" : position === "end";
+  const messageId = plan?.messageId || message.id;
+  const label = plan?.label || (end ? "Jump to reply end" : "Jump to reply start");
+  const title = plan?.title || (end ? "End" : "Start");
+  return `<button class="message-scroll-button hidden" type="button" data-scroll-message="${escapeHtml(messageId)}" data-scroll-position="${end ? "end" : "start"}" aria-label="${escapeHtml(label)}" title="${escapeHtml(title)}" aria-hidden="true" tabindex="-1"><span class="message-scroll-glyph">${end ? "&#8595;" : "&#8593;"}</span></button>`;
 }
 
 function messageScrollEligibleByContent(message = {}) {
+  const model = currentMessageActionsModel();
+  if (typeof model?.messageScrollEligibleByContentPlan === "function") {
+    return Boolean(model.messageScrollEligibleByContentPlan(message).eligible);
+  }
   if (message?.role !== "assistant" || !message?.id) return false;
   if (message.revokedAt) return false;
   const content = String(message.content || "");
@@ -609,6 +652,10 @@ function messageScrollEligibleByContent(message = {}) {
 }
 
 function canUseMessageReplyActions(message) {
+  const model = currentMessageActionsModel();
+  if (typeof model?.canUseMessageReplyActionsPlan === "function") {
+    return Boolean(model.canUseMessageReplyActionsPlan(message));
+  }
   return Boolean(message?.role === "assistant" && message?.id && !message.revokedAt);
 }
 
@@ -628,6 +675,10 @@ function renderMessageNoteButton(message) {
 }
 
 function renderMessageActionStrip(message, scrollPosition) {
+  const model = currentMessageActionsModel();
+  if (typeof model?.messageActionStripPlan === "function") {
+    model.messageActionStripPlan(message, { scrollPosition });
+  }
   const controls = [
     renderMessageScrollButton(message, scrollPosition),
     renderMessageCopyButton(message),
@@ -642,6 +693,10 @@ function renderMessageGatewayDiagnostic(message) {
 }
 
 function wardrobeOutfitWearActionState(message = {}) {
+  const model = currentMessageActionsModel();
+  if (typeof model?.wardrobeOutfitWearActionState === "function") {
+    return model.wardrobeOutfitWearActionState(message);
+  }
   return message?.pluginActions?.wardrobeOutfitWearIntent
     || message?.pluginActions?.outfit_wear_intent
     || message?.plugin_actions?.wardrobeOutfitWearIntent
@@ -663,6 +718,10 @@ function wardrobeOutfitWearActionState(message = {}) {
 }
 
 function wardrobeOutfitWearActionDiagnostic(message = {}) {
+  const model = currentMessageActionsModel();
+  if (typeof model?.wardrobeOutfitWearActionDiagnostic === "function") {
+    return model.wardrobeOutfitWearActionDiagnostic(message);
+  }
   return message?.pluginActionDiagnostics?.wardrobeOutfitWearIntent
     || message?.pluginActionDiagnostics?.outfit_wear_intent
     || message?.plugin_action_diagnostics?.wardrobeOutfitWearIntent
@@ -671,6 +730,10 @@ function wardrobeOutfitWearActionDiagnostic(message = {}) {
 }
 
 function wardrobeOutfitWearActionLabel(action = {}) {
+  const model = currentMessageActionsModel();
+  if (typeof model?.wardrobeOutfitWearActionLabel === "function") {
+    return model.wardrobeOutfitWearActionLabel(action);
+  }
   const status = String(action.status || "").trim();
   if (status === "running") return "写入中";
   if (status === "needs_confirmation") return "确认替换";
@@ -684,6 +747,10 @@ function wardrobeOutfitWearActionLabel(action = {}) {
 }
 
 function wardrobeOutfitWearDiagnosticLabel(diagnostic = {}) {
+  const model = currentMessageActionsModel();
+  if (typeof model?.wardrobeOutfitWearDiagnosticLabel === "function") {
+    return model.wardrobeOutfitWearDiagnosticLabel(diagnostic);
+  }
   const reason = String(diagnostic.reason || diagnostic.code || "").trim();
   if (reason === "expired") return "已过期";
   if (reason === "prepare_tool_output_not_attached" || diagnostic.code === "intent_metadata_missing") return "需重新生成";
@@ -691,6 +758,22 @@ function wardrobeOutfitWearDiagnosticLabel(diagnostic = {}) {
 }
 
 function renderWardrobeOutfitWearAction(message = {}) {
+  const model = currentMessageActionsModel();
+  const plan = typeof model?.wardrobeOutfitWearButtonPlan === "function"
+    ? model.wardrobeOutfitWearButtonPlan(message)
+    : null;
+  if (plan?.visible && plan.htmlKind === "diagnostic") {
+    return `<button class="message-wardrobe-action" type="button" data-wardrobe-outfit-status="blocked" data-wardrobe-outfit-label="${escapeHtml(plan.label || "")}" title="${escapeHtml(plan.title)}" aria-label="${escapeHtml(plan.title)}" disabled>
+      <svg class="message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 7.5 12 4l4 3.5"></path><path d="M6.5 8.5 9 7l3 2 3-2 2.5 1.5L16 20H8L6.5 8.5Z"></path><path d="M9 15h6"></path></svg>
+    </button>`;
+  }
+  if (plan?.visible && plan.htmlKind === "action") {
+    const statusAttr = plan.status ? ` data-wardrobe-outfit-status="${escapeHtml(plan.status)}"` : "";
+    return `<button class="message-wardrobe-action" type="button" data-wardrobe-outfit-wear-message="${escapeHtml(plan.messageId || "")}"${statusAttr} data-wardrobe-outfit-label="${escapeHtml(plan.label || "")}" title="${escapeHtml(plan.title)}" aria-label="${escapeHtml(plan.title)}"${plan.disabled ? " disabled" : ""}>
+    <svg class="message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 7.5 12 4l4 3.5"></path><path d="M6.5 8.5 9 7l3 2 3-2 2.5 1.5L16 20H8L6.5 8.5Z"></path><path d="M10 20v-7"></path><path d="M14 20v-7"></path></svg>
+  </button>`;
+  }
+  if (plan && !plan.visible) return "";
   const action = wardrobeOutfitWearActionState(message);
   const diagnostic = wardrobeOutfitWearActionDiagnostic(message);
   if (!action && diagnostic) {
@@ -698,9 +781,9 @@ function renderWardrobeOutfitWearAction(message = {}) {
     const title = reason === "expired"
       ? "衣橱入库动作已过期，请重新生成搭配建议"
       : "这条消息暂时没有可执行的衣橱入库动作";
-    return `<button class="message-wardrobe-action" type="button" data-wardrobe-outfit-status="blocked" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" disabled>
+    const label = wardrobeOutfitWearDiagnosticLabel(diagnostic);
+    return `<button class="message-wardrobe-action" type="button" data-wardrobe-outfit-status="blocked" data-wardrobe-outfit-label="${escapeHtml(label)}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" disabled>
       <svg class="message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 7.5 12 4l4 3.5"></path><path d="M6.5 8.5 9 7l3 2 3-2 2.5 1.5L16 20H8L6.5 8.5Z"></path><path d="M9 15h6"></path></svg>
-      <span>${escapeHtml(wardrobeOutfitWearDiagnosticLabel(diagnostic))}</span>
     </button>`;
   }
   if (!action || action.kind !== "outfit_wear_intent") return "";
@@ -715,9 +798,8 @@ function renderWardrobeOutfitWearAction(message = {}) {
     : `写入衣橱穿着记录${wearDate ? ` ${wearDate}` : ""}${itemCount ? ` · ${itemCount}件` : ""}`;
   const statusAttr = status ? ` data-wardrobe-outfit-status="${escapeHtml(status)}"` : "";
   const label = wardrobeOutfitWearActionLabel(action);
-  return `<button class="message-wardrobe-action" type="button" data-wardrobe-outfit-wear-message="${escapeHtml(message.id || "")}"${statusAttr} title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${disabled ? " disabled" : ""}>
+  return `<button class="message-wardrobe-action" type="button" data-wardrobe-outfit-wear-message="${escapeHtml(message.id || "")}"${statusAttr} data-wardrobe-outfit-label="${escapeHtml(label)}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"${disabled ? " disabled" : ""}>
     <svg class="message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M8 7.5 12 4l4 3.5"></path><path d="M6.5 8.5 9 7l3 2 3-2 2.5 1.5L16 20H8L6.5 8.5Z"></path><path d="M10 20v-7"></path><path d="M14 20v-7"></path></svg>
-    <span>${escapeHtml(label)}</span>
   </button>`;
 }
 
@@ -896,6 +978,11 @@ function currentMessageById(messageId) {
 
 async function confirmWardrobeOutfitReplace(action = {}) {
   if (typeof openAppConfirmDialog !== "function") return false;
+  const model = currentMessageActionsModel();
+  const plan = typeof model?.wardrobeReplaceConfirmPlan === "function"
+    ? model.wardrobeReplaceConfirmPlan(action)
+    : null;
+  if (plan) return openAppConfirmDialog(plan);
   const intent = action.intent || {};
   const wearDate = String(intent.wear_date || intent.wearDate || "").trim();
   return openAppConfirmDialog({
@@ -928,15 +1015,25 @@ async function executeWardrobeOutfitWearMessageAction(messageId, options = {}) {
     if (!confirmed) return null;
     return executeWardrobeOutfitWearMessageAction(messageId, { confirmReplace: true });
   }
-  const result = await api("/api/plugin-conversation/actions/wardrobe/outfit-wear-intent", {
-    method: "POST",
-    body: JSON.stringify({
+  const model = currentMessageActionsModel();
+  const requestPlan = typeof model?.wardrobeOutfitWearActionRequestPlan === "function"
+    ? model.wardrobeOutfitWearActionRequestPlan({
       threadId: state.currentThread.id,
       messageId,
       workspaceId: state.currentThread.workspaceId || state.selectedWorkspaceId || "",
       confirmReplace: Boolean(options.confirmReplace),
-      mode: options.confirmReplace ? "replace" : "create_only",
-    }),
+    })
+    : null;
+  const requestBody = requestPlan?.body || {
+    threadId: state.currentThread.id,
+    messageId,
+    workspaceId: state.currentThread.workspaceId || state.selectedWorkspaceId || "",
+    confirmReplace: Boolean(options.confirmReplace),
+    mode: options.confirmReplace ? "replace" : "create_only",
+  };
+  const result = await api(requestPlan?.path || "/api/plugin-conversation/actions/wardrobe/outfit-wear-intent", {
+    method: requestPlan?.method || "POST",
+    body: JSON.stringify(requestBody),
   });
   const nextAction = applyWardrobeOutfitWearActionResponse(result);
   if (String(nextAction?.status || "") === "needs_confirmation" && !options.confirmReplace) {

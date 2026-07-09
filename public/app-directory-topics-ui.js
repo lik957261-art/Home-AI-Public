@@ -1,6 +1,43 @@
 "use strict";
 
+const DIRECTORY_TOPIC_MODEL_ESM_PATH = "/vite-islands/directory-topic-model/directory-topic-model.js";
+let directoryTopicModelPromise = null;
+let directoryTopicModel = null;
+
+function importDirectoryTopicModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (directoryTopicModel) return Promise.resolve(directoryTopicModel);
+  if (!directoryTopicModelPromise) {
+    if (!rootRef.__homeAiImportDirectoryTopicModel && (!rootRef.document || !rootRef.location)) {
+      return Promise.resolve(null);
+    }
+    const importer = rootRef.__homeAiImportDirectoryTopicModel || ((path) => import(path));
+    directoryTopicModelPromise = importer(DIRECTORY_TOPIC_MODEL_ESM_PATH)
+      .then((model) => {
+        directoryTopicModel = model || null;
+        return directoryTopicModel;
+      })
+      .catch((error) => {
+        console.warn("Directory topic ESM model unavailable", error);
+        directoryTopicModelPromise = null;
+        return null;
+      });
+  }
+  return directoryTopicModelPromise;
+}
+
+function currentDirectoryTopicModel() {
+  return directoryTopicModel;
+}
+
+importDirectoryTopicModel();
+
 function directoryTopicOwnerWorkspaceKey(group, route = null) {
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.ownerWorkspaceKeyPlan === "function") {
+    return model.ownerWorkspaceKeyPlan(group, route, {
+      ownerWorkspaceId: typeof taskGroupOwnerWorkspaceId === "function" ? taskGroupOwnerWorkspaceId(group) : "",
+    });
+  }
   return String(
     route?.workspaceId
     || route?.workspace_id
@@ -19,11 +56,25 @@ function directoryTopicRouteKey(route, group = null) {
     ? comparableDirectoryPath(route.root || route.path || "")
     : String(route.root || route.path || "").trim().replaceAll("\\", "/").toLowerCase();
   const routeId = String(route.projectId || route.id || "").trim();
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.routeKeyPlan === "function") {
+    return model.routeKeyPlan(route, group, {
+      comparableRoot: root,
+      ownerWorkspaceId: typeof taskGroupOwnerWorkspaceId === "function" ? taskGroupOwnerWorkspaceId(group) : "",
+    });
+  }
   if (!routeId && !root) return "";
   return [directoryTopicOwnerWorkspaceKey(group, route), routeId, route.subprojectId || "", root].join("|");
 }
 
 function directoryTopicRouteLabel(route) {
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.routeLabelPlan === "function") {
+    const displayLabel = typeof directoryRouteDisplayPath === "function"
+      ? directoryRouteDisplayPath(route, route?.label || route?.projectId || "")
+      : "";
+    return model.routeLabelPlan(route, { displayLabel });
+  }
   if (typeof directoryRouteDisplayPath === "function") {
     return directoryRouteDisplayPath(route, route?.label || route?.projectId || "");
   }
@@ -31,6 +82,8 @@ function directoryTopicRouteLabel(route) {
 }
 
 function directoryTopicDisplayPathParts(label = "") {
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.displayPathPartsPlan === "function") return model.displayPathPartsPlan(label);
   return String(label || "").split(/\s*\/\s*/).map((part) => part.trim()).filter(Boolean);
 }
 
@@ -50,6 +103,20 @@ function directoryTopicRouteRootInfo(collection) {
   const projectLabel = project
     ? (typeof projectDisplayLabel === "function" ? projectDisplayLabel(project) : (project.label || project.id || ""))
     : "";
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.routeRootInfoPlan === "function") {
+    const rootPath = project?.root || (displayParts.length <= 1 ? (route.root || route.path || "") : "");
+    const comparableRoot = typeof comparableDirectoryPath === "function"
+      ? comparableDirectoryPath(rootPath || projectLabel || displayParts[0] || displayLabel)
+      : "";
+    return model.routeRootInfoPlan(collection, {
+      project,
+      projectLabel,
+      displayLabel,
+      comparableRoot,
+      ownerWorkspaceId: ownerKey,
+    });
+  }
   const rootLabel = projectLabel || displayParts[0] || displayLabel || "\u76ee\u5f55";
   const child = project && route.subprojectId
     ? (project.children || []).find((item) => String(item?.id || "") === String(route.subprojectId || ""))
@@ -73,6 +140,12 @@ function directoryTopicRouteRootInfo(collection) {
 }
 
 function directoryTopicRootBucketsForCollections(collections = []) {
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.rootBucketsForCollectionsPlan === "function") {
+    return model.rootBucketsForCollectionsPlan((collections || []).map((collection) => (
+      Object.assign({}, collection, { rootInfo: directoryTopicRouteRootInfo(collection) })
+    )));
+  }
   const buckets = new Map();
   for (const collection of collections || []) {
     if (!collection?.defaultGroup || !collection.groups?.length) continue;
@@ -111,6 +184,13 @@ function directoryTopicRootBucketsForCollections(collections = []) {
 }
 
 function directoryTopicPrimaryRoute(group) {
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.primaryRoutePlan === "function") {
+    return model.primaryRoutePlan(group, {
+      pluginTopicTaskGroup: typeof isPluginTopicTaskGroup === "function" && isPluginTopicTaskGroup(group),
+      taskDirectoryRoutes: typeof taskDirectoryRoutes === "function" ? taskDirectoryRoutes(group) : [],
+    });
+  }
   if (!group || group.pluginTopic || group.sharedTopic || group.sourceThreadId) return null;
   if (typeof isPluginTopicTaskGroup === "function" && isPluginTopicTaskGroup(group)) return null;
   if (group.directoryRoute?.root || group.directoryRoute?.path) return group.directoryRoute;
@@ -119,11 +199,25 @@ function directoryTopicPrimaryRoute(group) {
 }
 
 function directoryTopicUpdatedValue(group) {
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.updatedValueForGroup === "function") return model.updatedValueForGroup(group);
   const value = Date.parse(group?.updatedAt || "");
   return Number.isFinite(value) ? value : 0;
 }
 
 function directoryTopicCollectionsForGroups(groups = []) {
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.collectionsForEntriesPlan === "function") {
+    return model.collectionsForEntriesPlan((groups || []).map((group) => {
+      const route = directoryTopicPrimaryRoute(group);
+      return {
+        group,
+        route,
+        key: directoryTopicRouteKey(route, group),
+        label: directoryTopicRouteLabel(route),
+      };
+    }));
+  }
   const byKey = new Map();
   for (const group of groups || []) {
     const route = directoryTopicPrimaryRoute(group);
@@ -154,6 +248,8 @@ function directoryTopicCollectionsForGroups(groups = []) {
 }
 
 function directoryTopicCollectionGroupIds(collections = []) {
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.collectionGroupIdsPlan === "function") return model.collectionGroupIdsPlan(collections);
   const ids = new Set();
   for (const collection of collections || []) {
     for (const group of collection.groups || []) {
@@ -168,6 +264,10 @@ function directoryTopicDisplayParts(group) {
   const receiptTitle = typeof topicReceiptSummaryTitleFromGroup === "function"
     ? topicReceiptSummaryTitleFromGroup(group, { max: 120 })
     : "";
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.displayPartsPlan === "function") {
+    return model.displayPartsPlan(group, { receiptTitle });
+  }
   const title = baseTitle || receiptTitle || "\u6682\u65e0\u56de\u6267\u6982\u8981";
   const summary = baseTitle && receiptTitle && receiptTitle !== baseTitle ? receiptTitle : "";
   return {
@@ -245,10 +345,25 @@ function setDirectoryTopicRootCollapsed(collapsed, workspaceId = directoryTopicS
 }
 
 function directoryTopicCollapsedByDefault(index) {
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.collapsedByDefaultPlan === "function") {
+    return model.collapsedByDefaultPlan(index, DIRECTORY_TOPIC_DEFAULT_EXPANDED_LIMIT);
+  }
   return index >= DIRECTORY_TOPIC_DEFAULT_EXPANDED_LIMIT;
 }
 
 function directoryTopicIsCollapsed(collection, index, collapsedDirectories, expandedDirectories) {
+  const model = currentDirectoryTopicModel();
+  if (model && typeof model.isCollapsedPlan === "function") {
+    return model.isCollapsedPlan({
+      collection,
+      key: collection?.key || "",
+      index,
+      collapsedDirectories,
+      expandedDirectories,
+      defaultExpandedLimit: DIRECTORY_TOPIC_DEFAULT_EXPANDED_LIMIT,
+    });
+  }
   const key = collection?.key || "";
   if (!key) return true;
   if (collapsedDirectories.has(key)) return true;
@@ -260,15 +375,21 @@ function setDirectoryTopicCollapsed(key, collapsed) {
   if (!key) return;
   const collapsedDirectories = readCollapsedDirectoryTopics();
   const expandedDirectories = readExpandedDirectoryTopics();
-  if (collapsed) {
-    collapsedDirectories.add(key);
-    expandedDirectories.delete(key);
-  } else {
-    collapsedDirectories.delete(key);
-    expandedDirectories.add(key);
+  const model = currentDirectoryTopicModel();
+  const plan = model && typeof model.storageSetMutationPlan === "function"
+    ? model.storageSetMutationPlan({ key, collapsed, collapsedDirectories, expandedDirectories })
+    : null;
+  if (!plan) {
+    if (collapsed) {
+      collapsedDirectories.add(key);
+      expandedDirectories.delete(key);
+    } else {
+      collapsedDirectories.delete(key);
+      expandedDirectories.add(key);
+    }
   }
-  writeCollapsedDirectoryTopics(collapsedDirectories);
-  writeExpandedDirectoryTopics(expandedDirectories);
+  writeCollapsedDirectoryTopics(plan?.collapsedDirectories || collapsedDirectories);
+  writeExpandedDirectoryTopics(plan?.expandedDirectories || expandedDirectories);
 }
 
 function renderDirectoryTopicCards(collections = [], options = {}) {

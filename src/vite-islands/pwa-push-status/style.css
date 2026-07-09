@@ -1,0 +1,175 @@
+.homeai-vite-pwa-push-status {
+  min-height: 100vh;
+  background: #f6f8fb;
+  color: #152033;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.vps-shell {
+  width: min(960px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 28px 0 40px;
+}
+
+.vps-eyebrow {
+  margin: 0 0 6px;
+  color: #607086;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.vps-title {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.vps-subtitle {
+  margin: 8px 0 20px;
+  max-width: 700px;
+  color: #536276;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.vps-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 16px;
+}
+
+.vps-panel,
+.vps-phone {
+  border: 1px solid #d9e0ea;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.vps-panel {
+  padding: 16px;
+}
+
+.vps-panel-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.vps-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vps-button {
+  min-height: 38px;
+  border: 1px solid #c7d2e2;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #1f2a3b;
+  font: inherit;
+  font-weight: 650;
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.vps-button.active {
+  border-color: #2f6fed;
+  background: #2f6fed;
+  color: #ffffff;
+}
+
+.vps-list {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vps-list li {
+  display: grid;
+  grid-template-columns: 145px minmax(0, 1fr);
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid #edf1f6;
+  color: #526173;
+  font-size: 13px;
+}
+
+.vps-code {
+  color: #1f2a3b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.vps-phone {
+  min-height: 420px;
+  padding: 16px;
+  background: #eef2f7;
+}
+
+.vps-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.vps-push-control {
+  width: 36px;
+  height: 36px;
+  border: 1px solid #c7d2e2;
+  border-radius: 50%;
+  background: #ffffff;
+  font-size: 17px;
+}
+
+.vps-push-control.enabled {
+  border-color: #15803d;
+  background: #dcfce7;
+}
+
+.vps-push-control.warning {
+  border-color: #b45309;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.vps-status-card {
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.vps-status-card h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.vps-status-card p {
+  margin: 5px 0;
+  color: #536276;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.vps-reason {
+  color: #92400e;
+}
+
+@media (max-width: 760px) {
+  .vps-shell {
+    width: min(100vw - 24px, 560px);
+    padding-top: 18px;
+  }
+
+  .vps-grid {
+    grid-template-columns: 1fr;
+  }
+}

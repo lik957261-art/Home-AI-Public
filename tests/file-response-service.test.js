@@ -104,6 +104,64 @@ const service = createFileResponseService({
 }
 
 {
+  const calls = [];
+  const pathFallbackService = createFileResponseService({
+    fs: {
+      createReadStream() {
+        throw new Error("unexpected stream");
+      },
+    },
+    path: {
+      basename(value) {
+        return String(value || "").split(/[\\/]/).filter(Boolean).pop() || "";
+      },
+      extname(value) {
+        const match = String(value || "").match(/(\.[^./\\]+)$/);
+        return match ? match[1] : "";
+      },
+    },
+    mimeFor() {
+      return "application/octet-stream";
+    },
+    contentDisposition(disposition, filename) {
+      return `${disposition}; filename="${filename}"`;
+    },
+    textFilePreview(filePath) {
+      calls.push(filePath);
+      if (!filePath) throw new Error("missing preview path");
+      return { text: `text:${filePath}`, totalChars: 8, truncated: false };
+    },
+    sendJson,
+  });
+  const res = makeResponse();
+  pathFallbackService.sendResolvedFilePreview(res, {
+    path: "C:\\tmp\\path-only.md",
+    mime: "text/markdown; charset=utf-8",
+    name: "path-only.md",
+    size: 42,
+    updatedAt: "now",
+    displayPath: "path-only.md",
+  });
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(calls, ["C:\\tmp\\path-only.md"]);
+  assert.equal(JSON.parse(res.body).text, "text:C:\\tmp\\path-only.md");
+}
+
+{
+  const res = makeResponse();
+  service.sendResolvedFilePreview(res, {
+    path: "C:\\tmp\\notes.markdown",
+    mime: "application/octet-stream",
+    name: "notes.markdown",
+    size: 42,
+    updatedAt: "now",
+    displayPath: "notes.markdown",
+  });
+  assert.equal(res.statusCode, 200);
+  assert.equal(JSON.parse(res.body).text, "text:C:\\tmp\\notes.markdown");
+}
+
+{
   const res = makeResponse();
   service.sendResolvedBridgeFilePreview(res, {
     contentBase64: Buffer.from("preview").toString("base64"),

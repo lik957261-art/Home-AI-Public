@@ -392,6 +392,10 @@ async function testThreadUpload() {
 
   assert.equal(got.res.statusCode, 201);
   assert.equal(got.body.artifact.id, "artifact-a");
+  assert.equal(got.body.artifact.path, undefined);
+  assert.equal(got.body.artifact.localPath, undefined);
+  assert.equal(got.body.artifact.displayPath, undefined);
+  assert.doesNotMatch(JSON.stringify(got.body), /C:\\\\Uploads|C:\\Uploads/);
   assert.deepEqual(calls.mkdir, ["C:\\Uploads\\thread-a"]);
   assert.equal(calls.write.length, 1);
   assert.match(calls.write[0].filePath, /C:\\Uploads\\thread-a[/\\]\d+-a1b2c3-report_\.md$/);
@@ -433,6 +437,10 @@ async function testThreadServerFileAttachment() {
 
   assert.equal(got.res.statusCode, 201);
   assert.equal(got.body.artifact.id, "artifact-a");
+  assert.equal(got.body.artifact.path, undefined);
+  assert.equal(got.body.artifact.localPath, undefined);
+  assert.equal(got.body.artifact.displayPath, undefined);
+  assert.doesNotMatch(JSON.stringify(got.body), /\/safe\/weixin/);
   assert.deepEqual(calls.access.at(-1), "owner");
   assert.deepEqual(calls.resolve.at(-1), {
     threadId: "thread-a",

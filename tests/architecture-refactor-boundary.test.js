@@ -201,6 +201,7 @@ const noteReceiptSaveService = require("../adapters/note-receipt-save-service");
 const ownerElevationGrantService = require("../adapters/owner-elevation-grant-service");
 const ownerElevationRoutingService = require("../adapters/owner-elevation-routing-service");
 const ownerSystemConsoleService = require("../adapters/owner-system-console-service");
+const workspaceConsoleService = require("../adapters/workspace-console-service");
 const pathBoundaryService = require("../adapters/path-boundary-service");
 const programmingAssessmentTemplateService = require("../adapters/programming-assessment-template-service");
 const runtimeStateNormalizationService = require("../adapters/runtime-state-normalization-service");
@@ -269,6 +270,7 @@ const nativeSecureSecretApiRoutes = require("../server-routes/native-secure-secr
 const noteReceiptApiRoutes = require("../server-routes/note-receipt-api-routes");
 const ownerElevationApiRoutes = require("../server-routes/owner-elevation-api-routes");
 const ownerSystemConsoleApiRoutes = require("../server-routes/owner-system-console-api-routes");
+const workspaceConsoleApiRoutes = require("../server-routes/workspace-console-api-routes");
 const publicApiRoutes = require("../server-routes/public-api-routes");
 const pushApiRoutes = require("../server-routes/push-api-routes");
 const resourceApiRoutes = require("../server-routes/resource-api-routes");
@@ -570,6 +572,9 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof ownerElevationRoutingService.createOwnerElevationRoutingService, "function");
   assert.equal(typeof ownerSystemConsoleService.createOwnerSystemConsoleService, "function");
   assert.equal(typeof ownerSystemConsoleService.normalizeSignal, "function");
+  assert.equal(typeof workspaceConsoleService.createWorkspaceConsoleService, "function");
+  assert.equal(typeof workspaceConsoleService.localWorkspaceStatus, "function");
+  assert.equal(typeof workspaceConsoleService.remoteWorkspaceStatus, "function");
   assert.equal(typeof programmingAssessmentTemplateService.buildProgrammingAssessmentLogMarkdown, "function");
   assert.equal(typeof programmingAssessmentTemplateService.buildProgrammingAssessmentPromptLines, "function");
   assert.equal(typeof runtimeStateNormalizationService.createRuntimeStateNormalizationService, "function");
@@ -642,6 +647,7 @@ function testRefactorModulesExportStableContracts() {
   assert.equal(typeof eventStreamApiRoutes.createEventStreamApiRoutes, "function");
   assert.equal(typeof ownerElevationApiRoutes.createOwnerElevationApiRoutes, "function");
   assert.equal(typeof ownerSystemConsoleApiRoutes.createOwnerSystemConsoleApiRoutes, "function");
+  assert.equal(typeof workspaceConsoleApiRoutes.createWorkspaceConsoleApiRoutes, "function");
   assert.equal(fs.existsSync(path.join(repoRoot, "server-routes", "weixin-api-routes.js")), false);
   assert.equal(typeof workspaceApiRoutes.createWorkspaceApiRoutes, "function");
   assert.equal(typeof workspaceOnboardingApiRoutes.createWorkspaceOnboardingApiRoutes, "function");
@@ -1511,7 +1517,11 @@ function testServerUsesRequestContextAndSqliteCaseShareMigration() {
   assert.match(mobilePlatformComposition, /createOwnerSystemConsoleService/);
   assert.match(mobilePlatformComposition, /createSystemResourceStatusService/);
   assert.match(dispatcher, /key: "ownerSystemConsoleApiRoutes"/);
+  assert.match(mobilePlatformComposition, /createWorkspaceConsoleApiRoutes/);
+  assert.match(mobilePlatformComposition, /createWorkspaceConsoleService/);
+  assert.match(dispatcher, /key: "workspaceConsoleApiRoutes"/);
   assert.doesNotMatch(server, /createOwnerSystemConsoleService/);
+  assert.doesNotMatch(server, /createWorkspaceConsoleService/);
   assert.doesNotMatch(server, /createSystemResourceStatusService/);
   assert.match(server, /const ownerSetupStatus = \(\.\.\.args\) => authProvider\.ownerSetupStatus\(\.\.\.args\);/);
   assert.match(server, /const createInitialOwnerKey = \(\.\.\.args\) => authProvider\.createInitialOwnerKey\(\.\.\.args\);/);

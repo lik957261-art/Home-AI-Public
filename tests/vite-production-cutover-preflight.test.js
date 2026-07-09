@@ -127,7 +127,8 @@ test("exact owner approval produces only a source-only cutover-change plan", () 
   assert.equal(result.requiredProductionReadback.some((check) => check.id === "voice_pending_cancel"), true);
   assert.equal(result.requiredProductionReadback.some((check) => check.id === "chat_sse_task_topic"), true);
   assert.equal(result.requiredProductionReadback.some((check) => check.id === "wardrobe_usage_action"), true);
-  assert.equal(result.requiredProductionReadback.some((check) => check.id === "rollback_switch"), true);
+  assert.equal(result.requiredProductionReadback.some((check) => check.id === "source_deploy_rollback_plan"), true);
+  assert.equal(result.requiredProductionReadback.some((check) => check.id === "rollback_switch"), false);
   assert.equal(result.nextActions.some((action) => action.includes("fail-closed production cutover change")), true);
 });
 

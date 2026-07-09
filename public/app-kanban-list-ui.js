@@ -1,5 +1,34 @@
 "use strict";
 
+const KANBAN_LIST_MODEL_ESM_PATH = "/vite-islands/kanban-list-model/kanban-list-model.js";
+
+let kanbanListModelPromise = null;
+let kanbanListModelModule = null;
+
+function importKanbanListModel() {
+  if (kanbanListModelModule) return Promise.resolve(kanbanListModelModule);
+  if (!kanbanListModelPromise) {
+    const importer = window.__homeAiImportKanbanListModel || ((specifier) => import(specifier));
+    kanbanListModelPromise = Promise.resolve()
+      .then(() => importer(KANBAN_LIST_MODEL_ESM_PATH))
+      .then((module) => {
+        kanbanListModelModule = module;
+        return module;
+      })
+      .catch((error) => {
+        kanbanListModelPromise = null;
+        throw error;
+      });
+  }
+  return kanbanListModelPromise;
+}
+
+function currentKanbanListModel() {
+  return kanbanListModelModule || null;
+}
+
+void importKanbanListModel().catch(() => {});
+
 function renderKanbanCreatePage() {
   return `<div class="kanban-create-page">
     ${renderKanbanComposerPanel()}
@@ -24,9 +53,16 @@ function renderTodoKanbanBoard(todos) {
     const meta = kanbanStatusMeta(status);
     const items = grouped.get(status) || [];
     const active = status === selectedStatus ? " active" : "";
-    const count = status === KANBAN_STORY_STATUS
+    const count = currentKanbanListModel()?.kanbanTabCountPlan?.({
+      status,
+      itemCount: items.length,
+      storyStatus: KANBAN_STORY_STATUS,
+      storyCaseCount: storyCases.length,
+      completedLoaded: state.todoCompletedLoaded,
+      needsCompleted: kanbanStatusNeedsCompleted(status),
+    }) || (status === KANBAN_STORY_STATUS
       ? (state.todoCompletedLoaded ? String(storyCases.length) : "\u2026")
-      : (!state.todoCompletedLoaded && kanbanStatusNeedsCompleted(status) ? "\u2026" : String(items.length));
+      : (!state.todoCompletedLoaded && kanbanStatusNeedsCompleted(status) ? "\u2026" : String(items.length)));
     return `<button class="todo-kanban-tab${active} status-${escapeHtml(status)}" type="button" data-kanban-status="${escapeHtml(status)}" aria-pressed="${active ? "true" : "false"}">
       <span class="todo-kanban-tab-label">${escapeHtml(meta.label)}</span>
       <span class="todo-kanban-tab-count">${escapeHtml(count)}</span>
@@ -59,20 +95,26 @@ function renderTodoKanbanCard(todo) {
   const priority = todoPriorityLabel(todo);
   const tenant = todo.kanbanTenant || "";
   const due = todoDueLabel(todo);
-  const skills = Array.isArray(todo.kanbanSkills) ? todo.kanbanSkills.slice(0, 3) : [];
-  const chips = [
-    priority,
-    assignee ? `@${assignee}` : "",
-    tenant && tenant !== assignee ? tenant : "",
-    todo.kanbanWorkspaceKind || "",
-  ].filter(Boolean);
+  const view = currentKanbanListModel()?.todoKanbanCardViewPlan?.({ todo, status, meta, priority, due }) || {
+    status,
+    shortLabel: meta.shortLabel,
+    title: todo.content || todo.id,
+    due,
+    chips: [
+      priority,
+      assignee ? `@${assignee}` : "",
+      tenant && tenant !== assignee ? tenant : "",
+      todo.kanbanWorkspaceKind || "",
+    ].filter(Boolean),
+    skills: Array.isArray(todo.kanbanSkills) ? todo.kanbanSkills.slice(0, 3) : [],
+  };
   return `<article class="todo-kanban-card status-${escapeHtml(status)}" role="listitem">
     <button class="todo-kanban-card-button" type="button" data-todo-id="${escapeHtml(todo.id)}">
-      <span class="todo-kanban-card-status">${escapeHtml(meta.shortLabel)}</span>
-      <span class="todo-kanban-card-title">${escapeHtml(todo.content || todo.id)}</span>
-      <span class="todo-kanban-card-meta">${escapeHtml(due)}</span>
-      ${chips.length ? `<span class="todo-kanban-card-chips">${chips.map((chip) => `<span>${escapeHtml(chip)}</span>`).join("")}</span>` : ""}
-      ${skills.length ? `<span class="todo-kanban-card-skills">${skills.map((skill) => `<span>${escapeHtml(skill)}</span>`).join("")}</span>` : ""}
+      <span class="todo-kanban-card-status">${escapeHtml(view.shortLabel)}</span>
+      <span class="todo-kanban-card-title">${escapeHtml(view.title)}</span>
+      <span class="todo-kanban-card-meta">${escapeHtml(view.due)}</span>
+      ${view.chips.length ? `<span class="todo-kanban-card-chips">${view.chips.map((chip) => `<span>${escapeHtml(chip)}</span>`).join("")}</span>` : ""}
+      ${view.skills.length ? `<span class="todo-kanban-card-skills">${view.skills.map((skill) => `<span>${escapeHtml(skill)}</span>`).join("")}</span>` : ""}
     </button>
   </article>`;
 }
@@ -115,6 +157,8 @@ function todoCardDetailState(todoId) {
 }
 
 function dedupeKanbanOutputs(outputs) {
+  const model = currentKanbanListModel();
+  if (model?.dedupeKanbanOutputsPlan) return model.dedupeKanbanOutputsPlan(outputs);
   const seen = new Set();
   const result = [];
   for (const item of Array.isArray(outputs) ? outputs : []) {
@@ -128,14 +172,19 @@ function dedupeKanbanOutputs(outputs) {
 
 function kanbanCardOutputs(todo) {
   const detail = todoCardDetailState(todo?.id || "");
-  const readingOutput = todo?.readingSubmission?.analysisOutput ? [todo.readingSubmission.analysisOutput] : [];
-  const outputs = dedupeKanbanOutputs([
+  const summary = isKanbanAssessmentCard(todo) ? (assessmentExamSummary(todo) || {}) : {};
+  const outputs = currentKanbanListModel()?.kanbanCardOutputsPlan?.({
+    todoOutputs: todo?.kanbanOutputs,
+    readingOutput: todo?.readingSubmission?.analysisOutput || null,
+    detailOutputs: detail?.outputs,
+    isAssessment: isKanbanAssessmentCard(todo),
+    assessmentVisible: Boolean(summary.lastAttempt || assessmentExamCompleted(todo)),
+  }) || dedupeKanbanOutputs([
     ...(Array.isArray(todo?.kanbanOutputs) ? todo.kanbanOutputs : []),
-    ...readingOutput,
+    ...(todo?.readingSubmission?.analysisOutput ? [todo.readingSubmission.analysisOutput] : []),
     ...(Array.isArray(detail?.outputs) ? detail.outputs : []),
   ]);
   if (isKanbanAssessmentCard(todo)) {
-    const summary = assessmentExamSummary(todo) || {};
     if (!summary.lastAttempt && !assessmentExamCompleted(todo)) return [];
     return outputs.filter((item) => {
       const name = String(item?.name || item?.path || "").toLowerCase();
@@ -146,6 +195,15 @@ function kanbanCardOutputs(todo) {
 }
 
 function shouldAutoLoadKanbanDetail(todo) {
+  const model = currentKanbanListModel();
+  if (model?.shouldAutoLoadKanbanDetailPlan) {
+    return model.shouldAutoLoadKanbanDetailPlan({
+      todo,
+      isKanbanTodoSource: isKanbanTodoSource(),
+      hasDetail: Boolean(todoCardDetailState(todo?.id)),
+      outputCount: kanbanCardOutputs(todo).length,
+    });
+  }
   if (!todo || !isKanbanTodoSource() || todoCardDetailState(todo.id)) return false;
   return !String(todo?.kanbanResult || "").trim() && !kanbanCardOutputs(todo).length;
 }
@@ -226,11 +284,18 @@ async function loadKanbanCoverImages(root = document) {
 }
 
 function renderKanbanProcessRows(detail) {
-  const events = Array.isArray(detail?.events) ? detail.events.filter((event) => event.preview || event.kind).slice(-6) : [];
-  const runs = Array.isArray(detail?.runs) ? detail.runs.filter((run) => run.summary || run.status || run.outcome).slice(-3) : [];
-  const eventRows = events.map((event) => `<li><strong>${escapeHtml(event.kind || "event")}</strong><span>${escapeHtml(event.preview || "")}</span></li>`);
-  const runRows = runs.map((run) => `<li><strong>${escapeHtml([run.profile, run.outcome || run.status].filter(Boolean).join(" / ") || "run")}</strong><span>${escapeHtml(run.summary || "")}</span></li>`);
-  const rows = [...eventRows, ...runRows];
+  const model = currentKanbanListModel();
+  if (!model?.kanbanProcessRowsPlan) {
+    const events = Array.isArray(detail?.events) ? detail.events.filter((event) => event.preview || event.kind).slice(-6) : [];
+    const runs = Array.isArray(detail?.runs) ? detail.runs.filter((run) => run.summary || run.status || run.outcome).slice(-3) : [];
+    const eventRows = events.map((event) => `<li><strong>${escapeHtml(event.kind || "event")}</strong><span>${escapeHtml(event.preview || "")}</span></li>`);
+    const runRows = runs.map((run) => `<li><strong>${escapeHtml([run.profile, run.outcome || run.status].filter(Boolean).join(" / ") || "run")}</strong><span>${escapeHtml(run.summary || "")}</span></li>`);
+    const fallbackRows = [...eventRows, ...runRows];
+    return fallbackRows.length ? `<ul class="todo-detail-process">${fallbackRows.join("")}</ul>` : "";
+  }
+  const rows = model.kanbanProcessRowsPlan(detail).map((row) => (
+    `<li><strong>${escapeHtml(row.label)}</strong><span>${escapeHtml(row.text)}</span></li>`
+  ));
   return rows.length ? `<ul class="todo-detail-process">${rows.join("")}</ul>` : "";
 }
 
@@ -242,14 +307,24 @@ function renderKanbanDetailReport(todo) {
   const readingCard = isKanbanReadingCard(todo);
   const labels = kanbanStudyLabels(todo);
   if (readingCard && kanbanCardOutputs(todo).length) return "";
-  const processRows = detail && !readingCard ? renderKanbanProcessRows(detail) : "";
-  const loading = detail?.loading;
-  const error = detail?.error || "";
-  const actionLabel = loading ? "\u52a0\u8f7d\u4e2d" : (detail ? "\u5237\u65b0\u8fc7\u7a0b" : "\u52a0\u8f7d\u8fc7\u7a0b");
-  const title = readingCard ? labels.receipt : "\u56de\u6267 / \u8fc7\u7a0b";
-  const emptyText = readingCard && kanbanCardOutputs(todo).length
+  const report = currentKanbanListModel()?.kanbanDetailReportPlan?.({
+    eligible: isKanbanTodoSource(),
+    assessmentBlocked: isKanbanAssessmentCard(todo) && !assessmentHasVisibleResult(todo),
+    readingCard,
+    outputCount: kanbanCardOutputs(todo).length,
+    detail,
+    labels,
+  }) || null;
+  const processRows = report?.processRows
+    ? `<ul class="todo-detail-process">${report.processRows.map((row) => `<li><strong>${escapeHtml(row.label)}</strong><span>${escapeHtml(row.text)}</span></li>`).join("")}</ul>`
+    : (detail && !readingCard ? renderKanbanProcessRows(detail) : "");
+  const loading = report?.loading ?? detail?.loading;
+  const error = report?.error ?? (detail?.error || "");
+  const actionLabel = report?.actionLabel || (loading ? "\u52a0\u8f7d\u4e2d" : (detail ? "\u5237\u65b0\u8fc7\u7a0b" : "\u52a0\u8f7d\u8fc7\u7a0b"));
+  const title = report?.title || (readingCard ? labels.receipt : "\u56de\u6267 / \u8fc7\u7a0b");
+  const emptyText = report?.emptyText || (readingCard && kanbanCardOutputs(todo).length
     ? "\u5b8c\u6574\u5206\u6790\u5df2\u5728\u4e0a\u65b9\u4ea4\u4ed8\u6587\u4ef6\u4e2d\u3002"
-    : "\u6682\u65e0\u56de\u6267\u6458\u8981\u3002";
+    : "\u6682\u65e0\u56de\u6267\u6458\u8981\u3002");
   return `<section class="todo-detail-result">
     <div class="todo-detail-result-head">
       <strong>${escapeHtml(title)}</strong>

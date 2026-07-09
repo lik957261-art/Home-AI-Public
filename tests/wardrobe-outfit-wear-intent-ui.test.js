@@ -119,7 +119,10 @@ async function testUsageFooterRendersReadyButton() {
   assert.match(html, /message-footer-meta/);
   assert.match(html, /message-usage/);
   assert.match(html, /data-wardrobe-outfit-wear-message="assistant_1"/);
-  assert.match(html, />\s*入库\s*</);
+  assert.match(html, /data-wardrobe-outfit-label="入库"/);
+  assert.match(html, /aria-label="写入衣橱穿着记录 2026-07-02 · 2件"/);
+  assert.doesNotMatch(html, />\s*入库\s*</);
+  assert.doesNotMatch(html, /<span>\s*入库\s*<\/span>/);
 }
 
 function testDiagnosticOnlyRendersDisabledRegenerateState() {
@@ -137,7 +140,10 @@ function testDiagnosticOnlyRendersDisabledRegenerateState() {
   const html = harness.renderWardrobeOutfitWearAction(message);
   assert.match(html, /data-wardrobe-outfit-status="blocked"/);
   assert.match(html, /disabled/);
-  assert.match(html, />\s*需重新生成\s*</);
+  assert.match(html, /data-wardrobe-outfit-label="需重新生成"/);
+  assert.match(html, /aria-label="这条消息暂时没有可执行的衣橱入库动作"/);
+  assert.doesNotMatch(html, />\s*需重新生成\s*</);
+  assert.doesNotMatch(html, /<span>\s*需重新生成\s*<\/span>/);
 }
 
 function testRawJsonCompatibilityRendersReadyButton() {
@@ -149,7 +155,8 @@ function testRawJsonCompatibilityRendersReadyButton() {
   const { harness } = createHarness([message]);
   const html = harness.renderWardrobeOutfitWearAction(message);
   assert.match(html, /data-wardrobe-outfit-wear-message="assistant_compat"/);
-  assert.match(html, />\s*入库\s*</);
+  assert.match(html, /data-wardrobe-outfit-label="入库"/);
+  assert.doesNotMatch(html, />\s*入库\s*</);
 }
 
 async function testClickPostsThreadMessageWorkspaceAndCreateMode() {

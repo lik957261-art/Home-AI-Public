@@ -32,6 +32,8 @@ assert.match(script, /--execute/);
 assert.match(script, /--allow-dirty/);
 assert.match(script, /--surface full\|static/);
 assert.match(script, /--sync-only/);
+assert.match(script, /--ui-visual-evidence/);
+assert.match(script, /UI_VISUAL_LOCAL_VALIDATION_REQUIRED/);
 assert.match(script, /HOMEAI_MAC_SUDO_PASSWORD_FILE/);
 assert.match(script, /\/Users\/hermes-dev\/HermesMobileDev/);
 assert.match(script, /\/Users\/hermes-host\/HermesMobile/);
@@ -130,8 +132,12 @@ assert.match(script, /home-ai-cron-profile-aliases/);
 assert.match(script, /home-ai-cron-builtin-skills/);
 assert.match(script, /home-ai-cron-runtime-scripts/);
 assert.match(script, /home-ai-self-improving-loop-cron-job/);
+assert.match(script, /codex-mobile-pr-automation-cron-job/);
+assert.match(script, /plugin-daily-progress-rollup-cron-job/);
 assert.match(script, /homeai-disaster-backup-cron\.sh/);
 assert.match(script, /homeai-self-improving-loop-cron\.sh/);
+assert.match(script, /codex-mobile-pr-automation-cron\.sh/);
+assert.match(script, /plugin-daily-progress-rollup-cron\.sh/);
 assert.match(script, /homeai-visual-polish-audit-cron\.sh/);
 assert.match(script, /homeai-visual-polish-host\.sh/);
 assert.match(script, /homeai-visual-polish-music\.sh/);
@@ -140,8 +146,13 @@ assert.match(script, /home-ai-visual-polish-cron-jobs/);
 assert.match(script, /home-ai-visual-polish-task-card-config/);
 assert.match(script, /installHomeAiVisualPolishCronJobs/);
 assert.match(script, /installHomeAiSelfImprovingLoopCronJob/);
+assert.match(script, /installCodexMobilePrAutomationCronJob/);
+assert.match(script, /installPluginDailyProgressRollupCronJob/);
 assert.match(script, /installHomeAiVisualPolishTaskCardConfig/);
 assert.match(script, /homeai_self_improving_loop/);
+assert.match(script, /codex_mobile_pr_automation_hourly/);
+assert.match(script, /plugin_daily_progress_rollup/);
+assert.match(script, /插件每日进展汇总/);
 assert.match(script, /HOMEAI_INSTALL_VISUAL_POLISH_CRON_JOBS/);
 assert.match(script, /installEnabled: false/);
 assert.match(script, /homeai_visual_host/);
@@ -168,6 +179,8 @@ assert.match(script, /HOME_AI_BACKUP_ARTIFACT_READ_ACL/);
 assert.match(script, /home-ai-backup-gateway-telemetry-acl-repair/);
 assert.match(script, /HOME_AI_BACKUP_GATEWAY_TELEMETRY_READ_ACL/);
 assert.match(script, /gateway-worker", "telemetry"/);
+assert.match(script, /home-ai-backup-deploy-state-acl-repair/);
+assert.match(script, /data", "deploy-state"/);
 assert.match(script, /function applyAclOnce[\s\S]*?test -e \${shQuote\(targetPath\)} \|\| exit 0/);
 assert.match(script, /find -P \${shQuote\(targetPath\)} -mindepth 0 ! -type l -exec \/bin\/chmod \+a/);
 assert.match(script, /data", "artifacts/);
@@ -216,8 +229,10 @@ assert.match(script, /function shouldRetryValidation/);
 assert.match(script, /home-ai-status-smoke/);
 assert.match(script, /health-url/);
 assert.match(script, /codex-mobile-listener-startup-gate/);
+assert.match(script, /codex-mobile-behavior-gate/);
 assert.match(script, /codex-mobile-runtime-self-check-loop\.js/);
 assert.match(script, /--browser-startup-only/);
+assert.match(script, /--codex-mobile-submit-thread-id/);
 assert.match(script, /codex-auth-profile-audit/);
 assert.match(script, /CODEX_AUTH_AUDIT_ISSUE_PREFIX/);
 assert.match(script, /home-ai-production-drift-audit/);
@@ -327,6 +342,47 @@ assert.equal(
   deployScript.parseDeployBackupName("20260622T125745Z-plugin-codex-mobile-web-runtime-log-repair").targetSlug,
   "plugin-codex-mobile-web",
 );
+assert.equal(deployScript.isPausedCronJob({ enabled: false, state: "scheduled" }), true);
+assert.equal(deployScript.isPausedCronJob({ enabled: true, state: "paused" }), true);
+assert.equal(deployScript.isPausedCronJob({ enabled: true, paused_at: "2026-07-09T00:00:00Z" }), true);
+assert.equal(deployScript.isPausedCronJob({ enabled: true, state: "scheduled" }), false);
+assert.deepEqual(
+  deployScript.cronJobScheduleStateForUpsert(
+    {
+      enabled: false,
+      state: "paused",
+      paused_at: "2026-07-09T00:00:00Z",
+      paused_reason: "owner_pause",
+      next_run_at: "2026-07-09T01:00:00Z",
+    },
+    "2026-07-09T02:00:00Z",
+  ),
+  {
+    enabled: false,
+    state: "paused",
+    paused_at: "2026-07-09T00:00:00Z",
+    paused_reason: "owner_pause",
+    next_run_at: null,
+  },
+);
+assert.deepEqual(
+  deployScript.cronJobScheduleStateForUpsert(
+    {
+      enabled: true,
+      state: "scheduled",
+      next_run_at: "2026-07-09T01:00:00Z",
+    },
+    "2026-07-09T02:00:00Z",
+  ),
+  {
+    enabled: true,
+    state: "scheduled",
+    paused_at: null,
+    paused_reason: null,
+    next_run_at: "2026-07-09T01:00:00Z",
+  },
+);
+assert.match(script, /cronJobScheduleStateForUpsert\(base, nextRun\(item\.firstDelayMinutes\)\)/);
 assert.deepEqual(
   deployScript.parseDeployBackupName("20260621-144252-home-ai-android-v0412-status-force-light"),
   {
@@ -496,8 +552,10 @@ assert.ok(payload.plan.proofFiles.includes("scripts/macos-production-drift-recon
 assert.ok(payload.plan.proofFiles.includes("scripts/homeai-production-drift-audit-watchdog.sh"));
 assert.ok(payload.plan.proofFiles.includes("scripts/homeai-install-upgrade-canary.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/homeai-self-improving-loop.js"));
+assert.ok(payload.plan.proofFiles.includes("scripts/plugin-daily-progress-rollup.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/plugin-action-metadata-closure-smoke.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/homeai-self-improving-loop-cron.sh"));
+assert.ok(payload.plan.proofFiles.includes("scripts/plugin-daily-progress-rollup-cron.sh"));
 assert.ok(payload.plan.proofFiles.includes("scripts/gateway-mcp-runtime-call-smoke.js"));
 assert.ok(payload.plan.proofFiles.includes("scripts/mcp-tool-upgrade-closure-smoke.js"));
 assert.equal(payload.plan.cronProfileAliases.type, "home-ai-cron-profile-aliases");
@@ -610,6 +668,19 @@ assert.equal(pluginWorkspaceAuditTargets.finance, "/Users/example/path");
 assert.equal(pluginWorkspaceAuditTargets.health, "/Users/example/path");
 assert.equal(pluginWorkspaceAuditTargets.music, "/Users/example/path");
 assert.equal(pluginWorkspaceAuditTargets.wardrobe, "/Users/example/path");
+
+assert.deepEqual(
+  deployScript.gatewayManifestWorkerUsers({
+    workers: [
+      { osUser: "hm-owner", enabled: true },
+      { osUser: "hm-owner", enabled: true },
+      { osUser: "hm-media", enabled: false },
+      { osUser: "bad user", enabled: true },
+      { os_user: "hm-wuping" },
+    ],
+  }),
+  ["hm-owner", "hm-wuping"],
+);
 
 const cronAliasPlan = deployScript.buildHomeAiCronProfileAliasPlan("/Users/example/path", {
   workers: [
@@ -856,6 +927,10 @@ assert.equal(
   emailPluginPayload.plan.validation.some((item) => item.type === deployScript.CODEX_MOBILE_LISTENER_STARTUP_GATE.type),
   false,
 );
+assert.equal(
+  emailPluginPayload.plan.validation.some((item) => item.type === deployScript.CODEX_MOBILE_BEHAVIOR_GATE.type),
+  false,
+);
 
 const codexSelectedMuxPluginRun = spawnSync(process.execPath, [
   scriptPath,
@@ -889,9 +964,65 @@ assert.match(codexListenerStartupGate.command[2], /--browser-startup-only/);
 assert.match(codexListenerStartupGate.command[2], /--skip-api/);
 assert.match(codexListenerStartupGate.command[2], /--skip-client-events/);
 assert.match(codexListenerStartupGate.command[2], /--json/);
+assert.equal(codexListenerStartupGate.startupOnly, true);
+assert.equal(codexListenerStartupGate.scope, "listener_startup");
+const codexBehaviorGate = codexSelectedMuxPluginPayload.plan.validation.find((item) => (
+  item.type === deployScript.CODEX_MOBILE_BEHAVIOR_GATE.type
+));
+assert.ok(codexBehaviorGate);
+assert.deepEqual(codexBehaviorGate.command.slice(0, 2), ["/bin/sh", "-lc"]);
+assert.match(codexBehaviorGate.command[2], /cd '\/Users\/hermes-host\/HermesMobile\/plugins\/codex-mobile-web'/);
+assert.match(codexBehaviorGate.command[2], /scripts\/codex-mobile-runtime-self-check-loop\.js/);
+assert.match(codexBehaviorGate.command[2], /--server 'http:\/\/127\.0\.0\.1:8787'/);
+assert.match(codexBehaviorGate.command[2], /--gate-mode deploy/);
+assert.match(codexBehaviorGate.command[2], /--browser-mode full/);
+assert.doesNotMatch(codexBehaviorGate.command[2], /--browser-startup-only/);
+assert.doesNotMatch(codexBehaviorGate.command[2], /--skip-api/);
+assert.doesNotMatch(codexBehaviorGate.command[2], /--skip-client-events/);
+assert.match(codexBehaviorGate.command[2], /--json/);
+assert.equal(codexBehaviorGate.startupOnly, false);
+assert.equal(codexBehaviorGate.scope, "thread_detail_render_events");
+assert.deepEqual(codexBehaviorGate.submitExercise, {
+  mode: "manual",
+  configured: false,
+  reason: "controlled_submit_thread_not_configured",
+  operatorCommandHint: "--codex-mobile-submit-thread-id <controlled-thread-id>",
+});
 const codexValidationTypes = codexSelectedMuxPluginPayload.plan.validation.map((item) => item.type);
 assert.ok(codexValidationTypes.indexOf("health-url") < codexValidationTypes.indexOf(deployScript.CODEX_MOBILE_LISTENER_STARTUP_GATE.type));
-assert.ok(codexValidationTypes.indexOf(deployScript.CODEX_MOBILE_LISTENER_STARTUP_GATE.type) < codexValidationTypes.indexOf("codex-auth-profile-audit"));
+assert.ok(codexValidationTypes.indexOf(deployScript.CODEX_MOBILE_LISTENER_STARTUP_GATE.type) < codexValidationTypes.indexOf(deployScript.CODEX_MOBILE_BEHAVIOR_GATE.type));
+assert.ok(codexValidationTypes.indexOf(deployScript.CODEX_MOBILE_BEHAVIOR_GATE.type) < codexValidationTypes.indexOf("codex-auth-profile-audit"));
+const codexSubmitExercisePluginRun = spawnSync(process.execPath, [
+  scriptPath,
+  "--plugin",
+  "codex-mobile-web",
+  "--dev-root",
+  fixtureDevRoot,
+  "--timestamp",
+  "20260608T000000Z",
+  "--reason",
+  "harness",
+  "--codex-mobile-submit-thread-id",
+  "thread_controlled_submit_fixture",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(codexSubmitExercisePluginRun.status, 0, codexSubmitExercisePluginRun.stderr);
+const codexSubmitExercisePayload = JSON.parse(codexSubmitExercisePluginRun.stdout);
+const codexSubmitExerciseBehaviorGate = codexSubmitExercisePayload.plan.validation.find((item) => (
+  item.type === deployScript.CODEX_MOBILE_BEHAVIOR_GATE.type
+));
+assert.ok(codexSubmitExerciseBehaviorGate);
+assert.match(codexSubmitExerciseBehaviorGate.command[2], /--browser-exercise-submit/);
+assert.match(codexSubmitExerciseBehaviorGate.command[2], /--browser-submit-thread-id 'thread_controlled_submit_fixture'/);
+assert.deepEqual(codexSubmitExerciseBehaviorGate.submitExercise, {
+  mode: "automatic",
+  configured: true,
+  threadId: "thread_controlled_submit_fixture",
+  privacy: "controlled_thread_id_only",
+});
 assert.deepEqual(
   codexSelectedMuxPluginPayload.plan.postSyncRepairs.map((item) => item.type),
   ["codex-mobile-log-permissions", "codex-mobile-selected-mux-refresh"],
@@ -938,6 +1069,37 @@ deployScript.assertCodexMobileListenerStartupGatePass(listenerStartupGatePass);
 assert.deepEqual(listenerStartupGatePass.actionableIssueCodes, []);
 assert.deepEqual(listenerStartupGatePass.enabledJobs, ["browser-runtime"]);
 assert.deepEqual(listenerStartupGatePass.skippedJobs, ["api", "client-events"]);
+
+const behaviorGatePass = deployScript.codexMobileBehaviorGateSummary({
+  ok: true,
+  gate: {
+    deployPass: true,
+    checkNames: ["api", "browser-runtime", "client-events"],
+  },
+  browserMode: "full",
+  browserStartupOnly: false,
+  issueCount: 0,
+  blockingIssueCount: 0,
+  executionFailureCount: 0,
+  clientBuildId: "0.1.11|codex-mobile-shell-v614",
+  shellCacheName: "codex-mobile-shell-v614",
+}, 0, {
+  submitExercise: deployScript.codexMobileBehaviorSubmitExercisePlan({}),
+});
+deployScript.assertCodexMobileBehaviorGatePass(behaviorGatePass);
+assert.equal(behaviorGatePass.browserStartupOnly, false);
+assert.equal(behaviorGatePass.submitExercise.mode, "manual");
+assert.deepEqual(behaviorGatePass.enabledJobs, ["api", "browser-runtime", "client-events"]);
+
+const behaviorGateStartupOnly = deployScript.codexMobileBehaviorGateSummary({
+  ok: true,
+  deployPass: true,
+  browserStartupOnly: true,
+}, 0);
+assert.throws(
+  () => deployScript.assertCodexMobileBehaviorGatePass(behaviorGateStartupOnly),
+  /codex-mobile-behavior-gate_failed:codex_mobile_behavior_gate_startup_only/,
+);
 
 const listenerStartupGateBlocking = deployScript.codexMobileListenerStartupGateSummary({
   ok: false,
@@ -1549,5 +1711,66 @@ const dirtyExecute = spawnSync(process.execPath, [
 });
 assert.notEqual(dirtyExecute.status, 0);
 assert.match(dirtyExecute.stderr, /deploy_source_dirty_requires_allow_dirty:public\/index\.html/);
+
+const missingUiEvidenceExecute = spawnSync(process.execPath, [
+  scriptPath,
+  "--target",
+  "home-ai",
+  "--source",
+  tempApp,
+  "--dev-root",
+  tempRoot,
+  "--mac-root",
+  path.join(tempRoot, "prod"),
+  "--execute",
+  "--allow-dirty",
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.notEqual(missingUiEvidenceExecute.status, 0);
+assert.match(missingUiEvidenceExecute.stderr, /ui_visual_local_validation_required/);
+
+const uiEvidencePath = path.join(tempRoot, "ui-visual-evidence.json");
+fs.writeFileSync(uiEvidencePath, `${JSON.stringify({
+  uiSurfaces: ["home-ai-static-shell"],
+  localTests: [
+    { command: "node tests/task-list-ui.test.js", status: "passed" },
+  ],
+  visualVerifications: [
+    {
+      method: "playwright-dom-geometry",
+      status: "passed",
+      viewport: "390x844",
+      assertions: ["no-overlap", "no-clipping", "no-overflow", "safe-area"],
+    },
+  ],
+})}\n`);
+const validUiEvidencePlan = spawnSync(process.execPath, [
+  scriptPath,
+  "--target",
+  "home-ai",
+  "--source",
+  tempApp,
+  "--dev-root",
+  tempRoot,
+  "--mac-root",
+  path.join(tempRoot, "prod"),
+  "--changed-file",
+  "public/index.html",
+  "--ui-visual-evidence",
+  uiEvidencePath,
+  "--json",
+], {
+  cwd: repoRoot,
+  encoding: "utf8",
+});
+assert.equal(validUiEvidencePlan.status, 0, validUiEvidencePlan.stderr);
+const validUiEvidencePayload = JSON.parse(validUiEvidencePlan.stdout);
+assert.equal(validUiEvidencePayload.plan.uiVisualLocalValidation.required, true);
+assert.equal(validUiEvidencePayload.plan.uiVisualLocalValidation.ok, true);
+assert.equal(validUiEvidencePayload.plan.uiVisualLocalValidation.evidence.passedLocalTestCount, 1);
+assert.equal(validUiEvidencePayload.plan.uiVisualLocalValidation.evidence.passedVisualVerificationCount, 1);
 
 console.log("macos production deploy script harness passed");

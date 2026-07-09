@@ -34,6 +34,13 @@ function buildGatewayRoutingForRunRequest(input = {}) {
   const actorWorkspaceId = cleanString(input.actorWorkspaceId, dataWorkspaceId);
   const targetWorkspaceId = cleanString(input.targetWorkspaceId, dataWorkspaceId);
   const modelProvider = cleanString(body.provider || "");
+  const requestedGatewayRouting = objectValue(input.requestedGatewayRouting);
+  const routingProvider = cleanString(
+    requestedGatewayRouting.provider
+      || requestedGatewayRouting.modelProvider
+      || requestedGatewayRouting.model_provider
+      || modelProvider,
+  );
   const routing = Object.assign({}, objectValue(input.requestedGatewayRouting), {
     purpose: "user_run",
     workspaceId: dataWorkspaceId,
@@ -44,7 +51,7 @@ function buildGatewayRoutingForRunRequest(input = {}) {
     directoryScoped: Boolean(directoryRunScope.directoryScoped),
     taskGroupId: input.userMessage?.taskGroupId || "",
     model: body.model || "",
-    provider: modelProvider,
+    provider: routingProvider,
     modelProvider,
     reasoning_effort: body.reasoning_effort || "",
   });

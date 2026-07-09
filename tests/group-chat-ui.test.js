@@ -13,7 +13,7 @@ const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "
 
 assert.match(appJs, /VIRTUAL_GROUP_AI_MEMBER/);
 assert.match(appJs, /function groupChatMentionsAi\(text\)/);
-assert.match(appJs, /body\.messageKind = aiMention\.mentionsAi \? "ai" : "plain"/);
+assert.match(appJs, /body\.messageKind = (?:input\.)?aiMention\??\.mentionsAi \? "ai" : "plain"/);
 assert.match(appJs, /return \[virtualAssistantMember\(\), \.\.\.realMembers\]/);
 assert.match(appJs, /groupChatMentionMembers\(state\.currentThread, \{ includeAi: false \}\)/);
 assert.match(appJs, /groupChatAvailable: false/);
@@ -37,16 +37,20 @@ assert.match(appJs, /Missing read markers initialize from the page-load timestam
 assert.doesNotMatch(appJs, /setChatScopeReadAt\(scope, latest \|\| Date\.now\(\)\)/);
 assert.match(appJs, /hermesChatScopeRead:/);
 assert.match(appJs, /chat-scope-header-badge/);
-assert.match(appJs, /scopeButton\("chat", "\\u804a\\u5929"/);
-assert.match(appJs, /scopeButton\("group", "\\u7fa4"/);
+assert.match(appJs, /legacyButton\("chat", "\\u804a\\u5929"/);
+assert.match(appJs, /legacyButton\("group", "\\u7fa4"/);
+assert.match(appJs, /const scopeButton = \(button\) =>/);
 assert.match(indexHtml, /id="topManageGroupMembers"/);
 assert.doesNotMatch(indexHtml, /id="topToggleWeixinChat"/);
 assert.match(appJs, /function selectChatScope\(scope\)/);
 assert.doesNotMatch(appJs, /function selectWeixinChat/);
 assert.match(appJs, /await selectChatScope\(isGroupChatView\(\) \? "chat" : "group"\)/);
 assert.doesNotMatch(threadStateUiJs, /\/group-chat`/);
-assert.match(threadStateUiJs, /state\.groupChatOpen = true;\s*localStorage\.setItem\("hermesWebGroupChatOpen", "1"\);\s*try \{\s*await loadSingleWindow\(\{ groupChat: true \}\)/);
-assert.match(threadStateUiJs, /catch \(err\) \{\s*state\.groupChatOpen = false;\s*localStorage\.setItem\("hermesWebGroupChatOpen", "0"\);\s*throw err;/);
+assert.match(threadStateUiJs, /function groupChatOpenLocalStoragePlan\(open\) \{/);
+assert.match(threadStateUiJs, /groupChatOpenStoragePlan\(open\)/);
+assert.match(threadStateUiJs, /function setGroupChatOpenStorage\(open\) \{[\s\S]*?localStorage\.setItem\(plan\.key, plan\.value\);[\s\S]*?\}/);
+assert.match(threadStateUiJs, /state\.groupChatOpen = true;\s*setGroupChatOpenStorage\(true\);\s*try \{\s*await loadSingleWindow\(\{ groupChat: true \}\)/);
+assert.match(threadStateUiJs, /catch \(err\) \{\s*state\.groupChatOpen = false;\s*setGroupChatOpenStorage\(false\);\s*throw err;/);
 assert.match(appJs, /toggleGroupChat\.hidden = true/);
 assert.doesNotMatch(appJs, /topToggleWeixinChat/);
 assert.doesNotMatch(appJs, /hermesWebWeixinChatOpen/);

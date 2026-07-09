@@ -58,6 +58,21 @@ conflict codes. The console does not retry, resolve, or dispatch cards directly;
 it points Owner back to Action Inbox, where existing Owner-gated actions keep
 the coordinator as the single state owner.
 
+The main Home AI implementation thread also has a source-side routing preflight
+Harness for work that enters through Codex/thread conversation before a
+coordinator case exists:
+
+```bash
+node scripts/main-thread-routing-preflight.js --task "<task>" --changed-file <path> --mode classify
+```
+
+This preflight emits bounded JSON with one classification: `inline`, `worker`,
+`plugin_main`, `plugin_loop`, `deploy_lane`, or `blocked`. It is advisory for
+local Codex turns and scripts unless run in `--mode enforce` or invoked by a
+future runtime hook. Non-trivial source/module work must not silently fall back
+to inline when the Worker or lifecycle target is unavailable; the preflight
+reports a blocked code such as `worker_required_target_unavailable`.
+
 The Owner System Console also exposes a read-only 3A quality-program snapshot.
 That snapshot does not execute tests, dispatch cards, or claim the full 3A goal
 is complete. It rolls up existing SLO metadata, system status, Autonomous
@@ -94,16 +109,18 @@ The diagnostic intake runtime is service-backed and route-module backed. Runtime
 diagnostics enter a platform inbox first. Eligible H1/H2 diagnostic cases can
 then be converted into deterministic remediation plans under
 `docs/PLATFORM_CONTRACTS/diagnostic-remediation-loop-contract.md`. The plan may
-create an Owner-only system notification when it has a resolved owning
-workspace, bounded evidence, return-card requirements, and no privacy or
-high-risk approval blocker. Strict Home AI self-check/log-collection
-diagnostics may auto-dispatch Codex task cards after the remediation plan is
-rebuilt and passes the same privacy, target, severity, confidence, and
-high-risk gates. User demand, feature/capability-gap, plugin conversation
-repair requests, embedded plugin reports, and other request-like cases remain
-Owner-gated; Owner must explicitly trigger dispatch from the notification or
-diagnostic case action. AI Ops does not directly edit code or deploy
-production.
+create an Owner-only system notification or auto-dispatch a Codex task card
+only after it has a resolved owning workspace, bounded evidence, return-card
+requirements, and no privacy or high-risk blocker. Strict Home AI
+self-check/log-collection diagnostics keep the dedicated `auto_self_check`
+policy. Other eligible low-risk runtime diagnostics use `auto_diagnostic` and
+may auto-dispatch through the same Codex task-card service, with stable
+idempotency, no Owner prompt, and completion only after a concrete task-card id
+is returned. User demand, feature/capability-gap, product request,
+plugin-conversation repair request, deployment/cutover/release, approval
+request, physical-device/destructive, secret, payment, unknown-target,
+privacy-unsafe, and low-confidence cases remain Owner-gated or blocked. AI Ops
+does not directly edit code or deploy production.
 Owner notifications created from these plans are dedupe-keyed Action Inbox
 projections. Producers may send Web Push only when the dedupe-keyed Inbox item
 is newly created or explicitly reopened; repeated updates to the same open item
@@ -152,8 +169,10 @@ event payloads, can submit those metadata-only events to AI Ops intake, and
 creates daily audit request cards for the dedicated audit threads. It does not
 perform deep audits locally, restart services as closure, or modify code. Once
 a self-check event is submitted, the AI Ops remediation workflow may
-auto-dispatch the resulting repair task card only through the strict self-check
-diagnostic gate; daily audit request cards remain request-only.
+auto-dispatch the resulting repair task card through the strict self-check
+diagnostic gate. Other eligible low-risk diagnostics may auto-dispatch through
+the general `auto_diagnostic` policy. Daily audit request cards remain
+request-only.
 
 ## Core Commands
 
@@ -282,6 +301,15 @@ The Autonomous Delivery Loop uses the same selector for implementation,
 verification, deployment/readback, and repair slices. Target threads must treat
 the projected checks as the minimum evidence contract for their return card or
 include a bounded reason why a selected check did not apply.
+Routing decisions are also projected into the slice and task-card body before
+transport. For plugin-domain natural-language requests, normal-card wording
+must project `delegate_plugin_requirements` to the plugin main/source thread,
+while explicit Loop-card wording must project `delegate_plugin_loop` and keep
+plugin requirements ownership separate from implementation and audit roles.
+If that routing decision requires Codex Mobile thread lifecycle resolution,
+Home AI resolves the exact deliverable thread before task-card transport and
+stores only bounded lifecycle metadata. Resolution failure is a visible
+dispatch failure, not a reason to fall back to stale title matching.
 When a return card includes an AI Ops evidence ledger path or artifact pointer,
 the Autonomous Delivery coordinator verifies the ledger locally and stores only
 pass/fail status, record count, bounded issues, and hash-only labels in the
@@ -493,13 +521,12 @@ reopened
 
 H1/H2 diagnostics with sufficient confidence become `card_candidate`; all
 other diagnostics remain `inbox_waiting`. A remediation plan with
-`ready_to_dispatch` may auto-dispatch only when it matches the strict Home AI
-self-check gate (`plugin_id=home-ai`, `source_surface=home-ai-self-check`,
-`diagnostic_type=self_check_signal_failed`, and `category=self_check_*`). Other
-eligible plans create an Owner-only Action Inbox notification and remain
-Owner-triggered. Lower-confidence, privacy-unsafe, unknown-target, or high-risk
-cases remain in the Owner-visible AI Ops inbox or diagnostic case list without
-dispatch side effects.
+`ready_to_dispatch` may auto-dispatch when it is a strict Home AI self-check
+case (`auto_self_check`) or another eligible low-risk runtime diagnostic
+(`auto_diagnostic`). Request-like or high-risk plans create an Owner-only
+Action Inbox notification and remain Owner-triggered. Lower-confidence,
+privacy-unsafe, unknown-target, or high-risk cases remain in the Owner-visible
+AI Ops inbox or diagnostic case list without dispatch side effects.
 
 Runtime diagnostics can be routed into remediation only as bounded evidence.
 The remediation planner must never export raw screenshots, logs, plugin
@@ -518,11 +545,28 @@ must use the plugin conversation action bridge instead of pretending that the
 conversation can directly call the plugin implementation thread.
 
 The bridge accepts a bounded structured request and creates an Owner-only Action
-Inbox approval item. It does not automatically send a Codex task card. Owner
-approval is the dispatch boundary. At approval time, Owner may attach an
+Inbox approval item. For ordinary plugin capability gaps, Home-AI-owned
+capability gaps, data fixes, physical-device actions, deploy requests, secrets,
+and high-risk requests, it does not automatically send a Codex task card.
+Owner approval is the dispatch boundary. At approval time, Owner may attach an
 additional prompt; the bridge appends that prompt to the task-card body under
 `Owner Additional Prompt` and then sends the card through the central Codex
 task-card service.
+
+The only plugin-conversation auto-dispatch exception is a bounded Codex Mobile
+thread/routing mismatch repair. The bridge may auto-dispatch when the canonical
+plugin target is Codex Mobile, or when a `home-ai` request explicitly names
+Codex Mobile/task-card thread routing, and the bounded request text matches
+safe mismatch terms such as `thread mismatch`, `wrong thread`,
+`task-card routing`, `target_thread_not_visible`, `target_thread_archived`, or
+`stale_target_thread`. The same predicate rejects production deploy/mutation,
+secret/key/token access, database/data import or backfill, physical-device
+control, Finance transactions, Wardrobe private-data changes, and similar
+high-risk wording. The bridge uses the same task-card send path and stable
+request id as Owner-triggered dispatch, records bounded auto-dispatch metadata,
+sends no Owner prompt push, and completes the Inbox item only after Codex
+Mobile returns a concrete task-card id. Duplicate equivalent requests return
+the prior task-card id from completion metadata.
 
 Routes:
 
@@ -567,8 +611,10 @@ Client trigger:
   `homeai.plugin_conversation.action` or
   `homeai.pluginConversation.action`. The Home AI client forwards the request to
   `POST /api/plugin-conversation/actions`, which creates an Owner Action Inbox
-  approval item. This is not an auto-dispatch path; Owner must still click
-  `发修复卡` and may attach an Owner prompt before task-card dispatch.
+  approval item. This is not an auto-dispatch path for ordinary capability gaps
+  or high-risk work; Owner must still click `发修复卡` and may attach an Owner
+  prompt before task-card dispatch. The only exception is the bounded Codex
+  Mobile thread/routing mismatch self-repair class described above.
 - host-side assistant replies in plugin conversation topics may also append one
   hidden `homeai-plugin-conversation-action` HTML comment containing exact JSON.
   The client scans only recent completed assistant messages, strips the hidden
@@ -611,6 +657,7 @@ adapters/ai-ops-diagnostic-intake-service.js
 adapters/ai-ops-diagnostic-remediation-service.js
 adapters/plugin-conversation-action-bridge-service.js
 adapters/autonomous-delivery-coordinator-service.js
+adapters/autonomous-delivery-routing-decision-service.js
 ```
 
 Route/UI:
@@ -641,6 +688,7 @@ tests/ai-ops-diagnostic-feedback-ui.test.js
 tests/plugin-conversation-action-bridge-service.test.js
 tests/plugin-conversation-action-api-routes.test.js
 tests/autonomous-delivery-coordinator-service.test.js
+tests/autonomous-delivery-routing-decision-service.test.js
 tests/autonomous-delivery-api-routes.test.js
 tests/app-action-inbox-ui.test.js
 ```
@@ -663,6 +711,7 @@ node tests/ai-ops-diagnostic-remediation-service.test.js
 node tests/ai-ops-diagnostic-api-routes.test.js
 node tests/ai-ops-diagnostic-feedback-ui.test.js
 node tests/autonomous-delivery-coordinator-service.test.js
+node tests/autonomous-delivery-routing-decision-service.test.js
 node tests/autonomous-delivery-api-routes.test.js
 node tests/architecture-code-test-harness-map.test.js
 node tests/architecture-refactor-boundary.test.js

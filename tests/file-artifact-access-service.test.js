@@ -89,9 +89,11 @@ const service = createFileArtifactAccessService({
     mime: "text/markdown; charset=utf-8",
     size: 1234,
     url: "/api/artifacts/artifact_1",
-    path: "C:\\owner\\report.md",
     workspaceId: "child",
   });
+  assert.equal(created.path, undefined);
+  assert.equal(created.displayPath, undefined);
+  assert.equal(created.localPath, undefined);
   assert.deepEqual(service.publicArtifactFromClient({ id: "artifact_1" }), {
     id: "artifact_1",
     name: "report.md",

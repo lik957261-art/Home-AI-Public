@@ -51,15 +51,19 @@ test("dev and built preview pages use Vite module entries only", () => {
   assert.doesNotMatch(serviceWorker, /home-ai-app-preview/);
 });
 
-test("preview source documents fallback and avoids classic shell globals", () => {
+test("preview source documents Vite-only root and avoids legacy shell globals", () => {
   const source = read("src/vite-app/main.mjs");
-  assert.match(source, /CLASSIC_FALLBACK_PATH/);
+  assert.match(source, /HOME_AI_ROOT_PATH/);
   assert.match(source, /AI_OPS_FEEDBACK_PREVIEW_PATH/);
   assert.match(source, /VOICE_INPUT_STATUS_PREVIEW_PATH/);
   assert.match(source, /NAVIGATION_SHELL_PREVIEW_PATH/);
   assert.match(source, /DOCUMENT_PREVIEW_PATH/);
   assert.match(source, /PLUGIN_HOST_PREVIEW_PATH/);
-  assert.match(source, /productionDefaultShell:\s*"classic"/);
+  assert.match(source, /DIALOG_SHEET_PREVIEW_PATH/);
+  assert.match(source, /TOAST_STATUS_PREVIEW_PATH/);
+  assert.match(source, /PWA_PUSH_STATUS_PREVIEW_PATH/);
+  assert.match(source, /productionDefaultShell:\s*"vite"/);
+  assert.match(source, /Classic runtime path 已退役/);
   assert.match(source, /createHomeAiRuntimeFacade/);
   assert.match(source, /HomeAiRuntimeFacade/);
   assert.match(source, /simulateError/);
@@ -82,7 +86,10 @@ test("built app preview artifact exists after npm run build:vite", () => {
   assert.match(output, /导航 Shell 预览/);
   assert.match(output, /文件预览策略/);
   assert.match(output, /Plugin Host 预览/);
-  assert.match(output, /classic shell/);
+  assert.match(output, /Dialog Sheet 预览/);
+  assert.match(output, /Toast \/ Status 预览/);
+  assert.match(output, /PWA Push 状态/);
+  assert.doesNotMatch(output, /classic shell/);
 });
 
 if (process.exitCode) process.exit(process.exitCode);

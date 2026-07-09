@@ -96,7 +96,7 @@ function cleanTargetReadiness(extra = {}, cleanInstallLive = "") {
   const canaryStatus = normalizeStatus(evidence.cleanTargetCanaryStatus || "", "");
   const skipped = evidence.skipped === true;
   const status = environmentStatus === "blocked"
-    ? "blocked"
+    ? "warning"
     : (cleanInstallLive || canaryStatus || (skipped ? "partial" : ""));
   return {
     status,

@@ -22,6 +22,8 @@ const architectureMap = read("docs/ARCHITECTURE_CODE_TEST_HARNESS_MAP.md");
 assert.match(script, /production-status-smoke\.js/);
 assert.match(script, /macos-production-profile-audit\.js/);
 assert.match(script, /macos-worker-filesystem-access-harness\.js/);
+assert.match(script, /workspace-target-acl/);
+assert.match(script, /--workspace-catalog-targets/);
 assert.match(script, /macos-plugin-directory-production-smoke\.js/);
 assert.match(script, /macos-bound-directory-preview-smoke\.js/);
 assert.match(script, /macos-wardrobe-binding-production-smoke\.js/);
@@ -288,7 +290,15 @@ const acl = compactAcl({
     { status: "failed" },
   ],
 });
-assert.deepEqual(acl, { ok: true, checkedCount: 3, failedCount: 1, denyCheckCount: 1 });
+assert.deepEqual(acl, { ok: true, checkedCount: 3, failedCount: 1, denyCheckCount: 1, targetWorkspaceCount: 0 });
+assert.deepEqual(compactAcl({
+  ok: true,
+  targetWorkspaceCount: 2,
+  results: [
+    { status: "ok" },
+    { status: "ok", expectedDenied: true },
+  ],
+}), { ok: true, checkedCount: 2, failedCount: 0, denyCheckCount: 1, targetWorkspaceCount: 2 });
 
 const schema = compactSchema("owner", {
   ok: true,

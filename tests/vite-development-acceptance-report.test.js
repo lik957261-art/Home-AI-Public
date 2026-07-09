@@ -33,6 +33,22 @@ function payloadForStep(stepId) {
   if (stepId === "vite_preview_routes_smoke") {
     return { ok: true, routeCount: 9, routes: [{ path: "/vite-app-preview/" }] };
   }
+  if (stepId === "vite_dev_user_journeys_smoke") {
+    return {
+      ok: true,
+      sourceOnly: true,
+      productionWrites: false,
+      deployExecuted: false,
+      journeyCount: 5,
+      journeys: [
+        "composer_attachment_camera_no_refresh",
+        "codex_plugin_iframe",
+        "owner_system_console",
+        "document_preview_pdf_pptx",
+        "voice_pending_cancel",
+      ],
+    };
+  }
   if (stepId === "vite_development_readiness") {
     return {
       ok: true,
@@ -46,6 +62,22 @@ function payloadForStep(stepId) {
         failedCount: 0,
         warningCount: 0,
       },
+    };
+  }
+  if (stepId === "vite_preview_cache_policy") {
+    return {
+      ok: true,
+      sourceOnly: true,
+      productionWrites: false,
+      deployExecuted: false,
+      productionDeployAuthorized: false,
+      productionCutoverCacheReady: false,
+      residuals: [
+        {
+          id: "vite_entry_assets_not_content_fingerprinted",
+          status: "open_for_cutover",
+        },
+      ],
     };
   }
   if (stepId === "vite_owner_review_report") {
@@ -137,6 +169,8 @@ test("development acceptance report passes all source-only steps", () => {
   assert.equal(report.summary.failedStepCount, 0);
   assert.equal(report.steps.some((step) => step.id === "repo_static_check"), true);
   assert.equal(report.steps.some((step) => step.id === "vite_cutover_handoff_packet_blocked"), true);
+  assert.equal(report.steps.some((step) => step.id === "vite_dev_user_journeys_smoke"), true);
+  assert.equal(report.steps.some((step) => step.id === "vite_preview_cache_policy"), true);
   assert.equal(report.steps.some((step) => step.id === "vite_production_readback_validator_contract"), true);
   assert.equal(report.steps.some((step) => step.id === "vite_cutover_source_change_validator_contract"), true);
   assert.equal(report.steps.some((step) => step.id === "vite_goal_state_audit_contract"), true);

@@ -140,6 +140,10 @@ Backups must allow a replacement machine to restore source, production app files
   `data/artifacts` so generated plugin artifacts such as Wardrobe thumbnails
   remain readable by the scheduled backup even when a plugin worker created
   them with a private owner and `700` mode.
+- Mac production deploy repairs read/traverse ACLs for `hermes-host` under
+  `data/deploy-state` so scheduled disaster backup can copy deploy-state
+  metadata created by root-owned deploy or repair paths without giving the CRON
+  job sudo access.
 - Mac production deploy also repairs read/traverse ACLs for `hermes-host` under
   `gateway-worker/telemetry` so scheduled disaster backup can copy Gateway
   telemetry state and read Gateway profile `SOUL.md` files created by
@@ -152,10 +156,10 @@ Backups must allow a replacement machine to restore source, production app files
   `.codegraph/`, Codex `logs_*.sqlite*`, and SQLite `*-wal` / `*-shm` sidecar
   files that are not the durable restore target and can change while rsync is
   reading them.
-- Daily backup skips root-level production `data/*.bak` files created by local
-  repair/deploy rollback operations. Canonical files such as
+- Daily backup skips root-level production `data/*.bak` and `data/*.backup-*`
+  files created by local repair/deploy rollback operations. Canonical files such as
   `data/gateway-pool-manifest-mac.json` are still backed up; transient
-  `.bak` files are recorded as skipped so an unreadable root-owned rollback
+  rollback artifacts are recorded as skipped so an unreadable root-owned repair
   artifact cannot make the scheduled disaster backup partial.
 - Hermes Agent custom user Skills stores are mandatory backup coverage. The
   authoritative production store is `data/skill-profiles/*/skills`; the

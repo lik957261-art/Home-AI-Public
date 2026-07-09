@@ -80,6 +80,14 @@ function createDeps(options = {}) {
           calls.push({ type: "runReturnWatchdog", input });
           return { ok: true, status: "degraded", workspaceId: input.workspaceId, markedCount: 1, marked: [{ taskCardId: "ttc_1" }] };
         },
+        sourceReturnIntegrationSummary(input) {
+          calls.push({ type: "sourceReturnIntegrationSummary", input });
+          return { ok: true, status: "degraded", counts: { stale: 1 }, items: [{ returnCardId: "ttc_return_1" }] };
+        },
+        runSourceReturnIntegrationWatchdog(input) {
+          calls.push({ type: "runSourceReturnIntegrationWatchdog", input });
+          return { ok: true, status: "degraded", workspaceId: input.workspaceId, markedCount: 1, marked: [{ returnCardId: "ttc_return_1" }] };
+        },
         recordReturnCardEvent(input) {
           calls.push({ type: "recordReturnCardEvent", input });
           return { ok: true, case: { caseId: "delivery_1" }, slice: { sliceId: "slice_1", taskCardId: input.taskCardId, status: input.status } };
@@ -370,6 +378,43 @@ async function testOwnerRunsReturnWatchdogAndBroadcastsWhenMarked() {
   assert.equal(calls.some((call) => call.type === "broadcast" && call.event.reason === "return_watchdog"), true);
 }
 
+async function testOwnerReadsSourceReturnIntegrationSummary() {
+  const { deps, calls } = createDeps();
+  const routes = createAutonomousDeliveryApiRoutes(deps);
+  const req = makeReq("GET", "/api/autonomous-delivery/source-return-integrations?workspaceId=owner&staleAfterMs=60000&limit=5");
+  const res = makeResponse();
+  await routes.handle(req, res, new URL(req.url, "http://localhost"), { auth: { principalId: "owner", workspaceId: "owner" } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(jsonBody(res).status, "degraded");
+  assert.deepEqual(calls.find((call) => call.type === "sourceReturnIntegrationSummary").input, {
+    workspaceId: "owner",
+    staleAfterMs: 60000,
+    limit: 5,
+    auth: { principalId: "owner", workspaceId: "owner" },
+  });
+}
+
+async function testOwnerRunsSourceReturnIntegrationWatchdogAndBroadcastsWhenMarked() {
+  const { deps, calls } = createDeps();
+  const routes = createAutonomousDeliveryApiRoutes(deps);
+  const req = makeReq("POST", "/api/autonomous-delivery/source-return-integrations", {
+    workspaceId: "owner",
+    staleAfterMs: 60000,
+  });
+  const res = makeResponse();
+  await routes.handle(req, res, new URL(req.url, "http://localhost"), { auth: { principalId: "owner", workspaceId: "owner" } });
+  assert.equal(res.statusCode, 200);
+  assert.equal(jsonBody(res).markedCount, 1);
+  assert.deepEqual(calls.find((call) => call.type === "runSourceReturnIntegrationWatchdog").input, {
+    workspaceId: "owner",
+    staleAfterMs: 60000,
+    limit: undefined,
+    actor: "owner",
+    auth: { principalId: "owner", workspaceId: "owner" },
+  });
+  assert.equal(calls.some((call) => call.type === "broadcast" && call.event.reason === "source_return_integration_watchdog"), true);
+}
+
 async function testDeniedOwnerStopsStart() {
   const { deps, calls } = createDeps({ denyOwner: true });
   const routes = createAutonomousDeliveryApiRoutes(deps);
@@ -407,6 +452,8 @@ async function run() {
   await testRecordReturnCardEventIntake();
   await testOwnerReadsReturnWatchdogSummary();
   await testOwnerRunsReturnWatchdogAndBroadcastsWhenMarked();
+  await testOwnerReadsSourceReturnIntegrationSummary();
+  await testOwnerRunsSourceReturnIntegrationWatchdogAndBroadcastsWhenMarked();
   await testDeniedOwnerStopsStart();
   await testNoRouteFallsThrough();
   testDependencyValidation();

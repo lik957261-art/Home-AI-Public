@@ -125,7 +125,7 @@ assert.match(
   /:root\[data-font-size\] \.automation-doc-preview\.compact \.automation-doc-name \{[\s\S]*?font-size: calc\(13px \* var\(--app-font-scale\)\);/
 );
 
-assert.match(fileViewer, /\/markdown-renderer-client\.js\?v=20260515-md-font-stepdown/);
+assert.match(fileViewer, /\/markdown-renderer-client\.js\?v=20260705-camera-attachment-preview-v1082/);
 assert.match(fileViewer, /const markdownRenderer = window\.HermesMarkdownRenderer/);
 assert.match(fileViewer, /markdownRenderer\.renderMarkdownDocument\(text, \{/);
 assert.match(fileViewer, /fontScale: currentViewerPreferences\(\)\.markdownSize\.id/);
@@ -182,7 +182,7 @@ assert.match(fileViewer, /if \(src && kind === "HTML"\) \{/);
 assert.match(fileViewer, /location\.replace\(originalUrlFor\(src\)\)/);
 assert.doesNotMatch(fileViewer, /renderIframePreview\("HTML preview"\)/);
 assert.match(fileViewer, /if \(src && !isMarkdownDocument\(\)\) window\.setTimeout\(\(\) => prepareShareBlob/);
-assert.match(markdownViewer, /markdown-renderer-client\.js\?v=20260515-md-font-stepdown/);
+assert.match(markdownViewer, /markdown-renderer-client\.js\?v=20260705-camera-attachment-preview-v1082/);
 assert.match(markdownViewer, /markdownRenderer\.renderMarkdownDocument/);
 assert.match(markdownViewer, /-apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans CJK SC"/);
 assert.match(markdownViewer, /--viewer-markdown-font-scale: 1/);

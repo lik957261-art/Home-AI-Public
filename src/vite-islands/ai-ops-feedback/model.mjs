@@ -24,6 +24,15 @@ function cleanString(value, max = 4000) {
   return String(value == null ? "" : value).trim().slice(0, Math.max(1, Number(max) || 4000));
 }
 
+function escapeHtml(value) {
+  return String(value == null ? "" : value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function categoryIds() {
   return new Set(FEEDBACK_CATEGORIES.map((category) => category.id));
 }
@@ -104,14 +113,75 @@ function summarizeSubmissionResult(result = {}) {
   return "已记录";
 }
 
+function classicFeedbackContextLabel(context = {}) {
+  const pluginId = cleanString(context.plugin_id || context.pluginId || "", 80);
+  if (pluginId && pluginId !== "home-ai") {
+    const sourceSurface = cleanString(context.source_surface || context.sourceSurface || "", 80);
+    return `当前插件：${pluginId}${sourceSurface ? ` · ${sourceSurface}` : ""}`;
+  }
+  return "当前页面：Home AI";
+}
+
+function classicOwnerConsoleActionPlan(state = {}, capabilities = {}) {
+  const available = ownerConsoleAvailable(state, capabilities);
+  return Object.freeze({
+    available,
+    hidden: !available,
+    enabled: available,
+    label: ownerConsoleLabel(state, capabilities),
+    trigger: "diagnostic_feedback_menu",
+  });
+}
+
+function classicCategoryOptionMarkup(activeCategory = DEFAULT_CATEGORY) {
+  const selected = normalizeCategory(activeCategory);
+  return FEEDBACK_CATEGORIES.map((category) => `
+              <option value="${escapeHtml(category.id)}"${category.id === selected ? " selected" : ""}>${escapeHtml(category.label)}</option>`).join("");
+}
+
+function renderClassicAiOpsFeedbackSheet(input = {}) {
+  const activeCategory = normalizeCategory(input.category || DEFAULT_CATEGORY);
+  const ownerAction = classicOwnerConsoleActionPlan(input.state || {}, input.capabilities || {});
+  const contextLabel = classicFeedbackContextLabel(input.context || {});
+  const statusMessage = cleanString(input.statusMessage || "将只提交最近的状态、计数和错误码。", 180);
+  const statusTone = cleanString(input.statusTone || "", 40);
+  return `
+        <div class="ai-ops-diagnostic-panel" data-ai-ops-esm-model="1">
+          <div class="ai-ops-diagnostic-head">
+            <strong>反馈当前问题</strong>
+            <button type="button" data-ai-ops-close aria-label="关闭">×</button>
+          </div>
+          <div class="ai-ops-diagnostic-context" data-ai-ops-context>${escapeHtml(contextLabel)}</div>
+          <label>
+            <span>类型</span>
+            <select data-ai-ops-category>${classicCategoryOptionMarkup(activeCategory)}
+            </select>
+          </label>
+          <label>
+            <span>补充一句</span>
+            <textarea data-ai-ops-note maxlength="${MAX_NOTE_LENGTH}" rows="3" placeholder="可以不填；不要输入密码、密钥或隐私正文"></textarea>
+          </label>
+          <p data-ai-ops-status${statusTone ? ` data-tone="${escapeHtml(statusTone)}"` : ""}>${escapeHtml(statusMessage)}</p>
+          <div class="ai-ops-diagnostic-actions">
+            <button type="button" data-ai-ops-open-system-console${ownerAction.hidden ? " hidden" : ""}>${escapeHtml(ownerAction.label)}</button>
+            <button type="button" data-ai-ops-close>取消</button>
+            <button type="button" data-ai-ops-submit>提交</button>
+          </div>
+        </div>
+      `;
+}
+
 export {
   DEFAULT_CATEGORY,
   FEEDBACK_CATEGORIES,
   MAX_NOTE_LENGTH,
   buildFeedbackPayload,
+  classicFeedbackContextLabel,
+  classicOwnerConsoleActionPlan,
   normalizeCategory,
   ownerConsoleAvailable,
   ownerConsoleLabel,
+  renderClassicAiOpsFeedbackSheet,
   safeRoute,
   sanitizeNote,
   summarizeSubmissionResult,

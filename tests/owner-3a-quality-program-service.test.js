@@ -127,7 +127,7 @@ function testSnapshotCanReachOkWhenAllEvidenceIsProvided() {
   ]);
 }
 
-function testCleanTargetEnvironmentBlockedSurfacesAsBlockedRequirement() {
+function testCleanTargetEnvironmentBlockedSurfacesAsReleaseEvidenceWarning() {
   const snapshot = buildOwner3AQualityProgramSnapshot({
     nowIso: () => "2026-07-01T00:00:00.000Z",
     runtimeSloModel: runtimeSloModel(),
@@ -159,10 +159,10 @@ function testCleanTargetEnvironmentBlockedSurfacesAsBlockedRequirement() {
   const canaryWorkstream = snapshot.workstreams.find((item) => item.id === "fresh_install_upgrade_canary");
   const cleanTarget = canaryWorkstream.requirements.find((item) => item.id === "clean_target_live_canary");
 
-  assert.equal(snapshot.status, "blocked");
+  assert.equal(snapshot.status, "warning");
   assert.equal(snapshot.ok, false);
-  assert.equal(canaryWorkstream.status, "blocked");
-  assert.equal(cleanTarget.status, "blocked");
+  assert.equal(canaryWorkstream.status, "warning");
+  assert.equal(cleanTarget.status, "warning");
   assert.equal(cleanTarget.weight, 0);
   assert.equal(cleanTarget.boundedEvidence.cleanInstallCanaryStatus, "partial");
   assert.equal(cleanTarget.boundedEvidence.cleanTargetCanaryStatus, "not_run");
@@ -175,7 +175,7 @@ function testCleanTargetEnvironmentBlockedSurfacesAsBlockedRequirement() {
   assert.equal(snapshot.policy.noCompletionClaim, true);
 }
 
-function testAggregateCleanTargetEnvironmentBlockedSurfacesAsBlockedRequirement() {
+function testAggregateCleanTargetEnvironmentBlockedSurfacesAsReleaseEvidenceWarning() {
   const snapshot = buildOwner3AQualityProgramSnapshot({
     nowIso: () => "2026-07-01T00:00:00.000Z",
     runtimeSloModel: runtimeSloModel(),
@@ -197,9 +197,9 @@ function testAggregateCleanTargetEnvironmentBlockedSurfacesAsBlockedRequirement(
   const canaryWorkstream = snapshot.workstreams.find((item) => item.id === "fresh_install_upgrade_canary");
   const cleanTarget = canaryWorkstream.requirements.find((item) => item.id === "clean_target_live_canary");
 
-  assert.equal(snapshot.status, "blocked");
-  assert.equal(canaryWorkstream.status, "blocked");
-  assert.equal(cleanTarget.status, "blocked");
+  assert.equal(snapshot.status, "warning");
+  assert.equal(canaryWorkstream.status, "warning");
+  assert.equal(cleanTarget.status, "warning");
   assert.equal(cleanTarget.boundedEvidence.cleanTargetEnvironmentStatus, "blocked");
   assert.deepEqual(cleanTarget.boundedEvidence.cleanTargetEnvironmentIssues, ["clean_target_root_missing"]);
 }
@@ -309,8 +309,8 @@ function run() {
   testStatusHelpers();
   testSnapshotKeepsCleanCanaryGapVisible();
   testSnapshotCanReachOkWhenAllEvidenceIsProvided();
-  testCleanTargetEnvironmentBlockedSurfacesAsBlockedRequirement();
-  testAggregateCleanTargetEnvironmentBlockedSurfacesAsBlockedRequirement();
+  testCleanTargetEnvironmentBlockedSurfacesAsReleaseEvidenceWarning();
+  testAggregateCleanTargetEnvironmentBlockedSurfacesAsReleaseEvidenceWarning();
   testCleanTargetCanaryStatusCanDriveRequirementWhenLiveStatusMissing();
   testSkippedCleanTargetCanaryRemainsPartialNotBlocked();
   testSnapshotSurfacesRuntimeAndDispatchGaps();

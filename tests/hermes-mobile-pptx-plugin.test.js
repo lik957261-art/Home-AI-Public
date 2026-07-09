@@ -155,6 +155,89 @@ print(json.dumps({"created": created, "validated": validated, "extracted": extra
   });
 }
 
+function testCreateKeepsMediaLineWhenOptionalExternalValidationFails() {
+  withTempRoot((root) => {
+    const outputPath = path.join(root, "deliverable", "optional-external-failure.pptx");
+    const script = `
+import importlib.util, json
+spec = importlib.util.spec_from_file_location("hermes_mobile_pptx", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+module._run_libreoffice_validation = lambda path, require_external_engine=False: {
+    "available": True,
+    "skipped": False,
+    "required": bool(require_external_engine),
+    "ok": False,
+    "error": "libreoffice_conversion_failed",
+    "output_count": 0,
+}
+created = json.loads(module._pptx_create_handler({
+    "output_path": ${JSON.stringify(outputPath)},
+    "title": "Optional external validation failure",
+    "slides": [{"title": "Overview", "bullets": ["OpenXML relationships stay valid"]}],
+}))
+print(json.dumps(created, ensure_ascii=False))
+`;
+    const result = JSON.parse(runPython(script, {
+      HERMES_MOBILE_PPTX_ALLOWED_ROOTS: root,
+      HERMES_MOBILE_PPTX_OUTPUT_ROOTS: root,
+    }));
+    assert.equal(result.ok, true);
+    assert.equal(result.tool, "pptx_create");
+    assert.equal(result.compatibility, "validated");
+    assert.equal(result.validation.ok, true);
+    assert.equal(result.validation.issue_count, 0);
+    assert.equal(result.validation.external_validation.ok, false);
+    assert.equal(result.validation.external_validation.required, false);
+    assert.match(result.media_line, /^MEDIA:/);
+    assert.equal(fs.existsSync(outputPath), true);
+  });
+}
+
+function testValidateFailsWhenRequiredExternalValidationFails() {
+  withTempRoot((root) => {
+    const outputPath = path.join(root, "deliverable", "required-external-failure.pptx");
+    const script = `
+import importlib.util, json
+spec = importlib.util.spec_from_file_location("hermes_mobile_pptx", ${JSON.stringify(pluginPath)})
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+module._run_libreoffice_validation = lambda path, require_external_engine=False: {
+    "available": True,
+    "skipped": False,
+    "required": bool(require_external_engine),
+    "ok": True,
+    "error": "",
+    "output_count": 1,
+}
+created = json.loads(module._pptx_create_handler({
+    "output_path": ${JSON.stringify(outputPath)},
+    "title": "Required external validation failure",
+    "slides": [{"title": "Overview", "bullets": ["OpenXML relationships stay valid"]}],
+}))
+module._run_libreoffice_validation = lambda path, require_external_engine=False: {
+    "available": True,
+    "skipped": False,
+    "required": bool(require_external_engine),
+    "ok": False,
+    "error": "libreoffice_conversion_failed",
+    "output_count": 0,
+}
+validated = json.loads(module._pptx_validate_handler({"file_path": ${JSON.stringify(outputPath)}, "require_external_engine": True}))
+print(json.dumps({"created": created, "validated": validated}, ensure_ascii=False))
+`;
+    const result = JSON.parse(runPython(script, {
+      HERMES_MOBILE_PPTX_ALLOWED_ROOTS: root,
+      HERMES_MOBILE_PPTX_OUTPUT_ROOTS: root,
+    }));
+    assert.equal(result.created.ok, true);
+    assert.equal(result.validated.ok, false);
+    assert.equal(result.validated.external_validation.required, true);
+    assert.ok(result.validated.issues.includes("libreoffice_conversion_failed"));
+    assert.equal(fs.existsSync(outputPath), true);
+  });
+}
+
 function testValidateRejectsMissingLayoutMasterRelationship() {
   withTempRoot((root) => {
     const outputPath = path.join(root, "deliverable", "broken.pptx");
@@ -280,6 +363,8 @@ print(module._pptx_create_handler({"output_path": ${JSON.stringify(outside)}, "s
 
 testCreatesReadablePptxWithImageAndMediaLine();
 testCreatesPowerPointCompatibleChineseThreeSlideDeck();
+testCreateKeepsMediaLineWhenOptionalExternalValidationFails();
+testValidateFailsWhenRequiredExternalValidationFails();
 testValidateRejectsMissingLayoutMasterRelationship();
 testCreateBlocksMediaLineWhenThemeIsTooMinimalForPowerPoint();
 testCreateBlocksMediaLineWhenCompatibilityValidationFails();

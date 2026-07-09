@@ -40,11 +40,12 @@ test("production bootstrap preserves classic facade and installs focus guard", (
   assert.doesNotMatch(source, /Vite App Preview/);
 });
 
-test("source switch selects Vite with documented rollback metadata", () => {
+test("source switch is Vite-only and keeps rollback external", () => {
   const config = JSON.parse(read("config/home-ai-shell-mode.json"));
   assert.equal(config.shellMode, "vite");
-  assert.equal(config.cutoverVersion, "20260703-vite-production-cutover-v1");
-  assert.match(config.rollback, /classic/);
+  assert.match(config.cutoverVersion, /vite-production-cutover/);
+  assert.match(config.rollback, /deployment backups/);
+  assert.doesNotMatch(config.rollback, /set .*classic/i);
   assert.doesNotMatch(JSON.stringify(config), /Bearer|launchToken|sk-/);
 });
 

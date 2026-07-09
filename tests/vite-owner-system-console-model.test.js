@@ -105,6 +105,126 @@ async function test(name, fn) {
     assert.equal(model.statusLabel("blocked"), "阻断");
     assert.equal(model.statusLabel("not_collected"), "未采集");
   });
+
+  await test("Owner console model renders classic-compatible Owner surface", () => {
+    const html = model.renderClassicOwnerSystemConsoleView({
+      isOwner: true,
+      tab: "overview",
+      model: {
+        activeTab: "overview",
+        console: {
+          overallStatus: "degraded",
+          generatedAt: "2026-07-01T02:30:00.000Z",
+          dimensions: [
+            { id: "availability", label: "可用性", status: "ok", score: 0.98 },
+            { id: "accuracy", label: "准确性", status: "warning", score: 0.81 },
+            { id: "autonomy", label: "自主性", status: "critical", score: 0.52 },
+          ],
+          systemStatus: {
+            cpu: { usagePercent: 42, status: "ok" },
+            memory: { usedBytes: 2147483648, totalBytes: 4294967296, status: "warning" },
+            disk: { usedPercent: 88, status: "warning", thresholdPercent: 85 },
+          },
+          autonomousDeliveryControl: {
+            status: "degraded",
+            counts: { failed: 1, deferredConflict: 2, dispatching: 0, sent: 1 },
+            items: [
+              { sliceKey: "note_repair", dispatchStatus: "failed", failureCode: "target_thread_not_visible" },
+            ],
+          },
+          autonomousDeliveryLoop: {
+            status: "warning",
+            counts: { open: 3, waitingReturn: 1, blocked: 0, duplicateSuppressed: 2, verifiedClosed: 4 },
+            items: [
+              { caseId: "delivery_1", status: "running", attentionSliceKey: "home_ai_worker", blockedReason: "/Users/example/path" },
+            ],
+          },
+          loopEngineeringStatus: {
+            status: "blocked",
+            counts: { open: 1, waitingReturn: 1, blocked: 1, verifiedClosed: 2 },
+            items: [
+              { loopId: "loop_home_ai_1", status: "blocked", nextRoute: "codex_at_loop_status_unreachable" },
+            ],
+          },
+          qualityProgram: {
+            status: "warning",
+            progressPercent: 90,
+            workstreams: [
+              { id: "fresh_install_upgrade_canary", title: "Fresh Install and Upgrade Canary", status: "warning", progressPercent: 75 },
+            ],
+            gaps: [
+              {
+                requirementId: "clean_target_live_canary",
+                status: "partial",
+                gap: "Run or wire a clean-target canary readback when a target is available.",
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    assert.match(html, /data-owner-system-console/);
+    assert.match(html, /data-owner-system-console-status-section="quality-program"/);
+    assert.match(html, /data-owner-system-console-status-section="delivery-dispatch"/);
+    assert.match(html, /data-owner-system-console-status-section="delivery-loop"/);
+    assert.match(html, /data-owner-system-console-status-section="loop-engineering"/);
+    assert.match(html, /全新安装与升级 Canary/);
+    assert.match(html, /目标线程不可见/);
+    assert.match(html, /Codex Mobile Loop 状态不可达/);
+    assert.doesNotMatch(html, /Fresh Install and Upgrade Canary/);
+    assert.doesNotMatch(html, /must-not-leak/);
+  });
+
+  await test("Owner console model renders classic-compatible system status tab", () => {
+    const html = model.renderClassicOwnerSystemConsoleView({
+      isOwner: true,
+      tab: "system-status",
+      model: {
+        activeTab: "system-status",
+        systemStatus: {
+          cpu: { usagePercent: 44, status: "ok" },
+          memory: { usedBytes: 2147483648, totalBytes: 4294967296, status: "warning" },
+          disk: { usedPercent: 88, status: "warning", thresholdPercent: 85 },
+          uptime: { seconds: 93600 },
+          codexMobile: {
+            available: true,
+            status: "warning",
+            totalCpuPercent: 29,
+            totalRssBytes: 4 * 1024 ** 3,
+            logs: {
+              available: true,
+              totalSizeBytes: 900 * 1024 ** 2,
+              growthAvailable: true,
+              growthBytesPerSecond: 3500,
+            },
+            processes: [
+              { label: "Codex app-server", status: "warning", cpuPercent: 29, rssBytes: 4 * 1024 ** 3, elapsed: "28:25" },
+            ],
+          },
+          services: [
+            { name: "listener", status: "running", critical: true, summary: "已上报" },
+          ],
+          signals: [
+            { label: "磁盘", severity: "warning", summary: "高于阈值" },
+          ],
+        },
+      },
+    });
+
+    assert.match(html, /data-owner-system-console-system-status/);
+    assert.match(html, /data-owner-system-console-status-section="system-resources"/);
+    assert.match(html, /data-owner-system-console-status-section="codex-mobile-runtime"/);
+    assert.match(html, /data-owner-system-console-status-section="services"/);
+    assert.match(html, /owner-system-console-service-table/);
+    assert.match(html, /Codex Mobile Runtime/);
+    assert.match(html, /Codex app-server/);
+    assert.match(html, /RSS 4GB/);
+    assert.match(html, /日志 900MB/);
+    assert.match(html, /listener/);
+    assert.doesNotMatch(html, /\/Users\//);
+    assert.doesNotMatch(html, /secret/);
+  });
 })().finally(() => {
   if (process.exitCode) process.exit(process.exitCode);
 });

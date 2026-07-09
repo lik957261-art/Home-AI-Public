@@ -13,10 +13,12 @@ const {
 const {
   mergeGatewayWorkerRuntimeSettings,
 } = require("../adapters/gateway-worker-runtime-settings-service");
+const { mergeMoaConfig } = require("../adapters/runtime-config-moa-service");
 
 function makeService() {
   return createRuntimeConfigSaveService({
     mergeGatewayWorkerRuntimeSettings,
+    mergeMoaConfig,
     normalizeRuntimeConfig,
     normalizeRuntimeModelSelection,
     nowIso: () => "2026-06-08T00:00:00.000Z",
@@ -43,6 +45,17 @@ function testRuntimeConfigForSaveNormalizesInput() {
       global_max_workers: 8,
       idle_ttl_minutes: 1,
     },
+    moa_config: {
+      enabled: true,
+      default_preset: "default",
+      presets: {
+        default: {
+          reference_models: ["openai-codex:gpt-5.5"],
+          aggregator: { provider: "openai-codex", model: "gpt-5.5" },
+          reference_max_tokens: 600,
+        },
+      },
+    },
     hermes_api_base: "http://localhost:8797///?drop=1#fragment",
     hermes_api_key_path: " C:/new.key ",
     web_push_subject: "https://example.invalid/push",
@@ -61,6 +74,18 @@ function testRuntimeConfigForSaveNormalizesInput() {
       workspaceMaxWorkers: 2,
       globalMaxWorkers: 8,
       idleTtlMinutes: 1,
+    },
+    moaConfig: {
+      enabled: true,
+      defaultPreset: "default",
+      activePreset: "",
+      presets: [{
+        name: "default",
+        enabled: true,
+        referenceModels: [{ provider: "openai-codex", model: "gpt-5.5" }],
+        aggregator: { provider: "openai-codex", model: "gpt-5.5" },
+        referenceMaxTokens: 600,
+      }],
     },
     webPushSubject: "https://example.invalid/push",
     webPushVapidPath: "C:/new-vapid.json",
@@ -93,6 +118,11 @@ function testValidationStillFailsClosed() {
   assert.throws(() => service.runtimeConfigForSave({ hermesApiBase: "ftp://example.invalid" }), /http or https/);
   assert.throws(() => service.runtimeConfigForSave({ webPushSubject: "invalid subject" }), /Web Push subject/);
   assert.throws(() => service.runtimeConfigForSave({ gatewayWorkerSettings: { globalMaxWorkers: 999 } }), /Global worker cap/);
+  assert.throws(() => service.runtimeConfigForSave({
+    moaConfig: {
+      presets: { default: { referenceModels: ["openai-codex:gpt-5.5"], aggregator: { provider: "moa", model: "default" } } },
+    },
+  }), /provider moa/);
 }
 
 testRuntimeConfigForSaveNormalizesInput();

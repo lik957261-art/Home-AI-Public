@@ -86,7 +86,7 @@ function buildNextActions(verdictStatus) {
   }
   return [
     "Review this source-only report with Owner.",
-    "Keep production on the classic shell unless Owner gives the exact approval text.",
+    "Keep current production deployment state unchanged unless Owner gives the exact approval text.",
     "Do not create a production cutover source change or deploy-lane card before approval.",
   ];
 }

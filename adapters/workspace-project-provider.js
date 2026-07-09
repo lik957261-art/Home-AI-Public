@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { mediaAccountPublicFields } = require("./restricted-media-account-service");
 
 function trace(label) {
   const tracePath = process.env.HERMES_MOBILE_BOOT_TRACE_PATH || process.env.HERMES_WEB_BOOT_TRACE_PATH || "";
@@ -83,6 +84,15 @@ function createWorkspaceProjectProvider(options = {}) {
   function workspaceFromRoute(route, user) {
     const principalId = String(route.principal_id);
     const policy = buildAccessPolicy(route, user, null);
+    const mediaFields = mediaAccountPublicFields({
+      accountType: route.accountType || route.account_type || user.accountType || user.account_type,
+      allowedOwnerSpecialPlugins: route.allowedOwnerSpecialPlugins
+        || route.allowed_owner_special_plugins
+        || user.allowedOwnerSpecialPlugins
+        || user.allowed_owner_special_plugins,
+      restrictedMedia: route.restrictedMedia === true || user.restrictedMedia === true,
+      policy,
+    });
     return {
       id: principalId,
       label: String(route.principal_label || user.principal_label || route.principal_id),
@@ -102,6 +112,9 @@ function createWorkspaceProjectProvider(options = {}) {
       responseStyle: String(route.response_style || user.response_style || ""),
       showTaskId: route.show_task_id !== undefined ? Boolean(route.show_task_id) : Boolean(user.show_task_id !== false),
       maxParallelTasks: Number(route.max_parallel_tasks || user.max_parallel_tasks || 0),
+      accountType: mediaFields.accountType,
+      restrictedMedia: mediaFields.restrictedMedia,
+      allowedOwnerSpecialPlugins: mediaFields.allowedOwnerSpecialPlugins,
       policy,
     };
   }
@@ -120,6 +133,8 @@ function createWorkspaceProjectProvider(options = {}) {
       aliases: normalizeStringList(record?.aliases),
       show_task_id: record?.showTaskId !== false,
       max_parallel_tasks: Number(record?.maxParallelTasks || 0),
+      account_type: String(record?.accountType || record?.account_type || "").trim(),
+      allowed_owner_special_plugins: normalizeStringList(record?.allowedOwnerSpecialPlugins || record?.allowed_owner_special_plugins),
     };
     const user = {
       principal_id: id,
@@ -132,6 +147,8 @@ function createWorkspaceProjectProvider(options = {}) {
       download_root: String(record?.downloadRoot || record?.download_root || "").trim(),
       allowed_toolsets: normalizeStringList(record?.allowedToolsets || record?.allowed_toolsets),
       connector_profiles: normalizeStringMap(record?.connectorProfiles || record?.connector_profiles),
+      account_type: String(record?.accountType || record?.account_type || "").trim(),
+      allowed_owner_special_plugins: normalizeStringList(record?.allowedOwnerSpecialPlugins || record?.allowed_owner_special_plugins),
     };
     const workspace = workspaceFromRoute(route, user);
     workspace.source = "local-workspace";

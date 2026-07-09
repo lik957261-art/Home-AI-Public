@@ -286,21 +286,32 @@ The plugin-context surface has four explicit states:
   the normal bottom navigation.
 - **Plugin app**: `viewMode=<plugin viewMode>` and
   `pluginContextNavPluginId=<pluginId>`. The embedded plugin host is visible
-  and the mobile bottom navigation is replaced by the three plugin-context
-  tabs: topic, plugin, and directory.
+  and the ordinary pinned mobile bottom navigation remains unchanged. The
+  legacy dedicated `topic / plugin / directory` context footer is obsolete and
+  must not be reintroduced.
 - **Plugin topic**: `viewMode=tasks`,
   `currentTaskGroupId=plugin:<pluginId>`, and
   `pluginContextNavPluginId=<pluginId>`. The chat composer is visible for the
-  bound topic and the same three plugin-context tabs remain visible.
+  bound topic and the ordinary pinned mobile bottom navigation remains
+  unchanged.
 - **Plugin directory**: `viewMode=projects` and
   `pluginContextNavPluginId=<pluginId>`. The directory module owns the file
-  view, but the same three plugin-context tabs remain visible.
+  view while the ordinary pinned mobile bottom navigation remains unchanged.
+
+The only primary plugin-app / plugin-topic context switch affordance is the
+existing global plugin Dock handle. Tap or upward swipe on the handle keeps the
+existing drawer behavior. In a top-level plugin app surface or the matching
+`plugin:<pluginId>` topic detail, a clear downward handle gesture switches
+between the app and topic. Non-plugin contexts do not switch. The expanded Dock
+may show a visible fallback item with `aria-label="打开当前插件对话"` on the app
+surface or `aria-label="返回当前插件"` on the topic surface; that fallback must
+not render visible `话题` text and must not add a second centered icon.
 
 Right-swipe/browser-back from any plugin-context state exits the plugin context
 and returns directly to **Topic root**. This transition is not the same as
 ordinary task-detail back. It must call the dedicated plugin-context exit
 renderer, restore the remembered topic-list thread, clear plugin-context state,
-hide plugin iframes, and restore the ordinary system bottom navigation. It must
+hide plugin iframes, and keep the ordinary system bottom navigation. It must
 not call `openTaskList()`,
 `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`, because those
 generic routes can reload a shared topic thread and fall into the empty ordinary

@@ -9,6 +9,16 @@ intent into delivered, verified, and closed work with minimal user intervention.
 Product Reality audits are one quality lane inside this loop, not the whole
 system.
 
+Loop Engineering is an upper-layer product-engineering pattern that uses this
+contract as the Home AI domain adapter and projection substrate. Its
+requirements-analysis, implementation, and product-audit role cycles are
+documented in `docs/IMPLEMENTATION_NOTES/loop-engineering.md`. Long-term
+`@loop` triggering and cross-thread role orchestration belong to Codex Mobile's
+Loop runtime. Home AI must reuse or project that runtime through this
+coordinator ledger, dispatch idempotency, Worker/deploy lane routing, return
+Watchdog, and Owner-visible closure model instead of creating a parallel
+plugin-loop scheduler or state store.
+
 The loop exists to reduce repeated user steering during engineering work. Home
 AI should ask the user for only the decisions that require human product
 judgment or high-risk authorization, then coordinate planning, implementation,
@@ -57,6 +67,35 @@ Everything else should be handled by the loop:
    Product Reality, platform, security, or cross-workspace verification.
 8. `final_report`: return a concise result with changed files, commits,
    validation, deployment state, residual risk, and privacy confirmation.
+
+## Harness-Aware Closure Rule
+
+The coordinator owns Harness requirement enforcement across implementation,
+verification, repair, and return-card merge. When a slice is marked
+`harness_required`, or when the Owner reports the same user-visible state
+synchronization symptom after a completed or partially completed repair, the
+coordinator must carry that requirement into the next task card and into the
+closure ledger.
+
+The coordinator must not close a Worker, deploy, plugin, audit, or diagnostic
+return as `completed` while the required real workflow Harness evidence is
+missing. It may accept only one of these terminal states:
+
+- `completed` with bounded failing-then-passing Harness evidence from the real
+  entry path;
+- `partially_completed` with the remaining Harness/readback gap named exactly;
+- `blocked_missing_repro_harness` when the required Harness cannot be run in
+  the available lane;
+- a delegated visual/readback task whose terminal return answers the missing
+  requirement before final closure.
+
+For these escalated cases, code inspection, logs, screenshots without bounded
+state, and unit tests are hypothesis evidence only. Return cards should include
+bounded machine-readable fields such as counts, ids or hashes, active
+workspace/thread, visible DOM row counts, durable/pending counts, session or
+status codes, client version/build id, and timing buckets, and must not include
+raw messages, raw keys, cookies, launch tokens, endpoint bodies, database rows,
+private screenshots, private thread bodies, or long logs.
 
 ## Intent Intake Contract
 
@@ -117,24 +156,369 @@ dispatches bounded slices, and merges returned evidence into the coordinator
 ledger and workspace handoff. It must not be replaced by an ad hoc scheduler
 thread unless a future platform contract explicitly moves that responsibility.
 
+### Inbound Task-Card First-Step Triage
+
+When the Home AI implementation thread receives an inbound cross-thread task
+card, the first operational step is classification, not implementation. The
+coordinator must inspect the card metadata and bounded body for:
+
+- source thread/workspace, source task-card id, workflow id, and requested
+  reasoning effort;
+- owning layer: Home AI platform, plugin workspace, native shell, audit,
+  deployment/readback, or production service lane;
+- requested side effects: source edit, test-only validation, production config
+  install, deploy/restart, private service-user readback, data mutation, device
+  control, or audit closure;
+- available specialized lanes, including plugin-specific deploy lanes such as
+  `Movie Deploy Lane` or `Codex Mobile Deploy Lane`;
+- whether the main thread already has uncommitted overlapping source edits.
+
+The coordinator may work inline only when the slice is Home AI-owned, has a
+small non-overlapping source write set, does not require production
+service-user authority, and can be fully validated from this workspace. If the
+card asks for production installation, deployment/readback, private
+`hermes-host` execution/readback, plugin-owned mutation, native-shell mutation,
+or independent audit, the coordinator must dispatch a bounded Worker/deploy/audit
+card before performing that slice. It may still prepare and commit a Home
+AI-owned source-contract slice first when that source slice is a prerequisite,
+but production execution and independent readback must be delegated.
+
+The triage result is itself part of closure evidence. It should be recorded in
+the task-card body sent to the Worker or, if no legal lane exists, in a
+`blocked`/`redirected` return with bounded routing metadata. Relying on Owner
+reminders to trigger Worker dispatch is a contract violation.
+
+### Return-Driven Continuation Rule
+
+A terminal Worker, plugin-source, deploy, audit, or diagnostic return card is a
+source-scheduler event before it is a user-facing receipt. The source/main
+thread must merge the return into the coordinator ledger and immediately make a
+bounded `return_continuation_decision` before sending any ordinary final
+message.
+
+The decision must preserve these bounded fields when available:
+
+- `original_objective_satisfied`: whether the user's original objective is now
+  fully satisfied;
+- `continuation_required`: whether another dispatch, deploy/readback,
+  verification, owner-routing, or blocker record is required;
+- `next_action_type`: one of `none`, `dispatch_worker`,
+  `dispatch_deploy_readback`, `dispatch_verification_harness`,
+  `route_owner`, `ask_owner`, or `blocked`;
+- `next_target_role`: role such as `home_ai_worker`, `plugin_worker`,
+  `deploy_lane`, `audit_lane`, or `plugin_main`;
+- `next_target_workspace` and `next_target_thread_id` when a target is known;
+- `source_task_card_id`, `return_card_id`, and `workflow_id` for correlation;
+- `continuation_dispatch_card_id` after a follow-up card is created;
+- `blocked_reason` when no legal next action can be dispatched.
+
+The coordinator may stop only when
+`original_objective_satisfied=true`, `continuation_required=false`, all
+required Harness/deploy/readback evidence has been answered, and no return
+field or bounded summary names a pending next action. Otherwise it must execute
+one of the following dispositions:
+
+- `dispatch_worker`: create the required Worker card immediately when the
+  return says a capability is now available, a blocker was repaired, or "now it
+  can be dispatched"; do not reply only that dispatch is possible;
+- `dispatch_deploy_readback`: create or confirm the deploy/readback card when
+  source work is complete but production activation/readback is pending;
+- `dispatch_verification_harness`: create the missing Harness or audit/readback
+  card when required evidence is still unanswered;
+- `route_owner`: send the card to the owning thread/lane when the return is
+  `redirected` or the owning layer changed;
+- `ask_owner`: ask only for an unresolved product decision, high-risk
+  authorization, or other human decision gate that cannot be inferred from
+  docs/source;
+- `blocked`: record or return `blocked_missing_continuation_dispatch` with the
+  exact missing lane, capability, permission, conflict, or evidence when a
+  required next action cannot legally be sent.
+
+Status alone is not enough to close. A `completed` return can still require
+deployment, readback, or verification. A `partially_completed` return with a
+source fix ready, deploy pending, Worker available, or ownership redirect must
+advance to the named next action. A `redirected` return must be routed to the
+owning layer unless the route is illegal. A `blocked` return that names a
+repairable scheduling or lane-discovery defect must lead to a scheduling repair
+or a bounded blocker, not an ordinary summary. A source thread that answers
+"now a Worker can be dispatched" without dispatching it, or without recording
+`blocked_missing_continuation_dispatch`, violates this contract.
+
+Terminal receipts that contain structured follow-up metadata or bounded legacy
+markers must also create a source-visible pending action. The recognized
+signals include `deployRequest.needed=true`, `followUpRequest.needed=true`,
+`deploy_needed=true`, `deploy_requested`, `follow_up_required`,
+`blocked_by_deploy_readback`, `public_sync_required`, `pr_close_required`, and
+`central_action_required`. The pending action is stored as bounded metadata,
+not as a raw return body. It must include source task-card id, return-card id,
+workflow id, action type, target/ref when available, required readback count,
+issue code, creation time, and status. The coordinator must resolve the action
+by dispatching/merging the central deploy or verification request, block it
+with a reason, or dismiss it with an explicit reason. A pending action does not
+make the terminal receipt active again and must not be implemented by pushing
+the long return card to the latest active turn.
+
+### Central Deploy Governance Rule
+
+Home AI ordinary main/coordinator is the owner of production deployment
+governance for Home AI and Home AI-managed plugin deploys. Worker, audit,
+repair, loop, and plugin source/main threads may report that deployment is
+needed, but they must return bounded `deployRequest` metadata to the source
+coordinator instead of creating production Deploy Lane cards directly.
+
+The coordinator owns collecting terminal Worker return `deployRequest`
+metadata, combining deploy requests for the same repository/plugin/workspace,
+checking whether source refs are unified or divergent, confirming the deploy
+source is clean, comparing requested source/cache/build state against
+production readback when available, selecting the canonical deploy candidate,
+and creating the single Deploy Lane card. If refs are dirty, divergent, or
+superseded, the coordinator must record `blocked`, `superseded`, or
+`integration_required` instead of deploying a rollback or split ref.
+
+Worker return metadata should use this bounded machine-readable shape:
+
+```json
+{
+  "deployRequest": {
+    "needed": true,
+    "requestedByRole": "plugin_worker | home_ai_worker | repair_worker | audit_worker | loop_worker",
+    "sourceWorkspace": "/bounded/path/or/id",
+    "target": "home-ai | plugin:<plugin-id>",
+    "sourceRef": "commit-or-ref",
+    "baseRef": "optional-previous-live-ref",
+    "changedFiles": ["bounded/file.js"],
+    "validationSummary": ["bounded test names"],
+    "requiredReadback": ["bounded readback checks"],
+    "risk": "low|medium|high",
+    "issueCodes": [],
+    "requiresCentralIntegration": false,
+    "supersedesDeployRefs": [],
+    "dirtyState": { "dirty": false, "files": [] }
+  }
+}
+```
+
+`deployRequest` is metadata only. It is not production authorization and must
+be projected as `deployAuthorized=false` until Home AI main/coordinator creates
+the Deploy Lane request. The deploy governance service may aggregate requests
+into one deploy candidate only when the target/source graph is consistent.
+Divergent source refs or dirty sources must produce bounded issue codes such as
+`deploy_request_requires_integration`, `deploy_request_source_ref_divergent`,
+or `deploy_request_dirty_source`.
+
+Deploy Lane cards must include source role metadata. Allowed dispatch source
+roles are `home_ai_main`, `owner_main`, `central_deploy_coordinator`, and
+`explicit_deploy_orchestrator`. Worker-origin roles such as `plugin_worker`,
+`home_ai_worker`, `repair_worker`, `audit_worker`, `loop_worker`, and
+`plugin_source_thread` are rejected by default with
+`deploy_card_requires_central_coordinator`,
+`worker_direct_deploy_forbidden`, or `deploy_source_role_not_authorized`.
+
+Emergency direct dispatch is allowed only when it carries an explicit,
+auditable central override: `centralOverride=true`, a bounded `overrideReason`,
+`ownerApprovalRef` or `centralCoordinatorRef`, clean `dirtyState`, `sourceRef`,
+validation summary, and required readback. Deploy Lane readback must report the
+override metadata without secrets or raw private payloads.
+
+Central contract/platform governance implementation cards must also start from
+Home AI main/coordinator design. Plugin source/main threads must not directly
+send Home AI Worker implementation cards for central deployment governance,
+cross-plugin platform contracts, shared task-card routing policy, Worker lane
+policy, or deploy/visual contract governance. A Worker receiving such a card
+must return `redirected` or `superseded` with issue codes such as
+`central_contract_work_requires_main_thread_design` or
+`platform_governance_card_must_start_from_home_ai_main`. The known incorrect
+route `ttc_5c9dd2b26327404d00` was superseded by `ttc_19e32e2eac58dbd250`
+and is the regression fixture for this rule.
+
+### Main-Thread Routing Preflight Gate
+
+Before the ordinary Home AI implementation thread starts non-trivial source
+repair or implementation work, it must produce a bounded routing preflight
+decision. The executable source-side Harness is:
+
+```bash
+node scripts/main-thread-routing-preflight.js --task "<task>" --changed-file <path> --mode classify
+```
+
+The decision classification is one of:
+
+- `inline`: allowed only for small coordinator-only work, simple status or
+  answer tasks, final merge/verification after a Worker return, or work that
+  cannot safely be delegated;
+- `worker`: independent Home AI source/module repair or implementation that
+  should be dispatched to a Home AI Worker lane with terminal return evidence;
+- `plugin_main`: explicit normal-card plugin-domain requirements work that
+  belongs to the plugin main/source thread;
+- `plugin_loop`: explicit plugin Loop-card requests that belong to the plugin
+  source requirements role and Codex Mobile Loop runtime;
+- `deploy_lane`: routine plugin deployment, restart, production install, or
+  production readback work;
+- `blocked`: no legal Worker/plugin/deploy/lifecycle target is available, the
+  task is missing, or the gate cannot safely classify a required lane.
+
+`blocked` is not a normal escape hatch for scheduler ambiguity. Target-thread
+ambiguity, multiple same-workspace candidates, stale Worker titles, missing
+role metadata that can be inferred from lifecycle state, and missing Worker
+capacity are routing defects or lifecycle repair inputs. The coordinator must
+first resolve or ensure the role-compatible lane, deterministically choose a
+single available compatible candidate, create/route a bounded lifecycle repair
+card, or queue/record `pool_exhausted` with exact metadata. It may surface an
+Owner-visible blocker only when the remaining decision requires Owner approval,
+high-risk authorization, product judgment, privacy escalation, or a genuinely
+missing platform capability.
+
+For enforcement-style local checks, use:
+
+```bash
+node scripts/main-thread-routing-preflight.js --task "<task>" --changed-file <path> --mode enforce
+```
+
+In `enforce` mode, non-inline classifications fail closed unless an existing
+bounded routing decision is explicitly supplied to the caller with a
+role-compatible target thread. A recorded decision whose target is the source
+thread itself, `Task Intake`, a deploy lane, an audit thread, a Public PR
+thread, or any other role-incompatible special-purpose thread must fail closed
+with bounded routing metadata. This gate is an executable source-side preflight
+and regression Harness for Codex turns and operator scripts. It does not claim
+to intercept every model command at runtime unless a future Codex Mobile or
+Home AI runtime hook invokes it before command execution.
+
+Plugin main/source threads must run the same executable preflight before
+non-trivial plugin implementation, investigation, review, or Harness work. The
+plugin-main invocation is:
+
+```bash
+node /Users/example/path --source-thread-role plugin_main --task "<task>" --changed-file <path> --mode classify
+```
+
+When this returns `classification=plugin_worker`, the plugin main/source thread
+must either dispatch a `plugin_worker` task card with a terminal return contract
+and Chinese Owner-visible receipt, or return/record a bounded blocker naming the
+missing Worker lane. It must not fall back to `Task Intake`, deploy lanes,
+audit lanes, Loop lanes, the current source thread, or inline implementation
+merely because the plugin workspace is already loaded. Before editing after
+selecting a Worker target, the plugin thread should rerun the gate in `enforce`
+mode with the bounded routing decision recorded, including the source thread
+id, target thread id/title, and `target-thread-role plugin_worker`.
+
 Worker threads are durable Codex Mobile task-card targets, not temporary helper
 agents. The coordinator may use Worker threads even when the original work did
 not arrive as a task card, provided the work is independently returnable and has
-a bounded ownership surface. Valid Worker targets include plugin-owned
-implementation, routine deploy/readback lanes, dedicated audit threads,
-long-running bounded probes, and disjoint modules with non-overlapping files.
+a bounded ownership surface. Home AI and plugin workspaces share the central
+Worker pool lifecycle contract in
+`docs/PLATFORM_CONTRACTS/worker-pool-lifecycle-contract.md`. Ordinary Home AI
+work uses `home_ai_worker` lanes; ordinary plugin main-thread implementation,
+investigation, and review work uses `plugin_worker` lanes. Plugin Loop lanes,
+deploy lanes, audit lanes, Task Intake, Public PR threads, and source/current
+threads are separate roles and must not be used as Worker fallbacks.
+Schedulers must resolve/list the stable Worker pool before creating a new lane,
+reuse compatible available lanes, mark active lanes busy, release them after
+terminal return, and treat task-title Worker lanes as lifecycle sprawl unless
+the Codex Mobile lifecycle owner is actively normalizing legacy names. If a
+lifecycle/list operation returns multiple compatible Worker candidates, the
+scheduler must not ask the model or Owner to choose a thread. It must apply the
+deterministic Worker-lane selector using role, workspace cwd, plugin id,
+deliverability, busy/available state, source-thread exclusion, and a stable
+request/idempotency key. If every compatible lane is busy, the result is
+`pool_exhausted` and must be queued, capacity-ensured, or routed to a lifecycle
+repair path; it is not a `target_ambiguous` blocker. Every active
+non-terminal task card must send bounded heartbeat metadata keyed by its own
+task-card id; if a Worker is handling two cards, it must heartbeat both cards
+independently. After `1800000ms` (30 minutes) without heartbeat for a specific
+non-terminal task card, the Watchdog should activate or resume that same task
+card rather than create a replacement task-title Worker. A Watchdog batch
+handles at most 8 stale cards, and the same active execution lease is
+automatically resumed at most once by default.
 
 Every Worker dispatch must include:
 
+- its own immutable task-card id when the transport returns one, plus the
+  originating source request id / source task-card id / workflow id when
+  present;
 - exact target workspace/thread;
 - allowed module, file, route, or deploy boundary;
 - expected validation or production readback evidence;
 - terminal return-card requirement;
+- terminal return-card body and Owner-visible receipt language `zh-CN`
+  (`terminalReturnLanguageZhCn`);
+- per-task-card heartbeat requirement, `1800000ms` task-card Watchdog timeout,
+  batch limit `8`, and max auto-resume `1`;
 - requested reasoning effort, with default and effective effort no lower than
   `medium`;
 - privacy boundary;
 - conflict rule for overlapping edits, missing prerequisite commits, shared
   files, or unclear ownership.
+
+When a routing decision declares a Codex Mobile thread-lifecycle requirement,
+the coordinator must call the Codex Mobile lifecycle surface before creating
+the task card. Home AI currently uses `/api/at-loop/thread-lifecycle` with
+bounded metadata to resolve the exact deliverable thread for Home AI Worker
+lanes, plugin source requirements threads, and plugin Loop source roles. A
+successful lifecycle result replaces title/prefix heuristics with the returned
+thread id. Plugin implementation/research slices must request
+`resolve_or_ensure_plugin_worker_lane` with `role=plugin_worker`, `pluginId`,
+workspace cwd, source thread id, task-card/workflow correlation, bounded
+summary, and idempotency metadata so the lifecycle surface can resolve or
+create the exact Worker pool lane. A lifecycle response containing multiple
+candidate threads is valid only as intermediate metadata; the coordinator must
+select one compatible Worker lane deterministically before dispatch. A missing,
+unavailable, or non-deliverable lifecycle result must fail closed as
+`dispatchStatus=failed`; the coordinator must not fall back to a best-effort
+title match for lifecycle-required slices. Thread-lifecycle `ensure/create` is
+not an unrestricted ad hoc Worker-thread factory. If the lifecycle surface
+returns a role/Loop precondition such as `thread_lifecycle_loop_role_required`,
+the coordinator must record `routing_blocked` or `dispatchStatus=failed`
+rather than treating `Task Intake`, deploy lanes, audit lanes, or the current
+source thread as replacement Worker targets.
+
+### Worker Handoff Delta Lifecycle
+
+Worker-local handoff deltas are not the main workspace handoff. The ordinary
+Home AI implementation thread owns `.agent-context/HANDOFF.md` as the
+coordinator ledger. A Worker may write a separate durable delta only when that
+delta is needed for merge, recovery, or audit, and it must use:
+
+```text
+.agent-context/worker-handoffs/active/<taskCardId>.md
+```
+
+An active Worker handoff delta must contain only bounded merge metadata and
+must include these fields:
+
+- `taskCardId`;
+- `sourceThreadId`;
+- `targetThreadId`;
+- `status`;
+- `mergeDisposition`, one of `pending`, `merged`, `archived`, or
+  `discardable`;
+- `expiresAfter`.
+
+While a delta remains in `active`, `mergeDisposition` must be `pending`. The
+Worker's terminal return card is the merge entry point: the coordinator reads
+the return, optionally reads the bounded delta, merges only durable facts into
+the main handoff or coordinator ledger, then archives or discards the delta.
+Merged durable deltas move to
+`.agent-context/worker-handoffs/archive/YYYY-MM-DD/<taskCardId>.md`; deltas
+with no durable value may be deleted after the return is processed. A
+`merged`, `archived`, or `discardable` delta must not remain under `active`.
+
+Codex Mobile thread lifecycle events such as `achieved` and `superseded` must
+drive the same cleanup path when a Worker lane is closed. Thread compaction or
+latest-turn `completed` status is not a cleanup signal by itself. If Codex
+Mobile cannot report lifecycle state, Home AI keeps the delta active only until
+`expiresAfter`; after that the Harness must flag the stale active delta.
+
+The Worker handoff lifecycle is checked by:
+
+```bash
+node scripts/worker-handoff-lifecycle-check.js --json
+```
+
+The check is read-only. It reports bounded issue codes for missing fields,
+expired active deltas, non-pending deltas left active, and invalid lifecycle
+metadata. It must not print Worker bodies, raw logs, private payloads, secrets,
+launch tokens, endpoint bodies, or long diffs.
 
 Worker lanes must not receive tasks that require private production
 service-user authority unless that lane explicitly exposes the required
@@ -145,11 +529,127 @@ or return `blocked` with bounded capability evidence. A normal Worker returning
 `Permission denied` for a private production path is a scheduling/capability
 boundary, not proof that the product runtime write path is broken.
 
+Thread role is part of the dispatch contract. The router must classify
+special-purpose threads such as `* Public PR`, `* Deploy Lane`, `* Audit`,
+`* Task Intake`, and `* Worker Lane` before sending a task card. Workspace/cwd
+matches are not sufficient. A task-card kind that does not match the target
+thread purpose must fail closed with bounded routing metadata. In particular,
+implementation cards must not fall back from a missing Worker lane to another
+thread in the same workspace, and Public PR threads must not receive
+implementation, audit, deploy, or repair work.
+
+Thread run status is not the same as dispatch eligibility. A discovered thread
+with `status=completed` may simply mean its latest turn completed; it must not
+be treated as archived, terminal, or unavailable for task-card delivery by that
+field alone. Dispatch eligibility must be decided from explicit archive or
+terminal markers, target role/purpose, card-kind compatibility, visibility, and
+task-card transport acceptance or rejection. If the router is unsure, it should
+try the exact role-matched thread id first or return bounded routing evidence;
+it must not skip a role-matched implementation thread only because its latest
+turn status is `completed`.
+
+Worker and deploy lane discovery must also honor explicit non-deliverability
+metadata. Threads marked `archived`, `deleted`, `closed`, `hidden`,
+`visible=false`, `deliverable=false`, or `canReceiveTaskCards=false` are not
+eligible task-card targets even if their title and cwd match. A lane rejected by
+task-card transport with an archived/deleted/hidden target error must be
+recorded as lane-unavailable routing evidence and must not be retried as the
+same target in a tight loop.
+
+Loop Engineering does not weaken the cross-thread task-card invariant. When a
+Loop is triggered from a thread that already owns the current role, such as
+Xcode main-thread `@loop` for native-shell requirements or plugin-main-thread
+`@loop` for plugin requirements, that role must be tracked as local Loop state
+or a source-thread prompt/action. It must not be implemented by sending a task
+card from the thread to itself. Actual task cards still require
+`sourceThreadId !== targetThreadId`. A same-thread role owner is therefore a
+role-state condition, not a reason to bypass task-card transport guards.
+
+Codex Mobile owns `@loop` runtime thread selection and, where supported,
+role-thread provisioning. Home AI supplies domain routing policy and Owner
+Console projection. For non-Home-AI source Loops, Home AI must not become the
+requirements analyst by default; Codex Mobile should select or create
+implementation/audit lanes with explicit purpose metadata, or fail closed with
+bounded routing evidence when safe lane selection/provisioning is unavailable.
+
+When the Owner discusses a plugin-domain requirement inside the Home AI main
+thread, Home AI acts only as the source thread and scheduler. Natural-language
+requests that explicitly ask to send a normal card to the plugin main/source
+thread must route as plugin requirements analysis, not direct implementation.
+Natural-language requests that explicitly ask for a plugin Loop card must route
+to the plugin main/source thread as the requirements owner and then rely on the
+Codex Mobile Loop runtime for implementation and audit roles. The Owner's
+wording distinguishes the two modes; Home AI must not infer a plugin Loop from
+ordinary plugin discussion without an explicit Loop/cycle/three-role request.
+
+Codex Mobile is also the owner of thread lifecycle capabilities needed by this
+contract. Home AI may request or consume these capabilities, but must not keep
+a parallel thread registry:
+
+- list visible task-card-capable threads with explicit `role`, `purpose`,
+  `workspace`, `cwd`, `deliverable`, `archived`, `hidden`, and
+  `canReceiveTaskCards` metadata;
+- resolve a lane by role/workspace/purpose, not by title substring alone;
+- ensure or create a role lane when no suitable lane exists and the caller is
+  authorized to create one;
+- mark a role lane achieved/superseded when a Loop role is closed, without
+  confusing that state with "latest turn completed";
+- refresh or redirect lane metadata after Codex compaction/continuation so
+  current visible threads do not remain classified as archived or stale.
+
+Thread `status=completed` remains only latest-turn status. It must not be used
+as an achieved, archived, or non-deliverable marker. Achieved/superseded state
+needs explicit lifecycle metadata that routing can distinguish from latest-turn
+completion.
+
+Loop and Worker lane names must be compact display labels. They must not embed
+the full objective, long task-card title, acceptance criteria, or serialized
+role packet. Full objective text belongs in task-card body, Loop status, and
+bounded metadata, not the thread title. Recommended display patterns are:
+
+- `<Workspace> Loop Requirements` for a dedicated requirements lane, when the
+  source thread is not already the requirements owner;
+- `<Workspace> Loop Implement`;
+- `<Workspace> Loop Audit`;
+- `<Workspace> Loop Repair`;
+- `Home AI Worker <short-seq>` for dynamic Home AI implementation lanes.
+
+When multiple lanes with the same role are needed, append a short stable suffix
+such as `07-04a` or a short loop id prefix. Do not use the raw user objective
+as the title. Role, objective summary, loop id, source task-card id, and target
+workspace must be carried in metadata and the task-card correlation block.
+
+Loop audit and verification cards must include a structured Audit Packet rather
+than a raw implementation handoff. The packet must contain bounded
+requirements, design/contract, implementation return, validation/readback, and
+privacy sections, plus a Delta Matrix that compares:
+
+- Owner intent against requirements;
+- requirements against design/contracts;
+- design/contracts against implementation;
+- implementation against tests, Harnesses, and readback;
+- user journey against acceptance criteria;
+- privacy boundary against evidence collected.
+
+Dedicated audit threads may use this packet as input, but they still must not
+read `.agent-context/HANDOFF.md` or implementation lineage handoffs as inherited
+context. A named handoff may be read only when handoff quality is the audit
+target itself. Missing packet sections must be surfaced as bounded evidence,
+not silently replaced by raw handoff context.
+
 If a Worker hits a conflict, missing prerequisite, routing error, or ownership
 ambiguity, it must return `blocked`, `redirected`, or `partially_completed`
 with bounded evidence instead of overwriting local work or silently continuing.
 The coordinator decides whether to merge, reroute, sequence, use another live
 lane, or ask Owner for a product or risk decision.
+
+Plugin-topic repair cards that are technically created from `Home AI Task
+Intake` must still carry the original coordinator return target when available.
+`replyToThreadId` is authoritative; when only the coordinator prefix is known,
+the sender must resolve it before creating the Codex Mobile task card. Terminal
+returns and host-owned redirects use that reply target, not Task Intake. Task
+Intake remains valid only for requests that truly originate there and have no
+coordinator reply metadata.
 
 Deploy lanes are a pool, not a single hard-coded thread. Routine plugin
 deployment/readback should go to a live non-terminal deploy lane selected from
@@ -175,6 +675,18 @@ signature. Owner should need to approve at most one equivalent request. If a
 duplicate is observed, the first equivalent approval/dispatch is authoritative;
 later equivalents should be suppressed, marked duplicate, or recorded as
 bounded defect evidence without re-notifying Owner.
+
+The case ledger must expose duplicate suppression as bounded state, not as
+silent loss. `autonomous-delivery-case-ledger-service` owns stable case identity
+and duplicate-suppression projection; `task-card-dispatch-idempotency-service`
+owns dispatch/request idempotency metadata, reasoning-effort floors, and
+permission-boundary classification; `worker-lane-scheduler-service` owns
+Worker/deploy lane selection policy; and `return-watchdog-service` owns stale
+return-card candidate classification. `source-return-integration-watchdog-service`
+owns terminal return-receipt integration classification after a return card has
+arrived but before the source scheduler has recorded an integration
+disposition. The coordinator persists the resulting state in SQLite and remains
+the write authority for case/slice/event rows.
 
 Sub-agents are temporary helpers inside the current turn. They have no durable
 task-card lifecycle, no source-thread return contract, no deployment authority,
@@ -217,6 +729,12 @@ The coordinator must retain the original dispatched task-card id as a return
 correlation key. Terminal return-card state may be recorded by direct slice id
 or by this task-card id, so a Codex Mobile return observer can update the
 ledger without requiring manual case/slice lookup.
+The task-card id is not optional routing decoration. Every task card body should
+include a compact correlation block naming its `taskCardId` after creation when
+known, source task-card/request id, source thread id, workflow id, target role,
+and target workspace/thread. Every return card must include the original
+task-card id and should use that id as the primary return key; titles, thread
+names, and workspace paths are secondary evidence only.
 The preferred observer integration is a bounded return-card event intake that
 accepts the original dispatched task-card id, the return-card id, terminal
 status, short summary, and safe thread/workflow metadata only.
@@ -226,6 +744,48 @@ after the configured stale window and may mark those slices as
 `dispatchStatus=return_stale` with a bounded `return_card_watchdog_stale`
 event. It must not retry, redispatch, complete, or reject the work by itself.
 Late terminal returns must still be accepted by original task-card id.
+
+The coordinator must also expose a separate bounded Owner-only source
+return-receipt integration Watchdog for terminal returns that have already
+arrived. This source integration state is not part of the missing-return SLA
+path and must not change `return-watchdog` candidate behavior. It tracks only
+bounded metadata such as case/slice ids, original task-card id, return-card id,
+terminal status, timestamps, issue code, recommended action, and counts. It
+may mark stale pending integrations so the Owner/source scheduler can project
+the returned evidence into the coordinator ledger, handoff, or next-step queue,
+but it must not retry work, redispatch cards, or fabricate closure.
+
+Every terminal return integration must also include a bounded
+`sourceActivation` receipt. This is the fail-closed source-thread activation
+contract: if the source thread is `active`, `resting`, `completed`, hidden by
+latest-turn state, or otherwise not visibly on the returned card, the central
+source layer must still retain an owner-visible activation marker or pending
+source action. Ordinary completed returns use
+`source_thread_activation_required_for_return`; stale unprojected receipts use
+`return_projection_missing_after_terminal_return`; follow-up returns use
+`pending_source_action_required` alongside the specific pending action issue
+code. The activation receipt is bounded metadata only and must not persist raw
+task bodies, private thread bodies, endpoint bodies, logs, DB rows, screenshots,
+provider payloads, cookies, launch tokens, or secrets.
+
+When a terminal return names a follow-up action, the same integration record
+must carry a `pendingSourceAction` projection. `deploy` actions feed the
+central deploy request aggregator and are resolved only when the central
+coordinator dispatches or supersedes the Deploy Lane card. `blocked` and
+`dismissed` dispositions require an explicit bounded reason. The same record's
+`sourceActivation.status` must be `pending_source_action` until the action is
+resolved, blocked, or dismissed. The source integration Watchdog may surface
+stale pending actions, but it must preserve terminal receipt ordering and never
+convert the receipt into an active bottom turn.
+
+Execution recovery Watchdog is a last-resort mechanism, not the normal progress
+driver. A target thread handling a task card should publish bounded automatic
+progress/heartbeat state while work is active. The Watchdog may resume or
+surface recovery only after that heartbeat is older than the configured stale
+window and the card is still non-terminal, active, and marked
+`resumeRequired=true`. Heartbeat freshness must suppress recovery; repeated
+Watchdog resumes for the same active card must be rate-limited and idempotent
+so a healthy long-running Worker is not repeatedly refreshed.
 When a completed return does not require production deployment/readback, the
 coordinator may move the case to `verification_waiting` and create an Owner
 Action Inbox review projection. That Inbox row is only a decision/attention

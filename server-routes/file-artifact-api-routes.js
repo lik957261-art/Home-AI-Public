@@ -98,12 +98,14 @@ function createFileArtifactApiRoutes(deps = {}) {
       return;
     }
     const file = resolved.file;
-    const ext = path.extname(file.localPath).toLowerCase();
     try {
+      const localPath = file.localPath || file.path;
+      if (!localPath) throw new Error("file path is unavailable");
+      const ext = path.extname(localPath || file.name || file.displayPath || "").toLowerCase();
       let preview;
-      if (ext === ".docx") preview = deps.extractDocxText(file.localPath);
-      else if ([".txt", ".md", ".csv", ".json"].includes(ext) || /^text\//i.test(file.mime)) {
-        preview = deps.textFilePreview(file.localPath);
+      if (ext === ".docx") preview = deps.extractDocxText(localPath);
+      else if ([".txt", ".md", ".markdown", ".csv", ".json"].includes(ext) || /^text\//i.test(file.mime)) {
+        preview = deps.textFilePreview(localPath);
       } else {
         deps.sendJson(res, 415, { error: "Preview is not supported for this file type", name: file.name, mime: file.mime });
         return;

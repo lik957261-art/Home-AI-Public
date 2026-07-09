@@ -161,6 +161,9 @@ function createWorkspaceApiRoutes(deps = {}) {
         role: auth?.role,
         workspaceId: auth?.workspaceId,
         workspaceIds,
+        accountType: auth?.accountType || "",
+        restrictedMedia: auth?.restrictedMedia === true,
+        allowedOwnerSpecialPlugins: Array.isArray(auth?.allowedOwnerSpecialPlugins) ? auth.allowedOwnerSpecialPlugins : [],
         isOwner: deps.isOwnerAuth(auth),
       },
     });

@@ -1881,6 +1881,17 @@ function boundedInteger(value, fallback, min, max) {
   return Math.max(min, Math.min(max, numeric));
 }
 
+function runtimeMoaConfigJson() {
+  const runtimeConfigPath = path.join(dataDir, "runtime-config.json");
+  try {
+    const config = JSON.parse(fs.readFileSync(runtimeConfigPath, "utf8"));
+    if (!config.moaConfig) return "";
+    return JSON.stringify(config.moaConfig);
+  } catch (_) {
+    return "";
+  }
+}
+
 function workerFor(options) {
   const item = options.workspace;
   const profile = options.profile;
@@ -1965,6 +1976,7 @@ function writeProfileConfig(worker) {
         archive_plugin_enabled: "true",
         cronjob_plugin_enabled: "true",
         video_plugin_enabled: worker.provider === "xai-oauth" ? "true" : "false",
+        moa_config_json: runtimeMoaConfigJson(),
         profile_link: profileDir,
       },
     });
@@ -3659,6 +3671,8 @@ const helperScripts = [
   "hermes-mobile-cron-dispatcher.py",
   "homeai-disaster-backup-cron.sh",
   "homeai-self-improving-loop-cron.sh",
+  "plugin-daily-progress-rollup-cron.sh",
+  "codex-mobile-pr-automation-cron.sh",
   "homeai-production-drift-audit-watchdog.sh",
   "homeai-visual-polish-audit-cron.sh",
   "visual-polish-audit-runner.js",
@@ -3809,6 +3823,155 @@ function ensureSelfImprovingLoopJob() {
   return { ok: true, action, id: item.id, script: item.script, schedule: item.schedule };
 }
 
+function ensurePluginDailyProgressRollupJob() {
+  if (!fs.existsSync(jobsPath)) return { ok: false, action: "missing_jobs_store" };
+  const doc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  if (!Array.isArray(doc.jobs)) {
+    issues.push({ code: "cron_jobs_schema_invalid", path: rel(jobsPath) });
+    return { ok: false, action: "invalid_jobs_store" };
+  }
+  const now = Date.now();
+  const item = {
+    id: "plugin_daily_progress_rollup",
+    name: "插件每日进展汇总",
+    script: "plugin-daily-progress-rollup-cron.sh",
+    schedule: "30 23 * * *",
+    firstDelayMinutes: 5,
+  };
+  const existing = doc.jobs.find((job) => job && job.id === item.id);
+  const base = existing || {};
+  const configured = Object.assign({}, base, {
+    id: item.id,
+    name: item.name,
+    prompt: "Home AI platform plugin daily progress rollup no_agent script job. Dispatches bounded plugin summary cards and generates the Owner-visible overall governance report.",
+    skills: [],
+    skill: null,
+    model: null,
+    provider: null,
+    base_url: null,
+    script: item.script,
+    no_agent: true,
+    profile: null,
+    owner_principal_id: "owner",
+    access_policy_context: null,
+    context_from: null,
+    schedule: { kind: "cron", expr: item.schedule, display: item.schedule },
+    schedule_display: item.schedule,
+    repeat: base.repeat && typeof base.repeat === "object" ? base.repeat : { times: null, completed: 0 },
+    enabled: true,
+    state: "scheduled",
+    paused_at: null,
+    paused_reason: null,
+    created_at: base.created_at || new Date(now).toISOString(),
+    next_run_at: base.next_run_at || new Date(now + item.firstDelayMinutes * 60000).toISOString(),
+    last_run_at: base.last_run_at || null,
+    last_status: base.last_status || null,
+    last_error: base.last_error || null,
+    last_delivery_error: base.last_delivery_error || null,
+    deliver: "local",
+    origin: null,
+    enabled_toolsets: [],
+    workdir: null,
+    updated_at: new Date(now).toISOString(),
+  });
+  const index = doc.jobs.findIndex((job) => job && job.id === item.id);
+  if (index >= 0) doc.jobs[index] = configured;
+  else doc.jobs.push(configured);
+  const tmp = `${jobsPath}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(doc, null, 2)}\n`, { encoding: "utf8", mode: 0o640 });
+  fs.renameSync(tmp, jobsPath);
+  fs.chmodSync(jobsPath, 0o640);
+  const action = existing ? "update-plugin-daily-progress-rollup-job" : "create-plugin-daily-progress-rollup-job";
+  actions.push({ action, path: rel(jobsPath), id: item.id, script: item.script, schedule: item.schedule });
+  return { ok: true, action, id: item.id, script: item.script, schedule: item.schedule };
+}
+
+function ensureCodexMobilePrAutomationJob() {
+  if (!fs.existsSync(jobsPath)) return { ok: false, action: "missing_jobs_store" };
+  const doc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
+  if (!Array.isArray(doc.jobs)) {
+    issues.push({ code: "cron_jobs_schema_invalid", path: rel(jobsPath) });
+    return { ok: false, action: "invalid_jobs_store" };
+  }
+  const now = Date.now();
+  const item = {
+    id: "codex_mobile_pr_automation_hourly",
+    name: "Codex Mobile PR Automation",
+    script: "codex-mobile-pr-automation-cron.sh",
+    schedule: "0 * * * *",
+    firstDelayMinutes: 7,
+  };
+  const existing = doc.jobs.find((job) => job && job.id === item.id);
+  const base = existing || {};
+  function isPausedCronJob(job) {
+    return Boolean(
+      job
+      && (
+        job.enabled === false
+        || String(job.state || "").toLowerCase() === "paused"
+        || Boolean(job.paused_at)
+      )
+    );
+  }
+  function cronJobScheduleStateForUpsert(job, nextRunAt) {
+    if (isPausedCronJob(job)) {
+      return {
+        enabled: false,
+        state: "paused",
+        paused_at: job.paused_at || null,
+        paused_reason: job.paused_reason || null,
+        next_run_at: null,
+      };
+    }
+    return {
+      enabled: true,
+      state: "scheduled",
+      paused_at: null,
+      paused_reason: null,
+      next_run_at: job.next_run_at || nextRunAt,
+    };
+  }
+  const configured = Object.assign({}, base, {
+    id: item.id,
+    name: item.name,
+    prompt: "Home AI Owner hourly Codex Mobile PR automation planner no_agent script job. Resolves the planner from Codex Mobile origin/main or a clean source worktree, writes bounded state, and plans next task-card actions only.",
+    skills: [],
+    skill: null,
+    model: null,
+    provider: null,
+    base_url: null,
+    script: item.script,
+    no_agent: true,
+    profile: null,
+    owner_principal_id: "owner",
+    access_policy_context: null,
+    context_from: null,
+    schedule: { kind: "cron", expr: item.schedule, display: item.schedule },
+    schedule_display: item.schedule,
+    repeat: base.repeat && typeof base.repeat === "object" ? base.repeat : { times: null, completed: 0 },
+    created_at: base.created_at || new Date(now).toISOString(),
+    last_run_at: base.last_run_at || null,
+    last_status: base.last_status || null,
+    last_error: base.last_error || null,
+    last_delivery_error: base.last_delivery_error || null,
+    deliver: "local",
+    origin: null,
+    enabled_toolsets: [],
+    workdir: null,
+    updated_at: new Date(now).toISOString(),
+  }, cronJobScheduleStateForUpsert(base, new Date(now + item.firstDelayMinutes * 60000).toISOString()));
+  const index = doc.jobs.findIndex((job) => job && job.id === item.id);
+  if (index >= 0) doc.jobs[index] = configured;
+  else doc.jobs.push(configured);
+  const tmp = `${jobsPath}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(doc, null, 2)}\n`, { encoding: "utf8", mode: 0o640 });
+  fs.renameSync(tmp, jobsPath);
+  fs.chmodSync(jobsPath, 0o640);
+  const action = existing ? "update-codex-mobile-pr-automation-job" : "create-codex-mobile-pr-automation-job";
+  actions.push({ action, path: rel(jobsPath), id: item.id, script: item.script, schedule: item.schedule });
+  return { ok: true, action, id: item.id, script: item.script, schedule: item.schedule };
+}
+
 try {
   if (!["direct", "proxy"].includes(cronNetworkMode)) {
     issues.push({ code: "cron_network_mode_invalid", mode: cronNetworkMode });
@@ -3823,6 +3986,8 @@ try {
   ensureDir(skillsRoot, 0o755);
   const jobsStatus = ensureJobsStore();
   const selfImprovingLoopJob = jobsStatus === "invalid" ? { ok: false, action: "skipped_invalid_jobs_store" } : ensureSelfImprovingLoopJob();
+  const codexMobilePrAutomationJob = jobsStatus === "invalid" ? { ok: false, action: "skipped_invalid_jobs_store" } : ensureCodexMobilePrAutomationJob();
+  const pluginDailyProgressRollupJob = jobsStatus === "invalid" ? { ok: false, action: "skipped_invalid_jobs_store" } : ensurePluginDailyProgressRollupJob();
 
   const copiedHelpers = [];
   for (const script of helperScripts) {
@@ -3850,6 +4015,8 @@ try {
       networkMode: cronNetworkMode,
       businessJobsCreated: false,
       selfImprovingLoopJob,
+      codexMobilePrAutomationJob,
+      pluginDailyProgressRollupJob,
       launchdInstalled: false,
       jobsStatus,
       helperScripts: copiedHelpers,
@@ -3911,6 +4078,8 @@ const report = {
   skillCount,
   businessJobsCreated: false,
   selfImprovingLoopJobConfigured: actions.some((item) => item.id === "homeai_self_improving_loop"),
+  codexMobilePrAutomationJobConfigured: actions.some((item) => item.id === "codex_mobile_pr_automation_hourly"),
+  pluginDailyProgressRollupJobConfigured: actions.some((item) => item.id === "plugin_daily_progress_rollup"),
   launchdInstalled: false,
   actionCount: actions.length,
   actions,

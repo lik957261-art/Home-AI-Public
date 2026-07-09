@@ -18,7 +18,7 @@ const GROUP_RULES = [
   ["input", /(composer|voice|attachment|draft-thread|send-pipeline|pending-send|editor|model|source)/],
   ["plugin-host", /(embedded-plugin|plugin-|plugin-admin|plugin-topics)/],
   ["viewers", /(directory|rich-text|long-message|share-image|message|skill|usage|markdown|file|artifact)/],
-  ["surfaces", /(owner-system-console|ai-ops|automation|action-inbox|kanban|learning|growth|task|todo|sidebar|group-topic|workspace-admin|wardrobe)/],
+  ["surfaces", /(owner-system-console|workspace-console|ai-ops|automation|action-inbox|kanban|learning|growth|task|todo|sidebar|group-topic|workspace-admin|wardrobe)/],
 ];
 
 const FACADE_CANDIDATES = [
@@ -258,7 +258,6 @@ function renderMarkdown(inventory) {
   lines.push("  an explicit client runtime facade before bundling the primary shell.");
   lines.push("- `Import side effects` marks files that may need mount functions or");
   lines.push("  lifecycle adapters before they are safe to import from Vite.");
-  lines.push("");
   return `${lines.join("\n")}\n`;
 }
 

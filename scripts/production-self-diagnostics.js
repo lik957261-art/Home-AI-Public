@@ -272,6 +272,22 @@ const BASELINE_DIAGNOSTICS = [
     requiredFor: ["workspace isolation", "ACL repair", "file access"],
   },
   {
+    id: "workspace-target-acl",
+    title: "Mac provisioned workspace target ACL smoke",
+    script: "scripts/macos-worker-filesystem-access-harness.js",
+    sourceHarness: "tests/macos-worker-filesystem-access-harness.test.js",
+    command: [
+      "sudo",
+      "<node>",
+      "<app>/scripts/macos-worker-filesystem-access-harness.js",
+      "--root",
+      "<mac-root>",
+      "--workspace-catalog-targets",
+      "--json",
+    ],
+    requiredFor: ["workspace onboarding", "ACL repair", "file access"],
+  },
+  {
     id: "gateway-manifest-toolset",
     title: "Mac Gateway manifest toolset projection smoke",
     script: "scripts/macos-gateway-manifest-toolset-smoke.js",

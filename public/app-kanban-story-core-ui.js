@@ -1,5 +1,33 @@
 "use strict";
 
+const KANBAN_STORY_CORE_MODEL_ESM_PATH = "/vite-islands/kanban-story-core-model/kanban-story-core-model.js";
+let kanbanStoryCoreModelPromise = null;
+let kanbanStoryCoreModel = null;
+
+function importKanbanStoryCoreModel() {
+  if (kanbanStoryCoreModelPromise) return kanbanStoryCoreModelPromise;
+  const importer = typeof window.__homeAiImportKanbanStoryCoreModel === "function"
+    ? window.__homeAiImportKanbanStoryCoreModel
+    : (path) => import(path);
+  kanbanStoryCoreModelPromise = importer(KANBAN_STORY_CORE_MODEL_ESM_PATH)
+    .then((module) => {
+      kanbanStoryCoreModel = module;
+      return module;
+    })
+    .catch((err) => {
+      kanbanStoryCoreModelPromise = null;
+      console.warn("[HomeAI] Kanban story core ESM model unavailable; using classic fallbacks.", err);
+      return null;
+    });
+  return kanbanStoryCoreModelPromise;
+}
+
+function currentKanbanStoryCoreModel() {
+  return kanbanStoryCoreModel;
+}
+
+void importKanbanStoryCoreModel();
+
 function kanbanStoryHelperOptions(extra = {}) {
   return Object.assign({
     allTodos: state.todos || [],
@@ -239,36 +267,70 @@ function kanbanStoryCaseKey(group) {
 
 function kanbanStoryCaseExpanded(group) {
   const key = kanbanStoryCaseKey(group);
+  const model = currentKanbanStoryCoreModel();
+  if (typeof model?.kanbanStoryCaseExpandedPlan === "function") {
+    return model.kanbanStoryCaseExpandedPlan({
+      caseKey: key,
+      expandedMap: state.kanbanStoryExpanded || {},
+    });
+  }
   return Boolean(key && state.kanbanStoryExpanded && state.kanbanStoryExpanded[key]);
 }
 
 function kanbanStoryToggleAttrs(group, expanded) {
   const key = kanbanStoryCaseKey(group);
-  return key
-    ? ` data-kanban-story-case="${escapeHtml(key)}" role="button" tabindex="0" aria-expanded="${expanded ? "true" : "false"}"`
-    : "";
+  const model = currentKanbanStoryCoreModel();
+  if (typeof model?.kanbanStoryToggleAttrsPlan === "function") {
+    return model.kanbanStoryToggleAttrsPlan({
+      caseKey: key,
+      escapedKey: escapeHtml(key),
+      expanded,
+    });
+  }
+  return key ? ` data-kanban-story-case="${escapeHtml(key)}" role="button" tabindex="0" aria-expanded="${expanded ? "true" : "false"}"` : "";
 }
 
 function kanbanStoryCaseBodyOpen(group, options = {}) {
-  return !options.collapsible || kanbanStoryCaseExpanded(group);
+  const expanded = kanbanStoryCaseExpanded(group);
+  const model = currentKanbanStoryCoreModel();
+  if (typeof model?.kanbanStoryCaseBodyOpenPlan === "function") {
+    return model.kanbanStoryCaseBodyOpenPlan({
+      collapsible: options.collapsible,
+      expanded,
+    });
+  }
+  return !options.collapsible || expanded;
 }
 
 function kanbanStoryCaseRenderState(group, options = {}) {
   const collapsible = Boolean(options.collapsible);
   const expanded = kanbanStoryCaseBodyOpen(group, options);
+  const toggleAttrs = collapsible ? kanbanStoryToggleAttrs(group, expanded) : "";
+  const model = currentKanbanStoryCoreModel();
+  if (typeof model?.kanbanStoryCaseRenderStatePlan === "function") {
+    return model.kanbanStoryCaseRenderStatePlan({
+      collapsible,
+      expanded,
+      toggleAttrs,
+    });
+  }
   return {
     expanded,
     caseClass: collapsible && !expanded ? " story-collapsed" : "",
     toggleClass: collapsible ? " kanban-archive-case-toggle" : "",
-    toggleAttrs: collapsible ? kanbanStoryToggleAttrs(group, expanded) : "",
+    toggleAttrs,
   };
 }
 
 function kanbanStoryCaseTemplate(group) {
+  const model = currentKanbanStoryCoreModel();
+  if (typeof model?.kanbanStoryCaseTemplatePlan === "function") return model.kanbanStoryCaseTemplatePlan(group);
   return String(group?.caseTemplate || group?.cards?.[0]?.todo?.kanbanCaseTemplate || "").trim().toLowerCase();
 }
 
 function kanbanStoryCaseIsLearningGrowth(group) {
+  const model = currentKanbanStoryCoreModel();
+  if (typeof model?.kanbanStoryCaseIsLearningGrowthPlan === "function") return model.kanbanStoryCaseIsLearningGrowthPlan(group);
   return kanbanStoryCaseTemplate(group) === "learning-growth";
 }
 
@@ -294,7 +356,16 @@ function kanbanStoryCaseCanDelete(group, options = {}) {
 
 function kanbanStorySwipeRenderState(group, options = {}) {
   const key = kanbanStoryCaseKey(group);
-  const swipable = Boolean(key && kanbanStoryCaseCanDelete(group, options));
+  const canDelete = kanbanStoryCaseCanDelete(group, options);
+  const model = currentKanbanStoryCoreModel();
+  if (typeof model?.kanbanStorySwipeRenderStatePlan === "function") {
+    return model.kanbanStorySwipeRenderStatePlan({
+      caseKey: key,
+      escapedKey: escapeHtml(key),
+      canDelete,
+    });
+  }
+  const swipable = Boolean(key && canDelete);
   return {
     articleClass: swipable ? " task-swipe-row kanban-story-swipe" : "",
     articleAttrs: swipable ? ` data-swipe-row data-swipe-kind="kanban-story" data-swipe-id="${escapeHtml(key)}"` : "",
@@ -330,7 +401,7 @@ function scheduleKanbanStoryDetailLoads(items) {
   if (!isKanbanTodoSource() || state.selectedTodoId || kanbanComposerOpen()) return;
   if (String(state.todoKanbanStatus || "").trim().toLowerCase() !== KANBAN_STORY_STATUS) return;
   const queued = state.kanbanStoryDetailQueued || {};
-  const ids = [];
+  const candidates = [];
   for (const group of kanbanActiveStoryCases(items).filter(kanbanStoryCaseExpanded).slice(0, 4)) {
     const cardItems = group.mode === "study-plan"
       ? [kanbanReadingCaseCurrentItem(group)].filter(Boolean)
@@ -339,18 +410,39 @@ function scheduleKanbanStoryDetailLoads(items) {
       : (group.cards || []).slice(0, 10);
     for (const item of cardItems) {
       const id = String(item?.todo?.id || "").trim();
-      if (!id || queued[id] || !kanbanCardNeedsStoryDetail(item.todo)) continue;
-      queued[id] = Date.now();
-      ids.push(id);
-      if (ids.length >= KANBAN_STORY_DETAIL_LOAD_LIMIT) break;
+      candidates.push({ id, needsDetail: kanbanCardNeedsStoryDetail(item.todo) });
+      if (candidates.length >= KANBAN_STORY_DETAIL_LOAD_LIMIT) break;
     }
-    if (ids.length >= KANBAN_STORY_DETAIL_LOAD_LIMIT) break;
+    if (candidates.length >= KANBAN_STORY_DETAIL_LOAD_LIMIT) break;
   }
-  state.kanbanStoryDetailQueued = queued;
-  ids.forEach((id, index) => {
+  const model = currentKanbanStoryCoreModel();
+  const plan = typeof model?.kanbanStoryDetailLoadPlan === "function"
+    ? model.kanbanStoryDetailLoadPlan({
+      eligible: true,
+      status: state.todoKanbanStatus,
+      storyStatus: KANBAN_STORY_STATUS,
+      queued,
+      candidates,
+      limit: KANBAN_STORY_DETAIL_LOAD_LIMIT,
+      nowMs: Date.now(),
+      delayStepMs: 120,
+    })
+    : (() => {
+      const queuedPatch = queued;
+      const loads = [];
+      for (const candidate of candidates) {
+        if (!candidate.id || queuedPatch[candidate.id] || !candidate.needsDetail) continue;
+        queuedPatch[candidate.id] = Date.now();
+        loads.push({ id: candidate.id, delayMs: loads.length * 120 });
+        if (loads.length >= KANBAN_STORY_DETAIL_LOAD_LIMIT) break;
+      }
+      return { queuedPatch, loads };
+    })();
+  state.kanbanStoryDetailQueued = plan.queuedPatch || queued;
+  (plan.loads || []).forEach((load) => {
     window.setTimeout(() => {
-      loadKanbanCardDetail(id, { silent: true }).catch(showError);
-    }, index * 120);
+      loadKanbanCardDetail(load.id, { silent: true }).catch(showError);
+    }, load.delayMs || 0);
   });
 }
 
@@ -426,6 +518,8 @@ function renderKanbanReadingArchiveCase(group, options = {}) {
 }
 
 function stripAssessmentConfigText(text = "") {
+  const model = currentKanbanStoryCoreModel();
+  if (typeof model?.stripAssessmentConfigTextPlan === "function") return model.stripAssessmentConfigTextPlan(text);
   return String(text || "")
     .replace(/ASSESSMENT_CONFIG:[A-Za-z0-9_-]+/g, "")
     .replace(/\n{3,}/g, "\n\n")
@@ -439,6 +533,17 @@ function assessmentTemplateDisplayText(group, currentTodo, firstTodo) {
   const passingScore = Number(summary.passingScore || currentTodo?.assessmentExam?.passingScore || firstTodo?.assessmentExam?.passingScore || 0) || 0;
   const source = compactDisplayText(stripAssessmentConfigText(group?.sourceText || firstTodo?.kanbanCaseSourceText || ""), 180);
   const revision = compactDisplayText(currentTodo?.kanbanRevisionRequest || "", 160);
+  const model = currentKanbanStoryCoreModel();
+  if (typeof model?.assessmentTemplateDisplayTextPlan === "function") {
+    return model.assessmentTemplateDisplayTextPlan({
+      summary,
+      currentTodo,
+      firstTodo,
+      sourceText: group?.sourceText || firstTodo?.kanbanCaseSourceText || "",
+      compactSource: source,
+      compactRevision: revision,
+    });
+  }
   const parts = [
     questionCount && durationMinutes ? `${questionCount}\u9898/${durationMinutes}\u5206\u949f` : "",
     passingScore ? `\u901a\u8fc7\u7ebf ${passingScore}` : "",

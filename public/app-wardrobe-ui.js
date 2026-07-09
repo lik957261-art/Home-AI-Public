@@ -2,8 +2,39 @@
 
 const WARDROBE_ROUTE_PATTERN = /(?:\bwardrobe\b|\bcloset\b|\boutfit\b|\u8863\u6a71|\u7a7f\u642d)/i;
 const WARDROBE_DIRECTORY_PATTERN = /(?:\bwardrobe\b|\bcloset\b|\u8863\u6a71)/i;
+const WARDROBE_MODEL_ESM_PATH = "/vite-islands/wardrobe-model/wardrobe-model.js";
+let wardrobeModel = null;
+let wardrobeModelPromise = null;
+
+function importWardrobeModel(rootRef = typeof window !== "undefined" ? window : null) {
+  if (wardrobeModel) return Promise.resolve(wardrobeModel);
+  if (!wardrobeModelPromise) {
+    const importer = rootRef?.__homeAiImportWardrobeModel;
+    const load = typeof importer === "function"
+      ? importer(WARDROBE_MODEL_ESM_PATH)
+      : import(WARDROBE_MODEL_ESM_PATH);
+    wardrobeModelPromise = Promise.resolve(load).then((module) => {
+      wardrobeModel = module || null;
+      return wardrobeModel;
+    }).catch(() => {
+      wardrobeModelPromise = null;
+      return null;
+    });
+  }
+  return wardrobeModelPromise;
+}
+
+function currentWardrobeModel() {
+  return wardrobeModel;
+}
+
+if (typeof window !== "undefined") {
+  importWardrobeModel().catch(() => null);
+}
 
 function wardrobeRouteText(item = {}) {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobeRouteText === "function") return model.wardrobeRouteText(item);
   return [
     item.id,
     item.projectId,
@@ -17,14 +48,20 @@ function wardrobeRouteText(item = {}) {
 }
 
 function itemLooksWardrobe(item = {}) {
+  const model = currentWardrobeModel();
+  if (typeof model?.itemLooksWardrobe === "function") return model.itemLooksWardrobe(item);
   return WARDROBE_ROUTE_PATTERN.test(wardrobeRouteText(item));
 }
 
 function itemLooksWardrobeDirectory(item = {}) {
+  const model = currentWardrobeModel();
+  if (typeof model?.itemLooksWardrobeDirectory === "function") return model.itemLooksWardrobeDirectory(item);
   return WARDROBE_DIRECTORY_PATTERN.test(wardrobeRouteText(item));
 }
 
 function wardrobeChildRouteText(child = {}) {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobeChildRouteText === "function") return model.wardrobeChildRouteText(child);
   const rootTail = String(child.root || child.path || "").trim().replaceAll("\\", "/").replace(/\/+$/, "").split("/").filter(Boolean).pop() || "";
   return [
     child.id,
@@ -39,6 +76,8 @@ function wardrobeChildRouteText(child = {}) {
 
 function selectedWorkspaceToolsets() {
   const workspace = (state.workspaces || []).find((item) => item.id === state.selectedWorkspaceId) || null;
+  const model = currentWardrobeModel();
+  if (typeof model?.workspaceToolsetsPlan === "function") return model.workspaceToolsetsPlan(workspace);
   const values = [
     ...(Array.isArray(workspace?.localConfig?.allowedToolsets) ? workspace.localConfig.allowedToolsets : []),
     ...(Array.isArray(workspace?.bindings?.allowedToolsets) ? workspace.bindings.allowedToolsets : []),
@@ -72,6 +111,10 @@ function wardrobePluginNavigationAvailable() {
 }
 
 function wardrobeDirectoryCandidates() {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobeDirectoryCandidatesPlan === "function") {
+    return model.wardrobeDirectoryCandidatesPlan(state.projects || []);
+  }
   const candidates = [];
   (state.projects || []).forEach((project) => {
     if (!project?.root) return;
@@ -91,18 +134,27 @@ function wardrobeDirectoryCandidates() {
 function wardrobeDirectoryAttachment() {
   const candidate = wardrobeDirectoryCandidates()[0] || null;
   if (!candidate) return null;
+  const model = currentWardrobeModel();
+  const planned = typeof model?.wardrobeDirectoryAttachmentPlan === "function"
+    ? model.wardrobeDirectoryAttachmentPlan({
+      candidate,
+      projectLabel: candidate.child
+        ? projectDisplayLabel(candidate.project)
+        : projectDisplayLabel(candidate.project),
+    })
+    : null;
   const label = candidate.child
     ? `${projectDisplayLabel(candidate.project)} / ${candidate.child.label || candidate.child.id}`
     : projectDisplayLabel(candidate.project);
   if (typeof directoryAttachmentFromRoute === "function") {
     return directoryAttachmentFromRoute(
-      candidate.project.id,
-      candidate.child?.id || "",
-      candidate.child?.root || candidate.project.root,
-      label,
+      planned?.projectId || candidate.project.id,
+      planned?.subprojectId || candidate.child?.id || "",
+      planned?.root || candidate.child?.root || candidate.project.root,
+      planned?.label || label,
     );
   }
-  return {
+  return planned || {
     projectId: candidate.project.id,
     subprojectId: candidate.child?.id || "",
     label,
@@ -112,7 +164,18 @@ function wardrobeDirectoryAttachment() {
 }
 
 function wardrobeEntryAvailable() {
-  if (wardrobePluginNavigationAvailable()) return true;
+  const pluginNavigationAvailable = wardrobePluginNavigationAvailable();
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobeEntryAvailabilityPlan === "function") {
+    return model.wardrobeEntryAvailabilityPlan({
+      workspaceId: state.selectedWorkspaceId,
+      isOwner: state.auth?.isOwner,
+      pluginNavigationAvailable,
+      directoryAttachmentAvailable: Boolean(wardrobeDirectoryAttachment()),
+      toolsets: selectedWorkspaceToolsets(),
+    }).available;
+  }
+  if (pluginNavigationAvailable) return true;
   if ((state.selectedWorkspaceId || "owner") !== "owner") return false;
   return Boolean(wardrobeDirectoryAttachment() || workspaceAllowsWardrobeToolset());
 }
@@ -146,6 +209,12 @@ function currentWardrobePluginManifest() {
 }
 
 function wardrobePluginProxyEntryWorkspaceMatches(entryUrl = "", workspaceId = "") {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobeProxyEntryWorkspaceMatches === "function") {
+    return model.wardrobeProxyEntryWorkspaceMatches(entryUrl, workspaceId, {
+      baseUrl: window.location?.href || undefined,
+    });
+  }
   const targetWorkspaceId = String(workspaceId || "owner").trim() || "owner";
   try {
     const parsed = new URL(String(entryUrl || ""), window.location?.href || undefined);
@@ -158,6 +227,14 @@ function wardrobePluginProxyEntryWorkspaceMatches(entryUrl = "", workspaceId = "
 }
 
 function wardrobePluginManifestMatchesLaunchContext(manifest = state.wardrobePluginManifest || null, workspaceId = state.selectedWorkspaceId || "owner") {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobeManifestMatchesLaunchContextPlan === "function") {
+    return model.wardrobeManifestMatchesLaunchContextPlan({
+      manifest,
+      workspaceId,
+      baseUrl: window.location?.href || undefined,
+    }).matches;
+  }
   return Boolean(
     manifest
     && manifest.workspaceId === workspaceId
@@ -166,21 +243,42 @@ function wardrobePluginManifestMatchesLaunchContext(manifest = state.wardrobePlu
 }
 
 function wardrobePluginAvailable(manifest = currentWardrobePluginManifest()) {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobePluginAvailable === "function") return model.wardrobePluginAvailable(manifest);
   return Boolean(manifest?.available && manifest?.entry?.url && manifest?.kind === "embedded_app");
 }
 
 function wardrobePluginUsesLaunchToken(manifest = currentWardrobePluginManifest()) {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobePluginUsesLaunchToken === "function") return model.wardrobePluginUsesLaunchToken(manifest);
   const entryUrl = String(manifest?.entry?.url || "");
   return manifest?.embed?.tokenStatus === "launch_token_issued" || /[?&]launch=/.test(entryUrl);
 }
 
 function wardrobeLaunchTokenIsFreshForFrame() {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobeLaunchTokenFreshPlan === "function") {
+    return model.wardrobeLaunchTokenFreshPlan({
+      freshForFrame: state.wardrobePluginManifestFreshForFrame,
+      fetchedAt: state.wardrobePluginManifestFetchedAt,
+      now: Date.now(),
+      maxAgeMs: 60000,
+    }).fresh;
+  }
   if (!state.wardrobePluginManifestFreshForFrame) return false;
   const fetchedAt = Number(state.wardrobePluginManifestFetchedAt || 0);
   return fetchedAt > 0 && Date.now() - fetchedAt < 60000;
 }
 
 function wardrobePluginBlockedByPageSecurity(manifest = currentWardrobePluginManifest()) {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobePluginBlockedByPageSecurityPlan === "function") {
+    return model.wardrobePluginBlockedByPageSecurityPlan({
+      manifest,
+      pageProtocol: window.location?.protocol || "",
+      baseUrl: window.location?.href || undefined,
+    }).blocked;
+  }
   if (manifest?.embed?.blockedByFrameAncestors) return true;
   if (!wardrobePluginAvailable(manifest)) return false;
   try {
@@ -193,6 +291,13 @@ function wardrobePluginBlockedByPageSecurity(manifest = currentWardrobePluginMan
 }
 
 function wardrobePluginEntryOrigin(manifest = currentWardrobePluginManifest()) {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobePluginEntryOriginPlan === "function") {
+    return model.wardrobePluginEntryOriginPlan({
+      manifest,
+      baseUrl: window.location?.href || undefined,
+    });
+  }
   const value = String(manifest?.entry?.origin || manifest?.entry?.url || "").trim();
   if (!value) return "";
   try {
@@ -203,6 +308,8 @@ function wardrobePluginEntryOrigin(manifest = currentWardrobePluginManifest()) {
 }
 
 function normalizeWardrobePluginOpenRoute(route = {}) {
+  const model = currentWardrobeModel();
+  if (typeof model?.normalizeWardrobePluginOpenRoute === "function") return model.normalizeWardrobePluginOpenRoute(route);
   const value = route && typeof route === "object" ? route : {};
   const out = {};
   ["pluginActionId", "pluginRoute", "pluginItemId", "pluginThreadId", "pluginTaskId", "sourceTurnId"].forEach((key) => {
@@ -220,6 +327,14 @@ function setWardrobePluginOpenRoute(route = {}) {
 }
 
 function wardrobePluginEntryUrlForFrame(entryUrl = "") {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobePluginEntryUrlForFramePlan === "function") {
+    return model.wardrobePluginEntryUrlForFramePlan({
+      entryUrl,
+      route: state.wardrobePluginOpenRoute,
+      baseUrl: window.location?.href || undefined,
+    });
+  }
   const route = state.wardrobePluginOpenRoute;
   if (!entryUrl || !route) return entryUrl;
   try {
@@ -234,6 +349,13 @@ function wardrobePluginEntryUrlForFrame(entryUrl = "") {
 
 function wardrobePluginMessageOriginAllowed(event) {
   const expected = wardrobePluginEntryOrigin();
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobePluginMessageOriginAllowedPlan === "function") {
+    return model.wardrobePluginMessageOriginAllowedPlan({
+      expectedOrigin: expected,
+      eventOrigin: event?.origin,
+    });
+  }
   return Boolean(expected && event?.origin === expected);
 }
 
@@ -445,6 +567,23 @@ function sendWardrobePluginBackOrReturn() {
 }
 
 function renderWardrobePluginSecurityNotice(manifest) {
+  const model = currentWardrobeModel();
+  if (typeof model?.wardrobePluginUnavailableViewPlan === "function") {
+    const security = typeof model.wardrobePluginBlockedByPageSecurityPlan === "function"
+      ? model.wardrobePluginBlockedByPageSecurityPlan({
+        manifest,
+        pageProtocol: window.location?.protocol || "",
+        baseUrl: window.location?.href || undefined,
+      })
+      : { blocked: true };
+    const plan = model.wardrobePluginUnavailableViewPlan({ manifest, security });
+    return `
+    <div class="wardrobe-plugin-notice">
+      <strong>${escapeHtml(plan.securityTitle || "\u63d2\u4ef6\u5165\u53e3\u672a\u5d4c\u5165")}</strong>
+      <span>${escapeHtml(plan.securityReason || "")}</span>
+      ${plan.entryOrigin ? `<small>${escapeHtml(plan.entryOrigin)}</small>` : ""}
+    </div>`;
+  }
   const entryOrigin = manifest?.entry?.origin || manifest?.entry?.url || "";
   const reason = manifest?.embed?.blockedByFrameAncestors
     ? "\u8863\u6a71\u63d2\u4ef6\u5165\u53e3\u8fd8\u6ca1\u6709\u5141\u8bb8\u5f53\u524d Home AI \u57df\u540d\u5d4c\u5165\u3002\u9700\u8981\u5728\u8863\u6a71\u63d2\u4ef6\u670d\u52a1\u91cc\u653e\u884c\u8fd9\u4e2a origin\u3002"
@@ -458,16 +597,30 @@ function renderWardrobePluginSecurityNotice(manifest) {
 }
 
 function renderWardrobePluginUnavailable(manifest = currentWardrobePluginManifest()) {
-  const code = manifest?.code || "wardrobe_plugin_unavailable";
-  const warning = manifest?.warning || "\u5f53\u524d\u8863\u6a71\u63d2\u4ef6 manifest \u4e0d\u53ef\u7528\u3002";
-  const securityNotice = wardrobePluginBlockedByPageSecurity(manifest) ? renderWardrobePluginSecurityNotice(manifest) : "";
+  const model = currentWardrobeModel();
+  const securityBlocked = wardrobePluginBlockedByPageSecurity(manifest);
+  const plan = typeof model?.wardrobePluginUnavailableViewPlan === "function"
+    ? model.wardrobePluginUnavailableViewPlan({
+      manifest,
+      security: typeof model.wardrobePluginBlockedByPageSecurityPlan === "function"
+        ? model.wardrobePluginBlockedByPageSecurityPlan({
+          manifest,
+          pageProtocol: window.location?.protocol || "",
+          baseUrl: window.location?.href || undefined,
+        })
+        : { blocked: securityBlocked },
+    })
+    : null;
+  const code = plan?.code || manifest?.code || "wardrobe_plugin_unavailable";
+  const warning = plan?.warning || manifest?.warning || "\u5f53\u524d\u8863\u6a71\u63d2\u4ef6 manifest \u4e0d\u53ef\u7528\u3002";
+  const securityNotice = securityBlocked ? renderWardrobePluginSecurityNotice(manifest) : "";
   return `
     <section class="wardrobe-view">
       ${securityNotice}
       <div class="wardrobe-plugin-notice secondary">
         <strong>${escapeHtml(code)}</strong>
         <span>${escapeHtml(warning)}</span>
-        <button class="small-button" type="button" data-wardrobe-plugin-refresh>\u91cd\u8bd5</button>
+        <button class="small-button" type="button" data-wardrobe-plugin-refresh>${escapeHtml(plan?.retryLabel || "\u91cd\u8bd5")}</button>
       </div>
     </section>`;
 }
@@ -554,10 +707,18 @@ function renderWardrobeView() {
       state.wardrobePluginFrameOrigin = entryOrigin;
       const currentFrame = currentWardrobePluginShell()?.querySelector(".wardrobe-plugin-frame");
       const currentFrameUsesEntry = Boolean(currentFrame && currentFrame.getAttribute("src") === entryUrl);
-      const launchFrameCanBePreserved = !wardrobePluginUsesLaunchToken(pluginManifest)
-        || wardrobeLaunchTokenIsFreshForFrame()
-        || Number(state.wardrobePluginNavigationLastAt || 0) > 0
-        || currentFrameUsesEntry;
+      const model = currentWardrobeModel();
+      const launchFrameCanBePreserved = typeof model?.wardrobePluginFramePreservationPlan === "function"
+        ? model.wardrobePluginFramePreservationPlan({
+          usesLaunchToken: wardrobePluginUsesLaunchToken(pluginManifest),
+          launchTokenFresh: wardrobeLaunchTokenIsFreshForFrame(),
+          navigationLastAt: state.wardrobePluginNavigationLastAt,
+          currentFrameUsesEntry,
+        }).preserve
+        : !wardrobePluginUsesLaunchToken(pluginManifest)
+          || wardrobeLaunchTokenIsFreshForFrame()
+          || Number(state.wardrobePluginNavigationLastAt || 0) > 0
+          || currentFrameUsesEntry;
       if (!launchFrameCanBePreserved) {
         refreshWardrobePluginFrameFromFreshManifest();
         return;

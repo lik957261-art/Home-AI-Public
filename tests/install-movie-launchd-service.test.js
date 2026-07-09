@@ -4,10 +4,13 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const {
   DEFAULT_LABEL,
+  DEFAULT_HOME_AI_ORIGIN,
   parseArgs,
   parseLsofPids,
+  notificationPlan,
   plan,
   plistFor,
+  normalizeOrigin,
 } = require("../scripts/install-movie-launchd-service");
 
 const options = parseArgs([
@@ -19,12 +22,17 @@ const options = parseArgs([
   "127.0.0.1",
   "--port",
   "4195",
+  "--install-notification-config",
+  "--home-ai-origin",
+  "http://127.0.0.1:8797/path-is-ignored",
   "--bootstrap",
   "--json",
 ]);
 assert.equal(options.bootstrap, true);
 assert.equal(options.execute, false);
 assert.equal(options.macRoot, "/tmp/Hermes Mobile");
+assert.equal(options.installNotificationConfig, true);
+assert.equal(options.homeAiOrigin, "http://127.0.0.1:8797/path-is-ignored");
 
 const installPlan = plan(options);
 assert.equal(installPlan.label, DEFAULT_LABEL);
@@ -34,6 +42,11 @@ assert.equal(installPlan.dataDir, "/tmp/Hermes Mobile/plugins/movie/data");
 assert.equal(installPlan.baseUrl, "http://127.0.0.1:4195");
 assert.equal(installPlan.serviceUser, "hermes-host");
 assert.equal(installPlan.serviceGroup, "staff");
+assert.equal(installPlan.notification.install, true);
+assert.equal(installPlan.notification.homeAiOrigin, "http://127.0.0.1:8797");
+assert.equal(installPlan.notification.homeAiKeyPath, "/tmp/Hermes Mobile/data/plugin-secrets/movie-notification-key.txt");
+assert.equal(installPlan.notification.movieOriginPath, "/tmp/Hermes Mobile/plugins/movie/data/home-ai-notification-origin");
+assert.equal(installPlan.notification.movieKeyPath, "/tmp/Hermes Mobile/plugins/movie/data/home-ai-notification-key");
 
 const plist = plistFor(options);
 assert.match(plist, /<string>com\.hermesmobile\.plugin\.movie<\/string>/);
@@ -55,9 +68,18 @@ assert.match(plist, /plugin-movie\.err\.log/);
 assert.doesNotMatch(plist, /ACCESS_KEY<\/key>\s*<string>[^<]+<\/string>/);
 assert.doesNotMatch(plist, /PASSWORD<\/key>\s*<string>[^<]+<\/string>/);
 assert.doesNotMatch(plist, /TOKEN<\/key>\s*<string>[^<]+<\/string>/);
+assert.doesNotMatch(plist, /MOVIE_HERMES_NOTIFICATION_KEY/);
+assert.doesNotMatch(plist, /home-ai-notification-key/);
 assert.doesNotMatch(plist, /PROJECTOR/i);
 assert.doesNotMatch(plist, /NAS/i);
 
 assert.deepEqual(parseLsofPids("p123\ncnode\np456\np123\n"), ["123", "456"]);
+assert.equal(DEFAULT_HOME_AI_ORIGIN, "http://127.0.0.1:8797");
+assert.equal(normalizeOrigin("https://home-ai.example.test/path?q=1"), "https://home-ai.example.test");
+assert.equal(normalizeOrigin("file:///tmp/key"), "");
+assert.equal(notificationPlan({
+  macRoot: "/tmp/Hermes Mobile",
+  installNotificationConfig: false,
+}).install, false);
 
 console.log("install movie launchd service tests passed");

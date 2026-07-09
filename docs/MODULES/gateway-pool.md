@@ -240,6 +240,25 @@ warm-worker settings: a saved `ownerMinWarm=1` cannot protect the Owner chat
 path from cold-start health failures if the launcher env still carries
 `HERMES_MOBILE_GATEWAY_OWNER_MIN_WARM=0`.
 
+Owner can also manage Hermes Agent MoA preset metadata from the same runtime
+configuration sheet. The persisted `runtime-config.json` stores non-secret
+`moaConfig` only: enabled/default/active preset names, explicit
+provider/model pairs for `referenceModels` and `aggregator`, and optional
+temperature/token/fanout fields. It must not store provider API keys, cookies,
+launch tokens, raw provider payloads, or profile config bodies.
+
+`adapters/runtime-config-moa-service.js` owns MoA normalization and official
+projection. It maps Owner input to Hermes Agent's `moa.default_preset` and
+`moa.presets.<name>` shape, supports `reference_max_tokens`, `max_tokens`,
+temperatures, `fanout`, and `enabled`, and rejects recursive `provider=moa`
+slots. `scripts/build-gateway-profile-template.js` renders this official
+projection into generated `config.yaml` when `moa_config_json` is provided;
+`scripts/configure-low-gateways.sh` passes `HERMES_MOBILE_MOA_CONFIG_JSON`
+through to that renderer, and the macOS installer reads `moaConfig` from
+runtime config for newly generated profiles. Saving runtime config refreshes
+cached Gateway provider/profile-launcher state only; active Gateway workers
+are not restarted or mutated by the settings save itself.
+
 `adapters/mobile-runtime-gateway-facade-service.js` owns the runtime Gateway
 status composition. The runtime root delegates status through this facade; the
 facade attaches Gateway Pool status to the single-runner status and can mark the
@@ -1448,6 +1467,15 @@ before `/opt/hermes-gateway-runtime/official-clean`. The Mobile runtime override
 patches official `utils.atomic_replace()` so symlinked `auth.json` writes that
 cross from WSL ext4 to Windows-mounted storage recover from `EXDEV` by retrying
 the final replace on the resolved target filesystem.
+
+The same runtime override normalizes only user-facing Markdown delivery
+artifacts after `utils.atomic_replace()`: `.md`/`.markdown` files under a
+standard plugin delivery directory (`插件/<plugin title>`) or an explicitly
+configured `HERMES_MOBILE_USER_FACING_MARKDOWN_ROOTS` root are finalized as
+mode `0644`. The deny list keeps `secret`, `auth`, `key`, `token`, `cache`,
+`private`, `.hermes`, and `.codex` path segments private. Preview resolvers
+must continue to authorize artifacts and then read the backing file; they must
+not broaden filesystem access to hide unreadable generated deliverables.
 
 Durable runbook:
 

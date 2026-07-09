@@ -1,6 +1,45 @@
 "use strict";
 
+const LEARNING_NATIVE_GROWTH_SUBMISSION_MODEL_ESM_PATH = "/vite-islands/learning-native-growth-submission-model/learning-native-growth-submission-model.js";
+let learningNativeGrowthSubmissionModel = null;
+let learningNativeGrowthSubmissionModelPromise = null;
+
+function importLearningNativeGrowthSubmissionModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (learningNativeGrowthSubmissionModel) return Promise.resolve(learningNativeGrowthSubmissionModel);
+  if (!learningNativeGrowthSubmissionModelPromise) {
+    const importer = typeof rootRef.__homeAiImportLearningNativeGrowthSubmissionModel === "function"
+      ? rootRef.__homeAiImportLearningNativeGrowthSubmissionModel
+      : (path) => import(path);
+    learningNativeGrowthSubmissionModelPromise = Promise.resolve()
+      .then(() => importer(LEARNING_NATIVE_GROWTH_SUBMISSION_MODEL_ESM_PATH))
+      .then((model) => {
+        learningNativeGrowthSubmissionModel = model || null;
+        return learningNativeGrowthSubmissionModel;
+      })
+      .catch((error) => {
+        learningNativeGrowthSubmissionModelPromise = null;
+        throw error;
+      });
+  }
+  return learningNativeGrowthSubmissionModelPromise;
+}
+
+function currentLearningNativeGrowthSubmissionModel() {
+  return learningNativeGrowthSubmissionModel;
+}
+
+function learningNativeGrowthSubmissionModelFunction(name) {
+  const model = currentLearningNativeGrowthSubmissionModel();
+  return model && typeof model[name] === "function" ? model[name] : null;
+}
+
+if (typeof window !== "undefined") {
+  importLearningNativeGrowthSubmissionModel().catch(() => null);
+}
+
 function learningNativeGrowthSubmissionStats(text) {
+  const modelFn = learningNativeGrowthSubmissionModelFunction("learningNativeGrowthSubmissionStatsPlan");
+  if (modelFn) return modelFn(text);
   const value = String(text || "").trim();
   const words = value.match(/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g) || [];
   return {
@@ -10,6 +49,8 @@ function learningNativeGrowthSubmissionStats(text) {
 }
 
 function nativeGrowthDraftStorageId(value) {
+  const modelFn = learningNativeGrowthSubmissionModelFunction("nativeGrowthDraftStorageIdPlan");
+  if (modelFn) return modelFn(value);
   return String(value || "").trim().replace(/[^a-z0-9_-]+/gi, "_").slice(0, 160) || "default";
 }
 
@@ -23,10 +64,14 @@ function nativeGrowthDraftWorkspaceId(form) {
 }
 
 function nativeGrowthTextDraftStorageKey(form, taskCardId) {
+  const modelFn = learningNativeGrowthSubmissionModelFunction("nativeGrowthDraftStorageKeyPlan");
+  if (modelFn) return modelFn({ type: "text", workspaceId: nativeGrowthDraftWorkspaceId(form), taskCardId });
   return `hermesNativeGrowthTextDraft:${nativeGrowthDraftStorageId(nativeGrowthDraftWorkspaceId(form))}:${nativeGrowthDraftStorageId(taskCardId)}`;
 }
 
 function nativeGrowthStructuredDraftStorageKey(form, taskCardId) {
+  const modelFn = learningNativeGrowthSubmissionModelFunction("nativeGrowthDraftStorageKeyPlan");
+  if (modelFn) return modelFn({ type: "structured", workspaceId: nativeGrowthDraftWorkspaceId(form), taskCardId });
   return `hermesNativeGrowthStructuredDraft:${nativeGrowthDraftStorageId(nativeGrowthDraftWorkspaceId(form))}:${nativeGrowthDraftStorageId(taskCardId)}`;
 }
 
@@ -55,6 +100,8 @@ function nativeGrowthRequirementText(form, stats = null) {
   if (window.HermesLearningGrowthTaskUi?.submissionRequirementLabel) {
     return window.HermesLearningGrowthTaskUi.submissionRequirementLabel({ minWords, minChars }, stats);
   }
+  const modelFn = learningNativeGrowthSubmissionModelFunction("nativeGrowthRequirementPlan");
+  if (modelFn) return modelFn({ minWords, minChars, stats }).text;
   if (!stats) return `\u81f3\u5c11 ${minWords} \u4e2a\u82f1\u6587\u8bcd / ${minChars} \u4e2a\u6709\u6548\u5b57\u7b26`;
   const missingWords = Math.max(0, minWords - Number(stats.words || 0));
   const missingChars = Math.max(0, minChars - Number(stats.chars || 0));
@@ -79,6 +126,12 @@ function updateNativeGrowthSubmissionCount(form) {
 function captureStructuredNativeGrowthDraft(form) {
   const blocks = Array.from(form?.querySelectorAll?.("[data-learning-native-growth-question]") || []);
   if (!blocks.length) return null;
+  const modelFn = learningNativeGrowthSubmissionModelFunction("structuredNativeGrowthAnswersPlan");
+  if (modelFn) {
+    const plan = modelFn(blocks.map(nativeGrowthQuestionBlockSnapshot));
+    const draftFn = learningNativeGrowthSubmissionModelFunction("nativeGrowthStructuredDraftPlan");
+    return draftFn ? draftFn(plan?.draftAnswers || {}, new Date().toISOString()) : { answers: plan?.draftAnswers || {}, updatedAt: new Date().toISOString() };
+  }
   const answers = {};
   for (const block of blocks) {
     const questionId = String(block.dataset.learningNativeGrowthQuestion || "").trim();
@@ -141,10 +194,10 @@ function persistNativeGrowthSubmissionDraft(form, taskCardId) {
   if (!form || !taskCardId) return;
   const input = form.querySelector("[data-learning-native-growth-submission-input]");
   if (input) {
-    writeNativeGrowthDraft(nativeGrowthTextDraftStorageKey(form, taskCardId), {
-      text: String(input.value || ""),
-      updatedAt: new Date().toISOString(),
-    });
+    const draftFn = learningNativeGrowthSubmissionModelFunction("nativeGrowthTextDraftPlan");
+    writeNativeGrowthDraft(nativeGrowthTextDraftStorageKey(form, taskCardId), draftFn
+      ? draftFn(input.value, new Date().toISOString())
+      : { text: String(input.value || ""), updatedAt: new Date().toISOString() });
     updateNativeGrowthSubmissionCount(form);
   }
   const blocks = form.querySelectorAll("[data-learning-native-growth-question]");
@@ -170,6 +223,8 @@ function clearNativeGrowthAnswerEditing(taskCardId) {
 function collectStructuredNativeGrowthAnswers(form) {
   const blocks = Array.from(form?.querySelectorAll?.("[data-learning-native-growth-question]") || []);
   if (!blocks.length) return null;
+  const modelFn = learningNativeGrowthSubmissionModelFunction("structuredNativeGrowthAnswersPlan");
+  if (modelFn) return modelFn(blocks.map(nativeGrowthQuestionBlockSnapshot));
   const answers = [];
   for (const block of blocks) {
     const questionId = String(block.dataset.learningNativeGrowthQuestion || "").trim();
@@ -195,6 +250,28 @@ function collectStructuredNativeGrowthAnswers(form) {
     return `${heading}\n\u63a8\u7406\uff1a${answer.response}`;
   }).join("\n\n");
   return { ok: true, answers, text };
+}
+
+function nativeGrowthQuestionBlockSnapshot(block) {
+  const questionId = String(block?.dataset?.learningNativeGrowthQuestion || "").trim();
+  const type = String(block?.dataset?.questionType || "").trim();
+  const title = String(block?.dataset?.questionTitle || questionId).trim();
+  if (type === "multiple_choice") {
+    const selected = block.querySelector("[data-learning-native-growth-question-choice]:checked");
+    return {
+      questionId,
+      type,
+      title,
+      choice: String(selected?.value || "").trim(),
+      reason: String(block.querySelector("[data-learning-native-growth-question-reason]")?.value || ""),
+    };
+  }
+  return {
+    questionId,
+    type: "written",
+    title,
+    response: String(block.querySelector("[data-learning-native-growth-question-response]")?.value || ""),
+  };
 }
 
 const NATIVE_GROWTH_SUBMISSION_SETTLED_STATUSES = new Set([
@@ -282,6 +359,8 @@ function nativeGrowthReflectionSettledResult(taskCardId, startedAtMs = 0) {
 }
 
 function nativeGrowthSubmissionCompletionText(result = {}) {
+  const modelFn = learningNativeGrowthSubmissionModelFunction("nativeGrowthSubmissionCompletionTextPlan");
+  if (modelFn) return modelFn(result);
   const evaluation = result.evaluation || result || {};
   const status = String(evaluation.status || result.status || "").trim();
   const score = Number(evaluation.score || 0);
@@ -293,6 +372,8 @@ function nativeGrowthSubmissionCompletionText(result = {}) {
 }
 
 function nativeGrowthReflectionCompletionText(result = {}) {
+  const modelFn = learningNativeGrowthSubmissionModelFunction("nativeGrowthReflectionCompletionTextPlan");
+  if (modelFn) return modelFn(result);
   const reflection = result.reflection || result || {};
   const status = String(reflection.status || result.status || "").trim().toLowerCase();
   const score = Number(reflection.score || 0);

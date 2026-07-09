@@ -9,6 +9,184 @@ const WORKSPACE_ONBOARDING_PLUGIN_OPTIONS = Object.freeze([
   { id: "growth", label: "成长" },
 ]);
 
+const ACCESS_KEY_MANAGER_MODEL_ESM_PATH = "/vite-islands/access-key-manager-model/access-key-manager-model.js";
+let accessKeyManagerModel = null;
+let accessKeyManagerModelPromise = null;
+
+function importAccessKeyManagerModel(rootRef = typeof window !== "undefined" ? window : null) {
+  if (accessKeyManagerModel) return Promise.resolve(accessKeyManagerModel);
+  if (!accessKeyManagerModelPromise) {
+    const importer = rootRef?.__homeAiImportAccessKeyManagerModel || ((path) => import(path));
+    accessKeyManagerModelPromise = Promise.resolve(importer(ACCESS_KEY_MANAGER_MODEL_ESM_PATH))
+      .then((module) => {
+        accessKeyManagerModel = module || null;
+        return accessKeyManagerModel;
+      })
+      .catch((error) => {
+        accessKeyManagerModelPromise = null;
+        throw error;
+      });
+  }
+  return accessKeyManagerModelPromise;
+}
+
+function currentAccessKeyManagerModel() {
+  return accessKeyManagerModel;
+}
+
+if (typeof window !== "undefined") {
+  importAccessKeyManagerModel(window).catch(() => {});
+}
+
+function accessKeyWorkspaceRootLabel(workspace) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.workspaceRootLabelPlan === "function") {
+    return model.workspaceRootLabelPlan(workspace);
+  }
+  return workspace?.localConfig?.defaultWorkspace || workspace?.defaultWorkspace || "";
+}
+
+function accessKeyWorkspaceToolsets(workspace) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.workspaceToolsetsPlan === "function") {
+    return model.workspaceToolsetsPlan(workspace);
+  }
+  return workspace?.localConfig?.allowedToolsets || workspace?.bindings?.allowedToolsets || [];
+}
+
+function accessKeyWorkspaceRecord(workspace, keyRecord) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.workspaceKeyRecordPlan === "function") {
+    return model.workspaceKeyRecordPlan({ workspace, keyRecord });
+  }
+  const workspaceId = String(workspace?.id || "");
+  return keyRecord || {
+    workspaceId,
+    workspaceLabel: workspace?.label || workspaceId,
+    hasKey: Boolean(workspace?.accessKeyStatus?.hasKey),
+    updatedAt: workspace?.accessKeyStatus?.updatedAt || "",
+  };
+}
+
+function generatedAccessKeyMatchesTarget(target = {}) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.generatedAccessKeyTargetPlan === "function") {
+    return model.generatedAccessKeyTargetPlan({
+      generatedAccessKey: state.generatedAccessKey,
+      target,
+    }).visible;
+  }
+  if (!state.generatedAccessKey) return false;
+  const generatedKind = state.generatedAccessKey.kind || "workspace";
+  const targetKind = target.kind || "workspace";
+  const generatedWorkspaceId = String(state.generatedAccessKey.workspaceId || "");
+  const targetWorkspaceId = String(target.workspaceId || "");
+  if (generatedKind !== targetKind) return false;
+  return !(targetKind === "workspace" && targetWorkspaceId && generatedWorkspaceId !== targetWorkspaceId);
+}
+
+function accessKeyManagerViewState(input = {}) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.accessKeyManagerViewPlan === "function") {
+    return model.accessKeyManagerViewPlan(input);
+  }
+  const isOwnerAccessManager = Boolean(input.isOwnerAccessManager);
+  const workspaces = Array.isArray(input.workspaces) ? input.workspaces : [];
+  const accessKeys = Array.isArray(input.accessKeys) ? input.accessKeys : [];
+  const localWorkspaces = isOwnerAccessManager
+    ? workspaces.filter((workspace) => workspace.source === "local-workspace")
+    : [];
+  const deploymentWorkspaces = isOwnerAccessManager
+    ? workspaces.filter((workspace) => workspace.id !== "owner" && workspace.source !== "local-workspace")
+    : [];
+  const workspaceIds = workspaces.map((workspace) => String(workspace.id || "")).filter(Boolean);
+  const workspaceIdSet = new Set(workspaceIds);
+  const orphanAccessKeys = isOwnerAccessManager
+    ? accessKeys.filter((item) => item.workspaceId && !workspaceIdSet.has(String(item.workspaceId)))
+    : [];
+  const generatedKind = state.generatedAccessKey?.kind || "workspace";
+  const generatedWorkspaceId = String(state.generatedAccessKey?.workspaceId || "");
+  const generatedInWorkspaceRow = Boolean(generatedKind === "workspace" && generatedWorkspaceId && workspaceIdSet.has(generatedWorkspaceId));
+  const generatedInOwnerRow = Boolean(generatedKind === "owner" && isOwnerAccessManager);
+  return {
+    isOwnerAccessManager,
+    localWorkspaces,
+    deploymentWorkspaces,
+    workspaceIds,
+    orphanAccessKeys,
+    generatedAccessKeyPlacement: {
+      visibleAsLooseBlock: Boolean(state.generatedAccessKey && !generatedInWorkspaceRow && !generatedInOwnerRow),
+      generatedInWorkspaceRow,
+      generatedInOwnerRow,
+      generatedKind,
+      generatedWorkspaceId,
+    },
+    subtitle: isOwnerAccessManager
+      ? "账号、根目录、接口和登录 Key"
+      : "只能查看并更换当前账号的 Home AI 登录 Key。",
+    title: isOwnerAccessManager ? "Owner 管理" : "Access Key",
+    emptyText: "还没有可管理的账号。",
+  };
+}
+
+function workspaceOnboardingStatusLabel(status) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.workspaceOnboardingStatusLabelPlan === "function") {
+    return model.workspaceOnboardingStatusLabelPlan(status);
+  }
+  return ({
+    planned: "计划中",
+    pending: "等待回执",
+    running: "执行中",
+    ok: "完成",
+    failed: "失败",
+    blocked: "阻断",
+    manual_required: "需人工处理",
+    skipped: "已跳过",
+  }[status] || status || "未知");
+}
+
+function workspaceOnboardingStatusTone(status) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.workspaceOnboardingStatusTonePlan === "function") {
+    return model.workspaceOnboardingStatusTonePlan(status);
+  }
+  if (status === "ok") return "ok";
+  if (status === "failed" || status === "blocked") return "failed";
+  if (status === "manual_required") return "manual";
+  if (status === "running") return "running";
+  return "pending";
+}
+
+function workspaceOnboardingEvidenceTitle(value = {}) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.workspaceOnboardingEvidenceTitlePlan === "function") {
+    return model.workspaceOnboardingEvidenceTitlePlan({
+      status: value?.status || "",
+      hasResult: Boolean(state.workspaceOnboardingResult),
+    });
+  }
+  if (value.status === "running") return "开通运行中";
+  return state.workspaceOnboardingResult ? "开通结果" : "开通计划";
+}
+
+function accessKeyListRequest(options = {}) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.accessKeyListRequestPlan === "function") {
+    return model.accessKeyListRequestPlan(options);
+  }
+  const workspaceId = String(options.workspaceId || "");
+  const requestAllWorkspaceKeys = workspaceId === "owner";
+  const query = workspaceId && !requestAllWorkspaceKeys
+    ? `?workspaceId=${encodeURIComponent(workspaceId)}`
+    : "";
+  return {
+    path: `/api/access-keys${query}`,
+    workspaceId,
+    requestAllWorkspaceKeys,
+  };
+}
+
 function renderAccessKeyManagerLegacy() {
   const overlay = $("accessKeyOverlay");
   if (!overlay) return;
@@ -101,6 +279,13 @@ function renderAccessKeyManagerLegacy() {
             <span>显示名</span>
             <input id="newWorkspaceLabel" type="text" autocomplete="off" placeholder="自动生成">
           </label>
+          <label>
+            <span>账号类型</span>
+            <select id="newWorkspaceAccountType">
+              <option value="">普通</option>
+              <option value="media">影音</option>
+            </select>
+          </label>
           <label class="workspace-create-full">
             <span>根目录</span>
             <input id="newWorkspaceRoot" type="text" autocomplete="off" placeholder="自动生成，可修改">
@@ -192,26 +377,21 @@ function renderAccessKeyManager() {
   }
   const isOwnerAccessManager = Boolean(state.accessKeysAuth?.isOwner || state.auth?.isOwner);
   const allWorkspaces = Array.isArray(state.workspaces) ? state.workspaces : [];
-  const localWorkspaces = isOwnerAccessManager
-    ? allWorkspaces.filter((workspace) => workspace.source === "local-workspace")
-    : [];
-  const deploymentWorkspaces = isOwnerAccessManager
-    ? allWorkspaces.filter((workspace) => workspace.id !== "owner" && workspace.source !== "local-workspace")
-    : [];
   const accessKeys = Array.isArray(state.accessKeys) ? state.accessKeys : [];
+  const viewState = accessKeyManagerViewState({
+    isOwnerAccessManager,
+    workspaces: allWorkspaces,
+    accessKeys,
+    generatedAccessKey: state.generatedAccessKey,
+  });
+  const localWorkspaces = viewState.localWorkspaces || [];
+  const deploymentWorkspaces = viewState.deploymentWorkspaces || [];
   const accessKeyByWorkspaceId = new Map(
     accessKeys.map((item) => [String(item.workspaceId || ""), item]).filter(([workspaceId]) => workspaceId),
   );
-  const workspaceIds = new Set(allWorkspaces.map((workspace) => String(workspace.id || "")).filter(Boolean));
-
   const generatedAccessKeyBlock = (target = {}) => {
-    if (!state.generatedAccessKey) return "";
-    const generatedKind = state.generatedAccessKey.kind || "workspace";
-    const targetKind = target.kind || "workspace";
-    const generatedWorkspaceId = String(state.generatedAccessKey.workspaceId || "");
-    const targetWorkspaceId = String(target.workspaceId || "");
-    if (generatedKind !== targetKind) return "";
-    if (targetKind === "workspace" && targetWorkspaceId && generatedWorkspaceId !== targetWorkspaceId) return "";
+    if (!generatedAccessKeyMatchesTarget(target)) return "";
+    const generatedWorkspaceId = String(state.generatedAccessKey?.workspaceId || "");
     return `<section class="access-key-result" data-generated-access-key data-generated-workspace="${escapeHtml(generatedWorkspaceId)}" tabindex="-1">
         <div class="access-key-result-label">${escapeHtml(state.generatedAccessKey.label || "New Access Key")}</div>
         <div class="access-key-value-row">
@@ -223,24 +403,17 @@ function renderAccessKeyManager() {
       </section>`;
   };
 
-  const workspaceRootLabel = (workspace) => workspace?.localConfig?.defaultWorkspace || workspace?.defaultWorkspace || "";
-  const workspaceToolsets = (workspace) => workspace?.localConfig?.allowedToolsets || workspace?.bindings?.allowedToolsets || [];
   const workspaceKeyRecord = (workspace) => {
     const workspaceId = String(workspace?.id || "");
-    return accessKeyByWorkspaceId.get(workspaceId) || {
-      workspaceId,
-      workspaceLabel: workspace?.label || workspaceId,
-      hasKey: Boolean(workspace?.accessKeyStatus?.hasKey),
-      updatedAt: workspace?.accessKeyStatus?.updatedAt || "",
-    };
+    return accessKeyWorkspaceRecord(workspace, accessKeyByWorkspaceId.get(workspaceId));
   };
   const renderWorkspaceKeyCard = (workspace, options = {}) => {
     const workspaceId = String(workspace?.id || "");
     if (!workspaceId) return "";
     const editable = Boolean(options.editable);
     const keyRecord = workspaceKeyRecord(workspace);
-    const root = workspaceRootLabel(workspace);
-    const toolsets = workspaceToolsets(workspace);
+    const root = accessKeyWorkspaceRootLabel(workspace);
+    const toolsets = accessKeyWorkspaceToolsets(workspace);
     const updated = keyRecord.updatedAt ? formatTime(keyRecord.updatedAt) : "";
     const keyLabel = keyRecord.hasKey ? "已生成" : "未生成";
     return `<article class="owner-workspace-card ${editable ? "local" : "deployment"}">
@@ -284,38 +457,19 @@ function renderAccessKeyManager() {
       ? onboardingDraft.pluginIds
       : WORKSPACE_ONBOARDING_PLUGIN_OPTIONS.map((item) => item.id),
   );
-  const onboardingStatusLabel = (status) => ({
-    planned: "计划中",
-    pending: "等待回执",
-    running: "执行中",
-    ok: "完成",
-    failed: "失败",
-    blocked: "阻断",
-    manual_required: "需人工处理",
-    skipped: "已跳过",
-  }[status] || status || "未知");
-  const onboardingStatusTone = (status) => {
-    if (status === "ok") return "ok";
-    if (status === "failed" || status === "blocked") return "failed";
-    if (status === "manual_required") return "manual";
-    if (status === "running") return "running";
-    return "pending";
-  };
   const renderOnboardingEvidence = (value) => {
     if (!value || typeof value !== "object") return "";
     const steps = Array.isArray(value.steps) ? value.steps : [];
     const paths = value.paths && typeof value.paths === "object" ? value.paths : {};
     const pluginIds = Array.isArray(value.pluginIds) ? value.pluginIds : [];
-    const evidenceTitle = value.status === "running"
-      ? "开通运行中"
-      : state.workspaceOnboardingResult ? "开通结果" : "开通计划";
+    const evidenceTitle = workspaceOnboardingEvidenceTitle(value);
     return `<section class="workspace-onboarding-result" data-workspace-onboarding-status="${escapeHtml(value.status || "")}">
       <div class="workspace-onboarding-result-head">
         <div>
           <div class="access-key-row-title">${escapeHtml(evidenceTitle)}</div>
           <div class="access-key-row-meta">${escapeHtml(value.workspaceId || "")}${value.macUser ? ` · ${escapeHtml(value.macUser)}` : ""}</div>
         </div>
-        <span class="workspace-onboarding-status ${onboardingStatusTone(value.status)}">${escapeHtml(onboardingStatusLabel(value.status))}</span>
+        <span class="workspace-onboarding-status ${workspaceOnboardingStatusTone(value.status)}">${escapeHtml(workspaceOnboardingStatusLabel(value.status))}</span>
       </div>
       ${value.progressMessage ? `<div class="workspace-onboarding-progress">${escapeHtml(value.progressMessage)}</div>` : ""}
       ${value.error ? `<div class="workspace-onboarding-error">${escapeHtml(value.error)}</div>` : ""}
@@ -326,9 +480,9 @@ function renderAccessKeyManager() {
         ${paths.workerWorkspaceRoot ? `<div><dt>工作目录</dt><dd>${escapeHtml(paths.workerWorkspaceRoot)}</dd></div>` : ""}
       </dl>
       ${steps.length ? `<ol class="workspace-onboarding-steps">
-        ${steps.map((step) => `<li class="workspace-onboarding-step ${onboardingStatusTone(step.status)}">
+        ${steps.map((step) => `<li class="workspace-onboarding-step ${workspaceOnboardingStatusTone(step.status)}">
           <span>${escapeHtml(step.id || "")}</span>
-          <strong>${escapeHtml(onboardingStatusLabel(step.status))}</strong>
+          <strong>${escapeHtml(workspaceOnboardingStatusLabel(step.status))}</strong>
           ${step.progressHint ? `<small>${escapeHtml(step.progressHint)}</small>` : ""}
           ${step.error ? `<em>${escapeHtml(step.error)}</em>` : ""}
         </li>`).join("")}
@@ -370,16 +524,11 @@ function renderAccessKeyManager() {
     </section>
   </details>` : "";
 
-  const generatedKind = state.generatedAccessKey?.kind || "workspace";
-  const generatedWorkspaceId = String(state.generatedAccessKey?.workspaceId || "");
-  const generatedInRow = Boolean(generatedKind === "workspace" && generatedWorkspaceId && workspaceIds.has(generatedWorkspaceId));
-  const generatedInOwner = Boolean(generatedKind === "owner" && isOwnerAccessManager);
-  const fallbackGenerated = state.generatedAccessKey && !generatedInRow && !generatedInOwner
-    ? generatedAccessKeyBlock({ kind: generatedKind })
+  const generatedPlacement = viewState.generatedAccessKeyPlacement || {};
+  const fallbackGenerated = state.generatedAccessKey && generatedPlacement.visibleAsLooseBlock
+    ? generatedAccessKeyBlock({ kind: generatedPlacement.generatedKind || state.generatedAccessKey.kind || "workspace" })
     : "";
-  const orphanAccessKeys = isOwnerAccessManager
-    ? accessKeys.filter((item) => item.workspaceId && !workspaceIds.has(String(item.workspaceId)))
-    : [];
+  const orphanAccessKeys = viewState.orphanAccessKeys || [];
   const orphanKeySection = orphanAccessKeys.length ? `<section class="access-key-section">
     <div class="access-key-section-head">
       <div class="access-key-section-title">其他 Key 记录</div>
@@ -422,14 +571,14 @@ function renderAccessKeyManager() {
       ${generatedAccessKeyBlock({ kind: "owner" })}
     </article>
   </section>` : "";
-  const workspaceCreateForm = isOwnerAccessManager ? `<details class="access-key-section access-key-create-section" data-workspace-config-section>
+  const workspaceCreateForm = isOwnerAccessManager ? `<details class="access-key-section access-key-create-section" data-workspace-config-section open>
     <summary class="access-key-section-summary">
-      <span>基础配置 / 编辑账号</span>
-      <span>不含插件开通</span>
+      <span>基础配置 / 影音账号</span>
+      <span>影音账号从这里创建</span>
     </summary>
     <section class="access-key-create-workspace">
       <div class="access-key-row-title">基础工作区配置</div>
-      <div class="workspace-create-help">这里只保存 Home AI 工作区基础配置；新账号需要使用上方“Owner 工作区开通”完成 Finance 等插件绑定。</div>
+      <div class="workspace-create-help">创建影音账号时选择“账号类型=影音”，保存后只开放音乐和电影插件；普通新账号仍使用上方“Owner 工作区开通”。</div>
       <div class="access-key-create-grid">
         <label>
           <span>用户名</span>
@@ -438,6 +587,13 @@ function renderAccessKeyManager() {
         <label>
           <span>显示名</span>
           <input id="newWorkspaceLabel" type="text" autocomplete="off" placeholder="自动生成">
+        </label>
+        <label>
+          <span>账号类型</span>
+          <select id="newWorkspaceAccountType">
+            <option value="">普通</option>
+            <option value="media">影音</option>
+          </select>
         </label>
         <label class="workspace-create-full">
           <span>根目录</span>
@@ -460,8 +616,8 @@ function renderAccessKeyManager() {
   const deploymentWorkspaceSection = renderWorkspaceSection("部署账号", deploymentWorkspaces, { editable: false });
   const workspaceAdminList = isOwnerAccessManager
     ? `${workspaceOnboardingSection}
-       ${localWorkspaceSection}
        ${workspaceCreateForm}
+       ${localWorkspaceSection}
        ${deploymentWorkspaceSection}
        ${!localWorkspaces.length && !deploymentWorkspaces.length ? `<section class="access-key-section"><div class="access-key-empty">还没有可管理的账号。</div></section>` : ""}
        ${orphanKeySection}`
@@ -478,16 +634,12 @@ function renderAccessKeyManager() {
         ${generatedAccessKeyBlock({ kind: "workspace", workspaceId: item.workspaceId || "" })}
       </article>`;
     }).join("")}</div></section>`;
-  const subtitle = isOwnerAccessManager
-    ? "账号、根目录、接口和登录 Key"
-    : "只能查看并更换当前账号的 Home AI 登录 Key。";
-
   overlay.innerHTML = `
     <div class="access-key-sheet owner-admin-sheet">
       <header class="access-key-header">
         <div>
-          <div id="accessKeyTitle" class="access-key-title">${isOwnerAccessManager ? "Owner 管理" : "Access Key"}</div>
-          <div class="access-key-subtitle">${escapeHtml(subtitle)}</div>
+          <div id="accessKeyTitle" class="access-key-title">${escapeHtml(viewState.title || (isOwnerAccessManager ? "Owner 管理" : "Access Key"))}</div>
+          <div class="access-key-subtitle">${escapeHtml(viewState.subtitle || "")}</div>
         </div>
         <button class="access-key-close" type="button" data-close-access-keys>完成</button>
       </header>
@@ -553,11 +705,9 @@ async function loadAccessKeyManager(options = {}) {
   if (!options.keepGenerated) state.generatedAccessKey = null;
   renderAccessKeyManager();
   try {
-    const params = new URLSearchParams();
-    const requestAllWorkspaceKeys = String(state.accessKeyWorkspaceId || "") === "owner";
-    if (state.accessKeyWorkspaceId && !requestAllWorkspaceKeys) params.set("workspaceId", state.accessKeyWorkspaceId);
-    const query = params.toString();
-    const result = await api(`/api/access-keys${query ? `?${query}` : ""}`);
+    const request = accessKeyListRequest({ workspaceId: state.accessKeyWorkspaceId });
+    const result = await api(request.path);
+    const requestAllWorkspaceKeys = Boolean(request.requestAllWorkspaceKeys);
     const showAllOwnerKeys = Boolean(result.auth?.isOwner && requestAllWorkspaceKeys);
     state.accessKeys = (result.data || []).filter((item) => showAllOwnerKeys || !state.accessKeyWorkspaceId || item.workspaceId === state.accessKeyWorkspaceId);
     state.accessKeysAuth = result.auth || null;
@@ -611,6 +761,8 @@ function fillWorkspaceConfigForm(workspaceId) {
     inputs.toolsets.value = splitConfigList(localConfig.allowedToolsets || workspace.bindings?.allowedToolsets || []).join(", ");
     inputs.toolsets.dataset.manual = "1";
   }
+  const accountTypeInput = $("newWorkspaceAccountType");
+  if (accountTypeInput) accountTypeInput.value = localConfig.accountType || workspace.accountType || "";
   const hint = $("newWorkspaceDefaultsHint");
   if (hint) hint.textContent = workspace.id ? `ID: ${workspace.id}` : "";
   window.requestAnimationFrame(() => {
@@ -625,13 +777,18 @@ async function createWorkspaceFromAccessKeyManager() {
   const defaultWorkspace = $("newWorkspaceRoot")?.value?.trim() || "";
   const allowedRoots = splitConfigList($("newWorkspaceAllowedRoots")?.value || "");
   const allowedToolsets = splitConfigList($("newWorkspaceToolsets")?.value || "");
+  const accountType = $("newWorkspaceAccountType")?.value?.trim() || "";
+  const allowedOwnerSpecialPlugins = accountType === "media" ? ["music", "movie"] : [];
   if (!workspaceId) throw new Error("请输入用户 ID");
   const canonicalWorkspaceId = slugWorkspaceOnboardingId(workspaceId) || workspaceId;
-  const workspaceExists = (state.workspaces || []).some((workspace) => (
-    String(workspace?.id || "") === workspaceId
-    || String(workspace?.id || "") === canonicalWorkspaceId
-  ));
-  if (!workspaceExists) {
+  const model = currentAccessKeyManagerModel();
+  const workspaceExists = typeof model?.workspaceExistsPlan === "function"
+    ? model.workspaceExistsPlan({ workspaceId, canonicalWorkspaceId, workspaces: state.workspaces || [] })
+    : (state.workspaces || []).some((workspace) => (
+      String(workspace?.id || "") === workspaceId
+      || String(workspace?.id || "") === canonicalWorkspaceId
+    ));
+  if (!workspaceExists && accountType !== "media") {
     rememberWorkspaceOnboardingDraft({
       workspaceId: canonicalWorkspaceId,
       displayName: label || workspaceId,
@@ -651,7 +808,7 @@ async function createWorkspaceFromAccessKeyManager() {
   }
   const result = await api("/api/workspaces", {
     method: "POST",
-    body: JSON.stringify({ workspaceId, label, defaultWorkspace, allowedRoots, allowedToolsets }),
+    body: JSON.stringify({ workspaceId, label, defaultWorkspace, allowedRoots, allowedToolsets, accountType, allowedOwnerSpecialPlugins }),
   });
   const createdId = result.workspace?.id || workspaceId;
   state.selectedWorkspaceId = createdId;
@@ -672,9 +829,19 @@ function workspaceOnboardingInputs(root = document) {
 function workspaceOnboardingPayload(root = document) {
   const inputs = workspaceOnboardingInputs(root);
   const rawWorkspaceId = inputs.workspaceId?.value?.trim() || "";
+  const pluginIds = inputs.plugins.map((input) => input.value).filter(Boolean);
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.workspaceOnboardingPayloadPlan === "function") {
+    const plan = model.workspaceOnboardingPayloadPlan({
+      rawWorkspaceId,
+      displayName: inputs.displayName?.value?.trim() || "",
+      pluginIds,
+    });
+    if (!plan.ok) throw new Error(plan.errorMessage || "请输入工作区 ID");
+    return plan.payload;
+  }
   const workspaceId = slugWorkspaceOnboardingId(rawWorkspaceId);
   const displayName = inputs.displayName?.value?.trim() || rawWorkspaceId || workspaceId;
-  const pluginIds = inputs.plugins.map((input) => input.value).filter(Boolean);
   if (!workspaceId) throw new Error("请输入工作区 ID");
   return {
     workspaceId,
@@ -686,6 +853,10 @@ function workspaceOnboardingPayload(root = document) {
 }
 
 function slugWorkspaceOnboardingId(value = "") {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.slugWorkspaceOnboardingIdPlan === "function") {
+    return model.slugWorkspaceOnboardingIdPlan(value);
+  }
   return String(value || "")
     .trim()
     .toLowerCase()
@@ -695,14 +866,21 @@ function slugWorkspaceOnboardingId(value = "") {
 }
 
 function rememberWorkspaceOnboardingDraft(payload = {}) {
-  state.workspaceOnboardingDraft = {
-    workspaceId: payload.workspaceId || "",
-    displayName: payload.displayName || payload.label || payload.workspaceId || "",
-    pluginIds: Array.isArray(payload.pluginIds) ? payload.pluginIds : [],
-  };
+  const model = currentAccessKeyManagerModel();
+  state.workspaceOnboardingDraft = typeof model?.rememberWorkspaceOnboardingDraftPlan === "function"
+    ? model.rememberWorkspaceOnboardingDraftPlan(payload)
+    : {
+      workspaceId: payload.workspaceId || "",
+      displayName: payload.displayName || payload.label || payload.workspaceId || "",
+      pluginIds: Array.isArray(payload.pluginIds) ? payload.pluginIds : [],
+    };
 }
 
 function workspaceOnboardingPlanMatchesPayload(plan = {}, payload = {}) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.workspaceOnboardingPlanMatchesPayloadPlan === "function") {
+    return model.workspaceOnboardingPlanMatchesPayloadPlan({ plan, payload });
+  }
   const planPlugins = Array.isArray(plan.pluginIds) ? plan.pluginIds : [];
   const payloadPlugins = Array.isArray(payload.pluginIds) ? payload.pluginIds : [];
   return String(plan.workspaceId || "") === String(payload.workspaceId || "")
@@ -712,6 +890,10 @@ function workspaceOnboardingPlanMatchesPayload(plan = {}, payload = {}) {
 }
 
 function createWorkspaceOnboardingRunState(plan = {}, payload = {}) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.createWorkspaceOnboardingRunStatePlan === "function") {
+    return model.createWorkspaceOnboardingRunStatePlan({ plan, payload });
+  }
   const steps = Array.isArray(plan.steps) ? plan.steps : [];
   return {
     ok: false,
@@ -730,6 +912,10 @@ function createWorkspaceOnboardingRunState(plan = {}, payload = {}) {
 }
 
 function failWorkspaceOnboardingRunState(run = {}, error = "") {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.failWorkspaceOnboardingRunStatePlan === "function") {
+    return model.failWorkspaceOnboardingRunStatePlan({ run, error });
+  }
   const activeRun = run && typeof run === "object" ? run : {};
   const message = error || "工作区开通请求失败";
   const steps = Array.isArray(activeRun.steps) ? activeRun.steps : [];
@@ -742,6 +928,10 @@ function failWorkspaceOnboardingRunState(run = {}, error = "") {
 }
 
 function redactedWorkspaceOnboardingResult(result = {}) {
+  const model = currentAccessKeyManagerModel();
+  if (typeof model?.redactedWorkspaceOnboardingResultPlan === "function") {
+    return model.redactedWorkspaceOnboardingResultPlan(result);
+  }
   const safe = Object.assign({}, result);
   if (safe.credentials && typeof safe.credentials === "object") {
     safe.credentials = {
@@ -879,13 +1069,17 @@ async function deleteWorkspaceFromAccessKeyManager(workspaceId) {
   const workspace = (state.workspaces || []).find((item) => item.id === workspaceId);
   if (!workspace || workspace.source !== "local-workspace") return;
   const label = workspace.label || workspace.id;
-  const confirmed = await openAccessKeyConfirmDialog({
-    title: "删除本地用户工作区",
-    message: `删除本地用户工作区 ${label}？`,
-    detail: "该账号的 Workspace Access Key 也会撤销。历史消息不会被删除。",
-    confirmLabel: "删除",
-    danger: true,
-  });
+  const model = currentAccessKeyManagerModel();
+  const confirmPlan = typeof model?.deleteWorkspaceConfirmationPlan === "function"
+    ? model.deleteWorkspaceConfirmationPlan({ label, workspaceId: workspace.id })
+    : {
+      title: "删除本地用户工作区",
+      message: `删除本地用户工作区 ${label}？`,
+      detail: "该账号的 Workspace Access Key 也会撤销。历史消息不会被删除。",
+      confirmLabel: "删除",
+      danger: true,
+    };
+  const confirmed = await openAccessKeyConfirmDialog(confirmPlan);
   if (!confirmed) return;
   await api(`/api/workspaces/${encodeURIComponent(workspace.id)}`, { method: "DELETE" });
   if (state.selectedWorkspaceId === workspace.id) {
@@ -922,13 +1116,17 @@ async function generateWorkspaceAccessKey(workspaceId) {
   const label = target?.workspaceLabel || workspaceId || "workspace";
   if (!workspaceId) return;
   if (target?.hasKey) {
-    const confirmed = await openAccessKeyConfirmDialog({
-      title: "更换 Workspace Key",
-      message: `更换 ${label} 的 Home AI Access Key？`,
-      detail: "旧 key 会立即失效，该账号需要使用新 key 重新登录。",
-      confirmLabel: "更换 Key",
-      danger: true,
-    });
+    const model = currentAccessKeyManagerModel();
+    const confirmPlan = typeof model?.workspaceAccessKeyConfirmationPlan === "function"
+      ? model.workspaceAccessKeyConfirmationPlan({ action: "rotate", label, workspaceId })
+      : {
+        title: "更换 Workspace Key",
+        message: `更换 ${label} 的 Home AI Access Key？`,
+        detail: "旧 key 会立即失效，该账号需要使用新 key 重新登录。",
+        confirmLabel: "更换 Key",
+        danger: true,
+      };
+    const confirmed = await openAccessKeyConfirmDialog(confirmPlan);
     if (!confirmed) return;
   }
   const result = await api("/api/access-keys/workspace", {
@@ -944,7 +1142,7 @@ async function generateWorkspaceAccessKey(workspaceId) {
   };
   if (result.requiresReLogin) {
     state.accessKeyRequiresLogin = true;
-    clearStoredAccessKey();
+    clearStoredAccessKey({ preserveGeneratedAccessKey: true, preserveAccessKeyRequiresLogin: true });
     renderAccessKeyManager();
     return;
   }
@@ -955,13 +1153,17 @@ async function revokeWorkspaceAccessKey(workspaceId) {
   const target = (state.accessKeys || []).find((item) => item.workspaceId === workspaceId);
   const label = target?.workspaceLabel || workspaceId || "workspace";
   if (!workspaceId || !target?.hasKey) return;
-  const confirmed = await openAccessKeyConfirmDialog({
-    title: "撤销 Workspace Key",
-    message: `撤销 ${label} 的 Home AI Access Key？`,
-    detail: "该账号会在下次请求时需要重新登录。",
-    confirmLabel: "撤销 Key",
-    danger: true,
-  });
+  const model = currentAccessKeyManagerModel();
+  const confirmPlan = typeof model?.workspaceAccessKeyConfirmationPlan === "function"
+    ? model.workspaceAccessKeyConfirmationPlan({ action: "revoke", label, workspaceId })
+    : {
+      title: "撤销 Workspace Key",
+      message: `撤销 ${label} 的 Home AI Access Key？`,
+      detail: "该账号会在下次请求时需要重新登录。",
+      confirmLabel: "撤销 Key",
+      danger: true,
+    };
+  const confirmed = await openAccessKeyConfirmDialog(confirmPlan);
   if (!confirmed) return;
   const result = await api(`/api/access-keys/workspace/${encodeURIComponent(workspaceId)}`, {
     method: "DELETE",
@@ -969,7 +1171,7 @@ async function revokeWorkspaceAccessKey(workspaceId) {
   });
   if (result.requiresReLogin) {
     state.accessKeyRequiresLogin = true;
-    clearStoredAccessKey();
+    clearStoredAccessKey({ preserveAccessKeyRequiresLogin: true });
     renderAccessKeyManager();
     return;
   }
@@ -977,13 +1179,17 @@ async function revokeWorkspaceAccessKey(workspaceId) {
 }
 
 async function rotateWebAccessKey() {
-  const confirmed = await openAccessKeyConfirmDialog({
-    title: "更换 Owner Key",
-    message: "更换 Home AI Owner Access Key？",
-    detail: "旧 Owner key 会立即失效。当前设备会保存新 key，其他设备需要重新登录。",
-    confirmLabel: "更换 Key",
-    danger: true,
-  });
+  const model = currentAccessKeyManagerModel();
+  const confirmPlan = typeof model?.ownerAccessKeyConfirmationPlan === "function"
+    ? model.ownerAccessKeyConfirmationPlan()
+    : {
+      title: "更换 Owner Key",
+      message: "更换 Home AI Owner Access Key？",
+      detail: "旧 Owner key 会立即失效。当前设备会保存新 key，其他设备需要重新登录。",
+      confirmLabel: "更换 Key",
+      danger: true,
+    };
+  const confirmed = await openAccessKeyConfirmDialog(confirmPlan);
   if (!confirmed) return;
   const result = await api("/api/access-keys/web", { method: "POST", body: JSON.stringify({}) });
   storeAccessKey(result.key || "");

@@ -1,6 +1,49 @@
 "use strict";
 
+const KANBAN_COMPOSER_ACTIONS_MODEL_ESM_PATH = "/vite-islands/kanban-composer-actions-model/kanban-composer-actions-model.js";
+let kanbanComposerActionsModel = null;
+let kanbanComposerActionsModelPromise = null;
+
+function importKanbanComposerActionsModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (kanbanComposerActionsModel) return Promise.resolve(kanbanComposerActionsModel);
+  if (!kanbanComposerActionsModelPromise) {
+    const importer = typeof rootRef.__homeAiImportKanbanComposerActionsModel === "function"
+      ? rootRef.__homeAiImportKanbanComposerActionsModel
+      : (path) => import(path);
+    kanbanComposerActionsModelPromise = Promise.resolve()
+      .then(() => importer(KANBAN_COMPOSER_ACTIONS_MODEL_ESM_PATH))
+      .then((model) => {
+        kanbanComposerActionsModel = model || null;
+        return kanbanComposerActionsModel;
+      })
+      .catch((error) => {
+        kanbanComposerActionsModelPromise = null;
+        throw error;
+      });
+  }
+  return kanbanComposerActionsModelPromise;
+}
+
+function currentKanbanComposerActionsModel() {
+  return kanbanComposerActionsModel;
+}
+
+importKanbanComposerActionsModel().catch(() => null);
+
 function pushKanbanComposerMessage(role, content) {
+  const model = currentKanbanComposerActionsModel();
+  if (typeof model?.createKanbanComposerMessagePlan === "function") {
+    const plan = model.createKanbanComposerMessagePlan({
+      messages: state.kanbanComposerMessages,
+      role,
+      content,
+      nowMs: Date.now(),
+      randomSuffix: Math.random().toString(16).slice(2),
+      limit: 20,
+    });
+    state.kanbanComposerMessages = Array.isArray(plan.messages) ? plan.messages : state.kanbanComposerMessages;
+    return;
+  }
   state.kanbanComposerMessages.push({
     id: `kanban-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     role,
@@ -14,6 +57,10 @@ function kanbanPlanSummaryText(plan) {
   const cards = Array.isArray(plan?.cards) ? plan.cards : [];
   const firstWave = cards.filter((card) => card.initialRunnable).length;
   const maxParallel = normalizeKanbanComposerMaxParallel(plan?.maxParallel || state.kanbanComposerMaxParallel);
+  const model = currentKanbanComposerActionsModel();
+  if (typeof model?.kanbanPlanSummaryTextPlan === "function") {
+    return model.kanbanPlanSummaryTextPlan({ plan, maxParallel }).text;
+  }
   return `\u5df2\u751f\u6210 ${cards.length} \u5f20\u5361\u7247\u7684\u591a Agent \u62c6\u89e3\u8349\u6848\uff1b\u9996\u6279\u6267\u884c ${firstWave}\uff0c\u6700\u5927\u5e76\u884c ${maxParallel}\u3002`;
 }
 
@@ -26,31 +73,87 @@ async function uploadKanbanComposerDocument(file) {
     const dataBase64 = await fileToBase64(file);
     const result = await api("/api/kanban/cards/document-preview", {
       method: "POST",
-      body: JSON.stringify({
-        workspaceId: state.selectedWorkspaceId,
-        filename: file.name || "kanban-source.txt",
-        type: file.type || "",
-        dataBase64,
-      }),
+      body: kanbanComposerDocumentPreviewRequestBody(file, dataBase64),
     });
-    const doc = result.document || {};
-    state.kanbanComposerDocuments = [
-      ...(state.kanbanComposerDocuments || []),
-      {
-        name: doc.name || file.name || "kanban-source",
-        mime: doc.mime || file.type || "",
-        kind: doc.kind || "",
-        size: doc.size || file.size || 0,
-        text: result.text || "",
-        totalChars: result.totalChars || 0,
-        truncated: Boolean(result.truncated),
-      },
-    ];
+    applyKanbanComposerDocumentPreviewResult(file, result);
     showPushToast("\u6587\u6863\u5df2\u89e3\u6790\uff0c\u5c06\u4f5c\u4e3a\u770b\u677f\u9700\u6c42\u4e0a\u4e0b\u6587", "success");
   } finally {
     state.kanbanComposerDocumentUploading = false;
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   }
+}
+
+function kanbanComposerDocumentPreviewRequestBody(file, dataBase64) {
+  const model = currentKanbanComposerActionsModel();
+  if (typeof model?.kanbanComposerDocumentPreviewRequestPlan === "function") {
+    return model.kanbanComposerDocumentPreviewRequestPlan({
+      workspaceId: state.selectedWorkspaceId,
+      file: {
+        name: file?.name || "",
+        type: file?.type || "",
+        size: file?.size || 0,
+      },
+      dataBase64,
+    }).serializedBody;
+  }
+  return JSON.stringify({
+    workspaceId: state.selectedWorkspaceId,
+    filename: file.name || "kanban-source.txt",
+    type: file.type || "",
+    dataBase64,
+  });
+}
+
+function applyKanbanComposerDocumentPreviewResult(file, result = {}) {
+  const model = currentKanbanComposerActionsModel();
+  if (typeof model?.kanbanComposerDocumentStatePlan === "function") {
+    const plan = model.kanbanComposerDocumentStatePlan({
+      documents: state.kanbanComposerDocuments,
+      file: {
+        name: file?.name || "",
+        type: file?.type || "",
+        size: file?.size || 0,
+      },
+      result,
+    });
+    state.kanbanComposerDocuments = Array.isArray(plan.documents) ? plan.documents : (state.kanbanComposerDocuments || []);
+    return;
+  }
+  const doc = result.document || {};
+  state.kanbanComposerDocuments = [
+    ...(state.kanbanComposerDocuments || []),
+    {
+      name: doc.name || file.name || "kanban-source",
+      mime: doc.mime || file.type || "",
+      kind: doc.kind || "",
+      size: doc.size || file.size || 0,
+      text: result.text || "",
+      totalChars: result.totalChars || 0,
+      truncated: Boolean(result.truncated),
+    },
+  ];
+}
+
+function classicKanbanComposerSubmissionPlan(input = {}) {
+  const model = currentKanbanComposerActionsModel();
+  if (typeof model?.createKanbanComposerSubmissionPlan === "function") {
+    return model.createKanbanComposerSubmissionPlan(input);
+  }
+  const rawText = String(input.rawText || "").trim();
+  const text = String(input.text || "").trim();
+  const documentNames = String(input.documentNames || "").trim();
+  const documentLine = documentNames ? `Documents: ${documentNames}` : "";
+  const studyPlan = input.mode === "study";
+  const assessmentPlan = input.mode === "assessment";
+  const multiAgent = input.mode === "multi";
+  return {
+    userMessageContent: studyPlan
+      ? `${input.readingTitle || ""}
+${rawText || documentLine}`.trim()
+      : (assessmentPlan ? `${input.assessmentTitle || ""}
+${rawText || documentLine}`.trim() : (rawText || documentLine || text)),
+    progressKind: (assessmentPlan || input.programmingStudyAssessment) ? "assessment" : (studyPlan ? "reading" : (multiAgent ? "plan" : "create")),
+  };
 }
 
 async function submitKanbanComposer(root) {
@@ -77,12 +180,17 @@ async function submitKanbanComposer(root) {
   saveKanbanComposerMode(mode);
   state.kanbanComposerBusy = true;
   state.kanbanPlanDraft = null;
-  pushKanbanComposerMessage("user", studyPlan
-    ? `${state.kanbanReadingDraft.activityTitle || state.kanbanReadingDraft.bookTitle || ""}
-${rawText || (documentNames ? `Documents: ${documentNames}` : "")}`.trim()
-    : (assessmentPlan ? `${state.kanbanAssessmentDraft.planTitle || state.kanbanAssessmentDraft.subject || ""}
-${rawText || (documentNames ? `Documents: ${documentNames}` : "")}`.trim() : (rawText || (documentNames ? `Documents: ${documentNames}` : text))));
-  beginKanbanComposerProgress((assessmentPlan || programmingStudyAssessment) ? "assessment" : (studyPlan ? "reading" : (multiAgent ? "plan" : "create")));
+  const submissionPlan = classicKanbanComposerSubmissionPlan({
+    rawText,
+    text,
+    mode,
+    documentNames,
+    readingTitle: state.kanbanReadingDraft?.activityTitle || state.kanbanReadingDraft?.bookTitle || "",
+    assessmentTitle: state.kanbanAssessmentDraft?.planTitle || state.kanbanAssessmentDraft?.subject || "",
+    programmingStudyAssessment,
+  });
+  pushKanbanComposerMessage("user", submissionPlan.userMessageContent);
+  beginKanbanComposerProgress(submissionPlan.progressKind);
   renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   try {
     if (assessmentPlan || programmingStudyAssessment) {
@@ -221,16 +329,11 @@ async function createKanbanPlanFromDraft() {
   try {
     const result = await api("/api/kanban/cards/batch", {
       method: "POST",
-      body: JSON.stringify({
-        workspaceId: state.selectedWorkspaceId,
-        plan: state.kanbanPlanDraft,
-        maxParallel: normalizeKanbanComposerMaxParallel(state.kanbanPlanDraft?.maxParallel || state.kanbanComposerMaxParallel),
-        reasoning_effort: state.kanbanPlanDraft?.reasoningEffort || state.kanbanComposerReasoningEffort || "",
-      }),
+      body: kanbanPlanDraftBatchRequestBody(),
     });
     const cards = Array.isArray(result.cards) ? result.cards : [];
     const blocked = cards.filter((item) => item.blocked).length;
-    pushKanbanComposerMessage("assistant", `\u5df2\u521b\u5efa ${cards.length} \u5f20\u591a Agent \u770b\u677f\u5361\u7247\uff1b${Math.max(0, cards.length - blocked)} \u5f20\u9996\u6279\u6267\u884c\uff0c${blocked} \u5f20\u7b49\u5f85\u4f9d\u8d56\u6216\u5e76\u884c\u4f4d\u3002`);
+    pushKanbanComposerMessage("assistant", kanbanBatchCreateSummaryText(cards, blocked));
     state.kanbanPlanDraft = null;
     state.kanbanComposerText = "";
     clearKanbanComposerDocuments();
@@ -250,4 +353,32 @@ async function createKanbanPlanFromDraft() {
     if (!state.kanbanComposerBusy) finishKanbanComposerProgress();
     renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
   }
+}
+
+function kanbanPlanDraftBatchRequestBody() {
+  const maxParallel = normalizeKanbanComposerMaxParallel(state.kanbanPlanDraft?.maxParallel || state.kanbanComposerMaxParallel);
+  const reasoningEffort = state.kanbanPlanDraft?.reasoningEffort || state.kanbanComposerReasoningEffort || "";
+  const model = currentKanbanComposerActionsModel();
+  if (typeof model?.kanbanPlanDraftBatchRequestPlan === "function") {
+    return model.kanbanPlanDraftBatchRequestPlan({
+      workspaceId: state.selectedWorkspaceId,
+      plan: state.kanbanPlanDraft,
+      maxParallel,
+      reasoningEffort,
+    }).serializedBody;
+  }
+  return JSON.stringify({
+    workspaceId: state.selectedWorkspaceId,
+    plan: state.kanbanPlanDraft,
+    maxParallel,
+    reasoning_effort: reasoningEffort,
+  });
+}
+
+function kanbanBatchCreateSummaryText(cards, blocked = 0) {
+  const model = currentKanbanComposerActionsModel();
+  if (typeof model?.kanbanBatchCreateSummaryTextPlan === "function") {
+    return model.kanbanBatchCreateSummaryTextPlan({ cards }).text;
+  }
+  return `\u5df2\u521b\u5efa ${cards.length} \u5f20\u591a Agent \u770b\u677f\u5361\u7247\uff1b${Math.max(0, cards.length - blocked)} \u5f20\u9996\u6279\u6267\u884c\uff0c${blocked} \u5f20\u7b49\u5f85\u4f9d\u8d56\u6216\u5e76\u884c\u4f4d\u3002`;
 }

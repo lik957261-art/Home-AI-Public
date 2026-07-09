@@ -6,6 +6,7 @@ const {
   MOBILE_API_AUTHENTICATED_ROUTE_PIPELINE,
   PRE_AUTH_NATIVE_IOS_SHELL_PATHS,
   PRE_AUTH_SYSTEM_PATHS,
+  REMOTE_MANAGED_WORKSPACE_PATH_REGEX,
   createMobileApiDispatcher,
 } = require("../server-routes/mobile-api-dispatcher");
 
@@ -238,6 +239,48 @@ async function testCodexPluginProxyRunsBeforeBrowserAuth() {
   assert.equal(EMBEDDED_PLUGIN_PROXY_PATH_REGEX.test("/api/hermes-plugins/wardrobe/proxy/?embed=hermes"), true);
 }
 
+async function testRemoteManagedWorkspaceNodeRoutesRunBeforeBrowserAuth() {
+  const { deps, calls } = makeDeps();
+  deps.remoteManagedWorkspaceApiRoutes.handleNode = async function handleNode(req, res, url) {
+    calls.push({
+      type: "route",
+      key: "remoteManagedWorkspaceApiRoutes.handleNode",
+      path: url.pathname,
+      contextArgCount: arguments.length,
+    });
+    res.writeHead(201, { "Content-Type": "application/json; charset=utf-8" });
+    res.end(JSON.stringify({ ok: true, registered: true }));
+    return { handled: true, route: { id: "remote-managed-workspace-register" } };
+  };
+  const dispatcher = createMobileApiDispatcher(deps);
+  const res = makeResponse();
+  const req = {
+    method: "POST",
+    url: "/api/remote-managed-workspaces/register",
+    headers: {},
+    authResult: { ok: false },
+  };
+
+  const result = await dispatcher.handleApi(req, res);
+
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 201);
+  assert.deepEqual(JSON.parse(res.body), { ok: true, registered: true });
+  assert.equal(req.hermesRequestContext, undefined);
+  assert.deepEqual(calls.map((call) => call.type), [
+    "getUrl",
+    "attachClientVersionHeaders",
+    "route",
+    "route",
+  ]);
+  assert.deepEqual(routeCalls(calls).map((call) => call.key), [
+    "publicApiRoutes",
+    "remoteManagedWorkspaceApiRoutes.handleNode",
+  ]);
+  assert.equal(routeCalls(calls)[1].contextArgCount, 3);
+  assert.equal(REMOTE_MANAGED_WORKSPACE_PATH_REGEX.test("/api/remote-managed-workspaces/register"), true);
+}
+
 async function testAuthenticatedPipelineOrderAndRequestContext() {
   const { deps, calls } = makeDeps();
   const dispatcher = createMobileApiDispatcher(deps);
@@ -387,6 +430,7 @@ async function run() {
   await testNativeIosShellVersionPolicyRunsBeforeBrowserAuth();
   await testUnauthorizedRequestStopsAfterAuthFailure();
   await testCodexPluginProxyRunsBeforeBrowserAuth();
+  await testRemoteManagedWorkspaceNodeRoutesRunBeforeBrowserAuth();
   await testAuthenticatedPipelineOrderAndRequestContext();
   await testGrowthPluginFacadeRoutesPrecedeLearningRoutes();
   await testGrowthCardRoutesPrecedeProgramCatchAllRoutes();

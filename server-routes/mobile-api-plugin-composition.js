@@ -12,6 +12,7 @@ const { createActionInboxService } = require("../adapters/action-inbox-service")
 const { createActionInboxTodoService } = require("../adapters/action-inbox-todo-service");
 const { createCodexMobileRecoveryService } = require("../adapters/codex-mobile-recovery-service");
 const { createFinanceLedgerJoinApprovalService } = require("../adapters/finance-ledger-join-approval-service");
+const { createHermesPluginNotificationAuthService } = require("../adapters/hermes-plugin-notification-auth-service");
 const { createHermesPluginNotificationService } = require("../adapters/hermes-plugin-notification-service");
 const { createHermesPluginService } = require("../adapters/hermes-plugin-service");
 const { createPluginProxyTimingService } = require("../adapters/plugin-proxy-timing-service");
@@ -80,6 +81,10 @@ function createMobileApiPluginComposition(deps = {}) {
     sendPushNotification: deps.webPushDeliveryService.sendPushNotification,
     workspacePrincipal: deps.workspacePrincipal,
   });
+  const hermesPluginNotificationAuthService = deps.hermesPluginNotificationAuthService || createHermesPluginNotificationAuthService({
+    dataDir: deps.dataDir,
+    env: deps.env || process.env,
+  });
   const financeLedgerJoinApprovalService = deps.financeLedgerJoinApprovalService || createFinanceLedgerJoinApprovalService({
     actionInboxService,
     reviewLedgerJoinRequest: deps.reviewFinanceLedgerJoinRequest || ((input) => hermesPluginService.reviewFinanceLedgerJoin(input)),
@@ -126,6 +131,7 @@ function createMobileApiPluginComposition(deps = {}) {
     requireWorkspaceAccess: deps.requireWorkspaceAccess,
     sendJson: deps.sendJson,
     hermesPluginService,
+    hermesPluginNotificationAuthService,
     hermesPluginNotificationService,
     pluginProxyTimingService,
     auditPluginManifestRequest: (event) => appendPluginManifestAudit(deps, event),
@@ -196,6 +202,7 @@ function createMobileApiPluginComposition(deps = {}) {
       codexMobileRecoveryService,
       financeLedgerJoinApprovalService,
       hermesPluginNotificationService,
+      hermesPluginNotificationAuthService,
       hermesPluginService,
       pluginProxyTimingService,
       pluginDirectoryContextBindingService,

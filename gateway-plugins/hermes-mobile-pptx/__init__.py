@@ -780,14 +780,27 @@ def _run_libreoffice_validation(path: Path, require_external_engine: bool = Fals
                 check=False,
             )
         except subprocess.TimeoutExpired:
-            return {"available": True, "skipped": False, "ok": False, "error": "libreoffice_validation_timeout"}
+            return {
+                "available": True,
+                "skipped": False,
+                "required": bool(require_external_engine),
+                "ok": False,
+                "error": "libreoffice_validation_timeout",
+            }
         except Exception:
-            return {"available": True, "skipped": False, "ok": False, "error": "libreoffice_validation_failed"}
+            return {
+                "available": True,
+                "skipped": False,
+                "required": bool(require_external_engine),
+                "ok": False,
+                "error": "libreoffice_validation_failed",
+            }
         outputs = list(Path(tmp).glob("*.pdf"))
         converted = bool(outputs and outputs[0].exists() and outputs[0].stat().st_size > 0)
         return {
             "available": True,
             "skipped": False,
+            "required": bool(require_external_engine),
             "ok": bool(result.returncode == 0 and converted),
             "error": "" if result.returncode == 0 and converted else "libreoffice_conversion_failed",
             "output_count": len(outputs),
@@ -918,7 +931,7 @@ def _validate_pptx_file(path: Path, *, require_external_engine: bool = False) ->
         "ok": not require_external_engine,
         "error": "skipped_due_openxml_issues",
     }
-    if not external.get("ok"):
+    if external.get("required") and not external.get("ok"):
         issues.append(str(external.get("error") or "external_validation_failed"))
     issues = list(dict.fromkeys(item for item in issues if item))[:40]
     return {

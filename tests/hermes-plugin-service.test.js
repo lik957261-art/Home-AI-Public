@@ -32,6 +32,7 @@ const {
   pluginSameOriginProxyPathForUrl,
   reviewFinanceLedgerJoinRequest,
 } = require("../adapters/hermes-plugin-service");
+const { createPluginLaunchRecoveryService } = require("../adapters/plugin-launch-recovery-service");
 
 function sampleManifest() {
   return {
@@ -771,6 +772,57 @@ async function testMoviePluginCannotBeGrantedToNonOwner() {
   assert.deepEqual(service.list({ workspaceId: "weixin_wuping" }), []);
   assert.equal(service.listInstalled().find((item) => item.id === "movie").allowWorkspaceGrant, false);
   assert.equal(service.listInstalled().find((item) => item.id === "movie").riskLevel, "owner-critical");
+}
+
+async function testRestrictedMediaAccountCanOnlySeeMusicAndMovie() {
+  const service = createHermesPluginService({
+    plugins: [
+      { id: "wardrobe", manifestUrl: "http://127.0.0.1:8790/api/v1/hermes/plugin/manifest" },
+      { id: "finance", manifestUrl: "http://127.0.0.1:8791/api/v1/hermes/plugin/manifest", authorizedWorkspaceIds: ["media"] },
+      { id: "codex-mobile", manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest" },
+      { id: "music", manifestUrl: "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest" },
+      { id: "movie", manifestUrl: "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest" },
+    ],
+    fetch(url) {
+      if (url === "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest") {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleMusicManifest()) });
+      }
+      if (url === "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest") {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(sampleMovieManifest()) });
+      }
+      throw new Error(`restricted media account must not fetch ${url}`);
+    },
+  });
+  const mediaAuth = {
+    role: "workspace",
+    workspaceId: "media",
+    accountType: "media",
+    restrictedMedia: true,
+    allowedOwnerSpecialPlugins: ["music", "movie"],
+    isOwner: false,
+  };
+
+  assert.deepEqual(service.list({ workspaceId: "media", auth: mediaAuth }).map((item) => item.id), ["music", "movie"]);
+  assert.equal((await service.grantWorkspace({ id: "music", workspaceId: "media" })).error, "plugin_workspace_grant_not_allowed");
+  assert.equal((await service.grantWorkspace({ id: "movie", workspaceId: "media" })).error, "plugin_workspace_grant_not_allowed");
+
+  const music = await service.manifest({ id: "music", workspaceId: "media", auth: mediaAuth, launchPlugin: true });
+  assert.equal(music.available, true);
+  assert.equal(music.embed.sameOriginProxy, true);
+  assert.equal(music.embed.requiresSignedToken, false);
+  assert.match(music.entry.url, /workspaceId=media/);
+  assert.doesNotMatch(JSON.stringify(music), /Authorization|Bearer|"launch_token"|"workspace_key"/i);
+
+  const movie = await service.manifest({ id: "movie", workspaceId: "media", auth: mediaAuth, launchPlugin: true });
+  assert.equal(movie.available, true);
+  assert.match(movie.entry.url, /workspaceId=media/);
+
+  const finance = await service.manifest({ id: "finance", workspaceId: "media", auth: mediaAuth });
+  assert.equal(finance.available, false);
+  assert.equal(finance.code, "plugin_workspace_not_authorized");
+  const codex = await service.manifest({ id: "codex-mobile", workspaceId: "media", auth: mediaAuth });
+  assert.equal(codex.available, false);
+  assert.equal(codex.code, "plugin_workspace_not_authorized");
 }
 
 async function testMusicOwnerManifestUsesKeylessDirectEntry() {
@@ -2214,9 +2266,9 @@ async function testManifestRetriesAfterRecoverableLaunchFailure() {
   const recoveryCalls = [];
   const service = createHermesPluginService({
     plugins: [{
-      id: "codex-mobile",
-      manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest",
-      launchdLabel: "com.hermesmobile.plugin.codex-mobile",
+      id: "wardrobe",
+      manifestUrl: "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest",
+      launchdLabel: "com.hermesmobile.plugin.wardrobe",
     }],
     pluginLaunchRecoveryService: {
       retryDelayMs: 0,
@@ -2226,32 +2278,70 @@ async function testManifestRetriesAfterRecoverableLaunchFailure() {
           attempted: true,
           restarted: true,
           method: "launchctl",
-          launchdLabel: "com.hermesmobile.plugin.codex-mobile",
+          launchdLabel: "com.hermesmobile.plugin.wardrobe",
           retryDelayMs: 0,
         });
       },
     },
     fetch(url) {
       calls.push(url);
-      if (calls.length === 1) return Promise.reject(new Error("connect ECONNREFUSED 127.0.0.1:8787"));
+      if (calls.length === 1) return Promise.reject(new Error("connect ECONNREFUSED 127.0.0.1:8765"));
       return Promise.resolve({
         ok: true,
         status: 200,
-        json: () => Promise.resolve(sampleCodexManifest()),
+        json: () => Promise.resolve(sampleManifest()),
       });
     },
   });
-  const manifest = await service.manifest({ id: "codex-mobile", workspaceId: "owner" });
+  const manifest = await service.manifest({ id: "wardrobe", workspaceId: "owner" });
   assert.equal(manifest.ok, true);
   assert.equal(manifest.available, true);
-  assert.equal(manifest.id, "codex-mobile");
+  assert.equal(manifest.id, "wardrobe");
   assert.equal(calls.length, 2);
   assert.equal(recoveryCalls.length, 1);
-  assert.equal(recoveryCalls[0].pluginId, "codex-mobile");
-  assert.equal(recoveryCalls[0].launchdLabel, "com.hermesmobile.plugin.codex-mobile");
+  assert.equal(recoveryCalls[0].pluginId, "wardrobe");
+  assert.equal(recoveryCalls[0].launchdLabel, "com.hermesmobile.plugin.wardrobe");
   assert.equal(recoveryCalls[0].failure.code, "plugin_manifest_error");
   assert.equal(manifest.recovery.attempted, true);
   assert.equal(manifest.recovery.retried, true);
+}
+
+async function testCodexManifestFailureDoesNotHostRestart() {
+  const calls = [];
+  const restartCalls = [];
+  const service = createHermesPluginService({
+    plugins: [{
+      id: "codex-mobile",
+      manifestUrl: "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest",
+      launchdLabel: "com.hermesmobile.plugin.codex-mobile",
+    }],
+    codexMobileAccessKeyPath: __filename,
+    pluginLaunchRecoveryService: createPluginLaunchRecoveryService({
+      enabled: true,
+      platform: "darwin",
+      command: "/usr/local/bin/homeai-plugin-restart",
+      pluginSources: [],
+      cooldownMs: 0,
+      retryDelayMs: 0,
+      execFile(command, args, options, callback) {
+        restartCalls.push({ command, args, options });
+        callback(null, "ok", "");
+      },
+    }),
+    fetch(url) {
+      calls.push(url);
+      return Promise.reject(new Error("connect ECONNREFUSED 127.0.0.1:8787"));
+    },
+  });
+  const manifest = await service.manifest({ id: "codex-mobile", workspaceId: "owner" });
+  assert.equal(manifest.ok, false);
+  assert.equal(manifest.available, false);
+  assert.equal(manifest.code, "plugin_manifest_error");
+  assert.equal(manifest.recovery.attempted, false);
+  assert.equal(manifest.recovery.restarted, false);
+  assert.equal(manifest.recovery.reason, "codex_mobile_recovery_requires_owner_flow");
+  assert.equal(calls.length, 1);
+  assert.equal(restartCalls.length, 0);
 }
 
 async function testLaunchEntryUsesServerSideWorkspaceKey() {
@@ -3185,6 +3275,7 @@ async function run() {
   await testCodexPluginCannotBeGrantedToNonOwner();
   await testMusicPluginCannotBeGrantedToNonOwner();
   await testMoviePluginCannotBeGrantedToNonOwner();
+  await testRestrictedMediaAccountCanOnlySeeMusicAndMovie();
   await testMusicOwnerManifestUsesKeylessDirectEntry();
   await testMovieOwnerManifestUsesKeylessDirectEntry();
   testMusicProxyDoesNotUseWorkspaceBearer();
@@ -3218,6 +3309,7 @@ async function run() {
   await testHttpsManifestOverride();
   await testFetchFailureReturnsUnavailable();
   await testManifestRetriesAfterRecoverableLaunchFailure();
+  await testCodexManifestFailureDoesNotHostRestart();
   await testLaunchEntryUsesServerSideWorkspaceKey();
   await testCodexLaunchEntryUsesServerSideKey();
   await testFinanceLaunchEntryUsesWorkspaceKeyBody();

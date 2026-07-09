@@ -179,7 +179,10 @@ function createAccessKeyApiRoutes(deps = {}) {
       try {
         const result = rotateWorkspaceAccessKey(requestedWorkspaceId, {
           dryRun: boolParam(body.dryRun || body.dry_run),
-          actor: accessAuth.principalId || accessAuth.workspaceId || "owner",
+          actor: accessAuth.principalId || accessAuth.workspaceId || "",
+          actorWorkspaceId: accessAuth.workspaceId || "",
+          actorPrincipalId: accessAuth.principalId || "",
+          reason: "access_key_manager",
         });
         sendJson(res, result.dryRun ? 200 : 201, {
           ok: true,
@@ -204,6 +207,10 @@ function createAccessKeyApiRoutes(deps = {}) {
       try {
         const result = revokeWorkspaceAccessKey(requestedWorkspaceId, {
           dryRun: boolParam(body.dryRun || body.dry_run),
+          actor: accessAuth.principalId || accessAuth.workspaceId || "",
+          actorWorkspaceId: accessAuth.workspaceId || "",
+          actorPrincipalId: accessAuth.principalId || "",
+          reason: "access_key_manager",
         });
         sendJson(res, 200, { ok: true, result, requiresReLogin: false });
       } catch (err) {

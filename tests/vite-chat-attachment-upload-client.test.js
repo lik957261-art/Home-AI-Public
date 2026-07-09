@@ -61,6 +61,9 @@ async function test(name, fn) {
             name: "fixture.md",
             mime: "text/markdown",
             size: 5,
+            path: "/Users/example/path",
+            localPath: "/Users/example/path",
+            displayPath: "/Users/example/path",
           },
         };
       },
@@ -80,6 +83,41 @@ async function test(name, fn) {
     assert.equal(result.request.dataBase64Length, 8);
     assert.equal(result.artifact.id, "artifact_1");
     assert.equal(result.artifact.source, "system_upload");
+    assert.equal(result.artifact.path, undefined);
+    assert.equal(result.raw.artifact.path, undefined);
+    assert.doesNotMatch(JSON.stringify(result), /\/Users\/xuxin\/private/);
+  });
+
+  await test("large image data URL is not truncated before upload", async () => {
+    const client = await loadUploadClient();
+    const largeBase64 = "A".repeat(320000);
+    const calls = [];
+    const result = await client.uploadComposerFile({
+      threadId: "thread_image",
+      workspaceId: "owner",
+      file: { name: "camera.jpg", type: "image/jpeg", size: 240000 },
+      readFileAsDataUrl: async () => `data:image/jpeg;base64,${largeBase64}`,
+      api: async (url, options) => {
+        calls.push({ url, options });
+        const body = JSON.parse(options.body);
+        return {
+          ok: true,
+          artifact: {
+            id: "artifact_camera",
+            name: body.filename,
+            mime: body.type,
+            size: 240000,
+          },
+        };
+      },
+    });
+
+    const body = JSON.parse(calls[0].options.body);
+    assert.equal(body.filename, "camera.jpg");
+    assert.equal(body.type, "image/jpeg");
+    assert.equal(body.dataBase64.length, largeBase64.length);
+    assert.equal(body.dataBase64, largeBase64);
+    assert.equal(result.request.dataBase64Length, largeBase64.length);
   });
 
   await test("upload client rejects missing reader before API call", async () => {

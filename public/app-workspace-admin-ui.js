@@ -1,9 +1,61 @@
 "use strict";
 
+const WORKSPACE_ADMIN_MODEL_ESM_PATH = "/vite-islands/workspace-admin-model/workspace-admin-model.js";
+let workspaceAdminModelModule = null;
+let workspaceAdminModelImportPromise = null;
+
+function importWorkspaceAdminModel() {
+  if (workspaceAdminModelModule) return Promise.resolve(workspaceAdminModelModule);
+  if (!workspaceAdminModelImportPromise) {
+    const importer = typeof window !== "undefined" && typeof window.__homeAiImportWorkspaceAdminModel === "function"
+      ? window.__homeAiImportWorkspaceAdminModel
+      : (path) => import(path);
+    workspaceAdminModelImportPromise = importer(WORKSPACE_ADMIN_MODEL_ESM_PATH)
+      .then((module) => {
+        workspaceAdminModelModule = module || null;
+        return workspaceAdminModelModule;
+      })
+      .catch((error) => {
+        workspaceAdminModelImportPromise = null;
+        console.warn("[home-ai] workspace admin model import failed", error);
+        return null;
+      });
+  }
+  return workspaceAdminModelImportPromise;
+}
+
+function currentWorkspaceAdminModel() {
+  return workspaceAdminModelModule;
+}
+
+function workspaceAdminModelFunction(name) {
+  const model = currentWorkspaceAdminModel();
+  return typeof model?.[name] === "function" ? model[name] : null;
+}
+
+function notifyWorkspaceSelectionChangedFromLoad(previousWorkspaceId, nextWorkspaceId) {
+  if (String(previousWorkspaceId || "") === String(nextWorkspaceId || "")) return;
+  if (typeof resetAccountScopedRuntimeState === "function") {
+    resetAccountScopedRuntimeState("workspace_selection_corrected", {
+      preserveAuth: true,
+      preserveWorkspaces: true,
+    });
+  }
+  if (typeof resetEmbeddedPluginsForWorkspaceChange === "function") resetEmbeddedPluginsForWorkspaceChange();
+  if (typeof refreshEmbeddedPluginList === "function") refreshEmbeddedPluginList({ force: true }).catch(() => {});
+  if (typeof refreshPluginAppOrderSurfaces === "function") refreshPluginAppOrderSurfaces({ force: true });
+  if (typeof updateNavigationControls === "function") updateNavigationControls();
+}
+
+if (typeof window !== "undefined") {
+  importWorkspaceAdminModel();
+}
+
 async function loadWorkspaces() {
   const result = await api("/api/workspaces");
   state.workspaces = result.data || [];
   state.auth = result.auth || null;
+  const previousWorkspaceId = state.selectedWorkspaceId || "";
   const accessibleWorkspaceIds = Array.isArray(state.auth?.workspaceIds) && state.auth.workspaceIds.length
     ? state.auth.workspaceIds
     : (state.auth?.workspaceId ? [state.auth.workspaceId] : []);
@@ -14,6 +66,7 @@ async function loadWorkspaces() {
   }
   else if (!state.workspaces.some((item) => item.id === state.selectedWorkspaceId)) state.selectedWorkspaceId = state.workspaces[0]?.id || "";
   if (state.selectedWorkspaceId) localStorage.setItem("hermesWebWorkspace", state.selectedWorkspaceId);
+  notifyWorkspaceSelectionChangedFromLoad(previousWorkspaceId, state.selectedWorkspaceId);
   if (!state.auth?.isOwner) { state.accessKeyManagerOpen = state.runtimeConfigOpen = state.pluginAdminOpen = false; document.querySelectorAll("#accessKeyOverlay,#accessKeyConfirmOverlay,#runtimeConfigOverlay,#pluginAdminOverlay,#ownerElevationApprovalOverlay").forEach((node) => { node.classList.add("hidden"); node.innerHTML = ""; }); }
   const select = $("workspaceSelect");
   select.innerHTML = state.workspaces.map((ws) => `<option value="${escapeHtml(ws.id)}">${escapeHtml(ws.label || ws.id)}</option>`).join("");
@@ -56,6 +109,8 @@ function ownerWorkspaceSelected() {
 }
 
 function pathTailName(value) {
+  const modelFn = workspaceAdminModelFunction("pathTailName");
+  if (modelFn) return modelFn(value);
   const text = String(value || "").trim().replaceAll("\\", "/").replace(/\/+$/, "");
   if (!text) return "";
   const parts = text.split("/").filter(Boolean);
@@ -63,16 +118,22 @@ function pathTailName(value) {
 }
 
 function workspaceRootDirectoryName(workspace) {
+  const modelFn = workspaceAdminModelFunction("workspaceRootDirectoryName");
+  if (modelFn) return modelFn(workspace);
   const dirs = Array.isArray(workspace?.workDirectories) ? workspace.workDirectories : [];
   const root = String(workspace?.defaultWorkspace || dirs[0]?.path || dirs[0] || "").trim();
   return pathTailName(root) || "未配置";
 }
 
 function workspaceAccountSummary(workspace) {
+  const modelFn = workspaceAdminModelFunction("workspaceAccountSummary");
+  if (modelFn) return modelFn(workspace);
   return String(workspace?.principalId || workspace?.accessKey || workspace?.id || "").trim();
 }
 
 function workspaceAccessKeyStatusLabel(workspace) {
+  const modelFn = workspaceAdminModelFunction("workspaceAccessKeyStatusLabel");
+  if (modelFn) return modelFn(workspace);
   const status = workspace?.accessKeyStatus || {};
   const stateText = status.hasKey ? "已生成" : "未生成";
   if (status.kind === "owner" && status.source) return `${stateText} · ${status.source}`;
@@ -80,6 +141,8 @@ function workspaceAccessKeyStatusLabel(workspace) {
 }
 
 function workspaceTongbaoWallet(workspace) {
+  const modelFn = workspaceAdminModelFunction("workspaceTongbaoWallet");
+  if (modelFn) return modelFn(workspace);
   const wallet = workspace?.tongbaoWallet && typeof workspace.tongbaoWallet === "object"
     ? workspace.tongbaoWallet
     : {};
@@ -92,12 +155,18 @@ function workspaceTongbaoWallet(workspace) {
 }
 
 function workspaceTongbaoLine(workspace) {
+  const linePlan = workspaceAdminModelFunction("workspaceTongbaoLineView")?.(workspace);
+  if (linePlan) {
+    return `<div class="workspace-access-line workspace-tongbao-line"><span>${escapeHtml(linePlan.label)}</span>${escapeHtml(linePlan.value)}${escapeHtml(linePlan.heldText)}</div>`;
+  }
   const wallet = workspaceTongbaoWallet(workspace);
   const held = wallet.heldBalance > 0 ? ` · 冻结 ${wallet.heldBalance}` : "";
   return `<div class="workspace-access-line workspace-tongbao-line"><span>通宝</span>${escapeHtml(String(wallet.availableBalance))}${escapeHtml(held)}</div>`;
 }
 
 function workspaceOutboundStatusLabel(status) {
+  const modelFn = workspaceAdminModelFunction("workspaceOutboundStatusLabel");
+  if (modelFn) return modelFn(status);
   const value = String(status || "").trim();
   if (!value) return "";
   if (value === "verified") return "已验证";
@@ -107,6 +176,13 @@ function workspaceOutboundStatusLabel(status) {
 }
 
 function workspaceBindingChips(workspace) {
+  const chipLabels = workspaceAdminModelFunction("workspaceBindingChipLabels")?.(workspace);
+  if (Array.isArray(chipLabels)) {
+    if (!chipLabels.length) return "";
+    return `<div class="workspace-access-bindings">${chipLabels.map((item) => (
+      `<span class="workspace-access-binding-chip">${escapeHtml(item)}</span>`
+    )).join("")}</div>`;
+  }
   const bindings = workspace?.bindings || {};
   const chips = [];
   (bindings.channels || []).forEach((channel) => {
@@ -128,6 +204,14 @@ function workspaceBindingChips(workspace) {
 }
 
 function workspaceAccessRows() {
+  const modelFn = workspaceAdminModelFunction("workspaceAccessRowsPlan");
+  if (modelFn) {
+    return modelFn({
+      workspaces: state.workspaces,
+      selectedWorkspaceId: state.selectedWorkspaceId,
+      auth: state.auth,
+    });
+  }
   const workspaces = Array.isArray(state.workspaces) ? state.workspaces : [];
   const selectedWorkspaceId = state.selectedWorkspaceId || "";
   const selectedWorkspace = workspaces.find((workspace) => workspace.id === selectedWorkspaceId);
@@ -205,6 +289,8 @@ function renderWorkspaceAccessPanel() {
 }
 
 function runtimeModelCatalog(config = {}) {
+  const modelFn = workspaceAdminModelFunction("runtimeModelCatalog");
+  if (modelFn) return modelFn(config, state.runtimeModelOptions);
   const options = Array.isArray(config.modelOptions) && config.modelOptions.length
     ? config.modelOptions
     : (Array.isArray(state.runtimeModelOptions) ? state.runtimeModelOptions : []);
@@ -212,12 +298,16 @@ function runtimeModelCatalog(config = {}) {
 }
 
 function runtimeSelectedModelOption(config = {}) {
+  const modelFn = workspaceAdminModelFunction("runtimeSelectedModelOption");
+  if (modelFn) return modelFn(config, state.runtimeModelOptions, state.defaultModelId);
   const options = runtimeModelCatalog(config);
   const selected = String(config.defaultModelId || state.defaultModelId || "").trim();
   return options.find((option) => String(option.id || "").trim() === selected) || options[0] || null;
 }
 
 function runtimeModelFamiliesFromOptions(options = []) {
+  const modelFn = workspaceAdminModelFunction("runtimeModelFamiliesFromOptions");
+  if (modelFn) return modelFn(options);
   const families = [];
   const seen = new Set();
   options.forEach((option) => {
@@ -233,6 +323,12 @@ function runtimeModelFamiliesFromOptions(options = []) {
 }
 
 function renderRuntimeModelFamilyOptions(config = {}) {
+  const plan = workspaceAdminModelFunction("runtimeModelFamilyOptionsPlan")?.(config, state.runtimeModelOptions, state.defaultModelId);
+  if (Array.isArray(plan)) {
+    return plan.map((family) => (
+      `<option value="${escapeHtml(family.id)}"${family.selected ? " selected" : ""}>${escapeHtml(family.label)}</option>`
+    )).join("");
+  }
   const options = runtimeModelCatalog(config);
   const selectedOption = runtimeSelectedModelOption(config);
   const selectedFamilyId = String(selectedOption?.familyId || selectedOption?.provider || "").trim();
@@ -242,6 +338,12 @@ function renderRuntimeModelFamilyOptions(config = {}) {
 }
 
 function renderRuntimeModelOptions(config = {}, familyId = "") {
+  const plan = workspaceAdminModelFunction("runtimeModelOptionsPlan")?.(config, familyId, state.runtimeModelOptions, state.defaultModelId);
+  if (Array.isArray(plan)) {
+    return plan.map((option) => (
+      `<option value="${escapeHtml(option.id)}"${option.selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`
+    )).join("");
+  }
   const options = runtimeModelCatalog(config);
   const selectedOption = runtimeSelectedModelOption(config);
   const selected = String(selectedOption?.id || config.defaultModelId || state.defaultModelId || "").trim();
@@ -259,6 +361,16 @@ function renderRuntimeModelOptions(config = {}, familyId = "") {
 }
 
 function renderRuntimeReasoningOptions(selected = "") {
+  const plan = workspaceAdminModelFunction("runtimeReasoningOptionsPlan")?.(
+    configuredReasoningOptions(),
+    selected,
+    state.defaultReasoningEffort,
+  );
+  if (Array.isArray(plan)) {
+    return plan.map((option) => (
+      `<option value="${escapeHtml(option.value)}"${option.selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`
+    )).join("");
+  }
   const current = String(selected || state.defaultReasoningEffort || "medium").trim().toLowerCase();
   return configuredReasoningOptions().map((option) => {
     const value = String(option.value || "").trim().toLowerCase();
@@ -280,6 +392,8 @@ const RUNTIME_GATEWAY_WORKER_FIELDS = [
 ];
 
 function runtimeGatewayWorkerValue(config, key) {
+  const modelFn = workspaceAdminModelFunction("runtimeGatewayWorkerValue");
+  if (modelFn) return modelFn(config, key, state.gatewayPool?.config || {});
   const overrides = config?.gatewayWorkerSettings || {};
   const effective = config?.gatewayWorkerEffectiveSettings || {};
   const gatewayPoolConfig = state.gatewayPool?.config || {};
@@ -295,10 +409,17 @@ function runtimeGatewayWorkerValue(config, key) {
 }
 
 function renderRuntimeGatewayWorkerInputs(config) {
-  return RUNTIME_GATEWAY_WORKER_FIELDS.map(([key, id, label]) => `
+  const plan = workspaceAdminModelFunction("runtimeGatewayWorkerInputsPlan")?.(config, state.gatewayPool?.config || {});
+  const inputs = Array.isArray(plan) ? plan : RUNTIME_GATEWAY_WORKER_FIELDS.map(([key, id, label]) => ({
+    key,
+    id,
+    label,
+    value: runtimeGatewayWorkerValue(config, key),
+  }));
+  return inputs.map(({ id, label, value }) => `
     <label>
       <span>${escapeHtml(label)}</span>
-      <input id="${escapeHtml(id)}" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(runtimeGatewayWorkerValue(config, key))}">
+      <input id="${escapeHtml(id)}" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(value)}">
     </label>`).join("");
 }
 
@@ -309,6 +430,29 @@ function readRuntimeGatewayWorkerSettings() {
     settings[key] = raw === "" ? "" : Number(raw);
   }
   return settings;
+}
+
+function runtimeMoaPresetText(config) {
+  const modelFn = workspaceAdminModelFunction("runtimeMoaPresetText");
+  if (modelFn) return modelFn(config);
+  const presets = Array.isArray(config?.moaConfig?.presets) ? config.moaConfig.presets : [];
+  return JSON.stringify(presets, null, 2);
+}
+
+function readRuntimeMoaConfig() {
+  let presets = [];
+  const raw = $("runtimeMoaPresetsJson")?.value?.trim() || "[]";
+  try {
+    presets = JSON.parse(raw || "[]");
+  } catch (_) {
+    throw new Error("MoA presets JSON 格式无效");
+  }
+  return {
+    enabled: Boolean($("runtimeMoaEnabled")?.checked),
+    defaultPreset: $("runtimeMoaDefaultPreset")?.value?.trim() || "default",
+    activePreset: $("runtimeMoaActivePreset")?.value?.trim() || "",
+    presets,
+  };
 }
 
 function renderRuntimeConfigManager() {
@@ -353,6 +497,25 @@ function renderRuntimeConfigManager() {
             ${renderRuntimeGatewayWorkerInputs(config)}
           </div>
           <div class="runtime-config-worker-note">0 \u8868\u793a\u6309\u9700\u51b7\u542f\u52a8\u3002\u51b7\u5374\u5206\u949f\u662f\u5f39\u6027 Worker \u7a7a\u95f2\u540e\u53ef\u505c\u6b62\u7684\u65f6\u95f4\u3002</div>
+          <div class="runtime-config-subtitle">MoA</div>
+          <label class="runtime-config-check-row">
+            <input id="runtimeMoaEnabled" type="checkbox" ${config.moaConfig?.enabled ? "checked" : ""}>
+            <span>启用 MoA 预设</span>
+          </label>
+          <div class="runtime-config-worker-grid">
+            <label>
+              <span>默认 preset</span>
+              <input id="runtimeMoaDefaultPreset" type="text" autocomplete="off" value="${escapeHtml(config.moaConfig?.defaultPreset || "default")}">
+            </label>
+            <label>
+              <span>当前 preset</span>
+              <input id="runtimeMoaActivePreset" type="text" autocomplete="off" value="${escapeHtml(config.moaConfig?.activePreset || "")}">
+            </label>
+          </div>
+          <label>
+            <span>预设 JSON</span>
+            <textarea id="runtimeMoaPresetsJson" spellcheck="false" rows="10">${escapeHtml(runtimeMoaPresetText(config))}</textarea>
+          </label>
           <div class="runtime-config-subtitle">Web Push / VAPID</div>
           <label>
             <span>Web Push subject</span>
@@ -446,6 +609,7 @@ async function saveRuntimeConfigManager() {
   const hermesApiBase = $("runtimeHermesApiBase")?.value?.trim() || "";
   const hermesApiKeyPath = $("runtimeHermesApiKeyPath")?.value?.trim() || "";
   const gatewayWorkerSettings = readRuntimeGatewayWorkerSettings();
+  const moaConfig = readRuntimeMoaConfig();
   const webPushSubject = $("runtimeWebPushSubject")?.value?.trim() || "";
   const webPushVapidPath = $("runtimeWebPushVapidPath")?.value?.trim() || "";
   state.runtimeConfigLoading = true;
@@ -454,7 +618,7 @@ async function saveRuntimeConfigManager() {
   try {
     const result = await api("/api/runtime-config", {
       method: "PATCH",
-      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath, gatewayWorkerSettings, webPushSubject, webPushVapidPath }),
+      body: JSON.stringify({ hermesApiBase, hermesApiKeyPath, gatewayWorkerSettings, moaConfig, webPushSubject, webPushVapidPath }),
     });
     state.runtimeConfig = result.config || {};
     state.pushStatus = result.push || state.pushStatus;

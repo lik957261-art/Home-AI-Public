@@ -1,31 +1,126 @@
 "use strict";
 
 (function (root) {
+  const LEARNING_GROWTH_REWARD_CONTROLLER_MODEL_ESM_PATH = "/vite-islands/learning-growth-reward-controller-model/learning-growth-reward-controller-model.js";
+  let learningGrowthRewardControllerModel = null;
+  let learningGrowthRewardControllerModelPromise = null;
+
+  function importLearningGrowthRewardControllerModel(rootRef = root) {
+    if (learningGrowthRewardControllerModel) return Promise.resolve(learningGrowthRewardControllerModel);
+    if (!learningGrowthRewardControllerModelPromise) {
+      const importer = typeof rootRef.__homeAiImportLearningGrowthRewardControllerModel === "function"
+        ? rootRef.__homeAiImportLearningGrowthRewardControllerModel
+        : (path) => import(path);
+      learningGrowthRewardControllerModelPromise = Promise.resolve()
+        .then(() => importer(LEARNING_GROWTH_REWARD_CONTROLLER_MODEL_ESM_PATH))
+        .then((model) => {
+          learningGrowthRewardControllerModel = model || null;
+          return learningGrowthRewardControllerModel;
+        })
+        .catch((error) => {
+          learningGrowthRewardControllerModelPromise = null;
+          throw error;
+        });
+    }
+    return learningGrowthRewardControllerModelPromise;
+  }
+
+  function currentLearningGrowthRewardControllerModel() {
+    return learningGrowthRewardControllerModel;
+  }
+
+  function learningGrowthRewardControllerModelFunction(name) {
+    const model = currentLearningGrowthRewardControllerModel();
+    return model && typeof model[name] === "function" ? model[name] : null;
+  }
+
+  if (typeof window !== "undefined") {
+    importLearningGrowthRewardControllerModel().catch(() => null);
+  }
+
   function seriesIds(raw = "") {
-    return String(raw || "")
-      .split(",")
-      .map((id) => id.trim())
-      .filter(Boolean);
+    const modelFn = learningGrowthRewardControllerModelFunction("learningRewardSeriesIdsPlan");
+    if (modelFn) return modelFn(raw);
+    return String(raw || "").split(",").map((id) => id.trim()).filter(Boolean);
+  }
+
+  function rewardPolicyPatchRequestsPlan(ids, rewardCapCoins) {
+    const modelFn = learningGrowthRewardControllerModelFunction("learningRewardPolicyPatchRequestsPlan");
+    if (modelFn) return modelFn(ids, rewardCapCoins);
+    return seriesIds(ids.join(",")).map((id) => ({
+      id,
+      url: `/api/learning/task-cards/${encodeURIComponent(id)}/reward-policy`,
+      method: "PATCH",
+      body: { rewardCapCoins },
+    }));
+  }
+
+  function fallbackRewardPolicySubmitPlan(rawIds, form) {
+    const ids = seriesIds(rawIds);
+    const key = form?.dataset.learningTaskRewardPolicySeriesForm || rawIds;
+    const maxCoins = Number(form?.querySelector("input[name='maxCoins']")?.value || 0);
+    if (!ids.length) {
+      return {
+        ids,
+        key,
+        stateSelector: `[data-learning-task-reward-policy-state="${String(key).replace(/"/g, "\\\"")}"]`,
+        valid: false,
+        empty: true,
+        requests: [],
+      };
+    }
+    if (!Number.isFinite(maxCoins) || maxCoins <= 0) {
+      return {
+        ids,
+        key,
+        stateSelector: `[data-learning-task-reward-policy-state="${String(key).replace(/"/g, "\\\"")}"]`,
+        valid: false,
+        empty: false,
+        requests: [],
+        errorText: "金币数必须是正整数。",
+      };
+    }
+    const rewardCapCoins = Math.round(maxCoins);
+    return {
+      ids,
+      key,
+      stateSelector: `[data-learning-task-reward-policy-state="${String(key).replace(/"/g, "\\\"")}"]`,
+      valid: true,
+      rewardCapCoins,
+      requests: rewardPolicyPatchRequestsPlan(ids, rewardCapCoins),
+      savingText: "正在保存系列奖励...",
+      successText: `已更新 ${ids.length} 张卡片。`,
+    };
+  }
+
+  function rewardPolicySubmitPlan(rawIds, form) {
+    const modelFn = learningGrowthRewardControllerModelFunction("learningRewardPolicySubmitPlan");
+    if (modelFn) {
+      return modelFn({
+        rawIds,
+        formKey: form?.dataset.learningTaskRewardPolicySeriesForm || rawIds,
+        maxCoinsValue: form?.querySelector("input[name='maxCoins']")?.value || 0,
+      });
+    }
+    return fallbackRewardPolicySubmitPlan(rawIds, form);
   }
 
   async function submitLearningTaskRewardSeriesForm(event, rawIds) {
     event?.preventDefault?.();
-    const ids = seriesIds(rawIds);
-    if (!ids.length) return;
     const form = event?.target;
-    const key = form?.dataset.learningTaskRewardPolicySeriesForm || rawIds;
-    const stateNode = document.querySelector(`[data-learning-task-reward-policy-state="${String(key).replace(/"/g, "\\\"")}"]`);
-    const maxCoins = Number(form?.querySelector("input[name='maxCoins']")?.value || 0);
-    if (!Number.isFinite(maxCoins) || maxCoins <= 0) {
-      if (stateNode) stateNode.textContent = "\u91d1\u5e01\u6570\u5fc5\u987b\u662f\u6b63\u6574\u6570\u3002";
+    const plan = rewardPolicySubmitPlan(rawIds, form);
+    if (!plan.ids.length) return;
+    const stateNode = document.querySelector(plan.stateSelector);
+    if (!plan.valid) {
+      if (stateNode && plan.errorText) stateNode.textContent = plan.errorText;
       return;
     }
-    if (stateNode) stateNode.textContent = "\u6b63\u5728\u4fdd\u5b58\u7cfb\u5217\u5956\u52b1...";
-    await Promise.all(ids.map((id) => api(`/api/learning/task-cards/${encodeURIComponent(id)}/reward-policy`, {
-      method: "PATCH",
-      body: JSON.stringify({ rewardCapCoins: Math.round(maxCoins) }),
+    if (stateNode) stateNode.textContent = plan.savingText || "正在保存系列奖励...";
+    await Promise.all((plan.requests || []).map((request) => api(request.url, {
+      method: request.method || "PATCH",
+      body: JSON.stringify(request.body || { rewardCapCoins: plan.rewardCapCoins }),
     })));
-    if (stateNode) stateNode.textContent = `\u5df2\u66f4\u65b0 ${ids.length} \u5f20\u5361\u7247\u3002`;
+    if (stateNode) stateNode.textContent = plan.successText || `已更新 ${plan.ids.length} 张卡片。`;
     if (typeof loadLearningCoins === "function") await loadLearningCoins({ limit: 80 });
   }
 
@@ -38,6 +133,11 @@
   }
 
   root.HermesLearningGrowthRewardController = {
+    importLearningGrowthRewardControllerModel,
+    currentLearningGrowthRewardControllerModel,
+    rewardPolicyPatchRequestsPlan,
+    rewardPolicySubmitPlan,
+    seriesIds,
     submitLearningTaskRewardSeriesForm,
     wireLearningGrowthRewardPolicy,
   };

@@ -189,17 +189,24 @@ into smaller bounded scripts.
 
 ## Root-Level Rollback Artifacts
 
-The Mac backup script treats direct production `data/*.bak` files as transient
-local repair/deploy rollback artifacts. It records them as skipped and continues
-backing up the canonical source file. For example, a root-owned
-`data/gateway-pool-manifest-mac.json.before-*.bak` must not make the scheduled
+The Mac backup script treats direct production `data/*.bak` and
+`data/*.backup-*` files as transient local repair/deploy rollback artifacts. It
+records them as skipped and continues backing up the canonical source file. For
+example, a root-owned `data/gateway-pool-manifest-mac.json.before-*.bak` or
+`data/gateway-pool-manifest-mac.json.backup-*` must not make the scheduled
 backup partial as long as `data/gateway-pool-manifest-mac.json` is readable and
 included.
 
-If a failure still references `production-data-file:*.bak`, verify that
-production is running a deployed script containing the
+If a failure still references `production-data-file:*.bak` or
+`production-data-file:*.backup-*`, verify that production is running a deployed
+script containing the
 `transient-production-data-backup` skip reason before changing file ownership or
 ACLs.
+
+If a failure references `production-data:deploy-state`, verify that production
+deploy has run the `home-ai-backup-deploy-state-acl-repair` step. The scheduled
+CRON backup must read deploy state as `hermes-host`; do not add sudo access to
+the backup CRON path to work around deploy-state permissions.
 
 ## Publish Rsync Verification
 

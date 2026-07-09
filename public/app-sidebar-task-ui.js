@@ -1,5 +1,37 @@
 "use strict";
 
+const SIDEBAR_BACK_NAVIGATION_MODEL_ESM_PATH = "/vite-islands/sidebar-back-navigation-model/sidebar-back-navigation-model.js";
+let sidebarBackNavigationModel = null;
+let sidebarBackNavigationModelPromise = null;
+
+function importSidebarBackNavigationModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (sidebarBackNavigationModel) return Promise.resolve(sidebarBackNavigationModel);
+  if (!sidebarBackNavigationModelPromise) {
+    const importer = typeof rootRef.__homeAiImportSidebarBackNavigationModel === "function"
+      ? rootRef.__homeAiImportSidebarBackNavigationModel
+      : (path) => import(path);
+    sidebarBackNavigationModelPromise = Promise.resolve()
+      .then(() => importer(SIDEBAR_BACK_NAVIGATION_MODEL_ESM_PATH))
+      .then((model) => {
+        sidebarBackNavigationModel = model || null;
+        return sidebarBackNavigationModel;
+      })
+      .catch((error) => {
+        sidebarBackNavigationModelPromise = null;
+        throw error;
+      });
+  }
+  return sidebarBackNavigationModelPromise;
+}
+
+function currentSidebarBackNavigationModel() {
+  return sidebarBackNavigationModel;
+}
+
+if (typeof window !== "undefined") {
+  importSidebarBackNavigationModel().catch(() => null);
+}
+
 function clearSidebarDragStyles() {
   const sidebar = $("sidebar");
   const overlay = $("sidebarOverlay");
@@ -110,12 +142,61 @@ function closeDirectoryTopicDraft() {
   return false;
 }
 
+function sidebarBackNavigationPlanInput(previewOpen, pluginContextBack, pluginContextTarget) {
+  const callBoolean = (fn) => typeof fn === "function" && Boolean(fn());
+  return {
+    previewOpen: Boolean(previewOpen),
+    pluginContextBack: Boolean(pluginContextBack),
+    pluginContextTarget: String(pluginContextTarget || ""),
+    skillDetail: callBoolean(typeof isSkillDetailView === "function" ? isSkillDetailView : null),
+    taskDetail: callBoolean(typeof isTaskDetailView === "function" ? isTaskDetailView : null),
+    pluginTopicDetail: Boolean(
+      pluginContextTarget
+      && typeof pluginTopicDefForCurrentTaskGroupId === "function"
+      && pluginTopicDefForCurrentTaskGroupId(state.currentTaskGroupId)
+    ),
+    todoDetail: callBoolean(typeof isTodoDetailView === "function" ? isTodoDetailView : null),
+    kanbanComposerOpen: callBoolean(typeof kanbanComposerOpen === "function" ? kanbanComposerOpen : null),
+    wardrobePluginBackActive: callBoolean(typeof wardrobePluginBackActive === "function" ? wardrobePluginBackActive : null),
+    wardrobePluginOuterBackActive: callBoolean(typeof wardrobePluginOuterBackActive === "function" ? wardrobePluginOuterBackActive : null),
+    codexPluginBackActive: callBoolean(typeof codexPluginBackActive === "function" ? codexPluginBackActive : null),
+    codexPluginOuterBackActive: callBoolean(typeof codexPluginOuterBackActive === "function" ? codexPluginOuterBackActive : null),
+    financePluginBackActive: callBoolean(typeof financePluginBackActive === "function" ? financePluginBackActive : null),
+    financePluginOuterBackActive: callBoolean(typeof financePluginOuterBackActive === "function" ? financePluginOuterBackActive : null),
+    emailPluginBackActive: callBoolean(typeof emailPluginBackActive === "function" ? emailPluginBackActive : null),
+    emailPluginOuterBackActive: callBoolean(typeof emailPluginOuterBackActive === "function" ? emailPluginOuterBackActive : null),
+    healthPluginBackActive: callBoolean(typeof healthPluginBackActive === "function" ? healthPluginBackActive : null),
+    healthPluginOuterBackActive: callBoolean(typeof healthPluginOuterBackActive === "function" ? healthPluginOuterBackActive : null),
+    notePluginBackActive: callBoolean(typeof notePluginBackActive === "function" ? notePluginBackActive : null),
+    notePluginOuterBackActive: callBoolean(typeof notePluginOuterBackActive === "function" ? notePluginOuterBackActive : null),
+    growthPluginBackActive: callBoolean(typeof growthPluginBackActive === "function" ? growthPluginBackActive : null),
+    growthPluginOuterBackActive: callBoolean(typeof growthPluginOuterBackActive === "function" ? growthPluginOuterBackActive : null),
+    moiraPluginBackActive: callBoolean(typeof moiraPluginBackActive === "function" ? moiraPluginBackActive : null),
+    moiraPluginOuterBackActive: callBoolean(typeof moiraPluginOuterBackActive === "function" ? moiraPluginOuterBackActive : null),
+    musicPluginBackActive: callBoolean(typeof musicPluginBackActive === "function" ? musicPluginBackActive : null),
+    musicPluginOuterBackActive: callBoolean(typeof musicPluginOuterBackActive === "function" ? musicPluginOuterBackActive : null),
+    moviePluginBackActive: callBoolean(typeof moviePluginBackActive === "function" ? moviePluginBackActive : null),
+    moviePluginOuterBackActive: callBoolean(typeof moviePluginOuterBackActive === "function" ? moviePluginOuterBackActive : null),
+    directoryTopicDraftActive: isDirectoryTopicDraftActive(),
+    automationDetailInboxReturnActive: callBoolean(typeof automationDetailInboxReturnActive === "function" ? automationDetailInboxReturnActive : null),
+    automationDetail: callBoolean(typeof isAutomationDetailView === "function" ? isAutomationDetailView : null),
+    automationSecondaryReturnActive: callBoolean(typeof automationSecondaryReturnActive === "function" ? automationSecondaryReturnActive : null),
+    actionInboxDetail: callBoolean(typeof isActionInboxDetailView === "function" ? isActionInboxDetailView : null),
+    actionInboxCreate: callBoolean(typeof isActionInboxCreateView === "function" ? isActionInboxCreateView : null),
+    projectsDirectoryActive: state.viewMode === "projects" && ((typeof directoryActivePath === "function" && directoryActivePath()) || state.directoryReturnRoute),
+  };
+}
+
 function backSwipeTarget() {
   const previewUi = window.TaskDocumentPreviewUi || {};
   const previewOpen = Boolean(previewUi.hasArtifactPreviewOverlay?.());
   if (previewOpen) return "artifact-preview";
   const pluginContextBack = pluginContextBackNavigationActive();
   const pluginContextTarget = pluginContextBackTarget();
+  const model = currentSidebarBackNavigationModel();
+  if (typeof model?.backSwipeTargetPlan === "function") {
+    return model.backSwipeTargetPlan(sidebarBackNavigationPlanInput(previewOpen, pluginContextBack, pluginContextTarget));
+  }
   if (isSkillDetailView()) return "skill";
   if (isTaskDetailView()) {
     const pluginTopicDetail = Boolean(
@@ -237,6 +318,13 @@ function homeAINativeBackPrimaryBounceTarget(target = backSwipeTarget()) {
 
 function homeAINativeBackQuery() {
   const target = backSwipeTarget();
+  const model = currentSidebarBackNavigationModel();
+  if (typeof model?.nativeBackQueryPlan === "function") {
+    return model.nativeBackQueryPlan({
+      target,
+      primaryBounce: homeAINativeBackPrimaryBounceTarget(target),
+    });
+  }
   return {
     target: String(target || ""),
     hasTarget: Boolean(target),

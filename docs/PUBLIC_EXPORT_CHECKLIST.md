@@ -31,7 +31,7 @@ The public export should include:
 
 - source code under `server.js`, `public/`, `adapters/`, `scripts/`, and bridge stubs
 - tests
-- docs
+- curated public-safe docs
 - `.env.example`
 - package metadata
 - public-safe sample configs only
@@ -39,6 +39,48 @@ The public export should include:
 The public export should not include deployment-specific production launchers. Provide example launchers that use environment variables and secret-file paths supplied by the installer.
 
 Do not manually copy files into a public repository. Use the export command so only tracked source files are copied and ignored runtime data stays out of the public tree.
+
+## Public / Private Boundary
+
+The public repository is an installable product source tree, not the private
+Owner operations ledger. A public clone can still copy the published source, so
+privacy and distribution control must come from a strict export boundary rather
+than from obscurity in comments or docs.
+
+Keep public:
+
+- productized host runtime code needed for a fresh install;
+- public-safe plugin contracts, manifest examples, installer/preflight scripts,
+  tests, and `.env.example` files;
+- extension points that let an operator localize devices, media libraries,
+  file roots, and provider setup without editing private Owner source;
+- concise public docs that explain setup, supported configuration, validation,
+  and known limitations.
+
+Keep private:
+
+- `.agent-context`, handoffs, task-card ledgers, internal audit returns, and
+  operator-only rollout notes;
+- deployment-specific launchd/plist facts, private machine paths, private
+  reverse-proxy hostnames, sudo/password-file paths, or local service-user
+  repair notes;
+- real workspace configs, plugin workspace grants, local device/library
+  adapters, data roots, OAuth/session state, cookies, push endpoints, provider
+  profiles, API keys, and generated reports;
+- plugin-private source overlays that are not yet productized enough for a
+  public installer contract.
+
+Plugins that need local adaptation, such as music or movie libraries, should
+publish a small public contract and fixture-safe adapter interface rather than
+the Owner's private local integration. A public user can then ask Codex to
+implement their local adapter against that contract without receiving private
+Owner paths, libraries, or operational notes.
+
+Internal docs should not be blindly tracked into public. If a public release
+needs documentation, publish a curated public doc or generated public README
+section from the private source tree. Do not include long internal design
+debates, task-card returns, production incident ledgers, or private deployment
+readback in the public export.
 
 ## Public README Requirements
 

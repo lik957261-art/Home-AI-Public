@@ -33,7 +33,7 @@ const VIEW_MODES = Object.freeze([
     viewMode: "directories",
     label: "目录",
     surface: "directories",
-    description: "目录入口和文件上下文仍保留 classic fallback。",
+    description: "目录入口和文件上下文仍保留兼容路由边界。",
   },
   {
     id: "automation",
@@ -47,7 +47,7 @@ const VIEW_MODES = Object.freeze([
     viewMode: "growth",
     label: "成长",
     surface: "growth",
-    description: "成长和学习面板仍保留 classic fallback。",
+    description: "成长和学习面板仍保留兼容路由边界。",
   },
   {
     id: "system-console",
@@ -222,7 +222,7 @@ function buildNavigationShellViewModel(state = {}, options = {}) {
       viewMode,
       singleWindowMode,
     })),
-    productionDefaultShell: "classic",
+    productionDefaultShell: "vite",
     migrationStatus: "development_preview",
     cache,
     taskTopicShell,
@@ -236,7 +236,7 @@ function buildNavigationShellViewModel(state = {}, options = {}) {
     }),
     tabs,
     warnings: Object.freeze([
-      "当前预览不替换 classic shell。",
+      "当前预览不替换生产根 shell。",
       "Chat detail、Composer 和 SSE 将留到 Phase 5。",
       "生产切换需要 Owner 单独批准。",
     ]),

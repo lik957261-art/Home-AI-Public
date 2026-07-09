@@ -110,9 +110,12 @@ function makeFixture() {
   fs.utimesSync(oldReceipt, oldDate, oldDate);
   const canonicalManifest = path.join(fixture.root, "data", "gateway-pool-manifest-mac.json");
   const transientManifestBackup = path.join(fixture.root, "data", "gateway-pool-manifest-mac.json.before-current-environment-20260618T042138Z.bak");
+  const transientManifestBackupArtifact = path.join(fixture.root, "data", "gateway-pool-manifest-mac.json.backup-20260705-media-no-gateway-1783259597286");
   writeFile(canonicalManifest, "{}\n");
   writeFile(transientManifestBackup, "{}\n");
+  writeFile(transientManifestBackupArtifact, "{}\n");
   fs.chmodSync(transientManifestBackup, 0o000);
+  fs.chmodSync(transientManifestBackupArtifact, 0o000);
   try {
     const result = backup.runBackup({
       root: fixture.root,
@@ -128,6 +131,7 @@ function makeFixture() {
     assert.equal(result.ok, true);
     assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", "gateway-pool-manifest-mac.json")), true);
     assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", path.basename(transientManifestBackup))), false);
+    assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", path.basename(transientManifestBackupArtifact))), false);
     assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", "production-drift-audit", "latest.json")), false);
     assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", "music", "library", "index.json")), true);
     assert.equal(fs.existsSync(path.join(result.currentRoot, "production", "data", "music", "audio-mounts", "Music", "album", "track.flac")), false);
@@ -142,8 +146,11 @@ function makeFixture() {
     const manifest = JSON.parse(fs.readFileSync(path.join(result.currentRoot, "DISASTER-RECOVERY-MANIFEST.json"), "utf8"));
     const skipped = manifest.steps.find((step) => step.name === `production-data-file:${path.basename(transientManifestBackup)}`);
     assert.equal(skipped.reason, "transient-production-data-backup");
+    const skippedBackupArtifact = manifest.steps.find((step) => step.name === `production-data-file:${path.basename(transientManifestBackupArtifact)}`);
+    assert.equal(skippedBackupArtifact.reason, "transient-production-data-backup");
   } finally {
     fs.chmodSync(transientManifestBackup, 0o600);
+    fs.chmodSync(transientManifestBackupArtifact, 0o600);
   }
 }
 

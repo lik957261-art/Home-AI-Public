@@ -76,6 +76,12 @@ async function testRouteMetadata() {
   assert.equal(routes.summary().total, 2);
   assert.equal(routes.summary().byAuthMode.owner, 2);
   assert.equal(routes.summary().byRiskLevel.owner, 2);
+  assert.deepEqual(routes.match({ method: "GET", path: "/api/owner/system-console" }).resourceTypes, [
+    "system-status",
+    "diagnostic",
+    "autonomous-delivery",
+    "loop-engineering",
+  ]);
 }
 
 async function testOwnerGateAndFallthrough() {

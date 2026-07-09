@@ -28,6 +28,12 @@ function createMobileRuntimeCoreProviders(deps = {}) {
   });
   deps.bootTrace?.("concurrency ready");
 
+  let auditEventProvider = null;
+  const audit = (eventType, payload) => {
+    if (auditEventProvider && typeof auditEventProvider.audit === "function") {
+      auditEventProvider.audit(eventType, payload);
+    }
+  };
   const authProvider = createAuthProvider({
     disableAuth: () => runtimeEnv.DISABLE_AUTH,
     envKey: () => env.HERMES_WEB_KEY || "",
@@ -42,6 +48,7 @@ function createMobileRuntimeCoreProviders(deps = {}) {
     findWorkspace: deps.findWorkspace,
     workspacePrincipal: deps.workspacePrincipal,
     listWorkspaces: () => deps.loadCatalog().workspaces,
+    audit,
   });
   deps.bootTrace?.("auth ready");
 
@@ -183,7 +190,7 @@ function createMobileRuntimeCoreProviders(deps = {}) {
   });
   deps.bootTrace?.("shared directories ready");
 
-  const auditEventProvider = createAuditEventProvider({
+  auditEventProvider = createAuditEventProvider({
     sink: (eventType, event) => {
       if (deps.useSqliteServiceStore()) {
         deps.mobileSqliteStore().audit(eventType, event);

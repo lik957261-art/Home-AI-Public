@@ -2,7 +2,7 @@ import { createHomeAiRuntimeFacade, RUNTIME_FACADE_VERSION } from "./runtime/hom
 import { createEditableFocusLifecycleGuard, FOCUS_LIFECYCLE_GUARD_VERSION } from "./runtime/focus-lifecycle-guard.mjs";
 
 const PRODUCTION_BOOTSTRAP_VERSION = "20260703-vite-production-bootstrap-v1";
-const CUTOVER_VERSION = "20260703-vite-production-cutover-v1";
+const CUTOVER_VERSION = "20260706-vite-production-cutover-v1120";
 
 function clientVersion(documentRef = document) {
   return documentRef?.querySelector?.("meta[name='hermes-web-client-version'], meta[name='home-ai-client-version']")?.getAttribute?.("content")

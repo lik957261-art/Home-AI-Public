@@ -1,6 +1,43 @@
 "use strict";
 
+const ACTION_INBOX_MODEL_ESM_PATH = "/vite-islands/action-inbox-model/action-inbox-model.js";
 const ACTION_INBOX_TASK_CARD_FAILURE_THRESHOLD = 3;
+let actionInboxModel = null;
+let actionInboxModelPromise = null;
+
+function importActionInboxModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (actionInboxModel) return Promise.resolve(actionInboxModel);
+  if (!actionInboxModelPromise) {
+    const importer = typeof rootRef.__homeAiImportActionInboxModel === "function"
+      ? rootRef.__homeAiImportActionInboxModel
+      : (path) => import(path);
+    actionInboxModelPromise = Promise.resolve()
+      .then(() => importer(ACTION_INBOX_MODEL_ESM_PATH))
+      .then((model) => {
+        actionInboxModel = model || null;
+        return actionInboxModel;
+      })
+      .catch((error) => {
+        actionInboxModelPromise = null;
+        throw error;
+      });
+  }
+  return actionInboxModelPromise;
+}
+
+function currentActionInboxModel() {
+  return actionInboxModel;
+}
+
+function actionInboxModelFunction(name) {
+  const model = currentActionInboxModel();
+  return model && typeof model[name] === "function" ? model[name] : null;
+}
+
+if (typeof window !== "undefined") {
+  importActionInboxModel().catch(() => null);
+}
+
 const ACTION_INBOX_AUDIT_TARGETS = Object.freeze([
   Object.freeze({ id: "home-ai", label: "Home AI 宿主", thread: "Home AI Platform Audit" }),
   Object.freeze({ id: "codex-mobile", label: "Codex", thread: "Plugin Workspace Audit" }),
@@ -16,15 +53,21 @@ const ACTION_INBOX_AUDIT_TARGETS = Object.freeze([
 ]);
 
 function actionInboxAuditTargetOptions() {
+  const modelFn = actionInboxModelFunction("actionInboxAuditTargetOptionsPlan");
+  if (modelFn) return modelFn();
   return ACTION_INBOX_AUDIT_TARGETS;
 }
 
 function actionInboxValidAuditTargetId(value) {
+  const modelFn = actionInboxModelFunction("actionInboxValidAuditTargetIdPlan");
+  if (modelFn) return modelFn(value);
   const id = String(value || "").trim();
   return ACTION_INBOX_AUDIT_TARGETS.some((target) => target.id === id) ? id : "home-ai";
 }
 
 function actionInboxSafeToken(value, emptyValue = "unknown", limit = 120) {
+  const modelFn = actionInboxModelFunction("actionInboxSafeTokenPlan");
+  if (modelFn) return modelFn(value, emptyValue, limit);
   const text = String(value == null ? "" : value)
     .trim()
     .replace(/[^A-Za-z0-9._:-]+/g, "_")
@@ -73,6 +116,8 @@ function clearActionInboxActionState(itemId) {
 }
 
 function actionInboxTaskCardDispatchKey(item = {}, action = "") {
+  const modelFn = actionInboxModelFunction("actionInboxTaskCardDispatchKeyPlan");
+  if (modelFn) return modelFn(item, action);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const sourceId = [
     String(sourceRef.caseId || sourceRef.requestId || sourceRef.request_id || item?.sourceId || item?.source_id || item?.id || "").trim(),
@@ -86,10 +131,14 @@ function actionInboxTaskCardDispatchKey(item = {}, action = "") {
 }
 
 function actionInboxErrorCode(error) {
+  const modelFn = actionInboxModelFunction("actionInboxErrorCodePlan");
+  if (modelFn) return modelFn(error);
   return actionInboxSafeToken(error?.code || error?.error || error?.message || error || "task_card_dispatch_failed", "task_card_dispatch_failed", 120);
 }
 
 function actionInboxErrorMessage(error) {
+  const modelFn = actionInboxModelFunction("actionInboxErrorMessagePlan");
+  if (modelFn) return modelFn(error);
   const message = String(error?.message || error?.error || error || "\u53d1\u9001\u5931\u8d25").trim().replace(/\s+/g, " ");
   return message.slice(0, 160) || "\u53d1\u9001\u5931\u8d25";
 }
@@ -158,6 +207,8 @@ function renderActionInboxActionFeedback(item = {}) {
 }
 
 function actionInboxTaskCardFailureCategory(action = "") {
+  const modelFn = actionInboxModelFunction("actionInboxTaskCardFailureCategoryPlan");
+  if (modelFn) return modelFn(action);
   if (action === "plugin-conversation-send-card") return "action_inbox_plugin_conversation_task_card_failed";
   if (action === "autonomous-delivery-start") return "action_inbox_autonomous_delivery_start_failed";
   if (action === "autonomous-delivery-start-verification") return "action_inbox_autonomous_delivery_verification_failed";
@@ -257,6 +308,8 @@ function noteActionInboxTaskCardDispatchFailure(item = {}, action = "", error = 
 }
 
 function actionInboxStatusLabel(status) {
+  const modelFn = actionInboxModelFunction("actionInboxStatusLabelPlan");
+  if (modelFn) return modelFn(status);
   const value = String(status || "").toLowerCase();
   if (value === "waiting") return "\u7a0d\u540e";
   if (value === "done") return "\u5df2\u5b8c\u6210";
@@ -266,6 +319,8 @@ function actionInboxStatusLabel(status) {
 }
 
 function actionInboxSourceLabel(sourceType) {
+  const modelFn = actionInboxModelFunction("actionInboxSourceLabelPlan");
+  if (modelFn) return modelFn(sourceType);
   const value = String(sourceType || "").toLowerCase();
   if (value === "growth") return "\u6210\u957f";
   if (value === "automation") return "\u81ea\u52a8\u5316";
@@ -277,6 +332,8 @@ function actionInboxSourceLabel(sourceType) {
 }
 
 function actionInboxPluginLabel(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxPluginLabelPlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const pluginId = String(sourceRef.pluginId || "").trim();
   if (String(item?.sourceType || item?.source_type || "").toLowerCase() === "ai_ops") return "AI Ops";
@@ -293,6 +350,8 @@ function actionInboxPluginLabel(item = {}) {
 }
 
 function actionInboxTypeLabel(itemType) {
+  const modelFn = actionInboxModelFunction("actionInboxTypeLabelPlan");
+  if (modelFn) return modelFn(itemType);
   const value = String(itemType || "").toLowerCase();
   if (value === "delivery") return "\u4ea4\u4ed8";
   if (value === "error") return "\u5f02\u5e38";
@@ -307,6 +366,8 @@ function actionInboxTypeLabel(itemType) {
 }
 
 function actionInboxSourceTone(sourceType) {
+  const modelFn = actionInboxModelFunction("actionInboxSourceTonePlan");
+  if (modelFn) return modelFn(sourceType);
   const value = String(sourceType || "").toLowerCase();
   if (value === "automation") return "source-automation";
   if (value === "growth") return "source-growth";
@@ -318,6 +379,8 @@ function actionInboxSourceTone(sourceType) {
 }
 
 function actionInboxStatusTone(status) {
+  const modelFn = actionInboxModelFunction("actionInboxStatusTonePlan");
+  if (modelFn) return modelFn(status);
   const value = String(status || "").toLowerCase();
   if (value === "done") return "done";
   if (value === "dismissed" || value === "archived") return "muted";
@@ -326,6 +389,8 @@ function actionInboxStatusTone(status) {
 }
 
 function actionInboxIsTerminalStatus(status) {
+  const modelFn = actionInboxModelFunction("actionInboxIsTerminalStatusPlan");
+  if (modelFn) return modelFn(status);
   return ["done", "dismissed", "archived"].includes(String(status || "").toLowerCase());
 }
 
@@ -335,6 +400,8 @@ function actionInboxCompactTime(value) {
 }
 
 function actionInboxTodoDueAt(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxTodoDueAtPlan");
+  if (modelFn) return modelFn(item);
   const explicit = String(item?.dueAt || item?.due_at || "").trim();
   if (explicit) return explicit;
   const summary = String(item?.summary || "");
@@ -345,12 +412,16 @@ function actionInboxTodoDueAt(item = {}) {
 function actionInboxTodoDueText(item = {}) {
   if (String(item?.itemType || item?.item_type || "").toLowerCase() !== "todo") return "";
   const dueAt = actionInboxTodoDueAt(item);
+  const modelFn = actionInboxModelFunction("actionInboxTodoDueTextPlan");
+  if (modelFn) return modelFn({ item, compactTime: dueAt ? actionInboxCompactTime(dueAt) : "" });
   return dueAt ? actionInboxCompactTime(dueAt) : "";
 }
 
 function actionInboxDisplayTitle(item = {}) {
   const dueAt = actionInboxTodoDueAt(item);
   const dueText = dueAt ? actionInboxCompactTime(dueAt) : "";
+  const modelFn = actionInboxModelFunction("actionInboxDisplayTitlePlan");
+  if (modelFn) return modelFn({ item, dueText });
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   let title = String(item?.title || item?.summary || item?.id || "\u6536\u4ef6");
   if (sourceRef.scheduledTodo && title.trim() === "\u5f85\u529e\u63d0\u9192") {
@@ -367,12 +438,16 @@ function actionInboxDisplayTitle(item = {}) {
 function actionInboxDisplaySummary(item = {}) {
   const summary = String(item?.summary || "");
   const dueText = actionInboxTodoDueText(item);
+  const modelFn = actionInboxModelFunction("actionInboxDisplaySummaryPlan");
+  if (modelFn) return modelFn({ item, dueText });
   if (!dueText) return summary;
   const normalized = summary.replace(/(?:截止|到期|时间)\s*[:：]\s*([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.+-]+Z?)/ig, `\u622a\u6b62 ${dueText}`);
   return normalized === `\u622a\u6b62 ${dueText}` ? "" : normalized;
 }
 
 function actionInboxDetailMessage(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxDetailMessagePlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const detail = sourceRef.detailMessage && typeof sourceRef.detailMessage === "object" ? sourceRef.detailMessage : null;
   const body = String(detail?.body || "").trim();
@@ -386,6 +461,15 @@ function actionInboxDetailMessage(item = {}) {
 }
 
 function actionInboxFilterQuery() {
+  const modelFn = actionInboxModelFunction("actionInboxFilterQueryPlan");
+  if (modelFn) {
+    return modelFn({
+      workspaceId: state.selectedWorkspaceId || "owner",
+      filter: state.actionInboxStatusFilter || "open",
+      sourceFilter: state.actionInboxSourceFilter || "",
+      search: typeof currentSearchText === "function" ? currentSearchText() : "",
+    });
+  }
   const filter = String(state.actionInboxStatusFilter || "open");
   const params = new URLSearchParams({ workspaceId: state.selectedWorkspaceId || "owner", limit: "120" });
   if (filter === "todo") {
@@ -403,6 +487,8 @@ function actionInboxFilterQuery() {
 }
 
 function actionInboxCountsText() {
+  const modelFn = actionInboxModelFunction("actionInboxCountsTextPlan");
+  if (modelFn) return modelFn(state.actionInboxCounts || {});
   const counts = state.actionInboxCounts || {};
   const byStatus = counts.byStatus || {};
   const byItemType = counts.byItemType || {};
@@ -414,10 +500,14 @@ function actionInboxCountsText() {
 }
 
 function actionInboxItemType(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxItemTypePlan");
+  if (modelFn) return modelFn(item);
   return String(item?.itemType || item?.item_type || "").trim().toLowerCase();
 }
 
 function actionInboxItemsForActiveFilter(items = []) {
+  const modelFn = actionInboxModelFunction("actionInboxItemsForActiveFilterPlan");
+  if (modelFn) return modelFn(items, state.actionInboxStatusFilter || "open");
   const list = Array.isArray(items) ? items : [];
   const filter = String(state.actionInboxStatusFilter || "open").trim().toLowerCase();
   if (filter === "todo") return list.filter(actionInboxIsManualTodo);
@@ -425,11 +515,17 @@ function actionInboxItemsForActiveFilter(items = []) {
 }
 
 function actionInboxIsManualTodo(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxIsManualTodoPlan");
+  if (modelFn) return modelFn(item);
   const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
   return sourceType === "manual" && actionInboxItemType(item) === "todo";
 }
 
 function actionInboxLinkTargetsLegacyTodo(link = "") {
+  const modelFn = actionInboxModelFunction("actionInboxLinkTargetsLegacyTodoPlan");
+  if (modelFn) {
+    return modelFn(link, String(window?.location?.origin || "http://localhost"));
+  }
   const value = String(link || "").trim();
   if (!value) return false;
   try {
@@ -466,6 +562,8 @@ function actionInboxSourceDeepLink(item = {}) {
 }
 
 function actionInboxLatestDeliverable(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxLatestDeliverablePlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const direct = sourceRef.latestDeliverable && typeof sourceRef.latestDeliverable === "object" ? sourceRef.latestDeliverable : {};
   let url = String(direct.url || sourceRef.latestDeliverableUrl || sourceRef.latest_document_url || "").trim();
@@ -483,6 +581,8 @@ function actionInboxLatestDeliverable(item = {}) {
 }
 
 function actionInboxPrimaryDeliverable(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxPrimaryDeliverablePlan");
+  if (modelFn) return modelFn(item);
   const sourceType = String(item?.sourceType || item?.source_type || "").trim().toLowerCase();
   const itemType = String(item?.itemType || item?.item_type || "").trim().toLowerCase();
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
@@ -492,6 +592,8 @@ function actionInboxPrimaryDeliverable(item = {}) {
 }
 
 function actionInboxIsFinanceLedgerJoinRequest(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxIsFinanceLedgerJoinRequestPlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   return String(item?.sourceType || item?.source_type || "").trim().toLowerCase() === "plugin"
     && String(sourceRef.pluginId || "").trim() === "finance"
@@ -499,6 +601,8 @@ function actionInboxIsFinanceLedgerJoinRequest(item = {}) {
 }
 
 function actionInboxIsDiagnosticRemediationCandidate(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxIsDiagnosticRemediationCandidatePlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   return String(item?.sourceType || item?.source_type || "").trim().toLowerCase() === "ai_ops"
     && String(sourceRef.notificationType || "").trim() === "ai_ops.diagnostic_remediation_candidate"
@@ -506,6 +610,8 @@ function actionInboxIsDiagnosticRemediationCandidate(item = {}) {
 }
 
 function actionInboxIsPluginConversationRepairRequest(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxIsPluginConversationRepairRequestPlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   return String(item?.sourceType || item?.source_type || "").trim().toLowerCase() === "plugin_conversation"
     && String(sourceRef.notificationType || "").trim() === "plugin_conversation.repair_request"
@@ -513,6 +619,8 @@ function actionInboxIsPluginConversationRepairRequest(item = {}) {
 }
 
 function actionInboxIsAutonomousDeliveryStartRequest(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxIsAutonomousDeliveryStartRequestPlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   return String(item?.sourceType || item?.source_type || "").trim().toLowerCase() === "autonomous_delivery"
     && String(sourceRef.notificationType || "").trim() === "autonomous_delivery.start_required"
@@ -520,6 +628,8 @@ function actionInboxIsAutonomousDeliveryStartRequest(item = {}) {
 }
 
 function actionInboxIsAutonomousDeliveryVerificationRequest(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxIsAutonomousDeliveryVerificationRequestPlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const caseId = String(sourceRef.caseId || sourceRef.case_id || item?.sourceId || item?.source_id || "").trim();
   const sliceId = String(sourceRef.sliceId || sourceRef.slice_id || "").trim();
@@ -530,6 +640,8 @@ function actionInboxIsAutonomousDeliveryVerificationRequest(item = {}) {
 }
 
 function actionInboxIsAutonomousDeliveryClosureRequest(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxIsAutonomousDeliveryClosureRequestPlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const caseId = String(sourceRef.caseId || sourceRef.case_id || item?.sourceId || item?.source_id || "").trim();
   return String(item?.sourceType || item?.source_type || "").trim().toLowerCase() === "autonomous_delivery"
@@ -538,6 +650,8 @@ function actionInboxIsAutonomousDeliveryClosureRequest(item = {}) {
 }
 
 function actionInboxIsAutonomousDeliveryFinalReport(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxIsAutonomousDeliveryFinalReportPlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const caseId = String(sourceRef.caseId || sourceRef.case_id || item?.sourceId || item?.source_id || "").trim();
   return String(item?.sourceType || item?.source_type || "").trim().toLowerCase() === "autonomous_delivery"
@@ -546,6 +660,8 @@ function actionInboxIsAutonomousDeliveryFinalReport(item = {}) {
 }
 
 function actionInboxIsAutonomousDeliveryDeploymentRequest(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxIsAutonomousDeliveryDeploymentRequestPlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const caseId = String(sourceRef.caseId || sourceRef.case_id || item?.sourceId || item?.source_id || "").trim();
   const sliceId = String(sourceRef.sliceId || sourceRef.slice_id || "").trim();
@@ -556,6 +672,8 @@ function actionInboxIsAutonomousDeliveryDeploymentRequest(item = {}) {
 }
 
 function actionInboxIsAutonomousDeliveryRepairRequest(item = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxIsAutonomousDeliveryRepairRequestPlan");
+  if (modelFn) return modelFn(item);
   const sourceRef = item?.sourceRef && typeof item.sourceRef === "object" ? item.sourceRef : {};
   const caseId = String(sourceRef.caseId || sourceRef.case_id || item?.sourceId || item?.source_id || "").trim();
   const verificationSliceId = String(sourceRef.verificationSliceId || sourceRef.verification_slice_id || sourceRef.sliceId || sourceRef.slice_id || "").trim();
@@ -612,6 +730,8 @@ function actionInboxSourceActionLabel(item = {}) {
 
 function actionInboxDeliverableKind(deliverable = {}) {
   if (typeof artifactKind === "function") return artifactKind(deliverable);
+  const modelFn = actionInboxModelFunction("actionInboxDeliverableKindPlan");
+  if (modelFn) return modelFn(deliverable);
   const name = String(deliverable.name || "").trim().toLowerCase();
   const mime = String(deliverable.mime || "").toLowerCase();
   if (mime.includes("pdf") || name.endsWith(".pdf")) return "pdf";
@@ -757,6 +877,15 @@ function renderActionInboxActionSheet() {
 }
 
 function actionInboxShouldShowLoading(options = {}) {
+  const modelFn = actionInboxModelFunction("actionInboxShouldShowLoadingPlan");
+  if (modelFn) {
+    return modelFn({
+      forceLoading: options.forceLoading,
+      hasItems: Array.isArray(state.actionInboxItems) && state.actionInboxItems.length > 0,
+      hasCounts: Boolean(state.actionInboxCounts),
+      hasDetail: Boolean(state.selectedActionInboxItemId && state.actionInboxDetail),
+    });
+  }
   if (options.forceLoading) return true;
   const hasItems = Array.isArray(state.actionInboxItems) && state.actionInboxItems.length > 0;
   const hasCounts = Boolean(state.actionInboxCounts);

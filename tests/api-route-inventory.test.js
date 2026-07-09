@@ -104,6 +104,41 @@ const ROUTE_MODULES = Object.freeze([
     ],
   },
   {
+    key: "workspace-console-api-routes",
+    exportName: "createWorkspaceConsoleApiRoutes",
+    required: false,
+    minRoutes: 1,
+    probes: [
+      { method: "GET", path: "/api/owner/workspace-console", id: "owner-workspace-console-summary" },
+    ],
+  },
+  {
+    key: "remote-managed-workspace-api-routes",
+    exportName: "createRemoteManagedWorkspaceApiRoutes",
+    required: false,
+    minRoutes: 11,
+    probes: [
+      { method: "POST", path: "/api/remote-managed-workspaces/register", id: "remote-managed-workspace-register" },
+      { method: "POST", path: "/api/remote-managed-workspaces/son-vite-game/node-heartbeat", id: "remote-managed-workspace-node-heartbeat" },
+      { method: "GET", path: "/api/remote-managed-workspaces/son-vite-game/task-cards/poll", id: "remote-managed-workspace-task-card-poll" },
+      { method: "POST", path: "/api/remote-managed-workspaces/son-vite-game/task-cards/rmw_card_1/return", id: "remote-managed-workspace-task-card-return" },
+      { method: "GET", path: "/api/remote-managed-workspaces/status", id: "remote-managed-workspace-status-list" },
+      { method: "POST", path: "/api/remote-managed-workspaces/son-vite-game/task-cards", id: "remote-managed-workspace-task-card-dispatch" },
+    ],
+  },
+  {
+    key: "plugin-daily-progress-rollup-api-routes",
+    exportName: "createPluginDailyProgressRollupApiRoutes",
+    required: false,
+    minRoutes: 4,
+    probes: [
+      { method: "GET", path: "/api/owner/plugin-daily-progress-rollup/status", id: "plugin-daily-progress-rollup-status" },
+      { method: "POST", path: "/api/owner/plugin-daily-progress-rollup/trigger", id: "plugin-daily-progress-rollup-trigger" },
+      { method: "POST", path: "/api/owner/plugin-daily-progress-rollup/runs/plugin_daily_progress_rollup_20260708/plugins/music/return", id: "plugin-daily-progress-rollup-return" },
+      { method: "POST", path: "/api/owner/plugin-daily-progress-rollup/runs/plugin_daily_progress_rollup_20260708/finalize", id: "plugin-daily-progress-rollup-finalize" },
+    ],
+  },
+  {
     key: "platform-currency-api-routes",
     exportName: "createPlatformCurrencyApiRoutes",
     required: false,
@@ -525,6 +560,11 @@ function testInventoryMatchesCurrentServerRouteShapes() {
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning/parent-review-requests" }).id, "learning-parent-review-requests-list");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/learning/parent-review-requests/req-1/decision" }).id, "learning-parent-review-request-decision");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/learning-coins/summary" }).id, "learning-coins-summary");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/remote-managed-workspaces/register" }).id, "remote-managed-workspace-register");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/remote-managed-workspaces/son-vite-game/node-heartbeat" }).id, "remote-managed-workspace-node-heartbeat");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/remote-managed-workspaces/son-vite-game/task-cards/poll" }).id, "remote-managed-workspace-task-card-poll");
+  assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/remote-managed-workspaces/son-vite-game/task-cards/rmw_card_1/return" }).id, "remote-managed-workspace-task-card-return");
+  assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/remote-managed-workspaces/status" }).id, "remote-managed-workspace-status-list");
   assert.equal(matchHermesMobileApiRoute({ method: "GET", path: "/api/platform-currency/wallet" }).id, "platform-currency-wallet");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/delete" }).id, "directories-delete");
   assert.equal(matchHermesMobileApiRoute({ method: "POST", path: "/api/directories/rename" }).id, "directories-rename");
@@ -585,6 +625,7 @@ function testGroupingProducesModuleWorkPackages() {
   assert.ok(modules.has("plugin-topic-usage"));
   assert.ok(modules.has("voice-input"));
   assert.ok(modules.has("ai-ops-diagnostics"));
+  assert.ok(modules.has("remote-managed-workspace"));
   assert.ok(modules.has("directory-share"));
   assert.ok(modules.has("directory-mutation"));
   assert.equal(modules.has("weixin-ingress"), false);

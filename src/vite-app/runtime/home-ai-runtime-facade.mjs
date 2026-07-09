@@ -1,3 +1,8 @@
+import {
+  createRuntimeEventBus,
+  createRuntimeStateStore,
+} from "./runtime-state-event-bus.mjs";
+
 const RUNTIME_FACADE_VERSION = "20260702-vite-runtime-facade-v1";
 const ACCESS_KEY_STORAGE_KEY = "hermesWebKey";
 const ACCESS_KEY_COOKIE_NAME = "hermes_web_key";
@@ -177,53 +182,6 @@ function createAccessKeyStore(options = {}) {
     syncCookie,
     hasAccessKey: () => Boolean(getAccessKey()),
   });
-}
-
-function createEventBus() {
-  const handlers = new Map();
-  function on(type, handler) {
-    if (!type || typeof handler !== "function") return noop;
-    const key = safeString(type);
-    if (!handlers.has(key)) handlers.set(key, new Set());
-    handlers.get(key).add(handler);
-    return () => off(key, handler);
-  }
-  function off(type, handler) {
-    const bucket = handlers.get(safeString(type));
-    if (!bucket) return;
-    bucket.delete(handler);
-    if (!bucket.size) handlers.delete(safeString(type));
-  }
-  function emit(type, detail = {}) {
-    const event = Object.freeze({
-      type: safeString(type),
-      detail,
-      timestamp: new Date().toISOString(),
-    });
-    for (const handler of handlers.get(event.type) || []) {
-      handler(event);
-    }
-    return event;
-  }
-  return Object.freeze({ on, off, emit });
-}
-
-function createStateStore(initialState = {}, events = createEventBus()) {
-  let current = Object.assign({}, initialState || {});
-  function get(key) {
-    if (typeof key === "string") return current[key];
-    return Object.assign({}, current);
-  }
-  function set(patch = {}) {
-    current = Object.assign({}, current, patch || {});
-    events.emit("state:changed", { state: Object.assign({}, current), patch: Object.assign({}, patch || {}) });
-    return get();
-  }
-  function update(updater) {
-    if (typeof updater !== "function") return get();
-    return set(updater(get()) || {});
-  }
-  return Object.freeze({ get, set, update });
 }
 
 function createFeedbackBridge(options = {}) {
@@ -769,8 +727,8 @@ export function createHomeAiRuntimeFacade(options = {}) {
   const documentRef = options.documentRef || root.document || null;
   const locationRef = options.locationRef || root.location || null;
   const historyRef = options.historyRef || root.history || null;
-  const events = options.events || createEventBus();
-  const state = createStateStore(options.appState || {}, events);
+  const events = options.events || createRuntimeEventBus();
+  const state = createRuntimeStateStore(options.appState || {}, events);
   const auth = createAccessKeyStore(Object.assign({}, options, { root, documentRef, locationRef, events }));
   const fetchImpl = typeof options.fetchImpl === "function" ? options.fetchImpl : root.fetch?.bind?.(root);
   const getClientVersion = typeof options.getClientVersion === "function"
@@ -846,7 +804,10 @@ export {
   VIEW_MODE_STORAGE_KEY,
   createClientDiagnosticsBridge,
   createDedupeStore,
-  createEventBus,
+  createRuntimeEventBus as createEventBus,
+  createRuntimeEventBus,
+  createRuntimeStateStore as createStateStore,
+  createRuntimeStateStore,
   createFallbackApiClient,
   createMemoryStorage,
   createDocumentPreviewBridge,

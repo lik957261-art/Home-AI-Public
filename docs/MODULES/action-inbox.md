@@ -31,7 +31,10 @@ It is a Hermes Mobile product domain, not a wrapper around official Hermes Kanba
   open row with the same dedupe key may refresh title/summary/source metadata,
   but it must not send a second Web Push notification or create a second
   approval item. A reopened row may notify again because it represents a new
-  actionable Owner attention state.
+  actionable Owner attention state. The narrow Codex Mobile thread/routing
+  mismatch plugin-conversation repair exception is also dedupe-keyed, but it
+  auto-dispatches a bounded repair card and completes the row only after Codex
+  Mobile returns a concrete task-card id.
   Terminal completed return cards may also create
   `sourceType=autonomous_delivery`, `itemType=review` rows that tell Owner a
   delivery slice is ready for verification/deploy/audit decisions. These review
@@ -365,7 +368,7 @@ Plugin conversation repair requests use `sourceType=plugin_conversation` and
 `itemType=approval`. They are created by the Home AI host conversation surface
 when a plugin-related chat identifies a bounded implementation request, such as
 a missing Health strength-catalog action. They are not plugin iframe
-notifications and they are not direct Codex dispatches.
+notifications. By default they are not direct Codex dispatches.
 
 Ordinary chat and directory-bound topic chats may use the same Owner-gated
 approval mechanics for Home-AI-owned platform or Gateway capability gaps. Those
@@ -386,7 +389,12 @@ exact title are upgraded at dispatch time before sending the task card. Because
 Codex Mobile requires a task-card source thread to differ from the target
 thread, Home-AI-owned repair dispatch uses the dedicated `Home AI Task Intake`
 Codex thread as the source. The target is a current Home AI implementation
-thread selected through the `Home AI` title prefix. Codex Mobile routing must
+thread selected through the `Home AI` title prefix. These cards must also carry
+the coordinator return target when available: `replyToThreadId` wins, and
+otherwise the dispatch bridge resolves the current `Home AI` coordinator thread
+and sends that id as `replyToThreadId`. Task Intake is only the technical card
+source/queue; it must not become the terminal return sink for coordinator-owned
+plugin-topic repair requests or host-owned redirects. Codex Mobile routing must
 not auto-dispatch these Home-AI-owned implementation cards directly to the
 `Home AI Worker Lane A/B/C` worker lanes, because those lanes share the same app
 repository and can conflict on source files, tests, commits, deployment, and
@@ -427,6 +435,28 @@ contract violation. The host creates a bounded Home-AI-owned Owner approval row
 from the visible claim metadata and records a `legacy_task_card_claim_recovered`
 event instead of letting the request disappear from Inbox.
 
+There is one narrow plugin-conversation auto-dispatch exception. Requests
+targeting Codex Mobile (`pluginId=codex-mobile` or the compatibility
+`codex-mobile-web` alias), or `pluginId=home-ai` requests whose bounded text
+clearly references Codex Mobile/task-card thread routing, may auto-dispatch
+only when the bounded request text matches thread/routing mismatch evidence
+such as `thread mismatch`, `wrong thread`, `task-card routing`,
+`target_thread_not_visible`, `target_thread_archived`, or
+`stale_target_thread`. This exception exists for platform task-card routing
+self-repair only. It must reject production deploy/mutation, secrets/keys,
+database/data import or backfill, physical-device/projector/playback control,
+Finance transactions, Wardrobe private-data changes, and other high-risk text.
+The bridge uses the same Codex task-card dispatch path and the same stable
+request id as Owner-triggered dispatch. Codex Mobile targets for this exception
+must be resolved through current lifecycle/title-prefix metadata, not a dated
+exact implementation-thread id. It records bounded `autoDispatch` metadata on
+the Inbox item, sends no Owner prompt notification, and completes the row only
+after task-card transport returns at least one concrete `ttc_*` id. Equivalent
+duplicate requests return the prior task-card id from the completion event and
+do not send a second card. If transport fails, the row stays open with bounded
+failure evidence; the bridge must not fabricate a card id or silently mark the
+row done.
+
 The Inbox item stores only the plugin id, request id, request type, target
 thread/workspace metadata, bounded summary, suggested change, and compact
 evidence. The action sheet exposes `发修复卡`, `稍后`, and `删除`. `发修复卡`
@@ -445,7 +475,9 @@ Repeated submissions with the same bounded signature must update the existing
 approval row without sending duplicate system notifications. Owner push is sent
 only when the Action Inbox upsert created a new row or truly reopened a terminal
 row.
-For AI Ops diagnostic remediation, the same diagnostic case does not reopen a
+For AI Ops diagnostic remediation, eligible low-risk diagnostic cases may
+auto-dispatch without creating an Owner approval row. Owner-gated diagnostic
+cases still use an approval row, and the same diagnostic case does not reopen a
 terminal Owner row: a dismissed or completed case item may receive bounded
 metadata updates, but it must not create another approval prompt or Web Push
 unless a new diagnostic case id is created.
@@ -453,9 +485,9 @@ For plugin conversation repair requests, the stable bounded signature is also
 the Codex task-card `requestId` basis; different transport `requestId` values
 for the same bounded request must not create a second approval row, second Web
 Push, or second Codex task-card dispatch. If the same approval item is submitted
-again after a successful dispatch, the dispatch endpoint returns the prior
-task-card ids from the Inbox completion event and does not call Codex Mobile
-again.
+again after a successful dispatch, the dispatch endpoint or auto-dispatch path
+returns the prior task-card ids from the Inbox completion event and does not
+call Codex Mobile again.
 
 AI Ops diagnostic remediation rows and plugin conversation repair rows must
 show button-level dispatch state. When Owner taps `发修复卡`, the row/action
@@ -520,8 +552,9 @@ ledger-backed repair slice and sends one repair card back to the original
 implementation workspace.
 Closure review items expose `完成闭环` only after the coordinator case is
 already `verified_waiting`. None of these item types auto-dispatch cards before
-Owner action, and repeated dispatch failures use the Home AI diagnostic
-channel.
+Owner action except the narrow Codex Mobile thread/routing mismatch
+plugin-conversation repair exception described above; repeated dispatch
+failures use the Home AI diagnostic channel.
 
 ## Validation
 

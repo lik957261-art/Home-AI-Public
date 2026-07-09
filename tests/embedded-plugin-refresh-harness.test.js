@@ -27,8 +27,8 @@ function createClassList() {
   };
 }
 
-function createHarness(pluginId = "codex-mobile", origin = "https://codex.example.test") {
-  const calls = { api: [], health: 0, nav: 0, affordance: 0, errors: [], timers: [] };
+function createHarness(pluginId = "codex-mobile", origin = "https://codex.example.test", options = {}) {
+  const calls = { api: [], health: 0, nav: 0, affordance: 0, errors: [], timers: [], modelImports: [] };
   const listeners = {};
   const main = { insertBefore() {} };
   const conversation = {
@@ -169,6 +169,12 @@ function createHarness(pluginId = "codex-mobile", origin = "https://codex.exampl
       callback();
     },
   };
+  if (options.pluginHostModel) {
+    sandbox.window.__homeAiImportPluginHostModel = (modulePath) => {
+      calls.modelImports.push(modulePath);
+      return options.pluginHostModel;
+    };
+  }
 
   ["codexPluginHost", "financePluginHost", "emailPluginHost", "healthPluginHost", "notePluginHost", "growthPluginHost", "moiraPluginHost"]
     .forEach((id) => { hosts[id] = makeHost(id); });
@@ -176,10 +182,14 @@ function createHarness(pluginId = "codex-mobile", origin = "https://codex.exampl
   vm.runInContext(`${source}
     globalThis.__pluginRefreshHarness = {
       def: EMBEDDED_PLUGIN_DEFS[${JSON.stringify(pluginId)}],
+      PLUGIN_HOST_MODEL_ESM_PATH,
+      currentPluginHostModel,
       embeddedPluginRecord,
+      embeddedPluginManifestMatchesLaunchContext,
       embeddedPluginResidentShellMatchesLaunchContext,
       embeddedPluginStableEntrySignature,
       ensureEmbeddedPluginNavigationBridge,
+      importPluginHostModel,
       embeddedPluginRefreshRequiredEventType,
       requestEmbeddedPluginRefresh,
       renderEmbeddedPluginView,
@@ -557,21 +567,57 @@ function testNavigationHealthDoesNotRefreshLoadedShell() {
   assert.equal(harness.calls.api.length, 1);
 }
 
-testRefreshIgnoresWrongOrigin();
-testLaunchManifestExpiresForTokenPlugins();
-testFailedManifestIsNotReused();
-testCodexResidentFrameSurvivesExpiredLaunchManifestWhileRefreshing();
-testStandardResidentFrameSurvivesExpiredLaunchManifest();
-testStableEntrySignatureStripsLaunchTokenOnly();
-testFreshManifestTokenRotationPreservesLoadedShell();
-testFreshManifestBuildChangeRebuildsNavigatedShell();
-testFreshManifestRouteChangeRebuildsLoadedShell();
-testRefreshRebuildsActivePluginWithBoundedRoute();
-testRefreshInvalidatesInactivePluginWithoutFetching();
-testRefreshRequiredBypassesWarmupButUsesCooldown();
-testRefreshRequiredIgnoredDuringManifestLoad();
-testRefreshRequiredBypassesFrameWarmup();
-testLaunchHealthRefreshUsesCooldown();
-testNavigationHealthDoesNotRefreshLoadedShell();
+async function testClassicAdapterUsesPluginHostModelWhenLoaded() {
+  const modelCalls = [];
+  const fakeModel = {
+    stableEntrySignature(entryUrl) {
+      modelCalls.push(["stableEntrySignature", entryUrl]);
+      return String(entryUrl || "").replace(/([?&])codexPluginLaunch=[^&#]*/g, "$1codexPluginLaunch=[model-stripped]");
+    },
+    pluginManifestLaunchContextPlan() {
+      modelCalls.push(["pluginManifestLaunchContextPlan"]);
+      return { matches: true };
+    },
+  };
+  const harness = createHarness("codex-mobile", "https://codex.example.test", { pluginHostModel: fakeModel });
+  await harness.sandbox.__pluginRefreshHarness.importPluginHostModel(harness.sandbox.window);
 
-console.log("embedded plugin refresh harness tests passed");
+  assert.equal(harness.sandbox.__pluginRefreshHarness.currentPluginHostModel(), fakeModel);
+  assert.deepEqual(harness.calls.modelImports, ["/vite-islands/plugin-host-model/plugin-host-model.js"]);
+  assert.equal(
+    harness.sandbox.__pluginRefreshHarness.embeddedPluginStableEntrySignature(
+      "https://codex.example.test/?workspaceId=owner&codexPluginLaunch=secret",
+    ),
+    "https://codex.example.test/?workspaceId=owner&codexPluginLaunch=[model-stripped]",
+  );
+  assert.equal(
+    harness.sandbox.__pluginRefreshHarness.embeddedPluginManifestMatchesLaunchContext({}, "owner", "light/default"),
+    true,
+  );
+  assert.deepEqual(modelCalls.map((item) => item[0]), ["stableEntrySignature", "pluginManifestLaunchContextPlan"]);
+}
+
+(async () => {
+  testRefreshIgnoresWrongOrigin();
+  testLaunchManifestExpiresForTokenPlugins();
+  testFailedManifestIsNotReused();
+  testCodexResidentFrameSurvivesExpiredLaunchManifestWhileRefreshing();
+  testStandardResidentFrameSurvivesExpiredLaunchManifest();
+  testStableEntrySignatureStripsLaunchTokenOnly();
+  testFreshManifestTokenRotationPreservesLoadedShell();
+  testFreshManifestBuildChangeRebuildsNavigatedShell();
+  testFreshManifestRouteChangeRebuildsLoadedShell();
+  testRefreshRebuildsActivePluginWithBoundedRoute();
+  testRefreshInvalidatesInactivePluginWithoutFetching();
+  testRefreshRequiredBypassesWarmupButUsesCooldown();
+  testRefreshRequiredIgnoredDuringManifestLoad();
+  testRefreshRequiredBypassesFrameWarmup();
+  testLaunchHealthRefreshUsesCooldown();
+  testNavigationHealthDoesNotRefreshLoadedShell();
+  await testClassicAdapterUsesPluginHostModelWhenLoaded();
+
+  console.log("embedded plugin refresh harness tests passed");
+})().catch((error) => {
+  console.error(error.stack || error.message);
+  process.exit(1);
+});

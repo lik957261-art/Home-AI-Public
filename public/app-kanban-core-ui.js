@@ -1,11 +1,60 @@
 "use strict";
 
+const KANBAN_CORE_MODEL_ESM_PATH = "/vite-islands/kanban-todo-core-model/kanban-todo-core-model.js";
+let kanbanCoreModel = null;
+let kanbanCoreModelPromise = null;
+
+function importKanbanCoreModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (kanbanCoreModel) return Promise.resolve(kanbanCoreModel);
+  if (!kanbanCoreModelPromise) {
+    const importer = typeof rootRef.__homeAiImportKanbanCoreModel === "function"
+      ? rootRef.__homeAiImportKanbanCoreModel
+      : (path) => import(path);
+    kanbanCoreModelPromise = Promise.resolve()
+      .then(() => importer(KANBAN_CORE_MODEL_ESM_PATH))
+      .then((model) => {
+        kanbanCoreModel = model || null;
+        return kanbanCoreModel;
+      })
+      .catch((error) => {
+        kanbanCoreModelPromise = null;
+        throw error;
+      });
+  }
+  return kanbanCoreModelPromise;
+}
+
+function currentKanbanCoreModel() {
+  return kanbanCoreModel;
+}
+
+function kanbanCoreModelFunction(name) {
+  const model = currentKanbanCoreModel();
+  return model && typeof model[name] === "function" ? model[name] : null;
+}
+
+if (typeof window !== "undefined") {
+  importKanbanCoreModel().catch(() => null);
+}
 
 function kanbanStatusNeedsCompleted(status) {
+  const modelFn = kanbanCoreModelFunction("kanbanStatusNeedsCompletedPlan");
+  if (modelFn) return modelFn(status, { storyStatus: KANBAN_STORY_STATUS, statusOrder: KANBAN_STATUS_ORDER });
   return status === KANBAN_STORY_STATUS || KANBAN_STATUS_ORDER.includes(status);
 }
 
 function shouldLoadCompletedTodos(options = {}) {
+  const modelFn = kanbanCoreModelFunction("shouldLoadCompletedTodosPlan");
+  if (modelFn) {
+    return modelFn({
+      includeCompleted: Object.prototype.hasOwnProperty.call(options, "includeCompleted") ? options.includeCompleted : undefined,
+      searchText: currentSearchText(),
+      selectedTodoId: state.selectedTodoId,
+      todoKanbanStatus: state.todoKanbanStatus,
+      storyStatus: KANBAN_STORY_STATUS,
+      statusOrder: KANBAN_STATUS_ORDER,
+    });
+  }
   if (Object.prototype.hasOwnProperty.call(options, "includeCompleted")) return Boolean(options.includeCompleted);
   if (currentSearchText()) return true;
   if (state.selectedTodoId) return true;
@@ -29,6 +78,8 @@ function kanbanCardById(todoId) {
 
 function kanbanCardWorkspaceId(todoOrId) {
   const todo = typeof todoOrId === "string" ? kanbanCardById(todoOrId) : todoOrId;
+  const modelFn = kanbanCoreModelFunction("kanbanCardWorkspaceIdPlan");
+  if (modelFn) return modelFn(todo, state.selectedWorkspaceId);
   return String(
     todo?.workspaceId
     || todo?.kanbanWorkspaceId
@@ -40,24 +91,37 @@ function kanbanCardWorkspaceId(todoOrId) {
 }
 
 function kanbanCardActionBody(todoOrId, extra = {}) {
-  return JSON.stringify(Object.assign({ workspaceId: kanbanCardWorkspaceId(todoOrId) }, extra || {}));
+  const todo = typeof todoOrId === "string" ? kanbanCardById(todoOrId) : todoOrId;
+  const modelFn = kanbanCoreModelFunction("kanbanCardActionBodyPlan");
+  const body = modelFn
+    ? modelFn(todo, extra, state.selectedWorkspaceId)
+    : Object.assign({ workspaceId: kanbanCardWorkspaceId(todoOrId) }, extra || {});
+  return JSON.stringify(body);
 }
 
 function kanbanCaseMode(todo) {
+  const modelFn = kanbanCoreModelFunction("kanbanCaseModePlan");
+  if (modelFn) return modelFn(todo);
   return String(todo?.kanbanCaseMode || "").trim();
 }
 
 function kanbanCardHasExplicitStoryCase(todo) {
+  const modelFn = kanbanCoreModelFunction("kanbanCardHasExplicitStoryCasePlan");
+  if (modelFn) return modelFn(todo);
   const mode = kanbanCaseMode(todo);
   if (mode === "single-card") return false;
   return Boolean(String(todo?.kanbanCaseId || "").trim() || mode);
 }
 
 function kanbanCaseTemplate(todo) {
+  const modelFn = kanbanCoreModelFunction("kanbanCaseTemplatePlan");
+  if (modelFn) return modelFn(todo);
   return String(todo?.kanbanCaseTemplate || todo?.kanbanStudyKind || "").trim().toLowerCase();
 }
 
 function kanbanCaseLooksLikeReadingPlan(todo) {
+  const modelFn = kanbanCoreModelFunction("kanbanCaseLooksLikeReadingPlanPlan");
+  if (modelFn) return modelFn(todo);
   const template = kanbanCaseTemplate(todo);
   if (["reading", "english-reading", "reading-recording"].includes(template)) return true;
   if (template === "final-assessment" || template === "learning-growth") return false;
@@ -74,30 +138,44 @@ function kanbanCaseLooksLikeReadingPlan(todo) {
 }
 
 function isKanbanStudyCase(todo) {
+  const modelFn = kanbanCoreModelFunction("isKanbanStudyCasePlan");
+  if (modelFn) return modelFn(todo);
   return kanbanCaseMode(todo) === "study-plan";
 }
 
 function isKanbanAssessmentCase(todo) {
+  const modelFn = kanbanCoreModelFunction("isKanbanAssessmentCasePlan");
+  if (modelFn) return modelFn(todo);
   return kanbanCaseMode(todo) === "assessment-plan";
 }
 
 function isKanbanReadingPlanCase(todo) {
+  const modelFn = kanbanCoreModelFunction("isKanbanReadingPlanCasePlan");
+  if (modelFn) return modelFn(todo);
   return isKanbanStudyCase(todo) && kanbanCaseLooksLikeReadingPlan(todo);
 }
 
 function isKanbanLearningGrowthCard(todo) {
+  const modelFn = kanbanCoreModelFunction("isKanbanLearningGrowthCardPlan");
+  if (modelFn) return modelFn(todo);
   return isKanbanStudyCase(todo) && kanbanCaseTemplate(todo) === "learning-growth";
 }
 
 function isKanbanFinalStudyAssessment(todo) {
+  const modelFn = kanbanCoreModelFunction("isKanbanFinalStudyAssessmentPlan");
+  if (modelFn) return modelFn(todo);
   return isKanbanStudyCase(todo) && kanbanCaseTemplate(todo) === "final-assessment";
 }
 
 function isKanbanAssessmentCard(todo) {
+  const modelFn = kanbanCoreModelFunction("isKanbanAssessmentCardPlan");
+  if (modelFn) return modelFn(todo);
   return isKanbanAssessmentCase(todo) || isKanbanFinalStudyAssessment(todo);
 }
 
 function isKanbanProgrammingAssessmentCard(todo) {
+  const modelFn = kanbanCoreModelFunction("isKanbanProgrammingAssessmentCardPlan");
+  if (modelFn) return modelFn(todo);
   if (!isKanbanAssessmentCard(todo)) return false;
   const summary = todo?.assessmentExam && typeof todo.assessmentExam === "object" ? todo.assessmentExam : {};
   const text = [
@@ -113,6 +191,8 @@ function isKanbanProgrammingAssessmentCard(todo) {
 }
 
 function kanbanStudyLabels(todo) {
+  const modelFn = kanbanCoreModelFunction("kanbanStudyLabelsPlan");
+  if (modelFn) return modelFn(todo);
   const reading = isKanbanReadingPlanCase(todo);
   return {
     plan: "学习计划",
@@ -128,16 +208,22 @@ function kanbanStudyLabels(todo) {
 }
 
 function kanbanActorRole(todo) {
+  const modelFn = kanbanCoreModelFunction("kanbanActorRolePlan");
+  if (modelFn) return modelFn(todo);
   return String(todo?.kanbanActorRole || "").trim().toLowerCase();
 }
 
 function kanbanActorPermissions(todo) {
+  const modelFn = kanbanCoreModelFunction("kanbanActorPermissionsPlan");
+  if (modelFn) return modelFn(todo);
   return todo?.kanbanActorPermissions && typeof todo.kanbanActorPermissions === "object"
     ? todo.kanbanActorPermissions
     : null;
 }
 
 function kanbanCan(todo, key) {
+  const modelFn = kanbanCoreModelFunction("kanbanCanPlan");
+  if (modelFn) return modelFn(todo, key);
   const permissions = kanbanActorPermissions(todo);
   if (permissions && typeof permissions[key] === "boolean") return permissions[key];
   const role = kanbanActorRole(todo);
@@ -268,6 +354,8 @@ function setKanbanReadingCoverFile(file) {
 }
 
 function normalizeKanbanStudyScheduleFrequency(value = "") {
+  const modelFn = kanbanCoreModelFunction("normalizeKanbanStudyScheduleFrequencyPlan");
+  if (modelFn) return modelFn(value);
   const text = String(value || "").trim().toLowerCase();
   if (["weekly", "week", "\u6bcf\u5468"].includes(text)) return "weekly";
   if (["monthly", "month", "\u6bcf\u6708"].includes(text)) return "monthly";
@@ -275,6 +363,8 @@ function normalizeKanbanStudyScheduleFrequency(value = "") {
 }
 
 function parseKanbanStudyWeekdays(value = "") {
+  const modelFn = kanbanCoreModelFunction("parseKanbanStudyWeekdaysPlan");
+  if (modelFn) return modelFn(value);
   const raw = Array.isArray(value)
     ? value
     : String(value || "").split(/[,\s;，、]+/);
@@ -297,6 +387,15 @@ function selectedKanbanStudyWeekdays(root = document) {
 }
 
 function saveKanbanComposerMode(mode) {
+  const modelFn = kanbanCoreModelFunction("saveKanbanComposerModePlan");
+  if (modelFn) {
+    const plan = modelFn(mode);
+    state.kanbanComposerMode = plan.mode;
+    state.kanbanComposerMultiAgent = plan.multiAgent;
+    localStorage.setItem("hermesKanbanComposerMode", plan.mode);
+    localStorage.setItem("hermesKanbanComposerMultiAgent", plan.multiAgent ? "1" : "0");
+    return;
+  }
   const normalized = mode === "reading" ? "study" : mode;
   const next = ["single", "multi", "study", "assessment"].includes(normalized) ? normalized : "single";
   state.kanbanComposerMode = next;
@@ -313,6 +412,14 @@ function saveKanbanComposerMaxParallel(value) {
 }
 
 function saveKanbanComposerReasoningEffort(value) {
+  const modelFn = kanbanCoreModelFunction("saveKanbanComposerReasoningEffortPlan");
+  if (modelFn) {
+    const next = modelFn(value);
+    state.kanbanComposerReasoningEffort = next;
+    if (next) localStorage.setItem("hermesKanbanComposerReasoningEffort", next);
+    else localStorage.removeItem("hermesKanbanComposerReasoningEffort");
+    return next;
+  }
   const effort = String(value || "").trim().toLowerCase();
   const next = ["low", "medium", "high", "xhigh"].includes(effort) ? effort : "";
   state.kanbanComposerReasoningEffort = next;
@@ -323,6 +430,8 @@ function saveKanbanComposerReasoningEffort(value) {
 
 function kanbanComposerDocumentContext() {
   const docs = Array.isArray(state.kanbanComposerDocuments) ? state.kanbanComposerDocuments : [];
+  const modelFn = kanbanCoreModelFunction("kanbanComposerDocumentContextPlan");
+  if (modelFn) return modelFn(docs, { maxDocuments: 3, maxChars: 60000 });
   return docs
     .slice(0, 3)
     .filter((item) => String(item?.text || "").trim())
@@ -338,6 +447,8 @@ function kanbanComposerDocumentContext() {
 }
 
 function kanbanComposerSubmissionText(rawText = "") {
+  const modelFn = kanbanCoreModelFunction("kanbanComposerSubmissionTextPlan");
+  if (modelFn) return modelFn(rawText, kanbanComposerDocumentContext());
   return [String(rawText || "").trim(), kanbanComposerDocumentContext()].filter(Boolean).join("\n\n");
 }
 
@@ -373,6 +484,8 @@ function scheduleTodoAutoRefresh() {
 }
 
 function todoListCacheKey(workspaceId, includeCompleted) {
+  const modelFn = kanbanCoreModelFunction("todoListCacheKeyPlan");
+  if (modelFn) return modelFn({ clientVersion: CLIENT_VERSION, workspaceId, includeCompleted });
   return `hermesTodoList:${CLIENT_VERSION}:${workspaceId || "owner"}:${includeCompleted ? "all" : "open"}`;
 }
 
@@ -391,13 +504,23 @@ function readTodoListCache(workspaceId, includeCompleted) {
 
 function writeTodoListCache(workspaceId, includeCompleted) {
   try {
-    localStorage.setItem(todoListCacheKey(workspaceId, includeCompleted), JSON.stringify({
-      savedAt: Date.now(),
-      todos: state.todos,
-      assignees: state.todoAssignees,
-      source: state.todoSource,
-      board: state.todoKanbanBoard,
-    }));
+    const modelFn = kanbanCoreModelFunction("todoListCachePayloadPlan");
+    const payload = modelFn
+      ? modelFn({
+        savedAt: Date.now(),
+        todos: state.todos,
+        assignees: state.todoAssignees,
+        source: state.todoSource,
+        board: state.todoKanbanBoard,
+      })
+      : {
+        savedAt: Date.now(),
+        todos: state.todos,
+        assignees: state.todoAssignees,
+        source: state.todoSource,
+        board: state.todoKanbanBoard,
+      };
+    localStorage.setItem(todoListCacheKey(workspaceId, includeCompleted), JSON.stringify(payload));
   } catch (_) {}
 }
 
@@ -409,12 +532,16 @@ function clearTodoListCache(workspaceId = state.selectedWorkspaceId || "owner") 
 }
 
 function applyTodoListResult(result, includeCompleted, workspaceId = state.selectedWorkspaceId || "owner") {
-  state.todos = result.data || result.todos || [];
-  state.todoWorkspaceId = workspaceId || "owner";
-  state.todoAssignees = result.assignees || [];
-  state.todoSource = result.source || result.result?.source || "";
-  state.todoKanbanBoard = result.result?.board || result.board || state.todos.find((todo) => todo.kanbanBoard)?.kanbanBoard || "";
-  state.todoCompletedLoaded = includeCompleted;
+  const modelFn = kanbanCoreModelFunction("applyTodoListResultPlan");
+  const plan = modelFn ? modelFn(result, includeCompleted, workspaceId, state.todos) : {
+    todos: result.data || result.todos || [],
+    todoWorkspaceId: workspaceId || "owner",
+    todoAssignees: result.assignees || [],
+    todoSource: result.source || result.result?.source || "",
+    todoKanbanBoard: result.result?.board || result.board || (result.data || result.todos || []).find((todo) => todo.kanbanBoard)?.kanbanBoard || "",
+    todoCompletedLoaded: includeCompleted,
+  };
+  Object.assign(state, plan);
 }
 
 async function loadTodos(options = {}) {
@@ -499,6 +626,8 @@ async function loadKanbanCardDetail(todoId, options = {}) {
 }
 
 function todoStatusLabel(todo) {
+  const modelFn = kanbanCoreModelFunction("todoStatusLabelPlan");
+  if (modelFn) return modelFn(todo);
   const status = String(todo?.status || "");
   if (status === "completed") return "done";
   if (status === "cancelled") return "cancelled";
@@ -506,6 +635,8 @@ function todoStatusLabel(todo) {
 }
 
 function todoStatusText(todo) {
+  const modelFn = kanbanCoreModelFunction("todoStatusTextPlan");
+  if (modelFn) return modelFn(todo);
   const status = String(todo?.status || "");
   if (status === "completed") return "已完成";
   if (status === "cancelled") return "已取消";
@@ -513,6 +644,15 @@ function todoStatusText(todo) {
 }
 
 function normalizedKanbanStatus(todo) {
+  const modelFn = kanbanCoreModelFunction("normalizedKanbanStatusPlan");
+  if (modelFn) {
+    return modelFn(todo, {
+      statusOrder: KANBAN_STATUS_ORDER,
+      assessmentCard: isKanbanAssessmentCard(todo),
+      assessmentCompleted: assessmentExamCompleted(todo),
+      workflowPhase: todoWorkflowState(todo)?.phase,
+    });
+  }
   const status = String(todo?.kanbanStatus || todo?.kanban_status || "").trim().toLowerCase();
   if (isKanbanAssessmentCard(todo)) {
     const workflow = todoWorkflowState(todo);
@@ -545,16 +685,37 @@ function normalizedKanbanStatus(todo) {
 
 function kanbanStatusMeta(todoOrStatus) {
   const status = typeof todoOrStatus === "string" ? todoOrStatus : normalizedKanbanStatus(todoOrStatus);
+  const modelFn = kanbanCoreModelFunction("kanbanStatusMetaPlan");
+  if (modelFn) return modelFn(status, KANBAN_STATUS_META);
   return KANBAN_STATUS_META[status] || { label: status || "Todo", shortLabel: status || "todo" };
 }
 
 function kanbanStatusText(todo) {
   const status = normalizedKanbanStatus(todo);
+  const modelFn = kanbanCoreModelFunction("kanbanStatusTextPlan");
+  if (modelFn) return modelFn(status, KANBAN_STATUS_META);
   const meta = kanbanStatusMeta(status);
   return `${meta.label} / ${meta.shortLabel}`;
 }
 
 function currentTodoKanbanStatus(grouped) {
+  const modelFn = kanbanCoreModelFunction("currentTodoKanbanStatusPlan");
+  if (modelFn) {
+    const groupedCounts = {};
+    for (const status of KANBAN_STATUS_FALLBACK_ORDER) groupedCounts[status] = (grouped?.get(status) || []).length;
+    const next = modelFn({
+      selectedStatus: state.todoKanbanStatus,
+      storyStatus: KANBAN_STORY_STATUS,
+      statusOrder: KANBAN_STATUS_ORDER,
+      fallbackOrder: KANBAN_STATUS_FALLBACK_ORDER,
+      groupedCounts,
+    });
+    if (next !== String(state.todoKanbanStatus || "").trim().toLowerCase()) {
+      state.todoKanbanStatus = next;
+      localStorage.setItem("hermesTodoKanbanStatus", next);
+    }
+    return next;
+  }
   const selected = String(state.todoKanbanStatus || "").trim().toLowerCase();
   if (selected === KANBAN_STORY_STATUS) return KANBAN_STORY_STATUS;
   if (KANBAN_STATUS_ORDER.includes(selected)) return selected;
@@ -582,6 +743,8 @@ function todoBoardLabel() {
 }
 
 function todoPriorityLabel(todo) {
+  const modelFn = kanbanCoreModelFunction("todoPriorityLabelPlan");
+  if (modelFn) return modelFn(todo);
   const priority = Number(todo?.kanbanPriority || 0);
   return Number.isFinite(priority) && priority > 0 ? `P${priority}` : "";
 }
@@ -591,6 +754,8 @@ function todoTimestampLabel(value) {
 }
 
 function todoSortTimestamp(todo) {
+  const modelFn = kanbanCoreModelFunction("todoSortTimestampPlan");
+  if (modelFn) return modelFn(todo);
   const candidates = [
     todo?.kanbanCompletedAt,
     todo?.completedAt,
@@ -608,6 +773,8 @@ function todoSortTimestamp(todo) {
 }
 
 function sortArchivedKanbanCards(items) {
+  const modelFn = kanbanCoreModelFunction("sortArchivedKanbanCardsPlan");
+  if (modelFn) return modelFn(items);
   return [...(items || [])].sort((left, right) => {
     const delta = todoSortTimestamp(right) - todoSortTimestamp(left);
     if (delta) return delta;
@@ -616,6 +783,8 @@ function sortArchivedKanbanCards(items) {
 }
 
 function cleanKanbanInternalResultLines(text) {
+  const modelFn = kanbanCoreModelFunction("cleanKanbanInternalResultLinesPlan");
+  if (modelFn) return modelFn(text);
   return String(text || "")
     .split(/\r?\n/)
     .filter((line) => !/^\s*(?:MEDIA:|Audio file:|Analysis file:)\s*/i.test(line))
@@ -625,6 +794,8 @@ function cleanKanbanInternalResultLines(text) {
 }
 
 function cleanKanbanReadingResultText(text) {
+  const modelFn = kanbanCoreModelFunction("cleanKanbanReadingResultTextPlan");
+  if (modelFn) return modelFn(text);
   let value = String(text || "").trim();
   const aiMatch = value.match(/(?:^|\n)AI analysis:\s*/i);
   if (aiMatch) {
@@ -638,6 +809,16 @@ function cleanKanbanReadingResultText(text) {
 }
 
 function kanbanDisplayResultText(todo, text) {
+  const modelFn = kanbanCoreModelFunction("kanbanDisplayResultTextPlan");
+  if (modelFn) {
+    return modelFn({
+      todo,
+      text,
+      assessmentCard: isKanbanAssessmentCard(todo),
+      assessmentVisible: assessmentHasVisibleResult(todo),
+      readingCard: isKanbanReadingCard(todo),
+    });
+  }
   const raw = String(text || "").trim();
   if (!raw) return "";
   if (isKanbanAssessmentCard(todo) && !assessmentHasVisibleResult(todo)) return "";

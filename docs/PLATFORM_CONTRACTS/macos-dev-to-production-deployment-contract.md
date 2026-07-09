@@ -97,6 +97,31 @@ plugin business code, and each lane must return a terminal task card to the
 source plugin thread after deployment is completed, blocked, redirected,
 rejected, or partially completed.
 
+Production deploy dispatch authority is centralized. Worker, audit, repair,
+loop, and plugin source/main threads must not directly create Deploy Lane cards
+for production activation unless they carry explicit auditable central override
+metadata. Their normal output is bounded `deployRequest` metadata in the
+terminal return card. Home AI main/coordinator or another authorized central
+deploy owner integrates these requests, checks source refs and dirty state,
+deduplicates or supersedes stale deploy refs, and creates exactly one canonical
+Deploy Lane card. Deploy Lane validators fail closed with
+`deploy_card_requires_central_coordinator`,
+`worker_direct_deploy_forbidden`, or `deploy_source_role_not_authorized` when a
+card lacks central source-role metadata.
+
+If a terminal Worker return uses legacy bounded markers such as
+`deploy_needed=true`, `deploy_requested`, or `blocked_by_deploy_readback`, the
+source coordinator must convert that signal into a `pendingSourceAction` and a
+central deploy request candidate. The marker is not a Deploy Lane authorization
+by itself, and deployment must still wait for central coordinator dispatch or an
+audited override.
+
+Allowed deploy dispatch source roles are `home_ai_main`, `owner_main`,
+`central_deploy_coordinator`, and `explicit_deploy_orchestrator`. Emergency
+direct dispatch from another role must include `centralOverride=true`,
+`overrideReason`, `ownerApprovalRef` or `centralCoordinatorRef`, clean
+`dirtyState`, `sourceRef`, validation summary, and required readback.
+
 Deployment lanes are live operational queues, not one-shot completed
 conversations. At least one configured deploy lane must be discoverable and
 non-terminal before routine deployments are routed. A completed, archived,
@@ -179,6 +204,43 @@ restart_labels: launchd labels to restart, or none
 validation: commands/smokes to run after deploy
 rollback: restore backup and restart labels
 ```
+
+## UI Visual And Local Test Precondition
+
+Any deployment that includes user-interface changes must carry a passing
+source-side UI evidence packet before production writes. The deploy lane must
+not execute a UI-affecting Home AI or plugin deploy when this packet is absent
+or incomplete.
+
+The source or deploy card must provide bounded metadata for:
+
+- changed UI surface names and changed file paths;
+- passed local focused tests for the changed surface;
+- visual verification method and result;
+- viewport/device coverage appropriate to the surface;
+- layout assertions such as no overlap, clipping, wrapping, overflow, or
+  safe-area regression where relevant;
+- confirmation that screenshots/canvas/DOM evidence is metadata-only and does
+  not include raw private image data, private thread bodies, keys, cookies,
+  endpoint bodies, logs, database rows, provider payloads, or long diffs.
+
+The central deploy script exposes the machine gate:
+
+```bash
+node scripts/deploy-macos-production.js \
+  --target home-ai \
+  --changed-file public/app-workspace-console-ui.js \
+  --ui-visual-evidence ui-visual-evidence.json \
+  --json
+```
+
+In execute mode, UI-affecting changes without a passing packet fail closed with
+`ui_visual_local_validation_required`. Deploy lanes may run a plan without the
+packet to inspect the missing evidence, but they must not add `--execute` until
+the packet passes. For clean commits, the deploy script uses explicit
+`--changed-file` values when supplied and otherwise falls back to the current
+HEAD's changed files; deploy request cards for multi-commit or cherry-picked UI
+deploys must pass the exact changed UI files explicitly.
 
 If the source tree is dirty, the deploy plan must name the dirty files being
 deployed. It must not silently include unrelated dirty files.
@@ -463,6 +525,19 @@ refresh succeeds. A retry after an incomplete post-sync selected-mux refresh
 must run the selected endpoint refresh even when `changedFileCount=0`. Deploy
 reasons that explicitly mention selected-mux, mux-runtime, mux-metrics, or
 shared-mux also force this selected endpoint refresh.
+
+Codex Mobile deployments must also include two distinct plugin-owned runtime
+self-check gates in the central deploy plan/readback. The listener startup gate
+may remain startup-only to prove public config, shell assets, split frontend
+factories, and browser startup. A second `codex-mobile-behavior-gate` must run
+the deployed `scripts/codex-mobile-runtime-self-check-loop.js` with
+`--gate-mode deploy --browser-mode full --json` and without
+`--browser-startup-only`, so thread detail, projection/render, client-event,
+Composer/runtime state, and related behavior regressions cannot pass on startup
+evidence alone. Composer submit exercise is automatic only when the deploy
+operator provides a controlled target thread id; otherwise the deploy evidence
+must explicitly report the submit exercise as manual/not configured instead of
+claiming submit coverage.
 
 Growth first production install has one extra launchd bootstrap step because
 `com.hermesmobile.plugin.growth` does not exist until the service is installed.

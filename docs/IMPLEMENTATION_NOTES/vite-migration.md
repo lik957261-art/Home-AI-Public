@@ -40,6 +40,7 @@ Before considering any production integration, run:
 ```sh
 npm run build:vite
 npm run verify:vite-dev
+npm run packet:vite-dev
 node tests/vite-owner-system-console-island.test.js
 node tests/static-cache-version-harness.test.js
 npm run check
@@ -71,6 +72,11 @@ Production cutover is out of scope for this pilot. A later target must define:
 - mobile/iOS visual evidence for the exact entry path;
 - deployment and readback evidence through the central Mac deployment contract.
 
+The app-local source shell-mode config must remain `classic` for this
+development pilot. `npm run check:vite-readiness` includes a
+`runtime_shell_mode_default` guard and fails if `config/home-ai-shell-mode.json`
+defaults to `vite`.
+
 The comprehensive development-only migration target is documented in
 `docs/IMPLEMENTATION_NOTES/vite-full-frontend-migration-target.md`. It must be
 completed and reviewed before any production cutover target is created.
@@ -85,6 +91,16 @@ Owner review, blocked cutover preflight, blocked handoff packet, repository
 static check, readback validator contract, local full test gate, and diff
 hygiene check without authorizing production writes or deployment. The local
 full test gate still skips install/deploy lane tests.
+The maintained development audit packet is `npm run packet:vite-dev`. It wraps
+the acceptance report in a bounded Audit Packet / Delta Matrix with migrated
+development surfaces, remaining production surfaces, validation summary, and
+risk register. It is source-only and does not authorize production deployment.
+The maintained source-only user-journey smoke is
+`npm run smoke:vite-dev-user-journeys`. It drives Composer send, file/camera
+attachment without main-frame refresh, server-file attachment, native/system
+share attachment, Codex iframe rendering, Owner Console refresh, PDF/PPTX
+document preview policy, and voice pending cancel through the Vite preview UI
+using only dev mock metadata.
 The source-only handoff packet command is `npm run packet:vite-cutover`; it is
 a bounded draft generator for after Owner approval and must not send a deploy
 card or execute deployment.
@@ -275,6 +291,15 @@ redaction. The DOM entry in `main.mjs` uses `HomeAiRuntimeFacade.api` for
 manifest reads and keeps browser auth/storage access inside the runtime
 facade. It must not expose raw launch tokens, cookies, plugin workspace keys,
 or upstream plugin payloads.
+
+The same model also owns the development-only iframe lifecycle decision for
+resident plugin hosts. It strips volatile launch/session/token query
+parameters before comparing stable entry signatures, preserves already loaded
+iframes on token-only refreshes, preserves visible or loaded iframes during
+`navigation_health_timeout`, and recovers only when the iframe is still
+loading beyond the configured health timeout. The preview exposes bounded
+fixture controls for token refresh, loaded timeout, loading timeout, and entry
+change so this policy can be audited without real plugin launch tokens.
 
 This island is local-development evidence for the host side of embedded plugin
 rendering only. It does not migrate plugin-owned UIs into the Home AI bundle,
@@ -564,6 +589,75 @@ npm run audit:vite-globals -- --json
 node tests/vite-global-usage-audit.test.js
 ```
 
+## Dialog Sheet Island
+
+This development-only slice adds a Vite Dialog Sheet island before production
+dialog ownership moves. It models Home AI-style confirm, prompt, and message
+sheets as ESM state instead of browser-native dialogs:
+
+- source entry: `src/vite-islands/dialog-sheet/main.mjs`;
+- pure model: `src/vite-islands/dialog-sheet/model.mjs`;
+- dev source page: `src/vite-islands/dialog-sheet/index.html`;
+- dev server route: `/vite-dialog-sheet-preview/`;
+- built preview page: `public/vite-preview/dialog-sheet.html`;
+- built artifact: `public/vite-islands/dialog-sheet/dialog-sheet.js`;
+- guard test: `tests/vite-dialog-sheet-island.test.js`.
+
+The model owns dialog kind normalization, prompt value state, button plans,
+cancelability, and close results. The preview imports
+`HomeAiRuntimeFacade`, records bounded development state/events, and exposes
+`window.HomeAIViteDialogSheetPreview` only as a local harness hook. It must not
+call `alert`, `confirm`, or `prompt`, must not depend on launch tokens or
+private payloads, and must not replace classic production dialog owners until a
+separate production cutover has Owner approval and focused dialog-flow
+acceptance evidence.
+
+Focused validation:
+
+```sh
+npm run build:vite
+node tests/vite-dialog-sheet-island.test.js
+node tests/vite-app-preview-host.test.js
+node tests/vite-dev-preview-routes-smoke.test.js
+npm run audit:vite-globals -- --json
+node tests/vite-global-usage-audit.test.js
+```
+
+## Toast / Status Island
+
+This development-only slice adds a Vite Toast / Status island for the static
+client feedback channel before production toast ownership moves. It models the
+classic `showPushToast()` / `setPushProgress()` behavior as importable ESM
+state and drives it through `HomeAiRuntimeFacade.feedback`:
+
+- source entry: `src/vite-islands/toast-status/main.mjs`;
+- pure model: `src/vite-islands/toast-status/model.mjs`;
+- dev source page: `src/vite-islands/toast-status/index.html`;
+- dev server route: `/vite-toast-status-preview/`;
+- built preview page: `public/vite-preview/toast-status.html`;
+- built artifact: `public/vite-islands/toast-status/toast-status.js`;
+- guard test: `tests/vite-toast-status-island.test.js`.
+
+The model owns tone normalization, bounded display duration, actionable toast
+metadata, dismissal, action-click recording, and status state. The preview
+records bounded runtime state/events and exposes
+`window.HomeAIViteToastStatusPreview` only as a local harness hook. It must not
+call browser-native dialogs, must not fetch authenticated APIs, must not read or
+store access keys, and must not replace the classic production PWA toast until a
+separate production cutover has Owner approval and focused feedback-flow
+acceptance evidence.
+
+Focused validation:
+
+```sh
+npm run build:vite
+node tests/vite-toast-status-island.test.js
+node tests/vite-app-preview-host.test.js
+node tests/vite-dev-preview-routes-smoke.test.js
+npm run audit:vite-globals -- --json
+node tests/vite-global-usage-audit.test.js
+```
+
 ## Chat Runtime Event Model Island
 
 Phase 5 now has a development-only chat runtime event model and injected live
@@ -741,7 +835,13 @@ status summaries, and remove/clear transforms without browser globals,
 storage, direct `fetch()`, or local file reads. The upload client accepts an
 injected `HomeAiRuntimeFacade.api` client plus an injected file reader and
 builds the classic `/api/threads/:threadId/uploads` request without owning
-`FileReader`, DOM state, auth headers, or transport. `/vite-chat-runtime-preview/`
+`FileReader`, DOM state, auth headers, or transport. The file/camera selection
+boundary now lives in
+`src/vite-islands/chat-runtime/attachment-file-input-controller.mjs`; it owns
+change-event suppression, selected File snapshotting, immediate `input.value`
+clearing for repeated mobile camera picks, and bounded selection evidence. It
+does not own browser globals, auth, transport, storage, or file bytes.
+`/vite-chat-runtime-preview/`
 renders an `附件 ESM` strip with metadata-only fixture controls for system
 uploads, server files, and native share. It also includes a development-only
 file picker whose preview glue layer reads a local fixture and sends it to the
@@ -840,6 +940,15 @@ node tests/vite-global-usage-audit.test.js
 Phase 2 now has a source-level unmanaged-global guard:
 `scripts/vite-global-usage-audit.js`.
 
+The Vite runtime facade now imports its state and event primitives from
+`src/vite-app/runtime/runtime-state-event-bus.mjs`. That module is the
+source-only ESM boundary for cross-module state and event coordination:
+direct and wildcard subscribers, bounded recent-event snapshots, handler
+failure isolation, and state patch/update/replace events. The compatibility
+exports remain available through `home-ai-runtime-facade.mjs` so existing Vite
+islands keep the same `runtime.events` and `runtime.state` API while future
+slices can import the state/event boundary directly.
+
 The audit scans the Vite source roots and any classic modules that have joined
 the runtime-facade migration. The current target set is:
 
@@ -895,6 +1004,41 @@ npm run audit:vite-globals -- --json
 node tests/vite-global-usage-audit.test.js
 ```
 
+## PWA / Web Push Status Island
+
+This development-only slice adds a Vite PWA / Web Push status island for Phase
+7 parity work before production Service Worker, PWA install, or Web Push
+ownership moves. It models the classic top-bar push button and support checks as
+explicit ESM state:
+
+- source entry: `src/vite-islands/pwa-push-status/main.mjs`;
+- pure model: `src/vite-islands/pwa-push-status/model.mjs`;
+- dev source page: `src/vite-islands/pwa-push-status/index.html`;
+- dev server route: `/vite-pwa-push-status-preview/`;
+- built preview page: `public/vite-preview/pwa-push-status.html`;
+- built artifact: `public/vite-islands/pwa-push-status/pwa-push-status.js`;
+- guard test: `tests/vite-pwa-push-status-island.test.js`.
+
+The model owns Web Push capability normalization, notification-permission
+state, iOS standalone/PWA-window gating, server-public-key availability,
+button plan state, and bounded delivery summary formatting. The preview uses
+only explicit fixture state and `HomeAiRuntimeFacade.feedback`; it must not call
+`Notification.requestPermission()`, register a Service Worker, subscribe a real
+PushManager, fetch push endpoints, or replace the classic production PWA push
+module until a separate production cutover has Owner approval and real device
+readback.
+
+Focused validation:
+
+```sh
+npm run build:vite
+node tests/vite-pwa-push-status-island.test.js
+node tests/vite-app-preview-host.test.js
+node tests/vite-dev-preview-routes-smoke.test.js
+npm run audit:vite-globals -- --json
+node tests/vite-global-usage-audit.test.js
+```
+
 ## Development Readiness Gate
 
 The source-only Vite development readiness check is
@@ -903,7 +1047,10 @@ assets:
 
 ```sh
 npm run build:vite
+npm run check:vite-cache-policy
 npm run check:vite-readiness
+node tests/vite-development-goal-audit.test.js
+npm run audit:vite-dev-goal
 node tests/vite-owner-review-report.test.js
 npm run review:vite-cutover
 node tests/vite-production-cutover-preflight.test.js
@@ -926,12 +1073,19 @@ The gate verifies the Vite preview routes, local backend proxy boundary,
 source modules, focused tests, docs, built preview artifacts, and the
 production-shell exclusion rule, including an explicit ban on
 `/vite-plugin-host-preview/` references from `public/index.html` or
-`public/service-worker.js`. The dev-preview route smoke starts the Vite dev
-server and opens every preview route in a Playwright mobile viewport, checking
-root rendering, console/page errors, and horizontal overflow. A passing result
-is Owner review evidence for the development target only. It is not production
-cutover evidence and does not authorize deployment, Service Worker cache
-migration, or changing `/` away from the classic shell.
+`public/service-worker.js`. `npm run check:vite-cache-policy` is the focused
+source-only cache-policy companion. It verifies that built preview HTML points
+only at `/vite-islands/` assets, that Vite manifest assets exist, that preview
+HTML does not carry runtime API/secret markers, and that the classic production
+shell does not reference preview assets. It intentionally reports
+`productionCutoverCacheReady=false`; deterministic non-content-fingerprinted
+entry assets remain a cutover residual, not a development-target failure. The
+dev-preview route smoke starts the Vite dev server and opens every preview route
+in a Playwright mobile viewport, checking root rendering, console/page errors,
+and horizontal overflow. A passing result is Owner review evidence for the
+development target only. It is not production cutover evidence and does not
+authorize deployment, Service Worker cache migration, or changing `/` away from
+the classic shell.
 
 `npm run review:vite-cutover` is the maintained Owner review report. It
 combines the readiness check and cutover preflight into one source-only JSON

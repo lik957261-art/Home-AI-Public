@@ -2,6 +2,9 @@
 
 (function initTaskDocumentPreviewUi(global) {
   const PREVIEW_HISTORY_KEY = "__hermesTaskPreview";
+  const TASK_DOCUMENT_PREVIEW_MODEL_ESM_PATH = "/vite-islands/document-preview-model/document-preview-model.js";
+  let taskDocumentPreviewModel = null;
+  let taskDocumentPreviewModelPromise = null;
 
   const {
     escapeValue,
@@ -24,6 +27,84 @@
     hasArtifactPreviewOverlay,
     previewBackSwipeSurface,
   } = global.TaskDocumentPreviewHelpers || {};
+
+  function taskDocumentPreviewUsableModel(model) {
+    return Boolean(
+      model
+        && typeof model.buildPreviewLinkViewModel === "function"
+        && typeof model.documentKindFromLink === "function"
+        && typeof model.documentViewerUrlFromLink === "function"
+        && typeof model.isImagePreviewLink === "function"
+        && typeof model.isMarkdownPreviewLink === "function"
+        && typeof model.markdownPreviewFetchUrl === "function"
+        && typeof model.nativeDocumentOpenRequestFromLink === "function"
+        && typeof model.shouldUseNativeDocumentPreview === "function",
+    );
+  }
+
+  function currentTaskDocumentPreviewModel() {
+    return taskDocumentPreviewUsableModel(taskDocumentPreviewModel) ? taskDocumentPreviewModel : null;
+  }
+
+  function importTaskDocumentPreviewModel(rootRef = global) {
+    const loaded = currentTaskDocumentPreviewModel();
+    if (loaded) return Promise.resolve(loaded);
+    if (!taskDocumentPreviewModelPromise) {
+      const importer = typeof rootRef.__homeAiImportTaskDocumentPreviewModel === "function"
+        ? rootRef.__homeAiImportTaskDocumentPreviewModel
+        : (path) => import(path);
+      taskDocumentPreviewModelPromise = Promise.resolve()
+        .then(() => importer(TASK_DOCUMENT_PREVIEW_MODEL_ESM_PATH))
+        .then((model) => {
+          taskDocumentPreviewModel = taskDocumentPreviewUsableModel(model) ? model : null;
+          return taskDocumentPreviewModel;
+        })
+        .catch(() => {
+          taskDocumentPreviewModelPromise = null;
+          return null;
+        });
+    }
+    return taskDocumentPreviewModelPromise;
+  }
+
+  function taskPreviewModelAttribute(link, name) {
+    if (!link) return "";
+    if (name === "href") return link.href || link.getAttribute?.("href") || "";
+    if (name === "download") return link.getAttribute?.("download") || "";
+    if (name === "title") return link.getAttribute?.("title") || "";
+    if (name === "aria-label") return link.getAttribute?.("aria-label") || "";
+    return link.getAttribute?.(name) || "";
+  }
+
+  function taskPreviewModelLink(link) {
+    return {
+      href: link?.href || link?.getAttribute?.("href") || "",
+      dataset: Object.assign({}, link?.dataset || {}),
+      attributes: {
+        href: taskPreviewModelAttribute(link, "href"),
+        download: taskPreviewModelAttribute(link, "download"),
+        title: taskPreviewModelAttribute(link, "title"),
+        "aria-label": taskPreviewModelAttribute(link, "aria-label"),
+      },
+      textContent: link?.textContent || "",
+    };
+  }
+
+  function taskPreviewModelOptions(overrides = {}) {
+    const origin = global.location?.origin || "http://127.0.0.1";
+    return Object.assign({
+      origin,
+      currentPath: global.location?.pathname || "/tasks",
+      currentSearch: global.location?.search || "",
+      nativeShell: currentNativeShellParam(),
+      nativeDocumentBridgeAvailable: nativeDocumentBridgeAvailable(),
+      nativeDocumentOpenInAvailable: nativeDocumentOpenInAvailable(),
+      sourceSurface: nativeDocumentSourceSurface(),
+      viewport: documentPreviewViewportMetrics(),
+    }, overrides);
+  }
+
+  importTaskDocumentPreviewModel().catch(() => null);
 
   function isPreviewHistoryActive() {
     try {
@@ -109,6 +190,10 @@
   }, { capture: true });
 
   function isImagePreviewLink(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.isImagePreviewLink === "function") {
+      return model.isImagePreviewLink(taskPreviewModelLink(link), taskPreviewModelOptions());
+    }
     const mime = String(link?.dataset?.artifactMime || "").toLowerCase();
     if (mime.startsWith("image/")) return true;
     const href = String(link?.href || link?.getAttribute?.("href") || "").toLowerCase();
@@ -263,6 +348,10 @@
   }
 
   function isMarkdownPreviewLink(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.isMarkdownPreviewLink === "function") {
+      return model.isMarkdownPreviewLink(taskPreviewModelLink(link), taskPreviewModelOptions());
+    }
     const mime = String(link?.dataset?.artifactMime || "").toLowerCase();
     if (mime.includes("markdown") || mime === "text/x-markdown") return true;
     const nameCandidates = [
@@ -293,6 +382,10 @@
   }
 
   function markdownSourceFromLink(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.markdownSourceFromLink === "function") {
+      return model.markdownSourceFromLink(taskPreviewModelLink(link), taskPreviewModelOptions());
+    }
     const href = link?.href || link?.getAttribute?.("href") || "";
     if (!href) return "";
     try {
@@ -314,6 +407,10 @@
   }
 
   function markdownPreviewFetchUrl(value) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.markdownPreviewFetchUrl === "function") {
+      return model.markdownPreviewFetchUrl(value, taskPreviewModelOptions());
+    }
     const url = sameOriginPreviewUrl(value);
     if (!url) return "";
     if (url.pathname === "/api/files") return `/api/files/preview?${url.searchParams.toString()}`;
@@ -335,6 +432,10 @@
   }
 
   function documentSourceFromLink(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.documentSourceFromLink === "function") {
+      return model.documentSourceFromLink(taskPreviewModelLink(link), taskPreviewModelOptions());
+    }
     const href = link?.href || link?.getAttribute?.("href") || "";
     if (!href) return "";
     try {
@@ -346,6 +447,10 @@
   }
 
   function documentNativeUrlFromLink(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.documentNativeUrlFromLink === "function") {
+      return model.documentNativeUrlFromLink(taskPreviewModelLink(link), taskPreviewModelOptions());
+    }
     const source = documentSourceFromLink(link);
     const href = source || link?.href || link?.getAttribute?.("href") || "";
     if (!href) return "";
@@ -527,6 +632,12 @@
   }
 
   function nativeDocumentOpenRequestFromLink(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.nativeDocumentOpenRequestFromLink === "function") {
+      return model.nativeDocumentOpenRequestFromLink(taskPreviewModelLink(link), taskPreviewModelOptions({
+        requestId: nativeDocumentPreviewRequestId(),
+      }));
+    }
     const kind = documentKindFromLink(link);
     if (!nativeDocumentSupportedKind(kind)) return null;
     const url = documentNativeUrlFromLink(link);
@@ -584,6 +695,12 @@
   }
 
   function shouldUseNativeShellDocumentPreview(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.shouldUseNativeShellDocumentPreview === "function") {
+      return model.shouldUseNativeShellDocumentPreview(taskPreviewModelLink(link), taskPreviewModelOptions({
+        requestId: nativeDocumentPreviewRequestId(),
+      }));
+    }
     return Boolean(nativeDocumentBridgeExpected() && nativeDocumentOpenRequestFromLink(link));
   }
 
@@ -686,6 +803,12 @@
   }
 
   function shouldUseNativeDocumentPreview(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.shouldUseNativeDocumentPreview === "function") {
+      return model.shouldUseNativeDocumentPreview(taskPreviewModelLink(link), taskPreviewModelOptions({
+        requestId: nativeDocumentPreviewRequestId(),
+      }));
+    }
     const kind = documentKindFromLink(link);
     if (!kind) return false;
     if (shouldUseNativeShellDocumentPreview(link)) return true;
@@ -696,6 +819,10 @@
   }
 
   function shouldUseWideNativeDocumentPreview(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.shouldUseWideNativeDocumentPreview === "function") {
+      return model.shouldUseWideNativeDocumentPreview(taskPreviewModelLink(link), taskPreviewModelOptions());
+    }
     const kind = documentKindFromLink(link);
     if (!documentKindUsesWideNativePreview(kind)) return false;
     const metrics = documentPreviewViewportMetrics();
@@ -704,22 +831,36 @@
   }
 
   function documentPreviewUsesInAppOverlay(metrics = documentPreviewViewportMetrics()) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.documentPreviewUsesInAppOverlay === "function") {
+      return model.documentPreviewUsesInAppOverlay(metrics);
+    }
     return Boolean(metrics.coarsePointer || metrics.width < 768);
   }
 
   function documentKindUsesNativePreview(kind) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.documentKindUsesNativePreview === "function") return model.documentKindUsesNativePreview(kind);
     return kind === "word" || kind === "presentation";
   }
 
   function documentKindPrefersNativeOpenIn(kind) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.documentKindPrefersNativeOpenIn === "function") return model.documentKindPrefersNativeOpenIn(kind);
     return kind === "word" || kind === "presentation";
   }
 
   function documentKindUsesWideNativePreview(kind) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.documentKindUsesWideNativePreview === "function") return model.documentKindUsesWideNativePreview(kind);
     return kind === "pdf";
   }
 
   function documentKindFromMimeName(mimeValue, nameValue) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.documentKindFromMimeName === "function") {
+      return model.documentKindFromMimeName(mimeValue, nameValue);
+    }
     const mime = String(mimeValue || "").toLowerCase();
     const name = String(nameValue || "").toLowerCase();
     if (mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif|bmp|heic|heif)(?:[?#]|$)/i.test(name)) return "";
@@ -751,6 +892,10 @@
   }
 
   function documentKindFromLink(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.documentKindFromLink === "function") {
+      return model.documentKindFromLink(taskPreviewModelLink(link), taskPreviewModelOptions());
+    }
     const href = link?.href || link?.getAttribute?.("href") || "";
     if (!href) return "";
     try {
@@ -774,6 +919,10 @@
   }
 
   function documentViewerUrlFromLink(link) {
+    const model = currentTaskDocumentPreviewModel();
+    if (typeof model?.documentViewerUrlFromLink === "function") {
+      return model.documentViewerUrlFromLink(taskPreviewModelLink(link), taskPreviewModelOptions());
+    }
     const href = link?.href || link?.getAttribute?.("href") || "";
     const kind = documentKindFromLink(link);
     if (!href || !kind) return "";
@@ -1186,6 +1335,8 @@ window.addEventListener("load", function () {
     closeImagePreviewOverlay,
     closeMarkdownPreviewOverlay,
     hasArtifactPreviewOverlay,
+    importTaskDocumentPreviewModel,
+    currentTaskDocumentPreviewModel,
     documentKindUsesNativePreview,
     documentKindUsesWideNativePreview,
     documentPreviewUsesInAppOverlay,

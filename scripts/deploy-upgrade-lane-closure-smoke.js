@@ -76,6 +76,10 @@ function run(options = {}) {
     cardKind: "plugin_deployment",
     pluginId: "movie",
     deployReason: "movie-example",
+    sourceRole: "central_deploy_coordinator",
+    centralCoordinatorRef: "deploy-upgrade-lane-closure-smoke",
+    sourceRef: "abcdef123456",
+    dirtyState: { dirty: false },
     title: "Deploy Movie example",
     body: "Deploy request",
   });

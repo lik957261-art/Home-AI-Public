@@ -62,6 +62,11 @@ Implementation details:
   `docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md`
 - Plugin mobile UI and visual harness contract:
   `docs/PLATFORM_CONTRACTS/plugin-mobile-ui-visual-contract.md`
+- Central visual harness broker:
+  `scripts/central-visual-harness-broker.js`, exposed as
+  `npm run visual:central`, is the plugin-facing Home AI planner/executor for
+  Playwright browser, authenticated navigation, iOS PWA visual Harnesses, and
+  central-compatible plugin-local visual evidence validation.
 - Host-led visual polish controller:
   `docs/IMPLEMENTATION_NOTES/visual-polish-controller.md`
 - Mac development-to-production deployment contract:
@@ -100,9 +105,20 @@ Implementation details:
   `docs/IMPLEMENTATION_NOTES/ai-operations-control-plane.md`
 - Owner System Console:
   `docs/IMPLEMENTATION_NOTES/owner-system-console.md`
+- Workspace Console:
+  `docs/IMPLEMENTATION_NOTES/workspace-console.md`. This Owner-only app-level
+  `工作区` tab is a Codex workspace governance console. Its primary rows are
+  local Codex-managed projects plus Remote Managed Workspace nodes; the legacy
+  local account/work-directory/plugin-binding projection is retained only as a
+  hidden diagnostic building block for a future navigation/plugin management
+  rebuild.
 - Vite production cutover review:
   `docs/IMPLEMENTATION_NOTES/vite-production-cutover-review.md`,
+  `docs/IMPLEMENTATION_NOTES/vite-esm-current-migration-plan.md`,
   `scripts/vite-development-acceptance-report.js`,
+  `scripts/vite-development-acceptance-packet.js`,
+  `scripts/vite-development-goal-audit.js`,
+  `scripts/vite-preview-cache-policy-check.js`,
   `scripts/vite-owner-review-report.js`,
   `scripts/vite-production-cutover-preflight.js`,
   `scripts/vite-production-cutover-handoff-packet.js`,
@@ -110,8 +126,22 @@ Implementation details:
   `scripts/vite-goal-state-audit.js`,
   `scripts/vite-cutover-source-change-validator.js`,
   `scripts/vite-production-readback-validator.js`,
+  `scripts/vite-production-status-check.js`,
+  `scripts/vite-esm-migration-backlog.js`,
   `docs/IMPLEMENTATION_NOTES/vite-production-cutover-source-contract.json`,
+  `docs/IMPLEMENTATION_NOTES/vite-esm-migration-backlog.md`,
   `tests/vite-development-acceptance-report.test.js`,
+  `tests/vite-development-acceptance-packet.test.js`,
+  `tests/vite-development-goal-audit.test.js`,
+  `tests/vite-preview-cache-policy-check.test.js`,
+  `tests/vite-dev-user-journeys-smoke.test.js`,
+  `tests/vite-runtime-state-event-bus.test.js`,
+  `tests/vite-chat-attachment-file-input-controller.test.js`,
+  `tests/vite-plugin-host-model.test.js`,
+  `tests/vite-plugin-host-island.test.js`,
+  `tests/vite-dialog-sheet-island.test.js`,
+  `tests/vite-pwa-push-status-island.test.js`,
+  `tests/vite-toast-status-island.test.js`,
   `tests/vite-owner-review-report.test.js`,
   `tests/vite-production-cutover-preflight.test.js`,
   `tests/mobile-http-runtime-service.test.js`,
@@ -120,16 +150,34 @@ Implementation details:
   `tests/vite-owner-approval-request.test.js`,
   `tests/vite-goal-state-audit.test.js`,
   `tests/vite-cutover-source-change-validator.test.js`,
-  `tests/vite-production-readback-validator.test.js`
+  `tests/vite-production-readback-validator.test.js`,
+  `tests/vite-production-status-check.test.js`,
+  `tests/vite-esm-migration-backlog.test.js`
 - Diagnostic remediation loop:
   `docs/PLATFORM_CONTRACTS/diagnostic-remediation-loop-contract.md`
 - Autonomous Delivery Loop:
   `docs/PLATFORM_CONTRACTS/autonomous-delivery-loop-contract.md`,
+  `docs/PLATFORM_CONTRACTS/worker-pool-lifecycle-contract.md`,
   `docs/IMPLEMENTATION_NOTES/autonomous-delivery-loop.md`,
+  `docs/IMPLEMENTATION_NOTES/loop-engineering.md`,
   `adapters/autonomous-delivery-coordinator-service.js`,
   `server-routes/autonomous-delivery-api-routes.js`,
   `scripts/autonomous-delivery-loop.js`
+  The Loop Engineering note describes Home AI's domain adapter and status
+  projection for Codex Mobile `@loop` runtime work; it must not be read as a
+  separate Home AI plugin-loop scheduler.
+- Remote Managed Workspace:
+  `docs/IMPLEMENTATION_NOTES/remote-managed-workspace.md`. This is the
+  local-autonomy-first plan for independent remote projects, such as a Vite
+  game on another computer. Home AI owns the central control-plane listener,
+  registry, Owner-visible status, task-card dispatch, daily-summary projection,
+  and escalation governance; Codex Mobile owns the remote-node client/runtime
+  that connects outbound, polls cards, returns heartbeat/results/summaries, and
+  escalates high-risk or blocked work. It is not a plugin runtime contract.
 - Public install/deploy checklist: `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
+- Public/private release boundary:
+  `docs/PUBLIC_EXPORT_CHECKLIST.md` and
+  `docs/PUBLIC_INSTALLATION_CHECKLIST.md`
 - Public upgrade loop:
   `docs/IMPLEMENTATION_NOTES/public-upgrade-loop.md`,
   `scripts/homeai-public-release-closure.js`,

@@ -210,6 +210,22 @@ async function run() {
     reason: "adjust schedule",
   });
 
+  await provider.mutateJob({
+    action: "run",
+    jobId: "plugin_daily_progress_rollup",
+    ownerPrincipalId: "owner",
+    dryRun: false,
+    reason: "manual_ui",
+  });
+  assert.deepEqual(calls.at(-1), {
+    action: "run",
+    job_id: "plugin_daily_progress_rollup",
+    owner_principal_id: "owner",
+    dry_run: false,
+    patch: {},
+    reason: "manual_ui",
+  });
+
   const outputFile = provider.resolveOutputFile(new URLSearchParams({ jobId: "job_1", file: "run.md" }));
   assert.equal(outputFile.file.name, "run.md");
   assert.equal(outputFile.file.mime, "text/markdown");

@@ -844,6 +844,7 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
     const fields = contextFields(context);
     if (fields.error) return { ok: false, error: fields.error };
     const skillRoot = path.posix.join(fields.dataRoot, "skill-profiles", fields.workspaceId);
+    const uploadsRoot = path.posix.join(fields.dataRoot, "uploads");
     const parents = [
       path.posix.dirname(fields.root),
       fields.root,
@@ -870,7 +871,16 @@ function createWorkspaceSystemProvisioningExecutorService(options = {}) {
       chmodAcl(user, fields.workspaceDataRoot, writePerms, true);
       chmodAcl(user, skillRoot, writePerms, true);
     }
-    return { ok: true, aclRepaired: true, workspaceDataRoot: compactPath(fields.workspaceDataRoot, fields.root), skillRoot: compactPath(skillRoot, fields.root) };
+    if (pathExists(uploadsRoot)) {
+      chmodAcl(fields.macUser, uploadsRoot, writePerms);
+    }
+    return {
+      ok: true,
+      aclRepaired: true,
+      workspaceDataRoot: compactPath(fields.workspaceDataRoot, fields.root),
+      skillRoot: compactPath(skillRoot, fields.root),
+      uploadsRoot: pathExists(uploadsRoot) ? compactPath(uploadsRoot, fields.root) : "",
+    };
   }
 
   function profileDir(fields, profile) {
@@ -1338,6 +1348,9 @@ exec env HOME=${bashQuote(fields.workerHome)} HERMES_HOME="$PROFILE_DIR" HERMES_
     if (!toolsetSummary.ok) return { ok: false, error: "manifest_toolset_smoke_failed", profileAudit, toolsets: toolsetSummary };
     const acl = runSmokeScript(fields.root, path.posix.join(appScripts, "macos-worker-filesystem-access-harness.js"), [
       "--root", fields.root,
+      "--workspace-id", fields.workspaceId,
+      "--mac-user", fields.macUser,
+      "--target-only",
       "--json",
     ]);
     if (!acl.ok) return { ok: false, error: "worker_acl_harness_failed", profileAudit, toolsets: toolsetSummary, acl };

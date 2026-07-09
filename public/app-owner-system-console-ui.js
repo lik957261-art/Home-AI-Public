@@ -2,7 +2,10 @@
 
 const OWNER_SYSTEM_CONSOLE_API_PATH = "/api/owner/system-console";
 const OWNER_SYSTEM_CONSOLE_STATUS_API_PATH = "/api/owner/system-console/system-status";
+const OWNER_SYSTEM_CONSOLE_ESM_MODEL_PATH = "/vite-islands/owner-system-console-model/owner-system-console-model.js";
 const OWNER_SYSTEM_CONSOLE_TABS = Object.freeze(["overview", "system-status"]);
+let ownerSystemConsoleEsmModelPromise = null;
+let ownerSystemConsoleEsmModel = null;
 
 function ownerSystemConsoleAppState() {
   if (typeof state === "undefined" || !state || typeof state !== "object") return {};
@@ -38,6 +41,40 @@ function ownerSystemConsoleRuntimeEvent(type, detail = {}) {
 
 function ownerSystemConsoleRuntimeState(patch = {}) {
   ownerSystemConsoleRuntimeFacade()?.state?.set?.(patch);
+}
+
+function ownerSystemConsoleUsableEsmModel(model) {
+  return Boolean(
+    model
+      && typeof model.renderClassicOwnerSystemConsoleView === "function"
+      && typeof model.renderClassicOwnerSystemConsoleOverview === "function"
+      && typeof model.renderClassicOwnerSystemConsoleSystemStatus === "function"
+      && typeof model.classicStatusLabel === "function"
+      && typeof model.classicTone === "function",
+  );
+}
+
+function ownerSystemConsoleLoadedEsmModel() {
+  if (ownerSystemConsoleUsableEsmModel(ownerSystemConsoleEsmModel)) return ownerSystemConsoleEsmModel;
+  return null;
+}
+
+function importOwnerSystemConsoleModel() {
+  const loaded = ownerSystemConsoleLoadedEsmModel();
+  if (loaded) return Promise.resolve(loaded);
+  const root = typeof window !== "undefined"
+    ? window
+    : (typeof globalThis !== "undefined" ? globalThis : null);
+  if (!ownerSystemConsoleEsmModelPromise) {
+    ownerSystemConsoleEsmModelPromise = (typeof root?.__homeAiImportOwnerSystemConsoleModel === "function"
+      ? root.__homeAiImportOwnerSystemConsoleModel(OWNER_SYSTEM_CONSOLE_ESM_MODEL_PATH)
+      : import(OWNER_SYSTEM_CONSOLE_ESM_MODEL_PATH)
+    ).then((model) => {
+      ownerSystemConsoleEsmModel = ownerSystemConsoleUsableEsmModel(model) ? model : null;
+      return ownerSystemConsoleEsmModel;
+    }).catch(() => null);
+  }
+  return ownerSystemConsoleEsmModelPromise;
 }
 
 function ownerSystemConsoleSetViewMode(viewMode) {
@@ -98,6 +135,13 @@ const OWNER_SYSTEM_CONSOLE_TEXT = Object.freeze({
   "owner_console_accuracy": "准确性",
   "owner_console_autonomy": "自主性",
   "owner_console_autonomous_delivery_dispatch": "Autonomous Delivery 调度",
+  "owner_console_autonomous_delivery_loop": "Autonomous Delivery 闭环",
+  "owner_console_loop_engineering_runtime": "Loop Engineering runtime",
+  "codex_at_loop_status_unreachable": "Codex Mobile Loop 状态不可达",
+  "codex_at_loop_status_timeout": "Codex Mobile Loop 状态超时",
+  "codex_at_loop_status_http_failed": "Codex Mobile Loop 状态请求失败",
+  "codex_at_loop_status_disabled": "Codex Mobile Loop 状态采集已关闭",
+  "codex_at_loop_status_collector_not_configured": "Codex Mobile Loop 状态未接入",
   "runtime_slo_diagnostic_closure": "Runtime SLO 与诊断闭环",
   "fresh_install_upgrade_canary": "全新安装与升级 Canary",
   "gateway_message_action_contract": "Gateway 输出到消息动作契约",
@@ -114,6 +158,8 @@ const OWNER_SYSTEM_CONSOLE_TEXT = Object.freeze({
   "Architecture Governance Hardening": "架构治理加固",
   "Run or wire a clean-target canary readback when a target is available.": "目标可用后运行或接入 clean-target Canary 回读。",
   "target_thread_not_visible": "目标线程不可见",
+  "return_card_watchdog_stale": "回卡 Watchdog 已标记超时",
+  "task_card_dispatch_duplicate_active": "重复发卡已抑制",
   "not_collected": "未采集",
   "reference_path_covered": "参考路径已覆盖",
 });
@@ -356,6 +402,79 @@ function ownerSystemConsoleDispatchControlPanel(consoleData = {}) {
   </section>`;
 }
 
+function ownerSystemConsoleDeliveryLoopPanel(consoleData = {}) {
+  const loop = consoleData.autonomousDeliveryLoop && typeof consoleData.autonomousDeliveryLoop === "object"
+    ? consoleData.autonomousDeliveryLoop
+    : {};
+  const counts = loop.counts && typeof loop.counts === "object" ? loop.counts : {};
+  const items = ownerSystemConsoleList(loop.items).slice(0, 5);
+  const status = ownerSystemConsoleFirstString(loop, ["status"], "unknown");
+  const countText = [
+    `打开 ${Number(counts.open || 0) || 0}`,
+    `等回卡 ${Number(counts.waitingReturn || 0) || 0}`,
+    `阻塞 ${Number(counts.blocked || 0) || 0}`,
+    `重复抑制 ${Number(counts.duplicateSuppressed || 0) || 0}`,
+    `已闭环 ${Number(counts.verifiedClosed || 0) || 0}`,
+  ].join(" / ");
+  const rows = items.map((item) => {
+    const label = ownerSystemConsoleFirstString(item, ["caseId"], "delivery case");
+    const itemStatus = ownerSystemConsoleFirstString(item, ["status", "dispatchStatus"], "unknown");
+    const reason = ownerSystemConsoleDisplayText(ownerSystemConsoleFirstString(item, ["blockedReason", "dispatchStatus", "attentionSliceKey"], ""), 160);
+    return `<li class="owner-system-console-signal tone-${ownerSystemConsoleEscape(ownerSystemConsoleTone(itemStatus))}">
+      <span>${ownerSystemConsoleEscape(label)}</span>
+      <strong>${ownerSystemConsoleEscape(ownerSystemConsoleStatusLabel(itemStatus))}</strong>
+      ${reason ? `<small>${ownerSystemConsoleEscape(reason)}</small>` : ""}
+    </li>`;
+  }).join("");
+  return `<section class="owner-system-console-panel" data-owner-system-console-status-section="delivery-loop">
+    <div class="owner-system-console-section-head">
+      <strong>交付闭环</strong>
+      <span>${ownerSystemConsoleEscape(countText)}</span>
+    </div>
+    <div class="owner-system-console-dispatch-summary tone-${ownerSystemConsoleEscape(ownerSystemConsoleTone(status))}">
+      <span>${ownerSystemConsoleEscape(ownerSystemConsoleStatusLabel(status))}</span>
+      <small>${ownerSystemConsoleEscape(status === "ok" ? "闭环 ledger 无阻塞" : "查看卡住的 case、回卡和重复抑制")}</small>
+    </div>
+    ${rows ? `<ul class="owner-system-console-signal-list">${rows}</ul>` : ""}
+  </section>`;
+}
+
+function ownerSystemConsoleLoopEngineeringPanel(consoleData = {}) {
+  const loop = consoleData.loopEngineeringStatus && typeof consoleData.loopEngineeringStatus === "object"
+    ? consoleData.loopEngineeringStatus
+    : {};
+  const counts = loop.counts && typeof loop.counts === "object" ? loop.counts : {};
+  const items = ownerSystemConsoleList(loop.items).slice(0, 5);
+  const status = ownerSystemConsoleFirstString(loop, ["status"], "unknown");
+  const countText = [
+    `打开 ${Number(counts.open || 0) || 0}`,
+    `等回卡 ${Number(counts.waitingReturn || 0) || 0}`,
+    `阻塞 ${Number(counts.blocked || 0) || 0}`,
+    `已闭环 ${Number(counts.verifiedClosed || 0) || 0}`,
+  ].join(" / ");
+  const rows = items.map((item) => {
+    const label = ownerSystemConsoleFirstString(item, ["loopId", "target", "caseId"], "Loop");
+    const itemStatus = ownerSystemConsoleFirstString(item, ["status", "runtimeStatus"], "unknown");
+    const reason = ownerSystemConsoleDisplayText(ownerSystemConsoleFirstString(item, ["nextRoute", "blockedReason", "currentRole"], ""), 160);
+    return `<li class="owner-system-console-signal tone-${ownerSystemConsoleEscape(ownerSystemConsoleTone(itemStatus))}">
+      <span>${ownerSystemConsoleEscape(label)}</span>
+      <strong>${ownerSystemConsoleEscape(ownerSystemConsoleStatusLabel(itemStatus))}</strong>
+      ${reason ? `<small>${ownerSystemConsoleEscape(reason)}</small>` : ""}
+    </li>`;
+  }).join("");
+  return `<section class="owner-system-console-panel" data-owner-system-console-status-section="loop-engineering">
+    <div class="owner-system-console-section-head">
+      <strong>Loop Engineering</strong>
+      <span>${ownerSystemConsoleEscape(countText)}</span>
+    </div>
+    <div class="owner-system-console-dispatch-summary tone-${ownerSystemConsoleEscape(ownerSystemConsoleTone(status))}">
+      <span>${ownerSystemConsoleEscape(ownerSystemConsoleStatusLabel(status))}</span>
+      <small>${ownerSystemConsoleEscape(status === "ok" ? "Codex Mobile runtime 已接通" : "检查 Codex Mobile @loop runtime")}</small>
+    </div>
+    ${rows ? `<ul class="owner-system-console-signal-list">${rows}</ul>` : ""}
+  </section>`;
+}
+
 function ownerSystemConsoleQualityProgramPanel(consoleData = {}) {
   const program = consoleData.qualityProgram && typeof consoleData.qualityProgram === "object"
     ? consoleData.qualityProgram
@@ -419,6 +538,55 @@ function ownerSystemConsoleCriticalServices(systemStatus = {}) {
   return (critical.length ? critical : services.slice(0, 6)).slice(0, 8);
 }
 
+function ownerSystemConsoleCodexMobileRuntimePanel(systemStatus = {}) {
+  const runtime = systemStatus.codexMobile && typeof systemStatus.codexMobile === "object"
+    ? systemStatus.codexMobile
+    : null;
+  if (!runtime || runtime.available === false) return "";
+  const status = ownerSystemConsoleFirstString(runtime, ["status"], "unknown");
+  const processes = ownerSystemConsoleList(runtime.processes).slice(0, 6);
+  const logs = runtime.logs && typeof runtime.logs === "object" ? runtime.logs : {};
+  const totalCpu = ownerSystemConsoleFirstNumber(runtime, ["totalCpuPercent"]);
+  const totalRss = ownerSystemConsoleFirstNumber(runtime, ["totalRssBytes"]);
+  const logSize = ownerSystemConsoleFirstNumber(logs, ["totalSizeBytes", "maxSizeBytes"]);
+  const logGrowth = ownerSystemConsoleFirstNumber(logs, ["growthBytesPerSecond"]);
+  const summary = [
+    Number.isFinite(totalCpu) ? `CPU ${ownerSystemConsoleFormatPercent(totalCpu)}` : "CPU 未采集",
+    Number.isFinite(totalRss) ? `RSS ${ownerSystemConsoleFormatBytes(totalRss)}` : "RSS 未采集",
+    Number.isFinite(logSize) ? `日志 ${ownerSystemConsoleFormatBytes(logSize)}` : "日志未采集",
+  ].join(" / ");
+  const growthLabel = logs.growthAvailable && Number.isFinite(logGrowth)
+    ? `增长 ${ownerSystemConsoleFormatBytes(logGrowth)}/s`
+    : "增长待第二次采样";
+  const rows = processes.map((process) => {
+    const label = ownerSystemConsoleDisplayText(ownerSystemConsoleFirstString(process, ["label", "role"], "Codex Mobile process"), 80);
+    const itemStatus = ownerSystemConsoleFirstString(process, ["status"], "unknown");
+    const cpu = ownerSystemConsoleFirstNumber(process, ["cpuPercent"]);
+    const rss = ownerSystemConsoleFirstNumber(process, ["rssBytes"]);
+    const detail = [
+      Number.isFinite(cpu) ? `CPU ${ownerSystemConsoleFormatPercent(cpu)}` : "",
+      Number.isFinite(rss) ? `RSS ${ownerSystemConsoleFormatBytes(rss)}` : "",
+      ownerSystemConsoleFirstString(process, ["elapsed"], ""),
+    ].filter(Boolean).join(" / ");
+    return `<li class="owner-system-console-signal tone-${ownerSystemConsoleEscape(ownerSystemConsoleTone(itemStatus))}">
+      <span>${ownerSystemConsoleEscape(label)}</span>
+      <strong>${ownerSystemConsoleEscape(ownerSystemConsoleStatusLabel(itemStatus))}</strong>
+      ${detail ? `<small>${ownerSystemConsoleEscape(detail)}</small>` : ""}
+    </li>`;
+  }).join("");
+  return `<section class="owner-system-console-panel" data-owner-system-console-status-section="codex-mobile-runtime">
+    <div class="owner-system-console-section-head">
+      <strong>Codex Mobile Runtime</strong>
+      <span>${ownerSystemConsoleEscape(ownerSystemConsoleStatusLabel(status))}</span>
+    </div>
+    <div class="owner-system-console-dispatch-summary tone-${ownerSystemConsoleEscape(ownerSystemConsoleTone(status))}">
+      <span>${ownerSystemConsoleEscape(summary)}</span>
+      <small>${ownerSystemConsoleEscape(growthLabel)}</small>
+    </div>
+    ${rows ? `<ul class="owner-system-console-signal-list">${rows}</ul>` : `<div class="owner-system-console-empty">未发现 Codex Mobile 运行时进程。</div>`}
+  </section>`;
+}
+
 function renderOwnerSystemConsoleUnavailable() {
   return `<section class="owner-system-console owner-system-console-unavailable" data-owner-system-console>
     <div class="owner-system-console-empty" data-owner-system-console-unavailable>
@@ -450,6 +618,8 @@ function renderOwnerSystemConsoleOverview(consoleData = {}, model = ownerSystemC
     </div>
     ${ownerSystemConsoleQualityProgramPanel(consoleData)}
     ${ownerSystemConsoleDispatchControlPanel(consoleData)}
+    ${ownerSystemConsoleDeliveryLoopPanel(consoleData)}
+    ${ownerSystemConsoleLoopEngineeringPanel(consoleData)}
     <section class="owner-system-console-panel" data-owner-system-console-status-section="critical-signals">
       <div class="owner-system-console-section-head">
         <strong>关键信号</strong>
@@ -497,6 +667,7 @@ function renderOwnerSystemConsoleSystemStatus(model = ownerSystemConsoleModel())
       ${ownerSystemConsoleMetricCard("disk", "磁盘", systemStatus.disk)}
       ${ownerSystemConsoleMetricCard("uptime", "运行时间", systemStatus.uptime)}
     </div>
+    ${ownerSystemConsoleCodexMobileRuntimePanel(systemStatus)}
     <section class="owner-system-console-panel" data-owner-system-console-status-section="services">
       <div class="owner-system-console-section-head">
         <strong>关键服务</strong>
@@ -518,19 +689,30 @@ function renderOwnerSystemConsoleSystemStatus(model = ownerSystemConsoleModel())
 
 function renderOwnerSystemConsoleView(options = {}) {
   if (!ownerSystemConsoleIsOwner()) {
-    const unavailable = renderOwnerSystemConsoleUnavailable();
+    const importedModel = ownerSystemConsoleLoadedEsmModel();
+    const unavailable = importedModel
+      ? importedModel.renderClassicOwnerSystemConsoleView({ isOwner: false })
+      : renderOwnerSystemConsoleUnavailable();
     ownerSystemConsoleCommit(options, unavailable);
     return unavailable;
   }
   const model = ownerSystemConsoleModel();
   if (OWNER_SYSTEM_CONSOLE_TABS.includes(options.tab)) model.activeTab = options.tab;
-  const consoleData = model.console || {};
   const activeTab = OWNER_SYSTEM_CONSOLE_TABS.includes(model.activeTab) ? model.activeTab : "overview";
-  const error = model.error || model.systemStatusError || "";
-  const body = activeTab === "system-status"
-    ? renderOwnerSystemConsoleSystemStatus(model)
-    : renderOwnerSystemConsoleOverview(consoleData, model);
-  const html = `<section class="owner-system-console" data-owner-system-console>
+  const importedModel = ownerSystemConsoleLoadedEsmModel();
+  const html = importedModel
+    ? importedModel.renderClassicOwnerSystemConsoleView({
+      isOwner: true,
+      model,
+      tab: activeTab,
+    })
+    : (() => {
+      const consoleData = model.console || {};
+      const error = model.error || model.systemStatusError || "";
+      const body = activeTab === "system-status"
+        ? renderOwnerSystemConsoleSystemStatus(model)
+        : renderOwnerSystemConsoleOverview(consoleData, model);
+      return `<section class="owner-system-console" data-owner-system-console>
     <header class="owner-system-console-head">
       <div>
         <span class="owner-system-console-kicker">Owner 中心</span>
@@ -545,6 +727,7 @@ function renderOwnerSystemConsoleView(options = {}) {
     ${error ? `<div class="owner-system-console-error" role="status">${ownerSystemConsoleEscape(ownerSystemConsoleClean(error, 160))}</div>` : ""}
     ${model.loading && !model.console ? `<div class="owner-system-console-empty">正在读取控制台...</div>` : body}
   </section>`;
+    })();
   ownerSystemConsoleCommit(options, html);
   return html;
 }
@@ -575,6 +758,7 @@ async function loadOwnerSystemConsole(options = {}) {
     renderOwnerSystemConsoleView(options);
     return null;
   }
+  await importOwnerSystemConsoleModel();
   const model = ownerSystemConsoleModel();
   model.loading = true;
   model.error = "";
@@ -613,6 +797,7 @@ async function loadOwnerSystemStatus(options = {}) {
     renderOwnerSystemConsoleView(options);
     return null;
   }
+  await importOwnerSystemConsoleModel();
   const model = ownerSystemConsoleModel();
   model.systemStatusLoading = true;
   model.systemStatusError = "";
@@ -647,6 +832,7 @@ async function loadOwnerSystemStatus(options = {}) {
 async function openOwnerSystemConsole(options = {}) {
   const model = ownerSystemConsoleModel();
   model.activeTab = OWNER_SYSTEM_CONSOLE_TABS.includes(options.tab) ? options.tab : "overview";
+  if (ownerSystemConsoleIsOwner()) await importOwnerSystemConsoleModel();
   renderOwnerSystemConsoleView(options);
   if (!ownerSystemConsoleIsOwner()) return null;
   const consoleData = await loadOwnerSystemConsole(options);
@@ -701,6 +887,7 @@ if (typeof window !== "undefined") {
   window.loadOwnerSystemConsole = loadOwnerSystemConsole;
   window.loadOwnerSystemStatus = loadOwnerSystemStatus;
   window.wireOwnerSystemConsoleView = wireOwnerSystemConsoleView;
+  window.importOwnerSystemConsoleModel = importOwnerSystemConsoleModel;
 }
 
 if (typeof module === "object" && module.exports) {
@@ -709,6 +896,7 @@ if (typeof module === "object" && module.exports) {
     loadOwnerSystemStatus,
     openOwnerSystemConsole,
     openOwnerSystemConsoleSurface,
+    importOwnerSystemConsoleModel,
     renderOwnerSystemConsoleView,
     wireOwnerSystemConsoleView,
   };

@@ -18,6 +18,40 @@ const {
   exceptionTaskCardResult,
   normalizeTaskCardDispatchResult,
 } = require("./task-card-dispatch-result-service");
+const {
+  appendDuplicateCaseObservation,
+  buildAutonomousDeliveryStatusSummary,
+  deriveAutonomousDeliveryCaseIdentity,
+  initialCaseLedger,
+} = require("./autonomous-delivery-case-ledger-service");
+const {
+  normalizeTaskCardReasoningEffort,
+} = require("./task-card-dispatch-idempotency-service");
+const {
+  buildReturnWatchdogSummary,
+  returnWatchdogMarkPatch,
+} = require("./return-watchdog-service");
+const {
+  buildSourceReturnIntegrationSummary,
+  sourceActivationProjection,
+  sourceReturnIntegrationForReturn,
+  sourceReturnIntegrationStalePatch,
+} = require("./source-return-integration-watchdog-service");
+const {
+  buildAutonomousDeliveryRoutingDecision,
+  routingDecisionTaskCardLines,
+} = require("./autonomous-delivery-routing-decision-service");
+const {
+  selectWorkerLaneForDispatch,
+} = require("./worker-lane-scheduler-service");
+const {
+  normalizeDeployRequest,
+} = require("./central-deploy-governance-service");
+const {
+  parseSourceReturnFollowUpAction,
+  pendingSourceActionProjection,
+  transitionPendingSourceAction,
+} = require("./source-return-follow-up-action-service");
 
 const APP_WORKSPACE = "/Users/example/path";
 const OWNER_WORKSPACE_ID = "owner";
@@ -106,6 +140,17 @@ function cleanBlock(value, max = 1600) {
 
 function objectValue(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function rawJsonObjectValue(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (typeof value !== "string" || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value);
+    return objectValue(parsed);
+  } catch (_) {
+    return {};
+  }
 }
 
 function arrayValue(value) {
@@ -382,21 +427,43 @@ function boundedEvidenceRecord(item = {}) {
 
 function aiOpsEvidenceForReturn(input = {}, status = "") {
   const metadata = objectValue(input.metadata || input.meta);
+  const deployRequest = normalizeDeployRequest(input.deployRequest || input.deploy_request || metadata.deployRequest || metadata.deploy_request || {});
+  const pendingSourceAction = objectValue(input.pendingSourceAction || input.pending_source_action || metadata.pendingSourceAction || metadata.pending_source_action);
   const evidenceRecords = arrayValue(input.evidenceRecords || input.evidence_records || metadata.evidenceRecords || metadata.evidence_records)
     .map(boundedEvidenceRecord)
     .slice(0, 20);
-  const commandsRun = boundedArray(input.commandsRun || input.commands_run || metadata.commandsRun || metadata.commands_run, 20, 500)
-    .map((command) => cleanBlock(redactSensitiveValue(command), 500));
-  return {
+  const evidence = {
     status: status === "completed" ? "returned_completed" : "returned_terminal",
     returnStatus: clean(status || "", 80),
     returnCardId: clean(input.returnCardId || input.return_card_id || "", 160),
     summary: cleanBlock(redactSensitiveValue(input.summary || ""), 800),
     evidenceRecords,
-    commandsRun,
+    commandsRun: boundedArray(input.commandsRun || input.commands_run || metadata.commandsRun || metadata.commands_run, 20, 500)
+      .map((command) => cleanBlock(redactSensitiveValue(command), 500)),
     ledgerVerification: boundedEvidenceLedgerVerification(input),
     artifactPointers: boundedEvidencePointers(evidencePointerInputs(input, metadata), "artifact", 12),
   };
+  if (deployRequest.needed) {
+    evidence.deployRequest = {
+      needed: true,
+      requestedByRole: deployRequest.requestedByRole,
+      target: deployRequest.target,
+      sourceRef: deployRequest.sourceRef,
+      baseRef: deployRequest.baseRef,
+      changedFileCount: deployRequest.changedFiles.length,
+      validationSummaryCount: deployRequest.validationSummary.length,
+      requiredReadbackCount: deployRequest.requiredReadback.length,
+      risk: deployRequest.risk,
+      authorization: deployRequest.authorization,
+      deployAuthorized: deployRequest.deployAuthorized,
+      issueCodes: deployRequest.issueCodes,
+      dirty: deployRequest.dirtyState.dirty,
+    };
+  }
+  if (pendingSourceAction.id) {
+    evidence.pendingSourceAction = pendingSourceActionProjection(pendingSourceAction);
+  }
+  return evidence;
 }
 
 function aiOpsForReturn(slice = {}, input = {}, status = "") {
@@ -405,6 +472,21 @@ function aiOpsForReturn(slice = {}, input = {}, status = "") {
     evidence: Object.assign({}, objectValue(current.evidence), {
       lastReturn: aiOpsEvidenceForReturn(input, status),
       status: status === "completed" ? "returned_completed" : "returned_terminal",
+    }),
+  });
+}
+
+function aiOpsWithPendingSourceAction(aiOps = {}, action = {}) {
+  const projection = pendingSourceActionProjection(action);
+  if (!projection.id) return objectValue(aiOps);
+  const current = objectValue(aiOps);
+  const evidence = objectValue(current.evidence);
+  const lastReturn = objectValue(evidence.lastReturn);
+  return Object.assign({}, current, {
+    evidence: Object.assign({}, evidence, {
+      lastReturn: Object.assign({}, lastReturn, {
+        pendingSourceAction: projection,
+      }),
     }),
   });
 }
@@ -512,7 +594,7 @@ function caseStatusForIntent(intent = {}) {
 }
 
 function publicCaseRecord(row = {}) {
-  const raw = objectValue(row.rawJson || row.raw_json);
+  const raw = rawJsonObjectValue(row.rawJson || row.raw_json);
   return Object.assign({}, raw, {
     caseId: clean(row.caseId || row.case_id || raw.caseId, 160),
     workspaceId: clean(row.workspaceId || row.workspace_id || raw.workspaceId || OWNER_WORKSPACE_ID, 120) || OWNER_WORKSPACE_ID,
@@ -533,7 +615,7 @@ function publicCaseRecord(row = {}) {
 }
 
 function publicSliceRecord(row = {}) {
-  const raw = objectValue(row.rawJson || row.raw_json);
+  const raw = rawJsonObjectValue(row.rawJson || row.raw_json);
   const returnFields = {};
   for (const key of [
     "returnSummary",
@@ -572,6 +654,8 @@ function publicSliceRecord(row = {}) {
     "deploymentDispatchFailure",
     "repairDispatchFailure",
     "returnWatchdog",
+    "sourceReturnIntegration",
+    "routingDecision",
   ]) {
     if (row[key] !== undefined) returnFields[key] = row[key];
   }
@@ -624,6 +708,8 @@ function taskCardBodyForSlice(deliveryCase = {}, slice = {}, ownerPrompt = "") {
     "- Include changed files, commands run, residual risk, and privacy confirmation.",
     "- If an AI Ops evidence ledger or artifact path exists, return it in bounded metadata; Home AI will verify and store only redacted hashes/results.",
     "",
+    ...routingDecisionTaskCardLines(slice.routingDecision),
+    "",
     ...aiOpsRequiredChecksLines(slice.aiOps),
     "",
     prompt ? "## Owner Additional Prompt" : "",
@@ -638,17 +724,26 @@ function taskCardBodyForSlice(deliveryCase = {}, slice = {}, ownerPrompt = "") {
 
 function taskCardForSlice(deliveryCase = {}, slice = {}, target = {}, ownerPrompt = "") {
   const label = clean(target.label || slice.targetWorkspaceId || "Home AI", 120);
+  const routingDecision = objectValue(slice.routingDecision);
   const taskCard = {
     title: clean(`Delivery Loop: ${label} ${slice.sliceKey || slice.sliceId}`, 90),
     summary: clean(`${deliveryCase.caseId} ${slice.sliceKey}: ${deliveryCase.objective}`, 260),
     body: taskCardBodyForSlice(deliveryCase, slice, ownerPrompt),
+    targetThreadId: target.targetThreadId || target.threadId || "",
     targetThreadTitle: target.targetThreadTitle || "",
     targetThreadTitlePrefix: target.targetThreadTitlePrefix || "",
     targetWorkspace: target.targetWorkspace || slice.targetWorkspacePath || "",
     workflowMode: "manual",
-    reasoningEffort: deliveryCase.risk === "low" ? "medium" : "high",
+    reasoningEffort: normalizeTaskCardReasoningEffort({
+      requested: deliveryCase.risk === "low" ? "medium" : "high",
+      risk: deliveryCase.risk,
+      severity: slice.aiOps?.harnessClass,
+    }),
     requestId: `autonomous-delivery-${deliveryCase.caseId}-${slice.sliceKey || slice.sliceId}`,
   };
+  if (routingDecision.cardKind) {
+    taskCard.cardKind = clean(routingDecision.cardKind, 80);
+  }
   if (isHomeAiTargetSlice(slice) && isImplementationSlice(slice)) {
     taskCard.cardKind = "home_ai_worker";
     taskCard.targetThreadTitle = "";
@@ -895,6 +990,8 @@ function sliceRawJsonForUpdate(slice = {}, extra = {}) {
     "originalTaskCardId",
     "returnCardEvent",
     "returnWatchdog",
+    "sourceReturnIntegration",
+    "aiOps",
   ]) {
     if (slice[key] !== undefined && slice[key] !== "") preserved[key] = slice[key];
   }
@@ -971,7 +1068,11 @@ function verificationTaskCardForSlice(deliveryCase = {}, slice = {}, target = {}
     targetWorkspace: target.targetWorkspace || APP_WORKSPACE,
     auditKind: target.auditKind || "plugin",
     workflowMode: "manual",
-    reasoningEffort: deliveryCase.risk === "low" ? "medium" : "high",
+    reasoningEffort: normalizeTaskCardReasoningEffort({
+      requested: deliveryCase.risk === "low" ? "medium" : "high",
+      risk: deliveryCase.risk,
+      severity: slice.aiOps?.harnessClass,
+    }),
     requestId: `autonomous-delivery-verification-${deliveryCase.caseId}-${slice.sliceKey || slice.sliceId}-${slice.returnCardId || slice.taskCardId || "return"}`,
     _targetLabel: label,
   };
@@ -997,6 +1098,8 @@ function deploymentTaskCardBodyForSlice(deliveryCase = {}, deploymentSlice = {},
     "",
     "## Required Deployment / Readback",
     "",
+    "- Source role: `central_deploy_coordinator`; this deploy card is generated by Home AI central coordination after Worker return metadata was merged.",
+    `- Central coordinator ref: \`${deliveryCase.caseId || "unknown"}\``,
     "- Use the central Home AI deploy contract from this dedicated deployment thread; do not introduce ad-hoc production mutation paths.",
     "- Do not require plugin workspaces to read or pass sudo password files; local operator credential paths are Home AI deployment-thread private inputs.",
     "- Deploy only the returned implementation/repair scope needed for this slice.",
@@ -1032,6 +1135,12 @@ function deploymentTaskCardForSlice(deliveryCase = {}, deploymentSlice = {}, par
     auditKind: target.auditKind || "deployment",
     cardKind: "plugin_deployment",
     pluginId: clean(parentSlice.targetWorkspaceId || deploymentSlice.targetWorkspaceId || "", 120),
+    sourceRole: "central_deploy_coordinator",
+    centralCoordinatorRef: clean(deliveryCase.caseId || "", 160),
+    sourceRef: clean(parentSlice.returnCardId || parentSlice.taskCardId || "", 160),
+    dirtyState: { dirty: false, files: [] },
+    validationSummary: boundedArray(parentSlice.aiOps?.evidence?.lastReturn?.commandsRun || [], 12, 260),
+    requiredReadback: ["production deploy/readback terminal return", "bounded source/prod parity or target health readback"],
     workflowMode: "manual",
     reasoningEffort: "high",
     requestId: `autonomous-delivery-deploy-readback-${deliveryCase.caseId}-${parentSlice.sliceKey || parentSlice.sliceId}-${parentSlice.returnCardId || parentSlice.taskCardId || "return"}`,
@@ -1090,7 +1199,11 @@ function repairTaskCardForSlice(deliveryCase = {}, repairSlice = {}, verificatio
     targetThreadTitle: target.targetThreadTitle || "",
     targetWorkspace: target.targetWorkspace || repairSlice.targetWorkspacePath || parentSlice.targetWorkspacePath || "",
     workflowMode: "manual",
-    reasoningEffort: deliveryCase.risk === "low" ? "medium" : "high",
+    reasoningEffort: normalizeTaskCardReasoningEffort({
+      requested: deliveryCase.risk === "low" ? "medium" : "high",
+      risk: deliveryCase.risk,
+      severity: repairSlice.aiOps?.harnessClass,
+    }),
     requestId: `autonomous-delivery-repair-${deliveryCase.caseId}-${parentSlice.sliceKey || parentSlice.sliceId}-${verificationSlice.returnCardId || verificationSlice.taskCardId || verificationSlice.sliceId}`,
   };
 }
@@ -1517,6 +1630,10 @@ function inputBoolean(input = {}, keys = []) {
 function returnRequiresDeployment(input = {}, slice = {}) {
   const metadata = objectValue(input.metadata || input.meta);
   const event = objectValue(input.returnCardEvent || input.return_card_event);
+  const deployRequest = normalizeDeployRequest(input.deployRequest || input.deploy_request || metadata.deployRequest || metadata.deploy_request || {});
+  if (deployRequest.needed) return true;
+  const followUp = parseSourceReturnFollowUpAction(input);
+  if (followUp.required && followUp.actionType === "deploy") return true;
   const explicitDeploymentRequired = inputBoolean(input, [
     "requiresDeployment",
     "requires_deployment",
@@ -1567,6 +1684,193 @@ function taskCardDispatchContextForSlice(slice = {}, target = {}) {
   };
 }
 
+function lifecycleThreadProjection(thread = {}) {
+  const current = objectValue(thread);
+  if (!Object.keys(current).length) return {};
+  return {
+    id: clean(current.id || current.threadId || current.thread_id || "", 180),
+    title: clean(current.title || current.name || "", 180),
+    cwd: clean(current.cwd || current.workspace || current.workspaceCwd || current.workspace_cwd || "", 600),
+    role: clean(current.role || "", 100),
+    threadRole: clean(current.threadRole || current.thread_role || "", 100),
+    purpose: clean(current.purpose || "", 120),
+    status: clean(current.status || "", 80),
+    deliverable: current.deliverable === true,
+    deliverabilityReason: clean(current.deliverabilityReason || current.deliverability_reason || "", 160),
+  };
+}
+
+function boundedLifecycleResult(result = {}, request = {}) {
+  const current = objectValue(result);
+  return {
+    required: true,
+    ok: current.ok !== false,
+    action: clean(current.action || request.action || "", 80),
+    requestedAction: clean(request.requestedAction || "", 120),
+    role: clean(request.role || current.role || "", 100),
+    workspaceCwd: clean(request.cwd || request.workspaceCwd || "", 600),
+    error: clean(current.error || current.code || "", 180),
+    createReason: clean(current.createReason || current.create_reason || "", 120),
+    count: Number(current.count || 0) || 0,
+    selectedFromCandidates: current.selectedFromCandidates === true,
+    selectedFromCandidateCount: Number(current.selectedFromCandidateCount || 0) || 0,
+    needsTitleNormalization: current.needsTitleNormalization === true,
+    thread: lifecycleThreadProjection(current.thread),
+    policy: {
+      boundedMetadataOnly: true,
+      exactThreadIdPreferred: true,
+    },
+  };
+}
+
+function lifecycleResolveRoleForDecision(routingDecision = {}) {
+  const lifecycle = objectValue(routingDecision.codexMobileThreadLifecycle);
+  const action = clean(lifecycle.action || "", 120);
+  const role = clean(lifecycle.role || routingDecision.role || "", 100);
+  if (action === "resolve_or_ensure_worker_lane") return "home_ai_worker";
+  if (action === "resolve_or_ensure_plugin_worker_lane") return "plugin_worker";
+  if (action === "resolve_or_ensure_plugin_main_thread") return "requirements";
+  if (action === "start_or_ensure_plugin_loop") return "requirements";
+  if (action === "ensure_or_create_role_lanes" && role === "home_ai_worker_loop") return "home_ai_worker";
+  if (action === "ensure_or_create_role_lanes" && role === "plugin_worker_loop") return "requirements";
+  if (role === "plugin_requirements") return "requirements";
+  if (role === "home_ai_worker_loop") return "home_ai_worker";
+  if (role === "plugin_worker_loop") return "requirements";
+  return role || "implementation";
+}
+
+function lifecycleApiActionFor(requestedAction = "") {
+  const action = clean(requestedAction, 120);
+  if (/ensure|create|start/.test(action)) return "ensure";
+  if (/resolve/.test(action)) return "resolve";
+  return "resolve";
+}
+
+function lifecycleTargetFromResult(target = {}, result = {}) {
+  const thread = lifecycleThreadProjection(result.thread);
+  if (!thread.id) return target;
+  return Object.assign({}, target, {
+    targetThreadId: thread.id,
+    targetThreadTitle: thread.title || target.targetThreadTitle || "",
+    targetThreadTitlePrefix: "",
+    targetWorkspace: thread.cwd || target.targetWorkspace || "",
+  });
+}
+
+async function resolveCodexMobileThreadLifecycle(input = {}) {
+  const routingDecision = objectValue(input.routingDecision);
+  const lifecycle = objectValue(routingDecision.codexMobileThreadLifecycle);
+  if (!lifecycle.required) {
+    return {
+      ok: true,
+      target: input.target,
+      routingDecision,
+      lifecycleResult: { required: false },
+    };
+  }
+  const threadLifecycleService = input.threadLifecycleService;
+  if (!threadLifecycleService || typeof threadLifecycleService.threadLifecycle !== "function") {
+    return {
+      ok: false,
+      error: "codex_mobile_thread_lifecycle_unavailable",
+      target: input.target,
+      routingDecision,
+      lifecycleResult: {
+        required: true,
+        ok: false,
+        action: "resolve",
+        requestedAction: clean(lifecycle.action || "", 120),
+        role: lifecycleResolveRoleForDecision(routingDecision),
+        workspaceCwd: clean(lifecycle.workspaceCwd || input.slice?.targetWorkspacePath || "", 600),
+        error: "codex_mobile_thread_lifecycle_unavailable",
+      },
+    };
+  }
+  const role = lifecycleResolveRoleForDecision(routingDecision);
+  const requestedAction = clean(lifecycle.action || "", 120);
+  const pluginId = role === "plugin_worker"
+    ? clean(lifecycle.pluginId || lifecycle.plugin_id || input.slice?.pluginId || input.slice?.plugin_id || input.slice?.targetWorkspaceId || "", 120).toLowerCase()
+    : clean(lifecycle.pluginId || lifecycle.plugin_id || input.slice?.pluginId || input.slice?.plugin_id || "", 120).toLowerCase();
+  const requestId = clean(`autonomous-delivery-${input.deliveryCase?.caseId || input.deliveryCase?.id || "case"}-${input.slice?.sliceKey || input.slice?.sliceId || "slice"}-${requestedAction || "lifecycle"}`, 180);
+  const request = {
+    action: lifecycleApiActionFor(requestedAction),
+    requestedAction: clean(lifecycle.action || "", 120),
+    role,
+    pluginId,
+    sourceThreadId: clean(lifecycle.sourceThreadId || lifecycle.source_thread_id || input.deliveryCase?.sourceThreadId || input.deliveryCase?.source_thread_id || "", 180),
+    purpose: clean(lifecycle.purpose || "worker_lane", 120),
+    workerPurpose: clean(lifecycle.workerPurpose || lifecycle.worker_purpose || "worker_lane", 120),
+    taskCardId: clean(input.slice?.taskCardId || input.slice?.task_card_id || "", 180),
+    status: clean(lifecycle.status || "", 80),
+    summary: clean(input.slice?.summary || input.deliveryCase?.objective || "", 240),
+    requestId,
+    idempotencyKey: clean(lifecycle.idempotencyKey || lifecycle.idempotency_key || requestId, 220),
+    cwd: clean(lifecycle.workspaceCwd || input.slice?.targetWorkspacePath || input.target?.targetWorkspace || "", 1000),
+    workspaceCwd: clean(lifecycle.workspaceCwd || input.slice?.targetWorkspacePath || input.target?.targetWorkspace || "", 1000),
+    targetThreadId: clean(input.target?.targetThreadId || "", 180),
+    threadId: clean(input.target?.targetThreadId || "", 180),
+    limit: 40,
+  };
+  let result;
+  try {
+    result = await Promise.resolve(threadLifecycleService.threadLifecycle(request));
+  } catch (err) {
+    result = {
+      ok: false,
+      action: "resolve",
+      error: clean(err?.code || err?.message || err || "codex_mobile_thread_lifecycle_request_failed", 180),
+    };
+  }
+  if (result && result.ok !== false && !lifecycleThreadProjection(result.thread).id && Array.isArray(result.threads)) {
+    const selected = selectWorkerLaneForDispatch({
+      threads: result.threads,
+      role,
+      pluginId: request.pluginId,
+      cwd: request.workspaceCwd,
+      sourceThreadId: request.sourceThreadId,
+      requestKey: request.idempotencyKey || request.requestId,
+    });
+    if (selected.ok) {
+      result = Object.assign({}, result, {
+        thread: selected.lane,
+        selectedFromCandidates: true,
+        selectedFromCandidateCount: selected.selectedFromCandidateCount,
+        needsTitleNormalization: selected.needsTitleNormalization,
+      });
+    } else {
+      result = Object.assign({}, result, {
+        ok: false,
+        error: selected.code || "worker_lane_selection_failed",
+        createReason: selected.createReason || "",
+        candidateCount: selected.candidateCount || 0,
+      });
+    }
+  }
+  const lifecycleResult = boundedLifecycleResult(result, request);
+  const thread = lifecycleThreadProjection(result?.thread);
+  const ok = result && result.ok !== false && thread.id && thread.deliverable !== false;
+  const nextRoutingDecision = Object.assign({}, routingDecision, {
+    codexMobileThreadLifecycle: Object.assign({}, lifecycle, {
+      resolved: lifecycleResult,
+    }),
+  });
+  if (!ok) {
+    return {
+      ok: false,
+      error: lifecycleResult.error || "codex_mobile_thread_lifecycle_resolve_failed",
+      target: input.target,
+      routingDecision: nextRoutingDecision,
+      lifecycleResult,
+    };
+  }
+  return {
+    ok: true,
+    target: lifecycleTargetFromResult(input.target, result),
+    routingDecision: nextRoutingDecision,
+    lifecycleResult,
+  };
+}
+
 function rawJsonWithDispatchFailure(rawJson = {}, failure = {}, key = "dispatchFailure") {
   const out = Object.assign({}, objectValue(rawJson), {
     dispatchFailure: failure,
@@ -1595,6 +1899,7 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
   const store = options.store;
   const actionInboxService = options.actionInboxService;
   const taskCardService = options.taskCardService;
+  const threadLifecycleService = options.threadLifecycleService || taskCardService;
   const createIntent = typeof options.createIntent === "function" ? options.createIntent : createAutonomousDeliveryIntent;
   const targets = options.targets || {};
 
@@ -1664,16 +1969,48 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
 
   async function createCase(input = {}) {
     const currentStore = requireStore();
+    const createdAt = clean(input.createdAt || nowIso(options), 80);
     const intent = createIntent({
       text: input.text || input.objective || input.requirement || "",
       workspaces: input.workspaces || input.workspaceIds || [],
       approvals: input.approvals || {},
-      now: input.now || nowIso(options),
+      now: input.now || createdAt,
     });
     if (!intent.ok) return { ok: false, status: 400, error: "autonomous_delivery_intent_required", intent };
     const workspaceId = clean(input.workspaceId || input.workspace_id || OWNER_WORKSPACE_ID, 120) || OWNER_WORKSPACE_ID;
-    const createdAt = clean(input.createdAt || nowIso(options), 80);
-    const caseId = clean(input.caseId || input.case_id || intent.id, 160);
+    const identity = deriveAutonomousDeliveryCaseIdentity(input, intent);
+    const caseId = clean(input.caseId || input.case_id || identity.caseId || intent.id, 160);
+    const existing = publicCaseRecord(currentStore.getAutonomousDeliveryCase(caseId) || {});
+    if (existing.caseId) {
+      const duplicateLedger = appendDuplicateCaseObservation(existing.deliveryLedger, identity, createdAt);
+      const nextCase = publicCaseRecord(currentStore.upsertAutonomousDeliveryCase(Object.assign({}, existing, {
+        sourceRef: Object.assign({}, existing.sourceRef || {}, input.sourceRef || input.source_ref || {}, {
+          idempotencyRef: duplicateLedger.idempotencyRef,
+        }),
+        rawJson: Object.assign({}, existing, {
+          deliveryLedger: duplicateLedger,
+        }),
+        updatedAt: createdAt,
+      })));
+      const slices = currentStore.listAutonomousDeliverySlices({ caseId }).map(publicSliceRecord);
+      appendEvent(caseId, "case_duplicate_observed", {
+        idempotencySource: identity.idempotencySource,
+        idempotencyHash: identity.idempotencyHash,
+        duplicateSuppressedCount: duplicateLedger.duplicateSuppressedCount,
+        ownerPromptSuppressed: true,
+      }, input.auth || {});
+      return {
+        ok: true,
+        duplicate: true,
+        duplicateSuppressed: true,
+        case: nextCase,
+        slices,
+        intent,
+        inboxItem: null,
+        inboxEvent: null,
+        source: { name: "autonomous_delivery_coordinator", storage: "sqlite" },
+      };
+    }
     const deliveryCase = publicCaseRecord(currentStore.upsertAutonomousDeliveryCase({
       caseId,
       workspaceId,
@@ -1685,8 +2022,13 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
       userDecisionGate: intent.userDecisionGate,
       autonomyPolicy: intent.autonomyPolicy,
       privacyBoundary: intent.privacyBoundary,
-      sourceRef: objectValue(input.sourceRef || input.source_ref),
-      rawJson: { intent },
+      sourceRef: Object.assign({}, objectValue(input.sourceRef || input.source_ref), {
+        idempotencyRef: identity.idempotencyRef,
+      }),
+      rawJson: {
+        intent,
+        deliveryLedger: initialCaseLedger(identity, createdAt),
+      },
       createdAt,
       updatedAt: createdAt,
     }));
@@ -1778,45 +2120,46 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
     };
   }
 
+  function deliveryLoopStatusSummary(input = {}) {
+    const currentStore = requireStore();
+    const workspaceId = clean(input.workspaceId || input.workspace_id || OWNER_WORKSPACE_ID, 120) || OWNER_WORKSPACE_ID;
+    const cases = currentStore.listAutonomousDeliveryCases({
+      workspaceId,
+      limit: input.caseLimit || input.case_limit || 200,
+    }).map(publicCaseRecord);
+    const slices = [];
+    const eventsByCase = {};
+    for (const deliveryCase of cases) {
+      const caseId = deliveryCase.caseId;
+      slices.push(...currentStore.listAutonomousDeliverySlices({ caseId, limit: 500 }).map(publicSliceRecord));
+      if (typeof currentStore.listAutonomousDeliveryEvents === "function") {
+        eventsByCase[caseId] = currentStore.listAutonomousDeliveryEvents({ caseId, limit: 50 });
+      }
+    }
+    return buildAutonomousDeliveryStatusSummary({
+      cases,
+      slices,
+      eventsByCase,
+      generatedAt: nowIso(options),
+      workspaceId,
+      limit: input.limit,
+    });
+  }
+
   function returnWatchdogSummary(input = {}) {
     const currentStore = requireStore();
     const workspaceId = clean(input.workspaceId || input.workspace_id || OWNER_WORKSPACE_ID, 120) || OWNER_WORKSPACE_ID;
-    const limit = Math.max(1, Math.min(100, Number(input.limit || 50) || 50));
-    const staleAfterMs = boundedReturnWatchdogStaleMs(input, options);
     const now = nowIso(options);
-    const nowMs = parseIsoMs(now) || Date.now();
-    const items = currentStore.listAutonomousDeliverySlices({ limit: 500 })
-      .map(publicSliceRecord)
-      .filter((slice) => !workspaceId || slice.workspaceId === workspaceId)
-      .filter(returnWatchdogCandidate)
-      .map((slice) => returnWatchdogItemForSlice(slice, nowMs, staleAfterMs));
-    const staleItems = items.filter((item) => item.stale);
-    const counts = {
-      tracked: items.length,
-      waiting: items.length - staleItems.length,
-      stale: staleItems.length,
-      alreadyMarked: items.filter((item) => item.alreadyMarked).length,
-    };
-    return {
-      ok: true,
-      schemaVersion: 1,
-      generatedAt: now,
-      status: counts.stale ? "degraded" : "ok",
+    return Object.assign(buildReturnWatchdogSummary({
+      slices: currentStore.listAutonomousDeliverySlices({ limit: 500 }).map(publicSliceRecord),
       workspaceId,
-      staleAfterMs,
-      counts,
-      itemCount: Math.min(items.length, limit),
-      items: items
-        .sort((a, b) => Number(b.stale) - Number(a.stale) || b.ageMs - a.ageMs)
-        .slice(0, limit),
+      staleAfterMs: input.staleAfterMs ?? input.stale_after_ms,
+      limit: input.limit,
+      generatedAt: now,
+      options,
+    }), {
       source: { name: "autonomous_delivery_coordinator", storage: "sqlite" },
-      policy: {
-        ownerVisible: true,
-        boundedMetadataOnly: true,
-        noAutoRetry: true,
-        terminalReturnStillAcceptedByTaskCardId: true,
-      },
-    };
+    });
   }
 
   function runReturnWatchdog(input = {}) {
@@ -1838,13 +2181,14 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
         taskCardId: item.taskCardId,
         policy: "no_auto_retry",
       };
+      const patch = returnWatchdogMarkPatch(item, summary, now);
       const updated = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
-        status: slice.status || "dispatched",
-        dispatchStatus: "return_stale",
-        blockedReason: "return_card_watchdog_stale",
+        status: patch.status || slice.status || "dispatched",
+        dispatchStatus: patch.dispatchStatus,
+        blockedReason: patch.blockedReason,
         updatedAt: now,
         rawJson: sliceRawJsonForUpdate(slice, {
-          returnWatchdog: watchdog,
+          returnWatchdog: Object.assign({}, watchdog, patch.returnWatchdog || {}),
         }),
       })));
       appendEvent(item.caseId, "return_card_watchdog_stale", {
@@ -1856,6 +2200,80 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
       marked.push(dispatchControlItemForSlice(updated));
     }
     return Object.assign({}, returnWatchdogSummary(input), {
+      dryRun: false,
+      markedCount: marked.length,
+      marked,
+    });
+  }
+
+  function sourceReturnIntegrationSlices(workspaceId = OWNER_WORKSPACE_ID) {
+    const currentStore = requireStore();
+    const cases = currentStore.listAutonomousDeliveryCases({
+      workspaceId,
+      limit: 500,
+    }).map(publicCaseRecord);
+    const slices = [];
+    for (const deliveryCase of cases) {
+      slices.push(...currentStore.listAutonomousDeliverySlices({ caseId: deliveryCase.caseId, limit: 500 })
+        .map((slice) => Object.assign(publicSliceRecord(slice), {
+          caseStatus: deliveryCase.status,
+        })));
+    }
+    return slices;
+  }
+
+  function sourceReturnIntegrationSummary(input = {}) {
+    const workspaceId = clean(input.workspaceId || input.workspace_id || OWNER_WORKSPACE_ID, 120) || OWNER_WORKSPACE_ID;
+    const now = nowIso(options);
+    return Object.assign(buildSourceReturnIntegrationSummary({
+      slices: sourceReturnIntegrationSlices(workspaceId),
+      workspaceId,
+      staleAfterMs: input.staleAfterMs ?? input.stale_after_ms,
+      limit: input.limit,
+      generatedAt: now,
+      options,
+    }), {
+      source: { name: "autonomous_delivery_coordinator", storage: "sqlite" },
+    });
+  }
+
+  function runSourceReturnIntegrationWatchdog(input = {}) {
+    const currentStore = requireStore();
+    const dryRun = input.dryRun === true || input.dry_run === true;
+    const summary = sourceReturnIntegrationSummary(input);
+    if (dryRun) return Object.assign({}, summary, { dryRun: true, markedCount: 0, marked: [] });
+    const now = nowIso(options);
+    const marked = [];
+    for (const item of summary.items.filter((candidate) => candidate.stale && !candidate.alreadyMarked)) {
+      const slice = publicSliceRecord(currentStore.listAutonomousDeliverySlices({ caseId: item.caseId, limit: 500 })
+        .find((candidate) => candidate.sliceId === item.sliceId) || {});
+      if (!slice.sliceId || !slice.returnCardId) continue;
+      const integration = objectValue(slice.sourceReturnIntegration);
+      if (clean(integration.status || "", 80) === "stale") continue;
+      const patch = sourceReturnIntegrationStalePatch(item, summary, now, integration);
+      const updated = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
+        updatedAt: now,
+        rawJson: sliceRawJsonForUpdate(slice, patch),
+      })));
+      appendEvent(item.caseId, "source_return_integration_stale", {
+        sliceId: item.sliceId,
+        sliceKey: item.sliceKey,
+        taskCardId: item.taskCardId,
+        returnCardId: item.returnCardId,
+        ageMinutes: item.ageMinutes,
+      }, input.auth || {});
+      marked.push({
+        caseId: item.caseId,
+        sliceId: item.sliceId,
+        sliceKey: item.sliceKey,
+        taskCardId: item.taskCardId,
+        returnCardId: item.returnCardId,
+        integrationStatus: clean(updated.sourceReturnIntegration?.status || "stale", 80),
+        code: clean(updated.sourceReturnIntegration?.code || "source_return_integration_stale", 120),
+        recommendedAction: clean(updated.sourceReturnIntegration?.recommendedAction || item.recommendedAction, 180),
+      });
+    }
+    return Object.assign({}, sourceReturnIntegrationSummary(input), {
       dryRun: false,
       markedCount: marked.length,
       marked,
@@ -1910,13 +2328,22 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
     for (const slice of ready.slice(0, Math.max(1, Math.min(5, Number(input.maxSlices || input.max_slices || 3) || 3)))) {
       const target = targetForWorkspace(slice.targetWorkspaceId, targets);
       if (!target) {
+        const routingDecision = buildAutonomousDeliveryRoutingDecision({
+          deliveryCase,
+          slice,
+          target: null,
+          ownerPrompt,
+        });
         const blockedSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
           status: "blocked",
           dispatchStatus: "blocked",
-          blockedReason: "target_workspace_unknown",
+          blockedReason: routingDecision.code || "target_workspace_unknown",
+          rawJson: sliceRawJsonForUpdate(slice, {
+            routingDecision,
+          }),
           updatedAt: now,
         })));
-        blocked.push({ slice: blockedSlice, reason: "target_workspace_unknown" });
+        blocked.push({ slice: blockedSlice, reason: routingDecision.code || "target_workspace_unknown", routingDecision });
         continue;
       }
       const conflictKey = dispatchConflictKeyForSlice(slice);
@@ -1931,6 +2358,20 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
           blockedReason: "workspace_dispatch_conflict",
           rawJson: sliceRawJsonForUpdate(slice, {
             dispatchConflict: conflict,
+            routingDecision: Object.assign(buildAutonomousDeliveryRoutingDecision({
+              deliveryCase,
+              slice,
+              target,
+              ownerPrompt,
+            }), {
+              action: "blocked_or_redirected",
+              code: conflict.code,
+              ok: false,
+              reasons: [{
+                code: conflict.code,
+                detail: "An active or reserved slice already owns this target workspace in the current dispatch window.",
+              }],
+            }),
           }),
           updatedAt: now,
         })));
@@ -1946,11 +2387,59 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
         continue;
       }
       if (conflictKey) reservedTargets.add(conflictKey);
-      const taskCard = taskCardForSlice(deliveryCase, slice, target, ownerPrompt);
+      const routingDecision = buildAutonomousDeliveryRoutingDecision({
+        deliveryCase,
+        slice,
+        target,
+        ownerPrompt,
+      });
+      const lifecycleResolution = await resolveCodexMobileThreadLifecycle({
+        deliveryCase,
+        slice,
+        target,
+        routingDecision,
+        threadLifecycleService,
+      });
+      const effectiveRoutingDecision = lifecycleResolution.routingDecision || routingDecision;
+      if (!lifecycleResolution.ok) {
+        const dispatchFailure = {
+          code: lifecycleResolution.error || "codex_mobile_thread_lifecycle_resolve_failed",
+          status: 0,
+          targetWorkspaceId: clean(slice.targetWorkspaceId || "", 120),
+          targetWorkspace: clean(target.targetWorkspace || slice.targetWorkspacePath || "", 500),
+          targetThreadId: clean(target.targetThreadId || "", 180),
+          targetThreadTitle: clean(target.targetThreadTitle || target.targetThreadTitlePrefix || "", 180),
+        };
+        const failedSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
+          status: "blocked",
+          dispatchStatus: "failed",
+          blockedReason: dispatchFailure.code,
+          rawJson: sliceRawJsonForUpdate(slice, {
+            dispatchFailure,
+            routingDecision: effectiveRoutingDecision,
+          }),
+          updatedAt: nowIso(options),
+          startedAt: now,
+        })));
+        failed.push({ slice: failedSlice, failure: dispatchFailure });
+        appendEvent(caseId, "slice_dispatch_failed", {
+          sliceId: slice.sliceId,
+          sliceKey: slice.sliceKey,
+          reason: dispatchFailure.code,
+          targetWorkspaceId: dispatchFailure.targetWorkspaceId,
+        }, input.auth || {});
+        continue;
+      }
+      const effectiveTarget = lifecycleResolution.target || target;
+      const sliceForDispatch = Object.assign({}, slice, { routingDecision: effectiveRoutingDecision });
+      const taskCard = taskCardForSlice(deliveryCase, sliceForDispatch, effectiveTarget, ownerPrompt);
       currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
         status: "dispatching",
         dispatchStatus: "dispatching",
         taskCard,
+        rawJson: sliceRawJsonForUpdate(slice, {
+          routingDecision: effectiveRoutingDecision,
+        }),
         updatedAt: now,
         startedAt: now,
       }));
@@ -1963,7 +2452,7 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
       } catch (err) {
         sent = exceptionTaskCardResult(err);
       }
-      const dispatchResult = normalizeTaskCardDispatchResult(sent, taskCardDispatchContextForSlice(slice, target));
+      const dispatchResult = normalizeTaskCardDispatchResult(sent, taskCardDispatchContextForSlice(slice, effectiveTarget));
       const cardIds = dispatchResult.cardIds;
       if (!dispatchResult.ok) {
         const dispatchFailure = dispatchResult.failure;
@@ -1974,6 +2463,7 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
           taskCard,
           rawJson: sliceRawJsonForUpdate(slice, {
             dispatchFailure,
+            routingDecision: effectiveRoutingDecision,
           }),
           updatedAt: nowIso(options),
           startedAt: now,
@@ -1992,6 +2482,9 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
         dispatchStatus: "sent",
         taskCardId: cardIds[0] || "",
         taskCard,
+        rawJson: sliceRawJsonForUpdate(slice, {
+          routingDecision: effectiveRoutingDecision,
+        }),
         updatedAt: nowIso(options),
         startedAt: now,
       })));
@@ -2258,17 +2751,62 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
       };
     }
     const now = nowIso(options);
+    const followUp = parseSourceReturnFollowUpAction(Object.assign({}, input, {
+      returnCardId,
+      status,
+      createdAt: now,
+    }), { nowIso: () => now });
+    const pendingSourceAction = objectValue(followUp.pendingSourceAction);
+    const nextAiOps = aiOpsForReturn(slice, Object.assign({}, input, {
+      returnCardId,
+      pendingSourceAction,
+    }), status);
+    const sourceReturnIntegration = sourceReturnIntegrationForReturn({
+      caseId,
+      sliceId,
+      sliceKey: slice.sliceKey,
+      taskCardId: clean(input.taskCardId || input.task_card_id || slice.taskCardId || "", 160),
+      returnCardId,
+      status,
+      recordedAt: now,
+      metadata: objectValue(input.metadata || input.meta),
+      returnCardEvent: objectValue(input.returnCardEvent || input.return_card_event),
+      sourceThreadId: clean(input.sourceThreadId || input.source_thread_id || "", 160),
+      sourceThreadStatus: clean(input.sourceThreadStatus || input.source_thread_status || "", 80),
+      sourceThreadRole: clean(input.sourceThreadRole || input.source_thread_role || "", 120),
+      pendingSourceActionRequired: Boolean(pendingSourceAction.id),
+      pendingSourceActionId: clean(pendingSourceAction.id || "", 160),
+    });
+    if (pendingSourceAction.id) {
+      sourceReturnIntegration.pendingSourceAction = pendingSourceAction;
+      sourceReturnIntegration.pendingSourceActionProjection = pendingSourceActionProjection(pendingSourceAction);
+      sourceReturnIntegration.sourceActivation = Object.assign({}, objectValue(sourceReturnIntegration.sourceActivation), {
+        status: "pending_source_action",
+        code: "pending_source_action_required",
+        activationKind: "pending_source_action",
+        issueCodes: ["source_thread_activation_required_for_return", "pending_source_action_required"],
+        recommendedAction: "resolve_pending_source_action_before_closure",
+        updatedAt: now,
+      });
+      sourceReturnIntegration.sourceActivationProjection = sourceActivationProjection(sourceReturnIntegration.sourceActivation);
+      sourceReturnIntegration.recommendedAction = "resolve_pending_source_action_before_closure";
+      sourceReturnIntegration.counts = Object.assign({}, sourceReturnIntegration.counts, {
+        pendingSourceAction: 1,
+      });
+    }
     let nextSlice = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, slice, {
       status,
       dispatchStatus: status === "completed" ? "returned_completed" : "returned_terminal",
       completedAt: now,
       updatedAt: now,
+      aiOps: nextAiOps,
       rawJson: sliceRawJsonForUpdate(slice, {
         returnSummary: cleanBlock(input.summary || "", 1200),
         returnCardId,
         originalTaskCardId: clean(input.taskCardId || input.task_card_id || "", 160),
         returnCardEvent: objectValue(input.returnCardEvent || input.return_card_event),
-        aiOps: aiOpsForReturn(slice, Object.assign({}, input, { returnCardId }), status),
+        sourceReturnIntegration,
+        aiOps: nextAiOps,
       }),
     })));
     if (status === "completed" && isImplementationSlice(nextSlice) && returnRequiresDeployment(input, nextSlice)) {
@@ -2618,14 +3156,34 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
       updatedAt: nowIso(options),
       startedAt: deploymentSlice.startedAt || now,
     })));
+    const parentSourceReturnIntegration = objectValue(parentSlice.sourceReturnIntegration);
+    const pendingSourceAction = objectValue(parentSourceReturnIntegration.pendingSourceAction);
+    const resolvedPendingSourceAction = pendingSourceAction.id
+      ? transitionPendingSourceAction(pendingSourceAction, {
+        status: "resolved",
+        actionTaken: "central_deploy_card_dispatched",
+        centralDeployCardId: cardIds[0] || "",
+        centralCoordinatorRef: caseId,
+        updatedAt: nowIso(options),
+      })
+      : {};
+    const parentPatch = {
+      deploymentSliceId,
+      deploymentTaskCardId: cardIds[0] || "",
+      deploymentTaskCardIds: cardIds,
+      deploymentStatus: "dispatched",
+    };
+    if (resolvedPendingSourceAction.id) {
+      parentPatch.sourceReturnIntegration = Object.assign({}, parentSourceReturnIntegration, {
+        pendingSourceAction: resolvedPendingSourceAction,
+        pendingSourceActionProjection: pendingSourceActionProjection(resolvedPendingSourceAction),
+        updatedAt: resolvedPendingSourceAction.updatedAt,
+      });
+      parentPatch.aiOps = aiOpsWithPendingSourceAction(parentSlice.aiOps, resolvedPendingSourceAction);
+    }
     const updatedParent = publicSliceRecord(currentStore.upsertAutonomousDeliverySlice(Object.assign({}, parentSlice, {
       updatedAt: nowIso(options),
-      rawJson: sliceRawJsonForUpdate(parentSlice, {
-        deploymentSliceId,
-        deploymentTaskCardId: cardIds[0] || "",
-        deploymentTaskCardIds: cardIds,
-        deploymentStatus: "dispatched",
-      }),
+      rawJson: sliceRawJsonForUpdate(parentSlice, parentPatch),
     })));
     const nextCase = publicCaseRecord(currentStore.upsertAutonomousDeliveryCase(Object.assign({}, loaded.case, {
       status: "deployment_dispatched",
@@ -2887,6 +3445,7 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
   return Object.freeze({
     closeCase,
     createCase,
+    deliveryLoopStatusSummary,
     dispatchControlSummary,
     getCase,
     listCases,
@@ -2894,7 +3453,9 @@ function createAutonomousDeliveryCoordinatorService(options = {}) {
     recordReturnCardEvent,
     recordReturnForTaskCard,
     returnWatchdogSummary,
+    runSourceReturnIntegrationWatchdog,
     runReturnWatchdog,
+    sourceReturnIntegrationSummary,
     startCase,
     startDeployment,
     startVerification,

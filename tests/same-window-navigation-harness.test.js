@@ -380,6 +380,7 @@ assert.match(wireStartUi, /copyNavigationDiagnostics\(\)\.catch\(showError\)/);
     api: async () => ({ items: [] }),
     showError: (err) => { throw err; },
   };
+  sandbox.window = sandbox;
   vm.runInNewContext(`${chatComposerUi}\n${actionInboxUi}`, sandbox);
   sandbox.renderActionInboxView = () => renderCalls.push({ viewMode: sandbox.state.viewMode });
   sandbox.closeAutomationSecondarySurface();

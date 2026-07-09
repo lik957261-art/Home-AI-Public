@@ -4,7 +4,9 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const {
+  AI_OPS_FEEDBACK_ESM_MODEL_PATH,
   createAiOpsDiagnosticFeedbackController,
+  importAiOpsFeedbackModel,
   parsePluginConversationActionComments,
   safeRoute,
   sanitizeClientDiagnosticValue,
@@ -196,6 +198,17 @@ function testOwnerSystemConsoleActionLivesInFeedbackMenu() {
   assert.match(diagnosticUiSource, /stateRef\.auth\?\.isOwner && typeof windowRef\.openOwnerSystemConsoleSurface === "function"/);
   assert.match(diagnosticUiSource, /openOwnerSystemConsoleSurface\(\{ trigger: "diagnostic_feedback_menu" \}\)/);
   assert.doesNotMatch(diagnosticUiSource, /event\.target\?\.closest\?\.\("#bottomNav"\)/);
+}
+
+function testAiOpsFeedbackUsesEsmModel() {
+  assert.equal(AI_OPS_FEEDBACK_ESM_MODEL_PATH, "/vite-islands/ai-ops-feedback-model/ai-ops-feedback-model.js");
+  assert.equal(typeof importAiOpsFeedbackModel, "function");
+  assert.match(diagnosticUiSource, /AI_OPS_FEEDBACK_ESM_MODEL_PATH/);
+  assert.match(diagnosticUiSource, /__homeAiImportAiOpsFeedbackModel/);
+  assert.match(diagnosticUiSource, /renderClassicAiOpsFeedbackSheet/);
+  assert.match(diagnosticUiSource, /classicFeedbackContextLabel/);
+  assert.match(diagnosticUiSource, /classicOwnerConsoleActionPlan/);
+  assert.match(diagnosticUiSource, /importAiOpsFeedbackModel: loadAiOpsFeedbackModel/);
 }
 
 function testPluginDiagnosticBridgeIsPlatformOwned() {
@@ -842,6 +855,7 @@ async function run() {
   testPluginContextPayloadIsBounded();
   testGestureDoesNotConflictWithTwoFingerShellGesture();
   testOwnerSystemConsoleActionLivesInFeedbackMenu();
+  testAiOpsFeedbackUsesEsmModel();
   testPluginDiagnosticBridgeIsPlatformOwned();
   testPluginConversationActionCommentParserRequiresJson();
   await testOwnerTaskRequestCommentCreatesHomeAiApproval();

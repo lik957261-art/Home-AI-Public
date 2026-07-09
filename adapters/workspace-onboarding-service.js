@@ -108,7 +108,7 @@ function buildPlan(normalized = {}) {
   if (normalized.createAccessKey) {
     steps.push({
       id: "home_ai.access_key",
-      title: "Generate one-time Home AI workspace Access Key response",
+      title: "Ensure Home AI workspace Access Key response",
       category: "access-key",
       required: true,
       status: "planned",
@@ -199,6 +199,39 @@ function redactedPluginProvisioning(provisioning = {}) {
     } else {
       out[key] = value;
     }
+  }
+  return out;
+}
+
+function redactedSystemProvisioningResult(result = {}) {
+  if (!result || typeof result !== "object") return {};
+  const allowedKeys = new Set([
+    "action",
+    "acl",
+    "backup",
+    "checked",
+    "codexAuth",
+    "error",
+    "ignoredIssueCount",
+    "ignoredIssues",
+    "manifestUpdated",
+    "profileAudit",
+    "profileBindingRefreshed",
+    "profiles",
+    "restartRequired",
+    "status",
+    "syncedGatewayMcpAssets",
+    "syncedPluginBindings",
+    "targetIssues",
+    "targetWarnings",
+    "toolsets",
+    "workers",
+  ]);
+  const out = {};
+  for (const [key, value] of Object.entries(result)) {
+    if (key === "ok") continue;
+    if (!allowedKeys.has(key)) continue;
+    out[key] = value;
   }
   return out;
 }
@@ -313,11 +346,16 @@ function createWorkspaceOnboardingService(options = {}) {
 
     if (normalized.createAccessKey) {
       await record("home_ai.access_key", () => {
-        const result = rotateWorkspaceAccessKey(normalized.workspaceId, { actor });
-        credentials.homeAiAccessKey = result.key;
+        const result = rotateWorkspaceAccessKey(normalized.workspaceId, {
+          actor,
+          preserveExisting: true,
+          reason: "workspace_onboarding",
+        });
+        if (result.key) credentials.homeAiAccessKey = result.key;
         return {
           ok: true,
-          accessKeyCreated: true,
+          accessKeyCreated: Boolean(result.key),
+          accessKeyPreserved: Boolean(result.preservedExisting),
           accessKeyStatus: result.record,
         };
       });
@@ -326,7 +364,9 @@ function createWorkspaceOnboardingService(options = {}) {
     for (const step of plan.steps.filter((item) => item.category === "mac-system" && item.id !== "mac.launchd")) {
       await record(step.id, async () => {
         const result = await runSystemAction(step.action, context);
-        return result?.ok === false ? { ok: false, error: boundedError(result.error || step.action) } : Object.assign({ ok: true }, result);
+        return result?.ok === false
+          ? Object.assign({ ok: false, error: boundedError(result.error || step.action) }, redactedSystemProvisioningResult(result))
+          : Object.assign({ ok: true }, redactedSystemProvisioningResult(result));
       });
     }
 
@@ -376,13 +416,17 @@ function createWorkspaceOnboardingService(options = {}) {
 
     await record("mac.launchd", async (step) => {
       const result = await runSystemAction(step.action, context);
-      return result?.ok === false ? { ok: false, error: boundedError(result.error || step.action) } : Object.assign({ ok: true }, result);
+      return result?.ok === false
+        ? Object.assign({ ok: false, error: boundedError(result.error || step.action) }, redactedSystemProvisioningResult(result))
+        : Object.assign({ ok: true }, redactedSystemProvisioningResult(result));
     });
 
     if (normalized.runSmokes) {
       await record("validation.smokes", async (step) => {
         const result = await runSystemAction(step.action, context);
-        return result?.ok === false ? { ok: false, error: boundedError(result.error || step.action) } : Object.assign({ ok: true }, result);
+        return result?.ok === false
+          ? Object.assign({ ok: false, error: boundedError(result.error || step.action) }, redactedSystemProvisioningResult(result))
+          : Object.assign({ ok: true }, redactedSystemProvisioningResult(result));
       });
     }
 
@@ -412,6 +456,7 @@ module.exports = {
   macUserForWorkspaceId,
   normalizePluginIds,
   publicPlan,
+  redactedSystemProvisioningResult,
   slugWorkspaceId,
   workspacePaths,
 };

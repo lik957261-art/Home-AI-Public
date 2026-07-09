@@ -7,6 +7,49 @@
     root.HermesLearningProgramUi = factory();
   }
 }(typeof globalThis !== "undefined" ? globalThis : this, function () {
+  const LEARNING_PROGRAM_MODEL_ESM_PATH = "/vite-islands/learning-program-model/learning-program-model.js";
+  let learningProgramModel = null;
+  let learningProgramModelPromise = null;
+
+  function learningProgramRoot() {
+    if (typeof window !== "undefined") return window;
+    if (typeof globalThis !== "undefined") return globalThis;
+    return {};
+  }
+
+  function importLearningProgramModel() {
+    if (learningProgramModel) return Promise.resolve(learningProgramModel);
+    if (!learningProgramModelPromise) {
+      const root = learningProgramRoot();
+      const importer = typeof root.__homeAiImportLearningProgramModel === "function"
+        ? root.__homeAiImportLearningProgramModel
+        : (() => import(LEARNING_PROGRAM_MODEL_ESM_PATH));
+      learningProgramModelPromise = Promise.resolve()
+        .then(() => importer(LEARNING_PROGRAM_MODEL_ESM_PATH))
+        .then((model) => {
+          learningProgramModel = model || null;
+          return learningProgramModel;
+        })
+        .catch((error) => {
+          learningProgramModelPromise = null;
+          console.warn("Learning program ESM model unavailable", error);
+          return null;
+        });
+    }
+    return learningProgramModelPromise;
+  }
+
+  function currentLearningProgramModel() {
+    return learningProgramModel;
+  }
+
+  if (typeof window !== "undefined") importLearningProgramModel();
+
+  function learningProgramModelFunction(name) {
+    const fn = currentLearningProgramModel()?.[name];
+    return typeof fn === "function" ? fn : null;
+  }
+
   function defaultEscapeHtml(value) {
     return String(value ?? "")
       .replace(/&/g, "&amp;")
@@ -21,6 +64,8 @@
   }
 
   function asArray(value) {
+    const modelFn = learningProgramModelFunction("arrayPlan");
+    if (modelFn) return modelFn(value);
     return Array.isArray(value) ? value : [];
   }
 
@@ -29,6 +74,8 @@
   }
 
   function programStatusText(status, options = {}) {
+    const modelFn = learningProgramModelFunction("programStatusTextPlan");
+    if (modelFn) return modelFn(status, { isOwner: isOwner(options) });
     const value = String(status || "");
     if (value === "active") return "\u8fdb\u884c\u4e2d";
     if (value === "draft") return "\u8349\u7a3f";
@@ -39,6 +86,8 @@
   }
 
   function taskStatusText(status, options = {}) {
+    const modelFn = learningProgramModelFunction("taskStatusTextPlan");
+    if (modelFn) return modelFn(status, { isOwner: isOwner(options) });
     const value = String(status || "");
     if (value === "planned") return "\u5f85\u6267\u884c";
     if (value === "published") return isOwner(options) ? "\u5df2\u4e0b\u53d1" : "\u5f85\u6267\u884c";
@@ -51,6 +100,8 @@
   }
 
   function taskRewardPolicy(task = {}) {
+    const modelFn = learningProgramModelFunction("taskRewardPolicyPlan");
+    if (modelFn) return modelFn(task);
     const policy = task.rewardPolicy || {};
     const maxCoins = Number(task.rewardCapCoins || policy.maxCoins || policy.rewardCapCoins || 100);
     const minCoins = Number(policy.minCoins || 40);
@@ -64,6 +115,8 @@
   }
 
   function evaluationStatusText(status) {
+    const modelFn = learningProgramModelFunction("evaluationStatusTextPlan");
+    if (modelFn) return modelFn(status);
     const value = String(status || "");
     if (value === "passed") return "\u5df2\u901a\u8fc7";
     if (value === "needs_repair") return "\u9700\u4fee\u590d";
@@ -73,6 +126,8 @@
   }
 
   function reviewStatusText(status) {
+    const modelFn = learningProgramModelFunction("reviewStatusTextPlan");
+    if (modelFn) return modelFn(status);
     const value = String(status || "");
     if (value === "pending") return "\u5f85\u5bb6\u957f\u5ba1\u6838";
     if (value === "approved") return "\u5df2\u901a\u8fc7";
@@ -83,6 +138,8 @@
   }
 
   function parentReviewTypeText(type) {
+    const modelFn = learningProgramModelFunction("parentReviewTypeTextPlan");
+    if (modelFn) return modelFn(type);
     const value = String(type || "");
     if (value === "evaluation_review") return "\u8bc4\u4ef7\u590d\u6838";
     if (value === "reward_settlement_review") return "\u5956\u52b1\u7ed3\u7b97\u590d\u6838";
@@ -90,6 +147,8 @@
   }
 
   function settlementStatusText(status) {
+    const modelFn = learningProgramModelFunction("settlementStatusTextPlan");
+    if (modelFn) return modelFn(status);
     const value = String(status || "");
     if (value === "settled") return "\u5df2\u7ed3\u7b97";
     if (value === "pending_review") return "\u5f85\u5bb6\u957f\u590d\u6838";
@@ -99,15 +158,21 @@
   }
 
   function formatCoinAmount(value) {
+    const modelFn = learningProgramModelFunction("formatCoinAmountPlan");
+    if (modelFn) return modelFn(value);
     const amount = Number(value || 0);
     return `${Number.isFinite(amount) ? amount : 0} \u91d1\u5e01`;
   }
 
   function rewardSettlementTime(settlement = {}) {
+    const modelFn = learningProgramModelFunction("rewardSettlementTimePlan");
+    if (modelFn) return modelFn(settlement);
     return String(settlement.settledAt || settlement.updatedAt || settlement.createdAt || "").trim();
   }
 
   function latestRewardSettlementForTask(rewardSettlements = [], task = {}) {
+    const modelFn = learningProgramModelFunction("latestRewardSettlementForTaskPlan");
+    if (modelFn) return modelFn(rewardSettlements, task);
     const taskCardId = String(task?.taskCardId || "").trim();
     const evaluationId = String(task?.latestEvaluation?.evaluationId || "").trim();
     let latest = null;
@@ -121,6 +186,8 @@
   }
 
   function rewardSettlementDisplayText(settlement = null) {
+    const modelFn = learningProgramModelFunction("rewardSettlementDisplayTextPlan");
+    if (modelFn) return modelFn(settlement);
     const coinAmount = Number(settlement?.coinAmount || 0);
     const amount = Number.isFinite(coinAmount) && coinAmount > 0 ? Math.round(coinAmount) : 0;
     const status = String(settlement?.status || "");
@@ -130,10 +197,14 @@
   }
 
   function compactRiskFlags(flags = []) {
+    const modelFn = learningProgramModelFunction("compactRiskFlagsPlan");
+    if (modelFn) return modelFn(flags);
     return asArray(flags).map((flag) => (flag && typeof flag === "object" ? (flag.code || flag.reason || "") : flag)).filter(Boolean).join(" / ");
   }
 
   function focusLabel(id) {
+    const modelFn = learningProgramModelFunction("focusLabelPlan");
+    if (modelFn) return modelFn(id);
     const labels = {
       english_reading_comprehension: "\u9605\u8bfb",
       english_listening_input: "\u542c\u529b",
@@ -176,6 +247,8 @@
   });
 
   function firstItem(items = []) {
+    const modelFn = learningProgramModelFunction("firstItemPlan");
+    if (modelFn) return modelFn(items);
     return asArray(items).find(Boolean) || null;
   }
 
@@ -189,16 +262,22 @@
   }
 
   function latestDraftForProgram(program = {}, drafts = []) {
+    const modelFn = learningProgramModelFunction("latestDraftForProgramPlan");
+    if (modelFn) return modelFn(program, drafts);
     const programId = String(program.programId || "");
     return asArray(drafts).find((draft) => String(draft.programId || "") === programId) || null;
   }
 
   function taskCardsForDraft(taskCards = [], draft = {}) {
+    const modelFn = learningProgramModelFunction("taskCardsForDraftPlan");
+    if (modelFn) return modelFn(taskCards, draft);
     const draftId = String(draft?.draftId || "");
     return asArray(taskCards).filter((task) => String(task?.draftId || "") === draftId);
   }
 
   function hasLegacyCurriculumRef(ref) {
+    const modelFn = learningProgramModelFunction("hasLegacyCurriculumRefPlan");
+    if (modelFn) return modelFn(ref);
     const text = String(ref || "").toLowerCase();
     return text.includes("grade4-5")
       || text.includes("upper-primary")
@@ -208,6 +287,8 @@
   }
 
   function draftNeedsRebuild(data = {}, draft = {}) {
+    const modelFn = learningProgramModelFunction("draftNeedsRebuildPlan");
+    if (modelFn) return modelFn(data, draft);
     if (!draft) return false;
     const taskRefs = taskCardsForDraft(data.taskCards || [], draft).flatMap((task) => asArray(task.curriculumRefs));
     const draftRefs = asArray(draft.curriculumRefs);
@@ -215,6 +296,8 @@
   }
 
   function draftCanBeRebuilt(data = {}, draft = {}) {
+    const modelFn = learningProgramModelFunction("draftCanBeRebuiltPlan");
+    if (modelFn) return modelFn(data, draft);
     if (!draft) return false;
     if (["published", "publish_failed"].includes(String(draft.status || ""))) return false;
     return taskCardsForDraft(data.taskCards || [], draft)
@@ -222,6 +305,8 @@
   }
 
   function learnerFacts(data = {}) {
+    const modelFn = learningProgramModelFunction("learnerFactsPlan");
+    if (modelFn) return modelFn(data);
     const profile = data.learnerProfile || {};
     const refs = asArray(data.curriculumReferences);
     const sources = asArray(data.sources);
@@ -243,16 +328,22 @@
   }
 
   function sourceRefsForProgram(data = {}, program = {}) {
+    const modelFn = learningProgramModelFunction("sourceRefsForProgramPlan");
+    if (modelFn) return modelFn(data, program);
     const refs = asArray(program.sourceBasisRefs);
     if (refs.length) return refs.join("\n");
     return asArray(data.sources).map((source) => source.sourceRef || source.sourceId).filter(Boolean).slice(0, 20).join("\n");
   }
 
   function compactFocus(focusAreas = []) {
+    const modelFn = learningProgramModelFunction("compactFocusPlan");
+    if (modelFn) return modelFn(focusAreas);
     return asArray(focusAreas).map((id) => focusLabel(id)).join(" / ");
   }
 
   function formatPercent(value) {
+    const modelFn = learningProgramModelFunction("formatPercentPlan");
+    if (modelFn) return modelFn(value);
     const number = Number(value || 0);
     return `${Math.round(Math.max(0, Math.min(1, Number.isFinite(number) ? number : 0)) * 100)}%`;
   }

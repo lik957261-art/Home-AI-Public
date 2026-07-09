@@ -56,6 +56,8 @@ test("source uses runtime facade and avoids unmanaged browser auth boundaries", 
   assert.match(source, /runtime\.state/);
   assert.match(source, /runtime\.events/);
   assert.match(source, /buildPluginHostViewModel/);
+  assert.match(source, /decidePluginIframeLifecycleAction/);
+  assert.match(source, /data-lifecycle-scenario/);
   assert.doesNotMatch(source, /\b(?:window|globalThis|browserRoot)\.state\b/);
   assert.doesNotMatch(source, /localStorage/);
   assert.doesNotMatch(source, /sessionStorage/);
@@ -75,10 +77,18 @@ test("built artifact exists after npm run build:vite", () => {
     exists("public/vite-islands/plugin-host/plugin-host.js"),
     "run npm run build:vite before this test",
   );
+  assert.ok(
+    exists("public/vite-islands/plugin-host-model/plugin-host-model.js"),
+    "run npm run build:vite before this test",
+  );
   const output = read("public/vite-islands/plugin-host/plugin-host.js");
+  const modelOutput = read("public/vite-islands/plugin-host-model/plugin-host-model.js");
   assert.match(output, /Plugin Host/);
   assert.match(output, /刷新 manifest/);
   assert.match(output, /Launch token/);
+  assert.match(output, /iframe lifecycle/);
+  assert.match(output, /navigation_health_timeout/);
+  assert.match(modelOutput, /recover_loading_iframe/);
   assert.match(output, /HomeAIVitePluginHostPreview/);
 });
 

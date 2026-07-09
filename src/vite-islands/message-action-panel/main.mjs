@@ -166,11 +166,18 @@ function actionButtons(actions = [], model = {}) {
         class="map-action ${escapeHtml(actionStatusClass(action.status))}"
         data-map-action-kind="${escapeHtml(action.kind)}"
         data-map-action-status="${escapeHtml(action.status)}"
+        data-map-action-label="${escapeHtml(action.label)}"
+        title="${escapeHtml(action.detail || action.label)}"
+        aria-label="${escapeHtml(action.detail || action.label)}"
         ${action.enabled && !readOnly ? "data-map-action-execute=\"wardrobe-outfit-wear\"" : ""}
         ${action.enabled && !readOnly ? "" : "disabled"}
       >
-        <span>${escapeHtml(action.label)}</span>
-        <small>${escapeHtml(action.detail)}</small>
+        <svg class="map-action-icon" aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M8 7.5 12 4l4 3.5"></path>
+          <path d="M6.5 8.5 9 7l3 2 3-2 2.5 1.5L16 20H8L6.5 8.5Z"></path>
+          <path d="M10 20v-7"></path>
+          <path d="M14 20v-7"></path>
+        </svg>
       </button>
     </li>
   `).join("");
@@ -218,7 +225,7 @@ function renderShell(root, message = selectedMessage()) {
           <div>
             <p class="map-eyebrow">Vite island 开发预览</p>
             <h1 class="map-title">消息动作面板</h1>
-            <p class="map-subtitle">预览 Usage 附近的消息动作执行状态。dev server 只调用 Vite mock；构建预览只读，不执行真实 MCP，不替换 classic shell。</p>
+            <p class="map-subtitle">预览 Usage 附近的消息动作执行状态。dev server 只调用 Vite mock；构建预览只读，不执行真实 MCP，不替换生产根 shell。</p>
           </div>
           <div class="map-badges">
             <span class="map-badge">${escapeHtml(runtime.mode || "vite-preview")}</span>

@@ -1,5 +1,6 @@
 const FOCUS_LIFECYCLE_GUARD_VERSION = "20260702-vite-focus-lifecycle-guard-v1";
 const EDITABLE_ELEMENT_SELECTOR = "textarea, input, select, [contenteditable='true'], [contenteditable='plaintext-only'], [role='textbox']";
+const DEFAULT_NATIVE_COMPOSER_PASTE_MENU_PRESERVE_MS = 1800;
 
 function noop() {}
 
@@ -98,8 +99,41 @@ function eventTargetInsideFocusedEditable(active, target) {
   return Boolean(typeof active.contains === "function" && active.contains(target));
 }
 
+function eventTargetInsideElement(element, target) {
+  if (!element || !target) return false;
+  if (element === target) return true;
+  return Boolean(typeof element.contains === "function" && element.contains(target));
+}
+
 function eventTargetIsEditable(target) {
   return Boolean(target?.closest?.(EDITABLE_ELEMENT_SELECTOR));
+}
+
+function currentTimeMs(options = {}) {
+  if (typeof options.nowMs === "function") {
+    const value = Number(options.nowMs());
+    return Number.isFinite(value) ? value : Date.now();
+  }
+  if (Number.isFinite(Number(options.nowMs))) return Number(options.nowMs);
+  return Date.now();
+}
+
+function nativeComposerPasteMenuPreserveMs(options = {}) {
+  const value = Number(options.nativeComposerPasteMenuPreserveMs);
+  return Number.isFinite(value) && value >= 0
+    ? value
+    : DEFAULT_NATIVE_COMPOSER_PASTE_MENU_PRESERVE_MS;
+}
+
+function scheduleNativeComposerRefocus(callback, options = {}) {
+  const scheduler = typeof options.scheduleNativeComposerRefocus === "function"
+    ? options.scheduleNativeComposerRefocus
+    : options.root?.requestAnimationFrame;
+  if (typeof scheduler === "function") {
+    scheduler(callback);
+    return;
+  }
+  callback();
 }
 
 function blurFocusedEditableIfStale(options = {}) {
@@ -132,6 +166,7 @@ function createEditableFocusLifecycleGuard(options = {}) {
     lastBlurred: false,
     lastReason: "",
   });
+  let nativeComposerPasteMenuPreserveUntil = 0;
 
   function emitStatus(patch = {}) {
     latestStatus = Object.freeze(Object.assign({}, latestStatus, patch, {
@@ -160,6 +195,24 @@ function createEditableFocusLifecycleGuard(options = {}) {
 
   function handleNonEditablePointer(event = {}) {
     const target = event.target || null;
+    const state = focusedEditableState(options);
+    const nativeShell = typeof options.isNativeShell === "function"
+      ? Boolean(options.isNativeShell())
+      : Boolean(options.isNativeShell);
+    const composerContainer = typeof options.getComposerContainer === "function"
+      ? options.getComposerContainer()
+      : options.composerContainer;
+    const now = currentTimeMs(options);
+    const targetInsideComposer = eventTargetInsideElement(composerContainer, target);
+    const nativeComposerFocusActive = nativeShell
+      && state.composerFocused
+      && !state.stale;
+    if (nativeComposerFocusActive && targetInsideComposer) {
+      nativeComposerPasteMenuPreserveUntil = Math.max(
+        nativeComposerPasteMenuPreserveUntil,
+        now + nativeComposerPasteMenuPreserveMs(options),
+      );
+    }
     if (eventTargetIsEditable(target)) {
       return emitStatus({
         lastAction: event.type || "non_editable_pointer",
@@ -167,21 +220,91 @@ function createEditableFocusLifecycleGuard(options = {}) {
         lastReason: "target_editable",
       });
     }
-    const state = focusedEditableState(options);
+    const preserveNativeComposerFocus = nativeShell
+      && state.composerFocused
+      && !state.stale
+      && (targetInsideComposer || now <= nativeComposerPasteMenuPreserveUntil);
+    const force = nativeShell
+      && state.editable
+      && !preserveNativeComposerFocus
+      && !eventTargetInsideFocusedEditable(state.active, target);
+    blur(event.type || "non_editable_pointer", { force });
+    return latestStatus;
+  }
+
+  function handleComposerBlur(event = {}) {
+    const target = event.target || null;
     const nativeShell = typeof options.isNativeShell === "function"
       ? Boolean(options.isNativeShell())
       : Boolean(options.isNativeShell);
-    const force = nativeShell && state.editable && !eventTargetInsideFocusedEditable(state.active, target);
-    blur(event.type || "non_editable_pointer", { force });
-    return latestStatus;
+    const input = typeof options.getComposerInput === "function" ? options.getComposerInput() : options.composerInput;
+    const composerContainer = typeof options.getComposerContainer === "function"
+      ? options.getComposerContainer()
+      : options.composerContainer;
+    const now = currentTimeMs(options);
+    const preserveNativeComposerBlur = nativeShell
+      && target === input
+      && now <= nativeComposerPasteMenuPreserveUntil
+      && composerInputVisibleForFocus(input, composerContainer, options);
+    if (!preserveNativeComposerBlur) {
+      return emitStatus({
+        lastAction: event.type || "blur",
+        lastBlurred: true,
+        lastReason: "composer_blur_unpreserved",
+        lastRefocused: false,
+      });
+    }
+    const pendingStatus = emitStatus({
+      lastAction: event.type || "blur",
+      lastBlurred: true,
+      lastReason: "native_composer_paste_blur_pending_refocus",
+      lastRefocused: false,
+    });
+    scheduleNativeComposerRefocus(() => {
+      const latestInput = typeof options.getComposerInput === "function" ? options.getComposerInput() : input;
+      const latestComposer = typeof options.getComposerContainer === "function"
+        ? options.getComposerContainer()
+        : composerContainer;
+      if (!composerInputVisibleForFocus(latestInput, latestComposer, options)) {
+        emitStatus({
+          lastAction: "native_composer_paste_refocus_skipped",
+          lastBlurred: true,
+          lastReason: "composer_unavailable",
+          lastRefocused: false,
+        });
+        return;
+      }
+      latestInput?.focus?.({ preventScroll: true });
+      options.onComposerFocusPreserve?.("native_composer_paste_blur", {
+        target: latestInput,
+        preserveUntil: nativeComposerPasteMenuPreserveUntil,
+      });
+      emitStatus({
+        lastAction: "native_composer_paste_blur_preserved",
+        lastBlurred: false,
+        lastReason: "native_composer_paste_window",
+        lastRefocused: true,
+      });
+    }, options);
+    return pendingStatus;
   }
 
   const listeners = Object.freeze({
     visibilitychange: () => handleLifecycle("visibilitychange"),
     pageshow: () => handleLifecycle("pageshow"),
     pagehide: () => handleLifecycle("pagehide"),
-    pointerdown: (event) => handleNonEditablePointer(Object.assign({ type: "pointerdown" }, event || {})),
-    touchstart: (event) => handleNonEditablePointer(Object.assign({ type: "touchstart" }, event || {})),
+    pointerdown: (event) => handleNonEditablePointer(Object.assign({}, event || {}, {
+      type: "pointerdown",
+      target: event?.target || null,
+    })),
+    touchstart: (event) => handleNonEditablePointer(Object.assign({}, event || {}, {
+      type: "touchstart",
+      target: event?.target || null,
+    })),
+    blur: (event) => handleComposerBlur(Object.assign({}, event || {}, {
+      type: "blur",
+      target: event?.target || null,
+    })),
   });
 
   function install() {
@@ -192,6 +315,7 @@ function createEditableFocusLifecycleGuard(options = {}) {
     root?.addEventListener?.("pagehide", listeners.pagehide);
     documentRef?.addEventListener?.("pointerdown", listeners.pointerdown, { capture: true, passive: true });
     documentRef?.addEventListener?.("touchstart", listeners.touchstart, { capture: true, passive: true });
+    documentRef?.addEventListener?.("blur", listeners.blur, { capture: true });
     return emitStatus({ lastAction: "installed", lastBlurred: false, lastReason: "" });
   }
 
@@ -202,6 +326,7 @@ function createEditableFocusLifecycleGuard(options = {}) {
     root?.removeEventListener?.("pagehide", listeners.pagehide);
     documentRef?.removeEventListener?.("pointerdown", listeners.pointerdown, { capture: true, passive: true });
     documentRef?.removeEventListener?.("touchstart", listeners.touchstart, { capture: true, passive: true });
+    documentRef?.removeEventListener?.("blur", listeners.blur, { capture: true });
     installed = false;
     return emitStatus({ lastAction: "disposed", lastBlurred: false, lastReason: "" });
   }
@@ -211,6 +336,7 @@ function createEditableFocusLifecycleGuard(options = {}) {
     install,
     dispose,
     blur,
+    handleComposerBlur,
     handleLifecycle,
     handleNonEditablePointer,
     status: () => latestStatus,
@@ -225,6 +351,7 @@ export {
   createEditableFocusLifecycleGuard,
   editableElementSelector,
   elementVisibleForFocus,
+  eventTargetInsideElement,
   eventTargetInsideFocusedEditable,
   focusedEditableState,
   isEditableElement,

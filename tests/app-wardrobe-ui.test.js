@@ -100,7 +100,7 @@ assert.doesNotMatch(wardrobeUi, /<h2>\\u6211\\u7684\\u8863\\u6a71<\/h2>/);
 assert.doesNotMatch(wardrobeUi, /write_item/);
 assert.doesNotMatch(wardrobeUi, /write_history/);
 
-assert.match(automationUi, /const wardrobe = state\.viewMode === "wardrobe"/);
+assert.match(automationUi, /wardrobe: state\.viewMode === "wardrobe"/);
 assert.match(automationUi, /parkWardrobePluginShell\(\)/);
 assert.match(automationUi, /renderWardrobeView\(\)/);
 assert.match(sidebarTaskUi, /wardrobePluginBackActive\(\)/);

@@ -122,7 +122,15 @@ function testNormalizeStoreDedupesAndKeepsPolicyData() {
     const store = service.normalizeLocalWorkspaceStore({
       workspaces: [
         { id: "owner", label: "Owner" },
-        { id: "child", label: "Child", defaultWorkspace: path.join(context.root, "child"), allowedToolsets: "file,web", connectorProfiles: { google: { profile: "child" } } },
+        {
+          id: "child",
+          label: "Child",
+          defaultWorkspace: path.join(context.root, "child"),
+          allowedToolsets: "file,web",
+          connectorProfiles: { google: { profile: "child" } },
+          accountType: "media",
+          allowedOwnerSpecialPlugins: ["music", "finance", "movie"],
+        },
         { id: "child", label: "Duplicate", defaultWorkspace: path.join(context.root, "dup") },
         { id: "blocked", defaultWorkspace: blockedRoot },
       ],
@@ -133,6 +141,8 @@ function testNormalizeStoreDedupesAndKeepsPolicyData() {
     assert.equal(store.workspaces[0].id, "child");
     assert.deepEqual(store.workspaces[0].allowedToolsets, ["file", "web"]);
     assert.deepEqual(Object.keys(store.workspaces[0].connectorProfiles), ["google"]);
+    assert.equal(store.workspaces[0].accountType, "media");
+    assert.deepEqual(store.workspaces[0].allowedOwnerSpecialPlugins, ["music", "movie"]);
   });
 }
 
@@ -152,9 +162,11 @@ function testUpsertAndDeletePersistAndInvalidate() {
       /already managed by the external workspace provider/,
     );
 
-    const created = service.upsertLocalWorkspace({ workspaceId: "child", label: "Child" }, "owner");
+    const created = service.upsertLocalWorkspace({ workspaceId: "child", label: "Child", accountType: "media" }, "owner");
     assert.equal(created.id, "child");
     assert.equal(created.createdBy, "owner");
+    assert.equal(created.accountType, "media");
+    assert.deepEqual(created.allowedOwnerSpecialPlugins, ["music", "movie"]);
     assert.equal(calls.invalidate, 1);
     assert.deepEqual(calls.clearDynamic, ["child"]);
     assert.equal(service.localWorkspaceRecords().length, 1);

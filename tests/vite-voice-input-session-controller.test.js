@@ -33,6 +33,12 @@ async function test(name, fn) {
     const source = fs.readFileSync(path.join(repoRoot, "src/vite-islands/voice-input-status/session-controller.mjs"), "utf8");
     assert.match(source, /VOICE_INPUT_SESSION_CONTROLLER_VERSION/);
     assert.match(source, /createVoiceInputSessionController/);
+    assert.equal(typeof controller.statusLabel, "function");
+    assert.equal(typeof controller.isActiveStatus, "function");
+    assert.equal(typeof controller.terminalHideDelay, "function");
+    assert.equal(controller.statusLabel("recording"), "正在录音");
+    assert.equal(controller.isActiveStatus("recording"), true);
+    assert.equal(controller.terminalHideDelay("failed"), 4200);
     assert.doesNotMatch(source, /\bwindow\b/);
     assert.doesNotMatch(source, /\bglobalThis\b/);
     assert.doesNotMatch(source, /localStorage/);

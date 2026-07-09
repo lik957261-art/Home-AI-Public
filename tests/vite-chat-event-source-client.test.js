@@ -53,6 +53,31 @@ async function test(name, fn) {
       }),
       "/api/events?key=owner+key&clientVersion=20260702",
     );
+    const plan = client.chatEventSourceConnectionPlan({
+      key: "owner key",
+      clientVersion: "20260702",
+    });
+    assert.equal(plan.url, "/api/events?key=owner+key&clientVersion=20260702");
+    assert.equal(plan.hasKey, true);
+    assert.equal(plan.hasClientVersion, true);
+  });
+
+  await test("plans classic frame parsing and connection status text", async () => {
+    const client = await loadClient();
+    const parsed = client.chatEventFramePayloadPlan({
+      data: JSON.stringify({ type: "thread.updated", threadId: "t1" }),
+    });
+    assert.equal(parsed.ok, true);
+    assert.deepEqual(parsed.payload, { type: "thread.updated", threadId: "t1" });
+    const invalid = client.chatEventFramePayloadPlan({ data: "{\"type\":" });
+    assert.equal(invalid.ok, false);
+    assert.equal(invalid.diagnostic.code, "event_stream_invalid_json");
+    assert.match(invalid.errorMessage, /JSON|Unexpected|Expected/i);
+    const empty = client.chatEventFramePayloadPlan({ data: "" });
+    assert.equal(empty.ok, false);
+    assert.equal(empty.diagnostic.code, "event_stream_empty_frame");
+    assert.equal(client.chatEventConnectionStatusPlan({ status: "reconnecting" }).text, "Reconnecting");
+    assert.equal(client.chatEventConnectionStatusPlan({ status: "connected" }).text, "Home AI OK");
   });
 
   await test("missing EventSource factory fails closed with diagnostic", async () => {

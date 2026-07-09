@@ -271,13 +271,23 @@ function testRenderDeepSeekAndGrokConfigYaml() {
 
 function testRenderMaintenanceConfigYaml() {
   withFixture((root) => {
-    const official = readRenderedCapabilities(root, "officialclean", renderGatewayConfigYaml({
+    const officialYaml = renderGatewayConfigYaml({
       configKind: "maintenance",
       values: {
         profile: "officialclean1",
         port: "18651",
         provider: "openai-codex",
         profile_link: "/profiles/officialclean1",
+        moa_config_json: JSON.stringify({
+          enabled: true,
+          defaultPreset: "default",
+          presets: [{
+            name: "default",
+            referenceModels: ["openai-codex:gpt-5.5"],
+            aggregator: { provider: "openai-codex", model: "gpt-5.5" },
+            referenceMaxTokens: 600,
+          }],
+        }),
         weather_plugin_enabled: "1",
         web_plugin_enabled: "1",
         http_plugin_enabled: "1",
@@ -333,8 +343,11 @@ function testRenderMaintenanceConfigYaml() {
         email_workspace: "/mnt/c/owner",
         email_mcp_api_base_url: "http://172.27.192.1:5175",
       },
-    }));
+    });
+    const official = readRenderedCapabilities(root, "officialclean", officialYaml);
     assert.equal(official.modelProvider, "openai-codex");
+    assert.match(officialYaml, /moa:\n  default_preset: "default"\n  presets:\n    default:/);
+    assert.match(officialYaml, /reference_max_tokens: 600/);
     for (const toolset of ["web", "file", "skills", "wardrobe", "finance", "note", "health", "growth", "moira", "music", "movie", "email", "weather", "http", "cronjob_mobile", "chatgpt_pro", "hermes-cli"]) {
       assert.equal(official.toolsets.includes(toolset), true, `missing maintenance toolset ${toolset}`);
       assert.equal(official.apiServerToolsets.includes(toolset), true, `missing maintenance api toolset ${toolset}`);

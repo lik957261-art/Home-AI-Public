@@ -40,6 +40,16 @@ function testSaveAndPublicConfig() {
   const saved = provider.save({
     hermesApiBase: "http://localhost:8642///?drop=1#fragment",
     hermesApiKeyPath: apiKeyPath,
+    moaConfig: {
+      enabled: true,
+      defaultPreset: "default",
+      presets: [{
+        name: "default",
+        referenceModels: ["openai-codex:gpt-5.5"],
+        aggregator: { provider: "openai-codex", model: "gpt-5.5" },
+        referenceMaxTokens: 600,
+      }],
+    },
     webPushSubject: "mailto:admin@example.invalid",
     webPushVapidPath: vapidPath,
   }, "owner");
@@ -49,6 +59,7 @@ function testSaveAndPublicConfig() {
   assert.equal(saved.defaultModel, "gpt-5.5");
   assert.equal(saved.defaultModelProvider, "openai-codex");
   assert.equal(saved.defaultReasoningEffort, "medium");
+  assert.equal(saved.moaConfig.presets[0].referenceMaxTokens, 600);
   assert.equal(saved.updatedBy, "owner");
   assert.equal(provider.effectiveHermesApiBase(), "http://localhost:8642");
   assert.equal(provider.loadHermesApiKey(), "file-key");
@@ -70,6 +81,10 @@ function testSaveAndPublicConfig() {
   assert.equal(publicConfig.gatewayWorkerEffectiveSettings.ownerMinWarm, 1);
   assert.equal(publicConfig.gatewayWorkerEffectiveSettings.workspaceMaxWorkers, 2);
   assert.equal(publicConfig.gatewayWorkerEffectiveSettings.idleTtlMinutes, 60);
+  assert.equal(publicConfig.moaConfig.enabled, true);
+  assert.deepEqual(publicConfig.moaOfficialConfig.presets.default.reference_models, [
+    { provider: "openai-codex", model: "gpt-5.5" },
+  ]);
   assert.deepEqual(
     publicConfig.modelOptions.map((item) => item.id),
     ["openai-codex:gpt-5.4", "openai-codex:gpt-5.5", "deepseek:deepseek-chat", "xai-oauth:grok-4.3"],

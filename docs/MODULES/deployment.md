@@ -74,6 +74,23 @@ decision, and production validation, and the development user must not be given
 ordinary write access to production app or plugin source roots.
 The shared script is `scripts/deploy-macos-production.js`. It is plan-only by
 default and requires `--execute` before it writes production.
+For UI-affecting Home AI or plugin changes, production execute also requires a
+passing local-test plus visual-verification packet. The source/deploy card must
+name changed UI files and surfaces, focused local tests, visual method/result,
+viewport or device coverage, and bounded layout assertions. The executable
+preflight is:
+
+```bash
+node scripts/ui-visual-local-validation-check.js \
+  --changed-file public/app-workspace-console-ui.js \
+  --evidence-file ui-visual-evidence.json \
+  --json
+```
+
+The deploy script includes the same gate in its plan and fails `--execute` with
+`ui_visual_local_validation_required` when UI evidence is missing or failing.
+Deploy lanes may use a plan-only run to read the bounded issue code, but a UI
+deploy cannot proceed to production until the packet passes.
 Production closure must preserve the engineering governance baseline described
 in `docs/IMPLEMENTATION_NOTES/engineering-governance-gates.md`: the CI gate,
 production self-diagnostics, and productization acceptance matrix must remain
@@ -396,14 +413,21 @@ service root.
   directories. For ACL-granted writable roots, the harness treats real
   create/delete smoke as authoritative because macOS `test -w` can report false
   for directories that are writable through ACL rather than POSIX owner mode. It
-  also scans `data/drive/users` for directories missing the
-  owner write bit, because imported or migrated read-only directories can make
-  the Home AI listener fail direct Directory delete with `EACCES` even when the
-  path is inside the authenticated user's own workspace. Do not leave
-  workspace-private roots as `drwxr-xr-x+`; remove default group/other access
-  and grant only `hermes-host`, the matching workspace OS user, and Owner
-  operations.
-  See `docs/RUNBOOKS/macos-worker-filesystem-access.md`.
+  also scans `data/drive/users` for directories missing the owner write bit,
+  because imported or migrated read-only directories can make the Home AI
+  listener fail direct Directory delete with `EACCES` even when the path is
+  inside the authenticated user's own workspace. Do not leave workspace-private
+  roots as `drwxr-xr-x+`; remove default group/other access and grant only
+  `hermes-host`, the matching workspace OS user, and Owner operations. Routine
+  production diagnostics also run the same harness with
+  `--workspace-catalog-targets`, which reads `data/workspaces.json`, derives or
+  uses each non-Owner workspace's `hm-*` macOS user, skips records whose worker
+  user does not exist yet, and then runs target-scoped write smokes for that
+  workspace's `data/drive/users/<workspace>` root and the shared `data/uploads`
+  root. This target-scoped check is separate from the historical global matrix
+  so a newly provisioned family workspace cannot regress silently while older
+  fixed workspace rows dominate the aggregate result. See
+  `docs/RUNBOOKS/macos-worker-filesystem-access.md`.
 - Workspace onboarding now has a Home AI service/API layer:
   `adapters/workspace-onboarding-service.js` and
   `server-routes/workspace-onboarding-api-routes.js`. The service can generate
@@ -425,7 +449,18 @@ service root.
   `adapters/workspace-system-provisioning-helper-client-service.js`. Without a
   configured `workspaceSystemProvisioningExecutor`, apply returns
   `system_provisioning_executor_unavailable` before side effects. See
-  `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`.
+  `docs/IMPLEMENTATION_NOTES/workspace-onboarding.md`. Onboarding validation
+  runs the worker filesystem access harness in target-only mode for the new
+  workspace and `hm-*` user; the full global ACL harness remains a deployment and
+  production-closure gate, but unrelated historical workspace ACL issues must
+  not make a newly provisioned family workspace report `provisioning_failed`. The
+  corresponding `repair_workspace_acl` helper action must also repair the target
+  worker's non-recursive write ACL on the shared `data/uploads` root, because
+  target-only onboarding validation includes upload staging access in addition
+  to the workspace drive root. The production self-diagnostic id
+  `workspace-target-acl` keeps that same drive/uploads target condition in
+  recurring health coverage for every provisioned catalog workspace whose `hm-*`
+  worker user exists.
 - Mac profile/Skill/Memory/MCP audit:
   `scripts/macos-production-profile-audit.js`. Run it after user migration,
   plugin provisioning, worker profile repair, stale-user cleanup, or Access Key
@@ -659,6 +694,33 @@ cookies, launch tokens, or local operator secret paths. The central deploy
 script may still use local operator credential discovery inside the Home AI
 deployment runtime, but that is not a plugin-visible contract.
 
+Deploy requests are centrally governed. Worker, audit, repair, loop, and
+plugin source/main threads return bounded `deployRequest` metadata; they do not
+directly send Deploy Lane cards. Home AI main/coordinator merges these
+requests, checks source refs and dirty state, and emits the single canonical
+Deploy Lane card with `sourceRole=central_deploy_coordinator` or another
+authorized central source role. The executable service boundary is
+`adapters/central-deploy-governance-service.js`; focused coverage is
+`node tests/central-deploy-governance-service.test.js`,
+`node tests/deploy-upgrade-lane-closure-service.test.js`, and
+`node tests/worker-lane-scheduler-service.test.js`.
+
+Terminal Worker returns that say `deployRequest.needed=true`, `deploy_needed=true`,
+`deploy_requested`, or `blocked_by_deploy_readback` must also create a bounded
+`pendingSourceAction` in the source-return integration projection. That action
+feeds the central deploy request aggregator and is resolved only by central
+coordinator dispatch, blocker recording, or explicit dismissal; it does not
+authorize a Worker-origin direct Deploy Lane card.
+
+Deploy Lane card validation reports bounded source-role/coordinator/override
+metadata. Worker-origin deploy cards fail closed with
+`worker_direct_deploy_forbidden`; missing central metadata fails with
+`deploy_card_requires_central_coordinator`; divergent deploy refs aggregate to
+`deploy_request_requires_integration` instead of deploying a split or rollback
+ref. Emergency direct dispatch requires `centralOverride=true`,
+`overrideReason`, `ownerApprovalRef` or `centralCoordinatorRef`, clean source
+state, validation summary, and required readback.
+
 Plugin-specific deploy lanes are preferred, not mandatory single points of
 failure. Codex Mobile deploy cards should route to `Codex Mobile Deploy Lane`
 and Movie deploy cards should route to `Movie Deploy Lane` while those lanes
@@ -873,6 +935,13 @@ and post-restart retry delay. Public installs that lack system launchd
 permission must report a bounded recovery failure diagnostic rather than
 requiring private credentials in the runtime process.
 
+This automatic plugin-load recovery excludes `codex-mobile` and
+`codex-mobile-web`. Codex Mobile startup is owned by its dedicated recovery
+script/API and deploy lane because the chain includes profile-store, mux,
+listener, and launchd state. A Codex Mobile manifest `fetch failed` must not
+make the Home AI host call the generic recovery command, the Codex host script,
+or `launchctl`; it should surface bounded recovery metadata instead.
+
 Codex Mobile has a narrower macOS host recovery path for the specific case
 where `http://127.0.0.1:8787/api/public-config` is unreachable and the listener
 or `system/com.hermesmobile.plugin.codex-mobile` LaunchDaemon is missing or
@@ -893,9 +962,10 @@ failures, iframe projection bugs, or during normal deployments where the deploy
 script already owns the restart.
 
 For normal private `plugin:codex-mobile-web` macOS deployments,
-`scripts/deploy-macos-production.js` performs a listener startup gate after the
-LaunchDaemon and health URL checks. The central deploy lane runs the deployed
-plugin script from the production plugin cwd:
+`scripts/deploy-macos-production.js` performs two plugin-owned self-check gates
+after the LaunchDaemon and health URL checks. The first gate is a lightweight
+listener/browser startup proof. The central deploy lane runs the deployed plugin
+script from the production plugin cwd:
 
 ```bash
 node scripts/codex-mobile-runtime-self-check-loop.js \
@@ -908,14 +978,35 @@ node scripts/codex-mobile-runtime-self-check-loop.js \
   --json
 ```
 
-The gate is intentionally startup-only: it validates the public config, shell
-asset fetches, split frontend runtime factories, and browser startup exceptions
-without sampling thread detail or submitting Composer messages. A result with
-`ok=false`, `deployPass=false`, or browser execution failure is deploy-blocking;
-Chrome/browser unavailability must be reported as bounded
-`browser_startup_smoke_unavailable` evidence rather than silently skipped. The
-Home AI deploy script must not duplicate Codex Mobile frontend diagnostics; it
-only invokes the plugin-owned script to avoid rule drift.
+The startup gate validates public config, shell asset fetches, split frontend
+runtime factories, and browser startup exceptions. A result with `ok=false`,
+`deployPass=false`, or browser execution failure is deploy-blocking; Chrome or
+browser unavailability must be reported as bounded
+`browser_startup_smoke_unavailable` evidence rather than silently skipped.
+
+The second gate is the deploy behavior gate. It must run without
+`--browser-startup-only` so Codex Mobile deployments cannot pass on startup
+evidence alone when plugin changes affect thread detail, projection, render,
+Composer, submit, event stream, or runtime state:
+
+```bash
+node scripts/codex-mobile-runtime-self-check-loop.js \
+  --server http://127.0.0.1:8787 \
+  --gate-mode deploy \
+  --browser-mode full \
+  --json
+```
+
+The deploy plan and readback distinguish this as
+`codex-mobile-behavior-gate`; it is separate from
+`codex-mobile-listener-startup-gate`. Submit exercise is automatic only when an
+operator supplies a controlled synthetic/projectless target thread through
+`--codex-mobile-submit-thread-id <controlled-thread-id>` or the equivalent
+`HOMEAI_CODEX_MOBILE_DEPLOY_SUBMIT_THREAD_ID` environment variable. In the
+default path, the deploy evidence must report `submitExercise.mode=manual` with
+`controlled_submit_thread_not_configured`, rather than claiming Composer submit
+coverage. The Home AI deploy script must not duplicate Codex Mobile frontend
+diagnostics; it only invokes the plugin-owned script to avoid rule drift.
 
 Home AI also exposes an Owner-only in-app update path for public deployments:
 Owner login calls `/api/app-update/status`, which checks the Home AI checkout
@@ -1000,6 +1091,16 @@ store, or print Movie device, NAS, or projector credentials. The installer
 preflights port `4195` and fails if that port is held by a non-production
 process such as a development Movie server, because otherwise Home AI and the
 deploy script could read a healthy manifest from the wrong service.
+
+For Movie Home AI notifications, run the same installer with
+`--install-notification-config` through the Movie deploy/service lane. It
+creates or reuses a Home AI plugin-notification-only key and installs the
+paired Movie-side files:
+`plugins/movie/data/home-ai-notification-origin` and
+`plugins/movie/data/home-ai-notification-key`, owned by `hermes-host:staff`
+with restrictive file mode. Readback must report only file metadata and
+configured/not-configured booleans; it must not print the Home AI key path,
+raw key, endpoint body, Movie device credentials, or provider payloads.
 
 Music first install uses `scripts/install-music-launchd-service.js` from the
 Home AI app workspace after a central `--plugin music --sync-only` source copy.

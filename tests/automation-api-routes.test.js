@@ -542,6 +542,23 @@ async function testActionDecodesJobAndClearsCache() {
   assert.equal(calls.mutate[1].jobId, "job/42");
   assert.equal(calls.mutate[1].ownerPrincipalId, "principal-child");
   assert.equal(calls.mutate[1].dryRun, true);
+
+  const manual = await request(routes, "POST", "/api/automations/plugin_daily_progress_rollup/run", {
+    body: { workspaceId: "owner", reason: "manual_ui" },
+  });
+  assert.equal(manual.res.statusCode, 200);
+  assert.equal(manual.body.ok, true);
+  assert.equal(manual.body.job.id, "plugin_daily_progress_rollup");
+  assert.equal(manual.body.source.workspaceId, "owner");
+  assert.equal(calls.cacheClear, 2);
+  assert.deepEqual(calls.mutate[2], {
+    action: "run",
+    jobId: "plugin_daily_progress_rollup",
+    ownerPrincipalId: "principal-owner",
+    dryRun: false,
+    patch: {},
+    reason: "manual_ui",
+  });
 }
 
 async function testPushTickOwnerOnly() {

@@ -26,6 +26,24 @@ must show an Owner-only `系统控制台` action when the current session is Own
 The three-finger gesture remains the feedback-menu gesture; do not add a
 separate competing bottom-navigation long-press route for the console.
 
+The Owner Workspace Console is an Owner-only app-level bottom tab, not a
+plugin. Its ordered static module is `public/app-workspace-console-ui.js`, its
+bottom-nav button id is `bottomWorkspaceMode`, and its route/view mode is
+`workspace-console`. Static markup may contain the button, but runtime
+navigation must hide it and block entry unless `state.auth.isOwner` is true. It
+consumes the read-only Owner route `/api/owner/workspace-console`, renders
+bounded Codex workspace governance status for local Codex-managed projects and
+Remote Managed Workspace nodes, and is covered by
+`tests/workspace-console-ui.test.js`, `tests/mobile-bottom-nav-capacity-ui.test.js`,
+and `tests/task-list-ui.test.js`. Generic Home AI account workspace, directory,
+and plugin-binding projection remains hidden diagnostic metadata for a future
+navigation/plugin management rebuild; it must not return as the bottom `工作区`
+tab's primary list. Because the console is loaded by the production shell and
+service worker, any source change to this module or tab registration must bump
+the static cache marker consistently across `public/index.html`,
+`public/service-worker.js`, `public/directory-viewer.html`, and
+`tests/task-list-ui.test.js`.
+
 ## Frontend Build Direction
 
 The existing primary PWA shell remains the stable ordered `public/app-*.js`
@@ -37,19 +55,21 @@ service-worker registration, or global navigation. The central rule lives in
 `Frontend Build Boundary`; Vite-built output must still obey this module's
 static version, service-worker cache, deployment, and harness rules.
 
-The first production Vite cutover is a transitional bootstrap, not the final
-full-shell replacement. The Home AI listener still serves the classic
-`public/index.html` business shell, and Vite mode injects only the built
-production bootstrap module at
+The Home AI runtime shell boundary is Vite-only. The listener still serves
+`public/index.html` as the ordered business shell document, but every app-shell
+response injects the built production bootstrap module at
 `public/vite-islands/home-ai-production-bootstrap/home-ai-production-bootstrap.js`.
 That module installs bounded Vite readback state and the focus lifecycle guard
-while preserving the classic runtime. Shell selection is owned by
-`adapters/mobile-http-runtime-service.js`, `mobile-server-runtime.js`, and
-`config/home-ai-shell-mode.json`. Production reads the runtime config root
-first, then falls back to the app-local config file so deploys do not depend on
-hand-editing a private data config path. If the config/env/request mode is
-missing or invalid, the server fails closed to `classic`; rollback is changing
-the mode back to `classic` and restarting Home AI.
+while preserving existing business-runtime compatibility code. Shell selection
+is owned by `adapters/mobile-http-runtime-service.js`,
+`mobile-server-runtime.js`, and `config/home-ai-shell-mode.json`.
+Request, environment, or config values such as `homeAiShellMode=classic`,
+`shellMode=classic`, or `HOMEAI_FRONTEND_SHELL_MODE=classic` are compatibility
+inputs only: they must not activate a Classic shell. The response remains
+`X-HomeAI-Shell-Mode=vite` and reports
+`X-HomeAI-Shell-Mode-Policy=vite-only`. Emergency recovery is source/deploy
+rollback through Git history and deployment backups followed by normal
+deploy/readback, not a same-runtime Classic fallback.
 
 The Owner System Console Vite migration pilot remains an island boundary:
 `npm run build:vite` builds the island from
@@ -63,8 +83,8 @@ contract and production readback prove that specific boundary.
 The full primary-shell migration target is
 `docs/IMPLEMENTATION_NOTES/vite-full-frontend-migration-target.md`. It is a
 development-environment objective only: it may build and validate a Vite app
-preview, but it does not authorize changing production `/` away from the
-classic shell.
+preview, but it does not authorize bypassing the production Vite-only root
+shell.
 
 The current full-app Vite preview host lives in `src/vite-app/`, builds to
 `public/vite-islands/home-ai-app-preview/`, and can be opened after
@@ -75,10 +95,40 @@ referenced by `public/index.html` or `public/service-worker.js`.
 The production bootstrap entry lives at
 `src/vite-app/production-bootstrap.mjs`. It is a separate Vite build input from
 the development full-app preview and must not import preview-only API mocks or
-replace the classic global facade. It exposes bounded status through
+replace existing compatibility globals. It exposes bounded status through
 `window.HomeAiViteProduction.status()` for production readback and keeps
-`window.HomeAiRuntimeFacade` owned by the classic shell until later ESM slices
+`window.HomeAiRuntimeFacade` as the compatibility bridge until later ESM slices
 take over the corresponding workflows.
+
+After the 2026-07-04 production cutover, the maintained post-cutover status
+check is:
+
+```sh
+npm run check:vite-production -- --base http://127.0.0.1:8797 \
+  --readback-json /tmp/home-ai-vite-production-readback-b5b62ed2.json \
+  --require-ok
+```
+
+`check:vite-production` verifies the current source shell-mode config, the
+production bootstrap asset, the Vite manifest, the live root shell mode, the
+Classic request-level override rejection, public config reachability, Owner
+Console unauthenticated denial, and an optional bounded readback packet. It is
+read-only and must report `productionWrites=false` and `deployExecuted=false`.
+Do not use `check:vite-readiness` as a post-cutover production health command:
+that command remains the development-target gate and also enforces the source
+Vite-only cutover config.
+
+The maintained source-only ESM backlog generator is:
+
+```sh
+npm run plan:vite-esm -- --write
+node tests/vite-esm-migration-backlog.test.js
+```
+
+It converts the current classic boot inventory and Vite global-usage audit into
+`docs/IMPLEMENTATION_NOTES/vite-esm-migration-backlog.md`. Use it before
+choosing the next ESM replacement slice so Stage C low-risk adapter work is not
+mixed with Stage D core workflow replacements.
 
 The Vite migration runtime facade lives at
 `src/vite-app/runtime/home-ai-runtime-facade.mjs`. It is the explicit import
@@ -88,6 +138,15 @@ During the migration it may be attached as
 `window.HomeAiRuntimeFacade` for classic compatibility, but new code must not
 create new unmanaged `window.state` or boot-order globals. The focused guard is
 `tests/vite-runtime-facade.test.js`.
+
+The runtime facade now delegates cross-module event and state primitives to
+`src/vite-app/runtime/runtime-state-event-bus.mjs`. That module is the
+development-only ESM boundary for direct and wildcard event subscribers,
+bounded recent-event snapshots, state patch/update/replace events, and handler
+failure isolation. `tests/vite-runtime-state-event-bus.test.js` guards this
+boundary. It does not remove classic production `window.state` owners by
+itself; it gives future Vite slices a stable import surface so they do not add
+new unmanaged globals.
 
 The classic static shell also loads `public/app-runtime-facade-ui.js` after
 `app-api-client.js`. That bootstrap attaches a minimal `HomeAiRuntimeFacade`
@@ -110,6 +169,13 @@ module. The Owner Console Vite island's pure rendering/error model lives in
 `src/vite-islands/owner-system-console/model.mjs`; that model owns bounded
 Chinese UI copy, status labels, HTML escaping, and non-Owner permission error
 rendering while `main.mjs` stays as runtime/DOM glue.
+The classic Owner Console adapter also imports the built model artifact at
+`/vite-islands/owner-system-console-model/owner-system-console-model.js` before
+Owner data loads. The imported model owns the classic-compatible read-only
+overview/system-status renderer when available; `public/app-owner-system-console-ui.js`
+keeps the Owner gate, API calls, DOM commit, event wiring, and a local fallback
+renderer so the ordered compatibility adapter remains reversible during this
+migration.
 
 During local Vite development only, `vite.config.js` serves metadata-only mock
 responses for selected Vite preview API paths through
@@ -122,11 +188,19 @@ permission/readback evidence or wired into `server.js`.
 AI Ops diagnostic feedback is the second runtime-facade consumer in the
 migration. The classic `public/app-ai-ops-diagnostics-ui.js` module prefers the
 facade for diagnostic API submission, event fanout, state projection, and
-feedback status/toast events. It keeps classic fallback behavior while the
-ordered shell remains active. Its client-layout diagnostic keepalive transport
-now goes through `runtime.diagnostics.sendClientLayoutDiagnostic`, and plugin
+feedback status/toast events. It keeps compatibility behavior while the ordered
+compatibility shell remains active. Its client-layout diagnostic keepalive
+transport now goes through `runtime.diagnostics.sendClientLayoutDiagnostic`, and plugin
 conversation repair request dedupe now goes through `runtime.dedupe`; the AI
 Ops module no longer owns direct `fetch` or `localStorage` for those paths.
+The same classic adapter now imports the built ESM model artifact at
+`/vite-islands/ai-ops-feedback-model/ai-ops-feedback-model.js` for pure
+feedback-sheet rendering, feedback context labeling, category normalization,
+and Owner System Console shortcut planning. The classic file still owns the
+three-finger trigger, plugin iframe message bridge, diagnostic API submission,
+and DOM event wiring; the imported model is source-only UI/state projection and
+must not request notification permission, register a Service Worker, dispatch
+task cards, or submit diagnostics by itself.
 
 Host Voice Input is now also a runtime-facade consumer in the migration. The
 classic `public/app-voice-input-ui.js` module uses
@@ -163,9 +237,44 @@ global-free ESM adapter for injected microphone capability checks, recorder
 session wrapping, held-stream cleanup, PCM16 downsampling, base64 conversion,
 and streaming chunk buffer policy. The dev preview renders only fixture
 readiness for this adapter and never asks for microphone permission. Production
-recording remains owned by `public/app-voice-input-ui.js` until a later
-voice-runtime slice explicitly wires this adapter into the classic fallback or
-full Vite shell and passes live local voice harnesses.
+recording remains owned by `public/app-voice-input-ui.js`.
+
+The classic `public/app-voice-input-ui.js` adapter now also performs a
+best-effort optional import of the built session controller artifact at
+`/vite-islands/voice-input-session-controller/voice-input-session-controller.js`
+and the built audio adapter artifact at
+`/vite-islands/voice-input-audio-capture-adapter/voice-input-audio-capture-adapter.js`.
+It delegates deterministic status label, active/terminal status, MIME
+selection, streaming sample/config, PCM16 downsampling, base64 conversion, and
+stream-liveness helpers to those modules when they are available. The classic
+adapter keeps exact fallback helpers in place and remains owner of real
+`MediaRecorder`, `AudioContext`, microphone permission, native bridge, API,
+Composer mutation, timers, DOM event wiring, overlay rendering, and storage
+side effects.
+
+The classic `public/app-voice-learning-ui.js` adapter now imports the built
+voice learning model artifact at
+`/vite-islands/voice-learning-model/voice-learning-model.js` for deterministic
+voice-learning labels, assistant receipt rows, ASR comparison rows, and
+learn-request body planning. The classic file still owns HTML assembly and
+escaping, real `/api/voice-input/learn-sent-text` execution, direct
+`voiceLearningState` mutation, Composer mutation, focus timing, conversation
+rendering, and mode open/close side effects. The model must remain
+browser-global-free and must not own microphone/audio, native bridge, DOM,
+storage, or production runtime behavior.
+
+The classic `public/app-wardrobe-ui.js` adapter now imports the built Wardrobe
+model artifact at `/vite-islands/wardrobe-model/wardrobe-model.js` for
+deterministic Wardrobe route/directory detection, workspace/toolset entry
+availability, manifest launch-context checks, proxy workspace matching,
+launch-token freshness, page-security checks, frame URL planning, message
+origin allowance, and unavailable/security view-state planning. The classic
+file still owns real manifest API execution, iframe creation/parking/discard,
+DOM rendering and escaping, `postMessage`, timers, `localStorage`, direct
+`state` mutation, plugin list refresh side effects, and embedded plugin host
+lifecycle behavior. The model must remain browser-global-free and must not
+copy Wardrobe plugin API, database, MCP, provisioning, or production deploy
+behavior into Home AI.
 
 Task/document preview helpers are also runtime-facade consumers in the
 migration. `public/app-task-preview-helpers-ui.js` prefers
@@ -176,8 +285,10 @@ must read Markdown preview text through the helper API path instead of creating
 its own authenticated `fetch`. The preview helper must also avoid direct
 `localStorage.hermesWebWorkspace` access; workspace selection is read from
 `runtime.state.selectedWorkspaceId`, classic `state.selectedWorkspaceId`, then
-the bounded `owner` fallback. The preview UI must avoid direct
-`localStorage.homeAI.nativeShell` access; native-shell return routing uses
+the bounded `owner` fallback. The preview helper and preview UI must avoid
+direct authenticated `fetch` and direct storage reads while route/cache/root
+rendering is migrated through source-only Vite helpers. Native-shell return
+routing uses
 `runtime.native.nativeShellParam()` while preserving the existing `ios` and
 `android` URL/dataset fallback behavior. Directory viewer now loads
 `app-api-client.js`, `app-runtime-facade-ui.js`,
@@ -215,6 +326,32 @@ freshness, and refresh evidence. The island reads sampled plugin manifests only
 through `HomeAiRuntimeFacade.api` and the Vite dev mock. It does not replace
 the production resident iframe host and does not bundle plugin-owned UIs into
 the Home AI shell.
+The same model owns a development-only resident iframe lifecycle decision:
+token-only launch/session changes preserve the loaded iframe after stable
+entry normalization, `navigation_health_timeout` preserves visible/loaded
+iframes, and only a still-loading timed-out iframe is eligible for recovery.
+This mirrors the production host contract without moving production ownership
+out of `public/app-embedded-plugin-ui.js`.
+`public/app-embedded-plugin-ui.js` now imports the same source-only model
+through the standalone
+`public/vite-islands/plugin-host-model/plugin-host-model.js` artifact for pure
+plugin-host policy planning. The model owns stable iframe entry signatures,
+volatile launch/session/token parameter stripping, proxy workspace matching,
+manifest launch-context freshness decisions, resident-shell context matching,
+and fresh-manifest requirements. The classic embedded-plugin module still owns
+real iframe creation, parking, discarding, DOM mutation, `postMessage`, manifest
+API calls, `localStorage`, timers, direct `state` mutation, route side effects,
+viewport broadcasting, and fallback behavior when the optional ESM artifact is
+unavailable.
+`public/app-plugin-admin-ui.js` imports the standalone
+`public/vite-islands/plugin-admin-model/plugin-admin-model.js` artifact for pure
+plugin administration planning. The model owns workspace row projection,
+manager-card view state, Owner-gate decisions, and grant/revoke request
+planning from explicit plugin/workspace inputs. The classic plugin-admin module
+still owns Owner-gate side effects, real `/api/hermes-plugins/admin` and
+workspace grant/revoke calls, overlay DOM rendering and event binding, direct
+`state` mutation, `showError`, `escapeHtml`, menu/sidebar chrome, and fallback
+behavior when the optional ESM artifact is unavailable.
 
 The AI Ops feedback menu is also the first Phase 3 low-risk Vite island. Its
 source lives in `src/vite-islands/ai-ops-feedback/`, the Vite dev route is
@@ -232,14 +369,14 @@ The Phase 4 navigation shell island lives in
 `public/vite-preview/navigation-shell.html`. Its model owns view-mode alias
 normalization, primary-tab metadata, Owner-only console tab gating, cached
 topic/task shell status, directory topic collection grouping, task-root render
-signatures, and classic fallback route construction. Its compatibility adapter
+signatures, and compatibility route construction. Its compatibility adapter
 selects a root thread from the runtime state snapshot, preferring the classic
 `taskListThread` cache when available, without directly reading classic
 `window.state`. The task/topic root HTML block is rendered by
 `src/vite-islands/navigation-shell/task-topic-root-renderer.mjs` so preview
 mounting and topic-root row rendering can advance independently. Row activation
 is modeled by `src/vite-islands/navigation-shell/task-topic-action-model.mjs`,
-which produces route patches and classic fallback hrefs for directory, regular,
+which produces route patches and compatibility hrefs for directory, regular,
 and plugin topic rows. The first read-only task/topic data boundary is isolated
 in `src/vite-islands/navigation-shell/task-topic-data-source.mjs`; it builds
 the existing `GET /api/threads/:id?messageMode=tasks` request and loads it only
@@ -262,6 +399,52 @@ topic reads update `taskTopicSelectedThread` plus
 `taskTopicSelectedCache` and must not overwrite the root topic list. Browser
 back to the task root clears the selected-topic detail cache so stale message
 payloads are not replayed as the root shell.
+The Stage D source-only `public/app-task-artifact-helpers.js` adapter may use
+`src/vite-islands/navigation-shell/task-artifact-helper-model.mjs` for
+artifact kind/display-name/rank planning, markdown twin filtering, display
+artifact ordering, and latest task-list document selection. The classic UMD
+helper still owns task-group aggregation, receipt title extraction, skill-path
+parsing, CommonJS compatibility, and fallback behavior before the ESM import
+resolves.
+The Stage D source-only `public/app-task-groups-ui.js` adapter may use
+`src/vite-islands/navigation-shell/task-group-model.mjs` for task/topic
+message scope planning, shared-topic visibility checks, task/chat page
+parameter construction, task-detail preview trimming, message-page merge
+metadata, active-run detection, and local pending-send reconciliation. The
+classic script still owns `state` mutation, DOM rendering, Skill detail API
+calls, scroll restoration, artifact viewer URL construction, timers, and
+synchronous fallback behavior before the ESM import resolves.
+The Stage D source-only `public/app-sidebar-task-ui.js` adapter may use
+`src/vite-islands/navigation-shell/sidebar-back-navigation-model.mjs` for
+back-swipe/native-back target selection. The model is a pure priority planner
+over bounded boolean/string state and must not read browser globals, DOM,
+storage, access keys, or plugin payloads. The classic script still owns gesture
+handling, DOM surface movement, plugin back message delivery, route mutation,
+and synchronous fallback behavior before the ESM import resolves.
+The Stage D source-only `public/app-route-snapshot-ui.js` adapter may use
+`src/vite-islands/navigation-shell/route-snapshot-model.mjs` for route snapshot
+string bounding, embedded-plugin return-route parameter encoding/decoding, and
+explicit launch-target detection. The classic script still owns visible-message
+DOM inspection, localStorage persistence, same-origin URL parsing, route apply,
+and scroll restoration.
+The Stage B source-only `public/app-platform-ui.js` adapter may use
+`src/vite-islands/navigation-shell/platform-model.mjs` for deterministic route
+view alias normalization, plugin-context route candidate planning, app-shell
+path/route projection, startup error/reset planning, mobile browser-shell
+detection from injected metadata, and protected detail-route detection. The
+classic script still owns boot splash DOM mutation, real API/fetch execution,
+localStorage/sessionStorage, timers, history mutation, direct `state` mutation,
+route application, PWA/Web Push navigation side effects, and fallback behavior
+before the optional ESM artifact resolves.
+The Stage B source-only `public/app-access-key-manager-ui.js` adapter may use
+`src/vite-islands/navigation-shell/access-key-manager-model.mjs` for
+deterministic access-key manager view grouping, workspace key row projection,
+workspace onboarding request/state planning, confirmation dialog copy planning,
+request path planning, and one-time onboarding result redaction. The classic
+script still owns DOM rendering, event binding, real access-key/workspace API
+execution, localStorage and clipboard behavior, direct `state` mutation,
+Owner/auth session effects, `showError`, and confirmation dialog execution
+when the optional ESM artifact is unavailable.
 `tests/vite-navigation-thread-view-payload-compat.test.js` ties this boundary
 to the backend `thread-view-service` `compactThreadWithMessagePage()` payload,
 so the Vite model is not validated only against the local dev mock.
@@ -276,6 +459,8 @@ bounded non-secret query parameters, updates the Vite preview URL through the
 runtime facade route bridge, and is not production route evidence. This is not
 the production navigation replacement:
 `public/app-automation-ui.js`,
+`public/app-automation-controller-ui.js`,
+`public/app-automation-actions-ui.js`,
 `public/app-wire-start-ui.js`, and `public/app-thread-list-ui.js` remain the
 classic navigation/render owners until later parity slices move cached
 topic/task rendering and selected-view refresh into imported modules.
@@ -288,8 +473,10 @@ for Usage/footer message actions. The initial model covers Wardrobe
 `outfit_wear_intent` action metadata and diagnostics from the same public
 message fields used by `public/app-message-actions-ui.js`, including ready,
 stored/readback-verified, confirmation, error, expired, and missing-intent
-states. It renders Chinese labels such as `入库`, `已入库 #... · 已验证`, and
-`需重新生成`, but it does not execute MCP tools, call the
+states. It keeps Chinese semantic labels such as `入库`,
+`已入库 #... · 已验证`, and `需重新生成` in model/detail metadata, while the
+Usage-row action control itself renders icon-only so long diagnostic text
+cannot widen the message footer. It does not execute MCP tools, call the
 plugin-conversation action route, or replace the classic message footer.
 Production execution and confirmation remain classic until a later Phase 5
 cutover slice adds live send/confirm/error/readback harness coverage.
@@ -310,6 +497,125 @@ accidentally call the real action route. The production action owner remains
 `public/app-message-actions-ui.js` until a later cutover moves live action
 execution, Composer, and SSE into the Vite shell.
 
+`public/app-message-actions-ui.js` now imports the source-only
+`public/vite-islands/message-actions-model/message-actions-model.js` artifact
+for pure message footer/action planning. The model owns reply-action
+availability, long-reply scroll eligibility, footer action strip projection,
+Wardrobe outfit-wear button state, replacement confirmation copy, and
+plugin-conversation action request body planning. The classic message-actions
+module still owns DOM mutation, scroll measurements, event listener wiring,
+real `api()` calls, confirmation dialogs, `history`/route effects, timers,
+`showError`, global `state` mutation, and fallback behavior when the optional
+ESM artifact is unavailable.
+
+`public/app-thread-message-ui.js` now imports the source-only
+`public/vite-islands/thread-message-model/thread-message-model.js` artifact for
+pure thread-message navigation and Composer-state planning. The model owns
+create-thread action classification, select-thread request path planning,
+project-task route/readback request planning, Composer visibility/enablement
+projection, and quoted-reply placeholder planning. The classic thread-message
+module still owns DOM mutation, event/focus/scroll effects, real `api()` calls,
+direct `state` mutation, actual `localStorage` writes, render side effects,
+and fallback behavior when the optional ESM artifact is unavailable.
+
+`public/app-thread-directory-ui.js` now imports the source-only
+`public/vite-islands/thread-directory-model/thread-directory-model.js` artifact
+for pure task-directory alias and filter planning. The model owns directory
+alias normalization/dedupe, extracted/media alias projection, task-directory
+filter match/mutation plans, filter banner/badge view projections, task context
+projection, and task-detail toolbar projection. The classic thread-directory
+module still owns DOM mutation, helper execution for project-route resolution,
+real `localStorage` writes, direct `state` mutation, menu event wiring,
+`showError`, render side effects, and fallback behavior when the optional ESM
+artifact is unavailable.
+
+`public/app-chat-scope-ui.js` now imports the source-only
+`public/vite-islands/chat-scope-model/chat-scope-model.js` artifact for pure
+chat/private-group scope planning. The model owns group member normalization,
+group/private chat eligibility and active-scope decisions, chat-scope task
+group ids, read-storage key and timestamp planning, injected message timestamp
+projection, own-message and unread-count projection, and group member
+label/mention member projection. The classic chat-scope module still owns
+`localStorage` reads/writes, direct `state` mutation, thread merge helper
+execution, message owner/timeline helper calls, sorted-message helpers,
+render/event effects through callers, and fallback behavior when the optional
+ESM artifact is unavailable.
+
+`public/app-run-progress-ui.js` now imports the source-only
+`public/vite-islands/run-progress-model/run-progress-model.js` artifact for
+pure run-progress planning. The model owns run-event normalization, run id and
+message selection plans, operation/function event compaction, event title and
+preview label projection, duration/offset labels, compact-after-output
+decisions, and panel event-window planning. The classic run-progress module
+still owns DOM rendering/mutation, scroll measurement and mutation,
+`requestAnimationFrame`, timeout/interval lifecycle, direct `state` storage for
+remembered run ids and ticker bookkeeping, current-route refresh checks, and
+fallback behavior when the optional ESM artifact is unavailable.
+
+`public/app-thread-list-ui.js` now imports the source-only
+`public/vite-islands/thread-list-model/thread-list-model.js` artifact for pure
+thread-list and chat readback planning. The model owns sidebar thread card
+view-models, chat-scope header button state, chat/task history pager
+visibility, chat render signatures and reuse decisions, task-group pending
+message detection, directory-topic render signatures, and bounded current-thread
+chrome/message projection helpers. The classic thread-list module still owns
+DOM rendering/mutation, event listeners, route/scroll mutation, API helpers,
+direct `state` mutation, Composer/run-progress wiring, message-card rendering,
+task/plugin/directory topic side effects, and fallback behavior when the
+optional ESM artifact is unavailable.
+
+`public/app-thread-card-message-ui.js` now imports the source-only
+`public/vite-islands/thread-card-message-model/thread-card-message-model.js`
+artifact for pure task-card/message-card planning. The model owns task-card
+shared-topic projection, message task-group id selection, quote preview and
+quote-action plans, group-message revoke authorization projection, sender label
+projection, message article class/status flags, and quoted-reply state guards.
+The classic thread-card-message module still owns DOM rendering/mutation,
+event listeners, confirmation dialogs, `api()` calls, direct `state` mutation,
+artifact/markdown/run-progress rendering helpers, Composer focus/configuration,
+and fallback behavior when the optional ESM artifact is unavailable.
+
+`public/app-message-usage-ui.js` now imports the source-only
+`public/vite-islands/message-usage-model/message-usage-model.js` artifact for
+pure usage metadata planning. The model owns token/cost normalization, model,
+provider, reasoning, API-call, row, and details-view projections, usage display
+value planning, and bounded artifact icon hints. The classic message-usage
+module still owns HTML escaping, full artifact/link/directory-button
+rendering, `reasoningEffortLabel()` display conversion, and fallback behavior
+when the optional ESM artifact is unavailable.
+
+`public/app-message-skill-ui.js` now imports the source-only
+`public/vite-islands/message-skill-model/message-skill-model.js` artifact for
+pure message skill/tool projection. The model owns skill object parsing, skill
+path normalization, direct/run-event skill collection, tool-name extraction,
+tool collection, and skill panel view-state planning. The classic
+message-skill module still owns `state.currentThread` defaulting, HTML
+escaping and markup construction, data attributes, Skill detail link behavior,
+message footer popup behavior, DOM event wiring, and fallback behavior when
+the optional ESM artifact is unavailable.
+
+`public/app-long-message-ui.js` now imports the source-only
+`public/vite-islands/long-message-model/long-message-model.js` artifact for
+pure long-message preview planning. The model owns active assistant status,
+message id and expanded-state projection, preview/collapse decisions, preview
+head/tail/omitted parts, preview notice/toggle view plans, and toggle action
+plans. The classic long-message module still owns HTML escaping, DOM event
+wiring, direct `state.expandedLongMessageIds` mutation,
+`renderCurrentThread({ stickToBottom: false })`, and fallback behavior when the
+optional ESM artifact is unavailable.
+
+`public/app-thread-state-ui.js` now imports the source-only
+`public/vite-islands/thread-state-model/thread-state-model.js` artifact for
+pure single-window and surface-cache planning. The model owns current
+single-window message-mode classification, request freshness checks,
+single-window surface cache keys, request-body planning, pending/error shell
+projection, render-skip decisions for unchanged chat/task root refreshes, and
+bounded group-chat localStorage key/value planning. The classic thread-state
+module still owns DOM mutation, real `api()` calls, SSE/event interactions,
+direct `state` mutation, actual `localStorage` writes, timers, `showError`,
+thread merge helpers, message signature dependencies, and fallback behavior
+when the optional ESM artifact is unavailable.
+
 The current Phase 5 chat runtime slice lives in
 `src/vite-islands/chat-runtime/`, with dev route
 `/vite-chat-runtime-preview/` and built preview page
@@ -327,10 +633,15 @@ open/message/reconnect/close and adapter handoff, and now also exposes a
 runtime-facade EventSource creation path for development verification.
 `HomeAiRuntimeFacade.eventStream` owns browser EventSource construction in both
 the ESM facade and the classic compatibility facade; the chat island must not
-instantiate `EventSource` directly. This does not send Composer messages, write
-attachments, or replace `public/app-event-stream-ui.js` and the classic
-Composer modules. Production streaming remains classic until real transport
-behavior and Composer parity are validated in a later development slice.
+instantiate `EventSource` directly. `public/app-event-stream-ui.js` now imports
+the standalone
+`public/vite-islands/chat-live-event-source-client/chat-live-event-source-client.js`
+artifact for source-only URL, frame parsing, and connection-status planning.
+The classic adapter still owns real `EventSource` construction,
+`state.events`, DOM status writes, `showError`, and `applyEvent(payload)`;
+`public/app-events-composer-ui.js` remains the event application owner. This
+slice does not send Composer messages, write attachments, deploy production, or
+cut over the full Vite shell.
 
 The Vite dev server now provides bounded SSE evidence for that runtime-facade
 path at `/api/events?clientVersion=20260702-vite-chat-runtime-dev-v1`. The
@@ -352,6 +663,15 @@ can simulate and clear local pending rows, but it must not call Home AI APIs,
 submit real Composer messages, upload attachments, or replace classic
 Composer/send/cancel modules until a later parity slice proves real runtime
 behavior.
+
+The development attachment file/camera input controller lives at
+`src/vite-islands/chat-runtime/attachment-file-input-controller.mjs`. It is the
+ESM boundary for mobile file picker lifecycle in the Vite preview: change
+events are stopped, selected File objects are snapshotted in controller state,
+`input.value` is cleared immediately so selecting the same just-taken photo can
+fire another change event, and only bounded file metadata is emitted. It does
+not read access keys, local storage, or file bytes, and it does not call
+production upload routes by itself.
 
 The current development-only boundary includes
 `src/vite-islands/chat-runtime/composer-api-client.mjs` and
@@ -375,6 +695,55 @@ remaining required live backend/SSE, upload, voice, focus, native-shell, and
 Owner acceptance evidence. `tests/vite-chat-composer-controller.test.js`
 guards the controller as browser-global-free and verifies success, blocked
 send, rollback, interrupt, and deduplicated readback merge behavior.
+
+The Dialog Sheet development island at `src/vite-islands/dialog-sheet/` models
+Home AI-style confirm, prompt, and message sheets as importable ESM state. The
+Vite dev route is `/vite-dialog-sheet-preview/`; the built preview page is
+`public/vite-preview/dialog-sheet.html`; and the built artifact is
+`public/vite-islands/dialog-sheet/dialog-sheet.js`. This island is for local
+Vite migration evidence only. It must not call browser-native `alert`,
+`confirm`, or `prompt`, and it must not replace classic production dialog
+owners until the production shell has an approved cutover plan and focused
+dialog-flow acceptance evidence.
+The Stage C classic adapter slice keeps the public static API in
+`public/app-dialog-ui.js` unchanged while loading the pure built ESM model from
+`public/vite-islands/dialog-sheet-model/dialog-sheet-model.js` for dialog
+state, button planning, cancelability, and prompt result normalization. If the
+model asset is unavailable during local development, the classic adapter keeps
+the existing bounded compatibility path so confirm/prompt/message callers do
+not break; this compatibility path is not a substitute for the focused build
+and adapter tests.
+
+The Toast / Status development island at `src/vite-islands/toast-status/`
+models static-client toast and connection/status feedback as importable ESM
+state. The Vite dev route is `/vite-toast-status-preview/`; the built preview
+page is `public/vite-preview/toast-status.html`; and the built artifact is
+`public/vite-islands/toast-status/toast-status.js`. This island uses
+`HomeAiRuntimeFacade.feedback.toast()` and `.status()` for bounded events. It is
+development migration evidence only and must not replace `showPushToast()` or
+`setPushProgress()` in the production ordered shell until a separately approved
+production cutover has focused feedback-flow acceptance evidence.
+
+The PWA / Web Push Status development island at
+`src/vite-islands/pwa-push-status/` models push support checks and top-bar push
+button state as fixture-only ESM state. The Vite dev route is
+`/vite-pwa-push-status-preview/`; the built preview page is
+`public/vite-preview/pwa-push-status.html`; and the built artifact is
+`public/vite-islands/pwa-push-status/pwa-push-status.js`. This island must not
+request notification permission, register Service Workers, create PushManager
+subscriptions, fetch push endpoints, or replace `public/app-pwa-push-ui.js`
+until a separately approved production cutover has real PWA/device readback.
+
+The Stage C classic adapter slice now also builds the pure PWA/Web Push model
+as `public/vite-islands/pwa-push-status-model/pwa-push-status-model.js`.
+`public/app-platform-status-ui.js` owns the shared dynamic import and uses the
+model for client-version badge planning. `public/app-pwa-settings-push-ui.js`
+uses the same model for PWA install button and requirement-hint planning.
+`public/app-pwa-push-ui.js` uses it for push-toggle planning, unavailable
+reason projection, and bounded test-delivery summary text. The production
+ordered shell still owns browser capability reads, Service Worker registration, notification
+permission requests, PushManager subscription creation, subscription sync,
+push-test API calls, and foreground-push event refresh behavior.
 
 The chat runtime now also has a development-only thread readback controller:
 `src/vite-islands/chat-runtime/thread-readback-controller.mjs`. It builds the
@@ -432,6 +801,48 @@ consumes pending artifacts. Production attachments remain owned by
 until a later slice adds production upload route cutover, server-file attach,
 native share bridge, and Owner acceptance evidence under the Vite shell.
 
+The first Stage D classic adapter slice exposes the file-input controller and
+upload client as standalone Vite build entries:
+`public/vite-islands/chat-attachment-file-input-controller/chat-attachment-file-input-controller.js`
+and
+`public/vite-islands/chat-attachment-upload-client/chat-attachment-upload-client.js`.
+`public/app-wire-start-ui.js` dynamically imports the file-input controller for
+the existing `#fileInput` change handler when available; the controller stops
+the change event, snapshots the selected File objects, and clears the input so
+mobile camera re-selection can fire another change event. The classic handler
+still owns the actual DOM listener, foreground refresh suppression, and upload
+handoff fallback. `public/app-composer-attachments-ui.js` dynamically imports
+the upload client and lets it construct the classic upload request and sequence
+multi-file uploads through injected `api` and injected file-reader functions;
+the classic adapter still owns thread materialization, button/connection state,
+pending-artifact mutation, rendering, and the legacy `fileToBase64` fallback.
+This is source-only ESM adapter progress and does not cut over server-file
+attachment or native-share production behavior.
+
+The production classic Composer camera/file path keeps client-version and
+foreground refresh suppression active for the camera confirmation/upload
+window. After `#fileInput` change and after upload success, the shell extends
+the system-file-picker return window to 120 seconds so iOS camera return and
+the immediate user confirmation/preview step cannot be interrupted by the
+ordinary foreground client-version refresh path. Pending image artifacts render
+as metadata-only preview links with a contained thumbnail (`object-fit:
+contain` and `image-orientation: from-image`); tapping the thumbnail opens the
+existing task image preview overlay and prevents same-window navigation, while
+removal is limited to the explicit remove button. The classic module still
+does not inspect image bytes or private upload bodies.
+
+The adjacent outbound share-image Stage D slice adds
+`src/vite-islands/share-image/model.mjs` and the standalone build artifact
+`public/vite-islands/share-image-model/share-image-model.js`.
+`public/app-share-image-ui.js` dynamically imports this model for Markdown text
+block normalization, native-share request id/filename planning, and bounded
+`homeai.nativeShare.share` request payload construction. The classic module
+still owns Canvas measurement/drawing, `FileReader` base64 conversion, native
+bridge invocation, clipboard write, download fallback, Note receipt save, and
+toast/UI side effects. This slice is outbound message/share-image delivery
+only; it must not be counted as server-file attachment or native-share intake
+completion.
+
 `tests/vite-chat-attachment-upload-backend-contract.test.js` now exercises the
 Vite upload client against the real
 `server-routes/thread-read-upload-api-routes.js` upload route through an
@@ -470,13 +881,166 @@ uses injected `runtime.native`, state readers/writers, and the shared
 attachment model. This is local development evidence and does not authorize a
 production shell or Service Worker cutover.
 
+The classic upload/sidebar attachment surface now has a source-only ESM
+projection model at `src/vite-islands/chat-runtime/upload-sidebar-model.mjs`,
+with built artifact
+`public/vite-islands/upload-sidebar-model/upload-sidebar-model.js`.
+`public/app-upload-sidebar-ui.js` dynamically imports this model for
+Owner-only attach-menu projection, native-share file normalization and
+deduping, native-share intake panel copy/actions, system-share directory
+planning, and server-file attachment request planning. The classic module still
+owns `FileReader`, DOM menu/panel rendering, `localStorage` view-mode writes,
+directory navigation, native callback installation, real `api()` calls, pending
+artifact mutation, and mobile sidebar/back gestures. Server-file attachment
+remains Owner-only and path-reference based; this slice does not productize
+workspace-isolated server share roots for non-Owner workspaces.
+
+The classic navigation/search surface now has a source-only ESM projection
+model at
+`src/vite-islands/navigation-shell/navigation-search-model.mjs`, with built
+artifact
+`public/vite-islands/navigation-search-model/navigation-search-model.js`.
+`public/app-navigation-search-ui.js` dynamically imports this model for
+single-window mode normalization, chat-search availability, message match id
+planning, committed-query/move-index planning, and search status / previous /
+next button projection. The classic module still owns `localStorage`, DOM
+navigation chrome, top-menu mutation, conversation rendering, real `api()`
+message search, focus/selection, scroll-to-match behavior, and mobile
+scroll/back-swipe feedback.
+
+The classic task/document preview surface now reuses the Vite document-preview
+model as a source-only adapter boundary. `vite.config.js` builds the shared
+model as
+`public/vite-islands/document-preview-model/document-preview-model.js`, and
+`public/app-task-preview-ui.js` dynamically imports it for link
+classification, Markdown preview API routing, same-origin viewer/native URL
+planning, mobile in-app overlay policy, native document request planning, and
+native/open-in strategy checks. The classic task-preview module still owns DOM
+overlay construction, history/popstate handling, native bridge discovery and
+calls, authenticated blob/text reads through preview helpers, group forwarding,
+system share/download, album save, print/export, toast/status messages, and
+fallback behavior when the optional ESM artifact is unavailable.
+
+`public/app-task-preview-helpers-ui.js` also imports the source-only
+`public/vite-islands/task-preview-helpers-model/task-preview-helpers-model.js`
+artifact. The helper model owns pure workspace, share URL, generated filename,
+status, menu toggle, overlay-open, and back-swipe surface plans. The classic
+helper continues to own real DOM updates, RuntimeFacade/native/browser calls,
+clipboard/share/download side effects, authenticated preview blob reads, and
+fallback behavior when the optional ESM artifact is unavailable.
+
+`public/app-directory-automation-ui.js` imports the source-only
+`public/vite-islands/directory-automation-model/directory-automation-model.js`
+artifact for deterministic directory route and view planning. The model owns
+route grouping/default selection, directory path boundary and parent planning,
+route/filter attachment projection, breadcrumb item projection, entry
+kind/href/document metadata plans, search matching, and root-project share/delete
+policy decisions from explicit inputs. The classic directory automation module
+still owns API execution, uploads/file reads, DOM rendering and event binding,
+timers, `localStorage` writes, direct `state` mutation, document-preview/native
+bridge execution, shared-directory mutations, rich-text rendering, and fallback
+behavior when the optional ESM artifact is unavailable.
+
+`public/app-rich-text-directory-ui.js` imports the source-only
+`public/vite-islands/rich-text-directory-model/rich-text-directory-model.js`
+artifact for deterministic rich-text and directory-alias planning. The model
+owns text cleanup, streaming receipt preview text, assistant receipt label/tone
+classification, inline image URL/authentication attribute planning, directory
+alias parsing, logical directory display paths, route resolution, and directory
+alias chip view models from explicit inputs. The classic rich-text module still
+owns Markdown/HTML rendering, escaping, authenticated image `fetch`, object URL
+creation/revoke, DOM hydration/replacement, real directory navigation,
+`localStorage`, direct `state` reads, generic document-preview/native bridge
+behavior, shared-directory mutations, and fallback behavior when the optional
+ESM artifact is unavailable.
+
+`public/app-shared-directory-ui.js` imports the source-only
+`public/vite-islands/shared-directory-model/shared-directory-model.js`
+artifact for deterministic shared-directory and directory-entry planning. The
+model owns shared-directory manager row/control projection, directory entry
+menu/list view models, delete/rename/share request body planning, and access
+target visibility/toggle/update request plans from explicit inputs and injected
+directory-preview helpers. The classic shared-directory module still owns real
+`api()` execution, Owner elevation dialogs, toast/error display, DOM rendering
+and event binding, `localStorage` writes, direct `state` mutation, uploads/file
+reads, authenticated document preview behavior, and fallback behavior when the
+optional ESM artifact is unavailable.
+
+`public/app-tts-profile-ui.js` imports the source-only
+`public/vite-islands/tts-profile-model/tts-profile-model.js` artifact for
+deterministic TTS Profile planning. The model owns byte/duration formatting,
+CosyVoice prompt marker stripping for previews, workspace id and profile API
+request planning, save validation, WAV file-selection status, profile row/list
+view-state projection, and recording/save button state from explicit inputs.
+The classic TTS Profile module still owns DOM rendering and event binding,
+direct `state` mutation, real `api()` execution, timeout behavior,
+`showError`, HTML escaping, `URL.createObjectURL`/`URL.revokeObjectURL`,
+`Blob`, `FileReader`, data URL conversion, `btoa`, microphone capture,
+`AudioContext`/`webkitAudioContext`, audio graph cleanup, `<audio>` playback,
+browser speech/native bridge behavior, provider semantics, profile
+persistence, and fallback behavior when the optional ESM artifact is
+unavailable.
+
+`public/markdown-renderer-client.js` imports the source-only
+`public/vite-islands/markdown-renderer-model/markdown-renderer-model.js`
+artifact for deterministic Markdown rendering. The model owns HTML/attribute
+escaping, link/image protocol sanitization, font scale and class normalization,
+table/list/task-list/code/quote parsing, inline formatting, image rendering,
+and Markdown document wrapper rendering. The classic client remains the ordered
+static-script compatibility adapter: it exposes `window.HermesMarkdownRenderer`,
+preserves CommonJS `module.exports` for Node tests, performs the optional ESM
+import, and keeps an equivalent local fallback when the optional artifact is
+unavailable. It does not own document-preview/native bridge policy, API fetch,
+authenticated blob access, viewer routing, or caller DOM commit behavior.
+
+`public/app-group-topic-ui.js` imports the source-only
+`public/vite-islands/group-topic-model/group-topic-model.js` artifact for
+pure group-topic planning. The model owns group-chat member overlay projection,
+group-chat save request planning, thread-list query parameter planning,
+case-topic refresh request planning, and Kanban topic-card snapshot request and
+schedule decisions. The classic group-topic module still owns DOM rendering,
+API calls, state mutation, timers, Todo/Kanban result application, and fallback
+behavior when the optional ESM artifact is unavailable.
+
+`public/app-todo-detail-ui.js` imports the source-only
+`public/vite-islands/todo-detail-model/todo-detail-model.js` artifact for
+pure todo-detail view planning. The model owns metadata row selection,
+Kanban skill projection, generic comment-panel visibility, completed-card
+revision state, and card-management control decisions. The classic
+todo-detail module still owns DOM string rendering, localized UI copy,
+escaping, specialized Kanban/reading/assessment/learning-growth panels,
+state draft reads, and fallback behavior when the optional ESM artifact is
+unavailable.
+
+`public/app-learning-growth-task-ui.js` imports the source-only
+`public/vite-islands/learning-growth-task-model/learning-growth-task-model.js`
+artifact for pure learning-growth task planning. The model owns activity and
+next-action labels, submission prompt/guard/stat/validation decisions, feedback
+history/outcome projection, growth-card role labels, teaching-flow projection,
+teaching-card detail state, and experience-signal action planning. The classic
+learning-growth task module still owns HTML string rendering, escaping,
+`renderKanbanOutputLinks` integration, share-button markup, and fallback
+behavior when the optional ESM artifact is unavailable.
+
+`public/app-kanban-todo-core-ui.js` imports the source-only
+`public/vite-islands/kanban-todo-core-model/kanban-todo-core-model.js`
+artifact for pure Kanban todo core planning. The model owns title compaction,
+due-label fallback, open-status matching, assignee default/option projection,
+and local due-input value planning. The classic Kanban todo core module still
+owns story-tree HTML rendering, escaping, global state reads, localized story
+empty-state copy, and fallback behavior when the optional ESM artifact is
+unavailable.
+
 The current Phase 5 focus lifecycle guard slice lives at
 `src/vite-app/runtime/focus-lifecycle-guard.mjs`. It is injected and
 browser-global free, and it mirrors the classic stale-editable policy from
 `public/app-composer-draft-ui.js`: stale hidden, detached, disabled, inert,
 zero-rect, or invisible active editables blur on lifecycle checks; ordinary
 PWA non-editable touches preserve a visible Composer focus; explicit iOS
-native-shell non-editable touches outside the active editable force a blur.
+native-shell non-editable touches outside the active editable force a blur; and
+focused Composer textarea second-touch/long-press blur during the bounded native
+paste window can refocus the still-visible Composer once so paste/input can
+complete without turning the Composer into a focus trap.
 `/vite-chat-runtime-preview/` installs this guard and shows a `Focus guard`
 status row plus a `清理焦点` manual cleanup button. This is local Vite
 development evidence only. Production still uses the classic Web guard and
@@ -504,16 +1068,25 @@ The development readiness gate is
 `npm run check:vite-readiness` after `npm run build:vite`, then run
 `node tests/vite-dev-preview-routes-smoke.test.js` for a mobile Playwright
 smoke of all Vite preview routes. This is a development-environment objective
-only and does not authorize changing production `/` away from the classic shell.
+only and does not authorize bypassing the production Vite-only root shell.
 The gate verifies required Vite preview routes, source modules, focused tests,
 documentation boundaries, built preview artifacts, and the rule that
 `public/index.html` and
 `public/service-worker.js` must not reference `/vite-preview/`,
 `/vite-islands/`, or `/vite-*-preview/` routes before a separate Owner-approved
 production cutover target exists.
+The focused source-only cache-policy gate is
+`scripts/vite-preview-cache-policy-check.js`; run it as
+`npm run check:vite-cache-policy`. It verifies preview HTML script targets,
+manifest asset existence, runtime secret/API marker exclusion in preview HTML,
+and production-shell exclusion from Vite preview assets. It intentionally reports
+`productionCutoverCacheReady=false` during the development target; production
+cutover must close the deterministic non-content-fingerprinted Vite entry
+residual with a separate cache-busting or fingerprinted-asset policy.
 `npm run verify:vite-dev` is the maintained source-only development acceptance
 report. It runs the Vite build, global audit, mobile Playwright preview-route
-smoke, real local backend parity smoke, readiness gate, Owner review report,
+smoke, real local backend parity smoke, Vite dev user-journey smoke, readiness
+gate, cache-policy gate, Owner review report,
 blocked cutover preflight, blocked handoff packet, repository static check,
 readback validator contract, local full test gate, and diff hygiene check. The
 local full test gate still skips install/deploy lane tests. It clears the
@@ -523,6 +1096,21 @@ cutover approval environment for the run and must report
 `ownerApprovalRequest.status=ready_to_request_owner_approval` with the exact
 Owner approval text for the next boundary, while still creating no production
 source change, deployment, or Worker card.
+`npm run smoke:vite-dev-user-journeys` is the maintained source-only browser
+smoke for the current Vite development user paths. It drives Composer send,
+file/camera attachment without main-frame refresh, server-file attachment,
+native/system share attachment, Codex iframe rendering, Owner System Console
+refresh, PDF/PPTX document preview policy, and voice pending cancel through the
+Vite preview UI. It uses only Vite dev mock metadata and must not be used as
+production readback.
+`npm run packet:vite-dev` is the maintained source-only development audit
+packet. It wraps the acceptance report in an Audit Packet and Delta Matrix,
+records migrated development surfaces, remaining production surfaces, validation
+summary, and risk register, and still reports `productionWrites=false`,
+`deployExecuted=false`, and `productionDeployAuthorized=false`.
+`npm run audit:vite-dev-goal` is the maintained source-only development goal
+audit. It verifies that the development target itself is complete without
+converting that result into production cutover approval or production readback.
 The Owner review package for that later boundary is
 `docs/IMPLEMENTATION_NOTES/vite-production-cutover-review.md`; it is not a
 deployment receipt or approval record.
@@ -661,41 +1249,101 @@ Composer self-checks must update that contract and run
 Current ordered Composer-adjacent modules:
 
 - `public/app-chat-composer-ui.js`: composer shell/action button and shared
-  view helpers.
+  view helpers. The Stage D source-only adapter may use the Vite
+  composer-shell model for sidebar-back action planning, single-window/view
+  predicates, stop-mode decisions, and send/search/attach button view planning.
+  The classic module still owns DOM class/text/aria updates, voice-input label
+  integration, chat-search status side effects, source-control refresh, sidebar
+  navigation execution, and composer-context rendering.
 - `public/app-chat-scope-ui.js`: group-chat/chat-scope membership, read-state,
   and unread helpers.
 - `public/app-composer-source-ui.js`: local/search source mode selection.
+- `public/app-draft-thread-ui.js`: draft thread creation, draft materialization
+  request planning, and shared-project detection. The Stage D source-only
+  adapter may use the Vite composer draft-thread model for draft detection,
+  deterministic draft thread shape, materialize request-body projection, and
+  shared-project source checks. The classic module still owns `state` sequence
+  writes, `/api/threads` materialization, thread summary replacement, and
+  current-thread/list rendering.
 - `public/app-composer-model-ui.js`: model/AI mention parsing and selected
-  model/provider derivation.
+  model/provider derivation. The Stage D source-only adapter may use the Vite
+  composer model-selection model for assistant/default model projection, AI
+  mention parsing, reasoning alias mapping, menu option projection, and selected
+  model/provider derivation. The classic module still owns current text reads,
+  state/constant projection, and compatibility fallback behavior.
 - `public/app-composer-editor-ui.js`: text extraction, caret management,
-  composition fallback, paste handling, autosize, and key handling.
+  composition fallback, paste handling, autosize, and key handling. The Stage D
+  source-only adapter may use the Vite composer-editor model for text
+  normalization, request-size error planning, successful-send clear decisions,
+  composition fallback delay planning, textarea height planning, paste range
+  planning, caret offset clamping, and keydown action planning. The classic
+  module still owns the real DOM input, selection/range APIs, timers,
+  mention-menu side effects, search execution, and send execution.
 - `public/app-composer-draft-ui.js`: composer focus suppression, foreground /
   background draft handling, pending-thread foreground refresh, focus replay,
-  and draft-existence checks.
+  and draft-existence checks. The Stage D source-only adapter may use the Vite
+  composer-draft model for auto-focus suppression, stale editable focus
+  projection, system file-picker foreground suppression, and draft-existence
+  planning. The classic module still owns lifecycle listeners, real
+  focus/blur, route snapshot persistence, foreground refresh execution, and
+  DOM/API side effects.
 - `public/app-mobile-layout-ui.js`: mobile viewport, keyboard, bottom-nav,
   plugin-context viewport reservation, and client layout diagnostics. This is
   intentionally outside the Composer namespace because other host/plugin
   surfaces depend on the same viewport behavior.
-- `public/app-composer-context-ui.js`: compact composer context-chip rendering
-  only.
+- `public/app-composer-context-ui.js`: compact composer context-chip rendering.
+  The Stage D source-only adapter may use the Vite composer-context model for
+  active run-id projection, active assistant selection, run counts, permission
+  labels, model/reasoning label joining, context-chip item planning, and
+  context visibility decisions. The classic module still owns view detection,
+  task/thread message lookup, model/source option lookup, keyboard metric
+  refresh, DOM class toggles, HTML escaping, and real chip rendering.
 - `public/app-composer-refresh-scheduler.js`: pure current-thread refresh
-  scheduling policy.
+  scheduling policy. The Stage D source-only adapter may use the Vite
+  composer refresh-scheduler model for delay normalization, timer due-at
+  calculation, scheduled/pending refresh retention, and bounded pending-delay
+  projection. The classic module still owns the synchronous
+  `ComposerRefreshScheduler` compatibility export.
 - `public/app-composer-current-thread-refresh-ui.js`: route snapshotting,
   current-thread refresh API orchestration, and topic-root refresh scheduling.
+  The Stage D source-only adapter may use the Vite current-thread refresh model
+  for route snapshot/match planning, pending message checks, summary active-run
+  checks, summary-triggered refresh decisions, refresh delay planning, and
+  timer due-at planning. The classic module still owns real timers, API reads,
+  thread merge/upsert, scroll preservation, task-root render preservation,
+  error display, and current-thread rendering.
 - `public/app-composer-render-scheduler-ui.js`: current-thread render
-  coalescing.
+  coalescing. The Stage D source-only adapter may use the Vite render-scheduler
+  model for render-schedule eligibility, scroll-bottom offset preservation,
+  bottom-stick planning, and stale-route frame render decisions. The classic
+  module still owns the real conversation element, route snapshot/match calls,
+  `requestAnimationFrame`, state mutation, and `renderCurrentThread` execution.
 - `public/app-composer-streaming-message-ui.js`: bounded streaming assistant
-  content updates.
+  content updates. The Stage D source-only adapter may use the Vite streaming
+  message model for live-buffer truncation, delta write planning, active-message
+  checks, render eligibility, stick-to-bottom decisions, and render-throttle
+  delay planning. The classic module still owns visible DOM patching,
+  `requestAnimationFrame`, `setTimeout`, markdown/image hydration, run-progress
+  reserve classes, scroll-button visibility, and full-thread render fallback.
 - `public/app-composer-viewport-ui.js`: Composer-specific bottom-follow
   decisions, terminal receipt stick-to-bottom policy, and send-time bottom lock.
-  It must honor the five-second user-scroll protection window.
+  It must honor the five-second user-scroll protection window. The Stage D
+  source-only adapter may use the Vite composer-viewport model for terminal
+  receipt stick-to-bottom decisions and send-time viewport lock windows. The
+  classic module still owns the real conversation element, current clock read,
+  state writes, `requestAnimationFrame`, and scroll execution.
 - `public/app-composer-self-check-ui.js`: metadata-only Composer runtime
   self-check reporting for terminal receipt gaps, stale active-run state,
   duplicate local/server user echoes, and protected-scroll bypass. It submits
   only `home-ai-self-check` / `self_check_signal_failed` diagnostics so the AI
   Ops self-check remediation gate can auto-dispatch repair cards; it must not
   include message bodies, prompts, attachment contents, raw URLs, cookies, or
-  access keys.
+  access keys. The Stage D source-only adapter may use the Vite composer
+  self-check model for bounded payload/report-key planning, terminal issue
+  planning, scheduling policy, and protected-scroll bypass report projection.
+  The classic module still owns DOM receipt visibility checks, timers,
+  duplicate-report session state, API/fetch submission, and compatibility
+  fallback behavior.
 - `public/app-composer-message-invalidation-ui.js`: deterministic message
   projection invalidation. Active assistant messages patch the visible
   streaming receipt in place; terminal assistant messages also queue an
@@ -703,26 +1351,111 @@ Current ordered Composer-adjacent modules:
   not stranded until route re-entry. The refresh must respect the five-second
   user-scroll protection window, must not force the conversation back to the
   bottom after an intentional scroll, and schedules the bounded Composer
-  self-check after terminal assistant messages.
+  self-check after terminal assistant messages. The Stage D source-only adapter
+  may use the Vite composer message-invalidation model for terminal/active
+  status classification, terminal receipt refresh planning, protected-scroll
+  bypass projection, and stream-patch versus full-render invalidation decisions.
+  The classic module still owns state reads, visible stream patch calls,
+  current-thread refresh calls, run-progress scheduling, self-check scheduling,
+  and compatibility fallback behavior.
 - `public/app-composer-event-state-ui.js`: event-driven thread summary,
-  current-thread message, and chat-scope cache upsert helpers.
-- `public/app-events-composer-ui.js`: event fanout only.
+  current-thread message, and chat-scope cache upsert helpers. The Stage D
+  source-only adapter may use the Vite composer event-state model for thread
+  selection, summary upsert action planning, current-message upsert side-effect
+  planning, and cached chat-scope target planning. The classic module still
+  owns real `state` mutation, message merge/sort helpers, local-pending-send
+  replacement checks, task-list thread memory, owner-elevation prompts, render
+  calls, and compatibility fallback behavior.
+- `public/app-composer-source-ui.js`: Composer source selection for local data,
+  web search, and X search intent hints. The current production body contract
+  still returns `null`, so this module only influences UI/source intent state.
+  The Stage D source-only adapter may use the Vite composer source model for
+  source alias normalization, explicit command detection, auto-hint detection,
+  selected-source info projection, source toggle planning, and control/button
+  state projection. The classic module still owns DOM menu rendering, state
+  writes, context refresh calls, icon HTML, and compatibility fallback behavior.
+- `public/app-events-composer-ui.js`: SSE payload fanout and Composer event
+  routing only. The Stage D source-only adapter may use the Vite
+  composer-events model for event-type classification, todos refresh planning,
+  current-thread summary refresh/render decisions, task event planning, and
+  current-message projection planning. The classic module still owns EventSource
+  payload handling, state mutation, API reads, DOM/render calls, current-thread
+  merge, message delta/run-event dispatch, topic-root scroll preservation, and
+  all chat-scope/cache upsert side effects.
 - `public/app-event-stream-ui.js`: EventSource connection glue only.
 - `public/app-composer-send-ui.js`: send-result routing, Owner elevation policy,
-  and group mention menu helpers.
+  and group mention menu helpers. The Stage D source-only adapter may use the
+  Vite composer-send-ui model for send-result route/task-group/reset planning,
+  Owner elevation availability/copy/tag cleanup, and group mention
+  token/filter/insertion planning. The classic module still owns state
+  mutation, dialogs, API calls, DOM/menu rendering, focus/caret effects, and
+  send pipeline execution.
 - `public/app-composer-native-environment-ui.js`: native iOS environment
   snapshot bridge, bounded refresh, and send-time environment context lookup.
+  The Stage D source-only adapter may use the Vite composer-native-environment
+  model for bridge-availability projection, send-time target/purpose/request
+  planning, snapshot upload throttling, and bounded upload body construction.
+  The classic module still owns real native bridge invocation, localStorage /
+  DOM shell detection, API POST, timers, foreground/lifecycle listeners,
+  in-flight Promise state, and compatibility fallback behavior.
 - `public/app-composer-pending-send-ui.js`: local optimistic user/assistant
-  pending message projection and rollback.
+  pending message projection and rollback. The Stage D source-only adapter may
+  use the Vite composer model for task-group selection, assistant placeholder
+  decisions, optimistic send message planning, append projection, rollback, and
+  viewport timing policy. The classic module still owns real `state` mutation,
+  render calls, bottom-stick scheduling, and compatibility fallback behavior.
 - `public/app-composer-send-pipeline-ui.js`: one-message send orchestration:
   preflight, request body assembly, duplicate-send lock, native context attach,
-  API POST, result handling, elevated retry, and final cleanup.
+  API POST, result handling, elevated retry, and final cleanup. The Stage D
+  source-only adapter may use the Vite composer-send-pipeline model for
+  notification-channel selection, request-body planning, and elevated retry
+  body planning. The classic module still owns preflight, duplicate-send lock,
+  native environment refresh, DOM/API side effects, optimistic projection,
+  rollback, response handling, Owner approval dialogs, voice-learning commit,
+  and cleanup.
 - `public/app-composer-attachments-ui.js`: system file upload to pending
-  artifacts. Server-file attachment references remain in the upload/sidebar
-  module and must not re-upload bytes.
+  artifacts. The Stage D source-only adapter may use the Vite upload client
+  for request construction and sequential upload planning, but the classic
+  module still owns thread materialization, DOM state, and fallback upload.
+  Server-file attachment references remain in the upload/sidebar module and
+  must not re-upload bytes.
+- `public/app-upload-sidebar-ui.js`: attach-file menu, native-share intake,
+  server-file picker, and mobile sidebar gestures. The Stage D source-only
+  adapter may use the Vite upload-sidebar model for menu/native-share/server
+  file request planning. The classic module still owns DOM events, route/view
+  mutation, localStorage, real API calls, native callback installation, and
+  sidebar touch/back gestures.
+- `public/app-navigation-search-ui.js`: top navigation chrome, single-window
+  mode selection, task/topic controls, and chat in-thread search. The Stage D
+  source-only adapter may use the Vite navigation-search model for
+  single-window normalization, chat-search availability, match ids,
+  committed-query/move-index planning, and status/prev-next projection. The
+  classic module still owns DOM mutation, `localStorage`, API search requests,
+  focus, scrolling, and route/view orchestration.
+- `public/app-task-preview-ui.js`: image, Markdown, PDF/Office document
+  preview overlays and native document bridge policy. The Stage D source-only
+  adapter may use the Vite document-preview model for classification,
+  same-origin viewer/native URL planning, Markdown preview route planning,
+  mobile in-app overlay policy, native request planning, and open-strategy
+  decisions. The classic module still owns overlay DOM, popstate/history,
+  native bridge invocation, helper API/blob/text calls, share/download/export,
+  and all fallback UI.
+- `public/app-kanban-composer-actions-ui.js`: Kanban create-composer actions,
+  document preview intake, multi-agent plan draft creation, and batch
+  create-from-draft submission. The Stage D source-only adapter may use the
+  Vite kanban-composer-actions model for local message window projection, plan
+  summary text, document-preview request/result planning, user-message /
+  progress-kind planning, and batch request/summary planning. The classic
+  module still owns form reads, file byte conversion, API calls,
+  `localStorage`, Kanban state mutation, render/load orchestration, and
+  compatibility fallback behavior.
 - `public/app-share-image-ui.js`: reply and Growth-card image rendering plus
-  share delivery. In Android/iOS native shells, generated PNG shares should
-  prefer `HomeAINativeShareCapability.outboundShare` /
+  share delivery. The Stage D source-only adapter may use the Vite share-image
+  model for text block and native-share request planning, but the classic
+  module still owns Canvas, `FileReader`, native bridge invocation, clipboard,
+  download fallback, and Note receipt side effects. In Android/iOS native
+  shells, generated PNG shares should prefer
+  `HomeAINativeShareCapability.outboundShare` /
   `HomeAINativeShare.share()` before Web Share, clipboard, or download
   fallback. The native request may include only bounded share metadata and the
   generated image bytes; it must not include access keys, cookies, launch
@@ -751,6 +1484,13 @@ self-check diagnostic policy back into `public/app-event-stream-ui.js`.
   expose different values. Native tab bars remain stable because the bar height
   is fixed and the safe area is handled as background or internal spacing, not
   as a layout-height multiplier.
+- Mobile bottom navigation must also keep every visible app-level/pinned tab on
+  one row. The Owner `工作区` tab makes the ordinary base set four visible tabs;
+  three pinned plugin tabs are still supported by the compact
+  `.bottom-nav-count-7` mode, and `.bottom-nav-count-8` is retained as a
+  defensive no-wrap mode. Do not let visible tab counts fall back to the
+  default five-column grid, because that creates an implicit second row that is
+  clipped by the fixed bottom chrome.
 - Primary navigation transitions must not publish an intermediate bottom-nav
   state that hides pinned plugin tabs. `updateNavigationControls()` should keep
   `pinnedPluginBottomTabIds()` visible while recomputing hidden tabs, and
@@ -1019,6 +1759,13 @@ self-check diagnostic policy back into `public/app-event-stream-ui.js`.
   navigation bounds, and composer/bottom-nav overlap. Browser-mode visual smoke
   is useful for mechanical layout evidence, but installed-PWA behavior still
   requires the PWA/device harness when the issue is PWA-specific.
+- Directory-bound topic Composer long-input shrink regressions use the central
+  browser-mobile scenario
+  `directory-topic-composer-long-input-shrink`, run through
+  `npm run visual:central -- --surface browser-mobile --scenario directory-topic-composer-long-input-shrink --viewport 390x844 --execute --json`.
+  The scenario records bounded editor/composer dimensions before long input,
+  after long input, after shortening, after clearing, and after blur, and fails
+  on stale editor height or composer/bottom-nav overlap.
 - Authenticated visual smoke should pass the Access Key by file path only:
   `--access-key-path <path>` or `HERMES_VISUAL_SMOKE_ACCESS_KEY_PATH`. The
   harness injects `localStorage.hermesWebKey` and the `hermes_web_key` cookie

@@ -1,13 +1,53 @@
 "use strict";
 
+const THREAD_MESSAGE_MODEL_ESM_PATH = "/vite-islands/thread-message-model/thread-message-model.js";
+let threadMessageModel = null;
+let threadMessageModelPromise = null;
+
+function importThreadMessageModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (threadMessageModel) return Promise.resolve(threadMessageModel);
+  if (!threadMessageModelPromise) {
+    const importer = typeof rootRef.__homeAiImportThreadMessageModel === "function"
+      ? rootRef.__homeAiImportThreadMessageModel
+      : (path) => import(path);
+    threadMessageModelPromise = Promise.resolve()
+      .then(() => importer(THREAD_MESSAGE_MODEL_ESM_PATH))
+      .then((model) => {
+        threadMessageModel = model || null;
+        return threadMessageModel;
+      })
+      .catch((error) => {
+        threadMessageModelPromise = null;
+        throw error;
+      });
+  }
+  return threadMessageModelPromise;
+}
+
+function currentThreadMessageModel() {
+  return threadMessageModel;
+}
+
+if (typeof window !== "undefined") {
+  importThreadMessageModel().catch(() => null);
+}
 
 async function createThread() {
   clearQuotedReply({ render: false });
-  if (state.viewMode === "single") {
+  const model = currentThreadMessageModel();
+  const plan = typeof model?.createThreadActionPlan === "function"
+    ? model.createThreadActionPlan({
+      state,
+      currentSingleWindowLoaded: typeof isCurrentSingleWindowLoaded === "function" && isCurrentSingleWindowLoaded(),
+      mobileLayout: typeof isMobileLayout === "function" && isMobileLayout(),
+    })
+    : null;
+  const action = plan?.action || "";
+  if (action === "load_single_window" || (!action && state.viewMode === "single")) {
     await loadSingleWindow();
     return;
   }
-  if (state.viewMode === "todos") {
+  if (action === "open_todo_create" || (!action && state.viewMode === "todos")) {
     state.selectedTodoId = "";
     if (!state.todoCreateOpen) {
       state.kanbanComposerMessages = [];
@@ -20,10 +60,10 @@ async function createThread() {
     focusTodoFormSoon();
     return;
   }
-  if (state.viewMode === "tasks") {
+  if (["render_task_root", "load_task_root"].includes(action) || (!action && state.viewMode === "tasks")) {
     state.currentTaskGroupId = "";
-    if (isMobileLayout()) closeSidebar();
-    if (isCurrentSingleWindowLoaded()) {
+    if (plan?.closeSidebar || (!action && isMobileLayout())) closeSidebar();
+    if (action === "render_task_root" || (!action && isCurrentSingleWindowLoaded())) {
       renderThreads();
       renderCurrentThread({ stickToBottom: true });
       focusComposerSoon();
@@ -33,16 +73,16 @@ async function createThread() {
     focusComposerSoon();
     return;
   }
-  if (state.viewMode === "automation") {
+  if (action === "render_automation" || (!action && state.viewMode === "automation")) {
     renderAutomationView();
     return;
   }
-  if (state.viewMode === "projects") {
+  if (action === "load_directory" || (!action && state.viewMode === "projects")) {
     await loadDirectoryView();
     return;
   }
   state.transientProjectRoute = null;
-  if (isMobileLayout()) closeSidebar();
+  if (plan?.closeSidebar || (!action && isMobileLayout())) closeSidebar();
   const draft = createDraftThread();
   state.currentThread = draft;
   state.currentThreadId = draft.id;
@@ -56,11 +96,16 @@ async function createThread() {
 async function selectThread(threadId) {
   clearQuotedReply({ render: false });
   state.transientProjectRoute = null;
-  state.currentThreadId = threadId;
-  const result = await api(`/api/threads/${encodeURIComponent(threadId)}`);
+  const model = currentThreadMessageModel();
+  const plan = typeof model?.selectThreadRequestPlan === "function"
+    ? model.selectThreadRequestPlan(threadId)
+    : { ok: Boolean(threadId), threadId, path: `/api/threads/${encodeURIComponent(threadId)}`, renderOptions: { stickToBottom: true } };
+  if (!plan.ok) return;
+  state.currentThreadId = plan.threadId;
+  const result = await api(plan.path);
   state.currentThread = mergeCurrentThread(result.thread);
   renderThreads();
-  renderCurrentThread({ stickToBottom: true });
+  renderCurrentThread(plan.renderOptions || { stickToBottom: true });
   setComposerEnabled(true);
   if (isMobileLayout()) closeSidebar();
 }
@@ -69,52 +114,81 @@ async function openProjectTask(sourceThreadId, taskGroupId) {
   if (!sourceThreadId || !taskGroupId) return;
   clearQuotedReply({ render: false });
   state.transientProjectRoute = null;
-  state.viewMode = "tasks";
-  localStorage.setItem("hermesWebViewMode", state.viewMode);
-  state.currentThreadId = sourceThreadId;
-  const params = new URLSearchParams({
-    messageMode: "tasks",
-    taskGroupId,
-    messageLimit: String(typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30),
-  });
-  const result = await api(`/api/threads/${encodeURIComponent(sourceThreadId)}?${params.toString()}`);
+  const model = currentThreadMessageModel();
+  const plan = typeof model?.openProjectTaskRequestPlan === "function"
+    ? model.openProjectTaskRequestPlan({
+      sourceThreadId,
+      taskGroupId,
+      messageLimit: typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30,
+    })
+    : {
+      ok: true,
+      sourceThreadId,
+      taskGroupId,
+      viewMode: "tasks",
+      storage: { key: "hermesWebViewMode", value: "tasks" },
+      path: `/api/threads/${encodeURIComponent(sourceThreadId)}?${new URLSearchParams({
+        messageMode: "tasks",
+        taskGroupId,
+        messageLimit: String(typeof taskDetailMessageInitialLimit === "function" ? taskDetailMessageInitialLimit() : 30),
+      }).toString()}`,
+      renderOptions: { stickToBottom: true },
+    };
+  if (!plan.ok) return;
+  state.viewMode = plan.viewMode || "tasks";
+  if (plan.storage?.key) localStorage.setItem(plan.storage.key, plan.storage.value || state.viewMode);
+  state.currentThreadId = plan.sourceThreadId;
+  const result = await api(plan.path);
   state.currentThread = mergeCurrentThread(result.thread);
-  state.currentTaskGroupId = taskGroupId;
+  state.currentTaskGroupId = plan.taskGroupId;
   state.threads = [summarizeThread(state.currentThread)];
   if (isMobileLayout()) closeSidebar();
   renderThreads();
-  renderCurrentThread({ stickToBottom: true });
+  renderCurrentThread(plan.renderOptions || { stickToBottom: true });
   setComposerEnabled(true);
 }
 
 function configureComposer(options = {}) {
   const directoryTopicDraft = typeof isDirectoryTopicDraftActive === "function" && isDirectoryTopicDraftActive();
-  const taskListRoot = state.viewMode === "tasks" && !state.currentTaskGroupId && !directoryTopicDraft;
-  const enabled = taskListRoot ? false : Boolean(options.enabled);
-  const searchMode = isChatSearchMode();
-  const hidden = taskListRoot || Boolean(options.hidden);
+  const model = currentThreadMessageModel();
+  const plan = typeof model?.composerStatePlan === "function"
+    ? model.composerStatePlan({
+      state,
+      options,
+      directoryTopicDraft,
+      searchMode: isChatSearchMode(),
+      chatSearchDraft: currentChatSearchDraft(),
+      singleWindowView: isSingleWindowView(),
+      singleWindowChatView: isSingleWindowChatView(),
+      defaultPlaceholder: "Message Home AI...",
+    })
+    : null;
+  const taskListRoot = plan?.taskListRoot ?? (state.viewMode === "tasks" && !state.currentTaskGroupId && !directoryTopicDraft);
+  const enabled = plan?.enabled ?? (taskListRoot ? false : Boolean(options.enabled));
+  const searchMode = plan?.searchMode ?? isChatSearchMode();
+  const hidden = plan?.hidden ?? (taskListRoot || Boolean(options.hidden));
   const composer = $("composer");
-  const shellLocked = Boolean(options.shellLocked) && !hidden && !searchMode;
-  const visuallyEnabled = enabled || shellLocked || searchMode;
-  if (composer && Boolean(hidden) && !searchMode) {
+  const shellLocked = plan?.shellLocked ?? (Boolean(options.shellLocked) && !hidden && !searchMode);
+  const visuallyEnabled = plan?.visuallyEnabled ?? (enabled || shellLocked || searchMode);
+  if (composer && (plan?.shouldHideBeforeUpdate ?? (Boolean(hidden) && !searchMode))) {
     composer.hidden = true;
     composer.setAttribute("aria-hidden", "true");
   }
   if (composer) {
     composer.classList.toggle("composer-shell-locked", shellLocked);
-    composer.setAttribute("aria-busy", shellLocked ? "true" : "false");
+    composer.setAttribute("aria-busy", plan?.ariaBusy || (shellLocked ? "true" : "false"));
   }
-  if (!enabled && typeof clearKeyboardViewportMetrics === "function") clearKeyboardViewportMetrics();
-  setComposerEditorEnabled(visuallyEnabled);
-  if ((!visuallyEnabled || (Boolean(hidden) && !searchMode)) && typeof blurFocusedEditableIfStale === "function") {
-    blurFocusedEditableIfStale("composer_hidden_or_disabled");
+  if ((plan?.shouldClearKeyboardViewportMetrics ?? !enabled) && typeof clearKeyboardViewportMetrics === "function") clearKeyboardViewportMetrics();
+  setComposerEditorEnabled(plan?.editorEnabled ?? visuallyEnabled);
+  if ((plan?.shouldBlurFocusedEditable ?? (!visuallyEnabled || (Boolean(hidden) && !searchMode))) && typeof blurFocusedEditableIfStale === "function") {
+    blurFocusedEditableIfStale(plan?.blurReason || "composer_hidden_or_disabled");
   }
-  setComposerPlaceholder(searchMode ? "搜索聊天" : composerPlaceholder(options.placeholder || "Message Home AI..."));
-  $("attachFile").disabled = searchMode ? false : !visuallyEnabled;
-  $("sendMessage").disabled = searchMode ? !currentChatSearchDraft() : !visuallyEnabled;
+  setComposerPlaceholder(plan?.placeholder || (searchMode ? "搜索聊天" : composerPlaceholder(options.placeholder || "Message Home AI...")));
+  $("attachFile").disabled = plan?.attachDisabled ?? (searchMode ? false : !visuallyEnabled);
+  $("sendMessage").disabled = plan?.sendDisabled ?? (searchMode ? !currentChatSearchDraft() : !visuallyEnabled);
   updateComposerAction();
   renderQuotedReply();
-  if (composer && !(Boolean(hidden) && !searchMode)) {
+  if (composer && (plan?.shouldShowAfterUpdate ?? !(Boolean(hidden) && !searchMode))) {
     composer.hidden = false;
     composer.setAttribute("aria-hidden", "false");
   }
@@ -142,5 +216,14 @@ function setComposerPlaceholder(text) {
 }
 
 function composerPlaceholder(fallback) {
+  const model = currentThreadMessageModel();
+  if (typeof model?.composerPlaceholderPlan === "function") {
+    return model.composerPlaceholderPlan({
+      singleWindowView: isSingleWindowView(),
+      singleWindowChatView: isSingleWindowChatView(),
+      quotedReply: state.quotedReply,
+      defaultPlaceholder: arguments[0],
+    }).placeholder;
+  }
   return isSingleWindowView() && !isSingleWindowChatView() && state.quotedReply ? "Reply to quoted task..." : fallback;
 }

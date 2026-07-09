@@ -2,6 +2,10 @@
 
 const crypto = require("node:crypto");
 const path = require("node:path");
+const {
+  buildDeployLaneGovernanceReport,
+  validateDeployCardSourceAuthorization,
+} = require("./central-deploy-governance-service");
 
 const TERMINAL_STATUSES = new Set([
   "completed",
@@ -60,6 +64,7 @@ function validateRoutinePluginDeploymentCard(card = {}) {
   const cardKind = cleanString(card.cardKind || card.card_kind || card.category || card.kind || card.message?.cardKind, 120);
   const pluginId = normalizePluginId(card.pluginId || card.plugin_id || card.plugin || card.message?.pluginId);
   const deployReason = cleanString(card.deployReason || card.deploy_reason || card.reason || card.message?.deployReason, 180);
+  const sourceAuthorization = validateDeployCardSourceAuthorization(card);
 
   if (isTerminalReceiptShape(card)) {
     issues.push({ code: "deploy_card_is_terminal_receipt" });
@@ -75,6 +80,9 @@ function validateRoutinePluginDeploymentCard(card = {}) {
   if (!deployReason) {
     issues.push({ code: "deploy_card_reason_required" });
   }
+  if (!sourceAuthorization.ok) {
+    issues.push(...sourceAuthorization.issues);
+  }
 
   return {
     ok: issues.length === 0,
@@ -83,6 +91,8 @@ function validateRoutinePluginDeploymentCard(card = {}) {
     cardKind,
     pluginId,
     deployReason,
+    sourceRole: sourceAuthorization.sourceRole,
+    sourcePolicy: buildDeployLaneGovernanceReport(card),
     requestShape: issues.length === 0 ? "routine_plugin_deployment" : "invalid",
   };
 }
@@ -214,6 +224,7 @@ function summarizePublicUpgradeDailySmoke(payload = {}) {
 
 module.exports = {
   buildDeployLaneLockRecord,
+  buildDeployLaneGovernanceReport,
   isTerminalReceiptShape,
   normalizePluginId,
   summarizePublicUpgradeDailySmoke,

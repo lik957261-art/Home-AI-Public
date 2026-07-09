@@ -108,6 +108,84 @@ async function testRollupFromSystemStatusAndRuntimeSlo() {
   });
 }
 
+async function testAdvisoryCodexMobileRssWarningDoesNotDegradeOverview() {
+  const service = createOwnerSystemConsoleService({
+    nowIso: () => "2026-07-01T00:00:10.000Z",
+    runtimeSloModelBuilder: () => runtimeSloModel(),
+    collectSystemStatus: async () => ({
+      schemaVersion: 1,
+      overallStatus: "warning",
+      cpu: { overallPercent: 12, status: "ok" },
+      memory: { percentUsed: 18, status: "ok" },
+      disk: { usedPercent: 20, status: "ok" },
+      signals: [
+        {
+          signalId: "codex_mobile_runtime_pressure",
+          category: "plugin_runtime",
+          status: "warning",
+          summary: "Codex Mobile RSS is high while host memory pressure is healthy.",
+          boundedEvidence: {
+            advisoryOnly: true,
+            totalCpuPercent: 2,
+            totalRssBytes: 4 * 1024 ** 3,
+          },
+          lastCheckedAt: "2026-07-01T00:00:10.000Z",
+        },
+      ],
+    }),
+  });
+
+  const overview = await service.overview();
+  assert.equal(overview.overallStatus, "ok");
+  assert.equal(overview.ok, true);
+  assert.equal(overview.systemStatus.overallStatus, "warning");
+  assert.equal(overview.dimensions.find((item) => item.category === "availability").status, "ok");
+  assert.equal(overview.pages.find((item) => item.id === "system-status").status, "ok");
+  assert.equal(
+    overview.criticalSignals.some((item) => item.signalId === "codex_mobile_runtime_pressure"),
+    false,
+  );
+  assert.equal(
+    overview.systemStatus.signals.some((item) => item.signalId === "codex_mobile_runtime_pressure" && item.boundedEvidence.advisoryOnly === true),
+    true,
+  );
+}
+
+async function testNonAdvisoryCodexMobileWarningStillDegradesOverview() {
+  const service = createOwnerSystemConsoleService({
+    nowIso: () => "2026-07-01T00:00:20.000Z",
+    runtimeSloModelBuilder: () => runtimeSloModel(),
+    collectSystemStatus: async () => ({
+      schemaVersion: 1,
+      overallStatus: "warning",
+      cpu: { overallPercent: 12, status: "ok" },
+      memory: { percentUsed: 18, status: "ok" },
+      disk: { usedPercent: 20, status: "ok" },
+      signals: [
+        {
+          signalId: "codex_mobile_runtime_pressure",
+          category: "plugin_runtime",
+          status: "warning",
+          summary: "Codex Mobile CPU is high.",
+          boundedEvidence: {
+            advisoryOnly: false,
+            maxProcessCpuPercent: 24,
+          },
+          lastCheckedAt: "2026-07-01T00:00:20.000Z",
+        },
+      ],
+    }),
+  });
+
+  const overview = await service.overview();
+  assert.equal(overview.overallStatus, "warning");
+  assert.equal(overview.dimensions.find((item) => item.category === "availability").status, "warning");
+  assert.equal(
+    overview.criticalSignals.some((item) => item.signalId === "codex_mobile_runtime_pressure"),
+    true,
+  );
+}
+
 async function testRuntimeSloCoverageAffectsAccuracyAndAutonomy() {
   const service = createOwnerSystemConsoleService({
     nowIso: () => "2026-07-01T00:00:00.000Z",
@@ -260,6 +338,25 @@ async function testAutonomousDeliveryDispatchControlAffectsAutonomy() {
       }],
       policy: { readOnlySummary: true, retryViaActionInbox: true },
     }),
+    collectAutonomousDeliveryLoop: async () => ({
+      status: "warning",
+      workspaceId: "owner",
+      counts: {
+        open: 3,
+        dispatched: 2,
+        waitingReturn: 1,
+        blocked: 0,
+        duplicateSuppressed: 2,
+        verifiedClosed: 4,
+      },
+      items: [{
+        caseId: "delivery_1",
+        status: "running",
+        dispatchStatus: "sent",
+        blockedReason: "/Users/example/path",
+      }],
+      policy: { boundedMetadataOnly: true, duplicateSuppressionVisible: true },
+    }),
   });
 
   const overview = await service.overview();
@@ -268,8 +365,140 @@ async function testAutonomousDeliveryDispatchControlAffectsAutonomy() {
   assert.equal(overview.dimensions.find((item) => item.category === "autonomy").status, "degraded");
   assert.equal(overview.autonomousDeliveryControl.status, "degraded");
   assert.equal(overview.autonomousDeliveryControl.counts.failed, 1);
+  assert.equal(overview.autonomousDeliveryLoop.status, "warning");
+  assert.equal(overview.autonomousDeliveryLoop.counts.waitingReturn, 1);
+  assert.equal(overview.autonomousDeliveryLoop.counts.duplicateSuppressed, 2);
   assert.equal(overview.criticalSignals.some((item) => item.signalId === "owner_console_autonomous_delivery_dispatch"), true);
+  assert.equal(overview.criticalSignals.some((item) => item.signalId === "owner_console_autonomous_delivery_loop"), true);
   assert.doesNotMatch(JSON.stringify(overview), /must-not-leak/);
+}
+
+async function testLoopEngineeringStatusFeedsAutonomyAndCriticalSignals() {
+  const service = createOwnerSystemConsoleService({
+    nowIso: () => "2026-07-03T10:00:00.000Z",
+    runtimeSloModelBuilder: () => runtimeSloModel(),
+    collectSystemStatus: async () => ({ overallStatus: "ok", signals: [] }),
+    collectQualityProgramEvidence: async () => ({}),
+    collectLoopEngineeringStatus: async () => ({
+      status: "blocked",
+      counts: { open: 1, blocked: 1, waitingReturn: 1, duplicateSuppressed: 0, verifiedClosed: 2 },
+      itemCount: 1,
+      items: [{
+        loopId: "loop_home_ai_1",
+        target: "home-ai",
+        status: "blocked",
+        currentRole: "implementation",
+        blockedReason: "/Users/example/path",
+      }],
+      policy: { readOnlySummary: true, codexMobileRuntime: true },
+    }),
+  });
+  const overview = await service.overview({ ownerAuth: { workspaceId: "owner" } });
+  assert.equal(overview.overallStatus, "blocked");
+  assert.equal(overview.loopEngineeringStatus.status, "blocked");
+  assert.equal(overview.loopEngineeringStatus.counts.waitingReturn, 1);
+  assert.equal(overview.dimensions.find((item) => item.category === "autonomy").status, "blocked");
+  assert.equal(overview.criticalSignals.some((item) => item.signalId === "owner_console_loop_engineering_runtime"), true);
+  assert.doesNotMatch(JSON.stringify(overview), /must-not-leak/);
+}
+
+async function testRejectedLoopEngineeringRowIsAdvisoryWarningNotBlocked() {
+  const service = createOwnerSystemConsoleService({
+    nowIso: () => "2026-07-06T03:00:00.000Z",
+    runtimeSloModelBuilder: () => runtimeSloModel(),
+    collectSystemStatus: async () => ({
+      overallStatus: "warning",
+      signals: [{
+        signalId: "codex_mobile_runtime_pressure",
+        category: "plugin_runtime",
+        status: "warning",
+        summary: "Codex Mobile RSS pressure is visible but host memory is healthy.",
+      }],
+    }),
+    collectQualityProgramEvidence: async () => ({}),
+    collectLoopEngineeringStatus: async () => ({
+      status: "blocked",
+      counts: { open: 1, blocked: 1, waitingReturn: 0, duplicateSuppressed: 0, verifiedClosed: 2 },
+      itemCount: 1,
+      items: [{
+        loopId: "loop_e5148ad7ed0b6fae",
+        target: "home-ai",
+        status: "rejected",
+        blockedReason: "at_loop_dispatch_failed",
+        updatedAt: "2026-07-04T16:13:44.493Z",
+      }],
+      policy: { readOnlySummary: true, codexMobileRuntime: true },
+    }),
+  });
+
+  const overview = await service.overview({ ownerAuth: { workspaceId: "owner" } });
+  assert.equal(overview.overallStatus, "warning");
+  assert.equal(overview.loopEngineeringStatus.status, "warning");
+  assert.equal(overview.loopEngineeringStatus.counts.blocked, 0);
+  assert.equal(overview.loopEngineeringStatus.counts.advisoryBlocked, 1);
+  assert.equal(overview.dimensions.find((item) => item.category === "autonomy").status, "warning");
+  const signal = overview.criticalSignals.find((item) => item.signalId === "owner_console_loop_engineering_runtime");
+  assert.equal(signal.status, "warning");
+  assert.equal(signal.severity, "H2");
+  assert.match(signal.summary, /信息性提醒/);
+}
+
+async function testAutonomousDeliveryCoordinatorCollectorUsesOwnerAuthWorkspace() {
+  const calls = [];
+  const service = createOwnerSystemConsoleService({
+    nowIso: () => "2026-07-01T00:00:00.000Z",
+    runtimeSloModelBuilder: () => runtimeSloModel(),
+    collectSystemStatus: async () => ({ overallStatus: "ok", signals: [] }),
+    collectQualityProgramEvidence: async () => ({}),
+    autonomousDeliveryCoordinatorService: {
+      async dispatchControlSummary(args) {
+        calls.push(["control", args.workspaceId]);
+        return {
+          status: "ok",
+          workspaceId: args.workspaceId,
+          counts: {},
+          items: [],
+        };
+      },
+      async deliveryLoopStatusSummary(args) {
+        calls.push(["loop", args.workspaceId]);
+        return {
+          status: "ok",
+          workspaceId: args.workspaceId,
+          counts: {},
+          items: [],
+        };
+      },
+    },
+  });
+
+  const overview = await service.overview({ ownerAuth: { workspaceId: "mk" } });
+  assert.equal(overview.autonomousDeliveryControl.workspaceId, "mk");
+  assert.equal(overview.autonomousDeliveryLoop.workspaceId, "mk");
+  assert.deepEqual(calls, [
+    ["control", "mk"],
+    ["loop", "mk"],
+  ]);
+
+  const noContextCalls = [];
+  const noContextService = createOwnerSystemConsoleService({
+    nowIso: () => "2026-07-01T00:00:00.000Z",
+    runtimeSloModelBuilder: () => runtimeSloModel(),
+    collectSystemStatus: async () => ({ overallStatus: "ok", signals: [] }),
+    collectQualityProgramEvidence: async () => ({}),
+    autonomousDeliveryCoordinatorService: {
+      async dispatchControlSummary(args) {
+        noContextCalls.push(["control", args.workspaceId]);
+        return { status: "ok", workspaceId: args.workspaceId, counts: {}, items: [] };
+      },
+      async deliveryLoopStatusSummary(args) {
+        noContextCalls.push(["loop", args.workspaceId]);
+        return { status: "ok", workspaceId: args.workspaceId, counts: {}, items: [] };
+      },
+    },
+  });
+  await noContextService.overview();
+  assert.deepEqual(noContextCalls, []);
 }
 
 async function testDefaultSystemResourceCollectorFeedsAvailability() {
@@ -361,11 +590,16 @@ function testSignalNormalizationAndStatusRanking() {
 async function run() {
   testSignalNormalizationAndStatusRanking();
   await testRollupFromSystemStatusAndRuntimeSlo();
+  await testAdvisoryCodexMobileRssWarningDoesNotDegradeOverview();
+  await testNonAdvisoryCodexMobileWarningStillDegradesOverview();
   await testRuntimeSloCoverageAffectsAccuracyAndAutonomy();
   await testQualityProgramBuilderCanBeInjected();
   await testQualityEvidenceFeedsQualityProgramWithoutRunningChecks();
   await testQualityEvidenceClosesDeterministicActionGeneralization();
   await testAutonomousDeliveryDispatchControlAffectsAutonomy();
+  await testLoopEngineeringStatusFeedsAutonomyAndCriticalSignals();
+  await testRejectedLoopEngineeringRowIsAdvisoryWarningNotBlocked();
+  await testAutonomousDeliveryCoordinatorCollectorUsesOwnerAuthWorkspace();
   await testDefaultSystemResourceCollectorFeedsAvailability();
   await testSystemStatusFallbackWhenCollectorMissing();
   console.log("owner system console service tests passed");

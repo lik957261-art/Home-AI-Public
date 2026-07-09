@@ -392,7 +392,7 @@ function renderShell(root, state = runtimeState()) {
           <div>
             <p class="vns-eyebrow">Vite island 开发预览</p>
             <h1 class="vns-title">导航 Shell 预览</h1>
-            <p class="vns-subtitle">预览主导航、话题/任务入口和 classic 回退路由。当前页面不替换生产 shell。</p>
+            <p class="vns-subtitle">预览主导航、话题/任务入口和生产路由。当前页面不替换生产根 shell。</p>
           </div>
           <div class="vns-badges">
             <span class="vns-badge">${escapeHtml(runtime.mode || "vite-preview")}</span>
@@ -409,7 +409,7 @@ function renderShell(root, state = runtimeState()) {
             <p class="vns-panel-label">当前 Surface</p>
             <h2>${escapeHtml(model.label)}</h2>
             <p>${escapeHtml(model.description)}</p>
-            <a class="vns-link" href="${escapeHtml(model.classicFallbackHref)}">用 classic shell 打开同一路由</a>
+            <a class="vns-link" href="${escapeHtml(model.classicFallbackHref)}">用生产 Shell 打开同一路由</a>
           </div>
 
           <dl class="vns-facts">

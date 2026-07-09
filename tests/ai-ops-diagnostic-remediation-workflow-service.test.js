@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
   NOTIFICATION_TYPE,
   createAiOpsDiagnosticRemediationWorkflowService,
+  isAutomaticDiagnosticDispatchPlan,
   isSelfCheckAutomationPlan,
   ownerNotificationForPlan,
 } = require("../adapters/ai-ops-diagnostic-remediation-workflow-service");
@@ -125,36 +126,49 @@ async function run() {
 
 {
   const upserts = [];
-  const pushes = [];
+  const sent = [];
+  const ds = diagnosticService();
   const service = createAiOpsDiagnosticRemediationWorkflowService({
-    diagnosticIntakeService: diagnosticService(),
+    diagnosticIntakeService: ds,
     actionInboxService: {
       upsertSourceItem(input) {
         upserts.push(input);
-        return { ok: true, item: Object.assign({ id: "ainb_diag_1" }, input), event: { id: "event_1" } };
+        throw new Error("low-risk diagnostics should auto-dispatch instead of notifying owner");
       },
     },
-    sendPushNotification(payload, options) {
-      pushes.push({ payload, options });
-      return { ok: true, sent: 1 };
+    taskCardService: {
+      async sendTaskCard(input) {
+        sent.push(input);
+        return { ok: true, cardIds: ["ttc_diag_auto_1"], targetThreadId: "thread-wardrobe" };
+      },
     },
   });
+  const planned = service.planForCase("diagcase_wardrobe_retry").plan;
+  assert.equal(isAutomaticDiagnosticDispatchPlan(planned), true);
+  assert.equal(isSelfCheckAutomationPlan(planned), false);
   const result = await service.notifyOwner({ case_id: "diagcase_wardrobe_retry" });
   assert.equal(result.ok, true);
-  assert.equal(result.notified, true);
-  assert.equal(result.inboxItem.workspaceId, "owner");
-  assert.equal(upserts.length, 1);
-  assert.equal(pushes.length, 1);
-  assert.equal(pushes[0].options.principalId, "owner");
-  assert.equal(pushes[0].payload.data.workspaceId, "owner");
-  assert.equal(pushes[0].payload.data.diagnosticCaseId, "diagcase_wardrobe_retry");
+  assert.equal(result.notified, false);
+  assert.equal(result.autoDispatched, true);
+  assert.deepEqual(result.taskCardResult.cardIds, ["ttc_diag_auto_1"]);
+  assert.equal(upserts.length, 0);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].targetThreadTitle, "男装衣橱");
+  assert.equal(ds.state.status, "card_sent");
+  assert.equal(ds.state.lastUpdate.reason, "auto_diagnostic_task_card");
+  assert.equal(ds.state.lastUpdate.actor, "ai-ops-diagnostic-workflow");
 }
 
 {
   const items = new Map();
   const pushes = [];
+  const ds = diagnosticService(capabilityGapCase(), [event({
+    case_id: "diagcase_capability_gap",
+    event_id: "diagevt_capability_gap",
+    payload: { error_code: "capability_gap" },
+  })]);
   const service = createAiOpsDiagnosticRemediationWorkflowService({
-    diagnosticIntakeService: diagnosticService(),
+    diagnosticIntakeService: ds,
     actionInboxService: {
       upsertSourceItem(input) {
         const before = items.get(input.dedupeKey);
@@ -175,8 +189,8 @@ async function run() {
       return { ok: true, sent: 1 };
     },
   });
-  const first = await service.notifyOwner({ case_id: "diagcase_wardrobe_retry" });
-  const second = await service.notifyOwner({ case_id: "diagcase_wardrobe_retry" });
+  const first = await service.notifyOwner({ case_id: "diagcase_capability_gap" });
+  const second = await service.notifyOwner({ case_id: "diagcase_capability_gap" });
   assert.equal(first.ok, true);
   assert.equal(second.ok, true);
   assert.equal(first.notified, true);
@@ -188,8 +202,13 @@ async function run() {
 {
   const items = new Map();
   const pushes = [];
+  const ds = diagnosticService(capabilityGapCase(), [event({
+    case_id: "diagcase_capability_gap",
+    event_id: "diagevt_capability_gap",
+    payload: { error_code: "capability_gap" },
+  })]);
   const service = createAiOpsDiagnosticRemediationWorkflowService({
-    diagnosticIntakeService: diagnosticService(),
+    diagnosticIntakeService: ds,
     actionInboxService: {
       upsertSourceItem(input) {
         const before = items.get(input.dedupeKey);
@@ -213,10 +232,10 @@ async function run() {
       return { ok: true, sent: 1 };
     },
   });
-  const first = await service.notifyOwner({ case_id: "diagcase_wardrobe_retry" });
+  const first = await service.notifyOwner({ case_id: "diagcase_capability_gap" });
   assert.equal(first.notified, true);
   items.set(first.inboxItem.dedupeKey, Object.assign({}, first.inboxItem, { status: "dismissed" }));
-  const repeated = await service.notifyOwner({ case_id: "diagcase_wardrobe_retry" });
+  const repeated = await service.notifyOwner({ case_id: "diagcase_capability_gap" });
   assert.equal(repeated.ok, true);
   assert.equal(repeated.notified, false);
   assert.equal(repeated.inboxItem.status, "dismissed");
@@ -243,6 +262,7 @@ async function run() {
     },
   });
   const planned = service.planForCase("diagcase_self_check").plan;
+  assert.equal(isAutomaticDiagnosticDispatchPlan(planned), true);
   assert.equal(isSelfCheckAutomationPlan(planned), true);
   const result = await service.notifyOwner({ case_id: "diagcase_self_check" });
   assert.equal(result.ok, true);
@@ -281,6 +301,7 @@ async function run() {
     },
   });
   const planned = service.planForCase("diagcase_capability_gap").plan;
+  assert.equal(isAutomaticDiagnosticDispatchPlan(planned), false);
   assert.equal(isSelfCheckAutomationPlan(planned), false);
   const result = await service.notifyOwner({ case_id: "diagcase_capability_gap" });
   assert.equal(result.ok, true);

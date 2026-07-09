@@ -107,7 +107,7 @@ async function runFailedSendRollbackTest() {
   state.currentThreadId = "thread_chat";
   state.viewMode = "single";
   state.singleWindowMode = "chat";
-  state.pendingArtifacts = [];
+  state.pendingArtifacts = [{ id: "artifact_retry" }];
   state.selectedWorkspaceId = "owner";
   state.currentTaskGroupId = "";
   state.auth = { isOwner: true, workspaceId: "owner" };
@@ -184,6 +184,7 @@ async function runFailedSendRollbackTest() {
   assert.strictEqual(suppressMs, 1800);
   assert.strictEqual(blurCalls, 1);
   assert.strictEqual(state.currentThread.messages.length, 0);
+  assert.deepStrictEqual(state.pendingArtifacts, [{ id: "artifact_retry" }]);
   assert.strictEqual(composerText, "send that fails");
   assert.strictEqual(lastError, "network down");
   assert.strictEqual(refreshOptions?.stickToBottom, true);
@@ -409,6 +410,8 @@ async function runSendResultDoesNotStealNavigationTest() {
     resetComposerSearchSource() {},
     clearQuotedReply() {},
     renderPendingArtifacts() {},
+    updateComposerAction() {},
+    renderComposerContext() {},
     mergeTaskListThreadFromThreadUpdate(thread) {
       mergedTaskListThreadId = thread?.id || "";
       return true;

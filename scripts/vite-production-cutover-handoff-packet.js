@@ -215,7 +215,7 @@ function buildViteProductionCutoverHandoffPacket(options = {}) {
         "Only after validation passes, convert the draft into a real deploy-lane task card.",
       ]
       : [
-        "Keep production on the classic shell.",
+        "Keep current production deployment state unchanged.",
         "Do not create or send a deploy-lane card.",
         "Resolve the blocked reason before preparing a cutover work order.",
       ],

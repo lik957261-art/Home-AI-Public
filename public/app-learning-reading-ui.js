@@ -1,5 +1,41 @@
 "use strict";
 
+const LEARNING_READING_MODEL_ESM_PATH = "/vite-islands/learning-reading-model/learning-reading-model.js";
+
+let learningReadingModelPromise = null;
+let learningReadingModelModule = null;
+
+function learningReadingRoot() {
+  return typeof globalThis !== "undefined" ? globalThis : null;
+}
+
+function importLearningReadingModel() {
+  if (learningReadingModelModule) return Promise.resolve(learningReadingModelModule);
+  if (!learningReadingModelPromise) {
+    const root = learningReadingRoot();
+    const importer = root?.__homeAiImportLearningReadingModel || ((specifier) => import(specifier));
+    learningReadingModelPromise = Promise.resolve()
+      .then(() => importer(LEARNING_READING_MODEL_ESM_PATH))
+      .then((module) => {
+        learningReadingModelModule = module;
+        return module;
+      })
+      .catch((error) => {
+        learningReadingModelPromise = null;
+        throw error;
+      });
+  }
+  return learningReadingModelPromise;
+}
+
+function currentLearningReadingModel() {
+  return learningReadingModelModule || null;
+}
+
+if (typeof window !== "undefined") {
+  void importLearningReadingModel().catch(() => {});
+}
+
 (function (root, factory) {
   if (typeof module === "object" && module.exports) {
     module.exports = factory();
@@ -25,7 +61,7 @@
   }
 
   function defaultLabels() {
-    return {
+    return currentLearningReadingModel()?.learningReadingLabelsPlan?.() || {
       item: "阅读卡片",
       recording: "录音",
       upload: "录音",
@@ -36,6 +72,12 @@
     };
   }
 
+  function labelsForTodo(todo, options) {
+    const kanbanStudyLabels = optionFn(options, "kanbanStudyLabels", defaultLabels);
+    return currentLearningReadingModel()?.learningReadingLabelsPlan?.(kanbanStudyLabels(todo) || {})
+      || Object.assign(defaultLabels(), kanbanStudyLabels(todo) || {});
+  }
+
   function nextReadingCaseTodo(todo, options = {}) {
     const isKanbanReadingCard = optionFn(options, "isKanbanReadingCard", () => false);
     const normalizedKanbanStatus = optionFn(options, "normalizedKanbanStatus", (item) => String(item?.kanbanStatus || item?.status || "todo").toLowerCase());
@@ -44,6 +86,17 @@
     const currentIndex = Number(todo?.kanbanCaseCardIndex || 0) || 0;
     if (!caseId || !currentIndex) return null;
     const todos = Array.isArray(options.todos) ? options.todos : (optionState(options).todos || []);
+    const modelNext = currentLearningReadingModel()?.nextReadingCaseTodoPlan?.({
+      todo,
+      isReadingCard: true,
+      todos: todos.map((item) => ({
+        id: item?.id,
+        todo: item,
+        isReadingCard: isKanbanReadingCard(item),
+        status: normalizedKanbanStatus(item),
+      })),
+    });
+    if (modelNext) return modelNext;
     return todos
       .filter((item) => (
         isKanbanReadingCard(item)
@@ -59,8 +112,7 @@
     const isKanbanReadingCard = optionFn(options, "isKanbanReadingCard", () => false);
     if (!isKanbanReadingCard(todo)) return "";
     const state = optionState(options);
-    const kanbanStudyLabels = optionFn(options, "kanbanStudyLabels", defaultLabels);
-    const labels = Object.assign(defaultLabels(), kanbanStudyLabels(todo) || {});
+    const labels = labelsForTodo(todo, options);
     const readingSubmissionFeedback = optionFn(options, "readingSubmissionFeedback", () => null);
     const readingSubmissionHasAnalysis = optionFn(options, "readingSubmissionHasAnalysis", () => false);
     const readingQuizState = optionFn(options, "readingQuizState", () => null);
@@ -77,10 +129,21 @@
     const quizLoaded = Boolean(quizState?.quiz);
     const completed = readingSubmissionCompleted(todo);
     const canSubmit = readingCardAcceptsSubmission(todo);
+    const plan = currentLearningReadingModel()?.readingWorkflowPlan?.({
+      labels,
+      submitting,
+      progress,
+      feedback,
+      submissionSummary,
+      hasAnalysis,
+      quizLoaded,
+      completed,
+      canSubmit,
+    });
     const stepClass = (done, active) => done ? "done" : (active ? "active" : "pending");
-    const uploadDone = completed || hasAnalysis || submitting || serverProcessing;
-    const analysisDone = completed || hasAnalysis;
-    const quizActive = !completed && (hasAnalysis || quizLoaded);
+    const uploadDone = plan ? plan.uploadDone : (completed || hasAnalysis || submitting || serverProcessing);
+    const analysisDone = plan ? plan.analysisDone : (completed || hasAnalysis);
+    const quizActive = plan ? plan.quizActive : (!completed && (hasAnalysis || quizLoaded));
     const progressText = progress === "uploading"
       ? `正在读取${labels.recording}并上传。`
       : (progress === "transcribing"
@@ -93,20 +156,20 @@
         : (hasAnalysis
           ? `分析已完成；请完成 10 题${labels.quiz}，全部正确后卡片才会完成。`
           : (canSubmit ? `先${labels.upload}。` : `当前还不能${labels.submit}。`)));
-    const feedbackBlock = feedback?.kind === "error"
-      ? `<p class="todo-detail-error" role="status">${escapeHtml(feedback.message || "提交失败，请重试。")}</p>`
+    const feedbackBlock = (plan?.errorMessage || feedback?.kind === "error")
+      ? `<p class="todo-detail-error" role="status">${escapeHtml(plan?.errorMessage || feedback.message || "提交失败，请重试。")}</p>`
       : "";
     return `<section class="todo-reading-workflow" data-reading-workflow="${escapeHtml(todo.id)}">
     <div class="todo-detail-deliverables-head">
       <strong>${escapeHtml(`${labels.item}完成流程`)}</strong>
-      <span>${escapeHtml(completed ? "已完成" : (feedback?.kind === "error" ? "提交失败" : ((submitting || serverProcessing) ? "处理中" : (hasAnalysis ? "待答卷" : `待${labels.recording}`))))}</span>
+      <span>${escapeHtml(plan?.statusText || (completed ? "已完成" : (feedback?.kind === "error" ? "提交失败" : ((submitting || serverProcessing) ? "处理中" : (hasAnalysis ? "待答卷" : `待${labels.recording}`)))))}</span>
     </div>
     <ol>
       <li class="${stepClass(uploadDone, !uploadDone && canSubmit)}"><span>1</span><strong>${escapeHtml(labels.submit)}</strong><small>${escapeHtml(uploadDone ? `已收到${labels.recording}` : labels.upload)}</small></li>
       <li class="${stepClass(analysisDone, submitting || serverProcessing)}"><span>2</span><strong>${escapeHtml(labels.analysis)}</strong><small>${escapeHtml(analysisDone ? "已生成分析和练习" : ((submitting || serverProcessing) ? "正在处理" : `等待${labels.recording}`))}</small></li>
       <li class="${stepClass(completed, quizActive)}"><span>3</span><strong>${escapeHtml(labels.quiz)}</strong><small>${escapeHtml(completed ? "10/10 已通过" : (quizActive ? "需要 10 题全对" : "等待分析完成"))}</small></li>
     </ol>
-    <p class="todo-detail-muted">${escapeHtml(progressText || summaryText)}</p>
+    <p class="todo-detail-muted">${escapeHtml(plan?.bodyText || progressText || summaryText)}</p>
     ${feedbackBlock}
   </section>`;
   }
@@ -116,8 +179,7 @@
     const isKanbanReadingCard = optionFn(options, "isKanbanReadingCard", () => false);
     if (!isKanbanReadingCard(todo)) return "";
     const state = optionState(options);
-    const kanbanStudyLabels = optionFn(options, "kanbanStudyLabels", defaultLabels);
-    const labels = Object.assign(defaultLabels(), kanbanStudyLabels(todo) || {});
+    const labels = labelsForTodo(todo, options);
     const kanbanCan = optionFn(options, "kanbanCan", () => false);
     const readingQuizState = optionFn(options, "readingQuizState", () => null);
     const readingSubmissionHasAnalysis = optionFn(options, "readingSubmissionHasAnalysis", () => false);
@@ -133,11 +195,20 @@
     if (!quizState) {
       if (!readingSubmissionHasAnalysis(todo)) return "";
       const summary = readingSubmissionSummary(todo);
+      const introPlan = currentLearningReadingModel()?.readingQuizPanelPlan?.({
+        labels,
+        quizState: null,
+        hasAnalysis: true,
+        summary,
+        completed: readingSubmissionCompleted(todo),
+        isPlanCase: isKanbanReadingPlanCase(todo),
+        canAnswer,
+      });
       const attempt = summary?.lastAttempt;
-      const attemptText = attempt && !attempt.passed
+      const attemptText = introPlan?.attemptText || (attempt && !attempt.passed
         ? `上次 ${attempt.correctCount || 0}/${attempt.total || 10}，继续订正。`
-        : (isKanbanReadingPlanCase(todo) ? "分析已完成，下一步完成 10 题单选考卷。" : `分析已完成，下一步完成 10 题${labels.quiz}。`);
-      const buttonText = readingSubmissionCompleted(todo) ? "查看答卷" : "开始答卷";
+        : (isKanbanReadingPlanCase(todo) ? "分析已完成，下一步完成 10 题单选考卷。" : `分析已完成，下一步完成 10 题${labels.quiz}。`));
+      const buttonText = introPlan?.buttonText || (readingSubmissionCompleted(todo) ? "查看答卷" : "开始答卷");
       return `<section class="todo-comment-panel todo-reading-quiz-panel">
       <div class="todo-detail-deliverables-head">
         <strong>${escapeHtml(labels.quiz)}</strong>
@@ -182,6 +253,17 @@
     const resultItems = result && Array.isArray(result.results) ? result.results : [];
     const currentResult = resultItems[step] || null;
     const currentWrong = result && !result.passed && currentResult && !currentResult.correct;
+    const activePlan = currentLearningReadingModel()?.readingQuizPanelPlan?.({
+      labels,
+      quizState,
+      questions,
+      answers,
+      step: state.todoReadingQuizStep?.[todo.id] || 0,
+      result,
+      reviewOpen: state.todoReadingQuizReviewOpen?.[todo.id],
+      submitting,
+      canAnswer,
+    });
     const choices = (question.choices || []).map((choice, index) => {
       const id = `readingQuiz_${todo.id}_${step}_${index}`.replace(/[^\w-]/g, "_");
       return `<label class="reading-quiz-choice" for="${escapeHtml(id)}">
@@ -189,17 +271,17 @@
       <span>${escapeHtml(choice)}</span>
     </label>`;
     }).join("");
-    const canPrev = step > 0;
-    const canNext = step < questions.length - 1;
-    const answeredCount = answers.filter((value) => Number.isInteger(Number(value))).length;
-    const reviewOpen = Boolean(state.todoReadingQuizReviewOpen?.[todo.id]);
-    const status = result
+    const canPrev = activePlan ? activePlan.canPrev : step > 0;
+    const canNext = activePlan ? activePlan.canNext : step < questions.length - 1;
+    const answeredCount = activePlan ? activePlan.answeredCount : answers.filter((value) => Number.isInteger(Number(value))).length;
+    const reviewOpen = activePlan ? activePlan.reviewOpen : Boolean(state.todoReadingQuizReviewOpen?.[todo.id]);
+    const status = activePlan?.status || (result
       ? (result.passed ? "已全对，卡片已完成。" : `本次 ${result.correctCount || 0}/${result.total || 10}，请修改错误题后再提交。`)
-      : `已答 ${answeredCount}/${questions.length}`;
-    const wrongHint = currentWrong
+      : `已答 ${answeredCount}/${questions.length}`);
+    const wrongHint = (activePlan ? activePlan.currentWrong : currentWrong)
       ? `<div class="reading-quiz-feedback" role="status">
       <strong>第 ${step + 1} 题需要修改</strong>
-      <p>${escapeHtml(currentResult.explanation || "这题需要重新检查，修改后再提交。")}</p>
+      <p>${escapeHtml(activePlan?.wrongExplanation || currentResult.explanation || "这题需要重新检查，修改后再提交。")}</p>
     </div>`
       : "";
     const guidanceBlock = renderLearningGuidancePanel(todo.id, "reading-quiz", step, question, {
@@ -208,8 +290,8 @@
     });
     const reviewBlock = renderAnswerReviewGate(todo.id, "reading-quiz", answeredCount, questions.length, reviewOpen);
     const submitControls = reviewOpen
-      ? `<button type="submit"${canAnswer && answeredCount === questions.length && !submitting ? "" : " disabled"}>${escapeHtml(submitting ? "正在判卷..." : "确认提交")}</button>`
-      : `<button type="button" data-reading-quiz-review="${escapeHtml(todo.id)}"${canAnswer && answeredCount === questions.length && !submitting ? "" : " disabled"}>${escapeHtml("复核答案")}</button>`;
+      ? `<button type="submit"${activePlan ? (activePlan.submitDisabled ? " disabled" : "") : (canAnswer && answeredCount === questions.length && !submitting ? "" : " disabled")}>${escapeHtml(submitting ? "正在判卷..." : "确认提交")}</button>`
+      : `<button type="button" data-reading-quiz-review="${escapeHtml(todo.id)}"${activePlan ? (activePlan.submitDisabled ? " disabled" : "") : (canAnswer && answeredCount === questions.length && !submitting ? "" : " disabled")}>${escapeHtml("复核答案")}</button>`;
     return `<form class="todo-comment-panel todo-reading-quiz-panel" data-reading-quiz-form="${escapeHtml(todo.id)}">
     <div class="todo-detail-deliverables-head">
       <strong>${escapeHtml(quiz.title || labels.quiz)}</strong>
@@ -243,14 +325,20 @@
     const supported = supportsKanbanReadingRecorder();
     const ready = status === "ready" && recording.file;
     const canToggle = supported && !options.submitting && !["requesting", "stopping"].includes(status);
-    const recordButtonText = status === "recording" ? "停止" : (ready ? "重录" : "录音");
-    const recordButtonClass = status === "recording" ? " recording" : (ready ? " ready" : "");
-    const playback = ready && recording.url
-      ? `<audio class="todo-reading-playback" controls src="${escapeHtml(recording.url)}"></audio>`
+    const plan = currentLearningReadingModel()?.readingRecorderControlsPlan?.({
+      todoId,
+      recording,
+      supported,
+      submitting: options.submitting,
+    });
+    const recordButtonText = plan?.recordButtonText || (status === "recording" ? "停止" : (ready ? "重录" : "录音"));
+    const recordButtonClass = plan?.recordButtonClass || (status === "recording" ? " recording" : (ready ? " ready" : ""));
+    const playback = (plan?.playbackUrl || (ready && recording.url))
+      ? `<audio class="todo-reading-playback" controls src="${escapeHtml(plan?.playbackUrl || recording.url)}"></audio>`
       : "";
     return `<div class="todo-reading-recorder" data-reading-recorder="${escapeHtml(todoId)}">
     <div class="todo-reading-recorder-actions">
-      <button class="todo-reading-record-button${recordButtonClass}" type="button" data-reading-record-toggle="${escapeHtml(todoId)}"${canToggle ? "" : " disabled"} aria-pressed="${status === "recording" ? "true" : "false"}">${escapeHtml(recordButtonText)}</button>
+      <button class="todo-reading-record-button${recordButtonClass}" type="button" data-reading-record-toggle="${escapeHtml(todoId)}"${(plan ? plan.canToggle : canToggle) ? "" : " disabled"} aria-pressed="${escapeHtml(plan?.ariaPressed || (status === "recording" ? "true" : "false"))}">${escapeHtml(recordButtonText)}</button>
     </div>
     <div class="todo-detail-muted todo-reading-record-status" data-reading-record-status="${escapeHtml(todoId)}">${escapeHtml(kanbanReadingRecordingStatusText(todoId))}</div>
     ${playback}
@@ -265,8 +353,7 @@
     if (!isKanbanReadingCard(todo) || !todoMatchesOpen(todo)) return "";
     if (!kanbanCan(todo, "canSubmitStudy")) return "";
     const state = optionState(options);
-    const kanbanStudyLabels = optionFn(options, "kanbanStudyLabels", defaultLabels);
-    const labels = Object.assign(defaultLabels(), kanbanStudyLabels(todo) || {});
+    const labels = labelsForTodo(todo, options);
     const readingQuizState = optionFn(options, "readingQuizState", () => null);
     const readingSubmissionHasAnalysis = optionFn(options, "readingSubmissionHasAnalysis", () => false);
     const readingCardAcceptsSubmission = optionFn(options, "readingCardAcceptsSubmission", () => false);
@@ -278,9 +365,15 @@
     if (!readingCardAcceptsSubmission(todo)) {
       const status = normalizedKanbanStatus(todo);
       const due = todo?.dueLocal || todo?.dueAt || "";
-      const reason = status === "blocked"
+      const waitingPlan = currentLearningReadingModel()?.readingSubmissionPanelPlan?.({
+        labels,
+        acceptsSubmission: false,
+        status,
+        due,
+      });
+      const reason = waitingPlan?.reason || (status === "blocked"
         ? `等待前一次${labels.item}完成后自动解锁。`
-        : (due ? `本次${labels.item}将在 ${due} 开始。` : `本次${labels.item}尚未到可提交状态。`);
+        : (due ? `本次${labels.item}将在 ${due} 开始。` : `本次${labels.item}尚未到可提交状态。`));
       return `<section class="todo-comment-panel todo-reading-panel" data-reading-submission-waiting="${escapeHtml(todo.id)}">
       <p class="todo-detail-muted">${escapeHtml(reason)}</p>
     </section>`;
@@ -292,18 +385,28 @@
     const feedback = readingSubmissionFeedback(todo.id);
     const refreshing = Boolean(state.todoReadingSubmissionRefreshing?.[todo.id]);
     const notes = state.todoReadingSubmissionDrafts?.[todo.id] || "";
+    const plan = currentLearningReadingModel()?.readingSubmissionPanelPlan?.({
+      labels,
+      acceptsSubmission: true,
+      submitting,
+      recorderStatus,
+      recorderHasFile: Boolean(state.todoReadingRecorders?.[todo.id]?.file),
+      progress,
+      feedback,
+      refreshing,
+    });
     const progressText = progress === "uploading"
       ? `正在上传${labels.recording}。`
       : `${labels.recording}已上传，正在转写语音、生成${labels.analysis}和${labels.quiz}。`;
     const idleUploadText = recorderStatus === "recording"
       ? "正在录音；再次点击同一个按钮停止。"
       : (recorderStatus === "ready" ? "已录好待提交；可先回放，也可重录替换。" : "先录音，停止生成音频后才能提交。");
-    const statusText = submitting ? progressText : (feedback?.kind === "error" ? feedback.message : idleUploadText);
-    const statusClass = feedback?.kind === "error" && !submitting
+    const statusText = plan?.statusText || (submitting ? progressText : (feedback?.kind === "error" ? feedback.message : idleUploadText));
+    const statusClass = plan?.statusClass || (feedback?.kind === "error" && !submitting
       ? "todo-detail-error todo-reading-audio-status"
-      : "todo-detail-muted todo-reading-audio-status";
+      : "todo-detail-muted todo-reading-audio-status");
     const refreshButton = submitting
-      ? `<button type="button" data-refresh-reading-submission="${escapeHtml(todo.id)}"${refreshing ? " disabled" : ""}>${escapeHtml(refreshing ? "正在刷新" : "刷新处理结果")}</button>`
+      ? `<button type="button" data-refresh-reading-submission="${escapeHtml(todo.id)}"${(plan ? plan.refreshDisabled : refreshing) ? " disabled" : ""}>${escapeHtml((plan ? plan.refreshDisabled : refreshing) ? "正在刷新" : "刷新处理结果")}</button>`
       : "";
     return `<form class="todo-comment-panel todo-reading-panel" data-reading-submission-form="${escapeHtml(todo.id)}" ${submitting ? 'aria-busy="true"' : ""}>
     <label class="todo-panel-label">${escapeHtml(labels.submit)}</label>
@@ -312,9 +415,9 @@
     <textarea id="todoReadingSubmissionNotes" class="todo-input todo-comment-textarea" rows="3" placeholder="补充当天范围、状态或观察，可留空" ${submitting ? "disabled" : ""}>${escapeHtml(notes)}</textarea>
     <div class="todo-comment-actions">
       ${refreshButton}
-      <button type="submit" data-submit-reading="${escapeHtml(todo.id)}" ${submitting || !state.todoReadingRecorders?.[todo.id]?.file ? "disabled" : ""}>${escapeHtml(submitting ? "已提交处理中" : labels.submit)}</button>
+      <button type="submit" data-submit-reading="${escapeHtml(todo.id)}" ${(plan ? plan.submitDisabled : (submitting || !state.todoReadingRecorders?.[todo.id]?.file)) ? "disabled" : ""}>${escapeHtml(plan?.submitLabel || (submitting ? "已提交处理中" : labels.submit))}</button>
     </div>
-    <p class="todo-detail-muted">${escapeHtml(submitting ? `处理可能需要几十秒到数分钟；正在等待语音转写、阅读分析和${labels.quiz}生成。` : `${labels.recording}提交后，Home AI 会先转写语音，再生成分析和${labels.quiz}；10 题全对后，本卡片才会完成。`)}</p>
+    <p class="todo-detail-muted">${escapeHtml(plan?.footerText || (submitting ? `处理可能需要几十秒到数分钟；正在等待语音转写、阅读分析和${labels.quiz}生成。` : `${labels.recording}提交后，Home AI 会先转写语音，再生成分析和${labels.quiz}；10 题全对后，本卡片才会完成。`))}</p>
   </form>`;
   }
 
@@ -324,5 +427,7 @@
     renderKanbanReadingQuizPanel,
     renderKanbanReadingRecorderControls,
     renderKanbanReadingSubmissionPanel,
+    importLearningReadingModel,
+    currentLearningReadingModel,
   };
 }));

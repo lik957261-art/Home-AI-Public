@@ -1,5 +1,40 @@
 "use strict";
 
+const TASK_GROUP_MODEL_ESM_PATH = "/vite-islands/task-group-model/task-group-model.js";
+let taskGroupModelPromise = null;
+let taskGroupModel = null;
+
+function importTaskGroupModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (taskGroupModel) return Promise.resolve(taskGroupModel);
+  if (!taskGroupModelPromise) {
+    if (!rootRef.__homeAiImportTaskGroupModel && (!rootRef.document || !rootRef.location)) {
+      return Promise.resolve(null);
+    }
+    const importer = typeof rootRef.__homeAiImportTaskGroupModel === "function"
+      ? rootRef.__homeAiImportTaskGroupModel
+      : (path) => import(path);
+    taskGroupModelPromise = Promise.resolve()
+      .then(() => importer(TASK_GROUP_MODEL_ESM_PATH))
+      .then((model) => {
+        taskGroupModel = model || null;
+        return taskGroupModel;
+      })
+      .catch((error) => {
+        taskGroupModelPromise = null;
+        throw error;
+      });
+  }
+  return taskGroupModelPromise;
+}
+
+function currentTaskGroupModel() {
+  return taskGroupModel;
+}
+
+if (typeof window !== "undefined") {
+  importTaskGroupModel().catch(() => null);
+}
+
 function taskGroupsForThread(thread) {
   return TaskArtifactHelpers.taskGroupsForThread(thread);
 }
@@ -24,6 +59,10 @@ function sharedCaseTopicGroupsForTaskList(currentThread) {
 }
 
 function topicGroupVisibleInTaskList(group = {}) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.topicGroupVisibleInTaskListPlan === "function") {
+    return model.topicGroupVisibleInTaskListPlan(group);
+  }
   const caseId = String(group?.kanbanCaseId || "").trim();
   const caseMode = String(group?.kanbanCaseMode || "").trim();
   return !(caseId || caseMode);
@@ -71,11 +110,29 @@ function sharedTopicChatDisabledForSelectedWorkspace(group) {
 }
 
 function selectedSharedTopicGroup() {
+  const groups = taskGroupsForThread(state.currentThread);
+  const model = currentTaskGroupModel();
+  if (typeof model?.selectedSharedTopicGroupPlan === "function") {
+    return model.selectedSharedTopicGroupPlan({
+      viewMode: state.viewMode,
+      currentTaskGroupId: state.currentTaskGroupId,
+      currentThread: state.currentThread,
+      groups,
+    });
+  }
   if (state.viewMode !== "tasks" || !state.currentTaskGroupId || !state.currentThread?.singleWindow) return null;
-  return taskGroupsForThread(state.currentThread).find((group) => group.id === state.currentTaskGroupId && group.sharedTopic) || null;
+  return groups.find((group) => group.id === state.currentTaskGroupId && group.sharedTopic) || null;
 }
 
 function currentTaskThreadIsSharedTopicThread() {
+  const model = currentTaskGroupModel();
+  if (typeof model?.currentTaskThreadIsSharedTopicThreadPlan === "function") {
+    return model.currentTaskThreadIsSharedTopicThreadPlan({
+      viewMode: state.viewMode,
+      currentThreadId: state.currentThreadId,
+      caseTopicThreads: state.caseTopicThreads,
+    });
+  }
   if (state.viewMode !== "tasks" || !state.currentThreadId || !Array.isArray(state.caseTopicThreads)) return false;
   return state.caseTopicThreads.some((thread) => thread?.id === state.currentThreadId);
 }
@@ -140,6 +197,10 @@ function taskListReturnScrollTop() {
 }
 
 function taskListThreadCacheEligible(thread = state.taskListThread) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.taskListThreadCacheEligiblePlan === "function") {
+    return model.taskListThreadCacheEligiblePlan(thread);
+  }
   if (!thread?.id || !thread.singleWindow) return false;
   const page = thread.messagesPage || {};
   if (String(page.mode || "").trim().toLowerCase() === "tasks" && String(page.taskGroupId || "").trim()) return false;
@@ -181,15 +242,31 @@ function scheduleTaskListWindowRefresh() {
 }
 
 function activeChatTaskGroupId() {
+  const model = currentTaskGroupModel();
+  if (typeof model?.activeChatTaskGroupIdPlan === "function") {
+    return model.activeChatTaskGroupIdPlan({
+      groupChat: isGroupChatView(),
+      chatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+      groupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+    });
+  }
   return isGroupChatView() ? SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID : SINGLE_WINDOW_CHAT_TASK_GROUP_ID;
 }
 
 function chatMessagesForThread(thread, taskGroupId = activeChatTaskGroupId()) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.chatMessagesForThreadPlan === "function") {
+    return model.chatMessagesForThreadPlan(thread, taskGroupId);
+  }
   const groupId = String(taskGroupId || SINGLE_WINDOW_CHAT_TASK_GROUP_ID);
   return (thread?.messages || []).filter((message) => String(message?.taskGroupId || "") === groupId);
 }
 
 function sortedThreadMessages(messages) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.sortedThreadMessagesPlan === "function") {
+    return model.sortedThreadMessagesPlan(messages);
+  }
   return (messages || []).slice().sort((a, b) => {
     const timeCompare = String(messageTimelineTimestamp(a) || "").localeCompare(String(messageTimelineTimestamp(b) || ""));
     if (timeCompare) return timeCompare;
@@ -198,10 +275,18 @@ function sortedThreadMessages(messages) {
 }
 
 function isSyntheticTaskSummaryMessage(message = {}) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.isSyntheticTaskSummaryMessagePlan === "function") {
+    return model.isSyntheticTaskSummaryMessagePlan(message);
+  }
   return /:last-(user|receipt)$/.test(String(message?.id || ""));
 }
 
 function taskGroupMessagesForThread(thread, taskGroupId = "", fallbackMessages = []) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.taskGroupMessagesForThreadPlan === "function") {
+    return model.taskGroupMessagesForThreadPlan(thread, taskGroupId, fallbackMessages);
+  }
   const id = String(taskGroupId || "").trim();
   if (!id) return [];
   const realThreadMessages = (thread?.messages || [])
@@ -215,14 +300,26 @@ function taskGroupMessagesForThread(thread, taskGroupId = "", fallbackMessages =
 }
 
 function taskDetailMessageInitialLimit() {
+  const model = currentTaskGroupModel();
+  if (typeof model?.boundedMessageLimitPlan === "function") {
+    return model.boundedMessageLimitPlan(typeof TASK_DETAIL_MESSAGE_INITIAL_LIMIT === "number" ? TASK_DETAIL_MESSAGE_INITIAL_LIMIT : 30, 30);
+  }
   return Math.max(1, Number(typeof TASK_DETAIL_MESSAGE_INITIAL_LIMIT === "number" ? TASK_DETAIL_MESSAGE_INITIAL_LIMIT : 30) || 30);
 }
 
 function taskDetailMessagePageLimit() {
+  const model = currentTaskGroupModel();
+  if (typeof model?.boundedMessageLimitPlan === "function") {
+    return model.boundedMessageLimitPlan(typeof TASK_DETAIL_MESSAGE_PAGE_LIMIT === "number" ? TASK_DETAIL_MESSAGE_PAGE_LIMIT : 10, 10);
+  }
   return Math.max(1, Number(typeof TASK_DETAIL_MESSAGE_PAGE_LIMIT === "number" ? TASK_DETAIL_MESSAGE_PAGE_LIMIT : 10) || 10);
 }
 
 function taskGroupWithThreadMessages(thread, group) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.taskGroupWithThreadMessagesPlan === "function") {
+    return model.taskGroupWithThreadMessagesPlan(thread, group);
+  }
   if (!group?.id) return group || null;
   return Object.assign({}, group, {
     messages: taskGroupMessagesForThread(thread, group.id, group.messages || []),
@@ -230,6 +327,18 @@ function taskGroupWithThreadMessages(thread, group) {
 }
 
 function taskMessagePageParams(extra = {}) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.messagePageParamsPlan === "function") {
+    return new URLSearchParams(model.messagePageParamsPlan({
+      mode: "tasks",
+      taskGroupId: extra.taskGroupId || state.currentTaskGroupId || "",
+      currentTaskGroupId: state.currentTaskGroupId || "",
+      limit: extra.limit || taskDetailMessagePageLimit(),
+      defaultLimit: taskDetailMessagePageLimit(),
+      before: extra.before,
+      search: extra.search,
+    }));
+  }
   const params = new URLSearchParams();
   params.set("messageMode", "tasks");
   params.set("taskGroupId", String(extra.taskGroupId || state.currentTaskGroupId || ""));
@@ -240,8 +349,21 @@ function taskMessagePageParams(extra = {}) {
 }
 
 function chatMessagePageParams(extra = {}) {
-  const params = new URLSearchParams();
   const mode = String(extra.mode || (typeof isTaskDetailView === "function" && isTaskDetailView() ? "tasks" : "chat")).trim().toLowerCase();
+  const model = currentTaskGroupModel();
+  if (typeof model?.messagePageParamsPlan === "function") {
+    return new URLSearchParams(model.messagePageParamsPlan({
+      mode,
+      taskGroupId: extra.taskGroupId || state.currentTaskGroupId || "",
+      currentTaskGroupId: state.currentTaskGroupId || "",
+      limit: extra.limit || CHAT_MESSAGE_PAGE_LIMIT,
+      defaultLimit: CHAT_MESSAGE_PAGE_LIMIT,
+      groupChat: isGroupChatView(),
+      before: extra.before,
+      search: extra.search,
+    }));
+  }
+  const params = new URLSearchParams();
   params.set("messageMode", mode === "tasks" || mode === "task" ? "tasks" : "chat");
   params.set("limit", String(extra.limit || CHAT_MESSAGE_PAGE_LIMIT));
   if (mode === "tasks" || mode === "task") {
@@ -255,6 +377,15 @@ function chatMessagePageParams(extra = {}) {
 }
 
 function messagesForPageScope(thread, page = null) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.messagesForPageScopePlan === "function") {
+    return model.messagesForPageScopePlan({
+      thread,
+      page,
+      currentTaskGroupId: state.currentTaskGroupId || "",
+      activeChatTaskGroupId: activeChatTaskGroupId(),
+    });
+  }
   const scopedPage = page || thread?.messagesPage || {};
   const mode = String(scopedPage.mode || "").trim().toLowerCase();
   if (mode === "tasks" || mode === "task") {
@@ -265,6 +396,15 @@ function messagesForPageScope(thread, page = null) {
 }
 
 function taskDetailPreviewThread(thread, taskGroupId = "", limit = taskDetailMessageInitialLimit()) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.taskDetailPreviewThreadPlan === "function") {
+    return model.taskDetailPreviewThreadPlan({
+      thread,
+      taskGroupId,
+      limit,
+      defaultLimit: taskDetailMessageInitialLimit(),
+    });
+  }
   const id = String(taskGroupId || "").trim();
   if (!thread?.id || !id) return thread;
   const boundedLimit = Math.max(1, Number(limit) || taskDetailMessageInitialLimit());
@@ -282,6 +422,10 @@ function taskDetailPreviewThread(thread, taskGroupId = "", limit = taskDetailMes
 }
 
 function mergeMessagesPage(existingPage = null, incomingPage = null, messages = []) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.mergeMessagesPagePlan === "function") {
+    return model.mergeMessagesPagePlan({ existingPage, incomingPage, messages });
+  }
   const merged = Object.assign({}, existingPage || {}, incomingPage || {});
   const sameScope = !existingPage || !incomingPage
     || (
@@ -298,6 +442,10 @@ function mergeMessagesPage(existingPage = null, incomingPage = null, messages = 
 }
 
 function incomingThreadHasActiveRun(thread = {}) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.incomingThreadHasActiveRunPlan === "function") {
+    return model.incomingThreadHasActiveRunPlan(thread);
+  }
   if (!thread) return false;
   if (["queued", "running"].includes(String(thread.status || ""))) return true;
   if (String(thread.activeRunId || "").trim()) return true;
@@ -305,12 +453,20 @@ function incomingThreadHasActiveRun(thread = {}) {
 }
 
 function shouldPreserveMessageOutsideIncomingPage(message = {}, incomingThread = null) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.shouldPreserveMessageOutsideIncomingPagePlan === "function") {
+    return model.shouldPreserveMessageOutsideIncomingPagePlan(message, incomingThread);
+  }
   if (!["queued", "running"].includes(String(message?.status || ""))) return false;
   if (!incomingThread) return true;
   return incomingThreadHasActiveRun(incomingThread);
 }
 
 function localPendingSendReplacedByIncoming(message = {}, incomingMessages = [], existingMessages = []) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.localPendingSendReplacedByIncomingPlan === "function") {
+    return model.localPendingSendReplacedByIncomingPlan(message, incomingMessages, existingMessages);
+  }
   if (!message?.localPendingSend || !Array.isArray(incomingMessages) || !incomingMessages.length) return false;
   const role = String(message.role || "");
   const taskGroupId = String(message.taskGroupId || "");
@@ -357,6 +513,10 @@ function localPendingSendReplacedByIncoming(message = {}, incomingMessages = [],
 }
 
 function localPendingRunProgressEventsForIncoming(incoming = {}, incomingMessages = [], existingMessages = []) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.localPendingRunProgressEventsForIncomingPlan === "function") {
+    return model.localPendingRunProgressEventsForIncomingPlan(incoming, incomingMessages, existingMessages);
+  }
   if (!incoming || incoming.localPendingSend || String(incoming.role || "") !== "assistant") return [];
   const existing = Array.isArray(existingMessages) ? existingMessages : [];
   const localAssistant = existing.find((message) => (
@@ -396,10 +556,24 @@ function mergeCurrentThreadMessages(messages = [], page = null) {
 }
 
 function oldestLoadedChatMessageId(thread = state.currentThread) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.oldestLoadedChatMessageIdPlan === "function") {
+    return model.oldestLoadedChatMessageIdPlan({
+      thread,
+      taskGroupId: activeChatTaskGroupId(),
+    });
+  }
   return chatMessagesForThread(thread)[0]?.id || "";
 }
 
 function activeChatRunIds(thread = state.currentThread) {
+  const model = currentTaskGroupModel();
+  if (typeof model?.activeChatRunIdsPlan === "function") {
+    return model.activeChatRunIdsPlan({
+      thread,
+      taskGroupId: activeChatTaskGroupId(),
+    });
+  }
   return chatMessagesForThread(thread)
     .filter((message) => ["queued", "running"].includes(message.status))
     .map((message) => message.runId)

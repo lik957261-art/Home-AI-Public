@@ -1,5 +1,41 @@
 "use strict";
 
+const TEACHING_CONTROLLER_MODEL_ESM_PATH = "/vite-islands/teaching-controller-model/teaching-controller-model.js";
+
+let teachingControllerModelPromise = null;
+let teachingControllerModelModule = null;
+
+function teachingControllerRoot() {
+  return typeof globalThis !== "undefined" ? globalThis : null;
+}
+
+function importTeachingControllerModel() {
+  if (teachingControllerModelModule) return Promise.resolve(teachingControllerModelModule);
+  if (!teachingControllerModelPromise) {
+    const root = teachingControllerRoot();
+    const importer = root?.__homeAiImportTeachingControllerModel || ((specifier) => import(specifier));
+    teachingControllerModelPromise = Promise.resolve()
+      .then(() => importer(TEACHING_CONTROLLER_MODEL_ESM_PATH))
+      .then((module) => {
+        teachingControllerModelModule = module;
+        return module;
+      })
+      .catch((error) => {
+        teachingControllerModelPromise = null;
+        throw error;
+      });
+  }
+  return teachingControllerModelPromise;
+}
+
+function currentTeachingControllerModel() {
+  return teachingControllerModelModule || null;
+}
+
+if (typeof window !== "undefined") {
+  void importTeachingControllerModel().catch(() => {});
+}
+
 (function initLearningGrowthTeachingController(global) {
   function ensureTeachingState() {
     state.learningGrowthTeachingStepByCardId = state.learningGrowthTeachingStepByCardId || {};
@@ -12,27 +48,35 @@
 
   function setStep(taskCardId, step) {
     const id = String(taskCardId || "").trim();
-    const value = String(step || "").trim();
-    if (!id || !["lesson", "guided_practice", "quick_check"].includes(value)) return;
+    const value = currentTeachingControllerModel()?.teachingStepPlan?.(step)
+      || (["lesson", "guided_practice", "quick_check"].includes(String(step || "").trim()) ? String(step || "").trim() : "");
+    if (!id || !value) return;
     ensureTeachingState();
     state.learningGrowthTeachingStepByCardId[id] = value;
     renderLearningCoinsView();
   }
 
   function updateDraft(taskCardId, field, value) {
-    const id = String(taskCardId || "").trim();
-    const key = String(field || "").trim();
+    const patch = currentTeachingControllerModel()?.teachingDraftPatchPlan?.({ taskCardId, field, value });
+    const id = patch ? patch.taskCardId : String(taskCardId || "").trim();
+    const key = patch ? patch.field : String(field || "").trim();
     if (!id || !key) return;
     ensureTeachingState();
     state.learningGrowthTeachingDrafts[id] = Object.assign({}, state.learningGrowthTeachingDrafts[id] || {}, {
-      [key]: String(value || ""),
+      [key]: patch ? patch.value : String(value || ""),
     });
   }
 
   function selectedTask(taskCardId) {
+    const overview = state.learningGrowth || {};
+    const planned = currentTeachingControllerModel()?.selectedTeachingTaskPlan?.({
+      taskCardId,
+      selectedTaskCardId: state.selectedLearningTaskCardId,
+      overview,
+    });
+    if (planned) return planned;
     const id = String(taskCardId || state.selectedLearningTaskCardId || "").trim();
     if (!id) return null;
-    const overview = state.learningGrowth || {};
     const programs = overview.programs || {};
     const lists = [programs.taskCards, programs.executableTasks, overview.board?.cards];
     for (const list of lists) {
@@ -76,7 +120,12 @@
     });
     const quickCheckText = String(draft.quickCheckText || "").trim();
     const guidedPracticeText = String(draft.guidedPracticeText || "").trim();
-    if (!quickCheckText && !guidedPracticeText) {
+    const submitPlan = currentTeachingControllerModel()?.teachingCheckSubmitPlan?.(draft);
+    if (submitPlan && !submitPlan.ok) {
+      showPushToast(submitPlan.errorMessage || "先写一句跟做或检查内容。", "error");
+      return;
+    }
+    if (!submitPlan && !quickCheckText && !guidedPracticeText) {
       showPushToast("先写一句跟做或检查内容。", "error");
       return;
     }
@@ -85,11 +134,11 @@
     try {
       await api(`/api/learning-growth/cards/${encodeURIComponent(taskCardId)}/teaching-check`, {
         method: "POST",
-        body: JSON.stringify({ guidedPracticeText, quickCheckText, summary: quickCheckText || guidedPracticeText }),
+        body: JSON.stringify(submitPlan?.requestBody || { guidedPracticeText, quickCheckText, summary: quickCheckText || guidedPracticeText }),
       });
       delete state.learningGrowthTeachingDrafts[taskCardId];
-      state.learningGrowthTeachingStepByCardId[taskCardId] = "quick_check";
-      showPushToast("学习卡已完成", "success");
+      state.learningGrowthTeachingStepByCardId[taskCardId] = submitPlan?.nextStep || "quick_check";
+      showPushToast(submitPlan?.successMessage || "学习卡已完成", "success");
       await loadLearningCoins({ limit: 80 });
       renderLearningCoinsView();
     } finally {
@@ -102,19 +151,27 @@
     const type = String(signalType || "").trim();
     if (!id || !type) return;
     ensureTeachingState();
-    if (state.learningGrowthExperienceSignalBusy[id]) return;
-    if (state.learningGrowthExperienceSignalSubmitted[id]) return;
     const current = selectedTask(id);
-    if (current?.experienceSummary?.latestSignalType) return;
+    const signalPlan = currentTeachingControllerModel()?.experienceSignalPlan?.({
+      taskCardId: id,
+      signalType: type,
+      busy: state.learningGrowthExperienceSignalBusy[id],
+      submitted: state.learningGrowthExperienceSignalSubmitted[id],
+      latestSignalType: current?.experienceSummary?.latestSignalType,
+    });
+    if (signalPlan && !signalPlan.ok) return;
+    if (!signalPlan && state.learningGrowthExperienceSignalBusy[id]) return;
+    if (!signalPlan && state.learningGrowthExperienceSignalSubmitted[id]) return;
+    if (!signalPlan && current?.experienceSummary?.latestSignalType) return;
     state.learningGrowthExperienceSignalBusy[id] = type;
     renderLearningCoinsView();
     try {
       await api(`/api/learning-growth/cards/${encodeURIComponent(id)}/experience-signal`, {
         method: "POST",
-        body: JSON.stringify({ signalType: type }),
+        body: JSON.stringify(signalPlan?.requestBody || { signalType: type }),
       });
       state.learningGrowthExperienceSignalSubmitted[id] = type;
-      showPushToast("学习反馈已记录", "success");
+      showPushToast(signalPlan?.successMessage || "学习反馈已记录", "success");
       await loadLearningCoins({ limit: 80 });
       renderLearningCoinsView();
     } finally {
@@ -124,14 +181,20 @@
 
   async function startChallenge(sourceTaskCardId) {
     const source = selectedTask(sourceTaskCardId) || {};
-    const id = String(sourceTaskCardId || "manual").trim();
+    const challengePlan = currentTeachingControllerModel()?.stageAssessmentChallengeRequestPlan?.({
+      sourceTaskCardId,
+      source,
+      workspaceId: learningGrowthLearnerWorkspaceId(),
+      learnerId: learningCoinStudentId(),
+    });
+    const id = challengePlan?.activationId || String(sourceTaskCardId || "manual").trim();
     ensureTeachingState();
     if (state.learningGrowthStageAssessmentActivating[id]) return;
     state.learningGrowthStageAssessmentActivating[id] = true;
     try {
       const result = await api("/api/learning-growth/stage-assessments/challenge", {
         method: "POST",
-        body: JSON.stringify({
+        body: JSON.stringify(challengePlan?.requestBody || {
           workspaceId: learningGrowthLearnerWorkspaceId(),
           learnerId: learningCoinStudentId(),
           programId: source.programId || "",
@@ -143,7 +206,7 @@
         }),
       });
       const nextTaskId = result?.taskCard?.taskCardId || "";
-      showPushToast("能力测验已生成", "success");
+      showPushToast(challengePlan?.successMessage || "能力测验已生成", "success");
       await loadLearningCoins({ limit: 80 });
       if (nextTaskId) state.selectedLearningTaskCardId = nextTaskId;
       renderLearningCoinsView();
@@ -178,5 +241,7 @@
 
   global.HermesLearningGrowthTeachingController = {
     wireTeachingCards,
+    importTeachingControllerModel,
+    currentTeachingControllerModel,
   };
 }(typeof window !== "undefined" ? window : globalThis));

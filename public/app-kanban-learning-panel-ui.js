@@ -1,8 +1,40 @@
 "use strict";
+const KANBAN_LEARNING_PANEL_MODEL_ESM_PATH = "/vite-islands/kanban-learning-panel-model/kanban-learning-panel-model.js";
+let kanbanLearningPanelModelPromise = null;
+let kanbanLearningPanelModel = null;
+function importKanbanLearningPanelModel() {
+  if (kanbanLearningPanelModel) return Promise.resolve(kanbanLearningPanelModel);
+  if (!kanbanLearningPanelModelPromise) {
+    kanbanLearningPanelModelPromise = import(KANBAN_LEARNING_PANEL_MODEL_ESM_PATH)
+      .then((model) => {
+        kanbanLearningPanelModel = model || null;
+        return kanbanLearningPanelModel;
+      })
+      .catch(() => null);
+  }
+  return kanbanLearningPanelModelPromise;
+}
+function currentKanbanLearningPanelModel() {
+  return kanbanLearningPanelModel;
+}
+function kanbanLearningPanelModelFunction(name) {
+  const model = currentKanbanLearningPanelModel();
+  const fn = model && model[name];
+  return typeof fn === "function" ? fn : null;
+}
+if (typeof window !== "undefined") importKanbanLearningPanelModel().catch(() => null);
 const LearningGrowthTaskUi = typeof window !== "undefined" ? (window.HermesLearningGrowthTaskUi || {}) : {};
 const LearningGrowthReflectionUi = typeof window !== "undefined" ? (window.HermesLearningGrowthReflectionUi || {}) : {};
 function isKanbanReadingCard(todo) { return isKanbanStudyCase(todo) && !isKanbanFinalStudyAssessment(todo) && !isKanbanLearningGrowthCard(todo) && (isKanbanReadingPlanCase(todo) || Boolean(todo?.readingSubmission || todo?.studySubmission)); }
-function learningGrowthEvaluationLabel(evaluation = {}) { const status = String(evaluation.status || ""), nextStep = String(evaluation.nextStep || ""); const passLine = Number(evaluation.finalPassingScore || evaluation.passingScore || 80) || 80; const score = Number(evaluation.score); const scoreReachedPassLine = Number.isFinite(score) && score >= passLine; return nextStep === "spoken_reflection_required" || status === "reflection_required" ? "\u6700\u7ec8\u8bc4\u5206\u5df2\u8fbe\u6807\uff0c\u5f85\u5f55\u97f3\u590d\u76d8" : (nextStep === "completed" || status === "completed" || evaluation.passed ? "\u5df2\u901a\u8fc7" : ((nextStep === "rewrite_and_reflect" || status === "draft_feedback") && scoreReachedPassLine ? "\u521d\u7a3f\u5df2\u8fbe\u6807\uff0c\u5f85\u53cd\u601d\u548c\u4fee\u6539" : (nextStep === "rewrite_and_reflect" || nextStep === "revise_and_resubmit" || status === "draft_feedback" || status === "needs_revision" ? "\u8fd8\u9700\u8981\u4fee\u6539" : "\u6279\u6539\u7ed3\u679c"))); }
+function learningGrowthEvaluationLabel(evaluation = {}) {
+  const plan = kanbanLearningPanelModelFunction("learningGrowthEvaluationLabelPlan");
+  if (plan) return plan(evaluation);
+  const status = String(evaluation.status || ""), nextStep = String(evaluation.nextStep || "");
+  const passLine = Number(evaluation.finalPassingScore || evaluation.passingScore || 80) || 80;
+  const score = Number(evaluation.score);
+  const scoreReachedPassLine = Number.isFinite(score) && score >= passLine;
+  return nextStep === "spoken_reflection_required" || status === "reflection_required" ? "\u6700\u7ec8\u8bc4\u5206\u5df2\u8fbe\u6807\uff0c\u5f85\u5f55\u97f3\u590d\u76d8" : (nextStep === "completed" || status === "completed" || evaluation.passed ? "\u5df2\u901a\u8fc7" : ((nextStep === "rewrite_and_reflect" || status === "draft_feedback") && scoreReachedPassLine ? "\u521d\u7a3f\u5df2\u8fbe\u6807\uff0c\u5f85\u53cd\u601d\u548c\u4fee\u6539" : (nextStep === "rewrite_and_reflect" || nextStep === "revise_and_resubmit" || status === "draft_feedback" || status === "needs_revision" ? "\u8fd8\u9700\u8981\u4fee\u6539" : "\u6279\u6539\u7ed3\u679c")));
+}
 function learningGrowthSubmissionPrompt(evaluation = {}, todo = {}) { return typeof LearningGrowthTaskUi.submissionPrompt === "function" ? LearningGrowthTaskUi.submissionPrompt(evaluation, todo) : "\u5199\u4e0b\u672c\u6b21\u82f1\u8bed\u5199\u4f5c\u6216\u4efb\u52a1\u7b54\u6848\u3002"; }
 function learningGrowthSubmissionGuard(todo = {}, evaluation = {}) { return typeof LearningGrowthTaskUi.submissionGuard === "function" ? LearningGrowthTaskUi.submissionGuard(todo, evaluation) : { minWords: 40, minChars: 200, stage: "draft" }; }
 function learningGrowthSubmissionStats(text = "") { return typeof LearningGrowthTaskUi.submissionTextStats === "function" ? LearningGrowthTaskUi.submissionTextStats(text) : { words: 0, chars: String(text || "").replace(/\s+/g, "").length }; }
@@ -16,7 +48,11 @@ function renderLearningGrowthRewardPolicy(todo = {}, taskModel = {}) {
   const summary = String(policy.summary || "").trim() || `\u9a8c\u8bc1\u901a\u8fc7\u540e\u6309\u5b8c\u6210\u8d28\u91cf\u3001\u65f6\u6548\u548c\u4e92\u52a8\u8bc1\u636e\u7ed3\u7b97 ${minCoins ? `${minCoins}-${maxCoins}` : maxCoins} \u679a\u91d1\u5e01\u3002`;
   return `<div class="todo-learning-growth-reward-policy" data-learning-growth-reward-policy="${escapeHtml(String(maxCoins))}"><strong>${escapeHtml("\u79ef\u5206\u89c4\u5219")}</strong><p>${escapeHtml(summary)}</p><span>${escapeHtml(`\u6700\u9ad8 ${maxCoins} \u679a\u91d1\u5e01`)}</span></div>`;
 }
-function learningGrowthPublicSubmissionText(submission = {}, todo = {}) { return [submission.displayText, submission.text, submission.rawText, submission.summary, submission.excerpt, submission.comment, submission.commentText, todo.learningGrowthSubmissionText, todo.learningGrowthSubmissionSummary].map((item) => String(item || "").trim()).find(Boolean) || ""; }
+function learningGrowthPublicSubmissionText(submission = {}, todo = {}) {
+  const plan = kanbanLearningPanelModelFunction("learningGrowthPublicSubmissionTextPlan");
+  if (plan) return plan(submission, todo);
+  return [submission.displayText, submission.text, submission.rawText, submission.summary, submission.excerpt, submission.comment, submission.commentText, todo.learningGrowthSubmissionText, todo.learningGrowthSubmissionSummary].map((item) => String(item || "").trim()).find(Boolean) || "";
+}
 function renderKanbanLearningGrowthTodoPanel(todo) {
   if (!isKanbanLearningGrowthCard(todo) || !todoMatchesOpen(todo)) return "";
   const interactionState = todo?.learningGrowthInteractionState || {}, blocked = normalizedKanbanStatus(todo) === "blocked";
@@ -154,6 +190,8 @@ function clearReadingSubmissionPendingState(todoId) {
 }
 
 function answerDraftHash(value) {
+  const plan = kanbanLearningPanelModelFunction("answerDraftHashPlan");
+  if (plan) return plan(value);
   const text = String(value || "");
   let hash = 2166136261;
   for (let index = 0; index < text.length; index += 1) {
@@ -164,18 +202,26 @@ function answerDraftHash(value) {
 }
 
 function answerDraftStorageId(value) {
+  const plan = kanbanLearningPanelModelFunction("answerDraftStorageIdPlan");
+  if (plan) return plan(value);
   return encodeURIComponent(String(value || ""));
 }
 
 function answerDraftStoragePrefix(kind, workspaceId, todoId) {
+  const plan = kanbanLearningPanelModelFunction("answerDraftStoragePrefixPlan");
+  if (plan) return plan(kind, workspaceId, todoId);
   return `hermes${kind}AnswerDraft:${answerDraftStorageId(workspaceId || "owner")}:${answerDraftStorageId(todoId)}:`;
 }
 
 function answerDraftStorageKey(kind, workspaceId, todoId, fingerprint) {
+  const plan = kanbanLearningPanelModelFunction("answerDraftStorageKeyPlan");
+  if (plan) return plan(kind, workspaceId, todoId, fingerprint);
   return `${answerDraftStoragePrefix(kind, workspaceId, todoId)}${answerDraftHash(fingerprint)}`;
 }
 
 function answerDraftFingerprint(source = {}) {
+  const plan = kanbanLearningPanelModelFunction("answerDraftFingerprintPlan");
+  if (plan) return plan(source);
   const questions = Array.isArray(source.questions) ? source.questions : [];
   const questionKey = questions.map((question, index) => [
     question?.id || `q${index + 1}`,
@@ -193,6 +239,8 @@ function answerDraftFingerprint(source = {}) {
 }
 
 function validAnswerChoice(value, question = {}) {
+  const plan = kanbanLearningPanelModelFunction("validAnswerChoicePlan");
+  if (plan) return plan(value, question);
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
   const choices = Array.isArray(question.choices) ? question.choices : [];
@@ -200,10 +248,14 @@ function validAnswerChoice(value, question = {}) {
 }
 
 function serializeAnswerDraftAnswers(answers = [], questions = []) {
+  const plan = kanbanLearningPanelModelFunction("serializeAnswerDraftAnswersPlan");
+  if (plan) return plan(answers, questions);
   return questions.map((question, index) => validAnswerChoice(answers[index], question));
 }
 
 function restoreAnswerDraftAnswers(answers = [], questions = []) {
+  const plan = kanbanLearningPanelModelFunction("restoreAnswerDraftAnswersPlan");
+  if (plan) return plan(answers, questions);
   const restored = [];
   questions.forEach((question, index) => {
     const value = validAnswerChoice(answers[index], question);
@@ -213,6 +265,8 @@ function restoreAnswerDraftAnswers(answers = [], questions = []) {
 }
 
 function answerDraftAnsweredCount(answers = [], questions = []) {
+  const plan = kanbanLearningPanelModelFunction("answerDraftAnsweredCountPlan");
+  if (plan) return plan(answers, questions);
   return serializeAnswerDraftAnswers(answers, questions).filter((value) => value !== null).length;
 }
 
@@ -436,10 +490,14 @@ function clearAssessmentExamDrafts(todoId) {
 }
 
 function learningGuidanceKey(todoId, mode) {
+  const plan = kanbanLearningPanelModelFunction("learningGuidanceKeyPlan");
+  if (plan) return plan(todoId, mode);
   return `${String(todoId || "")}:${String(mode || "")}`;
 }
 
 function learningGuidanceDraftKey(todoId, mode, index) {
+  const plan = kanbanLearningPanelModelFunction("learningGuidanceDraftKeyPlan");
+  if (plan) return plan(todoId, mode, index);
   return `${learningGuidanceKey(todoId, mode)}:${Number(index) || 0}`;
 }
 
@@ -460,11 +518,15 @@ function selectedLearningAnswer(todoId, mode, index) {
   const answers = mode === "reading-quiz"
     ? state.todoReadingQuizAnswers?.[todoId]
     : state.todoAssessmentAnswers?.[todoId];
+  const plan = kanbanLearningPanelModelFunction("selectedLearningAnswerPlan");
+  if (plan) return plan(answers, index);
   const value = Array.isArray(answers) ? Number(answers[index]) : NaN;
   return Number.isInteger(value) && value >= 0 ? value : null;
 }
 
 function learningGuidanceQuestionPayload(question = {}, index = 0) {
+  const plan = kanbanLearningPanelModelFunction("learningGuidanceQuestionPayloadPlan");
+  if (plan) return plan(question, index);
   return {
     id: String(question.id || `q${Number(index || 0) + 1}`),
     index: Number(index) || 0,

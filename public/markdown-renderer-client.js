@@ -1,10 +1,11 @@
 "use strict";
 
 (function attachHermesMarkdownRenderer(root, factory) {
-  const api = factory();
+  const api = factory(root);
   if (typeof module === "object" && module.exports) module.exports = api;
   if (root) root.HermesMarkdownRenderer = api;
-})(typeof window !== "undefined" ? window : globalThis, function createHermesMarkdownRenderer() {
+})(typeof window !== "undefined" ? window : globalThis, function createHermesMarkdownRenderer(root) {
+  const MARKDOWN_RENDERER_MODEL_ESM_PATH = "/vite-islands/markdown-renderer-model/markdown-renderer-model.js";
   const SAFE_LINK_PROTOCOLS = new Set(["http:", "https:", "mailto:", "tel:"]);
   const SAFE_IMAGE_PROTOCOLS = new Set(["http:", "https:"]);
   const FONT_SCALE_ORDER = ["small", "standard", "large", "xlarge"];
@@ -15,6 +16,45 @@
     ["xlarge", "hermes-markdown-font-xlarge"],
   ]);
   const DEFAULT_BASE_FONT_SCALE = "standard";
+  let markdownRendererModel = null;
+  let markdownRendererModelPromise = null;
+
+  function normalizeMarkdownRendererModel(moduleValue) {
+    const model = moduleValue && moduleValue.default && typeof moduleValue.default === "object"
+      ? moduleValue.default
+      : moduleValue;
+    return model && typeof model === "object" ? model : null;
+  }
+
+  function importMarkdownRendererModel(rootRef = root) {
+    if (markdownRendererModel) return Promise.resolve(markdownRendererModel);
+    if (markdownRendererModelPromise) return markdownRendererModelPromise;
+    const hook = rootRef && typeof rootRef.__homeAiImportMarkdownRendererModel === "function"
+      ? rootRef.__homeAiImportMarkdownRendererModel
+      : null;
+    const loadPromise = hook
+      ? Promise.resolve(hook(MARKDOWN_RENDERER_MODEL_ESM_PATH))
+      : import(MARKDOWN_RENDERER_MODEL_ESM_PATH);
+    markdownRendererModelPromise = loadPromise
+      .then((moduleValue) => {
+        markdownRendererModel = normalizeMarkdownRendererModel(moduleValue);
+        return markdownRendererModel;
+      })
+      .catch((error) => {
+        markdownRendererModelPromise = null;
+        throw error;
+      });
+    return markdownRendererModelPromise;
+  }
+
+  function currentMarkdownRendererModel() {
+    return markdownRendererModel;
+  }
+
+  function modelFunction(name, classicFn) {
+    const model = currentMarkdownRendererModel();
+    return model && typeof model[name] === "function" ? model[name] : classicFn;
+  }
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -126,6 +166,29 @@
       .filter(Boolean);
   }
 
+  function shouldDecodeEscapedMarkdownNewlines(value) {
+    const text = String(value ?? "");
+    const escapedNewlines = (text.match(/\\n/g) || []).length;
+    if (escapedNewlines < 2) return false;
+
+    const actualNewlines = (text.match(/\n/g) || []).length;
+    const trimmed = text.trimStart();
+    if (/^(?:\\n){1,4}#{1,6}\s/.test(trimmed)) return true;
+    if (escapedNewlines >= 8 && actualNewlines <= 2) return true;
+
+    const escapedMarkdownBreaks = (text.match(/\\n(?:\\n)?(?:#{1,6}\s|[-*+]\s|\d+\.\s|>\s?|```|\|)/g) || []).length;
+    return escapedMarkdownBreaks >= 2 && actualNewlines <= Math.max(2, Math.floor(escapedNewlines / 3));
+  }
+
+  function normalizeMarkdownInput(markdown, options = {}) {
+    const text = String(markdown ?? "").replace(/\r\n?/g, "\n");
+    if (options.decodeEscapedNewlines === false || !shouldDecodeEscapedMarkdownNewlines(text)) return text;
+    return text
+      .replace(/\\r\\n/g, "\n")
+      .replace(/\\n/g, "\n")
+      .replace(/\\t/g, "\t");
+  }
+
   function renderMarkdownDocument(markdown, options = {}) {
     const fontScale = normalizeFontScale(options.fontScale, markdownFontScaleForBase(options.baseFontScale));
     const classes = [
@@ -138,7 +201,7 @@
   }
 
   function renderMarkdownToHtml(markdown, options = {}) {
-    const lines = String(markdown ?? "").replace(/\r\n?/g, "\n").split("\n");
+    const lines = normalizeMarkdownInput(markdown, options).split("\n");
     const html = [];
     let index = 0;
 
@@ -356,13 +419,33 @@
     return text;
   }
 
+  if (root && typeof root.document === "object") {
+    importMarkdownRendererModel(root).catch(() => null);
+  }
+
   return {
-    escapeHtml,
-    markdownFontScaleForBase,
-    markdownFontScaleClass,
-    renderMarkdownDocument,
-    renderMarkdownToHtml,
-    sanitizeImageSrc,
-    sanitizeLinkHref,
+    MARKDOWN_RENDERER_MODEL_ESM_PATH,
+    currentMarkdownRendererModel,
+    escapeAttribute: (...args) => modelFunction("escapeAttribute", escapeAttribute)(...args),
+    escapeHtml: (...args) => modelFunction("escapeHtml", escapeHtml)(...args),
+    importMarkdownRendererModel,
+    isListLine: (...args) => modelFunction("isListLine", isListLine)(...args),
+    isTableStart: (...args) => modelFunction("isTableStart", isTableStart)(...args),
+    markdownFontScaleForBase: (...args) => modelFunction("markdownFontScaleForBase", markdownFontScaleForBase)(...args),
+    markdownFontScaleClass: (...args) => modelFunction("markdownFontScaleClass", markdownFontScaleClass)(...args),
+    normalizeMarkdownInput: (...args) => modelFunction("normalizeMarkdownInput", normalizeMarkdownInput)(...args),
+    normalizeFontScale: (...args) => modelFunction("normalizeFontScale", normalizeFontScale)(...args),
+    parseList: (...args) => modelFunction("parseList", parseList)(...args),
+    parseTable: (...args) => modelFunction("parseTable", parseTable)(...args),
+    renderInline: (...args) => modelFunction("renderInline", renderInline)(...args),
+    renderMarkdownDocument: (...args) => modelFunction("renderMarkdownDocument", renderMarkdownDocument)(...args),
+    renderMarkdownImage: (...args) => modelFunction("renderMarkdownImage", renderMarkdownImage)(...args),
+    renderMarkdownToHtml: (...args) => modelFunction("renderMarkdownToHtml", renderMarkdownToHtml)(...args),
+    safeClassNames: (...args) => modelFunction("safeClassNames", safeClassNames)(...args),
+    sanitizeImageSrc: (...args) => modelFunction("sanitizeImageSrc", sanitizeImageSrc)(...args),
+    sanitizeLinkHref: (...args) => modelFunction("sanitizeLinkHref", sanitizeLinkHref)(...args),
+    shouldDecodeEscapedMarkdownNewlines: (...args) => modelFunction("shouldDecodeEscapedMarkdownNewlines", shouldDecodeEscapedMarkdownNewlines)(...args),
+    splitTableRow: (...args) => modelFunction("splitTableRow", splitTableRow)(...args),
+    tableCell: (...args) => modelFunction("tableCell", tableCell)(...args),
   };
 });

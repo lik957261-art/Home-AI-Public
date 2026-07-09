@@ -54,6 +54,25 @@ _mcp_discovery_lock = threading.Lock()
 _mcp_discovery_attempted = False
 _run_agent_tool_defs_patch_installed = False
 _run_agent_handle_call_patch_installed = False
+_USER_FACING_MARKDOWN_MODE = 0o644
+_USER_FACING_MARKDOWN_EXTENSIONS = {".md", ".markdown"}
+_USER_FACING_MARKDOWN_DELIVERY_SEGMENTS = {"插件"}
+_PRIVATE_MARKDOWN_PATH_SEGMENTS = {
+    ".cache",
+    ".codex",
+    ".hermes",
+    "auth",
+    "cache",
+    "credential",
+    "credentials",
+    "key",
+    "keys",
+    "private",
+    "secret",
+    "secrets",
+    "token",
+    "tokens",
+}
 _request_enabled_toolsets_var: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
     "hermes_mobile_request_enabled_toolsets",
     default=None,
@@ -141,6 +160,60 @@ def _write_runtime_event_marker(event: str) -> None:
             handle.write(f"profile={profile} event={event}\n")
     except Exception:
         logger.debug("Hermes Mobile failed to write runtime event marker", exc_info=True)
+
+
+def _path_segments_for_policy(path: str) -> list[str]:
+    normalized = str(path or "").replace("\\", "/")
+    return [segment for segment in normalized.split("/") if segment]
+
+
+def _configured_user_facing_markdown_roots() -> list[str]:
+    value = os.getenv("HERMES_MOBILE_USER_FACING_MARKDOWN_ROOTS", "")
+    roots: list[str] = []
+    for item in value.split(os.pathsep):
+        text = item.strip()
+        if not text:
+            continue
+        try:
+            roots.append(os.path.realpath(text))
+        except Exception:
+            continue
+    return roots
+
+
+def _path_is_under_root(path: str, root: str) -> bool:
+    try:
+        return os.path.commonpath([os.path.realpath(path), os.path.realpath(root)]) == os.path.realpath(root)
+    except Exception:
+        return False
+
+
+def _is_homeai_user_facing_markdown_delivery(path: Any) -> bool:
+    path_str = str(path or "").strip()
+    if not path_str:
+        return False
+    _, extension = os.path.splitext(path_str.lower())
+    if extension not in _USER_FACING_MARKDOWN_EXTENSIONS:
+        return False
+    segments = _path_segments_for_policy(path_str)
+    lower_segments = {segment.lower() for segment in segments}
+    if lower_segments.intersection(_PRIVATE_MARKDOWN_PATH_SEGMENTS):
+        return False
+    if any(segment in _USER_FACING_MARKDOWN_DELIVERY_SEGMENTS for segment in segments):
+        return True
+    return any(_path_is_under_root(path_str, root) for root in _configured_user_facing_markdown_roots())
+
+
+def _apply_homeai_user_facing_markdown_mode(path: Any) -> bool:
+    if not _is_homeai_user_facing_markdown_delivery(path):
+        return False
+    try:
+        os.chmod(str(path), _USER_FACING_MARKDOWN_MODE)
+        _write_runtime_event_marker("user_facing_markdown_mode_applied")
+        return True
+    except Exception:
+        logger.debug("Hermes Mobile failed to apply user-facing Markdown mode", exc_info=True)
+        return False
 
 
 def _safe_acl_user(value: Any) -> str:
@@ -336,6 +409,8 @@ def _patch_utils_atomic_replace_module(utils_module: Any) -> bool:
         try:
             result = original(tmp_path, target)
             _repair_shared_codex_auth_permissions(target)
+            real_target = os.path.realpath(str(target)) if os.path.islink(str(target)) else str(target)
+            _apply_homeai_user_facing_markdown_mode(real_target)
             return result
         except OSError as exc:
             if exc.errno != errno.EXDEV:
@@ -368,6 +443,7 @@ def _patch_utils_atomic_replace_module(utils_module: Any) -> bool:
                         pass
                 os.replace(fallback_tmp, real_path)
                 _repair_shared_codex_auth_permissions(real_path)
+                _apply_homeai_user_facing_markdown_mode(real_path)
                 try:
                     os.unlink(str(tmp_path))
                 except OSError:

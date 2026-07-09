@@ -87,8 +87,10 @@ async function test(name, fn) {
     assert.match(output, /文件预览策略/);
     assert.match(output, /Markdown/);
     assert.match(output, /PPTX/);
-    assert.match(output, /powerpoint/);
+    assert.match(output, /presentationml\.presentation/);
     assert.match(output, /HomeAIViteDocumentPreviewPreview/);
+    const modelOutput = read("public/vite-islands/document-preview-model/document-preview-model.js");
+    assert.match(modelOutput, /powerpoint/);
   });
 
   if (process.exitCode) process.exit(process.exitCode);

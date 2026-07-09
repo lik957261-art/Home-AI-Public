@@ -55,12 +55,68 @@ function testRoutineDeployCardAcceptsValidRequest() {
     cardKind: "plugin_deployment",
     pluginId: "codex-mobile-web",
     deployReason: "codex-mobile-v1",
+    sourceRole: "central_deploy_coordinator",
+    centralCoordinatorRef: "delivery_1",
+    sourceRef: "abc1234",
+    dirtyState: { dirty: false },
     title: "Deploy Codex Mobile",
     body: "Routine deploy request",
   });
   assert.equal(report.ok, true);
   assert.equal(report.pluginId, "codex-mobile-web");
+  assert.equal(report.sourceRole, "central_deploy_coordinator");
+  assert.equal(report.sourcePolicy.ok, true);
   assert.equal(report.requestShape, "routine_plugin_deployment");
+}
+
+function testRoutineDeployCardRejectsMissingCentralSourceMetadata() {
+  const report = validateRoutinePluginDeploymentCard({
+    cardKind: "plugin_deployment",
+    pluginId: "movie",
+    deployReason: "movie-v1",
+    title: "Deploy Movie",
+    body: "Routine deploy request",
+  });
+  assert.equal(report.ok, false);
+  assert.equal(report.error, "deploy_card_requires_central_coordinator");
+  assert.ok(report.issues.some((issue) => issue.code === "deploy_card_requires_central_coordinator"));
+}
+
+function testRoutineDeployCardRejectsWorkerSourceRole() {
+  const report = validateRoutinePluginDeploymentCard({
+    cardKind: "plugin_deployment",
+    pluginId: "music",
+    deployReason: "music-v1",
+    sourceRole: "plugin_worker",
+    sourceRef: "abc1234",
+    dirtyState: { dirty: false },
+    title: "Deploy Music",
+    body: "Routine deploy request",
+  });
+  assert.equal(report.ok, false);
+  assert.equal(report.error, "worker_direct_deploy_forbidden");
+  assert.ok(report.issues.some((issue) => issue.code === "worker_direct_deploy_forbidden"));
+}
+
+function testRoutineDeployCardAcceptsAuditedEmergencyOverride() {
+  const report = validateRoutinePluginDeploymentCard({
+    cardKind: "plugin_deployment",
+    pluginId: "music",
+    deployReason: "music-hotfix",
+    sourceRole: "repair_worker",
+    centralOverride: true,
+    overrideReason: "production availability",
+    ownerApprovalRef: "owner-approval-1",
+    sourceRef: "hotfix1234",
+    dirtyState: { dirty: false },
+    validationSummary: ["node tests/music-hotfix.test.js"],
+    requiredReadback: ["manifest health"],
+    title: "Deploy Music hotfix",
+    body: "Emergency deploy request",
+  });
+  assert.equal(report.ok, true);
+  assert.equal(report.sourcePolicy.centralOverride, true);
+  assert.equal(report.sourcePolicy.centralOverrideAccepted, true);
 }
 
 function testDeployLaneLockRecord() {
@@ -119,6 +175,9 @@ function run() {
   testRoutineDeployCardRequiresStructuredFields();
   testRoutineDeployCardRejectsTerminalReceiptShape();
   testRoutineDeployCardAcceptsValidRequest();
+  testRoutineDeployCardRejectsMissingCentralSourceMetadata();
+  testRoutineDeployCardRejectsWorkerSourceRole();
+  testRoutineDeployCardAcceptsAuditedEmergencyOverride();
   testDeployLaneLockRecord();
   testDeployLaneLockTerminalPhaseRequiresCompletedAt();
   testPublicUpgradeDailySmokeReportsFullCoverage();

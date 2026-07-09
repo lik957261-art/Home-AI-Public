@@ -1,5 +1,42 @@
 "use strict";
 
+const LEARNING_GROWTH_CONTROLLER_MODEL_ESM_PATH = "/vite-islands/learning-growth-controller-model/learning-growth-controller-model.js";
+let learningGrowthControllerModel = null;
+let learningGrowthControllerModelPromise = null;
+
+function importLearningGrowthControllerModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (learningGrowthControllerModel) return Promise.resolve(learningGrowthControllerModel);
+  if (!learningGrowthControllerModelPromise) {
+    const importer = typeof rootRef.__homeAiImportLearningGrowthControllerModel === "function"
+      ? rootRef.__homeAiImportLearningGrowthControllerModel
+      : (path) => import(path);
+    learningGrowthControllerModelPromise = Promise.resolve()
+      .then(() => importer(LEARNING_GROWTH_CONTROLLER_MODEL_ESM_PATH))
+      .then((model) => {
+        learningGrowthControllerModel = model || null;
+        return learningGrowthControllerModel;
+      })
+      .catch((error) => {
+        learningGrowthControllerModelPromise = null;
+        throw error;
+      });
+  }
+  return learningGrowthControllerModelPromise;
+}
+
+function currentLearningGrowthControllerModel() {
+  return learningGrowthControllerModel;
+}
+
+function learningGrowthControllerModelFunction(name) {
+  const model = currentLearningGrowthControllerModel();
+  return model && typeof model[name] === "function" ? model[name] : null;
+}
+
+if (typeof window !== "undefined") {
+  importLearningGrowthControllerModel().catch(() => null);
+}
+
 function learningGrowthLearnerWorkspaceId() {
   const selected = String(state.selectedWorkspaceId || "").trim();
   const authWorkspace = String(state.auth?.workspaceId || "").trim();
@@ -7,6 +44,18 @@ function learningGrowthLearnerWorkspaceId() {
   const accessibleWorkspaceIds = Array.isArray(state.auth?.workspaceIds) && state.auth.workspaceIds.length
     ? state.auth.workspaceIds.map((item) => String(item || "").trim()).filter(Boolean)
     : (authWorkspace ? [authWorkspace] : []);
+  const modelFn = learningGrowthControllerModelFunction("learningGrowthLearnerWorkspaceIdPlan");
+  if (modelFn) {
+    return modelFn({
+      selectedWorkspaceId: selected,
+      authWorkspaceId: authWorkspace,
+      listedWorkspaceIds,
+      accessibleWorkspaceIds,
+      isOwner: Boolean(state.auth?.isOwner),
+      scopedWorkspaceId: state.learningGrowthWorkspaceId,
+      defaultLearnerWorkspaceId: LEARNING_GROWTH_DEFAULT_LEARNER_WORKSPACE_ID,
+    });
+  }
   if (state.auth && !state.auth.isOwner) {
     if (selected && (accessibleWorkspaceIds.includes(selected) || listedWorkspaceIds.includes(selected))) return selected;
     return authWorkspace || selected;
@@ -19,10 +68,17 @@ function learningGrowthLearnerWorkspaceId() {
 
 function setLearningGrowthLearnerWorkspaceId(workspaceId) { const target = String(workspaceId || "").trim(); if (target && state.auth?.isOwner) state.learningGrowthWorkspaceId = target; }
 function learningCoinStudentId() { return learningGrowthLearnerWorkspaceId(); }
-function learningCoinCurrentScopeKey() { return `${learningGrowthLearnerWorkspaceId()}:${learningCoinStudentId()}`; }
+function learningCoinCurrentScopeKey() {
+  const workspaceId = learningGrowthLearnerWorkspaceId();
+  const learnerId = learningCoinStudentId();
+  const modelFn = learningGrowthControllerModelFunction("learningGrowthScopeKeyPlan");
+  return modelFn ? modelFn({ workspaceId, learnerId }) : `${workspaceId}:${learnerId}`;
+}
 function learningGrowthLearnerLabel() { const id = learningGrowthLearnerWorkspaceId(); const workspace = (Array.isArray(state.workspaces) ? state.workspaces : []).find((item) => String(item?.id || "") === id); return String(workspace?.label || workspace?.displayName || id || "").trim(); }
 function isLearningGrowthViewActive() { return state.viewMode === "learning"; }
 function learningCoinRequestParams(options = {}) {
+  const modelFn = learningGrowthControllerModelFunction("learningCoinRequestParamsPlan");
+  if (modelFn) return modelFn({ workspaceId: learningGrowthLearnerWorkspaceId(), studentId: learningCoinStudentId(), limit: options.limit || 30 });
   const params = new URLSearchParams();
   params.set("workspaceId", learningGrowthLearnerWorkspaceId());
   params.set("studentId", learningCoinStudentId());
@@ -30,6 +86,8 @@ function learningCoinRequestParams(options = {}) {
   return params;
 }
 function learningGrowthMasteryRequestParams(options = {}) {
+  const modelFn = learningGrowthControllerModelFunction("learningGrowthMasteryRequestParamsPlan");
+  if (modelFn) return modelFn({ workspaceId: learningGrowthLearnerWorkspaceId(), learnerId: learningCoinStudentId(), limit: options.limit || 80 });
   const params = new URLSearchParams();
   params.set("workspaceId", learningGrowthLearnerWorkspaceId());
   params.set("learnerId", learningCoinStudentId());
@@ -38,6 +96,11 @@ function learningGrowthMasteryRequestParams(options = {}) {
 }
 function resetLearningCoinsState() {
   state.learningCoinRequestSeq += 1;
+  const modelFn = learningGrowthControllerModelFunction("resetLearningGrowthStatePatchPlan");
+  if (modelFn) {
+    Object.assign(state, modelFn(learningCoinCurrentScopeKey()));
+    return;
+  }
   state.learningGrowth = null; state.learningGrowthBoardLane = "";
   state.selectedLearningTaskCardId = ""; state.learningGrowthSettingsTaskId = "";
   state.learningGrowthHistoryTaskCardId = "";
@@ -284,6 +347,22 @@ async function submitLearningTaskRewardPolicyForm(event, taskCardId) {
 function learningProgramFormBody() {
   const focusAreas = [...document.querySelectorAll("input[name='learningProgramFocus']:checked")].map((input) => input.value).filter(Boolean);
   const sourceBasisRefs = learningInputList("learningProgramSourceRefs");
+  const modelFn = learningGrowthControllerModelFunction("learningProgramFormBodyPlan");
+  if (modelFn) {
+    return modelFn({
+      title: $("learningProgramTitle")?.value,
+      domain: $("learningProgramDomain")?.value,
+      focusAreas,
+      goalSummary: $("learningProgramGoal")?.value,
+      requirements: $("learningProgramGoal")?.value,
+      startDate: $("learningProgramStartDate")?.value,
+      durationDays: $("learningProgramDurationDays")?.value,
+      daysPerWeek: $("learningProgramDaysPerWeek")?.value,
+      minutesPerDay: $("learningProgramMinutesPerDay")?.value,
+      timeOfDay: $("learningProgramTimeOfDay")?.value,
+      sourceBasisRefs,
+    }, learningLearnerBody());
+  }
   return {
     workspaceId: learningGrowthLearnerWorkspaceId(),
     learnerId: learningCoinStudentId(),
@@ -302,16 +381,25 @@ function learningProgramFormBody() {
   };
 }
 
-function learningInputList(id) { return ($(`${id}`)?.value || "").split(/\r?\n|[,;]+/).map((value) => value.trim()).filter(Boolean); }
+function learningInputList(id) {
+  const value = $(`${id}`)?.value || "";
+  const modelFn = learningGrowthControllerModelFunction("learningInputListPlan");
+  return modelFn ? modelFn(value) : value.split(/\r?\n|[,;]+/).map((item) => item.trim()).filter(Boolean);
+}
 
 function learningSplitLines(id) {
-  return ($(`${id}`)?.value || "")
+  const value = $(`${id}`)?.value || "";
+  const modelFn = learningGrowthControllerModelFunction("learningSplitLinesPlan");
+  if (modelFn) return modelFn(value);
+  return value
     .split(/\r?\n/)
     .map((value) => value.trim())
     .filter(Boolean);
 }
 
 function learningCsvList(text) {
+  const modelFn = learningGrowthControllerModelFunction("learningCsvListPlan");
+  if (modelFn) return modelFn(text);
   return String(text || "")
     .split(/[,;]+/)
     .map((value) => value.trim())
@@ -319,6 +407,14 @@ function learningCsvList(text) {
 }
 
 function learningFoundationImportBody() {
+  const modelFn = learningGrowthControllerModelFunction("learningFoundationImportBodyPlan");
+  if (modelFn) {
+    return modelFn({
+      sourcesText: $("learningFoundationImportSources")?.value,
+      goalsText: $("learningFoundationImportGoals")?.value,
+      profileSummary: $("learningFoundationImportProfile")?.value,
+    }, learningLearnerBody());
+  }
   const scope = learningLearnerBody();
   const sources = learningSplitLines("learningFoundationImportSources").map((line) => {
     const parts = line.split("|").map((value) => value.trim());
@@ -349,6 +445,14 @@ function learningFoundationImportBody() {
 }
 
 function learningLearnerBody() {
+  const modelFn = learningGrowthControllerModelFunction("learningLearnerBodyPlan");
+  if (modelFn) {
+    return modelFn({
+      workspaceId: learningGrowthLearnerWorkspaceId(),
+      learnerId: learningCoinStudentId(),
+      learnerName: learningGrowthLearnerLabel(),
+    });
+  }
   return {
     workspaceId: learningGrowthLearnerWorkspaceId(),
     learnerId: learningCoinStudentId(),
@@ -357,6 +461,15 @@ function learningLearnerBody() {
 }
 
 function learningSourceFormBody() {
+  const modelFn = learningGrowthControllerModelFunction("learningSourceFormBodyPlan");
+  if (modelFn) {
+    return modelFn({
+      sourceType: $("learningSourceType")?.value,
+      title: $("learningSourceTitle")?.value,
+      summary: $("learningSourceSummary")?.value,
+      tags: learningInputList("learningSourceTags"),
+    }, learningLearnerBody());
+  }
   return Object.assign(learningLearnerBody(), {
     sourceType: $("learningSourceType")?.value || "manual_note",
     title: $("learningSourceTitle")?.value?.trim() || "",
@@ -367,6 +480,17 @@ function learningSourceFormBody() {
 }
 
 function learningGoalFormBody() {
+  const modelFn = learningGrowthControllerModelFunction("learningGoalFormBodyPlan");
+  if (modelFn) {
+    return modelFn({
+      title: $("learningGoalTitle")?.value,
+      targetSummary: $("learningGoalSummary")?.value,
+      domain: $("learningGoalDomain")?.value,
+      priority: $("learningGoalPriority")?.value,
+      targetDate: $("learningGoalTargetDate")?.value,
+      focusAreas: learningInputList("learningGoalFocus"),
+    }, learningLearnerBody());
+  }
   return Object.assign(learningLearnerBody(), {
     title: $("learningGoalTitle")?.value?.trim() || "",
     targetSummary: $("learningGoalSummary")?.value?.trim() || "",
@@ -529,7 +653,8 @@ async function submitLearningRewardForm(event) {
     showPushToast("奖励名称和金币数不能为空", "error");
     return;
   }
-  const body = {
+  const modelFn = learningGrowthControllerModelFunction("learningRewardFormBodyPlan");
+  const body = modelFn ? modelFn({ title, coinCost, rmbValue, description }) : {
     title,
     coinCost,
     description,

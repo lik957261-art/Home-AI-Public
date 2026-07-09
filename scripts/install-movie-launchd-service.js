@@ -12,6 +12,7 @@ const DEFAULT_LABEL = "com.hermesmobile.plugin.movie";
 const DEFAULT_LAUNCH_DAEMONS_DIR = "/Library/LaunchDaemons";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = "4195";
+const DEFAULT_HOME_AI_ORIGIN = "http://127.0.0.1:8797";
 
 function argValue(argv, name, fallback = "") {
   const index = argv.indexOf(name);
@@ -28,6 +29,16 @@ function parseArgs(argv) {
     passwordFile: argValue(argv, "--password-file", process.env.HOMEAI_MAC_SUDO_PASSWORD_FILE || ""),
     host: argValue(argv, "--host", process.env.MOVIE_HOST || process.env.HOST || DEFAULT_HOST),
     port: argValue(argv, "--port", process.env.MOVIE_PORT || process.env.PORT || DEFAULT_PORT),
+    installNotificationConfig: argv.includes("--install-notification-config"),
+    homeAiOrigin: argValue(
+      argv,
+      "--home-ai-origin",
+      process.env.MOVIE_HOME_AI_BASE_URL
+        || process.env.HERMES_HOME_AI_BASE_URL
+        || process.env.HOMEAI_MOVIE_NOTIFICATION_BASE_URL
+        || DEFAULT_HOME_AI_ORIGIN,
+    ),
+    notificationKeyFile: argValue(argv, "--notification-key-file", process.env.HOMEAI_MOVIE_NOTIFICATION_KEY_FILE || ""),
   };
 }
 
@@ -95,6 +106,18 @@ ${envXml(env)}
 function readPassword(filePath) {
   if (!filePath) return "";
   return fs.readFileSync(filePath, "utf8").split(/\r?\n/).find((line) => line.trim()) || "";
+}
+
+function normalizeOrigin(value = "") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  try {
+    const url = new URL(text);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    return url.origin;
+  } catch (_) {
+    return "";
+  }
 }
 
 function runSudo(command, args, password, input = "") {
@@ -197,6 +220,15 @@ function installRootOwnedTextFile(targetPath, text, password, mode = "644", owne
   }
 }
 
+function readTextFileViaSudo(filePath, password) {
+  const result = runSudo("/bin/cat", [filePath], password);
+  return String(result.stdout || "").trim();
+}
+
+function installServiceUserTextFile(targetPath, text, password, mode = "600") {
+  installRootOwnedTextFile(targetPath, `${String(text || "").trim()}\n`, password, mode, "hermes-host:staff");
+}
+
 function plan(options = {}) {
   const macRoot = options.macRoot || DEFAULT_MAC_ROOT;
   const host = options.host || DEFAULT_HOST;
@@ -220,6 +252,56 @@ function plan(options = {}) {
     serviceUser: "hermes-host",
     serviceGroup: "staff",
     bootstrap: Boolean(options.bootstrap),
+    notification: notificationPlan(options, { macRoot, pluginRoot }),
+  };
+}
+
+function notificationPlan(options = {}, current = {}) {
+  const macRoot = current.macRoot || options.macRoot || DEFAULT_MAC_ROOT;
+  const pluginRoot = current.pluginRoot || path.posix.join(macRoot, "plugins", "movie");
+  const dataDir = path.posix.join(pluginRoot, "data");
+  const homeAiDataDir = path.posix.join(macRoot, "data");
+  return {
+    install: Boolean(options.installNotificationConfig),
+    homeAiOrigin: normalizeOrigin(options.homeAiOrigin || DEFAULT_HOME_AI_ORIGIN) || DEFAULT_HOME_AI_ORIGIN,
+    homeAiKeyPath: options.notificationKeyFile || path.posix.join(homeAiDataDir, "plugin-secrets", "movie-notification-key.txt"),
+    movieOriginPath: path.posix.join(dataDir, "home-ai-notification-origin"),
+    movieKeyPath: path.posix.join(dataDir, "home-ai-notification-key"),
+  };
+}
+
+function installNotificationConfig(currentPlan = {}, password = "") {
+  const notification = currentPlan.notification || {};
+  if (!notification.install) return null;
+  runSudo("/bin/mkdir", ["-p", currentPlan.dataDir, path.posix.dirname(notification.homeAiKeyPath)], password);
+  let key = "";
+  try {
+    key = readTextFileViaSudo(notification.homeAiKeyPath, password);
+  } catch (_) {
+    key = "";
+  }
+  if (!key) {
+    key = `hmn_movie_${crypto.randomBytes(32).toString("base64url")}`;
+    installServiceUserTextFile(notification.homeAiKeyPath, key, password, "600");
+  }
+  installServiceUserTextFile(notification.movieOriginPath, notification.homeAiOrigin, password, "600");
+  installServiceUserTextFile(notification.movieKeyPath, key, password, "600");
+  return {
+    installed: true,
+    homeAiKeyConfigured: true,
+    movieOriginPath: notification.movieOriginPath,
+    movieKeyPath: notification.movieKeyPath,
+  };
+}
+
+function publicNotificationPlan(notification = {}) {
+  return {
+    install: Boolean(notification.install),
+    installed: Boolean(notification.installed),
+    homeAiOrigin: notification.homeAiOrigin,
+    homeAiKeyConfigured: Boolean(notification.homeAiKeyConfigured || notification.homeAiKeyPath),
+    movieOriginPath: notification.movieOriginPath,
+    movieKeyPath: notification.movieKeyPath,
   };
 }
 
@@ -235,6 +317,7 @@ function execute(options = {}) {
   runSudo("/usr/sbin/chown", ["-R", `${currentPlan.serviceUser}:${currentPlan.serviceGroup}`, currentPlan.pluginRoot], password);
   runSudo("/usr/sbin/chown", [`${currentPlan.serviceUser}:${currentPlan.serviceGroup}`, ...currentPlan.logPaths], password);
   runSudo("/bin/chmod", ["640", ...currentPlan.logPaths], password);
+  const notificationInstall = installNotificationConfig(currentPlan, password);
   installRootOwnedTextFile(currentPlan.plistPath, plist, password, "644", "root:wheel");
   runSudo("/usr/bin/plutil", ["-lint", currentPlan.plistPath], password);
   if (options.bootstrap) {
@@ -242,16 +325,25 @@ function execute(options = {}) {
     runSudo("/bin/launchctl", ["bootstrap", "system", currentPlan.plistPath], password);
     runSudo("/bin/launchctl", ["kickstart", "-k", `system/${DEFAULT_LABEL}`], password);
   }
-  return currentPlan;
+  return Object.assign({}, currentPlan, {
+    notification: Object.assign({}, currentPlan.notification, {
+      installed: Boolean(notificationInstall?.installed),
+      homeAiKeyConfigured: Boolean(notificationInstall?.homeAiKeyConfigured || currentPlan.notification.homeAiKeyPath),
+    }),
+  });
 }
 
 function payloadFor(options, currentPlan, plist) {
+  const safePlan = Object.assign({}, currentPlan, {
+    notification: publicNotificationPlan(currentPlan.notification),
+  });
   return {
     ok: true,
     mode: options.execute ? "execute" : "plan",
-    plan: currentPlan,
+    plan: safePlan,
     plist,
     plistSha256: crypto.createHash("sha256").update(plist).digest("hex"),
+    notification: safePlan.notification,
   };
 }
 
@@ -277,10 +369,14 @@ if (require.main === module) {
 
 module.exports = {
   DEFAULT_LABEL,
+  DEFAULT_HOME_AI_ORIGIN,
   DEFAULT_PORT,
   assertMoviePortAvailable,
+  notificationPlan,
+  publicNotificationPlan,
   parseArgs,
   parseLsofPids,
   plan,
   plistFor,
+  normalizeOrigin,
 };

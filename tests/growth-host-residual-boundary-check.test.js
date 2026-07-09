@@ -71,6 +71,25 @@ function testNewHostGrowthBusinessFilesFailClosed() {
   assert.equal(result.issues[0].dir, "adapters");
 }
 
+function testVoiceLearningFilesDoNotCountAsGrowthResiduals() {
+  const root = makeTempRepo();
+  touch(root, "tests/vite-voice-learning-model.test.js");
+  touch(root, "public/app-voice-learning-ui.js");
+  const result = evaluateGrowthHostResidualBoundary({
+    root,
+    limits: {
+      adapters: 0,
+      "server-routes": 0,
+      public: 0,
+      tests: 0,
+      scripts: 0,
+    },
+  });
+  assert.equal(result.ok, true, JSON.stringify(result.issues, null, 2));
+  assert.equal(result.counts.public, 0);
+  assert.equal(result.counts.tests, 0);
+}
+
 function testMissingBoundaryDocsFailClosed() {
   const root = makeTempRepo();
   fs.writeFileSync(path.join(root, "docs/ARCHITECTURE_BOUNDARY.md"), "No boundary marker here.\n");
@@ -98,6 +117,7 @@ function testCliJsonOutput() {
 
 testCurrentRepositoryPassesBoundary();
 testNewHostGrowthBusinessFilesFailClosed();
+testVoiceLearningFilesDoNotCountAsGrowthResiduals();
 testMissingBoundaryDocsFailClosed();
 testCliJsonOutput();
 

@@ -1,37 +1,121 @@
 "use strict";
 
+const CHAT_COMPOSER_SHELL_MODEL_ESM_PATH = "/vite-islands/chat-composer-shell-model/chat-composer-shell-model.js";
+let chatComposerShellModel = null;
+let chatComposerShellModelPromise = null;
+
+function importChatComposerShellModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (chatComposerShellModel) return Promise.resolve(chatComposerShellModel);
+  if (!chatComposerShellModelPromise) {
+    const importer = typeof rootRef.__homeAiImportChatComposerShellModel === "function"
+      ? rootRef.__homeAiImportChatComposerShellModel
+      : (path) => import(path);
+    chatComposerShellModelPromise = Promise.resolve()
+      .then(() => importer(CHAT_COMPOSER_SHELL_MODEL_ESM_PATH))
+      .then((model) => {
+        chatComposerShellModel = model || null;
+        return chatComposerShellModel;
+      })
+      .catch((error) => {
+        chatComposerShellModelPromise = null;
+        throw error;
+      });
+  }
+  return chatComposerShellModelPromise;
+}
+
+function currentChatComposerShellModel() {
+  return chatComposerShellModel;
+}
+
+if (typeof window !== "undefined") {
+  importChatComposerShellModel().catch(() => null);
+}
+
+function composerShellViewState() {
+  const model = currentChatComposerShellModel();
+  if (typeof model?.composerShellViewStatePlan === "function") {
+    return model.composerShellViewStatePlan({
+      state,
+      selectedWorkspaceInThreadGroup: Boolean(
+        state.currentThread
+        && typeof selectedWorkspaceInThreadGroup === "function"
+        && selectedWorkspaceInThreadGroup(state.currentThread)
+      ),
+    });
+  }
+  const skillDetailView = Boolean(state.skillDetail);
+  const taskWindowView = state.viewMode === "tasks" && Boolean(state.currentThread?.singleWindow);
+  const singleWindowView = state.viewMode === "single" && Boolean(state.currentThread?.singleWindow);
+  return {
+    currentSingleWindowLoaded: Boolean(
+      state.currentThread &&
+      state.currentThread.singleWindow &&
+      (
+        state.currentThread.workspaceId === state.selectedWorkspaceId
+        || (typeof selectedWorkspaceInThreadGroup === "function" && selectedWorkspaceInThreadGroup(state.currentThread))
+      )
+    ),
+    skillDetailView,
+    taskDetailView: !skillDetailView && state.viewMode === "tasks" && Boolean(state.currentTaskGroupId) && Boolean(state.currentThread?.singleWindow),
+    todoDetailView: state.viewMode === "todos" && Boolean(state.selectedTodoId),
+    taskWindowView,
+    taskListView: taskWindowView && !state.currentTaskGroupId,
+    todoView: state.viewMode === "todos",
+    automationView: state.viewMode === "automation",
+    automationDetailView: state.viewMode === "automation" && Boolean(state.selectedAutomationId),
+    actionInboxView: state.viewMode === "inbox",
+    actionInboxDetailView: state.viewMode === "inbox" && Boolean(state.selectedActionInboxItemId),
+    actionInboxCreateView: state.viewMode === "inbox" && Boolean(state.actionInboxCreateOpen),
+    singleWindowView,
+    singleWindowChatView: singleWindowView && state.singleWindowMode === "chat",
+  };
+}
+
 function sidebarBackToMenu() {
-  if (state.viewMode === "tasks" && state.currentTaskGroupId) {
+  const viewState = composerShellViewState();
+  const model = currentChatComposerShellModel();
+  const plan = typeof model?.sidebarBackActionPlan === "function"
+    ? model.sidebarBackActionPlan({
+      state,
+      viewState,
+      kanbanComposerOpen: kanbanComposerOpen(),
+      automationDetailInboxReturnActive: typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive(),
+      mobileLayout: isMobileLayout(),
+    })
+    : null;
+  const action = plan?.action || "";
+  if (action === "open_task_list_and_close_sidebar" || (!action && state.viewMode === "tasks" && state.currentTaskGroupId)) {
     openTaskList();
     closeSidebar();
     return;
   }
-  if (isTodoDetailView()) {
+  if (action === "open_todo_list_and_close_sidebar" || (!action && isTodoDetailView())) {
     openTodoList();
     closeSidebar();
     return;
   }
-  if (kanbanComposerOpen()) {
+  if (!action && kanbanComposerOpen()) {
     openTodoList();
     closeSidebar();
     return;
   }
-  if (typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive()) {
+  if (action === "close_automation_secondary_and_sidebar" || (!action && typeof automationDetailInboxReturnActive === "function" && automationDetailInboxReturnActive())) {
     closeAutomationSecondarySurface();
     closeSidebar();
     return;
   }
-  if (isAutomationDetailView()) {
+  if (action === "open_automation_list_and_close_sidebar" || (!action && isAutomationDetailView())) {
     openAutomationList();
     closeSidebar();
     return;
   }
-  if (isActionInboxDetailView()) {
+  if (action === "open_action_inbox_overview_and_close_sidebar" || (!action && isActionInboxDetailView())) {
     openActionInboxOverview();
     closeSidebar();
     return;
   }
-  if (isMobileLayout()) {
+  if (action === "close_sidebar" || (!action && isMobileLayout())) {
     closeSidebar();
     return;
   }
@@ -43,66 +127,71 @@ function isMobileLayout() {
 }
 
 function isCurrentSingleWindowLoaded() {
-  return Boolean(
-    state.currentThread &&
-    state.currentThread.singleWindow &&
-    (state.currentThread.workspaceId === state.selectedWorkspaceId || selectedWorkspaceInThreadGroup(state.currentThread))
-  );
+  return Boolean(composerShellViewState().currentSingleWindowLoaded);
 }
 
 function isSkillDetailView() {
-  return Boolean(state.skillDetail);
+  return Boolean(composerShellViewState().skillDetailView);
 }
 
 function isTaskDetailView() {
-  return !isSkillDetailView() && state.viewMode === "tasks" && Boolean(state.currentTaskGroupId) && Boolean(state.currentThread?.singleWindow);
+  return Boolean(composerShellViewState().taskDetailView);
 }
 
 function isTodoDetailView() {
-  return state.viewMode === "todos" && Boolean(state.selectedTodoId);
+  return Boolean(composerShellViewState().todoDetailView);
 }
 
 function isTaskWindowView() {
-  return state.viewMode === "tasks" && Boolean(state.currentThread?.singleWindow);
+  return Boolean(composerShellViewState().taskWindowView);
 }
 
 function isTaskListView() {
-  return isTaskWindowView() && !state.currentTaskGroupId;
+  return Boolean(composerShellViewState().taskListView);
 }
 
 function isTodoView() {
-  return state.viewMode === "todos";
+  return Boolean(composerShellViewState().todoView);
 }
 
 function isAutomationView() {
-  return state.viewMode === "automation";
+  return Boolean(composerShellViewState().automationView);
 }
 
 function isAutomationDetailView() {
-  return state.viewMode === "automation" && Boolean(state.selectedAutomationId);
+  return Boolean(composerShellViewState().automationDetailView);
 }
 
 function isActionInboxView() {
-  return state.viewMode === "inbox";
+  return Boolean(composerShellViewState().actionInboxView);
 }
 
 function isActionInboxDetailView() {
-  return state.viewMode === "inbox" && Boolean(state.selectedActionInboxItemId);
+  return Boolean(composerShellViewState().actionInboxDetailView);
 }
 
 function isActionInboxCreateView() {
-  return state.viewMode === "inbox" && Boolean(state.actionInboxCreateOpen);
+  return Boolean(composerShellViewState().actionInboxCreateView);
 }
 
 function isSingleWindowView() {
-  return state.viewMode === "single" && Boolean(state.currentThread?.singleWindow);
+  return Boolean(composerShellViewState().singleWindowView);
 }
 
 function isSingleWindowChatView() {
-  return isSingleWindowView() && state.singleWindowMode === "chat";
+  return Boolean(composerShellViewState().singleWindowChatView);
 }
 
 function isComposerStopMode() {
+  const model = currentChatComposerShellModel();
+  if (typeof model?.composerStopModePlan === "function") {
+    return model.composerStopModePlan({
+      chatSearchMode: isChatSearchMode(),
+      activeRunIds: activeComposerRunIds(),
+      singleWindowView: isSingleWindowView(),
+      hasDraft: composerHasDraft(),
+    }).stopMode;
+  }
   if (isChatSearchMode()) return false;
   if (!activeComposerRunIds().length) return false;
   if (isSingleWindowView() && composerHasDraft()) return false;
@@ -126,6 +215,33 @@ function setComposerActionButtonVisualLabel(button, label) {
   button.textContent = String(label || "");
 }
 
+function composerSendPreActivationEvent(event) {
+  if (!event || event.defaultPrevented) return false;
+  if (event.type === "pointerdown") {
+    const pointerType = String(event.pointerType || "mouse");
+    if (pointerType === "mouse") return false;
+  } else if (event.type !== "touchstart") {
+    return false;
+  }
+  const button = event.target?.closest?.("#sendMessage");
+  if (!button || button.disabled) return false;
+  const input = $("messageInput");
+  if (document.activeElement !== input && !document.documentElement?.classList?.contains("native-shell-ios")) return false;
+  event.preventDefault?.();
+  event.stopPropagation?.();
+  event.stopImmediatePropagation?.();
+  if (typeof handleVoiceInputSendClick === "function" && handleVoiceInputSendClick(event)) return true;
+  void sendMessage(event);
+  return true;
+}
+
+function installComposerSendPreActivationGuard() {
+  if (typeof document === "undefined" || window.__homeAiComposerSendPreActivationGuardInstalled) return;
+  window.__homeAiComposerSendPreActivationGuardInstalled = true;
+  document.addEventListener("pointerdown", composerSendPreActivationEvent, { capture: true });
+  document.addEventListener("touchstart", composerSendPreActivationEvent, { capture: true });
+}
+
 function updateComposerAction() {
   const button = $("sendMessage");
   if (!button) return;
@@ -135,48 +251,64 @@ function updateComposerAction() {
   const prevSearch = $("chatSearchPrev");
   const nextSearch = $("chatSearchNext");
   const searchMode = isChatSearchMode();
-  composer?.classList.toggle("chat-search-composer", searchMode);
-  input?.classList.toggle("chat-search-editor", searchMode);
-  if (searchMode || !composerMentionAvailable()) closeGroupMentionMenu();
-  updateComposerSourceControl();
+  const stopMode = isComposerStopMode();
+  const model = currentChatComposerShellModel();
+  const plan = typeof model?.composerActionViewPlan === "function"
+    ? model.composerActionViewPlan({
+      chatSearchMode: searchMode,
+      mentionAvailable: composerMentionAvailable(),
+      chatSearchDraft: searchMode && typeof currentChatSearchDraft === "function" ? currentChatSearchDraft() : "",
+      stopMode,
+    })
+    : null;
+  const effectiveSearchMode = plan ? plan.chatSearchMode : searchMode;
+  composer?.classList.toggle(plan?.composerClass?.name || "chat-search-composer", plan ? Boolean(plan.composerClass.enabled) : searchMode);
+  input?.classList.toggle(plan?.inputClass?.name || "chat-search-editor", plan ? Boolean(plan.inputClass.enabled) : searchMode);
+  if (plan ? plan.closeMentionMenu : (searchMode || !composerMentionAvailable())) closeGroupMentionMenu();
+  if (!plan || plan.updateSourceControl) updateComposerSourceControl();
   if (input) {
-    input.setAttribute("enterkeyhint", searchMode ? "search" : "send");
-    input.setAttribute("aria-label", searchMode ? "Search chat" : "Message Home AI");
+    input.setAttribute("enterkeyhint", plan?.input?.enterkeyhint || (searchMode ? "search" : "send"));
+    input.setAttribute("aria-label", plan?.input?.ariaLabel || (searchMode ? "Search chat" : "Message Home AI"));
   }
-  if (searchMode) {
+  if (effectiveSearchMode) {
     if (attach) {
-      attach.textContent = "×";
-      attach.disabled = false;
-      attach.setAttribute("aria-label", "关闭搜索");
-      attach.setAttribute("title", "关闭搜索");
+      attach.textContent = plan?.attach?.text || "×";
+      attach.disabled = plan?.attach?.disabled === false ? false : attach.disabled;
+      attach.setAttribute("aria-label", plan?.attach?.ariaLabel || "关闭搜索");
+      attach.setAttribute("title", plan?.attach?.title || "关闭搜索");
     }
     const draft = currentChatSearchDraft();
-    setComposerActionButtonVisualLabel(button, "搜索");
+    setComposerActionButtonVisualLabel(button, plan?.button?.label || "搜索");
     button.classList.remove("stop-mode");
-    button.disabled = !draft;
-    updateChatSearchStatus();
-    renderComposerContext();
-    if (typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
+    button.disabled = typeof plan?.button?.disabled === "boolean" ? plan.button.disabled : !draft;
+    if (!plan || plan.updateChatSearchStatus) updateChatSearchStatus();
+    if (!plan || plan.renderComposerContext) renderComposerContext();
+    if ((!plan || plan.refreshVoiceInputSendButton) && typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
     return;
   }
-  if (prevSearch) {
+  if (prevSearch && (!plan || plan.searchButtons?.hidePrevNext)) {
     prevSearch.hidden = true;
     prevSearch.disabled = true;
   }
-  if (nextSearch) {
+  if (nextSearch && (!plan || plan.searchButtons?.hidePrevNext)) {
     nextSearch.hidden = true;
     nextSearch.disabled = true;
   }
   if (attach) {
-    attach.textContent = "+";
-    attach.setAttribute("aria-label", "添加文件");
-    attach.setAttribute("title", "添加文件");
+    attach.textContent = plan?.attach?.text || "+";
+    if (typeof plan?.attach?.disabled === "boolean") attach.disabled = plan.attach.disabled;
+    attach.setAttribute("aria-label", plan?.attach?.ariaLabel || "添加文件");
+    attach.setAttribute("title", plan?.attach?.title || "添加文件");
   }
-  updateChatSearchStatus();
-  const stopMode = isComposerStopMode();
-  setComposerActionButtonVisualLabel(button, stopMode ? "Stop" : "Send");
-  button.classList.toggle("stop-mode", stopMode);
-  if (stopMode) button.disabled = false;
-  renderComposerContext();
-  if (typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
+  if (!plan || plan.updateChatSearchStatus) updateChatSearchStatus();
+  setComposerActionButtonVisualLabel(button, plan?.button?.label || (stopMode ? "Stop" : "Send"));
+  button.classList.toggle("stop-mode", plan ? Boolean(plan.button?.stopMode) : stopMode);
+  if (typeof plan?.button?.disabled === "boolean") button.disabled = plan.button.disabled;
+  else if (stopMode) button.disabled = false;
+  if (!plan || plan.renderComposerContext) renderComposerContext();
+  if ((!plan || plan.refreshVoiceInputSendButton) && typeof refreshVoiceInputSendButton === "function") refreshVoiceInputSendButton();
+}
+
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  installComposerSendPreActivationGuard();
 }

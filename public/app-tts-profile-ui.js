@@ -1,6 +1,37 @@
 "use strict";
 
+const TTS_PROFILE_MODEL_ESM_PATH = "/vite-islands/tts-profile-model/tts-profile-model.js";
 const TTS_PROFILE_SAMPLE_TEXT = "这是一段为高保真音乐演示准备的旁白。请保持声音沉稳，语速适中，停顿自然。";
+let ttsProfileModel = null;
+let ttsProfileModelPromise = null;
+
+function importTtsProfileModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (ttsProfileModel) return Promise.resolve(ttsProfileModel);
+  if (!ttsProfileModelPromise) {
+    const importer = typeof rootRef.__homeAiImportTtsProfileModel === "function"
+      ? rootRef.__homeAiImportTtsProfileModel
+      : (path) => import(path);
+    ttsProfileModelPromise = Promise.resolve()
+      .then(() => importer(TTS_PROFILE_MODEL_ESM_PATH))
+      .then((model) => {
+        ttsProfileModel = model || null;
+        return ttsProfileModel;
+      })
+      .catch((error) => {
+        ttsProfileModelPromise = null;
+        throw error;
+      });
+  }
+  return ttsProfileModelPromise;
+}
+
+function currentTtsProfileModel() {
+  return ttsProfileModel;
+}
+
+if (typeof window !== "undefined") {
+  importTtsProfileModel().catch(() => null);
+}
 
 function ensureTtsProfileState() {
   if (!state.ttsProfiles) state.ttsProfiles = [];
@@ -8,23 +39,112 @@ function ensureTtsProfileState() {
 }
 
 function ttsProfileWorkspaceId() {
-  return state.selectedWorkspaceId || state.auth?.workspaceId || "owner";
+  return currentTtsProfileModel()?.ttsProfileWorkspaceIdPlan?.({
+    selectedWorkspaceId: state.selectedWorkspaceId,
+    authWorkspaceId: state.auth?.workspaceId,
+    defaultWorkspaceId: "owner", // fallback-governance:tts-profile-existing-classic-owner-default
+  }) || state.selectedWorkspaceId || state.auth?.workspaceId || "owner"; // fallback-governance:tts-profile-existing-classic-owner-default
 }
 
-function ttsProfileFormatBytes(bytes) {
+function classicTtsProfileFormatBytes(bytes) {
   const value = Number(bytes || 0);
   if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`;
   if (value >= 1024) return `${Math.round(value / 1024)} KB`;
   return `${value} B`;
 }
 
-function ttsProfileFormatDuration(ms) {
+function ttsProfileFormatBytes(bytes) {
+  return currentTtsProfileModel()?.formatTtsProfileBytes?.(bytes) || classicTtsProfileFormatBytes(bytes);
+}
+
+function classicTtsProfileFormatDuration(ms) {
   const seconds = Math.max(0, Math.round((Number(ms) || 0) / 1000));
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function ttsProfilePromptPreview(text) {
+function ttsProfileFormatDuration(ms) {
+  return currentTtsProfileModel()?.formatTtsProfileDuration?.(ms) || classicTtsProfileFormatDuration(ms);
+}
+
+function classicTtsProfilePromptPreview(text) {
   return String(text || "").replace(/<\|endofprompt\|>/g, "").trim();
+}
+
+function ttsProfilePromptPreview(text) {
+  return currentTtsProfileModel()?.previewTtsProfilePrompt?.(text) || classicTtsProfilePromptPreview(text);
+}
+
+function ttsProfileListRequestPlan() {
+  const workspaceId = ttsProfileWorkspaceId();
+  return currentTtsProfileModel()?.ttsProfileListRequestPlan?.({ workspaceId }) || {
+    method: "GET",
+    path: `/api/v1/home-ai/tts/profiles?workspaceId=${encodeURIComponent(workspaceId)}`,
+    workspaceId,
+  };
+}
+
+function ttsProfileSaveValidationPlan(input = {}) {
+  const modelPlan = currentTtsProfileModel()?.ttsProfileSaveValidationPlan?.(input);
+  if (modelPlan) return modelPlan;
+  if (!input.label) return { ok: false, statusText: "请填写 Profile 名称。" };
+  if (!input.promptText) return { ok: false, statusText: "请填写与录音一致的逐字稿。" };
+  if (!input.hasAudio) return { ok: false, statusText: "请先录音或上传 wav。" };
+  return { ok: true, progressText: "正在保存 TTS Profile", successText: "TTS Profile 已保存" };
+}
+
+function ttsProfileSaveRequestPlan(input = {}) {
+  const modelPlan = currentTtsProfileModel()?.ttsProfileSaveRequestPlan?.(input);
+  if (modelPlan) return modelPlan;
+  return {
+    path: "/api/v1/home-ai/tts/profiles",
+    options: {
+      method: "POST",
+      timeoutMs: 60000,
+      body: {
+        workspaceId: input.workspaceId,
+        label: input.label,
+        profile_id: input.profileId,
+        prompt_text: input.promptText,
+        audio_base64: input.audioBase64,
+        set_default: Boolean(input.setDefault),
+      },
+    },
+  };
+}
+
+function ttsProfileDefaultRequestPlan(profileId) {
+  const workspaceId = ttsProfileWorkspaceId();
+  return currentTtsProfileModel()?.ttsProfileDefaultRequestPlan?.({ workspaceId, profileId }) || {
+    ok: Boolean(profileId),
+    path: profileId ? `/api/v1/home-ai/tts/profiles/${encodeURIComponent(profileId)}/default` : "",
+    options: { method: "POST", body: { workspaceId } },
+    successText: "默认 TTS Profile 已更新",
+  };
+}
+
+function ttsProfileDeleteRequestPlan(profileId) {
+  const workspaceId = ttsProfileWorkspaceId();
+  return currentTtsProfileModel()?.ttsProfileDeleteRequestPlan?.({ workspaceId, profileId }) || {
+    ok: Boolean(profileId),
+    path: profileId ? `/api/v1/home-ai/tts/profiles/${encodeURIComponent(profileId)}/delete` : "",
+    options: { method: "POST", body: { workspaceId } },
+    successText: "TTS Profile 已删除",
+  };
+}
+
+function ttsProfileFileSelectionPlan(file) {
+  return currentTtsProfileModel()?.ttsProfileFileSelectionPlan?.({
+    name: file?.name,
+    type: file?.type,
+    size: file?.size,
+  }) || {
+    ok: /\.wav$/i.test(file?.name || "") || String(file?.type || "").includes("wav"),
+    statusText: /\.wav$/i.test(file?.name || "") || String(file?.type || "").includes("wav")
+      ? "已选择 wav 文件"
+      : "请上传 wav 文件。",
+    name: file?.name || "tts-profile-upload.wav",
+    durationMs: 0,
+  };
 }
 
 function ttsProfileCaptureDraft(overlay = $("ttsProfileOverlay")) {
@@ -149,8 +269,8 @@ async function loadTtsProfiles() {
   state.ttsProfilesError = "";
   renderTtsProfileManager();
   try {
-    const workspaceId = encodeURIComponent(ttsProfileWorkspaceId());
-    const payload = await api(`/api/v1/home-ai/tts/profiles?workspaceId=${workspaceId}`);
+    const requestPlan = ttsProfileListRequestPlan();
+    const payload = await api(requestPlan.path);
     state.ttsProfiles = Array.isArray(payload?.profiles) ? payload.profiles : [];
   } catch (err) {
     state.ttsProfilesError = err?.message || "TTS Profile 读取失败";
@@ -234,14 +354,14 @@ function ttsProfileWireOverlay(overlay) {
     const file = event.target.files?.[0];
     if (!file) return;
     ttsProfileCaptureDraft(overlay);
-    const wav = /\.wav$/i.test(file.name || "") || String(file.type || "").includes("wav");
-    if (!wav) {
-      state.ttsProfileStatus = "请上传 wav 文件。";
+    const plan = ttsProfileFileSelectionPlan(file);
+    if (!plan.ok) {
+      state.ttsProfileStatus = plan.statusText || "请上传 wav 文件。";
       renderTtsProfileManager();
       return;
     }
-    ttsProfileSetDraftAudio(file, file.name || "tts-profile-upload.wav", 0);
-    state.ttsProfileStatus = "已选择 wav 文件";
+    ttsProfileSetDraftAudio(file, plan.name || file.name || "tts-profile-upload.wav", plan.durationMs || 0);
+    state.ttsProfileStatus = plan.statusText || "已选择 wav 文件";
     renderTtsProfileManager();
   });
   overlay.querySelector("[data-save-tts-profile]")?.addEventListener("click", () => saveTtsProfileFromOverlay(overlay).catch(showError));
@@ -260,38 +380,33 @@ async function saveTtsProfileFromOverlay(overlay) {
   const promptText = String(overlay.querySelector("#ttsProfilePromptText")?.value || "").trim();
   const setDefault = Boolean(overlay.querySelector("#ttsProfileSetDefault")?.checked);
   const audio = state.ttsProfileDraftAudio;
-  if (!label) {
-    state.ttsProfileStatus = "请填写 Profile 名称。";
-    renderTtsProfileManager();
-    return;
-  }
-  if (!promptText) {
-    state.ttsProfileStatus = "请填写与录音一致的逐字稿。";
-    renderTtsProfileManager();
-    return;
-  }
-  if (!audio?.blob) {
-    state.ttsProfileStatus = "请先录音或上传 wav。";
+  const validation = ttsProfileSaveValidationPlan({
+    label,
+    promptText,
+    hasAudio: Boolean(audio?.blob),
+  });
+  if (!validation.ok) {
+    state.ttsProfileStatus = validation.statusText || "";
     renderTtsProfileManager();
     return;
   }
   state.ttsProfileSaving = true;
-  state.ttsProfileStatus = "正在保存 TTS Profile";
+  state.ttsProfileStatus = validation.progressText || "正在保存 TTS Profile";
   renderTtsProfileManager();
   try {
     const audioBase64 = await ttsProfileBlobToDataUrl(audio.blob);
     const workspaceId = ttsProfileWorkspaceId();
-    await api("/api/v1/home-ai/tts/profiles", {
-      method: "POST",
-      timeoutMs: 60000,
-      body: JSON.stringify({
-        workspaceId,
-        label,
-        profile_id: profileId,
-        prompt_text: promptText,
-        audio_base64: audioBase64,
-        set_default: setDefault,
-      }),
+    const requestPlan = ttsProfileSaveRequestPlan({
+      workspaceId,
+      label,
+      profileId,
+      promptText,
+      audioBase64,
+      setDefault,
+    });
+    await api(requestPlan.path, {
+      ...requestPlan.options,
+      body: JSON.stringify(requestPlan.options?.body || {}),
     });
     ttsProfileRevokeDraftAudio();
     ttsProfileClearDraftForm();
@@ -300,7 +415,7 @@ async function saveTtsProfileFromOverlay(overlay) {
     if (overlay.querySelector("#ttsProfileId")) overlay.querySelector("#ttsProfileId").value = "";
     if (overlay.querySelector("#ttsProfilePromptText")) overlay.querySelector("#ttsProfilePromptText").value = "";
     if (overlay.querySelector("#ttsProfileSetDefault")) overlay.querySelector("#ttsProfileSetDefault").checked = true;
-    state.ttsProfileStatus = "TTS Profile 已保存";
+    state.ttsProfileStatus = validation.successText || "TTS Profile 已保存";
     await loadTtsProfiles();
   } finally {
     state.ttsProfileSaving = false;
@@ -309,28 +424,54 @@ async function saveTtsProfileFromOverlay(overlay) {
 }
 
 async function setDefaultTtsProfile(profileId) {
-  if (!profileId) return;
-  const workspaceId = ttsProfileWorkspaceId();
-  await api(`/api/v1/home-ai/tts/profiles/${encodeURIComponent(profileId)}/default`, {
-    method: "POST",
-    body: JSON.stringify({ workspaceId }),
+  const requestPlan = ttsProfileDefaultRequestPlan(profileId);
+  if (!requestPlan.ok) return;
+  await api(requestPlan.path, {
+    ...requestPlan.options,
+    body: JSON.stringify(requestPlan.options?.body || {}),
   });
-  state.ttsProfileStatus = "默认 TTS Profile 已更新";
+  state.ttsProfileStatus = requestPlan.successText || "默认 TTS Profile 已更新";
   await loadTtsProfiles();
 }
 
 async function deleteTtsProfile(profileId) {
-  if (!profileId) return;
-  const workspaceId = ttsProfileWorkspaceId();
-  await api(`/api/v1/home-ai/tts/profiles/${encodeURIComponent(profileId)}/delete`, {
-    method: "POST",
-    body: JSON.stringify({ workspaceId }),
+  const requestPlan = ttsProfileDeleteRequestPlan(profileId);
+  if (!requestPlan.ok) return;
+  await api(requestPlan.path, {
+    ...requestPlan.options,
+    body: JSON.stringify(requestPlan.options?.body || {}),
   });
-  state.ttsProfileStatus = "TTS Profile 已删除";
+  state.ttsProfileStatus = requestPlan.successText || "TTS Profile 已删除";
   await loadTtsProfiles();
 }
 
+function renderTtsProfileRowPlan(row = {}) {
+  return `<article class="tts-profile-row">
+      <div class="tts-profile-row-main">
+        <div class="tts-profile-row-title">${escapeHtml(row.title || row.profileId || "")}</div>
+        <div class="tts-profile-row-meta">${escapeHtml(row.metaPrimary || "")}</div>
+        <div class="tts-profile-row-meta">${escapeHtml(row.metaSecondary || "")}</div>
+        ${row.preview ? `<div class="tts-profile-preview">${escapeHtml(row.preview)}</div>` : ""}
+      </div>
+      <div class="tts-profile-row-actions">
+        ${row.isDefault ? `<span class="tts-profile-default">${escapeHtml(row.defaultLabel || "默认")}</span>` : `<button type="button" data-set-default-tts-profile="${escapeHtml(row.profileId || "")}">${escapeHtml(row.setDefaultLabel || "设为默认")}</button>`}
+        <button type="button" data-delete-tts-profile="${escapeHtml(row.profileId || "")}">${escapeHtml(row.deleteLabel || "删除")}</button>
+      </div>
+    </article>`;
+}
+
 function renderTtsProfileRows() {
+  const modelPlan = currentTtsProfileModel()?.ttsProfileRowsViewPlan?.({
+    loading: state.ttsProfilesLoading,
+    error: state.ttsProfilesError,
+    profiles: Array.isArray(state.ttsProfiles) ? state.ttsProfiles : [],
+  }, { formatTime: typeof formatTime === "function" ? formatTime : (value) => value });
+  if (modelPlan) {
+    if (modelPlan.state === "loading") return `<div class="tts-profile-empty">${escapeHtml(modelPlan.statusText || "正在读取 TTS Profile...")}</div>`;
+    if (modelPlan.state === "error") return `<div class="tts-profile-empty error">${escapeHtml(modelPlan.statusText || "")}</div>`;
+    if (modelPlan.state === "empty") return `<div class="tts-profile-empty">${escapeHtml(modelPlan.statusText || "还没有 TTS Profile。录一段 15-25 秒的旁白 prompt 后保存。")}</div>`;
+    return (modelPlan.rows || []).map(renderTtsProfileRowPlan).join("");
+  }
   if (state.ttsProfilesLoading) return `<div class="tts-profile-empty">正在读取 TTS Profile...</div>`;
   if (state.ttsProfilesError) return `<div class="tts-profile-empty error">${escapeHtml(state.ttsProfilesError)}</div>`;
   const profiles = Array.isArray(state.ttsProfiles) ? state.ttsProfiles : [];
@@ -363,11 +504,26 @@ function renderTtsProfileManager() {
     return;
   }
   const recorder = state.ttsProfileRecorder;
-  const recording = Boolean(recorder?.recording);
   const audio = state.ttsProfileDraftAudio;
-  const audioMeta = audio
-    ? `${escapeHtml(audio.name || "prompt.wav")} · ${escapeHtml(ttsProfileFormatBytes(audio.size))}${audio.durationMs ? ` · ${escapeHtml(ttsProfileFormatDuration(audio.durationMs))}` : ""}`
-    : "未选择音频";
+  const viewPlan = currentTtsProfileModel()?.ttsProfileManagerViewPlan?.({
+    recorder,
+    audio,
+    saving: state.ttsProfileSaving,
+    status: state.ttsProfileStatus,
+    draftSetDefault: state.ttsProfileDraftSetDefault,
+  });
+  const recording = viewPlan ? viewPlan.recording : Boolean(recorder?.recording);
+  const audioMeta = viewPlan?.audioMeta?.text || (audio
+    ? `${audio.name || "prompt.wav"} · ${ttsProfileFormatBytes(audio.size)}${audio.durationMs ? ` · ${ttsProfileFormatDuration(audio.durationMs)}` : ""}`
+    : "未选择音频");
+  const startRecordingDisabled = viewPlan ? viewPlan.startRecordingDisabled : recording;
+  const startRecordingLabel = viewPlan?.startRecordingLabel || (recording ? "录制中" : "开始录音");
+  const stopRecordingDisabled = viewPlan ? viewPlan.stopRecordingDisabled : !recording;
+  const clearAudioDisabled = viewPlan ? viewPlan.clearAudioDisabled : !audio;
+  const saveDisabled = viewPlan ? viewPlan.saveDisabled : Boolean(state.ttsProfileSaving);
+  const saveLabel = viewPlan?.saveLabel || (state.ttsProfileSaving ? "保存中" : "保存 Profile");
+  const setDefaultChecked = viewPlan ? viewPlan.setDefaultChecked : state.ttsProfileDraftSetDefault !== false;
+  const statusText = viewPlan?.statusText || state.ttsProfileStatus || "";
   overlay.innerHTML = `
     <div class="access-key-sheet tts-profile-sheet">
       <header class="access-key-header">
@@ -400,25 +556,25 @@ function renderTtsProfileManager() {
           <textarea id="ttsProfilePromptText" rows="4" placeholder="${escapeHtml(TTS_PROFILE_SAMPLE_TEXT)}">${escapeHtml(state.ttsProfileDraftPromptText || "")}</textarea>
         </label>
         <div class="tts-profile-audio-panel">
-          <div class="tts-profile-audio-meta">${audioMeta}</div>
+          <div class="tts-profile-audio-meta">${escapeHtml(audioMeta)}</div>
           ${audio?.url ? `<audio controls src="${escapeHtml(audio.url)}"></audio>` : ""}
           <div class="tts-profile-actions">
-            <button type="button" data-start-tts-profile-recording${recording ? " disabled" : ""}>${recording ? "录制中" : "开始录音"}</button>
-            <button type="button" data-stop-tts-profile-recording${recording ? "" : " disabled"}>停止</button>
+            <button type="button" data-start-tts-profile-recording${startRecordingDisabled ? " disabled" : ""}>${escapeHtml(startRecordingLabel)}</button>
+            <button type="button" data-stop-tts-profile-recording${stopRecordingDisabled ? " disabled" : ""}>停止</button>
             <label class="tts-profile-file-button">
               <span>上传 WAV</span>
               <input data-tts-profile-file type="file" accept="audio/wav,.wav">
             </label>
-            <button type="button" data-clear-tts-profile-audio${audio ? "" : " disabled"}>清除音频</button>
+            <button type="button" data-clear-tts-profile-audio${clearAudioDisabled ? " disabled" : ""}>清除音频</button>
           </div>
         </div>
         <label class="tts-profile-default-toggle">
-          <input id="ttsProfileSetDefault" type="checkbox"${state.ttsProfileDraftSetDefault === false ? "" : " checked"}>
+          <input id="ttsProfileSetDefault" type="checkbox"${setDefaultChecked ? " checked" : ""}>
           <span>设为当前工作区默认 HiFi 旁白音色</span>
         </label>
         <div class="tts-profile-save-row">
-          <button class="primary-small" type="button" data-save-tts-profile${state.ttsProfileSaving ? " disabled" : ""}>${state.ttsProfileSaving ? "保存中" : "保存 Profile"}</button>
-          ${state.ttsProfileStatus ? `<span class="tts-profile-status">${escapeHtml(state.ttsProfileStatus)}</span>` : ""}
+          <button class="primary-small" type="button" data-save-tts-profile${saveDisabled ? " disabled" : ""}>${escapeHtml(saveLabel)}</button>
+          ${statusText ? `<span class="tts-profile-status">${escapeHtml(statusText)}</span>` : ""}
         </div>
       </section>
       <section class="tts-profile-list">

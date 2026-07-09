@@ -11,14 +11,19 @@ const { createPlatformCurrencyApiRoutes } = require("./platform-currency-api-rou
 const { createPublicApiRoutes } = require("./public-api-routes");
 const { createPushApiRoutes } = require("./push-api-routes");
 const { createResourceApiRoutes } = require("./resource-api-routes");
+const { createRemoteManagedWorkspaceApiRoutes } = require("./remote-managed-workspace-api-routes");
 const { createRuntimeConfigApiRoutes } = require("./runtime-config-api-routes");
 const { createSystemApiRoutes } = require("./system-api-routes");
 const { createWorkspaceApiRoutes } = require("./workspace-api-routes");
+const { createWorkspaceConsoleApiRoutes } = require("./workspace-console-api-routes");
 const { createCurrentEnvironmentContextService } = require("../adapters/current-environment-context-service");
+const { createCodexMobileAtLoopStatusService } = require("../adapters/codex-mobile-at-loop-status-service");
 const { createNativeIosShellVersionPolicyService } = require("../adapters/native-ios-shell-version-policy-service");
 const { createOwnerSystemConsoleService } = require("../adapters/owner-system-console-service");
 const { createPlatformCurrencyService } = require("../adapters/platform-currency-service");
+const { createRemoteManagedWorkspaceService } = require("../adapters/remote-managed-workspace-service");
 const { createSystemResourceStatusService } = require("../adapters/system-resource-status-service");
+const { createWorkspaceConsoleService } = require("../adapters/workspace-console-service");
 
 function callBootTrace(deps, label) {
   if (typeof deps.bootTrace === "function") deps.bootTrace(label);
@@ -56,13 +61,37 @@ function createMobileApiPlatformComposition(deps = {}) {
     runtimeRoot: deps.runtimeRoot || deps.HERMES_RUNTIME_ROOT,
     thresholds: deps.systemResourceThresholds,
   });
+  const codexMobileAtLoopStatusService = deps.codexMobileAtLoopStatusService || createCodexMobileAtLoopStatusService({
+    env: deps.env || process.env,
+    fetchImpl: deps.fetchImpl,
+  });
   const ownerSystemConsoleService = deps.ownerSystemConsoleService || createOwnerSystemConsoleService({
     autonomousDeliveryCoordinatorService: deps.autonomousDeliveryCoordinatorService,
+    collectLoopEngineeringStatus: () => codexMobileAtLoopStatusService.status(),
     nowIso: deps.nowIso,
     systemResourceStatusService,
     qualityProgramEvidenceOptions: {
       env: ownerQualityEvidenceEnv(deps),
     },
+  });
+  const remoteManagedWorkspaceService = deps.remoteManagedWorkspaceService || createRemoteManagedWorkspaceService({
+    enrollments: deps.remoteManagedWorkspaceEnrollments,
+    env: deps.env || process.env,
+    makeId: deps.makeId,
+    nowIso: deps.nowIso,
+    nowMs: deps.nowMs,
+    saveState: deps.saveState,
+    staleAfterMs: deps.remoteManagedWorkspaceStaleAfterMs,
+    state: deps.state,
+  });
+  const workspaceConsoleService = deps.workspaceConsoleService || createWorkspaceConsoleService({
+    listLocalWorkspaces: () => deps.publicWorkspacesForAuth({
+      ok: true,
+      isOwner: true,
+      role: "owner",
+    }).map((workspace) => deps.publicWorkspace(workspace)),
+    nowIso: deps.nowIso,
+    remoteManagedWorkspaceService,
   });
   const familyProfileComposition = createMobileApiFamilyProfileComposition(deps, { mobileStore });
   const { familyProfileApiRoutes } = familyProfileComposition.routes;
@@ -117,6 +146,19 @@ function createMobileApiPlatformComposition(deps = {}) {
 
   const ownerSystemConsoleApiRoutes = createOwnerSystemConsoleApiRoutes({
     ownerSystemConsoleService,
+    requireOwner: deps.requireOwner,
+    sendJson: deps.sendJson,
+  });
+
+  const workspaceConsoleApiRoutes = createWorkspaceConsoleApiRoutes({
+    workspaceConsoleService,
+    requireOwner: deps.requireOwner,
+    sendJson: deps.sendJson,
+  });
+
+  const remoteManagedWorkspaceApiRoutes = createRemoteManagedWorkspaceApiRoutes({
+    readBody: deps.readBody,
+    remoteManagedWorkspaceService,
     requireOwner: deps.requireOwner,
     sendJson: deps.sendJson,
   });
@@ -233,9 +275,11 @@ function createMobileApiPlatformComposition(deps = {}) {
       platformCurrencyApiRoutes,
       publicApiRoutes,
       pushApiRoutes,
+      remoteManagedWorkspaceApiRoutes,
       resourceApiRoutes,
       runtimeConfigApiRoutes,
       systemApiRoutes,
+      workspaceConsoleApiRoutes,
       workspaceApiRoutes,
     },
     services: {
@@ -245,9 +289,12 @@ function createMobileApiPlatformComposition(deps = {}) {
       familyProfileService,
       currentEnvironmentContextService,
       nativeIosShellVersionPolicyService,
+      codexMobileAtLoopStatusService,
       ownerSystemConsoleService,
       platformCurrencyService,
+      remoteManagedWorkspaceService,
       systemResourceStatusService,
+      workspaceConsoleService,
     },
   };
 }

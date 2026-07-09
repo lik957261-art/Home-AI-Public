@@ -643,8 +643,8 @@ async function testWardrobePluginTopicForcesSkillMcpStackAndPluginContext() {
       content: "List wardrobe item status",
       directoryRoute: {
         label: "Wardrobe delivery",
-        root: "C:/delivery/wardrobe",
-        path: "C:/delivery/wardrobe",
+        root: "C:\\delivery\\wardrobe",
+        path: "C:\\delivery\\wardrobe",
       },
     }),
     assistant,
@@ -661,14 +661,20 @@ async function testWardrobePluginTopicForcesSkillMcpStackAndPluginContext() {
   assert.deepEqual(calls.streams[0].body.access_policy_context.required_toolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.deepEqual(calls.streams[0].body.access_policy_context.allowed_skills, ["productivity/wardrobe-style-operations"]);
   assert.deepEqual(calls.streams[0].body.access_policy_context.required_skills, ["productivity/wardrobe-style-operations"]);
+  assert.ok(calls.streams[0].body.access_policy_context.allowed_roots.includes("/mnt/c/delivery/wardrobe"));
+  assert.ok(calls.streams[0].body.access_policy_context.allowed_roots.includes("C:\\delivery\\wardrobe"));
+  assert.ok(calls.streams[0].body.access_policy_context.delivery_roots.includes("/mnt/c/delivery/wardrobe"));
+  assert.ok(calls.streams[0].body.access_policy_context.delivery_roots.includes("C:\\delivery\\wardrobe"));
+  assert.ok(calls.streams[0].body.access_policy_context.cache_roots.includes("/mnt/c/delivery/wardrobe"));
+  assert.ok(calls.streams[0].body.access_policy_context.cache_roots.includes("C:\\delivery\\wardrobe"));
   assert.equal(calls.hermesInstructions[0].taskDirectory, null);
   assert.deepEqual(calls.hermesInstructions[0].buildOptions.requiredSkillPreloads, requiredSkillPreloads);
   assert.deepEqual(calls.hermesInstructions[0].buildOptions.pluginTopicContext.requiredToolsets, ["wardrobe", "vision", "file", "skills"]);
   assert.deepEqual(calls.hermesInstructions[0].buildOptions.pluginTopicContext.requiredSkills, ["productivity/wardrobe-style-operations"]);
   assert.deepEqual(calls.hermesInstructions[0].buildOptions.pluginTopicContext.deliveryDirectory, {
     label: "Wardrobe delivery",
-    path: "C:/delivery/wardrobe",
-    root: "C:/delivery/wardrobe",
+    path: "C:\\delivery\\wardrobe",
+    root: "C:\\delivery\\wardrobe",
     projectId: "",
     subprojectId: "",
   });

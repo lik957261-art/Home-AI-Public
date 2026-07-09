@@ -1,5 +1,41 @@
 "use strict";
 
+const PLUGIN_HOST_MODEL_ESM_PATH = "/vite-islands/plugin-host-model/plugin-host-model.js";
+let pluginHostModel = null;
+let pluginHostModelPromise = null;
+
+function importPluginHostModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (pluginHostModel) return Promise.resolve(pluginHostModel);
+  if (!pluginHostModelPromise) {
+    const importer = typeof rootRef.__homeAiImportPluginHostModel === "function"
+      ? rootRef.__homeAiImportPluginHostModel
+      : (path) => import(path);
+    pluginHostModelPromise = Promise.resolve()
+      .then(() => importer(PLUGIN_HOST_MODEL_ESM_PATH))
+      .then((model) => {
+        pluginHostModel = model || null;
+        return pluginHostModel;
+      })
+      .catch((error) => {
+        pluginHostModelPromise = null;
+        throw error;
+      });
+  }
+  return pluginHostModelPromise;
+}
+
+function currentPluginHostModel() {
+  return pluginHostModel;
+}
+
+function embeddedPluginModelBaseUrl() {
+  return window.location?.href || undefined;
+}
+
+if (typeof window !== "undefined") {
+  importPluginHostModel().catch(() => null);
+}
+
 const EMBEDDED_PLUGIN_DEFS = Object.freeze({
   "codex-mobile": Object.freeze({
     id: "codex-mobile",
@@ -179,11 +215,15 @@ function embeddedPluginDefByView(viewMode = state.viewMode) {
 
 function embeddedPluginCurrentManifest(def, appearanceKey = embeddedPluginAppearanceKey()) {
   const record = embeddedPluginRecord(def.id);
-  const workspaceId = state.selectedWorkspaceId || "owner";
+  const workspaceId = embeddedPluginCurrentWorkspaceId();
   return embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appearanceKey) ? record.manifest : null;
 }
 
 function embeddedPluginProxyEntryWorkspaceMatches(entryUrl = "", workspaceId = "") {
+  const plan = currentPluginHostModel()?.pluginProxyEntryWorkspaceMatches?.(entryUrl, workspaceId, {
+    baseUrl: embeddedPluginModelBaseUrl(),
+  });
+  if (typeof plan === "boolean") return plan;
   const targetWorkspaceId = String(workspaceId || "owner").trim() || "owner";
   try {
     const parsed = new URL(String(entryUrl || ""), window.location?.href || undefined);
@@ -216,7 +256,7 @@ function embeddedPluginListState() {
 
 async function refreshEmbeddedPluginList(options = {}) {
   const record = embeddedPluginListState();
-  const workspaceId = state.selectedWorkspaceId || "owner";
+  const workspaceId = embeddedPluginCurrentWorkspaceId();
   if (!options.force && record.loading) return record;
   if (!options.force && record.loaded && record.workspaceId === workspaceId) return record;
   const seq = Number(record.requestSeq || 0) + 1;
@@ -262,7 +302,20 @@ function embeddedPluginListedForWorkspace(pluginId) {
 }
 
 function embeddedPluginCurrentWorkspaceId() {
-  return state.selectedWorkspaceId || "owner";
+  const selected = String(state.selectedWorkspaceId || "").trim();
+  const authWorkspaceId = String(state.auth?.workspaceId || "").trim();
+  if (!state.auth?.isOwner && authWorkspaceId) {
+    const allowed = new Set(
+      []
+        .concat(Array.isArray(state.auth?.workspaceIds) ? state.auth.workspaceIds : [])
+        .concat(Array.isArray(state.auth?.workspaces) ? state.auth.workspaces : [])
+        .concat(authWorkspaceId)
+        .map((item) => String(item || "").trim())
+        .filter(Boolean),
+    );
+    if (!selected || selected === "owner" || !allowed.has(selected)) return authWorkspaceId;
+  }
+  return String(selected || authWorkspaceId || "owner").trim() || "owner";
 }
 
 function codexPluginNavigationAvailable() {
@@ -291,6 +344,8 @@ function embeddedPluginBottomButtonShouldStayVisible(def) {
 }
 
 function embeddedPluginUsesLaunchToken(manifest) {
+  const plan = currentPluginHostModel()?.pluginUsesLaunchToken?.(manifest);
+  if (typeof plan === "boolean") return plan;
   const entryUrl = String(manifest?.entry?.url || "");
   return manifest?.embed?.tokenStatus === "launch_token_issued" || /[?&](?:launch|codexPluginLaunch)=/.test(entryUrl);
 }
@@ -317,10 +372,16 @@ function embeddedPluginEntryParamKey(name = "") {
 }
 
 function embeddedPluginEntryParamIsVolatile(name = "") {
+  const plan = currentPluginHostModel()?.pluginEntryParamIsVolatile?.(name);
+  if (typeof plan === "boolean") return plan;
   return EMBEDDED_PLUGIN_VOLATILE_ENTRY_PARAMS.has(embeddedPluginEntryParamKey(name));
 }
 
 function embeddedPluginStableEntrySignature(entryUrl = "") {
+  const plan = currentPluginHostModel()?.stableEntrySignature?.(entryUrl, {
+    baseUrl: embeddedPluginModelBaseUrl(),
+  });
+  if (plan) return plan;
   const raw = String(entryUrl || "").trim();
   if (!raw) return "";
   try {
@@ -342,6 +403,10 @@ function embeddedPluginStableEntrySignature(entryUrl = "") {
 }
 
 function embeddedPluginEntryUrlsStableEquivalent(left = "", right = "") {
+  const plan = currentPluginHostModel()?.pluginEntryUrlsStableEquivalent?.(left, right, {
+    baseUrl: embeddedPluginModelBaseUrl(),
+  });
+  if (typeof plan === "boolean") return plan;
   const leftSignature = embeddedPluginStableEntrySignature(left);
   const rightSignature = embeddedPluginStableEntrySignature(right);
   return Boolean(leftSignature && rightSignature && leftSignature === rightSignature);
@@ -353,10 +418,16 @@ function embeddedPluginFrameUsesEntry(frame, entryUrl = "") {
 }
 
 function embeddedPluginRenderedEntryMatches(left = "", right = "") {
+  const plan = currentPluginHostModel()?.pluginRenderedEntryMatches?.(left, right, {
+    baseUrl: embeddedPluginModelBaseUrl(),
+  });
+  if (typeof plan === "boolean") return plan;
   return Boolean(left && (left === right || embeddedPluginEntryUrlsStableEquivalent(left, right)));
 }
 
 function embeddedPluginRefreshesOnVersionChange(manifest) {
+  const plan = currentPluginHostModel()?.pluginRefreshesOnVersionChange?.(manifest);
+  if (typeof plan === "boolean") return plan;
   return Boolean(
     manifest?.embedding?.refreshOnVersionChange
     || manifest?.embedding?.refresh_on_version_change
@@ -366,6 +437,8 @@ function embeddedPluginRefreshesOnVersionChange(manifest) {
 }
 
 function embeddedPluginManifestMaxAgeMs(def, manifest) {
+  const plan = currentPluginHostModel()?.pluginManifestMaxAgeMs?.(def, manifest);
+  if (Number.isFinite(Number(plan))) return Number(plan);
   const explicit = Number(def?.manifestMaxAgeMs);
   if (Number.isFinite(explicit) && explicit >= 0) return explicit;
   return embeddedPluginRefreshesOnVersionChange(manifest) ? 5000 : 60000;
@@ -494,6 +567,14 @@ function embeddedPluginAppearanceKey(appearance = embeddedPluginAppearanceForLau
 }
 
 function embeddedPluginManifestMatchesLaunchContext(record, workspaceId, appearanceKey = embeddedPluginAppearanceKey()) {
+  const plan = currentPluginHostModel()?.pluginManifestLaunchContextPlan?.({
+    record,
+    workspaceId,
+    appearanceKey,
+    now: Date.now(),
+    baseUrl: embeddedPluginModelBaseUrl(),
+  });
+  if (plan && typeof plan.matches === "boolean") return plan.matches;
   const fetchedAt = Number(record?.manifestFetchedAt || 0);
   const maxAgeMs = Number.isFinite(Number(record?.manifestMaxAgeMs)) ? Number(record.manifestMaxAgeMs) : 60000;
   const manifestAgeFresh = fetchedAt > 0 && Date.now() - fetchedAt < maxAgeMs;
@@ -519,6 +600,18 @@ function embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appea
   if (!frame || !embeddedPluginFrameUsesEntry(frame, record.renderedEntryUrl)) return false;
   const renderedWorkspaceId = String(record.renderedWorkspaceId || record.manifest?.workspaceId || "").trim();
   const renderedAppearanceKey = String(record.renderedAppearanceKey || record.manifestAppearanceKey || "").trim();
+  const plan = currentPluginHostModel()?.pluginResidentShellContextPlan?.({
+    frameUsesEntry: true,
+    renderedEntryUrl: record.renderedEntryUrl,
+    renderedWorkspaceId,
+    renderedAppearanceKey,
+    manifestWorkspaceId: record.manifest?.workspaceId,
+    manifestAppearanceKey: record.manifestAppearanceKey,
+    workspaceId,
+    appearanceKey,
+    baseUrl: embeddedPluginModelBaseUrl(),
+  });
+  if (plan && typeof plan.matches === "boolean") return plan.matches;
   return Boolean(
     renderedWorkspaceId === String(workspaceId || "owner").trim()
     && renderedAppearanceKey === String(appearanceKey || "").trim()
@@ -527,6 +620,11 @@ function embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appea
 }
 
 function embeddedPluginResidentShellRequiresFreshManifest(def, manifest) {
+  const plan = currentPluginHostModel()?.pluginResidentShellRequiresFreshManifestPlan?.({
+    definition: def,
+    manifest,
+  });
+  if (typeof plan === "boolean") return plan;
   return Boolean(def?.residentFrame && embeddedPluginRefreshesOnVersionChange(manifest));
 }
 
@@ -1511,6 +1609,31 @@ function renderEmbeddedPluginUnavailable(def, manifest = embeddedPluginCurrentMa
     </section>`;
 }
 
+function syncEmbeddedPluginIframeAuthCookie() {
+  let key = "";
+  try {
+    const stateKey = typeof state !== "undefined" ? state?.key : "";
+    const storedKey = typeof localStorage !== "undefined" ? localStorage.getItem("hermesWebKey") : "";
+    key = String(stateKey || storedKey || "").trim();
+  } catch (_) {
+    key = "";
+  }
+  if (!key || typeof document === "undefined") return false;
+  try {
+    if (window.HomeAiRuntimeFacade?.auth?.syncCookie) {
+      window.HomeAiRuntimeFacade.auth.syncCookie(key);
+      return true;
+    }
+  } catch (_) {}
+  try {
+    const secure = window.location?.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `hermes_web_key=${encodeURIComponent(key)}; Path=/; SameSite=Lax${secure}`;
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
 function renderEmbeddedPluginFrame(def, manifest, entryUrl = embeddedPluginEntryUrlForFrame(def, manifest)) {
   return `
     <div class="embedded-plugin-shell is-loading" data-plugin-id="${escapeHtml(def.id)}">
@@ -1534,7 +1657,7 @@ function showEmbeddedPluginLoadingSurface(def) {
 
 async function loadEmbeddedPluginManifest(def, options = {}) {
   const record = embeddedPluginRecord(def.id);
-  const workspaceId = state.selectedWorkspaceId || "owner";
+  const workspaceId = embeddedPluginCurrentWorkspaceId();
   const appearance = embeddedPluginAppearanceForLaunch();
   const appearanceKey = embeddedPluginAppearanceKey(appearance);
   if (!options.force && record.loading) return;
@@ -1597,7 +1720,7 @@ function renderEmbeddedPluginView(def) {
   const conversation = $("conversation");
   if (!conversation) return;
   const record = embeddedPluginRecord(def.id);
-  const workspaceId = state.selectedWorkspaceId || "owner";
+  const workspaceId = embeddedPluginCurrentWorkspaceId();
   const appearanceKey = embeddedPluginAppearanceKey();
   const pluginManifest = embeddedPluginCurrentManifest(def);
   if (!pluginManifest && embeddedPluginResidentShellMatchesLaunchContext(def, workspaceId, appearanceKey)) {
@@ -1646,6 +1769,7 @@ function renderEmbeddedPluginView(def) {
     }
     discardEmbeddedPluginShell(def);
     conversation.innerHTML = "";
+    syncEmbeddedPluginIframeAuthCookie();
     embeddedPluginHost(def).innerHTML = renderEmbeddedPluginFrame(def, pluginManifest, entryUrl);
     setEmbeddedPluginHostVisible(def, true);
     record.shellNode = embeddedPluginHost(def).querySelector(".embedded-plugin-shell");
@@ -1666,7 +1790,7 @@ function renderEmbeddedPluginView(def) {
     ensureVerticalScrollAffordance();
     return;
   }
-  if (!embeddedPluginManifestMatchesLaunchContext(record, state.selectedWorkspaceId || "owner")) {
+  if (!embeddedPluginManifestMatchesLaunchContext(record, embeddedPluginCurrentWorkspaceId())) {
     if (record.shellNode) discardEmbeddedPluginShell(def);
     showEmbeddedPluginLoadingSurface(def);
     loadEmbeddedPluginManifest(def).catch(showError);

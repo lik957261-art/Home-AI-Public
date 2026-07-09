@@ -112,6 +112,7 @@ assert.strictEqual(typeof context.bindWorkspaceOnboardingAction, "function");
   assert.deepStrictEqual(apiCalls.map((call) => call.url), [
     "/api/workspace-onboarding/plan",
     "/api/workspace-onboarding/apply",
+    "/api/access-keys",
   ]);
   assert.deepStrictEqual(apiCalls[0].body, {
     workspaceId: "xjz",
@@ -121,6 +122,7 @@ assert.strictEqual(typeof context.bindWorkspaceOnboardingAction, "function");
     runSmokes: true,
   });
   assert.deepStrictEqual(apiCalls[1].body, apiCalls[0].body);
+  assert.deepStrictEqual(apiCalls[2].body, {});
   assert.strictEqual(context.state.workspaceOnboardingError, "");
   assert.strictEqual(context.state.workspaceOnboardingResult.credentials.homeAiAccessKey, true);
   assert.strictEqual(context.state.generatedAccessKey.workspaceId, "xjz");

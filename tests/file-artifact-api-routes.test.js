@@ -51,6 +51,22 @@ function makeRoutes(overrides = {}) {
       updatedAt: "2026-05-14T00:00:00.000Z",
       displayPath: "Project/readme.md",
     },
+    "/path-only.md": {
+      path: "/safe/path-only.md",
+      name: "path-only.md",
+      mime: "text/markdown",
+      size: 44,
+      updatedAt: "2026-05-14T00:00:00.000Z",
+      displayPath: "Project/path-only.md",
+    },
+    "/notes.markdown": {
+      path: "/safe/notes.markdown",
+      name: "notes.markdown",
+      mime: "application/octet-stream",
+      size: 45,
+      updatedAt: "2026-05-14T00:00:00.000Z",
+      displayPath: "Project/notes.markdown",
+    },
     "/image.png": {
       localPath: "/safe/image.png",
       name: "image.png",
@@ -165,6 +181,37 @@ async function testFilePreviewUsesResolverAndPreviewers() {
   });
 }
 
+async function testFilePreviewUsesPathFallbackForMarkdown() {
+  const { routes, calls } = makeRoutes({
+    textFilePreview(localPath) {
+      calls.preview.push({ type: "text", localPath });
+      if (!localPath) throw new Error("missing preview path");
+      return { text: "path fallback markdown", totalChars: 22, truncated: false };
+    },
+  });
+  const got = await request(routes, "GET", "/api/files/preview?path=%2Fpath-only.md", { auth: { workspaceId: "owner" } });
+
+  assert.equal(got.result.handled, true);
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.preview, [{ type: "text", localPath: "/safe/path-only.md" }]);
+  assert.equal(got.body.text, "path fallback markdown");
+}
+
+async function testFilePreviewSupportsMarkdownExtension() {
+  const { routes, calls } = makeRoutes({
+    textFilePreview(localPath) {
+      calls.preview.push({ type: "text", localPath });
+      return { text: "long markdown extension", totalChars: 23, truncated: false };
+    },
+  });
+  const got = await request(routes, "GET", "/api/files/preview?path=%2Fnotes.markdown", { auth: { workspaceId: "owner" } });
+
+  assert.equal(got.res.statusCode, 200);
+  assert.deepEqual(calls.preview, [{ type: "text", localPath: "/safe/notes.markdown" }]);
+  assert.equal(got.body.mime, "application/octet-stream");
+  assert.equal(got.body.text, "long markdown extension");
+}
+
 async function testFilePreviewDenialAndUnsupportedType() {
   const { routes } = makeRoutes();
   const denied = await request(routes, "GET", "/api/files/preview?path=denied");
@@ -220,6 +267,8 @@ async function testDependencyValidation() {
 async function run() {
   await testRouteMetadataAndFallthrough();
   await testFilePreviewUsesResolverAndPreviewers();
+  await testFilePreviewUsesPathFallbackForMarkdown();
+  await testFilePreviewSupportsMarkdownExtension();
   await testFilePreviewDenialAndUnsupportedType();
   await testFileReadStreamsAuthorizedFile();
   await testArtifactReadUsesArtifactResolver();

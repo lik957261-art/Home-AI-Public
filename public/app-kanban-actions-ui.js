@@ -1,4 +1,37 @@
 "use strict";
+const KANBAN_ACTIONS_MODEL_ESM_PATH = "/vite-islands/kanban-actions-model/kanban-actions-model.js";
+let kanbanActionsModelPromise = null;
+let kanbanActionsModel = null;
+function importKanbanActionsModel() {
+  if (kanbanActionsModel) return Promise.resolve(kanbanActionsModel);
+  if (!kanbanActionsModelPromise) {
+    kanbanActionsModelPromise = import(KANBAN_ACTIONS_MODEL_ESM_PATH)
+      .then((model) => {
+        kanbanActionsModel = model || null;
+        return kanbanActionsModel;
+      })
+      .catch(() => null);
+  }
+  return kanbanActionsModelPromise;
+}
+function currentKanbanActionsModel() {
+  return kanbanActionsModel;
+}
+function kanbanActionsModelFunction(name) {
+  const model = currentKanbanActionsModel();
+  const fn = model && model[name];
+  return typeof fn === "function" ? fn : null;
+}
+if (typeof window !== "undefined") importKanbanActionsModel().catch(() => null);
+
+function applyKanbanComposerDraftStorage(text) {
+  const patchPlan = kanbanActionsModelFunction("kanbanComposerDraftStoragePatch");
+  const patch = patchPlan ? patchPlan(text) : (String(text || "")
+    ? { action: "set", key: "hermesKanbanComposerDraft", value: String(text || "") }
+    : { action: "remove", key: "hermesKanbanComposerDraft", value: "" });
+  if (patch.action === "set") localStorage.setItem(patch.key, patch.value);
+  else localStorage.removeItem(patch.key);
+}
 
 
 function wireTodoPanel(root) {
@@ -18,15 +51,17 @@ function wireTodoPanel(root) {
   const kanbanComposerText = root.querySelector("#kanbanComposerText");
   kanbanComposerText?.addEventListener("input", () => {
     state.kanbanComposerText = kanbanComposerText.value || "";
-    if (state.kanbanComposerText) localStorage.setItem("hermesKanbanComposerDraft", state.kanbanComposerText);
-    else localStorage.removeItem("hermesKanbanComposerDraft");
+    applyKanbanComposerDraftStorage(state.kanbanComposerText);
   });
   root.querySelectorAll("[data-kanban-composer-mode]").forEach((button) => {
     button.addEventListener("click", () => {
-      const mode = String(button.dataset.kanbanComposerMode || "");
-      saveKanbanComposerMode(mode);
-      state.kanbanPlanDraft = null;
-      renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
+      const selectionPlan = kanbanActionsModelFunction("kanbanComposerModeSelectionPlan");
+      const selection = selectionPlan
+        ? selectionPlan(button.dataset.kanbanComposerMode || "")
+        : { mode: String(button.dataset.kanbanComposerMode || ""), kanbanPlanDraft: null, preserveScroll: true };
+      saveKanbanComposerMode(selection.mode);
+      state.kanbanPlanDraft = selection.kanbanPlanDraft;
+      renderTodos({ preserveScroll: Boolean(selection.preserveScroll), restoreScrollTop: $("conversation")?.scrollTop || 0 });
       focusTodoFormSoon();
     });
   });
@@ -40,15 +75,22 @@ function wireTodoPanel(root) {
     const file = event.target?.files?.[0] || null;
     const currentText = root.querySelector("#kanbanComposerText")?.value || "";
     state.kanbanComposerText = currentText;
-    if (currentText) localStorage.setItem("hermesKanbanComposerDraft", currentText);
+    applyKanbanComposerDraftStorage(currentText);
     uploadKanbanComposerDocument(file).catch(showError);
     event.target.value = "";
   });
   root.querySelectorAll("[data-remove-kanban-composer-document]").forEach((button) => {
     button.addEventListener("click", () => {
-      const index = Number(button.dataset.removeKanbanComposerDocument);
-      if (Number.isFinite(index)) {
-        state.kanbanComposerDocuments = (state.kanbanComposerDocuments || []).filter((_, itemIndex) => itemIndex !== index);
+      const removalPlan = kanbanActionsModelFunction("kanbanComposerDocumentRemovalPlan");
+      const removal = removalPlan
+        ? removalPlan(state.kanbanComposerDocuments || [], button.dataset.removeKanbanComposerDocument)
+        : {
+          ok: Number.isFinite(Number(button.dataset.removeKanbanComposerDocument)),
+          documents: (state.kanbanComposerDocuments || []).filter((_, itemIndex) => itemIndex !== Number(button.dataset.removeKanbanComposerDocument)),
+          preserveScroll: true,
+        };
+      if (removal.ok) {
+        state.kanbanComposerDocuments = removal.documents;
         renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
       }
     });
@@ -87,11 +129,22 @@ function wireTodoPanel(root) {
   });
   root.querySelectorAll("[data-kanban-status]").forEach((button) => {
     button.addEventListener("click", () => {
-      const status = String(button.dataset.kanbanStatus || "").trim().toLowerCase();
-      if (!KANBAN_TAB_ORDER.includes(status)) return;
-      state.todoKanbanStatus = status;
-      localStorage.setItem("hermesTodoKanbanStatus", status);
-      if (kanbanStatusNeedsCompleted(status) && !state.todoCompletedLoaded) {
+      const statusPlan = kanbanActionsModelFunction("kanbanStatusSelectionPlan");
+      const selection = statusPlan
+        ? statusPlan(button.dataset.kanbanStatus || "", KANBAN_TAB_ORDER, {
+          completedLoaded: state.todoCompletedLoaded,
+          needsCompleted: kanbanStatusNeedsCompleted,
+        })
+        : {
+          ok: KANBAN_TAB_ORDER.includes(String(button.dataset.kanbanStatus || "").trim().toLowerCase()),
+          status: String(button.dataset.kanbanStatus || "").trim().toLowerCase(),
+          storageKey: "hermesTodoKanbanStatus",
+          shouldLoadCompleted: kanbanStatusNeedsCompleted(String(button.dataset.kanbanStatus || "").trim().toLowerCase()) && !state.todoCompletedLoaded,
+        };
+      if (!selection.ok) return;
+      state.todoKanbanStatus = selection.status;
+      localStorage.setItem(selection.storageKey, selection.status);
+      if (selection.shouldLoadCompleted) {
         loadTodos({ includeCompleted: true }).catch(showError);
         return;
       }
@@ -100,11 +153,17 @@ function wireTodoPanel(root) {
   });
   root.querySelectorAll("[data-kanban-story-case]").forEach((button) => {
     const toggle = () => {
-      const key = String(button.dataset.kanbanStoryCase || "").trim();
-      if (!key) return;
-      state.kanbanStoryExpanded = Object.assign({}, state.kanbanStoryExpanded || {}, {
-        [key]: !state.kanbanStoryExpanded?.[key],
-      });
+      const patchPlan = kanbanActionsModelFunction("kanbanStoryExpandedPatch");
+      const patch = patchPlan
+        ? patchPlan(state.kanbanStoryExpanded || {}, button.dataset.kanbanStoryCase || "")
+        : {
+          ok: Boolean(String(button.dataset.kanbanStoryCase || "").trim()),
+          expanded: Object.assign({}, state.kanbanStoryExpanded || {}, {
+            [String(button.dataset.kanbanStoryCase || "").trim()]: !state.kanbanStoryExpanded?.[String(button.dataset.kanbanStoryCase || "").trim()],
+          }),
+        };
+      if (!patch.ok) return;
+      state.kanbanStoryExpanded = patch.expanded;
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     };
     button.addEventListener("click", (event) => {
@@ -315,8 +374,12 @@ function wireTodoPanel(root) {
       const todoId = input.dataset.readingQuizChoice || "";
       const index = Number(input.dataset.questionIndex || 0);
       if (!todoId || !Number.isFinite(index)) return;
-      if (!Array.isArray(state.todoReadingQuizAnswers[todoId])) state.todoReadingQuizAnswers[todoId] = [];
-      state.todoReadingQuizAnswers[todoId][index] = Number(input.value);
+      const choicePlan = kanbanActionsModelFunction("kanbanChoiceSelectionPatch");
+      const choice = choicePlan
+        ? choicePlan(state.todoReadingQuizAnswers[todoId], index, input.value)
+        : { ok: true, answers: Object.assign([], state.todoReadingQuizAnswers[todoId] || [], { [index]: Number(input.value) }) };
+      if (!choice.ok) return;
+      state.todoReadingQuizAnswers[todoId] = choice.answers;
       delete state.todoReadingQuizReviewOpen[todoId];
       writeReadingQuizDraft(todoId);
       if (state.todoReadingQuizzes[todoId]?.result && !state.todoReadingQuizzes[todoId]?.result?.passed) {
@@ -330,7 +393,10 @@ function wireTodoPanel(root) {
       event.preventDefault();
       event.stopPropagation();
       const todoId = button.dataset.readingQuizPrev || "";
-      state.todoReadingQuizStep[todoId] = Math.max(0, Number(state.todoReadingQuizStep[todoId] || 0) - 1);
+      const previousPlan = kanbanActionsModelFunction("kanbanPreviousStepPlan");
+      state.todoReadingQuizStep[todoId] = previousPlan
+        ? previousPlan(state.todoReadingQuizStep[todoId])
+        : Math.max(0, Number(state.todoReadingQuizStep[todoId] || 0) - 1);
       writeReadingQuizDraft(todoId);
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });
@@ -342,7 +408,10 @@ function wireTodoPanel(root) {
       const todoId = button.dataset.readingQuizNext || "";
       const quiz = state.todoReadingQuizzes[todoId]?.quiz || {};
       const total = Array.isArray(quiz.questions) ? quiz.questions.length : 10;
-      state.todoReadingQuizStep[todoId] = Math.min(total - 1, Number(state.todoReadingQuizStep[todoId] || 0) + 1);
+      const nextPlan = kanbanActionsModelFunction("kanbanNextStepPlan");
+      state.todoReadingQuizStep[todoId] = nextPlan
+        ? nextPlan(state.todoReadingQuizStep[todoId], total, 10)
+        : Math.min(total - 1, Number(state.todoReadingQuizStep[todoId] || 0) + 1);
       writeReadingQuizDraft(todoId);
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });
@@ -388,8 +457,12 @@ function wireTodoPanel(root) {
       const todoId = input.dataset.assessmentExamChoice || "";
       const index = Number(input.dataset.questionIndex || 0);
       if (!todoId || !Number.isFinite(index)) return;
-      if (!Array.isArray(state.todoAssessmentAnswers[todoId])) state.todoAssessmentAnswers[todoId] = [];
-      state.todoAssessmentAnswers[todoId][index] = Number(input.value);
+      const choicePlan = kanbanActionsModelFunction("kanbanChoiceSelectionPatch");
+      const choice = choicePlan
+        ? choicePlan(state.todoAssessmentAnswers[todoId], index, input.value)
+        : { ok: true, answers: Object.assign([], state.todoAssessmentAnswers[todoId] || [], { [index]: Number(input.value) }) };
+      if (!choice.ok) return;
+      state.todoAssessmentAnswers[todoId] = choice.answers;
       delete state.todoAssessmentReviewOpen[todoId];
       writeAssessmentExamDraft(todoId);
       if (state.todoAssessmentExams[todoId]?.result && !state.todoAssessmentExams[todoId]?.result?.passed) {
@@ -403,7 +476,10 @@ function wireTodoPanel(root) {
       event.preventDefault();
       event.stopPropagation();
       const todoId = button.dataset.assessmentExamPrev || "";
-      state.todoAssessmentStep[todoId] = Math.max(0, Number(state.todoAssessmentStep[todoId] || 0) - 1);
+      const previousPlan = kanbanActionsModelFunction("kanbanPreviousStepPlan");
+      state.todoAssessmentStep[todoId] = previousPlan
+        ? previousPlan(state.todoAssessmentStep[todoId])
+        : Math.max(0, Number(state.todoAssessmentStep[todoId] || 0) - 1);
       writeAssessmentExamDraft(todoId);
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });
@@ -415,7 +491,10 @@ function wireTodoPanel(root) {
       const todoId = button.dataset.assessmentExamNext || "";
       const exam = state.todoAssessmentExams[todoId]?.exam || {};
       const total = Array.isArray(exam.questions) ? exam.questions.length : 20;
-      state.todoAssessmentStep[todoId] = Math.min(total - 1, Number(state.todoAssessmentStep[todoId] || 0) + 1);
+      const nextPlan = kanbanActionsModelFunction("kanbanNextStepPlan");
+      state.todoAssessmentStep[todoId] = nextPlan
+        ? nextPlan(state.todoAssessmentStep[todoId], total, 20)
+        : Math.min(total - 1, Number(state.todoAssessmentStep[todoId] || 0) + 1);
       writeAssessmentExamDraft(todoId);
       renderTodos({ preserveScroll: true, restoreScrollTop: $("conversation")?.scrollTop || 0 });
     });

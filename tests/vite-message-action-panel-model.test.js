@@ -56,6 +56,15 @@ async function test(name, fn) {
     assert.doesNotMatch(source, /document\./);
   });
 
+  await test("message action panel preview renders wardrobe action icon-only", async () => {
+    const source = read("src/vite-islands/message-action-panel/main.mjs");
+    assert.match(source, /data-map-action-label="\$\{escapeHtml\(action\.label\)\}"/);
+    assert.match(source, /aria-label="\$\{escapeHtml\(action\.detail \|\| action\.label\)\}"/);
+    assert.match(source, /<svg class="map-action-icon"/);
+    assert.doesNotMatch(source, /<span>\$\{escapeHtml\(action\.label\)\}<\/span>/);
+    assert.doesNotMatch(source, /<small>\$\{escapeHtml\(action\.detail\)\}<\/small>/);
+  });
+
   await test("ready outfit wear intent renders enabled 入库 action near Usage", async () => {
     const model = await loadModel();
     const view = model.buildMessageActionPanelViewModel({
@@ -75,6 +84,7 @@ async function test(name, fn) {
     assert.equal(view.wardrobe.enabled, true);
     assert.equal(view.wardrobe.status, "ready");
     assert.equal(view.wardrobe.label, "入库");
+    assert.equal(view.wardrobe.iconOnly, true);
     assert.equal(view.wardrobe.wearDate, "2026-07-02");
     assert.deepEqual(view.wardrobe.itemCodes, ["OUT-001", "SHOE-001"]);
   });
@@ -108,6 +118,7 @@ async function test(name, fn) {
     assert.equal(view.wardrobe.enabled, false);
     assert.equal(view.wardrobe.status, "stored");
     assert.equal(view.wardrobe.label, "已入库 #777 · 已验证");
+    assert.equal(view.wardrobe.iconOnly, true);
     assert.equal(view.wardrobe.detail, "衣橱穿着记录已写入 #777，已回读验证。");
   });
 
@@ -127,6 +138,7 @@ async function test(name, fn) {
     assert.equal(view.wardrobe.enabled, false);
     assert.equal(view.wardrobe.status, "blocked");
     assert.equal(view.wardrobe.label, "需重新生成");
+    assert.equal(view.wardrobe.iconOnly, true);
     assert.match(view.wardrobe.detail, /没有可执行/);
   });
 

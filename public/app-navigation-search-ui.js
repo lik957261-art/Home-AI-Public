@@ -1,6 +1,40 @@
 "use strict";
 
+const NAVIGATION_SEARCH_MODEL_ESM_PATH = "/vite-islands/navigation-search-model/navigation-search-model.js";
+let navigationSearchModel = null;
+let navigationSearchModelPromise = null;
+
+function importNavigationSearchModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (navigationSearchModel) return Promise.resolve(navigationSearchModel);
+  if (!navigationSearchModelPromise) {
+    const importer = typeof rootRef.__homeAiImportNavigationSearchModel === "function"
+      ? rootRef.__homeAiImportNavigationSearchModel
+      : (path) => import(path);
+    navigationSearchModelPromise = Promise.resolve()
+      .then(() => importer(NAVIGATION_SEARCH_MODEL_ESM_PATH))
+      .then((model) => {
+        navigationSearchModel = model || null;
+        return navigationSearchModel;
+      })
+      .catch((error) => {
+        navigationSearchModelPromise = null;
+        throw error;
+      });
+  }
+  return navigationSearchModelPromise;
+}
+
+function currentNavigationSearchModel() {
+  return navigationSearchModel;
+}
+
+if (typeof window !== "undefined") {
+  importNavigationSearchModel().catch(() => null);
+}
+
 function normalizeSingleWindowMode(value) {
+  const model = currentNavigationSearchModel();
+  if (model?.normalizeSingleWindowModePlan) return model.normalizeSingleWindowModePlan(value);
   return String(value || "").trim().toLowerCase() === "task" ? "task" : "chat";
 }
 
@@ -439,6 +473,7 @@ function updateNavigationControls() {
   edgeSwipeZone?.classList.toggle("disabled", !isMobileLayout());
   updateComposerAction();
   let hiddenBottomTabs = new Set(["todosMode", "automationMode", "bottomPluginMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomMovieMode", "bottomLearningMode", "bottomAutomationMode"]);
+  if (!state.auth?.isOwner) hiddenBottomTabs.add("bottomWorkspaceMode");
   const pinnedBottomTabButtonIds = new Set();
   if (
     typeof pinnedPluginBottomTabIds === "function"
@@ -450,7 +485,7 @@ function updateNavigationControls() {
       if (buttonId) pinnedBottomTabButtonIds.add(buttonId);
     });
   }
-  ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomMovieMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
+  ["chatManagementMode", "inboxManagementMode", "taskManagementMode", "singleMode", "singleTaskMode", "tasksMode", "projectsMode", "todosMode", "automationMode", "bottomChatMode", "bottomInboxMode", "bottomWorkspaceMode", "bottomTasksMode", "bottomProjectsMode", "bottomTodosMode", "bottomWardrobeMode", "bottomCodexMode", "bottomPluginMode", "bottomFinanceMode", "bottomEmailMode", "bottomHealthMode", "bottomNoteMode", "bottomGrowthMode", "bottomMoiraMode", "bottomMusicMode", "bottomMovieMode", "bottomLearningMode", "bottomAutomationMode"].forEach((id) => {
     const node = $(id);
     if (node) {
       setBottomTabHidden(node, hiddenBottomTabs.has(id) && !pinnedBottomTabButtonIds.has(id));
@@ -477,6 +512,38 @@ function updateNavigationControls() {
   updateBottomNavVisibleCount();
   updateTopicPluginDockChrome(taskList);
   updateTopMoreControls();
+}
+
+function currentVisibleInterruptRunIds() {
+  const thread = state.currentThread;
+  const currentThreadId = String(state.currentThreadId || "");
+  if (!thread || !currentThreadId || String(thread.id || "") !== currentThreadId) return [];
+  if (isTaskDetailView()) {
+    if (typeof activeTaskRunIds === "function") return activeTaskRunIds();
+    return [];
+  }
+  if (isSingleWindowView()) {
+    if (state.singleWindowMode === "chat" && typeof activeChatRunIds === "function") return activeChatRunIds(thread);
+    if (typeof activeThreadRunIds === "function") return activeThreadRunIds(thread);
+    return thread.activeRunIds || (thread.activeRunId ? [thread.activeRunId] : []);
+  }
+  if (["projects", "todos", "automation", "inbox", "system-console", "wardrobe", "codex", "finance", "email", "health", "note", "growth", "moira", "music", "movie"].includes(String(state.viewMode || ""))) {
+    return [];
+  }
+  if (typeof activeThreadRunIds === "function") return activeThreadRunIds(thread);
+  return thread.activeRunIds || (thread.activeRunId ? [thread.activeRunId] : []);
+}
+
+function syncInterruptRunControl(options = {}) {
+  const interrupt = $("interruptRun");
+  if (!interrupt) return false;
+  const activeRunIds = currentVisibleInterruptRunIds().filter(Boolean);
+  const canInterruptVisibleContext = activeRunIds.length > 0;
+  const hiddenByChrome = Boolean(options.showTopMenu || options.chatView);
+  interrupt.disabled = !canInterruptVisibleContext;
+  interrupt.classList.toggle("hidden", hiddenByChrome || !canInterruptVisibleContext);
+  interrupt.dataset.visibleRunContext = canInterruptVisibleContext ? activeRunIds.join(" ") : "";
+  return canInterruptVisibleContext;
 }
 
 function updateTopMoreControls() {
@@ -508,7 +575,7 @@ function updateTopMoreControls() {
   const moiraView = state.viewMode === "moira";
   const showTopMenu = chatView || isTaskListView() || capabilityView || taskDetail || taskStream || directory || todoDetail || todoList || inboxView || actionInboxDetail || learningView || automationList || automationDetail || wardrobeView || codexView || financeView || emailView || healthView || noteView || growthView || moiraView;
   wrap.classList.toggle("hidden", !showTopMenu);
-  interrupt.classList.toggle("hidden", showTopMenu || chatView);
+  syncInterruptRunControl({ showTopMenu, chatView });
   if (!showTopMenu) {
     closeTopMoreMenu();
     return;
@@ -700,6 +767,14 @@ function setReadingFullscreen(enabled) {
 }
 
 function chatSearchAvailable() {
+  const model = currentNavigationSearchModel();
+  if (model?.chatSearchAvailablePlan) {
+    return model.chatSearchAvailablePlan({
+      singleWindowChatView: isSingleWindowChatView(),
+      taskDetailView: isTaskDetailView(),
+      hasCurrentThread: Boolean(state.currentThread),
+    });
+  }
   return (isSingleWindowChatView() || isTaskDetailView()) && Boolean(state.currentThread);
 }
 
@@ -718,6 +793,13 @@ function currentChatSearchDraft() {
 function chatSearchContentForMessage(message) {
   const directoryAliases = extractDirectoryAliases(message?.content || "");
   const text = cleanDisplayText(directoryAliases.text || message?.content || "");
+  const model = currentNavigationSearchModel();
+  if (model?.chatSearchContentForMessagePlan) {
+    return model.chatSearchContentForMessagePlan({
+      message,
+      displayText: text,
+    });
+  }
   const artifacts = Array.isArray(message?.artifacts)
     ? message.artifacts.map((artifact) => [artifact.name, artifact.path, artifact.mime].filter(Boolean).join(" ")).join("\n")
     : "";
@@ -737,6 +819,7 @@ function searchableConversationMessages(thread = state.currentThread) {
 }
 
 function syncChatSearchMatches() {
+  const model = currentNavigationSearchModel();
   if (!chatSearchAvailable()) {
     state.chatSearchMatches = [];
     state.chatSearchIndex = 0;
@@ -750,15 +833,35 @@ function syncChatSearchMatches() {
     state.chatSearchTotalMatches = 0;
     return [];
   }
-  const matches = searchableConversationMessages(state.currentThread)
-    .filter((message) => message?.id && chatSearchContentForMessage(message).includes(query))
-    .map((message) => message.id);
+  const messages = searchableConversationMessages(state.currentThread);
+  const modelPlan = model?.chatSearchMatchesPlan?.({
+    available: true,
+    query,
+    messages: messages.map((message) => ({
+      id: message?.id,
+      role: message?.role,
+      content: chatSearchContentForMessage(message),
+      error: "",
+      artifacts: [],
+    })),
+    index: state.chatSearchIndex,
+    previousTotalMatches: state.chatSearchTotalMatches,
+  });
+  const matches = modelPlan
+    ? Array.from(modelPlan.matches || [])
+    : messages
+      .filter((message) => message?.id && chatSearchContentForMessage(message).includes(query))
+      .map((message) => message.id);
   state.chatSearchMatches = matches;
-  state.chatSearchTotalMatches = Math.max(state.chatSearchTotalMatches || 0, matches.length);
+  state.chatSearchTotalMatches = modelPlan
+    ? Number(modelPlan.totalMatches || 0) || 0
+    : Math.max(state.chatSearchTotalMatches || 0, matches.length);
   if (!matches.length) {
     state.chatSearchIndex = 0;
-  } else if (state.chatSearchIndex < 0 || state.chatSearchIndex >= matches.length) {
-    state.chatSearchIndex = 0;
+  } else {
+    state.chatSearchIndex = modelPlan
+      ? Number(modelPlan.index || 0) || 0
+      : (state.chatSearchIndex < 0 || state.chatSearchIndex >= matches.length ? 0 : state.chatSearchIndex);
   }
   return matches;
 }
@@ -820,15 +923,20 @@ async function performChatSearchAsync() {
   if (!isChatSearchMode()) return;
   const draft = currentChatSearchDraft();
   state.chatSearchDraft = draft;
-  const sameCommittedQuery = draft && draft === currentChatSearchQuery() && state.chatSearchMatches.length && !state.chatSearchDraftChangedSinceSearch;
-  if (sameCommittedQuery) {
+  const commitPlan = currentNavigationSearchModel()?.chatSearchCommitActionPlan?.({
+    draft,
+    currentQuery: currentChatSearchQuery(),
+    matchCount: state.chatSearchMatches.length,
+    draftChangedSinceSearch: state.chatSearchDraftChangedSinceSearch,
+  }) || null;
+  if (commitPlan?.action === "move_next" || (!commitPlan && draft && draft === currentChatSearchQuery() && state.chatSearchMatches.length && !state.chatSearchDraftChangedSinceSearch)) {
     moveChatSearch(1);
     return;
   }
-  state.chatSearchQuery = draft;
+  state.chatSearchQuery = commitPlan?.query ?? draft;
   state.chatSearchIndex = 0;
   state.chatSearchDraftChangedSinceSearch = false;
-  state.chatSearchLoading = Boolean(draft);
+  state.chatSearchLoading = commitPlan ? commitPlan.loading : Boolean(draft);
   if (state.chatSearchLoading) renderCurrentThread({ stickToBottom: false });
   try {
     if (draft && state.currentThreadId) {
@@ -859,7 +967,14 @@ function moveChatSearch(delta) {
     focusChatSearchInput();
     return;
   }
-  state.chatSearchIndex = (state.chatSearchIndex + delta + total) % total;
+  const movePlan = currentNavigationSearchModel()?.chatSearchMoveIndexPlan?.({
+    index: state.chatSearchIndex,
+    delta,
+    total,
+  });
+  state.chatSearchIndex = movePlan?.ok
+    ? movePlan.index
+    : (state.chatSearchIndex + delta + total) % total;
   state.chatSearchScrollPending = true;
   state.chatSearchRefocus = true;
   renderCurrentThread({ stickToBottom: false });
@@ -916,18 +1031,35 @@ function updateChatSearchStatus() {
   }
   const changed = state.chatSearchDraftChangedSinceSearch;
   const total = state.chatSearchMatches.length;
+  const statusPlan = currentNavigationSearchModel()?.chatSearchStatusPlan?.({
+    searchMode: true,
+    query: currentChatSearchQuery(),
+    changed,
+    loading: state.chatSearchLoading,
+    matchCount: total,
+    index: state.chatSearchIndex,
+    totalMatches: state.chatSearchTotalMatches,
+  }) || null;
   if (status) {
-    status.hidden = changed;
-    if (state.chatSearchLoading) {
-      status.textContent = "searching";
-    } else if (total && !changed) {
-      const fullTotal = Math.max(total, Number(state.chatSearchTotalMatches || 0) || 0);
-      status.textContent = fullTotal > total ? `${state.chatSearchIndex + 1}/${total}+` : `${state.chatSearchIndex + 1}/${total}`;
+    if (statusPlan) {
+      status.hidden = statusPlan.statusHidden;
+      status.textContent = statusPlan.statusText;
+    } else if (state.chatSearchLoading) {
+        status.hidden = changed;
+        status.textContent = "searching";
+      } else if (total && !changed) {
+        status.hidden = changed;
+        const fullTotal = Math.max(total, Number(state.chatSearchTotalMatches || 0) || 0);
+        status.textContent = fullTotal > total ? `${state.chatSearchIndex + 1}/${total}+` : `${state.chatSearchIndex + 1}/${total}`;
     } else {
+      status.hidden = changed;
       status.textContent = "0/0";
     }
   }
-  setNav(!changed && total > 1, !changed && total > 1);
+  setNav(
+    statusPlan ? statusPlan.navVisible : !changed && total > 1,
+    statusPlan ? statusPlan.navEnabled : !changed && total > 1,
+  );
 }
 
 function wireChatSearchControls(root) {

@@ -43,7 +43,10 @@ npm run build:vite
 node tests/mobile-http-runtime-service.test.js
 node tests/vite-production-bootstrap.test.js
 npm run validate:vite-cutover-source -- --contract-json docs/IMPLEMENTATION_NOTES/vite-production-cutover-source-contract.json --require-ok
+npm run check:vite-cache-policy
+node tests/vite-preview-cache-policy-check.test.js
 npm run verify:vite-dev
+npm run audit:vite-dev-goal
 npm run check:vite-readiness
 node tests/vite-owner-review-report.test.js
 npm run review:vite-cutover
@@ -59,21 +62,40 @@ npm run audit:vite-goal
 node tests/vite-cutover-source-change-validator.test.js
 npm run validate:vite-cutover-source
 node tests/vite-production-readback-validator.test.js
+node tests/vite-production-status-check.test.js
+node tests/vite-esm-migration-backlog.test.js
 node tests/vite-dev-preview-routes-smoke.test.js
 npm run audit:vite-globals -- --json
 node tests/vite-global-usage-audit.test.js
+node tests/vite-runtime-state-event-bus.test.js
 node tests/vite-dev-real-backend-parity-smoke.test.js
 node tests/vite-chat-runtime-island.test.js
+node tests/vite-chat-attachment-file-input-controller.test.js
 node tests/vite-plugin-host-model.test.js
 node tests/vite-plugin-host-island.test.js
+node tests/embedded-plugin-refresh-harness.test.js
+node tests/app-embedded-plugin-ui.test.js
+node tests/vite-pwa-push-status-island.test.js
+node tests/vite-toast-status-island.test.js
+node tests/vite-classic-voice-input-adapter.test.js
+node tests/vite-voice-input-session-controller.test.js
 node tests/vite-voice-audio-capture-adapter.test.js
+node tests/vite-voice-input-status-island.test.js
+node tests/vite-voice-learning-model.test.js
+node tests/vite-classic-voice-learning-adapter.test.js
+node tests/vite-wardrobe-model.test.js
+node tests/vite-classic-wardrobe-adapter.test.js
+node tests/vite-platform-model.test.js
+node tests/vite-classic-platform-adapter.test.js
+node tests/vite-access-key-manager-model.test.js
+node tests/vite-classic-access-key-manager-adapter.test.js
 git diff --check
 ```
 
 `node tests/mobile-http-runtime-service.test.js` covers the server-side
-selected-shell switch, including fail-closed classic behavior, Vite bootstrap
-injection, request-level rollback override, and compression-cache separation
-between classic and Vite shell responses.
+Vite-only shell boundary, including Vite bootstrap injection, ignored Classic
+request/runtime/config overrides, and compression-cache stability for app-shell
+responses.
 
 `node tests/vite-production-bootstrap.test.js` covers the dedicated Vite
 production bootstrap entry, verifies that it preserves the classic runtime
@@ -81,6 +103,24 @@ facade, installs the focus lifecycle guard, exposes bounded
 `HomeAiViteProduction` readback, and produces the built
 `public/vite-islands/home-ai-production-bootstrap/` artifact after
 `npm run build:vite`.
+
+`node tests/vite-runtime-state-event-bus.test.js` covers the importable Vite
+runtime state and event bus boundary. It verifies direct and wildcard
+subscribers, bounded recent-event snapshots, handler failure isolation,
+state patch/update/replace events, and legacy alias compatibility for the
+runtime facade. This is the source-only ESM boundary for cross-module state and
+event coordination; it does not replace the classic production `window.state`
+owners by itself.
+
+`node tests/vite-plugin-host-model.test.js` now also covers the Vite-side
+resident iframe lifecycle policy: volatile launch/session parameters are
+stripped from stable entry signatures, loaded resident iframes are preserved
+across token-only refreshes, `navigation_health_timeout` preserves visible or
+loaded iframes, and only still-loading timed-out iframes are recovered.
+`node tests/vite-plugin-host-island.test.js` verifies that the preview exposes
+the bounded lifecycle scenarios, while `node tests/embedded-plugin-refresh-harness.test.js`
+and `node tests/app-embedded-plugin-ui.test.js` remain the classic production
+host regression checks.
 
 `npm run validate:vite-cutover-source -- --contract-json
 docs/IMPLEMENTATION_NOTES/vite-production-cutover-source-contract.json
@@ -108,6 +148,14 @@ It clears the cutover approval environment for the run and must keep
 should include the exact Owner approval text for the next boundary without
 creating a production source change, deployment, or Worker card.
 
+`npm run audit:vite-dev-goal` is the source-only development goal completion
+audit. It consumes or generates the Vite development acceptance packet and
+verifies the development target only: migrated development surfaces, remaining
+production surfaces, Audit Packet / Delta Matrix, browser/user-journey command
+coverage, source-only privacy boundary, and the future production cutover
+approval sequence. It must not be used as production cutover approval or
+production readback evidence.
+
 `npm run review:vite-cutover` is the source-only Owner review report. It
 combines readiness and cutover preflight evidence into a bounded payload, keeps
 `productionWrites=false`, `deployExecuted=false`, and
@@ -131,6 +179,474 @@ The draft must expose the Home AI deploy lane pool, a
 `cutover_source_change_validated` pre-send gate, and a required post-deploy
 `validate:vite-cutover-readback` command.
 
+For Stage D task artifact helper ESM adapter work, run:
+
+```bash
+node tests/vite-task-artifact-helper-model.test.js
+node tests/vite-classic-task-artifact-helper-adapter.test.js
+node tests/task-artifact-helpers.test.js
+node tests/task-list-ui.test.js
+```
+
+These checks cover the browser-global-free task artifact helper model, the
+classic UMD dynamic import adapter, artifact kind/display/rank planning,
+latest document selection, markdown twin filtering, and fallback compatibility
+for task-group helper exports.
+
+For Stage D sidebar back-navigation ESM adapter work, run:
+
+```bash
+node tests/vite-sidebar-back-navigation-model.test.js
+node tests/vite-classic-sidebar-back-navigation-adapter.test.js
+node tests/app-embedded-plugin-ui.test.js
+node tests/app-wardrobe-ui.test.js
+node tests/music-plugin-back-swipe-harness.test.js
+node tests/movie-plugin-back-swipe-harness.test.js
+node tests/task-list-ui.test.js
+```
+
+These checks cover the browser-global-free back target planner, plugin
+inner/outer back priority, plugin-context outer suppression, native-back query
+planning, classic dynamic import behavior, and fallback compatibility for
+existing sidebar gesture/native-back handlers.
+
+For Stage D route snapshot ESM adapter work, run:
+
+```bash
+node tests/vite-route-snapshot-model.test.js
+node tests/vite-classic-route-snapshot-adapter.test.js
+node tests/same-window-navigation-harness.test.js
+node tests/task-list-ui.test.js
+```
+
+These checks cover the browser-global-free route snapshot model, bounded
+return-route parameter encoding/decoding, explicit launch-target detection,
+classic dynamic import behavior, and same-window route snapshot compatibility.
+
+For plugin Dock context-switch gesture work, run:
+
+```bash
+node tests/vite-plugin-topic-navigation-model.test.js
+node tests/vite-plugin-context-switch-model.test.js
+node tests/app-plugin-topics-ui.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+```
+
+These checks cover the browser-global-free plugin topic route/claim/root
+visibility model, app/topic switch target projection, downward-gesture
+thresholds, classic Dock handle adapter, drawer fallback labels,
+pinned-bottom-tab preservation, and static cache version alignment.
+
+For Stage D upload/sidebar attachment ESM adapter work, run:
+
+```bash
+node tests/vite-upload-sidebar-model.test.js
+node tests/vite-chat-attachment-model.test.js
+node tests/vite-chat-server-file-attachment-client.test.js
+node tests/vite-chat-native-share-intake-client.test.js
+node tests/server-file-attachment-ui.test.js
+node tests/camera-attachment-preview-ui.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+```
+
+These checks cover the browser-global-free upload/sidebar projection model,
+Owner-only attach-menu planning, native-share normalization/deduping, intake
+panel labels/actions, server-file request planning, classic server-file UI
+Owner gates, camera/photo attachment foreground-refresh suppression, pending
+image preview non-navigation, non-cropping thumbnail/orientation CSS, explicit
+remove-button isolation, and static cache version alignment.
+
+For Stage D navigation/search ESM adapter work, run:
+
+```bash
+node tests/vite-navigation-search-model.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free navigation-search model, classic
+single-window mode compatibility, chat-search availability, match-id planning,
+committed-query/move-index planning, status/prev-next projection, and static
+cache version alignment.
+
+For Stage D task/document preview ESM adapter work, run:
+
+```bash
+node tests/vite-document-preview-model.test.js
+node tests/vite-directory-automation-model.test.js
+node tests/vite-classic-directory-automation-adapter.test.js
+node tests/vite-rich-text-directory-model.test.js
+node tests/vite-classic-rich-text-directory-adapter.test.js
+node tests/vite-shared-directory-model.test.js
+node tests/vite-classic-shared-directory-adapter.test.js
+node tests/vite-tts-profile-model.test.js
+node tests/vite-classic-tts-profile-adapter.test.js
+node tests/vite-task-preview-helpers-model.test.js
+node tests/vite-classic-task-preview-adapter.test.js
+node tests/task-preview-helpers-runtime-facade.test.js
+node tests/task-list-ui.test.js
+node tests/directory-plugin-navigation-ui.test.js
+node tests/directory-delete-ui.test.js
+node tests/rich-text-inline-image-ui.test.js
+node tests/streaming-receipt-preview-ui.test.js
+node tests/directory-route-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free document-preview and task-preview
+helper models, classic task-preview dynamic import adapter,
+Markdown/image/document classification, same-origin preview route planning,
+native bridge/open-in request projection, directory route/boundary/attachment/
+breadcrumb/entry projection, runtime-facade preview helper boundary, and static
+cache version alignment.
+
+For Stage D group-topic ESM adapter work, run:
+
+```bash
+node tests/vite-group-topic-model.test.js
+node tests/vite-classic-group-topic-adapter.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free group-topic model, classic dynamic
+import adapter, group-chat member overlay projection, group-chat save request
+planning, thread-list query parameter planning, case-topic refresh request
+planning, Kanban topic-card snapshot schedule/request planning, and static
+cache version alignment.
+
+For Stage D todo-detail ESM adapter work, run:
+
+```bash
+node tests/vite-todo-detail-model.test.js
+node tests/vite-classic-todo-detail-adapter.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free todo-detail view model, classic
+dynamic import adapter, metadata row planning, generic comment/revision/card
+management decisions, specialized Kanban card fallback rendering, and static
+cache version alignment.
+
+For Stage D learning-growth-task ESM adapter work, run:
+
+```bash
+node tests/vite-learning-growth-task-model.test.js
+node tests/vite-classic-learning-growth-task-adapter.test.js
+node tests/app-learning-growth-task-ui.test.js
+node tests/app-learning-growth-ui.test.js
+node tests/app-learning-program-ui.test.js
+node tests/app-learning-native-growth-submission-controller.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free learning-growth task model, classic
+dynamic import adapter, submission guard/validation planning, feedback/outcome
+projection, teaching-card state, and static cache version alignment.
+
+For Stage D kanban-todo-core ESM adapter work, run:
+
+```bash
+node tests/vite-kanban-todo-core-model.test.js
+node tests/vite-classic-kanban-todo-core-adapter.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free Kanban todo core model, classic
+dynamic import adapter, title/due/assignee planning, due input value projection,
+story-tree fallback ownership, and static cache version alignment.
+
+For Stage D message-actions ESM adapter work, run:
+
+```bash
+node tests/vite-message-actions-model.test.js
+node tests/vite-classic-message-actions-adapter.test.js
+node tests/wardrobe-outfit-wear-intent-ui.test.js
+node tests/message-scroll-button-visibility.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free message-actions model, classic
+dynamic import adapter, message footer action projection, long-reply scroll
+eligibility, Wardrobe outfit-wear request/confirmation planning, existing
+Wardrobe action execution compatibility, and static cache version alignment.
+
+For Stage D thread-state ESM adapter work, run:
+
+```bash
+node tests/vite-thread-state-model.test.js
+node tests/vite-classic-thread-state-adapter.test.js
+node tests/thread-state-ui-behavior.test.js
+node tests/group-chat-ui.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free thread-state model, classic dynamic
+import adapter, single-window request freshness and body planning, surface
+cache keys, pending/error shell projection, unchanged-refresh render-skip
+planning, bounded group-chat storage planning, existing thread-state behavior,
+and static cache version alignment.
+
+For Stage D thread-message ESM adapter work, run:
+
+```bash
+node tests/vite-thread-message-model.test.js
+node tests/vite-classic-thread-message-adapter.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free thread-message model, classic
+dynamic import adapter, create/select/open-project-task request planning,
+Composer visibility and placeholder projection, existing task-list shell
+coverage, and static cache version alignment.
+
+For Stage D thread-directory ESM adapter work, run:
+
+```bash
+node tests/vite-thread-directory-model.test.js
+node tests/vite-classic-thread-directory-adapter.test.js
+node tests/directory-route-ui.test.js
+node tests/thread-state-ui-behavior.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free thread-directory model, classic
+dynamic import adapter, directory alias/filter planning, legacy route
+resolution behavior, existing thread-state behavior, and static cache version
+alignment.
+
+For Stage D chat-scope ESM adapter work, run:
+
+```bash
+node tests/vite-chat-scope-model.test.js
+node tests/vite-classic-chat-scope-adapter.test.js
+node tests/group-chat-ui.test.js
+node tests/thread-state-ui-behavior.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free chat-scope model, classic dynamic
+import adapter, group/private scope decisions, read marker planning, unread
+projection, member label/mention projection, existing group-chat shell
+coverage, and static cache version alignment.
+
+For Stage D run-progress ESM adapter work, run:
+
+```bash
+node tests/vite-run-progress-model.test.js
+node tests/vite-classic-run-progress-adapter.test.js
+node tests/run-progress-ui-behavior.test.js
+node tests/thread-state-ui-behavior.test.js
+node tests/current-thread-refresh-scheduling.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free run-progress model, classic dynamic
+import adapter, run id/message selection, event normalization and compaction,
+panel event-window planning, existing run-progress behavior, adjacent
+thread-state/current-thread refresh behavior, and static cache version
+alignment.
+
+For Stage D thread-list ESM adapter work, run:
+
+```bash
+node tests/vite-thread-list-model.test.js
+node tests/vite-classic-thread-list-adapter.test.js
+node tests/task-list-ui.test.js
+node tests/run-progress-ui-behavior.test.js
+node tests/thread-state-ui-behavior.test.js
+node tests/message-scroll-button-visibility.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free thread-list model, classic dynamic
+import adapter, sidebar card/header/pager/signature planning, task pending
+message and directory-topic render signatures, adjacent run-progress/thread
+state behavior, message scroll affordances, and static cache version alignment.
+
+For Stage D thread-card-message ESM adapter work, run:
+
+```bash
+node tests/vite-thread-card-message-model.test.js
+node tests/vite-classic-thread-card-message-adapter.test.js
+node tests/task-list-ui.test.js
+node tests/message-scroll-button-visibility.test.js
+node tests/group-chat-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free thread-card-message model, classic
+dynamic import adapter, task-card/message-card projection, quote/revoke and
+quoted-reply planning, existing task-list/group-chat behavior, message scroll
+affordances, and static cache version alignment.
+
+For Stage D message-usage ESM adapter work, run:
+
+```bash
+node tests/vite-message-usage-model.test.js
+node tests/vite-classic-message-usage-adapter.test.js
+node tests/task-list-ui.test.js
+node tests/message-scroll-button-visibility.test.js
+node tests/vite-thread-card-message-model.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free message-usage model, classic
+dynamic import adapter, token/cost/model/provider/reasoning and API-call row
+planning, existing task-list and message-card behavior, message scroll
+affordances, and static cache version alignment.
+
+For Stage D message-skill ESM adapter work, run:
+
+```bash
+node tests/vite-message-skill-model.test.js
+node tests/vite-classic-message-skill-adapter.test.js
+node tests/task-list-ui.test.js
+node tests/message-scroll-button-visibility.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free message-skill model, classic
+dynamic import adapter, skill object/path normalization, direct and run-event
+skill/tool projection, classic-owned HTML/footer popup behavior, message
+scroll affordances, and static cache version alignment.
+
+For Stage D long-message ESM adapter work, run:
+
+```bash
+node tests/vite-long-message-model.test.js
+node tests/vite-classic-long-message-adapter.test.js
+node tests/message-scroll-button-visibility.test.js
+node tests/streaming-receipt-preview-ui.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free long-message model, classic dynamic
+import adapter, assistant active/expanded preview decisions, preview/toggle
+planning, DOM-owned expand/collapse state mutation, streaming receipt
+compatibility, message scroll affordances, and static cache version alignment.
+
+For Stage D event-stream ESM adapter work, run:
+
+```bash
+node tests/vite-chat-event-source-client.test.js
+node tests/vite-classic-event-stream-adapter.test.js
+node tests/vite-chat-event-stream-adapter.test.js
+node tests/vite-chat-runtime-island.test.js
+node tests/composer-module-boundary.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free live EventSource client, classic
+dynamic import adapter, `/api/events` URL planning, frame parsing, reconnect
+status planning, classic-owned `EventSource` construction and `applyEvent`
+handoff, chat runtime adapter compatibility, Composer boundary ownership, and
+static cache version alignment.
+
+For Stage D embedded-plugin ESM adapter work, run:
+
+```bash
+node tests/vite-plugin-host-model.test.js
+node tests/vite-plugin-host-island.test.js
+node tests/embedded-plugin-refresh-harness.test.js
+node tests/app-embedded-plugin-ui.test.js
+node tests/embedded-plugin-viewport-stability.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free plugin-host model, classic dynamic
+import adapter, stable iframe entry signatures, volatile launch/session/token
+stripping, manifest launch-context freshness, resident shell context matching,
+classic-owned iframe DOM/postMessage/runtime state, viewport stability, and
+static cache version alignment.
+
+For Stage D plugin-admin ESM adapter work, run:
+
+```bash
+node tests/vite-plugin-admin-model.test.js
+node tests/vite-classic-plugin-admin-adapter.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free plugin-admin model, classic dynamic
+import adapter, workspace row projection, manager-card view state, Owner-gate
+planning, grant/revoke request planning, classic-owned API/overlay/event/state
+side effects, and static cache version alignment.
+
+For Stage D Markdown renderer ESM adapter work, run:
+
+```bash
+node tests/vite-markdown-renderer-model.test.js
+node tests/vite-classic-markdown-renderer-adapter.test.js
+node tests/markdown-renderer-client.test.js
+node tests/markdown-renderer.test.js
+node tests/markdown-delivery-ui.test.js
+node tests/task-list-ui.test.js
+node tests/static-cache-version-harness.test.js
+node tests/static-client-boot-inventory.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free Markdown renderer model, classic
+dynamic import/fallback adapter, CommonJS and `window.HermesMarkdownRenderer`
+compatibility, server/client renderer parity, viewer-page renderer loading, and
+static cache version alignment.
+
 `npm run request:vite-cutover-approval` is the source-only Owner approval
 request gate. It confirms development acceptance, Owner review readiness, and
 the blocked handoff-packet boundary, then emits the exact approval text without
@@ -151,6 +667,346 @@ production deploy-lane card is sent.
 readback validator. It must pass on the deploy-lane JSON return before the Vite
 production cutover can be considered closed; it does not itself connect to
 production or execute deployment.
+
+After production is already switched to the transitional Vite bootstrap, use
+the read-only status command instead of the development readiness gate:
+
+```bash
+npm run check:vite-production -- --base http://127.0.0.1:8797 \
+  --readback-json /tmp/home-ai-vite-production-readback-b5b62ed2.json \
+  --require-ok
+node tests/vite-production-status-check.test.js
+```
+
+This verifies the live Vite shell selection, ignored Classic override, Vite
+manifest/bootstrap reachability, public config, Owner Console unauthenticated
+denial, and optional bounded deploy readback. It reports no production writes
+and performs no deployment. `npm run check:vite-readiness` remains the
+development-target gate and also enforces the source Vite-only cutover config.
+
+For the ESM generation phase, regenerate and verify the staged migration
+backlog:
+
+```bash
+npm run plan:vite-esm -- --write
+node tests/vite-esm-migration-backlog.test.js
+```
+
+The backlog is source-only. It consumes the static boot inventory and Vite
+global usage audit, then writes
+`docs/IMPLEMENTATION_NOTES/vite-esm-migration-backlog.md`. It must keep
+`productionWrites=false` and `deployExecuted=false`, and it must classify
+low-risk adapter candidates separately from core workflow replacements.
+
+For Stage D Composer draft ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-draft-model.test.js
+node tests/vite-chat-classic-composer-draft-adapter.test.js
+node tests/vite-focus-lifecycle-guard.test.js
+node tests/keyboard-focus-guard-ui.test.js
+node tests/native-composer-longpress-paste-behavior.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free draft model, the classic dynamic
+import adapter, stale editable focus projection, native iOS non-editable touch
+blur behavior, native-shell focused textarea long-press paste blur/refocus
+preservation, and preservation of Composer module ownership boundaries.
+
+For Stage D Composer send-pipeline ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-send-pipeline-model.test.js
+node tests/vite-chat-classic-send-pipeline-adapter.test.js
+node tests/composer-send-pending-feedback.test.js
+node tests/vite-chat-composer-controller.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free send-pipeline model, the classic
+dynamic import adapter, request/elevation body parity, pending-send feedback,
+Composer controller compatibility, and preservation of Composer module
+ownership boundaries.
+
+For Stage D Composer native-environment ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-native-environment-model.test.js
+node tests/vite-chat-classic-native-environment-adapter.test.js
+node tests/native-environment-context-ui.test.js
+node tests/composer-send-pending-feedback.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free native environment model, the
+classic dynamic import adapter, bridge availability/request planning, bounded
+snapshot upload body planning, send-pipeline consumption of the native context
+helpers, and preservation of Composer module ownership boundaries.
+
+For Stage D Composer context ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-context-model.test.js
+node tests/vite-chat-classic-composer-context-adapter.test.js
+node tests/composer-active-state-ui.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer context model, the classic
+dynamic import adapter, active run/count projection, context-chip planning,
+visibility decisions, and preservation of Composer module ownership boundaries.
+
+For Stage D Composer current-thread refresh ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-current-thread-refresh-model.test.js
+node tests/vite-chat-classic-current-thread-refresh-adapter.test.js
+node tests/current-thread-refresh-scheduling.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free current-thread refresh model, the
+classic dynamic import adapter, route snapshot/match guards, pending summary
+refresh decisions, refresh timer planning, and preservation of Composer module
+ownership boundaries.
+
+For Stage D Composer render-scheduler ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-render-scheduler-model.test.js
+node tests/vite-chat-classic-render-scheduler-adapter.test.js
+node tests/composer-message-invalidation-ui.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free render-scheduler model, the classic
+dynamic import adapter, render-scheduled guards, user-scroll protection,
+bottom-stick and preserved-offset planning, stale-route frame blocking, and
+preservation of Composer module ownership boundaries.
+
+For Stage D Composer viewport ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-viewport-model.test.js
+node tests/vite-chat-classic-composer-viewport-adapter.test.js
+node tests/viewport-scroll-ui.test.js
+node tests/composer-message-invalidation-ui.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer viewport model, the classic
+dynamic import adapter, terminal receipt bottom-stick decisions, send-time
+viewport lock windows, user-scroll protection, and preservation of Composer
+module ownership boundaries.
+
+For Stage D Composer self-check ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-self-check-model.test.js
+node tests/vite-chat-classic-composer-self-check-adapter.test.js
+node tests/composer-self-check-ui.test.js
+node tests/composer-message-invalidation-ui.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer self-check model, the
+classic dynamic import adapter, bounded diagnostic payload/report-key planning,
+terminal receipt/run/duplicate issue planning, protected-scroll bypass
+reporting, and preservation of Composer module ownership boundaries.
+
+For Stage D Composer model-selection ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-model-selection-model.test.js
+node tests/vite-chat-classic-composer-model-selection-adapter.test.js
+node tests/composer-ai-mention-ui.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer model-selection model, the
+classic dynamic import adapter, assistant/default model projection, AI mention
+parsing, reasoning alias mapping, selected model/provider derivation, and
+preservation of Composer module ownership boundaries.
+
+For Stage D Composer message-invalidation ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-message-invalidation-model.test.js
+node tests/vite-chat-classic-composer-message-invalidation-adapter.test.js
+node tests/composer-message-invalidation-ui.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer message-invalidation
+model, the classic dynamic import adapter, terminal/active message
+classification, terminal receipt refresh planning, protected-scroll bypass
+projection, stream-patch versus full-render invalidation decisions, and
+preservation of Composer module ownership boundaries.
+
+For Stage D Composer event-state ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-event-state-model.test.js
+node tests/vite-chat-classic-composer-event-state-adapter.test.js
+node tests/thread-state-ui-behavior.test.js
+node tests/composer-message-invalidation-ui.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer event-state model, the
+classic dynamic import adapter, thread selection and summary upsert planning,
+current-message upsert planning, cached chat-scope target planning, and
+preservation of Composer module ownership boundaries.
+
+For Stage D Composer source ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-source-model.test.js
+node tests/vite-chat-classic-composer-source-adapter.test.js
+node tests/composer-ai-mention-ui.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer source model, the classic
+dynamic import adapter, manual and auto source selection, source-toggle control
+projection, preservation of the current null search-source body contract, and
+Composer module ownership boundaries.
+
+For Stage D Composer draft-thread ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-draft-thread-model.test.js
+node tests/vite-chat-classic-draft-thread-adapter.test.js
+node tests/composer-module-boundary.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free draft-thread model, the classic
+dynamic import adapter, draft detection, deterministic draft thread planning,
+materialize request-body projection, shared-project detection, and Composer
+module ownership boundaries.
+
+For Stage D Composer refresh-scheduler ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-refresh-scheduler-model.test.js
+node tests/vite-chat-classic-composer-refresh-scheduler-adapter.test.js
+node tests/composer-refresh-scheduler.test.js
+node tests/current-thread-refresh-scheduling.test.js
+node tests/composer-module-boundary.test.js
+node tests/vite-esm-migration-backlog.test.js
+```
+
+These checks cover the browser-global-free refresh-scheduler model, the classic
+dynamic import adapter, refresh delay normalization, timer due-at calculation,
+scheduled/pending refresh retention, bounded pending-delay projection, and the
+existing current-thread refresh scheduling harness.
+
+For Stage D Composer streaming-message ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-streaming-message-model.test.js
+node tests/vite-chat-classic-streaming-message-adapter.test.js
+node tests/streaming-receipt-preview-ui.test.js
+node tests/composer-message-invalidation-ui.test.js
+node tests/composer-event-contract.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free streaming-message model, the classic
+dynamic import adapter, live-buffer truncation, scoped delta application,
+visible streaming receipt patching, render throttle planning, bottom-stick
+policy, and preservation of Composer event/module ownership boundaries.
+
+For Stage D Composer editor ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-editor-model.test.js
+node tests/vite-chat-classic-composer-editor-adapter.test.js
+node tests/composer-send-pending-feedback.test.js
+node tests/composer-ai-mention-ui.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer-editor model, the classic
+dynamic import adapter, request-size limits, send-after-composition fallback,
+paste/caret/height planning, mention/search/send keydown planning, and
+preservation of Composer module ownership boundaries.
+
+For Stage D Composer shell ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-shell-model.test.js
+node tests/vite-chat-classic-composer-shell-adapter.test.js
+node tests/voice-input-ui.test.js
+node tests/mobile-bottom-region-layout.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer shell model, the classic
+dynamic import adapter, sidebar-back planning, single-window/view predicates,
+send/search/stop button view planning, voice-input label compatibility, mobile
+bottom composer layout, and preservation of Composer module ownership
+boundaries.
+
+For Stage D Composer events ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-events-model.test.js
+node tests/vite-chat-classic-events-composer-adapter.test.js
+node tests/composer-event-contract.test.js
+node tests/thread-state-ui-behavior.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer-events model, the classic
+dynamic import adapter, event type classification, todos refresh planning,
+terminal thread-update refresh planning, task/message event projection, and
+preservation of Composer event/module ownership boundaries.
+
+For Stage D Composer send UI ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-send-ui-model.test.js
+node tests/vite-chat-classic-composer-send-ui-adapter.test.js
+node tests/composer-send-pending-feedback.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer-send-ui model, the classic
+dynamic import adapter, send-result route/task-group/reset planning, Owner
+elevation availability/copy/tag cleanup, group mention token/filter/insertion
+planning, pending-send feedback compatibility, and preservation of Composer
+module ownership boundaries.
+
+For Stage D Composer pending-send ESM adapter work, run:
+
+```bash
+node tests/vite-chat-composer-model.test.js
+node tests/vite-chat-classic-composer-pending-send-adapter.test.js
+node tests/composer-send-pending-feedback.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free composer model, the classic dynamic
+import adapter, optimistic local user/assistant planning, rollback compatibility,
+viewport timing policy, and preservation of Composer module ownership
+boundaries.
+
+For Stage D Kanban Composer actions ESM adapter work, run:
+
+```bash
+node tests/vite-kanban-composer-actions-model.test.js
+node tests/vite-kanban-classic-composer-actions-adapter.test.js
+node tests/task-list-ui.test.js
+node tests/composer-module-boundary.test.js
+```
+
+These checks cover the browser-global-free Kanban Composer actions model, the
+classic dynamic import adapter, bounded local message/document/plan projection,
+batch request planning, and preservation of Kanban/Composer module ownership
+boundaries.
 
 ## Home AI TTS
 
@@ -396,7 +1252,7 @@ Accepted `production-self-diagnostic` evidence ids are:
 `production-self-diagnostics-coverage`, `self-improving-loop`, `public-upgrade-rehearsal`,
 `production-drift-reconcile`,
 `production-drift-watchdog`, `web-push-production-audit`,
-`worker-filesystem-access`, `gateway-manifest-toolset`,
+`worker-filesystem-access`, `workspace-target-acl`, `gateway-manifest-toolset`,
 `gateway-document-file-tools-schema`, `plugin-directory`,
 `bound-directory-preview`, `automation-cron`, `automation-cron-launchd`, `plugin-workspace-audit`,
 `plugin-provisioning-coverage`, and `production-closure`.
@@ -476,6 +1332,199 @@ node scripts\fallback-governance-check.js --json
 git diff --check
 ```
 
+Autonomous Delivery Loop dispatch, Worker scheduling, duplicate suppression,
+return-card Watchdog, routing-decision gate, or Owner Console delivery-loop
+visibility changes must run the focused coordinator, routing-decision,
+idempotency, scheduler, Watchdog, task-card, and console Harness together. This
+gate is source-safe and does not execute install or production deploy lane
+tests. Thread routing changes must prove special thread purposes are enforced:
+implementation cards cannot fall back to
+same-workspace Public PR/deploy/audit/task-intake threads, deploy cards route
+only to deploy lanes, audit cards route only to audit lanes, plugin-domain
+natural-language normal-card requests route to the plugin main/source thread as
+requirements analysis, explicit plugin Loop-card requests route to plugin
+source-owned Loop requirements, and missing role lanes fail closed instead of
+dispatching a best-effort card. Lifecycle-required slices must prove Home AI
+calls Codex Mobile `/api/at-loop/thread-lifecycle`, stores only bounded
+resolution metadata, dispatches to the returned exact thread id, and records
+`dispatchStatus=failed` without sending a task card when lifecycle resolution
+fails:
+
+Return-driven continuation changes must prove terminal Worker/plugin/deploy/
+audit returns are integrated as scheduler events before any final user-facing
+receipt. The source scheduler must record or apply a bounded
+`return_continuation_decision` with `original_objective_satisfied`,
+`continuation_required`, `next_action_type`, target role/workspace/thread,
+source/return/workflow ids, and either `continuation_dispatch_card_id` or
+`blocked_reason`. Fixtures must cover at least: `completed` with no remaining
+evidence closes only when the original objective is satisfied; source-fix-ready
+returns dispatch deploy/readback or record a deployment blocker;
+Worker-now-available returns dispatch the next Worker instead of replying
+"can dispatch now"; redirected returns route to the owning lane; missing
+Harness/readback returns dispatch verification; illegal next actions record
+`blocked_missing_continuation_dispatch`:
+
+Central deploy governance changes must prove Worker-origin Deploy Lane cards
+are blocked unless a complete emergency override is present, central
+coordinator Deploy Lane cards are allowed, Worker return `deployRequest`
+metadata is accepted without becoming deploy authorization, divergent deploy
+refs are marked integration-required, and plugin source/main direct
+central-governance Worker implementation cards fail closed.
+
+Source return follow-up action changes must prove terminal returns with
+`completed + deploy_needed=true` create a bounded `pendingSourceAction`,
+ordinary completed returns without follow-up do not, structured
+`deployRequest.needed=true` wins over text markers, pending actions can be
+resolved by central Deploy Lane dispatch or marked `blocked`/`dismissed` with
+reasons, terminal receipts remain terminal/non-active, and deploy-needed
+actions feed central deploy aggregation instead of authorizing direct deploy:
+
+Source return integration changes must also prove every terminal return creates
+a bounded `sourceActivation` receipt, including returns whose source thread is
+reported as `completed` or `resting`; follow-up returns keep
+`sourceActivation.status=pending_source_action`; stale integrations mark
+`return_projection_missing_after_terminal_return`; and duplicate terminal
+returns do not duplicate pending source actions or Owner-visible prompts:
+
+```powershell
+node --check adapters\autonomous-delivery-case-ledger-service.js
+node --check adapters\autonomous-delivery-coordinator-service.js
+node --check adapters\autonomous-delivery-routing-decision-service.js
+node --check adapters\main-thread-routing-preflight-service.js
+node --check adapters\central-deploy-governance-service.js
+node --check adapters\task-card-dispatch-idempotency-service.js
+node --check adapters\worker-lane-scheduler-service.js
+node --check adapters\return-watchdog-service.js
+node --check adapters\source-return-integration-watchdog-service.js
+node --check adapters\source-return-follow-up-action-service.js
+node --check adapters\codex-thread-task-card-service.js
+node --check adapters\codex-mobile-at-loop-status-service.js
+node --check adapters\owner-system-console-service.js
+node --check server-routes\autonomous-delivery-api-routes.js
+node --check server-routes\owner-system-console-api-routes.js
+node --check public\app-owner-system-console-ui.js
+node --check scripts\main-thread-routing-preflight.js
+node --check scripts\worker-handoff-lifecycle-check.js
+node tests\autonomous-delivery-case-ledger-service.test.js
+node tests\autonomous-delivery-coordinator-service.test.js
+node tests\autonomous-delivery-routing-decision-service.test.js
+node tests\main-thread-routing-preflight-service.test.js
+node tests\central-deploy-governance-service.test.js
+node tests\deploy-upgrade-lane-closure-service.test.js
+node tests\task-card-dispatch-idempotency-service.test.js
+node tests\worker-lane-scheduler-service.test.js
+node tests\return-watchdog-service.test.js
+node tests\source-return-integration-watchdog-service.test.js
+node tests\source-return-follow-up-action-service.test.js
+node tests\autonomous-delivery-api-routes.test.js
+node tests\codex-thread-task-card-service.test.js
+node tests\codex-mobile-at-loop-status-service.test.js
+node tests\owner-system-console-service.test.js
+node tests\owner-system-console-api-routes.test.js
+node tests\owner-system-console-ui.test.js
+node tests\home-ai-self-improving-loop-service.test.js
+node tests\architecture-code-test-harness-map.test.js
+node tests\architecture-refactor-boundary.test.js
+node tests\autonomous-delivery-task-card-triage-doc.test.js
+node tests\worker-handoff-lifecycle-check.test.js
+node scripts\worker-handoff-lifecycle-check.js --json
+node scripts\fallback-governance-check.js --json
+git diff --check
+```
+
+Loop Engineering requirements/implementation/audit role-loop changes build on
+the Autonomous Delivery gate above. Documentation-only changes to the loop
+contract or implementation plan must at minimum run:
+
+```powershell
+node tests\architecture-code-test-harness-map.test.js
+node tests\autonomous-delivery-task-card-triage-doc.test.js
+node tests\worker-handoff-lifecycle-check.test.js
+node scripts\worker-handoff-lifecycle-check.js --json
+git diff --check
+```
+
+Plugin main-thread Worker/preflight contract changes also affect plugin-local
+pointer files and AGENTS.md guidance. They must prove the central routing
+preflight classifies plugin-main source work as `plugin_worker`, rejects
+forbidden Worker fallbacks, requires `terminalReturnLanguageZhCn` for Worker
+cards, requires per-task-card heartbeat fields
+(`taskCardHeartbeatRequired`, `taskCardWatchdogTimeoutMs`,
+`taskCardWatchdogBatchLimit`, and `taskCardWatchdogMaxAutoResume`), and that the
+platform pointer checker requires the plugin main preflight command, plugin
+Worker dispatch policy, and plugin Worker pool lifecycle policy for the current
+contract version. The lifecycle policy must cover resolve-before-create, stable
+Worker pool reuse, busy/available lease state, per-task-card heartbeat,
+`1800000ms` task-card Watchdog timeout, batch limit `8`, max auto-resume `1`,
+task-title sprawl rejection, bounded create reasons, and Chinese terminal
+receipts. Home AI coordinator coverage must also prove plugin implementation
+slices use `cardKind=plugin_worker`, forward plugin worker lifecycle metadata,
+reduce multiple compatible plugin Worker candidates to one exact target before
+dispatch, and return `pool_exhausted` rather than `target_ambiguous` when all
+compatible lanes are busy:
+
+```powershell
+node --check adapters\main-thread-routing-preflight-service.js
+node --check adapters\autonomous-delivery-routing-decision-service.js
+node --check scripts\main-thread-routing-preflight.js
+node --check scripts\plugin-workspace-platform-contract-check.js
+node --check adapters\worker-lane-scheduler-service.js
+node --check tests\main-thread-routing-preflight-service.test.js
+node --check tests\autonomous-delivery-routing-decision-service.test.js
+node --check tests\autonomous-delivery-coordinator-service.test.js
+node --check tests\codex-thread-task-card-service.test.js
+node --check tests\plugin-workspace-platform-contract-check.test.js
+node --check tests\worker-lane-scheduler-service.test.js
+node tests\main-thread-routing-preflight-service.test.js
+node tests\autonomous-delivery-routing-decision-service.test.js
+node tests\autonomous-delivery-coordinator-service.test.js
+node tests\codex-thread-task-card-service.test.js
+node tests\plugin-workspace-platform-contract-check.test.js
+node tests\worker-lane-scheduler-service.test.js
+node tests\architecture-refactor-boundary.test.js
+node scripts\fallback-governance-check.js --changed-file docs\PLATFORM_CONTRACTS\autonomous-delivery-loop-contract.md --changed-file docs\PLATFORM_CONTRACTS\worker-pool-lifecycle-contract.md --changed-file docs\PLATFORM_CONTRACTS\plugin-workspace-platform-contract.md --changed-file scripts\plugin-workspace-platform-contract-check.js --changed-file adapters\main-thread-routing-preflight-service.js --changed-file adapters\autonomous-delivery-routing-decision-service.js --changed-file adapters\worker-lane-scheduler-service.js --json
+git diff --check
+```
+
+Generic `@loop` trigger parsing, Loop task runtime, iteration routing,
+cross-thread role-card creation, and return-card correlation are Codex Mobile
+runtime behavior. Implement those in the Codex Mobile workspace and run the
+Codex Mobile Loop/task-card test suite there. Home AI tests cover only the
+Home AI domain adapter, Owner Console/Action Inbox projection, platform
+repair/deploy routing, thread-purpose guard, and Autonomous Delivery
+compatibility projection.
+
+When Loop Engineering code is added or changed, run the focused planner,
+coordinator, dispatch, Watchdog, audit-routing, and Owner Console Harnesses
+together:
+
+```powershell
+node --check adapters\loop-engineering-plan-service.js
+node --check adapters\codex-mobile-at-loop-status-service.js
+node tests\loop-engineering-plan-service.test.js
+node tests\codex-mobile-at-loop-status-service.test.js
+node tests\autonomous-delivery-coordinator-service.test.js
+node tests\task-card-dispatch-idempotency-service.test.js
+node tests\worker-lane-scheduler-service.test.js
+node tests\return-watchdog-service.test.js
+node tests\autonomous-delivery-api-routes.test.js
+node tests\codex-thread-task-card-service.test.js
+node tests\owner-system-console-service.test.js
+node tests\owner-system-console-api-routes.test.js
+node tests\owner-system-console-ui.test.js
+node tests\app-action-inbox-ui.test.js
+node tests\architecture-code-test-harness-map.test.js
+node tests\architecture-refactor-boundary.test.js
+node scripts\fallback-governance-check.js --json
+git diff --check
+```
+
+Loop Engineering product-audit closure is not complete until the audit role
+returns `passed` and the case has bounded source tests, Harness evidence,
+deployment/readback evidence when applicable, privacy confirmation, and
+terminal return-card evidence. Failed audit verdicts route back to requirements
+or implementation; they must not be treated as ordinary completed returns.
+
 Runtime diagnostic intake changes must additionally prove:
 
 - workspace-authenticated event submission and Owner-only case/event/state
@@ -522,13 +1571,29 @@ Plugin conversation repair-request changes must additionally prove:
 
 - request creation is workspace-authenticated but creates an Owner-only Action
   Inbox approval item;
-- request creation does not auto-dispatch a Codex task card;
+- ordinary plugin capability-gap request creation does not auto-dispatch a
+  Codex task card;
+- bounded low-risk Codex Mobile thread/routing mismatch requests auto-dispatch
+  exactly one Codex task card through the same task-card service without an
+  Owner prompt, complete the Inbox item only after a concrete task-card id is
+  returned, and return the prior task-card id for duplicate equivalent
+  requests;
+- Codex Mobile thread/routing mismatch requests containing production deploy,
+  secret/key/token, database/data import, physical-device, Finance transaction,
+  Wardrobe private-data, or similar high-risk wording remain Owner-gated;
 - target thread/workspace comes from the central plugin target map, not from
   arbitrary request body fields;
 - Owner-triggered dispatch can attach an optional Owner prompt and appends it
   to the task card under `Owner Additional Prompt`;
 - Owner-triggered dispatch keeps the approval item open and returns a bounded
   failure when task-card transport fails or returns no concrete task-card id;
+- plugin-topic repair cards preserve coordinator return routing: explicit
+  `replyToThreadId` wins, Home-AI-owned repair cards created from
+  `Home AI Task Intake` resolve the current `Home AI` coordinator thread before
+  card creation, and host-owned redirects/terminal returns do not fall back to
+  Task Intake unless the request truly originated there;
+- auto-dispatch failure also keeps the approval item open and does not send an
+  Owner prompt notification, complete the row, or manufacture a task-card id;
 - an equivalent request after successful dispatch keeps the terminal approval
   terminal, does not send a second task card, and does not send another Web Push;
 - non-Owner workspaces cannot dispatch cards or attach Owner prompts;
@@ -716,6 +1781,24 @@ primary smoke path is the installed home-screen PWA icon in the emulator or
 target device. Browser address-bar navigation is not a valid substitute; it is
 browser-mode evidence only and may intentionally show the browser-shell guard
 page.
+User-visible state synchronization repairs that involve optimistic UI,
+submitted echo, durable projection, thread/detail refresh, message ordering,
+SSE/EventSource, session replay, iframe/plugin boot, static cache/client
+versioning, PWA/native-shell differences, file/camera/picker flows, or visible
+rows that disappear, duplicate, reorder, or show incorrect state must follow
+the repeated-failure rule in
+`docs\IMPLEMENTATION_NOTES\harness-required-matrix.md`. The first low-risk
+repair may use focused tests only if the return states whether a real workflow
+Harness ran. Once the Owner reports the same symptom after a completed or
+partially completed repair, the next repair is `harness_required`; after a
+second failed closure, a `completed` return must include failing-then-passing
+real workflow Harness evidence. Otherwise return `blocked_missing_repro_harness`
+or `partially_completed` with the exact missing Harness path. Evidence must be
+bounded machine-readable state such as counts, ids/hashes, active
+workspace/thread, durable/pending counts, visible DOM row counts,
+session/status codes, client version/build id, and timing buckets, never raw
+messages, keys, cookies, launch tokens, endpoint bodies, database rows, private
+screenshots, or long logs.
 Static-client cache fixes must prove both sides of the version contract:
 unauthenticated `/api/client-version?clientVersion=<new-version>` returns
 `refreshRequired=false`, the previous deployed static version returns
@@ -1116,11 +2199,51 @@ composers, fixed panels, popups, plugin docks, and scroll containers. When an
 Android emulator or target device is available, also run the installed-PWA
 smoke path above. Static DOM/unit assertions are necessary but not sufficient
 for visual layout changes.
+Before any UI-affecting change deploys to production, it must also pass the
+central metadata gate:
+
+```bash
+node scripts/ui-visual-local-validation-check.js \
+  --changed-file <ui-file> \
+  --evidence-file <ui-visual-evidence.json> \
+  --json
+```
+
+The deployment script includes the same check and fails `--execute` with
+`ui_visual_local_validation_required` when UI changed files or visible UI
+impact lack passed local test evidence and passed visual evidence. Focused
+maintenance for this gate must run
+`node tests\ui-visual-local-validation-service.test.js` and
+`node tests\macos-production-deploy-script.test.js`.
+Plugin visual signoff must use Home AI's central visual QA entrypoints,
+central target/device/browser configuration, and the checked command or
+delegated visual/readback lane named in the task card. Plugin-local
+Playwright/Appium setup, private key-path conventions, viewport defaults, or
+coordinate scripts are diagnostic only unless they are exposed as a
+central-compatible plugin harness and accepted by `npm run visual:central`.
+Use `--delegate-local` to discover/run `visual:central-compatible` or
+`visual:plugin`, and `--verify-evidence <json-file>` to validate bounded JSON
+from a plugin harness. The broker must reject missing scripts as
+`plugin_visual_harness_missing` and malformed or privacy-unsafe evidence as
+`plugin_visual_evidence_invalid`. If the central visual interface is
+unavailable, return
+`blocked_central_visual_harness_unavailable` or delegate the missing Home AI
+visual/readback task. The plugin-facing command is
+`npm run visual:central -- --surface embedded-plugin --plugin-id <plugin-id> --scenario embedded-plugin-shell --json`;
+add `--execute` only when the selected central or compatible plugin Harness
+should run. Plugin return cards must separate source/static validation,
+central-compatible plugin-local evidence, and real central visual signoff.
 Topic root UI changes must assert that the root topic entry page has no active
 composer, including after Chat->Topics tab switching or route restore paths that
 call generic composer enable helpers. `node tests\task-list-ui.test.js` is the
 focused DOM contract, and visual smoke must include composer bounds or absence
 on the topic root plus normal composer visibility inside a topic detail.
+Directory-bound topic Composer autosize regressions, especially long input that
+is later shortened, must run the central browser-mobile scenario:
+`npm run visual:central -- --surface browser-mobile --scenario directory-topic-composer-long-input-shrink --base-url http://127.0.0.1:8797 --viewport 390x844 --execute --json`.
+The accepted evidence must include bounded editor/composer dimensions before
+long input, after long input, after shortening, after clearing, and after blur,
+plus composer/bottom-nav overlap status.
 Composer server-file attachment changes must prove both sides of the boundary:
 `node tests\thread-read-upload-api-routes.test.js` for the authenticated
 Directory-resolved artifact route, and
@@ -1457,6 +2580,18 @@ only non-secret `templateKey`, `capabilityHash`, `capabilityStatus`,
 `toolSchemaEpoch`, `materializedTemplateKey`, and
 `materializedCapabilityHash`; a warm worker with a stale materialized hash must
 not be reused merely because `/health` is `ok`.
+For Vite Phase 5 chat attachment/file-picker work, run
+`node tests/vite-chat-attachment-file-input-controller.test.js`,
+`node tests/vite-chat-attachment-upload-client.test.js`,
+`node tests/vite-chat-attachment-upload-backend-contract.test.js`,
+`node tests/vite-chat-classic-attachment-adapter.test.js`,
+`node tests/vite-share-image-model.test.js`,
+`node tests/share-image-ui.test.js`,
+`node tests/vite-chat-runtime-island.test.js`, and
+`npm run smoke:vite-dev-user-journeys`. The file-picker controller must prove
+change-event suppression, selected File snapshotting, immediate input clearing
+for repeated mobile camera picks, and no direct auth/storage/transport
+ownership.
 Plugin capability activation and lazy MCP loading is an H1 Gateway/context
 workflow change. Focused tests must prove ordinary chat receives the compact
 capability catalog without full optional plugin MCP schemas or Skill bodies;
@@ -2115,6 +3250,7 @@ Focused checks include `node tests\workspace-onboarding-service.test.js`,
 `node tests\architecture-refactor-boundary.test.js`. After the real macOS
 executor is deployed, production validation must also include
 `macos-worker-filesystem-access-harness.js`,
+`macos-worker-filesystem-access-harness.js --workspace-catalog-targets`,
 `macos-production-profile-audit.js`,
 `macos-gateway-manifest-toolset-smoke.js`, selected plugin provisioning smokes,
 and wrong-header/wrong-workspace denial checks.
@@ -2260,7 +3396,16 @@ that `openMode=plugin` payloads preserve `pluginRoute`, `pluginItemId`,
 `pluginThreadId`, `pluginTaskId`, and `sourceTurnId` before generic Inbox
 routing. Frontend route harnesses must also prove those route anchors are passed
 into the target plugin host, including shared embedded-plugin hosts and legacy
-dedicated hosts such as Wardrobe.
+dedicated hosts such as Wardrobe. Owner-critical plugin notification keys must
+stay endpoint-scoped. Movie notification coverage must prove the
+plugin-notification-only key authorizes only
+`POST /api/hermes-plugins/movie/notifications` for `workspaceId=owner`, does
+not become Owner auth for other Home AI routes, and is installed through the
+Movie launchd installer without printing key contents or Home AI-side secret
+paths. Focused checks include
+`node tests\hermes-plugin-notification-auth-service.test.js`,
+`node tests\hermes-plugin-api-routes.test.js`, and
+`node tests\install-movie-launchd-service.test.js`.
 Finance ledger join approval is an H1 plugin-to-Inbox workflow. Harnesses must
 cover `finance.ledger_join_request` normalization into an Inbox `approval` item,
 compact ledger/requester/role display, approve/reject actions, Finance review
@@ -2314,7 +3459,11 @@ carry the effective target `workspaceId`, upstream requests must forward
 namespaced by plugin id plus workspace id. Rewritten plugin HTML, JavaScript,
 CSS, and JSON resource/API URLs must also carry the effective `workspaceId` when
 the URL is a static string so a browser request that omits `Referer` still lands
-in the selected workspace. JavaScript template-string URLs with runtime query
+in the selected workspace. Codex Mobile Vite ESM imports must cover root/static
+forms such as `/vite-shell/assets/...` and `assets/...`, plus relative chunk
+forms such as `import("./...")` or `from "./..."`; relative chunk specifiers
+must be resolved against the current proxied script path and rewritten with the
+effective `workspaceId`. JavaScript template-string URLs with runtime query
 fragments, such as ``/api/threads${params}`` or
 ``/api/auth/status?_ts=${Date.now()}``, must preserve the template expression
 and only rewrite the static path prefix to the proxy; inserting `workspaceId`
@@ -2952,13 +4101,18 @@ The guard test is:
 | Architecture/code/test/harness map | `node tests\architecture-code-test-harness-map.test.js`, `node tests\architecture-refactor-boundary.test.js`, `node tests\codegraph-harness-discipline.test.js` |
 | Mobile runtime composition | `node tests\mobile-runtime-file-helper-service.test.js`, `node tests\mobile-runtime-artifact-facade-service.test.js`, `node tests\mobile-runtime-kanban-facade-service.test.js`, `node tests\mobile-runtime-thread-view-facade-service.test.js`, `node tests\mobile-runtime-todo-facade-service.test.js`, `node tests\mobile-runtime-workspace-catalog-facade.test.js`, `node tests\mobile-runtime-http-server-service.test.js`, `node tests\system-runtime-status-service.test.js`, `node tests\mobile-api-directory-composition.test.js`, `node tests\mobile-api-learning-composition.test.js`, `node tests\mobile-server-runtime-startup-smoke.test.js`, `node tests\mobile-http-runtime-service.test.js`, `node tests\architecture-refactor-boundary.test.js` |
 | API registry/dispatcher | `node tests\api-route-registry.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js` |
+| Remote Managed Workspace control plane | `node tests\remote-managed-workspace-service.test.js`, `node tests\remote-managed-workspace-api-routes.test.js`, `node tests\remote-managed-workspace-integration.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\architecture-refactor-boundary.test.js`; source changes must prove enrollment-token fail-closed behavior, outbound remote-node register/poll or bounded long-poll/ack/per-card heartbeat/terminal return, duplicate suppression/idempotency, session states (`connecting`, `connected`, `stale`, `auth_failed`, `config_invalid`, `offline`), bounded daily-summary/escalation projections, Owner-only status/dispatch, fallback ordinary polling after long-poll timeout, and no production `8787` usage in the two-port harness. |
 | Note receipt save | `node tests\note-receipt-save-service.test.js`, `node tests\note-receipt-api-routes.test.js`, `node tests\note-receipt-ui.test.js`, `node tests\gateway-run-instruction-service.test.js`, `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`; receipt title changes must prove hidden `homeai-note` metadata title priority, hidden metadata stripping from the Note body, bounded hidden tag merge after the server-derived receipt tag, deterministic no-model `<source> | <YYYY-MM-DD> | <summary>` fallback formatting, plugin tag preservation, workspace-scoped Note binding lookup, bounded attachment materialization, saved-note toast open carrying a refresh nonce into the resident Note plugin iframe, duplicate workspace/thread/message saves returning the existing Note reference without a second remote create, and no local paths, private URLs, launch tokens, raw access keys, or full artifact paths in the Note payload. Gateway instruction changes must prove this is a built-in Home AI host output contract rather than a Skill requirement. |
 | Multi-user/task platform | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\conversation-history-service.test.js`, `node tests\action-inbox-service.test.js`, `node tests\web-push-delivery-service.test.js` |
-| Auth/workspace/access keys | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\workspace-public-projection-service.test.js`, `node tests\mobile-http-runtime-service.test.js`; workspace Access Key rotation must leave plugin authorization and plugin-local `.hermes-*` key/config files unchanged |
+| Auth/workspace/access keys | `node tests\auth-provider.test.js`, `node tests\access-key-api-routes.test.js`, `node tests\workspace-api-routes.test.js`, `node tests\workspace-public-projection-service.test.js`, `node tests\mobile-http-runtime-service.test.js`, `node tests\workspace-onboarding-service.test.js`, `node tests\vite-classic-platform-adapter.test.js`, `node tests\vite-classic-access-key-manager-adapter.test.js`, `node tests\vite-classic-workspace-admin-adapter.test.js`; workspace Access Key rotation must leave plugin authorization and plugin-local `.hermes-*` key/config files unchanged; workspace onboarding retry must preserve an existing Home AI workspace key; key lifecycle changes must emit metadata-only audit; browser clients must clear account-scoped volatile projections on auth/workspace boundaries while preserving the one-time generated key display only for the relogin path |
 | Public reverse-proxy security | `node tests\auth-provider.test.js`, `node tests\mobile-http-runtime-service.test.js`, `node tests\chatgpt-pro-codex-bridge-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\api-route-inventory.test.js`, `node tests\architecture-refactor-boundary.test.js`, `npm.cmd run security:invariants`, `npm.cmd run privacy:scan`, production smoke: `/api/public-config` headers, query-string key denial, header-authenticated `/api/status?detail=1`, anonymous plugin proxy denial, and Windows firewall state |
 | Gateway run lifecycle | `node tests\plugin-capability-probe-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-model-toolset-selection-service.test.js`, `node tests\gateway-run-error-message-service.test.js`, `node tests\gateway-run-start-child-service-registry-service.test.js`, `node tests\gateway-run-start-preparation-service.test.js`, `node tests\gateway-run-start-execution-phase-service.test.js`, `node tests\gateway-run-start-stream-handoff-service.test.js`, `node tests\gateway-run-start-target-phase-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-completion-service.test.js`, `node tests\gateway-run-delta-event-service.test.js`, `node tests\gateway-run-output-event-service.test.js`, `node tests\gateway-run-response-created-service.test.js`, `node tests\gateway-run-streaming-save-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\gateway-run-evidence-service.test.js`, `node tests\gateway-run-toolset-escalation-service.test.js`, `node tests\gateway-run-toolset-escalation-retry-service.test.js`, `node tests\gateway-run-stream-completion-service.test.js`, `node tests\gateway-run-stream-close-recovery-service.test.js`, `node tests\gateway-run-stream-event-service.test.js`, `node tests\gateway-run-stream-failure-service.test.js`, `node tests\gateway-run-stream-first-event-service.test.js`, `node tests\gateway-run-stream-liveness-service.test.js`, `node tests\gateway-run-stream-liveness-timer-service.test.js`, `node tests\gateway-run-stream-registry-service.test.js`, `node tests\gateway-run-stream-state-service.test.js`, `node tests\gateway-run-stream-service.test.js`, `node tests\gateway-run-stream-stop-service.test.js`, `node tests\gateway-run-lifecycle-service.test.js` for lifecycle phase/source-event contract coverage, `node tests\runtime-config-worker-policy-contract-service.test.js` for runtime worker policy save/public/launcher parity, `node tests\gateway-run-queue-projection-service.test.js`, `node tests\gateway-run-terminal-state-service.test.js`, `node tests\gateway-run-queue-service.test.js`, `node tests\run-liveness.test.js`, `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\streaming-receipt-preview-ui.test.js` |
 | Chat context/compaction | `node tests\conversation-history-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\chat-data-context-selector-service.test.js`, `node tests\topic-context-compaction-service.test.js`, `node tests\mobile-runtime-thread-view-facade-service.test.js`, `node tests\thread-message-create-service.test.js`, `node tests\thread-view-service.test.js`, `node tests\gateway-run-event-service.test.js`, `node tests\mobile-sqlite-store.test.js` |
 | Gateway Pool/scripts | `node tests\mobile-runtime-environment-service.test.js`, `node tests\mobile-runtime-gateway-environment-service.test.js`, `node tests\mobile-runtime-gateway-status-service.test.js`, `node tests\mobile-runtime-path-candidate-environment-service.test.js`, `node tests\mobile-runtime-state-path-environment-service.test.js`, `node tests\mobile-runtime-kanban-environment-service.test.js`, `node tests\gateway-elastic-worker-scheduler.test.js`, `node tests\gateway-pool-provider.test.js`, `node tests\gateway-profile-template-sync.test.js`, `node tests\gateway-profile-template-builder.test.js`, `node tests\gateway-profile-replica-model-harness.test.js`, `node tests\plugin-capability-probe-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\cross-shell-command-harness.test.js`, `node tests\macos-production-profile-audit.test.js`, `node tests\macos-production-drift-reconcile.test.js`, `node tests\macos-gateway-start-script-bridge-env-repair.test.js`, `node tests\macos-file-plugin-docx-root-smoke.test.js`, `node tests\gateway-pool-production-smoke-harness.test.js`, `node tests\macos-production-closure-validation-harness.test.js`, `node tests\macos-plugin-directory-production-smoke-harness.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node tests\macos-directory-path-migration-repair.test.js`, `node tests\macos-bound-directory-preview-smoke-harness.test.js`, `node tests\hermes-mobile-image-plugin.test.js`, `node tests\hermes-mobile-archive-plugin.test.js`, `node tests\hermes-mobile-office-plugin.test.js`, `node tests\hermes-mobile-pdf-plugin.test.js`, `node tests\hermes-mobile-pptx-plugin.test.js` |
+
+Gateway runtime override changes that touch user-facing Markdown delivery file
+modes must also run `node tests\gateway-runtime-sitecustomize-file-mode.test.js`
+and `python -m py_compile gateway-runtime-overrides\sitecustomize.py`.
 
 OpenAI-Codex quota failover changes also require
 `node tests\openai-codex-shared-auth-pool-service.test.js`,
@@ -2972,16 +4126,16 @@ OpenAI-Codex quota failover changes also require
 | Grok/model routing | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\grok-auth-metadata-smoke-harness.test.js`, `node tests\grok-xai-oauth-closure-checklist.test.js`; script syntax: `bash -n scripts/macos-grok-xai-reauth.sh`; production xAI OAuth triage: `node scripts\grok-auth-metadata-smoke.js --profile-auth-file <file> --shared-auth-file <file> --require-access-token --json`. On Mac production, use `bash scripts/macos-grok-xai-reauth.sh` for the manual-paste OAuth repair, then generate `node scripts\grok-xai-oauth-closure-checklist.js --markdown`, rerun metadata smoke, and finally `node scripts\gateway-pool-production-smoke.js --key-file <file> --model grok-4.3 --provider xai-oauth --expected-profile grokgw1` only after metadata shows an xAI access token is present. |
 | Direct provider keys / Gateway Pool distro | `node tests\gateway-model-routing-service.test.js`, `node tests\gateway-pool-provider.test.js`, `node tests\gateway-status-projection.test.js`, `node tests\thread-message-create-service.test.js`, `node tests\startup-scripts.test.js`, production smoke: `/api/status?detail=1`, all low/owner-maintenance Gateway health ports, provider-tier status matrix, workspace-dedicated DeepSeek profile routing including Owner-only `deepseekgw99`, and process-environment evidence that target workers received the expected provider key without logging the raw key |
 | Web Push | `node tests\web-push-automation-projection-service.test.js`, `node tests\web-push-vapid-service.test.js`, `node tests\web-push-delivery-normalization-service.test.js`, `node tests\web-push-send-service.test.js`, `node tests\web-push-delivery-service.test.js`, `node tests\push-api-routes.test.js`, `node tests\task-list-ui.test.js`, `node tests\same-window-navigation-harness.test.js`. Terminal task receipt pushes must prove `taskGroupId`/`messageId` are preserved through the service worker click router, notification clicks force a selected-view reload with single-window cache bypass, foreground pushes refresh only the matching open topic detail or root topic list, and a user on another function page is not auto-navigated until they click the system notification. |
-| Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js`, `node tests\playwright-visual-smoke-harness.test.js`, `node scripts\playwright-visual-smoke.js`. Host-owned mobile bottom chrome changes must also prove runtime measured bottom-stack CSS variables, adjacent Dock/bottom-nav rects, no clipping, no overlap on the target production origin, and for global Dock handle changes `npm run ios:pwa:visual -- --scenario global-plugin-dock-gesture-stability`. |
+| Static client/UI shell | `node tests\task-list-ui.test.js`, `node tests\run-progress-ui-behavior.test.js`, `node tests\keyboard-viewport-ui.test.js`, `node tests\viewport-scroll-ui.test.js`, `node tests\same-window-navigation-harness.test.js`, `node tests\central-visual-harness-broker.test.js`, `node tests\playwright-visual-smoke-harness.test.js`, `node scripts\central-visual-harness-broker.js --surface browser-mobile --json`, `node scripts\playwright-visual-smoke.js`, and for directory-bound topic Composer autosize shrink regressions `npm run visual:central -- --surface browser-mobile --scenario directory-topic-composer-long-input-shrink --viewport 390x844 --execute --json`. Host-owned mobile bottom chrome changes must also prove runtime measured bottom-stack CSS variables, adjacent Dock/bottom-nav rects, no clipping, no overlap on the target production origin, and for global Dock handle changes `npm run ios:pwa:visual -- --scenario global-plugin-dock-gesture-stability`. |
 | Host voice input | Current focused checks: `node tests\voice-input-service.test.js`, `node tests\voice-input-asr-provider.test.js`, `node tests\voice-input-correction-service.test.js`, `node tests\voice-input-api-routes.test.js`, `node tests\voice-input-ui.test.js`, `node tests\architecture-refactor-boundary.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\macos-production-deploy-script.test.js`, `node tests\local-asr-service-installer.test.js`, `node tests\task-list-ui.test.js`, `node tests\static-cache-version-harness.test.js`, and `node scripts\privacy-scan.js`. Local browser smoke should verify Home AI native composer long-press, streaming partial text in the active native composer when FunASR streaming is configured, final text replacing provisional text without duplication, whole-clip fallback when streaming fails, Kanban/todo creation, Automation create/edit, todo comment/revision, Growth teaching quick-check insertion, missing-ASR visible disabled state, no native text selection/callout, no ordinary-submit side effect, and no page errors. Real-device/PWA closure still needs `npm run ios:pwa:visual -- --scenario voice-input-overlay-composer --debug-url http://127.0.0.1:19073/` and, after embedded Codex adopts the bridge, `npm run ios:pwa:visual -- --scenario voice-input-overlay-plugin-composer --plugin-id codex-mobile --plugin-thread-id <thread-id> --debug-url http://127.0.0.1:19073/`. Harness must prove host-owned microphone permission/overlay, send-button tap-vs-long-press behavior, permission prompt release-cancel, release-to-transcribe, no native text selection/callout, silent close for too-short recordings, missing-ASR disabled state, conservative correction learning after final send, wrong-origin/stale-session rejection, no keyboard simulation, host draft auto-insertion into every registered native composer, streaming HTTP chunk routes, and protocol-based draft insertion into active plugin composers. Native-shell voice work must additionally prove the shell does not show a separate transcript editor as the primary input surface, composition sessions reject stale/out-of-order partials, provisional text patches only the active Composer range, final text replaces the provisional range without duplication, and user edits inside the provisional range are not overwritten. |
 | Native iOS shell | `node tests\plugin-workspace-platform-contract-check.test.js`, `node scripts\plugin-workspace-platform-contract-check.js --target home-ai-native-ios --json`, `node tests\architecture-code-test-harness-map.test.js`, and from `/Users/example/path AI`: `xcodebuild -project 'Home AI.xcodeproj' -scheme 'Home AI' -destination 'generic/platform=iOS Simulator' build`. Native APNs server-side changes also run the Native Notifications checks above. Native voice-input bridge changes also run the Host Voice Input checks plus the Xcode build. System share/receive changes must prove authenticated workspace/thread/directory/plugin target validation and no plugin credential storage in the native shell. WebView stability bridge changes must prove bounded native-to-Web health/layout events without moving product UI ownership into native code. Any native-shell compatibility change must also prove the standalone PWA/browser path without `nativeShell=ios` keeps the existing UI, navigation, composer, plugin, and permission behavior. Apple Watch and Bluetooth/BLE remain deferred and require a new product requirement plus focused validation plan before any implementation work. |
 | Action Inbox | `node tests\action-inbox-service.test.js`, `node tests\action-inbox-todo-service.test.js`, `node tests\action-inbox-todo-skill-doc.test.js`, `node tests\action-inbox-api-routes.test.js`, `node tests\task-card-dispatch-result-service.test.js`, `node tests\autonomous-delivery-coordinator-service.test.js`, `node tests\autonomous-delivery-api-routes.test.js`, `node tests\owner-system-console-service.test.js`, `node tests\owner-system-console-ui.test.js`, `node tests\mobile-sqlite-store.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\task-list-ui.test.js`, `node tests\web-push-delivery-service.test.js`. Manual Product Reality audit UI must prove the user action sends a central audit request card and does not present a local CRON/Automation background job as the execution path. Autonomous Delivery Loop UI must prove `新建交付 Loop` posts the Owner objective to case creation, case creation only creates an Owner start item, Owner start has visible pending/failure feedback, each slice stores bounded AI Ops required-check/evidence projection, task cards include selected checks, implementation slices targeting the same workspace are not concurrently dispatched and instead record `dispatchStatus=deferred_conflict`, task-card routing failures are recorded as `dispatchStatus=failed` instead of sent worker tasks, Owner System Console shows unresolved dispatch conflicts/failures as a read-only Autonomy signal with bounded counts/codes and no retry side effect, verification review exposes Owner-triggered `开始验证` with visible pending/failure feedback, implementation/repair returns that require production evidence expose Owner-triggered `部署读回` with visible pending/failure feedback and no local deploy side effect, failed verification returns expose Owner-triggered `发修复卡` with visible pending/failure feedback and no auto-dispatch, Owner review rows stay open when task-card transport fails or returns no concrete card id, completed verification returns create Owner-triggered `完成闭环` closure feedback instead of recursive verification requests, return metadata can trigger local AI Ops evidence-ledger verification while storing only pass/fail, record count, bounded issues, and hash-only artifact references, Owner closure creates a `查看报告` final-report row with AI Ops check/evidence summaries plus ledger verification summaries without dispatching another task card, and no task-card dispatch happens before Owner action. Legacy plugin audit projection tests remain summary-only when that diagnostic path is exercised: no full report bodies, raw diffs, executor logs, prompts, secrets, tokens, push endpoints, raw evidence ledger paths, raw artifact paths, or private filesystem paths in Inbox records. |
 | Embedded plugin host / Wardrobe, Codex, Finance, Email, Health, Note, Growth, and Moira plugin tabs | `node tests\hermes-plugin-authorization-service.test.js`, `node tests\hermes-plugin-service.test.js`, `node tests\hermes-plugin-notification-service.test.js`, `node tests\hermes-plugin-api-routes.test.js`, `node tests\codex-mobile-recovery-service.test.js`, `node tests\codex-mobile-recovery-api-routes.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\embedded-plugin-viewport-stability.test.js`, `node tests\embedded-plugin-refresh-harness.test.js`, `node tests\app-action-inbox-ui.test.js`, `node tests\app-wardrobe-ui.test.js`, `node tests\wardrobe-plugin-navigation-ui.test.js`, `node tests\wardrobe-plugin-provisioning-service.test.js`, `node tests\macos-wardrobe-binding-production-smoke-harness.test.js`, `node scripts\macos-wardrobe-binding-production-smoke.js` on Mac production after Wardrobe binding repairs, `node tests\email-plugin-provisioning-service.test.js` when Email behavior changes, `node tests\health-plugin-provisioning-service.test.js` when Health behavior changes, `node tests\note-plugin-provisioning-service.test.js` when Note behavior changes, `node tests\growth-plugin-provisioning-service.test.js` when Growth pluginization behavior changes, `node tests\moira-plugin-provisioning-service.test.js` when Moira provisioning behavior changes, `node tests\mcp-tool-upgrade-closure-harness.test.js` and `node scripts\mcp-tool-upgrade-closure-smoke.js` when plugin MCP tools change, `node tests\task-list-ui.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\gateway-run-start-service.test.js`, Android emulator PWA smoke from the home-screen Hermes icon for embedded-plugin changes. Codex Mobile host recovery must prove `401` and healthy listeners do not execute the restart script, while listener-missing or stopped-LaunchDaemon states can list homes, dry-run, and execute a selected profile through Owner-only routes. Moira development host insertion must additionally run `npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id moira --debug-url http://127.0.0.1:19073/ --app-url "http://<mac-lan-ip>:8899/?view=moira&pluginRoute=new_chart&pluginContextNavPluginId=moira" --expected-client-version 20260612-plugin-system-nav-v717` and record the artifact/evidence id in the Moira pointer doc. First-run plugin enablement must verify Owner and one non-Owner workspace cannot project `active` until workspace-local key/config, plugin-side bind/register, required Skill/MCP setup, and manifest/launch smoke pass. Plugin-manager projection must also prove Owner records can be persisted, Owner workspace-local key/config discovery is reflected as already enabled, and failed Owner provisioning remains a retryable diagnostic instead of reverting to a plain unopened button. |
 | Plugin-bound application topics | Current frontend projection: `node tests\task-list-ui.test.js`, `node tests\app-embedded-plugin-ui.test.js`, `node tests\app-plugin-topics-ui.test.js`, `node tests\static-cache-version-harness.test.js`, and `node tests\playwright-visual-smoke-harness.test.js`. Service/runtime phases: `node tests\plugin-topic-usage-service.test.js`, `node tests\plugin-topic-usage-api-routes.test.js`, `node tests\plugin-capability-probe-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\gateway-run-start-service.test.js`, `node tests\gateway-run-instruction-service.test.js`, `node tests\plugin-topic-binding-service.test.js`, `node tests\plugin-topic-delivery-directory-service.test.js`, `node tests\plugin-topic-context-service.test.js`, `node tests\plugin-topic-api-routes.test.js`, plus `node tests\gateway-run-toolset-routing-service.test.js`, `node tests\context-assembly-service.test.js`, `node tests\directory-browser-api-routes.test.js`, and `node tests\architecture-refactor-boundary.test.js` when implementation touches services/routes/runtime. Frontend harness must cover direct app launch from the global bottom Dock, the built-in Directory icon in that Dock, the Dock `常用` quick-action card, touch long-press/context quick-action menus including explicit `换位` drag-reorder mode, bounded move controls, and `pluginDrawerMenuGesture=touch-longpress`, global Dock handle mistouch/open/close gesture stability through `global-plugin-dock-gesture-stability`, native quick-action/menu/strip/action-route gesture proof through `plugin-drawer-action-gestures`, including Chat bottom-tab and top-level plugin App surfaces, usage-backed frequent quick actions with no trailing source badges, same-action repeated usage promotion such as `wardrobe:style` moving ahead by count/recency, immediate Dock/menu redraw after local usage writes, a six-entry quick-action cap in the `常用` menu, runtime measured bottom-stack placement for the collapsed and expanded Dock states, primary bottom nav, and plugin pages where primary bottom nav remains visible, and the absence of mid-page plugin desktop icons. Usage-backed quick actions plus manual Dock/drawer `pluginOrder` and pinned bottom-tab order must be server-persisted through `/api/plugin-topic-usage` per workspace; localStorage is only a first-paint/offline cache and client reset must preserve that cache. Cold-start tests must prove server preferences preserve known plugin ids such as `codex-mobile` while manifest availability is still loading, then restore pinned bottom tabs and drawer order as soon as the plugin becomes available without another server round trip. The standalone Capability page is retired: Dock `常用` carries quick actions, the root Topics page carries plugin conversation shortcuts, Directory-bound topic collections, and ordinary topic cards, and daily app launch stays in the global bottom Dock. The same harness must cover the Directory capability with no generic mini-button stack, bottom Dock icons without nested framed panels, six visible Dock entry slots before horizontal scrolling, host primary bottom navigation with Chat, Inbox, and Topics plus optional workspace-scoped pinned plugin tabs up to six total, default launch to Topics when no saved view exists, fixed `plugin:<pluginId>` topic ids, plugin-topic detail toolbars showing only the active directory chip with no plugin-topic dropdown, automatic `插件/<plugin title>` directory creation through the directory API, returning from that directory to the topic list, restoring topic-list scroll position after topic-detail back/right-swipe, preventing plugin topic detail loads from overwriting the task-list root cache, prioritizing plugin-context home before ordinary task-detail back for plugin topic details, clearing stale plugin view-mode classes before opening the topic detail so the message composer is visible, hiding the bottom navigation on ordinary plugin-topic secondary pages, preserving ordinary system bottom navigation on plugin app pages while retaining plugin-context state for back/route restoration, and making plugin-context right-swipe/browser-back exit through the dedicated topic-root renderer without calling `openTaskList()`, `restoreTaskListThreadFromCache()`, or `loadSingleWindow()`. |
 | Directory-bound topic collections | Planned: `node tests\directory-topic-binding-service.test.js`, `node tests\directory-topic-context-service.test.js`, `node tests\directory-topic-api-routes.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\context-assembly-service.test.js`, and `node tests\task-list-ui.test.js`; current frontend projection is also covered by `node tests\app-plugin-topics-ui.test.js`, `node tests\directory-plugin-navigation-ui.test.js`, `node tests\directory-run-scope-service.test.js`, `node tests\gateway-run-request-builder-service.test.js`, and `node tests\gateway-run-instruction-service.test.js`. Harness must cover multiple topics per directory, one default topic per directory, default-topic reassignment without deleting secondary topics, explicit open-directory/open-default-topic/open-topic-picker actions, workspace isolation, cleaned/selected/bounded directory context, target-workspace Gateway/MCP scope for directory-bound runs, and exclusion of fixed plugin topics from directory collections. Frontend harness must also prove the topic list can render its first frame before directory-topic aggregation runs, that directory collections are visually attached below the Capability Entry Hub quick-action area, that only the first three most recently updated directory collections default expanded while older collections default collapsed, that manual collapse/expand overrides persist in device-local storage, that the directory header keeps the folder icon on the left with bound topic chips below, that background aggregation/API refresh preserves the user's current topic-list scroll position, that deferred directory-topic rendering waits while scroll/swipe gestures are active, that built-in Directory plugin back returns from route-root to the Directory root listing before restoring the outer route, and that task-list vertical pan is not captured by sidebar right-swipe handling, because directory route extraction may scan many existing messages on large accounts. |
-| Directory/files/artifacts | `node tests\mobile-api-directory-composition.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-delete-ui.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js`, `node tests\artifact-text-registration-service.test.js`, `node tests\mobile-runtime-artifact-facade-service.test.js`, `node tests\document-preview-device-policy.test.js`, `node tests\macos-directory-path-migration-repair.test.js` and `node tests\macos-bound-directory-preview-smoke-harness.test.js` after Windows/WSL-to-Mac data migration; production chip closure uses `scripts\macos-bound-directory-preview-smoke.js --all-workspaces --simulate-ui-route --json`. PDF/Word/PowerPoint preview policy must prove native-shell document bridge requests are preferred when advertised, bridge failure falls back to the embedded Home AI viewer on phone widths, desktop non-coarse surfaces keep the same-window original/native path, and Markdown remains on the Markdown preview surface. |
+| Directory/files/artifacts | `node tests\mobile-api-directory-composition.test.js`, `node tests\directory-browser-api-routes.test.js`, `node tests\directory-mutation-api-routes.test.js`, `node tests\directory-delete-ui.test.js`, `node tests\directory-share-api-routes.test.js`, `node tests\file-artifact-api-routes.test.js`, `node tests\file-artifact-access-service.test.js`, `node tests\artifact-text-registration-service.test.js`, `node tests\plugin-delivery-markdown-media-preview.test.js`, `node tests\mobile-runtime-artifact-facade-service.test.js`, `node tests\document-preview-device-policy.test.js`, `node tests\macos-directory-path-migration-repair.test.js` and `node tests\macos-bound-directory-preview-smoke-harness.test.js` after Windows/WSL-to-Mac data migration; production chip closure uses `scripts\macos-bound-directory-preview-smoke.js --all-workspaces --simulate-ui-route --json`. PDF/Word/PowerPoint preview policy must prove native-shell document bridge requests are preferred when advertised, bridge failure falls back to the embedded Home AI viewer on phone widths, desktop non-coarse surfaces keep the same-window original/native path, plugin delivery Markdown receipts cover ASCII and non-ASCII filenames without sibling/path-traversal access, and Markdown remains on the Markdown preview surface. |
 | Skill permissions/details | `node tests\skill-detail-provider.test.js`, `node tests\skill-analysis-service.test.js`, `node tests\plugin-required-skill-preload-service.test.js`, `node tests\plugin-capability-activation-service.test.js`, `node tests\resource-api-routes.test.js`, `node tests\gateway-workspace-provisioning-service.test.js`, `node tests\startup-scripts.test.js`, `node tests\link-skill-profile-store.test.js`, `node tests\macos-production-profile-audit.test.js`, `node tests\task-list-ui.test.js` |
-| Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\cron-bridge.test.js`, `node tests\cron-dispatcher-proxy-harness.test.js`, `node tests\local-automation-bridge-service.test.js`, `node tests\mobile-runtime-environment-service.test.js`, `node tests\macos-production-deploy-script.test.js`, `node tests\startup-scripts.test.js`; recurring Todo/reminder rules must be Automation-backed and create Inbox occurrences rather than independent Inbox schedules; production/NAS smoke must verify that `/api/automations?detail=summary&refresh=1` reads the configured canonical scheduler and does not silently report an empty SQLite mirror when official CRON has jobs. Product Reality audit request-card implementation must include `node tests\codex-thread-task-card-service.test.js`, `node tests\plugin-workspace-audit-service.test.js`, and `node tests\automation-api-routes.test.js`; focused checks must prove dynamic discovery of the central audit thread, no fixed audit thread ids, controlled target selection, `home-ai` routing to `Home AI Platform Audit`, plugin targets routing one card to `Plugin Workspace Audit`, no Home AI fan-out to plugin implementation threads, no manual-route calls to `automationProvider.createJob`/`mutateJob`, and no CRON cache mutation for the request-card path. Legacy `plugin_workspace_audit` runner tests remain diagnostic coverage only and must not be used as the maintained Product Reality audit execution path. |
+| Automation/Cron | `node tests\automation-api-routes.test.js`, `node tests\automation-provider.test.js`, `node tests\automation-manual-trigger-ui.test.js`, `node tests\vite-automation-controller-model.test.js`, `node tests\vite-classic-automation-controller-adapter.test.js`, `node tests\vite-classic-automation-actions-adapter.test.js`, `node tests\cron-bridge.test.js`, `node tests\cron-dispatcher-proxy-harness.test.js`, `node tests\cron-dispatcher-manual-run-harness.test.js`, `node tests\local-automation-bridge-service.test.js`, `node tests\mobile-runtime-environment-service.test.js`, `node tests\macos-production-deploy-script.test.js`, `node tests\install-macos-production.test.js`, `node tests\macos-automation-cron-audit.test.js`, `node tests\plugin-daily-progress-rollup-service.test.js`, `node tests\plugin-daily-progress-rollup-api-routes.test.js`, `node tests\codex-mobile-pr-automation-scheduled-task-service.test.js`, `node tests\api-route-inventory.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\startup-scripts.test.js`; recurring Todo/reminder rules must be Automation-backed and create Inbox occurrences rather than independent Inbox schedules; production/NAS smoke must verify that `/api/automations?detail=summary&refresh=1` reads the configured canonical scheduler and does not silently report an empty SQLite mirror when official CRON has jobs. Product Reality audit request-card implementation must include `node tests\codex-thread-task-card-service.test.js`, `node tests\plugin-workspace-audit-service.test.js`, and `node tests\automation-api-routes.test.js`; focused checks must prove dynamic discovery of the central audit thread, no fixed audit thread ids, controlled target selection, `home-ai` routing to `Home AI Platform Audit`, plugin targets routing one card to `Plugin Workspace Audit`, no Home AI fan-out to plugin implementation threads, no manual-route calls to `automationProvider.createJob`/`mutateJob`, and no CRON cache mutation for the request-card path. Automation manual-trigger checks must prove rows/details expose `手动触发`, UI calls `POST /api/automations/:jobId/run`, lower-level API/provider routing uses `mutateJob({ action: "run" })`, pending/success/error states stay bounded, paused scheduled jobs are one-shot next-tick manual requests without schedule resume, and failures expose issue codes rather than raw logs or payloads. Plugin Daily Progress Rollup checks must prove daily/manual triggers share the platform service path, duplicate date/window triggers suppress equivalent cards, mixed returned/no_activity/missing/stale/unresolved outcomes still generate one Owner-visible report, and report privacy redaction excludes raw plugin bodies, logs, secrets, endpoint bodies, private screenshots, DB rows, provider payloads, full prompts, and long diffs. Codex Mobile PR automation checks must prove stale shared checkouts use `origin/main` or a clean source worktree instead of reporting `missing planner`, dirty shared checkout without clean source fails closed, deploy/install upsert preserves Owner-paused `codex_mobile_pr_automation_hourly` state, state is metadata-only and stable outside disposable worktrees, and the hourly job remains planner-only with no direct merge, deploy, public push, or PR close. Legacy `plugin_workspace_audit` runner tests remain diagnostic coverage only and must not be used as the maintained Product Reality audit execution path. |
 | Group chat | `node tests\single-window-group-chat-api-routes.test.js`, `node tests\group-chat-ui.test.js`, `node tests\group-chat-shared-attachment-service.test.js`, `node tests\web-push-delivery-service.test.js` |
 | Runtime SQLite/state | `node tests\mobile-sqlite-store.test.js`, `node tests\runtime-state-repository.test.js`, `node tests\runtime-state-store-service.test.js`, `node tests\runtime-state-persistence-service.test.js`, `node tests\runtime-state-normalization-service.test.js` |
 | Growth board/program/task | `node tests\growth-plugin-facade-service.test.js`, `node tests\growth-plugin-facade-api-routes.test.js`, `node tests\mobile-api-learning-composition.test.js`, `node tests\mobile-api-dispatcher.test.js`, `node tests\learning-program-api-routes.test.js`, `node tests\learning-program-service.test.js`, `node tests\learning-program-publish-service.test.js`, `node tests\learning-program-repository.test.js`, `node tests\learning-growth-jit-task-service.test.js`, `node tests\learning-growth-service.test.js`, `node tests\learning-growth-board-projection-service.test.js`, `node tests\learning-growth-teaching-card-services.test.js`, `node tests\learning-growth-card-api-routes.test.js` |

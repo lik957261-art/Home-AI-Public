@@ -68,6 +68,8 @@ function testPublicWorkspaceProjectionShape() {
       delivery_roots: ["E:\\Delivery"],
       allowed_toolsets: ["web", "file"],
       connector_profiles: { google: "child-profile" },
+      account_type: "media",
+      allowed_owner_special_plugins: ["music", "movie"],
       source_chat_id_alt: "acct-alt",
       source_user_id: "user-alt",
       source_chat_id: "chat-alt",
@@ -99,6 +101,9 @@ function testPublicWorkspaceProjectionShape() {
     accountId: "acct-alt",
     userId: "user-alt",
     chatId: "chat-alt",
+    accountType: "media",
+    restrictedMedia: true,
+    allowedOwnerSpecialPlugins: ["music", "movie"],
     target: "room-1",
     contextTokenAvailable: true,
     outboundStatus: "ready",
@@ -121,8 +126,11 @@ function testPublicWorkspaceProjectionShape() {
       allowedRoots: ["C:\\Work\\Child", "C:\\Blocked"],
       allowedToolsets: ["web", "file"],
       connectorProfiles: { google: "child-profile" },
+      accountType: "media",
+      allowedOwnerSpecialPlugins: ["music", "movie"],
     },
   });
+  assert.equal(Object.hasOwn(projected, "key"), false);
   assert.deepEqual(calls.accessKeyStatus, ["child"]);
   assert.deepEqual(calls.bindings, ["child"]);
 }
@@ -154,6 +162,9 @@ function testProjectionFallbacksMatchServerBehavior() {
     accountId: "acct",
     userId: "user",
     chatId: "chat",
+    accountType: "",
+    restrictedMedia: false,
+    allowedOwnerSpecialPlugins: [],
     target: "",
     contextTokenAvailable: undefined,
     outboundStatus: "",

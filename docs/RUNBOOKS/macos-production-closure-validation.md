@@ -42,7 +42,9 @@ It validates:
 - The configured Gateway runtime Python is executable and does not resolve into
   a developer account home such as `/Users/example/path` or `/Users/example/path`.
   Production workers must run from a production-owned runtime copy.
-- Mac worker filesystem ACL checks pass, including cross-workspace deny checks.
+- Mac worker filesystem ACL checks pass, including cross-workspace deny checks
+  and the workspace-catalog target ACL smoke for provisioned non-Owner
+  workspaces with existing `hm-*` users.
 - Workspace catalog paths resolve to the Mac live drive, and all active
   workspaces can create and preview the standard plugin delivery directories
   under `插件/<plugin title>`. Temporary `codex-disposable-*` workspaces may be
@@ -130,6 +132,10 @@ With `--json`, the top-level shape is bounded metadata:
   "acl": {
     "failedCount": 0
   },
+  "workspaceTargetAcl": {
+    "failedCount": 0,
+    "targetWorkspaceCount": 1
+  },
   "pluginDirectory": {
     "ok": true,
     "workspaceCount": 6
@@ -189,6 +195,12 @@ sudo /Users/example/path \
 sudo /Users/example/path \
   /Users/example/path \
   --root /Users/example/path \
+  --json
+
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
+  --workspace-catalog-targets \
   --json
 
 sudo /Users/example/path \

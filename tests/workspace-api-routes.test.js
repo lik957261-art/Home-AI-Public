@@ -179,6 +179,9 @@ async function testWorkspaceListShapeAndAuthMetadata() {
       role: "workspace",
       workspaceId: "child",
       workspaceIds: ["child"],
+      accountType: "",
+      restrictedMedia: false,
+      allowedOwnerSpecialPlugins: [],
       isOwner: false,
     },
   });
@@ -190,6 +193,31 @@ async function testWorkspaceListShapeAndAuthMetadata() {
     "request api/workspaces after loadCatalog",
     "request api/workspaces sent",
   ]);
+}
+
+async function testWorkspaceListIncludesRestrictedMediaAuthMetadata() {
+  const { routes } = makeRoutes();
+  const auth = {
+    ok: true,
+    role: "workspace",
+    workspaceId: "media",
+    accountType: "media",
+    restrictedMedia: true,
+    allowedOwnerSpecialPlugins: ["music", "movie"],
+    isOwner: false,
+  };
+  const listed = await request(routes, "GET", "/api/workspaces", auth);
+
+  assert.equal(listed.res.statusCode, 200);
+  assert.deepEqual(listed.body.auth, {
+    role: "workspace",
+    workspaceId: "media",
+    workspaceIds: ["media"],
+    accountType: "media",
+    restrictedMedia: true,
+    allowedOwnerSpecialPlugins: ["music", "movie"],
+    isOwner: false,
+  });
 }
 
 async function testWorkspaceListIncludesTongbaoWalletWhenServiceIsAvailable() {
@@ -484,6 +512,7 @@ function testDependencyValidation() {
 async function run() {
   await testMetadataAndFallthrough();
   await testWorkspaceListShapeAndAuthMetadata();
+  await testWorkspaceListIncludesRestrictedMediaAuthMetadata();
   await testWorkspaceListIncludesTongbaoWalletWhenServiceIsAvailable();
   await testDefaultsOwnerOnlyWithInjectedAuth();
   await testDefaultsParameterPassing();

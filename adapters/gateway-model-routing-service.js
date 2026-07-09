@@ -2,11 +2,16 @@
 
 const GROK_PROVIDER = "xai-oauth";
 const DEEPSEEK_PROVIDER = "deepseek";
+const MOA_PROVIDER = "moa";
+const OPENAI_CODEX_PROVIDER = "openai-codex";
 const DEFAULT_GROK_MODEL = "grok-4.3";
+const DEFAULT_MOA_MODEL = "default";
 const DEEPSEEK_WORKER_PROFILES = ["deepseekgw1", "deepseekgw2", "deepseekgw99", "deepseekgw5"];
 const DEEPSEEK_OWNER_MAINTENANCE_WORKER_PROFILES = ["deepseekmaint1"];
+const MOA_OWNER_MAINTENANCE_WORKER_PROFILES = ["officialclean1"];
 const SUPPORTED_GROK_MODELS = new Set(["grok-4.3"]);
 const SUPPORTED_DEEPSEEK_MODELS = new Set(["deepseek-chat", "deepseek-reasoner", "deepseek-v4-pro", "deepseek-v4-flash"]);
+const SUPPORTED_MOA_MODELS = new Set([DEFAULT_MOA_MODEL]);
 
 function cleanString(value) {
   return String(value || "").trim();
@@ -105,6 +110,31 @@ function resolveGatewayModelRoute(input = {}) {
     return errorRoute(400, "grok_provider_required", "Grok requests must route through the xai-oauth provider.");
   }
 
+  if (provider === MOA_PROVIDER) {
+    const moaModel = model || DEFAULT_MOA_MODEL;
+    if (!SUPPORTED_MOA_MODELS.has(moaModel)) {
+      return errorRoute(
+        400,
+        "unsupported_moa_model",
+        `MoA model ${moaModel} is not configured for Hermes Mobile. Refresh the app and choose @MOA.`,
+      );
+    }
+    return {
+      ok: true,
+      route: {
+        model: moaModel,
+        provider: MOA_PROVIDER,
+        gatewayRouting: {
+          provider: OPENAI_CODEX_PROVIDER,
+          securityLevel: "owner-maintenance",
+          maintenance: true,
+          allowMaintenance: true,
+          preferred_worker_profiles: MOA_OWNER_MAINTENANCE_WORKER_PROFILES,
+        },
+      },
+    };
+  }
+
   if (provider === DEEPSEEK_PROVIDER || modelLooksLikeDeepSeek(model)) {
     const deepseekModel = model || "deepseek-chat";
     if (!SUPPORTED_DEEPSEEK_MODELS.has(deepseekModel) && !/^deepseek-v\d+([-.].+)?$/i.test(deepseekModel)) {
@@ -144,9 +174,14 @@ module.exports = {
   DEEPSEEK_PROVIDER,
   DEEPSEEK_WORKER_PROFILES,
   DEFAULT_GROK_MODEL,
+  DEFAULT_MOA_MODEL,
   GROK_PROVIDER,
+  MOA_OWNER_MAINTENANCE_WORKER_PROFILES,
+  MOA_PROVIDER,
+  OPENAI_CODEX_PROVIDER,
   SUPPORTED_DEEPSEEK_MODELS,
   SUPPORTED_GROK_MODELS,
+  SUPPORTED_MOA_MODELS,
   modelLooksLikeDeepSeek,
   modelLooksLikeGrok,
   inputRequestsOwnerMaintenance,

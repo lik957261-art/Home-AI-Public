@@ -2,6 +2,7 @@
 
 const fs = require("node:fs");
 
+const { officialMoaConfig } = require("../adapters/runtime-config-moa-service");
 const {
   capabilityFingerprint,
   configPathForWorker,
@@ -123,6 +124,44 @@ function standardPluginNames(values = {}) {
 function appendYamlList(lines, items, indent = 2) {
   const prefix = " ".repeat(indent);
   for (const item of items.filter(Boolean)) lines.push(`${prefix}- ${item}`);
+}
+
+function appendYamlScalar(lines, key, value, indent = 2) {
+  const prefix = " ".repeat(indent);
+  lines.push(`${prefix}${key}: ${JSON.stringify(value)}`);
+}
+
+function appendMoaBlock(lines, values = {}) {
+  const raw = valueMapValue(values, "moa_config_json");
+  if (!raw) return;
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    throw new Error("invalid_moa_config_json");
+  }
+  const config = officialMoaConfig(parsed);
+  if (!config.enabled || !Object.keys(config.presets || {}).length) return;
+  lines.push("moa:");
+  appendYamlScalar(lines, "default_preset", config.default_preset, 2);
+  if (config.active_preset) appendYamlScalar(lines, "active_preset", config.active_preset, 2);
+  lines.push("  presets:");
+  for (const [name, preset] of Object.entries(config.presets)) {
+    lines.push(`    ${name}:`);
+    lines.push("      reference_models:");
+    for (const model of preset.reference_models || []) {
+      lines.push("        -");
+      appendYamlScalar(lines, "provider", model.provider, 10);
+      appendYamlScalar(lines, "model", model.model, 10);
+    }
+    lines.push("      aggregator:");
+    appendYamlScalar(lines, "provider", preset.aggregator.provider, 8);
+    appendYamlScalar(lines, "model", preset.aggregator.model, 8);
+    for (const [key, value] of Object.entries(preset)) {
+      if (["reference_models", "aggregator"].includes(key)) continue;
+      lines.push(`      ${key}: ${typeof value === "boolean" ? String(value) : value}`);
+    }
+  }
 }
 
 function appendPluginBlock(lines, pluginNames) {
@@ -442,6 +481,7 @@ function renderProfileConfigYaml(values = {}) {
     `  provider: ${isDeepSeek ? "deepseek" : "openai-codex"}`,
   ];
   if (!isDeepSeek) lines.push("  base_url: https://chatgpt.com/backend-api/codex");
+  appendMoaBlock(lines, values);
   const extras = standardExtraToolsets(values);
   if (boolValue(values.wardrobe_enabled)) extras.push("wardrobe");
   if (boolValue(values.finance_enabled)) extras.push("finance");
@@ -487,6 +527,7 @@ function renderMaintenanceConfigYaml(values = {}) {
     `  provider: ${isDeepSeek ? "deepseek" : "openai-codex"}`,
   ];
   if (!isDeepSeek) lines.push("  base_url: https://chatgpt.com/backend-api/codex");
+  appendMoaBlock(lines, values);
   const extras = standardExtraToolsets(values);
   if (boolValue(values.wardrobe_enabled)) extras.push("wardrobe");
   if (boolValue(values.finance_enabled)) extras.push("finance");

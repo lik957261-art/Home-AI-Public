@@ -9,7 +9,26 @@ function pushSupported() {
   );
 }
 
+function currentPwaPushCapabilities() {
+  const statusLoaded = Boolean(state.pushStatus);
+  return {
+    secureContext: Boolean(window.isSecureContext),
+    serviceWorker: "serviceWorker" in navigator,
+    pushManager: "PushManager" in window,
+    notification: "Notification" in window,
+    iosClient: isIosPushClient(),
+    standalone: isStandalonePwa(),
+    displayMode: currentDisplayMode(),
+    permission: "Notification" in window ? Notification.permission : "default",
+    serverEnabled: statusLoaded ? state.pushStatus?.enabled !== false : true,
+    publicKey: statusLoaded ? (state.pushStatus?.publicKey || "") : "classic_pending_public_key",
+    hasSubscription: Boolean(state.pushSubscription),
+  };
+}
+
 function pushUnavailableReason() {
+  const modelReason = currentPwaPushStatusModel()?.pushUnavailableReason?.(currentPwaPushCapabilities());
+  if (typeof modelReason === "string") return modelReason;
   if (!window.isSecureContext) return "当前链接不是 HTTPS 安全上下文，Web Push 不可用。";
   if (!("serviceWorker" in navigator)) return "当前浏览器不支持 Service Worker。";
   if (!("PushManager" in window)) return "当前浏览器或安装方式不支持 Web Push。iOS 需要从 Safari 添加到主屏幕后使用。";
@@ -155,6 +174,18 @@ async function syncPushSubscriptionContext() {
 function updatePushButton() {
   const button = $("pushToggle");
   if (!button) return;
+  const plan = currentPwaPushStatusModel()?.pushButtonPlan?.(currentPwaPushCapabilities());
+  if (plan) {
+    button.hidden = Boolean(plan.hidden);
+    button.disabled = Boolean(plan.disabled);
+    button.classList.remove("enabled", "warning");
+    button.textContent = plan.text || "";
+    button.title = plan.title || "";
+    button.setAttribute("aria-label", plan.ariaLabel || plan.title || "");
+    if (plan.tone === "enabled") button.classList.add("enabled");
+    if (plan.tone === "warning") button.classList.add("warning");
+    return;
+  }
   button.hidden = false;
   button.disabled = false;
   button.classList.remove("enabled", "warning");
@@ -244,7 +275,8 @@ async function testPushNotification() {
 
 function pushTestResultText(result) {
   const delivery = result?.result || {};
-  return `PWA 测试通知已交给系统：${delivery.sent || 0}/${delivery.attempted || 0}`;
+  return currentPwaPushStatusModel()?.pushDeliverySummary?.(delivery)?.text
+    || `PWA 测试通知已交给系统：${delivery.sent || 0}/${delivery.attempted || 0}`;
 }
 
 function shouldRunLocalPushProbe() {

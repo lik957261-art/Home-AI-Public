@@ -34,6 +34,7 @@ function createElement(tagName, attrs = {}) {
     parentElement: attrs.parentElement || null,
     children: [],
     blurCount: 0,
+    focusCount: 0,
     attrs: Object.assign({}, attrs.attrs || {}),
     matches(selector) {
       const tag = this.tagName.toLowerCase();
@@ -70,17 +71,23 @@ function createElement(tagName, attrs = {}) {
       this.blurCount += 1;
       this.ownerDocument.activeElement = this.ownerDocument.body;
     },
+    focus() {
+      this.focusCount += 1;
+      this.ownerDocument.activeElement = this;
+    },
   };
   return element;
 }
 
 function createHarness(options = {}) {
   const listeners = {};
+  let nowMs = Number.isFinite(options.nowMs) ? options.nowMs : 1000;
   const body = createElement("body");
   const composer = createElement("section");
   const input = createElement("textarea", { parentElement: composer });
+  const composerChrome = createElement("div", { parentElement: composer });
   const nonEditable = createElement("button");
-  composer.children.push(input);
+  composer.children.push(input, composerChrome);
   const documentRef = {
     body,
     activeElement: body,
@@ -92,10 +99,13 @@ function createHarness(options = {}) {
       listeners[type] = (listeners[type] || []).filter((item) => item.handler !== handler);
     },
   };
-  for (const element of [body, composer, input, nonEditable]) element.ownerDocument = documentRef;
+  for (const element of [body, composer, input, composerChrome, nonEditable]) element.ownerDocument = documentRef;
   const rootListeners = {};
   const root = {
     getComputedStyle: () => ({ display: "block", visibility: "visible", pointerEvents: "auto" }),
+    requestAnimationFrame(callback) {
+      callback();
+    },
     addEventListener(type, handler, opts) {
       rootListeners[type] = rootListeners[type] || [];
       rootListeners[type].push({ handler, opts });
@@ -113,6 +123,7 @@ function createHarness(options = {}) {
     body,
     composer,
     input,
+    composerChrome,
     nonEditable,
     options: {
       root,
@@ -120,6 +131,11 @@ function createHarness(options = {}) {
       isNativeShell: () => Boolean(options.nativeShell),
       getComposerInput: () => input,
       getComposerContainer: () => composer,
+      nowMs: () => nowMs,
+      nativeComposerPasteMenuPreserveMs: options.nativeComposerPasteMenuPreserveMs,
+    },
+    advance(ms) {
+      nowMs += ms;
     },
   };
 }
@@ -191,6 +207,21 @@ function createHarness(options = {}) {
     assert.deepEqual(harness.blurReasons, ["composer"]);
   });
 
+  await test("iOS native long-press target inside composer preserves visible composer focus", () => {
+    const harness = createHarness({ nativeShell: true });
+    harness.documentRef.activeElement = harness.input;
+    const guard = focusGuard.createEditableFocusLifecycleGuard(Object.assign({}, harness.options, {
+      onComposerBlur: () => harness.blurReasons.push("composer"),
+    }));
+    const status = guard.handleNonEditablePointer({ type: "touchstart", target: harness.composerChrome });
+
+    assert.equal(status.lastBlurred, false);
+    assert.equal(status.lastReason, "active_editable_visible");
+    assert.equal(status.lastForced, false);
+    assert.equal(harness.input.blurCount, 0);
+    assert.deepEqual(harness.blurReasons, []);
+  });
+
   await test("touch inside the active editable does not blur in native shell", () => {
     const harness = createHarness({ nativeShell: true });
     harness.documentRef.activeElement = harness.input;
@@ -200,6 +231,89 @@ function createHarness(options = {}) {
     assert.equal(status.lastBlurred, false);
     assert.equal(status.lastReason, "target_editable");
     assert.equal(harness.input.blurCount, 0);
+  });
+
+  await test("iOS native long-press paste menu continuation preserves focused composer briefly", () => {
+    const harness = createHarness({ nativeShell: true, nativeComposerPasteMenuPreserveMs: 1200 });
+    harness.documentRef.activeElement = harness.input;
+    const guard = focusGuard.createEditableFocusLifecycleGuard(Object.assign({}, harness.options, {
+      onComposerBlur: () => harness.blurReasons.push("composer"),
+    }));
+
+    let status = guard.handleNonEditablePointer({ type: "touchstart", target: harness.input });
+    assert.equal(status.lastBlurred, false);
+    assert.equal(status.lastReason, "target_editable");
+
+    harness.advance(600);
+    status = guard.handleNonEditablePointer({ type: "pointerdown", target: harness.body });
+    assert.equal(status.lastBlurred, false);
+    assert.equal(status.lastReason, "active_editable_visible");
+    assert.equal(harness.input.blurCount, 0);
+
+    harness.advance(1300);
+    status = guard.handleNonEditablePointer({ type: "pointerdown", target: harness.body });
+    assert.equal(status.lastBlurred, true);
+    assert.equal(status.lastForced, true);
+    assert.equal(harness.input.blurCount, 1);
+    assert.deepEqual(harness.blurReasons, ["composer"]);
+  });
+
+  await test("iOS native second long-press blur on focused composer is refocused inside paste window", () => {
+    const harness = createHarness({ nativeShell: true, nativeComposerPasteMenuPreserveMs: 1200 });
+    harness.documentRef.activeElement = harness.input;
+    const focusPreserveEvents = [];
+    const guard = focusGuard.createEditableFocusLifecycleGuard(Object.assign({}, harness.options, {
+      onComposerFocusPreserve: (reason) => focusPreserveEvents.push(reason),
+      scheduleNativeComposerRefocus: (callback) => callback(),
+    }));
+
+    let status = guard.handleNonEditablePointer({ type: "touchstart", target: harness.input });
+    assert.equal(status.lastBlurred, false);
+    assert.equal(status.lastReason, "target_editable");
+
+    harness.documentRef.activeElement = harness.body;
+    status = guard.handleComposerBlur({ type: "blur", target: harness.input });
+
+    assert.equal(status.lastReason, "native_composer_paste_blur_pending_refocus");
+    assert.equal(status.lastRefocused, false);
+    assert.equal(guard.status().lastReason, "native_composer_paste_window");
+    assert.equal(guard.status().lastRefocused, true);
+    assert.equal(harness.input.focusCount, 1);
+    assert.equal(harness.documentRef.activeElement, harness.input);
+    assert.deepEqual(focusPreserveEvents, ["native_composer_paste_blur"]);
+  });
+
+  await test("iOS native paste blur does not refocus hidden or stale composer input", () => {
+    const harness = createHarness({ nativeShell: true, nativeComposerPasteMenuPreserveMs: 1200 });
+    harness.documentRef.activeElement = harness.input;
+    const guard = focusGuard.createEditableFocusLifecycleGuard(Object.assign({}, harness.options, {
+      scheduleNativeComposerRefocus: (callback) => callback(),
+    }));
+
+    guard.handleNonEditablePointer({ type: "touchstart", target: harness.input });
+    harness.composer.hidden = true;
+    harness.documentRef.activeElement = harness.body;
+    const status = guard.handleComposerBlur({ type: "blur", target: harness.input });
+
+    assert.equal(status.lastReason, "composer_blur_unpreserved");
+    assert.equal(status.lastRefocused, false);
+    assert.equal(harness.input.focusCount, 0);
+    assert.equal(harness.documentRef.activeElement, harness.body);
+  });
+
+  await test("iOS native long-press continuation does not preserve stale composer focus", () => {
+    const harness = createHarness({ nativeShell: true, nativeComposerPasteMenuPreserveMs: 1200 });
+    harness.documentRef.activeElement = harness.input;
+    const guard = focusGuard.createEditableFocusLifecycleGuard(harness.options);
+
+    guard.handleNonEditablePointer({ type: "touchstart", target: harness.composerChrome });
+    harness.composer.hidden = true;
+    harness.advance(600);
+    const status = guard.handleNonEditablePointer({ type: "pointerdown", target: harness.body });
+
+    assert.equal(status.lastBlurred, true);
+    assert.equal(status.lastReason, "composer_unavailable");
+    assert.equal(harness.input.blurCount, 1);
   });
 
   await test("install and dispose own lifecycle listeners", () => {
@@ -213,6 +327,7 @@ function createHarness(options = {}) {
     assert.equal(harness.listeners.visibilitychange.length, 1);
     assert.equal(harness.listeners.pointerdown.length, 1);
     assert.equal(harness.listeners.touchstart.length, 1);
+    assert.equal(harness.listeners.blur.length, 1);
     assert.equal(harness.rootListeners.pageshow.length, 1);
     assert.equal(harness.rootListeners.pagehide.length, 1);
     assert.equal(statusEvents.at(-1).installed, true);
@@ -221,6 +336,7 @@ function createHarness(options = {}) {
     assert.equal(harness.listeners.visibilitychange.length, 0);
     assert.equal(harness.listeners.pointerdown.length, 0);
     assert.equal(harness.listeners.touchstart.length, 0);
+    assert.equal(harness.listeners.blur.length, 0);
     assert.equal(harness.rootListeners.pageshow.length, 0);
     assert.equal(harness.rootListeners.pagehide.length, 0);
     assert.equal(statusEvents.at(-1).installed, false);

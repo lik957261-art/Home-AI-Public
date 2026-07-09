@@ -27,6 +27,69 @@ Applies to:
 - Playwright/mobile viewport evidence;
 - installed-PWA or real-device evidence when shell behavior matters.
 
+## Pre-Deploy UI Evidence Gate
+
+Any change that affects a user-visible interface must complete a local test and
+visual verification packet before it can be deployed. This is a hard deploy
+precondition, not advisory guidance.
+
+UI-affecting changes include:
+
+- Home AI host static UI under `public/`, including CSS, HTML, bottom
+  navigation, Composer, Owner Console, Workspace Console, Task/List UI, static
+  cache markers, and service-worker client identity;
+- Vite/native shell UI under `src/vite-*`, `src/vite-islands/`,
+  `frontend/`, and generated Vite UI artifacts;
+- embedded plugin UI under plugin `public/`, `frontend/`, `web`, `dist/web`,
+  manifest visual entries, iframe shell/navigation, plugin Dock, bottom layout,
+  sheets, dialogs, and visible action surfaces;
+- CSS, HTML, template, JSX/TSX, copy, layout, or visible data-shape changes
+  that alter what the Owner or user sees.
+
+Pure docs-only changes do not require this gate. Backend-only service or route
+changes require the gate only when they change visible UI state, labels,
+navigation, status projection, or frontend-rendered data shape; such changes
+must be marked as visible UI impact by the source or deploy card.
+
+The required evidence packet is bounded metadata only:
+
+```json
+{
+  "uiSurfaces": ["home-ai-bottom-navigation"],
+  "localTests": [
+    { "command": "node tests/mobile-bottom-nav-capacity-ui.test.js", "status": "passed" }
+  ],
+  "visualVerifications": [
+    {
+      "method": "playwright-dom-geometry",
+      "status": "passed",
+      "viewport": "390x844",
+      "assertions": ["no-overlap", "no-clipping", "no-overflow", "safe-area"]
+    }
+  ]
+}
+```
+
+The packet must name changed UI surfaces, passed local focused tests, visual
+verification method and result, viewport/device coverage appropriate to the
+surface, and layout assertions such as no overlap, clipping, wrapping,
+overflow, or safe-area regression where relevant. Do not include raw
+screenshots, image bytes, cookies, access keys, launch tokens, endpoint bodies,
+private thread bodies, raw logs, database rows, provider payloads, or long
+diffs.
+
+Executable guard:
+
+```bash
+node scripts/ui-visual-local-validation-check.js \
+  --changed-file public/app-workspace-console-ui.js \
+  --evidence-file ui-visual-evidence.json \
+  --json
+```
+
+Deployment lanes must reject UI-affecting deploy requests without a passing
+packet. The bounded failure code is `ui_visual_local_validation_required`.
+
 Primary supporting docs:
 
 - `docs/IMPLEMENTATION_NOTES/embedded-plugin-ui-contract.md`
@@ -461,6 +524,80 @@ Use the highest applicable evidence level:
 Browser-mode Safari or Chrome evidence must be labeled browser-mode. It cannot
 replace installed-PWA evidence when the issue depends on standalone shell
 semantics.
+
+## Central Visual Ownership And Signoff
+
+Home AI owns the shared visual QA entrypoints, target/device/browser
+configuration, lane allocation, Appium startup, live-debug server, and checked
+visual Harness commands used for Home AI-hosted plugins. Plugin-owned visual
+or mobile verification must use those central entrypoints for final signoff.
+Plugins must not create separate Playwright installations, private key-path
+conventions, viewport defaults, coordinate scripts, Appium launch recipes, or
+browser-control wrappers as acceptance criteria for Home AI embedded-plugin
+work.
+
+The plugin-facing command is the Home AI central visual broker:
+
+```bash
+cd <Home-AI>
+npm run visual:central -- --surface embedded-plugin --plugin-id <plugin-id> --scenario embedded-plugin-shell --json
+npm run visual:central -- --surface embedded-plugin --plugin-id <plugin-id> --scenario embedded-plugin-shell --ios --execute --json
+npm run visual:central -- --plugin-id <plugin-id> --scenario embedded-plugin-shell --delegate-local --json
+npm run visual:central -- --plugin-id <plugin-id> --scenario embedded-plugin-shell --verify-evidence <json-file> --json
+```
+
+`scripts/central-visual-harness-broker.js` plans or executes the selected
+central Harness. It maps high-level requests to
+`scripts/playwright-visual-smoke.js`,
+`scripts/authenticated-navigation-flow-smoke.js`, or
+`scripts/ios-pwa-visual-harness.js`, checks central dependency availability,
+and returns `blocked_central_visual_harness_unavailable` when the shared
+tooling or required lane is unavailable instead of falling back to plugin-local
+setup.
+
+Plugin-local source tests, DOM/unit checks, static screenshots, and local
+browser-mode Playwright runs may be used as diagnostics or early layout
+iteration. They become central-compatible evidence only when the plugin exposes
+`visual:central-compatible` or `visual:plugin`, the Home AI broker discovers or
+is given the plugin root, the broker injects normalized `--scenario`,
+`--plugin-id`, `--base-url`, `--workspace-id`, `--viewport`, and optional
+access-key-path arguments, and the resulting bounded JSON validates. Required
+fields are `ok`, `status`, `schemaVersion`, `pluginId`, `scenario`, `surface`,
+`harnessKind`, `mode`, `viewport`, an origin label such as `baseUrlOrigin`, and
+bounded `assertions` or `checks`. Missing scripts are
+`plugin_visual_harness_missing`; malformed, non-JSON, or privacy-unsafe
+evidence is `plugin_visual_evidence_invalid`.
+
+Central-compatible plugin-local evidence is still supplemental for
+cross-boundary acceptance. Host/plugin iframe boot, installed PWA or native
+shell behavior, auth/cookie/workspace/session/launch-token flows, native
+keyboard/Composer/image/file picker flows, and repeated
+disappearing/duplicated/reordered visible-row defects require Home AI central
+Harness signoff or a delegated Home AI visual/readback task for the required
+entry path.
+
+If a plugin needs visual verification but the central visual interface,
+required lane, or configured device/browser target is unavailable, the correct
+terminal state is `blocked_central_visual_harness_unavailable`, or a delegated
+Home AI visual/readback card that names the missing central capability. A
+plugin-local pass must not close the visual requirement unless the broker has
+validated it and the scenario does not require central signoff.
+
+Task cards and return cards for plugin visual work must name the central
+command or delegated lane used for signoff, the effective entry path
+(`embedded iframe`, `installed PWA`, `native shell`, or `production origin`),
+and the bounded evidence fields collected. Evidence may include screenshot
+paths, viewport metrics, element bounds, visible row counts, client version or
+build id, scenario ids, lane/debug URL, and pass/fail assertions. It must not
+include raw keys, cookies, launch tokens, raw messages, private screenshots,
+endpoint bodies, database rows, private plugin payloads, or long logs.
+
+The systemic failure this rule prevents is skipped visual evidence caused by
+unclear central routing. Central contracts already required visual evidence,
+but they did not always say which Home AI command, lane, or delegated thread
+owned it. Plugin workspaces may then mistake missing local Playwright/Appium
+setup for permission to skip the Harness. Missing central Harness access is a
+blocker to surface, not a local tooling problem to hide.
 
 For Mac-hosted Home AI work, plugin teams should use the Home AI live debug
 server for interactive iOS PWA debugging before falling back to one-off

@@ -1,11 +1,50 @@
 "use strict";
 
+const APP_SHELL_MODEL_ESM_PATH = "/vite-islands/app-shell-model/app-shell-model.js";
+
+let appShellModelPromise = null;
+let appShellModelModule = null;
+
+function importAppShellModel() {
+  if (appShellModelModule) return Promise.resolve(appShellModelModule);
+  if (!appShellModelPromise) {
+    const importer = window.__homeAiImportAppShellModel || ((specifier) => import(specifier));
+    appShellModelPromise = Promise.resolve()
+      .then(() => importer(APP_SHELL_MODEL_ESM_PATH))
+      .then((module) => {
+        appShellModelModule = module;
+        return module;
+      })
+      .catch((error) => {
+        appShellModelPromise = null;
+        throw error;
+      });
+  }
+  return appShellModelPromise;
+}
+
+function currentAppShellModel() {
+  return appShellModelModule || null;
+}
+
+void importAppShellModel().catch(() => {});
+
 function isSingleWindowConversationTaskGroupId(value) {
+  const model = currentAppShellModel();
+  if (model?.isSingleWindowConversationTaskGroupIdPlan) {
+    return model.isSingleWindowConversationTaskGroupIdPlan({
+      value,
+      singleWindowChatTaskGroupId: SINGLE_WINDOW_CHAT_TASK_GROUP_ID,
+      singleWindowGroupChatTaskGroupId: SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID,
+    });
+  }
   const id = String(value || "");
   return id === SINGLE_WINDOW_CHAT_TASK_GROUP_ID || id === SINGLE_WINDOW_GROUP_CHAT_TASK_GROUP_ID;
 }
 
 function clamp01(value) {
+  const model = currentAppShellModel();
+  if (model?.clamp01Plan) return model.clamp01Plan(value);
   return Math.max(0, Math.min(1, Number(value) || 0));
 }
 
@@ -30,6 +69,8 @@ function formatTime(value) {
 }
 
 function splitConfigList(value) {
+  const model = currentAppShellModel();
+  if (model?.splitConfigListPlan) return model.splitConfigListPlan(value);
   const raw = Array.isArray(value)
     ? value
     : String(value || "").split(/[\n,，;；]+/g);
@@ -37,6 +78,8 @@ function splitConfigList(value) {
 }
 
 function joinConfigList(value) {
+  const model = currentAppShellModel();
+  if (model?.joinConfigListPlan) return model.joinConfigListPlan(value);
   return splitConfigList(value).join("\n");
 }
 
@@ -57,6 +100,8 @@ function setWorkspaceAutoValue(input, value) {
 }
 
 function workspaceDefaultUsername(value) {
+  const model = currentAppShellModel();
+  if (model?.workspaceDefaultUsernamePlan) return model.workspaceDefaultUsernamePlan(value);
   return String(value || "").trim();
 }
 
@@ -64,26 +109,45 @@ let workspaceDefaultRequestSeq = 0;
 
 async function refreshWorkspaceCreateDefaults(root = document) {
   const inputs = workspaceCreateInputs(root);
-  const username = workspaceDefaultUsername(inputs.id?.value || "");
-  if (!username) {
+  const model = currentAppShellModel();
+  const requestPlan = model?.workspaceDefaultsRequestPlan
+    ? model.workspaceDefaultsRequestPlan({
+      workspaceId: inputs.id?.value || "",
+      labelValue: inputs.label?.value || "",
+      labelManual: inputs.label?.dataset.manual === "1",
+    })
+    : null;
+  const username = requestPlan?.username || workspaceDefaultUsername(inputs.id?.value || "");
+  if (requestPlan?.shouldClear || !username) {
     Object.values(inputs).forEach((input) => {
       if (input && input !== inputs.id && input.dataset.manual !== "1") input.value = "";
     });
     return;
   }
   const seq = ++workspaceDefaultRequestSeq;
-  const params = new URLSearchParams({ username });
-  const labelValue = inputs.label?.dataset.manual === "1" ? inputs.label.value.trim() : "";
-  if (labelValue) params.set("label", labelValue);
+  const params = new URLSearchParams(requestPlan?.params || { username });
+  if (!requestPlan) {
+    const labelValue = inputs.label?.dataset.manual === "1" ? inputs.label.value.trim() : "";
+    if (labelValue) params.set("label", labelValue);
+  }
   const result = await api(`/api/workspaces/defaults?${params}`);
   if (seq !== workspaceDefaultRequestSeq) return;
   const defaults = result.defaults || {};
-  setWorkspaceAutoValue(inputs.label, defaults.label || username);
-  setWorkspaceAutoValue(inputs.root, defaults.defaultWorkspace || "");
-  setWorkspaceAutoValue(inputs.allowedRoots, joinConfigList(defaults.allowedRoots || defaults.defaultWorkspace || ""));
-  setWorkspaceAutoValue(inputs.toolsets, splitConfigList(defaults.allowedToolsets || []).join(", "));
+  const patch = model?.workspaceDefaultsPatchPlan
+    ? model.workspaceDefaultsPatchPlan({ defaults, username })
+    : {
+      label: defaults.label || username,
+      root: defaults.defaultWorkspace || "",
+      allowedRoots: joinConfigList(defaults.allowedRoots || defaults.defaultWorkspace || ""),
+      toolsets: splitConfigList(defaults.allowedToolsets || []).join(", "),
+      hintText: defaults.workspaceId ? `ID: ${defaults.workspaceId}` : "",
+    };
+  setWorkspaceAutoValue(inputs.label, patch.label);
+  setWorkspaceAutoValue(inputs.root, patch.root);
+  setWorkspaceAutoValue(inputs.allowedRoots, patch.allowedRoots);
+  setWorkspaceAutoValue(inputs.toolsets, patch.toolsets);
   const hint = root.querySelector?.("#newWorkspaceDefaultsHint");
-  if (hint) hint.textContent = defaults.workspaceId ? `ID: ${defaults.workspaceId}` : "";
+  if (hint) hint.textContent = patch.hintText || "";
 }
 
 function wireWorkspaceCreateDefaults(root = document) {
@@ -106,6 +170,8 @@ function wireWorkspaceCreateDefaults(root = document) {
 }
 
 function formatElapsedDuration(startValue, endValue) {
+  const model = currentAppShellModel();
+  if (model?.formatElapsedDurationPlan) return model.formatElapsedDurationPlan(startValue, endValue);
   const start = new Date(startValue || "").getTime();
   const end = new Date(endValue || "").getTime();
   if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return "";
@@ -119,6 +185,8 @@ function formatElapsedDuration(startValue, endValue) {
 }
 
 function messageDisplayTimestamp(message) {
+  const model = currentAppShellModel();
+  if (model?.messageDisplayTimestampPlan) return model.messageDisplayTimestampPlan(message);
   if (!message) return "";
   if (message.role === "user") return message.submittedAt || message.createdAt || message.updatedAt || "";
   if (message.completedAt) return message.completedAt;
@@ -128,6 +196,8 @@ function messageDisplayTimestamp(message) {
 }
 
 function messageDisplayTimeLabel(message) {
+  const model = currentAppShellModel();
+  if (model?.messageDisplayTimeLabelPlan) return model.messageDisplayTimeLabelPlan(message);
   const timestamp = messageDisplayTimestamp(message);
   if (timestamp) {
     const label = formatTime(timestamp);
@@ -142,6 +212,8 @@ function messageDisplayTimeLabel(message) {
 }
 
 function messageTimelineTimestamp(message) {
+  const model = currentAppShellModel();
+  if (model?.messageTimelineTimestampPlan) return model.messageTimelineTimestampPlan(message);
   return messageDisplayTimestamp(message) || message?.submittedAt || message?.updatedAt || message?.createdAt || "";
 }
 

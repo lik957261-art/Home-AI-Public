@@ -208,7 +208,7 @@ function renderShell(root, voice = runtimeVoice()) {
           <div>
             <p class="vis-eyebrow">Vite island 开发预览</p>
             <h1 class="vis-title">语音输入状态</h1>
-            <p class="vis-subtitle">预览长按录音的状态面板、取消入口和 pending 超时规则。当前页面不调用麦克风，不替换 classic shell。</p>
+            <p class="vis-subtitle">预览长按录音的状态面板、取消入口和 pending 超时规则。当前页面不调用麦克风，不替换生产根 shell。</p>
           </div>
           <div class="vis-badges">
             <span class="vis-badge">${escapeHtml(runtime.mode || "vite-preview")}</span>

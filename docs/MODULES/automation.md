@@ -30,6 +30,23 @@ Automation owns scheduled jobs, detail loading, Web Push/deep-link production, a
 - Foreground Automation list should preserve the full-detail display format.
 - Product direction: Automation should not remain a permanent primary bottom tab after Action Inbox is active.
 - The mobile entry for Automation management after Action Inbox activation is the Inbox top-right overflow menu, which can open the Automation list or create a new automation.
+- Automation job rows and detail views expose a user-facing manual trigger action
+  for jobs with an id. The action calls the Home AI Automation API
+  `POST /api/automations/:jobId/run`, which delegates to
+  `automationProvider.mutateJob({ action: "run" })` and the configured
+  canonical scheduler bridge. It must not call shell scripts, override-state
+  scripts, or local store writes directly from the UI.
+- Manual trigger UI status is bounded to pending/running/success/error labels.
+  Error surfaces should show a short issue code or sanitized message only; raw
+  logs, endpoint bodies, private payloads, secret paths, keys, and scheduler
+  output must not be rendered.
+- Manual trigger for a paused scheduled job is a one-shot next-tick request, not
+  a schedule resume. The canonical bridge records
+  `manual_run_requested_at` while preserving `enabled=false`, `state=paused`,
+  `paused_at`, `paused_reason`, and no `next_run_at`; the product dispatcher may
+  run that single request with an in-memory enabled job copy, then clears the
+  manual request and leaves the durable schedule paused. Resume remains an
+  explicit `resume` action.
 - The explicit natural-language Automation creation panel must show in-panel
   model/save progress while it is interpreting and creating the job. This
   feedback belongs to the explicit create surface and must not reintroduce a
@@ -177,6 +194,25 @@ deployment default. On the maintained NAS deployment the default is
 `http://127.0.0.1:7890`, and the dispatcher checks the endpoint before calling
 official `run_job()`.
 
+For profile-bound agent jobs, the dispatcher also materializes the profile
+model defaults in memory before proxy checks, data-context preparation, and
+official `run_job()`. If a job has `profile` but no explicit `model`, the
+wrapper reads `$HERMES_HOME/profiles/<profile>/config.yaml` and injects
+`model.default`; it also carries provider/base URL fields when present and not
+overridden by the job. This compatibility step preserves older profile-bound
+jobs without mutating the canonical `cron/jobs.json`. Missing or unreadable
+profile config leaves the job unchanged so official CRON still produces its
+bounded model-configuration diagnostic.
+
+The dispatcher keeps canonical CRON bookkeeping in the global Hermes home, but
+profile-bound agent execution must run official scheduler/auth calls under the
+selected profile home. The wrapper scopes `HERMES_HOME` to
+`$HERMES_HOME/profiles/<profile>` around `cron.scheduler.run_job()` and
+delivery, then restores the global home before saving output or marking job
+status. This lets official Codex auth resolution see profile-local or
+profile-symlinked `auth.json` without copying credentials into the global
+Hermes home. `no_agent` jobs remain exempt.
+
 Mailbox analysis jobs must fetch mailbox content through the Email application
 MCP/tool surface exposed to the CRON agent. The network-mode preflight controls
 only model-provider egress; it must not become a replacement path that reads
@@ -274,6 +310,72 @@ findings, mutate workspaces, restart services, deploy, or send implementation
 repair cards from CRON-local analysis. If `Home AI Platform Audit` or
 `Plugin Workspace Audit` is unavailable, ambiguous, archived, deleted, or not
 discoverable, the job must fail visibly with a bounded task-card/thread error.
+
+Plugin Daily Progress Rollup is a separate Home AI platform governance job,
+not a plugin-local daemon. The macOS production deploy installs
+`plugin-daily-progress-rollup-cron.sh` into the CRON script store and upserts
+the canonical no-agent CRON job `plugin_daily_progress_rollup` on the daily
+schedule `30 23 * * *` (Asia/Shanghai operating window). The wrapper calls
+`scripts/plugin-daily-progress-rollup.js --trigger --trigger-source scheduled`
+and stores metadata-only state under the runtime data tree unless an explicit
+`HOMEAI_PLUGIN_DAILY_ROLLUP_STATE_FILE` is configured.
+
+The rollup workflow is Home AI-owned: it selects governed plugin workspaces
+from the maintained plugin target registry/contracts, dispatches one bounded
+Chinese analysis-summary card per resolvable plugin target, ingests bounded
+Chinese terminal returns through the Owner rollup route, marks
+unresolved/missing/stale plugin reports without blocking forever, and generates
+one Owner-visible Chinese analysis report only after collection is complete or
+explicitly finalized. Per-plugin task cards are collection mechanism only; the
+report is the primary deliverable. A manual or scheduled trigger must not show
+Owner a collection-status pseudo-report or a premature conclusion while plugin
+returns are still pending; the run may expose bounded counts/status metadata,
+but `report` remains absent until all plugin cards have returned or Owner/system
+finalize marks remaining plugins missing or stale. These per-plugin daily
+analysis cards must explicitly request `reasoningEffort: "xhigh"` because they
+perform cross-workspace synthesis, risk judgment, and Owner decision support.
+Duplicate triggers for the same date/window reuse existing card ids in the
+rollup state and suppress equivalent redispatches. Manual trigger uses the same
+service path through
+`POST /api/owner/plugin-daily-progress-rollup/trigger`; readback is available
+at `GET /api/owner/plugin-daily-progress-rollup/status`. Reports and state
+must not include raw plugin thread bodies, raw logs, secrets, endpoint bodies,
+screenshots, DB rows, provider payloads, full prompts, or long diffs. Same-day
+idempotency only reuses active dispatched cards or already returned reports.
+Stale `task_card_not_pending:*` dispatch attempts and archived-thread failures
+are retryable with a new bounded dispatch attempt unless the plugin already has
+a completed daily report; archived targets must resolve through a current
+dispatchable title/prefix or be reported as `target_unresolved`.
+
+Codex Mobile PR Automation is an Owner hourly no-agent CRON job,
+`codex_mobile_pr_automation_hourly`, scheduled as `0 * * * *`. The macOS
+production deploy installs `codex-mobile-pr-automation-cron.sh` into the CRON
+script store and upserts the canonical job. Deploy/install upsert must preserve
+an existing Owner pause for this job: `enabled=false`, `state=paused`,
+`paused_at`, `paused_reason`, and `next_run_at=null` are retained instead of
+being reset to scheduled. New installs still create the job enabled and
+scheduled by default. The wrapper runs
+`scripts/codex-mobile-pr-automation-scheduled-task.js`, which resolves the
+Codex Mobile planner from `CODEX_MOBILE_PR_AUTOMATION_SOURCE_REF` (default
+`origin/main`) using a clean detached source worktree under
+`HOMEAI_CODEX_MOBILE_PR_AUTOMATION_SOURCE_ROOT` when the shared checkout is
+stale or dirty. It must not update, reset, or overwrite the shared Codex Mobile
+checkout. If neither the shared checkout nor the resolved source ref contains
+`scripts/codex-mobile-pr-automation.js`, the job fails closed with
+`planner_source_missing`; if the shared checkout lacks the planner but
+`origin/main` has it, readback records `planner_checkout_stale` while running
+from the clean source. Planner state is metadata-only and defaults to
+`data/hermes-home/codex-mobile-pr-automation/state.json`, overridable by
+`HOMEAI_CODEX_MOBILE_PR_AUTOMATION_STATE_FILE` or
+`CODEX_MOBILE_PR_AUTOMATION_STATE`.
+
+The Codex Mobile PR automation job is a planner/readback path only. It scans
+bounded PR metadata, writes bounded state, and returns next-action/task-card
+request metadata. It must not directly merge private PRs, deploy, push public
+code, close public PRs, mutate the Codex Mobile shared checkout, or read raw
+GitHub tokens. Missing GitHub credentials, dirty shared checkout without a clean
+source path, release holds, missing deploy gates, and missing public-ready gates
+remain fail-closed bounded issue codes.
 
 On macOS production, the `com.hermesmobile.cron` LaunchDaemon runs as the
 service user `hermes-host`. The central deploy script must therefore install
@@ -389,6 +491,10 @@ Automation implementation must preserve these layers:
    - Fails closed when the configured canonical backend is unavailable. A create
      or mutation request must return an error instead of creating a local
      fallback job.
+   - Manual trigger requests are ordinary `run` mutations. A successful request
+     schedules the job through the maintained backend path, usually by requesting
+     the canonical scheduler to run the job on the next tick. UI callers should
+     clear Automation list caches after successful non-dry-run mutations.
 
 2. **Automation provider**
    - Remains the single Node-side bridge boundary. It should call one configured
@@ -445,6 +551,7 @@ Required implementation updates after this contract:
 ## Validation
 
 - `node tests\automation-api-routes.test.js`
+- `node tests\automation-manual-trigger-ui.test.js`
 - `node tests\cron-bridge.test.js`
 - `node tests\cron-dispatcher-proxy-harness.test.js`
 - `node tests\mobile-runtime-environment-service.test.js`

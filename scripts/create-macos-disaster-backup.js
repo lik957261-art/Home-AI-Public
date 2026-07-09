@@ -266,7 +266,8 @@ function isSqliteManagedFileName(name) {
 }
 
 function isTransientProductionDataBackupStep(step, name) {
-  return step.startsWith("production-data-file:") && /\.bak$/i.test(name);
+  return step.startsWith("production-data-file:")
+    && (/\.bak$/i.test(name) || /\.backup-[A-Za-z0-9_.-]+$/i.test(name));
 }
 
 function copyProductionDataFile(step, source, targetDir, options) {

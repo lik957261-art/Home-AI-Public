@@ -44,10 +44,12 @@ repair, validation, deployment, and return-card closure.
      bounded service error summaries.
    - Home AI Self-Improving Loop may submit metadata-only self-check events
      derived from the maintained signal matrix. These events are normal AI Ops
-     diagnostic inputs. Eligible self-check/log-collection cases may bypass
-     Owner approval and dispatch a task card automatically after the
-     remediation plan is rebuilt and all privacy, target, severity, confidence,
-     and high-risk gates pass.
+     diagnostic inputs. Eligible self-check/log-collection cases use the
+     dedicated `auto_self_check` policy. Other eligible low-risk runtime
+     diagnostics may use `auto_diagnostic`. Both automatic paths may bypass
+     Owner approval and dispatch a task card only after the remediation plan is
+     rebuilt and all privacy, target, severity, confidence, and high-risk gates
+     pass.
 2. `case_deduplication`
    - AI Ops rolls matching events into a diagnostic case by workspace, plugin,
      route, diagnostic type, category, build id, and hashed thread context.
@@ -58,19 +60,33 @@ repair, validation, deployment, and return-card closure.
    - AI Ops builds a deterministic plan that names owning layer, target
      workspace/thread, evidence packet, blocked reasons, and task-card payload.
 5. `task_card_dispatch`
-   - Current policy is split by source. Strict Home AI self-check diagnostics
-     may directly send a Codex Mobile task card after eligibility checks pass.
-     User demand, feature/capability-gap, plugin conversation repair requests,
-     embedded plugin automatic reports, and other product/request-like cases
-     remain Owner-gated: the system may create an Owner-only notification for
-     an eligible plan, but it must not send the task card until Owner
-     explicitly triggers dispatch.
+   - Current policy is split by risk and request type. Strict Home AI
+     self-check diagnostics may directly send a Codex Mobile task card through
+     `auto_self_check`; other eligible low-risk runtime diagnostics may do the
+     same through `auto_diagnostic`.
+   - User demand, feature/capability-gap, product request, plugin conversation
+     repair request, deployment/cutover/release, approval request, physical
+     device/destructive action, secret, payment, unknown-target,
+     privacy-unsafe, and low-confidence cases remain Owner-gated or blocked:
+     the system may create an Owner-only notification for an eligible plan, but
+     it must not send the task card until Owner explicitly triggers dispatch.
    - The Owner dispatch UI must immediately show a sending state, disable the
      active send action, and then show bounded success or failure feedback. A
      failed dispatch must not look like a no-op.
 6. `implementation_return`
    - The target workspace must return a real card with completed, blocked,
      redirected, rejected, or partially completed status.
+   - The source coordinator must treat this return as a continuation event,
+     not merely as a receipt. It must record/apply a bounded
+     `return_continuation_decision` with `original_objective_satisfied`,
+     `continuation_required`, `next_action_type`, `next_target_role`,
+     `source_task_card_id`, `return_card_id`, and either
+     `continuation_dispatch_card_id` or `blocked_reason`.
+   - If the return says a source fix is ready but deploy/readback is pending,
+     a Worker can now proceed, a Harness/readback is missing, or ownership was
+     redirected, the coordinator must dispatch the named next card or record
+     `blocked_missing_continuation_dispatch`. It must not close the diagnostic
+     with a plain message that says the next card can be sent.
 7. `verification_and_deploy_closure`
    - Source tests, host-path checks, deployment readback, Product Reality audit,
      or visual evidence run as required by the case and repair surface.
@@ -103,6 +119,40 @@ Diagnostic evidence must not include:
 
 If a diagnostic event contains unsafe privacy markers, the plan must be blocked
 with `unsafe_privacy_markers` until a bounded reproduction is available.
+
+## Repeated-Failure Harness Gate
+
+Diagnostic cases that describe user-visible state synchronization defects must
+carry a Harness requirement when the case touches optimistic UI, submitted echo,
+durable projection, thread/detail refresh, message ordering, SSE/EventSource,
+session replay, iframe or plugin boot, static cache/client versioning,
+PWA/native-shell differences, file/camera/picker flows, or visible rows that
+disappear, duplicate, reorder, or show incorrect state. Logs and source review
+may raise or narrow the hypothesis, but they are not closure evidence for these
+classes after escalation.
+
+AI Ops may allow a first low-risk repair to use focused source tests, provided
+the return card explicitly says whether real workflow Harness evidence was run.
+When an Owner reports the same symptom still reproduces after a completed or
+partially completed repair, the remediation plan must set
+`harness_required=true` or an equivalent required-check entry. After the second
+failed closure for that symptom, the source coordinator must not close the case
+unless the return includes failing-then-passing Harness evidence, a
+`blocked_missing_repro_harness` blocker, or a `partially_completed` result that
+names the exact missing real workflow Harness.
+
+Closure readbacks for escalated cases should require bounded machine-readable
+state: counts, ids or salted hashes, active workspace/thread, pending and
+durable item counts, visible DOM row counts, session/status codes, client
+version/build id, and timing buckets. They must not request raw messages, raw
+keys, cookies, launch tokens, private screenshots, endpoint bodies, database
+rows, full prompts, private thread bodies, or long logs.
+
+The source/main coordinator must not mark a diagnostic return closed while a
+required Harness readback remains unanswered. It should keep the case open,
+dispatch the missing Harness/readback slice, or record the explicit blocker
+instead of treating unit tests, logs, or static inspection as equivalent
+evidence.
 
 ## Embedded Plugin Automatic Report Protocol
 
@@ -325,11 +375,16 @@ Current policy:
 - Home AI self-check/log-collection diagnostics may automatically dispatch a
   Codex task card when the strict self-check source/type/category gate and all
   remediation eligibility gates pass;
-- automatic Owner notification is allowed for other eligible remediation plans;
+- other eligible low-risk runtime diagnostics may automatically dispatch a
+  Codex task card through `auto_diagnostic` when all remediation eligibility
+  gates pass;
+- automatic Owner notification is allowed for eligible Owner-gated remediation
+  plans;
 - automatic Codex task-card dispatch is not allowed for user demand,
-  feature/capability-gap, plugin conversation repair-request, embedded plugin
-  automatic-report, high-risk, privacy-unsafe, low-confidence, or unknown-target
-  cases;
+  feature/capability-gap, product request, plugin conversation repair request,
+  deployment/cutover/release, approval request, physical device/destructive
+  action, secret, payment, high-risk, privacy-unsafe, low-confidence, or
+  unknown-target cases;
 - Owner can trigger task-card dispatch from the Owner-only notification or
   diagnostic case action for Owner-gated cases.
 
@@ -345,9 +400,9 @@ A remediation plan may create an Owner-only notification only when all are true:
   approval;
 - the task card can require a return card and bounded validation.
 
-Owner-triggered and self-check automatic dispatch must re-read the case/events,
-rebuild the plan, and re-check the same gate before calling the Codex Mobile
-task-card interface.
+Owner-triggered and automatic dispatch must re-read the case/events, rebuild
+the plan, and re-check the same gate before calling the Codex Mobile task-card
+interface.
 If the case is already `card_sent`, dispatch is idempotent: the UI should mark
 the Owner notification handled and show that a remediation card has already
 been sent rather than sending another card or reopening the same notification.

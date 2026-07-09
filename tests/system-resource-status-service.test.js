@@ -334,7 +334,7 @@ async function testLaunchdParserReportsBoundedStatuses() {
   });
   const snapshot = await service.collect();
   assert.deepEqual(snapshot.launchd.services, [
-    { label: "com.hermesmobile.homeai", status: "running" },
+    { label: "com.hermesmobile.homeai", status: "running", pid: 99 },
     { label: "com.hermesmobile.gateway", status: "stopped" },
     { label: "com.hermesmobile.missing", status: "unknown" },
   ]);
@@ -343,6 +343,196 @@ async function testLaunchdParserReportsBoundedStatuses() {
   assert.equal(json.includes("print"), false);
   assert.equal(json.includes("system/"), false);
   assert.equal(json.includes("service not found"), false);
+}
+
+async function testCodexMobileRuntimeAttributionIsBoundedAndSanitized() {
+  const runner = createRunner((command, args) => {
+    if (command.endsWith("launchctl")) {
+      const label = String(args[1] || "");
+      if (label.endsWith("plugin.codex-mobile")) return { ok: true, status: 0, stdout: "state = running\npid = 902\n", stderr: "" };
+      return { ok: true, status: 0, stdout: "state = running\npid = 123\n", stderr: "" };
+    }
+    if (command.endsWith("ps") && String(args.join(" ")).includes("rss")) {
+      return {
+        ok: true,
+        status: 0,
+        stdout: [
+          " 900 61.0 4026032 28:25 /Users/example/path app-server --api-key secret-value",
+          " 901 0.1 988320 28:25 /Users/example/path app-server",
+          " 902 3.0 1921504 02:52 /Users/example/path --launch-token must-not-leak",
+          " 903 0.0 85040 27:41 /Users/example/path --key-file /secret/path",
+          " 904 91.0 2048 00:01 /private/other-service --token abc",
+        ].join("\n"),
+        stderr: "",
+      };
+    }
+    if (command.endsWith("ps")) {
+      return {
+        ok: true,
+        status: 0,
+        stdout: [
+          " 900 29.0 /Users/example/path",
+          " 902 3.0 /Users/example/path",
+        ].join("\n"),
+        stderr: "",
+      };
+    }
+    if (command.endsWith("sysctl")) {
+      return { ok: true, status: 0, stdout: "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M", stderr: "" };
+    }
+    if (command.endsWith("df")) {
+      return { ok: true, status: 0, stdout: "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk1s1 1000 100 900 10% /\n", stderr: "" };
+    }
+    if (command.endsWith("top")) {
+      return { ok: true, status: 0, stdout: "CPU usage: 10.00% user, 5.00% sys, 85.00% idle\n", stderr: "" };
+    }
+    return { ok: true, status: 0, stdout: "", stderr: "" };
+  });
+  const service = createSystemResourceStatusService({
+    codexMobileLogPath: "/private/logs/codex-mobile-web.out.log",
+    fs: {
+      statSync(filePath) {
+        assert.equal(filePath, "/private/logs/codex-mobile-web.out.log");
+        return { isFile: () => true, size: 900 * 1024 ** 2 };
+      },
+    },
+    os: fakeOs(),
+    runCommand: runner,
+    thresholds: TEST_DISK_THRESHOLDS,
+    nowIso: () => "2026-07-01T00:04:20.000Z",
+    process: { uptime: () => 42 },
+  });
+  const snapshot = await service.collect();
+  assert.equal(snapshot.codexMobile.available, true);
+  assert.equal(snapshot.codexMobile.status, "degraded");
+  assert.equal(snapshot.codexMobile.processCount, 4);
+  assert.equal(snapshot.codexMobile.totalCpuPercent, 64.1);
+  assert.deepEqual(
+    snapshot.codexMobile.processes.map((item) => item.role),
+    ["codex_app_server", "listener", "app_server_mux", "mcp_server"],
+  );
+  assert.equal(snapshot.codexMobile.processes[0].label, "Codex app-server");
+  assert.equal(snapshot.codexMobile.logs.available, true);
+  assert.equal(snapshot.codexMobile.logs.files[0].name, "codex-mobile-web.out.log");
+  assert.equal(snapshot.codexMobile.logs.totalSizeBytes, 900 * 1024 ** 2);
+  assert.equal(snapshot.signals.some((item) => item.signalId === "codex_mobile_runtime_pressure" && item.status === "degraded"), true);
+  assert.equal(snapshot.services.some((item) => item.name === "Codex Mobile Runtime" && item.status === "degraded"), true);
+  const json = JSON.stringify(snapshot.codexMobile);
+  assert.equal(json.includes("/Users/"), false);
+  assert.equal(json.includes("/private/"), false);
+  assert.equal(json.includes("secret-value"), false);
+  assert.equal(json.includes("launch-token"), false);
+  assert.equal(json.includes("key-file"), false);
+  assert.equal(json.includes("must-not-leak"), false);
+}
+
+async function testCodexMobileRssOnlyPressureIsWarningWhenHostMemoryHealthy() {
+  const runner = createRunner((command, args) => {
+    if (command.endsWith("launchctl")) {
+      const label = String(args[1] || "");
+      if (label.endsWith("plugin.codex-mobile")) return { ok: true, status: 0, stdout: "state = running\npid = 902\n", stderr: "" };
+      return { ok: true, status: 0, stdout: "state = running\npid = 123\n", stderr: "" };
+    }
+    if (command.endsWith("memory_pressure")) {
+      return {
+        ok: true,
+        status: 0,
+        stdout: "System-wide memory free percentage: 94%",
+        stderr: "",
+      };
+    }
+    if (command.endsWith("sysctl")) {
+      return { ok: true, status: 0, stdout: "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M", stderr: "" };
+    }
+    if (command.endsWith("df")) {
+      return { ok: true, status: 0, stdout: "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk1s1 1000 100 900 10% /\n", stderr: "" };
+    }
+    if (command.endsWith("top")) {
+      return { ok: true, status: 0, stdout: "CPU usage: 5.00% user, 2.00% sys, 93.00% idle\n", stderr: "" };
+    }
+    if (command.endsWith("ps") && String(args.join(" ")).includes("rss")) {
+      return {
+        ok: true,
+        status: 0,
+        stdout: [
+          " 900 10.0 4026032 28:25 /Users/example/path app-server --api-key secret-value",
+          " 902 0.1 2500000 02:52 /Users/example/path --launch-token must-not-leak",
+          " 903 0.0 85040 27:41 /Users/example/path --key-file /secret/path",
+        ].join("\n"),
+        stderr: "",
+      };
+    }
+    if (command.endsWith("ps")) {
+      return {
+        ok: true,
+        status: 0,
+        stdout: [
+          " 900 10.0 /Users/example/path",
+          " 902 0.1 /Users/example/path",
+        ].join("\n"),
+        stderr: "",
+      };
+    }
+    return { ok: true, status: 0, stdout: "", stderr: "" };
+  });
+  const service = createSystemResourceStatusService({
+    os: fakeOs({ totalmem: 1000, freemem: 50 }),
+    runCommand: runner,
+    thresholds: TEST_DISK_THRESHOLDS,
+    nowIso: () => "2026-07-01T00:04:24.000Z",
+    process: { uptime: () => 42 },
+  });
+  const snapshot = await service.collect();
+  assert.equal(snapshot.memory.status, "ok");
+  assert.equal(snapshot.memory.percentSource, "memory_pressure");
+  assert.equal(snapshot.memory.pressure.freePercent, 94);
+  assert.equal(snapshot.codexMobile.status, "warning");
+  assert.equal(snapshot.codexMobile.advisoryOnly, true);
+  assert.equal(snapshot.status, "warning");
+  assert.equal(snapshot.ok, true);
+  const runtimeSignal = snapshot.signals.find((item) => item.signalId === "codex_mobile_runtime_pressure");
+  assert.equal(runtimeSignal.status, "warning");
+  assert.equal(runtimeSignal.boundedEvidence.advisoryOnly, true);
+  const json = JSON.stringify(snapshot.codexMobile);
+  assert.equal(json.includes("secret-value"), false);
+  assert.equal(json.includes("must-not-leak"), false);
+  assert.equal(json.includes("/Users/"), false);
+}
+
+async function testCodexMobileRuntimeLogGrowthUsesBoundedSecondSample() {
+  let size = 1024;
+  let now = "2026-07-01T00:04:25.000Z";
+  const runner = createRunner((command, args) => {
+    if (command.endsWith("launchctl")) return { ok: true, status: 0, stdout: "state = running\npid = 902\n", stderr: "" };
+    if (command.endsWith("ps") && String(args.join(" ")).includes("rss")) {
+      return { ok: true, status: 0, stdout: " 902 0.1 1000 00:02 /Users/example/path", stderr: "" };
+    }
+    if (command.endsWith("ps")) return { ok: true, status: 0, stdout: " 902 0.1 node\n", stderr: "" };
+    if (command.endsWith("sysctl")) return { ok: true, status: 0, stdout: "vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M", stderr: "" };
+    if (command.endsWith("df")) return { ok: true, status: 0, stdout: "Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/disk1s1 1000 100 900 10% /\n", stderr: "" };
+    if (command.endsWith("top")) return { ok: true, status: 0, stdout: "CPU usage: 2.00% user, 1.00% sys, 97.00% idle\n", stderr: "" };
+    return { ok: true, status: 0, stdout: "", stderr: "" };
+  });
+  const service = createSystemResourceStatusService({
+    codexMobileLogPath: "/private/logs/codex-mobile-web.out.log",
+    fs: {
+      statSync() {
+        return { isFile: () => true, size };
+      },
+    },
+    os: fakeOs(),
+    runCommand: runner,
+    thresholds: TEST_DISK_THRESHOLDS,
+    nowIso: () => now,
+    process: { uptime: () => 42 },
+  });
+  const first = await service.collect();
+  assert.equal(first.codexMobile.logs.growthAvailable, false);
+  size += 10 * 1024;
+  now = "2026-07-01T00:04:35.000Z";
+  const second = await service.collect();
+  assert.equal(second.codexMobile.logs.growthAvailable, true);
+  assert.equal(second.codexMobile.logs.growthBytesPerSecond, 1024);
 }
 
 async function testDefaultLaunchdLabelsUseStableResidentServices() {
@@ -442,6 +632,9 @@ async function main() {
   await testDiskParserUsesBoundedLabelsWithoutRawPaths();
   await testDiskFreeSpaceThresholds();
   await testLaunchdParserReportsBoundedStatuses();
+  await testCodexMobileRuntimeAttributionIsBoundedAndSanitized();
+  await testCodexMobileRssOnlyPressureIsWarningWhenHostMemoryHealthy();
+  await testCodexMobileRuntimeLogGrowthUsesBoundedSecondSample();
   await testDefaultLaunchdLabelsUseStableResidentServices();
   await testObjectStyleCommandRunnerStillWorks();
   await testNormalizedSignalShapeAndPrivacyBoundary();

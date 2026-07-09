@@ -49,6 +49,41 @@ For production incidents, restore service promptly, but do not treat service
 restoration as architectural closure unless the root cause has also been fixed
 or recorded as a bounded follow-up with owner, risk, and verification path.
 
+## Real Workflow Harness Escalation
+
+For user-visible state synchronization bugs, code reading, log inspection, and
+focused unit tests are hypothesis evidence until a real workflow Harness proves
+the visible behavior. This applies when the symptom involves optimistic UI,
+submitted echo, durable projection, thread/detail refresh, message ordering,
+SSE/EventSource delivery, session replay, iframe or plugin boot, static
+client/cache versioning, PWA/native-shell differences, file/camera/picker
+flows, or visible rows that disappear, duplicate, reorder, or show the wrong
+state.
+
+The first repair for a low-risk case may close with focused tests only, but the
+return must state whether a real workflow Harness was run. If the Owner reports
+the same symptom still reproduces after a completed or partially completed
+repair, the next repair is automatically `harness_required`. After a second
+failed closure for the same symptom, no Home AI, plugin, Worker, deploy, or
+audit thread may return `completed` from code inspection, logs, or unit tests
+alone. It must either include failing-then-passing Harness evidence, return
+`blocked_missing_repro_harness`, or return `partially_completed` with the exact
+missing Harness path.
+
+Accepted Harness evidence is bounded and machine-readable. Prefer counts,
+ids or salted hashes, active workspace/thread identifiers when already
+non-secret, pending and durable item counts, visible DOM row counts, session or
+status codes, client version/build id, and timing buckets. Do not include raw
+messages, raw keys, cookies, launch tokens, endpoint bodies, database rows,
+private screenshots, full prompts, private thread bodies, or long logs.
+
+Acceptance must enter through the surface that owns the symptom. Embedded
+plugin bugs require the embedded iframe path. PWA or native-shell differences
+require the installed PWA or native shell path. Production cache/version bugs
+require the production origin and loaded client version. Browser-mode evidence
+may support diagnosis, but it does not replace the real entry path when that
+path is part of the reported failure.
+
 ## Preferred Fix Patterns
 
 Prefer changes that reduce future branches and hidden state:

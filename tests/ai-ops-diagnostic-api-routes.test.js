@@ -114,16 +114,22 @@ async function testCreateEventRequiresWorkspaceAndStores() {
   assert.equal(ingest.context.clientVersion, "client-test");
 }
 
-async function testCreateEventCreatesOwnerNotificationWhenReady() {
+async function testCreateEventReportsAutoDispatchWhenReady() {
   const notificationCalls = [];
   const { deps } = createDeps({
     workflowService: {
       async notifyOwner(input) {
         notificationCalls.push(input);
-        return { ok: true, notified: true, inboxItem: { id: "ainb_diag_1" } };
+        return {
+          ok: true,
+          notified: false,
+          autoDispatched: true,
+          reason: "auto_diagnostic_task_card",
+          taskCardResult: { cardIds: ["ttc_diag_auto_1"] },
+        };
       },
       async dispatchTaskCard() {
-        throw new Error("automatic_diagnostic_report_must_not_dispatch_task_card");
+        throw new Error("event route should use remediation workflow notifyOwner boundary");
       },
     },
   });
@@ -139,11 +145,11 @@ async function testCreateEventCreatesOwnerNotificationWhenReady() {
   assert.deepEqual(notificationCalls, [{ case_id: "diagcase_test" }]);
   assert.deepEqual(body.owner_notification, {
     ok: true,
-    notified: true,
-    auto_dispatched: false,
-    inbox_item_id: "ainb_diag_1",
-    task_card_id: "",
-    reason: "",
+    notified: false,
+    auto_dispatched: true,
+    inbox_item_id: "",
+    task_card_id: "ttc_diag_auto_1",
+    reason: "auto_diagnostic_task_card",
   });
 }
 
@@ -256,7 +262,7 @@ function testDependencyValidation() {
 
 async function run() {
   await testCreateEventRequiresWorkspaceAndStores();
-  await testCreateEventCreatesOwnerNotificationWhenReady();
+  await testCreateEventReportsAutoDispatchWhenReady();
   await testCreateSelfCheckEventReportsAutoDispatch();
   await testDeniedWorkspaceStopsCreate();
   await testOwnerListsCasesAndEvents();

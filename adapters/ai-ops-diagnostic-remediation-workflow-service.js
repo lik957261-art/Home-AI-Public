@@ -31,13 +31,19 @@ function caseAlreadyDispatched(caseRecord = {}) {
   return clean(caseRecord.status, 80) === "card_sent";
 }
 
-function isSelfCheckAutomationPlan(plan = {}) {
+function isAutomaticDiagnosticDispatchPlan(plan = {}) {
   const evidence = objectValue(plan.evidence);
-  return clean(plan.dispatch?.policy, 80) === "auto_self_check"
+  const policy = clean(plan.dispatch?.policy, 80);
+  return plan.dispatch?.executeAutomatically === true
+    || policy.startsWith("auto_")
     || (clean(evidence.plugin_id || plan.plugin_id, 80) === "home-ai"
     && clean(evidence.source_surface, 120) === "home-ai-self-check"
     && clean(evidence.diagnostic_type, 160) === "self_check_signal_failed"
     && clean(evidence.category, 160).startsWith("self_check_"));
+}
+
+function isSelfCheckAutomationPlan(plan = {}) {
+  return clean(plan.dispatch?.policy, 80) === "auto_self_check";
 }
 
 function caseEvents(diagnosticIntakeService, caseId) {
@@ -171,17 +177,19 @@ function createAiOpsDiagnosticRemediationWorkflowService(options = {}) {
         plan: planned.plan,
       };
     }
-    if (isSelfCheckAutomationPlan(planned.plan)) {
+    if (isAutomaticDiagnosticDispatchPlan(planned.plan)) {
+      const selfCheck = isSelfCheckAutomationPlan(planned.plan);
+      const reason = selfCheck ? "auto_self_check_task_card" : "auto_diagnostic_task_card";
       const dispatched = await dispatchTaskCard({
         case_id: caseId,
-        actor: "home-ai-self-check",
-        reason: "auto_self_check_task_card",
+        actor: selfCheck ? "home-ai-self-check" : "ai-ops-diagnostic-workflow",
+        reason,
       });
       return {
         ok: dispatched?.ok !== false,
         notified: false,
         autoDispatched: Boolean(dispatched?.dispatched),
-        reason: clean(dispatched?.reason || dispatched?.error || "auto_self_check_task_card", 160),
+        reason: clean(dispatched?.reason || dispatched?.error || reason, 160),
         plan: planned.plan,
         taskCardResult: dispatched?.taskCardResult,
         dispatchResult: dispatched,
@@ -339,6 +347,7 @@ module.exports = {
   NOTIFICATION_TYPE,
   OWNER_WORKSPACE_ID,
   createAiOpsDiagnosticRemediationWorkflowService,
+  isAutomaticDiagnosticDispatchPlan,
   isSelfCheckAutomationPlan,
   ownerNotificationForPlan,
 };

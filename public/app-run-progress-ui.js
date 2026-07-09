@@ -1,5 +1,37 @@
 "use strict";
 
+const RUN_PROGRESS_MODEL_ESM_PATH = "/vite-islands/run-progress-model/run-progress-model.js";
+let runProgressModel = null;
+let runProgressModelPromise = null;
+
+function importRunProgressModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (runProgressModel) return Promise.resolve(runProgressModel);
+  if (!runProgressModelPromise) {
+    const importer = typeof rootRef.__homeAiImportRunProgressModel === "function"
+      ? rootRef.__homeAiImportRunProgressModel
+      : (path) => import(path);
+    runProgressModelPromise = Promise.resolve()
+      .then(() => importer(RUN_PROGRESS_MODEL_ESM_PATH))
+      .then((model) => {
+        runProgressModel = model || null;
+        return runProgressModel;
+      })
+      .catch((error) => {
+        runProgressModelPromise = null;
+        throw error;
+      });
+  }
+  return runProgressModelPromise;
+}
+
+function currentRunProgressModel() {
+  return runProgressModel;
+}
+
+if (typeof window !== "undefined") {
+  importRunProgressModel().catch(() => null);
+}
+
 const RUN_EVENT_PREVIEW_MAX_CHARS = 180;
 const RUN_PROGRESS_RENDER_THROTTLE_MS = 750;
 const RUN_PROGRESS_FALLBACK_REFRESH_MS = 650;
@@ -59,6 +91,10 @@ const RUN_PROGRESS_FINAL_MESSAGE_DONE_EVENTS = new Set([
 ]);
 
 function boundedRunEventPreview(value) {
+  const model = currentRunProgressModel();
+  if (typeof model?.boundedRunEventPreviewPlan === "function") {
+    return model.boundedRunEventPreviewPlan(value).preview;
+  }
   let text = "";
   if (value && typeof value === "object") {
     try {
@@ -73,6 +109,10 @@ function boundedRunEventPreview(value) {
 }
 
 function parseRunEventPreviewObject(value) {
+  const model = currentRunProgressModel();
+  if (typeof model?.parseRunEventPreviewObjectPlan === "function") {
+    return model.parseRunEventPreviewObjectPlan(value).value;
+  }
   if (value && typeof value === "object" && !Array.isArray(value)) return value;
   const text = String(value || "").trim();
   if (!text || !text.startsWith("{")) return null;
@@ -85,6 +125,10 @@ function parseRunEventPreviewObject(value) {
 }
 
 function normalizeRunEvent(event = {}, fallbackRunId = "") {
+  const model = currentRunProgressModel();
+  if (typeof model?.normalizeRunEventPlan === "function") {
+    return model.normalizeRunEventPlan({ event, fallbackRunId, nowSeconds: Date.now() / 1000 }).event;
+  }
   return {
     event: String(event.event || event.type || "event"),
     timestamp: event.timestamp || Date.now() / 1000,
@@ -97,6 +141,10 @@ function normalizeRunEvent(event = {}, fallbackRunId = "") {
 }
 
 function runProgressTimestampMs(value) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressTimestampMsPlan === "function") {
+    return model.runProgressTimestampMsPlan(value).timestampMs;
+  }
   if (!value) return 0;
   if (typeof value === "number") return value > 10_000_000_000 ? value : value * 1000;
   const parsed = new Date(value).getTime();
@@ -185,6 +233,10 @@ function runEventFunctionCallId(event) {
 }
 
 function isFunctionRunEvent(event) {
+  const model = currentRunProgressModel();
+  if (typeof model?.isFunctionRunEventPlan === "function") {
+    return Boolean(model.isFunctionRunEventPlan(event).isFunction);
+  }
   const tool = String(event?.tool || "").trim().toLowerCase();
   if (tool === "function_call") return true;
   if (!String(event?.event || "").startsWith("response.output_item.")) return false;
@@ -201,6 +253,10 @@ function runEventWithFunctionName(event, name, callId = "") {
 }
 
 function runProgressEventsWithFunctionNames(events = []) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressEventsWithFunctionNamesPlan === "function") {
+    return model.runProgressEventsWithFunctionNamesPlan(events).events || [];
+  }
   const nameByCallId = new Map();
   for (const event of Array.isArray(events) ? events : []) {
     const name = runEventFunctionName(event);
@@ -249,6 +305,10 @@ function runEventOperationKey(event) {
 }
 
 function isRunOperationStartEvent(event) {
+  const model = currentRunProgressModel();
+  if (typeof model?.isRunOperationStartEventPlan === "function") {
+    return Boolean(model.isRunOperationStartEventPlan(event).start);
+  }
   const name = String(event?.event || "");
   if (name !== "response.output_item.added") return false;
   const kind = runEventOperationKind(event);
@@ -259,6 +319,10 @@ function isRunOperationStartEvent(event) {
 }
 
 function isRunOperationDoneEvent(event) {
+  const model = currentRunProgressModel();
+  if (typeof model?.isRunOperationDoneEventPlan === "function") {
+    return Boolean(model.isRunOperationDoneEventPlan(event).done);
+  }
   const name = String(event?.event || "");
   if (name !== "response.output_item.done") return false;
   const kind = runEventOperationKind(event);
@@ -269,6 +333,10 @@ function isRunOperationDoneEvent(event) {
 }
 
 function runProgressCompactOperationEvents(events = []) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressCompactOperationEventsPlan === "function") {
+    return model.runProgressCompactOperationEventsPlan(events).events || [];
+  }
   const out = [];
   const openByKey = new Map();
   for (const event of Array.isArray(events) ? events : []) {
@@ -317,6 +385,10 @@ function runProgressCompactOperationEvents(events = []) {
 }
 
 function runProgressCompactPreflightEvents(events = []) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressCompactPreflightEventsPlan === "function") {
+    return model.runProgressCompactPreflightEventsPlan(events).events || [];
+  }
   const toolsetTerminalRuns = new Set();
   for (const event of Array.isArray(events) ? events : []) {
     const name = String(event?.event || "");
@@ -356,6 +428,10 @@ function runEventToolLabel(event) {
 }
 
 function runEventTitle(event) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runEventTitlePlan === "function") {
+    return model.runEventTitlePlan(event).title;
+  }
   if (event?.operationKind) {
     const prefix = event.operationKind === "skill" ? "Skill" : "Function";
     const name = String(event.operationName || "").trim();
@@ -401,6 +477,10 @@ function runEventTitle(event) {
 }
 
 function runEventStatusLabel(event, startMs) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runEventStatusLabelPlan === "function") {
+    return model.runEventStatusLabelPlan({ event, startMs, nowMs: Date.now() }).label;
+  }
   if (!event?.operationKind) return runEventTimeLabel(event, startMs);
   const start = runProgressTimestampMs(event.operationStartedAt || event.timestamp);
   const done = runProgressTimestampMs(event.operationDoneAt);
@@ -414,6 +494,10 @@ function runEventStatusLabel(event, startMs) {
 }
 
 function runEventRowClass(event) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runEventRowClassPlan === "function") {
+    return model.runEventRowClassPlan(event).className;
+  }
   const classes = ["run-progress-row"];
   if (event?.error || event?.operationStatus === "error") classes.push("error");
   if (event?.operationKind) classes.push("run-progress-operation", `run-progress-operation-${event.operationStatus || "active"}`);
@@ -433,6 +517,10 @@ function runGatewayWorkerReasonLabel(reason) {
 }
 
 function runGatewayWorkerPreviewLabel(event) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runGatewayWorkerPreviewLabelPlan === "function") {
+    return model.runGatewayWorkerPreviewLabelPlan(event).label;
+  }
   const name = String(event?.event || "");
   if (!name.startsWith("run.gateway_worker_")) return "";
   const parsed = parseRunEventPreviewObject(event?.preview) || {};
@@ -459,6 +547,10 @@ function runGatewayWorkerPreviewLabel(event) {
 }
 
 function runEventPreviewLabel(event) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runEventPreviewLabelPlan === "function") {
+    return model.runEventPreviewLabelPlan(event).label;
+  }
   const gatewayPreview = runGatewayWorkerPreviewLabel(event);
   if (gatewayPreview) return gatewayPreview;
   if (event?.error) return boundedRunEventPreview(event.preview || "");
@@ -470,6 +562,10 @@ function runEventPreviewLabel(event) {
 }
 
 function runProgressEvents(thread, runIds) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressEventsPlan === "function") {
+    return model.runProgressEventsPlan({ thread, runIds }).events || [];
+  }
   const runSet = new Set((runIds || []).map(String).filter(Boolean));
   if (!thread || !runSet.size) return [];
   return (Array.isArray(thread.events) ? thread.events : [])
@@ -478,6 +574,10 @@ function runProgressEvents(thread, runIds) {
 }
 
 function isRunProgressStartEvent(event) {
+  const model = currentRunProgressModel();
+  if (typeof model?.isRunProgressStartEventPlan === "function") {
+    return Boolean(model.isRunProgressStartEventPlan(event).start);
+  }
   return RUN_PROGRESS_START_EVENTS.has(String(event?.event || ""));
 }
 
@@ -492,6 +592,10 @@ function runProgressVisibleEvents(events = [], startMs = 0, now = Date.now()) {
 }
 
 function runProgressDisplayEvents(events = [], startMs = 0, options = {}) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressDisplayEventsPlan === "function") {
+    return model.runProgressDisplayEventsPlan({ events, startMs, nowMs: Date.now(), all: options.all }).events || [];
+  }
   const visible = runProgressVisibleEvents(events, startMs)
     .filter((event) => !RUN_PROGRESS_HIDDEN_EVENTS.has(String(event?.event || "")));
   if (options.all) return visible;
@@ -499,6 +603,10 @@ function runProgressDisplayEvents(events = [], startMs = 0, options = {}) {
 }
 
 function shouldCompactRunProgressAfterOutput(allEvents = []) {
+  const model = currentRunProgressModel();
+  if (typeof model?.shouldCompactRunProgressAfterOutputPlan === "function") {
+    return Boolean(model.shouldCompactRunProgressAfterOutputPlan(allEvents).compact);
+  }
   const outputStartedMs = Math.max(0, ...allEvents
     .filter((event) => ["run.model_output_started", "run.final_message_started"].includes(String(event?.event || "")))
     .map((event) => runProgressTimestampMs(event.timestamp))
@@ -511,14 +619,26 @@ function shouldCompactRunProgressAfterOutput(allEvents = []) {
 }
 
 function normalizeRunProgressId(value) {
+  const model = currentRunProgressModel();
+  if (typeof model?.normalizeRunProgressIdPlan === "function") {
+    return model.normalizeRunProgressIdPlan(value).id;
+  }
   return String(value || "").trim();
 }
 
 function uniqueRunProgressIds(values = []) {
+  const model = currentRunProgressModel();
+  if (typeof model?.uniqueRunProgressIdsPlan === "function") {
+    return model.uniqueRunProgressIdsPlan(values).ids || [];
+  }
   return [...new Set((values || []).map(normalizeRunProgressId).filter(Boolean))];
 }
 
 function messageOwnRunIds(message = {}) {
+  const model = currentRunProgressModel();
+  if (typeof model?.messageOwnRunIdsPlan === "function") {
+    return model.messageOwnRunIdsPlan(message).ids || [];
+  }
   return uniqueRunProgressIds([
     message.originalRunId,
     message.responseRunId,
@@ -528,6 +648,10 @@ function messageOwnRunIds(message = {}) {
 }
 
 function threadActiveRunIds(thread = {}) {
+  const model = currentRunProgressModel();
+  if (typeof model?.threadActiveRunIdsPlan === "function") {
+    return model.threadActiveRunIdsPlan(thread).ids || [];
+  }
   return uniqueRunProgressIds([
     thread?.activeRunId,
     ...(Array.isArray(thread?.activeRunIds) ? thread.activeRunIds : []),
@@ -535,10 +659,18 @@ function threadActiveRunIds(thread = {}) {
 }
 
 function messageStatusCanHaveRunProgress(message = {}) {
+  const model = currentRunProgressModel();
+  if (typeof model?.messageStatusCanHaveRunProgressPlan === "function") {
+    return Boolean(model.messageStatusCanHaveRunProgressPlan(message).canHaveRunProgress);
+  }
   return ["queued", "running", "done", "failed", "cancelled"].includes(String(message?.status || ""));
 }
 
 function messageStatusIsActive(message = {}) {
+  const model = currentRunProgressModel();
+  if (typeof model?.messageStatusIsActivePlan === "function") {
+    return Boolean(model.messageStatusIsActivePlan(message).active);
+  }
   return ["queued", "running"].includes(String(message?.status || ""));
 }
 
@@ -568,6 +700,14 @@ function rememberMessageRunProgressId(thread, message = {}, runId) {
 }
 
 function messageRunProgressIds(thread, message = {}, options = {}) {
+  const model = currentRunProgressModel();
+  if (typeof model?.messageRunProgressIdsPlan === "function") {
+    return model.messageRunProgressIdsPlan({
+      message,
+      rememberedRunIds: rememberedMessageRunProgressIds(thread, message),
+      extraRunIds: Array.isArray(options.extraRunIds) ? options.extraRunIds : [],
+    }).ids || [];
+  }
   return uniqueRunProgressIds([
     ...messageOwnRunIds(message),
     ...rememberedMessageRunProgressIds(thread, message),
@@ -576,6 +716,10 @@ function messageRunProgressIds(thread, message = {}, options = {}) {
 }
 
 function runProgressActiveMessages(thread, runIds) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressActiveMessagesPlan === "function") {
+    return model.runProgressActiveMessagesPlan({ thread, runIds }).messages || [];
+  }
   const runSet = new Set((runIds || []).map(String).filter(Boolean));
   return (thread?.messages || [])
     .filter(messageStatusCanHaveRunProgress)
@@ -583,6 +727,10 @@ function runProgressActiveMessages(thread, runIds) {
 }
 
 function runProgressStartMs(thread, runIds, events) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressStartMsPlan === "function") {
+    return model.runProgressStartMsPlan({ thread, runIds, events, nowMs: Date.now() }).startMs;
+  }
   const values = [
     ...runProgressActiveMessages(thread, runIds).flatMap((message) => [
       message.queuedAt,
@@ -596,6 +744,10 @@ function runProgressStartMs(thread, runIds, events) {
 }
 
 function runProgressDurationText(seconds, options = {}) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressDurationTextPlan === "function") {
+    return model.runProgressDurationTextPlan({ seconds, allowZero: options.allowZero }).text;
+  }
   const totalSeconds = Math.max(options.allowZero ? 0 : 1, Math.round(Number(seconds) || 0));
   const minutes = Math.floor(totalSeconds / 60);
   const rest = totalSeconds % 60;
@@ -609,11 +761,19 @@ function runProgressDurationText(seconds, options = {}) {
 }
 
 function runProgressDurationLabel(startMs, now = Date.now()) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressDurationLabelPlan === "function") {
+    return model.runProgressDurationLabelPlan({ startMs, nowMs: now }).label;
+  }
   if (!startMs) return "";
   return runProgressDurationText((now - startMs) / 1000);
 }
 
 function runProgressOffsetLabel(startMs, eventMs) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressOffsetLabelPlan === "function") {
+    return model.runProgressOffsetLabelPlan({ startMs, eventMs }).label;
+  }
   if (!startMs || !eventMs) return "";
   return runProgressDurationText((eventMs - startMs) / 1000, { allowZero: true });
 }
@@ -623,6 +783,10 @@ function runEventTimeLabel(event, startMs) {
 }
 
 function runProgressTerminalMs(message = {}) {
+  const model = currentRunProgressModel();
+  if (typeof model?.runProgressTerminalMsPlan === "function") {
+    return model.runProgressTerminalMsPlan(message).terminalMs;
+  }
   const values = [message.completedAt, message.failedAt, message.cancelledAt, message.updatedAt]
     .map(runProgressTimestampMs)
     .filter(Boolean);
@@ -707,17 +871,26 @@ function renderRunProgressPanel(thread, runIds, options = {}) {
     normalizeRunProgressId(thread?.id),
     ...(ids || []).map(normalizeRunProgressId),
   ].filter(Boolean).join(":");
-  const allEvents = runProgressEvents(thread, ids);
-  const startMs = runProgressStartMs(thread, ids, allEvents);
-  const compactAfterOutput = !options.terminal && shouldCompactRunProgressAfterOutput(allEvents);
-  const compactedEvents = runProgressCompactOperationEvents(runProgressCompactPreflightEvents(runProgressEventsWithFunctionNames(allEvents)));
-  const events = options.terminal
+  const model = currentRunProgressModel();
+  const panelPlan = typeof model?.runProgressPanelPlan === "function"
+    ? model.runProgressPanelPlan({
+      thread,
+      runIds: ids,
+      terminal: options.terminal,
+      nowMs: Date.now(),
+    })
+    : null;
+  const allEvents = panelPlan ? [] : runProgressEvents(thread, ids);
+  const startMs = panelPlan?.startMs ?? runProgressStartMs(thread, ids, allEvents);
+  const compactAfterOutput = panelPlan?.compactAfterOutput ?? (!options.terminal && shouldCompactRunProgressAfterOutput(allEvents));
+  const compactedEvents = panelPlan ? [] : runProgressCompactOperationEvents(runProgressCompactPreflightEvents(runProgressEventsWithFunctionNames(allEvents)));
+  const events = panelPlan?.events || (options.terminal
     ? runProgressDisplayEvents(compactedEvents, startMs, { all: true })
     : (compactAfterOutput
       ? runProgressDisplayEvents(compactedEvents, startMs).slice(-2)
-      : runProgressDisplayEvents(compactedEvents, startMs));
-  const eventTimes = allEvents.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
-  const lastEventMs = eventTimes.length ? Math.max(...eventTimes) : 0;
+      : runProgressDisplayEvents(compactedEvents, startMs)));
+  const eventTimes = panelPlan ? [] : allEvents.map((event) => runProgressTimestampMs(event.timestamp)).filter(Boolean);
+  const lastEventMs = panelPlan?.lastEventMs ?? (eventTimes.length ? Math.max(...eventTimes) : 0);
   const quietRow = options.terminal ? "" : renderRunProgressQuietRow(lastEventMs, startMs);
   const localRows = !events.length && options.message ? renderLocalRunProgressRows(options.message, startMs) : "";
   const rows = events.length
@@ -783,7 +956,7 @@ function renderMessageRunProgressHistory(thread, message = {}, options = {}) {
     terminalMs,
   });
   return `<details class="run-progress-history" title="${escapeHtml(title)}">
-    <summary aria-label="${escapeHtml(title)}">\u6a21\u578b\u72b6\u6001</summary>
+    <summary aria-label="${escapeHtml(title)}"><svg class="message-footer-summary-icon message-line-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 6v6l4 2"></path><circle cx="12" cy="12" r="8"></circle></svg><span class="message-footer-summary-label">\u6a21\u578b\u72b6\u6001</span></summary>
     <div class="run-progress-history-details">${panel}</div>
   </details>`;
 }
@@ -914,6 +1087,10 @@ function scrollActiveRunProgressRowsToLatest(root = document) {
 }
 
 function messageForRunProgress(thread, runId) {
+  const model = currentRunProgressModel();
+  if (typeof model?.messageForRunProgressPlan === "function") {
+    return model.messageForRunProgressPlan({ thread, runId }).message || null;
+  }
   const id = normalizeRunProgressId(runId);
   if (!thread || !id) return null;
   const messages = Array.isArray(thread.messages) ? thread.messages : [];

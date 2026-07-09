@@ -50,6 +50,7 @@ function createHarness(apiImpl) {
       return apiImpl ? apiImpl(url, options) : { ok: true, note: { id: "note-1", attachmentCount: 0 } };
     },
   };
+  sandbox.window = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(`${shareImageUi}
 globalThis.__noteReceiptHarness = {

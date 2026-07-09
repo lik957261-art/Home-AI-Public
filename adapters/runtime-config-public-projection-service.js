@@ -20,6 +20,7 @@ function createRuntimeConfigPublicProjectionService(options = {}) {
   const load = optionFunction(options, "load");
   const runtimeModelFamilies = optionFunction(options, "runtimeModelFamilies");
   const runtimeModelOptions = optionFunction(options, "runtimeModelOptions");
+  const officialMoaConfig = optionFunction(options, "officialMoaConfig");
 
   function publicConfig(args = {}) {
     const config = load();
@@ -44,6 +45,8 @@ function createRuntimeConfigPublicProjectionService(options = {}) {
       gatewayWorkerSettingDefinitions: gatewayWorkerSettings.definitions,
       modelFamilies: runtimeModelFamilies(),
       modelOptions: runtimeModelOptions(),
+      moaConfig: config.moaConfig || { enabled: false, defaultPreset: "default", activePreset: "", presets: [] },
+      moaOfficialConfig: officialMoaConfig(config.moaConfig || {}),
       webPushEnabled: Boolean(args.webPushEnabled),
       webPushConfigured: Boolean(pushStatus.enabled),
       webPushSubject: effectiveWebPushSubject(config),

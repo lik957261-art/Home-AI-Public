@@ -7,6 +7,7 @@ const vm = require("node:vm");
 
 const repoRoot = path.resolve(__dirname, "..");
 const pluginTopicsUi = fs.readFileSync(path.join(repoRoot, "public", "app-plugin-topics-ui.js"), "utf8");
+const threadListUi = fs.readFileSync(path.join(repoRoot, "public", "app-thread-list-ui.js"), "utf8");
 const directoryTopicsUi = fs.readFileSync(path.join(repoRoot, "public", "app-directory-topics-ui.js"), "utf8");
 const stylesCss = fs.readFileSync(path.join(repoRoot, "public", "styles.css"), "utf8");
 
@@ -37,6 +38,19 @@ assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_USAGE_LOAD_TTL_MS = 30000;/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_ACTION_MANIFEST_LOAD_TTL_MS = 60000;/);
 assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_BINDINGS_LOAD_TTL_MS = 30000;/);
 assert.match(pluginTopicsUi, /const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1\.45;/);
+assert.match(pluginTopicsUi, /const PLUGIN_CONTEXT_SWITCH_MODEL_ESM_PATH = "\/vite-islands\/plugin-context-switch-model\/plugin-context-switch-model\.js";/);
+assert.match(pluginTopicsUi, /const PLUGIN_TOPIC_NAVIGATION_MODEL_ESM_PATH = "\/vite-islands\/plugin-topic-navigation-model\/plugin-topic-navigation-model\.js";/);
+assert.match(pluginTopicsUi, /function pluginContextSwitchTargetPlan\(stateRef = state\)/);
+assert.match(pluginTopicsUi, /function pluginContextSwitchDownGesturePlan\(input = \{\}\)/);
+assert.match(pluginTopicsUi, /function activatePluginContextSwitch\(target = currentPluginContextSwitchTarget\(\), options = \{\}\)/);
+assert.match(pluginTopicsUi, /function importPluginTopicNavigationModel\(rootRef = \(typeof window !== "undefined" \? window : globalThis\)\)/);
+assert.match(pluginTopicsUi, /function currentPluginTopicNavigationModel\(\)/);
+assert.match(pluginTopicsUi, /if \(gesture\.expanded && collapseTriggered\) \{[\s\S]*?setGlobalPluginDockExpanded\(false, \{ persist: true \}\);[\s\S]*?return;[\s\S]*?\}/);
+assert.match(pluginTopicsUi, /const contextSwitchGesture = !gesture\.expanded \? pluginContextSwitchDownGesturePlan\(\{ dx, dy, elapsedMs: elapsed \}\) : null/);
+assert.match(pluginTopicsUi, /const contextSwitchTarget = contextSwitchGesture\?\.ok \? currentPluginContextSwitchTarget\(\) : null/);
+assert.match(pluginTopicsUi, /activatePluginContextSwitch\(contextSwitchTarget, \{ source: "global_plugin_dock_down_gesture" \}\)/);
+assert.match(pluginTopicsUi, /data-plugin-context-switch="\$\{escapeHtml\(target\.pluginId\)\}"/);
+assert.match(pluginTopicsUi, /aria-label="\$\{escapeHtml\(target\.ariaLabel \|\| label\)\}"/);
 assert.match(pluginTopicsUi, /id: "movie"[\s\S]*?viewMode: "movie"[\s\S]*?label: "\\u5f71\\u9662"[\s\S]*?actions: Object\.freeze\(\[\]\)/);
 assert.match(pluginTopicsUi, /if \(id === "movie"\) return "bottomMovieMode";/);
 assert.match(pluginTopicsUi, /function pluginTopicAppQuickAction/);
@@ -59,6 +73,10 @@ assert.match(pluginTopicsUi, /function ensurePluginTopicUsageLoaded/);
 assert.match(pluginTopicsUi, /function ensurePluginTopicBindingsLoaded/);
 assert.match(pluginTopicsUi, /function pluginTopicDirectoryClaimForRoute/);
 assert.match(pluginTopicsUi, /function pluginTopicFilterDirectoryTopicCollectionsForRoot/);
+assert.match(pluginTopicsUi, /model\?\.pluginTopicDirectoryRouteKeyPlan/);
+assert.match(pluginTopicsUi, /model\?\.pluginTopicInferPluginIdFromRoutePlan/);
+assert.match(pluginTopicsUi, /model\?\.pluginTopicDirectoryClaimForRoutePlan/);
+assert.match(pluginTopicsUi, /model\?\.pluginTopicCollectionRootVisibilityPlan/);
 assert.match(pluginTopicsUi, /function renderPluginTopicSwitcher/);
 assert.match(pluginTopicsUi, /function openPluginClaimedDirectoryTopic/);
 assert.match(switcherBody, /return "";/);
@@ -89,7 +107,9 @@ assert.match(pluginTopicsUi, /function refreshPluginTopicUsageRoot\(options = \{
 assert.match(pluginTopicsUi, /const restoreScrollTop = options\.revealQuickActions \? 0 : \(\$\("conversation"\)\?\.scrollTop \|\| 0\);/);
 assert.match(pluginTopicsUi, /function refreshPluginAppOrderSurfaces\(options = \{\}\)/);
 assert.match(pluginTopicsUi, /const force = options\.force === true;/);
-assert.match(pluginTopicsUi, /\(\(!force && !dockHadContent\) \|\| typeof renderPluginAppLauncher !== "function" \|\| typeof setTopicPluginDock !== "function"\) return;/);
+assert.match(pluginTopicsUi, /const contextSwitchAvailable = typeof currentPluginContextSwitchTarget === "function"/);
+assert.match(pluginTopicsUi, /\(\(!force && !dockHadContent && !contextSwitchAvailable\) \|\| typeof renderPluginAppLauncher !== "function" \|\| typeof setTopicPluginDock !== "function"\) return;/);
+assert.match(threadListUi, /updateTopicPluginDockChrome\(hasDockContent && typeof isTaskListView === "function" \? isTaskListView\(\) : false\)/);
 assert.match(movePluginAppOrderBody, /refreshPluginAppOrderSurfaces\(\);/);
 assert.doesNotMatch(movePluginAppOrderBody, /renderCurrentThread/);
 assert.match(pluginTopicsUi, /button\.addEventListener\("click", \(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?cancelPluginAppSortDrag\(\);[\s\S]*?resetGlobalPluginDockGesture\(\);[\s\S]*?closePluginActionMenus\(document\);[\s\S]*?movePluginAppOrder/);
@@ -193,6 +213,9 @@ assert.match(directoryTopicsUi, /directory-topic-chip-summary/);
 assert.match(stylesCss, /\.capability-quick-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
 assert.match(stylesCss, /\.capability-action-source \{[\s\S]*?display: none;/);
 assert.match(stylesCss, /--topic-plugin-dock-height: 78px;/);
+assert.match(stylesCss, /--topic-plugin-dock-handle-hit-height: 40px;/);
+assert.match(stylesCss, /--topic-plugin-dock-min-grab-bottom: 56px;/);
+assert.match(stylesCss, /--topic-plugin-dock-composer-clearance: 8px;/);
 assert.match(stylesCss, /\.app\.task-list-mode \.topbar,[\s\S]*?\.app\.capability-mode \.topbar \{[\s\S]*?display: none !important;/);
 assert.match(stylesCss, /--mobile-bottom-nav-visual-drop: 10px;/);
 assert.match(stylesCss, /--mobile-bottom-nav-bottom: var\(--mobile-bottom-nav-bottom-runtime, var\(--mobile-bottom-nav-comfort-inset\)\);/);
@@ -338,8 +361,8 @@ function createPluginTopicHarness(options = {}) {
     URLSearchParams,
     Date,
     state: {
-      selectedWorkspaceId: "owner",
-      auth: { workspaceId: "owner" },
+      selectedWorkspaceId: options.selectedWorkspaceId || "owner",
+      auth: Object.assign({ workspaceId: options.selectedWorkspaceId || "owner" }, options.auth || {}),
       key: "test-key",
       viewMode: "tasks",
       currentTaskGroupId: "",
@@ -369,6 +392,8 @@ function createPluginTopicHarness(options = {}) {
     wardrobePluginNavigationAvailable: () => true,
     EMBEDDED_PLUGIN_DEFS: {
       "codex-mobile": { id: "codex-mobile" },
+      music: { id: "music" },
+      movie: { id: "movie" },
       finance: { id: "finance" },
       email: { id: "email" },
       health: { id: "health" },
@@ -403,6 +428,7 @@ globalThis.__pluginTopicHarness = {
   recordUsage: recordPluginTopicUsage,
   applyServerPreferences: applyPluginTopicPreferencesFromServer,
   readPinnedTabs: readPinnedPluginBottomTabs,
+  pinnedTabs: pinnedPluginBottomTabIds,
   readPluginOrder: readPluginTopicOrder,
   quickKeys: () => capabilityHubQuickActions(availablePluginTopicDefs()).map(({ def, action }) => def.id + ":" + action.id),
   actionIds: (pluginId) => pluginTopicQuickActions(pluginTopicDefById(pluginId)).map((action) => action.id + ":" + action.entry.pluginRoute),
@@ -531,6 +557,59 @@ assert.match(menuHtml, /data-plugin-topic-move-dir="up"/, "plugin popup menu mus
   const codexLauncherHtml = harness.launcherHtml();
   assert.doesNotMatch(codexLauncherHtml, /data-plugin-topic-open-app="codex-mobile"/, "pinned Codex must be hidden from the drawer like other pinned plugins");
   assert.doesNotMatch(codexLauncherHtml, /data-plugin-topic-open-app="finance"/, "eligible pinned plugin app icons must still be hidden from the drawer");
+}
+
+{
+  const harness = createPluginTopicHarness({
+    selectedWorkspaceId: "user-media",
+    auth: {
+      workspaceId: "user-media",
+      accountType: "media",
+      allowedOwnerSpecialPlugins: ["music", "movie"],
+    },
+  });
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.readPinnedTabs("user-media"))),
+    ["music", "movie"],
+    "media accounts must default Music and Movie into bottom tabs before local preferences exist",
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.pinnedTabs())),
+    ["music", "movie"],
+    "media account default tabs must pass plugin availability filtering",
+  );
+  const launcherHtml = harness.launcherHtml();
+  assert.doesNotMatch(launcherHtml, /data-plugin-topic-open-app="music"/, "default-pinned Music must move out of the drawer");
+  assert.doesNotMatch(launcherHtml, /data-plugin-topic-open-app="movie"/, "default-pinned Movie must move out of the drawer");
+
+  harness.pinBottomTabs([]);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.readPinnedTabs("user-media"))),
+    [],
+    "explicit media account bottom-tab preferences must override the cold-start default",
+  );
+}
+
+{
+  const harness = createPluginTopicHarness({
+    selectedWorkspaceId: "owner",
+    auth: {
+      workspaceId: "user-media",
+      workspaceIds: ["user-media"],
+      accountType: "media",
+      allowedOwnerSpecialPlugins: ["music", "movie"],
+    },
+  });
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.readPinnedTabs())),
+    ["music", "movie"],
+    "media accounts must ignore stale owner workspace selection when defaulting bottom tabs",
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.pinnedTabs())),
+    ["music", "movie"],
+    "media account plugin availability must resolve through auth workspace when selected workspace is stale owner",
+  );
 }
 
 {
@@ -1000,7 +1079,82 @@ globalThis.__pluginContextColdRestoreHarness = {
   return { sandbox, calls, nodes, ...sandbox.__pluginContextColdRestoreHarness };
 }
 
+function createPluginContextSwitchHarness(statePatch = {}) {
+  const sandbox = {
+    console,
+    Promise,
+    Date,
+    URLSearchParams,
+    state: Object.assign({
+      selectedWorkspaceId: "owner",
+      viewMode: "movie",
+      currentTaskGroupId: "",
+      pluginContextNavPluginId: "movie",
+      auth: { workspaceId: "owner" },
+    }, statePatch),
+    localStorage: { setItem() {}, getItem() { return null; } },
+    EMBEDDED_PLUGIN_DEFS: {
+      movie: { id: "movie", viewMode: "movie" },
+      finance: { id: "finance", viewMode: "finance" },
+    },
+    embeddedPluginNavigationAvailable: () => true,
+    currentWardrobePluginManifest: null,
+    pluginTopicManifestActions: () => [],
+    api: async () => ({}),
+    escapeHtml: (value) => String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;"),
+  };
+  vm.createContext(sandbox);
+  vm.runInContext(`${pluginTopicsUi}
+globalThis.__pluginContextSwitchHarness = {
+  currentPluginContextSwitchTarget,
+  renderPluginContextSwitchDrawerCard,
+  renderPluginAppLauncher,
+  pluginContextSwitchDownGesturePlan,
+  globalPluginDockHostSurfaceEligible,
+};`, sandbox);
+  return { sandbox, ...sandbox.__pluginContextSwitchHarness };
+}
+
 (async () => {
+  const appSwitchHarness = createPluginContextSwitchHarness({
+    viewMode: "movie",
+    currentTaskGroupId: "",
+    pluginContextNavPluginId: "movie",
+  });
+  const appTarget = appSwitchHarness.currentPluginContextSwitchTarget();
+  assert.equal(appTarget.action, "open_topic");
+  assert.equal(appTarget.pluginId, "movie");
+  const appCard = appSwitchHarness.renderPluginContextSwitchDrawerCard(appTarget);
+  assert.match(appCard, /data-plugin-context-switch="movie"/);
+  assert.match(appCard, /aria-label="打开当前插件对话"/);
+  assert.match(appCard, />对话</);
+  assert.doesNotMatch(appCard, /话题/);
+
+  const topicSwitchHarness = createPluginContextSwitchHarness({
+    viewMode: "tasks",
+    currentTaskGroupId: "plugin:movie",
+    pluginContextNavPluginId: "movie",
+  });
+  const topicTarget = topicSwitchHarness.currentPluginContextSwitchTarget();
+  assert.equal(topicTarget.action, "open_app");
+  assert.equal(topicTarget.pluginId, "movie");
+  const topicCard = topicSwitchHarness.renderPluginContextSwitchDrawerCard(topicTarget);
+  assert.match(topicCard, /aria-label="返回当前插件"/);
+  assert.match(topicCard, />插件</);
+  assert.doesNotMatch(topicCard, /话题/);
+
+  const launcherHtml = topicSwitchHarness.renderPluginAppLauncher();
+  assert.match(launcherHtml, /data-plugin-context-switch="movie"/);
+  assert.match(launcherHtml, /data-plugin-drawer-quick-actions/);
+  assert.match(launcherHtml, /data-plugin-topic-open-app="movie"/);
+  assert.equal(topicSwitchHarness.pluginContextSwitchDownGesturePlan({ dx: 3, dy: 42, elapsedMs: 120 }).ok, true);
+  assert.equal(topicSwitchHarness.pluginContextSwitchDownGesturePlan({ dx: 42, dy: 30, elapsedMs: 120 }).ok, false);
+
   const harness = createPluginContextColdRestoreHarness();
   harness.exitPluginContextToTopicHome();
   await new Promise((resolve) => setImmediate(resolve));

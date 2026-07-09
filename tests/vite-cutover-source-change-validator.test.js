@@ -39,15 +39,16 @@ function validPayload(overrides = {}) {
     },
     cutoverSourceChange: {
       exists: true,
-      failClosedDefault: "classic",
-      explicitShellModeSwitch: true,
-      rollbackSwitch: true,
+      viteOnlyRuntime: true,
+      runtimeDefault: "vite",
+      classicRuntimeSwitchRemoved: true,
+      sourceDeployRollbackPlan: true,
       serviceWorkerCacheVersionPlan: true,
       viteAssetsManifestReadback: true,
       devPreviewMocksExcludedFromServer: true,
       ownerConsolePermissionPreserved: true,
       nonOwnerDenied: true,
-      productionDefaultNotViteWithoutSwitch: true,
+      classicOverrideIgnored: true,
       boundedProductionReadbackRequired: true,
       deployLaneRequired: true,
     },
@@ -104,7 +105,7 @@ test("reports missing required source-change assertions", () => {
   const payload = validPayload({
     cutoverSourceChange: {
       ...validPayload().cutoverSourceChange,
-      rollbackSwitch: false,
+      sourceDeployRollbackPlan: false,
       ownerConsolePermissionPreserved: false,
     },
   });
@@ -113,7 +114,7 @@ test("reports missing required source-change assertions", () => {
   assert.equal(result.status, "cutover_source_change_incomplete");
   assert.deepEqual(
     result.missingAssertions.map((entry) => entry.id),
-    ["rollback_switch", "owner_console_permission_preserved"],
+    ["source_deploy_rollback_plan", "owner_console_permission_preserved"],
   );
 });
 

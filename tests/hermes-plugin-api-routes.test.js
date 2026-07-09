@@ -213,6 +213,71 @@ async function testListRouteUsesEffectiveWorkspaceForOwnerSwitch() {
   assert.deepEqual(parseBody(res).plugins, []);
 }
 
+async function testListAndManifestRoutesForwardRestrictedMediaAuth() {
+  const mediaAuth = {
+    ok: true,
+    role: "workspace",
+    workspaceId: "media",
+    accountType: "media",
+    restrictedMedia: true,
+    allowedOwnerSpecialPlugins: ["music", "movie"],
+    isOwner: false,
+  };
+  const { calls, routes } = makeRoutes({
+    hermesPluginService: {
+      list(input = {}) {
+        calls.list.push(input);
+        assert.equal(input.auth, mediaAuth);
+        return [
+          { id: "music", manifestUrl: "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest" },
+          { id: "movie", manifestUrl: "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest" },
+        ];
+      },
+      listInstalled() {
+        return [];
+      },
+      manifest(input) {
+        calls.manifest.push(input);
+        assert.equal(input.auth, mediaAuth);
+        return Promise.resolve({ ok: true, available: true, id: input.id, entry: { url: `/media/${input.id}` } });
+      },
+      pluginManifestUrl(id) {
+        if (id === "music") return "http://127.0.0.1:4891/api/v1/hermes/plugin/manifest";
+        if (id === "movie") return "http://127.0.0.1:4195/api/v1/hermes/plugin/manifest";
+        return "";
+      },
+    },
+  });
+  const listRes = makeResponse();
+  await routes.handle({ method: "GET", auth: mediaAuth }, listRes, makeUrl("/api/hermes-plugins?workspaceId=media"));
+  assert.equal(listRes.statusCode, 200);
+  assert.deepEqual(parseBody(listRes).plugins.map((item) => item.id), ["music", "movie"]);
+  assert.deepEqual(calls.list[0], { workspaceId: "media", ownerAuthorized: false, auth: mediaAuth });
+
+  const defaultWorkspaceListRes = makeResponse();
+  await routes.handle({ method: "GET", auth: mediaAuth }, defaultWorkspaceListRes, makeUrl("/api/hermes-plugins"));
+  assert.equal(defaultWorkspaceListRes.statusCode, 200);
+  assert.deepEqual(parseBody(defaultWorkspaceListRes).plugins.map((item) => item.id), ["music", "movie"]);
+  assert.deepEqual(calls.access.slice(0, 2), ["media", "media"]);
+  assert.deepEqual(calls.list[1], { workspaceId: "media", ownerAuthorized: false, auth: mediaAuth });
+
+  const manifestRes = makeResponse();
+  await routes.handle({ method: "GET", auth: mediaAuth }, manifestRes, makeUrl("/api/hermes-plugins/music/manifest?workspaceId=media"));
+  assert.equal(manifestRes.statusCode, 200);
+  assert.equal(parseBody(manifestRes).id, "music");
+  assert.equal(calls.manifest[0].id, "music");
+  assert.equal(calls.manifest[0].workspaceId, "media");
+  assert.equal(calls.manifest[0].auth, mediaAuth);
+
+  const defaultWorkspaceManifestRes = makeResponse();
+  await routes.handle({ method: "GET", auth: mediaAuth }, defaultWorkspaceManifestRes, makeUrl("/api/hermes-plugins/movie/manifest"));
+  assert.equal(defaultWorkspaceManifestRes.statusCode, 200);
+  assert.equal(parseBody(defaultWorkspaceManifestRes).id, "movie");
+  assert.equal(calls.manifest[1].id, "movie");
+  assert.equal(calls.manifest[1].workspaceId, "media");
+  assert.equal(calls.manifest[1].auth, mediaAuth);
+}
+
 async function testAdminListRouteRequiresOwner() {
   const { calls, routes } = makeRoutes();
   const res = makeResponse();
@@ -652,12 +717,12 @@ async function testHealthProxyWriteRequiresExplicitWorkspace() {
   assert.equal(fetchCallCount, 0);
 }
 
-async function testHealthProxyOwnerWriteTargetsNonOwnerWorkspaceKey() {
+async function testHealthProxyOwnerWriteTargetsOwnerPersonalSource() {
   const authorizationCalls = [];
   const { routes } = makeRoutes({
     hermesPluginService: {
       list(input = {}) {
-        assert.deepEqual(input, { workspaceId: "liyushuang", ownerAuthorized: false });
+        assert.deepEqual(input, { workspaceId: "owner", ownerAuthorized: true });
         return [{ id: "health", manifestUrl: "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" }];
       },
       manifest() {
@@ -668,14 +733,17 @@ async function testHealthProxyOwnerWriteTargetsNonOwnerWorkspaceKey() {
       },
       pluginProxyAuthorizationHeader(input) {
         authorizationCalls.push(input);
-        return "Bearer liyushuang-health-secret";
+        return "Bearer owner-health-secret";
       },
     },
     fetch(url, options = {}) {
-      assert.equal(url, "http://127.0.0.1:4877/api/v1/apple-health/sync?workspaceId=liyushuang");
-      assert.equal(options.headers.Authorization, "Bearer liyushuang-health-secret");
-      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "liyushuang");
+      assert.equal(url, "http://127.0.0.1:4877/api/v1/apple-health/sync?workspaceId=owner");
+      assert.equal(options.headers.Authorization, "Bearer owner-health-secret");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      assert.equal(options.headers["x-hermes-plugin-effective-workspace-id"], "owner");
       assert.equal(options.headers["x-hermes-plugin-actor-workspace-id"], "owner");
+      assert.equal(options.headers["x-hermes-apple-health-source-workspace-id"], "owner");
+      assert.equal(options.headers["x-hermes-apple-health-sync-mode"], "personal");
       assert.equal(options.headers["x-hermes-plugin-actor-role"], "owner");
       assert.equal(Object.prototype.hasOwnProperty.call(options.headers, "authorization"), false);
       return Promise.resolve({
@@ -688,6 +756,46 @@ async function testHealthProxyOwnerWriteTargetsNonOwnerWorkspaceKey() {
   });
   const req = makeRequest("POST", [JSON.stringify({ samples: [] })]);
   req.headers.authorization = "Bearer browser-supplied-value";
+  req.headers["x-hermes-apple-health-source-workspace-id"] = "owner";
+  req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/health/proxy/api/v1/apple-health/sync?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(authorizationCalls, [{ pluginId: "health", workspaceId: "owner" }]);
+  assert.equal(parseBody(res).ok, true);
+}
+
+async function testHealthProxyOwnerWriteBlocksNonOwnerPersonalSourceMismatch() {
+  let authorizationCallCount = 0;
+  let fetchCallCount = 0;
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        throw new Error("apple health workspace mismatch must stop before plugin authorization checks");
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "health" });
+      },
+      pluginManifestUrl(id) {
+        return id === "health" ? "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" : "";
+      },
+      pluginProxyAuthorizationHeader() {
+        authorizationCallCount += 1;
+        return "Bearer liyushuang-health-secret";
+      },
+    },
+    fetch() {
+      fetchCallCount += 1;
+      throw new Error("apple health workspace mismatch must not reach upstream");
+    },
+  });
+  const req = makeRequest("POST", [JSON.stringify({ samples: [] })]);
+  req.headers["x-hermes-apple-health-source-workspace-id"] = "owner";
   req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
   const res = makeResponse();
   const result = await routes.handle(
@@ -696,9 +804,14 @@ async function testHealthProxyOwnerWriteTargetsNonOwnerWorkspaceKey() {
     makeUrl("/api/hermes-plugins/health/proxy/api/v1/apple-health/sync?workspaceId=liyushuang"),
   );
   assert.equal(result.handled, true);
-  assert.equal(res.statusCode, 200);
-  assert.deepEqual(authorizationCalls, [{ pluginId: "health", workspaceId: "liyushuang" }]);
-  assert.equal(parseBody(res).ok, true);
+  assert.equal(res.statusCode, 400);
+  assert.equal(parseBody(res).error, "apple_health_workspace_mismatch");
+  assert.equal(parseBody(res).actorWorkspaceId, "owner");
+  assert.equal(parseBody(res).effectiveWorkspaceId, "liyushuang");
+  assert.equal(parseBody(res).appleHealthSourceWorkspaceId, "owner");
+  assert.equal(parseBody(res).appleHealthSyncMode, "personal");
+  assert.equal(authorizationCallCount, 0);
+  assert.equal(fetchCallCount, 0);
 }
 
 async function testHealthProxyNativeSyncPreservesHeaderWorkspace() {
@@ -724,7 +837,10 @@ async function testHealthProxyNativeSyncPreservesHeaderWorkspace() {
       assert.equal(url, "http://127.0.0.1:4877/api/v1/apple-health/sync");
       assert.equal(options.headers.Authorization, "Bearer liyushuang-health-secret");
       assert.equal(options.headers["x-hermes-plugin-workspace-id"], "liyushuang");
+      assert.equal(options.headers["x-hermes-plugin-effective-workspace-id"], "liyushuang");
       assert.equal(options.headers["x-hermes-plugin-actor-workspace-id"], "owner");
+      assert.equal(options.headers["x-hermes-apple-health-source-workspace-id"], "liyushuang");
+      assert.equal(options.headers["x-hermes-apple-health-sync-mode"], "personal");
       assert.equal(options.headers["x-hermes-plugin-actor-role"], "owner");
       return Promise.resolve({
         ok: true,
@@ -736,6 +852,7 @@ async function testHealthProxyNativeSyncPreservesHeaderWorkspace() {
   });
   const req = makeRequest("POST", [JSON.stringify({ samples: [] })]);
   req.headers["x-hermes-plugin-workspace-id"] = "liyushuang";
+  req.headers["x-hermes-apple-health-source-workspace-id"] = "liyushuang";
   req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
   const res = makeResponse();
   const result = await routes.handle(
@@ -747,6 +864,51 @@ async function testHealthProxyNativeSyncPreservesHeaderWorkspace() {
   assert.equal(res.statusCode, 200);
   assert.deepEqual(authorizationCalls, [{ pluginId: "health", workspaceId: "liyushuang" }]);
   assert.equal(parseBody(res).ok, true);
+}
+
+async function testHealthProxyGuardianSyncFailsClosed() {
+  let authorizationCallCount = 0;
+  let fetchCallCount = 0;
+  const { routes } = makeRoutes({
+    hermesPluginService: {
+      list() {
+        throw new Error("guardian apple health sync must stop before plugin authorization checks");
+      },
+      manifest() {
+        return Promise.resolve({ ok: true, available: true, id: "health" });
+      },
+      pluginManifestUrl(id) {
+        return id === "health" ? "http://127.0.0.1:4877/api/v1/hermes/plugin/manifest" : "";
+      },
+      pluginProxyAuthorizationHeader() {
+        authorizationCallCount += 1;
+        return "Bearer owner-health-secret";
+      },
+    },
+    fetch() {
+      fetchCallCount += 1;
+      throw new Error("guardian apple health sync must not reach upstream");
+    },
+  });
+  const req = makeRequest("POST", [JSON.stringify({ samples: [] })]);
+  req.headers["x-hermes-apple-health-source-workspace-id"] = "owner";
+  req.headers["x-hermes-apple-health-sync-mode"] = "guardian";
+  req.auth = { ok: true, workspaceId: "owner", isOwner: true, role: "owner" };
+  const res = makeResponse();
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/health/proxy/api/v1/apple-health/sync?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 400);
+  assert.equal(parseBody(res).error, "apple_health_guardian_sync_not_supported");
+  assert.equal(parseBody(res).actorWorkspaceId, "owner");
+  assert.equal(parseBody(res).effectiveWorkspaceId, "owner");
+  assert.equal(parseBody(res).appleHealthSourceWorkspaceId, "owner");
+  assert.equal(parseBody(res).appleHealthSyncMode, "guardian");
+  assert.equal(authorizationCallCount, 0);
+  assert.equal(fetchCallCount, 0);
 }
 
 async function testHealthProxyUsesSnakeCaseWorkspaceReferrer() {
@@ -827,6 +989,56 @@ async function testPluginNotificationRoute() {
   assert.equal(parseBody(res).inboxItem.id, "ainb-plugin-1");
 }
 
+async function testMoviePluginNotificationRouteAcceptsDedicatedNotificationKey() {
+  const { calls, routes } = makeRoutes({
+    hermesPluginNotificationAuthService: {
+      authorizePluginNotificationRequest(input = {}) {
+        assert.equal(input.pluginId, "movie");
+        assert.equal(input.workspaceId, "owner");
+        assert.equal(input.req.headers["x-hermes-web-key"], "movie-notification-secret");
+        return {
+          ok: true,
+          workspaceId: "owner",
+          auth: {
+            ok: true,
+            role: "plugin_notification",
+            workspaceId: "owner",
+            principalId: "plugin:movie",
+            isOwner: false,
+            keySource: "plugin_notification",
+          },
+        };
+      },
+    },
+  });
+  const res = makeResponse();
+  const req = makeRequest("POST");
+  req.headers["x-hermes-web-key"] = "movie-notification-secret";
+  req.auth = { ok: false, role: "anonymous" };
+  req.body = {
+    workspaceId: "owner",
+    eventId: "projector-temp-1",
+    title: "Projector temperature",
+    summary: "Temperature crossed threshold.",
+    inbox: false,
+    openMode: "plugin",
+  };
+  const result = await routes.handle(
+    req,
+    res,
+    makeUrl("/api/hermes-plugins/movie/notifications"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 202);
+  assert.deepEqual(calls.access, []);
+  assert.equal(calls.notifications[0].pluginId, "movie");
+  assert.equal(calls.notifications[0].workspaceId, "owner");
+  assert.equal(calls.notifications[0].auth.role, "plugin_notification");
+  assert.equal(calls.notifications[0].auth.isOwner, false);
+  assert.equal(calls.broadcasts[0].pluginId, "movie");
+  assert.doesNotMatch(res.body, /movie-notification-secret/);
+}
+
 async function testCodexProxyRewritesHtmlAndUsesUpstream() {
   const fetchCalls = [];
   const { routes } = makeRoutes({
@@ -867,6 +1079,7 @@ async function testCodexProxyDoesNotInjectWorkspaceIdIntoJavascriptPathConstants
           'if (parsed.pathname.startsWith("/api/")) return true;',
           'if (parsed.pathname === "/api/uploads/file") return "upload";',
           'return authenticatedApiContentUrl(`/api/uploads/file?${params.toString()}`);',
+          'return fetch("/api/v1/hermes/plugin/session");',
         ].join("\n")),
       });
     },
@@ -882,7 +1095,8 @@ async function testCodexProxyDoesNotInjectWorkspaceIdIntoJavascriptPathConstants
   assert.match(res.body, /parsed\.pathname\.startsWith\("\/api\/hermes-plugins\/codex-mobile\/proxy\/api\/"\)/);
   assert.match(res.body, /parsed\.pathname === "\/api\/hermes-plugins\/codex-mobile\/proxy\/api\/uploads\/file"/);
   assert.match(res.body, /`\/api\/hermes-plugins\/codex-mobile\/proxy\/api\/uploads\/file\?\$\{params\.toString\(\)\}`/);
-  assert.equal(res.body.includes("?workspaceId=owner"), false);
+  assert.match(res.body, /fetch\("\/api\/hermes-plugins\/codex-mobile\/proxy\/api\/v1\/hermes\/plugin\/session\?workspaceId=owner"\)/);
+  assert.equal(res.body.includes("/api/hermes-plugins/codex-mobile/proxy/api/uploads/file?workspaceId=owner"), false);
   assert.equal(res.body.includes("/api/?workspaceId=owner"), false);
 }
 
@@ -897,6 +1111,8 @@ async function testCodexProxyRewritesViteShellJavascriptImports() {
         headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/javascript; charset=utf-8" : "" },
         text: () => Promise.resolve([
           'import("/vite-shell/assets/vite-shell-entry-d3FNWOOl.js");',
+          'import("./vite-entry-group-manifest-DA8JWd0Y.js");',
+          'import helper from "./vite-entry-helper-DLmUsyqf.js";',
           'const shard = "/vite-shell/assets/shard-06-CPu73sWb.js";',
           'const deps = ["assets/shard-01-fe8qIyTv.js","assets/vite-shell-entry-d3FNWOOl.js"];',
         ].join("\n")),
@@ -911,13 +1127,123 @@ async function testCodexProxyRewritesViteShellJavascriptImports() {
   );
   assert.equal(result.handled, true);
   assert.equal(res.statusCode, 200);
-  assert.match(res.body, /import\("\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/vite-shell-entry-d3FNWOOl\.js"\)/);
-  assert.match(res.body, /const shard = "\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/shard-06-CPu73sWb\.js"/);
-  assert.match(res.body, /const deps = \["\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/shard-01-fe8qIyTv\.js","\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/vite-shell-entry-d3FNWOOl\.js"\]/);
+  assert.match(res.body, /import\("\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/vite-shell-entry-d3FNWOOl\.js\?workspaceId=owner"\)/);
+  assert.match(res.body, /import\("\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/vite-entry-group-manifest-DA8JWd0Y\.js\?workspaceId=owner"\)/);
+  assert.match(res.body, /import helper from "\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/vite-entry-helper-DLmUsyqf\.js\?workspaceId=owner"/);
+  assert.match(res.body, /const shard = "\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/shard-06-CPu73sWb\.js\?workspaceId=owner"/);
+  assert.match(res.body, /const deps = \["\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/shard-01-fe8qIyTv\.js\?workspaceId=owner","\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/vite-shell-entry-d3FNWOOl\.js\?workspaceId=owner"\]/);
   assert.doesNotMatch(res.body, /import\("\/vite-shell\/assets\/vite-shell-entry-d3FNWOOl\.js"\)/);
+  assert.doesNotMatch(res.body, /import\("\.\/vite-entry-group-manifest-DA8JWd0Y\.js"\)/);
   assert.doesNotMatch(res.body, /const shard = "\/vite-shell\/assets\/shard-06-CPu73sWb\.js"/);
   assert.doesNotMatch(res.body, /"assets\/shard-01-fe8qIyTv\.js"/);
-  assert.equal(res.body.includes("?workspaceId=owner"), false);
+  assert.equal((res.body.match(/\?workspaceId=owner/g) || []).length, 6);
+}
+
+async function testCodexProxyRewritesRelativeScriptAssetsWithWorkspaceId() {
+  const { routes } = makeRoutes({
+    fetch(url, options = {}) {
+      assert.equal(url, "http://127.0.0.1:8787/app.js?workspaceId=owner");
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? "text/javascript; charset=utf-8" : "" },
+        text: () => Promise.resolve('const shard = "assets/shard.js";'),
+      });
+    },
+  });
+  const res = makeResponse();
+  const result = await routes.handle(
+    makeRequest("GET"),
+    res,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/app.js?workspaceId=owner"),
+  );
+  assert.equal(result.handled, true);
+  assert.equal(res.statusCode, 200);
+  assert.match(res.body, /const shard = "\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/shard\.js\?workspaceId=owner"/);
+}
+
+async function testCodexProxyViteModuleAssetRequestsStayWorkspaceScoped() {
+  const fetchCalls = [];
+  const responses = new Map([
+    ["http://127.0.0.1:8787/?embed=hermes&workspaceId=owner", {
+      contentType: "text/html; charset=utf-8",
+      body: '<script type="module" src="/vite-shell/app-preview-entry.js"></script>',
+    }],
+    ["http://127.0.0.1:8787/vite-shell/app-preview-entry.js?workspaceId=owner", {
+      contentType: "text/javascript; charset=utf-8",
+      body: 'import("./assets/entry.js"); export const ok = true;',
+    }],
+    ["http://127.0.0.1:8787/vite-shell/assets/entry.js?workspaceId=owner", {
+      contentType: "text/javascript; charset=utf-8",
+      body: 'import("./shard.js"); export { shard } from "./shard.js";',
+    }],
+    ["http://127.0.0.1:8787/vite-shell/assets/shard.js?workspaceId=owner", {
+      contentType: "text/javascript; charset=utf-8",
+      body: "export const shard = true;",
+    }],
+  ]);
+  const { routes } = makeRoutes({
+    fetch(url, options = {}) {
+      fetchCalls.push(url);
+      assert.equal(options.headers["x-hermes-plugin-workspace-id"], "owner");
+      const response = responses.get(url);
+      assert.ok(response, `unexpected fetch ${url}`);
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === "content-type" ? response.contentType : "" },
+        text: () => Promise.resolve(response.body),
+      });
+    },
+  });
+
+  const htmlRes = makeResponse();
+  const htmlResult = await routes.handle(
+    makeRequest("GET"),
+    htmlRes,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/?embed=hermes&workspaceId=owner"),
+  );
+  assert.equal(htmlResult.handled, true);
+  assert.equal(htmlRes.statusCode, 200);
+  assert.match(htmlRes.body, /src="\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/app-preview-entry\.js\?workspaceId=owner"/);
+
+  const moduleRes = makeResponse();
+  const moduleResult = await routes.handle(
+    makeRequest("GET"),
+    moduleRes,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/vite-shell/app-preview-entry.js?workspaceId=owner"),
+  );
+  assert.equal(moduleResult.handled, true);
+  assert.equal(moduleRes.statusCode, 200);
+  assert.match(moduleRes.body, /import\("\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/entry\.js\?workspaceId=owner"\)/);
+
+  const entryRes = makeResponse();
+  const entryResult = await routes.handle(
+    makeRequest("GET"),
+    entryRes,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/vite-shell/assets/entry.js?workspaceId=owner"),
+  );
+  assert.equal(entryResult.handled, true);
+  assert.equal(entryRes.statusCode, 200);
+  assert.match(entryRes.body, /import\("\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/shard\.js\?workspaceId=owner"\)/);
+  assert.match(entryRes.body, /export \{ shard \} from "\/api\/hermes-plugins\/codex-mobile\/proxy\/vite-shell\/assets\/shard\.js\?workspaceId=owner"/);
+
+  const assetRes = makeResponse();
+  const assetResult = await routes.handle(
+    makeRequest("GET"),
+    assetRes,
+    makeUrl("/api/hermes-plugins/codex-mobile/proxy/vite-shell/assets/shard.js?workspaceId=owner"),
+  );
+  assert.equal(assetResult.handled, true);
+  assert.equal(assetRes.statusCode, 200);
+  assert.equal(assetRes.body, "export const shard = true;");
+  assert.deepEqual(fetchCalls, [
+    "http://127.0.0.1:8787/?embed=hermes&workspaceId=owner",
+    "http://127.0.0.1:8787/vite-shell/app-preview-entry.js?workspaceId=owner",
+    "http://127.0.0.1:8787/vite-shell/assets/entry.js?workspaceId=owner",
+    "http://127.0.0.1:8787/vite-shell/assets/shard.js?workspaceId=owner",
+  ]);
 }
 
 async function testCodexThreadDetailProxyRecordsBoundedTimingAndSkipsProseUrlParsing() {
@@ -2275,6 +2601,7 @@ async function run() {
   await testGrantAndRevokeRoutesRequireOwner();
   await testListRoute();
   await testListRouteUsesEffectiveWorkspaceForOwnerSwitch();
+  await testListAndManifestRoutesForwardRestrictedMediaAuth();
   await testWardrobeManifestRoute();
   await testMoiraManifestRouteForwardsPluginRoute();
   await testCodexManifestRoute();
@@ -2289,13 +2616,18 @@ async function run() {
   await testGrowthProxyAttachesServerSideWorkspaceBearerForWrites();
   await testHealthProxyAttachesServerSideWorkspaceBearerForReads();
   await testHealthProxyWriteRequiresExplicitWorkspace();
-  await testHealthProxyOwnerWriteTargetsNonOwnerWorkspaceKey();
+  await testHealthProxyOwnerWriteTargetsOwnerPersonalSource();
+  await testHealthProxyOwnerWriteBlocksNonOwnerPersonalSourceMismatch();
   await testHealthProxyNativeSyncPreservesHeaderWorkspace();
+  await testHealthProxyGuardianSyncFailsClosed();
   await testHealthProxyUsesSnakeCaseWorkspaceReferrer();
   await testPluginNotificationRoute();
+  await testMoviePluginNotificationRouteAcceptsDedicatedNotificationKey();
   await testCodexProxyRewritesHtmlAndUsesUpstream();
   await testCodexProxyDoesNotInjectWorkspaceIdIntoJavascriptPathConstants();
   await testCodexProxyRewritesViteShellJavascriptImports();
+  await testCodexProxyRewritesRelativeScriptAssetsWithWorkspaceId();
+  await testCodexProxyViteModuleAssetRequestsStayWorkspaceScoped();
   await testCodexThreadDetailProxyRecordsBoundedTimingAndSkipsProseUrlParsing();
   await testMoiraProxyHtmlAllowsDeclaredWasmEvalCsp();
   await testMoiraProxyInfersWorkspaceFromNamespacedSessionCookie();

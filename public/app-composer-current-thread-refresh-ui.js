@@ -1,6 +1,42 @@
 "use strict";
 
+const CHAT_COMPOSER_CURRENT_THREAD_REFRESH_MODEL_ESM_PATH = "/vite-islands/chat-composer-current-thread-refresh-model/chat-composer-current-thread-refresh-model.js";
+let chatComposerCurrentThreadRefreshModel = null;
+let chatComposerCurrentThreadRefreshModelPromise = null;
+
+function importChatComposerCurrentThreadRefreshModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (chatComposerCurrentThreadRefreshModel) return Promise.resolve(chatComposerCurrentThreadRefreshModel);
+  if (!chatComposerCurrentThreadRefreshModelPromise) {
+    const importer = typeof rootRef.__homeAiImportChatComposerCurrentThreadRefreshModel === "function"
+      ? rootRef.__homeAiImportChatComposerCurrentThreadRefreshModel
+      : (path) => import(path);
+    chatComposerCurrentThreadRefreshModelPromise = Promise.resolve()
+      .then(() => importer(CHAT_COMPOSER_CURRENT_THREAD_REFRESH_MODEL_ESM_PATH))
+      .then((model) => {
+        chatComposerCurrentThreadRefreshModel = model || null;
+        return chatComposerCurrentThreadRefreshModel;
+      })
+      .catch((error) => {
+        chatComposerCurrentThreadRefreshModelPromise = null;
+        throw error;
+      });
+  }
+  return chatComposerCurrentThreadRefreshModelPromise;
+}
+
+function currentChatComposerCurrentThreadRefreshModel() {
+  return chatComposerCurrentThreadRefreshModel;
+}
+
+if (typeof window !== "undefined") {
+  importChatComposerCurrentThreadRefreshModel().catch(() => null);
+}
+
 function currentThreadRouteSnapshot() {
+  const model = currentChatComposerCurrentThreadRefreshModel();
+  if (typeof model?.currentThreadRouteSnapshotPlan === "function") {
+    return model.currentThreadRouteSnapshotPlan({ state }).snapshot;
+  }
   return {
     viewMode: String(state.viewMode || ""),
     singleWindowMode: String(state.singleWindowMode || ""),
@@ -12,6 +48,10 @@ function currentThreadRouteSnapshot() {
 }
 
 function currentThreadRouteMatches(snapshot = null) {
+  const model = currentChatComposerCurrentThreadRefreshModel();
+  if (typeof model?.currentThreadRouteMatchesPlan === "function") {
+    return model.currentThreadRouteMatchesPlan({ state, snapshot }).matches;
+  }
   if (!snapshot || typeof snapshot !== "object") return true;
   if (String(state.viewMode || "") !== String(snapshot.viewMode || "")) return false;
   if (String(state.singleWindowMode || "") !== String(snapshot.singleWindowMode || "")) return false;
@@ -76,6 +116,13 @@ function scheduleTopicRootListRefresh(delayMs = 140) {
 }
 
 function currentThreadHasPendingMessages(thread = state.currentThread) {
+  const model = currentChatComposerCurrentThreadRefreshModel();
+  if (typeof model?.currentThreadHasPendingMessagesPlan === "function") {
+    return model.currentThreadHasPendingMessagesPlan({
+      thread,
+      activeRunIds: activeThreadRunIds(thread),
+    }).hasPendingMessages;
+  }
   return Boolean(
     thread
     && (
@@ -89,6 +136,10 @@ function currentThreadHasPendingMessages(thread = state.currentThread) {
 }
 
 function summaryHasActiveRun(summary) {
+  const model = currentChatComposerCurrentThreadRefreshModel();
+  if (typeof model?.summaryHasActiveRunPlan === "function") {
+    return model.summaryHasActiveRunPlan({ summary }).hasActiveRun;
+  }
   return Boolean(
     (Array.isArray(summary?.activeRunIds) && summary.activeRunIds.length)
     || summary?.activeRunId
@@ -97,6 +148,14 @@ function summaryHasActiveRun(summary) {
 }
 
 function shouldRefreshCurrentThreadForSummary(summary) {
+  const model = currentChatComposerCurrentThreadRefreshModel();
+  if (typeof model?.shouldRefreshCurrentThreadForSummaryPlan === "function") {
+    return model.shouldRefreshCurrentThreadForSummaryPlan({
+      summary,
+      currentThread: state.currentThread,
+      currentThreadHasPendingMessages: currentThreadHasPendingMessages(),
+    }).shouldRefresh;
+  }
   if (!summary || !state.currentThread || summary.id !== state.currentThread.id) return false;
   const summaryUpdated = String(summary.updatedAt || "");
   const currentUpdated = String(state.currentThread.updatedAt || "");
@@ -197,6 +256,10 @@ async function refreshCurrentThreadFromServer(options = {}) {
 function currentThreadRefreshDelayMs(options = {}) {
   const scheduler = composerRefreshScheduler();
   if (typeof scheduler?.refreshDelayMs === "function") return scheduler.refreshDelayMs(options);
+  const model = currentChatComposerCurrentThreadRefreshModel();
+  if (typeof model?.currentThreadRefreshDelayPlan === "function") {
+    return model.currentThreadRefreshDelayPlan({ options, fallbackDelayMs: 120 }).delayMs;
+  }
   const hasDelay = Object.prototype.hasOwnProperty.call(options, "delayMs");
   const value = Number(hasDelay ? options.delayMs : 120);
   return Math.max(0, Number.isFinite(value) ? value : 120);
@@ -208,7 +271,7 @@ function requestCurrentThreadRefresh(options = {}) {
   const scheduler = composerRefreshScheduler();
   const dueAt = typeof scheduler?.timerDueAt === "function"
     ? scheduler.timerDueAt(Date.now(), options)
-    : Date.now() + delayMs;
+    : (currentChatComposerCurrentThreadRefreshModel()?.currentThreadRefreshDueAtPlan?.({ nowMs: Date.now(), options })?.dueAt ?? Date.now() + delayMs);
   const existingDueAt = Number(state.currentThreadRefreshDueAt || 0) || 0;
   const keepScheduled = scheduler?.shouldKeepScheduledRefresh?.(state, dueAt)
     ?? Boolean(state.currentThreadRefreshTimer && existingDueAt && existingDueAt <= dueAt);

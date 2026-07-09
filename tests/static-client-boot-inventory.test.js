@@ -32,7 +32,7 @@ test("static client boot inventory document is generated from current index scri
   assert.match(doc, /generated-by: scripts\/static-client-boot-inventory\.js/);
   assert.match(doc, new RegExp(`script-count: ${inventory.generatedFrom.scriptCount}`));
   assert.match(doc, new RegExp(`script-order-sha256: ${inventory.generatedFrom.scriptOrderHash}`));
-  assert.equal(inventory.generatedFrom.scriptCount, 102);
+  assert.equal(inventory.generatedFrom.scriptCount, 103);
   assert.equal(inventory.scripts[0].path, "fixed-viewport.js");
   assert.equal(inventory.scripts.at(-1).path, "app-start.js");
 });

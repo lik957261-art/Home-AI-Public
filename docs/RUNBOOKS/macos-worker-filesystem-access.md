@@ -43,6 +43,24 @@ sudo /Users/example/path \
   --root /Users/example/path
 ```
 
+For recurring production health coverage of newly provisioned family
+workspaces, run the target-catalog mode:
+
+```bash
+sudo /Users/example/path \
+  /Users/example/path \
+  --root /Users/example/path \
+  --workspace-catalog-targets \
+  --json
+```
+
+This mode reads `data/workspaces.json`, excludes Owner, derives or uses the
+recorded `hm-*` worker user, skips records whose macOS user does not exist yet,
+and checks each provisioned target with the same drive-root and shared-upload
+write-smoke semantics as onboarding `--target-only` validation. It does not use
+the historical fixed workspace ACL aggregation as proof that a new family
+workspace is healthy.
+
 From Windows, use the shared SSH alias and pass sudo credentials through the
 normal local operator mechanism; do not print passwords or keys:
 
@@ -65,6 +83,9 @@ Pass criteria:
 - Other worker users are checked against their current workspace ids, including
   `weixin_stephen`, `user-981731fe`, `user-a87aaa61`, and `weixin_test_1` when
   those roots exist.
+- In `--workspace-catalog-targets` mode, every catalog workspace whose `hm-*`
+  worker user exists can create/delete a smoke file under its own live
+  `data/drive/users/<workspace>` root and the shared live `data/uploads` root.
 - Cross-user deny checks must pass: ordinary worker users must not be able to
   read or write Owner Skill/Memory stores, another user's drive root, or another
   user's `.hermes-*` plugin private directories. A path that reports

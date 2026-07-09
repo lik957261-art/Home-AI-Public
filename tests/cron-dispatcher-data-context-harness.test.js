@@ -15,7 +15,8 @@ assert.match(dispatcher, /automation-data-context-cli\.js/);
 assert.match(dispatcher, /data_context_prepare_failed/);
 assert.match(dispatcher, /\[HOME AI DATA CONTEXT\]/);
 assert.match(dispatcher, /Use this data context as the primary evidence source/);
-assert.match(dispatcher, /prepared_job = _job_with_prepared_data_context\(job\)/);
+assert.match(dispatcher, /prepared_job = _job_with_profile_model_defaults\(job\)/);
+assert.match(dispatcher, /prepared_job = _job_with_prepared_data_context\(prepared_job\)/);
 assert.match(dispatcher, /run_job\(prepared_job\)/);
 
 assert.match(mobileDispatcher, /dataContextApiRoutes/);

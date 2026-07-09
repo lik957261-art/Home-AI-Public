@@ -1,6 +1,8 @@
 "use strict";
 
 const { execFile } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const DEFAULT_SYSTEM_RESOURCE_THRESHOLDS = deepFreeze({
   cpu: {
@@ -24,6 +26,18 @@ const DEFAULT_SYSTEM_RESOURCE_THRESHOLDS = deepFreeze({
     degradedPercentUsed: 90,
     warningFreeBytes: 20 * 1024 ** 3,
     degradedFreeBytes: 10 * 1024 ** 3,
+  },
+  codexMobile: {
+    warningProcessCpuPercent: 20,
+    degradedProcessCpuPercent: 60,
+    warningProcessRssBytes: 1024 ** 3,
+    degradedProcessRssBytes: 2 * 1024 ** 3,
+    warningTotalRssBytes: 1536 * 1024 ** 2,
+    degradedTotalRssBytes: 3 * 1024 ** 3,
+    warningLogBytes: 512 * 1024 ** 2,
+    degradedLogBytes: 1024 * 1024 ** 2,
+    warningLogGrowthBytesPerSecond: 256 * 1024,
+    degradedLogGrowthBytesPerSecond: 2 * 1024 * 1024,
   },
 });
 
@@ -148,6 +162,214 @@ function parsePsCpuProcesses(text, limit = 5) {
   }
   rows.sort((left, right) => right.cpuPercent - left.cpuPercent || left.label.localeCompare(right.label));
   return rows.slice(0, Math.max(0, Math.min(20, Math.round(nonNegativeNumber(limit, 5)))));
+}
+
+function parsePsCommandProcesses(text) {
+  const rows = [];
+  const lines = String(text || "").split(/\r?\n/);
+  for (const line of lines) {
+    const match = line.match(/^\s*([0-9]+)\s+([0-9]+(?:\.[0-9]+)?)\s+([0-9]+)\s+(\S+)\s+(.+?)\s*$/);
+    if (!match) continue;
+    const pid = Math.round(nonNegativeNumber(match[1]));
+    const cpuPercent = roundNumber(match[2], 1);
+    const rssBytes = Math.round(nonNegativeNumber(match[3]) * 1024);
+    const elapsed = cleanLabel(match[4], "unknown_elapsed");
+    const command = String(match[5] || "");
+    if (!pid || !command) continue;
+    rows.push({ pid, cpuPercent, rssBytes, elapsed, command });
+  }
+  return rows;
+}
+
+function parseLaunchdPid(stdout) {
+  const match = String(stdout || "").match(/\b(?:pid|processIdentifier)\s*=\s*([1-9][0-9]*)\b/i);
+  return match ? Math.round(nonNegativeNumber(match[1])) : 0;
+}
+
+function codexMobileProcessRole(row, launchdPid = 0) {
+  const command = String(row?.command || "");
+  if (!command) return null;
+  if (row.pid === launchdPid) {
+    return { role: "listener", label: "Codex Mobile listener" };
+  }
+  if (/codex-mobile-web\/server\.js\b/i.test(command) || /plugins\/codex-mobile-web\/server\.js\b/i.test(command)) {
+    return { role: "listener", label: "Codex Mobile listener" };
+  }
+  if (/\bcodex-app-server-mux\.js\b/i.test(command)) {
+    return { role: "app_server_mux", label: "Codex app-server mux" };
+  }
+  if (/\bcodex\b[\s\S]*\bapp-server\b/i.test(command)) {
+    return { role: "codex_app_server", label: "Codex app-server" };
+  }
+  if (/\bcodex-mobile-mcp-server\.js\b/i.test(command)) {
+    return { role: "mcp_server", label: "Codex Mobile MCP" };
+  }
+  return null;
+}
+
+function hostMemoryPressureHealthy(memory = {}) {
+  const status = String(memory?.status || "").toLowerCase();
+  if (status !== "ok") return false;
+  const pressure = memory?.pressure || {};
+  const swap = memory?.swap || {};
+  const pressureStatus = String(pressure.status || "").toLowerCase();
+  const swapStatus = String(swap.status || "").toLowerCase();
+  const pressureHealthy = !pressure.available || pressureStatus === "ok";
+  const swapHealthy = !swap.available || swapStatus === "ok";
+  return pressureHealthy && swapHealthy;
+}
+
+function codexMobileRssStatusForHostMemory(rssStatus, memory) {
+  if (rssStatus === "degraded" && hostMemoryPressureHealthy(memory)) return "warning";
+  return rssStatus;
+}
+
+function codexMobileRssOnlyWarningAdvisory(codexMobile, thresholds, memory) {
+  if (!codexMobile || codexMobile.status !== "warning") return false;
+  if (!hostMemoryPressureHealthy(memory)) return false;
+  if (codexMobile.maxProcessCpuPercent >= thresholds.codexMobile.warningProcessCpuPercent) return false;
+  if (codexMobile.logs?.status && !["ok", "unknown"].includes(codexMobile.logs.status)) return false;
+  return codexMobile.maxProcessRssBytes >= thresholds.codexMobile.warningProcessRssBytes
+    || codexMobile.totalRssBytes >= thresholds.codexMobile.warningTotalRssBytes;
+}
+
+function classifyCodexMobileProcess(row, thresholds, memory) {
+  const cpuStatus = row.cpuPercent >= thresholds.codexMobile.degradedProcessCpuPercent
+    ? "degraded"
+    : (row.cpuPercent >= thresholds.codexMobile.warningProcessCpuPercent ? "warning" : "ok");
+  const rssStatus = row.rssBytes >= thresholds.codexMobile.degradedProcessRssBytes
+    ? "degraded"
+    : (row.rssBytes >= thresholds.codexMobile.warningProcessRssBytes ? "warning" : "ok");
+  return higherStatus(cpuStatus, codexMobileRssStatusForHostMemory(rssStatus, memory));
+}
+
+function normalizeCodexMobileLogPaths(options = {}) {
+  const env = options.env || {};
+  const envConfigured = [env.HOMEAI_CODEX_MOBILE_LOG_PATH, env.CODEX_MOBILE_LOG_PATH].filter(Boolean);
+  const configured = Array.isArray(options.codexMobileLogPaths)
+    ? options.codexMobileLogPaths
+    : (options.codexMobileLogPath ? [options.codexMobileLogPath] : []);
+  const home = options.env?.HOME || process.env.HOME || "";
+  const shouldUseDefaultPaths = configured.length === 0
+    && envConfigured.length === 0
+    && !options.runCommand;
+  const defaults = shouldUseDefaultPaths
+    ? [
+        home ? path.join(home, ".codex-mobile-web", "logs", "codex-mobile-web.out.log") : "",
+        "/Users/example/path",
+      ]
+    : [];
+  const out = [];
+  const seen = new Set();
+  for (const candidate of [...configured, ...envConfigured, ...defaults]) {
+    const value = String(candidate || "");
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
+function collectCodexMobileLogs(options, thresholds, previousSample, checkedAtMs) {
+  const fsImpl = options.fs || fs;
+  const files = [];
+  for (const logPath of normalizeCodexMobileLogPaths(options)) {
+    try {
+      const stat = fsImpl.statSync(logPath);
+      if (!stat || !stat.isFile?.()) continue;
+      const sizeBytes = Math.round(nonNegativeNumber(stat.size));
+      const name = cleanLabel(path.basename(logPath), "codex-mobile.log");
+      const status = sizeBytes >= thresholds.codexMobile.degradedLogBytes
+        ? "degraded"
+        : (sizeBytes >= thresholds.codexMobile.warningLogBytes ? "warning" : "ok");
+      files.push({ name, sizeBytes, status });
+    } catch (_) {
+      // Log paths are optional. Absence is bounded by available=false below.
+    }
+  }
+  const totalSizeBytes = files.reduce((sum, item) => sum + item.sizeBytes, 0);
+  const maxSizeBytes = files.reduce((max, item) => Math.max(max, item.sizeBytes), 0);
+  const previous = previousSample && Number.isFinite(previousSample.checkedAtMs) ? previousSample : null;
+  const elapsedSeconds = previous ? Math.max(0, (checkedAtMs - previous.checkedAtMs) / 1000) : 0;
+  const growthBytesPerSecond = previous && elapsedSeconds > 0
+    ? roundNumber(Math.max(0, totalSizeBytes - previous.totalSizeBytes) / elapsedSeconds, 1)
+    : 0;
+  const growthStatus = previous && elapsedSeconds > 0
+    ? (growthBytesPerSecond >= thresholds.codexMobile.degradedLogGrowthBytesPerSecond
+        ? "degraded"
+        : (growthBytesPerSecond >= thresholds.codexMobile.warningLogGrowthBytesPerSecond ? "warning" : "ok"))
+    : "ok";
+  const sizeStatus = files.reduce((status, item) => higherStatus(status, item.status), files.length ? "ok" : "unknown");
+  return {
+    available: files.length > 0,
+    files,
+    fileCount: files.length,
+    totalSizeBytes,
+    maxSizeBytes,
+    growthAvailable: Boolean(previous && elapsedSeconds > 0),
+    growthBytesPerSecond,
+    status: files.length ? higherStatus(sizeStatus, growthStatus) : "unknown",
+    nextSample: { checkedAtMs, totalSizeBytes },
+  };
+}
+
+async function collectCodexMobileRuntime(options, runCommand, thresholds, launchd, previousLogSample, checkedAtMs, memory) {
+  const codexLaunchd = (launchd?.services || []).find((service) => service.label === "com.hermesmobile.plugin.codex-mobile");
+  const launchdPid = Math.round(nonNegativeNumber(codexLaunchd?.pid));
+  const processResult = await runCommandSafe(
+    runCommand,
+    "/bin/ps",
+    ["-axo", "pid=,pcpu=,rss=,etime=,command="],
+    { timeoutMs: 5000, maxBuffer: 1024 * 1024 },
+  );
+  const processes = processResult.ok
+    ? parsePsCommandProcesses(processResult.stdout)
+        .map((row) => {
+          const role = codexMobileProcessRole(row, launchdPid);
+          if (!role) return null;
+          const bounded = {
+            pid: row.pid,
+            role: role.role,
+            label: role.label,
+            cpuPercent: row.cpuPercent,
+            rssBytes: row.rssBytes,
+            elapsed: row.elapsed,
+          };
+          bounded.status = classifyCodexMobileProcess(bounded, thresholds, memory);
+          return bounded;
+        })
+        .filter(Boolean)
+    : [];
+  processes.sort((left, right) => right.cpuPercent - left.cpuPercent || right.rssBytes - left.rssBytes || left.role.localeCompare(right.role));
+  const totalCpuPercent = roundNumber(processes.reduce((sum, item) => sum + item.cpuPercent, 0), 1);
+  const totalRssBytes = Math.round(processes.reduce((sum, item) => sum + item.rssBytes, 0));
+  const maxProcessCpuPercent = processes.reduce((max, item) => Math.max(max, item.cpuPercent), 0);
+  const maxProcessRssBytes = processes.reduce((max, item) => Math.max(max, item.rssBytes), 0);
+  const processStatus = processes.reduce((status, item) => higherStatus(status, item.status), processResult.ok ? "ok" : "unknown");
+  const totalRssStatus = totalRssBytes >= thresholds.codexMobile.degradedTotalRssBytes
+    ? "degraded"
+    : (totalRssBytes >= thresholds.codexMobile.warningTotalRssBytes ? "warning" : "ok");
+  const boundedTotalRssStatus = codexMobileRssStatusForHostMemory(totalRssStatus, memory);
+  const logs = collectCodexMobileLogs(options, thresholds, previousLogSample, checkedAtMs);
+  const status = higherStatus(higherStatus(processStatus, boundedTotalRssStatus), logs.available ? logs.status : "ok");
+  const codexMobile = {
+    status,
+    available: processResult.ok || logs.available,
+    source: processResult.ok ? "ps_command" : "unavailable",
+    processCount: processes.length,
+    processes: processes.slice(0, 8),
+    totalCpuPercent,
+    totalRssBytes,
+    maxProcessCpuPercent,
+    maxProcessRssBytes,
+    launchdPid: launchdPid || 0,
+    logs: Object.assign({}, logs, { nextSample: undefined }),
+    nextLogSample: logs.nextSample,
+  };
+  codexMobile.advisoryOnly = codexMobileRssOnlyWarningAdvisory(codexMobile, thresholds, memory);
+  return {
+    ...codexMobile,
+  };
 }
 
 function commandAvailable(runCommand) {
@@ -487,9 +709,11 @@ async function collectLaunchd(labels, runCommand) {
   const services = [];
   for (const label of safeLabels) {
     const result = await runCommandSafe(runCommand, "/bin/launchctl", ["print", `system/${label}`], { timeoutMs: 3000 });
+    const pid = parseLaunchdPid(result.stdout);
     services.push({
       label,
       status: parseLaunchdStatus(result.stdout, result.ok),
+      ...(pid ? { pid } : {}),
     });
   }
   const status = services.reduce((current, service) => {
@@ -609,6 +833,41 @@ function buildSignals(snapshot, checkedAt) {
         : "重启或修改 launchd 服务前先确认 Owner 意图。",
       actionRequiresOwnerConfirmation: snapshot.launchd.status !== "ok",
     }),
+    makeSignal({
+      signalId: "codex_mobile_runtime_pressure",
+      label: "Codex Mobile Runtime",
+      category: "plugin_runtime",
+      status: snapshot.codexMobile.status,
+      summary: snapshot.codexMobile.status === "ok"
+        ? "Codex Mobile 进程和日志增长在配置阈值内。"
+        : "Codex Mobile 进程或日志增长高于配置阈值。",
+      boundedEvidence: {
+        processCount: snapshot.codexMobile.processCount,
+        totalCpuPercent: snapshot.codexMobile.totalCpuPercent,
+        totalRssBytes: snapshot.codexMobile.totalRssBytes,
+        maxProcessCpuPercent: snapshot.codexMobile.maxProcessCpuPercent,
+        maxProcessRssBytes: snapshot.codexMobile.maxProcessRssBytes,
+        processes: snapshot.codexMobile.processes.map((process) => ({
+          role: process.role,
+          label: process.label,
+          cpuPercent: process.cpuPercent,
+          rssBytes: process.rssBytes,
+          status: process.status,
+        })),
+        logAvailable: snapshot.codexMobile.logs.available,
+        logFileCount: snapshot.codexMobile.logs.fileCount,
+        logTotalSizeBytes: snapshot.codexMobile.logs.totalSizeBytes,
+        logGrowthAvailable: snapshot.codexMobile.logs.growthAvailable,
+        logGrowthBytesPerSecond: snapshot.codexMobile.logs.growthBytesPerSecond,
+        advisoryOnly: Boolean(snapshot.codexMobile.advisoryOnly),
+      },
+      lastCheckedAt: checkedAt,
+      source: "ps-command-codex-mobile",
+      recommendedAction: snapshot.codexMobile.status === "ok"
+        ? "无需处理。"
+        : "先检查 Codex Mobile task-card heartbeat / Watchdog 状态，再考虑重启或派发修复。",
+      actionRequiresOwnerConfirmation: snapshot.codexMobile.status !== "ok",
+    }),
   ];
   return signals;
 }
@@ -618,6 +877,7 @@ function mergeThresholds(thresholds = {}) {
     cpu: Object.assign({}, DEFAULT_SYSTEM_RESOURCE_THRESHOLDS.cpu, thresholds.cpu || {}),
     memory: Object.assign({}, DEFAULT_SYSTEM_RESOURCE_THRESHOLDS.memory, thresholds.memory || {}),
     disk: Object.assign({}, DEFAULT_SYSTEM_RESOURCE_THRESHOLDS.disk, thresholds.disk || {}),
+    codexMobile: Object.assign({}, DEFAULT_SYSTEM_RESOURCE_THRESHOLDS.codexMobile, thresholds.codexMobile || {}),
   });
 }
 
@@ -627,6 +887,7 @@ function createSystemResourceStatusService(options = {}) {
   const thresholds = mergeThresholds(options.thresholds || {});
   const runCommand = options.runCommand || defaultRunCommand;
   const launchdLabels = options.launchdLabels || DEFAULT_LAUNCHD_LABELS;
+  let previousCodexMobileLogSample = null;
 
   async function collect() {
     const checkedAt = nowIsoFrom(options.nowIso);
@@ -636,6 +897,18 @@ function createSystemResourceStatusService(options = {}) {
       collectDisk(options, runCommand, thresholds),
       collectLaunchd(launchdLabels, runCommand),
     ]);
+    const checkedAtMs = Date.parse(checkedAt);
+    const codexMobile = await collectCodexMobileRuntime(
+      options,
+      runCommand,
+      thresholds,
+      launchd,
+      previousCodexMobileLogSample,
+      Number.isFinite(checkedAtMs) ? checkedAtMs : Date.now(),
+      memory,
+    );
+    previousCodexMobileLogSample = codexMobile.nextLogSample;
+    delete codexMobile.nextLogSample;
     const uptime = collectUptime(osImpl, processImpl);
     const snapshot = {
       ok: true,
@@ -649,16 +922,26 @@ function createSystemResourceStatusService(options = {}) {
       disk,
       uptime,
       launchd,
-      services: launchd.services.map((service) => ({
-        name: service.label,
-        status: service.status === "running" ? "ok" : (service.status === "stopped" ? "warning" : "unknown"),
-        state: service.status,
-        critical: true,
-        summary: "launchd 服务",
-      })),
+      codexMobile,
+      services: [
+        ...launchd.services.map((service) => ({
+          name: service.label,
+          status: service.status === "running" ? "ok" : (service.status === "stopped" ? "warning" : "unknown"),
+          state: service.status,
+          critical: true,
+          summary: "launchd 服务",
+        })),
+        {
+          name: "Codex Mobile Runtime",
+          status: codexMobile.status,
+          state: codexMobile.available ? "observed" : "not_collected",
+          critical: codexMobile.status !== "ok",
+          summary: `processes=${codexMobile.processCount} rss=${codexMobile.totalRssBytes}`,
+        },
+      ],
       signals: [],
     };
-    snapshot.status = [cpu.status, memory.status, disk.status, launchd.status]
+    snapshot.status = [cpu.status, memory.status, disk.status, launchd.status, codexMobile.status]
       .reduce((status, item) => higherStatus(status, item), "ok");
     snapshot.overallStatus = snapshot.status;
     snapshot.ok = snapshot.status !== "degraded";

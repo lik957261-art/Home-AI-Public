@@ -1,4 +1,8 @@
 {
+  "_attachment-model.js": {
+    "file": "attachment-model/chunks/attachment-model.js",
+    "name": "attachment-model"
+  },
   "_focus-lifecycle-guard.js": {
     "file": "focus-lifecycle-guard/chunks/focus-lifecycle-guard.js",
     "name": "focus-lifecycle-guard"
@@ -6,6 +10,14 @@
   "_home-ai-runtime-facade.js": {
     "file": "home-ai-runtime-facade/chunks/home-ai-runtime-facade.js",
     "name": "home-ai-runtime-facade"
+  },
+  "_model.js": {
+    "file": "model/chunks/model.js",
+    "name": "model"
+  },
+  "_session-controller.js": {
+    "file": "session-controller/chunks/session-controller.js",
+    "name": "session-controller"
   },
   "src/vite-app/main.mjs": {
     "file": "home-ai-app-preview/home-ai-app-preview.js",
@@ -32,8 +44,184 @@
     "src": "src/vite-islands/ai-ops-feedback/main.mjs",
     "isEntry": true,
     "imports": [
-      "_home-ai-runtime-facade.js"
+      "_home-ai-runtime-facade.js",
+      "src/vite-islands/ai-ops-feedback/model.mjs",
+      "src/vite-islands/ai-ops-feedback/model.mjs"
     ]
+  },
+  "src/vite-islands/ai-ops-feedback/model.mjs": {
+    "file": "ai-ops-feedback-model/ai-ops-feedback-model.js",
+    "name": "ai-ops-feedback-model",
+    "src": "src/vite-islands/ai-ops-feedback/model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/automation-controller/model.mjs": {
+    "file": "automation-controller-model/automation-controller-model.js",
+    "name": "automation-controller-model",
+    "src": "src/vite-islands/automation-controller/model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/attachment-file-input-controller.mjs": {
+    "file": "chat-attachment-file-input-controller/chat-attachment-file-input-controller.js",
+    "name": "chat-attachment-file-input-controller",
+    "src": "src/vite-islands/chat-runtime/attachment-file-input-controller.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/attachment-upload-client.mjs": {
+    "file": "chat-attachment-upload-client/chat-attachment-upload-client.js",
+    "name": "chat-attachment-upload-client",
+    "src": "src/vite-islands/chat-runtime/attachment-upload-client.mjs",
+    "isEntry": true,
+    "imports": [
+      "_attachment-model.js"
+    ]
+  },
+  "src/vite-islands/chat-runtime/chat-scope-model.mjs": {
+    "file": "chat-scope-model/chat-scope-model.js",
+    "name": "chat-scope-model",
+    "src": "src/vite-islands/chat-runtime/chat-scope-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-context-model.mjs": {
+    "file": "chat-composer-context-model/chat-composer-context-model.js",
+    "name": "chat-composer-context-model",
+    "src": "src/vite-islands/chat-runtime/composer-context-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-current-thread-refresh-model.mjs": {
+    "file": "chat-composer-current-thread-refresh-model/chat-composer-current-thread-refresh-model.js",
+    "name": "chat-composer-current-thread-refresh-model",
+    "src": "src/vite-islands/chat-runtime/composer-current-thread-refresh-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-draft-model.mjs": {
+    "file": "chat-composer-draft-model/chat-composer-draft-model.js",
+    "name": "chat-composer-draft-model",
+    "src": "src/vite-islands/chat-runtime/composer-draft-model.mjs",
+    "isEntry": true,
+    "imports": [
+      "_focus-lifecycle-guard.js"
+    ]
+  },
+  "src/vite-islands/chat-runtime/composer-draft-thread-model.mjs": {
+    "file": "chat-composer-draft-thread-model/chat-composer-draft-thread-model.js",
+    "name": "chat-composer-draft-thread-model",
+    "src": "src/vite-islands/chat-runtime/composer-draft-thread-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-editor-model.mjs": {
+    "file": "chat-composer-editor-model/chat-composer-editor-model.js",
+    "name": "chat-composer-editor-model",
+    "src": "src/vite-islands/chat-runtime/composer-editor-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-event-state-model.mjs": {
+    "file": "chat-composer-event-state-model/chat-composer-event-state-model.js",
+    "name": "chat-composer-event-state-model",
+    "src": "src/vite-islands/chat-runtime/composer-event-state-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-events-model.mjs": {
+    "file": "chat-composer-events-model/chat-composer-events-model.js",
+    "name": "chat-composer-events-model",
+    "src": "src/vite-islands/chat-runtime/composer-events-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-message-invalidation-model.mjs": {
+    "file": "chat-composer-message-invalidation-model/chat-composer-message-invalidation-model.js",
+    "name": "chat-composer-message-invalidation-model",
+    "src": "src/vite-islands/chat-runtime/composer-message-invalidation-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-model-selection-model.mjs": {
+    "file": "chat-composer-model-selection-model/chat-composer-model-selection-model.js",
+    "name": "chat-composer-model-selection-model",
+    "src": "src/vite-islands/chat-runtime/composer-model-selection-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-model.mjs": {
+    "file": "chat-composer-model/chat-composer-model.js",
+    "name": "chat-composer-model",
+    "src": "src/vite-islands/chat-runtime/composer-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-native-environment-model.mjs": {
+    "file": "chat-composer-native-environment-model/chat-composer-native-environment-model.js",
+    "name": "chat-composer-native-environment-model",
+    "src": "src/vite-islands/chat-runtime/composer-native-environment-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-refresh-scheduler-model.mjs": {
+    "file": "chat-composer-refresh-scheduler-model/chat-composer-refresh-scheduler-model.js",
+    "name": "chat-composer-refresh-scheduler-model",
+    "src": "src/vite-islands/chat-runtime/composer-refresh-scheduler-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-render-scheduler-model.mjs": {
+    "file": "chat-composer-render-scheduler-model/chat-composer-render-scheduler-model.js",
+    "name": "chat-composer-render-scheduler-model",
+    "src": "src/vite-islands/chat-runtime/composer-render-scheduler-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-self-check-model.mjs": {
+    "file": "chat-composer-self-check-model/chat-composer-self-check-model.js",
+    "name": "chat-composer-self-check-model",
+    "src": "src/vite-islands/chat-runtime/composer-self-check-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-send-pipeline-model.mjs": {
+    "file": "chat-composer-send-pipeline-model/chat-composer-send-pipeline-model.js",
+    "name": "chat-composer-send-pipeline-model",
+    "src": "src/vite-islands/chat-runtime/composer-send-pipeline-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-send-ui-model.mjs": {
+    "file": "chat-composer-send-ui-model/chat-composer-send-ui-model.js",
+    "name": "chat-composer-send-ui-model",
+    "src": "src/vite-islands/chat-runtime/composer-send-ui-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-shell-model.mjs": {
+    "file": "chat-composer-shell-model/chat-composer-shell-model.js",
+    "name": "chat-composer-shell-model",
+    "src": "src/vite-islands/chat-runtime/composer-shell-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-source-model.mjs": {
+    "file": "chat-composer-source-model/chat-composer-source-model.js",
+    "name": "chat-composer-source-model",
+    "src": "src/vite-islands/chat-runtime/composer-source-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-streaming-message-model.mjs": {
+    "file": "chat-composer-streaming-message-model/chat-composer-streaming-message-model.js",
+    "name": "chat-composer-streaming-message-model",
+    "src": "src/vite-islands/chat-runtime/composer-streaming-message-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/composer-viewport-model.mjs": {
+    "file": "chat-composer-viewport-model/chat-composer-viewport-model.js",
+    "name": "chat-composer-viewport-model",
+    "src": "src/vite-islands/chat-runtime/composer-viewport-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/kanban-composer-actions-model.mjs": {
+    "file": "kanban-composer-actions-model/kanban-composer-actions-model.js",
+    "name": "kanban-composer-actions-model",
+    "src": "src/vite-islands/chat-runtime/kanban-composer-actions-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/live-event-source-client.mjs": {
+    "file": "chat-live-event-source-client/chat-live-event-source-client.js",
+    "name": "chat-live-event-source-client",
+    "src": "src/vite-islands/chat-runtime/live-event-source-client.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/long-message-model.mjs": {
+    "file": "long-message-model/long-message-model.js",
+    "name": "long-message-model",
+    "src": "src/vite-islands/chat-runtime/long-message-model.mjs",
+    "isEntry": true
   },
   "src/vite-islands/chat-runtime/main.mjs": {
     "file": "chat-runtime/chat-runtime.js",
@@ -42,8 +230,97 @@
     "isEntry": true,
     "imports": [
       "_home-ai-runtime-facade.js",
-      "_focus-lifecycle-guard.js"
+      "src/vite-islands/chat-runtime/live-event-source-client.mjs",
+      "src/vite-islands/chat-runtime/live-event-source-client.mjs",
+      "src/vite-islands/chat-runtime/attachment-file-input-controller.mjs",
+      "src/vite-islands/chat-runtime/attachment-file-input-controller.mjs",
+      "_attachment-model.js",
+      "src/vite-islands/chat-runtime/attachment-upload-client.mjs",
+      "src/vite-islands/chat-runtime/attachment-upload-client.mjs",
+      "_focus-lifecycle-guard.js",
+      "src/vite-islands/chat-runtime/composer-model.mjs",
+      "src/vite-islands/chat-runtime/composer-model.mjs"
     ]
+  },
+  "src/vite-islands/chat-runtime/message-skill-model.mjs": {
+    "file": "message-skill-model/message-skill-model.js",
+    "name": "message-skill-model",
+    "src": "src/vite-islands/chat-runtime/message-skill-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/message-usage-model.mjs": {
+    "file": "message-usage-model/message-usage-model.js",
+    "name": "message-usage-model",
+    "src": "src/vite-islands/chat-runtime/message-usage-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/run-progress-model.mjs": {
+    "file": "run-progress-model/run-progress-model.js",
+    "name": "run-progress-model",
+    "src": "src/vite-islands/chat-runtime/run-progress-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/thread-card-message-model.mjs": {
+    "file": "thread-card-message-model/thread-card-message-model.js",
+    "name": "thread-card-message-model",
+    "src": "src/vite-islands/chat-runtime/thread-card-message-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/thread-directory-model.mjs": {
+    "file": "thread-directory-model/thread-directory-model.js",
+    "name": "thread-directory-model",
+    "src": "src/vite-islands/chat-runtime/thread-directory-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/thread-list-model.mjs": {
+    "file": "thread-list-model/thread-list-model.js",
+    "name": "thread-list-model",
+    "src": "src/vite-islands/chat-runtime/thread-list-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/thread-message-model.mjs": {
+    "file": "thread-message-model/thread-message-model.js",
+    "name": "thread-message-model",
+    "src": "src/vite-islands/chat-runtime/thread-message-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/thread-state-model.mjs": {
+    "file": "thread-state-model/thread-state-model.js",
+    "name": "thread-state-model",
+    "src": "src/vite-islands/chat-runtime/thread-state-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/chat-runtime/upload-sidebar-model.mjs": {
+    "file": "upload-sidebar-model/upload-sidebar-model.js",
+    "name": "upload-sidebar-model",
+    "src": "src/vite-islands/chat-runtime/upload-sidebar-model.mjs",
+    "isEntry": true,
+    "imports": [
+      "_attachment-model.js"
+    ]
+  },
+  "src/vite-islands/dialog-sheet/main.mjs": {
+    "file": "dialog-sheet/dialog-sheet.js",
+    "name": "dialog-sheet",
+    "src": "src/vite-islands/dialog-sheet/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js",
+      "src/vite-islands/dialog-sheet/model.mjs",
+      "src/vite-islands/dialog-sheet/model.mjs"
+    ]
+  },
+  "src/vite-islands/dialog-sheet/model.mjs": {
+    "file": "dialog-sheet-model/dialog-sheet-model.js",
+    "name": "dialog-sheet-model",
+    "src": "src/vite-islands/dialog-sheet/model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/document-preview/directory-automation-model.mjs": {
+    "file": "directory-automation-model/directory-automation-model.js",
+    "name": "directory-automation-model",
+    "src": "src/vite-islands/document-preview/directory-automation-model.mjs",
+    "isEntry": true
   },
   "src/vite-islands/document-preview/main.mjs": {
     "file": "document-preview/document-preview.js",
@@ -51,8 +328,46 @@
     "src": "src/vite-islands/document-preview/main.mjs",
     "isEntry": true,
     "imports": [
-      "_home-ai-runtime-facade.js"
+      "_home-ai-runtime-facade.js",
+      "src/vite-islands/document-preview/model.mjs",
+      "src/vite-islands/document-preview/model.mjs"
     ]
+  },
+  "src/vite-islands/document-preview/markdown-renderer-model.mjs": {
+    "file": "markdown-renderer-model/markdown-renderer-model.js",
+    "name": "markdown-renderer-model",
+    "src": "src/vite-islands/document-preview/markdown-renderer-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/document-preview/model.mjs": {
+    "file": "document-preview-model/document-preview-model.js",
+    "name": "document-preview-model",
+    "src": "src/vite-islands/document-preview/model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/document-preview/preview-helpers-model.mjs": {
+    "file": "task-preview-helpers-model/task-preview-helpers-model.js",
+    "name": "task-preview-helpers-model",
+    "src": "src/vite-islands/document-preview/preview-helpers-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/document-preview/rich-text-directory-model.mjs": {
+    "file": "rich-text-directory-model/rich-text-directory-model.js",
+    "name": "rich-text-directory-model",
+    "src": "src/vite-islands/document-preview/rich-text-directory-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/document-preview/shared-directory-model.mjs": {
+    "file": "shared-directory-model/shared-directory-model.js",
+    "name": "shared-directory-model",
+    "src": "src/vite-islands/document-preview/shared-directory-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/document-preview/tts-profile-model.mjs": {
+    "file": "tts-profile-model/tts-profile-model.js",
+    "name": "tts-profile-model",
+    "src": "src/vite-islands/document-preview/tts-profile-model.mjs",
+    "isEntry": true
   },
   "src/vite-islands/message-action-panel/main.mjs": {
     "file": "message-action-panel/message-action-panel.js",
@@ -60,8 +375,198 @@
     "src": "src/vite-islands/message-action-panel/main.mjs",
     "isEntry": true,
     "imports": [
-      "_home-ai-runtime-facade.js"
+      "_home-ai-runtime-facade.js",
+      "_model.js"
     ]
+  },
+  "src/vite-islands/message-action-panel/message-actions-model.mjs": {
+    "file": "message-actions-model/message-actions-model.js",
+    "name": "message-actions-model",
+    "src": "src/vite-islands/message-action-panel/message-actions-model.mjs",
+    "isEntry": true,
+    "imports": [
+      "_model.js"
+    ]
+  },
+  "src/vite-islands/navigation-shell/access-key-manager-model.mjs": {
+    "file": "access-key-manager-model/access-key-manager-model.js",
+    "name": "access-key-manager-model",
+    "src": "src/vite-islands/navigation-shell/access-key-manager-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/action-inbox-model.mjs": {
+    "file": "action-inbox-model/action-inbox-model.js",
+    "name": "action-inbox-model",
+    "src": "src/vite-islands/navigation-shell/action-inbox-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/api-client-model.mjs": {
+    "file": "api-client-model/api-client-model.js",
+    "name": "api-client-model",
+    "src": "src/vite-islands/navigation-shell/api-client-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/app-bootstrap-model.mjs": {
+    "file": "app-bootstrap-model/app-bootstrap-model.js",
+    "name": "app-bootstrap-model",
+    "src": "src/vite-islands/navigation-shell/app-bootstrap-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/app-shell-model.mjs": {
+    "file": "app-shell-model/app-shell-model.js",
+    "name": "app-shell-model",
+    "src": "src/vite-islands/navigation-shell/app-shell-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/automation-view-model.mjs": {
+    "file": "automation-view-model/automation-view-model.js",
+    "name": "automation-view-model",
+    "src": "src/vite-islands/navigation-shell/automation-view-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/directory-topic-model.mjs": {
+    "file": "directory-topic-model/directory-topic-model.js",
+    "name": "directory-topic-model",
+    "src": "src/vite-islands/navigation-shell/directory-topic-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/fixed-viewport-controller.mjs": {
+    "file": "fixed-viewport-controller/fixed-viewport-controller.js",
+    "name": "fixed-viewport-controller",
+    "src": "src/vite-islands/navigation-shell/fixed-viewport-controller.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/group-topic-model.mjs": {
+    "file": "group-topic-model/group-topic-model.js",
+    "name": "group-topic-model",
+    "src": "src/vite-islands/navigation-shell/group-topic-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/kanban-actions-model.mjs": {
+    "file": "kanban-actions-model/kanban-actions-model.js",
+    "name": "kanban-actions-model",
+    "src": "src/vite-islands/navigation-shell/kanban-actions-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/kanban-card-actions-model.mjs": {
+    "file": "kanban-card-actions-model/kanban-card-actions-model.js",
+    "name": "kanban-card-actions-model",
+    "src": "src/vite-islands/navigation-shell/kanban-card-actions-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/kanban-learning-panel-model.mjs": {
+    "file": "kanban-learning-panel-model/kanban-learning-panel-model.js",
+    "name": "kanban-learning-panel-model",
+    "src": "src/vite-islands/navigation-shell/kanban-learning-panel-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/kanban-list-model.mjs": {
+    "file": "kanban-list-model/kanban-list-model.js",
+    "name": "kanban-list-model",
+    "src": "src/vite-islands/navigation-shell/kanban-list-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/kanban-recorder-model.mjs": {
+    "file": "kanban-recorder-model/kanban-recorder-model.js",
+    "name": "kanban-recorder-model",
+    "src": "src/vite-islands/navigation-shell/kanban-recorder-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/kanban-render-model.mjs": {
+    "file": "kanban-render-model/kanban-render-model.js",
+    "name": "kanban-render-model",
+    "src": "src/vite-islands/navigation-shell/kanban-render-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/kanban-story-core-model.mjs": {
+    "file": "kanban-story-core-model/kanban-story-core-model.js",
+    "name": "kanban-story-core-model",
+    "src": "src/vite-islands/navigation-shell/kanban-story-core-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/kanban-story-helpers-model.mjs": {
+    "file": "kanban-story-helpers-model/kanban-story-helpers-model.js",
+    "name": "kanban-story-helpers-model",
+    "src": "src/vite-islands/navigation-shell/kanban-story-helpers-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/kanban-study-actions-model.mjs": {
+    "file": "kanban-study-actions-model/kanban-study-actions-model.js",
+    "name": "kanban-study-actions-model",
+    "src": "src/vite-islands/navigation-shell/kanban-study-actions-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/kanban-todo-core-model.mjs": {
+    "file": "kanban-todo-core-model/kanban-todo-core-model.js",
+    "name": "kanban-todo-core-model",
+    "src": "src/vite-islands/navigation-shell/kanban-todo-core-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-coins-model.mjs": {
+    "file": "learning-coins-model/learning-coins-model.js",
+    "name": "learning-coins-model",
+    "src": "src/vite-islands/navigation-shell/learning-coins-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-growth-ai-model.mjs": {
+    "file": "learning-growth-ai-model/learning-growth-ai-model.js",
+    "name": "learning-growth-ai-model",
+    "src": "src/vite-islands/navigation-shell/learning-growth-ai-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-growth-controller-model.mjs": {
+    "file": "learning-growth-controller-model/learning-growth-controller-model.js",
+    "name": "learning-growth-controller-model",
+    "src": "src/vite-islands/navigation-shell/learning-growth-controller-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-growth-model.mjs": {
+    "file": "learning-growth-model/learning-growth-model.js",
+    "name": "learning-growth-model",
+    "src": "src/vite-islands/navigation-shell/learning-growth-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-growth-reflection-model.mjs": {
+    "file": "learning-growth-reflection-model/learning-growth-reflection-model.js",
+    "name": "learning-growth-reflection-model",
+    "src": "src/vite-islands/navigation-shell/learning-growth-reflection-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-growth-reward-controller-model.mjs": {
+    "file": "learning-growth-reward-controller-model/learning-growth-reward-controller-model.js",
+    "name": "learning-growth-reward-controller-model",
+    "src": "src/vite-islands/navigation-shell/learning-growth-reward-controller-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-growth-settings-controller-model.mjs": {
+    "file": "learning-growth-settings-controller-model/learning-growth-settings-controller-model.js",
+    "name": "learning-growth-settings-controller-model",
+    "src": "src/vite-islands/navigation-shell/learning-growth-settings-controller-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-growth-task-model.mjs": {
+    "file": "learning-growth-task-model/learning-growth-task-model.js",
+    "name": "learning-growth-task-model",
+    "src": "src/vite-islands/navigation-shell/learning-growth-task-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-native-growth-submission-model.mjs": {
+    "file": "learning-native-growth-submission-model/learning-native-growth-submission-model.js",
+    "name": "learning-native-growth-submission-model",
+    "src": "src/vite-islands/navigation-shell/learning-native-growth-submission-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-program-model.mjs": {
+    "file": "learning-program-model/learning-program-model.js",
+    "name": "learning-program-model",
+    "src": "src/vite-islands/navigation-shell/learning-program-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/learning-reading-model.mjs": {
+    "file": "learning-reading-model/learning-reading-model.js",
+    "name": "learning-reading-model",
+    "src": "src/vite-islands/navigation-shell/learning-reading-model.mjs",
+    "isEntry": true
   },
   "src/vite-islands/navigation-shell/main.mjs": {
     "file": "navigation-shell/navigation-shell.js",
@@ -72,14 +577,112 @@
       "_home-ai-runtime-facade.js"
     ]
   },
+  "src/vite-islands/navigation-shell/mobile-layout-model.mjs": {
+    "file": "mobile-layout-model/mobile-layout-model.js",
+    "name": "mobile-layout-model",
+    "src": "src/vite-islands/navigation-shell/mobile-layout-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/navigation-search-model.mjs": {
+    "file": "navigation-search-model/navigation-search-model.js",
+    "name": "navigation-search-model",
+    "src": "src/vite-islands/navigation-shell/navigation-search-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/navigation-view-model.mjs": {
+    "file": "navigation-view-model/navigation-view-model.js",
+    "name": "navigation-view-model",
+    "src": "src/vite-islands/navigation-shell/navigation-view-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/platform-model.mjs": {
+    "file": "platform-model/platform-model.js",
+    "name": "platform-model",
+    "src": "src/vite-islands/navigation-shell/platform-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/plugin-context-switch-model.mjs": {
+    "file": "plugin-context-switch-model/plugin-context-switch-model.js",
+    "name": "plugin-context-switch-model",
+    "src": "src/vite-islands/navigation-shell/plugin-context-switch-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/plugin-topic-navigation-model.mjs": {
+    "file": "plugin-topic-navigation-model/plugin-topic-navigation-model.js",
+    "name": "plugin-topic-navigation-model",
+    "src": "src/vite-islands/navigation-shell/plugin-topic-navigation-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/route-snapshot-model.mjs": {
+    "file": "route-snapshot-model/route-snapshot-model.js",
+    "name": "route-snapshot-model",
+    "src": "src/vite-islands/navigation-shell/route-snapshot-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/runtime-facade-compat-model.mjs": {
+    "file": "runtime-facade-compat-model/runtime-facade-compat-model.js",
+    "name": "runtime-facade-compat-model",
+    "src": "src/vite-islands/navigation-shell/runtime-facade-compat-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/shell-start-model.mjs": {
+    "file": "shell-start-model/shell-start-model.js",
+    "name": "shell-start-model",
+    "src": "src/vite-islands/navigation-shell/shell-start-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/sidebar-back-navigation-model.mjs": {
+    "file": "sidebar-back-navigation-model/sidebar-back-navigation-model.js",
+    "name": "sidebar-back-navigation-model",
+    "src": "src/vite-islands/navigation-shell/sidebar-back-navigation-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/task-artifact-helper-model.mjs": {
+    "file": "task-artifact-helper-model/task-artifact-helper-model.js",
+    "name": "task-artifact-helper-model",
+    "src": "src/vite-islands/navigation-shell/task-artifact-helper-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/task-group-model.mjs": {
+    "file": "task-group-model/task-group-model.js",
+    "name": "task-group-model",
+    "src": "src/vite-islands/navigation-shell/task-group-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/teaching-controller-model.mjs": {
+    "file": "teaching-controller-model/teaching-controller-model.js",
+    "name": "teaching-controller-model",
+    "src": "src/vite-islands/navigation-shell/teaching-controller-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/todo-detail-model.mjs": {
+    "file": "todo-detail-model/todo-detail-model.js",
+    "name": "todo-detail-model",
+    "src": "src/vite-islands/navigation-shell/todo-detail-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/navigation-shell/workspace-admin-model.mjs": {
+    "file": "workspace-admin-model/workspace-admin-model.js",
+    "name": "workspace-admin-model",
+    "src": "src/vite-islands/navigation-shell/workspace-admin-model.mjs",
+    "isEntry": true
+  },
   "src/vite-islands/owner-system-console/main.mjs": {
     "file": "owner-system-console/owner-system-console.js",
     "name": "owner-system-console",
     "src": "src/vite-islands/owner-system-console/main.mjs",
     "isEntry": true,
     "imports": [
-      "_home-ai-runtime-facade.js"
+      "_home-ai-runtime-facade.js",
+      "src/vite-islands/owner-system-console/model.mjs",
+      "src/vite-islands/owner-system-console/model.mjs"
     ]
+  },
+  "src/vite-islands/owner-system-console/model.mjs": {
+    "file": "owner-system-console-model/owner-system-console-model.js",
+    "name": "owner-system-console-model",
+    "src": "src/vite-islands/owner-system-console/model.mjs",
+    "isEntry": true
   },
   "src/vite-islands/plugin-host/main.mjs": {
     "file": "plugin-host/plugin-host.js",
@@ -87,8 +690,70 @@
     "src": "src/vite-islands/plugin-host/main.mjs",
     "isEntry": true,
     "imports": [
+      "_home-ai-runtime-facade.js",
+      "src/vite-islands/plugin-host/model.mjs",
+      "src/vite-islands/plugin-host/model.mjs"
+    ]
+  },
+  "src/vite-islands/plugin-host/model.mjs": {
+    "file": "plugin-host-model/plugin-host-model.js",
+    "name": "plugin-host-model",
+    "src": "src/vite-islands/plugin-host/model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/plugin-host/plugin-admin-model.mjs": {
+    "file": "plugin-admin-model/plugin-admin-model.js",
+    "name": "plugin-admin-model",
+    "src": "src/vite-islands/plugin-host/plugin-admin-model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/plugin-host/wardrobe-model.mjs": {
+    "file": "wardrobe-model/wardrobe-model.js",
+    "name": "wardrobe-model",
+    "src": "src/vite-islands/plugin-host/wardrobe-model.mjs",
+    "isEntry": true,
+    "imports": [
+      "src/vite-islands/plugin-host/model.mjs",
+      "src/vite-islands/plugin-host/model.mjs"
+    ]
+  },
+  "src/vite-islands/pwa-push-status/main.mjs": {
+    "file": "pwa-push-status/pwa-push-status.js",
+    "name": "pwa-push-status",
+    "src": "src/vite-islands/pwa-push-status/main.mjs",
+    "isEntry": true,
+    "imports": [
+      "_home-ai-runtime-facade.js",
+      "src/vite-islands/pwa-push-status/model.mjs",
+      "src/vite-islands/pwa-push-status/model.mjs"
+    ]
+  },
+  "src/vite-islands/pwa-push-status/model.mjs": {
+    "file": "pwa-push-status-model/pwa-push-status-model.js",
+    "name": "pwa-push-status-model",
+    "src": "src/vite-islands/pwa-push-status/model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/share-image/model.mjs": {
+    "file": "share-image-model/share-image-model.js",
+    "name": "share-image-model",
+    "src": "src/vite-islands/share-image/model.mjs",
+    "isEntry": true
+  },
+  "src/vite-islands/toast-status/main.mjs": {
+    "file": "toast-status/toast-status.js",
+    "name": "toast-status",
+    "src": "src/vite-islands/toast-status/main.mjs",
+    "isEntry": true,
+    "imports": [
       "_home-ai-runtime-facade.js"
     ]
+  },
+  "src/vite-islands/voice-input-status/audio-capture-adapter.mjs": {
+    "file": "voice-input-audio-capture-adapter/voice-input-audio-capture-adapter.js",
+    "name": "voice-input-audio-capture-adapter",
+    "src": "src/vite-islands/voice-input-status/audio-capture-adapter.mjs",
+    "isEntry": true
   },
   "src/vite-islands/voice-input-status/main.mjs": {
     "file": "voice-input-status/voice-input-status.js",
@@ -96,7 +761,25 @@
     "src": "src/vite-islands/voice-input-status/main.mjs",
     "isEntry": true,
     "imports": [
-      "_home-ai-runtime-facade.js"
+      "_home-ai-runtime-facade.js",
+      "src/vite-islands/voice-input-status/audio-capture-adapter.mjs",
+      "src/vite-islands/voice-input-status/audio-capture-adapter.mjs",
+      "_session-controller.js"
     ]
+  },
+  "src/vite-islands/voice-input-status/session-controller.mjs": {
+    "file": "voice-input-session-controller/voice-input-session-controller.js",
+    "name": "voice-input-session-controller",
+    "src": "src/vite-islands/voice-input-status/session-controller.mjs",
+    "isEntry": true,
+    "imports": [
+      "_session-controller.js"
+    ]
+  },
+  "src/vite-islands/voice-input-status/voice-learning-model.mjs": {
+    "file": "voice-learning-model/voice-learning-model.js",
+    "name": "voice-learning-model",
+    "src": "src/vite-islands/voice-input-status/voice-learning-model.mjs",
+    "isEntry": true
   }
 }

@@ -15,6 +15,12 @@ function cleanString(value, max = 4000) {
     .slice(0, Math.max(1, Number(max) || 4000));
 }
 
+function cleanBase64(value = "") {
+  return String(value == null ? "" : value)
+    .replace(/\u00a0/g, " ")
+    .trim();
+}
+
 function isObject(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
@@ -228,7 +234,7 @@ function createUploadRequest(input = {}) {
   const threadId = cleanString(input.threadId || "", 180);
   const file = input.file || input;
   const filename = cleanString(file.name || file.filename || "upload.bin", 220);
-  const dataBase64 = cleanString(file.dataBase64 || "", 240000);
+  const dataBase64 = cleanBase64(file.dataBase64 || "");
   if (!threadId) return Object.freeze({ ok: false, code: "thread_id_missing" });
   if (!dataBase64) return Object.freeze({ ok: false, code: "data_base64_missing" });
   return Object.freeze({

@@ -1,6 +1,48 @@
 "use strict";
 
+const AUTOMATION_CONTROLLER_MODEL_ESM_PATH = "/vite-islands/automation-controller-model/automation-controller-model.js";
+let automationControllerModel = null;
+let automationControllerModelPromise = null;
+
+function importAutomationControllerModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (automationControllerModel) return Promise.resolve(automationControllerModel);
+  if (!automationControllerModelPromise) {
+    const importer = typeof rootRef.__homeAiImportAutomationControllerModel === "function"
+      ? rootRef.__homeAiImportAutomationControllerModel
+      : (path) => import(path);
+    automationControllerModelPromise = Promise.resolve()
+      .then(() => importer(AUTOMATION_CONTROLLER_MODEL_ESM_PATH))
+      .then((model) => {
+        automationControllerModel = model || null;
+        return automationControllerModel;
+      })
+      .catch((error) => {
+        automationControllerModelPromise = null;
+        throw error;
+      });
+  }
+  return automationControllerModelPromise;
+}
+
+function currentAutomationControllerModel() {
+  return automationControllerModel;
+}
+
+importAutomationControllerModel().catch(() => null);
+
 function automationRequestParams(options = {}) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationRequestParamsPlan === "function") {
+    return model.automationRequestParamsPlan({
+      workspaceId: state.selectedWorkspaceId || "owner",
+      detail: options.detail,
+      ignoreSearch: options.ignoreSearch,
+      search: currentSearchText(),
+      routeTarget: options.routeTarget,
+      selectedAutomationId: state.selectedAutomationId,
+      refresh: options.refresh,
+    });
+  }
   const params = new URLSearchParams();
   params.set("workspaceId", state.selectedWorkspaceId || "owner");
   params.set("includeDisabled", "1");
@@ -15,6 +57,10 @@ function automationRequestParams(options = {}) {
 }
 
 function automationFullStorageKey(params) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationFullStorageKeyPlan === "function") {
+    return model.automationFullStorageKeyPlan({ params, clientVersion: CLIENT_VERSION });
+  }
   const copy = new URLSearchParams(params);
   copy.delete("refresh");
   copy.delete("fresh");
@@ -23,6 +69,8 @@ function automationFullStorageKey(params) {
 }
 
 function automationRequestCacheKey(params) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationRequestCacheKeyPlan === "function") return model.automationRequestCacheKeyPlan(params);
   const copy = new URLSearchParams(params);
   copy.delete("refresh");
   copy.delete("fresh");
@@ -30,6 +78,8 @@ function automationRequestCacheKey(params) {
 }
 
 function automationSummaryCacheKey(params) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationSummaryCacheKeyPlan === "function") return model.automationSummaryCacheKeyPlan(params);
   const copy = new URLSearchParams(params);
   copy.delete("refresh");
   copy.delete("fresh");
@@ -51,12 +101,16 @@ function readAutomationFullCache(params) {
 function writeAutomationFullCache(params, result = {}) {
   if ((params?.get("detail") || "") !== "full" || !Array.isArray(result.data)) return;
   try {
-    window.localStorage?.setItem(automationFullStorageKey(params), JSON.stringify({
-      savedAt: new Date().toISOString(),
-      data: result.data,
-      source: result.source || {},
-      warning: result.warning || "",
-    }));
+    const model = currentAutomationControllerModel();
+    const payload = typeof model?.automationFullCachePayloadPlan === "function"
+      ? model.automationFullCachePayloadPlan(result, new Date().toISOString())
+      : {
+        savedAt: new Date().toISOString(),
+        data: result.data,
+        source: result.source || {},
+        warning: result.warning || "",
+      };
+    if (payload) window.localStorage?.setItem(automationFullStorageKey(params), JSON.stringify(payload));
   } catch (_) {}
 }
 
@@ -76,10 +130,14 @@ function invalidateAutomationListCache() {
 }
 
 function automationIsSummaryJob(job) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationIsSummaryJobPlan === "function") return model.automationIsSummaryJobPlan(job);
   return String(job?.detailLevel || "").toLowerCase() === "summary";
 }
 
 function mergeAutomationJobs(existing = [], incoming = [], options = {}) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.mergeAutomationJobsPlan === "function") return model.mergeAutomationJobsPlan(existing, incoming, options);
   if (options.replaceMissing) {
     const existingById = new Map((existing || []).map((job) => [String(job?.id || ""), job]));
     return (incoming || []).map((job) => Object.assign({}, existingById.get(String(job?.id || "")) || {}, job));
@@ -155,15 +213,26 @@ async function loadAutomations(options = {}) {
   if (!options.refresh && params.get("detail") === "full") {
     const cached = readAutomationFullCache(params);
     if (cached?.data?.length) {
-      const cachedHasRouteTarget = !routeTargetPending || cached.data.some((job) => String(job?.id || "") === routeTargetId);
+      const model = currentAutomationControllerModel();
+      const cachePlan = typeof model?.automationCachedFullStatePlan === "function"
+        ? model.automationCachedFullStatePlan({
+          cached,
+          routeTargetPending,
+          routeTargetId,
+          cacheKey,
+          summaryCacheKey,
+          nowMs: Date.now(),
+        })
+        : null;
+      const cachedHasRouteTarget = cachePlan ? !cachePlan.routeTargetMissing : (!routeTargetPending || cached.data.some((job) => String(job?.id || "") === routeTargetId));
       if (!cachedHasRouteTarget) {
         state.automationFullCacheKey = "";
       } else {
-        state.automations = cached.data;
-        state.automationSource = Object.assign({}, cached.source || {}, { warning: cached.warning || "", cached: true });
-        state.automationCacheKey = cacheKey;
-        state.automationFullCacheKey = summaryCacheKey;
-        state.automationLastLoadedAt = Date.now();
+        state.automations = cachePlan?.automations || cached.data;
+        state.automationSource = cachePlan?.automationSource || Object.assign({}, cached.source || {}, { warning: cached.warning || "", cached: true });
+        state.automationCacheKey = cachePlan?.automationCacheKey || cacheKey;
+        state.automationFullCacheKey = cachePlan?.automationFullCacheKey || summaryCacheKey;
+        state.automationLastLoadedAt = cachePlan?.automationLastLoadedAt || Date.now();
         state.automationLoading = false;
         renderAutomationView();
         window.setTimeout(() => loadAutomations({ detail: "full", refresh: true, silent: true }).catch(showError), 0);
@@ -230,14 +299,21 @@ async function loadAutomations(options = {}) {
 }
 
 async function refreshAutomationAfterPush(eventData = {}) {
-  const payload = eventData.payload || {};
-  const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
-  const nestedData = data?.data && typeof data.data === "object" ? data.data : {};
-  const messageType = String(data.messageType || nestedData.messageType || "").trim();
-  const workspaceId = String(data.workspaceId || nestedData.workspaceId || "").trim();
-  const automationId = String(data.automationId || nestedData.automationId || "").trim();
-  if (!automationId && !messageType.startsWith("automation_")) return false;
-  if (workspaceId && state.selectedWorkspaceId && workspaceId !== state.selectedWorkspaceId) return false;
+  const model = currentAutomationControllerModel();
+  const plan = typeof model?.automationPushRefreshPlan === "function"
+    ? model.automationPushRefreshPlan(eventData, state.selectedWorkspaceId)
+    : null;
+  if (plan && !plan.shouldRefresh) return false;
+  if (!plan) {
+    const payload = eventData.payload || {};
+    const data = payload?.data && typeof payload.data === "object" ? payload.data : {};
+    const nestedData = data?.data && typeof data.data === "object" ? data.data : {};
+    const messageType = String(data.messageType || nestedData.messageType || "").trim();
+    const workspaceId = String(data.workspaceId || nestedData.workspaceId || "").trim();
+    const automationId = String(data.automationId || nestedData.automationId || "").trim();
+    if (!automationId && !messageType.startsWith("automation_")) return false;
+    if (workspaceId && state.selectedWorkspaceId && workspaceId !== state.selectedWorkspaceId) return false;
+  }
   invalidateAutomationListCache();
   if (state.viewMode !== "automation") return true;
   await loadAutomations({ detail: "full", refresh: true, silent: true });
@@ -245,6 +321,8 @@ async function refreshAutomationAfterPush(eventData = {}) {
 }
 
 function automationStatusLabel(job) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationStatusLabelPlan === "function") return model.automationStatusLabelPlan(job);
   const status = String(job?.status || "");
   if (status === "error") return "error";
   if (status === "paused") return "paused";
@@ -253,6 +331,8 @@ function automationStatusLabel(job) {
 }
 
 function automationStatusTone(job, status = automationStatusLabel(job)) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationStatusTonePlan === "function") return model.automationStatusTonePlan(job, status);
   const current = String(status || "").toLowerCase();
   const last = String(job?.lastStatus || job?.last_status || "").toLowerCase();
   if (current === "error" || ["error", "failed", "failure"].includes(last) || job?.lastError || job?.lastDeliveryError) return "error";
@@ -263,6 +343,8 @@ function automationStatusTone(job, status = automationStatusLabel(job)) {
 }
 
 function automationStatusText(job, status = automationStatusLabel(job)) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationStatusTextPlan === "function") return model.automationStatusTextPlan(job, status);
   const tone = automationStatusTone(job, status);
   if (tone === "error") return "\u5931\u8d25";
   if (status === "paused") return "\u6682\u505c";
@@ -272,11 +354,17 @@ function automationStatusText(job, status = automationStatusLabel(job)) {
 }
 
 function automationRunTimeMs(value) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationRunTimeMsPlan === "function") return model.automationRunTimeMsPlan(value);
   const ms = Date.parse(String(value || ""));
   return Number.isFinite(ms) ? ms : 0;
 }
 
 function automationFailureHasNoFreshDeliverable(job, latestDoc = automationLatestDocument(job)) {
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationFailureHasNoFreshDeliverablePlan === "function") {
+    return model.automationFailureHasNoFreshDeliverablePlan(job, latestDoc);
+  }
   if (automationStatusTone(job) !== "error") return false;
   const lastRunMs = automationRunTimeMs(job?.lastRunAt);
   if (!lastRunMs) return false;
@@ -306,6 +394,60 @@ function renderAutomationStatusSummary(job, status = automationStatusLabel(job))
 
 function currentAutomation() {
   return state.automations.find((job) => job.id === state.selectedAutomationId) || null;
+}
+
+function automationManualTriggerEntry(job) {
+  const triggers = state.automationManualTriggers && typeof state.automationManualTriggers === "object"
+    ? state.automationManualTriggers
+    : {};
+  return triggers[String(job?.id || "")] || null;
+}
+
+function automationManualTriggerView(job) {
+  const entry = automationManualTriggerEntry(job);
+  const model = currentAutomationControllerModel();
+  if (typeof model?.automationManualTriggerViewPlan === "function") {
+    return model.automationManualTriggerViewPlan(job, entry || {});
+  }
+  const status = String(entry?.status || "").toLowerCase();
+  const current = String(job?.status || "").toLowerCase();
+  const effectiveStatus = ["pending", "running", "success", "error"].includes(status)
+    ? status
+    : current === "running" ? "running" : "";
+  const issueCode = String(entry?.issueCode || "").replace(/[^A-Za-z0-9_.:-]/g, "_").slice(0, 120);
+  const fallbackLabel = effectiveStatus === "pending"
+    ? "正在请求手动触发"
+    : effectiveStatus === "running"
+      ? "调度已接收，等待执行"
+      : effectiveStatus === "success"
+        ? "已请求下次执行"
+        : issueCode ? `触发失败：${issueCode}` : "触发失败";
+  return {
+    visible: Boolean(effectiveStatus),
+    busy: effectiveStatus === "pending" || effectiveStatus === "running",
+    status: effectiveStatus,
+    tone: effectiveStatus === "error" ? "error" : effectiveStatus === "success" ? "ok" : "info",
+    label: entry?.label || fallbackLabel,
+    issueCode,
+  };
+}
+
+function renderAutomationManualTriggerButton(job, options = {}) {
+  if (!job?.id) return "";
+  const view = automationManualTriggerView(job);
+  const label = view.busy ? "触发中" : "手动触发";
+  const compact = options.compact ? " compact" : "";
+  return `<button class="automation-manual-trigger-button${compact}" type="button" data-automation-trigger="${escapeHtml(job.id)}" aria-label="${escapeHtml(`手动触发 ${automationTitle(job)}`)}" title="${"手动触发"}" ${view.busy ? "disabled" : ""}>${escapeHtml(label)}</button>`;
+}
+
+function renderAutomationManualTriggerStatus(job, options = {}) {
+  const view = automationManualTriggerView(job);
+  if (!view.visible) return "";
+  const compact = options.compact ? " compact" : "";
+  return `<div class="automation-manual-trigger-status ${escapeHtml(view.tone || "info")}${compact}" role="status" aria-live="polite">
+    <span class="automation-manual-trigger-dot" aria-hidden="true"></span>
+    <span>${escapeHtml(view.label || "")}</span>
+  </div>`;
 }
 
 function automationTitle(job) { return compactDisplayText(job?.name || job?.id || "Cron job", 120); }
@@ -443,6 +585,13 @@ function renderAutomationPanel(options = {}) {
       if (automationIsSummaryJob(currentAutomation())) hydrateAutomationDetails().catch(showError);
     });
   });
+  conversation.querySelectorAll("[data-automation-trigger]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      triggerAutomationJob(button.dataset.automationTrigger || "").catch(showError);
+    });
+  });
   conversation.querySelector("[data-toggle-automation-output-history]")?.addEventListener("click", () => {
     state.automationOutputHistoryOpen = !state.automationOutputHistoryOpen;
     renderAutomationView();
@@ -538,7 +687,11 @@ function renderAutomationCard(job) {
     <button class="automation-card-main" type="button" data-automation-id="${escapeHtml(job.id)}">
       <span class="automation-card-title">${escapeHtml(automationTitle(job))}</span>
     </button>
-    ${renderAutomationStatusSummary(job, status)}
+    <div class="automation-card-actions">
+      ${renderAutomationStatusSummary(job, status)}
+      ${renderAutomationManualTriggerButton(job, { compact: true })}
+    </div>
+    ${renderAutomationManualTriggerStatus(job, { compact: true })}
     ${latestDoc ? `<div class="automation-card-doc">${renderAutomationDocumentPreview(latestDoc, { compact: true })}</div>` : ""}
   </article>`;
 }
@@ -600,11 +753,15 @@ function renderAutomationDetail(job) {
         <h2>${escapeHtml(automationTitle(job))}</h2>
         ${meta ? `<div class="automation-detail-meta">${escapeHtml(meta)}</div>` : ""}
       </div>
-      <span class="automation-state ${escapeHtml(statusTone)}">${escapeHtml(statusText)}</span>
+      <div class="automation-detail-actions">
+        <span class="automation-state ${escapeHtml(statusTone)}">${escapeHtml(statusText)}</span>
+        ${renderAutomationManualTriggerButton(job)}
+      </div>
     </div>
     <div class="automation-run-times">
       ${timeRows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><span>${escapeHtml(value)}</span></div>`).join("")}
     </div>
+    ${renderAutomationManualTriggerStatus(job)}
     ${detailLoadingBlock}
     ${renderAutomationFailureContext(job, latestDoc)}
     ${renderAutomationOutputLinks(job)}

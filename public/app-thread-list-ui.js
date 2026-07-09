@@ -1,44 +1,96 @@
 "use strict";
 
+const THREAD_LIST_MODEL_ESM_PATH = "/vite-islands/thread-list-model/thread-list-model.js";
+let threadListModel = null;
+let threadListModelPromise = null;
+
+function importThreadListModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (threadListModel) return Promise.resolve(threadListModel);
+  if (threadListModelPromise) return threadListModelPromise;
+  const importer = rootRef?.__homeAiImportThreadListModel || ((importPath) => import(importPath));
+  threadListModelPromise = Promise.resolve()
+    .then(() => importer(THREAD_LIST_MODEL_ESM_PATH))
+    .then((model) => {
+      threadListModel = model || null;
+      return threadListModel;
+    })
+    .catch((error) => {
+      threadListModelPromise = null;
+      if (rootRef?.console?.debug) rootRef.console.debug("thread list model unavailable", error?.message || error);
+      return null;
+    });
+  return threadListModelPromise;
+}
+
+function currentThreadListModel() {
+  return threadListModel;
+}
+
+if (typeof window !== "undefined") {
+  importThreadListModel(window).catch(() => null);
+}
+
 function renderThreads() {
-  if (state.viewMode === "automation") {
+  const plan = currentThreadListModel()?.threadSidebarListPlan?.({
+    viewMode: state.viewMode,
+    singleWindowMode: state.singleWindowMode,
+    currentThreadId: state.currentThreadId,
+    threads: (state.threads || []).map((thread) => Object.assign({}, thread, {
+      updatedAtLabel: formatTime(thread.updatedAt),
+    })),
+  });
+  const delegate = plan?.delegate || "";
+  if ((delegate || state.viewMode) === "automation") {
     renderAutomationView();
     return;
   }
-  if (state.viewMode === "inbox") {
+  if ((delegate || state.viewMode) === "inbox") {
     renderActionInboxView();
     return;
   }
-  if (state.viewMode === "todos") {
+  if ((delegate || state.viewMode) === "todos") {
     renderTodoList();
     return;
   }
-  if (state.viewMode === "projects") {
+  if ((delegate || state.viewMode) === "projects") {
     renderDirectorySidebar();
     return;
   }
   const list = $("threadList");
-  if (state.viewMode === "single" || state.viewMode === "tasks") {
+  if (plan?.clearList || state.viewMode === "single" || state.viewMode === "tasks") {
     list.innerHTML = "";
     return;
   }
-  if (!state.threads.length) {
-    list.innerHTML = `<div class="empty-state small">${state.viewMode === "single" ? (state.singleWindowMode === "chat" ? "聊天为空。" : "话题流为空。") : "No threads in this project."}</div>`;
+  if (plan?.empty || !state.threads.length) {
+    const emptyText = plan?.emptyText || (state.viewMode === "single" ? (state.singleWindowMode === "chat" ? "聊天为空。" : "话题流为空。") : "No threads in this project.");
+    list.innerHTML = `<div class="empty-state small">${escapeHtml(emptyText)}</div>`;
     return;
   }
-  list.innerHTML = state.threads.map((thread) => {
-    const active = thread.id === state.currentThreadId ? " active" : "";
-    if (thread.singleWindowTask) {
-      return `<button class="thread-card project-task-card${active}" type="button" data-project-task-thread="${escapeHtml(thread.sourceThreadId || "")}" data-project-task-group="${escapeHtml(thread.taskGroupId || "")}">
-        <div class="thread-card-title">${escapeHtml(thread.title || thread.taskGroupId || "Topic")}</div>
-        <div class="thread-card-preview">${escapeHtml(thread.preview || "No messages yet")}</div>
-        <div class="thread-card-meta">${escapeHtml(`topic | ${thread.status || "idle"} | ${formatTime(thread.updatedAt)}`)}</div>
+  const cards = Array.isArray(plan?.cards)
+    ? plan.cards
+    : state.threads.map((thread) => ({
+      type: thread.singleWindowTask ? "projectTask" : "thread",
+      id: thread.id,
+      active: thread.id === state.currentThreadId,
+      sourceThreadId: thread.sourceThreadId || "",
+      taskGroupId: thread.taskGroupId || "",
+      title: thread.title || thread.taskGroupId || thread.id || "Topic",
+      preview: thread.preview || "No messages yet",
+      meta: thread.singleWindowTask ? `topic | ${thread.status || "idle"} | ${formatTime(thread.updatedAt)}` : `${thread.status || "idle"} | ${formatTime(thread.updatedAt)}`,
+    }));
+  list.innerHTML = cards.map((card) => {
+    const active = card.active ? " active" : "";
+    if (card.type === "projectTask") {
+      return `<button class="thread-card project-task-card${active}" type="button" data-project-task-thread="${escapeHtml(card.sourceThreadId || "")}" data-project-task-group="${escapeHtml(card.taskGroupId || "")}">
+        <div class="thread-card-title">${escapeHtml(card.title || card.taskGroupId || "Topic")}</div>
+        <div class="thread-card-preview">${escapeHtml(card.preview || "No messages yet")}</div>
+        <div class="thread-card-meta">${escapeHtml(card.meta || "")}</div>
       </button>`;
     }
-    return `<button class="thread-card${active}" type="button" data-thread="${escapeHtml(thread.id)}">
-      <div class="thread-card-title">${escapeHtml(thread.title || thread.id)}</div>
-      <div class="thread-card-preview">${escapeHtml(thread.preview || "No messages yet")}</div>
-      <div class="thread-card-meta">${escapeHtml(`${thread.status || "idle"} | ${formatTime(thread.updatedAt)}`)}</div>
+    return `<button class="thread-card${active}" type="button" data-thread="${escapeHtml(card.id)}">
+      <div class="thread-card-title">${escapeHtml(card.title || card.id)}</div>
+      <div class="thread-card-preview">${escapeHtml(card.preview || "No messages yet")}</div>
+      <div class="thread-card-meta">${escapeHtml(card.meta || "")}</div>
     </button>`;
   }).join("");
   list.querySelectorAll("[data-project-task-thread]").forEach((button) => {
@@ -61,33 +113,66 @@ function renderChatScopeHeader(thread) {
   markActiveChatScopeRead(thread);
   const groupSelected = isGroupChatView();
   const canSelectGroup = groupSelected || groupChatSelectable(thread);
-  const scopeButton = (scope, label, selected, canSelect) => {
+  const plan = currentThreadListModel()?.chatScopeHeaderPlan?.({
+    singleWindowChatView: isSingleWindowChatView(),
+    hasThread: Boolean(thread),
+    groupSelected,
+    canSelectGroup,
+    unread: {
+      chat: unreadChatScopeCount(thread, "chat"),
+      group: unreadChatScopeCount(thread, "group"),
+    },
+  });
+  const legacyButton = (scope, label, selected, canSelect) => {
     const unread = selected ? 0 : unreadChatScopeCount(thread, scope);
-    const unreadText = unread > 99 ? "99+" : String(unread);
-    const unreadBadge = unread
-      ? `<span class="chat-scope-header-badge">${escapeHtml(unreadText)}</span>`
+    const countText = unread ? (unread > 99 ? "99+" : String(unread)) : "";
+    return {
+      scope,
+      label,
+      selected,
+      disabled: !canSelect,
+      unreadText: countText,
+      ariaLabel: countText ? `${label}\uff0c${countText}\u6761\u672a\u8bfb` : label,
+    };
+  };
+  const buttons = Array.isArray(plan?.buttons)
+    ? plan.buttons
+    : [
+      legacyButton("chat", "\u804a\u5929", !groupSelected, true),
+      legacyButton("group", "\u7fa4", groupSelected, canSelectGroup),
+    ];
+  const scopeButton = (button) => {
+    const unreadBadge = button.unreadText
+      ? `<span class="chat-scope-header-badge">${escapeHtml(button.unreadText)}</span>`
       : "";
-    const ariaLabel = unread ? `${label}\uff0c${unreadText}\u6761\u672a\u8bfb` : label;
-    return `<button class="chat-scope-header-button${selected ? " active" : ""}" type="button" role="tab" aria-selected="${selected ? "true" : "false"}" aria-label="${escapeHtml(ariaLabel)}" data-chat-scope="${escapeHtml(scope)}" ${canSelect ? "" : "disabled"}>
-      ${escapeHtml(label)}${unreadBadge}
+    return `<button class="chat-scope-header-button${button.selected ? " active" : ""}" type="button" role="tab" aria-selected="${button.selected ? "true" : "false"}" aria-label="${escapeHtml(button.ariaLabel || button.label)}" data-chat-scope="${escapeHtml(button.scope)}" ${button.disabled ? "disabled" : ""}>
+      ${escapeHtml(button.label)}${unreadBadge}
     </button>`;
   };
   header.hidden = false;
   header.innerHTML = `<div class="chat-scope-segment" role="tablist" aria-label="${"\u804a\u5929\u5207\u6362"}">
-    ${scopeButton("chat", "\u804a\u5929", !groupSelected, true)}
-    ${scopeButton("group", "\u7fa4", groupSelected, canSelectGroup)}
+    ${buttons.map(scopeButton).join("")}
   </div>`;
   wireChatScopeHeader(header);
 }
 
 function renderChatHistoryPager(thread) {
-  if (!isSingleWindowChatView()) return "";
   const page = thread?.messagesPage || {};
+  const plan = currentThreadListModel()?.chatHistoryPagerPlan?.({
+    singleWindowChatView: isSingleWindowChatView(),
+    page,
+    messageCount: chatMessagesForThread(thread).length,
+    loading: state.olderChatMessagesLoading,
+  });
+  if (plan && !plan.visible) return "";
+  if (!plan && !isSingleWindowChatView()) return "";
   const hasMore = page.hasMoreBefore !== false && Boolean(page.oldestMessageId || page.total > chatMessagesForThread(thread).length);
-  if (!hasMore && !state.olderChatMessagesLoading) return "";
+  if (!plan && !hasMore && !state.olderChatMessagesLoading) return "";
+  const loading = plan?.disabled ?? state.olderChatMessagesLoading;
+  const label = plan?.label || (state.olderChatMessagesLoading ? "Loading..." : "Load earlier messages");
   return `<div class="chat-history-pager">
-    <button type="button" data-load-older-chat ${state.olderChatMessagesLoading ? "disabled" : ""}>
-      ${state.olderChatMessagesLoading ? "Loading..." : "Load earlier messages"}
+    <button type="button" data-load-older-chat ${loading ? "disabled" : ""}>
+      ${escapeHtml(label)}
     </button>
   </div>`;
 }
@@ -99,18 +184,29 @@ function wireChatHistoryPager(root) {
 }
 
 function renderTaskHistoryPager(thread, taskGroupId = state.currentTaskGroupId) {
-  if (!isTaskDetailView() || isChatSearchMode()) return "";
   const page = thread?.messagesPage || {};
-  const mode = String(page.mode || "").trim().toLowerCase();
-  if (!["tasks", "task"].includes(mode) || String(page.taskGroupId || "") !== String(taskGroupId || "")) return "";
   const messages = typeof taskGroupMessagesForThread === "function"
     ? taskGroupMessagesForThread(thread, taskGroupId)
     : [];
+  const plan = currentThreadListModel()?.taskHistoryPagerPlan?.({
+    taskDetailView: isTaskDetailView(),
+    searchMode: isChatSearchMode(),
+    page,
+    taskGroupId,
+    messageCount: messages.length,
+    loading: state.olderTaskMessagesLoading,
+  });
+  if (plan && !plan.visible) return "";
+  if (!plan && (!isTaskDetailView() || isChatSearchMode())) return "";
+  const mode = String(page.mode || "").trim().toLowerCase();
+  if (!plan && (!["tasks", "task"].includes(mode) || String(page.taskGroupId || "") !== String(taskGroupId || ""))) return "";
   const hasMore = page.hasMoreBefore !== false && Boolean(page.oldestMessageId || page.total > messages.length);
-  if (!hasMore && !state.olderTaskMessagesLoading) return "";
+  if (!plan && !hasMore && !state.olderTaskMessagesLoading) return "";
+  const loading = plan?.disabled ?? state.olderTaskMessagesLoading;
+  const label = plan?.label || (state.olderTaskMessagesLoading ? "加载中..." : "加载更早消息");
   return `<div class="chat-history-pager">
-    <button type="button" data-load-older-task ${state.olderTaskMessagesLoading ? "disabled" : ""}>
-      ${state.olderTaskMessagesLoading ? "加载中..." : "加载更早消息"}
+    <button type="button" data-load-older-task ${loading ? "disabled" : ""}>
+      ${escapeHtml(label)}
     </button>
   </div>`;
 }
@@ -130,6 +226,17 @@ function wireChatScopeHeader(root) {
 }
 
 function chatConversationRenderSignature(messages = [], historyPager = "") {
+  const plan = currentThreadListModel()?.chatConversationRenderSignaturePlan?.({
+    messages,
+    historyPager,
+    searchOpen: state.chatSearchOpen,
+    searchQuery: currentChatSearchQuery(),
+    searchIndex: state.chatSearchIndex || 0,
+    searchMatches: state.chatSearchMatches || [],
+    scope: activeChatScope(),
+    threadId: state.currentThreadId || "",
+  });
+  if (plan?.signature) return plan.signature;
   const searchKey = [
     state.chatSearchOpen ? "1" : "0",
     currentChatSearchQuery(),
@@ -161,6 +268,14 @@ function chatConversationRenderSignature(messages = [], historyPager = "") {
 }
 
 function chatMessagesAlreadyRendered(conversation, signature) {
+  const plan = currentThreadListModel()?.chatRenderReusePlan?.({
+    singleWindowChatView: isSingleWindowChatView(),
+    hasConversation: Boolean(conversation),
+    signature,
+    existingSignature: conversation?.dataset?.chatRenderSignature || "",
+    hasRenderedContent: Boolean(conversation?.querySelector?.("[data-message-id], .chat-history-pager, .empty-state")),
+  });
+  if (plan) return Boolean(plan.reuse);
   return Boolean(
     isSingleWindowChatView()
     && conversation
@@ -357,6 +472,8 @@ function renderCurrentThreadUnsafe(options = {}) {
 }
 
 function taskGroupHasPendingMessages(thread = state.currentThread, taskGroupId = "") {
+  const plan = currentThreadListModel()?.taskGroupPendingMessagesPlan?.({ thread, taskGroupId });
+  if (plan) return Boolean(plan.pending);
   const id = String(taskGroupId || "").trim();
   if (!thread || !id) return false;
   return (thread.messages || []).some((message) => (
@@ -378,10 +495,26 @@ function setTopicPluginDock(html = "") {
   if (hasDockContent && typeof syncGlobalPluginDockState === "function") syncGlobalPluginDockState(dock);
   if (hasDockContent && typeof wirePluginTopicCards === "function") wirePluginTopicCards(dock);
   if (hasDockContent && typeof wireGlobalPluginDockGestures === "function") wireGlobalPluginDockGestures(dock);
-  if (!hasDockContent && typeof updateTopicPluginDockChrome === "function") updateTopicPluginDockChrome(false);
+  if (typeof updateTopicPluginDockChrome === "function") {
+    updateTopicPluginDockChrome(hasDockContent && typeof isTaskListView === "function" ? isTaskListView() : false);
+  }
 }
 
 function directoryTopicRenderSignature(threadId = "", groups = [], collections = null) {
+  const plan = currentThreadListModel()?.directoryTopicRenderSignaturePlan?.({
+    threadId,
+    collections,
+    groups: Array.isArray(collections) ? [] : (groups || []).map((group) => ({
+      id: group?.id || "",
+      routeKey: typeof directoryTopicPrimaryRoute === "function"
+        ? directoryTopicRouteKey(directoryTopicPrimaryRoute(group), group)
+        : "",
+      pluginTopic: Boolean(group?.pluginTopic),
+      sharedTopic: Boolean(group?.sharedTopic),
+      sourceThreadId: group?.sourceThreadId || "",
+    })),
+  });
+  if (plan?.signature) return plan.signature;
   if (Array.isArray(collections)) {
     const entries = collections.map((collection) => [
       collection?.key || "",

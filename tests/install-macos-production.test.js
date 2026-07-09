@@ -1805,27 +1805,51 @@ function testExecuteConfigureCronCreatesCanonicalStoreAndHelpers() {
   assert.equal(parsed.execution.report.ok, true);
   assert.equal(parsed.execution.report.businessJobsCreated, false);
   assert.equal(parsed.execution.report.selfImprovingLoopJobConfigured, true);
+  assert.equal(parsed.execution.report.codexMobilePrAutomationJobConfigured, true);
+  assert.equal(parsed.execution.report.pluginDailyProgressRollupJobConfigured, true);
   assert.equal(parsed.execution.report.launchdInstalled, false);
-  assert.equal(parsed.execution.report.jobCount, 1);
+  assert.equal(parsed.execution.report.jobCount, 3);
   assert.ok(parsed.execution.report.skillCount >= 1);
   const jobsPath = path.join(root, "data", "hermes-home", "cron", "jobs.json");
   const jobsDoc = JSON.parse(fs.readFileSync(jobsPath, "utf8"));
-  assert.equal(jobsDoc.jobs.length, 1);
-  assert.equal(jobsDoc.jobs[0].id, "homeai_self_improving_loop");
-  assert.equal(jobsDoc.jobs[0].script, "homeai-self-improving-loop-cron.sh");
-  assert.equal(jobsDoc.jobs[0].no_agent, true);
-  assert.equal(jobsDoc.jobs[0].schedule.expr, "17 4 * * *");
+  assert.equal(jobsDoc.jobs.length, 3);
+  const selfLoop = jobsDoc.jobs.find((job) => job.id === "homeai_self_improving_loop");
+  const codexPrAutomation = jobsDoc.jobs.find((job) => job.id === "codex_mobile_pr_automation_hourly");
+  const pluginRollup = jobsDoc.jobs.find((job) => job.id === "plugin_daily_progress_rollup");
+  assert.equal(selfLoop.script, "homeai-self-improving-loop-cron.sh");
+  assert.equal(selfLoop.no_agent, true);
+  assert.equal(selfLoop.schedule.expr, "17 4 * * *");
+  assert.equal(codexPrAutomation.script, "codex-mobile-pr-automation-cron.sh");
+  assert.equal(codexPrAutomation.no_agent, true);
+  assert.equal(codexPrAutomation.schedule.expr, "0 * * * *");
+  assert.equal(codexPrAutomation.enabled, true);
+  assert.equal(codexPrAutomation.state, "scheduled");
+  assert.equal(codexPrAutomation.paused_at, null);
+  assert.equal(codexPrAutomation.paused_reason, null);
+  assert.ok(codexPrAutomation.next_run_at);
+  assert.equal(pluginRollup.script, "plugin-daily-progress-rollup-cron.sh");
+  assert.equal(pluginRollup.name, "插件每日进展汇总");
+  assert.equal(pluginRollup.no_agent, true);
+  assert.equal(pluginRollup.schedule.expr, "30 23 * * *");
   assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "scripts", "hermes-mobile-cron-dispatcher.py")), true);
   assert.equal(fs.statSync(path.join(root, "data", "hermes-home", "scripts", "hermes-mobile-cron-dispatcher.py")).mode & 0o777, 0o755);
   assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "scripts", "homeai-production-drift-audit-watchdog.sh")), true);
   assert.equal(fs.statSync(path.join(root, "data", "hermes-home", "scripts", "homeai-production-drift-audit-watchdog.sh")).mode & 0o777, 0o755);
   assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "scripts", "homeai-self-improving-loop-cron.sh")), true);
   assert.equal(fs.statSync(path.join(root, "data", "hermes-home", "scripts", "homeai-self-improving-loop-cron.sh")).mode & 0o777, 0o755);
+  assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "scripts", "plugin-daily-progress-rollup-cron.sh")), true);
+  assert.equal(fs.statSync(path.join(root, "data", "hermes-home", "scripts", "plugin-daily-progress-rollup-cron.sh")).mode & 0o777, 0o755);
+  assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "scripts", "codex-mobile-pr-automation-cron.sh")), true);
+  assert.equal(fs.statSync(path.join(root, "data", "hermes-home", "scripts", "codex-mobile-pr-automation-cron.sh")).mode & 0o777, 0o755);
   assert.equal(fs.existsSync(path.join(root, "data", "hermes-home", "skills", "productivity", "home-ai-todo-intake", "SKILL.md")), true);
   const plan = JSON.parse(fs.readFileSync(path.join(root, "data", "cron-config-plan.json"), "utf8"));
   assert.equal(plan.businessJobsCreated, false);
   assert.equal(plan.selfImprovingLoopJob.ok, true);
   assert.equal(plan.selfImprovingLoopJob.id, "homeai_self_improving_loop");
+  assert.equal(plan.codexMobilePrAutomationJob.ok, true);
+  assert.equal(plan.codexMobilePrAutomationJob.id, "codex_mobile_pr_automation_hourly");
+  assert.equal(plan.pluginDailyProgressRollupJob.ok, true);
+  assert.equal(plan.pluginDailyProgressRollupJob.id, "plugin_daily_progress_rollup");
   assert.equal(plan.launchdInstalled, false);
   assert.equal(plan.environment.HERMES_MOBILE_NETWORK_MODE, "direct");
   const audit = spawnSync(process.execPath, [
@@ -1843,7 +1867,7 @@ function testExecuteConfigureCronCreatesCanonicalStoreAndHelpers() {
   assert.equal(audit.status, 0, audit.stdout || audit.stderr);
   const auditPayload = JSON.parse(audit.stdout);
   assert.equal(auditPayload.ok, true);
-  assert.equal(auditPayload.jobCount, 1);
+  assert.equal(auditPayload.jobCount, 3);
   const phase = parsed.phases.find((item) => item.id === "configure-cron");
   assert.equal(phase.status, "executed");
 }
@@ -1863,14 +1887,61 @@ function testExecuteConfigureCronPreservesExistingJobsStore() {
   ]));
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
   const jobs = JSON.parse(fs.readFileSync(jobsPath, "utf8")).jobs;
-  assert.equal(jobs.length, 2);
+  assert.equal(jobs.length, 4);
   assert.equal(jobs.some((job) => job.id === "existing"), true);
   const selfLoopJob = jobs.find((job) => job.id === "homeai_self_improving_loop");
   assert.equal(selfLoopJob.script, "homeai-self-improving-loop-cron.sh");
   assert.equal(selfLoopJob.no_agent, true);
-  assert.equal(parsed.execution.report.jobCount, 2);
+  const codexPrAutomationJob = jobs.find((job) => job.id === "codex_mobile_pr_automation_hourly");
+  assert.equal(codexPrAutomationJob.script, "codex-mobile-pr-automation-cron.sh");
+  assert.equal(codexPrAutomationJob.no_agent, true);
+  const pluginRollupJob = jobs.find((job) => job.id === "plugin_daily_progress_rollup");
+  assert.equal(pluginRollupJob.script, "plugin-daily-progress-rollup-cron.sh");
+  assert.equal(pluginRollupJob.name, "插件每日进展汇总");
+  assert.equal(pluginRollupJob.no_agent, true);
+  assert.equal(parsed.execution.report.jobCount, 4);
   assert.equal(parsed.execution.report.actions.some((item) => item.action === "jobs-store-exists"), true);
   assert.equal(parsed.execution.report.actions.some((item) => item.action === "create-self-improving-loop-job"), true);
+  assert.equal(parsed.execution.report.actions.some((item) => item.action === "create-codex-mobile-pr-automation-job"), true);
+  assert.equal(parsed.execution.report.actions.some((item) => item.action === "create-plugin-daily-progress-rollup-job"), true);
+}
+
+function testExecuteConfigureCronPreservesPausedCodexPrAutomationJob() {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-cron-paused-pr-"));
+  const jobsPath = path.join(root, "data", "hermes-home", "cron", "jobs.json");
+  fs.mkdirSync(path.dirname(jobsPath), { recursive: true });
+  fs.writeFileSync(jobsPath, JSON.stringify({
+    jobs: [{
+      id: "codex_mobile_pr_automation_hourly",
+      name: "Codex Mobile PR Automation",
+      enabled: false,
+      state: "paused",
+      paused_at: "2026-07-09T00:00:00.000Z",
+      paused_reason: "owner_pause",
+      next_run_at: "2026-07-09T01:00:00.000Z",
+      last_status: "ok",
+    }],
+  }, null, 2));
+  const parsed = JSON.parse(run([
+    "--execute",
+    "--phase",
+    "configure-cron",
+    "--root",
+    root,
+    "--json",
+  ]));
+  assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
+  const jobs = JSON.parse(fs.readFileSync(jobsPath, "utf8")).jobs;
+  const codexPrAutomationJob = jobs.find((job) => job.id === "codex_mobile_pr_automation_hourly");
+  assert.equal(codexPrAutomationJob.script, "codex-mobile-pr-automation-cron.sh");
+  assert.equal(codexPrAutomationJob.no_agent, true);
+  assert.equal(codexPrAutomationJob.enabled, false);
+  assert.equal(codexPrAutomationJob.state, "paused");
+  assert.equal(codexPrAutomationJob.paused_at, "2026-07-09T00:00:00.000Z");
+  assert.equal(codexPrAutomationJob.paused_reason, "owner_pause");
+  assert.equal(codexPrAutomationJob.next_run_at, null);
+  assert.equal(codexPrAutomationJob.last_status, "ok");
+  assert.equal(parsed.execution.report.actions.some((item) => item.action === "update-codex-mobile-pr-automation-job"), true);
 }
 
 function testExecuteConfigureCronFailsClosedForInvalidNetworkMode() {
@@ -2469,6 +2540,7 @@ testExecutePluginWorkspaceProvisioningPlanDoesNotCreateSecretsOrGrants();
 testExecutePluginWorkspaceProvisioningPlanDetectsPartialGatewayBinding();
 testExecuteConfigureCronCreatesCanonicalStoreAndHelpers();
 testExecuteConfigureCronPreservesExistingJobsStore();
+testExecuteConfigureCronPreservesPausedCodexPrAutomationJob();
 testExecuteConfigureCronFailsClosedForInvalidNetworkMode();
 testExecuteGatewayLaunchdServicesStagesWorkersWithoutLoading();
 testGatewayLaunchdServicesHonorExistingExternalProfileLayout();

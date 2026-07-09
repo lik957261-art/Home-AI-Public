@@ -81,7 +81,7 @@ function renderShell(root, state = runtimeState()) {
           <div>
             <p class="aof-eyebrow">Vite island 开发预览</p>
             <h1 class="aof-title">AI Ops 反馈菜单</h1>
-            <p class="aof-subtitle">复刻三指长按反馈菜单的可迁移 UI。当前页面只用于开发验证，不替换 classic shell。</p>
+            <p class="aof-subtitle">复刻三指长按反馈菜单的可迁移 UI。当前页面只用于开发验证，不替换生产根 shell。</p>
           </div>
           <div class="aof-state">
             <span class="aof-badge">${escapeHtml(runtime.mode || "vite-preview")}</span>

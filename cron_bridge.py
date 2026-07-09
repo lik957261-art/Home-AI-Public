@@ -695,6 +695,17 @@ def status_label(job: dict[str, Any]) -> str:
     return state or "scheduled"
 
 
+def is_paused_job(job: dict[str, Any]) -> bool:
+    return (
+        bool(job)
+        and (
+            job.get("enabled") is False
+            or str(job.get("state") or "").strip().lower() == "paused"
+            or bool(job.get("paused_at"))
+        )
+    )
+
+
 def public_job(job: dict[str, Any], detail: str = "full") -> dict[str, Any]:
     schedule = schedule_info(job)
     skills = canonical_skills(job)
@@ -1362,11 +1373,17 @@ def run_job_from_request(request: dict[str, Any]) -> dict[str, Any]:
         return {"ok": False, "status": 404, "error": "Automation job was not found for this workspace"}
 
     now = datetime.now().astimezone()
-    job["enabled"] = True
-    job["state"] = "scheduled"
-    job["paused_at"] = None
-    job["paused_reason"] = None
-    job["next_run_at"] = (now - timedelta(seconds=1)).isoformat()
+    paused = is_paused_job(job)
+    if paused:
+        job["enabled"] = False
+        job["state"] = "paused"
+        job["next_run_at"] = None
+    else:
+        job["enabled"] = True
+        job["state"] = "scheduled"
+        job["paused_at"] = None
+        job["paused_reason"] = None
+        job["next_run_at"] = (now - timedelta(seconds=1)).isoformat()
     job["manual_run_requested_at"] = now.isoformat()
     job["updated_at"] = now.isoformat()
 
@@ -1383,6 +1400,7 @@ def run_job_from_request(request: dict[str, Any]) -> dict[str, Any]:
             "action": "run",
             "dryRun": dry_run,
             "runMode": "next_tick",
+            "scheduleResumed": not paused,
         },
     }
     if warning:

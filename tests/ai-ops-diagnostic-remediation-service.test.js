@@ -76,9 +76,9 @@ function event(overrides = {}) {
   assert.equal(plan.target.targetThreadTitle, "男装衣橱");
   assert.equal(plan.taskCard.targetWorkspace, "/Users/example/path");
   assert.equal(plan.taskCard.reasoningEffort, "xhigh");
-  assert.equal(plan.dispatch.executeAutomatically, false);
-  assert.equal(plan.dispatch.ownerApprovalRequired, true);
-  assert.equal(plan.dispatch.policy, "owner_gated");
+  assert.equal(plan.dispatch.executeAutomatically, true);
+  assert.equal(plan.dispatch.ownerApprovalRequired, false);
+  assert.equal(plan.dispatch.policy, "auto_diagnostic");
   assert.match(plan.taskCard.body, /Return a real task card/);
   assert.match(plan.taskCard.body, /retry_exhausted/);
   assert.doesNotMatch(plan.taskCard.body, /private wardrobe image bytes/);
@@ -99,6 +99,8 @@ function event(overrides = {}) {
   assert.equal(plan.eligible, true);
   assert.equal(plan.targetKind, "home-ai");
   assert.equal(plan.target.targetWorkspace, "/Users/example/path");
+  assert.equal(plan.taskCard.sourceThreadTitle, "Home AI Task Intake");
+  assert.equal(plan.taskCard.replyToThreadTitlePrefix, "Home AI");
   assert.match(plan.taskCard.title, /Home AI/);
   assert.match(plan.taskCard.body, /home-ai-gateway-toolset/);
 }
@@ -117,6 +119,8 @@ function event(overrides = {}) {
   assert.equal(plan.targetKind, "plugin");
   assert.equal(plan.target.targetWorkspace, "/Users/example/path");
   assert.equal(plan.taskCard.targetWorkspace, "/Users/example/path");
+  assert.equal(plan.dispatch.executeAutomatically, true);
+  assert.equal(plan.dispatch.policy, "auto_diagnostic");
   assert.doesNotMatch(plan.taskCard.body, /\/Users\/xuxin\/Documents\/Music/);
 }
 
@@ -140,6 +144,56 @@ function event(overrides = {}) {
   assert.equal(plan.dispatch.executeAutomatically, true);
   assert.equal(plan.dispatch.ownerApprovalRequired, false);
   assert.equal(plan.dispatch.policy, "auto_self_check");
+}
+
+{
+  const codexMobile = baseCase({
+    case_id: "diagcase_codex_mobile_thread_mismatch",
+    plugin_id: "codex-mobile",
+    workspace_id: "owner",
+    source_surface: "home-ai-self-check",
+    diagnostic_type: "thread_routing_mismatch",
+    category: "target_thread_archived",
+    route: "/api/thread-task-cards",
+    summary: "Codex Mobile task-card routing reported target_thread_archived",
+  });
+  const plan = buildDiagnosticRemediationPlan({
+    case: codexMobile,
+    events: [event({ case_id: "diagcase_codex_mobile_thread_mismatch", confidence: 0.9 })],
+  });
+  assert.equal(plan.eligible, true);
+  assert.equal(plan.targetKind, "plugin");
+  assert.equal(plan.target.targetWorkspace, "/Users/example/path");
+  assert.equal(plan.taskCard.targetWorkspace, "/Users/example/path");
+  assert.equal(plan.taskCard.targetThreadId, undefined);
+  assert.equal(plan.taskCard.targetThreadTitle, undefined);
+  assert.equal(plan.taskCard.targetThreadTitlePrefix, "codex mobile");
+  assert.equal(plan.dispatch.executeAutomatically, true);
+  assert.equal(plan.dispatch.ownerApprovalRequired, false);
+  assert.equal(plan.dispatch.policy, "auto_diagnostic");
+}
+
+{
+  const codexMobileProjection = baseCase({
+    case_id: "diagcase_50e0d98ed458afa4b0ab",
+    plugin_id: "codex-mobile",
+    workspace_id: "owner",
+    source_surface: "codex-mobile-runtime",
+    diagnostic_type: "conversation_projection_mismatch",
+    category: "conversation_projection_mismatch",
+    route: "/api/behavior-gate",
+    summary: "Codex Mobile conversation projection mismatch",
+  });
+  const plan = buildDiagnosticRemediationPlan({
+    case: codexMobileProjection,
+    events: [event({ case_id: "diagcase_50e0d98ed458afa4b0ab", confidence: 0.9 })],
+  });
+  assert.equal(plan.eligible, true);
+  assert.equal(plan.targetKind, "plugin");
+  assert.equal(plan.target.targetWorkspace, "/Users/example/path");
+  assert.equal(plan.dispatch.executeAutomatically, true);
+  assert.equal(plan.dispatch.ownerApprovalRequired, false);
+  assert.equal(plan.dispatch.policy, "auto_diagnostic");
 }
 
 {

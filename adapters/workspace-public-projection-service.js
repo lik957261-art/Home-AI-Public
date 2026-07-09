@@ -1,5 +1,7 @@
 "use strict";
 
+const { mediaAccountPublicFields } = require("./restricted-media-account-service");
+
 function defaultDedupe(values) {
   return [...new Set((values || []).map((item) => String(item || "").trim()).filter(Boolean))];
 }
@@ -45,16 +47,20 @@ function createWorkspacePublicProjectionService(options = {}) {
   function publicWorkspaceLocalConfig(workspace) {
     if (workspace?.source !== "local-workspace") return null;
     const policy = workspacePolicy(workspace);
+    const mediaFields = mediaAccountPublicFields(workspace);
     return {
       defaultWorkspace: String(workspace.defaultWorkspace || policy.default_workspace || ""),
       allowedRoots: Array.isArray(policy.allowed_roots) ? options.filterRoots(policy.allowed_roots) : [],
       allowedToolsets: Array.isArray(policy.allowed_toolsets) ? policy.allowed_toolsets : [],
       connectorProfiles: policy.connector_profiles && typeof policy.connector_profiles === "object" ? policy.connector_profiles : {},
+      accountType: mediaFields.accountType,
+      allowedOwnerSpecialPlugins: mediaFields.allowedOwnerSpecialPlugins,
     };
   }
 
   function publicWorkspace(workspace) {
     const policy = workspacePolicy(workspace);
+    const mediaFields = mediaAccountPublicFields(workspace);
     return {
       id: workspace.id,
       label: workspace.label,
@@ -67,6 +73,9 @@ function createWorkspacePublicProjectionService(options = {}) {
       accountId: workspace.accountId || policy.source_chat_id_alt || "",
       userId: workspace.userId || policy.source_user_id || "",
       chatId: workspace.chatId || policy.source_chat_id || "",
+      accountType: mediaFields.accountType,
+      restrictedMedia: mediaFields.restrictedMedia,
+      allowedOwnerSpecialPlugins: mediaFields.allowedOwnerSpecialPlugins,
       target: workspace.target || "",
       contextTokenAvailable: workspace.contextTokenAvailable,
       outboundStatus: workspace.outboundStatus || "",

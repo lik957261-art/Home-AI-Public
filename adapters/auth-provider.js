@@ -3,6 +3,7 @@
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
+const { mediaAccountPublicFields } = require("./restricted-media-account-service");
 
 const OWNER_AUTH_ID = "owner";
 
@@ -54,6 +55,7 @@ function normalizeAccessKeyStore(value) {
 }
 
 function createAuthProvider(options = {}) {
+  const audit = typeof options.audit === "function" ? options.audit : () => {};
   const disableAuth = () => Boolean(typeof options.disableAuth === "function" ? options.disableAuth() : options.disableAuth);
   const authKeyPath = () => path.resolve(String(typeof options.authKeyPath === "function" ? options.authKeyPath() : options.authKeyPath));
   const accessKeysPath = () => path.resolve(String(typeof options.accessKeysPath === "function" ? options.accessKeysPath() : options.accessKeysPath));
@@ -225,6 +227,7 @@ function createAuthProvider(options = {}) {
       if (!record?.hash || !timingSafeEquals(hash, record.hash)) continue;
       const workspace = findWorkspace(workspaceId);
       if (!workspace) continue;
+      const mediaFields = mediaAccountPublicFields(workspace);
       req.auth = {
         ok: true,
         role: "workspace",
@@ -232,6 +235,9 @@ function createAuthProvider(options = {}) {
         principalId: workspacePrincipal(workspaceId),
         workspaceIds: [...new Set([workspaceId, ...workspaceAccessIds(workspace)])],
         workspaces: [...new Set([workspaceId, ...workspaceAccessIds(workspace)])],
+        accountType: mediaFields.accountType,
+        restrictedMedia: mediaFields.restrictedMedia,
+        allowedOwnerSpecialPlugins: mediaFields.allowedOwnerSpecialPlugins,
         isOwner: false,
         keySource: "workspace",
       };
@@ -321,6 +327,13 @@ function createAuthProvider(options = {}) {
     return workspace;
   }
 
+  function accessKeyActorMetadata(optionsArg = {}) {
+    return {
+      actorWorkspaceId: String(optionsArg.actorWorkspaceId || "").trim(),
+      actorPrincipalId: String(optionsArg.actorPrincipalId || optionsArg.actor || "unspecified").trim(),
+    };
+  }
+
   function rotateWorkspaceAccessKey(workspaceId, optionsArg = {}) {
     const workspace = workspaceRequired(workspaceId);
     const key = generateWebAccessKey();
@@ -330,14 +343,42 @@ function createAuthProvider(options = {}) {
     }
     const store = loadAccessKeyStore();
     const previous = store.workspaceKeys?.[workspace.id] || {};
+    const actor = accessKeyActorMetadata(optionsArg);
+    if (optionsArg.preserveExisting && previous?.hash) {
+      const record = publicAccessKeyStatus(workspace, previous);
+      audit("workspace_access_key.preserved", {
+        actorWorkspaceId: actor.actorWorkspaceId,
+        actorPrincipalId: actor.actorPrincipalId,
+        targetType: "workspace_access_key",
+        targetId: workspace.id,
+        action: "preserve_existing",
+        reason: String(optionsArg.reason || ""),
+        hadPreviousKey: true,
+      });
+      return {
+        key: "",
+        record,
+        dryRun: false,
+        preservedExisting: true,
+      };
+    }
     store.workspaceKeys = store.workspaceKeys || {};
     store.workspaceKeys[workspace.id] = {
       hash: keyHash(key),
       createdAt: previous.createdAt || now,
       updatedAt: now,
-      createdBy: String(optionsArg.actor || "owner"),
+      createdBy: actor.actorPrincipalId || "unspecified",
     };
     const saved = saveAccessKeyStore(store);
+    audit("workspace_access_key.rotated", {
+      actorWorkspaceId: actor.actorWorkspaceId,
+      actorPrincipalId: actor.actorPrincipalId,
+      targetType: "workspace_access_key",
+      targetId: workspace.id,
+      action: "rotate",
+      reason: String(optionsArg.reason || ""),
+      hadPreviousKey: Boolean(previous?.hash),
+    });
     return { key, record: publicAccessKeyStatus(workspace, saved.workspaceKeys[workspace.id]), dryRun: false };
   }
 
@@ -345,9 +386,18 @@ function createAuthProvider(options = {}) {
     const workspace = workspaceRequired(workspaceId);
     const store = loadAccessKeyStore();
     const previous = store.workspaceKeys?.[workspace.id] || null;
+    const actor = accessKeyActorMetadata(optionsArg);
     if (!optionsArg.dryRun && previous) {
       delete store.workspaceKeys[workspace.id];
       saveAccessKeyStore(store);
+      audit("workspace_access_key.revoked", {
+        actorWorkspaceId: actor.actorWorkspaceId,
+        actorPrincipalId: actor.actorPrincipalId,
+        targetType: "workspace_access_key",
+        targetId: workspace.id,
+        action: "revoke",
+        hadPreviousKey: true,
+      });
     }
     return {
       workspace: publicAccessKeyStatus(workspace, null),
@@ -356,14 +406,23 @@ function createAuthProvider(options = {}) {
     };
   }
 
-  function deleteWorkspaceAccessKey(workspaceId) {
+  function deleteWorkspaceAccessKey(workspaceId, optionsArg = {}) {
     const id = String(workspaceId || "").trim();
     if (!id) return false;
     const store = loadAccessKeyStore();
     const previous = store.workspaceKeys?.[id] || null;
+    const actor = accessKeyActorMetadata(optionsArg);
     if (previous) {
       delete store.workspaceKeys[id];
       saveAccessKeyStore(store);
+      audit("workspace_access_key.deleted", {
+        actorWorkspaceId: actor.actorWorkspaceId,
+        actorPrincipalId: actor.actorPrincipalId,
+        targetType: "workspace_access_key",
+        targetId: id,
+        action: "delete",
+        hadPreviousKey: true,
+      });
     }
     return Boolean(previous);
   }

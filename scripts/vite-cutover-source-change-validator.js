@@ -23,22 +23,22 @@ const REQUIRED_ASSERTIONS = Object.freeze([
     },
   },
   {
-    id: "fail_closed_default_classic",
-    summary: "The cutover defaults to the classic shell unless an explicit switch selects Vite.",
+    id: "vite_only_runtime_default",
+    summary: "The runtime shell default is Vite-only and does not fail back to Classic.",
     test: (payload) => {
       const change = payload.cutoverSourceChange || {};
-      return change.failClosedDefault === "classic" || change.classicDefault === true;
+      return change.viteOnlyRuntime === true || change.runtimeDefault === "vite";
     },
   },
   {
-    id: "explicit_shell_mode_switch",
-    summary: "The shell mode is selected by an explicit bounded switch.",
-    test: (payload) => Boolean(payload.cutoverSourceChange && payload.cutoverSourceChange.explicitShellModeSwitch === true),
+    id: "classic_runtime_switch_removed",
+    summary: "Classic runtime switch paths are removed or ignored.",
+    test: (payload) => Boolean(payload.cutoverSourceChange && payload.cutoverSourceChange.classicRuntimeSwitchRemoved === true),
   },
   {
-    id: "rollback_switch",
-    summary: "The source change includes a bounded rollback switch to the classic shell.",
-    test: (payload) => Boolean(payload.cutoverSourceChange && payload.cutoverSourceChange.rollbackSwitch === true),
+    id: "source_deploy_rollback_plan",
+    summary: "Emergency rollback is through Git/source history and deployment backups, not runtime Classic selection.",
+    test: (payload) => Boolean(payload.cutoverSourceChange && payload.cutoverSourceChange.sourceDeployRollbackPlan === true),
   },
   {
     id: "service_worker_cache_version_plan",
@@ -64,9 +64,9 @@ const REQUIRED_ASSERTIONS = Object.freeze([
     },
   },
   {
-    id: "production_default_not_vite_without_switch",
-    summary: "Production cannot become Vite by default without the explicit selected-shell switch.",
-    test: (payload) => Boolean(payload.cutoverSourceChange && payload.cutoverSourceChange.productionDefaultNotViteWithoutSwitch === true),
+    id: "classic_override_ignored",
+    summary: "Classic request, environment, or config overrides cannot activate the Classic shell.",
+    test: (payload) => Boolean(payload.cutoverSourceChange && payload.cutoverSourceChange.classicOverrideIgnored === true),
   },
   {
     id: "bounded_production_readback_required",

@@ -29,6 +29,8 @@ function pointerFor(plugin, overrides = {}) {
     "",
     "- `plugin-workspace-platform-contract.md`",
     "- `plugin-mobile-ui-visual-contract.md`",
+    "- `autonomous-delivery-loop-contract.md`",
+    "- `worker-pool-lifecycle-contract.md`",
     "- `root-cause-architecture-contract.md`",
     "- `fallback-governance-contract.md`",
     "- `fallback-registry.md`",
@@ -60,6 +62,9 @@ function pointerFor(plugin, overrides = {}) {
     "| `ai_ops_control_plane_command` | `cd /Users/example/path && node scripts/ai-ops-control-plane.js intake --task \"<task>\" --json` |",
     "| `ai_ops_required_flow` | `intake -> required-checks -> lane allocate if visual -> evidence append -> production smoke -> handoff` |",
     "| `ai_ops_evidence_ledger` | `$HOME/.homeai-qa/evidence-ledger.jsonl` |",
+    "| `plugin_main_preflight_command` | `cd /Users/example/path && node scripts/main-thread-routing-preflight.js --source-thread-role plugin_main --task \"<task>\" --changed-file <path> --mode classify` |",
+    "| `plugin_worker_dispatch_policy` | `When classification is plugin_worker, dispatch a plugin_worker card with terminal return, Chinese receipt, privacy boundary, conflict rule, expected validation, and no Task Intake/deploy/audit/Loop/current-thread fallback.` |",
+    "| `plugin_worker_pool_lifecycle_policy` | `Use the stable plugin_worker Worker pool with resolve-before-create; reuse available lanes, mark lanes busy while a task card is active, require per-task-card heartbeat, activate the Watchdog for that task card after 1800000ms without heartbeat, batch limit 8, maximum auto-resume 1, release lanes after terminal return with Chinese receipt, reject task-title Worker names as sprawl, and create only for missing_role_lane, pool_exhausted, or no legal lane.` |",
     "| `ios_live_debug_available` | `yes` |",
     `| \`ios_visual_harness_command\` | \`cd /Users/example/path && npm run ios:pwa:visual -- --scenario embedded-plugin-shell --plugin-id ${plugin.id} --debug-url http://127.0.0.1:19073/\` |`,
     "| `plugin_manifest_actions_status` | `declared` |",
@@ -79,6 +84,8 @@ function nativePointerFor(client) {
     "",
     "- `plugin-workspace-platform-contract.md`",
     "- `plugin-mobile-ui-visual-contract.md`",
+    "- `autonomous-delivery-loop-contract.md`",
+    "- `worker-pool-lifecycle-contract.md`",
     "- `root-cause-architecture-contract.md`",
     "- `fallback-governance-contract.md`",
     "- `fallback-registry.md`",
@@ -127,6 +134,8 @@ function moviePointerFor(plugin) {
     "- `/Users/example/path`",
     "- `/Users/example/path`",
     "- `/Users/example/path`",
+    "- `/Users/example/path`",
+    "- `/Users/example/path`",
     "",
     "Plugin-local facts:",
     "- plugin id: `movie`",
@@ -141,6 +150,9 @@ function moviePointerFor(plugin) {
     "  - `mcp_movie_search_sources`",
     "  - `mcp_movie_list_source_state`",
     "- Movie is Owner-only and must not become workspace-grantable for non-Owner users.",
+    "- Plugin main preflight command: `cd /Users/example/path && node scripts/main-thread-routing-preflight.js --source-thread-role plugin_main --task \"<task>\" --changed-file <path> --mode classify`.",
+    "- Plugin Worker dispatch policy: `plugin_worker` cards require terminal return, Chinese receipt, privacy boundary, conflict rule, expected validation, and no Task Intake/deploy/audit/Loop/current-thread fallback.",
+    "- Plugin Worker pool lifecycle policy: use the stable `plugin_worker` Worker pool with resolve-before-create; reuse available lanes, mark lanes busy while a card is active, require per-task-card heartbeat, activate the Watchdog for that task card after 1800000ms without heartbeat, batch limit 8, maximum auto-resume 1, release them after terminal return with Chinese receipt, reject task-title Worker names as sprawl, and create only for `missing_role_lane`, `pool_exhausted`, or no legal lane.",
     "",
     "Do not record raw secrets or credentials here.",
   ].join("\n");
@@ -154,6 +166,8 @@ function makeFixture() {
     "Finance Wardrobe Note Email Health Growth Moira Music Movie Codex Mobile Web Home AI Native iOS Shell",
     "plugin-workspace-platform-contract.md",
     "plugin-mobile-ui-visual-contract.md",
+    "autonomous-delivery-loop-contract.md",
+    "worker-pool-lifecycle-contract.md",
     "root-cause-architecture-contract.md",
     "fallback-governance-contract.md",
     "fallback-registry.md",
@@ -171,13 +185,27 @@ function makeFixture() {
     "ai_ops_control_plane_command",
     "ai_ops_required_flow",
     "ai_ops_evidence_ledger",
+    "main-thread-routing-preflight.js",
+    "plugin_main_preflight_command",
+    "plugin_worker_dispatch_policy",
+    "plugin_worker_pool_lifecycle_policy",
+    "resolve-before-create",
+    "Worker pool",
+    "sprawl",
+    "terminalReturnLanguageZhCn",
+    "taskCardHeartbeatRequired",
+    "taskCardWatchdogTimeoutMs",
+    "taskCardWatchdogBatchLimit",
+    "taskCardWatchdogMaxAutoResume",
+    "1800000",
+    "Chinese receipt",
     "npm run ios:pwa:visual",
     "ios_visual_harness_command",
     "native-ios-shell.md",
     "home-ai-native-ios",
     "managed_native_client",
   ].join("\n"));
-  write(path.join(repo, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "plugin-workspace-platform-contract-check.js\nfallback-governance-check.js\nfallback-governance-contract.md\nfallback-registry.md\nnpm run ios:pwa:visual\nscripts/ios-pwa-visual-harness.js\nios_visual_harness_command\nai-ops-control-plane.js\nai_ops_control_plane_command\nai_ops_required_flow\nai_ops_evidence_ledger\nnative-ios-shell.md\nhome-ai-native-ios\nmanaged_native_client\n");
+  write(path.join(repo, "docs", "PLATFORM_CONTRACTS", "plugin-workspace-platform-contract.md"), "plugin-workspace-platform-contract-check.js\nfallback-governance-check.js\nfallback-governance-contract.md\nfallback-registry.md\nautonomous-delivery-loop-contract.md\nworker-pool-lifecycle-contract.md\nnpm run ios:pwa:visual\nscripts/ios-pwa-visual-harness.js\nios_visual_harness_command\nai-ops-control-plane.js\nai_ops_control_plane_command\nai_ops_required_flow\nai_ops_evidence_ledger\nmain-thread-routing-preflight.js\nplugin_main_preflight_command\nplugin_worker_dispatch_policy\nplugin_worker_pool_lifecycle_policy\nresolve-before-create\nWorker pool\nsprawl\nterminalReturnLanguageZhCn\ntaskCardHeartbeatRequired\ntaskCardWatchdogTimeoutMs\ntaskCardWatchdogBatchLimit\ntaskCardWatchdogMaxAutoResume\n1800000\nChinese receipt\nnative-ios-shell.md\nhome-ai-native-ios\nmanaged_native_client\n");
   write(path.join(repo, "docs", "TEST_MATRIX.md"), "plugin-workspace-platform-contract-check.test.js\nfallback-governance-check.test.js\nnode tests\\ios-pwa-visual-harness.test.js\nai-ops-control-plane-cli.test.js\n");
   write(path.join(repo, "docs", "DOCS_INDEX.md"), "plugin-workspace-contract-rollout-status.md\nscripts/ios-pwa-visual-harness.js\nios-pwa-visual-harness.test.js\nai-ops-control-plane.js\nfallback-governance-check.js\nfallback-governance-contract.md\nfallback-registry.md\nnative-ios-shell.md\nhome-ai-native-ios\nmanaged_native_client\n");
   write(path.join(repo, "docs", "MODULES", "native-ios-shell.md"), "home-ai-native-ios\nmanaged_native_client\n");
@@ -314,6 +342,87 @@ function testPointerRequiresAiOpsControlPlaneFields() {
   assert.ok(parsed.issues.includes("finance:ai_ops_evidence_ledger_missing"));
 }
 
+function testPointerRequiresPluginMainPreflightFieldsForCurrentContract() {
+  const fixture = makeFixture();
+  const plugin = PLUGINS.find((item) => item.id === "finance");
+  const pointerPath = path.join(fixture.root, plugin.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  write(pointerPath, pointerFor(plugin)
+    .replace(/\n\| `plugin_main_preflight_command` \|[^\n]+/, "")
+    .replace(/\n\| `plugin_worker_dispatch_policy` \|[^\n]+/, ""));
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "finance", "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.issues.includes("finance:pointer_missing_text:`plugin_main_preflight_command`"));
+  assert.ok(parsed.issues.includes("finance:pointer_missing_text:`plugin_worker_dispatch_policy`"));
+  assert.ok(parsed.issues.includes("finance:plugin_main_preflight_command_missing"));
+  assert.ok(parsed.issues.includes("finance:plugin_worker_dispatch_policy_missing:plugin_worker"));
+}
+
+function testPointerRequiresPluginWorkerPoolLifecyclePolicyForCurrentContract() {
+  const fixture = makeFixture();
+  const plugin = PLUGINS.find((item) => item.id === "finance");
+  const pointerPath = path.join(fixture.root, plugin.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  write(pointerPath, pointerFor(plugin)
+    .replace(/\n\| `plugin_worker_pool_lifecycle_policy` \|[^\n]+/, ""));
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "finance", "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.issues.includes("finance:pointer_missing_text:`plugin_worker_pool_lifecycle_policy`"));
+  assert.ok(parsed.issues.includes("finance:plugin_worker_pool_lifecycle_policy_missing:plugin_worker"));
+}
+
+function testPointerRequiresChineseWorkerReceiptForCurrentContract() {
+  const fixture = makeFixture();
+  const plugin = PLUGINS.find((item) => item.id === "finance");
+  const pointerPath = path.join(fixture.root, plugin.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  write(pointerPath, pointerFor(plugin)
+    .replace("terminal return, Chinese receipt, privacy boundary", "terminal return, privacy boundary")
+    .replace("terminal return with Chinese receipt", "terminal return"));
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "finance", "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.issues.includes("finance:plugin_worker_dispatch_policy_missing:chinese_terminal_receipt"));
+  assert.ok(parsed.issues.includes("finance:plugin_worker_pool_lifecycle_policy_missing:chinese_terminal_receipt"));
+}
+
+function testPointerRequiresTaskCardHeartbeatWatchdogForCurrentContract() {
+  const fixture = makeFixture();
+  const plugin = PLUGINS.find((item) => item.id === "finance");
+  const pointerPath = path.join(fixture.root, plugin.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  write(pointerPath, pointerFor(plugin)
+    .replace("require per-task-card heartbeat, activate the Watchdog for that task card after 1800000ms without heartbeat, batch limit 8, maximum auto-resume 1, ", ""));
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "finance", "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.issues.includes("finance:plugin_worker_pool_lifecycle_policy_missing:heartbeat"));
+  assert.ok(parsed.issues.includes("finance:plugin_worker_pool_lifecycle_policy_missing:watchdog"));
+  assert.ok(parsed.issues.includes("finance:plugin_worker_pool_lifecycle_policy_missing:watchdog_timeout"));
+  assert.ok(parsed.issues.includes("finance:plugin_worker_pool_lifecycle_policy_missing:watchdog_batch_limit"));
+  assert.ok(parsed.issues.includes("finance:plugin_worker_pool_lifecycle_policy_missing:watchdog_max_auto_resume"));
+}
+
+function testPointerRejectsWeakPluginWorkerPoolLifecyclePolicyForCurrentContract() {
+  const fixture = makeFixture();
+  const plugin = PLUGINS.find((item) => item.id === "finance");
+  const pointerPath = path.join(fixture.root, plugin.dirName, "docs", "HOME_AI_PLATFORM_CONTRACT.md");
+  write(pointerPath, pointerFor(plugin)
+    .replace(
+      /\| `plugin_worker_pool_lifecycle_policy` \|[^\n]+/,
+      "| `plugin_worker_pool_lifecycle_policy` | `Create a new worker for each task when needed.` |",
+    ));
+  const result = run(["--repo-root", fixture.repo, "--workspace-root", fixture.root, "--plugin", "finance", "--json"]);
+  assert.equal(result.status, 1);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.ok, false);
+  assert.ok(parsed.issues.includes("finance:plugin_worker_pool_lifecycle_policy_missing:plugin_worker"));
+  assert.ok(parsed.issues.includes("finance:plugin_worker_pool_lifecycle_policy_missing:resolve-before-create"));
+  assert.ok(parsed.issues.includes("finance:plugin_worker_pool_lifecycle_policy_missing:create_reason"));
+}
+
 function testPointerRequiresDeclaredDevRuntimePrerequisites() {
   const fixture = makeFixture();
   const plugin = PLUGINS.find((item) => item.id === "note");
@@ -389,6 +498,63 @@ function testMovieOwnerOnlyPointerIsCoveredWithoutStandardGrantFields() {
   assert.equal(parsed.plugins[0].pointerMode, "movie_owner_only");
 }
 
+function testMacProbeDefaultAliasUsesLocalWhenProductionRootIsReadable() {
+  const fixture = makeFixture();
+  const productionRoot = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-mac-root-"));
+  const result = run([
+    "--repo-root", fixture.repo,
+    "--workspace-root", fixture.root,
+    "--target", "home-ai-native-ios",
+    "--probe-mac",
+    "--json",
+  ], { HOMEAI_MAC_PRODUCTION_ROOT: productionRoot });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const parsed = JSON.parse(result.stdout);
+  assert.deepEqual(parsed.checkedNativeClients, ["home-ai-native-ios"]);
+  assert.equal(parsed.macProbe.enabled, true);
+  assert.equal(parsed.macProbe.sshAlias, "local");
+  assert.equal(parsed.macProbe.mode, "local");
+  assert.equal(parsed.macProbe.defaultSelection, "local_root_readable");
+  assert.equal(parsed.macProbe.localRootReadable, true);
+}
+
+function testMacProbeExplicitAliasOverridesReadableProductionRoot() {
+  const fixture = makeFixture();
+  const productionRoot = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-mac-root-"));
+  const result = run([
+    "--repo-root", fixture.repo,
+    "--workspace-root", fixture.root,
+    "--target", "home-ai-native-ios",
+    "--probe-mac",
+    "--ssh-alias", "homeai-mac",
+    "--json",
+  ], { HOMEAI_MAC_PRODUCTION_ROOT: productionRoot });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.macProbe.sshAlias, "homeai-mac");
+  assert.equal(parsed.macProbe.mode, "ssh");
+  assert.equal(parsed.macProbe.defaultSelection, "explicit");
+  assert.equal(parsed.macProbe.localRootReadable, true);
+}
+
+function testMacProbeDefaultAliasFallsBackToSshWhenProductionRootIsMissing() {
+  const fixture = makeFixture();
+  const missingRoot = path.join(os.tmpdir(), `homeai-missing-root-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  const result = run([
+    "--repo-root", fixture.repo,
+    "--workspace-root", fixture.root,
+    "--target", "home-ai-native-ios",
+    "--probe-mac",
+    "--json",
+  ], { HOMEAI_MAC_PRODUCTION_ROOT: missingRoot });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.macProbe.sshAlias, "homeai-mac");
+  assert.equal(parsed.macProbe.mode, "ssh");
+  assert.equal(parsed.macProbe.defaultSelection, "ssh_alias_fallback");
+  assert.equal(parsed.macProbe.localRootReadable, false);
+}
+
 function testScriptDoesNotHandleSecretsOrSudo() {
   const script = fs.readFileSync(scriptPath, "utf8");
   assert.doesNotMatch(script, /password-file|sudo\s+-S|Access Key/i);
@@ -398,6 +564,7 @@ function testScriptDoesNotHandleSecretsOrSudo() {
   assert.match(script, /launchctl/);
   assert.match(script, /curl/);
   assert.match(script, /function isLocalProbeAlias\(alias\)/);
+  assert.match(script, /function effectiveMacProbeOptions\(options = \{\}\)/);
   assert.match(script, /local\|localhost\|127\\\.0\\\.0\\\.1/);
 }
 
@@ -408,11 +575,19 @@ testSingleRepositoryCheckoutReportsBoundedPointerMissing();
 testPointerRejectsPublicRuntimeUrls();
 testPointerRequiresIosVisualHarnessCommand();
 testPointerRequiresAiOpsControlPlaneFields();
+testPointerRequiresPluginMainPreflightFieldsForCurrentContract();
+testPointerRequiresPluginWorkerPoolLifecyclePolicyForCurrentContract();
+testPointerRequiresChineseWorkerReceiptForCurrentContract();
+testPointerRequiresTaskCardHeartbeatWatchdogForCurrentContract();
+testPointerRejectsWeakPluginWorkerPoolLifecyclePolicyForCurrentContract();
 testPointerRequiresDeclaredDevRuntimePrerequisites();
 testNativePointerRequiresManagedClientFields();
 testLegacyPointerVersionIsAcceptedDuringFallbackGovernanceRollout();
 testRepositoryContractIsCurrentlyClosed();
 testMovieOwnerOnlyPointerIsCoveredWithoutStandardGrantFields();
+testMacProbeDefaultAliasUsesLocalWhenProductionRootIsReadable();
+testMacProbeExplicitAliasOverridesReadableProductionRoot();
+testMacProbeDefaultAliasFallsBackToSshWhenProductionRootIsMissing();
 testScriptDoesNotHandleSecretsOrSudo();
 
 console.log("plugin workspace platform contract checker tests passed");

@@ -9,6 +9,12 @@ import {
   terminalHideDelay,
 } from "./model.mjs";
 
+export {
+  isActiveStatus,
+  statusLabel,
+  terminalHideDelay,
+} from "./model.mjs";
+
 const VOICE_INPUT_SESSION_CONTROLLER_VERSION = "20260702-vite-voice-session-controller-v1";
 const RELEASE_STOPS_STATUSES = Object.freeze(["checking", "requesting", "preparing", "recording", "finalizing"]);
 

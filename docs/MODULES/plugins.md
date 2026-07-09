@@ -75,6 +75,10 @@ safe-area evidence remain separate acceptance gates when Moira UI changes.
 
 Music is an Owner-only special embedded plugin, not a workspace-grantable
 business plugin. Home AI may expose the Music app and Music MCP only to Owner
+workspaces, plus explicitly configured restricted media accounts whose
+workspace/auth policy carries `account_type: media` and
+`allowed_owner_special_plugins` containing `music`. That media exception is not
+a normal workspace grant and must not make Music grantable to arbitrary
 workspaces. Even if the Music plugin manifest declares `program_api.plugin_launch`
 or an `.hermes-music/access-key.txt` owner binding for compatibility with the
 generic plugin contract, Home AI must not require that workspace-local key for
@@ -88,8 +92,10 @@ SQLite ledger and does not use a model-provided workspace override.
 
 Movie / 影院 is also an Owner-only special embedded app plugin. Home AI may
 expose the Movie app and read-only Movie MCP only to the effective `owner`
-workspace and must not make either surface workspace-grantable for non-Owner
-users. Owner Movie app launch uses the same-origin
+workspace, plus explicitly configured restricted media accounts whose
+workspace/auth policy carries `account_type: media` and
+`allowed_owner_special_plugins` containing `movie`. Home AI must not make either
+surface workspace-grantable for ordinary non-Owner users. Owner/media Movie app launch uses the same-origin
 `/api/hermes-plugins/movie/proxy/...` route with keyless direct entry, following
 the Music Owner-only launch shape. The proxy must not attach a workspace
 `Authorization: Bearer ...` header to Movie upstream requests, and Home AI must
@@ -486,6 +492,16 @@ without the selected workspace's matching Gateway schema. See
 `docs/MODULES/plugin-topics.md` and
 `docs/IMPLEMENTATION_NOTES/plugin-topic-binding.md`.
 
+Restricted media accounts are non-Owner workspaces, so static-client plugin
+list and manifest requests must resolve the effective workspace as
+`selectedWorkspaceId || auth.workspaceId || owner`. During login/cold restore,
+`selectedWorkspaceId` may still contain a stale Owner value; falling back to the
+authenticated workspace is required so Music/Movie visibility does not query the
+Owner workspace and then cache an empty/non-media projection. When a media
+account has no local bottom-tab preference yet, Home AI defaults Music and Movie
+into the user-pinned plugin tab set. An explicit empty or custom preference still
+overrides that default.
+
 The host-owned plugin Dock is a global bottom-stack surface, not a multi-row
 app grid. It opens from a small handle anchored above the ordinary bottom
 navigation and expands into a single horizontally scrollable row. Short taps on
@@ -654,7 +670,7 @@ the failing plugin iframe. It applies only to recoverable manifest failures:
 transport errors, timeouts, or `502`/`503`/`504` manifest responses from a
 loopback or private-network manifest URL. It must not run for workspace
 authorization failures, provisioning failures, external HTTPS plugin manifests,
-or arbitrary non-plugin launchd labels.
+Codex Mobile / Codex Mobile Web, or arbitrary non-plugin launchd labels.
 
 The recovery service resolves a plugin launchd label from the plugin record,
 `HERMES_MOBILE_PLUGIN_<ID>_LAUNCHD_LABEL`, or
@@ -670,9 +686,12 @@ short delay. Public deployments without permission to restart system
 LaunchDaemons degrade to a bounded `recovery` diagnostic instead of blocking
 Home AI startup or exposing secrets.
 
-Codex Mobile also has a dedicated Owner-only host recovery API because its
-macOS LaunchDaemon can need profile-store and plist repair, not just a generic
-`launchctl kickstart`. Home AI exposes:
+Codex Mobile is deliberately excluded from this automatic plugin-load recovery.
+Its startup chain includes profile-store, mux, listener, and launchd state, so a
+plain Host-triggered restart is unsafe and can make recovery harder. Manifest
+load failures for `codex-mobile` or `codex-mobile-web` should return bounded
+unavailable/recovery metadata and let the operator use the dedicated Owner-only
+host recovery API or the Codex Mobile deploy lane. Home AI exposes:
 
 - `GET /api/codex-mobile/recovery/status`
 - `GET /api/codex-mobile/recovery/homes`
@@ -858,8 +877,15 @@ instead of entering a same-origin redirect loop.
 
 All proxy-rewritten plugin resource and API URLs should carry the effective
 `workspaceId` when the URL is a static browser resource string in plugin HTML,
-CSS, and structured JSON. JavaScript API strings are different: the proxy should
-rewrite only the static path prefix to
+CSS, structured JSON, or JavaScript module/asset references. Codex Mobile Vite
+ESM references such as `assets/shard.js`, `./shard.js`,
+`./vite-entry-group-*.js`, or `/vite-shell/assets/...` must remain
+workspace-resolvable after proxy rewriting because module imports often execute
+without custom request headers or a reliable referrer. Relative ESM imports
+must be resolved against the current upstream script path before rewriting to
+`/api/hermes-plugins/<plugin-id>/proxy/...` with the effective `workspaceId`.
+JavaScript API strings are different: the proxy
+should rewrite only the static path prefix to
 `/api/hermes-plugins/<plugin-id>/proxy/...` and must not inject
 `workspaceId` into the string literal. This applies both to ordinary API strings
 and to template strings with runtime query fragments such as
@@ -868,19 +894,23 @@ and to template strings with runtime query fragments such as
 route constants can corrupt browser-side `URL.pathname` checks, for example
 Codex Mobile Web image routes such as `/api/uploads/file`. Those script
 requests resolve workspace through the same-origin referrer or the
-workspace-scoped plugin session cookie. Browser requests that arrive without a
-direct workspace hint, without a referrer workspace hint, and with multiple
-workspace-scoped cookies for the same plugin must fail closed as an ambiguous
-plugin workspace instead of falling back to the Owner workspace. This protects
-Owner-account workspace switching when an embedded plugin frontend suppresses or
-omits `Referer`.
+workspace-scoped plugin session cookie. The narrow exception is Codex Mobile's
+plugin session endpoint, `/api/v1/hermes/plugin/session`: the proxied Vite
+iframe uses it to recover the plugin launch session, so the host must preserve
+the effective `workspaceId` on that quoted script URL. Browser requests that
+arrive without a direct workspace hint, without a referrer workspace hint, and
+with multiple workspace-scoped cookies for the same plugin must fail closed as an
+ambiguous plugin workspace instead of falling back to the Owner workspace. This
+protects Owner-account workspace switching when an embedded plugin frontend
+suppresses or omits `Referer`.
 
 Codex Mobile Vite shell script responses are also plugin-owned JavaScript
-resources: quoted `/vite-shell/...` imports and Vite relative `assets/...`
-dependency arrays must be rewritten under
-`/api/hermes-plugins/codex-mobile/proxy/...` without appending a workspace query
-to the script literal itself. Otherwise the proxied iframe can load the host
-shell while its module shards escape to the Home AI root namespace.
+resources: quoted `/vite-shell/...` imports, Vite relative `assets/...`
+dependency arrays, and relative ESM import specifiers such as `import("./...")`
+or `from "./..."` must be rewritten under
+`/api/hermes-plugins/codex-mobile/proxy/...` with the effective workspace
+query. Otherwise the proxied iframe can load the host shell while its module
+shards escape to a workspace-less proxy request and fail authorization.
 
 When the Hermes workspace selector changes, the host must discard all embedded
 plugin iframes, cached manifests, launch freshness state, and plugin list state
@@ -1167,6 +1197,14 @@ workspace-local isolation pattern as the default host contract:
   workspace. The plugin may map that id to its own user, ledger, mailbox,
   health profile, wardrobe workspace, or other domain object, but it must not
   silently reuse Owner's plugin identity for a non-Owner workspace.
+- Apple Health native/proxy writes add a separate HealthKit source-workspace
+  guard on top of normal Health workspace-local isolation. Default sync mode is
+  `personal`: Home AI forwards bounded actor/effective/source workspace headers
+  only after the HealthKit source workspace matches the selected/effective
+  workspace. Owner auth viewing a non-Owner workspace with Owner device Health
+  samples must fail closed as `apple_health_workspace_mismatch`. `guardian`
+  mode must be explicit and remains fail-closed until the family-care sync flow
+  is implemented.
 - Hermes Mobile writes a plugin-local directory under the target user's drive,
   for example `.hermes-wardrobe`, `.hermes-finance`, `.hermes-email`,
   `.hermes-health`, `.hermes-growth`, or `.hermes-note`.
@@ -1740,6 +1778,15 @@ Hermes Mobile then:
 - returns the generated Inbox item id when one exists, plus delivery summary,
   without exposing push endpoints or plugin secrets.
 
+Owner-critical plugins may use a plugin-notification-only key instead of the
+global Owner Web key. Movie uses this narrower contract for projector
+temperature alerts: Home AI stores the key under its production
+`plugin-secrets` area, Movie reads the paired file-backed key from
+`plugins/movie/data/home-ai-notification-key`, and the route accepts that key
+only for `POST /api/hermes-plugins/movie/notifications` with
+`workspaceId=owner`. This key must not authorize other Home AI APIs and must
+not be printed in deploy/readback output.
+
 Default click behavior opens the Hermes Inbox item when one is created. A
 plugin may set `openMode="plugin"` when the notification should click through to
 the plugin tab instead. Push-only events always click to the plugin route
@@ -1815,7 +1862,7 @@ window.postMessage({
 
 Host-side assistant replies in a plugin conversation may alternatively append
 one hidden Markdown HTML comment with exact JSON. The client strips this block
-from display and forwards it through the same Owner-gated bridge:
+from display and forwards it through the same bridge:
 
 ```markdown
 <!-- homeai-plugin-conversation-action
@@ -1826,7 +1873,9 @@ from display and forwards it through the same Owner-gated bridge:
 The visible assistant reply must not say a card was submitted unless the current
 run has a real host/tool response. Do not invent ordinary `t_*` todo ids, Action
 Inbox `ainb_*` ids, or Codex task-card `ttc_*` ids. The hidden request only
-creates an Owner approval item; it does not send a task card automatically.
+creates an Owner approval item; it does not send a task card automatically
+except for the narrow Codex Mobile thread/routing mismatch self-repair class
+described below.
 If an assistant still emits a visible legacy `t_*` task-card claim without a
 real hidden Owner request marker, Home AI run completion recovers it into a
 bounded Home-AI-owned Owner approval row and records the recovery as a transport
@@ -1840,20 +1889,36 @@ Hermes submits that request through the same Owner-gated approval bridge, but
 the resolved target is the Home AI app implementation thread/workspace. This
 path is available to low-permission Gateways as a capability-gap request
 mechanism; it is not Owner elevation and it does not dispatch a Codex task card
-until Owner explicitly approves. On approval, the Home AI task card uses the
-dedicated `Home AI Task Intake` Codex thread as the source and the current
-`Home AI` implementation thread as the target, avoiding Codex Mobile's
-same-thread task-card rejection while keeping audit threads out of the
-implementation repair loop.
+until Owner explicitly approves, unless the bounded request explicitly names
+Codex Mobile/task-card thread routing mismatch and passes the low-risk
+auto-dispatch predicate. On approval, the Home AI task card uses the dedicated
+`Home AI Task Intake` Codex thread as the source and the current `Home AI`
+implementation thread as the target, avoiding Codex Mobile's same-thread
+task-card rejection while keeping audit threads out of the implementation
+repair loop.
 
 Embedded plugin iframes may use the same `homeai.plugin_conversation.action`
 message; the host accepts it only from the currently mounted plugin frame. A
 host plugin-conversation page uses same-window delivery. Both forms create the
-same Owner approval item and neither form sends a task card automatically.
+same dedupe-keyed item and neither form sends a task card automatically except
+for the narrow Codex Mobile thread/routing mismatch self-repair class.
 
 Hermes resolves the canonical plugin target, creates an Owner-only Action Inbox
 approval item, and optionally sends an Owner notification. No task card is sent
-until Owner approves the Inbox item. Owner approval calls:
+until Owner approves the Inbox item, except for bounded low-risk Codex Mobile
+thread/routing mismatch self-repair. That exception accepts Codex Mobile
+targets, including the `codex-mobile-web` compatibility alias, or `home-ai`
+requests whose bounded text explicitly references Codex Mobile/task-card thread
+routing. It must match safe mismatch terms such as `thread mismatch`,
+`wrong thread`, `task-card routing`, `target_thread_not_visible`,
+`target_thread_archived`, or `stale_target_thread`, and it must reject
+production deploy/mutation, secrets/keys/tokens, database/data import or
+backfill, physical-device/projector/playback control, Finance transactions,
+Wardrobe private-data changes, and similar high-risk wording. Auto-dispatch
+uses the same Codex task-card service and stable request id as Owner-triggered
+dispatch, sends no Owner prompt push, completes the item only after a concrete
+`ttc_*` id is returned, and returns prior completion metadata for duplicates.
+Owner approval calls:
 
 ```text
 POST /api/plugin-conversation/actions/<inbox-item-id>/task-card

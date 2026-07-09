@@ -30,6 +30,35 @@ Before implementing a non-trivial change, classify the touched flow:
 
 If a change touches multiple classes, use the highest class.
 
+## Repeated-Failure Escalation Rule
+
+For user-visible state synchronization bugs, source inspection, logs, and unit
+tests are only hypothesis evidence when the symptom can involve optimistic UI,
+submitted echo, durable projection, thread/detail refresh, message ordering,
+SSE/EventSource delivery, session replay, iframe/plugin boot, static
+client/cache versioning, PWA/native-shell differences, file/camera/picker
+flows, or visible rows that disappear, duplicate, reorder, or show the wrong
+state.
+
+A first low-risk repair may use focused tests if the return explicitly states
+whether a real workflow Harness was run. If the Owner reports the same symptom
+still reproduces after a completed or partially completed repair, classify the
+next repair as `harness_required`. After a second failed closure for the same
+symptom, the work may not return `completed` from code inspection, logs, or
+unit tests alone; it must include failing-then-passing real workflow Harness
+evidence, return `blocked_missing_repro_harness`, or return
+`partially_completed` with the exact missing Harness path.
+
+The accepted Harness must enter through the surface that owns the symptom:
+embedded plugin iframe for embedded bugs, installed PWA or native shell for
+PWA/native differences, and production origin for production cache/version
+bugs. Evidence should be bounded and machine-readable: counts, ids or salted
+hashes, active workspace/thread, pending and durable item counts, visible DOM
+row counts, session/status codes, client version/build id, and timing buckets.
+Do not record raw messages, raw keys, cookies, launch tokens, private
+screenshots, endpoint bodies, database rows, private thread bodies, or long
+logs.
+
 ## Mobile PWA Verification Rule
 
 Any Hermes Mobile function, navigation, UI, cache, service-worker, Web Push,
@@ -74,6 +103,38 @@ gate is required for fixed/sticky regions, bottom navigation, plugin docks,
 scroll containers, cards, popups, drawers, embedded plugin frames, and any
 change where text or controls can overlap, drift, disappear, or become
 untappable.
+Directory-bound topic Composer autosize defects, including long input that
+does not shrink after the draft is shortened, cleared, or blurred, are covered
+by the central browser-mobile scenario
+`npm run visual:central -- --surface browser-mobile --scenario directory-topic-composer-long-input-shrink --viewport 390x844 --execute --json`.
+That scenario must report bounded editor/composer dimensions and bottom-nav
+overlap state.
+
+Plugin-owned visual verification for Home AI embedded plugins must use Home
+AI's central visual QA entrypoints and central target/device/browser
+configuration for final signoff. Plugins may keep local Playwright or visual
+scripts only as central-compatible harnesses exposed through
+`visual:central-compatible` or `visual:plugin` and brokered by Home AI. The
+broker injects shared scenario, plugin, base URL, workspace, viewport, and
+access-key-path-by-file parameters, then validates bounded JSON evidence before
+accepting it. If the central visual interface, compatible plugin harness, or
+lane is unavailable, classify the result as
+`blocked_central_visual_harness_unavailable` or delegate a Home AI visual
+readback task; do not replace the required central Harness with an unstructured
+plugin-local pass. The plugin-facing commands are:
+
+```bash
+npm run visual:central -- --surface embedded-plugin --plugin-id <plugin-id> --scenario embedded-plugin-shell --json
+npm run visual:central -- --plugin-id <plugin-id> --scenario embedded-plugin-shell --delegate-local --json
+npm run visual:central -- --plugin-id <plugin-id> --scenario embedded-plugin-shell --verify-evidence <json-file> --json
+```
+
+Use `--execute` only when the caller is authorized to run the selected central
+Harness or compatible plugin harness. Plugin return cards must distinguish
+source/static validation, central-compatible plugin-local evidence, and real
+central visual signoff. Cross-boundary iframe, PWA/native shell, auth/session,
+keyboard/picker, and repeated visible-row synchronization defects remain
+central-signoff-required.
 
 Plugin Dock quick-action, long-press menu, horizontal strip gesture, pinned
 plugin tab, or manifest action-route changes require the checked iOS PWA visual

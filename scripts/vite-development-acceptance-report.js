@@ -42,6 +42,19 @@ const ACCEPTANCE_STEPS = Object.freeze([
     command: ["node", "tests/vite-dev-real-backend-parity-smoke.test.js"],
   },
   {
+    id: "vite_dev_user_journeys_smoke",
+    summary: "Exercise source-only Vite dev user journeys for Composer, attachments, plugin iframe, Owner Console, document preview, and voice cancel.",
+    command: ["npm", "run", "--silent", "smoke:vite-dev-user-journeys"],
+    json: true,
+    expectations: [
+      { path: "ok", equals: true },
+      { path: "sourceOnly", equals: true },
+      { path: "productionWrites", equals: false },
+      { path: "deployExecuted", equals: false },
+      { path: "journeyCount", min: 5 },
+    ],
+  },
+  {
     id: "vite_development_readiness",
     summary: "Run the source-only Vite development readiness gate.",
     command: ["npm", "run", "--silent", "check:vite-readiness"],
@@ -51,6 +64,20 @@ const ACCEPTANCE_STEPS = Object.freeze([
       { path: "sourceOnly", equals: true },
       { path: "ownerApprovalRequired", equals: true },
       { path: "productionDeployAuthorized", equals: false },
+    ],
+  },
+  {
+    id: "vite_preview_cache_policy",
+    summary: "Verify Vite preview cache policy boundaries and production shell exclusion.",
+    command: ["npm", "run", "--silent", "check:vite-cache-policy"],
+    json: true,
+    expectations: [
+      { path: "ok", equals: true },
+      { path: "sourceOnly", equals: true },
+      { path: "productionWrites", equals: false },
+      { path: "deployExecuted", equals: false },
+      { path: "productionDeployAuthorized", equals: false },
+      { path: "productionCutoverCacheReady", equals: false },
     ],
   },
   {
@@ -258,6 +285,16 @@ function summarizeJsonPayload(stepId, payload) {
       ok: payload.ok,
       routeCount: payload.routeCount,
       routes: Array.isArray(payload.routes) ? payload.routes.map((route) => route.path) : [],
+    };
+  }
+  if (stepId === "vite_dev_user_journeys_smoke") {
+    return {
+      ok: payload.ok,
+      sourceOnly: payload.sourceOnly,
+      productionWrites: payload.productionWrites,
+      deployExecuted: payload.deployExecuted,
+      journeyCount: payload.journeyCount,
+      journeys: Array.isArray(payload.journeys) ? payload.journeys : [],
     };
   }
   if (stepId === "vite_development_readiness") {

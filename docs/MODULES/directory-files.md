@@ -254,6 +254,11 @@ such as `plugin:wardrobe`, `plugin:finance`, `plugin:email`, and
 for UI navigation and artifact receipts, but it must not become the ordinary
 `taskDirectory` that triggers directory-topic cleaning or frozen-directory
 instructions.
+The same validated delivery route may authorize that plugin-topic run's
+delivery roots for artifact registration and preview, so ASCII and non-ASCII
+Markdown receipt filenames under the delivery directory can open through
+`MEDIA:` task-flow links without accepting raw filesystem paths or sibling
+directories outside the route.
 
 ## Preview Rules
 
@@ -274,6 +279,11 @@ instructions.
   `title`, `aria-label`, link text, and same-origin `name`/`filename` query
   parameters), because some automation and task routes intentionally hide the
   physical filename behind an opaque delivery URL.
+- Markdown preview may read `.md` and `.markdown` text only after the existing
+  file/artifact/directory resolver has authorized the request. Preview services
+  may use the resolver-owned `localPath || path` field on that authorized file
+  object, but clients and routes must not broaden preview access by accepting
+  raw filesystem paths directly.
 - PowerPoint task artifacts are first-class `presentation` documents in the
   task artifact helper, not generic files. They should keep their MIME/name
   metadata through task cards, preview links, native document bridge requests,
@@ -351,11 +361,15 @@ instructions.
   but not sufficient; the deck must also include a normal presentation
   properties/view properties/table styles set, complete theme color/font/format
   scheme, slide master color map, layout, and relationship graph. `pptx_validate`
-  is the explicit re-check tool for existing in-scope PPTX decks. Health-plugin
-  document workflows such as medication instructions, ECG summaries, checkup
-  report organization, and presentation handouts can choose Markdown, PDF,
-  Word, or PowerPoint output through the same delivery boundary; private health
-  records must not be copied into docs, logs, or model-visible debug output.
+  is the explicit re-check tool for existing in-scope PPTX decks. When
+  LibreOffice/soffice is available, its headless conversion smoke is bounded
+  evidence by default and must not delete an OpenXML-valid generated deck; it
+  becomes a hard validation gate only when the caller explicitly sets
+  `require_external_engine`. Health-plugin document workflows such as medication
+  instructions, ECG summaries, checkup report organization, and presentation
+  handouts can choose Markdown, PDF, Word, or PowerPoint output through the same
+  delivery boundary; private health records must not be copied into docs, logs,
+  or model-visible debug output.
 - ZIP archive handling for low-permission Gateway runs is provided by the
   profile-local `hermes-mobile-archive` file plugin. `archive_list` may list
   in-scope ZIP entries and `archive_extract_safe` may extract only inside the

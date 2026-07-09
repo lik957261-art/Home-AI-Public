@@ -9,18 +9,19 @@
   },
   "cutoverSourceChange": {
     "exists": true,
-    "failClosedDefault": "classic",
-    "explicitShellModeSwitch": true,
-    "rollbackSwitch": true,
+    "viteOnlyRuntime": true,
+    "runtimeDefault": "vite",
+    "classicRuntimeSwitchRemoved": true,
+    "sourceDeployRollbackPlan": true,
     "serviceWorkerCacheVersionPlan": true,
     "viteAssetsManifestReadback": true,
     "devPreviewMocksExcludedFromServer": true,
     "ownerConsolePermissionPreserved": true,
     "nonOwnerDenied": true,
-    "productionDefaultNotViteWithoutSwitch": true,
+    "classicOverrideIgnored": true,
     "boundedProductionReadbackRequired": true,
     "deployLaneRequired": true,
-    "summary": "Home AI production shell mode defaults to classic unless config/home-ai-shell-mode.json or HOMEAI_FRONTEND_SHELL_MODE explicitly selects vite. Vite mode injects a production bootstrap module into the existing shell response, preserves the classic business runtime, records selected-shell headers, and keeps request-level classic rollback available for bounded readback."
+    "summary": "Home AI production shell is Vite-only. Requests, environment, or config values that ask for classic are ignored and still receive the Vite production bootstrap. Emergency recovery uses Git/source history and deployment backups, not a same-runtime Classic fallback."
   },
   "validationCommands": [
     "npm run verify:vite-dev",
@@ -39,6 +40,6 @@
     "serverWiring": "mobile-server-runtime.js",
     "viteEntry": "src/vite-app/production-bootstrap.mjs",
     "builtEntry": "public/vite-islands/home-ai-production-bootstrap/home-ai-production-bootstrap.js",
-    "staticVersion": "20260703-vite-production-cutover-v1000"
+    "staticVersion": "20260706-vite-production-cutover-v1120"
   }
 }

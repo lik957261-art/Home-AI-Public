@@ -271,6 +271,16 @@ function pwaPlatformHint() {
 }
 
 function pwaRequirementHint() {
+  const plan = currentPwaPushStatusModel()?.pwaInstallButtonPlan?.({
+    standalone: isStandalonePwa(),
+    installed: Boolean(state.pwaInstalled),
+    promptAvailable: Boolean(state.pwaInstallPrompt),
+    secureContext: Boolean(window.isSecureContext),
+    serviceWorker: "serviceWorker" in navigator,
+    serviceWorkerReady: Boolean(state.pwaServiceWorkerReady),
+    serviceWorkerError: state.pwaServiceWorkerError || "",
+  });
+  if (plan?.requirementHint) return plan.requirementHint;
   if (isStandalonePwa()) return "当前已经以桌面应用模式运行。";
   if (!window.isSecureContext) return "当前连接不是安全上下文。多数浏览器要求 HTTPS 或 localhost 才能安装 PWA 和启用 Service Worker。";
   if (!("serviceWorker" in navigator)) return "当前浏览器不支持 Service Worker，不能完整安装为 PWA。";
@@ -305,6 +315,16 @@ async function ensurePwaServiceWorker(options = {}) {
 }
 
 function pwaInstallButtonLabel() {
+  const plan = currentPwaPushStatusModel()?.pwaInstallButtonPlan?.({
+    standalone: isStandalonePwa(),
+    installed: Boolean(state.pwaInstalled),
+    promptAvailable: Boolean(state.pwaInstallPrompt),
+    secureContext: Boolean(window.isSecureContext),
+    serviceWorker: "serviceWorker" in navigator,
+    serviceWorkerReady: Boolean(state.pwaServiceWorkerReady),
+    serviceWorkerError: state.pwaServiceWorkerError || "",
+  });
+  if (plan?.text) return plan.text;
   if (isStandalonePwa() || state.pwaInstalled) return "已安装";
   return state.pwaInstallPrompt ? "安装应用" : "安装说明";
 }
@@ -312,9 +332,18 @@ function pwaInstallButtonLabel() {
 function updatePwaInstallControls() {
   const button = $("topInstallPwa");
   if (!button) return;
+  const plan = currentPwaPushStatusModel()?.pwaInstallButtonPlan?.({
+    standalone: isStandalonePwa(),
+    installed: Boolean(state.pwaInstalled),
+    promptAvailable: Boolean(state.pwaInstallPrompt),
+    secureContext: Boolean(window.isSecureContext),
+    serviceWorker: "serviceWorker" in navigator,
+    serviceWorkerReady: Boolean(state.pwaServiceWorkerReady),
+    serviceWorkerError: state.pwaServiceWorkerError || "",
+  });
   button.hidden = false;
-  button.disabled = Boolean(isStandalonePwa() || state.pwaInstalled);
-  button.textContent = pwaInstallButtonLabel();
+  button.disabled = plan ? Boolean(plan.disabled) : Boolean(isStandalonePwa() || state.pwaInstalled);
+  button.textContent = plan?.text || pwaInstallButtonLabel();
 }
 
 function renderPwaInstallOverlay() {

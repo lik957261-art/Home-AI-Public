@@ -102,6 +102,38 @@ const TaskArtifactHelpers = window.HermesTaskArtifactHelpers || {};
 const KanbanStoryHelpers = window.HermesKanbanStoryHelpers || {};
 const LearningReadingUi = window.HermesLearningReadingUi || {};
 const AppApiClient = window.HermesAppApiClient || {};
+const APP_BOOTSTRAP_MODEL_ESM_PATH = "/vite-islands/app-bootstrap-model/app-bootstrap-model.js";
+let appBootstrapModelPromise = null;
+let appBootstrapModel = null;
+
+function importAppBootstrapModel() {
+  if (appBootstrapModelPromise) return appBootstrapModelPromise;
+  const importer = typeof window.__homeAiImportAppBootstrapModel === "function"
+    ? window.__homeAiImportAppBootstrapModel
+    : (path) => import(path);
+  appBootstrapModelPromise = importer(APP_BOOTSTRAP_MODEL_ESM_PATH)
+    .then((module) => {
+      appBootstrapModel = module;
+      return module;
+    })
+    .catch((err) => {
+      appBootstrapModelPromise = null;
+      console.warn("[HomeAI] App bootstrap ESM model unavailable; using classic fallbacks.", err);
+      return null;
+    });
+  return appBootstrapModelPromise;
+}
+
+function currentAppBootstrapModel() {
+  return appBootstrapModel;
+}
+
+function appBootstrapModelFunction(name) {
+  const model = currentAppBootstrapModel();
+  return typeof model?.[name] === "function" ? model[name] : null;
+}
+
+void importAppBootstrapModel();
 
 function nowMs() {
   return typeof performance !== "undefined" && typeof performance.now === "function"
@@ -194,21 +226,29 @@ function finishStartupPerf(status = "ok", fields = {}) {
 }
 
 function initialFontSizePreference(value) {
+  const modelFn = appBootstrapModelFunction("optionPreferenceId");
+  if (modelFn) return modelFn(value, FONT_SIZE_OPTIONS, DEFAULT_FONT_SIZE);
   const id = String(value || "").trim();
   return FONT_SIZE_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_FONT_SIZE;
 }
 
 function initialThemePreference(value) {
+  const modelFn = appBootstrapModelFunction("optionPreferenceId");
+  if (modelFn) return modelFn(value, THEME_MODE_OPTIONS, DEFAULT_THEME_MODE);
   const id = String(value || "").trim();
   return THEME_MODE_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_THEME_MODE;
 }
 
 function initialFontFamilyPreference(value) {
+  const modelFn = appBootstrapModelFunction("optionPreferenceId");
+  if (modelFn) return modelFn(value, FONT_FAMILY_OPTIONS, DEFAULT_FONT_FAMILY);
   const id = String(value || "").trim();
   return FONT_FAMILY_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_FONT_FAMILY;
 }
 
 function initialDefaultComposerModelPreference(value) {
+  const modelFn = appBootstrapModelFunction("optionPreferenceId");
+  if (modelFn) return modelFn(value, COMPOSER_MODEL_OPTIONS, DEFAULT_COMPOSER_MODEL_ID);
   const id = String(value || "").trim();
   return COMPOSER_MODEL_OPTIONS.some((option) => option.id === id) ? id : DEFAULT_COMPOSER_MODEL_ID;
 }
@@ -231,12 +271,16 @@ function todayDateInputValue() {
 
 function initialKanbanComposerMode() {
   const stored = localStorage.getItem("hermesKanbanComposerMode") || "";
+  const modelFn = appBootstrapModelFunction("kanbanComposerModePlan");
+  if (modelFn) return modelFn(stored, localStorage.getItem("hermesKanbanComposerMultiAgent"));
   if (stored === "reading") return "study";
   if (["single", "multi", "study", "assessment"].includes(stored)) return stored;
   return localStorage.getItem("hermesKanbanComposerMultiAgent") === "1" ? "multi" : "single";
 }
 
 function normalizeKanbanComposerMaxParallel(value) {
+  const modelFn = appBootstrapModelFunction("normalizeKanbanComposerMaxParallel");
+  if (modelFn) return modelFn(value, KANBAN_MULTI_AGENT_DEFAULT_PARALLEL, KANBAN_MULTI_AGENT_MAX_PARALLEL);
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return KANBAN_MULTI_AGENT_DEFAULT_PARALLEL;
   return Math.max(1, Math.min(KANBAN_MULTI_AGENT_MAX_PARALLEL, Math.floor(parsed)));
@@ -247,11 +291,16 @@ function initialKanbanMaxParallel() {
 }
 
 function initialKanbanReasoningEffort() {
-  const effort = String(localStorage.getItem("hermesKanbanComposerReasoningEffort") || "").trim().toLowerCase();
+  const value = localStorage.getItem("hermesKanbanComposerReasoningEffort") || "";
+  const modelFn = appBootstrapModelFunction("kanbanReasoningEffortPlan");
+  if (modelFn) return modelFn(value);
+  const effort = String(value).trim().toLowerCase();
   return ["low", "medium", "high", "xhigh"].includes(effort) ? effort : "";
 }
 
 function defaultKanbanReadingDraft() {
+  const modelFn = appBootstrapModelFunction("defaultKanbanReadingDraft");
+  if (modelFn) return modelFn(todayDateInputValue());
   return {
     caseMode: "study-plan",
     studyTemplate: "reading",
@@ -274,6 +323,8 @@ function defaultKanbanReadingDraft() {
 }
 
 function defaultKanbanAssessmentDraft() {
+  const modelFn = appBootstrapModelFunction("defaultKanbanAssessmentDraft");
+  if (modelFn) return modelFn(todayDateInputValue());
   return {
     caseMode: "assessment-plan",
     subject: "数学",
@@ -295,10 +346,14 @@ function defaultKanbanAssessmentDraft() {
 }
 
 function isKanbanProgrammingStudyTemplate(value) {
+  const modelFn = appBootstrapModelFunction("isKanbanProgrammingStudyTemplate");
+  if (modelFn) return modelFn(value);
   return String(value || "").trim().toLowerCase() === "programming";
 }
 
 function programmingAssessmentDraftFromStudyDraft(studyDraft = {}) {
+  const modelFn = appBootstrapModelFunction("programmingAssessmentDraftFromStudyDraft");
+  if (modelFn) return modelFn(studyDraft, todayDateInputValue());
   const draft = Object.assign(defaultKanbanReadingDraft(), studyDraft || {});
   const subject = String(draft.subjectDomain || "").trim() || "Python 编程";
   const title = String(draft.activityTitle || draft.bookTitle || "").trim() || `${subject} 编程测验计划`;
@@ -326,6 +381,8 @@ function programmingAssessmentDraftFromStudyDraft(studyDraft = {}) {
 }
 
 function parseWorkspaceIdList(value) {
+  const modelFn = appBootstrapModelFunction("parseWorkspaceIdList");
+  if (modelFn) return modelFn(value);
   const raw = Array.isArray(value)
     ? value
     : String(value || "").split(/[,\s;，、]+/);
@@ -349,11 +406,19 @@ function workspaceLabelById(workspaceId) {
 }
 
 function kanbanPlanBindingParts(draft = {}, kind = "study") {
+  const modelFn = appBootstrapModelFunction("kanbanPlanBindingPartsPlan");
   const source = draft && typeof draft === "object" ? draft : {};
-  const learner = String(source.learnerName || source.readerName || "").trim();
-  const title = String(source.activityTitle || source.bookTitle || source.planTitle || source.subject || "").trim();
   const performerId = String(source.performerWorkspaceId || "").trim();
   const viewerIds = parseWorkspaceIdList(source.viewerWorkspaceIds);
+  if (modelFn) {
+    const labels = {};
+    for (const id of [performerId, ...viewerIds]) {
+      if (id) labels[id] = workspaceLabelById(id);
+    }
+    return modelFn(source, kind, labels);
+  }
+  const learner = String(source.learnerName || source.readerName || "").trim();
+  const title = String(source.activityTitle || source.bookTitle || source.planTitle || source.subject || "").trim();
   return {
     learner,
     title,
@@ -365,13 +430,25 @@ function kanbanPlanBindingParts(draft = {}, kind = "study") {
 }
 
 function renderKanbanPlanBindingPreview(draft = {}, kind = "study") {
+  const modelFn = appBootstrapModelFunction("kanbanPlanBindingPreviewPlan");
+  let plan = null;
+  if (modelFn) {
+    const source = draft && typeof draft === "object" ? draft : {};
+    const performerId = String(source.performerWorkspaceId || "").trim();
+    const viewerIds = parseWorkspaceIdList(source.viewerWorkspaceIds);
+    const labels = {};
+    for (const id of [performerId, ...viewerIds]) {
+      if (id) labels[id] = workspaceLabelById(id);
+    }
+    plan = modelFn(source, kind, labels);
+  }
   const parts = kanbanPlanBindingParts(draft, kind);
   const learner = parts.learner || "\u5b66\u4e60\u8005";
   const title = parts.title || (kind === "assessment" ? "\u8003\u8bd5\u8ba1\u5212" : "\u5b66\u4e60\u8ba1\u5212");
-  const directoryText = `${learner} / \u5b66\u4e60\u8ba1\u5212 / ${title}`;
-  const performerText = parts.performerLabel ? `\u6267\u884c\uff1a${parts.performerLabel}` : "\u672a\u6307\u5b9a\u6267\u884c\u8005";
-  const viewerText = parts.viewerLabels.length ? `\u53ea\u8bfb\uff1a${parts.viewerLabels.join("\u3001")}` : "\u672a\u6307\u5b9a\u53ea\u8bfb\u67e5\u770b\u8005";
-  return `<div class="kanban-plan-binding-preview" data-kanban-binding-preview data-kanban-binding-kind="${escapeHtml(kind)}">
+  const directoryText = plan?.directoryText || `${learner} / \u5b66\u4e60\u8ba1\u5212 / ${title}`;
+  const performerText = plan?.performerText || (parts.performerLabel ? `\u6267\u884c\uff1a${parts.performerLabel}` : "\u672a\u6307\u5b9a\u6267\u884c\u8005");
+  const viewerText = plan?.viewerText || (parts.viewerLabels.length ? `\u53ea\u8bfb\uff1a${parts.viewerLabels.join("\u3001")}` : "\u672a\u6307\u5b9a\u53ea\u8bfb\u67e5\u770b\u8005");
+  return `<div class="kanban-plan-binding-preview" data-kanban-binding-preview data-kanban-binding-kind="${escapeHtml(plan?.kind || kind)}">
     <strong>\u7ed1\u5b9a\u76ee\u5f55</strong>
     <span>${escapeHtml(directoryText)}</span>
     <small>${escapeHtml(performerText)} · ${escapeHtml(viewerText)}</small>
@@ -561,6 +638,7 @@ const state = {
   automationEditOpen: false,
   automationEditJobId: "",
   automationOutputHistoryOpen: false,
+  automationManualTriggers: {},
   actionInboxItems: [],
   actionInboxCounts: null,
   actionInboxSource: null,

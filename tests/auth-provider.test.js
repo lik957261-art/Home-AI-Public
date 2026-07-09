@@ -12,7 +12,9 @@ function makeProvider(options = {}) {
     { id: "owner", role: "admin", label: "Owner" },
     { id: "workspace_a", role: "user", label: "Workspace A", policy: { principal_id: "principal_a" } },
     { id: "workspace_b", role: "user", label: "Workspace B", policy: { principal_id: "principal_b" } },
+    { id: "media", role: "user", label: "影音", policy: { principal_id: "principal_media", account_type: "media" } },
   ];
+  const auditEvents = [];
   const provider = createAuthProvider({
     disableAuth: () => Boolean(options.disableAuth),
     envKey: () => options.envKey || "",
@@ -26,8 +28,9 @@ function makeProvider(options = {}) {
     findWorkspace: (workspaceId) => workspaces.find((item) => item.id === workspaceId) || null,
     workspacePrincipal: (workspaceId) => workspaces.find((item) => item.id === workspaceId)?.policy?.principal_id || workspaceId || "owner",
     listWorkspaces: () => workspaces,
+    audit: (eventType, payload) => auditEvents.push({ eventType, payload }),
   });
-  return { provider, tempDir };
+  return { provider, tempDir, auditEvents };
 }
 
 function reqWithKey(key) {
@@ -76,7 +79,7 @@ function testWorkspaceKeyRotationAndScopedAuth() {
   const ownerAllStatus = provider.listWorkspaceAccessKeyStatuses(
     provider.authenticateRequest(reqWithKey("owner-key")),
   );
-  assert.deepEqual(ownerAllStatus.map((item) => item.workspaceId), ["workspace_a", "workspace_b"]);
+  assert.deepEqual(ownerAllStatus.map((item) => item.workspaceId), ["workspace_a", "workspace_b", "media"]);
 
   const workspaceStatus = provider.listWorkspaceAccessKeyStatuses(workspaceAuth);
   assert.equal(workspaceStatus.length, 1);
@@ -85,6 +88,21 @@ function testWorkspaceKeyRotationAndScopedAuth() {
   const revoked = provider.revokeWorkspaceAccessKey("workspace_a");
   assert.equal(revoked.revoked, true);
   assert.equal(provider.authenticateRequest(reqWithKey(rotated.key)).ok, false);
+}
+
+function testMediaWorkspaceAuthCarriesRestrictedMediaCapability() {
+  const { provider } = makeProvider({ envKey: "owner-key" });
+  const rotated = provider.rotateWorkspaceAccessKey("media", { actor: "owner" });
+
+  const auth = provider.authenticateRequest(reqWithKey(rotated.key));
+  assert.equal(auth.ok, true);
+  assert.equal(auth.isOwner, false);
+  assert.equal(auth.role, "workspace");
+  assert.equal(auth.workspaceId, "media");
+  assert.equal(auth.principalId, "principal_media");
+  assert.equal(auth.accountType, "media");
+  assert.equal(auth.restrictedMedia, true);
+  assert.deepEqual(auth.allowedOwnerSpecialPlugins, ["music", "movie"]);
 }
 
 function testWorkspaceKeyRotationDoesNotTouchPluginBindings() {
@@ -125,6 +143,32 @@ function testWorkspaceKeyRotationDoesNotTouchPluginBindings() {
   assert.equal(fs.readFileSync(pluginAuthPath, "utf8"), before.auth);
   assert.equal(fs.readFileSync(pluginConfigPath, "utf8"), before.config);
   assert.equal(fs.readFileSync(pluginKeyPath, "utf8"), before.key);
+}
+
+function testWorkspaceKeyPreserveExistingDoesNotRotate() {
+  const { provider, auditEvents } = makeProvider({ envKey: "owner-key" });
+  const first = provider.rotateWorkspaceAccessKey("workspace_a", { actor: "owner", reason: "initial" });
+  assert.match(first.key, /^hwk_/);
+
+  const preserved = provider.rotateWorkspaceAccessKey("workspace_a", {
+    actor: "owner",
+    preserveExisting: true,
+    reason: "workspace_onboarding",
+  });
+  assert.equal(preserved.key, "");
+  assert.equal(preserved.preservedExisting, true);
+  assert.equal(preserved.record.hasKey, true);
+
+  const auth = provider.authenticateRequest(reqWithKey(first.key));
+  assert.equal(auth.ok, true);
+  assert.equal(auth.workspaceId, "workspace_a");
+  assert.deepEqual(auditEvents.map((event) => event.eventType), [
+    "workspace_access_key.rotated",
+    "workspace_access_key.preserved",
+  ]);
+  assert.equal(auditEvents[1].payload.targetId, "workspace_a");
+  assert.equal(auditEvents[1].payload.reason, "workspace_onboarding");
+  assert.equal(JSON.stringify(auditEvents).includes(first.key), false);
 }
 
 function testWorkspaceAuthCanCarryAccessibleWorkspaceIds() {
@@ -195,7 +239,9 @@ function testGlobalRotationEnvGuardAndDisabledAuth() {
 
 testFirstRunOwnerSetupAndOwnerAuth();
 testWorkspaceKeyRotationAndScopedAuth();
+testMediaWorkspaceAuthCarriesRestrictedMediaCapability();
 testWorkspaceKeyRotationDoesNotTouchPluginBindings();
+testWorkspaceKeyPreserveExistingDoesNotRotate();
 testWorkspaceAuthCanCarryAccessibleWorkspaceIds();
 testAuditOwnerReadonlyKeyHasOwnerVisibilityWithoutBeingGlobalOwnerKey();
 testQueryAccessKeyCanBeDisabled();

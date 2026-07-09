@@ -64,12 +64,12 @@ test("validates complete bounded production readback", () => {
 
 test("reports missing required readback ids", () => {
   const payload = validPayload({
-    checks: validPayload().checks.filter((check) => check.id !== "rollback_switch"),
+    checks: validPayload().checks.filter((check) => check.id !== "source_deploy_rollback_plan"),
   });
   const result = validateViteProductionReadback({ payload });
   assert.equal(result.ok, false);
   assert.equal(result.status, "production_readback_incomplete");
-  assert.deepEqual(result.missing, ["rollback_switch"]);
+  assert.deepEqual(result.missing, ["source_deploy_rollback_plan"]);
 });
 
 test("reports failed and weak readback evidence", () => {

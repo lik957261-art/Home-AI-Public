@@ -13,6 +13,7 @@ const { createAiOpsDiagnosticApiRoutes } = require("./ai-ops-diagnostic-api-rout
 const { createAutonomousDeliveryApiRoutes } = require("./autonomous-delivery-api-routes");
 const { createHomeAiTtsApiRoutes } = require("./home-ai-tts-api-routes");
 const { createNativeSecureSecretApiRoutes } = require("./native-secure-secret-api-routes");
+const { createPluginDailyProgressRollupApiRoutes } = require("./plugin-daily-progress-rollup-api-routes");
 const { createPluginConversationActionApiRoutes } = require("./plugin-conversation-action-api-routes");
 const { createSingleWindowGroupChatApiRoutes } = require("./single-window-group-chat-api-routes");
 const { createThreadMessageRunApiRoutes } = require("./thread-message-run-api-routes");
@@ -27,6 +28,7 @@ const { createAutonomousDeliveryCoordinatorService } = require("../adapters/auto
 const { createCodexThreadTaskCardService } = require("../adapters/codex-thread-task-card-service");
 const { createHomeAiTtsService } = require("../adapters/home-ai-tts-service");
 const { createNativeSecureSecretBrokerService } = require("../adapters/native-secure-secret-broker-service");
+const { createPluginDailyProgressRollupService } = require("../adapters/plugin-daily-progress-rollup-service");
 const { createPluginConversationActionBridgeService } = require("../adapters/plugin-conversation-action-bridge-service");
 const { createWardrobeOutfitWearIntentActionService } = require("../adapters/wardrobe-outfit-wear-intent-action-service");
 const { createWorkspaceOnboardingService } = require("../adapters/workspace-onboarding-service");
@@ -44,9 +46,11 @@ function createMobileApiComposition(deps = {}) {
     platformCurrencyApiRoutes,
     publicApiRoutes,
     pushApiRoutes,
+    remoteManagedWorkspaceApiRoutes,
     resourceApiRoutes,
     runtimeConfigApiRoutes,
     systemApiRoutes,
+    workspaceConsoleApiRoutes,
     workspaceApiRoutes,
   } = platformComposition.routes;
   const {
@@ -58,7 +62,9 @@ function createMobileApiComposition(deps = {}) {
     nativeIosShellVersionPolicyService,
     ownerSystemConsoleService,
     platformCurrencyService,
+    remoteManagedWorkspaceService,
     systemResourceStatusService,
+    workspaceConsoleService,
   } = platformComposition.services;
 
   const pluginComposition = createMobileApiPluginComposition(deps);
@@ -328,6 +334,18 @@ function createMobileApiComposition(deps = {}) {
   const codexThreadTaskCardService = deps.codexThreadTaskCardService || createCodexThreadTaskCardService({
     env: deps.env || process.env,
   });
+  const pluginDailyProgressRollupService = deps.pluginDailyProgressRollupService || createPluginDailyProgressRollupService({
+    dataDir: deps.DATA_DIR || deps.dataDir,
+    env: deps.env || process.env,
+    taskCardService: codexThreadTaskCardService,
+  });
+  const pluginDailyProgressRollupApiRoutes = createPluginDailyProgressRollupApiRoutes({
+    pluginDailyProgressRollupService,
+    readBody: deps.readBody,
+    requireOwner: deps.requireOwner,
+    sendJson: deps.sendJson,
+  });
+  callBootTrace(deps, "plugin daily progress rollup api routes ready");
   const autonomousDeliveryCoordinatorService = deps.autonomousDeliveryCoordinatorService || createAutonomousDeliveryCoordinatorService({
     actionInboxService,
     store: deps.mobileSqliteStore,
@@ -402,6 +420,7 @@ function createMobileApiComposition(deps = {}) {
     fileArtifactApiRoutes,
     codexMobileRecoveryApiRoutes,
     hermesPluginApiRoutes,
+    pluginDailyProgressRollupApiRoutes,
     pluginConversationActionApiRoutes,
     pluginTopicApiRoutes,
     pluginTopicContextApiRoutes,
@@ -428,6 +447,7 @@ function createMobileApiComposition(deps = {}) {
     publicApiRoutes,
     pushApiRoutes,
     requestClientVersion: deps.requestClientVersion,
+    remoteManagedWorkspaceApiRoutes,
     resourceApiRoutes,
     runtimeConfigApiRoutes,
     sendJson: deps.sendJson,
@@ -438,6 +458,7 @@ function createMobileApiComposition(deps = {}) {
     threadTaskApiRoutes,
     todoApiRoutes,
     voiceInputApiRoutes,
+    workspaceConsoleApiRoutes,
     workspaceOnboardingApiRoutes,
     workspaceApiRoutes,
   });
@@ -465,8 +486,10 @@ function createMobileApiComposition(deps = {}) {
       learningGrowthSubmissionService,
       ownerSystemConsoleService,
       platformCurrencyService,
+      remoteManagedWorkspaceService,
       pluginWorkspaceAuditService,
       pluginConversationActionBridgeService,
+      pluginDailyProgressRollupService,
       wardrobeOutfitWearIntentActionService,
       learningGrowthTeachingCheckService,
       learningGrowthExperienceSignalService,
@@ -486,6 +509,7 @@ function createMobileApiComposition(deps = {}) {
       voiceInputService,
       workspaceOnboardingService,
       systemResourceStatusService,
+      workspaceConsoleService,
     },
     routes: {
       accessKeyApiRoutes,
@@ -501,6 +525,7 @@ function createMobileApiComposition(deps = {}) {
       fileArtifactApiRoutes,
       codexMobileRecoveryApiRoutes,
       hermesPluginApiRoutes,
+      pluginDailyProgressRollupApiRoutes,
       pluginConversationActionApiRoutes,
       pluginTopicApiRoutes,
       pluginTopicContextApiRoutes,
@@ -522,6 +547,7 @@ function createMobileApiComposition(deps = {}) {
       nativeIosShellApiRoutes,
       publicApiRoutes,
       pushApiRoutes,
+      remoteManagedWorkspaceApiRoutes,
       resourceApiRoutes,
       runtimeConfigApiRoutes,
       singleWindowGroupChatApiRoutes,
@@ -531,6 +557,7 @@ function createMobileApiComposition(deps = {}) {
       threadTaskApiRoutes,
       todoApiRoutes,
       voiceInputApiRoutes,
+      workspaceConsoleApiRoutes,
       workspaceOnboardingApiRoutes,
       workspaceApiRoutes,
     },

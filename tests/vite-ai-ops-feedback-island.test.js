@@ -120,6 +120,32 @@ async function test(name, fn) {
     );
   });
 
+  await test("model renders classic-compatible feedback menu and Owner console plan", async () => {
+    const model = await loadModel();
+    const plan = model.classicOwnerConsoleActionPlan(
+      { auth: { isOwner: true } },
+      { ownerSystemConsole: true },
+    );
+    assert.equal(plan.available, true);
+    assert.equal(plan.hidden, false);
+    assert.equal(plan.label, "系统控制台");
+    assert.equal(plan.trigger, "diagnostic_feedback_menu");
+    assert.equal(
+      model.classicFeedbackContextLabel({ plugin_id: "music", source_surface: "embedded-plugin" }),
+      "当前插件：music · embedded-plugin",
+    );
+    const html = model.renderClassicAiOpsFeedbackSheet({
+      state: { auth: { isOwner: true } },
+      capabilities: { ownerSystemConsole: true },
+      context: { plugin_id: "music", source_surface: "embedded-plugin" },
+      category: "save_failed",
+    });
+    assert.match(html, /data-ai-ops-esm-model="1"/);
+    assert.match(html, /当前插件：music · embedded-plugin/);
+    assert.match(html, /<option value="save_failed" selected>保存失败<\/option>/);
+    assert.match(html, /data-ai-ops-open-system-console>系统控制台<\/button>/);
+  });
+
   await test("built artifact exists after npm run build:vite", async () => {
     assert.ok(
       exists("public/vite-islands/ai-ops-feedback/ai-ops-feedback.js"),
@@ -129,6 +155,14 @@ async function test(name, fn) {
     assert.match(output, /AI Ops/);
     assert.match(output, /反馈菜单/);
     assert.match(output, /系统控制台/);
+    assert.ok(
+      exists("public/vite-islands/ai-ops-feedback-model/ai-ops-feedback-model.js"),
+      "run npm run build:vite before this test",
+    );
+    const modelOutput = read("public/vite-islands/ai-ops-feedback-model/ai-ops-feedback-model.js");
+    assert.match(modelOutput, /renderClassicAiOpsFeedbackSheet/);
+    assert.match(modelOutput, /classicOwnerConsoleActionPlan/);
+    assert.match(modelOutput, /系统控制台/);
   });
 
   if (process.exitCode) process.exit(process.exitCode);

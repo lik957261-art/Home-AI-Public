@@ -12,6 +12,7 @@
   const MOVE_CANCEL_PX = 24;
   const TRIGGER_TOUCH_COUNT = 3;
   const PLUGIN_FRAME_SELECTOR = "iframe.embedded-plugin-frame, iframe.wardrobe-plugin-frame";
+  const AI_OPS_FEEDBACK_ESM_MODEL_PATH = "/vite-islands/ai-ops-feedback-model/ai-ops-feedback-model.js";
   const PLUGIN_DIAGNOSTIC_OPEN_MESSAGE_TYPES = new Set([
     "homeai.diagnostic.open",
     "homeai:open-diagnostic-feedback",
@@ -168,6 +169,41 @@
   const CONTENT_KEY_RE = /message|prompt|completion|transcript|markdown|html|text|value|input|image|screenshot|payload/i;
   const SENSITIVE_KEY_RE = /authorization|cookie|password|secret|token|access.?key|workspace.?key|launch.?key|oauth|bearer/i;
   const SECRET_VALUE_RE = /(Bearer\s+)[A-Za-z0-9._~+/=-]{12,}|((?:token|key|password|secret)\s*[:= ]\s*)[A-Za-z0-9._~+/=-]{12,}/gi;
+  let aiOpsFeedbackEsmModelPromise = null;
+  let aiOpsFeedbackEsmModel = null;
+
+  function aiOpsFeedbackUsableEsmModel(model) {
+    return Boolean(
+      model
+      && typeof model.renderClassicAiOpsFeedbackSheet === "function"
+      && typeof model.classicFeedbackContextLabel === "function"
+      && typeof model.classicOwnerConsoleActionPlan === "function",
+    );
+  }
+
+  function aiOpsFeedbackLoadedEsmModel() {
+    return aiOpsFeedbackUsableEsmModel(aiOpsFeedbackEsmModel) ? aiOpsFeedbackEsmModel : null;
+  }
+
+  function importAiOpsFeedbackModel(rootRef = root) {
+    if (aiOpsFeedbackLoadedEsmModel()) return Promise.resolve(aiOpsFeedbackEsmModel);
+    if (aiOpsFeedbackEsmModelPromise) return aiOpsFeedbackEsmModelPromise;
+    const importer = rootRef?.__homeAiImportAiOpsFeedbackModel;
+    aiOpsFeedbackEsmModelPromise = Promise.resolve()
+      .then(() => {
+        if (typeof importer === "function") return importer(AI_OPS_FEEDBACK_ESM_MODEL_PATH);
+        return import(AI_OPS_FEEDBACK_ESM_MODEL_PATH);
+      })
+      .then((model) => {
+        if (aiOpsFeedbackUsableEsmModel(model)) {
+          aiOpsFeedbackEsmModel = model;
+          return model;
+        }
+        return null;
+      })
+      .catch(() => null);
+    return aiOpsFeedbackEsmModelPromise;
+  }
 
   function cleanString(value, maxLength = 180) {
     return String(value == null ? "" : value)
@@ -469,8 +505,22 @@
     let touchStart = null;
     let pendingFeedbackContext = {};
     let frameObserver = null;
+    let aiOpsModel = options.aiOpsFeedbackModel && aiOpsFeedbackUsableEsmModel(options.aiOpsFeedbackModel)
+      ? options.aiOpsFeedbackModel
+      : aiOpsFeedbackLoadedEsmModel();
     const boundPluginFrames = typeof WeakSet === "function" ? new WeakSet() : null;
     const submittedPluginConversationActionKeys = new Set();
+
+    function activeAiOpsFeedbackModel() {
+      return aiOpsFeedbackUsableEsmModel(aiOpsModel) ? aiOpsModel : aiOpsFeedbackLoadedEsmModel();
+    }
+
+    function loadAiOpsFeedbackModel() {
+      return importAiOpsFeedbackModel(windowRef).then((model) => {
+        if (aiOpsFeedbackUsableEsmModel(model)) aiOpsModel = model;
+        return activeAiOpsFeedbackModel();
+      });
+    }
 
     function record(kind, fields = {}) {
       const item = sanitizeClientDiagnosticValue({
@@ -633,7 +683,12 @@
       sheet.setAttribute("role", "dialog");
       sheet.setAttribute("aria-modal", "true");
       sheet.setAttribute("aria-label", "问题反馈");
-      sheet.innerHTML = `
+      const model = activeAiOpsFeedbackModel();
+      sheet.innerHTML = model?.renderClassicAiOpsFeedbackSheet?.({
+        state: stateRef,
+        capabilities: ownerSystemConsoleCapabilities(),
+        context: pendingFeedbackContext,
+      }) || `
         <div class="ai-ops-diagnostic-panel">
           <div class="ai-ops-diagnostic-head">
             <strong>反馈当前问题</strong>
@@ -671,14 +726,38 @@
       return sheet;
     }
 
+    function ownerSystemConsoleCapabilities() {
+      return {
+        ownerSystemConsole: typeof windowRef.openOwnerSystemConsoleSurface === "function",
+      };
+    }
+
+    function ownerSystemConsoleActionPlan() {
+      const model = activeAiOpsFeedbackModel();
+      if (model?.classicOwnerConsoleActionPlan) {
+        return model.classicOwnerConsoleActionPlan(stateRef, ownerSystemConsoleCapabilities());
+      }
+      const available = Boolean(stateRef.auth?.isOwner && typeof windowRef.openOwnerSystemConsoleSurface === "function");
+      return {
+        available,
+        hidden: !available,
+        enabled: available,
+        label: available ? "系统控制台" : (stateRef.auth?.isOwner ? "系统控制台未就绪" : "仅 Owner 可用"),
+        trigger: "diagnostic_feedback_menu",
+      };
+    }
+
     function ownerSystemConsoleAvailable() {
-      return Boolean(stateRef.auth?.isOwner && typeof windowRef.openOwnerSystemConsoleSurface === "function");
+      return Boolean(ownerSystemConsoleActionPlan().available);
     }
 
     function updateOwnerSystemConsoleAction() {
       const button = sheet?.querySelector?.("[data-ai-ops-open-system-console]");
       if (!button) return;
-      button.hidden = !ownerSystemConsoleAvailable();
+      const plan = ownerSystemConsoleActionPlan();
+      button.hidden = Boolean(plan.hidden);
+      button.disabled = plan.enabled === false;
+      button.textContent = plan.label || "系统控制台";
     }
 
     function openOwnerSystemConsoleFromFeedback() {
@@ -714,6 +793,11 @@
     function setContextLabel(context = {}) {
       const target = sheet?.querySelector?.("[data-ai-ops-context]");
       if (!target) return;
+      const model = activeAiOpsFeedbackModel();
+      if (model?.classicFeedbackContextLabel) {
+        target.textContent = model.classicFeedbackContextLabel(context);
+        return;
+      }
       if (context.plugin_id && context.plugin_id !== "home-ai") {
         const source = context.source_surface ? ` · ${context.source_surface}` : "";
         target.textContent = `当前插件：${context.plugin_id}${source}`;
@@ -728,6 +812,12 @@
     }
 
     function openFeedback(detail = {}) {
+      loadAiOpsFeedbackModel().then(() => {
+        if (sheet && !sheet.classList.contains("hidden")) {
+          setContextLabel(pendingFeedbackContext);
+          updateOwnerSystemConsoleAction();
+        }
+      });
       ensureSheet();
       if (!sheet) return;
       pendingFeedbackContext = normalizeFeedbackContext(detail);
@@ -735,7 +825,9 @@
       updateOwnerSystemConsoleAction();
       const category = sheet.querySelector("[data-ai-ops-category]");
       const wantedCategory = cleanString(detail.category || (pendingFeedbackContext.plugin_id ? "plugin_issue" : ""), 80);
-      if (optionExists(category, wantedCategory)) category.value = wantedCategory;
+      const model = activeAiOpsFeedbackModel();
+      const normalizedCategory = typeof model?.normalizeCategory === "function" ? model.normalizeCategory(wantedCategory) : wantedCategory;
+      if (optionExists(category, normalizedCategory)) category.value = normalizedCategory;
       setStatus("将只提交最近的状态、计数和错误码。", "");
       sheet.classList.remove("hidden");
       aiOpsRuntimeState(runtimeFacade, {
@@ -1213,6 +1305,7 @@
 
     function install() {
       if (!documentRef?.addEventListener) return;
+      loadAiOpsFeedbackModel();
       documentRef.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
       documentRef.addEventListener("touchmove", onTouchMove, { capture: true, passive: true });
       documentRef.addEventListener("touchend", cancelTouchTimer, { capture: true, passive: true });
@@ -1241,12 +1334,15 @@
       submitPluginConversationAction,
       submitPluginDiagnosticReport,
       submitFeedback,
+      importAiOpsFeedbackModel: loadAiOpsFeedbackModel,
     });
   }
 
   return Object.freeze({
+    AI_OPS_FEEDBACK_ESM_MODEL_PATH,
     createAiOpsDiagnosticFeedbackController,
     durationBucket,
+    importAiOpsFeedbackModel,
     parsePluginConversationActionComments,
     safeRoute,
     sanitizeClientDiagnosticValue,

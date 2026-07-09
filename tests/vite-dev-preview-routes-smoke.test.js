@@ -52,6 +52,21 @@ const PREVIEW_ROUTES = Object.freeze([
     selector: "[data-homeai-vite-chat-runtime]",
     expectedText: "Composer ESM",
   },
+  {
+    path: "/vite-dialog-sheet-preview/",
+    selector: "[data-homeai-vite-dialog-sheet]",
+    expectedText: "Dialog Sheet",
+  },
+  {
+    path: "/vite-toast-status-preview/",
+    selector: "[data-homeai-vite-toast-status]",
+    expectedText: "Toast / Status",
+  },
+  {
+    path: "/vite-pwa-push-status-preview/",
+    selector: "[data-homeai-vite-pwa-push-status]",
+    expectedText: "PWA / Web Push",
+  },
 ]);
 
 async function startViteServer() {

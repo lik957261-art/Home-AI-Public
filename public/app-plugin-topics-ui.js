@@ -1,5 +1,65 @@
 "use strict";
 
+const PLUGIN_CONTEXT_SWITCH_MODEL_ESM_PATH = "/vite-islands/plugin-context-switch-model/plugin-context-switch-model.js";
+const PLUGIN_TOPIC_NAVIGATION_MODEL_ESM_PATH = "/vite-islands/plugin-topic-navigation-model/plugin-topic-navigation-model.js";
+let pluginContextSwitchModel = null;
+let pluginContextSwitchModelPromise = null;
+let pluginTopicNavigationModel = null;
+let pluginTopicNavigationModelPromise = null;
+
+function importPluginContextSwitchModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (pluginContextSwitchModel) return Promise.resolve(pluginContextSwitchModel);
+  if (!pluginContextSwitchModelPromise) {
+    const importer = typeof rootRef.__homeAiImportPluginContextSwitchModel === "function"
+      ? rootRef.__homeAiImportPluginContextSwitchModel
+      : (path) => import(path);
+    pluginContextSwitchModelPromise = Promise.resolve()
+      .then(() => importer(PLUGIN_CONTEXT_SWITCH_MODEL_ESM_PATH))
+      .then((model) => {
+        pluginContextSwitchModel = model || null;
+        return pluginContextSwitchModel;
+      })
+      .catch((error) => {
+        pluginContextSwitchModelPromise = null;
+        throw error;
+      });
+  }
+  return pluginContextSwitchModelPromise;
+}
+
+function currentPluginContextSwitchModel() {
+  return pluginContextSwitchModel;
+}
+
+function importPluginTopicNavigationModel(rootRef = (typeof window !== "undefined" ? window : globalThis)) {
+  if (pluginTopicNavigationModel) return Promise.resolve(pluginTopicNavigationModel);
+  if (!pluginTopicNavigationModelPromise) {
+    const importer = typeof rootRef.__homeAiImportPluginTopicNavigationModel === "function"
+      ? rootRef.__homeAiImportPluginTopicNavigationModel
+      : (path) => import(path);
+    pluginTopicNavigationModelPromise = Promise.resolve()
+      .then(() => importer(PLUGIN_TOPIC_NAVIGATION_MODEL_ESM_PATH))
+      .then((model) => {
+        pluginTopicNavigationModel = model || null;
+        return pluginTopicNavigationModel;
+      })
+      .catch((error) => {
+        pluginTopicNavigationModelPromise = null;
+        throw error;
+      });
+  }
+  return pluginTopicNavigationModelPromise;
+}
+
+function currentPluginTopicNavigationModel() {
+  return pluginTopicNavigationModel;
+}
+
+if (typeof window !== "undefined") {
+  importPluginContextSwitchModel().catch(() => null);
+  importPluginTopicNavigationModel().catch(() => null);
+}
+
 function pluginRouteAction(id, label, route, glyph, priority = 10) {
   return Object.freeze({
     id,
@@ -245,8 +305,8 @@ const PLUGIN_APP_REORDER_HOLD_MS = 450;
 const PLUGIN_APP_REORDER_CANCEL_PX = 10;
 const GLOBAL_PLUGIN_DOCK_STATE_STORAGE_KEY = "hermesGlobalPluginDockExpanded";
 const PLUGIN_BOTTOM_TABS_STORAGE_KEY = "hermesPinnedPluginBottomTabs";
-const BOTTOM_NAV_MAX_VISIBLE_TABS = 6;
-const BOTTOM_NAV_BASE_VISIBLE_TABS = 3;
+const BOTTOM_NAV_MAX_VISIBLE_TABS = 7;
+const BOTTOM_NAV_BASE_VISIBLE_TABS = 4;
 const GLOBAL_PLUGIN_DOCK_DRAG_SLOP_PX = 10;
 const GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO = 1.45;
 const GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX = 28;
@@ -403,6 +463,85 @@ function pluginTopicId(value = "") {
 function pluginTopicGroupId(pluginId = "") {
   const id = pluginTopicId(pluginId);
   return id ? `plugin:${id}` : "";
+}
+
+function pluginContextSwitchKnownPluginDefs() {
+  return PLUGIN_TOPIC_DEFS.filter((def) => def && !def.builtinKind).map((def) => ({
+    id: def.id,
+    viewMode: def.viewMode,
+  }));
+}
+
+function fallbackPluginContextSwitchTargetPlan(stateRef = state) {
+  const viewMode = String(stateRef.viewMode || "").trim();
+  const taskGroupId = String(stateRef.currentTaskGroupId || stateRef.taskGroupId || "").trim();
+  const appDef = PLUGIN_TOPIC_DEFS.find((def) => !def.builtinKind && def.viewMode === viewMode);
+  if (appDef && !taskGroupId) {
+    return {
+      available: true,
+      action: "open_topic",
+      pluginId: appDef.id,
+      from: "plugin_app",
+      targetTaskGroupId: pluginTopicGroupId(appDef.id),
+      ariaLabel: "打开当前插件对话",
+      visibleLabel: "对话",
+    };
+  }
+  if (viewMode === "tasks" && taskGroupId.startsWith("plugin:")) {
+    const groupPluginId = pluginTopicId(taskGroupId.slice("plugin:".length));
+    const contextPluginId = pluginTopicId(stateRef.pluginContextNavPluginId || stateRef.pluginId || "");
+    const pluginId = contextPluginId || groupPluginId;
+    if (pluginId && taskGroupId === pluginTopicGroupId(pluginId)) {
+      return {
+        available: true,
+        action: "open_app",
+        pluginId,
+        from: "plugin_topic",
+        targetTaskGroupId: "",
+        ariaLabel: "返回当前插件",
+        visibleLabel: "插件",
+      };
+    }
+  }
+  return { available: false, action: "", pluginId: "", from: "", targetTaskGroupId: "", ariaLabel: "", visibleLabel: "" };
+}
+
+function pluginContextSwitchTargetPlan(stateRef = state) {
+  const model = currentPluginContextSwitchModel();
+  if (typeof model?.pluginContextSwitchTargetPlan === "function") {
+    return model.pluginContextSwitchTargetPlan(stateRef, { pluginDefs: pluginContextSwitchKnownPluginDefs() });
+  }
+  return fallbackPluginContextSwitchTargetPlan(stateRef);
+}
+
+function pluginContextSwitchDownGesturePlan(input = {}) {
+  const model = currentPluginContextSwitchModel();
+  if (typeof model?.pluginContextSwitchDownGesturePlan === "function") {
+    return model.pluginContextSwitchDownGesturePlan(input, {
+      directionRatio: GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO,
+      triggerDistancePx: GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX,
+      velocityMinDistancePx: GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_MIN_DISTANCE_PX,
+      velocityPxMs: GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_PX_MS,
+    });
+  }
+  const dx = Number(input.dx || 0);
+  const dy = Number(input.dy || 0);
+  const elapsed = Math.max(1, Number(input.elapsedMs || input.elapsed || 1) || 1);
+  const absX = Math.abs(dx);
+  const absY = Math.abs(dy);
+  const vertical = absY > absX * GLOBAL_PLUGIN_DOCK_DIRECTION_RATIO;
+  const velocity = dy / elapsed;
+  const distanceTriggered = dy > GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX;
+  const velocityTriggered = absY >= GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_MIN_DISTANCE_PX && velocity > GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_PX_MS;
+  return { ok: Boolean(vertical && dy > 0 && (distanceTriggered || velocityTriggered)), direction: vertical ? (dy > 0 ? "down" : "up") : "", dx, dy, elapsedMs: elapsed, velocity, distanceTriggered, velocityTriggered };
+}
+
+function currentPluginContextSwitchTarget() {
+  const target = pluginContextSwitchTargetPlan(state);
+  if (!target?.available || !target.pluginId) return null;
+  const def = pluginTopicDefById(target.pluginId);
+  if (!def || def.builtinKind || !pluginTopicNavigationAvailable(def)) return null;
+  return Object.assign({}, target, { def });
 }
 
 function pluginTopicDefById(pluginId = "") {
@@ -647,7 +786,7 @@ function availablePluginTopicDefs() {
 }
 
 function pluginTopicBindingWorkspaceId() {
-  return String(state.selectedWorkspaceId || state.auth?.workspaceId || "owner").trim() || "owner";
+  return pluginTopicEffectiveWorkspaceId();
 }
 
 function normalizePluginTopicBindingProjection(value = {}) {
@@ -725,7 +864,12 @@ function ensurePluginTopicBindingsLoaded() {
 }
 
 function pluginTopicDirectoryRouteKey(route = null, group = null) {
-  if (typeof directoryTopicRouteKey === "function") return directoryTopicRouteKey(route, group);
+  const model = currentPluginTopicNavigationModel();
+  const classicRouteKey = typeof directoryTopicRouteKey === "function" ? directoryTopicRouteKey(route, group) : "";
+  if (model?.pluginTopicDirectoryRouteKeyPlan) {
+    return model.pluginTopicDirectoryRouteKeyPlan(route, group, { classicRouteKey });
+  }
+  if (classicRouteKey) return classicRouteKey;
   if (!route) return "";
   const owner = String(
     route.workspaceId
@@ -743,6 +887,8 @@ function pluginTopicDirectoryRouteKey(route = null, group = null) {
 }
 
 function pluginTopicRouteInferenceText(route = {}) {
+  const model = currentPluginTopicNavigationModel();
+  if (model?.pluginTopicRouteInferenceTextPlan) return model.pluginTopicRouteInferenceTextPlan(route);
   return [
     route?.pluginId,
     route?.plugin_id,
@@ -756,7 +902,29 @@ function pluginTopicRouteInferenceText(route = {}) {
   ].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean).join("\n");
 }
 
+function pluginTopicNavigationModelDefs() {
+  return availablePluginTopicDefs().map((def) => ({
+    id: def.id,
+    label: def.label,
+    builtinKind: def.builtinKind,
+    deliveryHints: Array.isArray(def.deliveryHints) ? def.deliveryHints : [],
+  }));
+}
+
+function pluginTopicNavigationModelOptions(route = null, group = null) {
+  return {
+    workspaceId: pluginTopicBindingWorkspaceId(),
+    pluginDefs: pluginTopicNavigationModelDefs(),
+    bindingProjection: readPluginTopicBindingProjection(),
+    classicRouteKey: typeof directoryTopicRouteKey === "function" ? directoryTopicRouteKey(route, group) : "",
+  };
+}
+
 function pluginTopicInferPluginIdFromRoute(route = {}, group = {}) {
+  const model = currentPluginTopicNavigationModel();
+  if (model?.pluginTopicInferPluginIdFromRoutePlan) {
+    return model.pluginTopicInferPluginIdFromRoutePlan(route, group, pluginTopicNavigationModelOptions(route, group));
+  }
   const explicit = pluginTopicId(
     route?.pluginId
     || route?.plugin_id
@@ -782,6 +950,10 @@ function pluginTopicInferPluginIdFromRoute(route = {}, group = {}) {
 }
 
 function pluginTopicDefaultDirectoryClaimForRoute(route = {}, group = null) {
+  const model = currentPluginTopicNavigationModel();
+  if (model?.pluginTopicDefaultDirectoryClaimForRoutePlan) {
+    return model.pluginTopicDefaultDirectoryClaimForRoutePlan(route, group, pluginTopicNavigationModelOptions(route, group));
+  }
   const pluginId = pluginTopicInferPluginIdFromRoute(route, group || {});
   const key = pluginTopicDirectoryRouteKey(route, group);
   if (!pluginId || !key) return null;
@@ -797,6 +969,10 @@ function pluginTopicDefaultDirectoryClaimForRoute(route = {}, group = null) {
 }
 
 function pluginTopicDirectoryClaimForRoute(route = {}, group = null) {
+  const model = currentPluginTopicNavigationModel();
+  if (model?.pluginTopicDirectoryClaimForRoutePlan) {
+    return model.pluginTopicDirectoryClaimForRoutePlan(route, group, pluginTopicNavigationModelOptions(route, group));
+  }
   const key = pluginTopicDirectoryRouteKey(route, group);
   if (!key) return null;
   const claims = readPluginTopicBindingProjection().directoryClaims || [];
@@ -816,10 +992,16 @@ function pluginTopicDirectoryClaimForRoute(route = {}, group = null) {
 }
 
 function pluginTopicDirectoryClaimHidesRoot(claim = null) {
+  const model = currentPluginTopicNavigationModel();
+  if (model?.pluginTopicDirectoryClaimHidesRootPlan) return model.pluginTopicDirectoryClaimHidesRootPlan(claim);
   return false;
 }
 
 function pluginTopicClaimedDirectoryTopicCollections(collections = []) {
+  const model = currentPluginTopicNavigationModel();
+  if (model?.pluginTopicCollectionRootVisibilityPlan) {
+    return model.pluginTopicCollectionRootVisibilityPlan(collections, pluginTopicNavigationModelOptions()).claimed || [];
+  }
   return (collections || []).filter((collection) => {
     const claim = pluginTopicDirectoryClaimForRoute(collection?.route, collection?.defaultGroup);
     return pluginTopicDirectoryClaimHidesRoot(claim);
@@ -827,6 +1009,10 @@ function pluginTopicClaimedDirectoryTopicCollections(collections = []) {
 }
 
 function pluginTopicFilterDirectoryTopicCollectionsForRoot(collections = []) {
+  const model = currentPluginTopicNavigationModel();
+  if (model?.pluginTopicCollectionRootVisibilityPlan) {
+    return model.pluginTopicCollectionRootVisibilityPlan(collections, pluginTopicNavigationModelOptions()).root || [];
+  }
   return (collections || []).filter((collection) => {
     const claim = pluginTopicDirectoryClaimForRoute(collection?.route, collection?.defaultGroup);
     return !pluginTopicDirectoryClaimHidesRoot(claim);
@@ -841,7 +1027,24 @@ function pluginTopicClaimedCollectionsForPlugin(collections = [], pluginId = "")
 }
 
 function globalPluginDockWorkspaceId() {
-  return String(state.selectedWorkspaceId || state.auth?.workspaceId || "owner").trim() || "owner";
+  return pluginTopicEffectiveWorkspaceId();
+}
+
+function pluginTopicEffectiveWorkspaceId() {
+  const selected = String(state.selectedWorkspaceId || "").trim();
+  const authWorkspaceId = String(state.auth?.workspaceId || "").trim();
+  if (!state.auth?.isOwner && authWorkspaceId) {
+    const allowed = new Set(
+      []
+        .concat(Array.isArray(state.auth?.workspaceIds) ? state.auth.workspaceIds : [])
+        .concat(Array.isArray(state.auth?.workspaces) ? state.auth.workspaces : [])
+        .concat(authWorkspaceId)
+        .map((item) => String(item || "").trim())
+        .filter(Boolean),
+    );
+    if (!selected || selected === "owner" || !allowed.has(selected)) return authWorkspaceId;
+  }
+  return String(selected || authWorkspaceId || "owner").trim() || "owner";
 }
 
 function globalPluginDockStorageKey() {
@@ -873,9 +1076,26 @@ function normalizePinnedPluginBottomTabIds(ids = []) {
     .slice(0, pluginBottomTabCapacity());
 }
 
+function defaultPinnedPluginBottomTabsForWorkspace(workspaceId = globalPluginDockWorkspaceId()) {
+  const authWorkspaceId = String(state.auth?.workspaceId || "").trim();
+  const requestedWorkspaceId = String(workspaceId || "").trim();
+  const accountType = String(state.auth?.accountType || "").trim().toLowerCase();
+  const specialPlugins = Array.isArray(state.auth?.allowedOwnerSpecialPlugins)
+    ? state.auth.allowedOwnerSpecialPlugins
+    : [];
+  const allowed = new Set(specialPlugins.map(pluginTopicId));
+  const isMediaWorkspace = !state.auth?.isOwner
+    && accountType === "media"
+    && authWorkspaceId
+    && requestedWorkspaceId === authWorkspaceId;
+  if (!isMediaWorkspace) return [];
+  return normalizePinnedPluginBottomTabIds(["music", "movie"].filter((id) => allowed.has(id)));
+}
+
 function readPinnedPluginBottomTabs(workspaceId = globalPluginDockWorkspaceId()) {
   try {
     const raw = localStorage.getItem(pluginBottomTabsStorageKey(workspaceId));
+    if (raw === null) return defaultPinnedPluginBottomTabsForWorkspace(workspaceId);
     const values = JSON.parse(raw || "[]");
     if (!Array.isArray(values)) return [];
     return normalizePinnedPluginBottomTabIds(values);
@@ -1316,13 +1536,15 @@ function globalPluginDockHostSurfaceEligible() {
   if (!app || app.classList.contains("hidden")) return false;
   if (!isMobileLayout()) return false;
   const view = String(state.viewMode || "");
-  const pluginAppSurface = ["wardrobe", "codex", "finance", "email", "health", "note", "growth", "moira", "music"].includes(view);
+  const pluginAppSurface = ["wardrobe", "codex", "finance", "email", "health", "note", "growth", "moira", "music", "movie"].includes(view);
+  const pluginTopicDetailSurface = Boolean(pluginTopicDefForCurrentTaskGroupId(state.currentTaskGroupId));
   if (state.keyboardViewportActive || document.documentElement.classList.contains("keyboard-viewport-active")) return false;
   if (state.mobileBrowserShellBlocked || app.classList.contains("mobile-browser-shell-blocked")) return false;
   if (app.classList.contains("embedded-plugin-preview-fullscreen-active")) return false;
-  if (app.classList.contains("main-back-visible") && !pluginAppSurface) return false;
-  if (app.classList.contains("plugin-context-nav-mode") && !pluginAppSurface) return false;
+  if (app.classList.contains("main-back-visible") && !pluginAppSurface && !pluginTopicDetailSurface) return false;
+  if (app.classList.contains("plugin-context-nav-mode") && !pluginAppSurface && !pluginTopicDetailSurface) return false;
   if (pluginAppSurface) return true;
+  if (pluginTopicDetailSurface) return true;
   if (view === "single") return state.singleWindowMode === "chat";
   if (view === "tasks") return !state.currentTaskGroupId;
   if (view === "projects") return !state.directoryPluginContextActive;
@@ -1439,22 +1661,51 @@ function moveGlobalPluginDockGesture(event) {
   dock.style.setProperty("--global-plugin-dock-gesture-offset", `${Math.round(nextOffset)}px`);
 }
 
+function activatePluginContextSwitch(target = currentPluginContextSwitchTarget(), options = {}) {
+  if (!target?.available || !target.pluginId) return false;
+  if (typeof closePluginActionMenus === "function") closePluginActionMenus(document);
+  if (typeof setGlobalPluginDockExpanded === "function") setGlobalPluginDockExpanded(false, { persist: false });
+  const action = String(target.action || "");
+  const source = String(options.source || "plugin_context_switch");
+  if (action === "open_topic") {
+    openPluginTopicChat(target.pluginId, { source }).catch(showError);
+    return true;
+  }
+  if (action === "open_app") {
+    openPluginTopicApp(target.pluginId, { recordUsage: false, source }).catch(showError);
+    return true;
+  }
+  return false;
+}
+
 function finishGlobalPluginDockGesture(event = null) {
   const gesture = globalPluginDockGesture;
   if (!gesture) return;
   const dock = $("topicPluginDock");
   const point = globalPluginDockGesturePoint(event) || { x: gesture.currentX, y: gesture.currentY };
+  const dx = point.x - gesture.startX;
   const dy = point.y - gesture.startY;
   const elapsed = Math.max(1, Date.now() - gesture.startedAt);
   const velocity = dy / elapsed;
   const valid = gesture.locked === "vertical" && !gesture.cancelled;
-  resetGlobalPluginDockGesture();
-  if (!valid) return;
   const velocityCanTrigger = Math.abs(dy) >= GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_MIN_DISTANCE_PX;
   const expandTriggered = dy < -GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX
     || (velocityCanTrigger && velocity < -GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_PX_MS);
   const collapseTriggered = dy > GLOBAL_PLUGIN_DOCK_TRIGGER_DISTANCE_PX
     || (velocityCanTrigger && velocity > GLOBAL_PLUGIN_DOCK_TRIGGER_VELOCITY_PX_MS);
+  resetGlobalPluginDockGesture();
+  if (!valid) return;
+  if (gesture.expanded && collapseTriggered) {
+    dock?.setAttribute("data-global-plugin-dock-gesture-settled-at", String(Date.now()));
+    setGlobalPluginDockExpanded(false, { persist: true });
+    return;
+  }
+  const contextSwitchGesture = !gesture.expanded ? pluginContextSwitchDownGesturePlan({ dx, dy, elapsedMs: elapsed }) : null;
+  const contextSwitchTarget = contextSwitchGesture?.ok ? currentPluginContextSwitchTarget() : null;
+  if (contextSwitchTarget && activatePluginContextSwitch(contextSwitchTarget, { source: "global_plugin_dock_down_gesture" })) {
+    dock?.setAttribute("data-global-plugin-dock-gesture-settled-at", String(Date.now()));
+    return;
+  }
   const shouldExpand = gesture.expanded
     ? !collapseTriggered
     : expandTriggered;
@@ -1507,7 +1758,7 @@ function closeGlobalPluginDockForNavigation(options = {}) {
 }
 
 function pluginTopicUsageWorkspaceId() {
-  return String(state.selectedWorkspaceId || state.auth?.workspaceId || "owner").trim() || "owner";
+  return pluginTopicEffectiveWorkspaceId();
 }
 
 function pluginTopicUsageApiReady() {
@@ -2202,9 +2453,12 @@ function refreshPluginAppOrderSurfaces(options = {}) {
   const dockHadContent = typeof globalPluginDockLauncherPresent === "function"
     ? globalPluginDockLauncherPresent(dock)
     : Boolean(dock?.querySelector?.(".plugin-app-card"));
+  const contextSwitchAvailable = typeof currentPluginContextSwitchTarget === "function"
+    ? Boolean(currentPluginContextSwitchTarget()?.available)
+    : false;
   const wasExpanded = Boolean(dock?.classList?.contains("global-plugin-dock-expanded"));
   if (typeof updateSidebarPluginLauncher === "function") updateSidebarPluginLauncher();
-  if ((!force && !dockHadContent) || typeof renderPluginAppLauncher !== "function" || typeof setTopicPluginDock !== "function") return;
+  if ((!force && !dockHadContent && !contextSwitchAvailable) || typeof renderPluginAppLauncher !== "function" || typeof setTopicPluginDock !== "function") return;
   setTopicPluginDock(renderPluginAppLauncher());
   if (typeof applyGlobalPluginDockState === "function") applyGlobalPluginDockState(dock, wasExpanded);
   if (typeof updateTopicPluginDockChrome === "function") {
@@ -2598,16 +2852,27 @@ function renderPluginDrawerQuickActionMenu(quickActions = []) {
   </div>`;
 }
 
+function renderPluginContextSwitchDrawerCard(target = currentPluginContextSwitchTarget()) {
+  if (!target?.available || !target.pluginId || !target.def) return "";
+  const label = target.visibleLabel || (target.action === "open_app" ? "插件" : "对话");
+  return `<button class="plugin-app-card plugin-context-switch-card" type="button" role="listitem" data-plugin-context-switch="${escapeHtml(target.pluginId)}" data-plugin-context-switch-action="${escapeHtml(target.action)}" aria-label="${escapeHtml(target.ariaLabel || label)}">
+    <span class="plugin-topic-app-icon ${escapeHtml(target.def.appIconClass || target.def.id)}" data-plugin-icon="${escapeHtml(target.def.appIconGlyph || "")}" aria-hidden="true"></span>
+    <span class="plugin-app-label">${escapeHtml(label)}</span>
+  </button>`;
+}
+
 function renderPluginAppLauncher() {
   const defs = orderedPluginAppDefs(availablePluginTopicDefs());
   const drawerDefs = defs.filter((def) => !pluginBottomTabPinned(def.id));
   if (!defs.length) return "";
   ensurePluginTopicActionManifestsLoaded(defs);
   const quickActions = pluginDrawerFrequentActions(defs, { includeDefaults: true });
-  const cardsCount = drawerDefs.length + 1;
+  const contextSwitchCard = renderPluginContextSwitchDrawerCard();
+  const cardsCount = drawerDefs.length + 1 + (contextSwitchCard ? 1 : 0);
   const fillCount = Math.min(Math.max(cardsCount, 1), 6);
   return `<section class="plugin-app-launcher" aria-label="\u63d2\u4ef6\u5e94\u7528">
     <div class="plugin-app-strip" role="list" data-plugin-count="${drawerDefs.length}" data-plugin-fill-count="${fillCount}" data-plugin-drawer-card-count="${cardsCount}">
+      ${contextSwitchCard}
       <button class="plugin-app-card plugin-drawer-quick-card" type="button" role="listitem" data-plugin-drawer-quick-actions aria-label="\u6253\u5f00\u5e38\u7528\u5feb\u6377\u80fd\u529b">
         <span class="plugin-drawer-quick-icon" aria-hidden="true">\u5feb</span>
         <span class="plugin-app-label">\u5e38\u7528</span>
@@ -3456,6 +3721,15 @@ function wirePluginTopicCards(root) {
       event.preventDefault();
       event.stopPropagation();
       openPluginActionMenu(button, event);
+    });
+  });
+  root?.querySelectorAll?.("[data-plugin-context-switch]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const target = currentPluginContextSwitchTarget();
+      if (!target || target.pluginId !== button.dataset.pluginContextSwitch) return;
+      activatePluginContextSwitch(target, { source: "global_plugin_dock_fallback" });
     });
   });
   root?.querySelectorAll?.("[data-plugin-topic-open-app]").forEach((button) => {

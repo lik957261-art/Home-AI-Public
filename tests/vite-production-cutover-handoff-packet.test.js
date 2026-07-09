@@ -129,7 +129,8 @@ test("packet exposes bounded production readback and privacy requirements", () =
   });
   assert.equal(packet.requiredProductionReadback.some((check) => check.id === "plugin_host_manifest_proxy"), true);
   assert.equal(packet.requiredProductionReadback.some((check) => check.id === "document_preview_delivery"), true);
-  assert.equal(packet.requiredProductionReadback.some((check) => check.id === "rollback_switch"), true);
+  assert.equal(packet.requiredProductionReadback.some((check) => check.id === "source_deploy_rollback_plan"), true);
+  assert.equal(packet.requiredProductionReadback.some((check) => check.id === "rollback_switch"), false);
   assert.deepEqual(packet.privacyBoundary, PRIVACY_BOUNDARY);
   for (const entry of packet.privacyBoundary) {
     assert.equal(typeof entry, "string");

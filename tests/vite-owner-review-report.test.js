@@ -83,7 +83,8 @@ test("exact owner approval still only permits a separate cutover source change",
   assert.equal(report.deploymentReadback.requiredAfterApproval.some((check) => check.id === "selected_shell_mode"), true);
   assert.equal(report.deploymentReadback.requiredAfterApproval.some((check) => check.id === "plugin_host_manifest_proxy"), true);
   assert.equal(report.deploymentReadback.requiredAfterApproval.some((check) => check.id === "document_preview_delivery"), true);
-  assert.equal(report.deploymentReadback.requiredAfterApproval.some((check) => check.id === "rollback_switch"), true);
+  assert.equal(report.deploymentReadback.requiredAfterApproval.some((check) => check.id === "source_deploy_rollback_plan"), true);
+  assert.equal(report.deploymentReadback.requiredAfterApproval.some((check) => check.id === "rollback_switch"), false);
   assert.equal(report.nextActions.some((action) => action.includes("fail-closed production cutover source change")), true);
 });
 

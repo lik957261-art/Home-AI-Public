@@ -23,6 +23,64 @@ function tempStore() {
   });
 }
 
+function cleanPluginIdFromCwd(cwd = "") {
+  const match = String(cwd || "").match(/\/plugins\/([^/]+)/);
+  return match ? match[1] : "";
+}
+
+async function defaultCoordinatorThreadLifecycle(input = {}) {
+  const role = String(input.role || "");
+  const cwd = String(input.cwd || input.workspaceCwd || "");
+  if (role === "home_ai_worker") {
+    return {
+      ok: true,
+      action: "resolve",
+      thread: {
+        id: "thread-home-ai-worker",
+        title: "Home AI Worker Lane A",
+        cwd: "/Users/example/path",
+        role,
+        purpose: "worker_lane",
+        status: "idle",
+        deliverable: true,
+        deliverabilityReason: "eligible",
+      },
+    };
+  }
+  if (role === "requirements" && cwd.includes("/plugins/note")) {
+    return {
+      ok: true,
+      action: "resolve",
+      thread: {
+        id: "thread-note-main",
+        title: "Note",
+        cwd: "/Users/example/path",
+        role,
+        purpose: "workspace_implementation",
+        status: "completed",
+        deliverable: true,
+        deliverabilityReason: "eligible",
+      },
+    };
+  }
+  const pluginWorker = role === "plugin_worker";
+  return {
+    ok: true,
+    action: "resolve",
+    thread: {
+      id: "thread-default-worker",
+      title: pluginWorker ? "Default Worker Lane" : "Default Worker",
+      cwd,
+      role,
+      purpose: pluginWorker ? "worker_lane" : "workspace_implementation",
+      status: "idle",
+      deliverable: true,
+      deliverabilityReason: "eligible",
+      pluginId: pluginWorker ? cleanPluginIdFromCwd(cwd) : "",
+    },
+  };
+}
+
 function createServices(options = {}) {
   const store = tempStore();
   const sent = [];
@@ -42,6 +100,7 @@ function createServices(options = {}) {
     nowIso,
     store: options.storeFactory ? () => store : store,
     taskCardService: options.taskCardService || {
+      threadLifecycle: defaultCoordinatorThreadLifecycle,
       async sendTaskCard(input) {
         sent.push(input);
         return { ok: true, cardIds: [`ttc_${sent.length}`], targetThreadId: "thread-target" };
@@ -73,6 +132,16 @@ function noteImplementationSlice(id = "note_implementation") {
     workspaceId: "note",
     workspacePath: "/Users/example/path",
     description: `Implement ${id} in Note.`,
+  };
+}
+
+function musicImplementationSlice(id = "music_implementation") {
+  return {
+    id,
+    ownerLayer: "plugin_workspace",
+    workspaceId: "music",
+    workspacePath: "/Users/example/path",
+    description: `Implement ${id} in Music.`,
   };
 }
 
@@ -124,6 +193,31 @@ async function testCreateCasePersistsLedgerAndOwnerDecisionItem() {
   assert.equal(inbox.items.length, 1);
 }
 
+async function testCreateCaseDuplicateSuppressesSecondOwnerPrompt() {
+  const { actionInboxService, coordinator, store } = createServices();
+  const first = await coordinator.createCase({
+    text: "修复 Home AI 重复发卡",
+    workspaceId: "owner",
+    sourceRef: { requestId: "pcr_home_ai_duplicate_dispatch" },
+  });
+  const duplicate = await coordinator.createCase({
+    text: "同一个请求再次进入",
+    workspaceId: "owner",
+    sourceRef: { requestId: "pcr_home_ai_duplicate_dispatch" },
+  });
+  assert.equal(duplicate.ok, true);
+  assert.equal(duplicate.duplicate, true);
+  assert.equal(duplicate.duplicateSuppressed, true);
+  assert.equal(duplicate.case.caseId, first.case.caseId);
+  assert.equal(duplicate.inboxItem, null);
+  assert.equal(store.listAutonomousDeliverySlices({ caseId: first.case.caseId }).length, first.slices.length);
+  const inbox = actionInboxService.listItems({ workspaceId: "owner", sourceType: "autonomous_delivery" });
+  assert.equal(inbox.items.length, 1);
+  const summary = coordinator.deliveryLoopStatusSummary({ workspaceId: "owner" });
+  assert.equal(summary.counts.duplicateSuppressed, 1);
+  assert.equal(summary.items[0].caseId, first.case.caseId);
+}
+
 async function testManualStartDispatchesNonHighRiskSliceAndCompletesInboxItem() {
   const { actionInboxService, coordinator, sent } = createServices();
   const created = await coordinator.createCase({
@@ -142,7 +236,8 @@ async function testManualStartDispatchesNonHighRiskSliceAndCompletesInboxItem() 
   assert.equal(started.dispatched[0].slice.status, "dispatched");
   assert.deepEqual(started.dispatched[0].taskCardIds, ["ttc_1"]);
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].targetThreadTitle, "Note");
+  assert.equal(sent[0].cardKind, "plugin_worker");
+  assert.equal(sent[0].targetThreadTitle, "Default Worker Lane");
   assert.match(sent[0].body, /Owner Additional Prompt/);
   assert.match(sent[0].body, /AI Ops Required Checks/);
   assert.match(sent[0].body, /node tests\/autonomous-delivery-coordinator-service\.test\.js/);
@@ -151,7 +246,7 @@ async function testManualStartDispatchesNonHighRiskSliceAndCompletesInboxItem() 
 }
 
 async function testHomeAiImplementationSliceDispatchesToWorkerKind() {
-  const { coordinator, sent } = createServices({
+  const { coordinator, sent, store } = createServices({
     createIntent: () => deliveryIntentWithSlices([homeAiImplementationSlice("home_ai_worker_dispatch")], {
       id: "delivery_home_ai_worker",
     }),
@@ -164,10 +259,213 @@ async function testHomeAiImplementationSliceDispatchesToWorkerKind() {
   assert.equal(started.dispatched.length, 1);
   assert.equal(sent.length, 1);
   assert.equal(sent[0].cardKind, "home_ai_worker");
+  assert.equal(sent[0].targetThreadId, "thread-home-ai-worker");
   assert.equal(sent[0].targetWorkspace, "/Users/example/path");
   assert.equal(sent[0].targetThreadTitle, "");
   assert.equal(sent[0].targetThreadTitlePrefix, "");
-  assert.equal(sent[0].reasoningEffort, "high");
+  assert.equal(sent[0].reasoningEffort, "xhigh");
+  assert.match(sent[0].body, /## Routing Decision/);
+  assert.match(sent[0].body, /Action: `delegate_worker`/);
+  assert.match(sent[0].body, /Card kind: `home_ai_worker`/);
+  assert.match(sent[0].body, /Codex Mobile thread lifecycle: `resolve_or_ensure_worker_lane`/);
+  const storedSlice = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })[0];
+  assert.equal(storedSlice.routingDecision.action, "delegate_worker");
+  assert.equal(storedSlice.routingDecision.code, "home_ai_worker_required");
+  assert.equal(storedSlice.routingDecision.codexMobileThreadLifecycle.required, true);
+  assert.equal(storedSlice.routingDecision.codexMobileThreadLifecycle.resolved.ok, true);
+  assert.equal(storedSlice.routingDecision.codexMobileThreadLifecycle.resolved.thread.id, "thread-home-ai-worker");
+}
+
+async function testWorkerLoopSliceCarriesNestedLoopRoutingDecision() {
+  const { coordinator, sent, store } = createServices({
+    createIntent: () => deliveryIntentWithSlices([
+      Object.assign(homeAiImplementationSlice("home_ai_worker_loop"), {
+        workerLoop: true,
+        description: "Run this disjoint Home AI module as a nested worker_loop.",
+      }),
+    ], {
+      id: "delivery_home_ai_worker_loop",
+    }),
+  });
+
+  const created = await coordinator.createCase({ text: "home ai worker loop dispatch", workspaceId: "owner" });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+
+  assert.equal(started.ok, true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].cardKind, "home_ai_worker");
+  assert.match(sent[0].body, /Action: `delegate_worker_loop`/);
+  assert.match(sent[0].body, /Codex Mobile thread lifecycle: `ensure_or_create_role_lanes`/);
+  const storedSlice = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })[0];
+  assert.equal(storedSlice.routingDecision.action, "delegate_worker_loop");
+  assert.equal(storedSlice.routingDecision.codexMobileThreadLifecycle.role, "home_ai_worker_loop");
+}
+
+async function testNaturalLanguagePluginRequirementsDispatchesRequirementsCard() {
+  const { coordinator, sent, store } = createServices({
+    createIntent: () => deliveryIntentWithSlices([
+      Object.assign(noteImplementationSlice("note_plugin_requirements"), {
+        description: "请把这个 Note 插件需求发卡给插件主线程做需求分析，普通卡，不要 Loop。",
+      }),
+    ], {
+      id: "delivery_note_plugin_requirements",
+      objective: "Note 插件主线程作为需求分析方。",
+    }),
+  });
+
+  const created = await coordinator.createCase({ text: "note plugin requirements", workspaceId: "owner" });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+
+  assert.equal(started.ok, true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].targetThreadTitle, "Note");
+  assert.equal(sent[0].targetThreadId, "thread-note-main");
+  assert.equal(sent[0].cardKind, "plugin_requirements");
+  assert.match(sent[0].body, /Action: `delegate_plugin_requirements`/);
+  assert.match(sent[0].body, /Role: `requirements`/);
+  assert.match(sent[0].body, /Codex Mobile thread lifecycle: `resolve_or_ensure_plugin_main_thread`/);
+  const storedSlice = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })[0];
+  assert.equal(storedSlice.routingDecision.action, "delegate_plugin_requirements");
+  assert.equal(storedSlice.routingDecision.cardKind, "plugin_requirements");
+  assert.equal(storedSlice.routingDecision.codexMobileThreadLifecycle.resolved.thread.id, "thread-note-main");
+}
+
+async function testNaturalLanguagePluginLoopDispatchesLoopCard() {
+  const { coordinator, sent, store } = createServices({
+    createIntent: () => deliveryIntentWithSlices([
+      Object.assign(noteImplementationSlice("note_plugin_loop"), {
+        description: "请给 Note 插件主线程发 Loop 卡，插件主线程作为需求分析方，再由实现和审计线程闭环。",
+      }),
+    ], {
+      id: "delivery_note_plugin_loop",
+      objective: "Note 插件 Loop，三线程闭环。",
+    }),
+  });
+
+  const created = await coordinator.createCase({ text: "note plugin loop", workspaceId: "owner" });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+
+  assert.equal(started.ok, true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].targetThreadTitle, "Note");
+  assert.equal(sent[0].targetThreadId, "thread-note-main");
+  assert.equal(sent[0].cardKind, "plugin_loop");
+  assert.match(sent[0].body, /Action: `delegate_plugin_loop`/);
+  assert.match(sent[0].body, /Codex Mobile thread lifecycle: `start_or_ensure_plugin_loop`/);
+  const storedSlice = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })[0];
+  assert.equal(storedSlice.routingDecision.action, "delegate_plugin_loop");
+  assert.equal(storedSlice.routingDecision.codexMobileThreadLifecycle.role, "plugin_requirements");
+  assert.equal(storedSlice.routingDecision.codexMobileThreadLifecycle.resolved.thread.id, "thread-note-main");
+}
+
+async function testPluginImplementationLifecycleSelectsUniqueWorkerFromMultipleCandidates() {
+  const sent = [];
+  const lifecycleRequests = [];
+  const { coordinator, store } = createServices({
+    createIntent: () => deliveryIntentWithSlices([musicImplementationSlice("music_cache_repair")], {
+      id: "delivery_music_worker",
+      objective: "Music plugin implementation should use plugin_worker lifecycle.",
+    }),
+    taskCardService: {
+      async threadLifecycle(input) {
+        lifecycleRequests.push(input);
+        assert.equal(input.action, "ensure");
+        assert.equal(input.requestedAction, "resolve_or_ensure_plugin_worker_lane");
+        assert.equal(input.role, "plugin_worker");
+        assert.equal(input.pluginId, "music");
+        assert.equal(input.workspaceCwd, "/Users/example/path");
+        return {
+          ok: true,
+          action: "ensure",
+          count: 3,
+          threads: [
+            {
+              id: "thread-music-loop",
+              title: "Music Loop Implement",
+              cwd: "/Users/example/path",
+              role: "plugin_loop",
+              purpose: "loop_role",
+              status: "idle",
+              deliverable: true,
+            },
+            {
+              id: "thread-music-worker-a",
+              title: "Music Worker Lane A",
+              cwd: "/Users/example/path",
+              role: "plugin_worker",
+              purpose: "worker_lane",
+              status: "idle",
+              deliverable: true,
+              pluginId: "music",
+            },
+            {
+              id: "thread-music-worker-b",
+              title: "Music Worker Lane B",
+              cwd: "/Users/example/path",
+              role: "plugin_worker",
+              purpose: "worker_lane",
+              status: "idle",
+              deliverable: true,
+              pluginId: "music",
+            },
+          ],
+        };
+      },
+      async sendTaskCard(input) {
+        sent.push(input);
+        return { ok: true, cardIds: ["ttc_music_worker_1"], targetThreadId: input.targetThreadId };
+      },
+    },
+  });
+
+  const created = await coordinator.createCase({ text: "music worker dispatch", workspaceId: "owner" });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+
+  assert.equal(started.ok, true);
+  assert.equal(lifecycleRequests.length, 1);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].cardKind, "plugin_worker");
+  assert.match(sent[0].targetThreadId, /^thread-music-worker-[ab]$/);
+  assert.equal(sent[0].targetThreadTitlePrefix, "");
+  assert.match(sent[0].body, /Card kind: `plugin_worker`/);
+  assert.match(sent[0].body, /Codex Mobile thread lifecycle: `resolve_or_ensure_plugin_worker_lane`/);
+  const storedSlice = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })[0];
+  assert.equal(storedSlice.routingDecision.codexMobileThreadLifecycle.resolved.ok, true);
+  assert.equal(storedSlice.routingDecision.codexMobileThreadLifecycle.resolved.selectedFromCandidates, true);
+  assert.equal(storedSlice.routingDecision.codexMobileThreadLifecycle.resolved.thread.role, "plugin_worker");
+}
+
+async function testLifecycleFailureStopsBeforeTaskCardDispatch() {
+  const sent = [];
+  const { coordinator, store } = createServices({
+    createIntent: () => deliveryIntentWithSlices([homeAiImplementationSlice("home_ai_lifecycle_failure")], {
+      id: "delivery_home_ai_lifecycle_failure",
+    }),
+    taskCardService: {
+      async threadLifecycle() {
+        return { ok: false, action: "resolve", error: "thread_lifecycle_target_not_found" };
+      },
+      async sendTaskCard(input) {
+        sent.push(input);
+        return { ok: true, cardIds: ["ttc_should_not_send"] };
+      },
+    },
+  });
+
+  const created = await coordinator.createCase({ text: "home ai lifecycle failure", workspaceId: "owner" });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+
+  assert.equal(started.ok, false);
+  assert.equal(started.status, 502);
+  assert.equal(started.error, "autonomous_delivery_task_card_dispatch_failed");
+  assert.equal(sent.length, 0);
+  assert.equal(started.failed.length, 1);
+  assert.equal(started.failed[0].failure.code, "thread_lifecycle_target_not_found");
+  const failed = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })[0];
+  assert.equal(failed.status, "blocked");
+  assert.equal(failed.dispatchStatus, "failed");
+  assert.equal(failed.dispatchFailure.code, "thread_lifecycle_target_not_found");
+  assert.equal(failed.routingDecision.codexMobileThreadLifecycle.resolved.ok, false);
 }
 
 async function testStartCaseDefersWorkspaceConflictAcrossActiveCases() {
@@ -225,6 +523,7 @@ async function testTaskCardDispatchFailureDoesNotMarkSliceDispatched() {
   const { coordinator, sent, store } = createServices({
     createIntent: () => deliveryIntentWithSlices([noteImplementationSlice("note_dispatch_failure")], { id: "delivery_dispatch_failure" }),
     taskCardService: {
+      threadLifecycle: defaultCoordinatorThreadLifecycle,
       async sendTaskCard(input) {
         sent.push(input);
         return { ok: false, status: 404, error: "target_thread_not_visible" };
@@ -293,6 +592,7 @@ async function testVerificationDispatchFailureKeepsReviewOpen() {
   const sent = [];
   const { actionInboxService, coordinator, store } = createServices({
     taskCardService: {
+      threadLifecycle: defaultCoordinatorThreadLifecycle,
       async sendTaskCard(input) {
         sent.push(input);
         if (sent.length === 1) return { ok: true, cardIds: ["ttc_1"], targetThreadId: "thread-target" };
@@ -502,10 +802,14 @@ async function testDeploymentReadbackReturnLanePrecedesVerification() {
   assert.equal(sent[1].auditKind, "deployment");
   assert.equal(sent[1].cardKind, "plugin_deployment");
   assert.equal(sent[1].pluginId, "music");
+  assert.equal(sent[1].sourceRole, "central_deploy_coordinator");
+  assert.equal(sent[1].centralCoordinatorRef, created.case.caseId);
+  assert.equal(sent[1].dirtyState.dirty, false);
   assert.match(sent[1].body, /Deployment \/ Readback Task/);
+  assert.match(sent[1].body, /Source role: `central_deploy_coordinator`/);
   assert.match(sent[1].body, /Owner Additional Prompt/);
   assert.match(sent[1].body, /Deployment planning\/readback is required before closure/);
-  assert.match(sent[1].body, /Implementation thread: `Music 06-23`/);
+  assert.match(sent[1].body, /Implementation thread: `Music`/);
   assert.match(sent[1].body, /Do not require plugin workspaces to read or pass sudo password files/);
   assert.equal(actionInboxService.getItem({ itemId: deploymentItem.id }).item.status, "done");
   const deploymentSlice = store.getAutonomousDeliverySliceByTaskCardId("ttc_2");
@@ -558,10 +862,100 @@ async function testDeploymentReadbackReturnLanePrecedesVerification() {
   assert.match(sent[2].body, /Deployment completed with production readback/);
 }
 
+async function testWorkerReturnDeployRequestMetadataIsNotDeployAuthorization() {
+  const { actionInboxService, coordinator, sent } = createServices();
+  const created = await coordinator.createCase({
+    text: "增加 Music 收藏页测试覆盖",
+    workspaceId: "owner",
+  });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+  const parentSliceId = started.dispatched[0].slice.sliceId;
+  const returned = coordinator.recordReturn({
+    caseId: created.case.caseId,
+    sliceId: parentSliceId,
+    status: "completed",
+    taskCardId: "ttc_1",
+    returnCardId: "ttc_return_1",
+    summary: "Source change is ready; deploy metadata attached.",
+    metadata: {
+      deployRequest: {
+        needed: true,
+        requestedByRole: "home_ai_worker",
+        sourceWorkspace: "/Users/example/path",
+        target: "home-ai",
+        sourceRef: "abc1234",
+        changedFiles: ["adapters/music-test.js"],
+        validationSummary: ["node tests/music-test.js"],
+        requiredReadback: ["production status smoke"],
+        dirtyState: { dirty: false },
+      },
+    },
+  });
+  assert.equal(returned.ok, true);
+  assert.equal(returned.case.status, "deployment_waiting");
+  assert.equal(returned.slice.deploymentRequired, true);
+  assert.equal(returned.slice.aiOps.evidence.lastReturn.deployRequest.needed, true);
+  assert.equal(returned.slice.aiOps.evidence.lastReturn.deployRequest.authorization, "metadata_only");
+  assert.equal(returned.slice.aiOps.evidence.lastReturn.deployRequest.deployAuthorized, false);
+  assert.ok(returned.slice.aiOps.evidence.lastReturn.deployRequest.issueCodes.includes("deploy_request_metadata_only"));
+  assert.equal(returned.slice.sourceReturnIntegration.pendingSourceAction.status, "pending");
+  assert.equal(returned.slice.sourceReturnIntegration.pendingSourceAction.actionType, "deploy");
+  assert.equal(returned.slice.sourceReturnIntegration.pendingSourceAction.target, "home-ai");
+  assert.equal(returned.slice.sourceReturnIntegration.pendingSourceAction.sourceRef, "abc1234");
+  assert.equal(returned.slice.sourceReturnIntegration.pendingSourceAction.terminalReceipt.activeTurn, false);
+  assert.equal(returned.slice.aiOps.evidence.lastReturn.pendingSourceAction.status, "pending");
+  const deploymentItem = actionInboxService.listItems({ workspaceId: "owner", sourceType: "autonomous_delivery" })
+    .items.find((item) => item.sourceRef?.notificationType === DEPLOYMENT_NOTIFICATION_TYPE);
+  assert.ok(deploymentItem);
+
+  const deployment = await coordinator.startDeployment({
+    caseId: created.case.caseId,
+    sliceId: parentSliceId,
+    inboxItemId: deploymentItem.id,
+    confirmDeployment: true,
+  });
+  assert.equal(deployment.ok, true);
+  assert.equal(deployment.parentSlice.sourceReturnIntegration.pendingSourceAction.status, "resolved");
+  assert.equal(deployment.parentSlice.sourceReturnIntegration.pendingSourceAction.resolution.centralDeployCardId, "ttc_2");
+  assert.equal(deployment.parentSlice.aiOps.evidence.lastReturn.pendingSourceAction.status, "resolved");
+  assert.equal(sent[1].sourceRole, "central_deploy_coordinator");
+}
+
+async function testDeployNeededTextMarkerCreatesPendingSourceAction() {
+  const { actionInboxService, coordinator } = createServices();
+  const created = await coordinator.createCase({
+    text: "修复 Home AI source issue",
+    workspaceId: "owner",
+  });
+  const started = await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+  const parentSliceId = started.dispatched[0].slice.sliceId;
+  const returned = coordinator.recordReturn({
+    caseId: created.case.caseId,
+    sliceId: parentSliceId,
+    status: "completed",
+    taskCardId: "ttc_1",
+    returnCardId: "ttc_return_1",
+    summary: "completed; deploy_needed=true; suggested deployment ref: ee22fd5b0835b14545bbfadd4264d61e79229ba3",
+    requiredReadback: ["production readback smoke"],
+  });
+  assert.equal(returned.ok, true);
+  assert.equal(returned.case.status, "deployment_waiting");
+  assert.equal(returned.slice.deploymentRequired, true);
+  assert.equal(returned.slice.sourceReturnIntegration.pendingSourceAction.status, "pending");
+  assert.equal(returned.slice.sourceReturnIntegration.pendingSourceAction.actionType, "deploy");
+  assert.equal(returned.slice.sourceReturnIntegration.pendingSourceAction.sourceRef, "ee22fd5b0835b14545bbfadd4264d61e79229ba3");
+  assert.equal(returned.slice.sourceReturnIntegration.pendingSourceAction.detection.source, "bounded_text_marker");
+  assert.equal(returned.slice.aiOps.evidence.lastReturn.pendingSourceAction.terminalReceiptStatus, "terminal_non_active");
+  const deploymentItem = actionInboxService.listItems({ workspaceId: "owner", sourceType: "autonomous_delivery" })
+    .items.find((item) => item.sourceRef?.notificationType === DEPLOYMENT_NOTIFICATION_TYPE);
+  assert.ok(deploymentItem);
+}
+
 async function testDeploymentDispatchFailureKeepsDeploymentReviewOpen() {
   const sent = [];
   const { actionInboxService, coordinator, store } = createServices({
     taskCardService: {
+      threadLifecycle: defaultCoordinatorThreadLifecycle,
       async sendTaskCard(input) {
         sent.push(input);
         if (sent.length === 1) return { ok: true, cardIds: ["ttc_1"], targetThreadId: "thread-target" };
@@ -772,6 +1166,7 @@ async function testRepairDispatchFailureKeepsRepairReviewOpen() {
   const sent = [];
   const { actionInboxService, coordinator, store } = createServices({
     taskCardService: {
+      threadLifecycle: defaultCoordinatorThreadLifecycle,
       async sendTaskCard(input) {
         sent.push(input);
         if (sent.length < 3) return { ok: true, cardIds: [`ttc_${sent.length}`], targetThreadId: "thread-target" };
@@ -951,6 +1346,7 @@ async function testRecordReturnCardEventStoresOnlyBoundedReturnMetadata() {
     token: "raw token must not be stored",
     metadata: {
       sourceThreadId: "thread-source",
+      sourceThreadStatus: "completed",
       targetThreadId: "thread-target",
       workflowId: "workflow-1",
       terminal: true,
@@ -960,10 +1356,125 @@ async function testRecordReturnCardEventStoresOnlyBoundedReturnMetadata() {
   assert.equal(returned.ok, true);
   assert.equal(returned.slice.returnCardId, "ttc_return_1");
   assert.equal(returned.slice.returnCardEvent.sourceThreadId, "thread-source");
+  assert.equal(returned.slice.sourceReturnIntegration.status, "pending");
+  assert.equal(returned.slice.sourceReturnIntegration.code, "source_return_integration_pending");
+  assert.equal(returned.slice.sourceReturnIntegration.returnCardId, "ttc_return_1");
+  assert.equal(returned.slice.sourceReturnIntegration.sourceActivation.status, "pending");
+  assert.equal(returned.slice.sourceReturnIntegration.sourceActivation.code, "source_thread_activation_required_for_return");
+  assert.equal(returned.slice.sourceReturnIntegration.sourceActivation.activationKind, "terminal_return_receipt");
+  assert.equal(returned.slice.sourceReturnIntegration.sourceActivation.sourceThreadId, "thread-source");
+  assert.equal(returned.slice.sourceReturnIntegration.sourceActivation.sourceThreadStatus, "completed");
+  assert.equal(returned.slice.sourceReturnIntegration.sourceActivation.sourceThreadWasInactive, true);
+  assert.equal(returned.slice.sourceReturnIntegration.sourceActivationProjection.code, "source_thread_activation_required_for_return");
   const serialized = JSON.stringify(returned.slice);
   assert.doesNotMatch(serialized, /raw task-card body/);
   assert.doesNotMatch(serialized, /raw prompt/);
   assert.doesNotMatch(serialized, /raw token/);
+}
+
+async function testFollowUpReturnCreatesSourceActivationAndDedupesPendingAction() {
+  const { actionInboxService, coordinator } = createServices();
+  const created = await coordinator.createCase({
+    text: "修复 Home AI source issue",
+    workspaceId: "owner",
+  });
+  await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+  const first = coordinator.recordReturnCardEvent({
+    taskCardId: "ttc_1",
+    returnCardId: "ttc_return_1",
+    status: "completed",
+    summary: "completed; deploy_needed=true; suggested deployment ref: ee22fd5b0835b14545bbfadd4264d61e79229ba3",
+    requiredReadback: ["production readback smoke"],
+    metadata: {
+      sourceThreadId: "thread-source",
+      sourceThreadStatus: "completed",
+      workflowId: "workflow-1",
+      terminal: true,
+    },
+  });
+  assert.equal(first.ok, true);
+  assert.equal(first.slice.sourceReturnIntegration.pendingSourceAction.status, "pending");
+  assert.equal(first.slice.sourceReturnIntegration.pendingSourceAction.actionType, "deploy");
+  assert.equal(first.slice.sourceReturnIntegration.sourceActivation.status, "pending_source_action");
+  assert.equal(first.slice.sourceReturnIntegration.sourceActivation.code, "pending_source_action_required");
+  assert.equal(first.slice.sourceReturnIntegration.sourceActivation.activationKind, "pending_source_action");
+  assert.equal(first.slice.sourceReturnIntegration.sourceActivation.sourceThreadWasInactive, true);
+  assert.ok(first.slice.sourceReturnIntegration.sourceActivation.issueCodes.includes("source_thread_activation_required_for_return"));
+  assert.ok(first.slice.sourceReturnIntegration.sourceActivation.issueCodes.includes("pending_source_action_required"));
+  const deploymentItems = actionInboxService.listItems({ workspaceId: "owner", sourceType: "autonomous_delivery" })
+    .items.filter((item) => item.sourceRef?.notificationType === DEPLOYMENT_NOTIFICATION_TYPE);
+  assert.equal(deploymentItems.length, 1);
+
+  const second = coordinator.recordReturnCardEvent({
+    taskCardId: "ttc_1",
+    returnCardId: "ttc_return_1",
+    status: "completed",
+    summary: "duplicate; deploy_needed=true",
+    metadata: {
+      sourceThreadId: "thread-source",
+      sourceThreadStatus: "completed",
+      workflowId: "workflow-1",
+      terminal: true,
+    },
+  });
+  assert.equal(second.ok, true);
+  assert.equal(second.alreadyRecorded, true);
+  assert.equal(second.slice.sourceReturnIntegration.pendingSourceAction.id, first.slice.sourceReturnIntegration.pendingSourceAction.id);
+  const afterDuplicateItems = actionInboxService.listItems({ workspaceId: "owner", sourceType: "autonomous_delivery" })
+    .items.filter((item) => item.sourceRef?.notificationType === DEPLOYMENT_NOTIFICATION_TYPE);
+  assert.equal(afterDuplicateItems.length, 1);
+}
+
+async function testSourceReturnIntegrationWatchdogMarksStaleWithoutRedispatchOrClosure() {
+  let currentNow = "2026-06-26T00:00:00.000Z";
+  const { coordinator, store, sent } = createServices({
+    nowIso: () => currentNow,
+  });
+  const created = await coordinator.createCase({
+    text: "增加 Note 附件导入测试覆盖",
+    workspaceId: "owner",
+  });
+  await coordinator.startCase({ caseId: created.case.caseId, confirmDecisions: true });
+  const returned = coordinator.recordReturnCardEvent({
+    taskCardId: "ttc_1",
+    returnCardId: "ttc_return_1",
+    status: "completed",
+    summary: "Implementation returned.",
+  });
+  assert.equal(returned.ok, true);
+  assert.equal(returned.case.status, "verification_waiting");
+  assert.equal(returned.slice.sourceReturnIntegration.status, "pending");
+
+  currentNow = "2026-06-26T01:00:00.000Z";
+  const summary = coordinator.sourceReturnIntegrationSummary({
+    workspaceId: "owner",
+    staleAfterMs: 30 * 60 * 1000,
+  });
+  assert.equal(summary.ok, true);
+  assert.equal(summary.status, "degraded");
+  assert.equal(summary.counts.stale, 1);
+  assert.equal(summary.items[0].returnCardId, "ttc_return_1");
+  assert.equal(summary.items[0].recommendedAction, "review_source_scheduler_integration_then_mark_disposition_without_redispatch");
+  assert.equal(summary.items[0].sourceActivationStatus, "pending");
+  assert.equal(summary.items[0].sourceActivationCode, "source_thread_activation_required_for_return");
+
+  const watched = coordinator.runSourceReturnIntegrationWatchdog({
+    workspaceId: "owner",
+    staleAfterMs: 30 * 60 * 1000,
+  });
+  assert.equal(watched.markedCount, 1);
+  assert.equal(watched.counts.alreadyMarked, 1);
+  assert.equal(sent.length, 1);
+  const stored = store.listAutonomousDeliverySlices({ caseId: created.case.caseId })
+    .find((slice) => slice.taskCardId === "ttc_1");
+  assert.equal(stored.status, "completed");
+  assert.equal(stored.dispatchStatus, "returned_completed");
+  assert.equal(stored.sourceReturnIntegration.status, "stale");
+  assert.equal(stored.sourceReturnIntegration.policy, "no_auto_retry_no_closure_fabrication");
+  assert.equal(stored.sourceReturnIntegration.sourceActivation.status, "projection_missing");
+  assert.equal(stored.sourceReturnIntegration.sourceActivation.code, "return_projection_missing_after_terminal_return");
+  const loaded = coordinator.getCase({ caseId: created.case.caseId });
+  assert.equal(loaded.case.status, "verification_waiting");
 }
 
 async function testDuplicateReturnCardEventIsIdempotent() {
@@ -1004,9 +1515,15 @@ async function testUnknownTaskCardReturnDoesNotMutateCase() {
 
 async function run() {
   await testCreateCasePersistsLedgerAndOwnerDecisionItem();
+  await testCreateCaseDuplicateSuppressesSecondOwnerPrompt();
   await testCoordinatorAcceptsRuntimeStoreFactory();
   await testManualStartDispatchesNonHighRiskSliceAndCompletesInboxItem();
   await testHomeAiImplementationSliceDispatchesToWorkerKind();
+  await testWorkerLoopSliceCarriesNestedLoopRoutingDecision();
+  await testNaturalLanguagePluginRequirementsDispatchesRequirementsCard();
+  await testNaturalLanguagePluginLoopDispatchesLoopCard();
+  await testPluginImplementationLifecycleSelectsUniqueWorkerFromMultipleCandidates();
+  await testLifecycleFailureStopsBeforeTaskCardDispatch();
   await testStartCaseDefersWorkspaceConflictAcrossActiveCases();
   await testStartCaseDefersSameBatchWorkspaceConflict();
   await testTaskCardDispatchFailureDoesNotMarkSliceDispatched();
@@ -1016,6 +1533,8 @@ async function run() {
   await testRecordReturnMovesCaseToVerificationWaiting();
   await testOwnerStartVerificationDispatchesAuditSliceAndCompletesReviewItem();
   await testDeploymentReadbackReturnLanePrecedesVerification();
+  await testWorkerReturnDeployRequestMetadataIsNotDeployAuthorization();
+  await testDeployNeededTextMarkerCreatesPendingSourceAction();
   await testDeploymentDispatchFailureKeepsDeploymentReviewOpen();
   await testVerificationReturnCreatesOwnerClosureDecisionWithoutRecursiveVerification();
   await testFailedVerificationReturnCreatesOwnerGatedRepairDispatch();
@@ -1024,6 +1543,8 @@ async function run() {
   await testRecordReturnByTaskCardIdFindsDispatchedSlice();
   await testReturnWatchdogMarksStaleDispatchedSliceAndAllowsLateReturn();
   await testRecordReturnCardEventStoresOnlyBoundedReturnMetadata();
+  await testFollowUpReturnCreatesSourceActivationAndDedupesPendingAction();
+  await testSourceReturnIntegrationWatchdogMarksStaleWithoutRedispatchOrClosure();
   await testDuplicateReturnCardEventIsIdempotent();
   await testUnknownTaskCardReturnDoesNotMutateCase();
   console.log("autonomous delivery coordinator service tests passed");

@@ -34,6 +34,7 @@ function testReportIsComplete() {
   assert.ok(report.diagnostics.some((entry) => entry.id === "production-drift-watchdog"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "web-push-production-audit"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "gateway-document-file-tools-schema"));
+  assert.ok(report.diagnostics.some((entry) => entry.id === "workspace-target-acl"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "automation-cron-launchd"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "plugin-workspace-audit"));
   assert.ok(report.diagnostics.some((entry) => entry.id === "plugin-provisioning-coverage"));
@@ -74,6 +75,8 @@ function testCliJsonAndMarkdown() {
   assert.match(markdown, /macos-production-drift-reconcile\.js/);
   assert.match(markdown, /homeai-production-drift-audit-watchdog\.sh/);
   assert.match(markdown, /macos-web-push-production-audit\.js/);
+  assert.match(markdown, /workspace-target-acl/);
+  assert.match(markdown, /--workspace-catalog-targets/);
   assert.match(markdown, /gateway-tool-schema-smoke\.js/);
   assert.match(markdown, /docx_create/);
   assert.match(markdown, /office_extract_text/);

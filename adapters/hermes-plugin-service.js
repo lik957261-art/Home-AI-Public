@@ -43,6 +43,10 @@ const {
 const {
   createPluginLaunchRecoveryService,
 } = require("./plugin-launch-recovery-service");
+const {
+  canAccessOwnerSpecialMediaPlugin,
+  onlyAllowsOwnerSpecialMediaPlugins,
+} = require("./restricted-media-account-service");
 
 const DEFAULT_WARDROBE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8765/api/v1/hermes/plugin/manifest";
 const DEFAULT_CODEX_MOBILE_PLUGIN_MANIFEST_URL = "http://127.0.0.1:8787/api/v1/hermes/plugin/manifest";
@@ -280,7 +284,7 @@ const DEFAULT_PLUGIN_SECURITY = Object.freeze({
     defaultVisibility: "owner-only",
     allowWorkspaceGrant: false,
     provisioning: { supported: false, mode: "owner_only" },
-    notifications: { supported: false, routeOwner: "hermes" },
+    notifications: { supported: true, routeOwner: "hermes" },
   },
 });
 
@@ -1100,6 +1104,8 @@ function pluginWorkspaceAuthorized(plugin, input = {}, options = {}) {
   const workspaceId = stringValue(input.workspaceId || "owner");
   if (!workspaceId) return false;
   const pluginId = stringValue(plugin?.id || input.id);
+  if (canAccessOwnerSpecialMediaPlugin(input.auth || input, pluginId)) return true;
+  if (onlyAllowsOwnerSpecialMediaPlugins(input.auth || input)) return false;
   if (pluginId === "health") {
     return healthWorkspaceLocalConfigReady({ workspaceId }, options);
   }
@@ -1130,6 +1136,11 @@ function pluginLaunchWorkspaceId(pluginId, workspaceId, options = {}) {
 
 function pluginUsesOwnerOnlyDirectEntry(pluginId, workspaceId) {
   return ["music", "movie"].includes(stringValue(pluginId)) && stringValue(workspaceId) === "owner";
+}
+
+function pluginUsesOwnerSpecialDirectEntry(pluginId, workspaceId, input = {}) {
+  if (pluginUsesOwnerOnlyDirectEntry(pluginId, workspaceId)) return true;
+  return canAccessOwnerSpecialMediaPlugin(input.auth || input, pluginId);
 }
 
 function pluginWorkspaceProvisioningBlock(plugin, input = {}, options = {}) {
@@ -1386,7 +1397,7 @@ async function withPluginLaunchEntry(manifest, input = {}, fetchImpl, options = 
   const workspaceId = stringValue(input.workspaceId || "owner");
   const pluginId = stringValue(manifest.id || input.id || "wardrobe");
   const launchWorkspaceId = pluginLaunchWorkspaceId(pluginId, workspaceId, options);
-  if (pluginUsesOwnerOnlyDirectEntry(pluginId, launchWorkspaceId)) {
+  if (pluginUsesOwnerSpecialDirectEntry(pluginId, launchWorkspaceId, input)) {
     const appearance = normalizePluginAppearance(input);
     const entryUrl = addPluginAppearanceToEntryUrl(manifest.entry?.url || "", appearance);
     return Object.assign({}, manifest, {
@@ -1907,6 +1918,7 @@ function createHermesPluginService(options = {}) {
 
   function list(input = {}) {
     return plugins
+      .filter((item) => !onlyAllowsOwnerSpecialMediaPlugins(input.auth || input) || canAccessOwnerSpecialMediaPlugin(input.auth || input, item.id))
       .filter((item) => pluginWorkspaceAuthorized(item, input, launchOptions))
       .filter((item) => !pluginWorkspaceProvisioningBlock(item, Object.assign({}, input, { id: item.id }), launchOptions))
       .map(pluginPublicMetadata);

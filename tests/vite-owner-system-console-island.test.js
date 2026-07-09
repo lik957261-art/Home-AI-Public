@@ -51,6 +51,7 @@ test("Owner console island keeps pure rendering in a model module", () => {
   const model = read("src/vite-islands/owner-system-console/model.mjs");
   assert.match(source, /from "\.\/model\.mjs"/);
   assert.match(model, /function renderOwnerConsoleHtml/);
+  assert.match(model, /function renderClassicOwnerSystemConsoleView/);
   assert.match(model, /function normalizeOwnerConsoleError/);
   assert.match(model, /需要 Owner 权限或重新登录/);
   assert.match(model, /Home AI 系统控制台/);
@@ -98,9 +99,18 @@ test("built artifact exists after npm run build:vite", () => {
     exists("public/vite-islands/owner-system-console/owner-system-console.js"),
     "run npm run build:vite before this test",
   );
+  assert.ok(
+    exists("public/vite-islands/owner-system-console-model/owner-system-console-model.js"),
+    "run npm run build:vite before this test",
+  );
   const output = read("public/vite-islands/owner-system-console/owner-system-console.js");
-  assert.match(output, /Home AI/);
-  assert.match(output, /系统控制台/);
+  assert.match(output, /owner-system-console-model/);
+  assert.match(output, /renderOwnerConsoleHtml/);
+  const modelOutput = read("public/vite-islands/owner-system-console-model/owner-system-console-model.js");
+  assert.match(modelOutput, /Home AI/);
+  assert.match(modelOutput, /系统控制台/);
+  assert.match(modelOutput, /renderClassicOwnerSystemConsoleView/);
+  assert.match(modelOutput, /交付闭环/);
 });
 
 if (process.exitCode) {
