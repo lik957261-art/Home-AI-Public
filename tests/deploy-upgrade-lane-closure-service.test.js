@@ -67,7 +67,7 @@ function testDeployLaneLockRecord() {
   const record = buildDeployLaneLockRecord({
     pluginId: "movie",
     launchdLabel: "com.hermesmobile.plugin.movie",
-    productionPath: "/Users/example/path",
+    productionPath: "/Users/example/plugins/movie",
     deployReason: "movie-v1",
     laneTitle: "Movie Deploy Lane",
     phase: "runtime-gate",

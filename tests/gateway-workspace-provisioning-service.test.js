@@ -272,8 +272,8 @@ function testExistingWorkspaceRepairsMacProfilePathsAndWorkerKeys() {
     const manifest = readManifest(manifestPath);
     const openai = manifest.workers.find((item) => item.profile === "lowgw41");
     const deepseek = manifest.workers.find((item) => item.profile === "deepseekgw41");
-    assert.equal(openai.configPath, "/Users/example/path");
-    assert.equal(deepseek.configPath, "/Users/example/path");
+    assert.equal(openai.configPath, path.join("/Users", "hm-codex-disposable-20260608a", "HermesWorkspace", ".hermes-gateway", "profiles", "lowgw41", "config.yaml"));
+    assert.equal(deepseek.configPath, path.join("/Users", "hm-codex-disposable-20260608a", "HermesWorkspace", ".hermes-gateway", "profiles", "deepseekgw41", "config.yaml"));
     assert.equal(path.basename(openai.apiKeyFile), "hm-codex-disposable-20260608a-openai-1.key");
     assert.equal(path.basename(deepseek.apiKeyFile), "hm-codex-disposable-20260608a-deepseek-1.key");
     assert.equal(fs.existsSync(openai.apiKeyFile), true);

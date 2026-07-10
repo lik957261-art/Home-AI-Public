@@ -156,9 +156,9 @@ audit after any Skill Store copy, worker-side Skill edit, plugin provisioning,
 user migration, or Gateway start-script repair:
 
 ```bash
-sudo /Users/example/path \
-  /Users/example/path \
-  --root /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/macos-production-profile-audit.js \
+  --root <root> \
   --json
 ```
 
@@ -194,9 +194,9 @@ issue. These issues mean profile-local automation tools such as
 Then run an actual DOCX extraction smoke against at least the affected profile:
 
 ```bash
-sudo /Users/example/path \
-  /Users/example/path \
-  --root /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/macos-file-plugin-docx-root-smoke.js \
+  --root <root> \
   --profiles hm-wuping-openai-1 \
   --json
 ```

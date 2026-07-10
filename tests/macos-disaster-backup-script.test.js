@@ -242,6 +242,10 @@ function makeFixture() {
   const runSource = fs.readFileSync(runScriptPath, "utf8");
   const cronSource = fs.readFileSync(cronScriptPath, "utf8");
   const mountWatchdogSource = fs.readFileSync(mountWatchdogScriptPath, "utf8");
+  for (const shellScript of [mountScriptPath, runScriptPath, cronScriptPath, mountWatchdogScriptPath]) {
+    const syntax = childProcess.spawnSync("/bin/bash", ["-n", shellScript], { encoding: "utf8" });
+    assert.equal(syntax.status, 0, syntax.stderr || syntax.stdout);
+  }
   assert.match(source, /data\/skill-profiles/);
   assert.match(source, /workspace Skill stores/);
   assert.match(source, /workspace Memory stores/);
@@ -284,6 +288,7 @@ function makeFixture() {
   assert.match(runSource, /local-staging-to-nfs/);
   assert.match(runSource, /local-staging-to-ssh/);
   assert.match(runSource, /HomeAI-Disaster-Staging\/mac-production/);
+  assert.doesNotMatch(`${mountSource}\n${runSource}\n${cronSource}\n${mountWatchdogSource}`, /\/Users\/example\/path/);
   assert.match(runSource, /sudo reads Mac production/);
   assert.match(runSource, /HOMEAI_DISASTER_BACKUP_USE_SUDO/);
   assert.match(runSource, /HOMEAI_NAS_BACKUP_OP_TIMEOUT_SECONDS/);

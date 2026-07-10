@@ -1784,6 +1784,8 @@ function testPackageRunsArchitectureContracts() {
   assert.match(runner, /security-invariants-check\.js/);
   assert.match(runner, /privacy-scan\.js/);
   assert.match(runner, /python -m py_compile/);
+  assert.match(runner, /process\.env\.PYTHON/);
+  assert.match(runner, /process\.platform === "win32" \? "python" : "python3"/);
   assert.ok(pkg.scripts.check.length < 80);
   assert.ok(pkg.scripts.test.length < 80);
 }

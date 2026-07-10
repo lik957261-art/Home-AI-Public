@@ -69,6 +69,7 @@ function runPhase(root, phase) {
   const env = {
     ...process.env,
     HOMEAI_LAUNCH_DAEMONS_DIR: path.join(root, "launchd-system"),
+    HOMEAI_LISTENER_USER: process.env.HOMEAI_LISTENER_USER || os.userInfo().username,
   };
   const stdout = execFileSync("bash", [
     INSTALLER,

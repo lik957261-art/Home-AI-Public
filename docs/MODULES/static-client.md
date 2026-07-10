@@ -610,6 +610,15 @@ static assets referenced with `?v=<client-version>`, and fingerprinted static
 files such as dated manifests/icons, should be cacheable with a long immutable
 cache lifetime because a version bump changes the URL.
 
+The Service Worker starts navigation from the network, but when a cached shell
+exists it may return that shell after a bounded 900 ms race while the network
+request continues in the background. Versioned JavaScript and CSS are
+cache-first by exact URL; they must never use an older `?v=` response through
+an ignore-search match. First-time unauthenticated root navigation uses
+`/mobile-quick-login.html`, which verifies the Access Key before loading the
+full shell. Authenticated startup loads independent status/version/push calls
+in parallel, then loads projects and push context in parallel after workspaces.
+
 Text static assets such as JavaScript, CSS, HTML, JSON, SVG, and web manifests
 should be returned compressed when the browser advertises `br` or `gzip`.
 Mobile/PWA load checks should inspect:

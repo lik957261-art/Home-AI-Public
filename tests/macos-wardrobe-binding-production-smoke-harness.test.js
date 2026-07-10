@@ -58,7 +58,7 @@ assert.equal(
 );
 
 assert.equal(
-  compactPath("/Users/example/path", parsed.root),
+  compactPath("/Users/example/path/data/drive/users/weixin_wuping/.hermes-wardrobe/config.json", parsed.root),
   "<HERMES_MOBILE_ROOT>/data/drive/users/weixin_wuping/.hermes-wardrobe/config.json",
 );
 assert.deepEqual(

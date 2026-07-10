@@ -21,7 +21,7 @@ Mobile cross-thread task-card interface.
 
 `scripts/visual-polish-audit-runner.js` is the production no-agent wrapper for
 scheduled visual audits. It reads
-`/Users/example/path`, runs the
+`$HERMES_MOBILE_ROOT/data/visual-polish-task-cards.json`, runs the
 selected `ios-pwa-visual-harness.js` scenarios, ingests only failed reports, and
 sends cross-thread task cards to the configured plugin Codex Mobile threads.
 
@@ -111,7 +111,7 @@ npm run visual:polish -- send-cards \
 ```
 
 `send-cards` is the only mode that calls Codex Mobile. It invokes
-`/Users/example/path`,
+`$HERMES_MOBILE_ROOT/plugins/codex-mobile-web/scripts/create-thread-task-card.js`,
 which uses `POST /api/threads/:sourceThreadId/task-cards`. That Codex route is
 the documented thread-callable delegation path and defaults to source-thread
 direct approval. Pass `--pending` when a normal target-side approval card is

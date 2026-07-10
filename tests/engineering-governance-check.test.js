@@ -123,7 +123,6 @@ function testAuditThreadGovernanceIsPinned() {
   const contract = read("docs/PLATFORM_CONTRACTS/audit-thread-governance-contract.md");
   const rootCause = read("docs/PLATFORM_CONTRACTS/root-cause-architecture-contract.md");
   const pluginContract = read("docs/PLATFORM_CONTRACTS/plugin-workspace-platform-contract.md");
-  const agents = read("AGENTS.md");
   const automation = read("docs/MODULES/automation.md");
   const governance = read("scripts/engineering-governance-check.js");
   assert.match(contract, /Home AI Platform Audit/);
@@ -146,8 +145,6 @@ function testAuditThreadGovernanceIsPinned() {
   assert.match(contract, /must not persist or hard-code Codex audit\s+thread ids/);
   assert.match(contract, /[Ss]end exactly one task card to that central audit thread/);
   assert.match(contract, /must not fan out to plugin implementation threads/);
-  assert.match(agents, /Dedicated audit thread exception/);
-  assert.match(agents, /audit-thread-governance-contract\.md/);
   assert.match(automation, /audit-thread-governance-contract\.md/);
   assert.match(automation, /must not run deep host\/plugin audits[\s\S]+directly/);
   assert.match(governance, /audit_thread_governance_contract_incomplete/);

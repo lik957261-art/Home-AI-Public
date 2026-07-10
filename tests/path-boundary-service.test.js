@@ -10,7 +10,7 @@ const {
 } = require("../adapters/path-boundary-service");
 
 assert.equal(comparablePath("C:\\Users\\Owner\\File.md"), "c:/users/owner/file.md");
-assert.equal(comparablePath("C:/Users/example/path"), "c:/users/shared");
+assert.equal(comparablePath("C:/Users/example/path"), "c:/users/example/path");
 assert.equal(pathInsideAnyRoot("C:/a/b/c.txt", ["C:/a/b"]), true);
 assert.equal(pathInsideAnyRoot("C:/a/bad/c.txt", ["C:/a/b"]), false);
 assert.equal(pathInsideAnyRoot("C:/allowed/../secret/file.txt", ["C:/allowed"]), false);

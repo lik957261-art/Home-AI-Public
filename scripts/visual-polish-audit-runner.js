@@ -13,11 +13,24 @@ const {
   sendCards,
 } = require("./visual-polish-controller");
 
-const DEFAULT_OUTPUT_ROOT = "/Users/example/path";
+const APP_ROOT = path.resolve(__dirname, "..");
+const DEFAULT_HOME_AI_ROOT = path.resolve(process.env.HERMES_MOBILE_ROOT || path.join(APP_ROOT, ".."));
+const DEFAULT_OUTPUT_ROOT = path.join(DEFAULT_HOME_AI_ROOT, "data", "visual-polish-audit");
 const DEFAULT_DEBUG_URL = "http://127.0.0.1:19073/";
 const DEFAULT_APP_URL = "http://127.0.0.1:8797/?source=pwa";
-const PRODUCTION_TASK_CARD_SCRIPT = "/Users/example/path";
-const DEV_TASK_CARD_SCRIPT = "/Users/example/path";
+const PRODUCTION_TASK_CARD_SCRIPT = path.join(
+  DEFAULT_HOME_AI_ROOT,
+  "plugins",
+  "codex-mobile-web",
+  "scripts",
+  "create-thread-task-card.js",
+);
+const DEV_TASK_CARD_SCRIPT = path.join(
+  path.dirname(APP_ROOT),
+  "codex-mobile-web",
+  "scripts",
+  "create-thread-task-card.js",
+);
 
 function clean(value, max = 1000) {
   return String(value ?? "").trim().slice(0, max);

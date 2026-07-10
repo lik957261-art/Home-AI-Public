@@ -73,11 +73,25 @@ async function startViteServer() {
   };
 }
 
+async function launchChromium() {
+  const executablePath = String(process.env.HOMEAI_PLAYWRIGHT_CHROMIUM_EXECUTABLE || "").trim();
+  if (executablePath) return chromium.launch({ headless: true, executablePath });
+  try {
+    return await chromium.launch({ headless: true });
+  } catch (error) {
+    if (!/Executable doesn't exist/i.test(String(error?.message || error))) throw error;
+    return chromium.launch({ headless: true, channel: "chrome" });
+  }
+}
+
 async function smokeRoute(page, baseUrl, route) {
   const consoleErrors = [];
   const pageErrors = [];
   const onConsole = (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text());
+    if (message.type() !== "error") return;
+    const location = message.location();
+    const source = location.url ? ` (${location.url}:${location.lineNumber || 0})` : "";
+    consoleErrors.push(`${message.text()}${source}`);
   };
   const onPageError = (error) => {
     pageErrors.push(error.message || String(error));
@@ -126,7 +140,7 @@ async function smokeRoute(page, baseUrl, route) {
   let browser = null;
   try {
     viteServer = await startViteServer();
-    browser = await chromium.launch({ headless: true });
+    browser = await launchChromium();
     const page = await browser.newPage({
       viewport: { width: 390, height: 844 },
       isMobile: true,

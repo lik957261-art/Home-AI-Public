@@ -1031,14 +1031,14 @@ full thread body.
 Mac production closure must use the checked aggregate harness after deployment,
 migration, Gateway/Profile repair, plugin provisioning,
 ACL repair, or before declaring production closed:
-`sudo /Users/example/path /Users/example/path --json`.
+`sudo <root>/runtime/node-current/bin/node <root>/app/scripts/macos-production-closure-validation.js --root <root> --json`.
 The aggregate harness must prove the served `clientVersion` matches the live
 app shell version by passing `--expected-version` to every checked
 `production-status-smoke.js` call; a source/app/served version mismatch is a
 production closure failure.
 After Windows/WSL-to-Mac data migration, also run the directory path migration
 repair dry-run:
-`sudo /Users/example/path /Users/example/path --root /Users/example/path --json`.
+`sudo <root>/runtime/node-current/bin/node <root>/app/scripts/macos-directory-path-migration-repair.js --root <root> --json`.
 The local checked harness is
 `node tests\macos-directory-path-migration-repair.test.js`. The dry-run must
 show `changed=false` after repair before directory-topic chip or artifact-card
@@ -1046,7 +1046,7 @@ show `changed=false` after repair before directory-topic chip or artifact-card
 If Mac metadata has rootless drive paths such as
 `<root>/data/drive/<top>/...`, run the enhanced
 `--repair-rootless-drive` mode and then run:
-`sudo /Users/example/path /Users/example/path --root /Users/example/path --all-workspaces --json`.
+`sudo <root>/runtime/node-current/bin/node <root>/app/scripts/macos-bound-directory-preview-smoke.js --root <root> --all-workspaces --json`.
 For directory chip failures or Windows-origin topic bindings, also run the same
 smoke with `--simulate-ui-route` so it validates the static client's
 `projectId/subprojectId/path` resolution through `/api/projects`, not only the

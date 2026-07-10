@@ -915,6 +915,7 @@ async function testConfiguredDeployLaneAssignmentFallsBackToDeployPoolWhenLaneTe
 
 async function testDeploymentKindInfersCodexMobileDeployLaneFromWorkspacePath() {
   const sentTargetIds = [];
+  const codexWorkspace = "/Users/example/codex-mobile-web-public";
   const fetchImpl = async (url, options = {}) => {
     if (String(url).startsWith("http://codex.local/api/threads?")) {
       return {
@@ -925,21 +926,21 @@ async function testDeploymentKindInfersCodexMobileDeployLaneFromWorkspacePath() 
             {
               id: "thread-home-current",
               title: "Home AI 06-30",
-              cwd: "/Users/example/path",
+              cwd: codexWorkspace,
               status: "active",
               updatedAt: 500,
             },
             {
               id: "thread-home-deploy",
               title: "Home AI Deploy",
-              cwd: "/Users/example/path",
+              cwd: codexWorkspace,
               status: "idle",
               updatedAt: 400,
             },
             {
               id: "thread-codex-deploy",
               title: "Codex Mobile Deploy Lane",
-              cwd: "/Users/example/path",
+              cwd: codexWorkspace,
               status: "idle",
               updatedAt: 300,
             },
@@ -968,12 +969,12 @@ async function testDeploymentKindInfersCodexMobileDeployLaneFromWorkspacePath() 
     baseUrl: "http://codex.local",
     key: "secret",
     fetch: fetchImpl,
-    sourceWorkspaceCwd: "/Users/example/path",
+    sourceWorkspaceCwd: codexWorkspace,
   });
 
   const result = await service.sendTaskCard({
     title: "Deploy prepared plugin",
-    body: "Routine production readback for /Users/example/path",
+    body: `Routine production readback for ${codexWorkspace}`,
     requestId: "deploy-codex-inferred-lane",
     cardKind: "plugin_deployment",
   });

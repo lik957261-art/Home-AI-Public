@@ -738,11 +738,11 @@ async function testWardrobeThumbnailArtifactAclUsesBoundedWorkerProbe() {
   assert.equal(result.writeProbeOk, true);
 
   const rendered = service.commandLog().map((entry) => `${entry.command} ${entry.args.join(" ")}`).join("\n");
-  assert.match(rendered, /\/bin\/mkdir -p \/Users\/hermes-host\/HermesMobile\/data\/artifacts\/wardrobe-thumbnails\/owner/);
-  assert.match(rendered, /\/usr\/sbin\/chown hermes-host:hermes-workers \/Users\/hermes-host\/HermesMobile\/data\/artifacts\/wardrobe-thumbnails\/owner/);
-  assert.doesNotMatch(rendered, /\/usr\/sbin\/chown -R .*\/Users\/hermes-host\/HermesMobile\/data\/artifacts/);
-  assert.match(rendered, /\/bin\/chmod 770 \/Users\/hermes-host\/HermesMobile\/data\/artifacts\/wardrobe-thumbnails\/owner/);
-  assert.match(rendered, /\/bin\/chmod \+a user:hm-owner allow .*add_file.*delete_child.* \/Users\/hermes-host\/HermesMobile\/data\/artifacts\/wardrobe-thumbnails\/owner/);
+  assert.match(rendered, /\/bin\/mkdir -p \/Users\/example\/path\/data\/artifacts\/wardrobe-thumbnails\/owner/);
+  assert.match(rendered, /\/usr\/sbin\/chown hermes-host:hermes-workers \/Users\/example\/path\/data\/artifacts\/wardrobe-thumbnails\/owner/);
+  assert.doesNotMatch(rendered, /\/usr\/sbin\/chown -R .*\/Users\/example\/path\/data\/artifacts/);
+  assert.match(rendered, /\/bin\/chmod 770 \/Users\/example\/path\/data\/artifacts\/wardrobe-thumbnails\/owner/);
+  assert.match(rendered, /\/bin\/chmod \+a user:hm-owner allow .*add_file.*delete_child.* \/Users\/example\/path\/data\/artifacts\/wardrobe-thumbnails\/owner/);
   assert.match(rendered, /\/usr\/bin\/sudo -n -u hm-owner \/bin\/sh -c/);
   assert.doesNotMatch(rendered, /\/Users\/hm-owner\/HermesWorkspace/);
 }

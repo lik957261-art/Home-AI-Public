@@ -79,6 +79,10 @@ assert.ok(
   read("public/service-worker.js").includes(`/app-embedded-plugin-ui.js?v=${currentVersion}`),
   "service worker shell cache must include versioned embedded plugin host script",
 );
+assert.match(read("public/service-worker.js"), /Promise\.race\(\[network, resolveAfter\(900, cached\)\]\)/);
+assert.match(read("public/service-worker.js"), /cacheFirstVersionedStatic\(request\)/);
+assert.match(read("public/service-worker.js"), /async function cacheFirstVersionedStatic\(request\) \{\s*const cached = await caches\.match\(request\);/);
+assert.match(read("public/service-worker.js"), /"\/mobile-quick-login\.html"/);
 
 if (changedCacheSensitiveFiles.length > 0 && headVersion) {
   assert.notEqual(

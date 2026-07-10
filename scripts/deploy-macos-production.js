@@ -47,15 +47,15 @@ const HOME_AI_CHATGPT_PRO_CODEX_MOBILE_URL = process.env.HERMES_MOBILE_CHATGPT_P
 const HOME_AI_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE = process.env.HERMES_MOBILE_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE
   || process.env.HERMES_WEB_CHATGPT_PRO_CODEX_MOBILE_KEY_FILE
   || process.env.CODEX_MOBILE_KEY_FILE
-  || "/Users/example/path";
+  || path.join(os.homedir(), ".codex-mobile-web", "access_key");
 const HOME_AI_CHATGPT_PRO_OUTPUT_DIR = process.env.HERMES_MOBILE_CHATGPT_PRO_OUTPUT_DIR
   || process.env.HERMES_WEB_CHATGPT_PRO_OUTPUT_DIR
-  || "/Users/example/path";
+  || path.join(os.homedir(), ".codex-mobile-web", "outputs", "chatgpt-pro");
 const HOME_AI_DISASTER_BACKUP_TRANSPORT = process.env.HOMEAI_DISASTER_BACKUP_TRANSPORT || "auto";
 const HOME_AI_DISASTER_BACKUP_SSH_TARGET = process.env.HOMEAI_DISASTER_BACKUP_SSH_TARGET || "xuxinxp@192.168.10.99";
 const HOME_AI_DISASTER_BACKUP_SSH_DESTINATION = process.env.HOMEAI_DISASTER_BACKUP_SSH_DESTINATION || "/volume1/备份/HomeAI-Production-Backups/mac-production";
 const HOME_AI_DISASTER_BACKUP_SSH_OPTIONS = process.env.HOMEAI_DISASTER_BACKUP_SSH_OPTIONS
-  || "-p 2222 -i /Users/example/path";
+  || "-p 2222 -i /Users/hermes-host/.ssh/homeai_nas_backup_ed25519";
 const HOME_AI_VOICE_INPUT_ASR_URL = "http://127.0.0.1:8002/v1/audio/transcriptions";
 const HOME_AI_VOICE_INPUT_STREAMING_URL = "http://127.0.0.1:8002/v1/audio/transcriptions/stream";
 const HOME_AI_VOICE_INPUT_ASR_BACKEND = "funasr-local";

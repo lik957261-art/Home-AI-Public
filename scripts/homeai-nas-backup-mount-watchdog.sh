@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="${HERMES_MOBILE_APP_DIR:-/Users/example/path"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="${HERMES_MOBILE_APP_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 MOUNT_SCRIPT="${HOMEAI_NAS_BACKUP_MOUNT_SCRIPT:-${APP_DIR}/scripts/mount-macos-nas-backup-destination.sh}"
-MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path"
+MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/Shared/HomeAI-NAS-Backup}"
 NAS_HOST="${HOMEAI_NAS_HOST:-192.168.10.99}"
 NAS_NFS_EXPORT="${HOMEAI_NAS_NFS_EXPORT:-/volume1/备份}"
 

@@ -11,8 +11,8 @@ const codexProfileFile = path.join(codexRuntimeRoot, "codex-profiles.json");
 fs.writeFileSync(codexProfileFile, JSON.stringify({
   activeProfileId: "previous",
   profiles: [
-    { id: "default", label: "Default", codexHome: "/Users/example/path" },
-    { id: "previous", label: "Previous", codexHome: "/Users/example/path" },
+    { id: "default", label: "Default", codexHome: "/Users/xuxin/.codex" },
+    { id: "previous", label: "Previous", codexHome: "/Users/xuxin/.codex-homes/previous" },
   ],
 }, null, 2));
 
@@ -24,7 +24,7 @@ const cases = [
     script: "server.js",
     portKey: "CODEX_MOBILE_PORT",
     port: "8787",
-    args: ["--profile-file", codexProfileFile, "--runtime-root", codexRuntimeRoot],
+    args: ["--service-user", "xuxin", "--profile-file", codexProfileFile, "--runtime-root", codexRuntimeRoot],
     extra: [
       /<key>CODEX_HOME<\/key>\s*<string>\/Users\/xuxin\/\.codex-homes\/previous<\/string>/,
       /<key>CODEX_MOBILE_PROFILE_FILE<\/key>/,
