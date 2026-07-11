@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${HERMES_MOBILE_ROOT:-/Users/example/path"
+ROOT="${HERMES_MOBILE_ROOT:-/Users/example/HermesMobile}"
 APP_DIR="${HERMES_MOBILE_APP_DIR:-${ROOT%/}/app}"
 NODE="${HERMES_MOBILE_NODE_EXE:-${ROOT%/}/runtime/node-current/bin/node}"
 STATE_FILE="${HOMEAI_PLUGIN_DAILY_ROLLUP_STATE_FILE:-${ROOT%/}/data/hermes-home/plugin-daily-progress-rollup/state.json}"

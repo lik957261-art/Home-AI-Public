@@ -13,6 +13,7 @@ const appNavigationSearch = fs.readFileSync(path.join(repoRoot, "public", "app-n
 const appWireStart = fs.readFileSync(path.join(repoRoot, "public", "app-wire-start-ui.js"), "utf8");
 const appPlatform = fs.readFileSync(path.join(repoRoot, "public", "app-platform-ui.js"), "utf8");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "public", "index.html"), "utf8");
+const clientVersion = indexHtml.match(/data-client-version="([^"]+)"/)?.[1] || "";
 
 function makeElement() {
   return {
@@ -182,7 +183,8 @@ assert.match(styles, /\.workspace-console \{/);
 assert.match(styles, /\.workspace-console-grid/);
 assert.match(styles, /\.nav-workspace-icon::before/);
 assert.match(indexHtml, /id="bottomWorkspaceMode"[\s\S]*aria-label="工作区"/);
-assert.match(indexHtml, /app-workspace-console-ui\.js\?v=20260709-owner-workspace-tab-v1138/);
+assert.ok(clientVersion);
+assert.ok(indexHtml.includes(`/app-workspace-console-ui.js?v=${clientVersion}`));
 assert.match(appAutomation, /workspaceConsole: state\.viewMode === "workspace-console"/);
 assert.match(appAutomation, /const ownerWorkspaceConsoleAvailable = Boolean\(state\.auth\?\.isOwner\)/);
 assert.match(appAutomation, /bottomWorkspaceMode"\)\.hidden = !ownerWorkspaceConsoleAvailable/);

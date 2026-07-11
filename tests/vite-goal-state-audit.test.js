@@ -74,6 +74,10 @@ function cutoverSourcePayload() {
       failClosedDefault: "classic",
       explicitShellModeSwitch: true,
       rollbackSwitch: true,
+      viteOnlyRuntime: true,
+      classicRuntimeSwitchRemoved: true,
+      sourceDeployRollbackPlan: true,
+      classicOverrideIgnored: true,
       serviceWorkerCacheVersionPlan: true,
       viteAssetsManifestReadback: true,
       devPreviewMocksExcludedFromServer: true,
@@ -141,7 +145,7 @@ test("future complete evidence verifies the full goal", () => {
     cutoverSourcePayload: cutoverSourcePayload(),
     productionReadbackPayload: readbackPayload(),
   });
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, JSON.stringify(result.phases, null, 2));
   assert.equal(result.status, "goal_complete_verified");
   assert.equal(result.productionDeployVerified, true);
   assert.deepEqual(result.summary.incompletePhaseIds, []);
@@ -181,7 +185,7 @@ test("CLI JSON files are accepted as bounded evidence", () => {
     cutoverSourceContractJson: sourceFile,
     productionReadbackJson: readbackFile,
   });
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, JSON.stringify(result.phases, null, 2));
 });
 
 test("formatter and parser expose completion boundary", () => {

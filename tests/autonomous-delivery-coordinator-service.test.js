@@ -130,7 +130,7 @@ function noteImplementationSlice(id = "note_implementation") {
     id,
     ownerLayer: "plugin_workspace",
     workspaceId: "note",
-    workspacePath: "/Users/example/path",
+    workspacePath: "/Users/example/path/plugins/note",
     description: `Implement ${id} in Note.`,
   };
 }
@@ -140,7 +140,7 @@ function musicImplementationSlice(id = "music_implementation") {
     id,
     ownerLayer: "plugin_workspace",
     workspaceId: "music",
-    workspacePath: "/Users/example/path",
+    workspacePath: "/Users/example/path/plugins/music",
     description: `Implement ${id} in Music.`,
   };
 }
@@ -219,7 +219,11 @@ async function testCreateCaseDuplicateSuppressesSecondOwnerPrompt() {
 }
 
 async function testManualStartDispatchesNonHighRiskSliceAndCompletesInboxItem() {
-  const { actionInboxService, coordinator, sent } = createServices();
+  const { actionInboxService, coordinator, sent } = createServices({
+    createIntent: () => deliveryIntentWithSlices([noteImplementationSlice("note_manual_dispatch")], {
+      id: "delivery_note_manual_dispatch",
+    }),
+  });
   const created = await coordinator.createCase({
     text: "增加 Note 附件导入测试覆盖",
     workspaceId: "owner",
@@ -373,7 +377,7 @@ async function testPluginImplementationLifecycleSelectsUniqueWorkerFromMultipleC
         assert.equal(input.requestedAction, "resolve_or_ensure_plugin_worker_lane");
         assert.equal(input.role, "plugin_worker");
         assert.equal(input.pluginId, "music");
-        assert.equal(input.workspaceCwd, "/Users/example/path");
+        assert.equal(input.workspaceCwd, "/Users/example/path/plugins/music");
         return {
           ok: true,
           action: "ensure",
@@ -382,7 +386,7 @@ async function testPluginImplementationLifecycleSelectsUniqueWorkerFromMultipleC
             {
               id: "thread-music-loop",
               title: "Music Loop Implement",
-              cwd: "/Users/example/path",
+              cwd: "/Users/example/path/plugins/music",
               role: "plugin_loop",
               purpose: "loop_role",
               status: "idle",
@@ -391,7 +395,7 @@ async function testPluginImplementationLifecycleSelectsUniqueWorkerFromMultipleC
             {
               id: "thread-music-worker-a",
               title: "Music Worker Lane A",
-              cwd: "/Users/example/path",
+              cwd: "/Users/example/path/plugins/music",
               role: "plugin_worker",
               purpose: "worker_lane",
               status: "idle",
@@ -401,7 +405,7 @@ async function testPluginImplementationLifecycleSelectsUniqueWorkerFromMultipleC
             {
               id: "thread-music-worker-b",
               title: "Music Worker Lane B",
-              cwd: "/Users/example/path",
+              cwd: "/Users/example/path/plugins/music",
               role: "plugin_worker",
               purpose: "worker_lane",
               status: "idle",

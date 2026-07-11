@@ -45,7 +45,7 @@ const RULES = Object.freeze([
     id: "owner_console_adapter",
     stage: "stage_c_low_risk_adapters",
     priority: 10,
-    regex: /owner-system-console/,
+    regex: /owner-system-console|workspace-console/,
     rationale: "Owner Console already has a Vite model/island and is isolated from core chat streaming.",
     target: "Replace the classic renderer with the imported Owner Console ESM model behind the existing Owner gate.",
   },
@@ -150,6 +150,18 @@ const COMPLETION_MARKERS = Object.freeze([
       "renderClassicOwnerSystemConsoleView",
       "renderClassicOwnerSystemConsoleOverview",
       "renderClassicOwnerSystemConsoleSystemStatus",
+    ],
+  },
+  {
+    path: "public/app-workspace-console-ui.js",
+    status: "completed",
+    evidence: [
+      "WORKSPACE_CONSOLE_ESM_MODEL_PATH",
+      "/vite-islands/workspace-console-model/workspace-console-model.js",
+      "importWorkspaceConsoleModel",
+      "renderClassicWorkspaceConsoleView",
+      "renderClassicWorkspaceConsoleContent",
+      "renderClassicWorkspaceConsoleRow",
     ],
   },
   {

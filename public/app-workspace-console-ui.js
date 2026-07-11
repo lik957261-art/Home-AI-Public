@@ -1,6 +1,9 @@
 "use strict";
 
 const WORKSPACE_CONSOLE_API_PATH = "/api/owner/workspace-console";
+const WORKSPACE_CONSOLE_ESM_MODEL_PATH = "/vite-islands/workspace-console-model/workspace-console-model.js";
+let workspaceConsoleEsmModelPromise = null;
+let workspaceConsoleEsmModel = null;
 
 function workspaceConsoleAppState() {
   if (typeof state === "undefined" || !state || typeof state !== "object") return {};
@@ -34,6 +37,40 @@ function workspaceConsoleRuntimeEvent(type, detail = {}) {
   workspaceConsoleRuntimeFacade()?.events?.emit?.(type, Object.assign({ source: "classic-workspace-console" }, detail));
 }
 
+function workspaceConsoleUsableEsmModel(model) {
+  return Boolean(
+    model
+      && typeof model.renderClassicWorkspaceConsoleView === "function"
+      && typeof model.renderClassicWorkspaceConsoleContent === "function"
+      && typeof model.renderClassicWorkspaceConsoleRow === "function"
+      && typeof model.renderClassicWorkspaceConsoleSection === "function"
+      && typeof model.workspaceConsoleStatusTonePlan === "function"
+      && typeof model.workspaceConsoleStatusLabelPlan === "function",
+  );
+}
+
+function workspaceConsoleLoadedEsmModel() {
+  return workspaceConsoleUsableEsmModel(workspaceConsoleEsmModel) ? workspaceConsoleEsmModel : null;
+}
+
+function importWorkspaceConsoleModel() {
+  const loaded = workspaceConsoleLoadedEsmModel();
+  if (loaded) return Promise.resolve(loaded);
+  const root = typeof window !== "undefined"
+    ? window
+    : (typeof globalThis !== "undefined" ? globalThis : null);
+  if (!workspaceConsoleEsmModelPromise) {
+    workspaceConsoleEsmModelPromise = (typeof root?.__homeAiImportWorkspaceConsoleModel === "function"
+      ? root.__homeAiImportWorkspaceConsoleModel(WORKSPACE_CONSOLE_ESM_MODEL_PATH)
+      : import(WORKSPACE_CONSOLE_ESM_MODEL_PATH)
+    ).then((model) => {
+      workspaceConsoleEsmModel = workspaceConsoleUsableEsmModel(model) ? model : null;
+      return workspaceConsoleEsmModel;
+    }).catch(() => null);
+  }
+  return workspaceConsoleEsmModelPromise;
+}
+
 function workspaceConsoleApi(endpoint, options = {}) {
   const facadeApi = workspaceConsoleRuntimeFacade()?.api;
   if (typeof facadeApi === "function") return facadeApi(endpoint, options);
@@ -63,6 +100,8 @@ function workspaceConsoleList(value) {
 }
 
 function workspaceConsoleStatusTone(status) {
+  const importedModel = workspaceConsoleLoadedEsmModel();
+  if (importedModel) return importedModel.workspaceConsoleStatusTonePlan(status);
   const text = String(status || "").toLowerCase();
   if (/^(ok|online|ready|normal|healthy)$/.test(text)) return "ok";
   if (/^(blocked|critical|failed|error)$/.test(text)) return "critical";
@@ -71,6 +110,8 @@ function workspaceConsoleStatusTone(status) {
 }
 
 function workspaceConsoleStatusLabel(item = {}) {
+  const importedModel = workspaceConsoleLoadedEsmModel();
+  if (importedModel) return importedModel.workspaceConsoleStatusLabelPlan(item);
   const label = workspaceConsoleClean(item.statusLabel || "");
   if (label) return label;
   const status = String(item.status || "").toLowerCase();
@@ -166,6 +207,8 @@ function workspaceConsoleRowDetails(item = {}, expanded = false) {
 }
 
 function renderWorkspaceConsoleRow(item = {}, expandedId = "") {
+  const importedModel = workspaceConsoleLoadedEsmModel();
+  if (importedModel) return importedModel.renderClassicWorkspaceConsoleRow(item, expandedId);
   const id = workspaceConsoleClean(item.id || "", 128);
   const expanded = Boolean(id && expandedId === id);
   return `
@@ -189,6 +232,8 @@ function renderWorkspaceConsoleRow(item = {}, expandedId = "") {
 }
 
 function renderWorkspaceConsoleSection(section = {}, expandedId = "") {
+  const importedModel = workspaceConsoleLoadedEsmModel();
+  if (importedModel) return importedModel.renderClassicWorkspaceConsoleSection(section, expandedId);
   const items = workspaceConsoleList(section.items);
   const emptyText = section.id === "remoteCodex" ? "暂无远程 Codex 工作区接入。" : "暂无本机 Codex 工作区记录。";
   return `
@@ -209,6 +254,8 @@ function renderWorkspaceConsoleSection(section = {}, expandedId = "") {
 }
 
 function renderWorkspaceConsoleContent(model) {
+  const importedModel = workspaceConsoleLoadedEsmModel();
+  if (importedModel) return importedModel.renderClassicWorkspaceConsoleContent(model);
   if (model.status === "loading" && !model.data) {
     return `<div class="workspace-console-state">正在载入工作区状态...</div>`;
   }
@@ -248,8 +295,11 @@ function renderWorkspaceConsoleView() {
 
   const conversation = $("conversation");
   if (!conversation) return;
+  const importedModel = workspaceConsoleLoadedEsmModel();
   if (!workspaceConsoleIsOwner()) {
-    conversation.innerHTML = `
+    conversation.innerHTML = importedModel
+      ? importedModel.renderClassicWorkspaceConsoleView({ isOwner: false })
+      : `
       <section class="workspace-console" data-workspace-console>
         <div class="workspace-console-head">
           <div>
@@ -268,7 +318,9 @@ function renderWorkspaceConsoleView() {
     status: model.data?.overallStatus || (model.status === "loading" ? "pending" : "unknown"),
     statusLabel: model.data?.overallStatusLabel || "",
   };
-  conversation.innerHTML = `
+  conversation.innerHTML = importedModel
+    ? importedModel.renderClassicWorkspaceConsoleView({ isOwner: true, model })
+    : `
     <section class="workspace-console" data-workspace-console>
       <div class="workspace-console-head">
         <div>
@@ -295,6 +347,7 @@ async function loadWorkspaceConsole(options = {}) {
     renderWorkspaceConsoleView();
     return null;
   }
+  await importWorkspaceConsoleModel();
   if (!model.data || options.refresh) {
     model.status = "loading";
     model.error = "";
@@ -350,14 +403,17 @@ if (typeof window !== "undefined") {
   window.renderWorkspaceConsoleView = renderWorkspaceConsoleView;
   window.loadWorkspaceConsole = loadWorkspaceConsole;
   window.wireWorkspaceConsoleView = wireWorkspaceConsoleView;
+  window.importWorkspaceConsoleModel = importWorkspaceConsoleModel;
   wireWorkspaceConsoleView();
 }
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     WORKSPACE_CONSOLE_API_PATH,
+    WORKSPACE_CONSOLE_ESM_MODEL_PATH,
     workspaceConsoleClean,
     workspaceConsoleStatusTone,
+    importWorkspaceConsoleModel,
     renderWorkspaceConsoleRow,
     renderWorkspaceConsoleSection,
     renderWorkspaceConsoleView,

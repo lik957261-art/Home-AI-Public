@@ -12,7 +12,7 @@ const focusGuardSource = fs.readFileSync(
 );
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ headless: true, channel: "chromium" });
   try {
     const page = await browser.newPage({
       viewport: { width: 390, height: 844 },

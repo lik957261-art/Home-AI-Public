@@ -120,7 +120,7 @@ async function testFullNodeAndOwnerRouteFlow() {
     nodeId: "node-a",
     nodeName: "son-macbook",
     centralUrl: "https://home-ai.example.com/control?token=private",
-    projectRoot: "/Users/example/path",
+    projectRoot: "/Users/example/game",
     capabilities: ["task_cards", "daily_summary"],
   }, tokenHeaders);
 

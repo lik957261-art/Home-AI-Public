@@ -345,7 +345,7 @@ async function main() {
   const accessKey = accessKeyPath ? readSecretFile(accessKeyPath, "access key") : "";
   const settings = viewModeSettings(view);
   fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, channel: "chromium" });
   try {
     const context = await browser.newContext({
       viewport,

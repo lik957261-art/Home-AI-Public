@@ -87,7 +87,7 @@ async function test(name, fn) {
     }), {
       label: "alice",
       root: "/Users/example/path",
-      allowedRoots: "/Users/example/path",
+      allowedRoots: "/Users/example/path\n/Volumes/Media",
       toolsets: "music, movie",
       hintText: "ID: alice",
     });

@@ -19,11 +19,11 @@ const { pathToFileURL } = require("node:url");
     workspaceId: "owner",
     projectId: "finance-local",
     subprojectId: "daily",
-    root: "/Users/example/path",
+    root: "/Users/example/finance",
   };
   assert.equal(
     model.pluginTopicDirectoryRouteKeyPlan(route, null),
-    "owner|finance-local|daily|/users/xuxin/finance",
+    "owner|finance-local|daily|/users/example/finance",
   );
   assert.equal(
     model.pluginTopicDirectoryRouteKeyPlan(route, null, { classicRouteKey: "classic|route" }),

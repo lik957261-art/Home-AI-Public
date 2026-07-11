@@ -2,9 +2,26 @@
 
 ## Unreleased
 
+## 1.0.6 - 2026-07-11
+
+- Sync the original developer's 2026-07-09 public `main` snapshot, including
+  autonomous delivery governance, workspace console, remote managed workspace,
+  plugin scheduling, Gateway routing, and Vite migration source coverage.
 - Add a mandatory low-permission Gateway pre-flight Skill for Hermes Mobile
   permission-boundary checks before filesystem, Skill, automation, account,
   integration, or delivery-path operations.
+- Preserve the verified mobile quick-login, startup parallelism, 900 ms cached
+  navigation fallback, macOS portability, and favicon fixes from 1.0.4/1.0.5.
+- Add a built Vite ESM model and classic compatibility adapter for the restored
+  Owner-only Codex workspace console, keeping all 103 boot scripts covered by
+  the generated migration and global-usage audits.
+- Make Playwright UI checks use the installed full Chromium build and verify
+  the mobile navigation, composer, and all 12 Vite preview routes without
+  overflow, page errors, or stray favicon requests.
+- Advance the PWA client/cache identity to
+  `20260711-upstream-sync-v1006` so installed clients load the integrated tree.
+- Keep runtime databases, credentials, push endpoints, logs, uploads, backups,
+  and agent context outside the public repository.
 
 ## 1.0.5 - 2026-07-11
 

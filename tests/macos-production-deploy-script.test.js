@@ -974,7 +974,7 @@ const codexBehaviorGate = codexSelectedMuxPluginPayload.plan.validation.find((it
 ));
 assert.ok(codexBehaviorGate);
 assert.deepEqual(codexBehaviorGate.command.slice(0, 2), ["/bin/sh", "-lc"]);
-assert.match(codexBehaviorGate.command[2], /cd '\/Users\/hermes-host\/HermesMobile\/plugins\/codex-mobile-web'/);
+assert.match(codexBehaviorGate.command[2], /cd '\/Users\/example\/path\/plugins\/codex-mobile-web'/);
 assert.match(codexBehaviorGate.command[2], /scripts\/codex-mobile-runtime-self-check-loop\.js/);
 assert.match(codexBehaviorGate.command[2], /--server 'http:\/\/127\.0\.0\.1:8787'/);
 assert.match(codexBehaviorGate.command[2], /--gate-mode deploy/);

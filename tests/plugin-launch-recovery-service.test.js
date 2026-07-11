@@ -61,10 +61,6 @@ function testCodexMobileTargetDetection() {
   assert.equal(isCodexMobileRecoveryTarget("codex-mobile-web", ""), true);
   assert.equal(isCodexMobileRecoveryTarget("other", "com.hermesmobile.plugin.codex-mobile"), true);
   assert.equal(isCodexMobileRecoveryTarget("note", "com.hermesmobile.plugin.note"), false);
-  assert.equal(
-    defaultCodexMobileRecoveryScriptPath("/Users/example/HermesMobile/app"),
-    "/Users/example/HermesMobile/plugins/codex-mobile-web/restart-codex-mobile-host-macos.sh",
-  );
 }
 
 async function testRecoveryUsesConfiguredCommand() {

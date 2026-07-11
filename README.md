@@ -44,6 +44,24 @@ High-value entry points:
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
+## 1.0.6 Integrated Release
+
+This release starts from the original developer's 2026-07-09 public `main`
+snapshot and layers the locally verified 1.0.4/1.0.5 macOS and mobile fixes on
+top. It retains the full upstream product source, including autonomous delivery
+governance, workspace console, remote managed workspace, plugin scheduling,
+Gateway routing, and Vite migration modules.
+
+The restored Owner workspace console is backed by a generated Vite ESM model
+with a classic compatibility adapter. The release also includes reproducible
+full-Chromium mobile UI checks for navigation, composer behavior, and all Vite
+preview routes.
+
+The production defaults remain unchanged: Home AI listens on its configured
+local port, the classic mobile interface stays available, and private runtime
+state remains outside the repository. The integrated PWA cache identity is
+`20260711-upstream-sync-v1006`.
+
 ## 1.0.3 Public Release
 
 This release refreshes the public tree from the current Home AI source and

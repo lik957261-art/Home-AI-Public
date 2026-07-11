@@ -46,7 +46,7 @@ async function test(name, fn) {
     const workspace = {
       id: "family",
       label: "Family",
-      workDirectories: [{ path: "/Users/example/path" }],
+      workDirectories: [{ path: "/Users/example/HermesWorkspace" }],
       accessKeyStatus: { hasKey: true, kind: "owner", source: "file" },
       tongbaoWallet: { availableBalance: 12, heldBalance: 2 },
       bindings: {

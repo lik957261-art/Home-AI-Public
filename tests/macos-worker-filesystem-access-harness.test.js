@@ -76,7 +76,7 @@ try {
   assert.equal(macUserForWorkspaceId("weixin_wuping"), "hm-weixin-wuping");
   assert.equal(macUserFromWorkspaceRecord({ id: "twh" }), "hm-twh");
   assert.equal(macUserFromWorkspaceRecord({ id: "twh", mac_user: "hm-explicit" }), "hm-explicit");
-  assert.equal(macUserFromWorkspaceRecord({ id: "twh", paths: { workerHome: "/Users/example/path" } }), "hm-from-path");
+  assert.equal(macUserFromWorkspaceRecord({ id: "twh", paths: { workerHome: "/Users/hm-from-path/workspace" } }), "hm-from-path");
   assert.equal(missingWorkerUserStatus({ required: true }, { workspaceCatalogTargets: false }), "failed");
   assert.equal(missingWorkerUserStatus({ required: true }, { workspaceCatalogTargets: true }), "skipped");
   assert.equal(missingWorkerUserStatus({ required: false }, { workspaceCatalogTargets: false }), "skipped");

@@ -160,7 +160,7 @@ async function measureScenario(page, scenario) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, channel: "chromium" });
   try {
     const results = [];
     for (const viewport of VIEWPORTS) {

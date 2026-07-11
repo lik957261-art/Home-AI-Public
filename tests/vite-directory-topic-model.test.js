@@ -40,7 +40,7 @@ async function test(name, fn) {
   await test("plans route keys, labels, and collection grouping", async () => {
     const model = await loadModel();
     const route = { workspaceId: "owner", projectId: "docs", subprojectId: "child", root: "/Users/example/path" };
-    assert.equal(model.routeKeyPlan(route, null), "owner|docs|child|/users/x/docs/");
+    assert.equal(model.routeKeyPlan(route, null), "owner|docs|child|/users/example/path");
     assert.equal(model.routeLabelPlan(route, { displayLabel: "Docs / Child" }), "Docs / Child");
 
     const groups = [
@@ -49,8 +49,8 @@ async function test(name, fn) {
       { id: "x", title: "No route", updatedAt: "2026-07-04T00:00:00.000Z" },
     ];
     const collections = model.collectionsForEntriesPlan([
-      { group: groups[0], route, key: "owner|docs|child|/users/x/docs", label: "Docs / Child" },
-      { group: groups[1], route, key: "owner|docs|child|/users/x/docs", label: "Docs / Child" },
+      { group: groups[0], route, key: "owner|docs|child|/users/example/path", label: "Docs / Child" },
+      { group: groups[1], route, key: "owner|docs|child|/users/example/path", label: "Docs / Child" },
       { group: groups[2], route: null, key: "", label: "" },
     ]);
     assert.equal(collections.length, 1);

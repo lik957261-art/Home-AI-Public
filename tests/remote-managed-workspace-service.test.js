@@ -84,7 +84,7 @@ function testRegisterStoresBoundedWorkspaceMetadataOnly() {
     nodeId: "node-a",
     nodeName: "son-macbook",
     projectType: "vite_game",
-    projectRoot: "/Users/example/path",
+    projectRoot: "/Users/example/game",
     centralUrl: "https://home-ai.example.com/control?enrollmentToken=private",
     roles: ["external_project_main", "external_project_worker", "external_project_worker"],
     capabilities: ["task_cards", "daily_summary", "vite_preview"],
@@ -98,7 +98,7 @@ function testRegisterStoresBoundedWorkspaceMetadataOnly() {
   assert.equal(result.workspace.session.centralUrl, "https://home-ai.example.com/control");
   assert.equal(result.workspace.projectRootLabel, "game");
   assert.deepEqual(result.workspace.roles, ["external_project_main", "external_project_worker"]);
-  assert.equal(JSON.stringify(harness.backingState.remoteManagedWorkspaces).includes("/Users/example/path"), false);
+  assert.equal(JSON.stringify(harness.backingState.remoteManagedWorkspaces).includes("/Users/example/game"), false);
   assert.equal(harness.saveCount() > 0, true);
 }
 

@@ -31,6 +31,10 @@ const ownerSystemConsoleModelEntry = path.resolve(
   __dirname,
   "src/vite-islands/owner-system-console/model.mjs",
 );
+const workspaceConsoleModelEntry = path.resolve(
+  __dirname,
+  "src/vite-islands/navigation-shell/workspace-console-model.mjs",
+);
 const ownerSystemConsolePreviewHtml = path.resolve(
   __dirname,
   "src/vite-islands/owner-system-console/index.html",
@@ -879,6 +883,7 @@ module.exports = defineConfig({
         "navigation-shell": navigationShellEntry,
         "owner-system-console": ownerSystemConsoleEntry,
         "owner-system-console-model": ownerSystemConsoleModelEntry,
+        "workspace-console-model": workspaceConsoleModelEntry,
         "plugin-host": pluginHostEntry,
         "plugin-admin-model": pluginAdminModelEntry,
         "plugin-host-model": pluginHostModelEntry,

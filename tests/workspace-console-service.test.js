@@ -144,7 +144,7 @@ function testCodexWorkspaceTargetRegistryDeduplicatesAliasesAndReportsMissingLan
     },
     custom: {
       label: "Custom",
-      targetWorkspace: "/Users/example/path",
+      targetWorkspace: "/Users/example/private/custom",
     },
   });
   assert.equal(targets.filter((item) => item.pluginId === "health").length, 1);
@@ -153,14 +153,14 @@ function testCodexWorkspaceTargetRegistryDeduplicatesAliasesAndReportsMissingLan
   const row = codexWorkspaceStatus({
     pluginId: "custom",
     label: "Custom",
-    targetWorkspace: "/Users/example/path",
+    targetWorkspace: "/Users/example/private/custom",
   });
   assert.equal(row.kind, "local_codex");
   assert.equal(row.status, "warning");
   assert.ok(row.issueCodes.includes("codex_workspace_thread_unresolved"));
   assert.ok(row.issueCodes.includes("worker_lane_missing"));
   assert.equal(row.cwdLabel, ".../private/custom");
-  assert.equal(JSON.stringify(row).includes("/Users/example/path"), false);
+  assert.equal(JSON.stringify(row).includes("/Users/example/private/custom"), false);
 }
 
 function testRemoteEscalationCanBlockCodexRowWithoutLeakingPayloads() {
@@ -183,15 +183,15 @@ function testLocalProjectionStillExistsAsBoundedHiddenBuildingBlock() {
   const row = localWorkspaceStatus({
     id: "child",
     label: "Child",
-    defaultWorkspace: "/Users/example/path",
+    defaultWorkspace: "/Users/example/private/ChildWorkspace",
     accessKeyStatus: { hasKey: true },
-    workDirectories: [{ path: "/Users/example/path" }],
+    workDirectories: [{ path: "/Users/example/private/ChildWorkspace" }],
     bindings: [],
   });
   assert.equal(row.status, "ok");
   assert.equal(row.kind, "local");
   assert.equal(row.identityLabel, ".../private/ChildWorkspace");
-  assert.equal(JSON.stringify(row).includes("/Users/example/path"), false);
+  assert.equal(JSON.stringify(row).includes("/Users/example/private/ChildWorkspace"), false);
 }
 
 function testWorstStatusOrdering() {

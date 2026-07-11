@@ -205,7 +205,9 @@ async function test(name, fn) {
     assert.match(strip, /data-scroll-position="end"/);
     assert.match(strip, /Model End/);
     const wardrobe = harness.renderWardrobeOutfitWearAction({ id: "wardrobe_1", role: "assistant" });
-    assert.match(wardrobe, />\s*模型入库\s*</);
+    assert.match(wardrobe, /data-wardrobe-outfit-label="模型入库"/);
+    assert.match(wardrobe, /aria-label="模型衣橱入库"/);
+    assert.match(wardrobe, /<svg class="message-line-icon"/);
 
     context.__responses.push({ ok: true, actionState: { kind: "outfit_wear_intent", status: "stored" } });
     await harness.executeWardrobeOutfitWearMessageAction("wardrobe_1");
@@ -238,7 +240,9 @@ async function test(name, fn) {
         },
       },
     });
-    assert.match(html, />\s*入库\s*</);
+    assert.match(html, /data-wardrobe-outfit-label="入库"/);
+    assert.match(html, /aria-label="写入衣橱穿着记录/);
+    assert.match(html, /<svg class="message-line-icon"/);
   });
 
   if (process.exitCode) process.exit(process.exitCode);

@@ -126,10 +126,12 @@ function testCompositionContract() {
     "platformCurrencyApiRoutes",
     "publicApiRoutes",
     "pushApiRoutes",
+    "remoteManagedWorkspaceApiRoutes",
     "resourceApiRoutes",
     "runtimeConfigApiRoutes",
     "systemApiRoutes",
     "workspaceApiRoutes",
+    "workspaceConsoleApiRoutes",
   ]);
   assert.deepEqual(Object.keys(composition.services).sort(), [
     "codexMobileAtLoopStatusService",
@@ -141,7 +143,9 @@ function testCompositionContract() {
     "nativeIosShellVersionPolicyService",
     "ownerSystemConsoleService",
     "platformCurrencyService",
+    "remoteManagedWorkspaceService",
     "systemResourceStatusService",
+    "workspaceConsoleService",
   ]);
   assert.equal(composition.services.platformCurrencyService, injectedPlatformCurrencyService);
   for (const [name, route] of Object.entries(composition.routes)) assertRouteContract(route, name);

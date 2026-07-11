@@ -202,8 +202,11 @@ async function main() {
     }));
     const workspaceUploadRoot = path.join(defaults.defaults.defaultWorkspace, ".hermes-mobile", "uploads", autoSingle.thread.id);
     assert.equal(uploaded.artifact.workspaceId, "demo-prefill-user");
-    assert.equal(uploaded.artifact.path.startsWith(`${workspaceUploadRoot}${path.sep}`), true);
-    assert.equal(fs.existsSync(uploaded.artifact.path), true);
+    assert.equal(uploaded.artifact.path, undefined);
+    assert.match(uploaded.artifact.url, /^\/api\/artifacts\//);
+    const uploadedFiles = fs.readdirSync(workspaceUploadRoot);
+    assert.equal(uploadedFiles.length, 1);
+    assert.equal(fs.existsSync(path.join(workspaceUploadRoot, uploadedFiles[0])), true);
     await request(baseUrl, "/api/workspaces/demo-prefill-user", {
       method: "DELETE",
       headers: { "X-Hermes-Web-Key": ownerKey },

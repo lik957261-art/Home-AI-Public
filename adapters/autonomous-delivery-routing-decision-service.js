@@ -47,8 +47,12 @@ function sideEffectText(input = {}) {
 
 function isHomeAiTarget(slice = {}, target = {}) {
   const workspaceId = lower(slice.targetWorkspaceId || slice.workspaceId || "", 120);
-  const workspacePath = clean(slice.targetWorkspacePath || slice.workspacePath || target.targetWorkspace || "", 800);
-  return workspaceId === "home-ai" || workspacePath === "/Users/example/path";
+  const ownerLayer = lower(slice.ownerLayer || slice.owner_layer || "", 120);
+  const targetKind = lower(target.workspaceKind || target.workspace_kind || target.kind || target.auditKind || "", 120);
+  return workspaceId === "home-ai"
+    || workspaceId.startsWith("home-ai-")
+    || ownerLayer === "home_ai_workspace"
+    || targetKind === "home_ai";
 }
 
 function pluginIdForSlice(slice = {}, target = {}) {

@@ -667,6 +667,12 @@
     "src": "src/vite-islands/navigation-shell/workspace-admin-model.mjs",
     "isEntry": true
   },
+  "src/vite-islands/navigation-shell/workspace-console-model.mjs": {
+    "file": "workspace-console-model/workspace-console-model.js",
+    "name": "workspace-console-model",
+    "src": "src/vite-islands/navigation-shell/workspace-console-model.mjs",
+    "isEntry": true
+  },
   "src/vite-islands/owner-system-console/main.mjs": {
     "file": "owner-system-console/owner-system-console.js",
     "name": "owner-system-console",

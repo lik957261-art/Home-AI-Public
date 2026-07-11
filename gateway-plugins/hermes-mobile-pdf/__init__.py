@@ -370,7 +370,11 @@ def _command(name: str, fallback: str) -> str:
     return fallback
 
 
-def _run_json(command: list[str], stdin_payload: dict[str, Any] | None = None) -> dict[str, Any]:
+def _run_json(
+    command: list[str],
+    stdin_payload: dict[str, Any] | None = None,
+    child_env: dict[str, str] | None = None,
+) -> dict[str, Any]:
     try:
         completed = subprocess.run(
             command,
@@ -379,6 +383,7 @@ def _run_json(command: list[str], stdin_payload: dict[str, Any] | None = None) -
             capture_output=True,
             timeout=SCRIPT_TIMEOUT_SECONDS,
             check=False,
+            env=child_env,
         )
     except FileNotFoundError:
         return {"ok": False, "error": "pdf_helper_command_not_found"}
@@ -408,6 +413,19 @@ def _render_pages(path: Path, output_dir: Path, start_page: int, max_pages: int,
     if not shutil.which(swift) and not Path(swift).exists():
         return {"ok": False, "error": "pdf_renderer_unavailable"}
     helper = _helper_path("render_pdf_pages.swift")
+    cache_root_value = os.environ.get("HERMES_MOBILE_SWIFT_MODULE_CACHE_ROOT", "").strip()
+    cache_root = (
+        Path(_platform_path(cache_root_value)).expanduser()
+        if cache_root_value
+        else Path(tempfile.gettempdir()) / "homeai-swift-module-cache"
+    )
+    try:
+        cache_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    except OSError:
+        return {"ok": False, "error": "pdf_renderer_cache_unavailable"}
+    child_env = dict(os.environ)
+    child_env.setdefault("SWIFT_MODULECACHE_PATH", str(cache_root / "swift"))
+    child_env.setdefault("CLANG_MODULE_CACHE_PATH", str(cache_root / "clang"))
     return _run_json([
         swift,
         str(helper),
@@ -416,7 +434,7 @@ def _render_pages(path: Path, output_dir: Path, start_page: int, max_pages: int,
         str(start_page),
         str(max_pages),
         str(scale),
-    ])
+    ], child_env=child_env)
 
 
 def _pdf_extract_text_handler(args: dict[str, Any], **_: Any) -> str:

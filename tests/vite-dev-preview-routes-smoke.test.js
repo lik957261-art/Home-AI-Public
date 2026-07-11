@@ -40,7 +40,7 @@ const PREVIEW_ROUTES = Object.freeze([
   {
     path: "/vite-message-action-panel-preview/",
     selector: "[data-homeai-vite-message-action-panel]",
-    expectedText: "入库",
+    expectedText: "消息动作面板",
   },
   {
     path: "/vite-plugin-host-preview/",
@@ -92,7 +92,7 @@ async function launchChromium() {
   const executablePath = String(process.env.HOMEAI_PLAYWRIGHT_CHROMIUM_EXECUTABLE || "").trim();
   if (executablePath) return chromium.launch({ headless: true, executablePath });
   try {
-    return await chromium.launch({ headless: true });
+    return await chromium.launch({ headless: true, channel: "chromium" });
   } catch (error) {
     if (!/Executable doesn't exist/i.test(String(error?.message || error))) throw error;
     return chromium.launch({ headless: true, channel: "chrome" });
@@ -124,13 +124,23 @@ async function smokeRoute(page, baseUrl, route) {
       state: "visible",
       timeout: 10000,
     });
-    await page.waitForFunction(({ selector, expectedText }) => {
-      const node = document.querySelector(selector);
-      return Boolean(node && node.innerText && node.innerText.includes(expectedText));
-    }, {
-      selector: route.selector,
-      expectedText: route.expectedText,
-    }, { timeout: 10000 });
+    try {
+      await page.waitForFunction(({ selector, expectedText }) => {
+        const node = document.querySelector(selector);
+        return Boolean(node && node.innerText && node.innerText.includes(expectedText));
+      }, {
+        selector: route.selector,
+        expectedText: route.expectedText,
+      }, { timeout: 10000 });
+    } catch (error) {
+      const actualText = await page.locator(route.selector).innerText().catch(() => "<unavailable>");
+      throw new Error([
+        `${route.path} did not render expected text: ${route.expectedText}`,
+        `actual: ${actualText.slice(0, 500)}`,
+        `page errors: ${pageErrors.join(" | ") || "none"}`,
+        `console errors: ${consoleErrors.join(" | ") || "none"}`,
+      ].join("\n"), { cause: error });
+    }
     const metrics = await page.evaluate(() => ({
       bodyTextLength: document.body.innerText.trim().length,
       innerWidth: window.innerWidth,

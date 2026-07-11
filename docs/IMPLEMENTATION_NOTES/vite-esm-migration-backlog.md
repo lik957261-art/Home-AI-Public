@@ -2,8 +2,8 @@
 
 <!-- generated-by: scripts/vite-esm-migration-backlog.js -->
 <!-- backlog-version: 20260704-vite-esm-migration-backlog-v1 -->
-<!-- script-count: 102 -->
-<!-- script-order-sha256: fb21156ae22e3f305d275cf29f172da771e75178bf5a88f9c5e4a6ba5838c3a6 -->
+<!-- script-count: 103 -->
+<!-- script-order-sha256: 9f10c28c7a4884d9b0a86dc6b74a01b6c809dd8537ea255b77c065ec64aa9e50 -->
 
 ## Scope
 
@@ -17,14 +17,14 @@ not deploy, mutate production, or claim the full Vite shell is complete.
 - Unmanaged global count: `0`
 - Production writes: `false`
 - Deploy executed: `false`
-- Completed adapter slices: `102`
+- Completed adapter slices: `103`
 
 ## Stage Counts
 
 | Stage | Script count |
 | --- | ---: |
 | Stage B - Inventory And Allowlist Burn-Down | 33 |
-| Stage C - Low-Risk Production Adapter Replacements | 6 |
+| Stage C - Low-Risk Production Adapter Replacements | 7 |
 | Stage D - Core Workflow ESM Modules | 59 |
 | Stage E - Full Vite Shell Replacement | 4 |
 
@@ -33,6 +33,7 @@ not deploy, mutate production, or claim the full Vite shell is complete.
 | Stage | Rule | Path | Evidence |
 | --- | --- | --- | --- |
 | stage_c_low_risk_adapters | owner_console_adapter | `public/app-owner-system-console-ui.js` | OWNER_SYSTEM_CONSOLE_ESM_MODEL_PATH, /vite-islands/owner-system-console-model/owner-system-console-model.js, importOwnerSystemConsoleModel, renderClassicOwnerSystemConsoleView, renderClassicOwnerSystemConsoleOverview, renderClassicOwnerSystemConsoleSystemStatus |
+| stage_c_low_risk_adapters | owner_console_adapter | `public/app-workspace-console-ui.js` | WORKSPACE_CONSOLE_ESM_MODEL_PATH, /vite-islands/workspace-console-model/workspace-console-model.js, importWorkspaceConsoleModel, renderClassicWorkspaceConsoleView, renderClassicWorkspaceConsoleContent, renderClassicWorkspaceConsoleRow |
 | stage_c_low_risk_adapters | dialog_sheet_adapter | `public/app-dialog-ui.js` | APP_DIALOG_ESM_MODEL_PATH, /vite-islands/dialog-sheet-model/dialog-sheet-model.js, importDialogModel, createDialogState, closeDialogState, dialogButtonPlan |
 | stage_c_low_risk_adapters | ai_ops_feedback_adapter | `public/app-ai-ops-diagnostics-ui.js` | AI_OPS_FEEDBACK_ESM_MODEL_PATH, /vite-islands/ai-ops-feedback-model/ai-ops-feedback-model.js, importAiOpsFeedbackModel, renderClassicAiOpsFeedbackSheet, classicFeedbackContextLabel, classicOwnerConsoleActionPlan |
 | stage_c_low_risk_adapters | pwa_push_status_adapter | `public/app-pwa-settings-push-ui.js` | currentPwaPushStatusModel, pwaInstallButtonPlan, pwaRequirementHint, pwaInstallButtonLabel |
@@ -102,11 +103,11 @@ not deploy, mutate production, or claim the full Vite shell is complete.
 | stage_b_inventory_allowlist | inventory_allowlist | `public/app-access-key-manager-ui.js` | ACCESS_KEY_MANAGER_MODEL_ESM_PATH, /vite-islands/access-key-manager-model/access-key-manager-model.js, importAccessKeyManagerModel, currentAccessKeyManagerModel, accessKeyManagerViewPlan, workspaceOnboardingPayloadPlan, redactedWorkspaceOnboardingResultPlan, workspaceAccessKeyConfirmationPlan |
 | stage_b_inventory_allowlist | inventory_allowlist | `public/app-automation-controller-ui.js` | AUTOMATION_CONTROLLER_MODEL_ESM_PATH, /vite-islands/automation-controller-model/automation-controller-model.js, importAutomationControllerModel, currentAutomationControllerModel, automationRequestParamsPlan, automationCachedFullStatePlan, automationPushRefreshPlan, automationStatusTextPlan |
 | stage_b_inventory_allowlist | inventory_allowlist | `public/app-kanban-core-ui.js` | KANBAN_CORE_MODEL_ESM_PATH, /vite-islands/kanban-todo-core-model/kanban-todo-core-model.js, importKanbanCoreModel, currentKanbanCoreModel, shouldLoadCompletedTodosPlan, kanbanCardWorkspaceIdPlan, normalizedKanbanStatusPlan, kanbanDisplayResultTextPlan |
+| stage_b_inventory_allowlist | inventory_allowlist | `public/app-workspace-admin-ui.js` | WORKSPACE_ADMIN_MODEL_ESM_PATH, /vite-islands/workspace-admin-model/workspace-admin-model.js, importWorkspaceAdminModel, currentWorkspaceAdminModel, workspaceAccessRowsPlan, workspaceBindingChipLabels, runtimeModelFamilyOptionsPlan, runtimeModelOptionsPlan, runtimeGatewayWorkerInputsPlan, runtimeMoaPresetText |
 | stage_b_inventory_allowlist | inventory_allowlist | `public/app-action-inbox-ui.js` | ACTION_INBOX_MODEL_ESM_PATH, /vite-islands/action-inbox-model/action-inbox-model.js, importActionInboxModel, currentActionInboxModel, actionInboxFilterQueryPlan, actionInboxItemsForActiveFilterPlan, actionInboxPrimaryDeliverablePlan, actionInboxIsAutonomousDeliveryRepairRequestPlan |
 | stage_b_inventory_allowlist | inventory_allowlist | `public/app-learning-growth-controller.js` | LEARNING_GROWTH_CONTROLLER_MODEL_ESM_PATH, /vite-islands/learning-growth-controller-model/learning-growth-controller-model.js, importLearningGrowthControllerModel, currentLearningGrowthControllerModel, learningGrowthLearnerWorkspaceIdPlan, learningCoinRequestParamsPlan, resetLearningGrowthStatePatchPlan, learningProgramFormBodyPlan |
 | stage_b_inventory_allowlist | inventory_allowlist | `public/app-kanban-card-actions-ui.js` | KANBAN_CARD_ACTIONS_MODEL_ESM_PATH, /vite-islands/kanban-card-actions-model/kanban-card-actions-model.js, importKanbanCardActionsModel, currentKanbanCardActionsModel, kanbanActionRequestPlan, todoCreatePayloadPlan, learningGrowthProgressRowsPlan, learningGrowthSubmissionSuccessFeedbackPlan |
 | stage_b_inventory_allowlist | inventory_allowlist | `public/app-runtime-facade-ui.js` | RUNTIME_FACADE_COMPAT_MODEL_ESM_PATH, /vite-islands/runtime-facade-compat-model/runtime-facade-compat-model.js, importRuntimeFacadeCompatModel, currentRuntimeFacadeCompatModel, normalizeNativeShellParamPlan, nativeShareFileCountPlan, runtimeScopedStorageKeyPlan, runtimeSnapshotPlan |
-| stage_b_inventory_allowlist | inventory_allowlist | `public/app-workspace-admin-ui.js` | WORKSPACE_ADMIN_MODEL_ESM_PATH, /vite-islands/workspace-admin-model/workspace-admin-model.js, importWorkspaceAdminModel, currentWorkspaceAdminModel, workspaceAccessRowsPlan, workspaceBindingChipLabels, runtimeModelFamilyOptionsPlan, runtimeModelOptionsPlan, runtimeGatewayWorkerInputsPlan, runtimeMoaPresetText |
 | stage_b_inventory_allowlist | inventory_allowlist | `public/app-learning-native-growth-submission-controller.js` | LEARNING_NATIVE_GROWTH_SUBMISSION_MODEL_ESM_PATH, /vite-islands/learning-native-growth-submission-model/learning-native-growth-submission-model.js, importLearningNativeGrowthSubmissionModel, currentLearningNativeGrowthSubmissionModel, learningNativeGrowthSubmissionStatsPlan, nativeGrowthDraftStorageKeyPlan, structuredNativeGrowthAnswersPlan, nativeGrowthSubmissionCompletionTextPlan |
 | stage_b_inventory_allowlist | inventory_allowlist | `public/app-kanban-learning-panel-ui.js` | KANBAN_LEARNING_PANEL_MODEL_ESM_PATH, /vite-islands/kanban-learning-panel-model/kanban-learning-panel-model.js, importKanbanLearningPanelModel, currentKanbanLearningPanelModel, learningGrowthEvaluationLabelPlan, answerDraftStorageKeyPlan, learningGuidanceQuestionPayloadPlan, selectedLearningAnswerPlan |
 | stage_b_inventory_allowlist | inventory_allowlist | `public/app-automation-ui.js` | AUTOMATION_VIEW_MODEL_ESM_PATH, /vite-islands/automation-view-model/automation-view-model.js, importAutomationViewModel, currentAutomationViewModel, automationViewModeFlagsPlan, automationThreadSearchPlaceholderPlan, automationNewThreadPlan, automationLegacyViewRedirectPlan, automationLoadOptionsPlan |
@@ -145,14 +146,15 @@ not deploy, mutate production, or claim the full Vite shell is complete.
 | Stage | Rule | Risk | Group | Path | Rationale |
 | --- | --- | --- | --- | --- | --- |
 | stage_c_low_risk_adapters | owner_console_adapter | low:5 | surfaces | `public/app-owner-system-console-ui.js` | Owner Console already has a Vite model/island and is isolated from core chat streaming. |
+| stage_c_low_risk_adapters | owner_console_adapter | low:4 | surfaces | `public/app-workspace-console-ui.js` | Owner Console already has a Vite model/island and is isolated from core chat streaming. |
 | stage_c_low_risk_adapters | dialog_sheet_adapter | low:5 | foundation | `public/app-dialog-ui.js` | Dialog sheet behavior has an ESM island and focused model coverage. |
-| stage_c_low_risk_adapters | ai_ops_feedback_adapter | high:11 | surfaces | `public/app-ai-ops-diagnostics-ui.js` | AI Ops feedback already consumes the runtime facade and posts bounded metadata. |
+| stage_c_low_risk_adapters | ai_ops_feedback_adapter | high:13 | surfaces | `public/app-ai-ops-diagnostics-ui.js` | AI Ops feedback already consumes the runtime facade and posts bounded metadata. |
 | stage_c_low_risk_adapters | pwa_push_status_adapter | high:19 | pwa-native | `public/app-pwa-settings-push-ui.js` | PWA/Web Push status has a small ESM status model and limited UI surface. |
 | stage_c_low_risk_adapters | pwa_push_status_adapter | high:13 | pwa-native | `public/app-platform-status-ui.js` | PWA/Web Push status has a small ESM status model and limited UI surface. |
 | stage_c_low_risk_adapters | pwa_push_status_adapter | high:13 | pwa-native | `public/app-pwa-push-ui.js` | PWA/Web Push status has a small ESM status model and limited UI surface. |
 | stage_d_core_workflows | attachment_controller | high:12 | viewers | `public/app-share-image-ui.js` | Attachment/camera input has recent iOS refresh risk and a clear controller boundary. |
 | stage_d_core_workflows | attachment_controller | low:4 | input | `public/app-composer-attachments-ui.js` | Attachment/camera input has recent iOS refresh risk and a clear controller boundary. |
-| stage_d_core_workflows | composer_controller | high:11 | input | `public/app-composer-draft-ui.js` | Composer state controls send behavior and should move before full chat rendering. |
+| stage_d_core_workflows | composer_controller | high:12 | input | `public/app-composer-draft-ui.js` | Composer state controls send behavior and should move before full chat rendering. |
 | stage_d_core_workflows | composer_controller | high:11 | input | `public/app-composer-send-pipeline-ui.js` | Composer state controls send behavior and should move before full chat rendering. |
 | stage_d_core_workflows | composer_controller | medium:10 | pwa-native | `public/app-composer-native-environment-ui.js` | Composer state controls send behavior and should move before full chat rendering. |
 | stage_d_core_workflows | composer_controller | medium:9 | input | `public/app-kanban-composer-actions-ui.js` | Composer state controls send behavior and should move before full chat rendering. |
@@ -214,11 +216,11 @@ not deploy, mutate production, or claim the full Vite shell is complete.
 | stage_b_inventory_allowlist | inventory_allowlist | high:14 | foundation | `public/app-access-key-manager-ui.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
 | stage_b_inventory_allowlist | inventory_allowlist | high:14 | surfaces | `public/app-automation-controller-ui.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
 | stage_b_inventory_allowlist | inventory_allowlist | high:13 | surfaces | `public/app-kanban-core-ui.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
+| stage_b_inventory_allowlist | inventory_allowlist | high:12 | surfaces | `public/app-workspace-admin-ui.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
 | stage_b_inventory_allowlist | inventory_allowlist | high:12 | surfaces | `public/app-action-inbox-ui.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
 | stage_b_inventory_allowlist | inventory_allowlist | high:12 | surfaces | `public/app-learning-growth-controller.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
 | stage_b_inventory_allowlist | inventory_allowlist | high:12 | surfaces | `public/app-kanban-card-actions-ui.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
 | stage_b_inventory_allowlist | inventory_allowlist | high:11 | foundation | `public/app-runtime-facade-ui.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
-| stage_b_inventory_allowlist | inventory_allowlist | high:11 | surfaces | `public/app-workspace-admin-ui.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
 | stage_b_inventory_allowlist | inventory_allowlist | high:11 | pwa-native | `public/app-learning-native-growth-submission-controller.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
 | stage_b_inventory_allowlist | inventory_allowlist | high:11 | surfaces | `public/app-kanban-learning-panel-ui.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
 | stage_b_inventory_allowlist | inventory_allowlist | medium:10 | surfaces | `public/app-automation-ui.js` | This script must remain tracked in the boot inventory before it enters an ESM replacement slice. |
@@ -245,7 +247,7 @@ not deploy, mutate production, or claim the full Vite shell is complete.
 | stage_e_full_shell | full_shell_cache | high:22 | runtime | `public/app-wire-start-ui.js` | Full shell/cache owners should move only after core workflow parity exists. |
 | stage_e_full_shell | full_shell_cache | high:12 | pwa-native | `public/app-mobile-layout-ui.js` | Full shell/cache owners should move only after core workflow parity exists. |
 | stage_e_full_shell | full_shell_cache | low:4 | pwa-native | `public/fixed-viewport.js` | Full shell/cache owners should move only after core workflow parity exists. |
-| stage_e_full_shell | full_shell_cache | low:1 | runtime | `public/app-start.js` | Full shell/cache owners should move only after core workflow parity exists. |
+| stage_e_full_shell | full_shell_cache | low:3 | runtime | `public/app-start.js` | Full shell/cache owners should move only after core workflow parity exists. |
 
 ## Update Rule
 

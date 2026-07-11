@@ -187,7 +187,7 @@ async function smokeVoicePendingCancel(page, baseUrl) {
   let browser = null;
   try {
     viteServer = await startViteServer();
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({ headless: true, channel: "chromium" });
     const page = await browser.newPage({
       viewport: { width: 390, height: 844 },
       isMobile: true,

@@ -35,11 +35,11 @@ test("builds a source-only ESM migration backlog from the current boot inventory
   assert.equal(backlog.sourceOnly, true);
   assert.equal(backlog.productionWrites, false);
   assert.equal(backlog.deployExecuted, false);
-  assert.equal(backlog.generatedFrom.scriptCount, 102);
+  assert.equal(backlog.generatedFrom.scriptCount, 103);
   assert.equal(backlog.generatedFrom.globalAuditOk, true);
   assert.equal(backlog.generatedFrom.unmanagedGlobalCount, 0);
-  assert.equal(backlog.items.length, 102);
-  assert.equal(backlog.completionCounts.completed, 102);
+  assert.equal(backlog.items.length, 103);
+  assert.equal(backlog.completionCounts.completed, 103);
   assert.equal(backlog.completionCounts.pending || 0, 0);
   assert.ok(backlog.stageCounts.stage_c_low_risk_adapters > 0);
   assert.ok(backlog.stageCounts.stage_d_core_workflows > 0);
@@ -60,6 +60,13 @@ test("prioritizes low-risk adapters and core workflow slices", () => {
   assert.equal(ownerConsole.ruleId, "owner_console_adapter");
   assert.equal(ownerConsole.completionStatus, "completed");
   assert.ok(!backlog.nextSlices.some((item) => item.path === "public/app-owner-system-console-ui.js"));
+
+  const workspaceConsole = backlog.items.find((item) => item.path === "public/app-workspace-console-ui.js");
+  assert.equal(workspaceConsole.stage, "stage_c_low_risk_adapters");
+  assert.equal(workspaceConsole.ruleId, "owner_console_adapter");
+  assert.equal(workspaceConsole.completionStatus, "completed");
+  assert.ok(workspaceConsole.completionEvidence.includes("importWorkspaceConsoleModel"));
+  assert.ok(!backlog.nextSlices.some((item) => item.path === "public/app-workspace-console-ui.js"));
 
   const dialog = backlog.items.find((item) => item.path === "public/app-dialog-ui.js");
   assert.equal(dialog.stage, "stage_c_low_risk_adapters");

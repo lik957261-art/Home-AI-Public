@@ -334,7 +334,7 @@ async function main() {
   const accessKey = readSecretFile(accessKeyPath, "access key");
   if (screenshotDir) fs.mkdirSync(screenshotDir, { recursive: true });
 
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, channel: "chromium" });
   const result = {
     ok: false,
     origin: safeUrlForOutput(url),

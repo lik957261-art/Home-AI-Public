@@ -47,7 +47,7 @@ assert.match(runProgressUi, /<span class="message-footer-summary-label">\\u6a21\
 assert.match(runProgressUi, /<summary aria-label="\$\{escapeHtml\(title\)\}">/);
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ headless: true, channel: "chromium" });
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true });
     await page.setContent(`<!doctype html>
