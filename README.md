@@ -44,6 +44,22 @@ High-value entry points:
 - Installable PWA shell with static version checks, distinct app icons, and local
   font-size preferences.
 
+## 1.0.7 Authentication Durability Fix
+
+This release hardens Home AI's OpenAI-Codex shared-auth deployment boundary.
+The runtime compatibility layer now resolves a managed profile's `auth.json`
+symlink before it calls the installed Hermes `atomic_replace` function. This
+keeps shared credentials attached even when an older Hermes runtime is present.
+
+A filesystem-level regression harness reproduces the old behavior with a
+legacy replace function and proves that the profile link survives while only
+the shared target is updated. The documented repair flow continues to require
+an explicit operator import from a named Codex Home; Home AI does not silently
+follow Codex Desktop's active profile.
+
+This is a Gateway runtime-only release. The static mobile client and PWA cache
+identity remain `20260711-upstream-sync-v1006`.
+
 ## 1.0.6 Integrated Release
 
 This release starts from the original developer's 2026-07-09 public `main`

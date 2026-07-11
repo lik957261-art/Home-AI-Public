@@ -2858,7 +2858,9 @@ Focused checks: `node tests\kanban-provider.test.js`,
 OpenAI/Codex shared-auth harnesses must cover runtime-overlay protection for
 symlink-preserving atomic writes that cross WSL ext4 and Windows-mounted
 storage, including the `hermes_cli.auth` module's direct imported reference.
-The static guard is `node tests\startup-scripts.test.js`; live repair
+The behavioral guard is
+`node tests\gateway-runtime-atomic-replace.test.js`, and the static integration
+guard is `node tests\startup-scripts.test.js`; live repair
 validation should use `/opt/hermes-gateway-runtime/bin/hermes auth list` with
 `HOME=/home/hermes` and `HERMES_HOME=/home/hermes/.hermes`, then
 `C:\ProgramData\HermesMobile\gateway-worker\check-worker-codex-auth.ps1`, with

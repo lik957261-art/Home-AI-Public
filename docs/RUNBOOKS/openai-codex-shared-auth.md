@@ -21,6 +21,12 @@ Official Hermes preserves symlink targets by resolving `auth.json` before `os.re
 
 Hermes Mobile keeps the compatibility fix in `gateway-runtime-overrides/sitecustomize.py`. It patches `utils.atomic_replace()` and the `hermes_cli.auth` module's imported `atomic_replace` reference so an `EXDEV` replace retries by copying the temp file to the resolved target filesystem and then replacing locally. Do not patch official-clean source for this local deployment rule.
 
+The compatibility wrapper must resolve a symlink target before it calls the
+installed upstream `atomic_replace` implementation. Do not rely on the
+installed Hermes version to preserve the link: older runtimes may replace the
+profile `auth.json` symlink itself even when the Home AI shared-auth layout is
+otherwise correct.
+
 On macOS, shared OpenAI/Codex auth is also symlinked from many isolated
 `hm-*` Gateway profiles into:
 
@@ -91,6 +97,12 @@ CLI, VS Code, or Desktop clients can recreate the
 `refresh_token_reused`/`already consumed by another client` failure class.
 Back up the shared auth file first and never print token values.
 
+If a profile `auth.json` is a regular file instead of the expected shared-auth
+symlink, back up and move that profile-local file out of the live profile before
+restoring the link. Validate the shared store independently before restarting
+the affected worker. Do not let a newer, incomplete profile-local file be
+promoted over the valid shared store during a broad reconfigure operation.
+
 For Home AI-managed pool operations on macOS, use the Home AI-owned pool script.
 The import source is explicit and does not imply future coupling to Codex:
 
@@ -149,6 +161,8 @@ Focused checks:
 
 On macOS, also validate:
 
+- `node tests/gateway-runtime-atomic-replace.test.js` proves a legacy atomic
+  replace implementation cannot detach the profile auth symlink.
 - `scripts/macos-production-profile-audit.js --root /Users/example/path --json --no-strict`
   reports `codexIssueCount=0`.
 - Every OpenAI/Codex manifest `osUser` can read and write the shared

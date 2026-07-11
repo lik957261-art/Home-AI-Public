@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 1.0.7 - 2026-07-11
+
+- Resolve shared-auth symlink targets inside the Home AI runtime compatibility
+  layer before invoking any upstream `atomic_replace` implementation, so older
+  Hermes builds cannot replace a managed profile link with a regular file.
+- Add a real filesystem regression test that runs a legacy replace function
+  against a profile auth symlink and proves the link survives while the shared
+  target is updated.
+- Document the bounded recovery path for importing a named local Codex Home
+  into Home AI's independently managed credential pool after a refresh token
+  has expired or been invalidated.
+- Keep the 1.0.6 PWA cache identity because this is a Gateway runtime and
+  deployment repair with no static client asset change.
+- Keep credentials, account data, auth backups, logs, runtime state, and local
+  deployment paths outside the public repository.
+
 ## 1.0.6 - 2026-07-11
 
 - Sync the original developer's 2026-07-09 public `main` snapshot, including

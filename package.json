@@ -1,6 +1,6 @@
 {
   "name": "home-ai",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "private": false,
   "description": "Mobile-first Home AI family workspace over the local Gateway runtime.",
   "license": "MIT",

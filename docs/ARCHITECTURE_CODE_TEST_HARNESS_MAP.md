@@ -243,6 +243,11 @@ lifecycle surface. Its primary code paths are
 `node tests/gateway-run-quota-failover-retry-service.test.js`, and
 `node tests/homeai-openai-codex-auth-pool-script.test.js`.
 
+Shared-auth write durability also owns
+`gateway-runtime-overrides/sitecustomize.py`. Its focused behavioral coverage is
+`node tests/gateway-runtime-atomic-replace.test.js`; the static integration
+guard remains `node tests/startup-scripts.test.js`.
+
 ## Client Efficiency And Visual Stability Gates
 
 Client performance is a correctness requirement. A change is not complete if it

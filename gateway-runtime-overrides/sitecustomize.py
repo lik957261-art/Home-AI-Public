@@ -406,18 +406,20 @@ def _patch_utils_atomic_replace_module(utils_module: Any) -> bool:
         return True
 
     def patched_atomic_replace(tmp_path, target):
+        target_str = str(target)
+        real_path = os.path.realpath(target_str) if os.path.islink(target_str) else target_str
         try:
-            result = original(tmp_path, target)
+            # Older Hermes builds replaced the symlink itself. Resolve the
+            # destination here so the compatibility layer is safe regardless
+            # of which upstream atomic_replace implementation is installed.
+            result = original(tmp_path, real_path)
             _repair_shared_codex_auth_permissions(target)
-            real_target = os.path.realpath(str(target)) if os.path.islink(str(target)) else str(target)
-            _apply_homeai_user_facing_markdown_mode(real_target)
-            return result
+            _apply_homeai_user_facing_markdown_mode(real_path)
+            return result if result is not None else real_path
         except OSError as exc:
             if exc.errno != errno.EXDEV:
                 raise
 
-            target_str = str(target)
-            real_path = os.path.realpath(target_str) if os.path.islink(target_str) else target_str
             real_dir = os.path.dirname(real_path) or "."
             os.makedirs(real_dir, exist_ok=True)
             fd, fallback_tmp = tempfile.mkstemp(
