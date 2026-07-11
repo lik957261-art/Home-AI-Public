@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${HERMES_MOBILE_ROOT:-/Users/example/path"
-APP_DIR="${HERMES_MOBILE_APP_DIR:-${ROOT%/}/app}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+APP_DIR="${HERMES_MOBILE_APP_DIR:-$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)}"
+ROOT="${HERMES_MOBILE_ROOT:-$(CDPATH= cd -- "${APP_DIR}/.." && pwd)}"
 NODE="${HERMES_MOBILE_NODE_EXE:-${ROOT%/}/runtime/node-current/bin/node}"
 ACCESS_KEY_FILE="${HERMES_SELF_LOOP_ACCESS_KEY_FILE:-${ROOT%/}/data/secrets/owner-web-key.secret}"
 BASE="${HERMES_SELF_LOOP_BASE:-http://127.0.0.1:8797}"

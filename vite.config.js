@@ -519,6 +519,10 @@ const homeAiProductionBootstrapEntry = path.resolve(
   __dirname,
   "src/vite-app/production-bootstrap.mjs",
 );
+const vitePreviewFavicon = path.resolve(
+  __dirname,
+  "public/icons/favicon-32-20260509.png",
+);
 
 function devPreviewHtmlRoutes() {
   const routes = new Map([
@@ -540,6 +544,16 @@ function devPreviewHtmlRoutes() {
     configureServer(server) {
       server.middlewares.use(async (request, response, next) => {
         const pathname = String(request.url || "").split("?")[0];
+        if (pathname === "/icons/favicon-32-20260509.png") {
+          try {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "image/png");
+            response.end(await fs.readFile(vitePreviewFavicon));
+          } catch (error) {
+            next(error);
+          }
+          return;
+        }
         const htmlPath = routes.get(pathname);
         if (!htmlPath) {
           next();

@@ -569,13 +569,14 @@ exit 64
 }
 
 function testExecuteServiceUserPhasePassesWithExistingUsers() {
-  const fake = makeFakeDscl(["hermes-host", "hm-owner"]);
+  const existingUser = path.basename(os.homedir());
+  const fake = makeFakeDscl([existingUser]);
   const parsed = JSON.parse(runWithEnv([
     "--execute",
     "--phase",
     "create-service-users",
     "--service-users",
-    "hermes-host,hm-owner",
+    existingUser,
     "--json",
   ], {
     PATH: `${fake.dir}:${process.env.PATH}`,
@@ -587,7 +588,7 @@ function testExecuteServiceUserPhasePassesWithExistingUsers() {
   assert.equal(parsed.execution.report.createdCount, 0);
   assert.equal(parsed.execution.report.workerGroup, "hermes-workers");
   assert.equal(parsed.execution.report.actions.some((item) => item.action === "group-exists" && item.group === "hermes-workers"), true);
-  assert.deepEqual(parsed.execution.report.actions.filter((item) => item.action === "exists").map((item) => item.user), ["hermes-host", "hm-owner"]);
+  assert.deepEqual(parsed.execution.report.actions.filter((item) => item.action === "exists").map((item) => item.user), [existingUser]);
   const phase = parsed.phases.find((item) => item.id === "create-service-users");
   assert.equal(phase.status, "executed");
 }
@@ -1379,7 +1380,7 @@ function testExecuteWorkspaceIsolationRequiresRootForAclApply() {
 
 function testExecuteGatewayProfilesCreatesManifestKeysAndConfigs() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-gateway-"));
-  const parsed = JSON.parse(run([
+  const parsed = JSON.parse(runWithEnv([
     "--execute",
     "--phase",
     "configure-gateway-profiles",
@@ -1390,7 +1391,9 @@ function testExecuteGatewayProfilesCreatesManifestKeysAndConfigs() {
     "--gateway-openai-workers",
     "2",
     "--json",
-  ]));
+  ], {
+    HOMEAI_LISTENER_USER: path.basename(os.homedir()),
+  }));
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
   assert.equal(parsed.execution.phase, "configure-gateway-profiles");
   assert.equal(parsed.execution.ok, true);
@@ -1484,7 +1487,7 @@ function testExecuteGatewayProfilesPreservesExistingManifest() {
       apiKeyFile: keyPath,
     }],
   }, null, 2));
-  const parsed = JSON.parse(run([
+  const parsed = JSON.parse(runWithEnv([
     "--execute",
     "--phase",
     "configure-gateway-profiles",
@@ -1493,7 +1496,9 @@ function testExecuteGatewayProfilesPreservesExistingManifest() {
     "--workspace-map",
     "owner:hm-owner:owner",
     "--json",
-  ]));
+  ], {
+    HOMEAI_LISTENER_USER: path.basename(os.homedir()),
+  }));
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   assert.equal(manifest.workers.length, 1);
@@ -1668,6 +1673,10 @@ function testExecuteConfigurePluginsCloneFailsOnNonGitTarget() {
   const parsed = JSON.parse(result.stdout);
   assert.equal(parsed.ok, false);
   assert.ok(parsed.execution.issueCodes.includes("plugin_target_exists_not_git_checkout"));
+  assert.equal(
+    manifest.plugins.slice(1).some((plugin) => fs.existsSync(path.join(root, "plugins", plugin.sourceDir))),
+    false,
+  );
 }
 
 function testExecutePluginDependenciesInstallsNodeAndPythonPlugins() {
@@ -1982,8 +1991,8 @@ function testExecuteLaunchdServicesStagesCorePlistsWithoutLoading() {
   fs.writeFileSync(codexProfileFile, JSON.stringify({
     activeProfileId: "previous",
     profiles: [
-      { id: "default", label: "Default", codexHome: "/Users/example/path" },
-      { id: "previous", label: "Previous", codexHome: "/Users/example/path" },
+      { id: "default", label: "Default", codexHome: "/Users/xuxin/.codex" },
+      { id: "previous", label: "Previous", codexHome: "/Users/xuxin/.codex-homes/previous" },
     ],
   }, null, 2));
   const parsed = JSON.parse(runWithEnv([
@@ -2095,7 +2104,7 @@ exit 0
 function makeGatewayLaunchdRoot() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-installer-gateway-launchd-"));
   writeGatewayDocumentPluginFixtures(root);
-  const parsed = JSON.parse(run([
+  const parsed = JSON.parse(runWithEnv([
     "--execute",
     "--phase",
     "configure-gateway-profiles",
@@ -2114,7 +2123,9 @@ function makeGatewayLaunchdRoot() {
     "--gateway-owner-maintenance-deepseek-workers",
     "0",
     "--json",
-  ]));
+  ], {
+    HOMEAI_LISTENER_USER: path.basename(os.homedir()),
+  }));
   assert.equal(parsed.ok, true, JSON.stringify(parsed.issues, null, 2));
   return root;
 }

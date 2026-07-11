@@ -182,7 +182,7 @@ assert.match(mobileContract, /openAppConfirmDialog/);
 assert.match(workspaceContract, /In-App Dialog Requirement/);
 assert.match(workspaceContract, /tests\/no-browser-native-dialogs\.test\.js/);
 assert.match(workspaceContract, /HOMEAI_SCAN_ADJACENT_PLUGIN_DIALOGS=1/);
-assert.equal(shouldSkipDirectory("/Users/example/path"), true);
-assert.equal(shouldSkipDirectory("/Users/example/path"), false);
+assert.equal(shouldSkipDirectory("/Users/example/node_modules"), true);
+assert.equal(shouldSkipDirectory("/Users/example/plugin-source"), false);
 
 console.log(`no browser-native dialogs harness passed; scanned roots: ${scannedRoots.join(", ")}`);

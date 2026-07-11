@@ -47,10 +47,13 @@ query. Manual update recovery must
 not use `/client-reset.html`, because mobile PWA clients can open that page in a
 browser wrapper. If that does not happen, inspect whether the client is still
 executing a pre-recovery static version.
-The Service Worker must fetch app-shell requests (`/`, `/index.html`, and
-`/hermes-mobile/`) network-first with `cache: "no-store"` so killing and
-reopening the PWA does not replay an old cached shell before checking the
-network.
+The Service Worker must start app-shell requests (`/`, `/index.html`, and
+`/hermes-mobile/`) network-first with `cache: "no-store"`. When an exact cached
+shell exists, a bounded 900 ms race may return it while the network request
+continues and refreshes the cache; this prevents a stalled public tunnel from
+leaving the installed PWA on a permanent loading screen. Versioned JavaScript
+and CSS remain cache-first by exact URL only, so a new static version cannot
+fall back to an older query-string response.
 The boot page also has a bounded startup watchdog: one soft reload is allowed
 per client version when startup does not complete, and retry/reset controls must
 appear shortly after that. A reset page that clears caches or unregisters the

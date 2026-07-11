@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${HERMES_MOBILE_ROOT:-/Users/example/path"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="${HERMES_MOBILE_APP_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+ROOT="${HERMES_MOBILE_ROOT:-$(cd "${APP_DIR}/.." && pwd)}"
 MANIFEST="${HERMES_MOBILE_GATEWAY_POOL_MANIFEST:-$ROOT/data/gateway-pool-manifest-mac.json}"
 ACTION=""
 TARGETS=""

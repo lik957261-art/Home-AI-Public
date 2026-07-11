@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${HERMES_MOBILE_ROOT:-/Users/example/path"
-APP_DIR="${HERMES_MOBILE_APP_DIR:-$ROOT/app}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="${HERMES_MOBILE_APP_DIR:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+ROOT="${HERMES_MOBILE_ROOT:-$(cd "${APP_DIR}/.." && pwd)}"
 NODE="${HERMES_MOBILE_NODE_EXE:-$ROOT/runtime/node-current/bin/node}"
 OUT_DIR="${HOMEAI_PRODUCTION_DRIFT_AUDIT_OUTPUT_DIR:-$ROOT/data/production-drift-audit}"
 EXPECTED_WORKSPACES="${HOMEAI_PRODUCTION_DRIFT_AUDIT_EXPECTED_WORKSPACES:-owner}"

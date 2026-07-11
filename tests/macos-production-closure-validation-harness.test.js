@@ -263,9 +263,9 @@ assert.deepEqual(compactRuntimePython({ runtimePython: runtimePythonPath }), {
   imports: runtimeImports,
   issue: "",
 });
-assert.deepEqual(compactRuntimePython({ runtimePython: "/Users/example/path" }), {
+assert.deepEqual(compactRuntimePython({ runtimePython: "/Users/hermes-dev/HermesMobileDev/runtime/python" }), {
   ok: false,
-  configuredPath: "/Users/example/path",
+  configuredPath: "/Users/hermes-dev/HermesMobileDev/runtime/python",
   realPath: "",
   executable: false,
   imports: [],

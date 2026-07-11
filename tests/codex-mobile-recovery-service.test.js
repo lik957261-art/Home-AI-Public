@@ -36,7 +36,7 @@ function response(status = 200) {
 async function testDefaultScriptPathUsesSiblingPluginRoot() {
   assert.equal(
     defaultScriptPath("/Users/example/path"),
-    "/Users/example/path",
+    "/Users/example/plugins/codex-mobile-web/restart-codex-mobile-host-macos.sh",
   );
 }
 

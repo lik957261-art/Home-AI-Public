@@ -1,10 +1,22 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const childProcess = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
 const repoRoot = path.resolve(__dirname, "..");
+
+if (process.platform !== "win32") {
+  const bash = fs.existsSync("/bin/bash") ? "/bin/bash" : "bash";
+  const shellScripts = fs.readdirSync(path.join(repoRoot, "scripts"))
+    .filter((name) => name.endsWith(".sh"))
+    .map((name) => path.join(repoRoot, "scripts", name));
+  for (const shellScript of shellScripts) {
+    const syntax = childProcess.spawnSync(bash, ["-n", shellScript], { encoding: "utf8" });
+    assert.equal(syntax.status, 0, `${path.basename(shellScript)}: ${syntax.stderr || syntax.stdout}`);
+  }
+}
 
 function read(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");

@@ -165,7 +165,7 @@ function main() {
   assert.deepEqual(fakeCardCall.request.targetThreadIds, ["target-thread"]);
   assert.equal(fakeCardCall.request.workflowId, "home-ai-plugin-workspace-audit");
   assert.equal(fakeCardCall.request.autoApprove, true);
-  assert.equal(fakeCardCall.keyFile, "/Users/example/path");
+  assert.equal(fakeCardCall.keyFile, "/Users/example/path/data/secrets/codex-mobile-access-key.secret");
   assert.match(fakeCardCall.request.body, /Keep profile, auth, thread state, and app-server\/mux ownership inside Codex Mobile/);
   assert.match(fakeCardCall.request.body, /Product Reality finding/);
   assert.match(fakeCardCall.request.body, /Return Card Required/);

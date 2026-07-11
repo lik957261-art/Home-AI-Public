@@ -193,7 +193,8 @@ async function testMacEnvironmentDefaultsAreUsedForCodexMobileRequest() {
   assert.match(newMessageCall.url, /^http:\/\/codex-web\.local\//);
   const body = JSON.parse(newMessageCall.options.body);
   assert.equal(body.cwd, "/Users/example/path");
-  assert.match(body.text, /\/Users\/xuxin\/\.codex-mobile-web\/outputs\/chatgpt-pro/);
+  assert.match(body.text, /temporary output directory only: \/Users\/example\/path/);
+  assert.doesNotMatch(body.text, /\.codex-mobile-web\/outputs\/chatgpt-pro/);
 }
 
 function testDefaultOutputDirStaysOutsideWorkspace() {
@@ -218,7 +219,7 @@ function testDefaultWorkspaceIsPlatformAware() {
   );
   assert.equal(
     defaultWorkspace({ HERMES_MOBILE_DEV_ROOT: "/Users/example/path" }, "darwin"),
-    "/Users/example/path",
+    "/Users/example/path/app",
   );
 }
 

@@ -10,7 +10,7 @@ const pluginPath = path.join(repoRoot, "gateway-plugins", "hermes-mobile-image",
 const scratchRoot = path.join(repoRoot, "workspace", "test-image-plugin");
 
 function runPython(script, env = {}) {
-  return execFileSync("python", ["-c", script], {
+  return execFileSync(process.env.PYTHON || (process.platform === "win32" ? "python" : "python3"), ["-c", script], {
     cwd: repoRoot,
     env: { ...process.env, ...env },
     encoding: "utf8",

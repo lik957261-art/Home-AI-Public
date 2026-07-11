@@ -11,7 +11,7 @@ const pluginPath = path.join(repoRoot, "gateway-plugins", "hermes-mobile-pptx", 
 const officePluginPath = path.join(repoRoot, "gateway-plugins", "hermes-mobile-docx", "__init__.py");
 
 function runPython(script, env = {}) {
-  return execFileSync("python", ["-c", script], {
+  return execFileSync(process.env.PYTHON || (process.platform === "win32" ? "python" : "python3"), ["-c", script], {
     cwd: repoRoot,
     env: { ...process.env, ...env },
     encoding: "utf8",
@@ -54,6 +54,9 @@ created = json.loads(pptx._pptx_create_handler({
         {"title": "Next steps", "bullets": ["Keep source records attached", "Use mobile preview/download"]}
     ],
 }))
+if not created.get("ok"):
+    print(json.dumps({"created": created}, ensure_ascii=False))
+    raise SystemExit(0)
 with zipfile.ZipFile(out) as archive:
     names = sorted(archive.namelist())
     slide1 = archive.read("ppt/slides/slide1.xml").decode("utf-8")
@@ -67,7 +70,11 @@ print(json.dumps({"created": created, "validated": validated, "names": names, "s
       HERMES_MOBILE_PPTX_OUTPUT_ROOTS: root,
       HERMES_MOBILE_DOCX_ALLOWED_ROOTS: root,
     }));
-    assert.equal(result.created.ok, true);
+    assert.equal(
+      result.created.ok,
+      true,
+      result.created.validation?.issues?.join(", ") || result.created.error || JSON.stringify(result.created),
+    );
     assert.equal(result.created.tool, "pptx_create");
     assert.equal(result.created.compatibility, "validated");
     assert.equal(result.created.validation.ok, true);

@@ -25,7 +25,7 @@ const {
 
 assert.match(harness, /macos_worker_filesystem_access_harness/);
 assert.match(harness, /HERMES_MOBILE_ROOT/);
-assert.match(harness, /\/Users\/hermes-host\/HermesMobile/);
+assert.match(harness, /process\.env\.HERMES_MOBILE_ROOT \|\| "\/Users\/example\/path"/);
 assert.match(harness, /hm-owner/);
 assert.match(harness, /hm-wuping/);
 assert.match(harness, /weixin_stephen/);

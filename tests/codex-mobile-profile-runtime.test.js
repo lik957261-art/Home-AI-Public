@@ -54,7 +54,7 @@ function withPatchedFs(patches, callback) {
 {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "homeai-codex-profile-runtime-"));
   const runtimeRoot = path.join(root, ".codex-mobile-web");
-  const codexHome = "/Users/example/path";
+  const codexHome = "/Users/example/.codex-homes/previous";
   const profileFile = path.join(runtimeRoot, "codex-profiles.json");
   fs.mkdirSync(runtimeRoot, { recursive: true });
   fs.writeFileSync(profileFile, JSON.stringify({
@@ -63,7 +63,7 @@ function withPatchedFs(patches, callback) {
   }, null, 2));
 
   const result = resolveCodexMobileProfileRuntime({
-    serviceUser: "xuxin",
+    serviceUser: "example",
     runtimeRoot,
     profileFile,
   });

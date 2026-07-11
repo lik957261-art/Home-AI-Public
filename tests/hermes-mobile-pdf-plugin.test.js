@@ -10,7 +10,7 @@ const repoRoot = path.resolve(__dirname, "..");
 const pluginPath = path.join(repoRoot, "gateway-plugins", "hermes-mobile-pdf", "__init__.py");
 
 function runPython(script, env = {}) {
-  return execFileSync("python", ["-c", script], {
+  return execFileSync(process.env.PYTHON || (process.platform === "win32" ? "python" : "python3"), ["-c", script], {
     cwd: repoRoot,
     env: { ...process.env, ...env },
     encoding: "utf8",
@@ -75,7 +75,7 @@ print(json.dumps({"extracted": extracted, "rendered": rendered}, ensure_ascii=Fa
     assert.equal(result.extracted.tool, "pdf_extract_text");
     assert.equal(result.extracted.hasTextLayer, true);
     assert.match(result.extracted.text, /Page One PDF Tool Smoke/);
-    assert.equal(result.rendered.ok, true);
+    assert.equal(result.rendered.ok, true, result.rendered.error || JSON.stringify(result.rendered));
     assert.equal(result.rendered.tool, "pdf_render_pages");
     assert.equal(result.rendered.pagesRendered, 2);
     assert.equal(result.rendered.imagePaths.length, 2);

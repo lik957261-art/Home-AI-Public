@@ -5,6 +5,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
+const PYTHON_COMMAND = process.env.PYTHON || (process.platform === "win32" ? "python" : "python3");
 
 const PYTHON_COMPILE_FILES = [
   "cron_bridge.py",
@@ -115,7 +116,7 @@ function runNodeTests(mode = "local") {
 }
 
 function runPythonCompile() {
-  run("python -m py_compile", "python", ["-m", "py_compile", ...PYTHON_COMPILE_FILES]);
+  run("python -m py_compile", PYTHON_COMMAND, ["-m", "py_compile", ...PYTHON_COMPILE_FILES]);
 }
 
 function runFullTestGate() {
