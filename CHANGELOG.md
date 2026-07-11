@@ -21,6 +21,9 @@
   on machine-specific cache paths.
 - Extend deployment, startup, privacy, and UI contract tests for the new mobile
   startup and portable installation paths.
+- Refresh compatible development tooling to Playwright `1.61.1` and Vite
+  `8.1.4`; keep the PDF.js 5.x runtime line unchanged pending a dedicated 6.x
+  compatibility migration.
 
 ## 2026-05-12 Public Update
 
