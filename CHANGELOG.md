@@ -6,6 +6,16 @@
   permission-boundary checks before filesystem, Skill, automation, account,
   integration, or delivery-path operations.
 
+## 1.0.5 - 2026-07-11
+
+- Add explicit favicon and Apple touch icon declarations to the mobile quick
+  login page, eliminating the browser's signed-out 404 resource request.
+- Advance the PWA client/cache identity to
+  `20260711-mobile-quick-login-v1005` so installed clients receive the updated
+  cached quick-login page.
+- Verify Home AI and Codex Mobile public signed-out flows at a 390 x 844 mobile
+  viewport with no console errors, failed requests, or horizontal overflow.
+
 ## 1.0.4 - 2026-07-10
 
 - Improve Home AI mobile startup by running independent bootstrap requests in
