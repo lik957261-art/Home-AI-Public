@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home AI 登录</title>
+<script>
+  "use strict";
+  const target = new URL("/mobile-quick-login.html", location.origin);
+  if (location.hash) target.hash = location.hash;
+  if (location.search) {
+    const params = new URLSearchParams(location.search);
+    for (const [key, value] of params) target.searchParams.set(key, value);
+  }
+  location.replace(target.href);
+</script>
+<p>正在打开 Home AI 登录...</p>

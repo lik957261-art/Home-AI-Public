@@ -3,9 +3,9 @@ set -euo pipefail
 
 NAS_HOST="${HOMEAI_NAS_HOST:-192.168.10.99}"
 NAS_NFS_EXPORT="${HOMEAI_NAS_NFS_EXPORT:-/volume1/备份}"
-MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/example/path"
+MOUNT_POINT="${HOMEAI_NAS_BACKUP_MOUNT:-/Users/Shared/HomeAI-NAS-Backup}"
 DESTINATION_SUBDIR="${HOMEAI_NAS_BACKUP_SUBDIR:-HomeAI-Production-Backups/mac-production}"
-SUDO_PASSWORD_FILE="${HOMEAI_MAC_SUDO_PASSWORD_FILE:-/Users/example/path"
+SUDO_PASSWORD_FILE="${HOMEAI_MAC_SUDO_PASSWORD_FILE:-}"
 
 usage() {
   cat <<'USAGE'
@@ -15,7 +15,7 @@ Usage:
 Environment:
   HOMEAI_NAS_HOST              NAS host. Default: 192.168.10.99
   HOMEAI_NAS_NFS_EXPORT        NFS export. Default: /volume1/备份
-  HOMEAI_NAS_BACKUP_MOUNT      Local mount point. Default: /Users/example/path
+  HOMEAI_NAS_BACKUP_MOUNT      Local mount point. Default: /Users/Shared/HomeAI-NAS-Backup
   HOMEAI_NAS_BACKUP_SUBDIR     Backup subdirectory under the export.
   HOMEAI_MAC_SUDO_PASSWORD_FILE Restricted sudo password file for mount_nfs.
 

@@ -6,6 +6,25 @@
   permission-boundary checks before filesystem, Skill, automation, account,
   integration, or delivery-path operations.
 
+## 1.0.4 - 2026-07-10
+
+- Improve Home AI mobile startup by running independent bootstrap requests in
+  parallel and preserving startup performance diagnostics.
+- Add a lightweight mobile quick-login route for signed-out browsers, including
+  a short-link entry point that does not persist credentials in source control.
+- Make the service worker return a cached app shell after a 900 ms navigation
+  stall while refreshing the cache from the network in the background.
+- Preserve the complete v1.0.3 client surface while advancing the static client
+  and cache version to `20260710-startup-performance-v1004`.
+- Harden portable macOS deployment so a fresh machine can discover Homebrew
+  Node/Python and the current ChatGPT-bundled Codex executable without relying
+  on machine-specific cache paths.
+- Extend deployment, startup, privacy, and UI contract tests for the new mobile
+  startup and portable installation paths.
+- Refresh compatible development tooling to Playwright `1.61.1` and Vite
+  `8.1.4`; keep the PDF.js 5.x runtime line unchanged pending a dedicated 6.x
+  compatibility migration.
+
 ## 2026-05-12 Public Update
 
 Public export source commit:

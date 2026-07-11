@@ -50,7 +50,7 @@ function quietRunner() {
         ok: true,
         status: 0,
         stdout: [
-          " 123 12.5 /Users/example/path",
+          " 123 12.5 /opt/homebrew/bin/node",
           " 456 5.2 /usr/bin/python3",
           " 789 0.0 /bin/idle",
         ].join("\n"),

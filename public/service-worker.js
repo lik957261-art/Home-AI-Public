@@ -1,6 +1,6 @@
 "use strict";
 
-const HERMES_SW_VERSION = "20260703-codex-embed-vite-proxy-v1003";
+const HERMES_SW_VERSION = "20260710-startup-performance-v1004";
 const HERMES_CACHE_PREFIX = "hermes-mobile-shell-";
 const HERMES_MAX_SHELL_CACHES = 3;
 const HERMES_APP_SHELL_CACHE = `hermes-mobile-shell-${HERMES_SW_VERSION}`;
@@ -8,110 +8,112 @@ const HERMES_APP_SHELL_URLS = [
   "/",
   "/hermes-mobile/",
   "/index.html",
-  "/styles.css?v=20260703-codex-embed-vite-proxy-v1003",
-  "/markdown-viewer.html?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-task-artifact-helpers.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-story-helpers.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-reading-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-coins-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-program-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-growth-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-growth-task-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-growth-reflection-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-api-client.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-runtime-facade-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-dialog-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-shell-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-task-groups-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-navigation-view-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-chat-composer-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-chat-scope-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-source-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-model-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-editor-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-draft-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-mobile-layout-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-context-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-run-progress-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-navigation-search-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-task-preview-helpers-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-task-preview-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-sidebar-task-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-message-skill-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-message-actions-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-route-snapshot-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-platform-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-platform-status-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-owner-system-console-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-ai-ops-diagnostics-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-pwa-settings-push-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-pwa-push-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-workspace-admin-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-access-key-manager-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-tts-profile-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-plugin-admin-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-share-image-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-draft-thread-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-directory-automation-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-shared-directory-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-embedded-plugin-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-wardrobe-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-plugin-topics-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-directory-topics-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-action-inbox-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-automation-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-native-growth-submission-controller.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-growth-ai-controller.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-growth-reward-controller.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-growth-settings-controller.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-growth-teaching-controller.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-learning-growth-controller.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-automation-controller-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-automation-actions-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-thread-state-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-group-topic-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-core-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-story-core-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-todo-core-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-render-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-list-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-learning-panel-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-recorder-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-todo-detail-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-actions-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-composer-actions-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-card-actions-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-kanban-study-actions-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-thread-message-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-thread-list-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-thread-directory-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-thread-card-message-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-long-message-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-rich-text-directory-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-message-usage-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-refresh-scheduler.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-current-thread-refresh-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-render-scheduler-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-streaming-message-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-viewport-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-self-check-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-message-invalidation-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-event-state-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-events-composer-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-event-stream-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-upload-sidebar-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-send-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-native-environment-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-pending-send-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-send-pipeline-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-composer-attachments-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-voice-input-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-voice-learning-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-wire-start-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-start.js?v=20260703-codex-embed-vite-proxy-v1003",
+  "/mobile-quick-login.html",
+  "/q.html",
+  "/styles.css?v=20260710-startup-performance-v1004",
+  "/markdown-viewer.html?v=20260710-startup-performance-v1004",
+  "/app-task-artifact-helpers.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-story-helpers.js?v=20260710-startup-performance-v1004",
+  "/app-learning-reading-ui.js?v=20260710-startup-performance-v1004",
+  "/app-learning-coins-ui.js?v=20260710-startup-performance-v1004",
+  "/app-learning-program-ui.js?v=20260710-startup-performance-v1004",
+  "/app-learning-growth-ui.js?v=20260710-startup-performance-v1004",
+  "/app-learning-growth-task-ui.js?v=20260710-startup-performance-v1004",
+  "/app-learning-growth-reflection-ui.js?v=20260710-startup-performance-v1004",
+  "/app-api-client.js?v=20260710-startup-performance-v1004",
+  "/app-runtime-facade-ui.js?v=20260710-startup-performance-v1004",
+  "/app.js?v=20260710-startup-performance-v1004",
+  "/app-dialog-ui.js?v=20260710-startup-performance-v1004",
+  "/app-shell-ui.js?v=20260710-startup-performance-v1004",
+  "/app-task-groups-ui.js?v=20260710-startup-performance-v1004",
+  "/app-navigation-view-ui.js?v=20260710-startup-performance-v1004",
+  "/app-chat-composer-ui.js?v=20260710-startup-performance-v1004",
+  "/app-chat-scope-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-source-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-model-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-editor-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-draft-ui.js?v=20260710-startup-performance-v1004",
+  "/app-mobile-layout-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-context-ui.js?v=20260710-startup-performance-v1004",
+  "/app-run-progress-ui.js?v=20260710-startup-performance-v1004",
+  "/app-navigation-search-ui.js?v=20260710-startup-performance-v1004",
+  "/app-task-preview-helpers-ui.js?v=20260710-startup-performance-v1004",
+  "/app-task-preview-ui.js?v=20260710-startup-performance-v1004",
+  "/app-sidebar-task-ui.js?v=20260710-startup-performance-v1004",
+  "/app-message-skill-ui.js?v=20260710-startup-performance-v1004",
+  "/app-message-actions-ui.js?v=20260710-startup-performance-v1004",
+  "/app-route-snapshot-ui.js?v=20260710-startup-performance-v1004",
+  "/app-platform-ui.js?v=20260710-startup-performance-v1004",
+  "/app-platform-status-ui.js?v=20260710-startup-performance-v1004",
+  "/app-owner-system-console-ui.js?v=20260710-startup-performance-v1004",
+  "/app-ai-ops-diagnostics-ui.js?v=20260710-startup-performance-v1004",
+  "/app-pwa-settings-push-ui.js?v=20260710-startup-performance-v1004",
+  "/app-pwa-push-ui.js?v=20260710-startup-performance-v1004",
+  "/app-workspace-admin-ui.js?v=20260710-startup-performance-v1004",
+  "/app-access-key-manager-ui.js?v=20260710-startup-performance-v1004",
+  "/app-tts-profile-ui.js?v=20260710-startup-performance-v1004",
+  "/app-plugin-admin-ui.js?v=20260710-startup-performance-v1004",
+  "/app-share-image-ui.js?v=20260710-startup-performance-v1004",
+  "/app-draft-thread-ui.js?v=20260710-startup-performance-v1004",
+  "/app-directory-automation-ui.js?v=20260710-startup-performance-v1004",
+  "/app-shared-directory-ui.js?v=20260710-startup-performance-v1004",
+  "/app-embedded-plugin-ui.js?v=20260710-startup-performance-v1004",
+  "/app-wardrobe-ui.js?v=20260710-startup-performance-v1004",
+  "/app-plugin-topics-ui.js?v=20260710-startup-performance-v1004",
+  "/app-directory-topics-ui.js?v=20260710-startup-performance-v1004",
+  "/app-action-inbox-ui.js?v=20260710-startup-performance-v1004",
+  "/app-automation-ui.js?v=20260710-startup-performance-v1004",
+  "/app-learning-native-growth-submission-controller.js?v=20260710-startup-performance-v1004",
+  "/app-learning-growth-ai-controller.js?v=20260710-startup-performance-v1004",
+  "/app-learning-growth-reward-controller.js?v=20260710-startup-performance-v1004",
+  "/app-learning-growth-settings-controller.js?v=20260710-startup-performance-v1004",
+  "/app-learning-growth-teaching-controller.js?v=20260710-startup-performance-v1004",
+  "/app-learning-growth-controller.js?v=20260710-startup-performance-v1004",
+  "/app-automation-controller-ui.js?v=20260710-startup-performance-v1004",
+  "/app-automation-actions-ui.js?v=20260710-startup-performance-v1004",
+  "/app-thread-state-ui.js?v=20260710-startup-performance-v1004",
+  "/app-group-topic-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-core-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-story-core-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-todo-core-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-render-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-list-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-learning-panel-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-recorder-ui.js?v=20260710-startup-performance-v1004",
+  "/app-todo-detail-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-actions-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-composer-actions-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-card-actions-ui.js?v=20260710-startup-performance-v1004",
+  "/app-kanban-study-actions-ui.js?v=20260710-startup-performance-v1004",
+  "/app-thread-message-ui.js?v=20260710-startup-performance-v1004",
+  "/app-thread-list-ui.js?v=20260710-startup-performance-v1004",
+  "/app-thread-directory-ui.js?v=20260710-startup-performance-v1004",
+  "/app-thread-card-message-ui.js?v=20260710-startup-performance-v1004",
+  "/app-long-message-ui.js?v=20260710-startup-performance-v1004",
+  "/app-rich-text-directory-ui.js?v=20260710-startup-performance-v1004",
+  "/app-message-usage-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-refresh-scheduler.js?v=20260710-startup-performance-v1004",
+  "/app-composer-current-thread-refresh-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-render-scheduler-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-streaming-message-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-viewport-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-self-check-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-message-invalidation-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-event-state-ui.js?v=20260710-startup-performance-v1004",
+  "/app-events-composer-ui.js?v=20260710-startup-performance-v1004",
+  "/app-event-stream-ui.js?v=20260710-startup-performance-v1004",
+  "/app-upload-sidebar-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-send-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-native-environment-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-pending-send-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-send-pipeline-ui.js?v=20260710-startup-performance-v1004",
+  "/app-composer-attachments-ui.js?v=20260710-startup-performance-v1004",
+  "/app-voice-input-ui.js?v=20260710-startup-performance-v1004",
+  "/app-voice-learning-ui.js?v=20260710-startup-performance-v1004",
+  "/app-wire-start-ui.js?v=20260710-startup-performance-v1004",
+  "/app-start.js?v=20260710-startup-performance-v1004",
   "/fixed-viewport.js?v=20260505-1135",
-  "/markdown-renderer-client.js?v=20260703-codex-embed-vite-proxy-v1003",
+  "/markdown-renderer-client.js?v=20260710-startup-performance-v1004",
   "/file-viewer.html",
   "/pdf-viewer.html",
   "/manifest.json",
@@ -125,15 +127,17 @@ const HERMES_APP_SHELL_URLS = [
 const HERMES_INSTALL_CORE_URLS = [
   "/",
   "/index.html",
-  "/styles.css?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-api-client.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-runtime-facade-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-dialog-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-navigation-view-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-thread-state-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-thread-list-ui.js?v=20260703-codex-embed-vite-proxy-v1003",
-  "/app-start.js?v=20260703-codex-embed-vite-proxy-v1003",
+  "/mobile-quick-login.html",
+  "/q.html",
+  "/styles.css?v=20260710-startup-performance-v1004",
+  "/app-api-client.js?v=20260710-startup-performance-v1004",
+  "/app-runtime-facade-ui.js?v=20260710-startup-performance-v1004",
+  "/app.js?v=20260710-startup-performance-v1004",
+  "/app-dialog-ui.js?v=20260710-startup-performance-v1004",
+  "/app-navigation-view-ui.js?v=20260710-startup-performance-v1004",
+  "/app-thread-state-ui.js?v=20260710-startup-performance-v1004",
+  "/app-thread-list-ui.js?v=20260710-startup-performance-v1004",
+  "/app-start.js?v=20260710-startup-performance-v1004",
 ];
 
 async function cacheShellUrl(cache, url) {
@@ -206,6 +210,16 @@ function isCriticalStaticRequest(url) {
   return /\.(?:css|js)$/i.test(url.pathname);
 }
 
+function isVersionedStaticRequest(url) {
+  return url.searchParams.has("v") || /\b\d{8,}\b/.test(url.pathname);
+}
+
+function resolveAfter(ms, value) {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(value), ms);
+  });
+}
+
 async function matchCachedStatic(request) {
   return (await caches.match(request))
     || (await caches.match(request, { ignoreSearch: true }))
@@ -233,18 +247,23 @@ async function deleteCachedViewerShell(cache) {
 
 async function networkFirst(request, fallbackUrl = "/") {
   const cache = await caches.open(HERMES_APP_SHELL_CACHE);
-  try {
-    const response = await fetch(request, { cache: "no-store" });
+  const cached = (await caches.match(request))
+    || (fallbackUrl ? await caches.match(fallbackUrl) : null);
+  const network = fetch(request, { cache: "no-store" }).then((response) => {
     if (response && response.ok) cache.put(request, response.clone()).catch(() => {});
     return response;
-  } catch (_) {
-    return (await caches.match(request))
-      || (fallbackUrl ? await caches.match(fallbackUrl) : null)
-      || new Response("Home AI is offline.", {
-        status: 503,
-        headers: { "Content-Type": "text/plain; charset=utf-8" },
-      });
-  }
+  });
+  if (cached) return Promise.race([network, resolveAfter(900, cached)]).catch(() => cached);
+  return network.catch(() => new Response("Home AI is offline.", {
+    status: 503,
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  }));
+}
+
+async function cacheFirstVersionedStatic(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+  return networkFirstStatic(request);
 }
 
 async function networkFirstStatic(request) {
@@ -303,6 +322,10 @@ self.addEventListener("fetch", (event) => {
   }
   if (isViewerShellRequest(url)) {
     event.respondWith(networkFirstViewerShell(request));
+    return;
+  }
+  if (isCriticalStaticRequest(url) && isVersionedStaticRequest(url)) {
+    event.respondWith(cacheFirstVersionedStatic(request));
     return;
   }
   if (isCriticalStaticRequest(url)) {

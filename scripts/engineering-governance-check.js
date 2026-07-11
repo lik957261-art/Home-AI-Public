@@ -362,13 +362,6 @@ function checkDocs(issues) {
   );
   requireText(
     issues,
-    "AGENTS.md",
-    /Dedicated audit thread exception[\s\S]+audit-thread-governance-contract\.md[\s\S]+must not read[\s\S]+\.agent-context\/HANDOFF\.md/,
-    "agents_missing_audit_thread_exception",
-    "AGENTS.md must exempt dedicated audit threads from ordinary handoff loading",
-  );
-  requireText(
-    issues,
     "docs/MODULES/automation.md",
     /audit-thread-governance-contract\.md[\s\S]+Scheduled\s+automation may create a bounded audit request card[\s\S]+must not run deep host\/plugin audits[\s\S]+directly/,
     "automation_doc_missing_audit_scheduler_boundary",

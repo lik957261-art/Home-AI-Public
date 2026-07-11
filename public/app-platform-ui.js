@@ -259,21 +259,23 @@ async function login(key) {
 }
 
 async function bootstrap() {
-  state.startupStage = "\u72b6\u6001";
+  state.startupStage = "\u57fa\u7840\u670d\u52a1";
   renderClientVersion();
-  await startupPerfStep("status", () => loadStatus());
-  state.startupStage = "\u7248\u672c";
-  await startupPerfStep("client-version", () => checkClientVersion("bootstrap")).catch(() => {});
+  await Promise.all([
+    startupPerfStep("status", () => loadStatus()),
+    startupPerfStep("client-version", () => checkClientVersion("bootstrap")).catch(() => {}),
+    startupPerfStep("push-status", () => loadPushStatus({ subscription: false })).catch(() => updatePushButton()),
+  ]);
   checkAppUpdate("login").catch(() => {});
-  state.startupStage = "\u63a8\u9001";
-  await startupPerfStep("push-status", () => loadPushStatus({ subscription: false })).catch(() => updatePushButton());
   if (blockMobileBrowserShellAppLaunch()) return;
   state.startupStage = "\u5de5\u4f5c\u533a";
   await startupPerfStep("workspaces", () => loadWorkspaces());
   if (!applyInitialRouteFromUrl() && !applyRestoredAppRouteSnapshot()) applyDefaultLaunchView();
   state.startupStage = "\u9879\u76ee";
-  await startupPerfStep("push-context", () => syncPushSubscriptionContext()).catch(() => {});
-  await startupPerfStep("projects", () => loadProjects());
+  await Promise.all([
+    startupPerfStep("push-context", () => syncPushSubscriptionContext()).catch(() => {}),
+    startupPerfStep("projects", () => loadProjects()),
+  ]);
   state.startupStage = "\u89c6\u56fe";
   await startupPerfStep(`selected-view:${state.viewMode || "unknown"}`, () => loadSelectedView());
   restoreAppRouteSnapshotPosition();

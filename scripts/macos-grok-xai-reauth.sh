@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="${HERMES_MOBILE_ROOT:-/Users/example/path"
-APP="${HERMES_MOBILE_APP_ROOT:-$ROOT/app}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP="${HERMES_MOBILE_APP_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
+ROOT="${HERMES_MOBILE_ROOT:-$(cd "${APP}/.." && pwd)}"
 NODE="${HERMES_MOBILE_NODE:-$ROOT/runtime/node-current/bin/node}"
 PYTHON="${HERMES_GROK_REAUTH_PYTHON:-$ROOT/runtime/hermes-agent-official/venv/bin/python}"
 OS_USER="${HERMES_GROK_REAUTH_USER:-hm-owner}"

@@ -21,16 +21,16 @@ function run() {
 
   const provider = createSecurityBoundaryProvider({
     protectedRoots: [
-      "/Users/example/path",
+      "/Users/example/src/home-ai-private",
       "D:\\HermesUsers\\Alice\\Documents\\hermes-mobile-source",
       "/home/example/.hermes",
     ],
     protectedFiles: [
-      "/Users/example/path",
+      "/Users/example/.home-ai/owner.key",
       "D:\\HermesUsers\\Alice\\Documents\\Agent\\.hermes_web_secret_key",
     ],
     allowedExceptionRoots: [
-      "/Users/example/path",
+      "/Users/example/HomeAIDrive",
       "/home/example/.hermes/run-logs",
       "D:\\HermesUsers\\Alice\\Documents\\Agent\\workspace\\hermes-web\\drive",
     ],
@@ -39,8 +39,8 @@ function run() {
   assert.strictEqual(provider.isProtectedPath("/home/example/.hermes/config.yaml"), true);
   assert.strictEqual(provider.isProtectedPath("\\\\wsl.localhost\\Ubuntu-24.04\\home\\example\\.hermes\\config.yaml"), true);
   assert.strictEqual(provider.isProtectedPath("/home/example/.hermes/run-logs/job/report.pdf"), false);
-  assert.strictEqual(provider.rootConflictsWithProtected("/Users/example/path"), true);
-  assert.strictEqual(provider.rootConflictsWithProtected("/Users/example/path"), false);
+  assert.strictEqual(provider.rootConflictsWithProtected("/Users/example/src"), true);
+  assert.strictEqual(provider.rootConflictsWithProtected("/Users/example/HomeAIDrive"), false);
   assert.strictEqual(provider.rootConflictsWithProtected("D:\\HermesUsers\\Alice\\Documents"), true);
   assert.strictEqual(provider.rootConflictsWithProtected("D:\\"), true);
   assert.strictEqual(provider.rootConflictsWithProtected("D:\\HermesUsers\\Alice\\Documents\\Agent\\workspace\\hermes-web\\drive"), false);
@@ -48,10 +48,10 @@ function run() {
   const policy = provider.hardenAccessPolicy({
     principal_id: "owner",
     access_mode: "unrestricted",
-    default_workspace: "/Users/example/path",
+    default_workspace: "/Users/example/HomeAIDrive",
     allowed_roots: [
-      "/Users/example/path",
-      "/Users/example/path",
+      "/Users/example/src/home-ai-private",
+      "/Users/example/HomeAIDrive",
       "/home/example/.hermes/run-logs",
     ],
     allowed_toolsets: ["web", "git", "shell", "todo", "cronjob", "http", "weather", "browser", "video", "messaging", "tts", "wardrobe"],
@@ -60,7 +60,7 @@ function run() {
   });
 
   assert.strictEqual(policy.access_mode, "restricted");
-  assert.deepStrictEqual(policy.allowed_roots, ["/Users/example/path", "/home/example/.hermes/run-logs"]);
+  assert.deepStrictEqual(policy.allowed_roots, ["/Users/example/HomeAIDrive", "/home/example/.hermes/run-logs"]);
   assert.deepStrictEqual(policy.allowed_toolsets, ["web", "todo", "cronjob", "http", "weather", "browser", "video", "messaging", "tts", "wardrobe"]);
   assert.strictEqual(policy.allow_shell, false);
   assert.strictEqual(policy.can_delegate_codex, false);
@@ -74,7 +74,7 @@ function run() {
   const genericMcpPolicy = provider.hardenAccessPolicy({
     principal_id: "owner",
     access_mode: "restricted",
-    allowed_roots: ["/Users/example/path"],
+    allowed_roots: ["/Users/example/HomeAIDrive"],
     allowed_toolsets: ["file", "mcp", "terminal"],
   });
   assert.deepStrictEqual(genericMcpPolicy.allowed_toolsets, ["file"]);
@@ -85,7 +85,7 @@ function run() {
     const productMcpPolicy = provider.hardenAccessPolicy({
       principal_id: "owner",
       access_mode: "restricted",
-      allowed_roots: ["/Users/example/path"],
+      allowed_roots: ["/Users/example/HomeAIDrive"],
       allowed_toolsets: ["file", productToolset],
     });
     assert.ok(productMcpPolicy.allowed_toolsets.includes(productToolset));
@@ -95,7 +95,7 @@ function run() {
   const defaultToolPolicy = provider.hardenAccessPolicy({
     principal_id: "owner",
     access_mode: "restricted",
-    allowed_roots: ["/Users/example/path"],
+    allowed_roots: ["/Users/example/HomeAIDrive"],
   });
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("web"));
   assert.ok(defaultToolPolicy.allowed_toolsets.includes("search"));
@@ -126,7 +126,7 @@ function run() {
   const maintenancePolicy = provider.hardenAccessPolicy({
     principal_id: "owner",
     access_mode: "unrestricted",
-    allowed_roots: ["/Users/example/path"],
+    allowed_roots: ["/Users/example/HomeAIDrive"],
     allowed_toolsets: ["web", "terminal", "code_execution", "cronjob"],
     allow_shell: true,
     can_delegate_codex: true,

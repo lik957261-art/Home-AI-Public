@@ -1323,8 +1323,8 @@ async function testFinanceGrantRefreshesGatewayProfilesAfterProvisioning() {
   assert.equal(systemCalls[0].action, "ensure_launchd_services");
   assert.equal(systemCalls[0].context.workspaceId, "weixin_stephen");
   assert.equal(systemCalls[0].context.macUser, "hm-stephen");
-  assert.equal(systemCalls[0].context.paths.workspaceDataRoot, "/Users/example/path");
-  assert.equal(systemCalls[0].context.paths.workerWorkspaceRoot, "/Users/example/path");
+  assert.equal(systemCalls[0].context.paths.workspaceDataRoot, "/Users/example/path/data/drive/users/weixin_stephen");
+  assert.equal(systemCalls[0].context.paths.workerWorkspaceRoot, "/Users/hm-stephen/HermesWorkspace");
   assert.equal(systemCalls[0].context.gateway.kickstart, true);
   assert.equal(systemCalls[0].context.gateway.manifestPath, "/Users/example/path");
   assert.deepEqual(systemCalls[0].context.gateway.profiles, ["hm-stephen-openai-1", "deepseekgw7"]);

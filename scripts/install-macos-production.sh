@@ -3165,13 +3165,38 @@ try {
   }
 
   if (issues.length === 0 && ["clone", "bundle"].includes(sourceMode)) {
+    const missingTargets = planPlugins.filter((plugin) => !fs.existsSync(plugin.targetDir));
+    if (sourceMode === "bundle" && missingTargets.length > 0) {
+      if (!sourceBundleDir) {
+        issues.push({ code: "plugin_source_bundle_dir_required" });
+      } else if (!fs.existsSync(sourceBundleDir) || !fs.statSync(sourceBundleDir).isDirectory()) {
+        issues.push({ code: "plugin_source_bundle_dir_missing", path: sourceBundleDir });
+      }
+    }
+    for (const plugin of planPlugins) {
+      if (fs.existsSync(plugin.targetDir)) {
+        if (!fs.statSync(plugin.targetDir).isDirectory()) {
+          issues.push({ code: "plugin_target_exists_not_directory", id: plugin.id, path: rel(plugin.targetDir) });
+          continue;
+        }
+        if (sourceMode === "clone") {
+          const gitDir = path.join(plugin.targetDir, ".git");
+          if (!fs.existsSync(gitDir) || !fs.statSync(gitDir).isDirectory()) {
+            issues.push({ code: "plugin_target_exists_not_git_checkout", id: plugin.id, path: rel(plugin.targetDir) });
+          }
+        }
+        continue;
+      }
+      if (sourceMode === "bundle" && sourceBundleDir && !plugin.bundleAvailable) {
+        issues.push({ code: "plugin_source_bundle_entry_missing", id: plugin.id, sourceDir: plugin.sourceDir });
+      }
+    }
+  }
+
+  if (issues.length === 0 && ["clone", "bundle"].includes(sourceMode)) {
     for (const plugin of planPlugins) {
       if (fs.existsSync(plugin.targetDir)) {
         const entries = fs.readdirSync(plugin.targetDir).filter((entry) => entry !== ".DS_Store");
-        if (sourceMode === "clone" && !fs.existsSync(path.join(plugin.targetDir, ".git"))) {
-          issues.push({ code: "plugin_target_exists_not_git_checkout", id: plugin.id, path: rel(plugin.targetDir) });
-          continue;
-        }
         actions.push({ action: sourceMode === "clone" ? "checkout-exists" : "source-exists", id: plugin.id, path: rel(plugin.targetDir), entryCount: entries.length });
         continue;
       }
@@ -3180,6 +3205,7 @@ try {
       } else {
         copyBundleSource(plugin, plugin.targetDir);
       }
+      if (issues.length > 0) break;
     }
   }
 

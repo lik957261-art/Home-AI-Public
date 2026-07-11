@@ -8,7 +8,7 @@ const repoRoot = path.resolve(__dirname, "..");
 const pluginPath = path.join(repoRoot, "gateway-plugins", "hermes-mobile-weather", "__init__.py");
 
 function runPython(script) {
-  return execFileSync("python", ["-c", script], {
+  return execFileSync(process.env.PYTHON || (process.platform === "win32" ? "python" : "python3"), ["-c", script], {
     cwd: repoRoot,
     env: { ...process.env, PYTHONIOENCODING: "utf-8" },
     encoding: "utf8",

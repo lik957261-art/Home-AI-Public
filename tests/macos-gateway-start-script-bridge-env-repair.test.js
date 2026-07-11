@@ -38,7 +38,7 @@ try {
   const productionRoot = path.join(tempRoot, "HermesMobile");
   const missingInjectionScript = [
     "#!/usr/bin/env bash",
-    "ROOT=\"/Users/example/path"",
+    "ROOT=\"/Users/example/path\"",
     'MOBILE_BRIDGE_HOST_URL="${HERMES_MOBILE_BRIDGE_HOST_URL:-${HERMES_WEB_BRIDGE_HOST_URL:-http://127.0.0.1:8798}}"',
     'MOBILE_BRIDGE_HOST_KEY_PATH="${HERMES_MOBILE_BRIDGE_HOST_KEY_PATH:-${HERMES_WEB_BRIDGE_HOST_KEY_PATH:-$ROOT/data/secrets/bridge-host.secret}}"',
     "exec env \\",
@@ -75,7 +75,7 @@ try {
 
   const wrongCredentialRoot = [
     "#!/usr/bin/env bash",
-    "ROOT=\"/Users/example/path"",
+    "ROOT=\"/Users/example/path\"",
     "FILE_PLUGIN_ALLOWED_ROOTS=\"$ROOT/data/drive,$ROOT/data/uploads,$ROOT/data/artifacts\"",
     "export HERMES_MOBILE_HTTP_CREDENTIAL_ROOTS=\"$ROOT/data/secrets\"",
     "exec env \\",

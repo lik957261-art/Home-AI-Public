@@ -6,8 +6,9 @@ or revalidated after a Gateway/Profile/Skill/MCP/plugin/auth-header incident.
 The checked closure harness is:
 
 ```bash
-sudo /Users/example/path \
-  /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/macos-production-closure-validation.js \
+  --root <root> \
   --json
 ```
 
@@ -175,50 +176,58 @@ gate.
 Use the focused harnesses when investigating one subsystem:
 
 ```bash
-sudo /Users/example/path \
-  /Users/example/path \
-  --access-key-file /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/production-status-smoke.js \
+  --access-key-file <root>/data/secrets/owner-web-key.secret \
   --base http://127.0.0.1:8797 \
   --json
 
-sudo /Users/example/path \
-  /Users/example/path \
-  --root /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/macos-production-profile-audit.js \
+  --root <root> \
   --json
 
-sudo /Users/example/path \
-  /Users/example/path \
-  --root /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/macos-worker-filesystem-access-harness.js \
+  --root <root> \
   --json
 
-sudo /Users/example/path \
-  /Users/example/path \
-  --root /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/macos-plugin-directory-production-smoke.js \
+  --root <root> \
   --base http://127.0.0.1:8797 \
   --json
 
-sudo /Users/example/path \
-  /Users/example/path \
-  --root /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/macos-bound-directory-preview-smoke.js \
+  --root <root> \
   --json
 
-sudo /Users/example/path \
-  /Users/example/path \
-  --root /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/macos-bound-directory-preview-smoke.js \
+  --root <root> \
   --all-workspaces \
   --simulate-ui-route \
   --json
 
-sudo /Users/example/path \
-  /Users/example/path \
-  --root /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/macos-wardrobe-binding-production-smoke.js \
+  --root <root> \
   --base http://127.0.0.1:8797 \
   --json
 
-/Users/example/path \
-  /Users/example/path \
+sudo <root>/runtime/node-current/bin/node \
+  <root>/app/scripts/macos-automation-cron-audit.js \
+  --root <root> \
+  --strict-config \
+  --strict-source \
+  --strict-status \
+  --json
+
+<root>/runtime/node-current/bin/node \
+  <root>/app/scripts/playwright-visual-smoke.js \
   --url http://127.0.0.1:8797/?_hmv=<smoke-id> \
-  --access-key-path /Users/example/path \
+  --access-key-path <root>/data/secrets/owner-web-key.secret \
   --view topics \
   --workspace-id owner \
   --viewport 390x844 \

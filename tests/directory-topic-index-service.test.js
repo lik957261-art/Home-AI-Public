@@ -18,7 +18,7 @@ const service = createDirectoryTopicIndexService({
     path: "/Users/example/path",
     ownerWorkspaceId: "owner",
   };
-  assert.equal(service.routeKey(route), "owner|health||/users/owner/健康");
+  assert.equal(service.routeKey(route), "owner|health||/users/example/path");
 }
 
 {

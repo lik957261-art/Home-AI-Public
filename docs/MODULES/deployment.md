@@ -404,6 +404,12 @@ service root.
   and grant only `hermes-host`, the matching workspace OS user, and Owner
   operations.
   See `docs/RUNBOOKS/macos-worker-filesystem-access.md`.
+- Mac Gateway manifest/toolset smoke:
+  `scripts/macos-gateway-manifest-toolset-smoke.js`. Run it after Gateway pool
+  manifest generation, worker profile materialization, or toolset changes:
+  `node scripts/macos-gateway-manifest-toolset-smoke.js --root /Users/example/path --json`.
+  It validates bounded profile metadata, including the required Owner candidate
+  and ordinary-user toolset coverage, without printing credentials or prompts.
 - Workspace onboarding now has a Home AI service/API layer:
   `adapters/workspace-onboarding-service.js` and
   `server-routes/workspace-onboarding-api-routes.js`. The service can generate
@@ -1300,7 +1306,7 @@ the bridge URL/key path but forgot to pass
 `HERMES_MOBILE_BRIDGE_HOST_*` and `HERMES_WEB_BRIDGE_HOST_*` through the final
 `exec env`.
 After repairing those env roots, run the live DOCX smoke as a second gate:
-`sudo /Users/example/path /Users/example/path --root /Users/example/path --profiles hm-wuping-openai-1 --json`.
+`sudo <root>/runtime/node-current/bin/node <root>/app/scripts/macos-file-plugin-docx-root-smoke.js --root <root> --profiles hm-wuping-openai-1 --json`.
 The smoke generates a temporary DOCX under the live uploads root and imports the
 target profile's local `hermes-mobile-docx` plugin. It must return `ok=true`
 with no `docx_plugin_file_path_outside_allowed_roots:<profile>` issue before a

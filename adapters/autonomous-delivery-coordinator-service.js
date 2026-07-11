@@ -659,8 +659,8 @@ function taskCardForSlice(deliveryCase = {}, slice = {}, target = {}, ownerPromp
 
 function isHomeAiTargetSlice(slice = {}) {
   const targetWorkspaceId = safeToken(slice.targetWorkspaceId || "", "", 100).toLowerCase();
-  const targetWorkspacePath = clean(slice.targetWorkspacePath || "", 800);
-  return targetWorkspaceId === "home-ai" || targetWorkspacePath === APP_WORKSPACE;
+  const ownerLayer = clean(slice.ownerLayer || "", 120);
+  return targetWorkspaceId === "home-ai" || ownerLayer === "home_ai_workspace";
 }
 
 function auditTargetForSlice(slice = {}) {

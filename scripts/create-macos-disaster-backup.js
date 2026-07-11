@@ -7,8 +7,9 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const DEFAULT_ROOT = "/Users/example/path";
-const DEFAULT_OPERATOR_HOME = "/Users/example/path";
+const DEFAULT_APP_ROOT = path.resolve(__dirname, "..");
+const DEFAULT_ROOT = path.basename(DEFAULT_APP_ROOT) === "app" ? path.dirname(DEFAULT_APP_ROOT) : DEFAULT_APP_ROOT;
+const DEFAULT_OPERATOR_HOME = os.homedir();
 const SQLITE_EXT_RE = /\.(sqlite|sqlite3|db)$/i;
 
 const COMMON_RSYNC_EXCLUDES = [

@@ -67,7 +67,7 @@ assert.equal(
 );
 
 assert.equal(
-  compactPath("/Users/example/path", parsed.root),
+  compactPath("/Users/example/path/data/drive/users/owner/Hermes-徐欣", parsed.root),
   "$DRIVE/users/owner/Hermes-徐欣",
 );
 assert.equal(
@@ -80,7 +80,7 @@ assert.equal(
 );
 
 const compacted = compactError(
-  "EACCES: permission denied, mkdir '/Users/example/path'",
+  "EACCES: permission denied, mkdir '/Users/example/path/data/drive/users/owner/Hermes-徐欣/Eileen/插件'",
   parsed.root,
 );
 assert.match(compacted, /\$DRIVE\/users\/owner\/Hermes-徐欣\/Eileen\/插件/);
